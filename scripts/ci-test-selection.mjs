@@ -194,6 +194,7 @@ export function outputLines(decisions) {
   const lines = [];
   for (const job of ["security", "product"]) lines.push(`${job}_mode=${decisions[job].mode}`, `${job}_shards=${JSON.stringify(decisions[job].shards)}`);
   for (const job of ["native", "documentation", "gate_rules", "shell", "studio_replay", "account_login", "golden_third_party", "golden_history"]) if (decisions[job]) lines.push(`${job}_mode=${decisions[job].mode}`);
+  if (decisions.gate_rules) lines.push(`gate_rule_files=${decisions.gate_rules.mode === "some" ? JSON.stringify(decisions.gate_rules.files) : ""}`);
   lines.push(`security_files=${decisions.security.mode === "some" ? decisions.security.files.join(" ") : ""}`);
   lines.push(`product_only=${decisions.product.mode === "some" ? `^(?:${decisions.product.files.map(escape).join("|")})$` : ""}`);
   return lines;

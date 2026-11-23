@@ -1,12 +1,12 @@
-// scripts/machine-slot.mjs: three builds and three test batches, with real child processes controlling when each slot is released.
+// scripts/machine-slot.mjs: one machine-wide slot, with real child processes controlling when it is released.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { slotState, slotWanted } from "../scripts/machine-slot.mjs";
+import { releaseHolder, slotState, slotWanted } from "../scripts/machine-slot.mjs";
 
 const tool = fileURLToPath(new URL("../scripts/machine-slot.mjs", import.meta.url));
 const scratch: string[] = [];
@@ -28,7 +28,7 @@ const hold = (slots: string, kind: string, name: string) => {
   const script = `const fs=require("node:fs");const log=${JSON.stringify(log)};const name=${JSON.stringify(name)};
     fs.appendFileSync(log,name+" start\\n");process.stdin.resume();
     process.stdin.once("end",()=>fs.appendFileSync(log,name+" end\\n"));`;
-  const child = spawn(process.execPath, [tool, "run", kind, "--label", name, "--", process.execPath, "-e", script], { env: environment(slots) });
+  const child = spawn(process.execPath, [tool, "run", kind, "--label", name, "--", process.execPath, "-e", script], { cwd: directory(), env: environment(slots) });
   let output = "";
   child.stdout.on("data", (chunk) => { output += chunk; });
   child.stderr.on("data", (chunk) => { output += chunk; });
@@ -43,79 +43,115 @@ const hold = (slots: string, kind: string, name: string) => {
 };
 const status = (slots: string) => spawnSync(process.execPath, [tool, "status"], { env: environment(slots), encoding: "utf8", timeout: 5000 });
 
-for (const kind of ["build", "browser"]) {
-  test(`SLOT-01/SLOT-03: ${kind} admits three, queues the fourth and fifth in order, and releases each slot`, async () => {
-    const slots = directory(), runs: ReturnType<typeof hold>[] = [];
-    try {
-      for (const name of ["first", "second", "third"]) {
-        const run = hold(slots, kind, name); runs.push(run); await waitFor(run.started);
-      }
-      assert.equal(slotState(kind, slots).holders.length, 3);
-      const fourth = hold(slots, kind, "fourth"); runs.push(fourth);
-      await waitFor(() => slotState(kind, slots).waiting.length === 1);
-      const fifth = hold(slots, kind, "fifth"); runs.push(fifth);
-      await waitFor(() => slotState(kind, slots).waiting.length === 2);
-      assert.equal(fourth.started(), false); assert.equal(fifth.started(), false);
-      const snapshot = status(slots);
-      assert.equal(snapshot.status, 0);
-      assert.match(snapshot.stdout, new RegExp(`${kind}: 3/3 occupied; first .*second .*third .*waiting: fourth .*fifth`));
-      runs[0].release(); await waitFor(fourth.started);
-      assert.equal(fifth.started(), false, "one release admits only the oldest waiter");
-      runs[1].release(); await waitFor(fifth.started);
-      assert.match(fourth.output(), new RegExp(`waiting for the ${kind} slot, held by first`));
-      for (const run of runs) run.release();
-      assert.deepEqual(await Promise.all(runs.map((run) => run.done)), [0, 0, 0, 0, 0]);
-      let active = 0, maximum = 0;
-      for (const event of readFileSync(path.join(slots, "log"), "utf8").trim().split("\n")) {
-        active += event.endsWith(" start") ? 1 : -1;
-        maximum = Math.max(maximum, active);
-        assert.ok(active >= 0 && active <= 3, event);
-      }
-      assert.equal(maximum, 3); assert.equal(active, 0);
-      assert.match(status(slots).stdout, new RegExp(`${kind}: 0/3 occupied; free`));
-    } finally {
-      for (const run of runs) run.stop();
-      await Promise.allSettled(runs.map((run) => run.done));
-    }
-  });
-}
-
-test("SLOT-02: three builds and three browser batches can hold their independent pools together", async () => {
-  const slots = directory(), runs: ReturnType<typeof hold>[] = [];
+test("CIP-11 SLOT-01/SLOT-02: builds, non-browser tests, health and browser batches share FIFO across checkouts", async () => {
+  const slots = directory();
+  const runs: ReturnType<typeof hold>[] = [];
+  const kinds = ["build", "test", "health", "browser"];
   try {
-    for (const kind of ["build", "browser"]) {
-      for (let index = 1; index <= 3; index++) {
-        const run = hold(slots, kind, `${kind}-${index}`); runs.push(run); await waitFor(run.started);
-      }
+    for (const [index, kind] of kinds.entries()) {
+      const run = hold(slots, kind, kind);
+      runs.push(run);
+      if (index === 0) await waitFor(run.started);
+      else await waitFor(() => slotState(slots).waiting.length === index);
     }
     const snapshot = status(slots);
     assert.equal(snapshot.status, 0);
-    for (const kind of ["build", "browser"]) {
-      assert.equal(slotState(kind, slots).holders.length, 3);
-      assert.match(snapshot.stdout, new RegExp(`${kind}: 3/3 occupied; ${kind}-1 .*${kind}-2 .*${kind}-3`));
+    assert.match(snapshot.stdout, /heavy: 1\/1 occupied; build build .*waiting: test .*health .*browser /);
+    for (const [index, run] of runs.entries()) {
+      await waitFor(run.started);
+      assert.equal(slotState(slots).holder?.kind, kinds[index]);
+      for (const later of runs.slice(index + 1)) assert.equal(later.started(), false);
+      run.release();
+      assert.equal(await run.done, 0);
     }
+    const events = readFileSync(path.join(slots, "log"), "utf8").trim().split("\n");
+    assert.deepEqual(events, kinds.flatMap(kind => [`${kind} start`, `${kind} end`]));
+    assert.match(status(slots).stdout, /heavy: 0\/1 occupied; free/);
   } finally {
-    for (const run of runs) run.release();
-    await Promise.allSettled(runs.map((run) => run.done));
+    for (const run of runs) run.stop();
+    await Promise.allSettled(runs.map(run => run.done));
   }
 });
 
-test("SLOT-03: dead holders in every slot are reclaimed and command exit codes are preserved", () => {
+test("CIP-11 SLOT-04: nested kinds reuse their parent's slot, including forced-on validation", () => {
+  const slots = directory();
+  const result = spawnSync(process.execPath, [tool, "run", "build", "--", process.execPath, tool, "run", "health", "--",
+    process.execPath, "-e", "process.stdout.write(process.env.MOLIS_WORK_SLOT_HELD)"], { env: environment(slots), encoding: "utf8", timeout: 10_000 });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, "build");
+  assert.equal(slotState(slots).holder, null);
+});
+
+test("CIP-11: direct test and health entry points wait for a build before touching their inputs", async () => {
+  const slots = directory();
+  const fixture = directory();
+  const marker = path.join(fixture, "ran");
+  const file = path.join(fixture, "probe.test.mjs");
+  writeFileSync(file, `import { writeFileSync } from "node:fs"; writeFileSync(${JSON.stringify(marker)}, "ran");`);
+  const holder = hold(slots, "build", "building");
+  const start = (name: string, args: string[]) => {
+    const child = spawn(process.execPath, [path.join(path.dirname(tool), name), ...args], { env: environment(slots), stdio: "ignore" });
+    const done = new Promise<number | null>((resolve, reject) => {
+      child.once("exit", resolve);
+      child.once("error", reject);
+    });
+    return { child, done };
+  };
+  const commands: ReturnType<typeof start>[] = [];
+  try {
+    await waitFor(holder.started);
+    commands.push(start("run-tests.mjs", [file]));
+    await waitFor(() => slotState(slots).waiting.some((ticket: { kind: string }) => ticket.kind === "test"));
+    commands.push(start("check-health-gates.mjs", ["--root", fixture]));
+    await waitFor(() => slotState(slots).waiting.some((ticket: { kind: string }) => ticket.kind === "health"));
+    assert.equal(existsSync(marker), false);
+    holder.release();
+    assert.equal(await commands[0]!.done, 0);
+    assert.equal(readFileSync(marker, "utf8"), "ran");
+    assert.notEqual(await commands[1]!.done, 0, "the empty fixture has no health limits or baseline");
+    assert.equal(slotState(slots).holder, null);
+  } finally {
+    holder.stop();
+    for (const { child } of commands) child.kill("SIGTERM");
+    await Promise.allSettled([holder.done, ...commands.map(command => command.done)]);
+  }
+});
+
+test("CIP-11: workspace typecheck and clean hold the shared slot while pnpm runs a package script", () => {
+  const slots = directory(), fixture = directory();
+  const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  const scripts = { "workspace:typecheck": manifest.scripts["workspace:typecheck"], "workspace:clean": manifest.scripts["workspace:clean"] };
+  writeFileSync(path.join(fixture, "package.json"), JSON.stringify({ name: "workspace-probe", private: true, packageManager: manifest.packageManager, scripts }));
+  writeFileSync(path.join(fixture, "pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n");
+  mkdirSync(path.join(fixture, "scripts"));
+  for (const file of ["machine-slot.mjs", "script-paths.mjs"]) copyFileSync(path.join(path.dirname(tool), file), path.join(fixture, "scripts", file));
+  const pkg = path.join(fixture, "packages", "probe");
+  mkdirSync(pkg, { recursive: true });
+  const observe = "node ../../scripts/machine-slot.mjs status";
+  writeFileSync(path.join(pkg, "package.json"), JSON.stringify({ name: "probe", scripts: { typecheck: observe, clean: observe } }));
+  for (const [command, expected] of [["workspace:typecheck", "health workspace-types"], ["workspace:clean", "build workspace-clean"]] as const) {
+    const result = spawnSync("pnpm", ["run", command], { cwd: fixture, env: environment(slots), encoding: "utf8", timeout: 15_000 });
+    assert.equal(result.status, 0, result.error?.message ?? result.stderr);
+    assert.ok(result.stdout.includes(`heavy: 1/1 occupied; ${expected} (`), result.stdout);
+    assert.equal(slotState(slots).holder, null);
+  }
+});
+
+test("SLOT-03: the next kind reclaims a dead holder and preserves the command exit code", () => {
   const slots = directory();
   const gone = spawnSync(process.execPath, ["-e", "console.log(process.pid)"], { encoding: "utf8" });
-  for (const name of ["build.held", "build.2.held", "build.3.held"]) {
-    mkdirSync(path.join(slots, name));
-    writeFileSync(path.join(slots, name, "info.json"), JSON.stringify({ kind: "build", label: "crashed", pid: Number(gone.stdout.trim()), cwd: "/", since: Date.now() }));
-  }
-  const run = spawnSync(process.execPath, [tool, "run", "build", "--", process.execPath, "-e", "process.exit(3)"], { env: environment(slots), encoding: "utf8", timeout: 20_000 });
-  assert.equal(run.status, 3, "the command ran, and its exit code is the run's");
+  const held = path.join(slots, "heavy.held");
+  mkdirSync(held);
+  writeFileSync(path.join(held, "info.json"), JSON.stringify({ kind: "build", label: "crashed", pid: Number(gone.stdout.trim()), cwd: "/", since: Date.now() }));
+  const run = spawnSync(process.execPath, [tool, "run", "test", "--", process.execPath, "-e", "process.exit(3)"], { env: environment(slots), encoding: "utf8", timeout: 20_000 });
+  assert.equal(run.status, 3);
   assert.doesNotMatch(run.stdout, /waiting/);
-  const status = spawnSync(process.execPath, [tool, "status"], { env: environment(slots), encoding: "utf8" });
-  assert.match(status.stdout, /^build: 0\/3 occupied; free$/m, "released after the command");
+  assert.equal(slotState(slots).holder, null);
+  assert.equal(existsSync(held), false);
 });
 
 test("SLOT-03: a live waiter's ticket that another reader cannot parse yet is kept; a dead one's is removed", () => {
-  const slots = directory(), queue = path.join(slots, "build.queue");
+  const slots = directory(), queue = path.join(slots, "heavy.queue");
   const gone = Number(spawnSync(process.execPath, ["-e", "console.log(process.pid)"], { encoding: "utf8" }).stdout.trim());
   mkdirSync(queue, { recursive: true });
   const live = path.join(queue, `000000000000001-${process.pid}.json`), dead = path.join(queue, `000000000000002-${gone}.json`);
@@ -123,22 +159,50 @@ test("SLOT-03: a live waiter's ticket that another reader cannot parse yet is ke
   writeFileSync(dead, JSON.stringify({ kind: "build", label: "crashed", pid: gone, cwd: "/", since: 2 }));
   mkdirSync(`${queue}.writing`);
   writeFileSync(path.join(`${queue}.writing`, path.basename(dead)), "");
-  slotState("build", slots);
+  slotState(slots);
   assert.ok(existsSync(live), "a reader must not take a half-written ticket for a dead one and remove it");
   assert.deepEqual(readdirSync(queue), [path.basename(live)]);
   assert.deepEqual(readdirSync(`${queue}.writing`), [], "a dead writer's unfinished copy is removed");
 });
 
-test("SLOT-03: a waiter whose ticket is removed restores its place and acquires a released slot", async () => {
-  const slots = directory(), queue = path.join(slots, "build.queue"), runs: ReturnType<typeof hold>[] = [];
+test("CIP-11: two waiters reclaiming the same dead owner cannot remove its live successor", async () => {
+  const slots = directory();
+  const held = path.join(slots, "heavy.held");
+  const gone = Number(spawnSync(process.execPath, ["-p", "process.pid"], { encoding: "utf8" }).stdout);
+  mkdirSync(held);
+  writeFileSync(path.join(held, `1-${gone}.json`), JSON.stringify({ pid: gone, kind: "build", label: "dead", since: 1 }));
+  const observed = slotState(slots).abandoned;
+  assert.ok(observed?.marker);
+  const live = hold(slots, "test", "successor");
+  const runs = [live];
   try {
-    for (const name of ["first", "second", "third"]) {
-      const run = hold(slots, "build", name); runs.push(run); await waitFor(run.started);
-    }
+    await waitFor(live.started);
+    releaseHolder(held, observed.marker); // a second cleaner resumes with the earlier observation
+    assert.equal(slotState(slots).holder?.label, "successor");
+    const waiting = hold(slots, "build", "queued");
+    runs.push(waiting);
+    await waitFor(() => slotState(slots).waiting.length === 1);
+    assert.equal(waiting.started(), false);
+    live.release();
+    await waitFor(waiting.started);
+    waiting.release();
+    assert.deepEqual(await Promise.all(runs.map(run => run.done)), [0, 0]);
+  } finally {
+    for (const run of runs) run.stop();
+    await Promise.allSettled(runs.map(run => run.done));
+  }
+});
+
+test("SLOT-03: a waiter whose ticket is removed restores its place and acquires a released slot", async () => {
+  const slots = directory(), queue = path.join(slots, "heavy.queue"), runs: ReturnType<typeof hold>[] = [];
+  try {
+    const first = hold(slots, "build", "first");
+    runs.push(first);
+    await waitFor(first.started);
     const waiter = hold(slots, "build", "waiter"); runs.push(waiter);
-    await waitFor(() => slotState("build", slots).waiting.length === 1);
+    await waitFor(() => slotState(slots).waiting.length === 1);
     for (const name of readdirSync(queue)) rmSync(path.join(queue, name), { force: true });
-    await waitFor(() => slotState("build", slots).waiting.length === 1);
+    await waitFor(() => slotState(slots).waiting.length === 1);
     assert.equal(waiter.started(), false);
     runs[0].release(); await waitFor(waiter.started);
   } finally {
@@ -154,13 +218,13 @@ test("SLOT-04 slotWanted: not in CI, not inside a test, not when a parent holds 
     Object.assign(process.env, values);
   };
   try {
-    set({}); assert.equal(slotWanted("build"), true);
-    set({ CI: "true" }); assert.equal(slotWanted("build"), false);
-    set({ NODE_ENV: "test" }); assert.equal(slotWanted("build"), false);
-    set({ MOLIS_WORK_SLOT_HELD: "browser,build" }); assert.equal(slotWanted("build"), false);
-    set({ MOLIS_WORK_SLOT: "off" }); assert.equal(slotWanted("browser"), false);
-    set({ MOLIS_WORK_SLOT: "on", NODE_ENV: "test" }); assert.equal(slotWanted("browser"), true);
-    set({ MOLIS_WORK_SLOT: "on", MOLIS_WORK_SLOT_HELD: "browser" }); assert.equal(slotWanted("browser"), false, "a parent's slot is never taken twice");
+    set({}); assert.equal(slotWanted(), true);
+    set({ CI: "true" }); assert.equal(slotWanted(), false);
+    set({ NODE_ENV: "test" }); assert.equal(slotWanted(), false);
+    set({ MOLIS_WORK_SLOT_HELD: "browser,build" }); assert.equal(slotWanted(), false);
+    set({ MOLIS_WORK_SLOT: "off" }); assert.equal(slotWanted(), false);
+    set({ MOLIS_WORK_SLOT: "on", NODE_ENV: "test" }); assert.equal(slotWanted(), true);
+    set({ MOLIS_WORK_SLOT: "on", MOLIS_WORK_SLOT_HELD: "browser" }); assert.equal(slotWanted(), false, "a parent's slot is never taken twice");
   } finally {
     for (const name of Object.keys(process.env)) if (!(name in saved)) delete process.env[name];
     Object.assign(process.env, saved);

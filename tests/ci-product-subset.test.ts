@@ -520,7 +520,7 @@ test("ci.yml: a blocking job runs the subset's own rules", () => {
 test("MR19-06 workflows: shared dist build artifacts are passed via build job outputs so --failed reruns resolve attempt-1 outputs", () => {
   for (const [file, prefix, expectedDownloads] of [
     ["ci.yml", "ci-dist", 6],
-    ["full-suite.yml", "full-suite-dist", 1],
+    ["full-suite.yml", "full-suite-dist", 2],
     ["visual-audit.yml", "visual-audit-dist", 2],
   ] as const) {
     const text = readFileSync(path.join(repoRoot, ".github/workflows", file), "utf8");

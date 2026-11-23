@@ -1,4 +1,5 @@
 // V2U-04/06/07: actual installation Host + actual Auth/D1 + Chrome. Only delivery is an explicit mock.
+import {requestPhoneChallenge} from './account-test-phone-challenge.mjs';
 import assert from 'node:assert/strict';
 import {channel} from 'node:diagnostics_channel';
 const pageEvents=[];channel('molis-work.account-pages').subscribe(event=>pageEvents.push({event:event.event,reason:event.reason}));
@@ -36,7 +37,7 @@ async function form(target,phone){
  // Isolated Auth fixture: keep this lifecycle stress separate from OTP rate-limit coverage.
  await proxy.env.DB.prepare('UPDATE auth_rate_bucket SET expires_at=0').run();
  await target.command('Page.bringToFront');await target.wait("document.visibilityState==='visible'");await target.wait("Boolean(document.querySelector('.account-dialog input[name=address]')) && !document.querySelector('.account-form').hasAttribute('aria-busy')");
- await target.evaluate("{const b=[...document.querySelectorAll('.account-modes button')].find(b=>b.textContent==='手机验证码');b.dataset.rapidPhone='';}");await target.click('[data-rapid-phone]');await target.fill('input[name=address]',phone.slice(3));await target.click('.account-form button[type=submit]');await target.wait("Boolean(document.querySelector('input[name=code]'))");
+ await requestPhoneChallenge(target,phone.slice(3));
  const sent=await proxy.env.DB.prepare('SELECT credential FROM auth_mock_delivery WHERE destination=? ORDER BY created_at DESC LIMIT 1').bind(phone).first();assert.ok(sent);await target.fill('input[name=code]',sent.credential);await target.click('.account-form button[type=submit]');
 }
 async function verified(phone){

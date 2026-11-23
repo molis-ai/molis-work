@@ -40,7 +40,7 @@ for (const file of files) {
     rows.push([file, "Rust", "native-checks", ""]);
     continue;
   }
-  if (workerFiles.has(file)) rows.push([file, "Worker WASM + D1/R2", "personal-sync-tools", ""]);
+  if (workerFiles.has(file)) rows.push([file, "Worker WASM + D1/R2", "Full,personal-sync-tools", ""]);
   else if (file === "tests/npm-distribution-smoke.mjs") rows.push([file, "npm install", "release smoke", ""]);
   else if (file === "tests/goal-event-visual.capture.ts" || file === "tests/fixtures/visual-capture.mts")
     rows.push([file, "screenshot", file.includes("/fixtures/") ? "visual" : "manual", "browser"]);

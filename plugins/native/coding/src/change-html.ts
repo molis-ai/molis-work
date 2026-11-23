@@ -9,7 +9,7 @@ import {
   type DiffViewLabels,
   type DiffViewPrimitives,
 } from "@molis-ai/molis-work-plugin-sdk/diff-view";
-import { codingChangedLines, codingNetChange } from "./changeset.js";
+import { codingChangedLines, codingChangeSetReference, codingNetChange } from "./changeset.js";
 import { CODING_PLUGIN_ID } from "./manifest.js";
 
 /**
@@ -58,8 +58,9 @@ function drawChange(body: ChangeBody & { change: CodingChangeSet }, query: Reado
     const kind = last.kind === "deleted" ? "deleted" as const : net.before_text === null ? "added" as const : "modified" as const;
     return [{ ...last, kind, review: { ...last.review, before_text: net.before_text } }];
   })() : null;
+  const reference = body.reference ?? codingChangeSetReference(change.origin.session_id, change.run_id);
   const view = compareCodingChangeSet(netFiles ? { ...change, files: netFiles } : change,
-    { source_plugin_id: CODING_PLUGIN_ID, content_version: body.reference?.version ?? 1 }, netFiles ? 0 : index, {
+    { source_plugin_id: CODING_PLUGIN_ID, content_version: reference.version }, netFiles ? 0 : index, {
       empty: t.text("coding.change.reader.no-text-review"),
       missing: t.text("coding.change.reader.no-such-change"),
       recovery: t.text("coding.change.reader.run-again"),

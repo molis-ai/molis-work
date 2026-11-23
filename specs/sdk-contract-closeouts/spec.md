@@ -9,6 +9,7 @@
 - `host.scope.watchRevision` 已由 UI Host 实现。公开的 `UiClientScope` 补上现行签名，Git、Coding 和 Schedule 从这里取类型。轮询、暂停、取消和刷新回调沿用 UI Host 的实现。
 - 成果模块的 read、head、own、publish、record、process-head、process-own 与 list 共用 `bindActionHandler`，输入类型按现有 schema 推导。写入 schema 的 payload 和 metadata 保持开放，由原有的成果存储入口验证和规范化 JSON。内部写入参数声明体现这条边界，插件直接调用的 SDK 类型、注册身份、权限、同步执行、动作版本及 schema 值保持原行为。独立 Artifacts 插件已从 main 移除，核对模块现行登记、SDK 动作 schema 和 Shelf 的真实调用。Shelf 按平台返回的可消费版本列表读取正文。
 - `/diff-view` 提供固定 Coding 变更的视图。按条目索引或路径选择，返回全部文件摘要、选中版本来源和对比行，统一判断新增和删除。Coding 继续筛选可用的净变更、生成可复制补丁并决定布局。Diff 继续解析输入、决定比较路径并提供自己的提示文案。沿用两边的空态、缺项提示和已有输出。
+- Coding 预览从已有的固定变更引用规则取得首版显示值。页面仍用实际保存的引用决定是否可以提交逐行意见。
 
 ## 开工前检查
 

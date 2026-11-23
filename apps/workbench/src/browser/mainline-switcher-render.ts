@@ -125,7 +125,7 @@ function renderCreateBox(state: SwitcherRenderState): string {
 export function renderMainlineSwitcherHtml(state: SwitcherRenderState): string {
   const needle = state.query.trim().toLowerCase();
   const isHome = state.view.mainline.current === null;
-  const homeRow = `<button class="top-corner-page" type="button" data-ml-pick-home${isHome ? ' aria-current="page"' : ""}>${icon("home")}<span>${e(uiText.text("workbench.settings-navigation.project-home"))}</span></button>`;
+  const homeRow = `<button class="top-corner-page" type="button" data-corner-home data-ml-pick-home${isHome ? ' aria-current="page"' : ""}>${icon("home")}<span>${e(uiText.text("workbench.settings-navigation.project-home"))}</span></button>`;
   const search = `<div class="ml-search-wrap">${icon("search")}<input class="ml-search-input" type="search" data-mainline-search value="${e(state.query)}" placeholder="${e(uiText.text("workbench.mainline.search-placeholder"))}" aria-label="${e(uiText.text("workbench.mainline.search-placeholder"))}" autocomplete="off"></div>`;
   const hasItems = state.view.mainline.items.length > 0;
   let body = "";

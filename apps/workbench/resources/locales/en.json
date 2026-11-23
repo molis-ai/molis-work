@@ -10989,7 +10989,13 @@
     "workbench.home-pages.conflict-picked-merge": "Merging before further edits.",
     "workbench.home-pages.conflict-change": "Change",
     "workbench.home-pages.check-item-issue": "{label}: {reason}",
-    "workbench.home-pages.conflict-next-summary": "{title} ({n} files changed)",
+    "workbench.home-pages.conflict-next-summary": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{title} ({n} file changed)",
+        "other": "{title} ({n} files changed)"
+      }
+    },
     "workbench.home-pages.conflict-confirm-mine": "Keep v{base}",
     "workbench.home-pages.kept-mine-toast": "Kept your manually edited v{base}",
     "workbench.home-pages.preview-blocked-title": "Checks failed, preview not opened",

@@ -129,6 +129,7 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
     const active = document.activeElement;
     const hadSearch = active?.matches?.("[data-mainline-search]");
     const hadCreate = active?.matches?.("[data-mainline-create-input]");
+    const hadCornerHome = active?.matches?.("[data-corner-home]");
     const createVal = slot.querySelector<HTMLInputElement>("[data-mainline-create-input]")?.value ?? "";
     const selStart = active instanceof HTMLInputElement ? active.selectionStart : null;
     slot.innerHTML = renderMainlineSwitcherHtml({
@@ -149,6 +150,8 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
     } else if (hadCreate && nextCreate) {
       nextCreate.focus({ preventScroll: true });
       if (selStart !== null) nextCreate.setSelectionRange(selStart, selStart);
+    } else if (hadCornerHome) {
+      slot.querySelector<HTMLElement>("[data-corner-home]")?.focus({ preventScroll: true });
     }
     paintCornerTrigger(view);
   };
@@ -406,9 +409,16 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
   });
 
   document.addEventListener("molis-work:language-changed", () => paint());
-  document.addEventListener("molis-work:plugins-changed", () => void refresh(true));
-  window.addEventListener("molis:placement-changed", () => void refresh(true));
+  document.addEventListener("molis-work:plugins-changed", () => { if (view) void refresh(true); });
+  window.addEventListener("molis:placement-changed", () => { if (view) void refresh(true); });
 
-  void refresh(true);
+  // N53: ride the page's single `/api/attention` read on boot so projects with zero work items send zero extra HTTP requests until the person opens the switcher.
+  let bootChecked = false;
+  document.addEventListener("molis-work:attention", (event) => {
+    if (bootChecked || view) return;
+    bootChecked = true;
+    const summary = (event as CustomEvent<{ mainline_summary?: { has_items?: boolean; current?: string | null } }>).detail?.mainline_summary;
+    if (!summary || summary.has_items || summary.current) void refresh(true);
+  });
   return { refresh, switchTo, openOrganize: () => organize.open(), current: () => view?.mainline.current ?? null };
 }

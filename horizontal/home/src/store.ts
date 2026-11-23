@@ -206,6 +206,8 @@ export interface StoredVersionDetail {
  * Project-scoped storage owner for `horizontal/home`. Every SQL statement filters by `project_id` so one project can never read
  * or mutate another project's generated home pages or blobs.
  */
+const FIRST_PAGE_REVISION = 1;
+
 export class HomePagesStore {
   constructor(
     private readonly db: DatabaseSync,
@@ -472,7 +474,7 @@ export class HomePagesStore {
           throw homeErrors.page_limit(`一个项目最多保存 ${HOME_PAGE_RETENTION.maxPagesPerProject} 个生成首页`);
         }
         const pageId = `page-${randomUUID().slice(0, 12)}`;
-        return this.writeVersionInTx({ page_id: pageId, version: 1, draft: input.draft, author: input.author });
+        return this.writeVersionInTx({ page_id: pageId, version: FIRST_PAGE_REVISION, draft: input.draft, author: input.author });
       }
       const latest = this.readLatestVersion(input.page_id);
       if (!latest) throw homeErrors.page_not_found("找不到这个生成首页");
@@ -523,7 +525,7 @@ export class HomePagesStore {
         const pageId = `page-${randomUUID().slice(0, 12)}`;
         const saved = this.writeVersionInTx({
           page_id: pageId,
-          version: 1,
+          version: FIRST_PAGE_REVISION,
           draft: input.draft,
           author: input.author,
           origin: input.blueprint,

@@ -7,10 +7,12 @@ import { HOME_PAGE_SESSION_HEADER, HomePageSessionRegistry, projectDeletedHooksF
 import {
   ActionError,
   LOCAL_PERSON_ACTOR_ID,
+  bindActionHandler,
   type ActionCallContext,
   type ActionDefinition,
   type ExactActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ContentAdoptionResult } from "@molis-ai/molis-work-contracts/platform/blueprints";
 import {
   HOME_PAGE_RETENTION,
@@ -18,7 +20,6 @@ import {
   type HomePageApprovalReceipt,
   type HomePageDiffResult,
   type HomePageDraft,
-  type HomePageFilesResult,
   type HomePageOverview,
   type HomePagePreviewResult,
   type HomePageReadResult,
@@ -49,10 +50,6 @@ const COMMAND_ACTION: ExactActionReference = {
   capability_id: "materials.recent.record",
   version: 1,
   provider_id: "system.project-workspaces",
-};
-
-const COMMAND_INPUT = {
-  refs: [{ subject: { kind: "artifact", id: "art-demo" }, pin: { mode: "fixed", version: { artifact_id: "art-demo", version: 1 } } }],
 };
 
 const AGENT_ONLY_ACTION: ExactActionReference = {
@@ -559,7 +556,7 @@ test("S-home-page-authority SPC-11 ONB-25 ONB-26: preview is query-only, live ex
   const registry = new HomePageSessionRegistry();
   const ports: HomePagesPorts = {
     open: projectId => new HomePagesStore(db, projectId),
-    discover: (caller) => actions.discover({ ...caller, audience: "plugin" }),
+    discover: async caller => actions.discover({ ...caller, audience: "plugin" }),
     openPreviewSession: (caller, version) => ({ page_session_id: registry.openPreview(caller.project_id!, caller.actor_id, version).page_session_id }),
     onSelectionChanged: projectId => registry.revokeLiveProject(projectId),
   };
@@ -627,7 +624,7 @@ test("S-home-page-approval SPC-11 ONB-27: adopt and restore refuse agents, plugi
   const registry = new HomePageSessionRegistry();
   const ports: HomePagesPorts = {
     open: projectId => new HomePagesStore(db, projectId),
-    discover: caller => actions.discover({ ...caller, audience: "plugin" }),
+    discover: async caller => actions.discover({ ...caller, audience: "plugin" }),
     openPreviewSession: (caller, version) => ({ page_session_id: registry.openPreview(caller.project_id!, caller.actor_id, version).page_session_id }),
     onSelectionChanged: projectId => registry.revokeLiveProject(projectId),
   };
@@ -666,17 +663,14 @@ test("S-home-page-approval SPC-11 ONB-27: adopt and restore refuse agents, plugi
   actions.registerProvider({
     provider: { provider_id: "fixture.blueprints", title: "Blueprints Fixture", kind: "system" },
     definitions: [nestedWrapperDef],
-    handlers: [{
-      ...nestedWrapperDef,
-      handle: async (ctx, input) => {
-        const target = input.op === "adopt" ? homePageActions.adopt : homePageActions.restore;
-        return actions.invoke(
-          { actor_id: ctx.actor_id, project_id: ctx.project_id, audience: "user", permissions: ["home:read", "home:write"] },
-          target,
-          { page_id: input.page_id, version: 1, approved_actions: [], request_id: `nested-${input.op}`, expected_revision: input.expected_revision },
-        );
-      },
-    }],
+    handlers: [bindActionHandler(nestedWrapperDef, async (input, ctx) => {
+      const target = input.op === "adopt" ? homePageActions.adopt : homePageActions.restore;
+      return actions.invoke(
+        { actor_id: ctx.actor_id, project_id: ctx.project_id, audience: "user", permissions: ["home:read", "home:write"] },
+        target,
+        { page_id: input.page_id, version: 1, approved_actions: [], request_id: `nested-${input.op}`, expected_revision: input.expected_revision },
+      );
+    })],
   });
 
   const userCaller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "p-approval", audience: "user", permissions: ["home:read", "home:write"] };
@@ -687,13 +681,19 @@ test("S-home-page-approval SPC-11 ONB-27: adopt and restore refuse agents, plugi
   assert.deepEqual(initial.selection, { kind: "basic" });
 
   // 1. Agent, plugin, MCP, workflow, delegated, host_plugin, and home_page callers MUST all be refused!
+  const fakeHostPlugin = {
+    plugin_id: "com.example.plugin",
+    install_id: "install-fixture",
+    actor_id: LOCAL_PERSON_ACTOR_ID,
+    project_id: "p-approval",
+  } as HostPluginCaller;
   const forbiddenCallers: Array<[string, ActionCallContext]> = [
     ["agent", { ...userCaller, audience: "agent" }],
     ["plugin", { ...userCaller, audience: "plugin" }],
     ["mcp", { ...userCaller, audience: "mcp" }],
     ["workflow", { ...userCaller, audience: "workflow" }],
     ["delegated", { ...userCaller, delegated_by: "agent:assistant" }],
-    ["host_plugin", { ...userCaller, host_plugin: "com.example.plugin" }],
+    ["host_plugin", { ...userCaller, host_plugin: fakeHostPlugin }],
     ["home_page", { ...userCaller, home_page: { kind: "home-page", project_id: "p-approval", page_id: saved.version.page_id, version: 1 } }],
     ["home_page_preview", { ...userCaller, home_page: { kind: "home-page-preview", project_id: "p-approval", page_id: saved.version.page_id, version: 1 } }],
   ];

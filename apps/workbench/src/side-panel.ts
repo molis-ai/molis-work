@@ -48,7 +48,7 @@ export interface SideViews {
 }
 
 /** 「这件事的东西」: what belongs to the current work item (specs/work-mainline §4.3, Batch 37-2); right-sidebar IM (`discussion`) stays alongside it (Decision 66 R21). */
-const ITEM_CONTENTS_TAB = ["item-contents", "workbench.side-panel-tab.item-contents", "folder-tree", 15] as const;
+const ITEM_CONTENTS_TAB = ["item-contents", "workbench.side-panel-tab.item-contents", "folder-tree", 52] as const;
 /** The panel's own tabs, in the places they take among the plugins' (side-shelf §3.1: Shelf · 灵光 · 资料 · 浏览器 · 电脑 · 讨论; 资料 was 文件, specs/project-knowledge §8.1). */
 const OWN_TABS = [["files", "workbench.side-panel-tab.materials", "file", 20], ["browser", "workbench.side-panel-tab.browser", "globe", 30], ["computer", "workbench.side-panel-tab.computer", "system", 40], ["discussion", "workbench.side-panel-tab.discussion", "message", 50]] as const;
 /** 「对话」: the event cards parked beside the work (specs/work-line §4.4, WLN-14). Offered only while one is parked there. */

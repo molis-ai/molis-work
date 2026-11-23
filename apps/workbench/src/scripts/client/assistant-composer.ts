@@ -281,6 +281,8 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   };
   /* 「在：事项名 ×」 pill in the composer's bottom row (MLN-16, BL-dialog-info-column-prototype-gaps #4):
      shows the active work item; pressing × clears it so the next Send goes to the whole project instead. */
+  var currentWorkItem = null, itemScopeDismissed = false;
+  function activeWorkItem() { return !itemScopeDismissed && currentWorkItem ? currentWorkItem : null; }
   const pillXSvg = ${JSON.stringify(icon("x"))};
   const pill = document.createElement("span");
   pill.className = "work-item-pill";
@@ -327,6 +329,28 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     if (!pill.hidden && !pill.isConnected) paintItemPill();
   });
   pillObserver.observe(compose, { childList: true, subtree: true });
+  function onWorkItemChanged(event) {
+    const detail = event?.detail || {};
+    const next = detail.item_id ? { id: detail.item_id, name: detail.item_name || detail.item_id } : null;
+    const changed = (next?.id || null) !== (currentWorkItem?.id || null);
+    currentWorkItem = next;
+    if (changed) {
+      itemScopeDismissed = false;
+      fresh = false;
+      const remembered = store.get(scoped("current"));
+      const target = remembered && works.some((work) => work.work_id === remembered) ? remembered : mainId();
+      void showWork(target);
+    }
+    paintItemPill();
+    drawHead();
+  }
+  document.addEventListener("molis-work:work-item-changed", onWorkItemChanged);
+  document.addEventListener("molis-work:language-changed", paintItemPill);
+  function disposeWorkItemPill() {
+    document.removeEventListener("molis-work:work-item-changed", onWorkItemChanged);
+    document.removeEventListener("molis-work:language-changed", paintItemPill);
+    pillObserver.disconnect();
+  }
   const mountComposer = () => {
     island.removeAttribute("data-receiver"); drawHead(); paintAim(false);
     refreshComposerWords = assistantInputName; refreshComposerWords();

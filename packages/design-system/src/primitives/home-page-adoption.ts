@@ -36,7 +36,7 @@ export const HOME_PAGE_ADOPTION_STYLES = `
   .mw-compare-adopt-bar__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
 
   /* 2 · Check summary: a clickable status mark carrying a disclosure chevron, paired with an anchored popover listing every check. */
-  .mw-check-summary { position: relative; display: inline-flex; align-items: center; min-width: 0; }
+  .mw-check-summary { position: relative; display: inline-flex; align-items: center; max-width: 100%; min-width: 0; }
   .mw-check-summary__trigger {
     appearance: none; display: inline-flex; align-items: center; gap: 6px; min-width: 0; min-height: 30px;
     padding: 0 8px 0 6px; border: 1px solid var(--line); border-radius: var(--r-control, 8px);
@@ -51,8 +51,10 @@ export const HOME_PAGE_ADOPTION_STYLES = `
   .mw-check-summary__trigger[aria-expanded="true"] .mw-check-summary__chevron { transform: rotate(180deg); }
   .mw-check-summary__popover {
     position: absolute; left: 0; top: calc(100% + 6px); z-index: 20;
-    width: min(360px, calc(100vw - 32px)); padding: 12px;
+    width: min(360px, calc(100vw - 48px)); max-width: 100%; box-sizing: border-box; padding: 12px;
   }
+  .mw-catalog .mw-check-summary { display: grid; justify-items: start; gap: 6px; width: 100%; }
+  .mw-catalog .mw-check-summary__popover { width: min(360px, 100%); }
   .mw-check-summary[data-placement="up"] .mw-check-summary__popover { top: auto; bottom: calc(100% + 6px); }
   .mw-check-summary__popover[hidden] { display: none; }
   .mw-check-summary__list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }

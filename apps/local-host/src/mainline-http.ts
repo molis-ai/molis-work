@@ -51,7 +51,10 @@ export function mainlineAttention(
   request: IncomingMessage,
   host: MolisWorkLocalHost,
   project: LocalHostProjectReference,
-): { line(item?: string | null): Promise<WorkLineReadResult> } | null {
+): {
+  line(item?: string | null): Promise<WorkLineReadResult>;
+  summary(): Promise<{ has_items: boolean; current: string | null }>;
+} | null {
   if (pluginPageRequest(request) || homePageRequestBound(request)) return null;
   const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS);
   return {
@@ -63,6 +66,10 @@ export function mainlineAttention(
         now: new Date(now).toISOString(),
         ...(item ? { item } : {}),
       });
+    },
+    summary: async () => {
+      const state = await client.invoke(mainlineItemActions.read, {});
+      return { has_items: state.items.length > 0, current: state.current };
     },
   };
 }

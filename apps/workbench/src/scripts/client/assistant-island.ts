@@ -76,8 +76,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     set(key, value) { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* per-viewer convenience only */ } },
   };
   // What this viewer has in front of them is remembered per project (proactive-assistant §12.1) and per work item (MLN-16).
-  let currentWorkItem = null, itemScopeDismissed = false;
-  const activeWorkItem = () => (!itemScopeDismissed && currentWorkItem) ? currentWorkItem : null;
   const scoped = (name) => "molis.assistant." + name + (project ? ":" + project.id : "") + (activeWorkItem() ? ":item:" + activeWorkItem().id : "");
   let works = [];
   let curId = store.get(scoped("current"));
@@ -639,27 +637,10 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     Object.assign(words, composerWords());
     refreshComposerWords();
     paintAim();
-    paintItemPill();
     composer?.refresh();
     void loadExecutors();
   };
   document.addEventListener("molis-work:language-changed", retitleReviews);
-  const onWorkItemChanged = (event) => {
-    const detail = event?.detail || {};
-    const next = detail.item_id ? { id: detail.item_id, name: detail.item_name || detail.item_id } : null;
-    const changed = (next?.id || null) !== (currentWorkItem?.id || null);
-    currentWorkItem = next;
-    if (changed) {
-      itemScopeDismissed = false;
-      fresh = false;
-      const remembered = store.get(scoped("current"));
-      const target = remembered && works.some((work) => work.work_id === remembered) ? remembered : mainId();
-      void showWork(target);
-    }
-    paintItemPill();
-    drawHead();
-  };
-  document.addEventListener("molis-work:work-item-changed", onWorkItemChanged);
   presentation = (${ASSISTANT_MAX_FACTORY})({island,panel});
   /* ─── Head controls ────────────────────────────────────────────────────── */
   island.querySelector("[data-assistant-panel-close]")?.addEventListener("click", () => setPanel(false));
@@ -784,5 +765,5 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
       closeSubtask(); project = chosen; eventTabs = []; nextChar = undefined; talkDraft = ""; nextScope = project ? "project" : "personal";
       void showWork(store.get(scoped("current")));
     },
-    dispose: () => { closeSubtask(); releaseSubtaskAccount?.(); executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); document.removeEventListener("molis-work:work-item-changed", onWorkItemChanged); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); pillObserver.disconnect(); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
+    dispose: () => { closeSubtask(); releaseSubtaskAccount?.(); executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); disposeWorkItemPill(); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
 }`;

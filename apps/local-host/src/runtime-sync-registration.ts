@@ -29,7 +29,7 @@ export function runtimeSyncRegistration(home: string, spaceId: string, owners: r
   const scope = (key: string) => { const parsed = runtimeSyncKey(key), current = owner(JSON.stringify(parsed.projectId)); return { ...parsed, binding: current.binding, spaceId }; };
   return {
     selection, title: identity.collection.title,
-    // The coordinator uses this port to put reference owners ahead of collections that read their facts.
+    // The sync service uses this port to restore reference owners before collections that read their facts.
     ...(owners.some(({ binding }) => binding.hasReference) ? { hasReference(projectId: string, assetId: string, version?: number) {
       authorize();const scope=byScope.get(JSON.stringify(projectId))??byScope.get('null');
       if(!scope||!scope.binding.available()||!scope.binding.hasReference)return false;

@@ -4532,6 +4532,8 @@
     "workbench.http.local-control-request-was-rejected": "Local control request was rejected",
     "workbench.http.request-could-not-be-completed-please-try-again": "The request could not be completed. Please try again.",
     "workbench.http.request-missing-valid-one-time-operation-key": "The request is missing a valid one-time operation key",
+    "workbench.http.service-unavailable": "The local service is temporarily unavailable",
+    "workbench.http.service-unavailable-next": "Wait a moment and try again. If the page still won’t open, reopen Molis Work.",
     "workbench.i18n.language": "Language",
     "workbench.immersive-navigation.current-project-settings": "Current project settings",
     "workbench.immersive-navigation.open-current-project-settings": "Open current project settings",

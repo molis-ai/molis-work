@@ -4228,6 +4228,8 @@
     "workbench.http.local-control-request-was-rejected": "本地控制请求校验失败",
     "workbench.http.request-could-not-be-completed-please-try-again": "请求未能完成，请重试。",
     "workbench.http.request-missing-valid-one-time-operation-key": "请求缺少有效的一次性操作键",
+    "workbench.http.service-unavailable": "本机服务暂时不可用",
+    "workbench.http.service-unavailable-next": "稍等片刻后重试。如果还是打不开，请重新打开 Molis Work。",
     "workbench.i18n.language": "界面语言",
     "workbench.immersive-navigation.current-project-settings": "当前项目设置",
     "workbench.immersive-navigation.open-current-project-settings": "打开当前项目设置",

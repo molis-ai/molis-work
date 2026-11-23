@@ -56,13 +56,24 @@ export function decodeLocalWebPathPart(part: string): string {
   }
 }
 
-/** Unexpected route failures retain a diagnostic call id, never their raw message or stack. */
-export function sendUnhandledWebError(response: ServerResponse, error: unknown, request?: IncomingMessage): void {
+/** Unexpected route failures are logged. Only structured responses carry the diagnostic call id. */
+export function sendUnhandledWebError(response: ServerResponse, error: unknown, request?: IncomingMessage,
+  unavailablePage?: { render(): string; csp: string }): void {
   // A reset of this aborted body is request cancellation; unrelated upstream or handler errors retain their diagnostic.
   if(request?.aborted&&request.errored===error&&error instanceof Error&&"code" in error&&error.code==="ECONNRESET")return;
   hostLog.error("web", "request_failed", error);
+  if (response.headersSent) {
+    response.destroy();
+    return;
+  }
   const failed = error instanceof ActionError ? error : new ActionError("actions.execution_failed", uiText.text("workbench.http.request-could-not-be-completed-please-try-again"));
   const answer = actionErrorResponse(failed);
+  if (answer.status === 503 && unavailablePage) {
+    const html = unavailablePage.render();
+    response.writeHead(answer.status, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": unavailablePage.csp });
+    response.end(html);
+    return;
+  }
   sendLocalWebJson(response, answer.status, { ...answer.body, diagnostic_id: currentCallId() });
 }
 

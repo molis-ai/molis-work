@@ -171,6 +171,8 @@
 
 ## 梳理记录
 
+- 2026-11-23：[第 42 批 Skill 创作余项](archive/bl-b42-followups/spec.md)归档（已实现，负责人 Codex）。工程验证见 #2271，真实供应商和本人试用见 BL-b42-acceptance。
+
 - 2026-11-13：个人同步六份、Prologue 四份、情境三份分别合并为一份总纲 + 子文档；原正文保留，子文档开头注明原路径，现行文档的入链已改到新位置，历史研究里的旧 URL 保留。工作线两份保留，见「相关 spec 族」。
 - 2026-11-13：文档收口 P0 归档五份已完成 spec：[D0002](archive/daily-quality-d0002/spec.md)（#1970）、[D0071](archive/daily-quality-d0071/spec.md)（#1972）、[D0039](archive/daily-quality-d0039/spec.md)（#1971）、[D0244](archive/daily-quality-d0244/spec.md)（#1974）与 [D0038](archive/daily-quality-d0038/spec.md)（#1982）；五份均判定已实现、无剩余。Feed 有界读取因 #2045 补修在评审，保留在「在做的」。同期立项 [documentation-consolidation](documentation-consolidation/spec.md)，记录审计结论与 P0/P1/P2。
 

@@ -107,7 +107,7 @@ export async function createRelease(
 
 const execFileAsync = promisify(execFile);
 
-/** Homebrew Node links libnode with @loader_path. A copied binary cannot start without that library. */
+/** Homebrew Node resolves @rpath/libnode beside the executable or in ../lib. Keep the library beside the copied binary. */
 async function copyLoaderLibraries(binary: string, destinationBinary: string): Promise<void> {
   let listing = "";
   try {

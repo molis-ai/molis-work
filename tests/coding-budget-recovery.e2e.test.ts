@@ -24,7 +24,8 @@ test("QEA-48 · real exhausted subagents extend only their own budget from both 
   let dispatched = 0, recover = false;
   t.after(() => release.resolve());
   const model = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    let raw = "";
+    for await (const chunk of request.setEncoding("utf8")) raw += chunk;
     const aside = asideReply(raw), body = JSON.parse(raw) as Body;
     let result: Response;
     if (aside) result = cogniaModelResponse(aside);

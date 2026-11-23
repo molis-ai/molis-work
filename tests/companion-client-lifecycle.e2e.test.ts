@@ -56,7 +56,8 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
     }
     if(path === "/favicon.ico"){response.writeHead(204);response.end();return;}
     if (request.method === "POST") {
-      let raw = ""; for await (const chunk of request) raw += chunk;
+      let raw = "";
+      for await (const chunk of request.setEncoding("utf8")) raw += chunk;
       if (raw) bodies.set(key, [...bodies.get(key) ?? [], JSON.parse(raw)]);
     }
     requests.push(key);response.setHeader("content-type", "application/json");

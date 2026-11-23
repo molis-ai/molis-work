@@ -1,7 +1,7 @@
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText, icon as glyph, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
-import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, extendPluginIds, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, resolveSurfaceAlias, type PluginMarketOptions } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, extendPluginIds, hostSurfaceEntries, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, resolveSurfaceAlias, type PluginMarketOptions } from "./plugin-catalog.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderWorkLine } from "./work-line-parts.js";
@@ -200,13 +200,17 @@ export function renderPluginRail(
  * beside search (not rows among the plugins: they are things to do, not places). The group keeps `data-global-menu`, which
  * the client finds them by.
  */
-export function renderPickerExtend(_primitives: ImmersiveShellPrimitives, enabled: readonly string[]): string {
+export function renderPickerExtend(_primitives: ImmersiveShellPrimitives, enabled: readonly string[], hostSurfaces = false): string {
   const button = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName }, suffix = "") => {
     const html = renderButton({ variant: "secondary", size: "sm", icon: plugin.glyph, label: plugin.label, className: "plugin-picker-extend-btn",
       attrs: { "data-plugin-id": plugin.id, ...(DIRECT_WORK_SURFACE_IDS.has(plugin.id) ? {} : { "data-directory-open": plugin.id }), "data-work-surface-open": plugin.surface, title: plugin.label } });
     return html.replace(/<\/button>$/, `${suffix}</button>`);
   };
-  const builder = directoryPlugins(builtinPluginDirectory(), enabled).filter(plugin => plugin.rail === "extend").map(plugin => button(plugin)).join("");
+  // The platform's own surfaces with an extend place (the plugin studio, 47-1 C) are in every project, beside the market, read from
+  // their declarations like a plugin's; nobody turns them on.
+  const hosted = hostSurfaces ? hostSurfaceEntries().filter(entry => entry.rail === "extend") : [];
+  const builder = [...directoryPlugins(builtinPluginDirectory(), enabled).filter(plugin => plugin.rail === "extend"), ...hosted]
+    .map(plugin => button({ ...plugin, glyph: plugin.glyph as PluginIconName })).join("");
   const market = button({ id: "market", surface: "market", label: uiText.text("workbench.immersive-shell.plugin-market"), glyph: "grid" },
     `<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"></b>`);
   return `<div class="plugin-picker-extend" data-global-menu role="group" aria-label="${uiText("workbench.immersive-shell.get-build-plugins")}">${market}${builder}</div>`;
@@ -225,7 +229,11 @@ export function renderWorkbenchBar(primitives: ImmersiveShellPrimitives, parts: 
 }
 
 /** What the top strip carries beyond history, tabs and the right side's glyphs: the plugins' way around and the project. */
-export interface TopStripNavigation { readonly rail: string; readonly enabled: readonly string[]; readonly projectChrome: string; readonly corner?: string }
+export interface TopStripNavigation {
+  readonly rail: string; readonly enabled: readonly string[]; readonly projectChrome: string; readonly corner?: string;
+  /** The platform's own surfaces (the plugin studio) get their button beside the market (47-1 C); the shell page always gives them. */
+  readonly hostSurfaces?: boolean;
+}
 
 /** A panel may name an alias inside its HTML; only unmarked panels acquire their owner's identity from the wrapper. */
 export function directoryPanelIdentity(owner: string, panel: string): { ids: string[]; wrap: boolean } {
@@ -271,7 +279,7 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
       <div class="plugin-picker-popover" data-plugin-picker-popover hidden>
         <div class="plugin-picker-head">
           <button class="plugin-picker-search" type="button" data-global-search-open aria-label="${uiText("workbench.immersive-shell.open-search")}" title="${uiText("workbench.immersive-shell.open-search")}">${icon("search")}<span>${uiText("workbench.immersive-shell.search")}</span><kbd>⌘K</kbd></button>
-          ${renderPickerExtend(primitives, nav.enabled)}
+          ${renderPickerExtend(primitives, nav.enabled, nav.hostSurfaces)}
         </div>
         ${nav.rail}
       </div>

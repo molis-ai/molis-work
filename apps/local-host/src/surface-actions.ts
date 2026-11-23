@@ -12,7 +12,6 @@ import { attentionDeclarationsOf } from "./plugin-inbox-declarations.js";
 import { createSurfaceCorrections, SurfaceCompositionService, type SurfaceComposePorts, type SurfaceCorrectPorts, type SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
 import type { HomePluginHost } from "./home-plugins.js";
 import { hostLog } from "./host-log.js";
-import { runningInstalledPluginPlatform } from "./installed-plugin-host.js";
 import type { PlacementHost } from "./placement-actions.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -42,10 +41,11 @@ function surfacePlugin(record: PluginInstanceRecord, scope: SurfacePlugin["scope
 /** Read the installed records and their owners' running contributions; neither lookup opens or starts a platform. */
 async function surfacePlugins(ports: SurfaceHostPorts, current: () => void): Promise<readonly SurfacePlugin[]> {
   const { store, reference: { project_id: projectId } } = ports;
-  const [project, installed] = await Promise.all([runningProjectPlatform(store, projectId), runningInstalledPluginPlatform(store, projectId)]);
+  // Built-in and installed plugins run on the project's one platform (47-1 B).
+  const project = await runningProjectPlatform(store, projectId);
   current();
   const projectEntries = installedPluginEntries(store.db).map(({ record, manifest }) => {
-    const platform = [project, installed].find(candidate => candidate?.supervisor.state(record.plugin_id)?.install_id === record.install_id);
+    const platform = project?.supervisor.state(record.plugin_id)?.install_id === record.install_id ? project : undefined;
     const contribution = platform?.supervisor.contribution(record.plugin_id);
     const slots = contribution?.kind === "app" ? contribution.views?.flatMap(view => view.descriptor.slots) ?? [] : [];
     return surfacePlugin(record, "project", manifest, slots);

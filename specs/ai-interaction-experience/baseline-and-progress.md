@@ -57,7 +57,7 @@
 | 全局助理 | Agent（`assistant-agent.ts`） | 平台 | 问卷卡、操作卡、下一步 | 首批，已接（AC-21、AC-23） |
 | Coding | Agent（`routes.ts` 发起 Run；角色带 `ask-user`、`suggest-action`，`plugins/native/coding/src/roles.ts`） | Plugin Runtime（项目） | 问卷卡（同一个函数）、下一步、操作卡 | 首批，已接（AC-22、AC-25）；Diff、命令审查、报告保留专业呈现 |
 | Form | `services.model`（`plugins/native/form/src/drafting.ts`） | Plugin Runtime（项目） | `needs_input` → 问卷卡 | 已接，单次接续的示例（AC-26）；题型只开放单选 |
-| 插件创作台 | 设计者与编码者是 Prologue Skill（`horizontal/agent-host/src/adapters/plugin-builder.ts`）；生成插件的 `model.generate` 经 `hostTextGeneration` | 构建期条目（旧路径） | 无：设计者的澄清是 JSON 里的字符串题，只能问一次（`plugins/native/plugin-builder/src/agent-workflow.ts`），页面列成编号列表、在输入框里自由作答；方案卡、启用插件、选部件是自写的按钮 | 第二批接入：澄清改成带类型的题、用同一张问卷卡；方案卡保留。动提示词要 `pnpm studio:replay` 加真实模型冒烟，所以排在浏览器验证恢复之后 |
+| 插件创作台 | 设计者与编码者是 Prologue Skill（`horizontal/agent-host/src/adapters/plugin-builder.ts`）；生成插件的 `model.generate` 经 `hostTextGeneration` | 构建期条目（旧路径） | 无：设计者的澄清是 JSON 里的字符串题，只能问一次（`horizontal/plugin-studio/src/agent-workflow.ts`），页面列成编号列表、在输入框里自由作答；方案卡、启用插件、选部件是自写的按钮 | 第二批接入：澄清改成带类型的题、用同一张问卷卡；方案卡保留。动提示词要 `pnpm studio:replay` 加真实模型冒烟，所以排在浏览器验证恢复之后 |
 | PPT | `services.model` 的 `complete`（`plugins/native/ppt/src/actions.ts`） | Plugin Runtime（项目） | 无 | 第二批接入：「AI 生成大纲」缺受众、页数时返回 `needs_input`，照 Form 的做法 |
 | Pages | `services.model` 的 `complete`（`plugins/native/pages/src/plugin.ts`；`pages.ai`、`pages.generate`） | Plugin Runtime（项目；W5-01-PAGES，问卷卡出口随动作返回） | 无；选区动作的候选浮层可改、可采用或放弃 | 第二批接入：`pages.generate` 缺要求时返回 `needs_input`。选区动作与 context-toolbar 交叉，不动。Inbox 的 `inbox.pages.generate` 转给它，跟着得到 |
 | Cognia | `services.model`（`plugins/native/cognia/src/ai.ts`） | Plugin Runtime（Home） | 无；问一句 → 审阅知识草稿 | 第二批，排在 PPT、Pages 之后：范围不清时返回 `needs_input` |

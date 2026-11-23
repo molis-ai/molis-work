@@ -8,6 +8,7 @@ import { assertPassiveSyncIdle } from './passive-sync-execution.js';
 import { partitionedReplica, syncNamespace, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
 import { builtinSyncBindings } from './builtin-sync.js';
 import { projectPluginJudge } from './project-action-availability.js';
+import { hostSurfaceByManifestId } from './host-surfaces.js';
 import { LocalProjectDatabase } from './project-database.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
 import type { SyncCatalogReader } from './personal-runtime-sync-authority.js';
@@ -16,9 +17,12 @@ import type { SyncCatalogReader } from './personal-runtime-sync-authority.js';
 export function createPersonalProjectRegistrations(home:string,spaceId:string,_userId:string,check:()=>void,withCatalog:LocalWebCatalogRunner,readCatalog?:SyncCatalogReader):SyncRegistration[]{
  return builtinSyncBindings().flatMap(({entry,collection,binding,selection,dependencies})=>{
   if(binding.scope!=='project-library'&&binding.scope!=='project-private-values')return [];
+  // The platform's own surfaces (the studio's drafts) are in every project; a plugin's collection follows the project's plugins.
+  const always=hostSurfaceByManifestId(entry.manifest.plugin_id)!==undefined;
+  const allowedIn=(c:Parameters<typeof projectPluginJudge>[0],id:string)=>always||projectPluginJudge(c,id,home)(entry.manifest.plugin_id)===true;
   const projects=()=>{
    check();if(!readCatalog)throw replicaError('replica_project_unavailable');
-   const values=readCatalog(c=>new Map(projectSyncCatalog(c).map(p=>[p.project_id,{title:p.display_name,path:p.database_path,recycled:p.recycled,allowed:projectPluginJudge(c,p.project_id,home)(entry.manifest.plugin_id)===true}])));
+   const values=readCatalog(c=>new Map(projectSyncCatalog(c).map(p=>[p.project_id,{title:p.display_name,path:p.database_path,recycled:p.recycled,allowed:allowedIn(c,p.project_id)}])));
    check();return values;
   };
   const project=(id:string,passive=false)=>{const p=projects().get(id);if(!p||!p.allowed||!passive&&p.recycled)throw replicaError('replica_project_unavailable');return p;};
@@ -44,7 +48,7 @@ export function createPersonalProjectRegistrations(home:string,spaceId:string,_u
     const value=event.value as {format?:unknown;spaceId?:unknown;project?:{id?:unknown;title?:unknown}};
     if(value?.format!==/* @version format.project.portable */ 1||value.spaceId!==spaceId||value.project?.id!==id||typeof value.project.title!=='string'||!value.project.title.trim()||value.project.title.length>120)throw replicaError('replica_project_invalid');
     // Receiving content cannot install or grant a plugin, including after an asynchronous catalog operation.
-    await withCatalog({homeDirectory:home},c=>{check();c.getProject(id);if(projectPluginJudge(c,id,home)(entry.manifest.plugin_id)!==true)throw replicaError('replica_project_unavailable');});project(id);
+    await withCatalog({homeDirectory:home},c=>{check();c.getProject(id);if(!allowedIn(c,id))throw replicaError('replica_project_unavailable');});project(id);
    },
   } satisfies SyncRegistration];
  });

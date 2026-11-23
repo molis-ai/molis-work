@@ -471,8 +471,10 @@ function declaredOwners(snapshot, problems) {
     }
     if (!owners.has("workbench")) problems.push(`${PLATFORM_REGISTRY}: workbench locale owner missing`);
   }
-  for (const file of snapshot.files.filter(file => /^plugins\/native\/[^/]+\/src\/manifest\.ts$/u.test(file))) {
-    const owner = file.split("/")[2], src = sourceOf(file, snapshot.read(file) ?? "");
+  // A built-in plugin's Manifest, and a platform package's framed surface that declares one (the plugin studio, 47-1 C; user
+  // 2026-11-22): each names its words' owner and the locale files beside its src/.
+  for (const file of snapshot.files.filter(file => /^(?:plugins\/native|horizontal)\/[^/]+\/src\/manifest\.ts$/u.test(file))) {
+    const owner = file.split("/")[file.startsWith("plugins/") ? 2 : 1], src = sourceOf(file, snapshot.read(file) ?? "");
     let words = null, plugin = null;
     const visit = node => {
       if (ts.isObjectLiteralExpression(node)) {
@@ -491,7 +493,7 @@ function declaredOwners(snapshot, problems) {
     const languages = list.elements.map(literalText);
     if (!languages.includes(def) || new Set(languages).size !== languages.length || languages.some(tag => !tag)) { problems.push(`${file}: invalid ui.locales languages`); continue; }
     if (!plugin) { problems.push(`${file}: cannot read the locale owner from its Manifest plugin_id`); continue; }
-    owners.set(owner, { owner: plugin, directory: `plugins/native/${owner}/locales`, languages, default: def });
+    owners.set(owner, { owner: plugin, directory: `${path.posix.dirname(path.posix.dirname(file))}/locales`, languages, default: def });
   }
   addOfficialConnectorOwners(snapshot, owners, problems);
   return owners;
@@ -530,7 +532,7 @@ function inspectPacks(snapshot, problems) {
       all.set(key, { prefix });
     }
   }
-  for (const file of snapshot.files) if (/^(?:plugins\/native\/[^/]+|plugins\/official-integrations\/[^/]+(?:\/providers\/[^/]+)?|apps\/workbench\/resources)\/locales\/[^/]+\.json$/u.test(file)
+  for (const file of snapshot.files) if (/^(?:plugins\/native\/[^/]+|horizontal\/[^/]+|plugins\/official-integrations\/[^/]+(?:\/providers\/[^/]+)?|apps\/workbench\/resources)\/locales\/[^/]+\.json$/u.test(file)
     && !files.has(file)) problems.push(`${file}: no locale declaration reaches this file`);
   return { all, files };
 }

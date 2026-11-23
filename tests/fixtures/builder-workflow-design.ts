@@ -1,5 +1,5 @@
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { studioBuildDiagnostic, type AgentBuild } from '@molis-ai/molis-work-plugin-builder';
+import { studioBuildDiagnostic, type AgentBuild } from '@molis-ai/molis-work-plugin-studio';
 
 export function memoryStorage(): PluginPrivateStorage {
   const values = new Map<string, string>();
@@ -25,7 +25,7 @@ export function proposal(id: string, title: string) {
 }
 
 export function detail(title: string) {
-  return JSON.stringify({ summary: '细化完成', design: { title, description: '记下想法并随时回看', journey: ['写一条笔记', '在列表里看到它'],
+  return JSON.stringify({ summary: '细化完成', design: { title, description: '记下想法并随时回看', journey: ['写一条笔记', '在列表里看到它'], states: [],
     operations: [
       { id: 'notes.list', kind: 'query', description: '列出笔记', input: {}, output: [{ id: 'string', text: 'string' }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [] }] },
       { id: 'notes.add', kind: 'command', description: '添加笔记', input: { text: 'string(1..200) 笔记' }, output: { id: 'string' }, effects: { storage: ['write'] }, examples: [{ input: { text: '第一条' }, includes: {} }] },

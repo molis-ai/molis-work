@@ -171,7 +171,7 @@ Git QF-03 的独立与 Coding 内嵌入口已补真实仓库复现：提交说�
 | `plugins/native/jelly` | production | `.`、`./contract`、`./registration` | ai/command-actions：模型只出预览计划，原文 hash/版本确认后提交；日历重复规则是业务而非 scheduler 副本。 |
 | `plugins/native/lingguang` | production | `.`、`./contract`、`./registration` | content-actions/actions：公开内容交接、request_id 去重、生成回复前快照与取消检查；部分材料显式标记。 |
 | `plugins/native/pages` | production | `.`、`./contract`、`./registration`、`./code-highlight`、`./editor` | actions/ai-run/删除撤销：写作助手失败明确可见，简短命令验证归实际输入边界；版本、保存和撤销归 Pages。 |
-| `plugins/native/plugin-builder` | slice | `.`、`./registration` | manifest/agent-state/workflow/SDK sandbox：执行 token、暂停恢复、生成合同与进程沙箱。BL-040/055 的过时描述已校正，仍有来源、质量及跨项目待办。 |
+| `horizontal/plugin-studio` | slice | `.`、`./registration` | manifest/agent-state/workflow/SDK sandbox：执行 token、暂停恢复、生成合同与进程沙箱。BL-040/055 的过时描述已校正，仍有来源、质量及跨项目待办。 |
 | `plugins/native/ppt` | production | `.`、`./contract`、`./registration` | actions/promote：Pages 经公开动作读取、模型草稿后版本检查、联合成果提交；保留授权绑定。 |
 | `plugins/native/risk` | experimental | `.`、`./registration` | review/actions：关闭后复查归档、串行安排及部分失败可见；历次结果/采纳仍在 BL。 |
 | `plugins/native/schedule` | slice | `.`、`./registration` | registration/plugin：业务排期归本插件、平台 scheduler 负责持久唤醒与授权；不另造计时器。 |

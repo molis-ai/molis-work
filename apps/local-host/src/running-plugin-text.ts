@@ -2,7 +2,6 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginTextReader, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import type { HomePluginPlatform } from "./home-plugins.js";
-import { runningInstalledPluginPlatform } from "./installed-plugin-host.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { runningProjectPlatform } from "./project-plugins.js";
@@ -34,13 +33,13 @@ export function runningPluginText(platform: Scope | null | undefined, release: R
 export function runningPluginTextIn({ store, localHost, projectId }: {
   store: LocalProjectDatabase; localHost: MolisWorkLocalHost; projectId: string;
 }): (release: RunningRelease) => Promise<RunningPluginText | null> {
-  let platforms: Promise<readonly [Scope | null, Scope | null]> | undefined;
+  let platform: Promise<Scope | null> | undefined;
   let homePlatform: Promise<HomePluginPlatform | undefined> | undefined;
   let reach: Promise<(pluginId: string) => boolean | undefined> | undefined;
   return async release => {
-    platforms ??= Promise.all([runningProjectPlatform(store, projectId), runningInstalledPluginPlatform(store, projectId)]);
-    const [project, installed] = await platforms;
-    const found = runningPluginText(project, release) ?? runningPluginText(installed, release);
+    // Built-in and installed plugins run on the project's one platform (47-1 B).
+    platform ??= runningProjectPlatform(store, projectId);
+    const found = runningPluginText(await platform, release);
     if (found) return found;
     homePlatform ??= localHost.homePlugins?.ready({ start: false }).catch(() => undefined);
     const home = await homePlatform;

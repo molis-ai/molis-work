@@ -43,9 +43,9 @@ export { pluginModelFor } from "./plugin-model-service.js";
 export { forgetSandboxImageBindings, sandboxImageGenerationFor } from "./sandbox-image-generation.js";
 export { sandboxModelDeclaration, withSandboxModelSettings } from "./sandbox-model-settings.js";
 export { reservedHomeName, sandboxImageNamespace, sandboxProviderId } from "./sandbox-home-names.js";
-export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts, exposedOperationPolicies, type ExposedOperationPolicy } from "./plugin-builder/exposed-actions.js";
+export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts, exposedOperationPolicies, type ExposedOperationPolicy } from "./installed-plugin-exposed-actions.js";
 export { createStudioPublisher, readStudioDistribution } from "./plugin-builder/studio-release.js";
-export { sandboxedPluginDefinition } from "./plugin-builder/installed.js";
+export { sandboxedPluginDefinition } from "./installed-plugin-sandbox-definition.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
@@ -121,6 +121,7 @@ export {
   BUILTIN_PLUGIN_REGISTRY, PERSONAL_PLUGIN_IDS, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS,
   availableProjectPluginIds, catalogProblems, projectRuntimeDeclarations, requiredCompanions, shownProjectPlugins, type ProjectRuntimeDeclaration,
 } from "./plugin-registry.js";
+export { HOST_SURFACE_REGISTRATIONS } from "./host-surfaces.js";
 export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-lifecycle.js";
 export { exists } from "./project-file-paths.js";
 export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
@@ -171,7 +172,7 @@ export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-in
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
 export { SkillImportService, localSkillScan, suggestedAppliesTo, type SkillImportPorts } from "./skill-import.js";
 export { SkillAuthoringService, type SkillAuthoringPorts } from "./skill-authoring.js";
-export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
+export { readKeptPackage, readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
 export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "./sandbox-integration.js";
 
 export { SandboxPackageStore } from "./sandbox-package-store.js";
@@ -480,3 +481,6 @@ export { assertReadOnlyToolArgv, createHostSessionsPorts, type HostSessionsOptio
 
 export { createSourcePullPort, type SourcePullPortOptions } from "./plugin-source-pull-service.js";
 export { offerProjectAutomation } from "./automation-proactive.js";
+// A project's installed signed packages as pages and calls (47-1: the platform's), and the trials the studio answers for its drafts.
+export { handleInstalledPluginHttp, installedPluginStages, type InstalledPluginHttpOptions } from "./installed-plugin-http.js";
+export { generatedPluginManifest, studioTrials } from "./plugin-builder/studio-preview.js";

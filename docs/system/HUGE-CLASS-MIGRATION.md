@@ -99,8 +99,8 @@
 | `plugins/native/goals/src/proposal-normalizer.ts#GoalTreeProposalNormalizer` | 417 行 / 13 方法 | 内聚单元 |
 | `plugins/native/goals/src/proposal-ui.ts#createProposalRenderer` | 187 行 | 内聚单元 |
 | `plugins/native/goals/src/tree-ui.ts#createTreeRenderer` | 236 行 | 内聚单元 |
-| `plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign` | 225 行 | 内聚单元 |
-| `plugins/native/plugin-builder/src/agent-workflow.ts#AgentBuilderWorkflow` | 654 行 / 40 方法 | 内聚单元 |
+| `horizontal/plugin-studio/src/agent-authoring.ts#expandDesign` | 225 行 | 内聚单元 |
+| `horizontal/plugin-studio/src/agent-workflow.ts#AgentBuilderWorkflow` | 654 行 / 40 方法 | 内聚单元 |
 
 **判“拆”的 32 个单元**（大小为本次实测）。按负责的线分十一批，由碰到这些文件的批次主会话随批做；每批只动自己的文件，拆到阈值以下后在同一个 PR 里删本节对应行。
 
@@ -135,7 +135,7 @@
 | 9 | `plugins/native/feed` | 0 | 0 | 7 | `FeedApplication` 已拆完（W5-10 批 F，T-059：来源、捕捉规则、捕捉记账各成协作者）；上面的总数没有随之重算 |
 | 10 | `plugins/native/workflows` | 0 | 0 | 6 | `createWorkflowsActionHandlers` 已拆完（233 → 107 行，运行逻辑在 `handoff.ts` 与 `step-runner.ts`）；上面的总数没有随之重算 |
 | 11 | `plugins/native/work` | 2 | 2 | 5 | SC-3 已把面板路由与终端面板搬出 Work 并拆完 |
-| 12 | `plugins/native/plugin-builder` | 2 | 2 | 5 | 创作台属构建期例外清单，不迁 Runtime，就地拆（2026-10-18 改：不算插件、并进平台能力，仍就地拆） |
+| 12 | `horizontal/plugin-studio` | 2 | 2 | 5 | 创作台属构建期例外清单，不迁 Runtime，就地拆（2026-10-18 改：不算插件、并进平台能力，仍就地拆） |
 | 13 | `horizontal/listener-host` | 1 | 1 | 5 |  |
 | 14 | `packages/storage` | 2 | 2 | 4 |  |
 | 15 | `horizontal/search` | 1 | 1 | 4 | 按需搜索来源已删（W2-03），可直接拆 |

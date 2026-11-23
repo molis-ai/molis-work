@@ -47,6 +47,7 @@ import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkWebServiceManager } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/dist/plugin-workbench.js";
+import { HOST_FRAMED_SURFACES } from "@molis-ai/molis-work-app-workbench";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -455,7 +456,9 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
             `${entry.project_plugin_id} 缺少声明的页面 ${view.view_id}`);
         }
       }
-      for (const id of packed) assert.ok(shipped.some(entry => entry.project_plugin_id === id), `${id} 是孤立的静态装配`);
+      // The platform's own framed surfaces (the studio, 47-1 C) are packed too, from the platform's list rather than the catalog.
+      const owners = [...shipped, ...HOST_FRAMED_SURFACES];
+      for (const id of packed) assert.ok(owners.some(entry => entry.project_plugin_id === id), `${id} 是孤立的静态装配`);
     } finally {
       await releaseProjectPlugins(store, DEMO_PROJECT_ID);
       store.close();

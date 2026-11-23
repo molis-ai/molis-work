@@ -300,6 +300,7 @@
     "common.generated.in-progress": "进行中",
     "common.generated.input-hint": "{label}，{hint}",
     "common.generated.input-preserved": "操作失败，输入已保留",
+    "common.generated.record-or-form-unavailable": "原记录或表单已不可用",
     "common.generated.inspect": "检查零件",
     "common.generated.irreversible": "这一步不能撤销。",
     "common.generated.model-working": "模型正在生成，可能要几十秒…",
@@ -7241,7 +7242,6 @@
     "workbench.settings-prompts.instructions-system-plugins-give-model-characters-made-some": "系统与各插件发给 AI 的预设指令说明（提示词）。你可以按需微调措辞，修改从下次对话生效，随时可恢复默认；改文字不会放大系统权限。",
     "workbench.settings-prompts.last-used": "最近一次使用：{at}",
     "workbench.settings-prompts.loading": "正在读取…",
-    "workbench.settings-prompts.made-plugin-builder": "插件创作台生成",
     "workbench.settings-prompts.model-call-instructions": "模型调用指令 {n}",
     "workbench.settings-prompts.model-calls-not-registered-yet": "还没有登记的模型调用",
     "workbench.settings-prompts.no-matching-prompts": "没有找到匹配的指令说明",
@@ -9674,6 +9674,130 @@
     "workbench.on-demand-help-specimens.topic-title": "定时任务",
     "workbench.on-demand-help-specimens.what-body": "到了你定的时间，助理按你写的要求做一件事，做完把结果放回这个项目；要发出去的，按你填的对象发。",
     "workbench.on-demand-help-specimens.who-body": "用你的授权，只限这个任务给出的范围。你在设置里撤掉授权，下一次就不会运行，并在这里写明原因。",
+    "workbench.package-install-card.keep-its-own-data": "保存自己的数据",
+    "workbench.package-install-card.one-copy-for-all-projects": "所有项目共用一份",
+    "workbench.package-install-card.stays-in-this-project": "只留在这个项目",
+    "workbench.package-install-card.online": "联网",
+    "workbench.package-install-card.reach-websites": "连外部网站",
+    "workbench.package-install-card.only-sites": "只连 {sites}",
+    "workbench.package-install-card.use-keys-you-save": "用你存的密钥",
+    "workbench.package-install-card.keys-named": {
+      "plural_arg": "count",
+      "forms": {
+        "other": "{count} 个：{names}"
+      }
+    },
+    "workbench.package-install-card.use-other-plugins": "用别的插件的能力",
+    "workbench.package-install-card.work-in-background": "在后台运行",
+    "workbench.package-install-card.use-connected-accounts": "用你连好的账号",
+    "workbench.package-install-card.use-your-model": "用你的模型",
+    "workbench.package-install-card.required-count-optional-on-of": "必需 {required} 项 · 可选开了 {on}/{optional}",
+    "workbench.package-install-card.required-count": "必需 {required} 项",
+    "workbench.package-install-card.install": "安装",
+    "workbench.package-install-card.switch-to-version": "换上 {version}",
+    "workbench.package-install-card.install-in-personal-space": "装进个人空间",
+    "workbench.package-install-card.install-in-project": "装进项目",
+    "workbench.package-install-card.check-package": "检查安装包",
+    "workbench.package-install-card.start": "启动",
+    "workbench.package-install-card.progress": "进度",
+    "workbench.package-install-card.molis-work-install-confirmation": "Molis Work 安装确认",
+    "workbench.package-install-card.owner-cant-change-this-part": "这一块「{owner}」改不了",
+    "workbench.package-install-card.checking-the-package": "正在检查安装包…",
+    "workbench.package-install-card.not-installed": "没装上",
+    "workbench.package-install-card.not-upgraded": "没升级成",
+    "workbench.package-install-card.nothing-installed-no-data-changed": "什么都没装，数据没动。",
+    "workbench.package-install-card.got-it": "知道了",
+    "workbench.package-install-card.publisher-not-trusted-yet": "还没信任这个发布者",
+    "workbench.package-install-card.import-in-settings-to-trust": "在页面里只能装你自己做的，或你已经信任的发布者的插件。到 设置 › 插件 导入这个安装包，确认发布者后再装。",
+    "workbench.package-install-card.open-plugin-settings": "打开 设置 › 插件",
+    "workbench.package-install-card.try-again": "再试一次",
+    "workbench.package-install-card.upgraded-to-version": "已升级到 {version}",
+    "workbench.package-install-card.installed": "装好了",
+    "workbench.package-install-card.your-data-is-kept-carry-on": "数据都在，接着用就行。",
+    "workbench.package-install-card.open-it-from-any-project": "每个项目里都能打开它。",
+    "workbench.package-install-card.open-it-in-this-project": "在这个项目里就能打开它。",
+    "workbench.package-install-card.switches-not-changed": {
+      "plural_arg": "count",
+      "forms": {
+        "other": "有 {count} 项权限没改成"
+      }
+    },
+    "workbench.package-install-card.optional-still-off": "可选还有 {count} 项没开",
+    "workbench.package-install-card.all-optional-on": "可选都开了",
+    "workbench.package-install-card.manage-permissions": "管理权限",
+    "workbench.package-install-card.open-name": "打开「{name}」",
+    "workbench.package-install-card.made-by-you-this-computer": "你做的 · 这台电脑",
+    "workbench.package-install-card.from-publisher": "发布者：{publisher}",
+    "workbench.package-install-card.into-personal-space-all-projects": "装进个人空间 · 所有项目共用",
+    "workbench.package-install-card.into-this-project": "装进这个项目",
+    "workbench.package-install-card.data-kept": "数据都保留",
+    "workbench.package-install-card.version-asks-count-more-off-still-upgrades": {
+      "plural_arg": "count",
+      "forms": {
+        "other": "{version} 新要 {count} 项权限，不开也能升级"
+      }
+    },
+    "workbench.package-install-card.new": "新",
+    "workbench.package-install-card.required": "必需",
+    "workbench.package-install-card.one-more-step-count-keys": {
+      "plural_arg": "count",
+      "forms": {
+        "other": "还差一步：填 {count} 个密钥"
+      }
+    },
+    "workbench.package-install-card.kept-only-in-this-computers-encrypted-store": "只存在这台电脑的加密存储里",
+    "workbench.package-install-card.plugin-asks-to-use-it-never-reads-it": "插件只说要用，拿不到原文",
+    "workbench.package-install-card.key": "密钥",
+    "workbench.package-install-card.sent-in-header": "放在请求头",
+    "workbench.package-install-card.always-needed": "一定要用",
+    "workbench.package-install-card.background-count-things-first": {
+      "plural_arg": "count",
+      "forms": {
+        "other": "后台会做 {count} 件事：{first} 等"
+      }
+    },
+    "workbench.package-install-card.background-reason": "后台：{reason}",
+    "workbench.package-install-card.count-optional-switched-in-settings-after": {
+      "plural_arg": "count",
+      "forms": {
+        "other": "还有 {count} 项可选权限，装好后在设置里开"
+      }
+    },
+    "workbench.package-install-card.your-choice": "你来决定",
+    "workbench.package-install-card.change-later-in-settings": "以后可在设置里改",
+    "workbench.package-install-card.installing-starts-once-filled": "填完就开始安装",
+    "workbench.package-install-card.back": "上一步",
+    "workbench.package-install-card.save-and-install": "保存并安装",
+    "workbench.package-install-card.not-upgrading-now": "先不升级",
+    "workbench.package-install-card.not-installing-now": "先不装",
+    "workbench.package-install-card.agree-and-upgrade": "同意并升级",
+    "workbench.package-install-card.agree-and-install": "同意并安装",
+    "common.package-install.just-moved-press-again": "刚移动过，请再点一次",
+    "common.package-install.show-whole-area-first": "请先让这一块完整显示",
+    "common.package-install.kept-for-later": "先放着：安装包还在，随时回来装",
+    "common.package-install.not-installed": "没有安装",
+    "common.package-install.type-the-key-first": "先把密钥填上",
+    "common.package-install.could-not-install-try-again": "没装上，可以再试一次。",
+    "common.package-install.install-confirmation-owner": "安装确认 · 来自 {owner}",
+    "common.package-install.install-confirmation-is-on-the-page": "这里由 Molis Work 显示安装确认",
+    "workbench.package-install-specimens.meeting-check-in": "会议签到",
+    "workbench.package-install-specimens.note-absences-in-goals": "在 Goals 里记缺席",
+    "workbench.package-install-specimens.monday-reminder-to-import-the-list": "每周一 9:00 提醒你导入名单",
+    "workbench.package-install-specimens.plugin-studio": "插件创作台",
+    "workbench.package-install-specimens.group-absence-reasons": "归类缺席原因",
+    "workbench.package-install-specimens.molis-samples": "Molis 示例",
+    "workbench.package-install-specimens.first-install-into-the-project": "第一次安装 · 装进项目",
+    "workbench.package-install-specimens.upgrade-one-more-permission-asked": "升级 · 这一版多要一项",
+    "workbench.package-install-specimens.into-the-personal-space-nothing-optional": "装进个人空间 · 没有可选权限",
+    "workbench.package-install-specimens.one-more-step-the-key": "还差一步 · 填密钥",
+    "workbench.package-install-specimens.installing-three-steps": "安装中 · 三步进度",
+    "workbench.package-install-specimens.installed": "装好了",
+    "workbench.package-install-specimens.not-installed-where-it-stopped": "没装上 · 标出停在哪一步",
+    "workbench.package-install-specimens.the-plugin-would-not-start": "插件启动不了。",
+    "workbench.package-install-specimens.publisher-not-trusted-yet": "发布者还没被信任",
+    "workbench.package-install-specimens.kept-for-later-line": "先放着：安装包还在，随时回来装",
+    "workbench.package-install-specimens.install-sheet-in-place-platform-area": "原处的安装单 · 平台区域版",
+    "workbench.package-install-specimens.checking-the-package-folded-into-one-line": "检查安装包 · 折成一行",
     "workbench.side-panel-tab.help": "帮助",
     "workbench.client-records.publish-and-activate": "发布并在「{destination}」启用",
     "workbench.client-records.publish-only": "仅发布固定版本",
@@ -9930,6 +10054,10 @@
     "workbench.assistant-island.say-to-event": "对「{name}」说一句",
     "workbench.assistant-island.reply-to-event": "回「{name}」一句，或点上面的选项",
     "workbench.assistant-island.add-to-event": "给「{name}」补充一句，它会在这一步之后读到",
-    "workbench.work-line.asked-done": "办完了"
+    "workbench.work-line.asked-done": "办完了",
+    "workbench.installed-plugin.not-found": "找不到这个插件的已安装版本",
+    "workbench.installed-plugin.not-running": "这个插件当前没有运行，请到 设置 › 插件 里启用",
+    "workbench.installed-plugin.recovery-hint": "请到 设置 › 插件 里查看这个插件。",
+    "workbench.installed-plugin.recovery-title": "插件暂时无法运行"
   }
 }

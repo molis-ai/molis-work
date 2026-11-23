@@ -171,6 +171,39 @@ test("rewriting a file in place or renaming it inside its set keeps the counts a
   assert.doesNotMatch(run.out, /Lower than/);
 });
 
+// 47-1 C (user 2026-11-22): a package that moves takes its sidecar with it; the moved group keeps its count, and only that.
+test("a whole group moved to a new place keeps its count and passes", () => {
+  branch("moved-package", () => git("mv", "docs/design/demo", "docs/design/moved"));
+  const run = gate("--base", "main");
+  assert.equal(run.code, 0, run.out);
+  assert.doesNotMatch(run.out, /tracked files under \.impeccable/);
+});
+
+const moveInto = (from: string, to: string) => {
+  mkdirSync(path.dirname(path.join(repo, to)), { recursive: true });
+  git("mv", from, to);
+};
+const movedViolations: Scenario[] = [
+  { name: "a moved group that also gains a file", mutate: () => {
+    git("mv", "docs/design/demo", "docs/design/moved");
+    put("docs/design/moved/.impeccable/extra.json", "{}\n");
+  }, expect: /in docs\/design\/moved\/\.impeccable 1 → 2/ },
+  { name: "half a set moved to a new set", mutate: () => moveInto(".impeccable/review/set-a/two.png", ".impeccable/review/set-c/two.png"),
+    expect: /in \.impeccable\/review\/set-c 0 → 1/ },
+  { name: "a set split between two new sets", mutate: () => {
+    moveInto(".impeccable/review/set-a/one.png", ".impeccable/review/set-c/one.png");
+    moveInto(".impeccable/review/set-a/two.png", ".impeccable/review/set-d/two.png");
+  }, expect: /in \.impeccable\/review\/set-(?:c|d) 0 → 1/ },
+];
+for (const scenario of movedViolations) {
+  test(`${scenario.name} still fails against the merge-base`, () => {
+    branch("moved-violation", scenario.mutate);
+    const caught = gate("--base", "main");
+    assert.equal(caught.code, 1, caught.out);
+    assert.match(caught.out, scenario.expect);
+  });
+}
+
 test("removing files passes, is reported as lower, and --update --base lowers the quick check", () => {
   branch("prune", () => {
     git("rm", "-q", "-r", ".impeccable/review/set-b", "docs/design/demo/.impeccable");

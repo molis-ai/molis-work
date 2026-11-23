@@ -33,7 +33,7 @@ test("CIP-01 CIP-02 CIP-04 documentation selection rejects mixed, protected, unk
 test("CIP-05 shell, studio replay and account-login checks follow their own inputs", () => {
   for (const file of ["scripts/task.sh", "tools/task.py", ".github/workflows/ci.yml", ".github/actions/setup-work/action.yml", "scripts/gates/native-checks.mjs"]) assert.equal(decideChecks({ affected: change(file) }).shell.mode, "whole");
   assert.equal(decideChecks({ affected: change("plugins/native/todo/src/store.ts") }).shell.mode, "none");
-  for (const file of ["skills/molis-plugin-dev/SKILL.md", ".github/actions/setup-work/action.yml", "plugins/native/plugin-builder/src/a.ts", "apps/local-host/src/plugin-builder/skill.ts", "scripts/studio-replay.mts", "tests/studio-replay.test.ts"]) {
+  for (const file of ["skills/molis-plugin-dev/SKILL.md", ".github/actions/setup-work/action.yml", "horizontal/plugin-studio/src/a.ts", "apps/local-host/src/plugin-builder/skill.ts", "scripts/studio-replay.mts", "tests/studio-replay.test.ts"]) {
     assert.equal(decideChecks({ affected: change(file) }).studio_replay.mode, "whole", file);
   }
   assert.equal(decideChecks({ affected: change("plugins/native/todo/src/store.ts", "tests/todo-store.test.ts") }).studio_replay.mode, "none");
@@ -157,8 +157,8 @@ test("MR19-07 plugin stylesheet and shared browser component changes run the PR 
     "plugins/native/pages/src/comment-side-client.ts",
     "plugins/native/pages/src/comment-side-view.ts",
     "plugins/native/pages/src/tone.ts",
-    "plugins/native/plugin-builder/src/workbench.ts",
-    "plugins/native/plugin-builder/src/agent-studio.ts",
+    "horizontal/plugin-studio/src/workbench.ts",
+    "horizontal/plugin-studio/src/agent-studio.ts",
     "plugins/native/shelf/src/settings-client.ts",
     "plugins/native/shelf/src/glyphs.ts",
     "plugins/native/ppt/src/colors.ts",
@@ -173,7 +173,7 @@ test("MR19-07 plugin stylesheet and shared browser component changes run the PR 
   }
   assert.equal(triggers("horizontal/evaluation/src/service.ts"), false);
   assert.equal(triggers("plugins/native/todo/src/store.ts"), false);
-  assert.equal(triggers("plugins/native/plugin-builder/src/agent-store.ts"), false);
+  assert.equal(triggers("horizontal/plugin-studio/src/agent-store.ts"), false);
   const auditJob = jobBlock("audit", visual);
   assert.doesNotMatch(auditJob, /tests\/fixtures\/visual-capture\.mts/, "audit shards no longer run visual-capture inline");
   const captureJob = jobBlock("visual-capture", visual);

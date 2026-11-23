@@ -14,6 +14,7 @@ import { connectionDeclarationProblems } from './connection-declarations.js';
 import { ownerFilesDeclarationProblems } from './owner-files-declaration.js';
 import { assertSandboxUpgradeValidator, sandboxActionId, sandboxOperationActions, sandboxPackageBuildId, sandboxUpgradeOperation } from './sandbox-actions.js';
 import { sandboxUiDeclaration } from './sandbox-ui.js';
+import { sandboxStateMachineDeclarations } from './sandbox-state-machines.js';
 import { sandboxLocaleProblems } from './locale-declarations.js';
 
 /** The names of a sandboxed package's image permissions: the Host's own, in the Manifest only as rows derived from `effects.imageGeneration` (BL-491). */
@@ -116,6 +117,7 @@ export interface SandboxManifestInput {
   /** Versions this one upgrades from; empty or absent for a first release. */
   upgradesFrom?: readonly string[];
   upgradeCompatibility?: PluginManifest['upgrade_compatibility'];
+  /** A package's own declaration, for one whose contract says nothing of states; a contract that does is the only source (SMP-11). */
   stateMachines?: PluginManifest['state_machines'];
   /**
    * Where the plugin runs: absent for a project, `{ scope: "home" }` for one instance every project shares (BL-628). A published package
@@ -201,6 +203,11 @@ function sandboxUpgradeFields(input: Pick<SandboxManifestInput, 'upgradesFrom' |
   return upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...upgradesFrom] } } : {};
 }
 
+function contractStateMachines(contract: SandboxPluginContract): PluginManifest['state_machines'] {
+  try { return sandboxStateMachineDeclarations(contract); }
+  catch (error) { throw pluginErrors.declaration_invalid(error instanceof Error ? error.message : '状态申报无效'); }
+}
+
 export function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest {
   if (input.contract) {
     if (input.contract.pluginId !== input.pluginId) throw pluginErrors.declaration_invalid('合同与 Manifest 的插件身份不一致');
@@ -208,6 +215,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
   }
   assertSandboxUpgradeValidator(sandboxUpgradeFields(input), input.contract);
   const { contribution_id: uiId } = sandboxUiDeclaration(input);
+  const stateMachines = input.contract?.state_machines === undefined ? input.stateMachines : contractStateMachines(input.contract);
   if (input.effects?.background?.length && !input.contract) throw pluginErrors.declaration_invalid('后台操作需要完整合同来派生动作');
   const actionIdentity = input.actionIdentity ?? { buildId: sandboxPackageBuildId(input.pluginId, input.publisher.signature), version: 1 };
   const actions = input.contract && (input.contract.presentation !== undefined || input.contract.settings_entries !== undefined || input.contract.operations.some(operation =>
@@ -250,7 +258,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     ...(input.textDeclarations ? sandboxAgentDeclarations(input.textDeclarations) : {}),
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
     ...sandboxUpgradeFields(input),
-    ...(input.stateMachines === undefined ? {} : { state_machines: input.stateMachines }),
+    ...(stateMachines === undefined ? {} : { state_machines: stateMachines }),
     ...(input.runtime ? { runtime: input.runtime } : {}),
     ...(input.memoryScene === undefined ? {} : { memory_scene: input.memoryScene }),
     ...sandboxResources(input),

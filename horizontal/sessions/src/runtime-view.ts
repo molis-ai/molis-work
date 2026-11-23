@@ -141,44 +141,25 @@ export function resolveDerivedSnapshot(
   options?: { allowDiskIdentify?: boolean },
 ): ResolvedDerivedSnapshot {
   const allowDisk = options?.allowDiskIdentify !== false;
-  const projectMap = new Map(snapshot.projects.map(p => [p.project_id, { project_id: p.project_id, display_name: p.display_name }]));
   const dirDigest = computeDirectorySnapshotDigest(snapshot, store.homeDirectory);
   const bindingDigest = computeBindingSnapshotDigest(snapshot);
   const storedDirDigest = store.getMeta("directory_snapshot_digest");
   const storedBindingDigest = store.getMeta("binding_snapshot_digest");
   const initialDirs = store.allDirectories();
 
-  const reconstructWorkspaces = () => {
+  const prepareCachedWorkspaces = () => {
     const wsCache = store.workspaceCache();
-    const workspaces: PreparedLinkedWorkspace[] = [];
     let missingCache = false;
-    for (const record of snapshot.directories) {
-      if (!record.realpath_verified) continue;
-      const personIds = record.person_project_ids.filter(id => projectMap.has(id));
-      const personSet = new Set(personIds);
-      const toolOnlyIds = record.project_ids.filter(id => projectMap.has(id) && !personSet.has(id));
-      if (personIds.length === 0 && toolOnlyIds.length === 0) continue;
-      if (!wsCache.has(record.canonical_path)) {
-        missingCache = true;
-        continue;
-      }
-      const identity = wsCache.get(record.canonical_path) ?? null;
-      if (!identity) continue;
-      workspaces.push({
-        workspace_id: record.workspace_id,
-        canonical_path: record.canonical_path,
-        real_path: identity.real_path,
-        repository_key: identity.repository_key,
-        worktree_relative: identity.worktree_relative,
-        person_project_ids: personIds,
-        tool_only_project_ids: toolOnlyIds,
-      });
-    }
-    return { workspaces, missingCache };
+    const prepared = prepareLinkedWorkspaces(snapshot, pathValue => {
+      const identity = wsCache.get(pathValue);
+      if (identity === undefined) missingCache = true;
+      return identity ?? null;
+    });
+    return { ...prepared, missingCache };
   };
 
   if (!allowDisk) {
-    const { workspaces } = reconstructWorkspaces();
+    const { workspaces, projectMap } = prepareCachedWorkspaces();
     if (storedDirDigest === dirDigest) {
       return { dirDigest, projectMap, workspaces, dirMap: initialDirs };
     }
@@ -205,16 +186,17 @@ export function resolveDerivedSnapshot(
     return { dirDigest, projectMap, workspaces, dirMap: recomputed };
   }
 
-  const cached = reconstructWorkspaces();
-  if (storedDirDigest === dirDigest && !cached.missingCache) {
-    if (storedBindingDigest === bindingDigest) {
-      return { dirDigest, projectMap, workspaces: cached.workspaces, dirMap: initialDirs };
+  if (storedDirDigest === dirDigest) {
+    const { workspaces, projectMap, missingCache } = prepareCachedWorkspaces();
+    if (!missingCache) {
+      if (storedBindingDigest !== bindingDigest) {
+        store.inTransaction(() => {
+          recomputeReportedProjects(snapshot, projectMap, initialDirs, store);
+          store.setMeta("binding_snapshot_digest", bindingDigest);
+        });
+      }
+      return { dirDigest, projectMap, workspaces, dirMap: initialDirs };
     }
-    store.inTransaction(() => {
-      recomputeReportedProjects(snapshot, projectMap, initialDirs, store);
-      store.setMeta("binding_snapshot_digest", bindingDigest);
-    });
-    return { dirDigest, projectMap, workspaces: cached.workspaces, dirMap: initialDirs };
   }
 
   const prepared = prepareLinkedWorkspaces(snapshot, pathValue => ports.directories.identify(pathValue));

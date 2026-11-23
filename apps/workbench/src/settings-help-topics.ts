@@ -1,5 +1,5 @@
 import type { UiHelpDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
-import { renderHelpButton, renderHelpDeclarationScript, t as uiText, type MwHelpTopicData } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderHelpButton, renderHelpDeclarationScript, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const SETTINGS_HELP_IDS = new Set([
   "appearance",
@@ -67,35 +67,6 @@ export function workbenchSurfaceHelpDeclaration(surface: "home" | "artifacts" | 
         { id: "scope", heading: { key: "workbench.settings-help.heading-scope" }, body: { key: `${prefix}.scope` } },
       ],
     }],
-  };
-}
-
-/** Builds the resolved Scheme A on-demand help topic for a global or project settings section (VUX-55). */
-export function settingsHelpTopic(sectionId: string): MwHelpTopicData | null {
-  if (!SETTINGS_HELP_IDS.has(sectionId)) return null;
-  const prefix = `workbench.settings-help.${sectionId}`;
-  const title = uiText.text(`${prefix}.title`);
-  return {
-    id: `settings-${sectionId}`,
-    title,
-    context: uiText.text("common.help.looking-at") + title,
-    sections: [
-      {
-        id: "what",
-        heading: uiText.text("workbench.settings-help.heading-what"),
-        body: uiText.text(`${prefix}.what`),
-      },
-      {
-        id: "how",
-        heading: uiText.text("workbench.settings-help.heading-how"),
-        body: uiText.text(`${prefix}.how`),
-      },
-      {
-        id: "scope",
-        heading: uiText.text("workbench.settings-help.heading-scope"),
-        body: uiText.text(`${prefix}.scope`),
-      },
-    ],
   };
 }
 

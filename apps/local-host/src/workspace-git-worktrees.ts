@@ -10,8 +10,6 @@ import type { WriterFileTarget, WriterWorktree } from "@molis-ai/molis-work-cont
 
 const SAFE_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 const BRANCH_PREFIX = "molis-work/writer/";
-/** The ids the Host gives writers' worktrees (`hostWriterId`). */
-const HOST_WRITER_ID = /^writer-[0-9a-f]{24}$/u;
 
 /** The id of the worktree a writer's preparation makes: the same operation names the same worktree. */
 export function hostWriterId(operationId: string): string {
@@ -21,14 +19,6 @@ export function hostWriterId(operationId: string): string {
 /** Where the Host makes the writers' worktrees of a repository whose real root is `root`: beside it, under a key of that root. */
 function writersDirectory(root: string): string {
   return path.join(path.dirname(root), ".molis-work-writers", createHash("sha256").update(root).digest("hex").slice(0, 16));
-}
-
-/**
- * Whether `candidate` is a worktree the Host made, by its own rule above, for a writer of one of `roots` (real repository roots). Read
- * from the paths alone, without Git: the catalog upgrade asks it of the links earlier Hosts made (`project-catalog-contract.ts`).
- */
-export function isHostWriterWorktree(candidate: string, roots: readonly string[]): boolean {
-  return HOST_WRITER_ID.test(path.basename(candidate)) && roots.some(root => root !== candidate && path.dirname(candidate) === writersDirectory(root));
 }
 
 const gitWorktreeErrors = defineErrorCodes("workspace_git.worktree", {

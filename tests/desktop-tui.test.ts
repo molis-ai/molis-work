@@ -682,7 +682,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /class="tui-owner-copy"/);
     assert.match(desktop, /class="tui-owner-actions"/);
     assert.match(desktop, /<strong data-tui-owner-title>/);
-    assert.match(desktop, /class="goal-status goal-status--[a-z_]+"[^>]*data-tui-owner-status/);
+    assert.match(desktop, /class="mw-object-status mw-object-status--[a-z_]+[^"]*"[^>]*data-tui-owner-status/);
     assert.doesNotMatch(desktop, /<small data-tui-owner-status/);
     assert.match(desktop, /<b>已关联当前对象<\/b>/);
     assert.match(desktop, /class="tui-mode-label">终端<\/span>/);
@@ -1066,8 +1066,8 @@ test("TUI client rejects cross-subject and read-only writes before touching the 
   assert.match(client, /onInput: \(panelId, data\) => \{\s+const panel[\s\S]+if \(!canControlPanel\(panel\)\) return;/);
   assert.match(TERMINAL_PANELS_SOURCE, /mode === "start" \|\| mode === "reopen"/);
   assert.match(client, /readOnly/);
-  assert.match(client, /className\.startsWith\("goal-status--"\)/);
-  assert.match(client, /ownerStatusEl\.classList\.add\(`goal-status--\$\{status\}`\)/);
+  assert.match(client, /className\.startsWith\("mw-object-status--"\)/);
+  assert.match(client, /ownerStatusEl\.classList\.add\(`mw-object-status--\$\{status\}`\)/);
   assert.match(client, /detail\.statusIconMarkup/);
   assert.match(
     client,

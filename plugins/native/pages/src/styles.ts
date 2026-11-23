@@ -394,13 +394,13 @@ export const PAGES_STYLES = `
     position: fixed; z-index: 40; inset: unset; margin: 0;
   }
   .pages-move-menu .mw-menu__item.is-current { font-weight: 600; }
-  .goal-collection-fold.is-drop > summary {
+  [data-pages="directory"] .mw-collection-fold.is-drop > summary {
     background: var(--nav-active); color: var(--ink);
   }
   .pages-folder-actions { display: flex; gap: 4px; margin-left: auto; opacity: 0;
     transition: opacity var(--dur-hover, 130ms) var(--ease-quint);
   }
-  .goal-collection-fold > summary:hover .pages-folder-actions,
+  [data-pages="directory"] .mw-collection-fold > summary:hover .pages-folder-actions,
   .pages-folder-actions:focus-within { opacity: 1; } @media (hover: none) { .pages-folder-actions { opacity: 1; } }
   .pages-folder-actions button {
     width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px;

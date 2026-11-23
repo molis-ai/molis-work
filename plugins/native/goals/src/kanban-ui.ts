@@ -19,7 +19,7 @@ export function createKanbanRenderer(primitives: GoalsMomentumUiPrimitives) {
         const parentTitle = parent ? byId.get(parent.to_goal_id)?.goal.title : "";
         const selected = entry.goal.goal_id === selectedGoalId;
         const complete = entry.display_status === "completed";
-        return `<article tabindex="0" role="button" data-kanban-card data-goal-id="${escapeHtml(entry.goal.goal_id)}" class="goal-kanban-card${complete ? " is-complete" : ""}${selected ? " is-selected" : ""}" draggable="false" aria-label="${escapeHtml(uiText.text("goals.kanban-ui.open-goal-title", { title: entry.goal.title }))}">
+        return `<article tabindex="0" role="button" data-kanban-card data-goal-id="${escapeHtml(entry.goal.goal_id)}" data-craft-land="goal:${escapeHtml(entry.goal.goal_id)}" class="goal-kanban-card${complete ? " is-complete" : ""}${selected ? " is-selected" : ""}" draggable="false" aria-label="${escapeHtml(uiText.text("goals.kanban-ui.open-goal-title", { title: entry.goal.title }))}">
         <span class="goal-kanban-status" aria-hidden="true">${mark}</span>
         <strong>${escapeHtml(entry.goal.title)}</strong>
         <span class="goal-kanban-card-outcome">${escapeHtml(entry.goal.outcome || uiText.text("goals.kanban-ui.expected-result-has-not-been-defined"))}</span>

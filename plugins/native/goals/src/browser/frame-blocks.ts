@@ -7,8 +7,8 @@ export interface FrameAsset {
   readonly id: string;
   readonly title: string;
   readonly caption: string;
-  readonly itemRef?: string;
-  readonly entryId?: string;
+  readonly readingSurface?: string;
+  readonly readingObject?: string;
   readonly reading?: FrameReading | null;
   /** The owner view the service read the asset from; one with a source is resolved again before it is added. */
   readonly source?: unknown;
@@ -29,8 +29,8 @@ export interface FrameBlock {
   readonly id: string;
   readonly kind: string;
   readonly itemId: string;
-  readonly itemRef?: string;
-  readonly entryId?: string;
+  readonly readingSurface?: string;
+  readonly readingObject?: string;
   readonly title: string;
   readonly caption?: string;
   readonly reading?: FrameReading | null;
@@ -40,8 +40,13 @@ export interface FrameBlock {
 export interface Camera { x: number; y: number; z: number }
 /** A Goal's frame: where it is looked at from, its blocks and the one opened. */
 export interface Frame { camera: Camera; blocks: FrameBlock[]; expanded: string }
+export type PluginTitleLookup = (surface: string) => string | undefined;
 
-export const kindLabel = (kind: string) => kind === "feed" ? "Feed" : kind === "inbox" ? "Inbox" : kind === "artifact" ? globalThis.t.text("goals.frame-container-client.result") : kind;
+const FRAME_SURFACE = /^[a-z][a-z0-9-]{0,100}$/;
+const FRAME_READING_ID = /^[a-zA-Z0-9._:@/-]{1,1000}$/;
+
+export const kindLabel = (kind: string, pluginTitle?: PluginTitleLookup) =>
+  kind === "artifact" ? globalThis.t.text("goals.frame-container-client.result") : pluginTitle?.(kind) || kind;
 
 const liveAssetRow = (block: FrameBlock) => [...document.querySelectorAll<HTMLElement>("[data-frame-asset]")].find((row) => row.dataset.frameAsset === block.kind && row.dataset.frameAssetId === block.itemId);
 const showBlockError = (body: HTMLElement, error: unknown) => {
@@ -55,11 +60,10 @@ const showBlockError = (body: HTMLElement, error: unknown) => {
   body.replaceChildren(status, retry);
 };
 const readValue = (block: FrameBlock, row: HTMLElement | undefined, key: keyof FrameReading, attr: string) => block.reading?.[key] || row?.dataset[attr] || "";
-const loadInboxBody = (body: HTMLElement, block: FrameBlock) => {
-  const row = liveAssetRow(block);
+const loadReadingBody = (body: HTMLElement, block: FrameBlock, row: HTMLElement | undefined, pluginTitle?: PluginTitleLookup) => {
   const article = document.createElement("article");
   article.className = "frame-reading";
-  article.dataset.frameReading = "inbox";
+  article.dataset.frameReading = block.kind;
   const reason = readValue(block, row, "reason", "frameReadingReason");
   const relation = readValue(block, row, "relation", "frameReadingRelation");
   const next = readValue(block, row, "next", "frameReadingNext");
@@ -70,14 +74,12 @@ const loadInboxBody = (body: HTMLElement, block: FrameBlock) => {
   if (relation) parts.push(globalThis.t.text("goals.frame-container-client.relates-relation", { relation }));
   if (next) parts.push(globalThis.t.text("goals.frame-container-client.next-next", { next }));
   if (status) parts.push(status);
-  copy.textContent = parts.length ? parts.join("") : block.caption || "";
+  copy.textContent = parts.length ? parts.join("") : block.caption || kindLabel(block.kind, pluginTitle);
   if (copy.textContent) article.append(copy);
   body.replaceChildren(article);
 };
-const loadFeedBody = async (body: HTMLElement, block: FrameBlock, route: Route) => {
-  const row = liveAssetRow(block);
-  const itemId = block.itemRef || row?.dataset.feedItemId || (row?.dataset.inboxSubjectType === "feed" ? row.dataset.inboxSubjectId : "") || block.itemId;
-  const html = await molisWorkRequest<string>(route("/api/stage/feed/objects/" + encodeURIComponent(itemId) + "?surface=frame-block"), { as: "text", fallback: globalThis.t.text("goals.frame-container-client.could-not-load-item") });
+const loadStageBody = async (body: HTMLElement, surface: string, objectId: string, route: Route) => {
+  const html = await molisWorkRequest<string>(route("/api/stage/" + encodeURIComponent(surface) + "/objects/" + encodeURIComponent(objectId) + "?surface=frame-block"), { as: "text", fallback: globalThis.t.text("goals.frame-container-client.could-not-load-item") });
   const template = document.createElement("template");
   template.innerHTML = html.trim();
   const reading = template.content.querySelector("[data-frame-reading]") || template.content.querySelector(".frame-reading") || template.content.firstElementChild;
@@ -100,7 +102,7 @@ const loadArtifactBody = async (body: HTMLElement, block: FrameBlock, route: Rou
 };
 
 /** Reads an opened block's body from its owner; a newer read of the same body wins. */
-export const fillBody = async (article: HTMLElement | null, block: FrameBlock | undefined, route: Route, force = false) => {
+export const fillBody = async (article: HTMLElement | null, block: FrameBlock | undefined, route: Route, force = false, pluginTitle?: PluginTitleLookup) => {
   const body = article?.querySelector<HTMLElement>("[data-frame-block-body]");
   if (!body || !block) return;
   const stamp = block.kind + ":" + block.itemId;
@@ -113,14 +115,14 @@ export const fillBody = async (article: HTMLElement | null, block: FrameBlock | 
   status.textContent = globalThis.t.text("goals.frame-container-client.opening");
   body.replaceChildren(status);
   try {
-    if (block.kind === "inbox") loadInboxBody(body, block);
-    else if (block.kind === "feed") await loadFeedBody(body, block, route);
+    const row = liveAssetRow(block);
+    const surface = (block.readingSurface && FRAME_SURFACE.test(block.readingSurface) ? block.readingSurface : "")
+      || (row?.dataset.frameReadingSurface && FRAME_SURFACE.test(row.dataset.frameReadingSurface) ? row.dataset.frameReadingSurface : "");
+    const objectId = (block.readingObject && FRAME_READING_ID.test(block.readingObject) ? block.readingObject : "")
+      || (row?.dataset.frameReadingObject && FRAME_READING_ID.test(row.dataset.frameReadingObject) ? row.dataset.frameReadingObject : "");
+    if (surface && objectId) await loadStageBody(body, surface, objectId, route);
     else if (block.kind === "artifact") await loadArtifactBody(body, block, route);
-    else {
-      const fallback = document.createElement("p");
-      fallback.textContent = block.caption || kindLabel(block.kind);
-      body.replaceChildren(fallback);
-    }
+    else loadReadingBody(body, block, row, pluginTitle);
     if (!body.isConnected || body.dataset.loadToken !== token) return;
     body.dataset.loaded = stamp;
   } catch (error) {
@@ -132,7 +134,7 @@ export const fillBody = async (article: HTMLElement | null, block: FrameBlock | 
 const closeIcon = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
 
 /** The article of one block on the frame. */
-export const blockArticle = (block: FrameBlock, expanded: boolean) => {
+export const blockArticle = (block: FrameBlock, expanded: boolean, pluginTitle?: PluginTitleLookup) => {
   const article = document.createElement("article");
   article.className = "frame-block" + (expanded ? " is-expanded" : "");
   article.dataset.frameBlock = block.id;
@@ -155,7 +157,7 @@ export const blockArticle = (block: FrameBlock, expanded: boolean) => {
   caption.textContent = block.caption || "";
   const stamp = document.createElement("span");
   stamp.className = "frame-block-kind";
-  stamp.textContent = kindLabel(block.kind);
+  stamp.textContent = kindLabel(block.kind, pluginTitle);
   const body = document.createElement("div");
   body.dataset.frameBlockBody = "";
   article.append(caption, handle, stamp, body);
@@ -204,17 +206,19 @@ export const containerTabs = (current: string, openIds: readonly string[], goalT
 /** The asset a click or drag on a page row offers, when the row is one a frame can hold. */
 export const readAsset = (target: Element | null): FrameAsset | null => {
   if (!target) return null;
-  if (target.closest("[data-tree-toggle], [data-directory-back], [data-work-surface-open], [data-feed-filter-trigger], [data-feed-filter-panel], [data-container-tabs], [data-frame-block]")) return null;
+  if (target.closest("[data-tree-toggle], [data-directory-back], [data-work-surface-open], [data-container-tabs], [data-frame-block]")) return null;
   const row = target.closest<HTMLElement>("[data-frame-asset]");
   if (!row) return null;
   const d = row.dataset;
+  const readingSurface = FRAME_SURFACE.test(d.frameReadingSurface || "") ? d.frameReadingSurface! : "";
+  const readingObject = FRAME_READING_ID.test(d.frameReadingObject || "") ? d.frameReadingObject! : "";
   return {
     kind: d.frameAsset || "",
     id: d.frameAssetId || "",
     title: d.frameAssetTitle || row.querySelector("strong")?.textContent || "",
     caption: d.frameAssetCaption || "",
-    itemRef: d.feedItemId || (d.inboxSubjectType === "feed" ? d.inboxSubjectId : "") || "",
-    entryId: d.feedEntryId || d.inboxEntryId || "",
+    readingSurface,
+    readingObject,
     reading: { reason: d.frameReadingReason || "", relation: d.frameReadingRelation || "", next: d.frameReadingNext || "", status: d.frameReadingStatus || "" },
   };
 };

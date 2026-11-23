@@ -157,7 +157,7 @@ function craftSection(): string {
         ${renderButton({ label: "新条目落地", variant: "secondary", attrs: { "data-craft-demo": "land" } })}
         ${renderButton({ label: "完成这一条", variant: "secondary", attrs: { "data-craft-demo": "celebrate" } })}
       </div>
-      <div class="mw-craft-stage" data-craft-demo-target><span class="mw-craft-stage__title">让第一次使用的人顺利完成一轮目标协作</span><span class="goal-status goal-status--in_progress" data-craft-demo-status>${icon("play")}<span>正在推进</span></span></div>`)}
+      <div class="mw-craft-stage" data-craft-demo-target><span class="mw-craft-stage__title">让第一次使用的人顺利完成一轮目标协作</span><span class="mw-object-status mw-object-status--in_progress" data-craft-demo-status>${icon("play")}<span>正在推进</span></span></div>`)}
       ${specimen("项目徽标 · 首字母 + 由 id 决定的色", `<div class="mw-craft-row">${monograms}</div>`)}
       ${specimen("标签 · 提示", `<div class="mw-craft-row mw-craft-strip"><span class="mw-craft-tab">${icon("home")}<span>项目主页</span></span><span class="craft-tip mw-craft-tip" data-shown>Inbox<kbd>⌥5</kbd></span></div>`)}
       ${specimen("Inset Grouped · 对齐六律（同心圆角、22px 首行光学轴、44px 发丝线、图标+色彩优先、平滑内嵌抽屉）", `<div class="mw-section-well" style="max-width:560px"><div class="mw-inset-group">

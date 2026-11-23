@@ -558,8 +558,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis:skill-pick-open", kind: "request", owner: "skill-picks", on: "document", cancelable: true,
-    detail: "{ reply, consumer: 'assistant' | 'coding' | 'agent', picks: SkillPick[], index: number | null, box: { x, y, width, height } }",
-    summary: "Open the 「依据」 panel for one Skill of a round's line (index; null for 「选一个」), anchored at the pressed button's box. Sent by the page that shows the round: the Assistant, Coding, or a plugin Agent through its frame. The panel takes it with preventDefault(); reply is the page's own mark for the round.",
+    detail: "{ reply, consumer: SkillPickConsumer, picks: SkillPick[], index: number | null, box: { x, y, width, height } }",
+    summary: "Open the 「依据」 panel for one Skill of a round's line (index; null for 「选一个」), anchored at the pressed button's box. Sent by the page that shows the round: the Assistant or a plugin Agent through its frame. The panel takes it with preventDefault(); reply is the page's own mark for the round.",
   },
   {
     name: "molis:skill-redo", kind: "announcement", owner: "skill-picks", on: "document",

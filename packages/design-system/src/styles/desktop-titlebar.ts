@@ -142,7 +142,6 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* The Goal document pane. It comes be
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .personal-new-goal { transition: none; }
     body[data-desktop-shell="true"] .navigator-project-selector,
     body[data-desktop-shell="true"] .desktop-module-item,
     body[data-desktop-shell="true"] .tree-row { transition: none; transform: none; }

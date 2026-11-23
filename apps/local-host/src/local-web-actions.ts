@@ -2,7 +2,7 @@ import type { IncomingMessage } from "node:http";
 import { inDirectoryPass, type ActionSelection } from "@molis-ai/molis-work-kernel";
 import { entryUserAction, webEntryMessage } from "./entry-user-action.js";
 import { captureWebSessionAuthority } from "./web-sessions.js";
-import { ActionError, bindActionClient, requireSynchronous, type ActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, isSubjectReader, requireSynchronous, type ActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionSceneView, ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -14,6 +14,7 @@ import { currentProjectPlatform, runningProjectPlatform } from "./project-plugin
 import type { LocalProjectDatabase } from "./project-database.js";
 import { sameInstalledRelease } from "./installed-stage-identity.js";
 import { matchingActions } from "./local-host-types.js";
+import { ACTIONS_DELEGATE_PERMISSION, declaresActionDelegation } from "./plugin-action-delegation.js";
 
 type LocalActionMetadata = ReturnType<MolisWorkLocalHost["inspectActionMetadata"]>[number];
 
@@ -117,6 +118,32 @@ function localWebAuthority(...args: Parameters<typeof buildLocalWebAuthority>): 
   return inDirectoryPass(() => buildLocalWebAuthority(...args));
 }
 
+/** Stage-read authority: own actions, declared consumes/roles, plus read-only subject readers only when the owner declares and holds `actions:delegate` (RAC-2505). */
+function stageReadAuthority(owner: LocalWebStageRead, reference: LocalHostProjectReference | undefined,
+  accepted: readonly LocalActionMetadata[], sourceChecks: Map<LocalActionMetadata, Array<() => void>>): LocalActionMetadata[] {
+  const ownActions = new Set(owner.manifest.actions?.map(action => `${action.capability_id}@${action.version}`));
+  const requiredRoles = owner.manifest.actions?.flatMap(action => action.action.required_roles ?? []) ?? [];
+  const delegateCheck = declaresActionDelegation(owner.manifest)
+    ? (() => { try { return owner.capturePermission(ACTIONS_DELEGATE_PERMISSION); } catch { return undefined; } })()
+    : undefined;
+  return accepted.filter(view => {
+    if (ownActions.has(`${view.capability_id}@${view.version}`)) {
+      return view.provider.plugin_id === owner.manifest.plugin_id && view.provider.plugin_install_id === owner.install_id
+        && (owner.scope === "home" ? !view.provider.project_id : view.provider.project_id === reference?.project_id);
+    }
+    const declared = owner.manifest.capabilities.consumes.includes(view.capability_id)
+      || requiredRoles.some(role => view.action.input_type === role.input_type && view.action.output_type === role.output_type);
+    const delegatedSubject = !declared && Boolean(delegateCheck) && view.operation === "query" && isSubjectReader(view.action);
+    if (!declared && !delegatedSubject) return false;
+    try {
+      const checksForView = view.action.permissions.map(permission => owner.capturePermission(permission));
+      if (delegatedSubject && delegateCheck) checksForView.push(delegateCheck);
+      sourceChecks.set(view, checksForView);
+      return true;
+    } catch { return false; }
+  });
+}
+
 function buildLocalWebAuthority(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, base: ActionCallContext, sessionCurrent: () => void,
   catalog: readonly LocalActionMetadata[], projectRepository: SqlitePluginRuntimeRepository | undefined,
   platform: Awaited<ReturnType<typeof runningProjectPlatform>>, homeInstalled: readonly PluginInstanceRecord[], entry: LocalWebEntry = {},
@@ -173,18 +200,10 @@ function buildLocalWebAuthority(host: MolisWorkLocalHost, reference: LocalHostPr
       try { capturePermission(view.provider, permission)?.(); return true; } catch { return false; }
     });
   });
-  const owner = entry.stage_read, ownActions = new Set(owner?.manifest.actions?.map(action => `${action.capability_id}@${action.version}`));
-  const requiredRoles = owner?.manifest.actions?.flatMap(action => action.action.required_roles ?? []) ?? [];
+  const owner = entry.stage_read;
   owner?.assertCurrent();
   const sourceChecks = new Map<LocalActionMetadata, Array<() => void>>();
-  const authority = owner ? accepted.filter(view => ownActions.has(`${view.capability_id}@${view.version}`)
-    ? view.provider.plugin_id === owner.manifest.plugin_id && view.provider.plugin_install_id === owner.install_id
-      && (owner.scope === "home" ? !view.provider.project_id : view.provider.project_id === reference?.project_id)
-    : (owner.manifest.capabilities.consumes.includes(view.capability_id)
-        || requiredRoles.some(role => view.action.input_type === role.input_type && view.action.output_type === role.output_type))
-      && (() => {
-        try { sourceChecks.set(view, view.action.permissions.map(permission => owner.capturePermission(permission))); return true; } catch { return false; }
-      })()) : accepted;
+  const authority = owner ? stageReadAuthority(owner, reference, accepted, sourceChecks) : accepted;
   const permissions = [...new Set([...builtinPermissions, ...accepted.flatMap(view => view.action.permissions), ...scenePermissions])];
   const stage = owner && stageAction && owner.manifest.ui.views?.some(view => view.stage_data?.action === stageAction.capability_id)
     ? authority.find(view => view.capability_id === stageAction.capability_id && view.version === stageAction.version

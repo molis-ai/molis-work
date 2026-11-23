@@ -140,7 +140,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .directory-content-scroll {
     display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain; padding-right: 4px;
   }
-  body.immersive-workbench[data-desktop-shell="true"] .plugin-section.is-expanded .desktop-goal-directory:not([hidden]),
+  body.immersive-workbench[data-desktop-shell="true"] .plugin-section.is-expanded .desktop-tree-directory:not([hidden]),
   body.immersive-workbench .plugin-section.is-expanded > .plugin-section-body > .desktop-directory-panel:not([hidden]) { display: flex; flex-direction: column; }
   body.immersive-workbench .immersive-workspace .desktop-directory-heading { display: none !important; }
   body.immersive-workbench .desktop-module-list { display: grid; gap: 4px; }
@@ -152,7 +152,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .desktop-module-item small { display: block; font-size: 11px; line-height: 1.5; color: var(--muted); margin-top: 4px; }
   body.immersive-workbench .desktop-module-item.is-current { background: var(--nav-active); }
   body.immersive-workbench .immersive-workspace .tree-chrome,
-  body.immersive-workbench[data-desktop-shell="true"] .desktop-goal-directory .tree-chrome {
+  body.immersive-workbench[data-desktop-shell="true"] .desktop-tree-directory .tree-chrome {
     position: static; padding: 0; background: transparent; border: 0; display: flex; justify-content: flex-start; flex-wrap: wrap; min-height: 0;
   }
   body.immersive-workbench .navigator-view-switch { display: none; }
@@ -178,9 +178,9 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .immersive-workspace .tree-scroll { flex: none; height: auto; min-height: 0; overflow: visible; padding: 0; background: transparent; }
   body.immersive-workbench .tree-item { margin: 0; padding: 0; border: 0; }
   body.immersive-workbench .tree-row { display: flex; align-items: flex-start; gap: 4px; padding: 4px 0; margin: 0; }
-  body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry { min-width: 0; flex: 1; display: flex; align-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; }
-  body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry.is-selected { background: var(--nav-active); }
-  body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry .tree-title-line strong { color: var(--ink); }
+  body.immersive-workbench .immersive-workspace .desktop-tree-directory .tree-entry { min-width: 0; flex: 1; display: flex; align-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; }
+  body.immersive-workbench .immersive-workspace .desktop-tree-directory .tree-entry.is-selected { background: var(--nav-active); }
+  body.immersive-workbench .immersive-workspace .desktop-tree-directory .tree-entry .tree-title-line strong { color: var(--ink); }
   body.immersive-workbench .tree-node { flex: 1; min-width: 0; min-height: 31px; padding: 8px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); }
   body.immersive-workbench .tree-node.is-selected { background: transparent; }
   body.immersive-workbench .tree-title-line strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 20px; white-space: nowrap; display: block; overflow: hidden; text-overflow: ellipsis; }
@@ -242,7 +242,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench[data-native-desktop="true"] [data-titlebar-tabs] .tab-scroll { flex: 0 1 auto; width: max-content; min-width: 0; }
   html[data-native-desktop="true"] body.immersive-workbench .tab-strip .tab-strip-spacer,
   body.immersive-workbench[data-native-desktop="true"] .tab-strip .tab-strip-spacer { flex: 1 1 48px; min-width: 48px; -webkit-app-region: drag; }
-  body.immersive-workbench .immersive-titlebar > strong { font-size: 11px; font-weight: var(--weight-control, 500); }
   body.immersive-workbench .container-tabs { min-width: 0; flex: 1; height: 44px; padding-block: 8px; display: flex; align-items: stretch; overflow: auto; gap: 4px; }
   body.immersive-workbench .container-tab { max-width: 168px; min-width: 72px; flex: 0 1 auto; display: flex; align-items: center; gap: 8px; padding: 0 8px; font: inherit; font-size: 12px; font-weight: 400; color: var(--muted); background: transparent; border: 0; border-radius: 8px; cursor: pointer; box-shadow: none; }
   body.immersive-workbench .container-tab:hover { color: var(--ink); }
@@ -252,7 +251,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .container-tab-close { width: 18px; height: 18px; border-radius: 4px; margin-left: 4px; color: var(--muted); display: grid; place-items: center; opacity: .7; padding: 0; border: 0; background: transparent; }
   body.immersive-workbench .container-tab-close:hover { background: var(--nav-active); color: var(--ink); }
   body.immersive-workbench .container-tab-close svg { width: 12px; height: 12px; }
-  body.immersive-workbench .immersive-goal-tools { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
   body.immersive-workbench .immersive-icon-button { width: 28px; height: 28px; padding: 0; flex: none; display: inline-grid; place-items: center; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
   body.immersive-workbench .immersive-icon-button svg { height: 16px; width: 16px; }
   body.immersive-workbench .workspace-chrome.project-island :is(.navigator-directory-toggle, .immersive-show-directory) { display: none; }
@@ -455,7 +453,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     body.immersive-workbench .workspace-chrome.project-island .navigator-directory-toggle { display: none; }
     body.immersive-workbench .is-directory-drawer-open .workspace-chrome.project-island .navigator-directory-toggle { display: grid; }
     body.immersive-workbench .is-directory-drawer-open .workspace-chrome.project-island .immersive-show-directory { display: none; }
-    body.immersive-workbench .immersive-goal-tools > span { display: none; }
     body.immersive-workbench .plugin-rail .plugin-rail-item,
     body.immersive-workbench .plugin-rail .personal-account,
     body.immersive-workbench .plugin-rail .personal-settings { width: 40px; height: 44px; min-height: 44px; }

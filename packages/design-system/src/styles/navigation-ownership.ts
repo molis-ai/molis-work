@@ -128,7 +128,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Runtime pane: owner and tab bar
 
     /* Light location states stay embedded in their rail. Paper and elevation
        remain reserved for content surfaces and overlays. */
-    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-goal-directory .tree-entry.is-selected {
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-tree-directory .tree-entry.is-selected {
       background: color-mix(in srgb, var(--blue) 8%, transparent) !important;
       box-shadow: none;
     }
@@ -149,7 +149,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Runtime pane: owner and tab bar
     body[data-desktop-shell="true"] .tui-owner {
       padding-inline: 16px;
     }
-    body[data-desktop-shell="true"] .tui-owner-actions > .goal-status {
+    body[data-desktop-shell="true"] .tui-owner-actions > .mw-object-status {
       min-height: 28px;
       padding: 4px 8px;
       border-radius: 8px;

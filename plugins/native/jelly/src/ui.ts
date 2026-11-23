@@ -33,7 +33,7 @@ export function renderJellyWorkbench(_model: JellyUiModel): string {
     calendar: { year: now.getFullYear(), month: now.getMonth(), compact: true },
   }).replace("data-date-picker-input", `data-jelly-field="${name}" data-date-picker-input${required ? " required" : ""}`);
   const button = (label: string, attr: string, glyph?: Parameters<typeof icon>[0], primary = false) => `<button type="button" class="mw-btn mw-btn--${primary ? "primary" : "ghost"}" aria-label="${t(label)}" ${attr}>${glyph ? icon(glyph) : ""}<span>${t(label)}</span></button>`;
-  return renderPluginStageShell({ surface: "jelly", label: "Jelly", dataset: "jelly", body: `
+  return renderPluginStageShell({ surface: "jelly", label: "Jelly", dataset: "jelly", extraAttrs: "data-stage-custom-layout", body: `
     <header class="jelly-header">
       <nav class="jelly-tabs" aria-label="${t("jelly.page.workspace")}">
         ${button("jelly.view.calendar", 'data-jelly-view="calendar" aria-current="page"', "calendar")}

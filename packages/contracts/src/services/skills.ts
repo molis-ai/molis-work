@@ -388,7 +388,7 @@ export interface SkillCase extends SkillCaseFields {
 /** How a replayed result compares with the known answer: the same in substance, different in some places, or not judged. */
 export const SKILL_TRIAL_VERDICTS = ["match", "differs", "unknown"] as const;
 export type SkillTrialVerdict = (typeof SKILL_TRIAL_VERDICTS)[number];
-/** The entries a Skill is replayed in: the Assistant and Coding, each with its own role, as `applies_to` says. */
+/** The entries a Skill is replayed in (platform `"assistant"` or any plugin-declared `memory_scene`), as `applies_to` says. */
 export type SkillTrialConsumer = string;
 /** Most characters of one replayed result kept and shown. */
 export const SKILL_TRIAL_OUTPUT_CHARS = 8000;

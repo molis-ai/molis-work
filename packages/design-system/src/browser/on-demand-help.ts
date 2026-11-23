@@ -182,7 +182,7 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
 
   const collectTopics = (trigger?: HTMLElement): Map<string, ResolvedTopic> => {
     const map = new Map<string, ResolvedTopic>();
-    const localScope = trigger?.closest(".pc-view, [data-installed-plugin], [data-settings-panel], [data-work-surface], [data-goal-canvas-shell]");
+    const localScope = trigger?.closest(".pc-view, [data-installed-plugin], [data-settings-panel], [data-work-surface], [data-record-owner]");
     // Declarations load first so more specific runtime data (`data-mw-help-data`, e.g. generated plugins) wins.
     readDeclarationScripts(document, map, false);
     if (localScope) readDeclarationScripts(localScope, map, true);

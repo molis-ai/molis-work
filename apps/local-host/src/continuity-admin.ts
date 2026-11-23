@@ -1,12 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { CONTINUITY_ACTIONS, memberClientId } from "@molis-ai/molis-work-server";
+import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { memberClientId } from "@molis-ai/molis-work-server";
 import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { hostContinuityActions } from "./continuity-gateway.js";
 import { changeMcpClientCredential } from "./mcp-client-credentials.js";
 import { registeredHostAction } from "./plugin-registry.js";
 
 /** Local administrator operation. Delegates to the existing protected Host grant owner. Never a mobile endpoint. */
-export async function configureMemberActions(input:{hostUrl:string;homeDirectory:string;controlTokenFile:string;memberId:string;projectId:string;role:"owner"|"editor"|"viewer"|"revoked"}) {
+export async function configureMemberActions(input:{hostUrl:string;homeDirectory:string;controlTokenFile:string;memberId:string;projectId:string;role:"owner"|"editor"|"viewer"|"revoked";actions?:readonly ActionReference[]}) {
   const url=new URL(input.hostUrl);
   if(!isLoopbackHttpOrigin(url,{numeric:true}))throw Error("Host URL must be a numeric loopback HTTP origin");
   const token=(await readFile(input.controlTokenFile,"utf8")).trim();
@@ -18,10 +20,19 @@ export async function configureMemberActions(input:{hostUrl:string;homeDirectory
   const query=new URLSearchParams({client_id:clientId,project_id:input.projectId});
   const read=await fetch(new URL(`?${query}`,endpoint),{redirect:"error",signal:AbortSignal.timeout(30000),headers:{"x-molis-work-control-token":token}});
   if(!read.ok)throw new Error(`Host could not read current grants: ${read.status}`);
-  const {grants}=await read.json() as {grants:ReadonlyArray<{capability_id:string;version:number;provider_id:string;generation:string}>};
+  const {grants,entries=[]}=await read.json() as {
+    grants:ReadonlyArray<{capability_id:string;version:number;provider_id:string;generation:string}>;
+    entries?:ReadonlyArray<{capability_id:string;version:number;provider_id:string;kind?:string}>;
+  };
   const results:{capability_id:string;enabled:boolean;status:string}[]=[];
-  for(const action of CONTINUITY_ACTIONS){
-    const enabled=input.role!=="revoked" && (input.role!=="viewer" || registeredHostAction(action.capability_id,action.version)?.operation!=="command");
+  const actions = input.actions ?? hostContinuityActions();
+  for(const action of actions){
+    // Fail-closed for viewers: allow only actions proven read-only by the live Host catalog (or built-in query metadata).
+    const liveEntry=entries.find(row=>row.capability_id===action.capability_id && row.version===action.version && (!action.provider_id || row.provider_id===action.provider_id));
+    const readOnly=liveEntry
+      ? liveEntry.kind==="query"
+      : (registeredHostAction(action.capability_id,action.version)?.operation==="query" || action.capability_id==="artifacts.read");
+    const enabled=input.role!=="revoked" && (input.role!=="viewer" || readOnly);
     const previous=grants.find(row=>row.capability_id===action.capability_id && row.version===action.version && row.provider_id===action.provider_id);
     const expected=previous ? {expected_generation:previous.generation} : {expected_absent:true};
     const response=await fetch(endpoint,{method:"POST",redirect:"error",signal:AbortSignal.timeout(30000),headers:{origin:url.origin,"content-type":"application/json","x-molis-work-control-token":token,"x-molis-work-idempotency-key":randomUUID()},

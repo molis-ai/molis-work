@@ -91,12 +91,12 @@ export const SHELF_STYLES = `
   }
   [data-shelf] .shelf-side-menu[hidden] { display: none; }
   /* The group head carries a coloured type mark and a neutral label; no green. */
-  [data-shelf] .plugin-stage-list .goal-collection-fold > summary { color: var(--da-muted); }
-  [data-shelf] .plugin-stage-list .goal-collection-fold > summary:hover { background: var(--da-hover); color: var(--da-text); }
-  [data-shelf] .plugin-stage-list .goal-collection-fold > summary strong { color: inherit; }
-  [data-shelf] .plugin-stage-list .goal-collection-fold > summary small { color: var(--da-faint); }
-  [data-shelf] .goal-collection-fold .shelf-row { padding-left: 24px; }
-  [data-shelf] .goal-collection-fold .shelf-row.is-child { padding-left: 48px; }
+  [data-shelf] .plugin-stage-list .mw-collection-fold > summary { color: var(--da-muted); }
+  [data-shelf] .plugin-stage-list .mw-collection-fold > summary:hover { background: var(--da-hover); color: var(--da-text); }
+  [data-shelf] .plugin-stage-list .mw-collection-fold > summary strong { color: inherit; }
+  [data-shelf] .plugin-stage-list .mw-collection-fold > summary small { color: var(--da-faint); }
+  [data-shelf] .mw-collection-fold .shelf-row { padding-left: 24px; }
+  [data-shelf] .mw-collection-fold .shelf-row.is-child { padding-left: 48px; }
   [data-shelf] .shelf-group-mark { color: currentColor; }
   [data-shelf] .shelf-group-mark svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
   [data-shelf] .shelf-side-foot {

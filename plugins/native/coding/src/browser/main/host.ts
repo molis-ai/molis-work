@@ -27,6 +27,7 @@ export interface CodingHost {
   showReviews?: ShowReviews;
   openItem(kind: string, id: string, title?: string): void;
   openBeside?(kind: string, id?: string, title?: string): void;
+  surfaceFor?(kind: string): string | null;
   revealTask?(): void;
   receipts: HostReceipts;
   interaction(card: HTMLElement, options: InteractionClientHost): HostInteraction;

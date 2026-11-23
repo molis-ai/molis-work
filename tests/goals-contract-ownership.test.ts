@@ -229,4 +229,12 @@ test("PEQ-04: platform contracts contain zero retired plugin-specific fields, ev
     }
   }
   assert.deepEqual(hits, [], `PEQ-04 retired plugin-specific literals re-entered packages/contracts/src:\n${hits.join("\n")}`);
+
+  // PEQ-04: kernel and specific platform contracts stay free of retired plugin-specific enums and labels.
+  const kernelHits = tracked("packages/kernel/src").filter(file => /【当前目标】/u.test(source(file)));
+  assert.deepEqual(kernelHits, [], `PEQ-04 retired Goal label re-entered packages/kernel/src: ${kernelHits.join(", ")}`);
+  const contextLedger = source("packages/contracts/src/modules/context-ledger.ts");
+  assert.doesNotMatch(contextLedger, /"(?:goals|feed)"/u, "PEQ-04: context-ledger module enum does not hardcode goals or feed");
+  const skillsContract = source("packages/contracts/src/services/skills.ts");
+  assert.doesNotMatch(skillsContract, /"\s*coding\s*"/u, "PEQ-04: skills contract does not hardcode coding caller literal");
 });

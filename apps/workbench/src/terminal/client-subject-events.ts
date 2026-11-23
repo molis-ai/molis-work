@@ -29,9 +29,14 @@ function paintOwnerStatus(ownerStatusEl: HTMLElement, detail: SubjectChangedDeta
   ownerStatusEl.hidden = !detail?.statusLabel;
   ownerStatusEl.title = detail?.statusMeaning ?? "";
   Array.from(ownerStatusEl.classList)
-    .filter((className) => className.startsWith("goal-status--"))
+    .filter((className) => className.startsWith("mw-object-status--") || className.startsWith("goal-status--"))
     .forEach((className) => ownerStatusEl.classList.remove(className));
-  if (/^[a-z_]+$/.test(status)) ownerStatusEl.classList.add(`goal-status--${status}`);
+  if (/^[a-z_]+$/.test(status)) {
+    ownerStatusEl.classList.add(`mw-object-status--${status}`);
+    ownerStatusEl.dataset.objectStatus = status;
+  } else {
+    delete ownerStatusEl.dataset.objectStatus;
+  }
   if (detail?.statusIconMarkup) {
     const template = document.createElement("template");
     template.innerHTML = detail.statusIconMarkup.trim();

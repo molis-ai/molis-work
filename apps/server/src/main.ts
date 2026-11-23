@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { parseArgs } from "node:util";
-import { openServerDatabase, transaction, Identity, ServerEvents, ContinuityService, startServer, createImDomain, memberClientId, CONTINUITY_ACTIONS, type ProjectScope } from "@molis-ai/molis-work-server";
+import { openServerDatabase, transaction, Identity, ServerEvents, ContinuityService, startServer, createImDomain, memberClientId, CONTINUITY_BASE_ACTIONS, type ProjectScope } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
 import type { ServerCompositionPorts } from "./ports.js";
 
@@ -60,7 +60,8 @@ if(command === "authorize") {
   const address = running.server.address();
   if (address && typeof address === "object") diagnostics.debug("listening", { address: address.address, port: address.port, tls: Boolean(tls) });
   writeOutput(`Molis Work Server: ${running.origin}/continuity\nOwner pairing code: ${join(state,"connect.json")} (10 minutes)\nHost action client: ${memberClientId(owner.id)}\n`);
-  writeOutput(`Required action grants: ${CONTINUITY_ACTIONS.map(a=>a.capability_id+"@"+a.version).join(", ")}\n`);
+  const continuityActions = ports.continuityActions ?? CONTINUITY_BASE_ACTIONS;
+  writeOutput(`Required action grants: ${continuityActions.map(a=>a.capability_id+"@"+a.version).join(", ")}\n`);
   let closing = false;
   const close = async (signal: "SIGINT" | "SIGTERM") => {
     if (closing) {

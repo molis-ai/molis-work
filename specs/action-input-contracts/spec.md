@@ -632,7 +632,7 @@ N22 只动 N12 第 ④ 块（`normalizeProjectId`）；①②③⑤（两段固�
 | --- | --- | --- | --- | --- | --- | --- |
 | T01 | Goals（18） | 76 | 63 | E | Sonnet 5.5 xhigh | 最大，最先开。它的写法是 `Input<"submitGoalTreeProposal">`，类型来自应用层接口，方向和别的包相反：推出来的类型要能赋给接口。排在 N22-02 之后：`goal-tree-action-schemas.ts:18` 的 `payload` 工具改之前推成 `unknown`，读字段编译报错，T 片又不许改 schema。等 39-2 与 44-2、44-3、44-4 搬走相应动作（项目指导、可信决定、要求认可、终端）、胶囊投影也删之后再迁，免得为要离开 Goals 的动作白迁一次，也不与 44-1 要改的合同文件（如 `platform/placement.ts`）冲突（2026-11-13 按插件同等地位收口改，[决定 42](../post-anticorruption-roadmap/reference/decisions.md#decision-42)） |
 | T02 | Feed（9） | 48 | 12 | E | Sonnet 5.5 high | |
-| T03 | Todo、Schedule（9） | 44 | 12 | E | Sonnet 5.5 high | Schedule 的 `bind` 包了写入检查。排在 N22-02 之后：`todo.changes.revert`、`todo.items.link` 同时有 `properties` 和顶层 `anyOf`、`oneOf`，工具改之前推成 `unknown` |
+| T03 | Todo、Schedule（9） | 44 | 12 | E | Sonnet 5.5 high | 56-3 完成第 111 批前置后，把 `plugins/native/todo/src/actions.ts` 的局部 `bind` 换为 `bindActionHandler`，经目录创建、列出并核对调用者身份和输入顺序，错误输入、错误版本均拒绝，公开动作快照不变。Schedule 的 `bind` 包了写入检查。排在 N22-02 之后：`todo.changes.revert`、`todo.items.link` 同时有 `properties` 和顶层 `anyOf`、`oneOf`，工具改之前推成 `unknown` |
 | T04 | Pages、PPT、Form（9） | 96 | 7 | E | Sonnet 5.5 high | |
 | T05 | Dataset、Lingguang、Cognia、Images（8） | 86 | 11 | E | Sonnet 5.5 high | 排在 N22-02 之后：`cognia.knowledge.synthesize` 同上 |
 | T06 | Shelf、Workflows（5） | 49＋27（宿主表） | 8 | E | Sonnet 5.5 high | Workflows 的 `bind` 包了权限 |

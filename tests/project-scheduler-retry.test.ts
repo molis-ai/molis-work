@@ -136,6 +136,7 @@ test("B103-01 a pending wakeup does not hold ready clocks or another due project
   await setImmediate();
   assert.deepEqual(ticks, ["ready", "due"], "the ready clock and first tick in another due project both run");
   await first;
+  assert.equal(schedulers.activeCount(), 1, "a pending project wake remains active after the round returns");
   await run!();
   assert.deepEqual(ticks, ["ready", "due", "ready", "due"], "the next round still ticks both clocks");
   assert.deepEqual(opened, ["pending", "due"], "a pending project is only opened once");
@@ -144,6 +145,7 @@ test("B103-01 a pending wakeup does not hold ready clocks or another due project
   release.resolve();
   await stopping;
   assert.equal(ticks.includes("pending"), false, "an open that finishes after stop does not tick");
+  assert.equal(schedulers.activeCount(), 0);
 });
 
 test("101-2: stop() awaits in-flight schedule ticks before resolving and suppresses post-stop changed callbacks", async (t) => {

@@ -143,7 +143,7 @@ export function startWebProjectSchedulers(options: {
       return openDue().then(() => { if (!stopped) return sleepIdle(); });
     },
   });
-  return { runtimes, activeCount: () => inFlight.size, stop: () => stopping ??= (async () => {
+  return { runtimes, activeCount: () => opening.size + inFlight.size, stop: () => stopping ??= (async () => {
     stopped = true;
     cancel();
     await scanning?.catch(() => undefined);

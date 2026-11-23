@@ -18,7 +18,7 @@ import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/acti
 import type { StateRingState, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { BackgroundTasksReadResult, MainlineIssue, WorkLineEvent, WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { format, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { EARLIER_AFTER, WORK_LISTS, renderLineChecking, renderLineEvent, renderLineUnreadable, renderListEarlier, glyphOfEvent, renderListGroup, renderParkedList, renderStateGlyph, renderPlaceCard, renderReplyPlaced, renderReplyWaiting, renderStackCard, renderStackEmpty, renderStackLook, renderStackMain, type LineEventState, type LineEventView, type LineOwnerView, type WorkListId } from "../work-line-parts.js";
+import { EARLIER_AFTER, WORK_LISTS, renderLineChecking, renderLineEvent, renderLineUnreadable, renderListEarlier, glyphOfEvent, renderListGroup, renderParkedList, renderStateGlyph, renderPlaceCard, renderReplyPlaced, renderReplyWaiting, renderStackCard, renderStackEmpty, renderStackLook, renderStackMain, renderStackOtherItems, type LineEventState, type LineEventView, type LineOwnerView, type WorkListId } from "../work-line-parts.js";
 import { installAcceptance } from "./work-acceptance.js";
 import { installEventCards, type EventCardHandle, type EventCardOpen, type PositionViews } from "./work-event-card.js";
 import { ASKS, FAILED, installTasks, type SubtaskRef } from "./work-tasks.js";
@@ -172,13 +172,16 @@ type InfoTab = "info" | WorkListId;
 function installLists({ line, counts, column, tabs, lists, body, sources, heading, dialog }: ListParts, read: ListReads) {
   let open: InfoTab = "info", earlier = false, lastHtml = "";
   const counted = new Map<WorkListId, number>(), place = column.querySelector<HTMLElement>("[data-info-place]"), foot = lists.querySelector<HTMLElement>("[data-work-lists-foot]")!;
-  const KEPT = `molis.work-line.parked-lists:${document.body.dataset.projectId ?? ""}`, side = document.querySelector<HTMLElement>("[data-side-parked]");
-  let parked: WorkListId[] = (() => {
+  const baseKey = `molis.work-line.parked-lists:${document.body.dataset.projectId ?? ""}`;
+  let parkedKey = baseKey;
+  const side = document.querySelector<HTMLElement>("[data-side-parked]");
+  const readParked = (storageKey: string): WorkListId[] => {
     try {
-      const kept = JSON.parse(localStorage.getItem(KEPT) ?? "[]") as unknown;
+      const kept = JSON.parse(localStorage.getItem(storageKey) ?? "[]") as unknown;
       return Array.isArray(kept) ? WORK_LISTS.map(one => one.id).filter(id => kept.includes(id)) : [];
     } catch { return []; }
-  })();
+  };
+  let parked: WorkListId[] = readParked(parkedKey);
   const rowsShown = () => open === "info" ? [] : [...body.querySelectorAll<HTMLElement>(`[data-work-list-rows="${open}"] :is([data-work-event],[data-task-open],[data-subtask-open],[data-work-lists-earlier]):not([disabled])`)];
   const focus = () => { for (const node of document.querySelectorAll<HTMLElement>("[data-work-lists] [data-work-event], [data-parked-list] [data-work-event]")) { if (read.current(node.dataset.workEvent ?? "")) node.setAttribute("aria-current", "true"); else node.removeAttribute("aria-current"); } };
   const rowsOf = (id: WorkListId, all: boolean, fresh: (event: WorkLineEvent) => boolean) => {
@@ -207,7 +210,14 @@ function installLists({ line, counts, column, tabs, lists, body, sources, headin
     read.parkedChanged();
   };
   const keepParked = () => {
-    try { localStorage.setItem(KEPT, JSON.stringify(parked)); } catch { /* this viewer's convenience only */ }
+    try { localStorage.setItem(parkedKey, JSON.stringify(parked)); } catch { /* this viewer's convenience only */ }
+    paintParked();
+  };
+  const setParkedItem = (itemId: string | null) => {
+    const nextKey = itemId ? `${baseKey}:${itemId}` : baseKey;
+    if (nextKey === parkedKey) return;
+    parkedKey = nextKey;
+    parked = readParked(parkedKey);
     paintParked();
   };
   const draw = (fresh: (event: WorkLineEvent) => boolean = () => false) => {
@@ -360,7 +370,7 @@ function installLists({ line, counts, column, tabs, lists, body, sources, headin
     draw();
   };
   line.toggleAttribute("data-dialog-open", !dialog.hidden);
-  return { draw, retitle, show, shown: () => open };
+  return { draw, retitle, show, shown: () => open, setParkedItem };
 }
 
 /** Semantic selector for restoring focus across a card stack redraw when button positions shift (e.g. `more` drops to 0). */
@@ -451,6 +461,24 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   installWorkLineLayout(bar);
   const hue = hues();
   let events = new Map<string, WorkLineEvent>(), issues: readonly MainlineIssue[] = [], shown = "", focused = "", pressing = "", paged = "", followed = false;
+  let activeItemId: string | null = null, otherItemsWaiting = 0;
+  let taskItems: Readonly<Record<string, { readonly item_id: string; readonly name: string }>> = {};
+  const scopeGroup = lists.querySelector<HTMLElement>("[data-work-lists-scope]");
+  const paintScopeToggle = () => {
+    if (!scopeGroup) return;
+    scopeGroup.hidden = !activeItemId;
+    const mode = document.body.dataset.workLineScope === "project" ? "project" : "item";
+    for (const btn of scopeGroup.querySelectorAll<HTMLElement>("[data-work-scope]")) {
+      btn.setAttribute("aria-pressed", String(btn.dataset.workScope === mode));
+    }
+  };
+  scopeGroup?.addEventListener("click", event => {
+    const btn = (event.target as Element)?.closest<HTMLElement>("[data-work-scope]");
+    if (!btn?.dataset.workScope) return;
+    document.body.dataset.workLineScope = btn.dataset.workScope;
+    paintScopeToggle();
+    again();
+  });
   const keyOf = (subject: ActionSubject) => `${subject.kind}:${subject.id}`;
   const again = () => document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
   // The last line this tab knew, kept for this tab only: after a reload it stands at once, said to be checked, until the read confirms it (WLN-29).
@@ -527,6 +555,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   const waitingItems = (): StackItem[] => {
     const main = host.mainWaiting?.() ?? null;
     const look = toLook().length;
+    const other = activeItemId && otherItemsWaiting > 0 ? otherItemsWaiting : 0;
     return [
       ...waitingEvents().filter(event => dialog.hidden || keyOf(event.subject) !== focused).map(event => ({ id: event.id, draw: (more: number) => { const qs = tasks.questions(event.subject), said = view(event, false);
         return renderStackCard({ id: event.id, title: event.title, owner: said.owner, more, ask: qs[0]?.ask ?? (said.stateLabel || event.summary || uiText.text("workbench.work-line.waiting-for-you")), ...decisionOf(qs) }); } })),
@@ -534,6 +563,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
         return renderStackCard({ id: `task:${task.id}`, title: task.title, owner: ownerOf(task.origin), more, ask: qs[0]?.ask ?? (task.step?.text || uiText.text("workbench.work-line.waiting-for-you")), ...decisionOf(qs) }); } })),
       ...(main ? [{ id: "main", draw: (more: number) => renderStackMain({ ask: main.ask, more }) }] : []),
       ...(look ? [{ id: "look", draw: (more: number) => renderStackLook({ n: look, more }) }] : []),
+      ...(other ? [{ id: "other-items", draw: (more: number) => renderStackOtherItems({ n: other, more }) }] : []),
     ];
   };
   const cardStack = installStack({ line, counts, stack }, { waiting: waitingItems, counted: () => paintWaiting(waitingCount()) });
@@ -616,6 +646,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     },
     acceptance: (slot, target) => acceptance.overview(slot, () => [target]),
     subtasks: () => host.subtasks?.() ?? [],
+    itemName: (subject, serves) => taskItems[keyOf(subject)]?.name ?? serves.map(one => taskItems[keyOf(one)]?.name).find(Boolean),
   });
 
   const eventOf = (subject: ActionSubject) => [...events.values()].find(one => keyOf(one.subject) === keyOf(subject));
@@ -710,6 +741,11 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       host.openAttention?.(looked, toLook());
       return;
     }
+    if (target.closest("[data-work-stack-other]") || (!target.closest("button,a,input,textarea") && target.closest('[data-work-stack-card="other-items"]'))) {
+      cardStack.close();
+      document.dispatchEvent(new CustomEvent("molis-work:work-item-switch", { detail: { open_switcher: true } }));
+      return;
+    }
     if (target.closest("[data-work-stack-main]") || (!target.closest("button,a,input,textarea") && target.closest("[data-work-stack-card][data-main]"))) {
       cardStack.close();
       list.show("info");
@@ -770,6 +806,20 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     checking(since ?? "");
     tasks.offline(since ? format.date(since, "time") : "");
     list.draw();
+  });
+  document.addEventListener("molis-work:work-item-changed", event => {
+    const detail = (event as CustomEvent<{ item_id?: string | null; other_waiting?: number; task_items?: Readonly<Record<string, { readonly item_id: string; readonly name: string }>> }>).detail;
+    const prevItem = activeItemId;
+    activeItemId = detail?.item_id ?? null;
+    otherItemsWaiting = typeof detail?.other_waiting === "number" ? detail.other_waiting : 0;
+    taskItems = detail?.task_items ?? {};
+    if (prevItem !== activeItemId) {
+      delete document.body.dataset.workLineScope;
+      list.setParkedItem(activeItemId);
+    }
+    paintScopeToggle();
+    list.draw();
+    cardStack.paint();
   });
   document.addEventListener("molis-work:language-changed", () => {
     if (checkingSince !== null) {

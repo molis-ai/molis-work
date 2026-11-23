@@ -93,6 +93,7 @@ export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-
 export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter } from "./scripts/write-checkers.js";
 export { connectorSwitchLeft } from "./scripts/connector-replacement.js";
 export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
+export { renderMolisWorkMainlineClientScript } from "./page-assets.js";
 export { renderMolisWorkKitClientScript } from "./settings-kit.js";
 export { renderMolisWorkWorkRecordsClientScript } from "./settings-work-records.js";
 export { renderMolisWorkChooserSearchClientScript } from "./arrival/chooser-search.js";

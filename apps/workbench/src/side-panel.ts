@@ -47,6 +47,8 @@ export interface SideViews {
   readonly tasks?: boolean;
 }
 
+/** 「这件事的东西」: what belongs to the current work item (specs/work-mainline §4.3, Batch 37-2); right-sidebar IM (`discussion`) stays alongside it (Decision 66 R21). */
+const ITEM_CONTENTS_TAB = ["item-contents", "workbench.side-panel-tab.item-contents", "folder-tree", 15] as const;
 /** The panel's own tabs, in the places they take among the plugins' (side-shelf §3.1: Shelf · 灵光 · 资料 · 浏览器 · 电脑 · 讨论; 资料 was 文件, specs/project-knowledge §8.1). */
 const OWN_TABS = [["files", "workbench.side-panel-tab.materials", "file", 20], ["browser", "workbench.side-panel-tab.browser", "globe", 30], ["computer", "workbench.side-panel-tab.computer", "system", 40], ["discussion", "workbench.side-panel-tab.discussion", "message", 50]] as const;
 /** 「对话」: the event cards parked beside the work (specs/work-line §4.4, WLN-14). Offered only while one is parked there. */
@@ -63,8 +65,8 @@ function sideEntries(primitives: SidePanelPrimitives, pluginTabs: readonly SideP
   // A plugin's side view names itself in its Manifest; the side shows that name in the interface language.
   const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, order: entry.order ?? 100, label: entry.title, glyph: entry.icon, plugin: entry,
     attrs: ` data-side-plugin="${escapeHtml(entry.key)}"${entry.contextOwner ? ` data-side-context-owner="${escapeHtml(entry.contextOwner)}" data-side-context-surface="${escapeHtml(entry.contextSurface)}" hidden` : ""}${entry.keys ? ` data-side-keys="${escapeHtml(entry.keys)}"` : ""}` }));
-  const own = [...views.projectTools === false ? [] : [...OWN_TABS, PARKED_TAB, HELP_TAB], ...views.tasks ? [TASKS_TAB] : []]
-    .map(([id, label, glyph, order]) => ({ id, order, label: uiText.text(label), glyph, attrs: id === "tasks" ? " data-side-tasks" : id === "conversation" || id === "help" ? " hidden" : "" }));
+  const own = [...views.projectTools === false ? [] : [ITEM_CONTENTS_TAB, ...OWN_TABS, PARKED_TAB, HELP_TAB], ...views.tasks ? [TASKS_TAB] : []]
+    .map(([id, label, glyph, order]) => ({ id, order, label: uiText.text(label), glyph, attrs: id === "tasks" ? " data-side-tasks" : id === "conversation" || id === "help" || id === "item-contents" ? " hidden" : "" }));
   return [...own, ...plugins].sort((a, b) => a.order - b.order);
 }
 
@@ -90,6 +92,7 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
   const body = (id: string, label: string, inner: string, extra = "") =>
     `<div class="side-panel-body" id="side-body-${escapeHtml(id)}" role="tabpanel" aria-labelledby="side-tab-${escapeHtml(id)}" aria-label="${escapeHtml(label)}" data-side-body="${escapeHtml(id)}"${extra} hidden>${inner}</div>`;
   const inner: Record<string, () => string> = {
+    "item-contents": () => body("item-contents", uiText.text("workbench.side-panel-tab.item-contents"), `<div class="side-item-contents" data-side-item-contents></div>`),
     conversation: () => body("conversation", uiText.text("workbench.side-panel-tab.conversation"), `<div class="side-parked" data-side-parked data-empty="true"><p class="side-parked-empty mw-empty">${uiText("workbench.work-line.nothing-parked")}</p></div>`),
     help: () => body("help", uiText.text("workbench.side-panel-tab.help"), renderSideHelp(primitives)),
     discussion: () => body("discussion", uiText.text("workbench.side-panel.project-discussion"), `<iframe title="${uiText("workbench.side-panel.group-chat-threads")}"></iframe>`),

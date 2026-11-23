@@ -20,7 +20,11 @@ export const TOP_CORNER_PART = `
     if (open) { setPicker(false); showPages(projectId); }
     cornerList.hidden = !open;
     cornerToggle.setAttribute('aria-expanded', String(open));
-    if (open) cornerList.querySelector('[data-corner-pages]:not([hidden]) .top-corner-page')?.focus();
+    if (open) {
+      const target = cornerList.querySelector('[data-corner-pages]:not([hidden]) [data-mainline-search]')
+        || cornerList.querySelector('[data-corner-pages]:not([hidden]) .top-corner-page');
+      target?.focus();
+    }
   };
   // Lit as the project home's tab while that page shows, and the home is the lit row of its list; under a cover (settings, the
   // market) nothing below is current.
@@ -37,11 +41,13 @@ export const TOP_CORNER_PART = `
     const project = target.closest('[data-corner-project]');
     if (project) { showPages(project.dataset.cornerProject); return; }
     if (target.closest('[data-corner-home]')) { setCorner(false); host.open?.('home', railItem('home')); return; }
-    // A link (another project's home, the projects page) goes there; the list closes behind it.
+    // A link (another project's home, the projects page, Personal Space) goes there; the list closes behind it.
     if (target.closest('a[href]')) setCorner(false);
   });
   document.addEventListener('click', (event) => {
-    if (cornerList && !cornerList.hidden && !(event.target?.nodeType === 1 && corner.contains(event.target))) setCorner(false);
+    const inside = (typeof event.composedPath === 'function' && event.composedPath().includes(corner))
+      || (event.target?.nodeType === 1 && corner.contains(event.target));
+    if (cornerList && !cornerList.hidden && !inside) setCorner(false);
   });
   document.addEventListener('molis-work:place-changed', () => setCorner(false));
   addEventListener('molis:surface-interaction', () => setCorner(false));
@@ -50,19 +56,20 @@ export const TOP_CORNER_PART = `
     if (!cornerList || cornerList.hidden || event.defaultPrevented) return;
     if (event.key === 'Escape') { event.preventDefault(); setCorner(false); cornerToggle?.focus(); return; }
     if (!cornerList.contains(document.activeElement)) return;
+    const inInput = document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA';
     const col = document.activeElement.closest('.top-corner-projects,.top-corner-right');
     if (!col) return;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      const rows = [...col.querySelectorAll('button:not([hidden]),a[href]:not([hidden])')].filter((node) => !node.closest('[hidden]'));
+      const rows = [...col.querySelectorAll('button:not([hidden]):not([disabled]),a[href]:not([hidden]),input:not([hidden])')].filter((node) => !node.closest('[hidden]'));
       const at = rows.indexOf(document.activeElement);
       const next = rows[at + (event.key === 'ArrowDown' ? 1 : -1)];
       if (next) { event.preventDefault(); next.focus(); }
-    } else if (event.key === 'ArrowRight' && col.classList.contains('top-corner-projects')) {
+    } else if (!inInput && event.key === 'ArrowRight' && col.classList.contains('top-corner-projects')) {
       const id = document.activeElement.dataset.cornerProject;
       if (id) showPages(id);
-      const first = cornerList.querySelector('[data-corner-pages]:not([hidden]) .top-corner-page');
+      const first = cornerList.querySelector('[data-corner-pages]:not([hidden]) [data-mainline-search], [data-corner-pages]:not([hidden]) .top-corner-page');
       if (first) { event.preventDefault(); first.focus(); }
-    } else if (event.key === 'ArrowLeft' && col.classList.contains('top-corner-right')) {
+    } else if (!inInput && event.key === 'ArrowLeft' && col.classList.contains('top-corner-right')) {
       const active = cornerList.querySelector('[data-corner-project][aria-pressed="true"]') || cornerList.querySelector('[data-corner-project]');
       if (active) { event.preventDefault(); active.focus(); }
     }

@@ -16,7 +16,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     lostSends.delete(intent.body.request_id);
     if (unsent(intent.unsentKey).id === intent.body.request_id) store.set(intent.unsentKey, null);
   };
-  const sendTarget = () => curId || JSON.stringify([project?.id, nextScope, nextExec, nextMode, nextChar, curEvent]);
+  const sendTarget = () => curId || JSON.stringify([project?.id, nextScope, nextExec, nextMode, nextChar, curEvent, activeWorkItem()?.id || null]);
   const retainSent = (work) => {
     nameMain(work);
     const index = works.findIndex(row => row.work_id === work.work_id);
@@ -103,6 +103,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       body.scope = nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
       // Said with no work in front: the main conversation with this counterpart (specs/work-line §3.2), unless ＋ began a separate work.
       if (startsMain() && !extra.named) body.main = true;
+      if (body.scope.kind === "project" && activeWorkItem()) body.work_item_id = activeWorkItem().id;
     }
     // Said in an event's tab with no conversation yet: a new work in this project, done for that event (WLN-12).
     if (!curId && curEvent && project) { body.scope = { kind: "project", project_id: project.id }; body.for_event = eventOf().subject; }

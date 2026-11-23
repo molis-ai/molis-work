@@ -191,7 +191,7 @@ export interface DiscoveredSessionCandidate {
   last_activity_at: string;
   activity: ExternalSessionActivity;
   forked_from_native_id?: string | null;
-  /** A subagent's trajectory beside its session (`forked_from_native_id`): recorded, left out of the list (batch 103-2). */
+  /** A subagent's trajectory beside its session (`forked_from_native_id`): recorded, left out of the list. */
   subagent?: true;
   return_target: { kind: "command" | "url"; label: string } | null;
 }

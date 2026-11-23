@@ -334,6 +334,59 @@ test("B103-01 a reading is kept only when it read the project, and shown asleep 
   assert.deepEqual(woken, []);
 });
 
+test("B103-01 a background resting read discards its result if the project is closed on purpose or used by a person meanwhile", async () => {
+  const closedMidRead = reference("project-closed-mid");
+  const usedMidRead = reference("project-used-mid");
+  const answering = (projectId: string): ActionView => ({ ...unavailableView(projectId), availability: { available: true } as const });
+  const rests = new Map<string, { state: "open" | "asleep" | "closed" | "never"; usedAt: number | undefined }>([
+    [closedMidRead.storage_key, { state: "never", usedAt: undefined }],
+    [usedMidRead.storage_key, { state: "never", usedAt: undefined }],
+  ]);
+  let reads = 0;
+  const changed: string[] = [];
+  const readings = { projects: new Map(), waking: new Set<string>(), pass: Promise.resolve() };
+  const ports: HomeAggregatePorts = {
+    openProjects: () => [],
+    whileOpen: async (_reference, work) => work(),
+    client: project => fakeActionClient({
+      discover: async () => [answering(project.project_id)],
+      invoke: async () => {
+        reads += 1;
+        if (project.project_id === closedMidRead.project_id) {
+          rests.set(closedMidRead.storage_key, { state: "closed", usedAt: undefined });
+        }
+        if (project.project_id === usedMidRead.project_id && reads === 2) {
+          rests.set(usedMidRead.storage_key, { state: "open", usedAt: 42 });
+        }
+        return { version: reads };
+      },
+    }),
+    context: async project => context(project.project_id),
+    projectPlugins: async () => () => true,
+    resting: {
+      closed: async () => [closedMidRead, usedMidRead],
+      rest: project => rests.get(project.storage_key)!,
+      wake: async (_project, work) => work(),
+      quietly: async work => work(),
+      changed: projectId => { changed.push(projectId); },
+      running: () => true,
+      readings,
+    },
+  };
+  await collectHomeAggregate(ports, TYPE, {});
+  await readings.pass;
+  assert.deepEqual(changed, [], "neither a purposefully closed project nor one used mid-read notifies or caches a stale reading");
+  assert.equal(readings.projects.has(closedMidRead.storage_key), false);
+  assert.equal(readings.projects.has(usedMidRead.storage_key), false);
+  // Once the concurrently-used project sleeps, the next pass reads it fresh instead of serving the discarded pre-use reading.
+  rests.set(usedMidRead.storage_key, { state: "asleep", usedAt: 42 });
+  assert.deepEqual((await collectHomeAggregate(ports, TYPE, {})).answers, []);
+  await readings.pass;
+  assert.deepEqual(changed, [usedMidRead.project_id]);
+  const fresh = await collectHomeAggregate<{ version: number }>(ports, TYPE, {});
+  assert.deepEqual(fresh.answers.map(answer => answer.output.version), [3]);
+});
+
 test("resting persistence hydrates unopened projects with zero wakes on matching fingerprint, invalidates on fingerprint or key change, and prunes unknown keys", async () => {
   const a = reference("project-a");
   const b = reference("project-b");

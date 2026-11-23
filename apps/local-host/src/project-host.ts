@@ -572,9 +572,9 @@ export class MolisWorkLocalHost {
 
   /** The catalog's projects that are not open now, the ones whose library is there; none without a catalog. */
   async closedProjects(): Promise<LocalHostProjectReference[]> {
-    const home = this.options.homeDirectory;
+    const home = this.personalPlanningHome;
     if (!home || !this.catalogRunner) return [];
-    const open = new Set(this.host.projects().map(project => project.storage_key));
+    const open = new Set(this.host.projects().filter(project => project.state !== "closing").map(project => project.storage_key));
     const rows = await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects());
     return rows.map(row => molisWorkHostProjectReference({ databasePath: row.database_path, projectId: row.project_id }))
       .filter(reference => !open.has(reference.storage_key) && fs.existsSync(reference.storage_key));
@@ -582,17 +582,17 @@ export class MolisWorkLocalHost {
 
   /** Canonical Home directory while both Home and catalog are bound, enabling resting snapshot persistence. */
   restingHomeDirectory(): string | undefined {
-    return this.options.homeDirectory && this.catalogRunner ? this.options.homeDirectory : undefined;
+    return this.personalPlanningHome && this.catalogRunner ? this.personalPlanningHome : undefined;
   }
 
   /** Canonical Home directory for removing resting cache files on purposeful close. */
   restingCacheHomeDirectory(): string | undefined {
-    return this.options.homeDirectory;
+    return this.personalPlanningHome ?? this.options.homeDirectory;
   }
 
   /** Live validity fingerprints for closed projects, combining project DB, catalog plugin membership, and Home plugin authority. */
   async restingFingerprints(references: readonly LocalHostProjectReference[]): Promise<ReadonlyMap<string, string | null>> {
-    const home = this.options.homeDirectory;
+    const home = this.personalPlanningHome;
     if (!home || !this.catalogRunner || references.length === 0) return new Map();
     const homePluginsStamp = homePluginsSemanticStamp(home, pluginFixturesStamp(this.options.pluginFixtures));
     if (!homePluginsStamp) return new Map(references.map(reference => [reference.storage_key, null]));

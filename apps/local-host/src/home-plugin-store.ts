@@ -74,7 +74,7 @@ export const HOME_PLUGIN_RUNTIME_HOME_STORE: HomeStoreDeclaration = { path: "plu
 /**
  * The Home's consent ledger and pinned publishers, for the project platforms of this Home (the Home's own Runtime holds the store open
  * and uses it directly). Each call borrows the process's one held connection to the store (its complete current structure checked when it
- * was opened, batch 103-1) and does its one thing; the Host releases the connection with the Home.
+ * was opened) and does its one thing; the Host releases the connection with the Home.
  */
 export class HomeConsentLedger implements PluginConsentLedger {
   constructor(private readonly home: string) {}

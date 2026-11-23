@@ -28,7 +28,7 @@ export interface HomeAggregateAnswer<Output> {
   /** The object kinds the provider declared it reports. */
   readonly subject_kinds: readonly string[];
   readonly output: Output;
-  /** The project is asleep (batch 103-1): this is its answer from the last read before it slept, unchanged since nothing ran in it. */
+  /** The project is asleep: this is its answer from the last read before it slept, unchanged since nothing ran in it. */
   readonly resting?: true;
 }
 
@@ -115,7 +115,7 @@ export async function beforeDeadline<T>(signal: AbortSignal | undefined, work: (
 /** An input made for each provider apart: `of` is given only the project and the provider it is for. Any other input goes to all alike. */
 export class HomeAggregateInputEach {
   /**
-   * `keyOf`: what of the input an answer depends on, for a project asleep (batch 103-1): its last answer is shown while the key is the
+   * `keyOf`: what of the input an answer depends on, for a project asleep: its last answer is shown while the key is the
    * same, and read again once it differs. Without it, an input made per call (a time window, say) has no answer to show for a sleeping
    * project, and the Home leaves such projects out of that read.
    */
@@ -349,17 +349,21 @@ function readInBackground(
     resting.readings.waking.add(id);
     resting.readings.pass = resting.readings.pass.then(async () => {
       try {
-        const before = resting.rest(reference).state;
-        if (!resting.running() || before === "open" || before === "closed") return;
+        const before = resting.rest(reference);
+        if (!resting.running() || before.state === "open" || before.state === "closed") return;
         let result = await resting.quietly(() => read(reference));
-        if (result.issues.some(issue => issue.code === "actions.timeout")) result = await resting.quietly(() => read(reference));
+        if (result.issues.some(issue => issue.code === "actions.timeout") && resting.running() && resting.rest(reference).state !== "closed") {
+          result = await resting.quietly(() => read(reference));
+        }
         let after = resting.rest(reference);
         if (!resting.running() || after.state === "closed") return;
+        if (after.state === "open" && after.usedAt !== undefined && after.usedAt !== 0 && after.usedAt !== before.usedAt) return;
         let fingerprint: string | undefined;
         if (persistence && after.state !== "open") {
           const live = (await persistence.fingerprints([reference])).get(reference.storage_key) ?? null;
           after = resting.rest(reference);
           if (!resting.running() || after.state === "closed") return;
+          if (after.state === "open" && after.usedAt !== undefined && after.usedAt !== 0 && after.usedAt !== before.usedAt) return;
           if (after.state !== "open") {
             fingerprint = typeof live === "string" ? live : (persistence.observedToken?.(reference) ?? "unreadable");
           }

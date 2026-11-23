@@ -106,7 +106,7 @@ interface WakeupRow {
 
 /**
  * When the earliest enabled job of a project's clock is due, or `null` when none is: read on a connection of the caller's (read only is
- * enough), so the Host can tell without opening the project whether its clock has something due (batch 103-1).
+ * enough), so the Host can tell without opening the project whether its clock has something due.
  */
 export function nextScheduleDueAt(db: Pick<ScheduleSqliteDatabase, "prepare">): string | null {
   return (db.prepare("SELECT MIN(next_due_at) AS next FROM schedule_jobs WHERE enabled = 1").get() as { next: string | null } | undefined)?.next ?? null;

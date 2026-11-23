@@ -38,7 +38,7 @@ export type SessionsCaller = ActionCallContext & Partial<Pick<ActionExecutionCon
 export type RegisteredToolEntry = ExternalToolEntry & { id: ExternalToolId };
 
 const STALE_DISCOVERY_MS = 5 * 60 * 1000;
-const REGISTERED_TOOLS = EXTERNAL_TOOLS as readonly RegisteredToolEntry[];
+const REGISTERED_TOOLS: readonly RegisteredToolEntry[] = EXTERNAL_TOOLS;
 
 export function topLevelTools(): readonly RegisteredToolEntry[] {
   return REGISTERED_TOOLS.filter(tool => tool.shares_sessions_with === undefined);

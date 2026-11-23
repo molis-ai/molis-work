@@ -335,8 +335,8 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "request";
     readonly owner: "assistant";
     readonly on: "document";
-    readonly detail: "{ work_id?, new?, source?, materials? ({ title, text }, a piece of project knowledge { title, subject: { kind, id } }, or a materials reference { title, ref: MaterialRef }), object? }";
-    readonly summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent. A piece of project knowledge goes in by its subject (the knowledge picker sends these), a quote or snapshot of the project's folders by its materials reference (the side panel's reader), and either is read from its owner when the message is sent.";
+    readonly detail: "{ work_id?, new?, open?, source?, materials? ({ title, text }, a piece of project knowledge { title, subject: { kind, id } }, or a materials reference { title, ref: MaterialRef }), object? }";
+    readonly summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent. Passing `open: false` (floating toolbar `✦ 助理` / POLISH-49) places what is in hand in the strip and focuses the input without changing whether the dialog is open or closed. A piece of project knowledge goes in by its subject (the knowledge picker sends these), a quote or snapshot of the project's folders by its materials reference (the side panel's reader), and either is read from its owner when the message is sent.";
 }, {
     readonly name: "molis:assistant-starter-choose";
     readonly kind: "request";

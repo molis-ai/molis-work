@@ -6,11 +6,12 @@ import { collectHomeAggregate, rememberRestingReading, type HomeAggregatePorts, 
 import { repeatingFailure } from "./host-log.js";
 
 /**
- * The background tasks of every project (PG-043, specs/work-line §6): what the providers that declare a `home_aggregate`
+ * The background tasks of open and resting projects (PG-043, specs/work-line §6): what the providers that declare a `home_aggregate`
  * query of this type say is being done or waits on the person, newest first. Nothing here names a plugin or reads a table: the
  * Home asks each project's provider through its action (S-49) and flattens the answers, keeping the project and the provider
- * each came from. Sleeping or restarted projects whose persisted resting reading still holds answer without being opened; a
- * plugin that is off or not granted in a project is not called.
+ * each came from. Sleeping or restarted projects whose persisted resting reading still holds answer without being opened
+ * (`resting: true`), unread or stale ones are quietly read once in the background, and a project closed on purpose is cleared and
+ * neither read nor opened; a plugin that is off or not granted in a project is not called.
  */
 
 export type { HomeBackgroundTaskRow } from "@molis-ai/molis-work-contracts/services/mainline";

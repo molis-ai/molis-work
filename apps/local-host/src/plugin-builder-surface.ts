@@ -1,7 +1,7 @@
 import {createPrologueTypeSafeProvider} from './typesafe-prologue.js';
 import {FUNCTIONS_DEFAULT_MODEL,type JudgmentRuleRecord} from '@molis-ai/molis-work-contracts/modules/functions';
 import {typeSafeCredential,typeSafeConfiguration} from './typesafe-connection.js';
-import type {AgentBuilderPorts} from '@molis-ai/molis-work-plugin-builder';
+import type {AgentBuilderPorts} from '@molis-ai/molis-work-plugin-studio';
 /** The question the studio's designer asks Jev: pick one legal part for a function. */
 type ChoiceQuestion=Parameters<NonNullable<AgentBuilderPorts['choose']>>[0];
 /** The query a builder frame document is asked for with; without it the page is a direct visit and opens the workbench. */
@@ -18,5 +18,5 @@ export function selectionPorts(homeDirectory?:string){
  }};
 }
 
-export { builderReleaseInterface, inDesignOrder, studioLocaleFiles, studioProblem, studioScopeCapabilityUnavailable } from "@molis-ai/molis-work-plugin-builder";
-export type { AgentBuilderPorts, AgentDesign } from "@molis-ai/molis-work-plugin-builder";
+export { builderReleaseInterface, inDesignOrder, studioLocaleFiles, studioProblem, studioScopeCapabilityUnavailable } from "@molis-ai/molis-work-plugin-studio";
+export type { AgentBuilderPorts, AgentDesign } from "@molis-ai/molis-work-plugin-studio";

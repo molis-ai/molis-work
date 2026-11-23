@@ -3,7 +3,7 @@
  * skills/molis-plugin-dev per stage (apps/local-host/src/plugin-builder/skill.ts); a stage's version is the digest of
  * its mounted text, so a changed number here means the model would read something different.
  */
-import { BUILDER_PROMPTS } from '@molis-ai/molis-work-plugin-builder';
+import { BUILDER_PROMPTS } from '@molis-ai/molis-work-plugin-studio';
 import { createHash } from 'node:crypto';
 import { builderSkills } from '../../apps/local-host/src/plugin-builder/skill.js';
 import type { WebLocale } from "../../apps/local-host/src/web-locale.js";

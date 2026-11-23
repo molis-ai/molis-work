@@ -2,7 +2,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type Action
 import type { LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
-import { capabilityCatalog, type ProjectActions } from "./plugin-builder/catalog.js";
+import { capabilityCatalog, type ProjectActions } from "./installed-plugin-catalog.js";
 import { pluginCatalogFor } from "./home-side.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";

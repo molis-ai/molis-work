@@ -18,7 +18,7 @@
 
 /**
  * The group a tracked path is counted in, wherever its `.impeccable/` folder is (the repository root one, or one nested in
- * a directory such as docs/design/<name>/ or plugins/native/plugin-builder/): the set folder two levels below
+ * a directory such as docs/design/<name>/ or horizontal/plugin-studio/): the set folder two levels below
  * `.impeccable/` (`.impeccable/review/<set>`, `.impeccable/mocks/<set>`), the folder one level below for a file directly in
  * it (`.impeccable/review`, `.impeccable/surfaces`), and `.impeccable` itself for its own files. Files deeper inside a set
  * count in the set. Returns null for a path that is not under a `.impeccable/` folder; a name that merely contains the word
@@ -34,7 +34,34 @@ export const impeccableGroup = (file) => {
 
 const sumOf = (groups) => Object.values(groups).reduce((sum, count) => sum + count, 0);
 
+/**
+ * The reference's groups under the names they moved to (user 2026-11-22, 47-1 C): a group whose files were all renamed into one
+ * group the reference does not have (a package moved, its sidecar with it) keeps its count there, as a moved file keeps its
+ * record. A group split between several groups, partly moved, or moved into a group that already exists stays where it was, so
+ * what it left behind and what arrived both count as before.
+ */
+export function movedImpeccableGroups(ref, renames) {
+  if (!ref || !renames?.size) return ref;
+  const into = new Map(), stayed = new Set();
+  for (const [from, to] of renames) {
+    const old = impeccableGroup(from), next = impeccableGroup(to);
+    if (old === null || old === next) continue;
+    if (next === null || (into.has(old) && into.get(old) !== next)) stayed.add(old);
+    else into.set(old, next);
+  }
+  const moved = { ...ref };
+  for (const [old, next] of into) {
+    if (stayed.has(old) || !(old in moved) || next in ref) continue;
+    const renamed = [...renames.keys()].filter(file => impeccableGroup(file) === old).length;
+    if (renamed !== moved[old]) continue;
+    moved[next] = (moved[next] ?? 0) + moved[old];
+    delete moved[old];
+  }
+  return moved;
+}
+
 export function createImpeccableMetric({ perFile }) {
+  const grew = perFile.grew("tracked files under .impeccable", "keep only what a current spec, doc or test names; new evidence goes to the ignored .impeccable/qa/review/, and a set that really is cited needs the gate itself changed in review (docs/system/REPOSITORY-HYGIENE.md)");
   return {
     id: "impeccable",
     measure(snapshot) {
@@ -47,7 +74,7 @@ export function createImpeccableMetric({ perFile }) {
     },
     toBaseline: (groups) => ({ impeccableFiles: sumOf(groups), impeccableGroups: groups }),
     fromBaseline: (json) => perFile.fromBaseline(json, "impeccableGroups"),
-    grew: perFile.grew("tracked files under .impeccable", "keep only what a current spec, doc or test names; new evidence goes to the ignored .impeccable/qa/review/, and a set that really is cited needs the gate itself changed in review (docs/system/REPOSITORY-HYGIENE.md)"),
+    grew: (head, ref, context) => grew(head, movedImpeccableGroups(ref, context?.renames), context),
     lowered: perFile.lowered,
     lines(head, ref, { top }) {
       const rows = Object.entries(head).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));

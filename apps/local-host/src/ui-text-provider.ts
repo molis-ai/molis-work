@@ -11,6 +11,7 @@ import { pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, type
 import { hostLog } from "./host-log.js";
 import { runWithRegisteredText, textScope, webLanguage, DEFAULT_WEB_LOCALE } from "./web-locale.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { HOST_SURFACE_REGISTRATIONS } from "./host-surfaces.js";
 import { registeredPackageDirectory, registeredPluginLocaleFiles } from "./registered-plugin-files.js";
 
 export { workbenchPlatformText };
@@ -108,7 +109,7 @@ export function hasHostUiText(): boolean {
 /** Only the actual build registration has this source. A Manifest with the same id is not that registration. */
 export function registeredBuiltinText(manifest: PluginManifest): PluginLocaleReader | null {
   if (registeredWords.has(manifest)) return registeredWords.get(manifest)!;
-  const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest === manifest);
+  const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest === manifest) ?? HOST_SURFACE_REGISTRATIONS.find(item => item.manifest === manifest);
   if (!entry) return null;
   const reader = pluginLocaleReader(manifest, registeredPluginLocaleFiles(entry.package_name, manifest));
   registeredWords.set(manifest, reader);

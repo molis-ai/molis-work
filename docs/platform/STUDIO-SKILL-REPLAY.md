@@ -2,7 +2,7 @@
 
 状态：2026-10-08，防腐 §4.14（W1-12）。命令 `pnpm studio:replay`，代码在 `scripts/studio-replay.mts` 与 `scripts/studio-replay/`，守护在 `tests/studio-replay.test.ts`。**提交的语料含 380 份真实设计答卷（2026-10-08 按用户的决定，从他 Home 的拷贝里只读导出、审过再提交，见 2.2），所以「完整设计一次通过率」这个主数字现在有数：2026-10-08 实测首轮完整设计 42/80（53%）；以命令输出为准。这个数是「设计者当时的答卷，过现在的宿主检查」，不是答卷当时被怎样处理，也不是 Skill 文字对模型的影响（见 2.2 与第 6 节）。**
 
-插件创作台在运行时把 `skills/molis-plugin-dev` 的章节挂给每个 Agent（`apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`），并用 `plugins/native/plugin-builder/src/agent-prompts.ts` 的提示词。改这些文字、或改宿主对设计答卷的整理与校验（`agent-authoring.ts` 的 `expandDesign`、`agent-validation.ts` 的 `validateAgentDesign`），就是在改生成插件的做法。本文规定这类改动怎样用同一种方式验证。
+插件创作台在运行时把 `skills/molis-plugin-dev` 的章节挂给每个 Agent（`apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`），并用 `horizontal/plugin-studio/src/agent-prompts.ts` 的提示词。改这些文字、或改宿主对设计答卷的整理与校验（`agent-authoring.ts` 的 `expandDesign`、`agent-validation.ts` 的 `validateAgentDesign`），就是在改生成插件的做法。本文规定这类改动怎样用同一种方式验证。
 
 ## 1. 三件事，各证明什么
 
@@ -27,7 +27,7 @@ pnpm studio:replay --corpus <文件或目录> [--min-pass 0.8]   # 回放自己�
 
 ### 2.1 它跑的是什么
 
-每条语料是创作台设计者的一份原始答卷，加上宿主当时给它的上下文（它细化的方案、可用的动作）。回放对它做宿主在 `AgentBuilderWorkflow` 里做的同样几步（`plugins/native/plugin-builder/src/agent-workflow.ts` 的 `propose` 与 `acceptDesign`）：
+每条语料是创作台设计者的一份原始答卷，加上宿主当时给它的上下文（它细化的方案、可用的动作）。回放对它做宿主在 `AgentBuilderWorkflow` 里做的同样几步（`horizontal/plugin-studio/src/agent-workflow.ts` 的 `propose` 与 `acceptDesign`）：
 
 - `propose`：解析 JSON → 问题或 2–3 个方案 → `normalizeProposal` → 标识唯一、动作在动作目录内；
 - `detail`、`revise`：解析 JSON → `expandDesign` → `validateAgentDesign` → 检查 `rework`。
@@ -47,7 +47,7 @@ pnpm studio:replay --corpus <文件或目录> [--min-pass 0.8]   # 回放自己�
 | 来源 | 内容 | 位置 |
 | --- | --- | --- |
 | 内置 | 设计者提示词里的完整示例（`BUILDER_PROMPTS.designer`），回放时从提示词里取，改坏它就红 | `replay.mts` 的 `builtinEntries` |
-| 手写种子 | 17 条，各针对一条宿主规则：包裹（`<think>`、围栏）、提前闭合、截断、引用错误、空存储示例、收费动作、筛选栏合并、`rework` 等；`expectFailure` 写明它该因什么被拒 | `tests/fixtures/studio-replay/corpus.json` |
+| 手写种子 | 20 条，各针对一条宿主规则：包裹（`<think>`、围栏）、提前闭合、截断、引用错误、空存储示例、收费动作、筛选栏合并、`rework`、状态申报（写对、漏写、取值对不上）等；`expectFailure` 写明它该因什么被拒 | `tests/fixtures/studio-replay/corpus.json` |
 | 真实答卷 | 380 份 MiniMax-M3 的设计者答卷，来自用户 Home 的三个项目（2026-10-08 导出，见下）：224 份首轮（提出方案 96、完整设计 80、修改设计 48）、156 份修复轮（44、96、16） | `tests/fixtures/studio-replay/recorded.json` |
 | 真实首轮方案 | 3 份 MiniMax 对「随手记」的首轮方案（旧格式） | `tests/fixtures/builder-designer/minimax-notes-v1.json` |
 | 自己的 Home | 创作台每次设计者运行都留一份记录：`<Home>/plugin-builder/<项目>/runs/<构建>/builder-runs/<id>.json`（`horizontal/agent-host/src/adapters/plugin-builder.ts`） | 见 2.3 |
@@ -73,6 +73,13 @@ pnpm studio:replay --corpus <文件或目录> [--min-pass 0.8]   # 回放自己�
 | 细化时的其它问题（`output` 写法、枚举写法、`query` 写入、缺 `operations`、缺验收） | 8 | 3 | 11 |
 | 操作与平台能力同名 | 3 | 2 | 5 |
 | 用了设计者当时没看到的动作（目录缺口，见 2.1 末段） | 1 | 0 | 1 |
+
+**2026-11-21 起完整设计必须带状态申报（SMP-11，`specs/state-machine-platform/spec.md`）。** 细化与修订的答卷要写 `states`：记录有状态就写出状态所在的字段、每个取值属于哪个状态家族、从哪里开始、到哪里结束；没有状态写空清单。漏写由宿主退回补一轮（用户 2026-11-21 定）。上面 380 份真实答卷都写在这条规则之前，所以这样处理：
+
+- 只因为缺 `states` 才会被退回的 189 份（首轮完整设计 59、首轮修改 45、修复轮 85），在答卷里补了一个空的 `"states": []`，换成新编号（原编号加 `-s1`），条目上用 `amended` 写明「这一项是人工补的」；原编号写进基线 `retired`。其余文字一个字没动，回放结果与补之前逐条相同（改写脚本逐条核对过）。手写种子里 9 条同样处理。
+- 在缺 `states` 之前就已被拒的答卷（截断、引用错误等）不动。
+- 报告会单独写一行「189 份真实答卷在模型写完之后被人工改过」。这 189 份现在只证明宿主对答卷其余部分的检查没有变，**不证明模型会写状态申报**；模型写不写、写得对不对，要看冒烟（第 3 节）和以后新导出的答卷。
+- 现在的默认回放共 404 条：提示词里的示例 1、手写种子 20、真实答卷 380、真实首轮方案 3。首轮完整设计 41/80（51%），首轮修改 32/48（67%），修复轮 97/156；以命令输出为准。上面两张表是 2026-10-08 导出当天的数字，没有重算。
 
 读这些数字要注意四件事，它们决定了这个数字能说明什么：
 

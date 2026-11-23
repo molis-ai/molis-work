@@ -4,6 +4,10 @@ import { defineErrorCodes } from "./action-errors.js";
 export const pluginErrors = defineErrorCodes("plugin", {
   always_on: "invalid",
   capability_denied: "invalid",
+  /** A capability the package did not declare or was not granted (47-1: the platform's, formerly the studio's `plugin_builder.` code). */
+  capability_refused: "invalid",
+  /** A capability the package declares that this Home cannot give right now (47-1, formerly `plugin_builder.`). */
+  capability_unavailable: "invalid",
   consent_required: "invalid",
   consent_revoked: "invalid",
   consent_unknown: "not_found",

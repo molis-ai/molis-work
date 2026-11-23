@@ -11,5 +11,3 @@ export function installedStageFrame(input: { pluginId: string; label: string; pr
   return '<iframe src="' + escapeHtml(installedStagePath(input.prefix, input.pluginId, input.installation)) + '" title="' + escapeHtml(input.label)
     + '" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe>';
 }
-
-export const installedPluginBody = (pluginId: string): string => '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';

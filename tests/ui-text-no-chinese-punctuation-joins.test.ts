@@ -43,6 +43,8 @@ const SCANNED = [
   /^apps\/local-host\/src\//,
   /^packages\/design-system\/src\//,
   /^plugins\/[^/]+\/[^/]+\/src\//,
+  // The plugin studio moved out of plugins/ when it became a platform capability (47-1 C); its words stay scanned.
+  /^horizontal\/plugin-studio\/src\//,
 ];
 const NOT_SOURCE = /(^|\/)(dist|node_modules|fixtures|resources|tests?)\//;
 
@@ -68,7 +70,7 @@ const EXEMPT: ReadonlyArray<{ readonly file: RegExp; readonly reason: string }> 
   { file: /^apps\/local-host\/src\/assistant\/assistant-round-materials\.ts$/u, reason: "the round's material text built for the model (the fixed date was W4's; the Chinese material is content)" },
   // Agent 提示词与校验报错目录：给 Agent 读的指令/诊断，不是界面文字。
   { file: /^apps\/local-host\/src\/agent-definitions\/(?:agent-definitions|builtin-instructions)\.ts$/u, reason: "agent instructions and their names, read by the model" },
-  { file: /^plugins\/native\/plugin-builder\/src\/agent-(?:authoring|validation|workflow)\.ts$/u, reason: "the builder agent's prompt/validation diagnostics, read by the model" },
+  { file: /^horizontal\/plugin-studio\/src\/agent-(?:authoring|validation|workflow)\.ts$/u, reason: "the builder agent's prompt/validation diagnostics, read by the model" },
   { file: /^plugins\/native\/[^/]+\/src\/prompts\.ts$/u, reason: "a plugin's model prompts, read by the model" },
   // 开发工具：`/__ui/catalog/bar` 的静态标本，不是产品界面（W4 会记 BL）。
   { file: /^apps\/workbench\/src\/primitive-catalog\.ts$/u, reason: "the `/__ui/catalog/bar` development specimen board, not a product surface (W4 records it in a BL)" },

@@ -95,7 +95,7 @@ test("FSS-36 RAC-1725 RAC-1728 the built-in names, market summaries and tab name
   for (const [locale, names] of [["zh", zh], ["en", en]] as const) runWithLocale(locale, () => {
     const directory = builtinMarketDirectory(), titles = pluginTabTitles(directory), enabled = directory.map(item => item.id);
     const rail = renderPluginRail(primitives, enabled, directory), market = renderPluginMarket(primitives, {}, directory);
-    const extend = renderPickerExtend(primitives, ["plugin-builder"]);
+    const extend = renderPickerExtend(primitives, [], true);
     for (const [id, name] of Object.entries(names)) {
       assert.equal(titles[id], name);
       assert.match(id === "plugin-builder" ? extend : rail, new RegExp(`<span(?: [^>]*)?>${name}</span>`, "u"), id);

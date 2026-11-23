@@ -27,7 +27,7 @@ const error = (reason: string): never => { throw new Error('页面设计无效�
 const keys = (value: Record<string, unknown>, allowed: string[]) => { for (const key of Object.keys(value)) if (!allowed.includes(key)) error('不支持属性 ' + key); };
 const option = (value: unknown, values: readonly unknown[], name: string) => { if (value !== undefined && !values.includes(value)) error(name + ' 应为 ' + values.join('/')); };
 
-/** Strict at the model boundary; old designs simply have no presentation. */
+/** One reader for every place a presentation is read: the model's answer, a stored design, a synced draft and a package's interface.json. */
 export function validatePluginPresentation(value: unknown, parts: readonly PluginComponentPlan[], contract: SandboxPluginContract): PluginPresentation {
   if (!plain(value)) return error('需要完整对象');
   keys(value, ['version', 'pages', 'parts']);
@@ -71,6 +71,10 @@ export function validatePluginPresentation(value: unknown, parts: readonly Plugi
       primary.add(part.pageId);
     }
     if (raw.detail && (part.intent !== 'collection' && part.intent !== 'reading' || !part.read || !part.props.idField)) return error('详情只能来自有稳定 id 和读取绑定的集合');
+    // One reading of a selected record: a collection whose selection another part already reads in full does not open a detail pane too.
+    const reader = raw.detail ? parts.find(other => other.id !== id && other.props.textField
+      && Object.values(other.read?.input ?? {}).some(input => input.source === 'selection' && input.componentId === id)) : undefined;
+    if (reader) return error(id + ' 已有独立正文 ' + reader.id + ' 读取其选中记录，不能再开启集合 detail；保留独立正文和字段映射，将 ' + id + '.detail 设为 false');
   }
   return value as unknown as PluginPresentation;
 }

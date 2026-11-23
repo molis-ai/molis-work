@@ -350,7 +350,7 @@ SDK 的 `defineAction` 加一个不写 `Input`、从 schema 推的重载。收�
 | 输入类型是公开合同的一部分（`packages/contracts/src/services/*`、`modules/*`、§8.2 N22-02 列的 `platform/*`，05② C-1 合入后共 130 个定义加 15 组共享帮手） | **留着手写接口**，schema 外面包 `inputSchemaFor<I>()`（用户 2026-11-06 定） | **这些是两份事实，由编译器钉住**，这是有意的例外。调用方在用这些接口的名字；改成推导类型会把 schema 字面量写进每个定义的 `.d.ts`，动 14 份 API 快照，和 05② 抢合同队列，TS7056 也要量。这个方案也动快照，是 6 份（N22-02 4 份、N22-03 2 份），差异只是字面量变窄（§8.2 N22-02、N22-03） |
 | 公开合同，接口是判别联合，schema 是一个扁平对象（`agent.session.create`、`agent.run.start`；`git.inspect` S0 之后） | 留手写接口，`inputSchemaFor` 里写 `FlatUnion<I>` | 现在是扁平写法，改写法要动 schema 形状和动作快照，N22 不做。键和字段类型由编译器钉住，组合由处理器查 |
 | 公开合同，`inputSchemaFor` 过不了，S0 也修不了或不该修（现在是定义 `memory.prefs.write`，帮手 `artifact-pins` 的比较和继续、`file-sources` 的预览） | **留手写接口，不包**，写在这里，每条带理由 | `memory.prefs.write`：N22-02 的工具改动之后，N22-03 用真实 schema 再试，过了就从这里拿掉（合审用简化的 `prefs` 没过，不算结论）；`set_output`、`map_source` 同样的写法，改工具后能包，不进这里（§4.2）。3 个 `artifact` 帮手：`ArtifactVersionRecord` 是平台自己产出的记录，`payload`、`metadata` 是递归的 JSON，schema 推不出来；硬写全再封口，记录以后多一个字段，这些动作就全部运行时报错，它们有 10 个文件在用。**已知风险**：这几个没有编译器钉住，接口和 schema 漂了没人报，靠现有用例。N22-03、S0 碰到新的同类就加进来 |
-| 输入形状运行时才知道（`connector-mcp-actions.ts`、`external-mcp-actions.ts`、`plugin-builder/exposed-actions.ts`、`functions.published.*`） | `input: unknown`，不断言形状，原样转发 | 没有东西可推。名单写进收口片的记录 |
+| 输入形状运行时才知道（`connector-mcp-actions.ts`、`external-mcp-actions.ts`、`installed-plugin-exposed-actions.ts`、`functions.published.*`） | `input: unknown`，不断言形状，原样转发 | 没有东西可推。名单写进收口片的记录 |
 | Alchemist | **不迁**，核一遍就结束 | 它已经是一份事实：`operation.input.safeParse(input)`，处理函数拿到 `parsed.data`（`action-operations.ts:183-190`），没有手写检查可删。它是用户批过的例外，由 BL-377 重做。这是对「全部处理器」的解读，不是缩范围。**只有项目级操作是这样；** Home 级的两个操作是 `run(input)` 直接调（`:244`），靠 `:237` 一处 `as` 和 kernel 的校验，类型来自同一份 zod（`studio/shared/contracts/actions.ts:118`）。N22-Z 核的时候把这两个写进名单 |
 
 ### 4.5 字面量怎样保住（迁移写法）
@@ -418,7 +418,7 @@ Jelly 的例子（#1923）：笔记选区的约束写在 `actions.ts` 里 `aiInp
 
 后两件只对 ② 类成立。① 类 schema 本来就拒，Kernel 先拒，处理器那条走不到，删掉不改哈希也不改错误码；第一件两类都要查：不经 Kernel 就没有 schema 拦。
 
-- **绕过 kernel 的调用。** `apps/local-host/src/plugin-builder/exposed-actions.ts:137,140`、`computer/computer-record-source.ts:110,116` 直接 `handler.handle`。前者是转发，后者是内部调用，都没过 `validateActionInput`。迁到这些处理器前先核：这条路要么也校验，要么这个处理器的检查不能删。
+- **绕过 kernel 的调用。** `apps/local-host/src/installed-plugin-exposed-actions.ts:137,140`、`computer/computer-record-source.ts:110,116` 直接 `handler.handle`。前者是转发，后者是内部调用，都没过 `validateActionInput`。迁到这些处理器前先核：这条路要么也校验，要么这个处理器的检查不能删。
 - **错误码和文字会变。** 检查搬进 schema 后，错误从插件自己的码变成 `actions.input_invalid`，文字变成通用的。**用户在界面上能走到的检查不能这样搬**，要么页面先拦，要么留着：只有程序调用方才会碰到的检查才搬。逐条判断，PR 里列出来。所以「删重复检查」不会删到一个不剩，留下的每条在 PR 里写理由。
 - **改哈希。** 补约束改输入 schema 的哈希。按 N35 在原版本改，不升版本。只搬已有检查，所以过去被处理器拒的输入现在被 schema 拒，已存的调用（工作流程步骤、固定引用）结果还是失败，只是错误码变了。每片 PR 写明对调用方的影响。
 

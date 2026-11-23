@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { VISUAL_FOUNDATION_STYLES, PLUGIN_COMPONENT_STYLES } from '@molis-ai/molis-work-design-system';
-import { AGENT_STUDIO_STYLES, renderAgentStudio } from '@molis-ai/molis-work-plugin-builder';
+import { AGENT_STUDIO_STYLES, renderAgentStudio } from '@molis-ai/molis-work-plugin-studio';
 import { authorizeLocalWebRequest, installHostUiText, pluginPagesFor, registeredBuiltinText, runWithLocale, runWithRegisteredText, readText, htmlLang, handlePageLocales, WebSessions, webPageToken, withWebSessionRequest, type LocalMutationState } from '@molis-ai/molis-work-app-local-host';
 import { handleLanguagePreference, languagePreview, requestLanguage } from '../apps/local-host/dist/web-ui-preference.js';
-import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, renderPluginDocumentShell, workbenchLanguageResource,
-  BUILTIN_PLUGIN_CATALOG, STYLES, MORE_STYLES, RESPONSIVE_STYLES, type WebLocale } from '@molis-ai/molis-work-app-workbench';
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginFrameServedStylesheet, renderMolisWorkPluginBaseStylesheet, renderPluginDocumentShell, workbenchLanguageResource,
+  HOST_FRAMED_SURFACES, STYLES, MORE_STYLES, RESPONSIVE_STYLES, type WebLocale } from '@molis-ai/molis-work-app-workbench';
 
 /** The isolated harness exercises the workbench's opaque frame; only the outer application and model are fixtures. */
 export const STUDIO_HARNESS_PATH = '/studio';
@@ -14,13 +14,17 @@ export function studioFrameAsset(response: ServerResponse, path: string): boolea
     : path === "/assets/molis-work-plugins/plugin-builder.js" ? pluginWorkbenchClientAsset("plugin-builder")
     : path === "/assets/molis-work-workbench.css" ? STYLES + MORE_STYLES + RESPONSIVE_STYLES + PLUGIN_COMPONENT_STYLES + AGENT_STUDIO_STYLES
     : path === "/assets/molis-work-settings.css" ? VISUAL_FOUNDATION_STYLES
+    // The opaque frame loads the plugin base sheet and the plugin's own served sheet, as the Host serves them (102-1).
+    : path === "/assets/molis-work-plugin-base.css" ? renderMolisWorkPluginBaseStylesheet()
+    : path === "/assets/molis-work-plugins/plugin-builder.css" ? pluginFrameServedStylesheet("plugin-builder")
     : workbenchLanguageResource(path)?.body ?? null;
   if (body === null) return false;
   response.writeHead(200, { "content-type": path.endsWith(".css") ? "text/css" : "text/javascript" }); response.end(body); return true;
 }
 
 export function studioHarnessPage(home: string, projectId: string, routePrefix: string, proof: string, locale: WebLocale, preview = false): string {
-  const entry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "plugin-builder")!;
+  // The studio is the platform's framed surface (47-1 C), not a catalog plugin.
+  const entry = HOST_FRAMED_SURFACES.find(entry => entry.project_plugin_id === "plugin-builder")!;
   const reader = registeredBuiltinText(entry.manifest)!;
   const authorization = preview ? { page_id: "studio-language-preview", storage_scope: "studio-language-preview" } : pluginPagesFor(home).open(entry.manifest.plugin_id, projectId, "web-user", undefined, {
     manifest: entry.manifest, install_id: null, project_id: projectId, actor_id: "web-user", assertCurrent() {}, registeredText: reader,
@@ -43,7 +47,7 @@ export function studioHarnessRequests(home: string, projectId: string, token: st
       return withWebSessionRequest(request, () => {
         const preview = languageMutations ? languagePreview(request, response, local, token) : null;
         if (preview === false) return;
-        const { tag, source } = requestLanguage(request, local, preview);
+        const { tag, source } = requestLanguage(request, preview);
         return runWithLocale(tag, () => {
           if (languageMutations && local.pathname === "/api/ui/locale") {
             if (!authorizeLocalWebRequest(request, response, url, token, languageMutations)) return;

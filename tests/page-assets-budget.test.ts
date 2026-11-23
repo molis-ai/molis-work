@@ -223,7 +223,9 @@ test("CCR-06 actual repository build measures all served workbench, plugin and /
   const report = JSON.parse(result.out); assert.deepEqual(report.discoveryMisses, []);
   for (const asset of ["/assets/molis-work-workbench.css", "/assets/molis-work-plugin-base.css", "/assets/molis-work-workbench.js", "/assets/molis-work-arrival.css", "/assets/molis-work-settings.css", "/assets/molis-work-pages-editor.js", "/desktop/pty-client.js"]) assert.ok(report.measured[asset] > 0, asset);
   assert.ok(report.measured["/assets/molis-work-plugin-base.css"] < 80_000, `102-1: plugin base stylesheet must stay <80 KB minified (got ${report.measured["/assets/molis-work-plugin-base.css"]} B)`);
-  const bundles = [...new Set([CHARACTERS_CLIENT_PATH, ...deferredSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`), ...pluginWorkbenchPacks().filter(pack => pluginFrameServedStylesheet(pack.project_plugin_id)).map(pack => `/assets/molis-work-plugins/${pack.project_plugin_id}.css`)])].sort();
+  // The platform's own installed-package page (47-1, user 2026-11-22) is served beside the plugins' bundles.
+  const installed = ["/assets/molis-work-plugins/installed-plugin.js", "/assets/molis-work-plugins/installed-plugin.css"];
+  const bundles = [...new Set([CHARACTERS_CLIENT_PATH, ...installed, ...deferredSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`), ...pluginWorkbenchPacks().filter(pack => pluginFrameServedStylesheet(pack.project_plugin_id)).map(pack => `/assets/molis-work-plugins/${pack.project_plugin_id}.css`)])].sort();
   assert.ok(bundles.length > 0); assert.deepEqual(Object.keys(report.measured).filter(asset => asset.startsWith("/assets/molis-work-plugins/")).sort(), bundles);
 });
 

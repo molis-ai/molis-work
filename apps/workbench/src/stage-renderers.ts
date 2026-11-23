@@ -1,6 +1,8 @@
 import type { StagePageModel, StagePagePrimitives } from "@molis-ai/molis-work-contracts/platform/ui";
 import { escapeHtml, icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderHint } from "@molis-ai/molis-work-design-system";
+// The built-in plugins and the platform's framed surfaces (the studio, 47-1 C) are drawn by the same rules.
+import { WORKBENCH_SURFACE_CATALOG } from "./host-surfaces.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { declaredStageContributionId, stageDataAction } from "./declared-stages.js";
 import type { MolisWorkWebView } from "./page-view.js";
@@ -35,6 +37,7 @@ export function createWorkbenchStageRenderers(ports: {
     },
   };
   const sharedStageModel = (projectPluginId: string, view?: Partial<MolisWorkWebView>): StagePageModel => {
+    // The platform's framed surfaces mount nothing through `drawing.mount` today, so the pinned catalog lookup stays (follow-up in batch 47).
     const pluginId = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === projectPluginId)?.manifest.plugin_id ?? projectPluginId;
     return {
     route_prefix: view?.route_prefix ?? "", shown_plugins: view?.shown_plugins ?? view?.enabled_plugins ?? [],
@@ -57,7 +60,7 @@ export function createWorkbenchStageRenderers(ports: {
 
   function declaredPageSurface(pluginId: string, surface: string, view: MolisWorkWebView, data: unknown,
     request: Readonly<Record<string, string>> = {}): string {
-    const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId || item.project_plugin_id === pluginId);
+    const entry = WORKBENCH_SURFACE_CATALOG.find(item => item.manifest.plugin_id === pluginId || item.project_plugin_id === pluginId);
     const contributionId = entry && declaredStageContributionId(entry);
     if (!entry || !contributionId) return "";
     const model = { ...sharedStageModel(entry.project_plugin_id, view), data, request };
@@ -71,7 +74,7 @@ export function createWorkbenchStageRenderers(ports: {
    * `workbench` surface the page mounted. Undefined for any other plugin, so the Host has no stage to offer for it. No plugin is named here.
    */
   function declaredStageFragment(projectPluginId: string): ((view: MolisWorkWebView) => string) | undefined {
-    const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.project_plugin_id === projectPluginId);
+    const entry = WORKBENCH_SURFACE_CATALOG.find(item => item.project_plugin_id === projectPluginId);
     const contributionId = entry && stageDataAction(entry.manifest) ? declaredStageContributionId(entry) : undefined;
     if (!contributionId) return undefined;
     return view => prefixLocalLinks(renderWorkbenchContribution(contributionId, "workbench", declaredStageModel(projectPluginId, view)), view.route_prefix);

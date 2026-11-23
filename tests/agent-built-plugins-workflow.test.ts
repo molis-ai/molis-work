@@ -11,7 +11,7 @@ import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-wo
 import type { BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
 import { DEMO_PROJECT_ID, LocalProjectDatabase, installHostUiText, runBackgroundWork, runWithLocale, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, studioBuildDiagnostic, type AgentBuild, type AgentBuilderPorts, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderStore, AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, studioBuildDiagnostic, type AgentBuild, type AgentBuilderPorts, type AgentRelease } from '@molis-ai/molis-work-plugin-studio';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync, promises as fs } from 'node:fs';
@@ -21,10 +21,11 @@ import { dirname, join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
+import { handleInstalledPluginHttp } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { builderSkills } from '../apps/local-host/dist/plugin-builder/skill.js';
-import { acceptExperience } from '../plugins/native/plugin-builder/dist/agent-experience.js';
+import { acceptExperience } from '../horizontal/plugin-studio/dist/agent-experience.js';
 import { syncBuiltinESMExports } from 'node:module';
 import { readyPublication } from './fixtures/studio-publishing.js';
 
@@ -77,7 +78,7 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
     selectionAvailable: () => true,
     browserAcceptance: async () => ({ passed: true, cases: [{ id: 'add-note', passed: true, detail: 'hello visible' }], at: new Date().toISOString() }),
     publish: async (_build, _manifest, _bundle, version, control) => control.commit({ directory: '/tmp/release/v' + version, bundlePath: '/tmp/release/v' + version + '/plugin.mjs', packagePath: '/tmp/release/v' + version, prompts: [] }),
-    installations: async () => [], lifecycle: async () => {},
+    installations: async () => [],
   };
   return state;
 }
@@ -161,7 +162,7 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
       return pluginPagesFor(f.home).bind(request, url).then(async release => {
         if (release) response.once('close', release);
         if (key && url.searchParams.get('frame') === 'workbench') await setup.trialPage?.(key, url.pathname.split('/').at(-1)!, send);
-        return handleAgentStudioHttp(request, response, local, options, proof);
+        return (await handleInstalledPluginHttp(request, response, local, options, proof)) || await handleAgentStudioHttp(request, response, local, options, proof);
       }).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); }).catch(error => sendLocalWebJson(response, 400, { error: String(error) }));
     });
   });
@@ -328,13 +329,13 @@ test('the designer runs the person’s edit from “Prompt 与 Character”, and
       assert.equal(build.phase, 'choosing', studioBuildDiagnostic(build.error) ?? '');
       const designer = h.requests.find(request => request.role === 'designer')!;
       assert.match(designer.instruction, /所有候选都用暖色。$/);
-      assert.equal(designer.promptVersion, 'designer/3+user.1');
-      assert.equal(build.runs.find(run => run.role === 'designer')?.promptVersion, 'designer/3+user.1', 'N31: the run persists the origin label and user revision that actually ran');
+      assert.equal(designer.promptVersion, 'designer/4+user.1');
+      assert.equal(build.runs.find(run => run.role === 'designer')?.promptVersion, 'designer/4+user.1', 'N31: the run persists the origin label and user revision that actually ran');
       assert.equal(registry.uses.list('io.molis.work.plugin-builder/builder-designer')[0]?.user_revision, 1, 'the register records the use');
       registry.reset('io.molis.work.plugin-builder/builder-designer', 1, 'person');
       const shipped = BUILDER_PROMPTS.designer, read = builderPrompts(home);
-      assert.deepEqual(runWithLocale('zh', () => read('designer', shipped)), { version: 'designer/3', text: shipped.text }, 'after reset the shipped Chinese text runs again');
-      assert.deepEqual(runWithLocale('en', () => read('designer', shipped)), { version: 'designer/3', text: shipped.body_by_locale.en }, 'the same reset restores the shipped English text');
+      assert.deepEqual(runWithLocale('zh', () => read('designer', shipped)), { version: 'designer/4', text: shipped.text }, 'after reset the shipped Chinese text runs again');
+      assert.deepEqual(runWithLocale('en', () => read('designer', shipped)), { version: 'designer/4', text: shipped.body_by_locale.en }, 'the same reset restores the shipped English text');
     } finally { await workflow.close(); }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
@@ -1398,9 +1399,9 @@ test('W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed
   const token = 'control-token', web = studioHarnessRequests(home, DEMO_PROJECT_ID, token);
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
-    web.handle(request, response, url, options.routePrefix, (local, proof) => pluginPagesFor(home).bind(request, url).then(release => {
+    web.handle(request, response, url, options.routePrefix, (local, proof) => pluginPagesFor(home).bind(request, url).then(async release => {
       if (release) response.once('close', release);
-      return handleAgentStudioHttp(request, response, local, options, proof);
+      return (await handleInstalledPluginHttp(request, response, local, options, proof)) || await handleAgentStudioHttp(request, response, local, options, proof);
     }).then(handled => { if (!handled) { response.writeHead(404); response.end(); } }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) })));
   });
   server.once('close', web.close);
@@ -1504,7 +1505,7 @@ for (const withdrawal of ['disconnect', 'page'] as const) test('PUB-2 actual HTT
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     handled = pages.bind(request, url, response).then(async () => {
       const local = new URL(url); local.pathname = local.pathname.slice(options.routePrefix.length);
-      await handleAgentStudioHttp(request, response, local, options, token);
+      (await handleInstalledPluginHttp(request, response, local, options, token)) || await handleAgentStudioHttp(request, response, local, options, token);
     });
     void handled.catch(error => response.destroy(error as Error));
   });
@@ -1530,7 +1531,7 @@ for (const withdrawal of ['disconnect', 'page'] as const) test('PUB-2 actual HTT
   if (withdrawal === 'disconnect') assert.ok('error' in outcome);
   else assert.equal('status' in outcome ? outcome.status : undefined, 400);
   assert.equal(writes.length, 1, 'the invalidated HTTP call performs no next publication write');
-  assert.deepEqual(installed.releases.versions(source.build.id), []);
+  assert.deepEqual(new AgentBuilderStore(installed.storage).versions(source.build.id), []);
   assert.deepEqual(await fs.readdir(join(source.root, 'releases', source.build.id)), [], 'no final version or staging directory survives');
   assert.ok(await fs.stat(join(home, 'config', 'plugin-publisher.json')), 'the identity created while authorized is preserved');
 });
@@ -1548,7 +1549,7 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
   const stopProjectProbe = actions.registerProvider({ provider: { provider_id: 't149-project', title: 'Project only', kind: 'system', project_id: project.project_id }, definitions: [projectProbe],
     handlers: [{ ...projectProbe, handle(caller) { seen.push(caller.project_id ?? null); return 'observed'; } }] });
   let modelCalls = 0, enabledProjectPlugins = 0;
-  const options = { store, projectId: project.project_id, homeDirectory: f.home, routePrefix: '/projects/' + project.project_id,
+  const options: Parameters<typeof handleAgentStudioHttp>[3] & { homeDirectory: string; routePrefix: string } = { store, projectId: project.project_id, homeDirectory: f.home, routePrefix: '/projects/' + project.project_id,
     ...fixture, browserExecutable: dedicatedBuilderBrowser(), actorId: LOCAL_PERSON_ACTOR_ID, actions: { registry: actions, client: f.host.actionClient(project.reference), inspect: caller => f.host.inspectActions(caller, project.reference), project_id: project.project_id },
     homeActions: { registry: f.host.actionRegistry(), client: f.host.homeActionClient(), inspect: f.host.inspectActions.bind(f.host), project_id: null },
     enablePlugin: async () => { enabledProjectPlugins++; throw new Error('A Home check cannot enable a project plugin'); },
@@ -1572,9 +1573,9 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
     web.handle(request, response, url, options.routePrefix, (local, proof, locale) => {
       if (url.pathname === '/__t149_studio') { response.writeHead(200, { 'content-type': 'text/html' }); response.end(isolatedStudioHarness(f.home, project.project_id, proof, locale)); return; }
       if (!authorizeLocalWebRequest(request, response, url, f.token, mutations)) return;
-      return pluginPagesFor(f.home).bind(request, url).then(release => {
+      return pluginPagesFor(f.home).bind(request, url).then(async release => {
         if (release) response.once('close', release);
-        return handleAgentStudioHttp(request, response, local, options, proof);
+        return (await handleInstalledPluginHttp(request, response, local, options, proof)) || await handleAgentStudioHttp(request, response, local, options, proof);
       }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 400, { error: String(error) }));
     });
   });

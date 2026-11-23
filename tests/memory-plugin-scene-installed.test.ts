@@ -5,7 +5,7 @@ import test from "node:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { forgetInstalledMemoryScene, memoryRuntimePolicy, memorySceneChoices, memorySceneTaxonomy, pluginMemoryScene, rememberInstalledMemoryScene, sceneAfterRestart, skillConsumerOf, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
+import { forgetInstalledMemoryScene, memoryRuntimePolicy, pluginInstallActions, memorySceneChoices, memorySceneTaxonomy, pluginMemoryScene, rememberInstalledMemoryScene, sceneAfterRestart, skillConsumerOf, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const THIRD_PARTY = "com.example.peq09.coder";
@@ -66,6 +66,9 @@ test("BL-b44-coding-scene-enum memory scenes are what plugins declare, listed wh
   assert.equal(sceneAfterRestart(home, "notes"), false);
   assert.equal(sceneAfterRestart(home, "common"), false);
   assert.equal(sceneAfterRestart(home, undefined), false);
+  // The preview says so (`memory_scene_after_restart`), and the preview action's closed output schema admits it: a preview that hits it is not refused.
+  const previewOutput = pluginInstallActions.preview.action.output_schema as { properties: Record<string, unknown> };
+  assert.deepEqual(previewOutput.properties.memory_scene_after_restart, { const: true });
 
   const plugin = "com.example.b44.later";
   t.after(() => forgetInstalledMemoryScene("p-one", plugin));

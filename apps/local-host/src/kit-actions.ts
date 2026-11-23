@@ -10,7 +10,7 @@ import { systemSkillPackWords } from "./agent-definitions/skill-catalog-host.js"
 import { systemPackInstallId, systemSkillPacks } from "./agent-definitions/system-skill-packs.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import { agentMcpKitProvider, mcpAccessKitProvider } from "./kit-mcp-reports.js";
-import { localPublisherKeyId } from "./plugin-builder/publisher-identity.js";
+import { localPublisherKeyId } from "./installed-plugin-publisher.js";
 import { PLUGIN_INSTALL_READ } from "./plugin-install-actions.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 import { SandboxPackageStore } from "./sandbox-package-store.js";

@@ -74,6 +74,9 @@ export async function runningProjectPlatform(store: LocalProjectDatabase, projec
   return opening ? (await opening.ready).platform : null;
 }
 
+/** The action handle the project's platform registers its plugins' actions with: whoever runs plugins on it registers through the same one. */
+export const projectPlatformActions = (store: LocalProjectDatabase, projectId: string) => started.get(store)?.get(projectId)?.ports.actions;
+
 /** A synchronous view of a finished startup, for reads that cannot wait for plugin activation. */
 export const currentProjectPlatform = (store: LocalProjectDatabase, projectId: string) =>
   started.get(store)?.get(projectId)?.current?.platform ?? null;

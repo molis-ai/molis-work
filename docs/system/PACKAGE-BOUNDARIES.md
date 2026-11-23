@@ -272,6 +272,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `horizontal/memory` | 横向 | 23 | 3,180 | `service.ts` 1,151 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/observation` | 横向 | 21 | 2,721 | `read-actions.ts` 520 | 1 | 3 | 1 | 在用 | 中 | 待审 |
 | `horizontal/placement` | 横向 | 6 | 908 | `index.ts` 617 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `horizontal/plugin-studio` | 横向 | 19 | 2,960 | `agent-authoring.ts` 800 | 2 | 2 | 2 | 在用 | 中 | 已审 |
 | `horizontal/project-approvals` | 横向 | 5 | 248 | `rules.ts` 85 | 1 | 3 | 1 | 在用 | 中 | 待审 |
 | `horizontal/runtime-host` | 横向 | 2 | 436 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
 | `horizontal/scheduler` | 横向 | 2 | 622 | `index.ts` 541 | 1 | 2 | 1 | 在用 | 中 | 已审 |
@@ -313,7 +314,6 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `plugins/native/jelly` | 内置插件 | 56 | 4,517 | `messages.ts` 257 | 3 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/lingguang` | 内置插件 | 28 | 2,264 | `store.ts` 362 | 3 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/pages` | 内置插件 | 119 | 17,374 | `styles.ts` 771 | 5 | 2 | 2 | Runtime | 深 | 待审 |
-| `plugins/native/plugin-builder` | 内置插件 | 19 | 2,960 | `agent-authoring.ts` 800 | 2 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/ppt` | 内置插件 | 36 | 2,853 | `store.ts` 295 | 3 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/risk` | 内置插件 | 26 | 1,995 | `browser/client.ts` 361 | 2 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/schedule` | 内置插件 | 46 | 3,103 | `tasks.ts` 300 | 2 | 2 | 2 | Runtime | 中 | 待审 |

@@ -4,9 +4,11 @@ import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import { sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { HomeConsentLedger, pluginInstallActions, homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, pluginControlActions, pluginInstallActions, homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageMethod, signedAgentPackage, signedPackage } from "./fixtures/sandbox-package.js";
 import { APPROVED, SECOND_PLUGIN_ID, fixture, homePackage, mac, operate, operationsOf, person, ref, refused, valuesOf } from "./fixtures/home-sandbox.js";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -285,4 +287,85 @@ test("RAC-972 deleting a project changes nothing of a Home package: the instance
   assert.deepEqual(await call(kept, "notes.list", {}), [{ id: "1", text: "written while the doomed project was open" }], "its data is the Home's, not the doomed project's");
   assert.ok(valuesOf(home.home, installId).length > 0);
   assert.equal(home.host.homePlugins!.packageError(PACKAGE_PLUGIN_ID), undefined);
+});
+
+// BL-586 (user 2026-11-18, scope chosen 2026-11-22): two publishers who both wrote the notes plugin under the same id are two plugins. One is
+// installed in the Home, the other in a project; the project page lists and draws both, each in its own words, each with its own data, and
+// stopping one leaves the other open, also after a restart. Within one range, a second publisher is still refused (checkExistingInstall).
+const namedNotes = (scope: "home" | "project", zh: string, en: string, publisher = newPublisher()) => signedPackage(publisher, files => {
+  const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
+  contract.operations.find(operation => operation.id === "notes.add")!.effects.storage = ["read", "write"];
+  contract.ui = { locales: { default: "zh", available: ["zh", "en"] } };
+  files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
+  for (const [locale, word] of [["zh", zh], ["en", en]] as const) {
+    files[`locales/${locale}.json`] = JSON.stringify({ format_version: 1, owner: PACKAGE_PLUGIN_ID, locale, messages: { "notes.directory.name": word } });
+  }
+  return sandboxPluginManifest({ pluginId: PACKAGE_PLUGIN_ID, version: "1.0.0", name: zh, publisher: { publisher_id: "example", signature: publisher.identity },
+    presentation: false, contract, ...(scope === "home" ? { runtime: { scope: "home" as const } } : {}),
+    textDeclarations: { plugin_id: PACKAGE_PLUGIN_ID, name_text: { key: "notes.directory.name" } } });
+});
+const WANG = { zh: "小王的便签", en: "Wang notes" }, LI = { zh: "小李的便签", en: "Li notes" };
+const byScope = (views: readonly ActionView[], scope: "home" | "project") => views.filter(view => view.action.scope === scope);
+const framesIn = (html: string, scope: "home" | "project") => html.split(`%22scope%22%3A%22${scope}%22`).length - 1;
+
+test("BL-586 a Home plugin and a project plugin by two publishers under one id both install, show their own words and data, and stopping one leaves the other", mac, async t => {
+  const home = await openTestHome(t);
+  const project = await home.createProject("Two notes");
+  const client = home.host.actionClient(project.reference), caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [] };
+  const install = async (bundle: PluginPackageBundle, label: string) => {
+    const preview = await client.invoke(person(project.project_id), ref(pluginInstallActions.preview), { bundle }) as { preview_id: string; runtime_scope: string };
+    await client.invoke(person(project.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: label });
+    return preview.runtime_scope;
+  };
+  assert.equal(await install(namedNotes("home", WANG.zh, WANG.en), "Wang"), "home");
+  assert.equal(await install(namedNotes("project", LI.zh, LI.en), "Li"), "project", "another publisher's plugin under the same id is another plugin, with its own range");
+  await assert.rejects(install(namedNotes("project", "第三家", "Third"), "Third"), refused("plugin.definition_conflict"), "a second publisher in the same range is still refused");
+
+  const views = await operationsOf(client, caller);
+  assert.equal(new Set(views.map(view => view.provider.plugin_install_id)).size, 2, "each installation offers its own actions");
+  await operate(client, caller, byScope(views, "home"), "notes.add", { text: "Wang's" });
+  await operate(client, caller, byScope(views, "project"), "notes.add", { text: "Li's" });
+  assert.deepEqual(await operate(client, caller, byScope(views, "home"), "notes.list", {}), [{ id: "1", text: "Wang's" }]);
+  assert.deepEqual(await operate(client, caller, byScope(views, "project"), "notes.list", {}), [{ id: "1", text: "Li's" }], "each keeps its own data");
+
+  const page = async (language: string) => (await fetch(`${home.origin}/projects/${encodeURIComponent(project.project_id)}/`, { headers: { "accept-language": language } })).text();
+  const zh = await page("zh-CN"), en = await page("en");
+  for (const [html, language] of [[zh, "zh"], [en, "en"]] as const) {
+    assert.ok(html.includes(WANG[language]) && html.includes(LI[language]), `the ${language} page names both, each in its own words`);
+    assert.ok(!html.includes(WANG[language === "zh" ? "en" : "zh"]) && !html.includes(LI[language === "zh" ? "en" : "zh"]), `the ${language} page uses each plugin's ${language} words`);
+  }
+  assert.deepEqual([framesIn(zh, "home"), framesIn(zh, "project")], [1, 1], "both stages are drawn, each by its own installation");
+
+  // Hiding the Home one in this project is the Home one's: the project's own plugin by the other publisher is not hidden with it.
+  const membership = `/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`;
+  await home.web.delete(membership, { plugin_id: PACKAGE_PLUGIN_ID, expected_revision: await projectPluginRevision(home.web, project.project_id) });
+  await assert.rejects(operate(client, caller, byScope(await operationsOf(client, caller), "home"), "notes.list", {}), refused("actions.plugin_disabled"));
+  assert.deepEqual(await operate(client, caller, byScope(await operationsOf(client, caller), "project"), "notes.list", {}), [{ id: "1", text: "Li's" }]);
+  await home.web.post(membership, { plugin_id: PACKAGE_PLUGIN_ID, expected_revision: await projectPluginRevision(home.web, project.project_id) });
+
+  // Stopping the Home one leaves the project one open, and the other way round.
+  await home.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/disable`, {});
+  const withoutWang = await page("zh-CN");
+  assert.deepEqual([withoutWang.includes(WANG.zh), withoutWang.includes(LI.zh), framesIn(withoutWang, "project")], [false, true, 1]);
+  assert.deepEqual(await operate(client, caller, byScope(await operationsOf(client, caller), "project"), "notes.list", {}), [{ id: "1", text: "Li's" }]);
+  await home.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/enable`, {});
+  await client.invoke(person(project.project_id), ref(pluginControlActions.disable), { plugin_id: PACKAGE_PLUGIN_ID });
+  const withoutLi = await page("zh-CN");
+  assert.deepEqual([withoutLi.includes(WANG.zh), withoutLi.includes(LI.zh), framesIn(withoutLi, "home"), framesIn(withoutLi, "project")], [true, false, 1, 0]);
+  assert.deepEqual(byScope(await operationsOf(client, caller), "project"), [], "the stopped one offers nothing");
+  assert.deepEqual(await operate(client, caller, byScope(await operationsOf(client, caller), "home"), "notes.list", {}), [{ id: "1", text: "Wang's" }]);
+});
+
+test("BL-586 after a restart the plugin that was not stopped comes back with its data, and the stopped one by the other publisher stays stopped", mac, async t => {
+  const h = await fixture(t);
+  await h.install(namedNotes("home", WANG.zh, WANG.en));
+  await h.install(namedNotes("project", LI.zh, LI.en));
+  const caller = h.projectCaller();
+  await operate(h.projectClient(), caller, byScope(await operationsOf(h.projectClient(), caller), "project"), "notes.add", { text: "Li's" });
+  await h.host.homePlugins!.packageAction(PACKAGE_PLUGIN_ID, "disable");
+  await h.reopen();
+  assert.equal(h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)?.state, "disabled", "the stopped Home plugin stays stopped");
+  const views = await operationsOf(h.projectClient(), caller);
+  assert.deepEqual(byScope(views, "home"), []);
+  assert.deepEqual(await operate(h.projectClient(), caller, byScope(views, "project"), "notes.list", {}), [{ id: "1", text: "Li's" }], "the other publisher's plugin is back with its data");
 });

@@ -39,7 +39,7 @@ tests/fixtures/golden-homes/<版本>/
 
 1. **平台库**：`projects/catalog.db`、至少两个项目的 `molis-work.db`（一个演示种子，一个带 Goal 事件历史）、§3.2 的全部 Home 级库、§3.4 的 `plugin-runtime.db`、`plugin-libraries.db`。
 2. **内置插件库**：§3.3 的每一个个人插件库都有至少一行数据，项目级插件的表在项目库里都有数据。
-3. **带版本的文件**：`config/mcp-tools.json`、`shelf/catalog.json`、`browser/sites.json`、`jelly/preferences.json`、`config/installation.json`、`security/secrets.json` 及其测试密钥，再加核账第二节补出来的 `computer/settings.json`、`computer/records/<id>/record.json`、`config/onboarding.json`、`config/project-arrival.json`。`config/installation.json` 在离线快照的 `snapshotExclusions` 里（它是这次安装的收据），所以金样单独放它，不靠快照带。`computer/` 现在不在 `homeStores()` 里，有这个目录的 Home 离线快照会报 `unknown_data`，要先登记才能生成（[U1 设计](upgrade-chain-design.md) §15.2）。
+3. **带版本的文件**：`config/mcp-tools.json`、`shelf/catalog.json`、`browser/sites.json`、`jelly/preferences.json`、`config/installation.json`、`security/secrets.json` 及其测试密钥，再加核账第二节补出来的 `computer/settings.json`、`computer/records/<id>/record.json`、`config/onboarding.json`、`config/project-arrival.json`。`computer/` 由 `homeStores()` 登记。macOS 生成时通过助手设置写入一条合成禁用应用，电脑使用开关保持关闭。操作记录和截图的覆盖缺口留在 `tooling/gates/golden-coverage.json`。安装器收据 `config/installation.json` 不随快照，覆盖缺口也登记在同一文件。
 4. **一个装上的第三方插件**：语料里的签名包样本，装上、启用、写过数据，有自己的库和主人文件。
 5. **Prologue 的存储**：`agent-runtime/records/` 里至少一段会话、一条记忆条目，用脚本化的假模型生成，不调真模型（§4.5 要求换包前回放它）。
 6. **Home 自己的身份**：`storage-space.json`，每个库里的 `molis_storage_space` 与它一致。这是核对归属的依据，少了它库打不开。
@@ -65,6 +65,8 @@ tests/fixtures/golden-homes/<版本>/
 
 | 知识卡片的编号（`knowledge_cards` 的 rowid） | 卡片由组织器的定时器写，跨项目，谁先谁后取决于这台机器有多快；无内容 FTS 又记住了这个编号，事后归一不了 | 生成结束时删掉 `knowledge/knowledge.db`，由主人按目录逐项目重建（§3 第 2 步），一轮只有一种顺序。不是注入，是绕开：编号本身在真实 Home 里仍然取决于定时器，只是金样里不再出现这个不确定。重建之后才跑的用例写成 `afterKnowledgeRebuild`（§4 第 6 步） |
 | 工作记录的顺序与编号（`observation.db` 的 `records`：`seq`、`record_id`，以及证据加密取的随机数） | 第 28 批起宿主结算的每次调用都是一条记录，按并发调用结束的先后排号、取编号；搜索在变更 800 毫秒后并行刷新已知来源，结束先后由这台机器决定，同一组调用两次生成顺序不同，还会挪动下一个加密从种子流里取到的值（CI 上 `security/secrets.json` 因此跟着变） | 生成时不写工作记录（`scripts/golden/populate.mjs` 的 `holdObservationRecords`，与知识组织的暂停同一做法）；库照样由主人打开、按现行结构建出，两个 Home 都如此，记在 `imports`。代价是金样里的观测库没有记录行；观测库第一次升结构之前，要有能按确定顺序生成的记录样本（[BL-observation-b28-known-limits](../backlog/BL-observation-b28-known-limits.md) ⑤） |
+
+记忆首次启动会把整理排在一分钟以后。Prologue 的单次定时器按真实时间触发，并直接把预定时刻交给队列，慢机器可能在金样中留下整理标记和更新后的队列记录。生成的固定时钟暂停 Prologue 队列未来到期的唤醒，保留主人写入的待执行记录。即时任务和其他超时仍照常运行。慢机用例同时加速宿主周期任务和这次唤醒。
 
 要归一的列写成转储器里的一张短表（表名模式、列、规则），不做通配。新出现的随机列会让 `UPG2-02` 失败，要么注入，要么进这张表，看得见。另有一处归一在 capture 层、不进转储器短表：签过名的第三方样本在沙箱里按真实时钟产出的 `plugin_private_values` 那一行（`sandbox:entries` 的编号与 `created_at`），由 `scripts/golden/layout.mjs` 的 `withFixedSandboxEntries` 固定成 `i20260115090000000-golden` 与 `2026-01-15T09:00:00.000Z`；样本进程无法注入，只能在写进金样之前这一层固定，别的行一律照常。以后改归一规则时，这两处都要想到。同一个提交生成两次，`manifest.json` 与所有转储逐字节相同（`UPG2-02`），比的是归一之后的转储。
 
@@ -130,7 +132,9 @@ node scripts/replay-golden-homes.mjs [--latest N | --all] [--json]
 
 挡合并的作业放在 Linux，单独一个 CI 任务 `golden-replay`；时长目标是最近 3 份加起来不超过 5 分钟，超了就减少每份的项目数，不砍检查步骤。
 
-**第三方插件（用户 2026-11-07 定）：** 第三方插件的沙箱只有 macOS 有，Linux 上回放跳过这段：结果的 `steps.third_party`、`steps.home_library` 是 `"not-run"`（清单里没装样本才是 `"absent"`，跑过是 `"replayed"`），`not_run` 列出没跑的步骤。`ok: true` 只说跑了的都过了，`not_run` 不空就不算这段通过；CI 把它写进作业摘要和运行页的 notice（`scripts/ci-golden-replay.mjs`），不只留在日志里。所以 `golden-replay` 在 Linux 上跑第三方之外的全部，并在结果里写明第三方这段没跑，不算通过；改到插件运行、沙箱、存储这些相关部分时，另一个 macOS 作业加跑第三方插件，不过就合不进去；每天的定时作业在 macOS 上跑全部，兜住路径清单漏掉的。路径清单写在 `scripts/ci-test-selection.mjs` 的 `GOLDEN_THIRD_PARTY_RUN_WHEN`，和 `native-checks` 同一种做法，宁宽勿窄，选择器失败时照跑。定时作业是 `.github/workflows/golden-replay-nightly.yml`。
+**第三方插件（用户 2026-11-07 定）：** 第三方插件的沙箱只有 macOS 有，Linux 上回放跳过这段：结果的 `steps.third_party`、`steps.home_library` 是 `"not-run"`（清单里没装样本才是 `"absent"`，跑过是 `"replayed"`），`not_run` 列出没跑的步骤。`ok: true` 只说跑了的都过了，`not_run` 不空就不算这段通过；CI 把它写进作业摘要和运行页的 notice（`scripts/ci-golden-replay.mjs`），不只留在日志里。`golden-replay` 在 Linux 上运行本平台支持的检查，并在结果里列出跳过的步骤；改到插件运行、沙箱、存储这些相关部分时，另一个 macOS 作业加跑第三方插件，不过就合不进去；每天的定时作业在 macOS 上跑全部，兜住路径清单漏掉的。路径清单写在 `scripts/ci-test-selection.mjs` 的 `GOLDEN_THIRD_PARTY_RUN_WHEN`，和 `native-checks` 同一种做法，宁宽勿窄，选择器失败时照跑。定时作业是 `.github/workflows/golden-replay-nightly.yml`。
+
+`computer/settings.json` 的文件版本在所有平台核对。macOS 的 `versioned-files` 还通过助手设置核对开关和合成禁用应用，结果 `steps.computer_settings` 为 `"replayed"`。Linux 的入口读回记作 `"not-run"`，不计入 `steps.versioned_files`，`not_run` 列出 `computer-settings`，作业摘要与 notice 同步显示。缺少该文件的旧金样记作 `"absent"`。
 
 **50 MiB（52,428,800 字节；用户 2026-11-08 定）：** `tests/fixtures/golden-homes/` 的工作树字节（已跟踪文件合计，含目录根的 `.gitattributes`；门禁的 `GOLDEN_BYTES_LIMIT` 在 `scripts/gates/golden-homes.mjs`）超过 50 MiB，门禁失败并点名最老的一份。真正移到发布附件、回放按摘要下载，到那时再写，现在只有门禁（§6）。移走的只是数据段（`stores/`、`files/`），`manifest.json` 留在 `tests/fixtures/golden-homes/<版本>/` 里，所以 UPG-01 和统一起点版本检查照样看得到这个版本存着什么。
 

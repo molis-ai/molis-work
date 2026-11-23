@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { gateRuleFiles } from "../../scripts/run-tests/strata.mjs";
 
 export const workflow = readFileSync(fileURLToPath(new URL("../../.github/workflows/ci.yml", import.meta.url)), "utf8");
 
@@ -41,12 +42,20 @@ export function blockingJobs(text = workflow): string[] {
   return needs.split(",").map((name) => name.trim()).filter((name) => name && name !== QUEUE_CHECK_JOB && name !== "test-selection");
 }
 
-/** The `node scripts/run-tests.mjs …` lines of the blocking jobs, each as its list of words. */
-export function blockingTestRuns(text = workflow): string[][] {
-  return blockingJobs(text).flatMap((name) => jobBlock(name, text).split("\n"))
+/** The files a job passes to the test runner. An empty selection exercises the full gate fallback. */
+export function testRunsInJob(job: string, gateSelection = ""): string[][] {
+  return job.split("\n")
     .map((line) => /^\s+run: (node scripts\/run-tests\.mjs .*)$/.exec(line)?.[1])
     .filter((line): line is string => Boolean(line))
-    .map((line) => line.split(/\s+/));
+    .map((line) => {
+      if (line !== 'node scripts/run-tests.mjs --gate-rules "$SELECTED_GATE_TESTS"') return line.split(/\s+/);
+      const tests = readdirSync(fileURLToPath(new URL("../", import.meta.url))).map(name => `tests/${name}`);
+      return ["node", "scripts/run-tests.mjs", ...gateRuleFiles(tests, gateSelection)];
+    });
+}
+
+export function blockingTestRuns(text = workflow): string[][] {
+  return blockingJobs(text).flatMap((name) => testRunsInJob(jobBlock(name, text)));
 }
 
 /** Every workflow file under .github/workflows/, sorted by file name, as its repo-relative path and its text. */

@@ -4,12 +4,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { availableParallelism, tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { plan, readDurations, runQueue, writeDurations } from "../scripts/run-tests/pool.mjs";
-import { isGateMetaTest, isVisualAuditTest, VISUAL_AUDIT_TESTS } from "../scripts/run-tests/strata.mjs";
+import { gateRuleFiles, isGateMetaTest, isVisualAuditTest, VISUAL_AUDIT_TESTS } from "../scripts/run-tests/strata.mjs";
 
 const runner = fileURLToPath(new URL("../scripts/run-tests.mjs", import.meta.url));
 const scratch: string[] = [];
@@ -110,6 +110,23 @@ test(${JSON.stringify(name)}, () => {
     assert.equal(existsSync(record.home), false, "each file's Home is removed after it");
   }
   assert.deepEqual(readdirSync(made).filter((name) => name === "inherited"), [], "nothing was written to the caller's Home");
+});
+
+test("CIP-11: the default runner starts one file locally and uses CI capacity on a runner", () => {
+  const made = directory();
+  const files = ["a", "b"].map(name => {
+    const file = path.join(made, `${name}.test.mjs`);
+    writeFileSync(file, 'import test from "node:test"; test("fixture", () => {});');
+    return file;
+  });
+  const env = { ...process.env };
+  delete env.MOLIS_WORK_TEST_JOBS;
+  const ciSlots = Math.max(1, Math.min(files.length, Math.floor(availableParallelism() / 2)));
+  for (const [ci, expected] of [["false", 1], ["true", ciSlots]] as const) {
+    const run = spawnSync(process.execPath, [runner, ...files], { env: { ...env, CI: ci }, encoding: "utf8", timeout: 30_000 });
+    assert.equal(run.status, 0, run.stderr);
+    assert.ok(run.stdout.includes(`2 files, ${expected} at a time`), run.stdout);
+  }
 });
 
 test("options: a jobs count that is not a whole number of at least 1 is refused before anything runs", () => {
@@ -323,10 +340,21 @@ test("strata: VISUAL_AUDIT_TESTS exist on disk, isGateMetaTest excludes only gat
     assert.equal(isGateMetaTest(file), true, file);
   }
   const ciWorkflow = readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");
+  const disk = readdirSync(path.join(root, "tests")).map(name => `tests/${name}`);
+  const gateRules = gateRuleFiles(disk, "");
+  for (const file of ["tests/secret-scan.test.ts", "tests/health-gates-dual-instance.test.ts"]) {
+    assert.equal(gateRules.includes(file), false, `${file} runs exactly once in the invariant step`);
+  }
+  assert.ok(ciWorkflow.includes('run: node scripts/run-tests.mjs --gate-rules "$SELECTED_GATE_TESTS"'));
+  assert.deepEqual(gateRuleFiles(disk, JSON.stringify(["tests/ci-install.test.ts", "tests/ci-install.test.ts"])), ["tests/ci-install.test.ts"]);
+  for (const invalid of ["[]", "not json", '["tests/missing.test.ts"]', '["tests/ci-install.test.ts","tests/account-session.test.ts"]']) {
+    assert.deepEqual(gateRuleFiles(disk, invalid), gateRules, "CIP-12 invalid selection runs every gate rule");
+  }
+  assert.throws(() => gateRuleFiles(disk.filter(file => file !== "tests/ci-install.test.ts"), ""), /Missing gate self-tests/);
   for (const name of readdirSync(path.join(root, "tests"))) {
     const file = `tests/${name}`;
     if (!/\.test\.(?:ts|mjs)$/.test(name) || !isGateMetaTest(file)) continue;
-    const covered = ciWorkflow.includes(name) || (file.startsWith("tests/health-gates-") && ciWorkflow.includes("tests/health-gates-*.test.ts"));
+    const covered = ciWorkflow.includes(name) || gateRules.includes(file);
     assert.equal(covered, true, `${file} excluded by --exclude-gate-meta must be covered by .github/workflows/ci.yml`);
   }
   for (const file of ["tests/security-invariants-home-snapshot-entries.test.ts", "tests/todo.e2e.test.ts", "tests/goals-refresh.e2e.test.ts", "tests/plugin-manifest.test.ts", "tests/package-boundary-must-contain.test.mjs"]) {

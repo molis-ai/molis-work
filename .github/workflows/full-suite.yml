@@ -181,8 +181,11 @@ jobs:
           fc-list :lang=zh family | sort -u
 
       # The runner starts the files that took longest last time first; each shard keeps its own durations from run to run.
-      - name: Test durations
-        uses: actions/cache@v4
+      - name: Restore test durations
+        id: durations
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: actions/cache/restore@v4
         with:
           path: node_modules/.cache/molis-work-tests
           key: full-suite-durations-${{ matrix.shard }}-${{ github.run_id }}
@@ -207,6 +210,16 @@ jobs:
           else
             node scripts/run-tests.mjs --skip-macos-only $STRATA_FLAGS --shard ${{ matrix.shard }}/${{ strategy.job-total }} --timeout-seconds 900 --retries 1 $BAIL 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
           fi
+
+      # Timing hints only order the next run. An unavailable cache must not consume the shard's test budget.
+      - name: Save test durations
+        if: ${{ success() && steps.durations.outcome == 'success' && steps.durations.outputs.cache-hit != 'true' }}
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: ${{ steps.durations.outputs.cache-primary-key }}
 
       # The runner's closing lines: files passed, the slowest, the flaky files, the failed files and the command that reruns only them.
       - name: Summary

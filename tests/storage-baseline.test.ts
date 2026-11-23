@@ -420,6 +420,11 @@ test("B103-02 RAR-02 another connection's commit, space change, or structure cha
   unbind.close();
   assert.throws(() => withHeldHomeSqlite(home, "notes", baseline, () => "read", { existingOnly: true }), (error: ActionError) => error.code === "storage.space_ownership_mismatch");
   assert.equal(afterRoTx.isOpen, false);
+  // An explicit allowUnbound RO handle is never reused by a strict caller without allowUnbound.
+  const unboundRo = withHeldHomeSqlite(home, "notes", baseline, db => db, { existingOnly: true, allowUnbound: true })!;
+  assert.ok(unboundRo.isOpen);
+  assert.throws(() => withHeldHomeSqlite(home, "notes", baseline, () => "read", { existingOnly: true }), (error: ActionError) => error.code === "storage.space_ownership_mismatch");
+  assert.equal(unboundRo.isOpen, false, "strict caller rejects and drops the unbound RO slot");
   const after = new DatabaseSync(file, { readOnly: true });
   assert.equal(after.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name = 'molis_storage_space'").get()!.n, 0, "the read wrote no binding");
   after.close();

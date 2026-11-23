@@ -76,7 +76,7 @@ function readOnlyStorePreparer(home: string): (db: HomePluginDatabase) => void {
   const resolved = path.resolve(home);
   let prepare = readOnlyStorePreparers.get(resolved);
   if (!prepare) {
-    prepare = db => assertHomeStoreShape(db, resolved, true);
+    prepare = db => assertHomeStoreShape(db, resolved);
     readOnlyStorePreparers.set(resolved, prepare);
     while (readOnlyStorePreparers.size > 64) readOnlyStorePreparers.delete(readOnlyStorePreparers.keys().next().value!);
   }
@@ -85,19 +85,34 @@ function readOnlyStorePreparer(home: string): (db: HomePluginDatabase) => void {
 
 /**
  * Borrows the Home's held read-only connection to `plugin-runtime.db`, validated for version, exact current structure, and
- * space ownership. Missing or empty stores return `undefined` without creating or binding anything; external writes, schema
- * tampering, or dropped/mismatched space bindings are rejected intact.
+ * space ownership (matching `openReadOnlyHomePluginStore`: missing files return `undefined`, existing 0-byte files are refused
+ * as version 0, complete unbound stores are checked against the unbound baseline, and bound stores must match this Home's space).
  */
 export function withReadOnlyHomePluginStore<T>(
   home: string,
   work: (db: HomePluginDatabase, stamp: string) => T,
 ): T | undefined {
+  const file = homeSqlitePath(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path);
+  let stat: ReturnType<typeof lstatSync>;
+  try {
+    stat = lstatSync(file);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      withHeldHomeSqlite(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path, HOME_PLUGIN_RUNTIME_BASELINE, () => undefined, { existingOnly: true, allowUnbound: true });
+      return undefined;
+    }
+    throw error;
+  }
+  if (stat.size === 0) {
+    withHeldHomeSqlite(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path, HOME_PLUGIN_RUNTIME_BASELINE, () => undefined, { existingOnly: true, allowUnbound: true });
+    throw refusedHomeStore(sqliteVersionRefusal(file, 0, HOME_PLUGIN_RUNTIME_BASELINE.version, home));
+  }
   let opened = false;
   try {
     return withHeldHomeSqlite(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path, HOME_PLUGIN_RUNTIME_BASELINE, (db, stamp) => {
       opened = true;
       return work(db, stamp);
-    }, { existingOnly: true, prepare: readOnlyStorePreparer(home) });
+    }, { existingOnly: true, allowUnbound: true, prepare: readOnlyStorePreparer(home) });
   } catch (error) {
     throw opened ? error : namedOpenRefusal(error);
   }

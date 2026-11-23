@@ -234,7 +234,7 @@ export function assertSqliteBaselineShape(db: SqliteBaselineDatabase, path: stri
  * a read-only connection fail with SQLITE_READONLY_ROLLBACK, and that crash recovery is left to the writable open — the caller then
  * checks the recovered database's version and structure in full.
  */
-function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:string, verifyOwnership = false): boolean {
+function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:string, verifyOwnership = false, allowUnbound = false): boolean {
   if (!existsSync(path)) return false;
   try {
     // Immutable reads avoid creating WAL sidecars for a closed database. Never ignore an existing journal.
@@ -248,7 +248,7 @@ function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:str
       // A current version mark claims the baseline's schema: every baseline table must be there, even when no other business table is
       // left (a store whose tables were dropped is damaged, not an empty one). Only a file without a version is the creation path.
       assertSqliteBaselineShape(inspection, path, baseline, { home });
-      if (verifyOwnership) assertExistingHomeSpace(inspection, path, home);
+      if (verifyOwnership) assertExistingHomeSpace(inspection, path, home, allowUnbound);
       return true;
     } finally {
       inspection.close();
@@ -338,16 +338,17 @@ function isClosedWalStore(path: string): boolean {
 }
 
 /** Reads only an existing, complete current baseline on one read-only connection. Missing/empty stores are absent; no file or schema is created. */
-export function openExistingBaselineHomeSqlite(home: string, storeName: string, baseline: SqliteBaseline): DatabaseSync | undefined {
+export function openExistingBaselineHomeSqlite(home: string, storeName: string, baseline: SqliteBaseline, options?: { allowUnbound?: boolean }): DatabaseSync | undefined {
+  const allowUnbound = options?.allowUnbound === true;
   const path = homeSqlitePath(home, storeName);
   const stat = statSync(path, { throwIfNoEntry: false });
   if (!stat || stat.size === 0) return undefined;
-  if (isClosedWalStore(path) && !inspectSqliteBaseline(path, baseline, home, true)) throw structureMismatch(path, home);
+  if (isClosedWalStore(path) && !inspectSqliteBaseline(path, baseline, home, true, allowUnbound)) throw structureMismatch(path, home);
   const db = new DatabaseSync(path, { readOnly: true });
   try {
     if (!checkSqliteBaselineVersion(db, path, baseline, home)) throw structureMismatch(path, home);
     assertSqliteBaselineShape(db, path, baseline, { home });
-    assertExistingHomeSpace(db, path, home);
+    assertExistingHomeSpace(db, path, home, allowUnbound);
     return db;
   } catch (error) {
     db.close();
@@ -357,8 +358,9 @@ export function openExistingBaselineHomeSqlite(home: string, storeName: string, 
 }
 
 /** Pure ownership check: reject before the normal connection, then recheck the actual query connection. Never assign a space. */
-function assertExistingHomeSpace(db: SqliteBaselineDatabase, path: string, home?: string): void {
+function assertExistingHomeSpace(db: SqliteBaselineDatabase, path: string, home?: string, allowUnbound = false): void {
   const expected = home === undefined ? null : readStorageSpace(home), actual = readDatabaseSpace(db);
+  if (allowUnbound && actual === null) return;
   if (!expected || !actual || JSON.stringify(expected) !== JSON.stringify(actual)) {
     throw storageErrors.space_ownership_mismatch("这个库没有当前空间的有效归属，不能读取。", { path: sqliteStoreLabel(path, home) });
   }
@@ -470,6 +472,7 @@ interface Held {
   readonly schema: number;
   readonly space: string;
   readonly stamp: string;
+  readonly unbound: boolean;
   readonly prepared: WeakSet<(db: DatabaseSync) => void>;
 }
 
@@ -574,9 +577,10 @@ function rememberSlot(home: string, storeName: string, kind: "ro" | "rw", db: Da
   if (!opened) throw new Error("SQLite store disappeared while it was opened; retry");
   const currentVersions = versions(db), space = spaceFileIdentity(homeRoot);
   const stamp = `${++nextSlotGeneration}:${opened.dev}:${opened.ino}:${currentVersions.data}:${currentVersions.schema}:${space}`;
+  const unbound = kind === "ro" && readDatabaseSpace(db) === null;
   const prepared = new WeakSet<(db: DatabaseSync) => void>();
   if (prepare) prepared.add(prepare);
-  const entry: Held = { db, ...opened, ...currentVersions, space, stamp, prepared };
+  const entry: Held = { db, ...opened, ...currentVersions, space, stamp, unbound, prepared };
   let slots = held.get(file);
   if (!slots) held.set(file, slots = { homeRoot, rawRoot, file });
   closeHeld(slots[kind]);
@@ -584,7 +588,7 @@ function rememberSlot(home: string, storeName: string, kind: "ro" | "rw", db: Da
   return entry;
 }
 
-function heldReadOnlyEntry(home: string, storeName: string, baseline: SqliteBaseline, prepare?: (db: DatabaseSync) => void): Held | undefined {
+function heldReadOnlyEntry(home: string, storeName: string, baseline: SqliteBaseline, prepare?: (db: DatabaseSync) => void, allowUnbound = false): Held | undefined {
   const homeRoot = canonicalPath(home), file = resolve(homeSqlitePath(homeRoot, storeName));
   const stat = statSync(file, { throwIfNoEntry: false });
   if (!stat || stat.size === 0) {
@@ -598,10 +602,14 @@ function heldReadOnlyEntry(home: string, storeName: string, baseline: SqliteBase
   evictStaleSlot(file, homeRoot, "rw");
   const reused = stillHeldEntry(file, homeRoot, "ro");
   if (reused) {
-    ensurePrepared(held.get(file)!, "ro", reused, prepare);
-    return reused;
+    if (!allowUnbound && reused.unbound) {
+      dropSlot(held.get(file)!, "ro");
+    } else {
+      ensurePrepared(held.get(file)!, "ro", reused, prepare);
+      return reused;
+    }
   }
-  const db = openExistingBaselineHomeSqlite(home, storeName, baseline);
+  const db = openExistingBaselineHomeSqlite(home, storeName, baseline, { allowUnbound });
   if (!db) return undefined;
   try {
     prepare?.(db);
@@ -648,14 +656,14 @@ export function heldHomeSqlite(home: string, storeName: string, baseline: Sqlite
 export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline: SqliteBaseline, work: (db: DatabaseSync, stamp: string) => T,
   options: { prepare?: (db: DatabaseSync) => void; existingOnly?: false }): T;
 export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline: SqliteBaseline, work: (db: DatabaseSync, stamp: string) => T,
-  options: { prepare?: (db: DatabaseSync) => void; existingOnly: true }): T | undefined;
+  options: { prepare?: (db: DatabaseSync) => void; existingOnly: true; allowUnbound?: boolean }): T | undefined;
 export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline: SqliteBaseline, work: (db: DatabaseSync, stamp: string) => T,
-  { prepare, existingOnly = false }: { prepare?: (db: DatabaseSync) => void; existingOnly?: boolean }): T | undefined {
+  { prepare, existingOnly = false, allowUnbound = false }: { prepare?: (db: DatabaseSync) => void; existingOnly?: boolean; allowUnbound?: boolean }): T | undefined {
   const homeRoot = canonicalPath(home), file = resolve(homeSqlitePath(homeRoot, storeName));
   const slots = held.get(file);
   if (existingOnly) {
     if (slots?.ro?.db.isOpen && slots.ro.db.isTransaction) {
-      const own = openExistingBaselineHomeSqlite(home, storeName, baseline);
+      const own = openExistingBaselineHomeSqlite(home, storeName, baseline, { allowUnbound });
       if (!own) return undefined;
       try {
         prepare?.(own);
@@ -666,7 +674,7 @@ export function withHeldHomeSqlite<T>(home: string, storeName: string, baseline:
         own.close();
       }
     }
-    const entry = heldReadOnlyEntry(home, storeName, baseline, prepare);
+    const entry = heldReadOnlyEntry(home, storeName, baseline, prepare, allowUnbound);
     if (!entry) return undefined;
     return work(entry.db, entry.stamp);
   }

@@ -167,8 +167,8 @@ test("live-stamped projectActionAvailability and web-catalog-access reuse snapsh
   const caller = { actor_id: "user", project_id: project.project_id, audience: "user" as const, permissions: [] };
   const alwaysOnEntry = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.always_on === true)!;
   assert.ok(alwaysOnEntry, "the build ships at least one always-on plugin");
-  const pagesAction = { provider: { plugin_id: "io.molis.work.pages" } };
-  const alwaysOnAction = { provider: { plugin_id: alwaysOnEntry.manifest.plugin_id } };
+  const pagesAction = { provider: { provider_id: "io.molis.work.pages", plugin_id: "io.molis.work.pages", title: "Pages", kind: "plugin" as const } };
+  const alwaysOnAction = { provider: { provider_id: alwaysOnEntry.manifest.plugin_id, plugin_id: alwaysOnEntry.manifest.plugin_id, title: alwaysOnEntry.manifest.name, kind: "plugin" as const } };
 
   let membershipReads = 0, projectListReads = 0;
   const origMembership = MolisWorkProjectCatalog.prototype.projectPluginMembership;

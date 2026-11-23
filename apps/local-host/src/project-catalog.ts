@@ -2,7 +2,7 @@ import type { RuntimeContextBindingPage } from "@molis-ai/molis-work-contracts/m
 import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { ModelProviderStore } from "./model-provider-store.js";
-import { assertStorageOwner, assertNoPendingHomeRestore, retainStorageOwner, type StorageOwner, ensureStorageSpace, bindDatabaseSpace, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { assertStorageOwner, assertNoPendingHomeRestore, releaseHeldHomeSqlite, retainStorageOwner, type StorageOwner, ensureStorageSpace, bindDatabaseSpace, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { ManagedProjectFiles } from "./managed-project-files.js";
@@ -277,7 +277,13 @@ export class MolisWorkProjectCatalog {
       opened = await this.openOwned({ ...options, homeDirectory: home, storageOwner: owner });
     } catch (error) { retained?.release(); owned?.release(); throw error; }
     const holding = retained;
-    opened.releaseOwner = () => { holding.release(); owned?.release(); };
+    opened.releaseOwner = () => {
+      holding.release();
+      if (owned) {
+        releaseHeldHomeSqlite(home);
+        owned.release();
+      }
+    };
     opened.checkOwner = () => { assertStorageOwner(root, owner); assertNoPendingHomeRestore(root); };
     return opened;
   }

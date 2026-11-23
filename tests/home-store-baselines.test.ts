@@ -215,7 +215,11 @@ test("RAR-02 held RO plugin-runtime reads reuse their handle, see live writes, a
   checkTamper(() => { const db = new DatabaseSync(file); try { db.exec("CREATE TABLE unexpected (kept TEXT);"); } finally { db.close(); } }, /结构与当前基线不一致/u);
   checkTamper(() => { const db = new DatabaseSync(file); try { db.exec("DROP TABLE plugin_private_values;"); } finally { db.close(); } }, /结构与当前基线不一致/u);
   checkTamper(() => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version=99;"); } finally { db.close(); } }, /结构版本是 99/u);
-  checkTamper(() => { const db = new DatabaseSync(file); try { db.exec("DROP TABLE molis_storage_space;"); } finally { db.close(); } }, /有效归属/u);
+  checkTamper(() => {
+    const other = ensureStorageSpace(join(root, "other-owner"));
+    const db = new DatabaseSync(file);
+    try { db.prepare("UPDATE molis_storage_space SET space_id=?, descriptor=?").run(other.spaceId, JSON.stringify(other)); } finally { db.close(); }
+  }, /有效归属/u);
   checkTamper(() => { rmSync(join(home, "storage-space.json")); }, /有效归属/u);
 });
 

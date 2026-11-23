@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { TodoBatch, TodoBatchMaterial, TodoCandidate, TodoItem, TodoPlacement, TodoSource } from "./contract.js";
 import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_SUBJECT_KIND } from "./contract.js";
 import { isTodoDate, isTodoTime } from "./dates.js";
@@ -55,15 +56,34 @@ export class TodoOrganizer {
   }
 
   list(access: TodoAccess, status: "open" | "all" = "open"): TodoBatch[] {
-    const rows = this.db.all("SELECT * FROM todo_batches ORDER BY created_at DESC LIMIT 50") as unknown as BatchRow[];
-    return rows.filter(row => visible(row, access)).map(row => this.live(row, access)).filter(batch => status === "all" || batch.status === "open");
+    const projects = access.projectId ? [...access.projectIds, access.projectId] : access.projectIds;
+    // A completed batch reopens when undo removed one of its adopted items (see afterUndo).
+    const rows = this.db.all(`SELECT * FROM todo_batches
+      WHERE (project_id IS NULL OR project_id IN (SELECT value FROM json_each(?)))
+        AND (? = 'all' OR status = 'open' OR EXISTS (
+          SELECT 1 FROM json_each(todo_batches.body_json, '$.candidates') AS candidate
+          WHERE candidate.value ->> '$.decision.action' = 'added'
+            AND candidate.value ->> '$.decision.item_id' IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM todo_items WHERE id = candidate.value ->> '$.decision.item_id')
+        ))
+      ORDER BY created_at DESC, batch_id DESC LIMIT 50`, [JSON.stringify(projects), status]) as unknown as BatchRow[];
+    return rows.map(row => this.live(row, access));
   }
 
   get(id: string, access: TodoAccess): TodoBatch {
+    return this.live(this.visibleRow(id, access), access);
+  }
+
+  private visibleRow(id: string, access: TodoAccess): BatchRow {
     const row = this.db.get("SELECT * FROM todo_batches WHERE batch_id = ?", [id]) as BatchRow | undefined;
-    const batch = row ? this.live(row, access) : null;
-    if (!batch || !visible(batch, access)) throw todoErrors.not_found("找不到这份整理结果");
-    return batch;
+    if (!row || !visible(row, access)) throw todoErrors.not_found("找不到这份整理结果");
+    return row;
+  }
+
+  /** Undo of an addition makes its candidate undecided again, without changing other choices. */
+  private afterUndo(candidate: TodoCandidate): TodoCandidate {
+    const added = candidate.decision?.action === "added" ? candidate.decision.item_id : null;
+    return added && !this.db.get("SELECT 1 FROM todo_items WHERE id = ?", [added]) ? { ...candidate, decision: null } : candidate;
   }
 
   /**
@@ -71,24 +91,21 @@ export class TodoOrganizer {
    * closed by decisions), and an undecided candidate for an existing todo is read against that todo as it is today.
    */
   private live(row: BatchRow, access: TodoAccess): TodoBatch {
-    const batch = fromRow(row);
-    let reopened = false;
-    const candidates = batch.candidates.map(candidate => {
-      const added = candidate.decision?.action === "added" ? candidate.decision.item_id : null;
-      if (added && !this.db.get("SELECT 1 FROM todo_items WHERE id = ?", [added])) {
-        reopened = true;
-        return { ...candidate, decision: null };
-      }
-      return this.asOfNow(candidate, access);
-    });
-    return reopened ? { ...batch, candidates, status: "open" } : { ...batch, candidates };
+    const body = decodeBody(row);
+    const candidates = body.candidates.map(candidate => this.afterUndo(candidate));
+    const reopened = candidates.some((candidate, index) => candidate !== body.candidates[index]);
+    return { ...fromRow(row, body), candidates: candidates.map(candidate => this.asOfNow(candidate, access)),
+      status: reopened ? "open" : row.status as TodoBatch["status"] };
   }
 
   /** An undecided candidate for an existing todo, with what it asks checked against the todo as it is now. */
   private asOfNow(candidate: TodoCandidate, access: TodoAccess): TodoCandidate {
     if (candidate.decision || !candidate.existing) return candidate;
     let item: TodoItem;
-    try { item = this.store.get(candidate.existing.item_id, access); } catch { return candidate; }
+    try { item = this.store.get(candidate.existing.item_id, access); } catch (error) {
+      if (error instanceof ActionError && error.code === "todo.not_found") return candidate;
+      throw error;
+    }
     const existing = currentExisting(candidate.existing, item);
     return { ...candidate, existing, selected: existing.relation === "conflict" ? false : candidate.selected };
   }
@@ -164,17 +181,15 @@ export class TodoOrganizer {
 
   /** Apply the person's choices, all or nothing. Candidates not mentioned stay open for later. */
   apply(batchId: string, decisions: readonly TodoCandidateDecision[], expectedRevision: number | undefined, access: TodoAccess): TodoApplyResult {
-    const row = this.db.get("SELECT * FROM todo_batches WHERE batch_id = ?", [batchId]) as BatchRow | undefined;
-    if (!row || !visible(fromRow(row), access)) throw todoErrors.not_found("找不到这份整理结果");
+    const row = this.visibleRow(batchId, access);
     if (expectedRevision !== undefined && row.revision !== expectedRevision) throw todoErrors.conflict("这份整理结果已在别处处理过，请重新打开");
-    const body = JSON.parse(row.body_json) as BatchBody;
-    const current = this.live(row, access);
-    body.candidates = body.candidates.map(candidate => ({ ...candidate, decision: current.candidates.find(entry => entry.candidate_id === candidate.candidate_id)?.decision ?? null }));
+    const body = decodeBody(row);
+    body.candidates = body.candidates.map(candidate => this.afterUndo(candidate));
     if (!decisions.length) throw todoErrors.invalid("先选要怎么处理");
     const changeBatch = crypto.randomUUID();
     const at = this.store.clock().toISOString();
     const results: { candidate_id: string; action: string; item_id: string | null }[] = [];
-    const itemFor = new Map<string, string>();
+    const adopted = new Set<string>();
     this.store.inTransaction(() => {
       for (const decision of decisions) {
         const index = body.candidates.findIndex(candidate => candidate.candidate_id === decision.candidate_id);
@@ -226,18 +241,20 @@ export class TodoOrganizer {
           this.db.run(`INSERT INTO todo_source_memory (source_key, fingerprint, decision, item_id, reason, at) VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT (source_key, fingerprint) DO UPDATE SET decision = excluded.decision, item_id = excluded.item_id, reason = excluded.reason, at = excluded.at`, [key, fingerprint(candidate.title), outcome === "ignored" ? "ignored" : "handled", itemId, reason, at]);
         }
-        if (itemId) itemFor.set(candidate.candidate_id, itemId);
+        if (itemId) adopted.add(candidate.candidate_id);
         body.candidates[index] = { ...candidate, existing: record, decision: { action: outcome, item_id: itemId, reason, at } };
         results.push({ candidate_id: candidate.candidate_id, action: outcome, item_id: itemId });
       }
       // A todo added from a candidate that waits for another one waits for that todo.
-      for (const decision of decisions) {
-        if (decision.action !== "add") continue;
-        const candidate = body.candidates.find(entry => entry.candidate_id === decision.candidate_id)!;
-        for (const other of candidate.depends_on) {
-          const otherItem = itemFor.get(other) ?? body.candidates.find(entry => entry.candidate_id === other)?.decision?.item_id;
-          const ownItem = itemFor.get(candidate.candidate_id);
-          if (!otherItem || !ownItem) continue;
+      const decisionsById = new Map(body.candidates.map(candidate => [candidate.candidate_id, candidate.decision]));
+      for (const candidate of body.candidates) {
+        const ownItem = candidate.decision?.item_id;
+        if (!ownItem || candidate.decision?.action !== "added") continue;
+        for (const other of new Set(candidate.depends_on)) {
+          if (!adopted.has(candidate.candidate_id) && !adopted.has(other)) continue;
+          const otherItem = decisionsById.get(other)?.item_id;
+          if (!otherItem || ownItem === otherItem) continue;
+          if (this.store.get(ownItem, access).links.some(link => link.kind === "todo" && link.subject.id === otherItem)) continue;
           const target = this.store.get(otherItem, access);
           this.store.link(ownItem, { add: { kind: "todo", subject: { kind: TODO_SUBJECT_KIND, id: otherItem }, title: target.title, relation: "blocked_by", outcome: null, open: null } }, undefined, access, changeBatch);
         }
@@ -251,10 +268,16 @@ export class TodoOrganizer {
 
   /** Put a batch away with its undecided candidates left as they are. */
   close(batchId: string, access: TodoAccess): TodoBatch {
-    const batch = this.get(batchId, access);
-    if (batch.status === "done") return batch;
-    this.db.run("UPDATE todo_batches SET status = 'done', updated_at = ?, revision = revision + 1 WHERE batch_id = ?", [this.store.clock().toISOString(), batchId]);
-    return this.get(batchId, access);
+    return this.store.inTransaction(() => {
+      const row = this.visibleRow(batchId, access), body = decodeBody(row);
+      const candidates = body.candidates.map(candidate => this.afterUndo(candidate));
+      if (row.status === "done" && candidates.every((candidate, index) => candidate === body.candidates[index])) return this.get(batchId, access);
+      body.candidates = candidates;
+      const changed = this.db.run(`UPDATE todo_batches SET body_json = ?, status = 'done', updated_at = ?,
+        revision = revision + 1 WHERE batch_id = ? AND revision = ?`, [JSON.stringify(body), this.store.clock().toISOString(), batchId, row.revision]);
+      if (changed.changes !== 1) throw todoErrors.conflict("这份整理结果已在别处处理过，请重新打开");
+      return this.get(batchId, access);
+    });
   }
 
   private sourceFor(material: StoredMaterial, excerpt: string, candidate: TodoCandidate, origin: TodoBatch["origin"]): Omit<TodoSource, "source_id" | "added_at"> {
@@ -312,8 +335,12 @@ function strip(material: StoredMaterial): TodoBatchMaterial {
   return rest;
 }
 
-function fromRow(row: BatchRow): TodoBatch {
-  const body = JSON.parse(row.body_json) as BatchBody;
+function decodeBody(row: BatchRow): BatchBody {
+  try { return JSON.parse(row.body_json) as BatchBody; }
+  catch { throw new Error(`Cannot decode todo_batches.body_json for batch ${row.batch_id}`); }
+}
+
+function fromRow(row: BatchRow, body: BatchBody): TodoBatch {
   return { batch_id: row.batch_id, title: row.title, origin: row.origin as TodoBatch["origin"], project_id: row.project_id, method: row.method,
     materials: body.materials.map(strip), candidates: body.candidates, reference_only: body.reference_only, notes: body.notes,
     status: row.status as TodoBatch["status"], created_at: row.created_at, updated_at: row.updated_at, revision: row.revision };

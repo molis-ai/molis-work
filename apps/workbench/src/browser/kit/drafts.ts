@@ -58,8 +58,6 @@ export interface Workshop {
   placeholderBase?: Partial<Record<WordingKey, PlaceholderSegment[]>>;
   /** The Skill or source it was opened from, by name, for the heading. */
   name: string;
-  /** The version the draft becomes when adopted (absent: a new Skill). */
-  next?: number;
   save: SaveState;
   /** Narrow: the one column shown; wide: the side column's tab. */
   tab: Tab;
@@ -88,8 +86,8 @@ export interface Workshop {
   turnOffSource?: boolean;
 }
 
-export function workshopOf(draft: SkillDraft, name: string, next: number | undefined, here: boolean): Workshop {
-  return { draft, fields: fieldsOf(draft.fields), replacements: { ...draft.replacements }, name, ...(next ? { next } : {}), save: { kind: "saved" },
+export function workshopOf(draft: SkillDraft, name: string, here: boolean): Workshop {
+  return { draft, fields: fieldsOf(draft.fields), replacements: { ...draft.replacements }, name, save: { kind: "saved" },
     tab: "edit", side: "try", compare: "how", ask: "", caseErrors: {}, errors: {}, ...draft.target.kind === "custom" && here ? { turnOffSource: true } : {} };
 }
 

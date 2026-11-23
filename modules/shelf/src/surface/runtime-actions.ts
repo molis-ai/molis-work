@@ -2,7 +2,7 @@ import { ActionError, isArtifactDocumentAction, isArtifactPreviewAction, type Ac
 import { objectSchema as object, createActionDefinition, bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { type ShelfArtifactPreview, type ShelfItemRecord, type ShelfSnapshot } from "../contract.js";
-import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ShelfStore } from "../index.js";
 import { shelfErrors } from "../index.js";
 import { checkedDocument, documentFromPreview, shelfCopyOf } from "./coding-result.js";
@@ -38,13 +38,11 @@ const refused = async <T>(run: () => T | Promise<T>): Promise<T> => {
 };
 
 /**
- * Owner-bound: the results land in the local user's personal Shelf. `manifest` is Shelf's own: the types it consumes. The 成果库 read is the
- * caller's project's (`services.artifacts` of a Home instance), and the producer's text comes through its declared document or preview role.
+ * Owner-bound: the results land in the local user's personal Shelf. The 成果库 read is the caller's project's (`services.artifacts` of a
+ * Home instance), and the producer's text comes through its declared document or preview role.
  */
-export function shelfRuntimeActionHandlers(context: PluginStartContext, manifest: Pick<PluginManifest, "artifacts" | "process_items">,
-  store: () => Pick<ShelfStore, "admit" | "snapshot">): ActionHandlerBinding[] {
+export function shelfRuntimeActionHandlers(context: PluginStartContext, store: () => Pick<ShelfStore, "admit" | "snapshot">): ActionHandlerBinding[] {
   const services = context.services;
-  const consumed = new Set([...manifest.artifacts.consumes, ...manifest.process_items?.consumes ?? []].map(type => type.artifact_type_id));
   // The version is read here, as this plugin; its text is discovered from the producer's declared document or preview role (Audit #10).
   // `projectId` is the caller's: a Home instance has no project of its own.
   const read = async (ref: ArtifactReference, projectId: string | null | undefined) => {
@@ -68,7 +66,7 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, manifest
   };
   return [
     bindOwnerPluginAction(context, shelfRuntimeActions.results, async (_input, _beforeWrite, caller) => {
-      const listed = (services?.artifacts?.listConsumable() ?? []).filter(row => consumed.has(row.artifact_type_id)).map(({ artifact_id, version }) => ({ artifact_id, version }));
+      const listed = (services?.artifacts?.listConsumable() ?? []).map(({ artifact_id, version }) => ({ artifact_id, version }));
       const rows: { reference: ArtifactReference; title: string }[] = [];
       for (const ref of listed) {
         // A version its producer will not turn into text (archived, forged, another kind) is simply not offered.

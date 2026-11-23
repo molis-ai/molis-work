@@ -1,8 +1,8 @@
 # 特殊逻辑平民化：特殊插件收归平台、平台特例收成公开声明（Platform Specials Demotion）
 
-状态：方案已定稿并对齐最新 `origin/main`（`5bfd52b87b`）与在途 PR（`#2239`、`#2250`、`#2253`～`#2258`、`#2260` 待合；`#2245`、`#2252`、`#2259` 已合入），最终拍板汇总见第 7 节末与路线书[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)；尚未改任何业务代码，[`44B-0`](../post-anticorruption-roadmap/reference/batches/44b.md)（保留 `io.molis.work.` 前缀安全补洞）可立即单独开工，其余作为 [`44B`](../post-anticorruption-roadmap/reference/batches/44b.md) 在在途 PR 合入后开工。完整端到端工程蓝图与跨批次协调见[合并实施总纲](implementation-plan.md)。
+状态：44B-0 已随 [#2262](https://github.com/molis-ai/molis-work/pull/2262) 合入（`de25e3090d`）。44B-1/2 由 Claude（本机）「44B｜主会话」承接，删除旧 Alchemist 在 [#2279](https://github.com/molis-ai/molis-work/pull/2279) 评审中。同步身份部分仍等 #2260。见[认领板](https://github.com/molis-ai/molis-work/issues/1743)、[批次](../post-anticorruption-roadmap/reference/batches/44b.md)与[实施总纲](implementation-plan.md)。
 
-需求维护：Claude / Antigravity；实现：待分配。类型：底层与架构（主）、横向能力、产品线（Shelf、Feed、Inbox、Goals、Coding、Alchemist、官方集成）。前身：[插件同等地位收口](../plugin-equal-standing/spec.md)（第 44 批，及在途复核清扫 [#2258](https://github.com/molis-ai/molis-work/pull/2258)）；本需求把范围扩到**全仓所有特殊地位与特例接线**，并彻底清零插件形态特例。
+需求维护：Claude / Antigravity；实现：Claude（本机）「44B｜主会话」。类型：底层与架构（主）、横向能力、产品线（Shelf、Feed、Inbox、Goals、Coding、Alchemist、官方集成）。前身：[插件同等地位收口](../plugin-equal-standing/spec.md)（第 44 批，及在途复核清扫 [#2258](https://github.com/molis-ai/molis-work/pull/2258)）；本需求把范围扩到**全仓所有特殊地位与特例接线**，并彻底清零插件形态特例。
 
 > **2026-11-22 合并终审基线校准（相对 `1d38f73928`）**：
 > - `text-stats` 已于 `#2243` 退役删除、`overview.lead` 已于 `#2240` 删除、`skill-scenes` 已于 `#2248` 修复，现役平等内置插件收敛为 **20 个**（不含收归平台的创作台 `#2239`、纯平台化后的 Shelf 与彻底删除的旧 Alchemist）。
@@ -114,7 +114,7 @@
 | 存储与命名空间 | `search-intelligence-client.ts:36`（`feed-intent-v1`）、`search-evidence-runtime.ts:119`、`project-replication-content.ts:7`（`molis-work-feed/sha256/…`）、`connector-execution-mode.ts:3`（`MOLIS_WORK_FEED_CONNECTOR_FIXTURE`） | D5 |
 | Goals 形状的数据 | `project-arrival-http.ts:7,83-165`（`BriefGoal`）、`web-project-pages.ts:101`（`goalEmbeds`）、`project-replication-errors.ts:18` 文案 | M2 项目简介贡献；P2 的 `links.embeds`；中性文案 |
 | 其他点名 | `agent-definitions/agent-definitions.ts:40`（Feed 提示词键搬家表）、`platform-connection-services.ts:7,15,33`（`model-api.jelly`、`Coding Agent`）、`material-native.ts:43,49`（`jelly-material`、`jelly-whisper` 二进制名）、`assistant/assistant-review-words.ts:26,69`、`sandbox-package.ts:228` | 改中性名；搬家表交 Feed 包或删 |
-| 平台自己的页面与同步目录 | `web-assets.ts:151-154`、`web-request.ts:268,291`（成果库、Characters、Sessions 固定资源与路由）；`platform-sync-catalog.ts:18-52`（`#2231` 新增：`attentionSyncSelection` 借用 `io.molis.work.inbox` 导致移除 Inbox 即抛错，另新造 5 个伪插件同步 id） | M15：用 `#2239` `HostSurfaceRegistration` 统一；`platform-sync-catalog.ts` 改纯平台 `SyncSelection`（`owner_kind:"platform"`），彻底脱钩 Inbox 与伪插件 id |
+| 平台自己的页面与同步目录 | `web-assets.ts:151-154`、`web-request.ts:268,291`（成果库、Characters、Sessions 固定资源与路由）；`platform-sync-catalog.ts:18-52`（`#2231` 新增：`attentionSyncSelection` 借用构建登记表中唯一声明 Attention 的插件身份，声明缺失或重复会抛错，用户停用 Inbox 的运行结果须单验，另新造 5 个伪插件同步 id） | M15：用 `#2239` `HostSurfaceRegistration` 统一；`platform-sync-catalog.ts` 改纯平台 `SyncSelection`（`owner_kind:"platform"`），彻底脱钩 Inbox 与伪插件 id |
 | Goals 剩余登记特权与身份/目录孤岛 | `PluginRegistration.management_actions`（6 个 MCP 工具含 `molis_work_v1_initialize`、`scripts/gates/goals-management-wiring.mjs`）与 `approval_outcomes`（原始 `db.prepare`）；3 处分裂的 `provider_id` 派生（`web-catalog-settings.ts`、`blueprint-host.ts` vs `surface-home-directory.ts`/`mainline-actions.ts`/`observation-host.ts`/`task-grant-actions.ts`）；9～11 处分散设置文件；工作台 10+ 处直读 `BUILTIN_PLUGIN_CATALOG`；`agent-question-surfaces.ts:15-20`（`CODING_QUESTION_TYPES`）；`materials-reader-client.ts:138-147`（Diff `before/after`）；`connectors-settings.ts:419`（Coding MCP 提示）；`images/src/browser/result.ts:55`（`surface:"shelf"`）与死依赖 `@molis-ai/molis-work-storage` | 废除 `management_actions`/`approval_outcomes` 特权；收敛到 `packages/plugin-runtime/src/install-identity.ts` 唯一 `resolveActionProviderId(record)`、`RuntimePluginDirectory` 与 `PLATFORM_SETTINGS_REGISTRY`（`EXTENSION-POINTS.md` X-2）；清零点名残留 |
 
 ### 4.3 外壳与共用界面（`apps/workbench/src`、`packages/design-system/src`）
@@ -258,7 +258,7 @@
 
 ## 8. 验收（编号 PSD-xx，测试名或注释写编号）
 
-- **PSD-01**（拔掉测试）：对全部 20 个内置插件，隔离 Home 里逐一移除后项目页、助理、MCP、设置、桌面壳启动、同步、备份恢复均不报错（含移除 Inbox 后 `platform-sync-catalog` 不崩、移除 Git 后 Coding/Diff 优雅降级）。
+- **PSD-01**（拔掉测试）：对全部 20 个内置插件，隔离 Home 里逐一移除后项目页、助理、MCP、设置、桌面壳启动、同步、备份恢复均不报错（分别覆盖构建登记中 Attention 声明零份及两份，以及正常构建下保留和停用 Inbox；核验平台身份、回执与分区键，不能读到另一身份的数据、移除 Git 后 Coding/Diff 优雅降级）。
 - **PSD-02**（平台不点名）：门禁 **G1** 在 main 上降到只剩第 3 节具名例外（零插件形态例外）。
 - **PSD-03**（同一条路）：固定公钥第三方样例插件声明 M2～M4、M6、M8～M10、M12～M13 中各一项，获得与内置插件同等位置，且非 `io.molis.work.*` 插件页面与角色模板正常加载不 404。
 - **PSD-04a**（命名放开，V16）：固定公钥第三方包以 `com.example.notes` 安装、创作台生成插件以 `studio.<编号>` 安装均成功，页面与调用路由不 404；SDK 校验接受通用反向域名。

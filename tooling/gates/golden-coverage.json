@@ -26,10 +26,6 @@
       "reason": "助理真的操作这台 Mac 才有，要系统权限，生成时没有"
     },
     {
-      "path": "computer/settings.json",
-      "reason": "设置入口只在 macOS 注册，Linux 回放既写不了也读不了它（§4 第 3 步的读者会失败）；要进金样得先让这一步按平台分开（BL-golden-computer-settings）"
-    },
-    {
       "path": "config/connector-mcp-actions.json",
       "reason": "要先连上一个真实的连接器 MCP，金样不联网"
     },

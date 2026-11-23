@@ -15,7 +15,7 @@ export function draftEditing(c: WritingContext) {
   function opened(draft: SkillDraft, side?: "compare"): void {
     const own = draft.target.kind === "own" ? draft.target : undefined, entry = own && c.ownSkills(draft.scope).find(item => item.skill.ref.skill_id === own.skill_id);
     const name = draft.target.kind === "custom" ? draft.target.source.name : entry?.name ?? draft.fields.name;
-    const workshop = workshopOf(draft, name, own ? (draft.base?.version ?? own.base_version) + 1 : undefined, draft.scope === c.pageScope);
+    const workshop = workshopOf(draft, name, draft.scope === c.pageScope);
     if (side) { workshop.side = side; workshop.tab = side; }
     // Opened from a link or the list: closing or discarding it comes back to the Skill it changes.
     if (entry && view.item !== entry.key) c.show(entry);

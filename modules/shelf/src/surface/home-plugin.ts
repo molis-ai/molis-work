@@ -120,7 +120,7 @@ export function createHomeShelfPlugin(): PluginDefinition {
         });
         return { panelId };
       } },
-      ...shelfRuntimeActionHandlers(context, shelfManifest, store),
+      ...shelfRuntimeActionHandlers(context, store),
       ...SHELF_PROJECT_ACTIONS.map(definition => ({ ...definition, handle: (caller: ActionExecutionContext, input: unknown) => {
         if (!caller.project_id) throw new ActionError("actions.project_required", "请在项目中打开 Shelf，再保存项目资料");
         return createShelfProjectActionHandlers(caller.project_id, { readFile: id => store().readFile(id), async publish(payload, control) {

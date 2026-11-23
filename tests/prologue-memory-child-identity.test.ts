@@ -48,7 +48,8 @@ for (const [parentRecall, childRecall, forged] of [[true, true, false], [false, 
     const requests: Wire[] = [], reads: Authorization[] = [], responses: string[] = [];
     const firstRequest = Promise.withResolvers<void>(), releaseDispatch = Promise.withResolvers<void>();
     const server = createServer(async (request, response) => {
-      let body = ""; for await (const chunk of request) body += chunk;
+      let body = "";
+      for await (const chunk of request.setEncoding("utf8")) body += chunk;
       const wire = JSON.parse(body) as Wire; requests.push(wire);
       // A scripted answer derives any identity from the actual received block, never the saved test expectation.
       const answer = JSON.stringify(blocks(wire).map(({ value }) => value.memory)); responses.push(answer);

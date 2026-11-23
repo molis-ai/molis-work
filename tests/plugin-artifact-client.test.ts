@@ -144,7 +144,7 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("W5-01-D1-01 W5-01-D1-04 W5-01-D1-05: SDK queries expose fixed contracts and preserve real installation authority", async () => {
+test("SCC-02 W5-01-D1-01 W5-01-D1-04 W5-01-D1-05: SDK actions expose fixed contracts and preserve real installation authority", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-process-read-"));
   const databasePath = join(directory, "board.db");
   seedBoard(databasePath);
@@ -240,6 +240,12 @@ test("W5-01-D1-01 W5-01-D1-04 W5-01-D1-05: SDK queries expose fixed contracts an
       () => producer.process.head(" "),
       () => producer.process.readOwn({ artifact_id: item.artifact_id, version: 0 }),
     ]) assert.throws(invalid, { code: "actions.input_invalid" });
+    assert.throws(() => Reflect.apply(producer.client.publish, null, [
+      { ...note, artifact_id: "bad-payload", content: { kind: "inline", payload: new Date(0) } },
+    ]), { code: "artifacts.artifact.payload_invalid" });
+    assert.throws(() => Reflect.apply(producer.process.record, null, [
+      { ...item, artifact_id: "bad-metadata", metadata: { received_at: new Date(0) } },
+    ]), { code: "artifacts.artifact.metadata_invalid" });
     assert.deepEqual({ artifacts: api.query.listArtifacts(DEMO_PROJECT_ID), process: processItems.query.listArtifacts(DEMO_PROJECT_ID), cursor: store.eventCursor(DEMO_PROJECT_ID) }, before);
     await runtime.stop(producer.installId);
     assert.deepEqual(sameActor.client.read(item), recorded.artifact, "producer stop keeps fixed process versions consumable");

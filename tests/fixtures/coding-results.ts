@@ -5,7 +5,7 @@ import type { CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/wor
 import type { PluginActionClient, PluginArtifactClient, PluginConsumableFilter, PluginHostServices, PluginProcessItemClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingResultDocumentHandler } from "@molis-ai/molis-work-plugin-coding";
 import { codingResultDocument } from "@molis-ai/molis-work-plugin-coding/contract";
-import { shelfManifest, shelfRuntimeActionHandlers } from "@molis-ai/molis-work-module-shelf/surface";
+import { shelfRuntimeActionHandlers } from "@molis-ai/molis-work-module-shelf/surface";
 import type { ShelfStore } from "@molis-ai/molis-work-module-shelf";
 
 /** Fixed Coding results and a fake platform around them, for the tests of Coding's text action and of the copy Shelf makes of it (W5-01-CODING). */
@@ -172,5 +172,5 @@ export async function startShelf(platform: FakePlatform) {
   const refuse = async (input?: unknown): Promise<never> => { written.push(input); throw new Error("receiving is not under test"); };
   const store = (): Pick<ShelfStore, "admit" | "snapshot"> => ({ admit: refuse, snapshot: refuse });
   const context = startContext(SHELF_PLUGIN, { artifacts: platform.artifacts(SHELF_PLUGIN), actions }, { project_id: null });
-  return { handlers: shelfRuntimeActionHandlers(context, shelfManifest, store), asked, written };
+  return { handlers: shelfRuntimeActionHandlers(context, store), asked, written };
 }

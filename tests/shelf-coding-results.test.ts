@@ -18,7 +18,9 @@ import {
  */
 
 const REPOSITORY = join(dirname(fileURLToPath(import.meta.url)), "..");
-const CONSUMED = new Set(["coding.report.v1", "coding.changeset.v1", "coding.plan.v1"]);
+const CONSUMED = new Set(
+  [...shelfManifest.artifacts.consumes, ...(shelfManifest.process_items?.consumes ?? [])].map(({ artifact_type_id }) => artifact_type_id),
+);
 const owner = callerFor({ audience: "user" });
 const heading = (title: string, id: string) => `# ${title}\n\n这是 Coding 固定成果的 Shelf 副本，不代表当前工作区状态或目标验收。编辑副本不改变原成果。\n来源：${id} v1\n保存时间：2026-10-20T08:30:00.000Z\n\n`;
 const source = (reference: typeof REPORT_REFERENCE, content_hash: string) => ({ project_id: PROJECT_ID, project_path: PROJECT_PATH, reference, producer_plugin_id: "io.molis.work.coding", content_hash });
@@ -64,7 +66,7 @@ test("W5-01-CODING-09 Audit #10 Coding declares the artifact-document role and S
   assert.deepEqual(shelfRuntimeActions.preview.action.audiences, ["user", "agent", "workflow", "mcp"], "Shelf's own actions are not changed");
 });
 
-test("W5-01-CODING-10 the list is the platform's, filtered to the types of Shelf's own Manifest, and drops what Coding will not turn into text", async () => {
+test("SCC-03 W5-01-CODING-10 Shelf uses the platform's consumable list for the caller's project, and skips candidates with no usable text", async () => {
   const second = reportOf("session-b", "run-2");
   const foreign = reportOf("session-d", "run-4", { producer_plugin_id: "io.molis.work.other" });
   const archived = reportOf("session-c", "run-3", { lifecycle_state: "archived" });

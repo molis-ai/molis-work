@@ -29,7 +29,7 @@ Desktop / Workbench / CLI / MCP（stdio MCP 经动作网关转发）
 
 本地 Plugin 默认个人安装、个人数据且不同步。只有用户在 Plugin 内选择“共享到某个 Team Project”后，Plugin 才把固定成果发布为可交换内容（Team 交换尚未实现）。Server 上运行的 Team Plugin 由 Team 决定安装和授权。
 
-个人 Home 的插件集合同步仅限显式启用的 localhost 联调；本地 Home 不上传，团队同步未实现。
+个人 Home 未配置同步端点时停用同步。宿主可显式启用本机联调（`http://127.0.0.1:8788`），或从可信配置选择非回环 HTTPS 来源。配置入口见 [personal-sync.ts](../../apps/local-host/src/personal-sync.ts)，地址判定见 [endpoint.ts](../../modules/sync-replication/src/endpoint.ts)。生产部署与真实双设备验收仍待完成，见[个人同步需求书](../../specs/personal-cloud-sync/spec.md)。团队同步仍在规划中。
 
 ## 3. 五类代码边界
 

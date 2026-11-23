@@ -254,7 +254,7 @@ node scripts/linux-repro.mjs tests/<文件>.e2e.test.ts [--test-name-pattern=…
 ```
 
 - 要有 Docker（Colima、OrbStack 或 Docker Desktop）。镜像（`scripts/linux-repro/Dockerfile`）带 CI 装的那几种字体、Node 24.15 和 Debian 的 Chromium；第一次运行建镜像、克隆、装依赖、构建，十分钟上下，之后复用。
-- 容器测的是本工作树 `HEAD` 的提交，没提交的改动不在里面；改了包的 `src` 或锁文件加 `--rebuild`。
+- 容器每次取本工作树 `HEAD` 的提交。取源、检出失败或实际提交与目标不符都会退出。构建和测试开始前，分别在 `linux-repro: build HEAD`、`linux-repro: test HEAD` 日志中记录实际提交。改了包的 `src` 或锁文件加 `--rebuild`。
 - 字体与排版和 CI 一致（一行代码的行高、换行、`monospace` 落到哪种字体）；速度不一致（容器比 CI 快）。时序问题（抢先操作、等不到的状态）再加 `MOLIS_WORK_TEST_CPU_THROTTLE=3`，让页面慢三倍；它在 macOS 上直接跑也有效。抢先操作还可以在可疑的那一步前临时插一段等待，看用例是不是随之变红。
 - 用例里的时间门槛写成「开发机上的预算 × 本机的慢倍数」（`tests/fixtures/page-speed.ts`），尺寸门槛按页面里实测的值算，不写死开发机上的数字。
 

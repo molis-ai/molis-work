@@ -12,7 +12,7 @@ import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
-test("Shelf explicitly receives a genuine fixed Coding report, preserves edited copies on retry and saves the copy into project knowledge", async t => {
+test("SCC-03: Shelf lists and receives a genuine fixed Coding report, preserves edited copies on retry and saves the copy into project knowledge", async t => {
   const home = mkdtempSync(join(tmpdir(), "shelf-results-"));
   const catalogStore=await openMolisWorkProjectCatalog({homeDirectory:home});
   const project=await catalogStore.createProject({display_name:'成果回流验证',actor_id:'web-user'});

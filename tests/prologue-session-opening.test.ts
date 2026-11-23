@@ -31,7 +31,9 @@ async function ended(adapter: Awaited<ReturnType<typeof createPrologueNodeAdapte
 async function fixture() {
   const home = await mkdtemp(join(tmpdir(), "molis-c3-opening-")), requests: string[] = [];
   const server = createServer(async (req, res) => {
-    let body = ""; for await (const chunk of req) body += chunk; requests.push(body);
+    let body = "";
+    for await (const chunk of req.setEncoding("utf8")) body += chunk;
+    requests.push(body);
     res.writeHead(200, { "content-type": "text/event-stream" });
     res.end('data: {"choices":[{"index":0,"delta":{"content":"ORDINARY_REPLY"},"finish_reason":null}]}\n\ndata: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
   });

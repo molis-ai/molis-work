@@ -1,6 +1,6 @@
 name: Visual audit
 
-# Full-screen multi-width / multi-surface VUX crawl tests (13 files from scripts/run-tests/strata.mjs).
+# Full-screen multi-width and multi-surface VUX crawl tests from scripts/run-tests/strata.mjs.
 # Separated from PR `full-suite.yml` runs so backend/non-UI PRs do not spend ~1.35 CPU-hr crawling every layout;
 # triggered automatically on UI/design/workbench/plugin-browser PRs, nightly on main, and manually on demand.
 
@@ -52,11 +52,15 @@ on:
       - "plugins/native/form/src/fillpage.ts"
       - "plugins/**/locales/**"
       - "tests/fixtures/chinese-walk.ts"
+      - "tests/fixtures/chinese-layers.ts"
       - "tests/fixtures/layout-audit.ts"
       - "tests/fixtures/layer-walk.ts"
       - "tests/fixtures/order-audit.ts"
       - "tests/fixtures/truncation-audit.ts"
+      - "tests/fixtures/truncation-tip.ts"
+      - "tests/fixtures/visual-order-details.ts"
       - "tests/chinese-layers.e2e.test.ts"
+      - "tests/chinese-layers-*.e2e.test.ts"
       - "tests/chinese-walkthrough.e2e.test.ts"
       - "tests/dialog-submit-rules.e2e.test.ts"
       - "tests/english-walkthrough.e2e.test.ts"
@@ -65,9 +69,13 @@ on:
       - "tests/narrow-surfaces.e2e.test.ts"
       - "tests/remaining-forms-viewport.e2e.test.ts"
       - "tests/repeat-no-accumulation.e2e.test.ts"
+      - "tests/fixtures/touch-targets.ts"
       - "tests/touch-targets.e2e.test.ts"
+      - "tests/touch-targets-*.e2e.test.ts"
       - "tests/truncation-tip.e2e.test.ts"
+      - "tests/truncation-tip-*.e2e.test.ts"
       - "tests/visual-order-details.e2e.test.ts"
+      - "tests/visual-order-details-*.e2e.test.ts"
       - "tests/visual-order.e2e.test.ts"
       - "scripts/run-tests/strata.mjs"
       - ".github/workflows/visual-audit.yml"

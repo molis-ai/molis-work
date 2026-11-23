@@ -11,7 +11,7 @@ import { createDesktopWebCore } from "@molis-ai/molis-work-app-desktop";
 import { homeAgentDefinitions, MolisWorkLocalHost, molisWorkHostProjectReference, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 
 const [phase, home, givenProject] = process.argv.slice(2);
-const PLUGIN_ID = "io.molis.work.probe", KEY = "probe";
+const PLUGIN_ID = "com.example.probe", KEY = "probe";
 const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
 const token = randomUUID();
 // The probe exercises the plugin lifecycle within this explicitly selected Home.

@@ -242,7 +242,7 @@ test('FSS-36 unknown plugin results keep their original words beside English con
     output_schema: { type: 'object', properties: { note: { type: 'string' } }, required: ['note'] },
     result_view: { summary: '长结果已保存', text_pointer: '/note' },
   } }, () => ({ note }));
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: 'io.molis.work.fixture.long-result', version: '1.0.0', name: '长结果', kind: 'app',
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: 'com.example.fixture.long-result', version: '1.0.0', name: '长结果', kind: 'app',
     publisher: { publisher_id: 'test', signature: 'test' }, entrypoints: [{ deployment: 'local', entrypoint: './index.js' }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [action.definition] },
     async start() { return { kind: 'app', actions: [action.handler] }; } });

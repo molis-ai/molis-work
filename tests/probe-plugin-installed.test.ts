@@ -19,7 +19,7 @@ import { HomeConsentLedger, MolisWorkLocalHost } from "@molis-ai/molis-work-app-
 import { newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { residentManagement } from "./fixtures/resident-management.js";
 
-const PROBE_ID = "io.molis.work.probe";
+const PROBE_ID = "com.example.probe";
 /** Adding a note reads the notes first, so its operation declares reading the plugin's storage as well as writing it. */
 function readsBeforeAdding(files: PackageFiles) {
   const contract = JSON.parse(files["contract.json"]!) as { operations: Array<{ id: string; effects: { storage: string[] } }> };

@@ -37,7 +37,7 @@ const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
 const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: DEMO_PROJECT_ID };
 
 test('BSH-03 S-59 a real installed project SQL child exits before the Host releases the Home lease', { timeout: 20_000 }, async t => {
-  const permissions = ['storage:private', 'fixture:read', 'fixture:write'], pluginId = 'io.molis.work.fixture.statement';
+  const permissions = ['storage:private', 'fixture:read', 'fixture:write'], pluginId = 'com.example.fixture.statement';
   const capture: { statements?: PluginProjectStatements } = {};
   const definition: PluginDefinition = { execution: 'sandbox', manifest: {
     schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: '1.0.0', name: 'Statement fixture', kind: 'app',

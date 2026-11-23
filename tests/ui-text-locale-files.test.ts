@@ -18,7 +18,7 @@ import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // A plugin's language files: one reading function for every source (specs/font-and-skin-system/a-section-contract.md §6.2). `T7` in §10.
 
-const PLUGIN_ID = "io.molis.work.notes";
+const PLUGIN_ID = "com.example.notes";
 const LOCALES = { default: "en", available: ["en", "zh"] };
 
 const manifestOf = (parts: Record<string, unknown> = {}, locales: unknown = LOCALES) =>

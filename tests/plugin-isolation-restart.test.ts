@@ -90,8 +90,8 @@ function appPlugin(input: {
 }
 
 test("one Plugin's start failure leaves its siblings running and names a reason", async () => {
-  const healthy = appPlugin({ id: "io.molis.work.healthy" });
-  const broken = appPlugin({ id: "io.molis.work.broken", failUntil: 1 });
+  const healthy = appPlugin({ id: "com.example.healthy" });
+  const broken = appPlugin({ id: "com.example.broken", failUntil: 1 });
   const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
 
   const report = await supervisor.start([
@@ -99,38 +99,38 @@ test("one Plugin's start failure leaves its siblings running and names a reason"
     { definition: healthy.definition },
   ]);
 
-  assert.deepEqual(report.running, ["io.molis.work.healthy"]);
+  assert.deepEqual(report.running, ["com.example.healthy"]);
   assert.equal(report.failed.length, 1);
-  assert.equal(report.failed[0]?.plugin_id, "io.molis.work.broken");
+  assert.equal(report.failed[0]?.plugin_id, "com.example.broken");
   assert.equal(report.failed[0]?.code, "plugin.executor_failed");
-  assert.equal(supervisor.contribution("io.molis.work.healthy")?.kind, "app");
-  assert.equal(supervisor.contribution("io.molis.work.broken"), null);
+  assert.equal(supervisor.contribution("com.example.healthy")?.kind, "app");
+  assert.equal(supervisor.contribution("com.example.broken"), null);
 });
 
 test("an explicit restart revives only its own Plugin and keeps siblings untouched", async () => {
-  const healthy = appPlugin({ id: "io.molis.work.healthy" });
-  const flaky = appPlugin({ id: "io.molis.work.flaky", failUntil: 1 });
+  const healthy = appPlugin({ id: "com.example.healthy" });
+  const flaky = appPlugin({ id: "com.example.flaky", failUntil: 1 });
   const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
   await supervisor.start([{ definition: flaky.definition }, { definition: healthy.definition }]);
 
-  const healthyBefore = supervisor.state("io.molis.work.healthy");
-  const restarted = await supervisor.restart("io.molis.work.flaky");
+  const healthyBefore = supervisor.state("com.example.healthy");
+  const restarted = await supervisor.restart("com.example.flaky");
 
   assert.equal(restarted.status, "running");
-  assert.equal(supervisor.contribution("io.molis.work.flaky")?.kind, "app");
-  assert.deepEqual(supervisor.state("io.molis.work.healthy"), healthyBefore);
+  assert.equal(supervisor.contribution("com.example.flaky")?.kind, "app");
+  assert.deepEqual(supervisor.state("com.example.healthy"), healthyBefore);
   assert.equal(healthy.starts(), 1, "兄弟插件不应被重启牵连");
 });
 
 test("concurrent restarts of the same Plugin create exactly one new instance", async () => {
-  const flaky = appPlugin({ id: "io.molis.work.flaky", failUntil: 1 });
+  const flaky = appPlugin({ id: "com.example.flaky", failUntil: 1 });
   const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
   await supervisor.start([{ definition: flaky.definition }]);
   assert.equal(flaky.starts(), 1);
 
   const [left, right] = await Promise.all([
-    supervisor.restart("io.molis.work.flaky"),
-    supervisor.restart("io.molis.work.flaky"),
+    supervisor.restart("com.example.flaky"),
+    supervisor.restart("com.example.flaky"),
   ]);
 
   assert.equal(left.status, "running");
@@ -139,27 +139,27 @@ test("concurrent restarts of the same Plugin create exactly one new instance", a
 });
 
 test("restarting a running Plugin stops it first and does not spend the recovery budget", async () => {
-  const plugin = appPlugin({ id: "io.molis.work.steady" });
+  const plugin = appPlugin({ id: "com.example.steady" });
   const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   await supervisor.start([{ definition: plugin.definition }]);
 
   for (let round = 0; round < 4; round += 1) {
-    const state = await supervisor.restart("io.molis.work.steady");
+    const state = await supervisor.restart("com.example.steady");
     assert.equal(state.status, "running", `第 ${round + 1} 次重启应仍然成功`);
   }
   assert.equal(plugin.starts(), 5);
-  const installId = supervisor.state("io.molis.work.steady")?.install_id;
+  const installId = supervisor.state("com.example.steady")?.install_id;
   assert.ok(installId);
   assert.equal(runtime.get(installId).recovery_count, 0, "显式重启不应消耗崩溃恢复额度");
 });
 
 test("a Plugin blocked by an unsatisfied dependency never starts and is not reported as failed", async () => {
   const dependent = appPlugin({
-    id: "io.molis.work.dependent",
+    id: "com.example.dependent",
     requires: [{ capability_id: "missing.v1", version: 1 }],
   });
-  const independent = appPlugin({ id: "io.molis.work.independent" });
+  const independent = appPlugin({ id: "com.example.independent" });
   const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
 
   const report = await supervisor.start([
@@ -167,17 +167,17 @@ test("a Plugin blocked by an unsatisfied dependency never starts and is not repo
     { definition: independent.definition },
   ]);
 
-  assert.deepEqual(report.running, ["io.molis.work.independent"]);
+  assert.deepEqual(report.running, ["com.example.independent"]);
   assert.deepEqual(report.failed, []);
   assert.equal(report.blocked.length, 1);
-  assert.equal(report.blocked[0]?.plugin_id, "io.molis.work.dependent");
+  assert.equal(report.blocked[0]?.plugin_id, "com.example.dependent");
   assert.equal(report.blocked[0]?.code, "plugin.capability_missing");
   assert.equal(dependent.starts(), 0, "被阻塞的插件不应被执行");
 });
 
 test("a Plugin that does not deliver its declared views fails to start", async () => {
   const unredeemed = appPlugin({
-    id: "io.molis.work.unredeemed",
+    id: "com.example.unredeemed",
     contribution: () => ({ kind: "app", views: [] }),
   });
   const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
@@ -190,7 +190,7 @@ test("a Plugin that does not deliver its declared views fails to start", async (
 
 test("a Plugin cannot contribute a view its Manifest never declared", async () => {
   const smuggler = appPlugin({
-    id: "io.molis.work.smuggler",
+    id: "com.example.smuggler",
     contribution: (manifest) => ({
       kind: "app",
       views: [view(manifest.plugin_id, "main"), view(manifest.plugin_id, "extra")],
@@ -205,7 +205,7 @@ test("a Plugin cannot contribute a view its Manifest never declared", async () =
 
 test("RAC-637 a Plugin names no owner for a view: not another Plugin's, and not its own either (the platform fills it from the Manifest)", async () => {
   const claiming = (claimed: (id: string) => string) => {
-    const id = "io.molis.work.impostor";
+    const id = "com.example.impostor";
     return appPlugin({
       id,
       contribution: () => {
@@ -214,14 +214,14 @@ test("RAC-637 a Plugin names no owner for a view: not another Plugin's, and not 
       },
     });
   };
-  for (const claimed of [() => "io.molis.work.victim", (id: string) => id]) {
+  for (const claimed of [() => "com.example.victim", (id: string) => id]) {
     const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
     const report = await supervisor.start([{ definition: claiming(claimed).definition }]);
     assert.deepEqual(report.running, []);
     assert.match(report.failed[0]?.message ?? "", /自己写了插件身份/u);
   }
   // Without the field the same view is what the Manifest declared, and the plugin starts.
-  const honest = appPlugin({ id: "io.molis.work.honest", contribution: () => ({ kind: "app", views: [view("io.molis.work.honest", "main")] }) });
+  const honest = appPlugin({ id: "com.example.honest", contribution: () => ({ kind: "app", views: [view("com.example.honest", "main")] }) });
   const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
   assert.equal((await supervisor.start([{ definition: honest.definition }])).running.length, 1);
 });

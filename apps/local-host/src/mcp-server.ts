@@ -42,14 +42,25 @@ export class LocalMcpServer {
   audience: MolisWorkMcpAudience;
   private readonly connectionState: RuntimeProjectConnection;
   get runtimeConnection(): MolisWorkRuntimeConnection | null { return this.connectionState.connection; }
-  set runtimeConnection(connection: MolisWorkRuntimeConnection | null) { this.connectionState.connection = connection; }
+  set runtimeConnection(connection: MolisWorkRuntimeConnection | null) {
+    this.catalogCache = undefined;
+    this.connectionState.connection = connection;
+  }
   private residentAccount:Promise<ResidentAccountConnection>|undefined;
+  private catalogCache?: {
+    readonly audience: MolisWorkMcpAudience;
+    readonly connection: MolisWorkRuntimeConnection | null;
+    readonly host: MolisWorkRuntimeContextHost | null;
+    readonly catalog: AssembledMcpCatalog;
+    readonly instanceId?: string;
+  };
   private currentRuntimeHost: MolisWorkRuntimeContextHost | null = null;
   private transportLifetime = new AbortController();
   get runtimeContextHost(): MolisWorkRuntimeContextHost | null { return this.currentRuntimeHost; }
   set runtimeContextHost(value: MolisWorkRuntimeContextHost | null) {
     if (value !== this.currentRuntimeHost) {
       this.residentAccount=undefined;
+      this.catalogCache = undefined;
       this.transportLifetime.abort(mcpErrors.context_changed("MCP 调用主体已变化"));
       this.transportLifetime = new AbortController();
       this.currentRuntimeHost = value ? frozenRuntimeHost(value) : null;
@@ -167,7 +178,7 @@ export class LocalMcpServer {
 
   /** `sessionCall` names the Runtime Session a call is made in; it becomes the call's audit actor. A Runtime without one is marked on
    * the context, and dispatch refuses the actions that declare `authorship: "session"` (see `authorizeMcpActions`). */
-  private async authorizedActions(sessionCall?: McpToolCallContext, known?: (name: string) => ActionReference | undefined) {
+  private async authorizedActions(sessionCall?: McpToolCallContext, known?: (name: string) => ActionReference | undefined, instanceId?: string) {
     const connection = this.runtimeConnection;
     const current = this.currentActions();
     const sessionActor = (call: McpToolCallContext) => runtimeSessionActor(this.runtimeContextHost, call) ?? undefined;
@@ -186,7 +197,7 @@ export class LocalMcpServer {
       const connected=await this.connectedResident(signal); checkContext();
       const service = new LocalActionGatewayClient({ url: this.actionServiceUrl, homeDirectory: connected.homeDirectory, controlToken:connected.controlToken,
         credentialHomeDirectory: home,
-        clientId: current.context.actor_id, projectId: current.context.project_id, runtimeSessionId });
+        clientId: current.context.actor_id, projectId: current.context.project_id, runtimeSessionId, ...(instanceId ? { instanceId } : {}) });
       const context: ActionCallContext = { ...current.context,
         signal,
         validate_authority: checkContext,
@@ -205,12 +216,15 @@ export class LocalMcpServer {
     catch (error) {
       if (!this.actionServiceUrl || !mcpResidentUnavailable(error)) throw error;
     }
+    const audience = this.audience, connection = this.runtimeConnection, host = this.runtimeContextHost;
     let discovered;
     let localGrants: ActionCallContext["allowed_actions"];
     let actionServiceError: ActionError | undefined;
+    let instanceId: string | undefined;
     try {
       const actions = await this.authorizedActions();
       discovered = await actions.service.discover(actions.context);
+      instanceId = actions.service instanceof LocalActionGatewayClient ? actions.service.instanceId : undefined;
       localGrants = actions.context.allowed_actions;
     }
     catch (error) {
@@ -227,9 +241,15 @@ export class LocalMcpServer {
         version: view.version, provider_id: view.provider.provider_id })) : localGrants,
     });
     if (actionServiceError) {
+      this.catalogCache = undefined;
       const platformAvailable = (name: string) => isRuntimeContextMcpTool(name) || (this.audience === "management" && isPlatformMcpTool(name));
       return { ...catalog, actionServiceError, tools: catalog.tools.filter(tool => platformAvailable(tool.name)),
         entries: catalog.entries.filter(entry => platformAvailable(entry.definition.name)) };
+    }
+    if (this.audience === audience && this.runtimeConnection === connection && this.runtimeContextHost === host) {
+      this.catalogCache = { audience, connection, host, catalog, instanceId };
+    } else {
+      this.catalogCache = undefined;
     }
     return catalog;
   }
@@ -243,6 +263,7 @@ export class LocalMcpServer {
       catalog.resolveRuntimeContext(host.runtimeContext, host.projectSuggestionClues ?? []),
     );
     if (resolution.status !== "bound" || !resolution.connection) return;
+    this.catalogCache = undefined;
     this.connectionState.accept({
       projectId: resolution.connection.project_id,
       databasePath: resolution.connection.database_path,
@@ -270,14 +291,23 @@ export class LocalMcpServer {
       return result;
     }
     const managementTool = !!this.ensureResident && this.audience === "management" && isPlatformMcpTool(name) && !isRuntimeContextMcpTool(name);
-    const catalog: AssembledMcpCatalog & { actionServiceError?: ActionError } = managementTool ? assembleMcpCatalog({ audience: this.audience, actions: [], actionToolName: molisWorkActionToolName }) : await this.ensureCatalog();
+    const cached = !managementTool && !isRuntimeContextMcpTool(name) && this.catalogCache
+      && this.catalogCache.audience === this.audience
+      && this.catalogCache.connection === this.runtimeConnection
+      && this.catalogCache.host === this.runtimeContextHost
+      ? this.catalogCache : undefined;
+    const cachedEntry = cached ? findAssembledMcpTool(cached.catalog, name) : undefined;
+    const fromCache = Boolean(cachedEntry);
+    const catalog: AssembledMcpCatalog & { actionServiceError?: ActionError } = managementTool
+      ? assembleMcpCatalog({ audience: this.audience, actions: [], actionToolName: molisWorkActionToolName })
+      : fromCache ? cached!.catalog : await this.ensureCatalog();
     if (catalog.actionServiceError && !isRuntimeContextMcpTool(name) && !(this.audience === "management" && isPlatformMcpTool(name))) throw catalog.actionServiceError;
     const connection = this.runtimeConnection;
     assertMcpToolAllowed({ audience: this.audience, connectionState: this.connectionState,
       runtimeConnection: this.runtimeConnection, runtimeContextHost: this.runtimeContextHost }, name, callContext, catalog);
     if (!managementTool && this.actionServiceUrl && this.runtimeContextHost?.panelId && callContext.runtimeSessionId) await this.forwardContext("alias", callContext);
     else if (!managementTool) await this.linkPanelSession(this.runtimeContextHost, callContext.runtimeSessionId);
-    const entry = findAssembledMcpTool(catalog, name);
+    const entry = cachedEntry ?? findAssembledMcpTool(catalog, name);
     if (!entry) {
       throw mcpErrors.tool_unknown(`未知 MCP 方法：${name}`);
     }
@@ -287,14 +317,35 @@ export class LocalMcpServer {
       // records are authored by a Session is refused at dispatch for a call without one, wrapped or not.
       // A Home action called from a bound project still runs in that project's context (e.g. a judgment records where it was asked).
       const runtimeCall = this.runtimeContextHost ? callContext : undefined;
-      // The catalog of this connection already says which action the name is: the call looks up that one.
+      // The catalog already pins which action this tool name maps to; look up that one live instead of re-listing the directory.
       const listed = entry.action;
+      const instanceId = fromCache ? cached!.instanceId : this.catalogCache?.instanceId;
       const actions = await this.authorizedActions(runtimeCall, wanted => wanted === name && listed
-        ? { capability_id: listed.capability_id, version: listed.version, provider_id: listed.provider.provider_id } : undefined);
-      return actions.ports.callTool(name, arguments_, callContext);
+        ? { capability_id: listed.capability_id, version: listed.version, provider_id: listed.provider.provider_id } : undefined, instanceId);
+      try {
+        return await actions.ports.callTool(name, arguments_, callContext);
+      } catch (error) {
+        if (error instanceof ActionError && (error.code === "actions.host_replaced" || error.code === "actions.mcp_name_conflict" || error.code === "actions.provider_changed")) {
+          this.catalogCache = undefined;
+          throw error;
+        }
+        if (fromCache && error instanceof ActionError && error.code === "actions.mcp_unavailable") {
+          this.catalogCache = undefined;
+          if (this.runtimeConnection !== connection) throw mcpErrors.context_changed("客户端项目连接已变化，请重新发现能力");
+          const fresh = await this.ensureCatalog();
+          if (fresh.actionServiceError) throw fresh.actionServiceError;
+          assertMcpToolAllowed({ audience: this.audience, connectionState: this.connectionState,
+            runtimeConnection: this.runtimeConnection, runtimeContextHost: this.runtimeContextHost }, name, callContext, fresh);
+          throw error;
+        }
+        throw error;
+      }
     }
     const contextHandler = lookupContextTool(this.contextTools, name);
-    if (contextHandler) return contextHandler(arguments_ ?? {}, callContext);
+    if (contextHandler) {
+      this.catalogCache = undefined;
+      return contextHandler(arguments_ ?? {}, callContext);
+    }
     const resident=this.actionServiceUrl&&this.audience==="management"?await this.connectedResident(mcpRequestSignal(this.transportLifetime.signal)):undefined;
     return callMcpV1Tool({ localHost: this.localHost, audience: this.audience,
       runtimeConnection: this.audience === "runtime" ? this.runtimeConnection : null,
@@ -319,6 +370,7 @@ export class LocalMcpServer {
     return forwardMcpContext({ url: this.actionServiceUrl!, host:{...host,homeDirectory:connected.homeDirectory}, controlToken:connected.controlToken, context, operation, tool, signal,
       checkCurrent: () => { signal.throwIfAborted(); if (this.runtimeContextHost !== host) throw mcpErrors.context_changed("MCP 调用主体已变化"); },
       updateCache: (update: ContextCacheUpdate) => {
+        this.catalogCache = undefined;
         if (update.kind === "clear") this.connectionState.clear(update.clearRefresh);
         else if (update.kind === "accept") this.connectionState.accept(update.connection, cacheContext);
       },
@@ -326,6 +378,7 @@ export class LocalMcpServer {
   }
 
   async close(): Promise<void> {
+    this.catalogCache = undefined;
     this.transportLifetime.abort(new ActionError("actions.cancelled", "MCP 入口已关闭"));
     if (this.ownsLocalHost) await this.localHost.close();
   }

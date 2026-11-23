@@ -343,7 +343,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   async targets(context: ActionCallContext, judgment?: ActionReference, selection?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<ActionSceneTarget[]> {
-    const result: ActionSceneTarget[] = []; let known: ActionView[] | undefined;
+    const result: ActionSceneTarget[] = []; let fnLoaded = false, knownFn: ActionView | undefined;
     for (const view of this.discoverScenes(context, judgment)) {
       if (selection && (view.definition.scene_id !== selection.scene_id || view.definition.version !== selection.scene_version || view.provider.provider_id !== selection.provider_id)) continue;
       const scene = this.scenes.get(scopedSceneKey(view.definition, view.provider.project_id))!;
@@ -351,7 +351,11 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       const targets = await scene.handler.targets(context);
       const bindings = await scene.handler.bindings(context);
       if (this.scenes.get(scopedSceneKey(view.definition, view.provider.project_id)) !== scene) throw new ActionError("actions.provider_changed", "读取配置位置时场景已重新加载");
-      const fn = judgment ? (known ??= this.discover(context)).find(action => actionKey(action) === actionKey(judgment)) : undefined;
+      const fn = judgment ? (fnLoaded ? knownFn : (() => {
+        fnLoaded = true;
+        const matched = this.discoverOne(context, judgment);
+        return knownFn = matched && (!judgment.provider_id || matched.provider.provider_id === judgment.provider_id) ? matched : undefined;
+      })()) : undefined;
       const ids = new Set<string>();
       for (const target of targets) {
         if (!target.binding_id || !target.title || (target.revision !== null && (typeof target.revision !== "string" || !target.revision)) || ids.has(target.binding_id)) {

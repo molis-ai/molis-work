@@ -154,3 +154,48 @@ test("D26: a dismissed card stays put; a sweep marks a suggestion whose object c
   const running = { ...other, status: "running" as const };
   assert.equal(await sweepActionCard(running, changed.ports), running);
 });
+
+test("runActionCard prefers CardAuthority.discoverOne without listing the full directory and falls back to discover when omitted", async () => {
+  const k = keeper();
+  const card = await k.draft({ todo_item_id: "t1", title: "写周报", due: "2026-10-16" });
+  let discoverCalls = 0, discoverOneCalls = 0;
+  let pointView: ActionView | undefined = view();
+  const baseAuthority = await k.ports.authority();
+  const pointPorts: ActionCardPorts = {
+    ...k.ports,
+    authority: async () => ({
+      ...baseAuthority,
+      discover: async () => { discoverCalls++; return baseAuthority.discover(); },
+      discoverOne: async ref => {
+        discoverOneCalls++;
+        assert.deepEqual(ref, reference);
+        return pointView;
+      },
+    }),
+  };
+  const ran = await runActionCard(card, { revision: 1, values: {} }, pointPorts);
+  assert.equal(ran.status, "done");
+  assert.equal(discoverOneCalls, 1);
+  assert.equal(discoverCalls, 0);
+
+  pointView = undefined;
+  const revokedCard = await k.draft({ todo_item_id: "t1", title: "写周报" });
+  const stale = await runActionCard(revokedCard, { revision: 1, values: {} }, pointPorts);
+  assert.equal(stale.status, "stale");
+  assert.equal(discoverOneCalls, 2);
+  assert.equal(discoverCalls, 0);
+  assert.equal(k.invoked.length, 1);
+
+  const fallbackCard = await k.draft({ todo_item_id: "t1", title: "写周报" });
+  const fallbackPorts: ActionCardPorts = {
+    ...k.ports,
+    authority: async () => ({
+      discover: async () => { discoverCalls++; return baseAuthority.discover(); },
+      check: baseAuthority.check,
+      invoke: baseAuthority.invoke,
+    }),
+  };
+  const fallbackRan = await runActionCard(fallbackCard, { revision: 1, values: {} }, fallbackPorts);
+  assert.equal(fallbackRan.status, "done");
+  assert.equal(discoverCalls, 1);
+});

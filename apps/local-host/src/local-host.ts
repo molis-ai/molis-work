@@ -9,7 +9,7 @@ import type {
   LocalHostProjectReference,
   LocalHostStatus,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata, type CallReports, type RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
+import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata, registeredOneActionMetadata, type CallReports, type RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
 import type { ActionSelection } from "@molis-ai/molis-work-kernel";
 import { projectCallCaller } from "./project-call-caller.js";
 import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionReference,
@@ -164,6 +164,31 @@ export class LocalHost<Runtime> {
   /** System capabilities share the registry but do not create a fictitious project Runtime. */
   inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) {
     return registeredActionMetadata(this.capabilities, this.metadataCaller(caller, reference));
+  }
+
+  /** O(1) metadata lookup for one registered action; never grants execution or opens a Runtime. */
+  inspectOneActionMetadata(caller: ActionCallContext, action: ActionReference, reference?: LocalHostProjectReference) {
+    return registeredOneActionMetadata(this.capabilities, this.metadataCaller(caller, reference), action);
+  }
+
+  /** O(1) metadata lookup for one action after ensuring a project Runtime is open; never evaluates availability. */
+  async inspectPreparedOneActionMetadata(caller: ActionCallContext, action: ActionReference, reference?: LocalHostProjectReference) {
+    const bound = this.metadataCaller(caller, reference);
+    if (reference) {
+      await this.withRuntime(normalizeReference(reference), () => undefined);
+      caller.signal?.throwIfAborted();
+    }
+    return registeredOneActionMetadata(this.capabilities, bound, action);
+  }
+
+  /** Declarations of all registered actions after ensuring a project Runtime is open; never evaluates availability. */
+  async inspectPreparedActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) {
+    const bound = this.metadataCaller(caller, reference);
+    if (reference) {
+      await this.withRuntime(normalizeReference(reference), () => undefined);
+      caller.signal?.throwIfAborted();
+    }
+    return registeredActionMetadata(this.capabilities, bound);
   }
 
   /** A proposal keeps the original registration and caller, independently of a later approval request. */

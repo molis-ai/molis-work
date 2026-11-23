@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { actionMcpToolName, createActionMcpPorts, handleMcpMessage, molisWorkActionToolName, MOLIS_WORK_ACTION_TOOL_PREFIX } from "@molis-ai/molis-work-app-mcp";
-import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const context: ActionCallContext = { actor_id: "alice", project_id: "p", audience: "user", permissions: ["read"] };
 const definition: ActionDefinition = { capability_id: "test:words", version: 2, operation: "query",
@@ -96,4 +96,65 @@ for (const internal of [false, true]) test(`W3-02-H-01 actual action MCP keeps t
   const body = JSON.parse(result.content[0]!.text);
   assert.deepEqual(body, internal ? { error: "forced failure", code: "actions.execution_failed" }
     : { error: "future catalog", code: "catalog.reader_too_old", details: { current_version: 9, fields: ["revision"], recovery: "refresh" } });
+});
+
+test("createActionMcpPorts with known uses O(1) discoverOne on standard names, reports provider ambiguity, and preserves custom alias conflict detection", async () => {
+  const service = new ActionService();
+  let unrelatedAvailability = 0;
+  const unrelated: ActionDefinition = { ...definition, capability_id: "test:unrelated" };
+  service.registerProvider({ provider: { provider_id: "words", title: "Words", kind: "system" }, definitions: [definition, unrelated],
+    handlers: [
+      { ...definition, handle: (_caller, text) => (text as string).split(" ") },
+      { ...unrelated, availability: () => { unrelatedAvailability++; return { available: true }; }, handle: () => [] },
+    ] });
+  let discoverCalls = 0, discoverOneCalls = 0;
+  let caller = context;
+  const wrapped: ActionClient = {
+    discover: c => { discoverCalls++; return service.discover(c); },
+    discoverOne: (c, ref) => { discoverOneCalls++; return service.discoverOne(c, ref); },
+    invoke: (c, ref, input) => service.invoke(c, ref, input),
+  };
+  const name = molisWorkActionToolName(definition);
+  const ports = createActionMcpPorts({
+    service: wrapped,
+    context: () => caller,
+    serverInfo: { name: "actions", version: "1" },
+    toolName: molisWorkActionToolName,
+    known: wanted => wanted === name ? { capability_id: definition.capability_id, version: definition.version, provider_id: "words" } : undefined,
+  });
+  const ok = await ports.callTool(name, { input: "one two" }, { runtimeSessionId: null, runtimeSessionIdSource: null });
+  assert.ok(typeof ok !== "string");
+  assert.deepEqual(ok.structuredContent, { result: ["one", "two"] });
+  assert.equal(discoverOneCalls, 1, "standard injective name resolves via O(1) discoverOne");
+  assert.equal(discoverCalls, 0, "standard injective name avoids full discover");
+  assert.equal(unrelatedAvailability, 0, "unrelated actions are never evaluated");
+
+  caller = { ...context, permissions: [] };
+  await assert.rejects(ports.callTool(name, { input: "revoked" }, { runtimeSessionId: null, runtimeSessionIdSource: null }), { code: "actions.mcp_unavailable" });
+  assert.equal(discoverCalls, 0, "revoked target fails closed without falling back to full discover");
+  caller = context;
+
+  const ambiguousService: ActionClient = {
+    discover: () => assert.fail("ambiguous discoverOne must not fall back to discover"),
+    discoverOne: () => { throw new ActionError("actions.provider_ambiguous", "ambiguous provider"); },
+    invoke: () => assert.fail("ambiguous target must not invoke"),
+  };
+  const ambiguousPorts = createActionMcpPorts({
+    service: ambiguousService,
+    context: () => caller,
+    serverInfo: { name: "actions", version: "1" },
+    toolName: molisWorkActionToolName,
+    known: wanted => wanted === name ? { capability_id: definition.capability_id, version: definition.version, provider_id: "words" } : undefined,
+  });
+  await assert.rejects(ambiguousPorts.callTool(name, { input: "conflict" }, { runtimeSessionId: null, runtimeSessionIdSource: null }), { code: "actions.mcp_name_conflict" });
+
+  const customAliasPorts = createActionMcpPorts({
+    service: wrapped,
+    context: () => caller,
+    serverInfo: { name: "actions", version: "1" },
+    toolName: () => "collision",
+    known: wanted => wanted === "collision" ? { capability_id: definition.capability_id, version: definition.version, provider_id: "words" } : undefined,
+  });
+  await assert.rejects(customAliasPorts.callTool("collision", { input: "conflict" }, { runtimeSessionId: null, runtimeSessionIdSource: null }), { code: "actions.mcp_name_conflict" });
+  assert.equal(discoverCalls, 1, "custom non-injective toolName still checks the full catalog for collisions");
 });

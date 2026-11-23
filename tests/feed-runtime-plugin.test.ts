@@ -708,7 +708,7 @@ test("BL-feed-precise-wakeup recomputes the exact earliest wake job across sourc
 test("BL-feed-precise-wakeup updates the exact wake time on pull failure, connector rate-limit backoff, account disconnect, and missed-run decisions", async t => {
   const f = await syncing(t, { clock: true });
   // 1) RSS failure consumes the slot and advances the wake job to the next interval rather than polling every 30s.
-  f.feeds.set(f.entry.feed_url, new Response("upstream down", { status: 503 }));
+  f.feeds.delete(f.entry.feed_url);
   const scheduled = await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, {
     source_id: f.sourceId, mode: "interval", enabled: true, interval_minutes: 20,
   }) as { source: { schedule: { next_pull_at: string } } };
@@ -783,7 +783,7 @@ test("BL-feed-precise-wakeup honors connector rate-limit retry_after_at backoff 
   assert.equal(nextScheduleDueAt(f.store.db), null, "disconnecting the last active scheduled source clears the wake clock");
 });
 
-test("BL-feed-precise-wakeup cleans up a legacy 30s interval wake job on plugin startup/recovery", async t => {
+test("BL-feed-precise-wakeup cleans up a legacy 30s interval wake job on plugin startup/recovery", async () => {
   for (const mode of ["no-sources", "scheduled-source"] as const) {
     const home = mkdtempSync(join(tmpdir(), `feed-legacy-wake-${mode}-`)), file = join(home, "project.db");
     seedDemoBoard(file);
@@ -805,7 +805,7 @@ test("BL-feed-precise-wakeup cleans up a legacy 30s interval wake job on plugin 
     const running = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: HOST_ACTOR, db: store.db, journal: store,
       artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
       privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
-      home: { directory: home, completeText: () => null, stores: homeStoreRegistry(homeStores().stores) },
+      home: standIn<NonNullable<Parameters<typeof createPluginPlatform>[0]["home"]>>({ directory: home, completeText: () => null, stores: homeStoreRegistry(homeStores().stores) }),
       scheduler: scheduleServiceFor(store.db) });
     try {
       await running.start([{ definition: createFeedPlugin(), trust: { level: "host" }, dual_instance: true }]);

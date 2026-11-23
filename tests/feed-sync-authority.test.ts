@@ -134,9 +134,9 @@ test("BL-feed-precise-wakeup a Feed project idles to sleep with manual or far-fu
     assert.equal(host.projects().length, 0, "a Feed project without auto-pull sources idle-sleeps");
 
     // 2) Add a source scheduled 30 minutes in the future (> 2 scheduler rounds away): project still idle-sleeps.
-    const { source } = await client.invoke(caller, feedSourceActions.register, { kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id });
-    const scheduled = await client.invoke(caller, feedSourceActions.schedule, { source_id: source.source_id, mode: "interval", enabled: true, interval_minutes: 30 });
-    const farDue = scheduled.source.schedule.mode === "interval" ? scheduled.source.schedule.next_pull_at : null;
+    const { source } = await client.invoke(caller, feedSourceActions.register, { kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }) as { source: { source_id: string } };
+    const scheduled = await client.invoke(caller, feedSourceActions.schedule, { source_id: source.source_id, mode: "interval", enabled: true, interval_minutes: 30 }) as { source: { schedule: { mode: string; next_pull_at?: string | null } } };
+    const farDue = scheduled.source.schedule.mode === "interval" ? (scheduled.source.schedule.next_pull_at ?? null) : null;
     assert.ok(farDue && Date.parse(farDue) > Date.now() + 2 * 30_000, "nextScheduleDueAt is > 2 rounds away");
     assert.equal(readDue(), farDue);
     await settleRound();

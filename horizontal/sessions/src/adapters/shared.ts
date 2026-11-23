@@ -455,7 +455,7 @@ const HOUSEKEEPING_TYPES = new Set(["summary", "file-history-snapshot", "queue-o
 const KNOWN_MESSAGE_TYPES = new Set(["user", "human", "assistant", "model", "tool", "system"]);
 
 /**
- * `subagent`: the file is a subagent's own trajectory (batch 103-2), whose records all carry `isSidechain: true`; there they are the
+ * `subagent`: the file is a subagent's own trajectory, whose records all carry `isSidechain: true`; there they are the
  * content, not a side branch to leave out.
  */
 export function classifyJsonlRecord(obj: Record<string, unknown>, subagent = false): JsonlRecordKind {

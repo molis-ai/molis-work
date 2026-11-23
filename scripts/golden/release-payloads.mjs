@@ -44,7 +44,7 @@ function objectEnd(text, from) {
 }
 
 /**
- * One row: the row writes its Manifest just before its code. A built-in plugin's row has no code since batch 103-1 (the Host's build holds
+ * One row: the row writes its Manifest just before its code. A built-in plugin's row has no code (the Host's build holds
  * it), so its Manifest closes the row's JSON and only the Manifest is kept by digest.
  */
 function strippedRow(line, { sources, manifests }) {

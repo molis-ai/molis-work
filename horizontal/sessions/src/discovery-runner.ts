@@ -269,7 +269,7 @@ export async function executeDiscoveryJob(params: {
   const isCancelled = () => signal.aborted || isClosed();
   const nowIso = () => (ports.clock ?? (() => new Date()))().toISOString();
 
-  const tool = (EXTERNAL_TOOLS as readonly (ExternalToolEntry & { id: ExternalToolId })[]).find(
+  const tool = EXTERNAL_TOOLS.find(
     item => canonicalEntryId(item) === entryId && !item.shares_sessions_with,
   );
   const adapter = getSessionAdapter(entryId);

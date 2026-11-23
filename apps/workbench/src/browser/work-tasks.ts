@@ -184,8 +184,10 @@ function installTaskStops(host: WorkBarHost, { request, again }: Pick<TaskPanelL
 
 export interface WorkTasks {
   take(result: BackgroundTasksReadResult, started: number, sequence?: number): boolean;
-  /** The connection is lost (since when, as the foot says it) or heard again (null): rows say 正在核对 and offer nothing to press. */
-  offline(since: string | null): void;
+  /** The connection is lost (since when, as the foot says it) or heard again (null): rows say 正在核对 and offer nothing to press. Returns whether offline state changed. */
+  offline(since: string | null): boolean;
+  /** Repaint an open task float after a live UI language switch. */
+  retitle(): void;
   /** 「改」 under a reply (WLN-32): that task's card with where it can go, as soon as the table has the task. */
   place(subject: ActionSubject): void;
   /** The tasks done for one event, as a list and the event's information draw them under it (WLN-09): what waits on the person first, a sub-agent's step under its task. */
@@ -397,8 +399,12 @@ export function installTasks(host: WorkBarHost, line: TaskPanelLine): WorkTasks 
   return {
     take: takeTasks,
     offline(since) {
-      if (since === offlineSince) return;
+      if (since === offlineSince) return false;
       offlineSince = since;
+      paintCard();
+      return true;
+    },
+    retitle() {
       paintCard();
     },
     rows: subject => tree(serving(subject)),

@@ -238,3 +238,59 @@ test("MR21-01: a long wakeup in one project does not hold the next round for the
   releaseSlow();
   await stopped;
 });
+
+test("B103-01 stop() waits for an in-flight sleep pass and offerSleep skips active projects without reading their clock", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "schedulers-stop-sleep-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const active = join(home, "active.db");
+  const idle = join(home, "idle.db");
+  for (const file of [active, idle]) {
+    const db = new DatabaseSync(file);
+    try {
+      db.exec("CREATE TABLE schedule_jobs (job_id TEXT PRIMARY KEY, next_due_at TEXT, enabled INTEGER)");
+      db.prepare("INSERT INTO schedule_jobs VALUES ('j', ?, 1)").run(new Date(Date.now() + 3_600_000).toISOString());
+    } finally {
+      db.close();
+    }
+  }
+  let run: (() => Promise<void>) | undefined;
+  let releaseSleep!: () => void;
+  let sleepEntered!: () => void;
+  const sleepGate = new Promise<void>(resolve => { releaseSleep = resolve; });
+  const entered = new Promise<void>(resolve => { sleepEntered = resolve; });
+  const offered: string[] = [];
+  const now = Date.now();
+  const schedulers = startWebProjectSchedulers({
+    localHost: {
+      projects: () => [
+        { project_id: "active", storage_key: active, state: "ready" },
+        { project_id: "idle", storage_key: idle, state: "ready" },
+      ],
+      projectRest: (key: string) => ({ state: "open" as const, usedAt: key === active ? now : now - 20 * 60_000 }),
+      inspectActions: async () => undefined,
+      async sleepIfIdle(reference: { project_id: string }) {
+        offered.push(reference.project_id);
+        sleepEntered();
+        await sleepGate;
+        return false;
+      },
+    } as never,
+    homeDirectory: home,
+    withCatalog: async (_options, operation) => operation({ listProjects: async () => [] } as never),
+    fixture: null,
+    periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
+    changed() {},
+    onError(error) { throw error; },
+  });
+  let stopResolved = false;
+  const roundPromise = run!();
+  await entered;
+  assert.deepEqual(offered, ["idle"], "an active project below idleMs is not offered to sleep");
+  const stopPromise = schedulers.stop().then(() => { stopResolved = true; });
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(stopResolved, false, "stop() must wait while sleepIdle() is still in flight");
+  releaseSleep();
+  await stopPromise;
+  await roundPromise;
+  assert.equal(stopResolved, true);
+});

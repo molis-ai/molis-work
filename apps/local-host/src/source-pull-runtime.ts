@@ -13,7 +13,7 @@ import {
 } from "@molis-ai/molis-work-integration-rss";
 import {
   YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, isYouTubePublicFeedUrl,
-} from "@molis-ai/molis-work-integration-youtube";
+} from "@molis-ai/molis-work-integration-rss";
 import { createSearchContentPort, createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./search-evidence-runtime.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 

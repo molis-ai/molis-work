@@ -102,7 +102,7 @@ test("N34-VS-02 the product entry moves every carrier and marked Manifest, and n
 
 test("N34-VS-02 a method carrier moves that method's frontmatter and leaves its body alone", () => {
   const { files, outputs } = move("method.planning-methods.domain-app-product", 3);
-  const file = "plugins/content/planning-methods/skills/domain-app-product/SKILL.md";
+  const file = "packages/system-skills/planning-methods/skills/domain-app-product/SKILL.md";
   assert.deepEqual([...outputs.keys()], [file]);
   assert.equal(outputs.get(file)!.replace(/^version: 3$/m, "version: 1"), files.get(file));
 });

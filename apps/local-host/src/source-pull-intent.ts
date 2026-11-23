@@ -2,7 +2,7 @@ import { fingerprintSearchIntentExactV1, validateSearchIntentExactV1 } from "@ad
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SourcePullRequest } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, listRegisterableFeeds, normalizeCustomRssFeedUrl } from "@molis-ai/molis-work-integration-rss";
-import { YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, normalizeYouTubeChannelId, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-youtube";
+import { YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, normalizeYouTubeChannelId, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-rss";
 import type { IntelligenceCollectRequest } from "./search-intelligence-client.js";
 
 // The request a plugin's pull becomes (`services.sourcePull`, S-97 provisional). The plugin names an address, a channel, a catalog entry or

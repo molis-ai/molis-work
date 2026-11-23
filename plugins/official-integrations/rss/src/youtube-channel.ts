@@ -1,5 +1,5 @@
 /**
- * Official YouTube public-channel Atom feed identifiers.
+ * YouTube public-channel Atom feeds, read as RSS (第 44B 批: the former youtube integration package folded into rss).
  *
  * Channel IDs are product identifiers, not credentials. Inbox Source rows may
  * store them in plaintext; Activity / Run ledgers must not.

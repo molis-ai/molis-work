@@ -218,9 +218,8 @@ test("RAC-1752: an integration's adapter and the platform's pull receipt are the
   assert.deepEqual(binding.signal_adapter.adapter, { plugin_id: "io.molis.work.integration.fixture", version: "1.0.0" });
 });
 
-test("RAC-1753: what the RSS and YouTube integrations refuse is refused in their own names, 400, through the real normalizers", async () => {
+test("RAC-1753: what the RSS integration refuses, YouTube channels included (folded in by 44B), is refused in its own names, 400, through the real normalizers", async () => {
   const rss = await import("@molis-ai/molis-work-integration-rss");
-  const youtube = await import("@molis-ai/molis-work-integration-youtube");
   const refusal = (run: () => unknown) => {
     try { run(); } catch (error) { assert.ok(error instanceof ActionError, "an ActionError"); const { status, body } = actionErrorResponse(error); return [body.code, status]; }
     return assert.fail("expected a refusal");
@@ -228,14 +227,14 @@ test("RAC-1753: what the RSS and YouTube integrations refuse is refused in their
   assert.deepEqual(refusal(() => rss.normalizeCustomRssFeedUrl("http://127.0.0.1/feed.xml")), ["rss.custom_url_invalid", 400]);
   assert.deepEqual(refusal(() => rss.normalizeCustomRssFeedUrl("https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv")), ["rss.use_youtube_channel", 400]);
   assert.deepEqual(refusal(() => rss.normalizeCustomRssFeedUrl("https://www.reddit.com/r/news/.rss")), ["rss.use_official_reddit", 400]);
-  assert.deepEqual(refusal(() => youtube.normalizeYouTubeChannelId("not a channel")), ["youtube.channel_invalid", 400]);
+  assert.deepEqual(refusal(() => rss.normalizeYouTubeChannelId("not a channel")), ["youtube.channel_invalid", 400]);
   const declared = (holder: Record<string, unknown>, name: string) => Object.keys(holder[name] as object).sort();
   assert.deepEqual(declared(rss, "rssErrors"), ["custom_url_invalid", "use_official_reddit", "use_youtube_channel"]);
-  assert.deepEqual(declared(youtube, "youtubeErrors"), ["channel_invalid"]);
+  assert.deepEqual(declared(rss, "youtubeErrors"), ["channel_invalid"]);
 });
 
 test("RAC-1754: the Host, the integrations and the Runtime name no Feed contract, and only files that already named the Feed package do", () => {
-  const roots = ["apps/local-host/src", "plugins/official-integrations/rss/src", "plugins/official-integrations/youtube/src", "packages/plugin-runtime/src", "packages/plugin-sdk/src", "packages/contracts/src"];
+  const roots = ["apps/local-host/src", "plugins/official-integrations/rss/src", "packages/plugin-runtime/src", "packages/plugin-sdk/src", "packages/contracts/src"];
   const naming: string[] = [];
   for (const root of roots) for (const [file, text] of sourcesUnder(join(REPOSITORY, root))) {
     const where = file.slice(REPOSITORY.length + 1);

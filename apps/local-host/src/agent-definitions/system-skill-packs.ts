@@ -1,6 +1,6 @@
 /**
- * The Skill packs that come with the system (用户 2026-11-14 定): content packs under `plugins/content/` whose `pack-content.json`
- * writes `system`, packed by `pnpm build` into `system-skills/` in this package's build output. They are the Host's own content, as a
+ * The Skill packs that come with the system (用户 2026-11-14 定): packs under `packages/system-skills/` (each `pack-content.json`
+ * writes `system`), packed by `pnpm build` into `system-skills/` in this package's build output. They are the Host's own content, as a
  * built-in plugin's methods are: nobody installs, signs or removes one, each is in every Home's Skill catalog from the first start,
  * and each Skill is in the pack's `default_state` until the person changes it in the catalog. Nothing else names this folder; only a
  * test hands the Host another (`MolisWorkLocalHostOptions.systemSkillsDirectory`).

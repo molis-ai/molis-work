@@ -450,7 +450,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "plugins/native/goals/src/module/lifecycle-revisions.ts",
     "plugins/native/goals/src/module/planning/decomposition-coverage.ts",
     "plugins/native/goals/src/module/planning/decomposition-validation.ts",
-    // Planning and breakdown methods are Skills of the platform's catalog (plugins/content/planning-methods), not Goals' (batch 41, 2026-11-14).
+    // Planning and breakdown methods are Skills of the platform's catalog (packages/system-skills/planning-methods), not Goals' (batch 41, 2026-11-14).
     "plugins/native/goals/src/module/planning/method-catalog.ts",
     "plugins/native/goals/src/module/planning/method-packs.ts",
     "plugins/native/goals/src/module/planning/personal-methods.ts",
@@ -478,7 +478,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   // The methods moved out of Goals; neither Goals nor the installed Skill carries a copy.
   for (const directory of ["plugins/native/goals/methods", "skills/goal-advance/methods"]) {
     if (filesUnder(path.join(repositoryRoot, directory), (filePath) => path.extname(filePath) === ".md").length > 0) {
-      errors.push(`${directory}: planning methods are the Skills of plugins/content/planning-methods and must not be copied here`);
+      errors.push(`${directory}: planning methods are the Skills of packages/system-skills/planning-methods and must not be copied here`);
     }
   }
 

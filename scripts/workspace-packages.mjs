@@ -196,7 +196,6 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-integration-github",
       "@molis-ai/molis-work-integration-gmail",
       "@molis-ai/molis-work-integration-rss",
-      "@molis-ai/molis-work-integration-youtube",
       "@molis-ai/molis-work-kernel",
       "@molis-ai/molis-work-module-acceptance",
       "@molis-ai/molis-work-module-artifacts",
@@ -626,9 +625,6 @@ export const WORKSPACE_PACKAGES = [
     extraDependencies: {
       "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz"
     }
-  }),
-  entry("plugins/official-integrations/youtube", "@molis-ai/molis-work-contracts/platform/plugin", {
-    maturity: "production"
   }),
   entry("tooling/plugin-cli", "@molis-ai/molis-work-contracts/platform/tooling", {
     maturity: "production",

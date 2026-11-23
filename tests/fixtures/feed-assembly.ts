@@ -7,7 +7,7 @@ import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactOperations, projectVersionStores } from "@molis-ai/molis-work-module-artifacts";
 import { GMAIL_DEFAULT_SCOPE, parseGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import { CUSTOM_RSS_DEFINITION_ID, isRssSourceKind, listRegisterableFeeds, normalizeCustomRssFeedUrl, readRssHttpState, withRssHttpFailure, withRssHttpSuccess } from "@molis-ai/molis-work-integration-rss";
-import { YOUTUBE_CHANNEL_DEFINITION_ID, normalizeYouTubeChannelId } from "@molis-ai/molis-work-integration-youtube";
+import { YOUTUBE_CHANNEL_DEFINITION_ID, normalizeYouTubeChannelId } from "@molis-ai/molis-work-integration-rss";
 import { LocalSqliteJournal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {
   FEED_PLUGIN_ID, FeedOutRuleStore, FeedSourceService, assembleFeedApplication, feedManifest, feedOwnedAttention,

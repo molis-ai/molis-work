@@ -324,6 +324,5 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `plugins/official-integrations/github` | 官方接入 | 6 | 960 | `provider.ts` 592 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `plugins/official-integrations/gmail` | 官方接入 | 16 | 2,641 | `history-cursor.ts` 529 | 3 | 2 | 2 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/rss` | 官方接入 | 9 | 1,635 | `catalog.ts` 513 | 2 | 2 | 2 | 在用 | 中 | 已审 |
-| `plugins/official-integrations/youtube` | 官方接入 | 2 | 86 | `channel.ts` 84 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `server` | 模块 | 18 | 1,182 | `continuity/service.ts` 185 | 1 | 3 | 2 | 在用 | 中 | 已审 |
 | `tooling/plugin-cli` | 工具 | 8 | 359 | `sample-source.ts` 108 | 1 | 3 | 0 | 在用 | 浅 | 已审 |

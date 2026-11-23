@@ -2,7 +2,7 @@ import type { PluginSourceVocabulary } from "@molis-ai/molis-work-contracts/plat
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationRegistry } from "./integration-registry.js";
 import { CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, FEED_CATEGORY_LABEL, isRssSourceKind, listRegisterableFeeds, normalizeCustomRssFeedUrl, readRssHttpState, withRssHttpFailure, withRssHttpSuccess } from "@molis-ai/molis-work-integration-rss";
-import { normalizeYouTubeChannelId, YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-youtube";
+import { normalizeYouTubeChannelId, YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-rss";
 
 /**
  * `services.sourcePull.vocabulary`'s Host side (FI-4 step 4c-3): the public feed catalog, the normal form of a custom feed address and of a

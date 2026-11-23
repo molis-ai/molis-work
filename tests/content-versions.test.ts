@@ -4,8 +4,8 @@ import { contentVersionChanges } from "../scripts/gates/content-versions.mjs";
 
 // The content-version gate covers the methods of built-in plugins and the Skills of content packs, in every language.
 const key = "method.planning-methods.work-design-plan";
-const file = "plugins/content/planning-methods/skills/work-design-plan/SKILL.md";
-const english = "plugins/content/planning-methods/skills/work-design-plan/SKILL.en.md";
+const file = "packages/system-skills/planning-methods/skills/work-design-plan/SKILL.md";
+const english = "packages/system-skills/planning-methods/skills/work-design-plan/SKILL.en.md";
 const body = "---\nname: work-design-plan\nversion: 1\n---\n\n# 设计与规划\n";
 const englishBody = "# Design and planning\n";
 const table = (version: number) => JSON.stringify({ versions: { [key]: version } });

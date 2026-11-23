@@ -182,7 +182,7 @@ jobs:
         run: tar -xzf "$RUNNER_TEMP/dist/dist.tar.gz"
 
       - name: Test durations
-        if: ${{ needs.build.result == 'success' || !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
+        if: ${{ needs.build.result == 'success' }}
         uses: actions/cache@v4
         with:
           path: node_modules/.cache/molis-work-tests
@@ -301,16 +301,54 @@ jobs:
         if: ${{ needs.build.result == 'success' }}
         run: node scripts/run-tests.mjs tests/secret-scan.test.ts tests/health-gates-dual-instance.test.ts
 
-      # Only a successful PR/group selection may narrow the remaining self-tests. Invalid lists run the whole set.
-      - name: Gate rules reject what they claim to
-        if: ${{ !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
-        env:
-          SELECTED_GATE_TESTS: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'some' && needs.test-selection.outputs.gate_rule_files || '' }}
-        run: node scripts/run-tests.mjs --gate-rules "$SELECTED_GATE_TESTS"
-
       - name: Studio Skill replay rules reject what they claim to
         if: ${{ needs.build.result == 'success' && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.studio_replay_mode == 'none') }}
         run: node scripts/run-tests.mjs tests/studio-replay.test.ts
+
+  # Gate tool regressions use the same checkout and build as Gates. Verify waits for both.
+  gate-rules:
+    name: Gate rule regressions
+    needs: [test-selection, queue-check, build]
+    if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && (needs.build.result == 'success' || ((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.documentation_mode == 'only')) && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'none') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MOLIS_WORK_TEST_JOBS: 4
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      # In the merge queue, GitHub deletes this entry's branch when it rebuilds the queue or drops the pull request, but does not
+      # cancel the run. A run whose branch is gone verifies nothing, so it stops here instead of installing, building and testing
+      # (T-129). Only "the branch is gone" (exit 2) stops it; a network error goes on.
+      - name: Queue entry still exists
+        if: ${{ github.event_name == 'merge_group' }}
+        run: |
+          status=0
+          git ls-remote --exit-code origin "$GITHUB_REF" > /dev/null || status=$?
+          if [ "$status" = 2 ]; then echo "::error::$GITHUB_REF no longer exists: the merge queue rebuilt or dropped this entry"; exit 1; fi
+
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
+
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.dist-artifact }}
+          path: ${{ runner.temp }}/dist
+        if: ${{ needs.build.result == 'success' }}
+
+      - name: Unpack build outputs
+        if: ${{ needs.build.result == 'success' }}
+        run: tar -xzf "$RUNNER_TEMP/dist/dist.tar.gz"
+
+      - name: Gate rules reject what they claim to
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/gate-node-cache
+          SELECTED_GATE_TESTS: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.gate_rules_mode == 'some' && needs.test-selection.outputs.gate_rule_files || '' }}
+        run: node scripts/run-tests.mjs --gate-rules "$SELECTED_GATE_TESTS"
 
   # No dependencies and no build: it reads git history only, so it starts at once and is cheap to keep on every change.
   secret-scan:
@@ -580,7 +618,7 @@ jobs:
   verify:
     name: Verify
     # `queue-check` is not a check: it only lets a push to main that the merge queue already verified pass here (the last step).
-    needs: [build, account-login, gates, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection]
+    needs: [build, account-login, gates, gate-rules, secret-scan, native-checks, shell-checks, security-invariants, product-subset, golden-replay, golden-replay-third-party, queue-check, test-selection]
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection and the merge queue.
     # The full product suite runs in .github/workflows/full-suite.yml (sharded, on demand and nightly) and locally; the consolidated gates job, secret scan, Rust/Swift/shell checks, account login, security invariants, product subset and golden replay run here.
@@ -598,6 +636,8 @@ jobs:
           BUILD_RESULT: ${{ needs.build.result }}
           ACCOUNT_LOGIN_RESULT: ${{ needs.account-login.result }}
           GATES_RESULT: ${{ needs.gates.result }}
+          GATE_RULES_RESULT: ${{ needs.gate-rules.result }}
+          GATE_RULES_MODE: ${{ needs.test-selection.outputs.gate_rules_mode }}
           SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
           NATIVE_CHECKS_RESULT: ${{ needs.native-checks.result }}
           SHELL_CHECKS_RESULT: ${{ needs.shell-checks.result }}
@@ -634,6 +674,7 @@ jobs:
             selected_skip "$ACCOUNT_LOGIN_MODE" none "$ACCOUNT_LOGIN_RESULT"
           fi
           test "$GATES_RESULT" = "success"
+          test "$GATE_RULES_RESULT" = "success" || selected_skip "$GATE_RULES_MODE" none "$GATE_RULES_RESULT"
           test "$SECRET_SCAN_RESULT" = "success"
           test "$SHELL_CHECKS_RESULT" = "success" || selected_skip "$SHELL_MODE" none "$SHELL_CHECKS_RESULT"
           test "$NATIVE_CHECKS_RESULT" = "success" || selected_skip "$NATIVE_MODE" none "$NATIVE_CHECKS_RESULT"
@@ -701,7 +742,7 @@ jobs:
   # capability that widens. The real web host and the real launcher are started on loopback; the Seatbelt sandbox cases need macOS and
   # run locally (the document lists which). The table's own rule (every row names tests that exist) runs in the health gates.
   # Blocking (decision #14): after its observation period, one of Verify's required test results.
-  # CIP-06: eight independent runners, two workers each. PR selections can use fewer runners.
+  # CIP-06: eight independent runners, four test workers and one browser slot each. PR selections can use fewer runners.
   # Whole lists and failed selections use all eight; only successful documentation-only groups skip runtime checks.
   security-invariants:
     name: Security invariants (${{ matrix.shard }}/${{ strategy.job-total }})
@@ -759,6 +800,7 @@ jobs:
       # A file that fails twice still fails; the flaky list is the evidence to fix it.
       - name: Security invariants
         env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/security-node-cache
           SELECTED: ${{ github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'some' && needs.test-selection.outputs.security_files || '' }}
         run: |
           if [ -n "$SELECTED" ]; then

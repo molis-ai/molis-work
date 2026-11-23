@@ -2,7 +2,7 @@
  * Test suite strata for CI scheduling:
  * - VISUAL_AUDIT_TESTS: full-screen VUX multi-width/multi-surface crawl tests (~1.35 CPU-hr), run by
  *   `.github/workflows/visual-audit.yml` on UI/style PRs and nightly, and still included in nightly `full-suite.yml`.
- * - isGateMetaTest: CI/gate/health/runner self-tests already exercised by `ci.yml` (`gates`)
+ * - isGateMetaTest: CI/gate/health/runner self-tests already exercised by `ci.yml` (`gate-rules` and fixed security checks)
  *   when gate or workflow inputs change; excluded only from PR `full-suite` runs,
  *   retained in nightly/integration `full-suite` runs and local runs.
  */
@@ -30,6 +30,7 @@ const REQUIRED_GATE_RULE_FILES = [
   "tests/affected-tests.test.ts",
   "tests/ci-check-selection.test.ts",
   "tests/ci-font-install.test.ts",
+  "tests/ci-full-retry.test.mjs",
   "tests/ci-install.test.ts",
   "tests/ci-linux-probe.test.ts",
   "tests/ci-product-subset-plan.test.ts",

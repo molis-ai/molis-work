@@ -8,6 +8,11 @@
  */
 
 export const VISUAL_AUDIT_TESTS = Object.freeze([
+  "tests/chinese-layers-mobile.e2e.test.ts",
+  "tests/chinese-layers-settings-desktop.e2e.test.ts",
+  "tests/chinese-layers-settings-mobile.e2e.test.ts",
+  "tests/chinese-layers-settings-tablet.e2e.test.ts",
+  "tests/chinese-layers-tablet.e2e.test.ts",
   "tests/chinese-layers.e2e.test.ts",
   "tests/chinese-walkthrough.e2e.test.ts",
   "tests/dialog-submit-rules.e2e.test.ts",
@@ -19,6 +24,9 @@ export const VISUAL_AUDIT_TESTS = Object.freeze([
   "tests/repeat-no-accumulation.e2e.test.ts",
   "tests/touch-targets.e2e.test.ts",
   "tests/truncation-tip.e2e.test.ts",
+  "tests/visual-order-details-dark.e2e.test.ts",
+  "tests/visual-order-details-layers.e2e.test.ts",
+  "tests/visual-order-details-phone.e2e.test.ts",
   "tests/visual-order-details.e2e.test.ts",
   "tests/visual-order.e2e.test.ts",
 ]);

@@ -21,7 +21,7 @@ import { prepareIsolatedTestEnv } from "./ci-linux-probe/run.mjs";
 //                           before --shard picks: the full suite on a Linux runner (.github/workflows/full-suite.yml). A browser
 //                           file stays: its darwin mark comes from the platform check of the shared Chrome locator.
 //   --exclude-gate-meta     leave out CI/gate/health/runner self-tests (scripts/run-tests/strata.mjs) before --shard picks.
-//   --exclude-visual-audit  leave out the 13 full-screen VUX crawl tests (scripts/run-tests/strata.mjs) before --shard picks.
+//   --exclude-visual-audit  leave out the full-screen VUX crawl tests (scripts/run-tests/strata.mjs) before --shard picks.
 // Any other `--` option is handed to `node --test` (e.g. `--test-name-pattern=…`).
 // One file: one `node --test` process, as before. Several files: each file runs alone in its own process with its own
 // MOLIS_WORK_HOME and secret store (this script again, with that one file), several at once (scripts/run-tests/pool.mjs).
@@ -105,7 +105,7 @@ if (options.shard) {
   const name = (file) => relative(root, resolve(file));
   const plan = planShards(targets, { count, jobs, browserJobs }, readWeights(root), name, (file) => classifyFile(root, name(file)).marks.includes("browser"));
   console.log(`run-tests: ${describeShards(plan.loads)}`);
-  const mine = plan.shards[index];
+  const mine = plan.executionOrder[index];
   if (!mine.length) { console.log(`run-tests: shard ${index + 1}/${count} of ${targets.length} files has no file`); process.exit(0); }
   targets.splice(0, targets.length, ...mine);
 }
@@ -123,7 +123,7 @@ if (options.shard) {
 // A one-file shard, or a single file with an explicit timeout or retries, still needs the coordinator's timeout, retries and timed summary.
 if (targets.length > 1 || options.shard || options.retries > 0 || options.hasExplicitTimeout) {
   const { runParallel } = await import("./run-tests/pool.mjs");
-  process.exitCode = await runParallel(root, targets, { jobs, browserJobs, timeoutSeconds: options.timeoutSeconds, testArgs, verbose: options.verbose, retries: options.retries, bail: options.bail });
+  process.exitCode = await runParallel(root, targets, { jobs, browserJobs, timeoutSeconds: options.timeoutSeconds, testArgs, verbose: options.verbose, retries: options.retries, bail: options.bail, inOrder: Boolean(options.shard) });
 } else {
   // Test processes, including spawned web servers, inherit an isolated credential
   // home. Production's Keychain selection and existing ciphertext stay untouched.

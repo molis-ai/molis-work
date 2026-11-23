@@ -27,33 +27,64 @@ const median = (numbers) => {
   return sorted[Math.floor(sorted.length / 2)];
 };
 
-/** Predict the limiting worker pool, including the longest indivisible file. Product runs its browser phase first. */
-function completion(load, { jobs, browserJobs, separateBrowser }) {
+/** Product runs its browser phase before the rest. */
+function separateCompletion(load, { jobs, browserJobs }) {
   const browsers = Math.max(load.browser / browserJobs, load.longestBrowser);
   const others = Math.max((load.total - load.browser) / jobs, load.longestOther);
-  return separateBrowser ? browsers + others : Math.max(load.total / jobs, browsers, load.longestOther);
+  return browsers + others;
+}
+
+export const nextRunnableTest = (waiting, browsers, browserJobs) =>
+  waiting.findIndex((entry) => !entry.browser || browsers < browserJobs);
+
+/** Replay the worker slots in the same order the shard will execute its files. */
+function mixedCompletion(entries, last, { jobs, browserJobs }) {
+  const waiting = [...entries, last];
+  const running = [];
+  let seconds = 0;
+  let browsers = 0;
+  while (waiting.length || running.length) {
+    while (running.length < jobs) {
+      const index = nextRunnableTest(waiting, browsers, browserJobs);
+      if (index < 0) break;
+      const [entry] = waiting.splice(index, 1);
+      running.push({ end: seconds + entry.seconds, browser: entry.browser });
+      if (entry.browser) browsers++;
+    }
+    seconds = Math.min(...running.map((entry) => entry.end));
+    for (let index = running.length - 1; index >= 0; index--) {
+      if (running[index].end > seconds) continue;
+      if (running[index].browser) browsers--;
+      running.splice(index, 1);
+    }
+  }
+  return seconds;
 }
 
 /** Deterministic LPT allocation; only the committed table decides ownership, never a runner's private cache. */
 export function planShards(items, { count, jobs = 1, browserJobs = 1, separateBrowser = false }, weights = {}, fileOf = (item) => item, browserOf = () => false) {
-  const knownOf = (subset) => subset.map((item) => weights[fileOf(item)]).filter((seconds) => Number.isFinite(seconds) && seconds > 0);
-  const unknownAll = median(knownOf(items));
-  const knownBrowser = knownOf(items.filter((item) => browserOf(item)));
-  const knownOther = knownOf(items.filter((item) => !browserOf(item)));
+  const entries = items.map((item, position) => {
+    const file = fileOf(item);
+    return { item, position, file, browser: browserOf(item), weight: weights[file] };
+  });
+  const knownOf = (subset) => subset.map((entry) => entry.weight).filter((seconds) => Number.isFinite(seconds) && seconds > 0);
+  const unknownAll = median(knownOf(entries));
+  const knownBrowser = knownOf(entries.filter((entry) => entry.browser));
+  const knownOther = knownOf(entries.filter((entry) => !entry.browser));
   const unknownBrowser = knownBrowser.length ? median(knownBrowser) : unknownAll;
   const unknownOther = knownOther.length ? median(knownOther) : unknownAll;
-  const weight = (item) => weights[fileOf(item)] ?? (browserOf(item) ? unknownBrowser : unknownOther);
-  const order = items.map((item, position) => ({ item, position }))
-    .sort((a, b) => weight(b.item) - weight(a.item) || (fileOf(a.item) < fileOf(b.item) ? -1 : fileOf(a.item) > fileOf(b.item) ? 1 : 0));
+  const order = entries.map((entry) => ({ ...entry, seconds: entry.weight ?? (entry.browser ? unknownBrowser : unknownOther) }))
+    .sort((a, b) => b.seconds - a.seconds || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
   const loads = Array.from({ length: count }, () => ({ total: 0, browser: 0, longestBrowser: 0, longestOther: 0, seconds: 0, files: 0 }));
+  const schedules = Array.from({ length: count }, () => []);
   const assigned = new Map();
   const capacity = { jobs, browserJobs: Math.min(jobs, browserJobs), separateBrowser };
-  for (const { item, position } of order) {
-    const seconds = weight(item), browser = browserOf(item);
-    const candidates = loads.map((load) => {
+  for (const entry of order) {
+    const { position, seconds, browser } = entry;
+    const candidates = loads.map((load, shard) => {
       const next = { ...load, total: load.total + seconds, browser: load.browser + (browser ? seconds : 0), files: load.files + 1,
         longestBrowser: Math.max(load.longestBrowser, browser ? seconds : 0), longestOther: Math.max(load.longestOther, browser ? 0 : seconds) };
-      next.seconds = completion(next, capacity);
+      next.seconds = jobs === 1 ? next.total : separateBrowser ? separateCompletion(next, capacity) : mixedCompletion(schedules[shard], entry, capacity);
       return next;
     });
     let lightest = 0;
@@ -62,9 +93,14 @@ export function planShards(items, { count, jobs = 1, browserJobs = 1, separateBr
         || (candidates[shard].seconds === candidates[lightest].seconds && loads[shard].total < loads[lightest].total)) lightest = shard;
     }
     loads[lightest] = candidates[lightest];
+    schedules[lightest].push(entry);
     assigned.set(position, lightest);
   }
-  return { shards: loads.map((_, shard) => items.filter((_, position) => assigned.get(position) === shard)), loads };
+  return {
+    shards: loads.map((_, shard) => items.filter((_, position) => assigned.get(position) === shard)),
+    executionOrder: schedules.map((schedule) => schedule.map((entry) => entry.item)),
+    loads,
+  };
 }
 
 /** The files of shard index (0-based), preserving their input order. */

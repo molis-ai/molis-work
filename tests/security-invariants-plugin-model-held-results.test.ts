@@ -17,7 +17,7 @@ import { pluginErrors, type PluginManifest } from "@molis-ai/molis-work-contract
  * the row; RAC-333 in `tests/plugin-model-service.test.ts` proves the same through the Host's private storage.
  */
 
-const PLUGIN = "io.molis.work.example.heldresults";
+const PLUGIN = "com.example.heldresults";
 const MODEL = "model:invoke";
 const prompt = instructed(defineInstructionPrompt({ owner_id: PLUGIN, prompt_id: "probe", version: 1, title: "探针", purpose: "测试",
   used_by: ["模型结果探针"], body: "回答。" }), "数据");

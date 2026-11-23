@@ -196,7 +196,7 @@ test("UPG-04 UPG-06 UPG-09 an interrupted SQL worker leaves the old owned schema
   const table = readDatabase(home, project, "project", initial, "PRAGMA table_info(upgrade_notes)");
   assert.deepEqual(table.map(row => row.name), ["id", "text"]);
   const records = readDatabase(home, project, "project", initial,
-    "SELECT json_extract(record_json, '$.version') AS version, json_extract(record_json, '$.state') AS state FROM plugin_runtime_installs WHERE json_extract(record_json, '$.plugin_id') = 'io.molis.work.example.notes'");
+    "SELECT json_extract(record_json, '$.version') AS version, json_extract(record_json, '$.state') AS state FROM plugin_runtime_installs WHERE json_extract(record_json, '$.plugin_id') = 'com.example.notes'");
   assert.deepEqual(records, [{ version: "1.0.0", state: "crashed" }]);
   await assertUpgradeCard(home, `/projects/${project.project_id}/`, "project");
 });
@@ -209,7 +209,7 @@ test("UPG-04 UPG-05 an installed project library from a newer version stays unto
   try { db.prepare("UPDATE plugin_project_databases SET version = 9 WHERE plugin_id = ?").run(PACKAGE_PLUGIN_ID); }
   finally { db.close(); }
   await assert.rejects(install(home, project, packageAt(publisher, "project", "1.1.0")), { code: "plugin.project_database.store_too_new" });
-  assert.deepEqual(readDatabase(home, project, "project", initial, "SELECT version FROM plugin_project_databases WHERE plugin_id = 'io.molis.work.example.notes'"), [{ version: 9 }]);
+  assert.deepEqual(readDatabase(home, project, "project", initial, "SELECT version FROM plugin_project_databases WHERE plugin_id = 'com.example.notes'"), [{ version: 9 }]);
   await assertUpgradeCard(home, `/projects/${project.project_id}/`, "project", "store_too_new");
 });
 
@@ -397,7 +397,7 @@ test("UPG-03 UPG-04 activation failure after a committed migration retains the e
   });
   await assert.rejects(install(home, project, candidate), { code: "plugin.upgrade_activation_failed" });
   const records = readDatabase(home, project, "project", initial,
-    "SELECT json_extract(record_json, '$.version') AS version, json_extract(record_json, '$.last_error_code') AS code FROM plugin_runtime_installs WHERE json_extract(record_json, '$.plugin_id') = 'io.molis.work.example.notes'");
+    "SELECT json_extract(record_json, '$.version') AS version, json_extract(record_json, '$.last_error_code') AS code FROM plugin_runtime_installs WHERE json_extract(record_json, '$.plugin_id') = 'com.example.notes'");
   assert.deepEqual(records, [{ version: "1.1.0", code: "plugin.upgrade_activation_failed" }]);
   const table = readDatabase(home, project, "project", initial, "PRAGMA table_info(upgrade_notes)");
   assert.deepEqual(table.map(row => row.name), ["id", "text", "format"]);
@@ -426,7 +426,7 @@ test("UPG-03 UPG-04 a failed Home upgrade is restored byte for byte and leaves a
   const before = readFileSync(file);
   const snapshots = join(home.home, "upgrade");
   const oldSnapshots = existsSync(snapshots) ? readdirSync(snapshots).sort() : [];
-  const otherId = "io.molis.work.example.other-notes";
+  const otherId = "com.example.other-notes";
   await install(home, project, signedPackage(newPublisher(), undefined, { pluginId: otherId }));
   await assert.rejects(install(home, project, packageAt(publisher, "home", "1.1.0", {
     upgradeSql: "UPDATE upgrade_notes SET text = 'temporary'",

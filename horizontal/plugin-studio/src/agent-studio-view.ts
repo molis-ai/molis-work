@@ -37,4 +37,3 @@ export function renderAgentStudio(text: (key: string, values?: Record<string, st
     + '<div class="as-catalog" data-as-catalog-panel hidden aria-label="' + text("plugin-builder.agent-studio.all-components-ui-catalog") + '"></div><nav class="as-board" data-as-board aria-label="' + text("plugin-builder.agent-studio.spec-board-components-ui-catalog") + '"></nav><div class="as-part-tip" data-as-tip role="tooltip" hidden></div></div>'
     + '<footer class="as-status" data-as-status role="status"></footer></main></section>';
 }
-

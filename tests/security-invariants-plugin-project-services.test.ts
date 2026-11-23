@@ -67,7 +67,7 @@ const declaredSubject = (type: string) => ({ type, object_kind: type === "goal_d
 
 /** A plugin that exists only for the test, with a table of its own in the project's library; `grants` are the permissions it asks for. */
 function probe(short: string, grants: readonly string[], subjects: readonly string[], peer?: () => PluginHostServices, actionPermissions?: readonly string[],
-  idOf = `io.molis.work.example.${short}`) {
+  idOf = `com.example.${short}`) {
   const id = idOf, read = `${short}:read`, write = `${short}:write`;
   const gate = { entered: deferred(), release: deferred(), left: undefined as Promise<unknown> | undefined, hook: () => {}, inner: undefined as unknown, value: undefined as unknown, kept: undefined as (() => unknown) | undefined };
   let services: PluginHostServices | undefined;
@@ -578,7 +578,7 @@ test("S-68 an Inbox entry and the plugin's own rows land together or not at all:
 
 // RAC-279
 test("S-68 a Manifest declares attention subjects only with attention:write, in the owner's own declared shape, once each", () => {
-  const base = { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.subjects", version: "1.0.0", name: "subjects", kind: "app",
+  const base = { schema_version: 1, host_api_version: 1, plugin_id: "com.example.subjects", version: "1.0.0", name: "subjects", kind: "app",
     publisher: { publisher_id: "molis", signature: "probe-subjects" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };

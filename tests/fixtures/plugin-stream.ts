@@ -5,7 +5,7 @@ import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 
 /** A plugin whose real action and direct route can be held across a transport or lifecycle change. */
 export function streamProbe(scope: "home" | "project" = "home") {
-  const id = `io.molis.work.example.stream-${scope}`, contexts: PluginStartContext[] = [];
+  const id = `com.example.stream-${scope}`, contexts: PluginStartContext[] = [];
   const action: ActionDefinition<Record<string, never>, unknown> = { capability_id: `stream-${scope}.run`, version: 1, operation: "command",
     action: { title: "Stream a result", description: "Stream a result through the real action directory", scope,
       scheduling: "concurrent", kind: "operation", audiences: ["user", "plugin"], permissions: [], subject_kinds: [],

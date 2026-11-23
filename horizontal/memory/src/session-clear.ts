@@ -8,7 +8,7 @@ import type { MemoryScopeCommands } from "./scope-commands.js";
 import type { MemoryForgetting } from "./forgetting.js";
 import { personOnly } from "./places.js";
 import { memoryErrors } from "./errors.js";
-import { isMemorySessionScene } from "@molis-ai/molis-work-contracts/services/memory";
+import { isMemorySessionScene, isMemorySessionTarget } from "@molis-ai/molis-work-contracts/services/memory";
 import { learnedInSession, memorySources, type MemorySourceSession } from "./session-links.js";
 
 export const MEMORY_SESSION_CLEAR_PREFIX = "memory-session-clear:";
@@ -34,8 +34,8 @@ export function isMemorySessionClearPlan(value: unknown): value is MemorySession
   const plan = value as MemorySessionClearPlan, binding = plan.binding;
   if (!fields(plan, ["version", "actor_id", "operation_id", "binding", "groups", "targets", "started", "complete", "done"]) || plan.version !== /* @version format.memory.session-clear-plan */ 1
     || !id(plan.actor_id) || !id(plan.operation_id) || !binding || !isMemorySessionScene(binding.current_scene)
-    || !binding.session || !id(binding.session.session_id) || binding.session.runtime_id !== "prologue" || !binding.target || !id(binding.target.id)
-    || binding.target.kind !== binding.current_scene || !(binding.target.project_id === null || id(binding.target.project_id))
+    || !binding.session || !id(binding.session.session_id) || binding.session.runtime_id !== "prologue"
+    || !isMemorySessionTarget(binding.target) || binding.target.kind !== binding.current_scene
     || !Array.isArray(plan.targets) || !plan.targets.length || !Array.isArray(plan.groups) || !plan.groups.length
     || typeof plan.started !== "boolean" || typeof plan.complete !== "boolean" || !Number.isSafeInteger(plan.done) || plan.done < 0 || plan.done > plan.targets.length
     || plan.complete && plan.done !== plan.targets.length) return false;
@@ -87,7 +87,10 @@ export class MemorySessionClear {
 
   private binding(caller: MemoryCaller): MemorySessionBinding {
     personOnly(caller, "只有本人能清除会话记忆");
-    if (!caller.memory_session || caller.memory_session.session.session_id !== caller.session_id || caller.memory_session.target.project_id !== caller.project_id)
+    if (!caller.memory_session || caller.memory_session.session.session_id !== caller.session_id
+      || caller.memory_session.target.project_id !== caller.project_id
+      || caller.memory_session.target.kind !== caller.memory_session.current_scene
+      || !isMemorySessionTarget(caller.memory_session.target))
       throw memoryErrors.forbidden("会话清理需要原业务入口的当前绑定");
     return caller.memory_session;
   }

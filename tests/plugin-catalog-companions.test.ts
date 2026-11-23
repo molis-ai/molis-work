@@ -77,10 +77,10 @@ test("没被启用的插件不会出现在导航条上，平台成果入口始�
 test("embedded surfaces follow unknown plugin declarations, transitively and without changing navigation", () => {
   const base = BUILTIN_PLUGIN_CATALOG[0]!;
   const entry = (id: string, dependencies: string[] = []) => ({ project_plugin_id: id, manifest: {
-    ...base.manifest, plugin_id: `io.molis.work.example.${id}`, ui: { contributions: [], embedded_plugins: dependencies },
+    ...base.manifest, plugin_id: `com.example.${id}`, ui: { contributions: [], embedded_plugins: dependencies },
   } });
-  const catalog = [entry("parent", ["io.molis.work.example.child", "io.molis.work.example.missing"]), entry("child", ["io.molis.work.example.leaf"]),
-    entry("leaf", ["io.molis.work.example.parent"]), entry("unrelated")];
+  const catalog = [entry("parent", ["com.example.child", "com.example.missing"]), entry("child", ["com.example.leaf"]),
+    entry("leaf", ["com.example.parent"]), entry("unrelated")];
   assert.deepEqual([...availableProjectPluginIds(["parent"], catalog)].sort(), ["child", "leaf", "parent"]);
   assert.deepEqual([...availableProjectPluginIds([], catalog)], []);
   assert.equal(availableProjectPluginIds(["coding"]).has("diff"), true);

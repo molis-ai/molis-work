@@ -9,7 +9,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindDatabaseSpace, ensureStorageSpace, personalStorageSpace } from "@molis-ai/molis-work-storage";
 
 test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while each read checks current identity and facts", async t => {
-  const fixtures = [];
+  const fixtures: Array<{ home: string; catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>; project: { project_id: string }; file: string; location: string }> = [];
   for (const withSpace of [false, false, true, true]) {
     const home = await mkdtemp(join(tmpdir(), "home-plugin-read-cost-"));
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
@@ -35,9 +35,10 @@ test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while eac
     }
     return exec.call(this, sql);
   });
-  let validations = 0, structureReads = 0;
+  let validations = 0, liveChecks = 0, structureReads = 0;
   const checks = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
     if (sql === "PRAGMA user_version" && fixtures.some(f => f.location === this.location())) { validations++; connections.add(this); }
+    if (sql === "PRAGMA data_version" && fixtures.some(f => f.location === this.location())) liveChecks++;
     if (/pragma_table_|table_info|table_xinfo|index_list|foreign_key_list/iu.test(sql) && fixtures.some(f => f.location === this.location())) structureReads++;
     return prepare.call(this, sql);
   });
@@ -49,11 +50,13 @@ test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while eac
       else assert.equal(structureReads, before, "QEA-96 unchanged files do not repeat a complete schema scan");
     }
     assert.deepEqual(scratch, { plain: 1, scoped: 1 }, "only immutable expected structures are shared across Homes");
-    assert.equal(validations, 8, "each real read checks its version independently");
-    assert.equal(connections.size, 8, "no live database connection is cached");
-    for (const connection of connections) assert.throws(() => connection.prepare("SELECT 1"), /not open/u);
+    assert.equal(validations, 4, "each Home validates version on open and reuses its held read-only handle while unchanged");
+    assert.equal(connections.size, 4, "each Home holds one read-only connection across unchanged reads");
+    assert.ok(liveChecks >= 8, "every read checks live data_version on the held read-only handle");
+    for (const connection of connections) assert.throws(() => connection.prepare("CREATE TABLE ro_probe(x INT)").run(), /readonly/iu, "held connections stay strictly read-only");
+    const initialByLocation = new Map([...connections].map(connection => [connection.location(), connection]));
 
-    // All readers have closed. A later writer may corrupt the same file; a warm expected cache must not accept it.
+    // A later writer may corrupt any store; live data_version invalidates the held RO handle and a warm expected cache must not accept it.
     for (const [index, sql, expected] of [
       [0, "PRAGMA user_version=2", { code: "storage.store_too_new" }],
       [1, "DROP TABLE plugin_private_values", { code: "actions.execution_failed" }],
@@ -68,6 +71,7 @@ test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while eac
       } finally { db.close(); }
       const before = readFileSync(f.file);
       assert.throws(() => f.catalog.projectPluginMembership(f.project.project_id), expected);
+      assert.throws(() => initialByLocation.get(f.location)!.prepare("SELECT 1"), /not open/u, "stale held handle is closed on refusal");
       assert.deepEqual(readFileSync(f.file), before, "refusal does not repair or relabel the file");
     }
     const remaining = fixtures[3]!;
@@ -92,5 +96,7 @@ test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while eac
       "QEA-108 a missing binding row cannot reuse the warm bound success, even though the schema is unchanged");
     assert.deepEqual(readFileSync(remaining.file), beforeMissingBinding, "the missing binding is not repaired or relabelled");
     assert.deepEqual(scratch, { plain: 1, scoped: 1 });
+    for (const f of fixtures) f.catalog.close();
+    for (const connection of connections) assert.throws(() => connection.prepare("SELECT 1"), /not open/u, "closing each catalog releases its held RO connection");
   } finally { ddl.mock.restore(); checks.mock.restore(); }
 });

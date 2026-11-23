@@ -10,7 +10,7 @@ import { createLocalFeedApplication } from "./feed-library.js";
 
 /** A normal Runtime plugin consumes Schedule's public actions; the caller is the ordinary person, not a magic actor prefix. */
 export function scheduledOwnerPlugin(names: { name?: string; title?: string } = {}) {
-  const id = "io.molis.work.example.scheduled-owner";
+  const id = "com.example.scheduled-owner";
   const action: ActionDefinition = { capability_id: "scheduled-owner.summarize", version: 1, operation: "command", action: {
     title: names.title ?? "汇总", description: "汇总当前内容", local_id: "summarize", kind: "operation", scope: "project", audiences: ["plugin"], permissions: [], subject_kinds: [], scheduling: "concurrent",
     input_schema: { type: "object", additionalProperties: false, properties: { text: { type: "string" } }, required: ["text"] }, output_schema: { type: "object" },

@@ -4,7 +4,7 @@
 
 depends_on：基点 `4547c26b5` 的现行工作台槽、Form 和共用披露控件。本片在独立工作树修改以下三个文件，与其他片无共享写入；整批由统筹合回。
 
-本片承接[第 27 批](../../../post-anticorruption-roadmap/reference/batches/27.md) 27-1、27-3。[原 QA #784](https://github.com/molis-ai/molis-work/pull/784) 的 QA-031：导出菜单可由键盘操作，但显示超出工具栏的裁切边界；QA-032：浅色下已勾的必填框与底色同白。无障碍清点的 [F-17](../../copy-help-inventory.md#54-第二轮新增的跨页面问题) 只核 Form 一处（[BL-1038](../../../backlog/BL-1038.md)、[VUX-52／58](../../spec.md)）。
+本片承接[第 27 批](../../../post-anticorruption-roadmap/reference/batches/27.md) 27-1、27-3。[原 QA #784](https://github.com/molis-ai/molis-work/pull/784) 的 QA-031：导出菜单可由键盘操作，但显示超出工具栏的裁切边界；QA-032：浅色下已勾的必填框与底色同白。无障碍清点的 [F-17](../../copy-help-inventory.md#54-第二轮新增的跨页面问题) 只核 Form 一处（[BL-1038 结清记录](../../../archive/accessible-editor-controls/spec.md)、[VUX-52／58](../../spec.md)）。
 
 基点 `4547c26b5` 实测：1024px 中文明暗菜单的左侧落在工作区外，两项的左侧均不能命中，键盘仍可下载；其余十个组合的同一已发布问卷未复现。十二个组合的勾号与底色对比为 1.01～1.02:1，未选中边界可见。编辑标题与图标按钮在十二个组合均有正确的浏览器无障碍名称，键盘操作通过；这部分只核回。
 

@@ -21,7 +21,7 @@ import { serveTestHost } from "./fixtures/test-home.js";
 // uninstall that deleted data but left something in place says so where the row was: each kind with why, that the rest is gone, and 「知道了」.
 // A clean-up that stopped part way is said and retried in the same row. Real Host, real signed packages, the person's own clicks.
 
-const LIBRARY_ID = "io.molis.work.example.kept", LIBRARY_EN_ID = "io.molis.work.example.kept-en";
+const LIBRARY_ID = "com.example.kept", LIBRARY_EN_ID = "com.example.kept-en";
 const SCHEMA = "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);";
 const libraryPackage = (pluginId = LIBRARY_ID) => signedPackage(newPublisher(), (files, manifest) => {
   const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
@@ -185,12 +185,12 @@ test("BL-915 B27-UN-02 B27-UN-04 B27-UN-05 the 插件 page shows what an uninsta
 
   // B27-UN-05, the project's half: a package installed in this project whose clean-up stops part way is said and retried in the project's list,
   // and once nothing is left it goes with the usual short note, nothing listed in its place.
-  const projectPackage = signedPackage(newPublisher(), undefined, { pluginId: "io.molis.work.example.project-notes" }), projectName = projectPackage.payload.manifest.name;
+  const projectPackage = signedPackage(newPublisher(), undefined, { pluginId: "com.example.project-notes" }), projectName = projectPackage.payload.manifest.name;
   const trust = `/projects/${project.project_id}/api/plugin-trust`;
   const pending = await served.web.post(`${trust}/install/preview`, { bundle: projectPackage }) as { preview_id: string };
   await served.web.post(`${trust}/install/confirm`, { preview_id: pending.preview_id, consent: true, pin_label: "Test publisher" });
   const projectInstall = (await served.web.get(`${trust}/overview`) as { plugins: Array<{ plugin_id: string; install_id: string }> })
-    .plugins.find(plugin => plugin.plugin_id === "io.molis.work.example.project-notes")!.install_id;
+    .plugins.find(plugin => plugin.plugin_id === "com.example.project-notes")!.install_id;
   const projectFiles = join(h.home, "projects", project.project_id, "plugin-files"), projectHeld = projectFiles + "-held", projectOutside = mkdtempSync(join(tmpdir(), "b27-outside-project-"));
   t.after(() => rmSync(projectOutside, { recursive: true, force: true }));
   mkdirSync(join(projectOutside, projectInstall));

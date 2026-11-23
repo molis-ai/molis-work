@@ -207,7 +207,7 @@ test("composite credentials keep separate labeled inputs when adding and replaci
 // T-134: a connection made for a signed package's service says which package it was made for, the only one that may use it.
 test("RAC-2528 a connection pinned to a package shows 建于 and its name through the translator; one that is not pinned shows nothing", () => {
   const pinned = { connection_id: "22222222-2222-4222-8222-222222222222", service_id: "example-feed", display_name: "Feed 账号", account_label: null, auth_method: "token" as const,
-    source: "managed" as const, state: "connected" as const, declared_by: { plugin_id: "io.molis.work.example.feed", title: "Example <Feed>" } };
+    source: "managed" as const, state: "connected" as const, declared_by: { plugin_id: "com.example.feed", title: "Example <Feed>" } };
   const plain = { ...pinned, connection_id: "33333333-3333-4333-8333-333333333333", service_id: "github", display_name: "GitHub 账号", declared_by: undefined };
   const render = (locale: string) => renderDirectory({ connectors: [], connector_connections: [pinned, plain] }, locale);
   const row = (html: string, id: string) => html.match(new RegExp(`data-connection-row="${id}"[\\s\\S]*?</div>`))![0];

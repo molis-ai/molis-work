@@ -6,7 +6,7 @@ import type { PluginBackgroundExecution, PluginDefinition, PluginJobControl, Plu
 import { PluginRouteRouter } from "@molis-ai/molis-work-plugin-runtime";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-const ID = "io.molis.work.example.optionaldual", OPTIONAL = "optionaldual:use", STORAGE = "storage:private";
+const ID = "com.example.optionaldual", OPTIONAL = "optionaldual:use", STORAGE = "storage:private";
 const DELEGATE = "actions:delegate";
 const empty = { type: "object", additionalProperties: false };
 type Mode = "write" | "query" | "scene" | "job" | "required-job" | "background" | "route" | "consume" | "extra" | "judgment" | "discovery";
@@ -88,7 +88,7 @@ function probe() {
     } }], action_scenes: [{ scene_id: scene.scene_id, version: 1, bindings: () => [...bindings.values()], bind: (_caller, binding) => { bindings.set(binding.binding_id, binding); },
       prepare: (_caller, event) => ({ input: event }), consume: async caller => { await effect(context, "scene", caller.beforeEffect); return {}; } }] };
   } });
-  const target: PluginDefinition = { manifest: { ...manifest, plugin_id: "io.molis.work.example.optionaldual-target", name: "被消费的提供方", publisher: { publisher_id: "example", signature: "optional-target" },
+  const target: PluginDefinition = { manifest: { ...manifest, plugin_id: "com.example.optionaldual-target", name: "被消费的提供方", publisher: { publisher_id: "example", signature: "optional-target" },
     permissions: manifest.permissions.map(item => ({ ...item, required: true })), capabilities: { provides: [], consumes: [] }, actions: [consumed, judgment], action_scenes: [], background: undefined, routes: [] },
     start(context) { contexts.set(`target:${context.project_id}`, context); return { kind: "app", actions: [
       { ...consumed, handle: caller => effect(context, "consume", caller.beforeEffect) }, { ...judgment, handle: async () => { await wait("judgment"); return {}; } },

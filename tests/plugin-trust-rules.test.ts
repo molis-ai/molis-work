@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
@@ -14,7 +14,7 @@ const code = (expected: string) => (error: unknown) => error instanceof ActionEr
 
 function manifest(extra: Partial<PluginManifest> = {}): PluginManifest {
   return {
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.trust", version: "1.0.0", name: "Trust fixture", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.trust", version: "1.0.0", name: "Trust fixture", kind: "app",
     publisher: { publisher_id: "someone", signature: "trust-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     ...extra,
@@ -34,16 +34,16 @@ test("RAC-380 the evidence is checked by shape: no level, an unknown level, extr
 
 test("RAC-380 an install is made with the Host's evidence, and a Manifest or a missing trust cannot stand for it", () => {
   // RAC-381-T1: the production install boundary still rejects a caller that omits its Host-supplied evidence.
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   // A Manifest cannot name its own level: the install reads only the argument.
   const claimed = definition(Object.assign(manifest(), { trust: { level: "host" }, publisher_trust: "host", bundled: true }));
   assert.throws(() => runtime.install({ definition: claimed, deployment: "local", grants: [] } as never), code("plugin.state_invalid"), "no evidence, no install");
   assert.equal(runtime.install({ definition: claimed, deployment: "local", grants: [], trust: UNSIGNED_TRUST }).install.publisher_trust, "unsigned");
-  assert.equal(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: definition(manifest()), deployment: "local", trust: HOST_BUILD_TRUST }).install.publisher_trust, "host");
+  assert.equal(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).install({ definition: definition(manifest()), deployment: "local", trust: HOST_BUILD_TRUST }).install.publisher_trust, "host");
 });
 
 test("RAC-380 the level of an installed plugin does not change by installing it again under another one", () => {
-  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   runtime.install({ definition: definition(manifest()), deployment: "local", grants: [], trust: UNSIGNED_TRUST });
   assert.throws(() => runtime.install({ definition: definition(manifest()), deployment: "local", trust: HOST_BUILD_TRUST }), code("plugin.definition_conflict"));
   assert.equal(runtime.list()[0]?.publisher_trust, "unsigned");
@@ -95,7 +95,7 @@ for (const storage of ["memory", "sqlite"] as const) test(`RAC-2645 RAC-2648 RAC
   const ledger = storage === "memory" ? new MemoryPluginConsentLedger() : new SqlitePluginConsentLedger(db);
   try {
     const ids = ["goals.plugin.progress", "goals.plugin.state"];
-    const entry = { plugin_id: "io.molis.work.example.reach", publisher_signature: KEY_ID, manifest_digest: "v1", project_id: "A", install_id: "home-1", approved_capability_ids: ids, at: "one" };
+    const entry = { plugin_id: "com.example.reach", publisher_signature: KEY_ID, manifest_digest: "v1", project_id: "A", install_id: "home-1", approved_capability_ids: ids, at: "one" };
     const first = ledger.grantProjectReach(entry);
     assert.deepEqual(readProjectReachSubject(first.subject), { project_id: "A", install_id: "home-1" });
     assert.equal(first.granted_by, "user"); assert.equal(first.kind, "project_reach");
@@ -144,7 +144,7 @@ test("QEA-146 installation cleanup checks every active subject before withdrawin
   db.exec(PLUGIN_TRUST_SCHEMA_SQL);
   const ledger = new SqlitePluginConsentLedger(db);
   try {
-    const entry = { plugin_id: "io.molis.work.example.reach", publisher_signature: KEY_ID, manifest_digest: "v1",
+    const entry = { plugin_id: "com.example.reach", publisher_signature: KEY_ID, manifest_digest: "v1",
       project_id: "A", install_id: "home-1", approved_capability_ids: ["goals.plugin.state"], at: "one" };
     const a = ledger.grantProjectReach(entry);
     const b = ledger.grantProjectReach({ ...entry, project_id: "B" });

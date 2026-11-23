@@ -3,7 +3,7 @@ import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type Sand
 import { signPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
 import { newPublisher, payloadOf } from "./sandbox-package.js";
 
-const PLUGIN_ID = "io.molis.work.example.feedprobe";
+const PLUGIN_ID = "com.example.feedprobe";
 const ORIGINS = ["https://api.example-feed.com"];
 const CODE = `globalThis.__feedprobeLoaded = true;
 export const operations = {

@@ -14,7 +14,7 @@ import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./sandbox-packag
 // Home that can be closed and opened again, and the Home's plugin store read back without opening the Host's own connection.
 
 export const mac = { skip: process.platform !== "darwin", timeout: 90_000 };
-export const SECOND_PLUGIN_ID = "io.molis.work.example.second";
+export const SECOND_PLUGIN_ID = "com.example.second";
 export const APPROVED = "plugin-builder:agent-studio:approved:";
 
 /** The fixture package, asking for the Home. Its `notes.add` reads the notes it adds to, so the contract says so. */

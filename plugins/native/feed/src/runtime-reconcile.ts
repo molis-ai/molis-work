@@ -43,6 +43,8 @@ export interface FeedReconcilePorts {
   commit<T>(control: PluginJobControl, body: () => T): Promise<T>;
   /** Names bodies in the Home's reference ledger (idempotent); absent when the installation may not reach the ledger. */
   hold: ((sourceId: string, contentRefs: readonly string[]) => Promise<void>) | undefined;
+  /** Notified when account reconciliation moves one or more sources between active and disconnected states. */
+  onSourceStateChanged?: () => void;
 }
 
 /**
@@ -118,7 +120,9 @@ export function keepFeedReconcile(background: PluginBackgroundClient | undefined
     await setTimeout(0, undefined, { signal: control.signal });
     let named = await holdWithRetries(ports, control, retryDelays);
     while (!control.signal.aborted) {
-      try { await refreshAccountSourceStates(ports, control); }
+      try {
+        if (await refreshAccountSourceStates(ports, control) > 0) ports.onSourceStateChanged?.();
+      }
       catch (error) { unlessStopped(control, error); }
       await watch.next(control.signal);
       if (!named && !control.signal.aborted) named = await holdWithRetries(ports, control, []);

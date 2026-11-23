@@ -6,7 +6,7 @@ import { inspectLocaleSet, matchLocale, parseLocalePack, parseStrictJson } from 
 
 // `parseLocalePack` and `inspectLocaleSet`: FSS-46 for the language file, FSS-47's refusal of the old plural, FSS-51 and FSS-70 (specs/font-and-skin-system/spec.md §11).
 
-const OWNER = "io.molis.work.example.notes";
+const OWNER = "com.example.notes";
 const file = (fields: object = {}, messages: object = { "notes.main.title": "Notes" }) => JSON.stringify({ format_version: UI_FORMAT_VERSIONS.locale, owner: OWNER, locale: "en", messages, ...fields });
 
 function refused<T>(result: UiFileResult<T>, code: string, path?: string) {
@@ -42,7 +42,7 @@ test("FSS-46: unknown fields, a wrong format_version, a bad tag and an oversized
 });
 
 test("FSS-46: a repeated name is refused before JSON.parse could keep the last, with its path, line and column", () => {
-  const source = '{\n  "format_version": 1,\n  "owner": "io.molis.work.example.notes",\n  "locale": "en",\n  "messages": {\n    "notes.a": "x",\n    "notes.a": "y"\n  }\n}';
+  const source = '{\n  "format_version": 1,\n  "owner": "com.example.notes",\n  "locale": "en",\n  "messages": {\n    "notes.a": "x",\n    "notes.a": "y"\n  }\n}';
   const problem = refused(parseLocalePack(source), "ui.json_repeated_name", '$.messages["notes.a"]');
   assert.equal(problem?.line, 7);
   assert.equal(problem?.column, 5);

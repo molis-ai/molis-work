@@ -1,7 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 
-export const DECLARATION_PLUGIN_ID = "io.molis.work.declaration-rules";
+export const DECLARATION_PLUGIN_ID = "com.example.declaration-rules";
 
 /**
  * The smallest Manifest that parses, with `parts` laid over it field by field (a part replaces the field it names,

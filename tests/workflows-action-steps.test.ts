@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -45,7 +45,7 @@ test("a workflow step runs any registered action — even one the Host never hea
       if (failAfterWrite) { const code = failAfterWrite; failAfterWrite = undefined; throw new ActionError(code, "工单已写入，后续步骤失败"); }
       return { ticket_id: tickets.length, ...(tickets.length === 1 ? { note: "工单正文".repeat(1500), trace: "内部诊断".repeat(6000) } : {}) };
     });
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.fixture.tickets", version: "1.0.0", name: "工单", kind: "app",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.fixture.tickets", version: "1.0.0", name: "工单", kind: "app",
     publisher: { publisher_id: "test", signature: "test" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "tickets:write", required: true, reason: "建工单" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [create.definition] }, async start() { return { kind: "app", actions: [create.handler] }; } });
@@ -53,7 +53,7 @@ test("a workflow step runs any registered action — even one the Host never hea
   // refuses an installation whose Manifest it cannot read, which would keep Feed (it declares a presentation) from starting.
   const runtime = await host.withProject(reference, project => {
     new SqlitePluginRuntimeReleaseArtifactRepository(project.store.db).save(createPluginRuntimeReleaseArtifact(plugin.manifest, "export {};"));
-    return new PluginRuntime(new SqlitePluginRuntimeRepository(project.store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: PROJECT } });
+    return new PluginRuntime(new SqlitePluginRuntimeRepository(project.store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: host.actionRegistry(reference), project_id: PROJECT } });
   });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["tickets:write"] }).install;
   await runtime.start(installed.install_id);

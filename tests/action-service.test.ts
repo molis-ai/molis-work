@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
@@ -34,7 +34,7 @@ test("unknown SDK plugin registers a real write and read through Runtime; stoppi
   const db = new DatabaseSync(":memory:");
   db.exec("CREATE TABLE notes (id INTEGER PRIMARY KEY, project TEXT NOT NULL, body TEXT NOT NULL)");
   const service = new ActionService();
-  const id = "io.molis.work.example.dynamic-notes";
+  const id = "com.example.dynamic-notes";
   const write = defineAction<{ text: string }, { id: number }>({
     capability_id: `${id}.create`, version: 1, operation: "command",
     action: { title: "新建笔记", description: "将内容保存到当前项目", kind: "operation", scope: "project",
@@ -52,7 +52,7 @@ test("unknown SDK plugin registers a real write and read through Runtime; stoppi
     async start() { return { kind: "app", actions: [write.handler, read.handler] }; },
   });
   const repository = new MemoryPluginRuntimeRepository();
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: service, project_id: context.project_id! } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: service, project_id: context.project_id! } });
   try {
     const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:write"] }).install;
     assert.deepEqual(service.discover(context), []);
@@ -382,7 +382,7 @@ test("unknown Runtime scene exposes actual configuration targets and preserves o
     return row ? { ...JSON.parse(row.binding), revision: row.revision } as ActionSceneBinding : null;
   };
   const configurable = { ...scene, configuration_permissions: ["notes:write"] };
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.configurable", version: "1.0.0", name: "配置位置插件",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.configurable", version: "1.0.0", name: "配置位置插件",
     kind: "app", publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["notes:write", "notes:activate"].map(permission => ({ permission, required: false, reason: "配置原业务规则" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { contributions: [] }, actions: [], action_scenes: [configurable] }, async start() { return { kind: "app", action_scenes: [{ ...configurable,
@@ -397,7 +397,7 @@ test("unknown Runtime scene exposes actual configuration targets and preserves o
       }, consume: (_caller, _input, result) => result,
     }] }; } });
   const repository = new MemoryPluginRuntimeRepository();
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: service, project_id: context.project_id! } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: service, project_id: context.project_id! } });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install;
   await runtime.start(installed.install_id);
   try {
@@ -538,4 +538,35 @@ test("QEA-90 a fixed-result scene executes without asking unrelated providers an
   assert.equal(accepted, 1, "narrowing discovery does not cache authority across the judgment");
   enabled = true; during = undefined;
   assert.deepEqual(await service.runScene(context, scene, binding.binding_id, { text: "retry" }), { accepted: 2 });
+});
+
+test("ActionService.targets resolves the requested judgment via discoverOne without full directory discovery", async t => {
+  const service = new ActionService();
+  let unrelatedAvailability = 0;
+  service.registerProvider({ provider, definitions: [judgment], handlers: [{ ...judgment, handle: () => ({ follow_up: true }) }] });
+  const unrelated: ActionDefinition = { ...judgment, capability_id: "unrelated.targets.check" };
+  service.registerProvider({ provider: { provider_id: "unrelated", title: "Unrelated", kind: "system" }, definitions: [unrelated],
+    handlers: [{ ...unrelated, availability: () => { unrelatedAvailability++; return { available: true }; }, handle: () => ({ follow_up: false }) }] });
+  service.registerProvider({ provider: { provider_id: "feedback", title: "反馈", kind: "system" }, definitions: [], handlers: [],
+    scenes: [{ ...scene, configuration_permissions: [] }],
+    scene_handlers: [{ ...consumer(new Map(), () => null),
+      targets: () => [{ binding_id: "slot-1", title: "规则位", href: "/rules", revision: null }] }] });
+  let discoverCalls = 0, discoverOneCalls = 0;
+  const origDiscover = service.discover.bind(service), origDiscoverOne = service.discoverOne.bind(service);
+  t.mock.method(service, "discover", (...args: Parameters<ActionService["discover"]>) => { discoverCalls++; return origDiscover(...args); });
+  t.mock.method(service, "discoverOne", (...args: Parameters<ActionService["discoverOne"]>) => { discoverOneCalls++; return origDiscoverOne(...args); });
+
+  const exact = await service.targets(context, { ...judgment, provider_id: provider.provider_id });
+  assert.equal(exact.length, 1);
+  assert.equal(exact[0]!.availability.available, true);
+  assert.equal(discoverCalls, 0);
+  assert.ok(discoverOneCalls >= 1);
+  assert.equal(unrelatedAvailability, 0);
+
+  const mismatched = await service.targets(context, { ...judgment, provider_id: "wrong-provider" });
+  assert.equal(mismatched.length, 1);
+  assert.equal(mismatched[0]!.availability.available, false);
+  assert.equal(mismatched[0]!.availability.code, "actions.scene_incompatible");
+  assert.equal(discoverCalls, 0);
+  assert.equal(unrelatedAvailability, 0);
 });

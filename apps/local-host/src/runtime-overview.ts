@@ -102,10 +102,29 @@ export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: Abor
     if (rows.expired) expired.set(rows.title, (expired.get(rows.title) ?? 0) + rows.expired);
   };
   // The project owners, in open and resting projects (their list is a `home_aggregate` query), and the Home's own owners, at the same time.
+  const nowMs = now.getTime();
   const [projects] = await Promise.all([
-    collectHomeAggregate<RunsOverview>(ports.aggregate, RUNS_OVERVIEW_OUTPUT_TYPE, new HomeAggregateInputEach((projectId, source) => window(projectId, source.provider_id),
-      // A sleeping project's last overview holds while the person has not marked its expired runs seen since, and for the hour it was read in.
-      (projectId, source) => JSON.stringify([seen[expiredOwnerKey(projectId, source.provider_id)] ?? null, Math.floor(now.getTime() / 3_600_000)])), signal),
+    collectHomeAggregate<RunsOverview>(
+      ports.aggregate,
+      RUNS_OVERVIEW_OUTPUT_TYPE,
+      new HomeAggregateInputEach(
+        (projectId, source) => window(projectId, source.provider_id),
+        // A sleeping project's last overview holds while the person has not marked its expired runs seen since, and for the hour it was read in.
+        (projectId, source) => JSON.stringify([seen[expiredOwnerKey(projectId, source.provider_id)] ?? null, Math.floor(nowMs / 3_600_000)]),
+      ),
+      signal,
+      {
+        // If any cached upcoming run has already reached its due time before the hour rolls over, re-read rather than show it as upcoming.
+        stillValid: result => result.answers.every(answer => {
+          const output = answer.output as Partial<RunsOverview> | null;
+          return !Array.isArray(output?.upcoming)
+            || output.upcoming.every(run => {
+              const dueMs = run && typeof run.due_at === "string" ? Date.parse(run.due_at) : Number.NaN;
+              return Number.isFinite(dueMs) && dueMs > nowMs;
+            });
+        }),
+      },
+    ),
     ports.within(null, async client => {
       const views = (await client.discover()).filter(view => isOverview(view) && view.action.scope === "home" && !view.action.home_aggregate);
       await Promise.all(views.map(async view => {

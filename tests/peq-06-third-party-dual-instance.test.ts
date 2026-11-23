@@ -14,7 +14,7 @@ import { serveTestHost } from "./fixtures/test-home.js";
 // (`runtime: { scope: "home", dual_instance: true }`), running one shared Home half and isolated
 // per-project halves with disjoint operations, S-48 Home permission ceiling, and S-87 revocation.
 
-const DUAL_PLUGIN_ID = "io.molis.work.example.dual-notes";
+const DUAL_PLUGIN_ID = "com.example.dual-notes";
 const HOME_SCHEMA = "CREATE TABLE home_notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);";
 const PROJECT_SCHEMA = "CREATE TABLE dual_tasks (id INTEGER PRIMARY KEY, title TEXT NOT NULL);";
 const HOME_DB_PERMS = ["storage:private", "home-database:read", "home-database:write"];
@@ -229,7 +229,7 @@ test("PEQ-06 S-48 S-80 S-87 a signed third-party dual-instance package shares it
   // S-80: dual-instance scope cannot be changed to project-only under the same plugin_id, and always_on is refused.
   const projectOnly = signedPackage(publisher, undefined, { pluginId: DUAL_PLUGIN_ID, version: "1.1.0" });
   await assert.rejects(clientA.invoke(person(projectA.project_id), ref(pluginInstallActions.preview), { bundle: projectOnly }), refused("plugin.declaration_invalid"));
-  const alwaysOnBundle = dualPackage(newPublisher(), { pluginId: "io.molis.work.example.dual-always-on", alwaysOn: true });
+  const alwaysOnBundle = dualPackage(newPublisher(), { pluginId: "com.example.dual-always-on", alwaysOn: true });
   await assert.rejects(clientA.invoke(person(projectA.project_id), ref(pluginInstallActions.preview), { bundle: alwaysOnBundle }), refused("plugin.declaration_invalid"));
 
   // S-87: revoking the publisher stops BOTH Home half and Project halves on reopen while keeping stored data.

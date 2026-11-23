@@ -128,7 +128,7 @@ test("RAC-2446: what the Host measures for knowledge.locate is exactly the data 
 for (const stoppedBeforeOrganize of [false, true]) test(stoppedBeforeOrganize
   ? "D0244-07 D0242 S-41 pre-indexed stopped sources send no automatic or explicit model request"
   : "D0244-05 S-41 real Host and SDK refuse an old source's held model result and allow a new explicit organize", { timeout: 60_000 }, async t => {
-  const id = "io.molis.work.example.quality-source", permission = "quality:read";
+  const id = "com.example.quality-source", permission = "quality:read";
   const entries = defineSearchEntriesAction("quality.entries", 1, [{ kind: "quality_piece", title: "资料", surface: "quality" }], "资料", [permission]);
   const reader = defineSubjectContextAction("quality.read", 1, "quality_piece", "资料", [permission]);
   const definition = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "来源探针", kind: "app",

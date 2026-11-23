@@ -2,6 +2,15 @@ import { cssString } from './agent-studio-view.js';
 /** Opening a build, following its event stream, acting on it, and every listener the page owns. A part of the studio page's client script (`agent-studio.ts` joins the parts in order). */
 export const STUDIO_CLIENT_SESSION = String.raw` let viewSignal,opening=0,initialized=false;
  const backgroundError=e=>{if(lifetime.alive&&!viewSignal?.aborted){notice=e;schedule();}};
+ let draftKey='studio-composer:'+(page.address().searchParams.get('build')||'new'),edited=0;
+ function replaceInput(value){input.value=value;window.molisFit?.(input);}
+ function saveInput(){edited++;void host.drafts.write(draftKey,input.value||null).catch(backgroundError);}
+ async function restoreInput(id,ticket){
+  const key='studio-composer:'+(id||'new');
+  if(key!==draftKey){draftKey=key;replaceInput('');}
+  const revision=edited,value=await host.drafts.read(key);
+  if(ticket===opening&&revision===edited&&lifetime.alive)replaceInput(value||'');
+ }
  function renderBuilds(){const select=$('[data-as-builds]');select.innerHTML='<option value="">'+(state.builds.length?globalThis.t.text("plugin-builder.agent-studio.my-plugins-n",{n:state.builds.length}):globalThis.t.text("plugin-builder.agent-studio.no-plugins-yet"))+'</option>'+state.builds.map(b=>'<option value="'+esc(b.id)+'"'+(b.id===current?.id?' selected':'')+'>'+esc(b.design?.title||b.title)+' · '+esc(phaseOf(b))+'</option>').join('');
   const model=$('[data-as-model]');model.innerHTML=(state.model?'':'<option value="">'+globalThis.t.text("plugin-builder.agent-studio.choose-model")+'</option>')+state.models.map(m=>'<option value="'+esc(m.provider_id+'\n'+m.model_id)+'"'+(m.provider_id===state.model?.provider_id&&m.model_id===state.model?.model_id?' selected':'')+'>'+esc(m.label.endsWith(m.model_id)&&m.label!==m.model_id?m.model_id+' · '+m.label.slice(0,-m.model_id.length).replace(/\s*·\s*$/,''):m.label)+'</option>').join('');
   const setup=$('[data-as-model-setup]');if(setup)setup.hidden=state.models.length>0;}
@@ -9,15 +18,15 @@ export const STUDIO_CLIENT_SESSION = String.raw` let viewSignal,opening=0,initia
    const listed=state.builds.find(x=>x.id===b.id);if(listed&&(listed.phase!==b.phase||(listed.design?.title||listed.title)!==(b.design?.title||b.title))){Object.assign(listed,{phase:b.phase,title:b.title,design:b.design});renderBuilds();}
    schedule();};}
  async function open(id,signal){const ticket=++opening;closeSheet();comparePrevious=false;target=null;preview=null;rendered='';lastView='';seenWired=new Set();firstPaint=true;tab='build';playToken++;playing=false;queue=[];landing=null;picking=null;revealed=new Set();wiredCaps=new Set();wires=[];wiring=null;
-  if(!id){current=null;versions=[];subscribe(null);page.replace(withBuild(null));schedule();return;}
-  const v=await api('/builds/'+id,'GET',undefined,signal);if(ticket!==opening)return;current=v.build;versions=v.versions;current.nodes.forEach(n=>revealed.add(n.id));usedCapabilities(current).forEach(x=>{if(x.done)wiredCaps.add(x.c.id);});subscribe(id);page.replace(withBuild(id));renderBuilds();schedule();}
+  if(!id){current=null;versions=[];subscribe(null);page.replace(withBuild(null));schedule();await restoreInput(null,ticket);return;}
+  const v=await api('/builds/'+id,'GET',undefined,signal);if(ticket!==opening)return;current=v.build;versions=v.versions;current.nodes.forEach(n=>revealed.add(n.id));usedCapabilities(current).forEach(x=>{if(x.done)wiredCaps.add(x.c.id);});subscribe(id);page.replace(withBuild(id));renderBuilds();schedule();await restoreInput(id,ticket);}
  async function refreshState(signal){state=await api('/state','GET',undefined,signal);renderBuilds();}
  async function run(work){if(busy||!lifetime.alive)return;busy=true;notice='';schedule();try{await work();}catch(e){notice=e;}finally{busy=false;schedule();}}
  async function act(action,extra={}){const v=await api('/builds/'+current.id+'/action','POST',{action,revision:current.revision,...extra});if(v.build)current=v.build;if(v.release){versions=(await api('/builds/'+current.id)).versions;notice='';tab='install';}if(v.deleted){await refreshState();await open(null);}}
  lifetime.listen(root,'click',e=>{const el=e.target.closest('button,a');if(!el||!root.contains(el))return;
   if(el.dataset.asOpenPlugin){e.preventDefault();host.openPlugin(el.dataset.asOpenPlugin);return;}
   if(el.matches('[data-as-model-setup]')){e.preventDefault();host.openSettings('/settings/models');return;}
-  if(el.dataset.asExample){input.value=el.dataset.asExample;window.molisFit?.(input);input.focus();return;}
+  if(el.dataset.asExample){replaceInput(el.dataset.asExample);saveInput();input.focus();return;}
   if(el.dataset.asOpen){run(()=>open(el.dataset.asOpen));return;}
   if(el.hasAttribute('data-as-catalog')){const which=el.dataset.asCatalog||'components';catalogOpen=catalogOpen===which?'':which;tip.hidden=true;renderBoard();return;}
   if(el.dataset.asCandidate){preview=el.dataset.asCandidate;rendered='';schedule();return;}
@@ -54,11 +63,20 @@ export const STUDIO_CLIENT_SESSION = String.raw` let viewSignal,opening=0,initia
   }
  });
  lifetime.listen(document,'molis-work:model-ready',()=>{if(lifetime.visible)void refreshState(viewSignal).then(schedule).catch(backgroundError);});
+ lifetime.listen(input,'input',saveInput);
  lifetime.listen(input,'keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('[data-as-composer]').requestSubmit();}});
- lifetime.listen($('[data-as-composer]'),'submit',e=>{e.preventDefault();const text=input.value.trim();if(!text||busy)return;
+ lifetime.listen($('[data-as-composer]'),'submit',e=>{e.preventDefault();const raw=input.value,text=raw.trim(),key=draftKey;if(!text||busy)return;
   const go=fresh=>run(async()=>{
-   if(!current||fresh){const v=await api('/builds','POST',{brief:text});input.value='';window.molisFit?.(input);await refreshState();await open(v.build.id);return;}
-   const node=target&&current.nodes.find(n=>n.id===target);await act($('[data-as-edit-mode]').value,{message:node?'［'+node.purpose+'］'+text:text});input.value='';window.molisFit?.(input);target=null;});
+   if(key!==draftKey||input.value!==raw)return;
+   const revision=++edited,stored=host.drafts.write(key,raw).catch(backgroundError);
+   const clear=async()=>{
+    await stored;
+    if(revision!==edited)return;
+    if(key===draftKey&&input.value===raw)replaceInput('');
+    await host.drafts.compareAndSwap(key,raw,null).catch(backgroundError);
+   };
+   if(!current||fresh){const v=await api('/builds','POST',{brief:text});await clear();await refreshState();await open(v.build.id);return;}
+   const node=target&&current.nodes.find(n=>n.id===target);await act($('[data-as-edit-mode]').value,{message:node?'［'+node.purpose+'］'+text:text});await clear();target=null;});
   if(current?.design&&!target&&/^(我|帮我|请)?(要|想|需要|来)?(做|建|创建|新建|开发|搭)(一个|个|一款|款)/.test(text))
    ask(globalThis.t.text("plugin-builder.agent-studio.make-new-plugin-change-name",{name:current.design.title}),'“'+text.slice(0,80)+'”',[['new',globalThis.t.text("plugin-builder.agent-studio.make-new-plugin"),true],['modify',globalThis.t.text("plugin-builder.agent-studio.change-name",{name:current.design.title})],['cancel',globalThis.t.text("plugin-builder.agent-studio.cancel")]]).then(choice=>{if(choice==='new')go(true);else if(choice==='modify')go(false);});
   else go(false);});

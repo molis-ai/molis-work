@@ -118,12 +118,12 @@ test("08-10 S-bundled-packages a link, a file that is not a package, an unsigned
   const b = await bundledFolder();
   try {
     const publisher = newPublisher(), outside = join(b.base, "outside.json");
-    const unsigned = signedContentPackage(publisher, { pluginId: "io.molis.work.example.unsigned" });
-    await writeFile(outside, JSON.stringify(signedContentPackage(publisher, { pluginId: "io.molis.work.example.linked" })));
-    await symlink(outside, join(b.folder, "io.molis.work.example.linked.json"));
+    const unsigned = signedContentPackage(publisher, { pluginId: "com.example.unsigned" });
+    await writeFile(outside, JSON.stringify(signedContentPackage(publisher, { pluginId: "com.example.linked" })));
+    await symlink(outside, join(b.folder, "com.example.linked.json"));
     await writeFile(join(b.folder, "notes.txt"), "not a package\n");
-    await writeFile(join(b.folder, "io.molis.work.example.unsigned.json"), JSON.stringify({ ...unsigned, signature: null, publisher_key: null }));
-    await writeFile(join(b.folder, "io.molis.work.example.renamed.json"), JSON.stringify(signedContentPackage(publisher, { pluginId: "io.molis.work.example.other" })));
+    await writeFile(join(b.folder, "com.example.unsigned.json"), JSON.stringify({ ...unsigned, signature: null, publisher_key: null }));
+    await writeFile(join(b.folder, "com.example.renamed.json"), JSON.stringify(signedContentPackage(publisher, { pluginId: "com.example.other" })));
     const app = signedPackage(publisher);
     await writeFile(join(b.folder, `${app.payload.manifest.plugin_id}.json`), JSON.stringify(app));
     await mkdir(join(b.folder, "nested.json"));
@@ -131,15 +131,15 @@ test("08-10 S-bundled-packages a link, a file that is not a package, an unsigned
     const list = await s.install.bundled();
     assert.deepEqual(list.plugins.map(item => item.plugin_id), [PLUGIN_ID], "the good one is still listed");
     assert.deepEqual(Object.fromEntries(list.refused.map(item => [item.file, item.code])), {
-      "io.molis.work.example.linked.json": "plugin.package_invalid",
-      "io.molis.work.example.renamed.json": "plugin.package_invalid",
-      "io.molis.work.example.unsigned.json": "plugin.signature_invalid",
+      "com.example.linked.json": "plugin.package_invalid",
+      "com.example.renamed.json": "plugin.package_invalid",
+      "com.example.unsigned.json": "plugin.signature_invalid",
       [`${app.payload.manifest.plugin_id}.json`]: "plugin.declaration_invalid",
       "nested.json": "plugin.package_invalid",
       "notes.txt": "plugin.package_invalid",
     });
-    for (const [plugin_id, code] of [["io.molis.work.example.linked", "plugin.package_invalid"], ["io.molis.work.example.unsigned", "plugin.signature_invalid"],
-      ["io.molis.work.example.other", "plugin.definition_missing"], ["io.molis.work.example.nowhere", "plugin.definition_missing"]] as const) {
+    for (const [plugin_id, code] of [["com.example.linked", "plugin.package_invalid"], ["com.example.unsigned", "plugin.signature_invalid"],
+      ["com.example.other", "plugin.definition_missing"], ["com.example.nowhere", "plugin.definition_missing"]] as const) {
       await assert.rejects(s.install.preview({ bundled: { plugin_id, version: "1.0.0" } }, who), refused(code), plugin_id);
     }
     await assert.rejects(s.install.preview({ bundled: { plugin_id: PLUGIN_ID, version: "0.9.0" } }, who), refused("plugin.definition_missing"), "only the version the person saw");

@@ -755,6 +755,7 @@
       "labels",
       "last_upkeep",
       "pairs",
+      "plugin_titles",
       "preference_setting",
       "prefs",
       "project_id",

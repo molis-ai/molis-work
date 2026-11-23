@@ -158,7 +158,7 @@ export { ActionService, actionSceneCompatibilityReason } from "./action-service.
 export { markTrustedDecisionRolledBack, markTrustedDecisionSubmitted, trustedDecisionSubmitted, withTrustedDecision } from "./action-trusted-decision.js";
 export { actionDirectoryLookup } from "./action-directory-lookup.js";
 export { forgetInDirectoryPass, inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
-export { registeredActionMetadata, sampleRetainedActionDirectory, type ActionSelection, type RegisteredActionMetadata, type RetainedActionDirectory } from "./action-metadata.js";
+export { registeredActionMetadata, registeredOneActionMetadata, sampleRetainedActionDirectory, type ActionSelection, type RegisteredActionMetadata, type RetainedActionDirectory } from "./action-metadata.js";
 export { assertActionInput, compileActionSchema, precompileActionSchemas } from "./action-schema.js";
 export { assertActionCommandInput } from "./version-precondition.js";
 export { newCallId, currentCallId, withCallId, withCallIdSync, markCallRecorded, recordedCallId, expectingRefusal, refusalExpected } from "./call-scope.js";

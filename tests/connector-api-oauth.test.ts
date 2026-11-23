@@ -394,7 +394,7 @@ test("S-97 FI-C-02 RAC-1085: a cancelled refresh keeps only the rotated credenti
     const started = await startApiOAuth(directory, { serviceId: "asana", displayName: "Controlled", clientId: "fixture-client", clientSecret: "fixture-app", origin });
     await completeApiOAuth(directory, callback(started.authorization_url), transport("controlled"));
     const id = started.connection_id, secrets = connectorProtocolSecrets(directory, id);
-    const target = { install_id: "fixture-api-refusal", plugin_id: "io.molis.work.example.refusal", slot_id: "account", service_id: "asana" };
+    const target = { install_id: "fixture-api-refusal", plugin_id: "com.example.refusal", slot_id: "account", service_id: "asana" };
     withConnectorConnections(directory, store => store.bind({ scopeId: pluginBindingScope(target), pluginId: target.plugin_id, slotId: target.slot_id, serviceId: target.service_id, connectionId: id }));
     const port = createPluginConnectionsPort(directory), state = () => port.describe(target).state;
     oauthNetwork(t, async () => {

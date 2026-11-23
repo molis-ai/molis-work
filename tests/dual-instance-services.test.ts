@@ -21,7 +21,7 @@ import { openTestHome } from "./fixtures/test-home.js";
  * Home's evidence store, which only the ledger half deletes from), and both halves an authorized directory and the terminal (S-103).
  */
 
-const NAME = "dualservices", PLUGIN = `io.molis.work.example.${NAME}`;
+const NAME = "dualservices", PLUGIN = `com.example.${NAME}`;
 const FILES_READ = `${NAME}:files-read`, FILES_WRITE = `${NAME}:files-write`, DATA_READ = `${NAME}:data-read`, DATA_WRITE = `${NAME}:data-write`;
 /** What the probe actions declare: every permission a service below asks its calling action for. */
 const USED = ["actions:invoke", "agent:run", "terminal:run", "plugins:read", "notifications:write", "schedule:read", "directory:read", "evidence:collect"];

@@ -378,7 +378,7 @@ test("PWA-14 PWA-105 every version of one's own Skill is listed from the signed 
 test("BL-166 SKP-11 a copy of a general Skill remembers its source and the placeholders it replaced; the source's newer version is told, brought into a draft with the replacements, or left", mac, async () => {
   const h = await harness(null);
   try {
-    const publisher = newPublisher(), pluginId = "io.molis.work.example.weekly";
+    const publisher = newPublisher(), pluginId = "com.example.weekly";
     await h.install(signedContentPackage(publisher, { pluginId, skills: [{ id: "weekly", name: "周报", applies_to: "assistant", body: "# 周报\n\n把进展记进 ~~project tracker。\n" }] }), "示例发布者");
     const general = (await h.catalog()).find(skill => skill.pack.plugin_id === pluginId)!;
     const copy = await h.draft({ scope: "project", target: { kind: "custom", ref: general.ref } });

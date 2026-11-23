@@ -16,7 +16,7 @@ function packageFixture() {
   const spki = keys.publicKey.export({ type: "spki", format: "der" });
   const identity = `ed25519:sha256:${createHash("sha256").update(spki).digest("hex")}`;
   const manifest: PluginManifest = {
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.package-trust", version: "1.0.0", name: "Package trust fixture", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.package-trust", version: "1.0.0", name: "Package trust fixture", kind: "app",
     publisher: { publisher_id: "developer", signature: identity }, entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
   };
@@ -45,7 +45,7 @@ test("N4 fixed source signatures retain their bytes without adopting retired man
 test("N4 signed packages verify across fresh locales with numeric and Unicode schema keys and reject changed content", () => {
   const { bundle, signer, publicKey } = packageFixture();
   const properties = Object.fromEntries(["é", "e\u0301", "e", "中", "😀", "\ue000", "2", "10"].map(key => [key, { type: "string" }]));
-  bundle.payload.manifest.actions = [createActionDefinition("io.molis.work.example.package-trust.inspect", "query", {
+  bundle.payload.manifest.actions = [createActionDefinition("com.example.package-trust.inspect", "query", {
     title: "Read Unicode fields", description: "Keep original fields", audiences: ["user"], permissions: [], subject_kinds: [],
     input_schema: { type: "object", properties, additionalProperties: false }, output_schema: { type: "null" },
   }, 1)];
@@ -125,7 +125,7 @@ test("real CLI creates, packs, signs and verifies a Plugin while rejecting tampe
     const invoke = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: directory, encoding: "utf8" });
     const identity = JSON.parse(invoke("identity", publicFile).stdout).publisher_identity as string;
     const project = join(directory, "plugin");
-    assert.equal(invoke("create", project, "io.molis.work.example.signed", "developer", identity).status, 0);
+    assert.equal(invoke("create", project, "com.example.signed", "developer", identity).status, 0);
     const unsigned = join(directory, "unsigned.json");
     const signed = join(directory, "signed.json");
     const code = readFileSync(join(project, "index.mjs"), "utf8");

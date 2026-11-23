@@ -1,5 +1,6 @@
 export * from './model-json.js';
 export * from './manifest.js';
+export * from './studio-plugin-id.js';
 export * from './workbench.js';
 
 export * from './agent-model.js';

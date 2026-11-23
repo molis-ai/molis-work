@@ -15,7 +15,7 @@ import { assertMatches, assertSchema } from "@molis-ai/molis-work-plugin-sandbox
 // The schema half of FSS-42 and FSS-45 (specs/font-and-skin-system/spec.md §11). The other half belongs to the SDK's
 // `textRefProblems` and is proved with it (slice T4): `{ literal: false }`, `{}`, `{ key, literal }`, an argument without its value.
 
-const OWNER = "io.molis.work.example.notes";
+const OWNER = "com.example.notes";
 
 const refused = (schema: typeof TEXT_REF_SCHEMA, value: unknown, reason: RegExp) =>
   assert.throws(() => assertMatches(schema, value), (error: Error & { code?: string }) => {

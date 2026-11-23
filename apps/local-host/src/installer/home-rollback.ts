@@ -3,7 +3,7 @@ import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { acquireStorageOwner, assertNoPendingHomeRestore } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, assertNoPendingHomeRestore, releaseHeldHomeSqlite } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
 import { homeIdentity, readUpgradeStamp } from "../home-upgrade-ledger.js";
 import { putBackUpgradeRound, upgradeRoundRestorable } from "../home-upgrade.js";
@@ -147,6 +147,7 @@ export async function rollbackHome(home: string, options: { readonly saved_to?: 
     await writeAtomic(path.join(root, HOLD), `${JSON.stringify({ schema_version: HOLD_SCHEMA_VERSION, held_version: kept.installation.version,
       rolled_back_from: { version: current.version, content_digest: current.content_digest }, at: new Date().toISOString() }, null, 2)}\n`);
     try {
+      releaseHeldHomeSqlite(root);
       const restored = point.data === "restore" ? putBackUpgradeRound(root, owner) : [];
       await swapProgram(root, kept);
       return { version: point.version, data: point.data, restored, saved_to: options.saved_to ?? null };
@@ -159,7 +160,10 @@ export async function rollbackHome(home: string, options: { readonly saved_to?: 
       }
       throw error;
     }
-  } finally { owner.release(); }
+  } finally {
+    releaseHeldHomeSqlite(root);
+    owner.release();
+  }
 }
 
 const UNAVAILABLE: Readonly<Record<Exclude<RollbackPoint, { available: true }>["reason"], string>> = {

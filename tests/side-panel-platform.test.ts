@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -73,10 +73,10 @@ test("file entries page by kind and id with a revision over every entry; preview
 
 test("PAS-08: the side slot places a plugin's tab only while the plugin is enabled, and the panel renders it as a frame", () => {
   assert.equal(UI_VIEW_SLOTS.includes("side"), true);
-  const manifest = { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.side", version: "1.0.0", name: "侧栏样例", kind: "native",
+  const manifest = { schema_version: 1, host_api_version: 1, plugin_id: "com.example.side", version: "1.0.0", name: "侧栏样例", kind: "native",
     publisher: { publisher_id: "example", signature: "example-side" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
-    ui: { contributions: ["io.molis.work.example.side.notes"], views: [{ view_id: "notes", slot: "side", context_binding: "focused-object", title: "随手记", icon: "note" }] } } as const;
+    ui: { contributions: ["com.example.side.notes"], views: [{ view_id: "notes", slot: "side", context_binding: "focused-object", title: "随手记", icon: "note" }] } } as const;
   assert.deepEqual(new UiViewRegistry([{ manifest: manifest as never, enabled: true }]).slot("side").map(view => view.view_id), ["notes"]);
   assert.deepEqual(new UiViewRegistry([{ manifest: manifest as never, enabled: false }]).slot("side"), [], "a disabled plugin leaves no tab behind");
   assert.equal(new UiViewRegistry([{ manifest: manifest as never, enabled: true }]).slot("side")[0]!.context_binding, "focused-object");
@@ -90,7 +90,7 @@ test("PAS-08: the side slot places a plugin's tab only while the plugin is enabl
     withoutTasks: renderSideStrip(primitives, tabs),
   }));
   assert.match(strip, /data-side-tab="plugin:example\/notes"/u);
-  assert.match(strip, /data-side-context-owner="io\.molis\.work\.example\.side" data-side-context-surface="example" hidden/u);
+  assert.match(strip, /data-side-context-owner="com\.example\.side" data-side-context-surface="example" hidden/u);
   assert.match(html, /data-side-body="plugin:example\/notes" data-side-src="\/projects\/p1\/side\/example\/notes"/u);
   assert.match(strip, /data-side-tab="files"[\s\S]*data-side-tab="browser"[\s\S]*data-side-tab="computer"[\s\S]*data-side-tab="discussion"[\s\S]*data-side-tab="tasks"/u, "the panel's own tabs in side-shelf §3.2's order, the background tasks after them");
   assert.match(html, /data-side-body="files"[\s\S]*data-side-body="browser"[\s\S]*data-side-body="computer"[\s\S]*data-side-body="discussion"[\s\S]*data-side-body="tasks"/u);
@@ -142,7 +142,7 @@ test("real Host: the file tab lists and previews plugin files through the action
     // A plugin nobody told the Host about: its declarations alone put its files in the panel.
     const entries = defineFileEntriesAction("newcomer.files.entries", 1, [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
     const content = defineFileContentAction("newcomer.files.content", 1, [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
-    const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.newcomer-files", version: "1.0.0", name: "新插件",
+    const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.newcomer-files", version: "1.0.0", name: "新插件",
       kind: "app", publisher: { publisher_id: "example", signature: "example-newcomer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [{ permission: "newcomer:read", required: false, reason: "读取文件" }], actions: [entries, content], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
       async start() { return { kind: "app", actions: [
@@ -150,7 +150,7 @@ test("real Host: the file tab lists and previews plugin files through the action
         { ...content, handle: () => fileContentOf({ subject: { kind: "newcomer-file", id: "f1" }, revision: "1", title: "说明.txt", media_type: "text/plain", text: "新插件自己的文件内容" }) },
       ] }; } });
     const repository = await host.withProject(ref, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
-    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(ref), project_id: ref.project_id } });
+    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: host.actionRegistry(ref), project_id: ref.project_id } });
     const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
     await runtime.start(installId);
     const joined = ((await get("/api/side/files/sources")).body.sources as typeof sources).find(source => source.kinds.some(kind => kind.kind === "newcomer-file"));
@@ -222,11 +222,11 @@ test("BSH-13 one request answers every source's first page: a failing source doe
     type Listed = { id: string; kinds: Array<{ kind: string }>; state?: string; page?: Page; error?: string; reason?: string };
     const get = async <Body>(path: string) => { const response = await fetch(`${origin}/projects/${a.project_id}${path}`); return { status: response.status, body: await response.json() as Body }; };
     const repository = await host.withProject(ref, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
-    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(ref), project_id: ref.project_id } });
+    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: host.actionRegistry(ref), project_id: ref.project_id } });
     for (const name of ["good", "broken", "unset"] as const) {
       const sourceKinds = [{ kind: `${name}-file`, title: name, surface: name }];
       const entries = defineFileEntriesAction(`${name}.files.entries`, 1, sourceKinds, `${name} 来源`, [`${name}:read`]);
-      const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: `io.molis.work.example.${name}-files`, version: "1.0.0", name,
+      const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: `com.example.${name}-files`, version: "1.0.0", name,
         kind: "app", publisher: { publisher_id: "example", signature: `example-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
         permissions: [{ permission: `${name}:read`, required: false, reason: "读取文件" }], actions: [entries], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
         async start() { return { kind: "app", actions: [{ ...entries, ...bindFileEntriesHandler(entries, () => {
@@ -265,7 +265,7 @@ test("BSH-13 one request answers every source's first page: a failing source doe
 
 test("a Plugin names the websites it uses in the side panel browser as exact origins, and the author's check prints them", async () => {
   const manifest = (permissions: unknown[]) => ({
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.sites", version: "1.0.0", name: "Sites", kind: "integration",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.sites", version: "1.0.0", name: "Sites", kind: "integration",
     publisher: { publisher_id: "local-developer", signature: "local-development-identity" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions, capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
   });

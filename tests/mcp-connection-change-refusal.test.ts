@@ -45,7 +45,7 @@ async function withFixture(t: TestContext, run: (fixture: {
   let calls = 0;
   await home.host.withProject(project.reference, () => {
     home.host.actionRegistry(project.reference).registerProvider({
-      provider: { provider_id: "alias-fixture", title: "Alias fixture", kind: "plugin", plugin_id: "io.molis.work.example.alias" },
+      provider: { provider_id: "alias-fixture", title: "Alias fixture", kind: "plugin", plugin_id: "com.example.alias" },
       definitions: [action], handlers: [{ ...action, handle: () => { calls += 1; return { value: "dispatched" }; } }],
     });
   });

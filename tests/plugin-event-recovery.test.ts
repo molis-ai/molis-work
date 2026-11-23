@@ -1,5 +1,5 @@
 import { openPluginTestDatabase } from "./fixtures/plugin-test-database.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -24,7 +24,7 @@ async function fixture(t: TestContext, memory = false) {
   const db = openPluginTestDatabase(file);
   db.exec("CREATE TABLE effects (id INTEGER PRIMARY KEY, value TEXT)");
   const repository = memory ? new MemoryPluginEventsRepository() : new SqlitePluginEventsRepository(db);
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, { hostIds: ISOLATED_HOST_IDS }), supervisor = new PluginSupervisor(runtime);
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }), supervisor = new PluginSupervisor(runtime);
   const bus = new PluginEventBus({ projectId: EVENT_BOARD, lifecycle: supervisor, repository });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let holding = true;

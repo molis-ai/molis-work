@@ -37,8 +37,8 @@ function dualTree(change: { runtime?: string; manifest?: string; project?: strin
     "plugins/native/probe/src/index.ts": lines(`export * from "./manifest.js";`, `export { createProbePlugin } from "./plugin.js";`),
     "plugins/native/probe/src/manifest.ts": lines(
       `const PERMISSIONS = [${change.permissions ?? `{ permission: "storage:private", required: true, reason: "库" }, { permission: "probe:read", required: true, reason: "读" }`}];`,
-      `export const probeManifest = { plugin_id: "io.molis.work.example.probe", permissions: PERMISSIONS, ui: { contributions: [], locales: { default: "en", available: ["en"] } } } as const satisfies object;`),
-    "plugins/native/probe/locales/en.json": JSON.stringify({ format_version: 1, owner: "io.molis.work.example.probe", locale: "en", messages: { "probe.view.title": "Probe" } }),
+      `export const probeManifest = { plugin_id: "com.example.probe", permissions: PERMISSIONS, ui: { contributions: [], locales: { default: "en", available: ["en"] } } } as const satisfies object;`),
+    "plugins/native/probe/locales/en.json": JSON.stringify({ format_version: 1, owner: "com.example.probe", locale: "en", messages: { "probe.view.title": "Probe" } }),
     [PROJECT_START_LIST]: lines(
       `import { createProbePlugin } from "${PACKAGE}";`,
       `import { createOtherPlugin } from "@molis-ai/molis-work-plugin-other";`,
@@ -96,11 +96,11 @@ test("DUAL-11 a dual-instance Manifest whose permissions the gate cannot follow 
   const manifest = (body: string): Tree => ({ ...dualTree(), "plugins/native/probe/src/manifest.ts": body });
   const unreadable = [
     // The permissions come from a module the gate does not follow.
-    lines(`import { SHARED } from "@molis-ai/molis-work-plugin-shared";`, `export const probeManifest = { plugin_id: "io.molis.work.example.probe", permissions: SHARED };`),
+    lines(`import { SHARED } from "@molis-ai/molis-work-plugin-shared";`, `export const probeManifest = { plugin_id: "com.example.probe", permissions: SHARED };`),
     // A spread can bring permissions in.
-    lines(`const BASE = { permissions: [{ permission: "probe:read", required: false, reason: "读" }] };`, `export const probeManifest = { ...BASE, plugin_id: "io.molis.work.example.probe" };`),
+    lines(`const BASE = { permissions: [{ permission: "probe:read", required: false, reason: "读" }] };`, `export const probeManifest = { ...BASE, plugin_id: "com.example.probe" };`),
     // A spread in a permission can override its required.
-    lines(`const OPTIONAL = { required: false };`, `export const probeManifest = { plugin_id: "io.molis.work.example.probe", permissions: [{ permission: "probe:read", required: true, reason: "读", ...OPTIONAL }] };`),
+    lines(`const OPTIONAL = { required: false };`, `export const probeManifest = { plugin_id: "com.example.probe", permissions: [{ permission: "probe:read", required: true, reason: "读", ...OPTIONAL }] };`),
   ];
   for (const body of unreadable) {
     const problems = dualInstanceProblems(snapshot(manifest(body)));
@@ -109,7 +109,7 @@ test("DUAL-11 a dual-instance Manifest whose permissions the gate cannot follow 
   }
   // The shorthand `{ permissions }` is followed as `{ permissions: permissions }`.
   const shorthand = (required: string) => manifest(lines(`const permissions = [{ permission: "probe:read", required: ${required}, reason: "读" }];`,
-    `export const probeManifest = { plugin_id: "io.molis.work.example.probe", permissions };`));
+    `export const probeManifest = { plugin_id: "com.example.probe", permissions };`));
   assert.deepEqual(dualInstanceProblems(snapshot(shorthand("true"))), []);
   assert.deepEqual(dualInstanceProblems(snapshot(shorthand("false"))), []);
   // Two files that `export *` each other end the search, which says it cannot read the Manifest, instead of recursing forever.

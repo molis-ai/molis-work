@@ -19,7 +19,7 @@ import { IMAGE_PNG } from "./fixtures/images-runtime.js";
 // used it at, and a package can neither be the first to use it nor move it. The broker's half is tests/security-invariants-sandbox-model-image-broker.test.ts; real packages in real
 // processes are tests/security-invariants-sandbox-home-signed-model.test.ts.
 
-const PLUGIN = "io.molis.work.example.imageport", OTHER = "io.molis.work.example.imageother", INSTALL = "image-port", OTHER_INSTALL = "image-other";
+const PLUGIN = "com.example.imageport", OTHER = "com.example.imageother", INSTALL = "image-port", OTHER_INSTALL = "image-other";
 const refused = (code: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === code;
 
 test("BL-491 RAC-2631 the derived names are 32 hex digits of the installation id, differ per installation, and no library or ledger row may take them", async t => {

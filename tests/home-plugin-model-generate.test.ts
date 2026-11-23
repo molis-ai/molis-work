@@ -99,8 +99,8 @@ test("RAC-2610 a project caller cannot reach the Home's instance: the action ser
     { id: "model.generate.home", provider: "plugin-platform.home", available: false, code: "actions.scope_mismatch" }]);
   // The project's catalog, which a package's operations are checked against, does not list the Home's entry under any name.
   const unavailable = /这项功能依赖的能力当前不可用：model\.generate\.home/;
-  await h.install("io.molis.work.example.projectbound", "project", ["model.generate.home"]);
-  await assert.rejects(h.ask("summary", "model.generate.home", "io.molis.work.example.projectbound"), unavailable, "a package of a project names the Home's id");
+  await h.install("com.example.projectbound", "project", ["model.generate.home"]);
+  await assert.rejects(h.ask("summary", "model.generate.home", "com.example.projectbound"), unavailable, "a package of a project names the Home's id");
   assert.equal(h.systems.length, before, "nothing was sent to the model");
 });
 
@@ -112,19 +112,19 @@ test("RAC-2610 the Home's instance has no project half: a Home package that name
   assert.deepEqual(await modelEntries(h, "home"), [{ id: "model.generate.home", provider: "plugin-platform.home", available: true, code: undefined }],
     "the Home's directory has the Home's entry and not the project's");
   // The package calls the name it always used; the Home's catalog gives it the Home's instance under that name and under no other.
-  await h.install("io.molis.work.example.homebound", "home", ["model.generate.home"]);
+  await h.install("com.example.homebound", "home", ["model.generate.home"]);
   const settings = `/projects/${h.project.project_id}/api/settings/plugin-project-reach`;
   const { plugins } = await h.home.web.post<{ plugins: Array<{ plugin_id: string; snapshot: string }> }>(settings + "/list", {});
-  const plugin = plugins.find(plugin => plugin.plugin_id === "io.molis.work.example.homebound");
+  const plugin = plugins.find(plugin => plugin.plugin_id === "com.example.homebound");
   assert.ok(plugin);
   await h.home.web.post(settings + "/grant", { plugin_id: plugin.plugin_id, snapshot: plugin.snapshot });
-  await assert.rejects(h.ask("summary", "model.generate.home", "io.molis.work.example.homebound"), /这项功能依赖的能力当前不可用：model\.generate\.home/, "a package of the Home names the id the instance is registered under");
+  await assert.rejects(h.ask("summary", "model.generate.home", "com.example.homebound"), /这项功能依赖的能力当前不可用：model\.generate\.home/, "a package of the Home names the id the instance is registered under");
   assert.equal(h.systems.length, before, "nothing was sent to the model");
 });
 
 test("RAC-2610 a package installed in a project asks the project's instance: the model is asked once, with the instruction the package registered in the project", mac, async t => {
   const h = await modelHome(t);
-  const pluginId = await h.install("io.molis.work.example.projectasks", "project", undefined, [{ id: "summary", body: "PROJECT_SUMMARY" }]);
+  const pluginId = await h.install("com.example.projectasks", "project", undefined, [{ id: "summary", body: "PROJECT_SUMMARY" }]);
   assert.equal(await h.ask("summary", undefined, pluginId), "GENERATED");
   assert.equal(h.systems.length, 1, "one request reached the model");
   assert.match(h.systems[0]!, /PROJECT_SUMMARY/, "with the project's registration");

@@ -40,7 +40,7 @@ export function publishContext(page: PagesPage) {
 }
 
 
-/** What the list (a listbox that picks several) says is selected: the picked documents, else the open one. */
+/** What the directory says is selected: the picked documents, else the open one. */
 export const chosen = (page: PagesPage, id: string) => (page.picked.size ? page.picked.has(id) : page.sel?.id === id);
 
 /**
@@ -62,9 +62,15 @@ function surfaceFocus(page: PagesPage): SurfaceDetail | null {
 }
 
 function pickedRect(page: PagesPage) {
-  const boxes = [...page.rowsEl.querySelectorAll<HTMLElement>(".pages-doc-row[data-page-id]")].filter((row) => page.picked.has(row.dataset.pageId!)).map((row) => row.getBoundingClientRect());
+  const boxes = [...page.rowsEl.querySelectorAll<HTMLElement>(".pages-doc-row[data-page-id]")]
+    .filter((row) => page.picked.has(row.dataset.pageId!))
+    .map((row) => row.getBoundingClientRect())
+    .filter((box) => box.width > 0 && box.height > 0);
+  if (!boxes.length) return null;
   const edge = (side: "left" | "right" | "top" | "bottom", pick: (...values: number[]) => number) => pick(...boxes.map((box) => box[side]));
-  return boxes.length ? { left: edge("left", Math.min), right: edge("right", Math.max), top: edge("top", Math.min), bottom: edge("bottom", Math.max) } : null;
+  const left = edge("left", Math.min), right = edge("right", Math.max);
+  const top = edge("top", Math.min), bottom = edge("bottom", Math.max);
+  return { left, right, top, bottom, width: right - left, height: bottom - top };
 }
 
 function objectsFocus(page: PagesPage): SurfaceDetail | null {
@@ -85,8 +91,16 @@ export function paintPicked(page: PagesPage) {
   page.rowsEl.querySelectorAll<HTMLElement>(".pages-doc-row[data-page-id]").forEach((row) => {
     const id = row.dataset.pageId!;
     row.classList.toggle("is-picked", page.picked.has(id));
-    row.querySelector("button[data-page-id]")?.setAttribute("aria-selected", String(chosen(page, id)));
+    row.setAttribute("aria-selected", String(chosen(page, id)));
   });
+}
+
+export function togglePicked(page: PagesPage, id: string) {
+  // Picking, not opening: the open document joins the first pick, so one ⌘-click or Space already gives two.
+  if (!page.picked.size && page.sel && page.sel.id !== id) page.picked.add(page.sel.id);
+  if (page.picked.has(id)) page.picked.delete(id); else page.picked.add(id);
+  paintPicked(page);
+  reportFocus(page);
 }
 
 export function clearPicked(page: PagesPage) {

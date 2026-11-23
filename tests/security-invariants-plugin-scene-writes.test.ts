@@ -27,7 +27,7 @@ type Step = "write" | "no-before" | "revoked" | "ledger" | "retained";
 
 /** A plugin of the test: a scene whose callbacks do what `state.step` says, with a table of its own in the project's library. */
 function sceneProbe(short: string, scenePermissions: readonly string[]) {
-  const id = `io.molis.work.example.${short}`, read = `${short}:read`, write = `${short}:write`;
+  const id = `com.example.${short}`, read = `${short}:read`, write = `${short}:write`;
   const scene: ActionSceneDefinition = { scene_id: `${id}.arrived`, version: 1, title: "到达", description: "处理到达的文字", trigger: "arrived", scope: "project",
     subject_kinds: ["feedback"], event_schema: textInput, input_schema: textInput, result_schema: decisionOutput, permissions: [...scenePermissions] };
   const state = { step: "write" as Step, hook: () => {}, outcome: undefined as unknown, prepared: undefined as unknown, services: undefined as PluginHostServices | undefined,

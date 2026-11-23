@@ -18,7 +18,7 @@ import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { buildPtyEnvironment } from "@molis-ai/molis-work-service-runtime-host";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 
 // S-103 (specs/archive/repository-anti-corruption/slices/platform-terminal-launch.md, 用户 2026-10-30 裁定): the platform's `services.terminal.open`
 // starts a local interactive terminal for a plugin the Host runs itself, Home instance or project instance alike. Only the Manifest's
@@ -40,7 +40,7 @@ type Project = Awaited<ReturnType<Fixture["project"]>>;
  * what the next call does (`use`), and the action answers with what came back or the code and message it was refused with.
  */
 function launchProbe(name: string, options: { terminal?: boolean; ownerFiles?: boolean; halves?: readonly Where[] } = {}) {
-  const id = `io.molis.work.example.${name}`, halves = options.halves ?? ["project"];
+  const id = `com.example.${name}`, halves = options.halves ?? ["project"];
   const files = { read: `${name}:files-read`, write: `${name}:files-write` };
   // An action that starts a terminal in the owner files also makes the folder it starts in.
   const declared = [...(options.terminal === false ? [] : [TERMINAL]), ...(options.ownerFiles ? [files.read, files.write] : [])];
@@ -510,7 +510,7 @@ test("RAC-2557 S-103 a sandboxed package that asks for terminal:run is stopped b
   const started: string[] = [];
   const sandboxed = (id: string, required: boolean): PluginDefinition => ({ manifest: manifest(id, required), execution: "sandbox",
     async start(context) { started.push(context.plugin_id); return { kind: "app" }; } });
-  const asks = [["io.molis.work.example.sbxtermrequired", true, ["storage:private", TERMINAL]], ["io.molis.work.example.sbxtermapproved", false, ["storage:private", TERMINAL]]] as const;
+  const asks = [["com.example.sbxtermrequired", true, ["storage:private", TERMINAL]], ["com.example.sbxtermapproved", false, ["storage:private", TERMINAL]]] as const;
 
   const project = { project_id: "board", storage_key: join(home, "project.sqlite") };
   const store = new LocalProjectDatabase(project.storage_key);
@@ -520,7 +520,7 @@ test("RAC-2557 S-103 a sandboxed package that asks for terminal:run is stopped b
   const actions = { registry: local.actionRegistry(project), client: { ...local.actionClient(project), ...local.syncActionClient(project) }, project_id: project.project_id };
   const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "web-user", artifacts, processItems, ui: new UiHost(), dependencyCheck: hostDependencyCheck(local.client(project)),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
-  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const homeActions = new ActionService();
   const homeHost = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry: homeActions, client: homeActions, entries: [] });
   t.after(async () => { try { await homeHost.close(); await local.close(); store.close(); } finally { await rm(home, { recursive: true, force: true }); } });

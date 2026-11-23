@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -37,7 +37,7 @@ async function startPlugin(host: LocalHost<unknown>, project: ReturnType<typeof 
   const modules = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (projectId: string) => store.eventCursor(projectId) };
   const raw = host.client(project), contexts: PluginStartContext[] = [];
   const definition: PluginDefinition = {
-    manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.dependency", version: "1.0.0", name: "Dependency", kind: "app",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.dependency", version: "1.0.0", name: "Dependency", kind: "app",
       publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: [...consumes] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
       ...(options.definitions ? { actions: options.definitions } : {}), ...(options.background ? { background: options.background } : {}) },
@@ -48,7 +48,7 @@ async function startPlugin(host: LocalHost<unknown>, project: ReturnType<typeof 
   const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "owner", artifacts: new ArtifactsModule(modules), processItems: new ProcessItemsModule(modules), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
     ...(options.check === false ? {} : { dependencyCheck: dependency => raw.availability(dependency, { consumer: "plugin" }) }) });
-  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, actions });
+  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions });
   const { install } = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] });
   await runtime.start(install.install_id);
   return { actions: contexts[0]!.services!.actions!, stop: () => runtime.stop(install.install_id),
@@ -109,7 +109,7 @@ test("a plugin query does not discover every action on each read; a command conf
     discover: async (who) => { discovered++; return client.discover(who); },
     discoverOne: async (who, target) => { discoveredOne++; return client.discoverOne!(who, target); },
   }, () => caller);
-  const context: PluginStartContext = { install_id: "fixture", installation_generation: "1", plugin_id: "io.molis.work.example.reads", version: "1.0.0", deployment: "local", grants: [], actor_id: caller.actor_id,
+  const context: PluginStartContext = { install_id: "fixture", installation_generation: "1", plugin_id: "com.example.reads", version: "1.0.0", deployment: "local", grants: [], actor_id: caller.actor_id,
     services: { actions: { ...actions, availability: () => ({ available: true }), invokeQuery: async () => { throw new Error("No query delegation expected"); } },
       artifacts: { read: () => { throw new Error("No Artifact reads expected"); }, publish: () => { throw new Error("No Artifact writes expected"); } },
       ui: { register: () => { throw new Error("No UI expected"); }, unregister: () => {} } },

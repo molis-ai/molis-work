@@ -1,5 +1,5 @@
 import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -43,14 +43,14 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
     input_schema: { type: "object", properties: { state: { enum: ["reviewed", "later"] } }, required: ["state"], additionalProperties: false },
   } };
   const privateAction = { ...read, capability_id: "unknown.user-only", action: { ...read.action, audiences: ["user" as const] } };
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.agent-notes", version: "1.0.0", name: "原插件笔记",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.agent-notes", version: "1.0.0", name: "原插件笔记",
     kind: "app", publisher: { publisher_id: "example", signature: "agent-notes" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["notes:read", "notes:write"].map(permission => ({ permission, required: false, reason: "访问原笔记" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [read, write, privateAction] },
     async start() { return { kind: "app", actions: [{ ...read, handle: () => note() }, { ...privateAction, handle: () => note() }, { ...write, handle: (_caller, input) => {
       store.db.prepare("UPDATE fixture_agent_notes SET state = ? WHERE id = 'note-1'").run((input as { state: string }).state); return note();
     } }] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
   await runtime.start(install.install_id);
   const ref = (definition: ActionDefinition) => ({ capability_id: definition.capability_id, version: definition.version, provider_id: install.install_id });

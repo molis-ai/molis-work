@@ -27,7 +27,7 @@ function fixture(t: TestContext, projectId = DEMO_PROJECT_ID) {
     store.close(); rmSync(directory, { recursive: true, force: true });
   });
   const start = async (name: string, declare = true) => {
-    const id = "io.molis.work.example." + name;
+    const id = "com.example." + name;
     let services: PluginHostServices, work: (caller: ActionExecutionContext) => Promise<void> = async () => {};
     const command: ActionDefinition = { capability_id: name + ".deliver", version: 1, operation: "command", action: {
       title: "Deliver", description: "Deliver a notification with a business record", kind: "operation", scope: "project", audiences: ["user"],

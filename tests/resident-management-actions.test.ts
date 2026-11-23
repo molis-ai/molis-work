@@ -123,7 +123,7 @@ test("W3-07-7-03 an authorized management action tool still executes through the
     output_schema: { type: "object", properties: { saved: { type: "integer" } }, required: ["saved"], additionalProperties: false } } };
   await env.host.withProject(env.reference, runtime => {
     runtime.store.db.exec("CREATE TABLE management_notes (actor TEXT NOT NULL, text TEXT NOT NULL)");
-    env.host.actionRegistry(env.reference).registerProvider({ provider: { provider_id: "management-routing", title: "Routing", kind: "plugin", plugin_id: "io.molis.work.example.routing" },
+    env.host.actionRegistry(env.reference).registerProvider({ provider: { provider_id: "management-routing", title: "Routing", kind: "plugin", plugin_id: "com.example.routing" },
       definitions: [action], handlers: [{ ...action, handle: async (context, input) => {
         await context.beforeEffect?.();
         runtime.store.db.prepare("INSERT INTO management_notes VALUES (?, ?)").run(context.actor_id, (input as { text: string }).text);

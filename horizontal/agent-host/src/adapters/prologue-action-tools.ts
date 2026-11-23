@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { DEFAULT_TOOL_LIMITS, type DynamicTool, type EffectOrigin, type PackParameterBranches, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, actionEffect, type ActionSubject, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionEffect, exactBoundActionView, type ActionSubject, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { knowledgeRefFromDigestHex, knowledgeSubjectHashInput } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { AgentFrozenRole, AgentRunOffer, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { assertPinnedMaterialResult, capabilityInput, GATEWAY_TOOLS, offerWords, withPinnedKnowledgeRevision } from "./prologue-action-gateway.js";
@@ -145,7 +145,7 @@ export function prologueActionTools(
 
 /** The current view of a frozen action, or why it may not be used now: gone, not for agents, switched off, or changed since the round froze it. */
 async function currentAction(actions: NonNullable<AgentFrozenRole["actions"]>, view: ActionView): Promise<ActionView> {
-  const current = (await actions.client.discover()).find(row => row.capability_id === view.capability_id && row.version === view.version && row.provider.provider_id === view.provider.provider_id);
+  const current = await exactBoundActionView(actions.client, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
   if (!current || !current.action.audiences.includes("agent")) throw new ActionError("actions.missing", "The original Agent action is no longer accessible");
   if (!current.availability.available) throw new ActionError(current.availability.code, current.availability.reason);
   if (!isDeepStrictEqual(current.action, view.action) || current.operation !== view.operation) throw new ActionError("actions.definition_changed", "The action contract changed; start a new run with its current version");

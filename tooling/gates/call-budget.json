@@ -4,96 +4,96 @@
     "inspectActions": 0,
     "discover": 3,
     "discoverScenes": 0,
-    "projectPluginReads": 16,
-    "sqliteOpens": 16,
+    "projectPluginReads": 1,
+    "sqliteOpens": 0,
     "actionDirectoryRows": 113,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 31,
-    "shippedRegistrationRows": 2882
+    "shippedRegistrationRows": 2376
   },
   "projectBrief": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 3,
     "discoverScenes": 1,
-    "projectPluginReads": 12,
-    "sqliteOpens": 12,
+    "projectPluginReads": 0,
+    "sqliteOpens": 0,
     "actionDirectoryRows": 5,
     "sceneDirectoryRows": 1,
     "ownerResolutions": 4,
-    "shippedRegistrationRows": 682
+    "shippedRegistrationRows": 264
   },
   "rightSide": {
     "prepareContext": 4,
     "inspectActions": 0,
     "discover": 6,
     "discoverScenes": 0,
-    "projectPluginReads": 30,
-    "sqliteOpens": 35,
+    "projectPluginReads": 0,
+    "sqliteOpens": 3,
     "actionDirectoryRows": 252,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 231,
-    "shippedRegistrationRows": 1562
+    "shippedRegistrationRows": 682
   },
   "contextual": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
     "discoverScenes": 0,
-    "projectPluginReads": 3,
-    "sqliteOpens": 3,
+    "projectPluginReads": 0,
+    "sqliteOpens": 0,
     "actionDirectoryRows": 19,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 17,
-    "shippedRegistrationRows": 198
+    "shippedRegistrationRows": 88
   },
   "sideFileSources": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
     "discoverScenes": 0,
-    "projectPluginReads": 4,
-    "sqliteOpens": 4,
+    "projectPluginReads": 1,
+    "sqliteOpens": 0,
     "actionDirectoryRows": 9,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 6,
-    "shippedRegistrationRows": 198
+    "shippedRegistrationRows": 88
   },
   "sideFileFirstPages": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
     "discoverScenes": 0,
-    "projectPluginReads": 13,
-    "sqliteOpens": 14,
+    "projectPluginReads": 1,
+    "sqliteOpens": 1,
     "actionDirectoryRows": 9,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 12,
-    "shippedRegistrationRows": 660
+    "shippedRegistrationRows": 286
   },
   "sideFileEntries": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
     "discoverScenes": 0,
-    "projectPluginReads": 6,
-    "sqliteOpens": 6,
+    "projectPluginReads": 1,
+    "sqliteOpens": 0,
     "actionDirectoryRows": 9,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 7,
-    "shippedRegistrationRows": 308
+    "shippedRegistrationRows": 132
   },
   "sideFilePreview": {
     "prepareContext": 1,
     "inspectActions": 0,
     "discover": 1,
     "discoverScenes": 0,
-    "projectPluginReads": 6,
-    "sqliteOpens": 6,
+    "projectPluginReads": 1,
+    "sqliteOpens": 0,
     "actionDirectoryRows": 38,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 30,
-    "shippedRegistrationRows": 308
+    "shippedRegistrationRows": 132
   },
   "sideFileMissingSource": {
     "prepareContext": 0,
@@ -136,12 +136,12 @@
     "inspectActions": 0,
     "discover": 0,
     "discoverScenes": 0,
-    "projectPluginReads": 2,
-    "sqliteOpens": 2,
+    "projectPluginReads": 0,
+    "sqliteOpens": 0,
     "actionDirectoryRows": 0,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 0,
-    "shippedRegistrationRows": 176
+    "shippedRegistrationRows": 88
   },
   "knowledgeUnknown": {
     "prepareContext": 0,
@@ -172,11 +172,11 @@
     "inspectActions": 0,
     "discover": 2,
     "discoverScenes": 0,
-    "projectPluginReads": 21,
-    "sqliteOpens": 22,
+    "projectPluginReads": 1,
+    "sqliteOpens": 0,
     "actionDirectoryRows": 2,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 6,
-    "shippedRegistrationRows": 2816
+    "shippedRegistrationRows": 2112
   }
 }

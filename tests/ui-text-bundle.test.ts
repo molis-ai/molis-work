@@ -112,7 +112,7 @@ test("FSS-69: a copy of the SDK bundled into one module and loaded from data: re
   const copy = await load(text) as Pick<typeof nodeUi, "t" | "say" | "format">;
   assert.notEqual(copy.t, t, "it is another copy");
   assert.throws(() => copy.t("notes.a"), { code: "ui.text_no_context" }, "nothing installed yet");
-  const pack: UiLocalePack = { format_version: UI_FORMAT_VERSIONS.locale, owner: "io.molis.work.example.notes", locale: "en", messages: { "notes.a": "Hello {who}" } };
+  const pack: UiLocalePack = { format_version: UI_FORMAT_VERSIONS.locale, owner: "com.example.notes", locale: "en", messages: { "notes.a": "Hello {who}" } };
   const uninstall = installTextForTest({ packs: [pack], locale: "en" });
   try {
     assert.equal(copy.t("notes.a", { who: "A&B" }), "Hello A&amp;B");

@@ -38,7 +38,7 @@ function fakePort() {
   };
   return { sent, port };
 }
-const github: CallConnection = { plugin_id: "io.molis.work.example.feedprobe", install_id: "install-feedprobe", service_id: "github", connection_id: "c-1" };
+const github: CallConnection = { plugin_id: "com.example.feedprobe", install_id: "install-feedprobe", service_id: "github", connection_id: "c-1" };
 
 test("S-95: the call's own connection takes only the reserved slot, no record key, reads only, never releases", async () => {
   const { sent, port } = fakePort(), ended = new AbortController();
@@ -66,7 +66,7 @@ test("S-95: once the call ends its connection answers nothing, and a call that e
 });
 
 test("S-95: the broker uses the call's connections only for an operation declaring the reserved slot, and the activation has none", async () => {
-  const identity: SandboxIdentity = { projectId: "p", installationId: "install-s94", pluginId: "io.molis.work.example.feedprobe", namespace: "installed" };
+  const identity: SandboxIdentity = { projectId: "p", installationId: "install-s94", pluginId: "com.example.feedprobe", namespace: "installed" };
   const operation = (connections: string[]): SandboxOperationContract => ({ id: "integration.poll", kind: "query", input: { type: "null" }, output: { type: "null" }, errors: [], effects: { connections }, examples: [] });
   const { sent, port } = fakePort();
   const broker = new SandboxBroker(identity, { connections: [SLOT] }, sandboxServicesFor({ storage: { get: () => null, set: () => {}, delete: () => false, compareAndSet: () => true } }), DEFAULT_SANDBOX_LIMITS);
@@ -144,7 +144,7 @@ test("S-95: a service the platform's table does not have reaches only the origin
   const { seen, testServer, lookup } = await standIn(t, ["api.example-feed.com", "evil.example.com"]);
   const { directory, token } = await home(t);
   const port = createCallConnectionsPort(directory, { lookup, allowAddress: () => true, testServer });
-  const declared: CallConnection = { plugin_id: "io.molis.work.example.feedprobe", install_id: "install-feedprobe", service_id: "example-feed", connection_id: token("example-feed"), origins: ["https://api.example-feed.com"] };
+  const declared: CallConnection = { plugin_id: "com.example.feedprobe", install_id: "install-feedprobe", service_id: "example-feed", connection_id: token("example-feed"), origins: ["https://api.example-feed.com"] };
 
   const answer = await port.request(declared, dispatch("https://api.example-feed.com/items"));
   assert.equal(answer.authenticated, true);

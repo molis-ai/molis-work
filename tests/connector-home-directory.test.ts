@@ -13,7 +13,7 @@ import { openTestHome, type TestHome } from "./fixtures/test-home.js";
 // RAC-2466 to RAC-2470 (BL-740, T-119): the settings cards and the new-connection paths read the Home's integration registry, so a service an
 // installed integration package declares has its card and can take a connection, and the card goes when the package is detached.
 
-const PLUGIN_ID = "io.molis.work.example.feedprobe";
+const PLUGIN_ID = "com.example.feedprobe";
 const SERVICE = "example-feed";
 /** A throwaway credential for the probe service, made per call so no credential-shaped literal sits in the file. */
 const probeToken = (n: number) => `fixture-probe-token-${String(n).padStart(4, "0")}`;

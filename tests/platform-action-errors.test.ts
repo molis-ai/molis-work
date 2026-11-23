@@ -22,7 +22,7 @@ test("W3-02-G1-01 real gateway preserves owner kind and details and marks only t
   let failure: unknown = new ActionError("example.stale", "原资料已变化", { kind: "conflict", details });
   const writes: string[] = [];
   await host.withProject(project.reference, () => host.actionRegistry(project.reference).registerProvider({
-    provider: { provider_id: "example-platform", title: "Example", kind: "plugin", plugin_id: "io.molis.work.example.platform" },
+    provider: { provider_id: "example-platform", title: "Example", kind: "plugin", plugin_id: "com.example.platform" },
     definitions: [command], handlers: [{ ...command, handle: () => { if (failure) throw failure; writes.push("saved"); return null; } }],
   }));
   const clientId = "runtime:platform-errors";
@@ -122,7 +122,7 @@ test("W3-02-G1-03 real Home, Placement and Contextual routes preserve owner deta
   let failure: unknown = new ActionError("example.stale", "原资料已变化", { kind: "conflict", details });
   const writes: string[] = [];
   await host.withProject(project.reference, () => host.actionRegistry(project.reference).registerProvider({
-    provider: { provider_id: "example-platform", title: "Example", kind: "plugin", plugin_id: "io.molis.work.example.platform", project_id: project.project_id },
+    provider: { provider_id: "example-platform", title: "Example", kind: "plugin", plugin_id: "com.example.platform", project_id: project.project_id },
     definitions: [reader, mover, offers, write], handlers: [
       { ...reader, handle: () => { return subjectContext({ subject: { kind: "example_note", id: note.id },
         revision: "1", title: "Example note", content: note.body, project_id: note.project_id }); } },
@@ -134,7 +134,7 @@ test("W3-02-G1-03 real Home, Placement and Contextual routes preserve owner deta
   const post = (path: string, body: unknown) => fetch(`${origin}/projects/${project.project_id}${path}`, { method: "POST", headers: {
     origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID(),
   }, body: JSON.stringify(body) });
-  const focus = { context_id: "g1-note", plugin_id: "io.molis.work.example.platform", activity: "selecting", granularity: "range",
+  const focus = { context_id: "g1-note", plugin_id: "com.example.platform", activity: "selecting", granularity: "range",
     object: { kind: "example_note", id: note.id }, targets: [{ kind: "text_range", text: note.body }] };
   const candidates = await post("/api/contextual/candidates", { pane_id: "g1-note", focus });
   assert.equal(candidates.status, 200);

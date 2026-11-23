@@ -137,6 +137,9 @@ test("S-07 the action gateway takes the number of an operation only on an invoca
   const discovery = await post({ ...envelope, operation: "discover", call_id: randomUUID() });
   assert.equal(discovery.status, 400);
   assert.equal((await discovery.json() as { code: string }).code, "actions.input_invalid");
+  const discoveryOne = await post({ ...envelope, operation: "discoverOne", capability: { capability_id: "nobody.provides.this", version: 1 }, call_id: randomUUID() });
+  assert.equal(discoveryOne.status, 400);
+  assert.equal((await discoveryOne.json() as { code: string }).code, "actions.input_invalid");
   assert.equal(log(), "", "no call was made, so no row was written");
 
   // A number the forwarding process made is accepted, and is the one the Host's row and its answer carry: nothing else gives a number.
@@ -164,6 +167,7 @@ test("S-08 the action gateway refuses a forwarding process that names itself as 
   // The built-in Agent's id, and the shape a task's grant subject takes (specs/proactive-assistant/schedule-task-reads.md §3.1).
   for (const client_id of ["agent:prologue", "agent:task:project:install:task", "agent:"]) {
     for (const body of [{ ...envelope, client_id, operation: "discover" },
+      { ...envelope, client_id, operation: "discoverOne", capability: { capability_id: "nobody.provides.this", version: 1 } },
       { ...envelope, client_id, operation: "invoke", instance_id: instance, call_id: randomUUID(), capability: { capability_id: "nobody.provides.this", version: 1 }, input: {} }]) {
       const answer = await post(body);
       assert.equal(answer.status, 400, `${client_id} ${body.operation}`);

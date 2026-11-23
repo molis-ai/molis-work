@@ -106,8 +106,9 @@ export function formationSourceBinding(home: string, adapter: AgentRuntimeAdapte
       if (!session || !isDeepStrictEqual(session.owner, canonical.owner) || session.owner.actor_id !== caller.actor_id || session.status.recovery) throw memoryErrors.forbidden("实际形成来源的主人不可核验");
       if (session.owner.plugin_id === ASSISTANT_PLUGIN_ID) nextAssistant.push({ session_id: identity.session_id,
         project_id: session.owner.project_id === ASSISTANT_PERSONAL_OWNER ? null : session.owner.project_id });
-      else if (session.owner.plugin_id) nextOwned.push(Object.freeze({ ...ref, session_id: identity.session_id }));
-      else throw memoryErrors.forbidden("实际形成来源不属于可用的来源主人");
+      else if (session.owner.plugin_id && session.owner.plugin_id === caller.plugin_id && session.owner.project_id === caller.project_id)
+        nextOwned.push(Object.freeze({ ...ref, session_id: identity.session_id }));
+      else throw memoryErrors.forbidden("实际形成来源不属于当前来源主人");
     }
     owned = Object.freeze([...owned, ...nextOwned.filter(next => !owned.some(old => old.event_id === next.event_id && old.version === next.version && old.session_id === next.session_id))]);
     assistant = Object.freeze([...assistant, ...nextAssistant.filter(next => !assistant.some(old => old.session_id === next.session_id && old.project_id === next.project_id))]);

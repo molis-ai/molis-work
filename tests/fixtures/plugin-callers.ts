@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./isolated-host.js";
 import assert from "node:assert/strict";
 import { PluginHostExecutor, type LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionRegistryPort, type SyncActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -57,7 +57,7 @@ export function callerPlugin(name: string, scope: CallerScope, permissions: Read
   const { peek, note } = probeActions(scope);
   const contexts: PluginStartContext[] = [];
   const declared = { "storage:private": true, [CALLERS_READ]: true, ...permissions };
-  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: `io.molis.work.example.${name}`, version: "1.0.0", name, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: `com.example.${name}`, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `callers-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: Object.entries(declared).map(([permission, required]) => ({ permission, required, reason: "动作网关探针" })),
     capabilities: { provides: [], consumes: [peek.capability_id, note.capability_id, ...consumes] }, artifacts: { produces: [], consumes: [] },
@@ -101,7 +101,7 @@ export async function startPlugin(host: { actionRegistry(reference: LocalHostPro
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
     ...(options.dependencies ? { dependencyCheck: (dependency: ActionReference) => options.dependencies!.availability(dependency, { consumer: "plugin" }) } : {}) });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), executor, { hostIds: ISOLATED_HOST_IDS });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), executor, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
   const required = plugin.definition.manifest.permissions.filter(item => item.required).map(item => item.permission);
   const { install } = runtime.install({ trust: { level: "unsigned" }, definition: plugin.definition, deployment: "local", grants: [...required, ...(options.grants ?? [])] });
   // The release a product start archives (its supervisor does), so the project's own reads of what this plugin declares find it.

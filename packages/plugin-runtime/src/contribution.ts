@@ -1,9 +1,9 @@
-import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors, STATE_MACHINE_DECLARATION_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
+import { inspectStateMachineDeclarations } from "@molis-ai/molis-work-plugin-sdk/state-machine";
 import { syncContributionProblems } from './sync-contribution.js';
 import { declaresOwner } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
-  STATE_MACHINE_DECLARATION_LIMITS,
   type PluginAppContribution,
   type PluginContribution,
   type PluginManifest,
@@ -153,8 +153,8 @@ export function assertContributionMatchesManifest(
 function sameMachine(declared: StateMachineDeclaration, delivered: StateMachineDeclaration): boolean {
   const states = Object.entries(declared.states), terminal = new Set(declared.terminal);
   return declared.version === delivered.version && declared.initial === delivered.initial
-    && isRecord(delivered.states) && Object.keys(delivered.states).length === states.length && states.every(([state, family]) => delivered.states[state] === family)
-    && Array.isArray(delivered.terminal) && delivered.terminal.length === terminal.size && delivered.terminal.every(state => terminal.has(state));
+    && Object.keys(delivered.states).length === states.length && states.every(([state, family]) => delivered.states[state] === family)
+    && delivered.terminal.length === terminal.size && delivered.terminal.every(state => terminal.has(state));
 }
 
 /**
@@ -164,18 +164,24 @@ function sameMachine(declared: StateMachineDeclaration, delivered: StateMachineD
  */
 function assertStateMachines(manifest: PluginManifest, contribution: PluginContribution, scope: RedemptionScope): string[] {
   const declared = new Map((manifest.state_machines ?? []).map(machine => [machine.machine_id, machine]));
-  const delivered: unknown = contribution.state_machines;
+  const delivered = contribution.state_machines;
   if (delivered === undefined) {
     return scope.state_machines_owed && !scope.partial ? [...declared.keys()].map(id => `声明的状态机 ${id} 没有兑现`) : [];
   }
-  if (!Array.isArray(delivered) || delivered.length > STATE_MACHINE_DECLARATION_LIMITS.machines) return ["state_machines 须为状态机声明列表"];
+  if (!Array.isArray(delivered) || delivered.length > STATE_MACHINE_DECLARATION_LIMITS.machines) return ["运行时的 state_machines 不是有效清单"];
   const problems: string[] = [], seen = new Set<string>();
-  for (const machine of delivered as readonly unknown[]) {
-    const id = isRecord(machine) && typeof machine.machine_id === "string" ? machine.machine_id.slice(0, STATE_MACHINE_DECLARATION_LIMITS.id) : "";
-    const expected = declared.get(id);
-    if (!expected || seen.has(id)) problems.push(`状态机 ${id || "（无 machine_id）"} 未声明或重复`);
-    else if (!sameMachine(expected, machine as StateMachineDeclaration)) problems.push(`状态机 ${id} 与 Manifest 声明的版本、状态或家族不一致`);
-    seen.add(id);
+  for (const [index, machine] of delivered.entries()) {
+    const id = isRecord(machine) && typeof machine.machine_id === "string" ? machine.machine_id : undefined;
+    try { inspectStateMachineDeclarations([machine], manifest.plugin_id); }
+    catch (error) {
+      problems.push(`状态机 ${id?.slice(0, STATE_MACHINE_DECLARATION_LIMITS.id) ?? index}：${error instanceof Error ? error.message : "声明无效"}`);
+      continue;
+    }
+    const expected = declared.get(machine.machine_id);
+    if (seen.has(machine.machine_id)) problems.push(`状态机 ${id} 重复兑现`);
+    else if (!expected) problems.push(`状态机 ${id} 未声明`);
+    else if (!sameMachine(expected, machine)) problems.push(`状态机 ${id} 与 Manifest 声明的版本、状态或家族不一致`);
+    seen.add(machine.machine_id);
   }
   if (!scope.partial) for (const id of declared.keys()) if (!seen.has(id)) problems.push(`声明的状态机 ${id} 没有兑现`);
   return problems;

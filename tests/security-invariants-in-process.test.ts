@@ -5,7 +5,7 @@ import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_BUILD_TRUST, MemoryPluginConsentLedger, MemoryPluginRuntimeRepository, PluginRuntime, PluginSupervisor, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 
 // BL-588, S-75 ⑥ (RAC-990～993): code that runs in the Host's process holds the Host's trust level, unless the Host's own code admitted that very
 // definition object. The refusal is `plugin.in_process_denied`, before any record, consent or private data, and again before every start.
@@ -14,7 +14,7 @@ const FINGERPRINT = `ed25519:sha256:${"a".repeat(64)}`;
 const PINNED = { level: "pinned", publisher_key_id: FINGERPRINT } as const;
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 
-function manifest(pluginId = "io.molis.work.example.inproc", signature = "inproc-label"): PluginManifest {
+function manifest(pluginId = "com.example.inproc", signature = "inproc-label"): PluginManifest {
   return { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: "In-process fixture", kind: "app",
     publisher: { publisher_id: "inproc", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } };
@@ -38,7 +38,7 @@ function observed(admit?: Set<PluginDefinition>) {
     uninstalled: () => { effects.push("uninstalled"); }, keptDataDiscarded: () => { effects.push("discard"); },
     capturePrivateData: () => { effects.push("capture"); return { ...privateData }; },
     restorePrivateData: (_installId: string, snapshot: unknown) => { effects.push("restore"); Object.assign(privateData, snapshot); } };
-  const runtime = new PluginRuntime(storage, executor, { hostIds: ISOLATED_HOST_IDS, consents: ledger, ...admit ? { inProcess: { admit } } : {} });
+  const runtime = new PluginRuntime(storage, executor, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, consents: ledger, ...admit ? { inProcess: { admit } } : {} });
   const snapshot = () => ({ installs: runtime.list(), effects: [...effects], consents: runtime.list().flatMap(r => consents.consents(r.plugin_id)), privateData: { ...privateData } });
   return { runtime, repository, effects, privateData, snapshot };
 }
@@ -75,7 +75,7 @@ test("RAC-990 S-75 a Runtime that admits no definition refuses unsigned and pinn
   const h = observed(new Set());
   for (const trust of [UNSIGNED_TRUST, PINNED] as const) {
     const before = h.snapshot();
-    assert.throws(() => h.runtime.install({ definition: inProcessDefinition(manifest("io.molis.work.example.inproc", trust.level === "pinned" ? FINGERPRINT : "inproc-label")),
+    assert.throws(() => h.runtime.install({ definition: inProcessDefinition(manifest("com.example.inproc", trust.level === "pinned" ? FINGERPRINT : "inproc-label")),
       deployment: "local", grants: [], trust }), code("plugin.in_process_denied"), trust.level);
     assert.deepEqual(h.snapshot(), before, "a refusal leaves no install, consent or effect");
   }
@@ -84,9 +84,9 @@ test("RAC-990 S-75 a Runtime that admits no definition refuses unsigned and pinn
 
 test("RAC-990 S-75 the Host's own build, and sandboxed definitions of any level, are not what the rule refuses", () => {
   const h = observed(new Set());
-  assert.equal(h.runtime.install({ definition: inProcessDefinition(manifest("io.molis.work.example.build", "build")), deployment: "local", trust: HOST_BUILD_TRUST }).install.publisher_trust, "host");
-  assert.equal(h.runtime.install({ definition: sandboxedDefinition(manifest("io.molis.work.example.generated", "generated")), deployment: "local", grants: [], trust: UNSIGNED_TRUST }).install.publisher_trust, "unsigned");
-  assert.equal(h.runtime.install({ definition: sandboxedDefinition(manifest("io.molis.work.example.signed", FINGERPRINT)), deployment: "local", grants: [], trust: PINNED }).install.publisher_trust, "pinned");
+  assert.equal(h.runtime.install({ definition: inProcessDefinition(manifest("com.example.build", "build")), deployment: "local", trust: HOST_BUILD_TRUST }).install.publisher_trust, "host");
+  assert.equal(h.runtime.install({ definition: sandboxedDefinition(manifest("com.example.generated", "generated")), deployment: "local", grants: [], trust: UNSIGNED_TRUST }).install.publisher_trust, "unsigned");
+  assert.equal(h.runtime.install({ definition: sandboxedDefinition(manifest("com.example.signed", FINGERPRINT)), deployment: "local", grants: [], trust: PINNED }).install.publisher_trust, "pinned");
 });
 
 test("RAC-991 S-75 a definition is admitted as the object the Host named, not by what it says or looks like", async () => {
@@ -104,9 +104,9 @@ test("RAC-991 S-75 a definition is admitted as the object the Host named, not by
 test("RAC-992 S-75 a stored record is rechecked before every start and recovery, and a refusal is not retried until quarantine", async () => {
   const starts: string[] = [], plugin = inProcessDefinition(manifest(), starts), repository = new MemoryPluginRuntimeRepository();
   // The record is from a real public install in a Runtime that checks nothing (a test's bare Runtime), then the Host starts it under a strict one.
-  const installed = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: plugin, deployment: "local", grants: [], trust: UNSIGNED_TRUST }).install;
+  const installed = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).install({ definition: plugin, deployment: "local", grants: [], trust: UNSIGNED_TRUST }).install;
   assert.equal(installed.execution, "host");
-  const strict = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, inProcess: { admit: new Set() } });
+  const strict = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, inProcess: { admit: new Set() } });
   strict.register(plugin);
   for (let attempt = 0; attempt < 6; attempt += 1) {
     await assert.rejects(attempt === 0 ? strict.start(installed.install_id) : strict.recover(installed.install_id), code("plugin.in_process_denied"));
@@ -117,7 +117,7 @@ test("RAC-992 S-75 a stored record is rechecked before every start and recovery,
   }
   assert.deepEqual(starts, [], "the plugin's code never ran");
   // Admitting the object is a change of the Host's facts, and the same path then recovers it.
-  const admitting = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, inProcess: { admit: new Set([plugin]) } });
+  const admitting = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, inProcess: { admit: new Set([plugin]) } });
   admitting.register(plugin);
   await admitting.recover(installed.install_id);
   assert.equal(admitting.get(installed.install_id).state, "running");
@@ -136,18 +136,18 @@ test("RAC-992 S-75 a live instance is rechecked when it is started again, and wi
 });
 
 test("RAC-996 S-75 a start entry that forgets its trust runs nowhere in a strict Runtime; the Host's build and an admitted fixture do", async () => {
-  const forgotten = inProcessDefinition(manifest("io.molis.work.example.forgot", "forgot")), shipped = inProcessDefinition(manifest("io.molis.work.example.shipped", "shipped"));
-  const fixture = inProcessDefinition(manifest("io.molis.work.example.fixture", "fixture"));
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, inProcess: { admit: new Set([fixture]) } });
+  const forgotten = inProcessDefinition(manifest("com.example.forgot", "forgot")), shipped = inProcessDefinition(manifest("com.example.shipped", "shipped"));
+  const fixture = inProcessDefinition(manifest("com.example.fixture", "fixture"));
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, inProcess: { admit: new Set([fixture]) } });
   const supervisor = new PluginSupervisor(runtime);
   const report = await supervisor.start([{ definition: forgotten }, { definition: shipped, trust: HOST_BUILD_TRUST }, { definition: fixture }]);
-  assert.deepEqual(report.running.sort(), ["io.molis.work.example.fixture", "io.molis.work.example.shipped"]);
-  assert.deepEqual(report.failed.map(state => [state.plugin_id, state.code]), [["io.molis.work.example.forgot", "plugin.in_process_denied"]]);
-  assert.deepEqual(runtime.list().filter(record => record.plugin_id === "io.molis.work.example.forgot"), [], "nothing of it was installed");
+  assert.deepEqual(report.running.sort(), ["com.example.fixture", "com.example.shipped"]);
+  assert.deepEqual(report.failed.map(state => [state.plugin_id, state.code]), [["com.example.forgot", "plugin.in_process_denied"]]);
+  assert.deepEqual(runtime.list().filter(record => record.plugin_id === "com.example.forgot"), [], "nothing of it was installed");
 });
 
 test("RAC-993 S-75 nothing a plugin, a package or a caller writes opens the Host's process to it", () => {
-  const strict = () => new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, inProcess: { admit: new Set() } });
+  const strict = () => new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, inProcess: { admit: new Set() } });
   // A Manifest cannot name it: not under any spelling of the option, nor with a trust claim or a `host` execution of its own.
   const claimed = inProcessDefinition(Object.assign(manifest(), { inProcess: { admit: true }, in_process: true, admit: true, execution: "host", trust: { level: "host" }, bundled: true }));
   assert.throws(() => strict().install({ definition: claimed, deployment: "local", grants: [], trust: UNSIGNED_TRUST }), code("plugin.in_process_denied"));

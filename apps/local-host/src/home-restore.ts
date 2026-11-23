@@ -2,7 +2,7 @@ import { completeRestoreSpace, journalStorageSpace, snapshotSpaceDigest } from "
 import { lstatSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { acquireStorageOwner, acquireStorageOwnerForRecovery, assertStorageOwner } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, acquireStorageOwnerForRecovery, assertStorageOwner, releaseHeldHomeSqlite } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { readHomeRestoreArchive } from "./home-restore-archive.js";
 import { prepareRestoreMemory, assertCompleteRestoreMemory } from "./home-restore-memory.js";
@@ -57,6 +57,7 @@ export async function restoreHomeSnapshot(options: HomeRestoreOptions): Promise<
   const owner = acquireStorageOwner(root);
   let cleanupOwnsLease = false;
   try {
+    releaseHeldHomeSqlite(home);
     assertHomeLibrarySnapshotReady(home, owner);
     if (homeUpgradeUnfinished(home)) throw homeSnapshotErrors.maintenance_pending("上一轮升级还没有做完，所以没有恢复。先启动一次 Molis Work 让它做完，再来恢复。");
     const scope = snapshotSpaceDigest(home);
@@ -84,6 +85,7 @@ export async function restoreHomeSnapshot(options: HomeRestoreOptions): Promise<
       }
       assertRestoreDependencies(home, inputs.registry, stores.dependencies); control.assertCurrent();
     };
+    releaseHeldHomeSqlite(home);
     return await publishHomeRestore(home, inputs, target, control, { assertCurrent: lease }, async journal => {
       if (journal) verifyCommittedHomeRestore(journal, target.registry, options.inspectCatalog, control);
       assertRestoreDependencies(home, inputs.registry, stores.dependencies);
@@ -99,7 +101,10 @@ export async function restoreHomeSnapshot(options: HomeRestoreOptions): Promise<
       cleanupOwnsLease = true; throw retainFailedCleanup(error, () => owner.release());
     }
     throw error;
-  } finally { if (!cleanupOwnsLease) owner.release(); }
+  } finally {
+    releaseHeldHomeSqlite(home);
+    if (!cleanupOwnsLease) owner.release();
+  }
 }
 
 /** Explicit reentry uses the same underlying SQLite acquisition, never a second lock or a same-PID exception. */
@@ -109,6 +114,7 @@ export async function recoverHomeRestore(options: HomeRestoreRecoveryOptions): P
   const owner = acquireStorageOwnerForRecovery(root);
   let cleanupOwnsLease = false;
   try {
+    releaseHeldHomeSqlite(home);
     const pending = readHomeRestoreJournal(home);
     if (!pending) return { status: "no_recovery", home_directory: home };
     const control: HomeRestoreControl = { signal: options.signal, assertCurrent() {
@@ -137,5 +143,8 @@ export async function recoverHomeRestore(options: HomeRestoreRecoveryOptions): P
       cleanupOwnsLease = true; throw retainFailedCleanup(error, () => owner.release());
     }
     throw error;
-  } finally { if (!cleanupOwnsLease) owner.release(); }
+  } finally {
+    releaseHeldHomeSqlite(home);
+    if (!cleanupOwnsLease) owner.release();
+  }
 }

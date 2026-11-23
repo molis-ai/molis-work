@@ -1,7 +1,7 @@
 import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { randomUUID } from "node:crypto";
 import { createPrologueError, DEFAULT_TOOL_LIMITS, type EffectOrigin, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
-import { ActionError, actionEffect, actionFieldLabelSource, actionFieldValue, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionEffect, actionFieldLabelSource, actionFieldValue, exactBoundActionView, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { agentErrors } from "../errors.js";
@@ -359,9 +359,11 @@ export function prologueActionGateway(
   const declared = declaredCapabilities(gateway);
   const guarded = (run: GatewayToolRun) => guardGatewayTool(run, runSignal);
   const current = async (args: CapabilityArgs, write: boolean): Promise<ActionView> => {
-    const views = await gateway.client.discover();
-    const view = views.find(row => row.capability_id === args.capability_id && row.version === args.version && row.provider.provider_id === args.provider_id);
-    if (!view || !view.action.audiences.includes("agent")) throw new ActionError("actions.missing", notOffered(views, args, offered));
+    const view = await exactBoundActionView(gateway.client, { capability_id: args.capability_id, version: args.version, provider_id: args.provider_id });
+    if (!view || !view.action.audiences.includes("agent")) {
+      const views = await gateway.client.discover();
+      throw new ActionError("actions.missing", notOffered(views, args, offered));
+    }
     known.add(view.capability_id); offered.add(offeredKey(view)); declared.note(view);
     if (!view.availability.available) throw new ActionError(view.availability.code, view.availability.reason);
     const reads = actionReads(view);
@@ -394,7 +396,7 @@ export function prologueActionGateway(
       // The button's own words sit beside the identity; anything else there is refused with the capability's contract.
       const { title: _title, summary: _summary, editable: _editable, missing: _missing, ...call } = args;
       const parsed = parseCapability(call);
-      const view = (await gateway.client.discover()).find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
+      const view = await exactBoundActionView(gateway.client, { capability_id: parsed.capability_id, version: parsed.version, provider_id: parsed.provider_id });
       if (!view || !view.action.audiences.includes("agent") || !view.availability.available) throw new ActionError("actions.missing", "That capability is not available here; nothing was suggested. Search again with find-capabilities.");
       try {
         const recorded = await gateway.client.offer!({ ...offerWords(args),

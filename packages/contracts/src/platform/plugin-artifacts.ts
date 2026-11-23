@@ -74,8 +74,11 @@ export interface PluginArtifactClient {
 
 /** The 成果库 inside one plugin transaction (`PluginArtifactClient.join`); every call asks the grants and the original caller again. */
 export interface PluginArtifactWriter {
-  /** The newest version of one of this Plugin's own lines, the transaction's own pins included; a line another producer started is refused. */
-  head(artifactId: string): ArtifactLineHead | null;
+  /**
+   * The newest version of one of this Plugin's own lines, including the transaction's pins and the original string revision
+   * of a pinned origin. Imported origins have a null origin_revision. A line another producer started is refused.
+   */
+  head(artifactId: string): (ArtifactLineHead & { origin_revision: string | null }) | null;
   /** Pin a version in the transaction; the type must be in `artifacts.produces`, and the producer and author are the platform's. */
   publish(input: PluginArtifactPublishInput): ArtifactVersionResult;
 }

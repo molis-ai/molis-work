@@ -91,7 +91,7 @@ function listedPanel(subjectId: string, running = true) {
 function panelsFixture(t: TestContext) {
   t.after(installTextForTest({ locale: "zh", packs: [pagePack("workbench", "zh")] }));
   BrowserSocket.instances = [];
-  const state = { plugin: "io.molis.work.example.notes", kind: "sample_note", id: "note-a", readOnly: false };
+  const state = { plugin: "com.example.notes", kind: "sample_note", id: "note-a", readOnly: false };
   const sessions = new Map<string, { hasOutput: boolean; recentOutput: string; lastOutputAt: number;
     term: { write(text: string): void; reset(): void; focus(): void };
     fit: { fit(): void; proposeDimensions(): { cols: number; rows: number } } }>();
@@ -186,7 +186,7 @@ test("RAC-2566 PEQ-17 Panel loading attaches without starting; reopen asks /api/
   assert.equal(f.requests.filter((r) => r.method === "POST").length, 0, "nothing is told the process ended");
   await f.controller.reopenPanel();
   const opened = f.requests.find((r) => r.method === "POST")!;
-  assert.equal(opened.url, "/projects/project-a/api/work-terminals/io.molis.work.example.notes/sample_note/note-a");
+  assert.equal(opened.url, "/projects/project-a/api/work-terminals/com.example.notes/sample_note/note-a");
   assert.deepEqual(JSON.parse(opened.body!), { key: panel.key, command: "cat", args: [] });
   const reopen = ws.sent.at(-1) as Record<string, unknown>;
   assert.equal(reopen.attachOnly, true);

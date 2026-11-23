@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -37,7 +37,7 @@ async function until(read: () => boolean | Promise<boolean>): Promise<void> {
   throw new Error("The expected state was not reached");
 }
 
-const USE = "executor:use", EXECUTOR_ID = "io.molis.work.example.executor", PREFIX = "example.executor";
+const USE = "executor:use", EXECUTOR_ID = "com.example.executor", PREFIX = "example.executor";
 
 /** A plugin that takes on a work through the work-executor protocol, as any installed plugin may: each of its actions needs its installation's one grant, and counts its runs. */
 function executorPlugin() {
@@ -84,7 +84,7 @@ test("S-51 a follow-up scheduled before its executor plugin's grant is revoked, 
   await runWithMolisWorkHome(home, async () => {
     // The executor plugin is one of the project's executors beside Coding; the work this test hands over names it by its plugin id.
     const repository = await local.withProject(reference, project => new SqlitePluginRuntimeRepository(project.store.db));
-    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: local.actionRegistry(reference), project_id: reference.project_id } });
+    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: local.actionRegistry(reference), project_id: reference.project_id } });
     installId = runtime.install({ trust: { level: "unsigned" }, definition: executor.definition, deployment: "local", grants: [USE] }).install.install_id;
     await runtime.start(installId);
     const views = await local.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: reference.project_id, permissions: [] }, reference);

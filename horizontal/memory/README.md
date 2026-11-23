@@ -287,7 +287,7 @@ SDK `get` 本身不核来源。形成登记在精确 get 后复用原 `beforeEff
 
 写主人和精确路径清单在本次仓外交接；新合同文件承载完整Session DTO与strict clear动作，不新增package或公开subpath。活控制仅留Host，MemoryCaller只带已核可序列化身份；授权、CAS、固定tuple和来源/遗忘屏障不可配置，Backend仍走现可装配Port，用户入口交另一个UI写手。此轮不改UI、Storage协议/表、SDK/vendor/lock、HomeRestore生产或门禁。先公开Port/真实临时Home红例，再验证两真实业务Session、绑定交错、越权、分页/历史、同canonical分类、归档写拒绝、候选-only/多scope、部分接受零清理、未知回执/重启/缺计划及原related控制。工程证据不替代页面旅程或用户验收。
 
-受保护入口为个人 `/api/memory/sessions/assistant/:id` 与项目 `/projects/:project_id/api/memory/sessions/:kind/:id`（kind 只可 coding/assistant）。绑定读本业务 owner 与原 SDK owner，不从输入接受 raw Session/owner/actor。Session 分类改成长期或短期仍使用同一 canonical CAS；原请求在 SDK 已完成、ledger 未补账时只准原操作/原 Session/原版本恢复。管理变化记录也按当前 canonical Session 过滤，不能借历史投影带出另一会话正文。
+受保护入口为助理 `/api/memory/sessions/assistant/:id`（项目内加 `/projects/:project_id` 前缀）与插件 `/projects/:project_id/api/memory/sessions/:kind/:plugin_id/:id`（可选 query `memory_session_provider`）。绑定按精确提供方身份与声明场景读本业务 owner 与原 SDK owner，不从输入接受 raw Session/owner/actor。Session 分类改成长期或短期仍使用同一 canonical CAS；原请求在 SDK 已完成、ledger 未补账时只准原操作/原 Session/原版本恢复。管理变化记录也按当前 canonical Session 过滤，不能借历史投影带出另一会话正文。
 
 本人明确范围的全局单条 remove、选中 batch.remove 和 scope.clear 保留原 scope/owner、CAS/operation 与 related 独立遗忘链；它们是范围遗忘，不获得 Session 非删除写权限。受保护 Session URL 始终只定位本 Session；停用和其它非删除写仍须原业务与 SDK active，归档不能通过改成长期绕过。exact Session 清理不扩选关联的未选长期候选，known 计划冲突保留 needs-reconcile，真正事实持久结果未知则上抛 unknown 并保留原 preview。
 

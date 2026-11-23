@@ -67,6 +67,10 @@ export interface FeedSourceActionPorts {
   retire?: Parameters<typeof removeFeedSource>[3];
   /** The command the platform's clock wakes (Runtime Feed only): it does what a tick does, as the plugin. */
   wake?: ActionDefinition<ScheduleWakeupInput, ScheduleWakeupReply>;
+  /** Effective clock for one wakeup invocation, derived from the executing scheduler job. */
+  wakeAt?: (input: ScheduleWakeupInput) => Date;
+  /** Arms or clears the next wake registration once a wakeup finishes its due pulls. */
+  afterWake?: (caller: ActionExecutionContext, jobId: string) => Promise<void>;
 }
 
 export function createFeedSourceHandlers(board: string, ports: FeedSourceActionPorts): ActionHandlerBinding[] {
@@ -99,9 +103,9 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
     }
     throw feedErrors.source_not_syncable("这个来源没有同步能力");
   };
-  const tick = (caller: ActionExecutionContext) => new FeedSourceScheduler(board, () => ports.sources(caller),
+  const tick = (caller: ActionExecutionContext, at: Date = new Date()) => new FeedSourceScheduler(board, () => ports.sources(caller),
     (source, key, authority) => sync({ source_id: source.source_id, idempotency_key: key }, { ...caller, beforeEffect: authority.beforeEffect }), undefined, scheduledSources)
-    .tick(new Date(), caller);
+    .tick(at, caller);
   return [
     bind(a.register, (input, caller) => {
       const registration = sourceRegistrationInput(input);
@@ -135,10 +139,17 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
     bindWaiting(a.sync, sync),
     bindWaiting(a.tick, (_, caller) => tick(caller)),
     // Each source records its own failure, so a wakeup that got as far as pulling is `ok`.
-    ...(ports.wake ? [bindWaiting(ports.wake, async (_input, caller) => {
-      const result = await tick(caller);
-      return { status: "ok" as const, detail: `到期 ${result.due}，完成 ${result.completed}，失败 ${result.failed}，跳过 ${result.skipped}`,
-        ...(result.due === 0 ? { view_changed: false as const } : {}) };
+    ...(ports.wake ? [bindWaiting(ports.wake, async (input, caller) => {
+      const at = ports.wakeAt ? ports.wakeAt(input) : new Date();
+      try {
+        const result = await tick(caller, at);
+        await ports.afterWake?.(caller, input.job_id);
+        return { status: "ok" as const, detail: `到期 ${result.due}，完成 ${result.completed}，失败 ${result.failed}，跳过 ${result.skipped}`,
+          ...(result.due === 0 ? { view_changed: false as const } : {}) };
+      } catch (error) {
+        await ports.afterWake?.(caller, input.job_id).catch(() => undefined);
+        throw error;
+      }
     })] : []),
   ];
 }

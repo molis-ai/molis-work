@@ -231,7 +231,7 @@ test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox
 
   // 1. Install a real signed third-party project-scoped sandbox package declaring `memory_scene: "field-notes"`.
   const publisherA = newPublisher();
-  const fieldNotesBundle = signedPackage(publisherA, undefined, { pluginId: "io.molis.work.example.field-notes", name: "Field Notes", memoryScene: "field-notes" });
+  const fieldNotesBundle = signedPackage(publisherA, undefined, { pluginId: "com.example.field-notes", name: "Field Notes", memoryScene: "field-notes" });
   const fieldPreview = await installBundle(projectA.project_id, fieldNotesBundle, "Field Notes Publisher");
   assert.equal(fieldPreview.memory_scene_after_restart, true, "preview reports new memory scene after restart and passes output schema");
 
@@ -297,17 +297,17 @@ test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox
   // A signed content package targeting `"field-notes"` previews with `skill_scenes` in Project A, while a Home content package targeting it is refused.
   const contentPub = newPublisher();
   const projectContentPreview = await post<{ preview_id: string; skill_scenes?: SkillSceneChoice[] }>(`/projects/${projectA.project_id}/api/plugin-trust/install/preview`, {
-    bundle: signedContentPackage(contentPub, { pluginId: "io.molis.work.example.field-methods", skills: [{ id: "fn-check", applies_to: "field-notes" }] }),
+    bundle: signedContentPackage(contentPub, { pluginId: "com.example.field-methods", skills: [{ id: "fn-check", applies_to: "field-notes" }] }),
   });
   assert.equal(projectContentPreview.status, 200, JSON.stringify(projectContentPreview.body));
   assert.ok(projectContentPreview.body.skill_scenes?.some(row => row.scene === "field-notes" && row.name === "Field Notes"));
   const homeContentRefused = await post<{ code: string }>(`/projects/${projectA.project_id}/api/plugin-trust/install/preview`, {
-    bundle: signedContentPackage(contentPub, { pluginId: "io.molis.work.example.field-methods-home", scope: "home", skills: [{ id: "fn-check", applies_to: "field-notes" }] }),
+    bundle: signedContentPackage(contentPub, { pluginId: "com.example.field-methods-home", scope: "home", skills: [{ id: "fn-check", applies_to: "field-notes" }] }),
   });
   assert.equal(homeContentRefused.body.code, "plugin.declaration_invalid");
 
-  // 3. Disable `io.molis.work.example.field-notes`: candidate disappears immediately, stale preview confirm and new bindings/replays/content-previews are refused, unrelated removal still succeeds.
-  const disabled = await post(`/projects/${projectA.project_id}/api/plugin-trust/installed/disable`, { plugin_id: "io.molis.work.example.field-notes" });
+  // 3. Disable `com.example.field-notes`: candidate disappears immediately, stale preview confirm and new bindings/replays/content-previews are refused, unrelated removal still succeeds.
+  const disabled = await post(`/projects/${projectA.project_id}/api/plugin-trust/installed/disable`, { plugin_id: "com.example.field-notes" });
   assert.equal(disabled.status, 200, JSON.stringify(disabled.body));
   // TOCTOU check: confirming a preview held before disable must re-validate live active scenes and refuse.
   const staleConfirmRefused = await post<{ code: string }>(`/projects/${projectA.project_id}/api/plugin-trust/install/confirm`, {
@@ -341,7 +341,7 @@ test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox
   assert.equal(adoptRefused.body.code, "skills.authored_invalid");
   assert.equal(adoptRefused.body.details?.field, "applies_to");
   const contentAfterDisable = await post<{ code: string }>(`/projects/${projectA.project_id}/api/plugin-trust/install/preview`, {
-    bundle: signedContentPackage(contentPub, { pluginId: "io.molis.work.example.field-methods-disabled", skills: [{ id: "fn-check", applies_to: "field-notes" }] }),
+    bundle: signedContentPackage(contentPub, { pluginId: "com.example.field-methods-disabled", skills: [{ id: "fn-check", applies_to: "field-notes" }] }),
   });
   assert.equal(contentAfterDisable.body.code, "plugin.declaration_invalid");
   // Removing the unrelated `both` Skill still succeeds while the existing `field-notes` Skill remains untouched in `my-skills.project`.
@@ -354,18 +354,18 @@ test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox
   // 4. Re-enable brings `"field-notes"` back, and uninstall (even with keep_data: true) removes it immediately.
   const overviewResp = await f.request(`/projects/${projectA.project_id}/api/plugin-trust/overview`);
   const overview = await overviewResp.json() as { plugins: Array<{ plugin_id: string; install_id: string; installation_generation: string; manifest_digest: string; version: string; uninstall_target: unknown }> };
-  const rowA = overview.plugins.find(item => item.plugin_id === "io.molis.work.example.field-notes")!;
+  const rowA = overview.plugins.find(item => item.plugin_id === "com.example.field-notes")!;
   const reenabled = await post(`/projects/${projectA.project_id}/api/plugin-trust/installed/enable`, {
-    plugin_id: "io.molis.work.example.field-notes",
+    plugin_id: "com.example.field-notes",
     expected_installation: { scope: "project", install_id: rowA.install_id, installation_generation: rowA.installation_generation, version: rowA.version, manifest_digest: rowA.manifest_digest },
   });
   assert.equal(reenabled.status, 200, JSON.stringify(reenabled.body));
   assert.ok((await skillScenes(projectA.project_id)).some(row => row.scene === "field-notes"));
 
   const overview2 = await (await f.request(`/projects/${projectA.project_id}/api/plugin-trust/overview`)).json() as typeof overview;
-  const targetA = overview2.plugins.find(item => item.plugin_id === "io.molis.work.example.field-notes")!.uninstall_target;
+  const targetA = overview2.plugins.find(item => item.plugin_id === "com.example.field-notes")!.uninstall_target;
   const uninstalled = await post(`/projects/${projectA.project_id}/api/plugin-trust/installed/uninstall`, {
-    plugin_id: "io.molis.work.example.field-notes", keep_data: true, target: targetA,
+    plugin_id: "com.example.field-notes", keep_data: true, target: targetA,
   });
   assert.equal(uninstalled.status, 200, JSON.stringify(uninstalled.body));
   assert.deepEqual((await skillScenes(projectA.project_id)).map(row => row.scene), ["coding"]);
@@ -377,7 +377,7 @@ test("BL-skill-settings-installed-plugin-scenes: real signed third-party sandbox
 
   // 5. Home-scoped signed third-party sandbox package appears across Home and all projects, and disappears immediately on publisher revocation.
   const publisherHome = newPublisher();
-  const homeRadarBundle = signedPackage(publisherHome, undefined, { pluginId: "io.molis.work.example.home-radar", name: "Home Radar", memoryScene: "radar", scope: "home" });
+  const homeRadarBundle = signedPackage(publisherHome, undefined, { pluginId: "com.example.home-radar", name: "Home Radar", memoryScene: "radar", scope: "home" });
   await installBundle(projectA.project_id, homeRadarBundle, "Home Radar Publisher");
   for (const scopeProject of [null, projectA.project_id, projectB.project_id]) {
     const listed = await skillScenes(scopeProject);

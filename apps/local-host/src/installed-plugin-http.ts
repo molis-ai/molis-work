@@ -1,14 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorResponse, PLUGIN_ID } from "@molis-ai/molis-work-plugin-sdk";
 import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { describePluginTablesRefusal, rollbackHrefFor } from "./home-unavailable-owners.js";
 import { installedPageSelection, pluginPageRequest } from "./plugin-page-authority.js";
-import { installedStageSurface } from './installed-stage-section.js';
+import { installedRepairStage, installedStageSurface } from './installed-stage-section.js';
 import { INSTALLED_PLUGIN_BUNDLE, INSTALLED_PLUGIN_PAGE_CLASS, installedStageSection, renderInstalledPluginBody, renderPluginDocumentShell,
   type PluginDirectoryEntry, type UnavailablePluginStage } from './workbench-renderer.js';
-import { assertStageInstallation, installedStageIdentity, installedStageReleaseMatches, requestedStageInstallation } from './installed-stage-identity.js';
+import { assertStageInstallation, installedStageIdentity, installedStageReleaseMatches, requestedStageInstallation, sameInstalledRelease } from './installed-stage-identity.js';
 import { captureWebSessionAuthority, shellPageRead } from './web-sessions.js';
 import { readLocalWebBody, refuseLocalWebRequest, requestHost, sendLocalWebJson } from './web-http.js';
 import { htmlLang } from "./web-locale.js";
@@ -42,6 +42,9 @@ export async function installedPluginStages(options: InstalledPluginHttpOptions)
   const home = options.homeDirectory;
   const installed = await ensureInstalledPlugins({ ...options, homeDirectory: home }), prefix = options.routePrefix ?? '';
   return installed.records().flatMap((item): InstalledPluginStage[] => {
+    const damaged = installed.recovery.damaged(item);
+    const repair = damaged && installedRepairStage(damaged, "project", prefix);
+    if (repair) return [{ pluginId: item.plugin_id, surface: repair.unavailable.surface, label: repair.directory.name, ...repair }];
     const release = installed.releaseFor(item.plugin_id);
     if (!release) return [];
     const surface = installedStageSurface(release), words = installedPluginWords(release), label = words.name;
@@ -86,9 +89,10 @@ function recoveryHtml(error: string): string {
 
 /** `/plugins/<id>` (the installed page) and `/api/plugins/<id>/call` for a package installed in this project; anything else is not ours. */
 export async function handleInstalledPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, options: InstalledPluginHttpOptions, controlToken: string): Promise<boolean> {
-  const installedPage = /^\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]{0,185})$/u.exec(url.pathname);
-  const installedCall = /^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]{0,185})\/call$/u.exec(url.pathname);
-  if (!installedPage && !installedCall) return false;
+  const installedPage = /^\/plugins\/([^/]+)$/u.exec(url.pathname);
+  const installedCall = /^\/api\/plugins\/([^/]+)\/call$/u.exec(url.pathname);
+  const pluginId = (installedPage ?? installedCall)?.[1];
+  if (!pluginId || !PLUGIN_ID.test(pluginId)) return false;
   const method = request.method ?? 'GET', prefix = options.routePrefix ?? '';
   // The page is a frame document: opened directly, it opens the workbench at its surface instead (specs/artifact-positioning S3).
   const framed = url.searchParams.get('frame') === 'workbench';
@@ -131,18 +135,27 @@ export async function handleInstalledPluginHttp(request: IncomingMessage, respon
     if (expected?.scope === "home") throw new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开");
     const installed = await ensureInstalledPlugins({ ...options, homeDirectory: options.homeDirectory });
     assertCurrent();
-    const pluginId = (installedPage ?? installedCall)![1]!;
     const current = () => installed.records().find(item => item.plugin_id === pluginId);
     const record = current();
     if (expected) assertStageInstallation("project", record, expected);
     if (!record) return false;
     if (installedCall && method === 'POST') {
+      const bound = pageAuthority?.installedRoute();
+      if (bound && (bound.projectId !== options.projectId || !sameInstalledRelease(bound.release, record)))
+        throw new ActionError("actions.provider_changed", "原页面安装已变化，请重新打开");
       const result = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: options.actorId ?? 'web-user', query: {}, execution, body: await readLocalWebBody(request) });
       if (!result) return refuse(409, "workbench.installed-plugin.not-running");
       sendLocalWebJson(response, result.status, result.body);
       return true;
     }
     if (!installedPage || method !== 'GET') return false;
+    const damage = !framed && installed.recovery.damaged(record);
+    const repair = damage && installedRepairStage(damage, "project", prefix);
+    if (repair) {
+      response.writeHead(302, { location: prefix + '/?openSurface=' + encodeURIComponent(repair.unavailable.surface), 'cache-control': 'no-store' });
+      response.end();
+      return true;
+    }
     const release = installed.releaseFor(pluginId);
     const manifest = installed.platform.supervisor.manifest(pluginId);
     if (!installedStageReleaseMatches(record, release, manifest)) {

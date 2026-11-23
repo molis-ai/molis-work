@@ -1,5 +1,6 @@
 import { ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { bundledPackagesDirectory, releasePackageIds } from "./bundled-packages.js";
 import { HOST_SURFACE_REGISTRATIONS } from "./host-surfaces.js";
 
 /**
@@ -11,4 +12,9 @@ export const HOST_PLUGIN_IDS: ReadonlySet<string> = new Set([...PLATFORM_PLUGIN_
   // cursors and history under this id until their deletion step, so no other package may take the id or nest under it.
   "io.molis.work.files"]);
 
-// The platform provider keeps its identity reserved even after its former plugin shell is removed (PG-077 BL-761).
+/**
+ * The release's own bundled packages under the Host's prefix (the official Skill packs, signed by this Home until the release has a
+ * publisher key of its own): the only ids under `io.molis.work.` that an install without the build's trust may take (S-reserved-host-prefix).
+ * The install preview lets such an id in only from the bundled folder itself, so an import from elsewhere cannot take one.
+ */
+export const RELEASE_PACKAGE_IDS: ReadonlySet<string> = releasePackageIds(bundledPackagesDirectory());

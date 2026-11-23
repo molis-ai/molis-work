@@ -114,7 +114,7 @@ const ROWS: PluginProjectRowsDeclaration = { label: "探针的记录", tables: [
 const LIBRARY: HomePluginDatabaseDeclaration = { store_name: "rows-probe", version: 1, read_permission: "rowsprobe:read", write_permission: "rowsprobe:write",
   schema: "CREATE TABLE items (id TEXT PRIMARY KEY, project_id TEXT NOT NULL); CREATE TABLE notes (id TEXT PRIMARY KEY, item_id TEXT NOT NULL);", project_rows: ROWS };
 
-function manifest(library: unknown = LIBRARY, id = "io.molis.work.example.rowsprobe"): PluginManifest {
+function manifest(library: unknown = LIBRARY, id = "com.example.rowsprobe"): PluginManifest {
   return { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "Rows probe", kind: "app",
     publisher: { publisher_id: "example", signature: "publisher-one" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [...PERMISSIONS], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
@@ -200,7 +200,7 @@ test("RAC-561 the platform deletes only from the declaring plugin's own library,
   assert.ok(marks(home, datasetLibrary, ["pa"]).datasets!.pa! > 0, "the other plugin's library is untouched");
 });
 
-function rowsProbe(label = ROWS.label, id = "io.molis.work.example.rowsprobe") {
+function rowsProbe(label = ROWS.label, id = "com.example.rowsprobe") {
   const calls: string[] = [];
   const definition: PluginDefinition = { manifest: manifest({ ...LIBRARY, project_rows: { ...ROWS, label } }, id),
     async start() { calls.push("start"); return { kind: "app", views: [], actions: [] }; },
@@ -269,7 +269,7 @@ test("RAC-562 the project platform refuses a copied catalog Manifest even with t
 });
 
 test("RAC-562 BL-620 the project platform refuses project_rows without a catalog deletion owner before schema, installs or plugin effects", async t => {
-  const home = withHome(t), probe = rowsProbe(), other = rowsProbe(ROWS.label, "io.molis.work.example.otherrows");
+  const home = withHome(t), probe = rowsProbe(), other = rowsProbe(ROWS.label, "com.example.otherrows");
   const stores = homeStoreRegistry([...homeStores().stores, { path: LIBRARY.store_name, owner: probe.id, library: { baseline: LIBRARY } }]);
   const platform = projectPlatform(t, home, stores), schema = t.mock.method(DatabaseSync.prototype, "exec");
   const withoutLibrary: PluginDefinition = { ...other.definition, manifest: { ...other.definition.manifest, databases: undefined } };
@@ -328,7 +328,7 @@ test("RAC-563 external Runtime installation refuses project_rows labels with whi
 test("RAC-563 external Runtime installation keeps legal Unicode labels and the existing 200-character boundary", async t => {
   const installed = new Set<PluginDefinition>(), f = await serveHomeRuntime(t, { pluginFixtures: { installed } }), platform = await f.host.homePlugins!.ready();
   for (const [index, label] of ["清单 café e\u0301 👨‍👩‍👧‍👦 العربية", "中".repeat(200)].entries()) {
-    const probe = rowsProbe(label, `io.molis.work.example.rowslabel${index}`);
+    const probe = rowsProbe(label, `com.example.rowslabel${index}`);
     installed.add(probe.definition);
     assert.equal(parsePluginManifest(probe.definition.manifest).databases!.home!.project_rows!.label, label);
     assert.equal(platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }).install.state, "installed");

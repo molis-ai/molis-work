@@ -191,7 +191,7 @@ test(`Session to ${lifecycle} repairs only the original canonical CAS after post
   const session = await f.adapter().createSession({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", plugin_id: "io.molis.work.coding",
     install_id: "coding", workspace: "none", role_id: "coding", title: "Original Session classification" });
   const who = caller("original-classify", { current_scene: "coding", session_id: session.session_id, memory_session: {
-    session, current_scene: "coding", target: { kind: "coding", id: "business", project_id: "project-a" } } });
+    session, current_scene: "coding", target: { kind: "coding", id: "business", project_id: "project-a", plugin_id: "io.molis.work.coding", provider_id: "io.molis.work.coding" } } });
   const saved = (await base.write({ ...who, operation_id: "seed-session" }, { scope: "project", text: `Original ${lifecycle} retention body`, kind: "preference",
     classification: { scenes: ["coding"], lifecycle: "session" }, expires_at: "2099-01-01T00:00:00.000Z" })).memory!;
   let sdkCommitted = false;

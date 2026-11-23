@@ -20,7 +20,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // the plugin passes comes out escaped, a result link leaving this Home is not drawn, a value of another shape is refused rather than drawn
 // half, and drawing writes no record. A sandboxed plugin reaches it through the broker, which takes objects only.
 
-const PROBE = "io.molis.work.example.interaction-probe", ACTOR = "tester", HAN = /[一-鿿]/u;
+const PROBE = "com.example.interaction-probe", ACTOR = "tester", HAN = /[一-鿿]/u;
 const HOSTILE = `<script>alert("x")</script>`;
 const raw = <T>(value: unknown) => value as T;
 const refused = (code: string) => (error: unknown) => Boolean(error && typeof error === "object" && "code" in error && error.code === code);

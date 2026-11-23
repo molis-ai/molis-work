@@ -20,7 +20,7 @@ import { IntegrationRegistry, readSandboxIntegrationPackage, sandboxedIntegratio
 // of its own kind, run in the sandbox and reached by the Host's proxy as the platform's operations. These tests take the parts that do not
 // wait for the Home's sandbox instance (BL-628): the package's shape, the proxy's reading of a pull, and where a service's origins come from.
 
-const PLUGIN_ID = "io.molis.work.example.feedprobe";
+const PLUGIN_ID = "com.example.feedprobe";
 const code = (expected: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === expected;
 const mac = { skip: process.platform !== "darwin" };
 

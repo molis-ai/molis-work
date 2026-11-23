@@ -77,15 +77,14 @@ function listedRow(plugin: string, attrs: Record<string, string>, title: string,
   assert.ok(row.matches(selector), `${plugin}'s row is the one its catalog entry declares (${selector})`);
   return { row, box, page };
 }
-const PICKING = { role: "listbox", "aria-multiselectable": "true" };
 const LISTED = [
-  { plugin: "pages", attrs: { "data-page-id": "page-b" }, id: "page-b", title: "Page B" },
-  { plugin: "lingguang", attrs: { "data-lingguang-id": "spark-b" }, id: "spark-b", title: "窗边的光" },
+  { plugin: "pages", attrs: { "data-page-id": "page-b" }, id: "page-b", title: "Page B", list: { role: "treegrid", "aria-multiselectable": "true" } },
+  { plugin: "lingguang", attrs: { "data-lingguang-id": "spark-b" }, id: "spark-b", title: "窗边的光", list: { role: "listbox", "aria-multiselectable": "true" } },
 ];
 
 test("D24 a ⌘/Ctrl-click in a list that picks several (Pages, 灵光) is left to the list; the same row in a plain list opens behind", () => {
-  for (const { plugin, attrs, id, title } of LISTED) {
-    const { press } = tabGroups(), { row, box } = listedRow(plugin, attrs, title, PICKING);
+  for (const { plugin, attrs, id, title, list } of LISTED) {
+    const { press } = tabGroups(), { row, box } = listedRow(plugin, attrs, title, list);
     for (const keys of [{ metaKey: true }, { ctrlKey: true }]) {
       assert.deepEqual(press(row, { type: "click", ...keys }), { prevented: false, stopped: false, opened: [] }, `${plugin}: ${Object.keys(keys)[0]} picks`);
     }
@@ -96,8 +95,8 @@ test("D24 a ⌘/Ctrl-click in a list that picks several (Pages, 灵光) is left 
 });
 
 test("D24 a middle click on a row of a list that picks several still opens it behind", () => {
-  for (const { plugin, attrs, id, title } of LISTED) {
-    const { press } = tabGroups(), { row } = listedRow(plugin, attrs, title, PICKING);
+  for (const { plugin, attrs, id, title, list } of LISTED) {
+    const { press } = tabGroups(), { row } = listedRow(plugin, attrs, title, list);
     assert.deepEqual(press(row, { type: "auxclick", button: 1 }), { prevented: true, stopped: true,
       opened: [{ type: "workbench-pane-open", detail: { plugin, itemId: id, title, background: true } }] }, plugin);
     assert.deepEqual(press(row, { type: "click" }), { prevented: false, stopped: false, opened: [] }, `${plugin}: a plain click stays the plugin's`);
@@ -115,6 +114,6 @@ test("D24 a ⌘-click on a Goal in the tree still opens it behind: only lists th
 
 test("D24 a list that picks several around the plugin's page, not inside it, does not keep the click", () => {
   const { press } = tabGroups(), { row, page } = listedRow("pages", { "data-page-id": "page-b" }, "Page B", {});
-  new Node("div", PICKING).add(page);
+  new Node("div", { role: "treegrid", "aria-multiselectable": "true" }).add(page);
   assert.deepEqual(press(row, { type: "click", ctrlKey: true }).opened, [{ type: "workbench-pane-open", detail: { plugin: "pages", itemId: "page-b", title: "Page B", background: true } }]);
 });

@@ -9,7 +9,7 @@ import type {
   LocalHostProjectReference,
   LocalHostStatus,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata, type CallReports, type RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
+import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata, registeredOneActionMetadata, type CallReports, type RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
 import type { ActionSelection } from "@molis-ai/molis-work-kernel";
 import { projectCallCaller } from "./project-call-caller.js";
 import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionReference,
@@ -166,6 +166,31 @@ export class LocalHost<Runtime> {
     return registeredActionMetadata(this.capabilities, this.metadataCaller(caller, reference));
   }
 
+  /** O(1) metadata lookup for one registered action; never grants execution or opens a Runtime. */
+  inspectOneActionMetadata(caller: ActionCallContext, action: ActionReference, reference?: LocalHostProjectReference) {
+    return registeredOneActionMetadata(this.capabilities, this.metadataCaller(caller, reference), action);
+  }
+
+  /** O(1) metadata lookup for one action after ensuring a project Runtime is open; never evaluates availability. */
+  async inspectPreparedOneActionMetadata(caller: ActionCallContext, action: ActionReference, reference?: LocalHostProjectReference) {
+    const bound = this.metadataCaller(caller, reference);
+    if (reference) {
+      await this.withRuntime(normalizeReference(reference), () => undefined);
+      caller.signal?.throwIfAborted();
+    }
+    return registeredOneActionMetadata(this.capabilities, bound, action);
+  }
+
+  /** Declarations of all registered actions after ensuring a project Runtime is open; never evaluates availability. */
+  async inspectPreparedActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) {
+    const bound = this.metadataCaller(caller, reference);
+    if (reference) {
+      await this.withRuntime(normalizeReference(reference), () => undefined);
+      caller.signal?.throwIfAborted();
+    }
+    return registeredActionMetadata(this.capabilities, bound);
+  }
+
   /** A proposal keeps the original registration and caller, independently of a later approval request. */
   prepareActionReview(caller: ActionCallContext, view: ActionView, input: unknown, project?: LocalHostProjectReference, related?: ExactActionReference) {
     const bound = this.metadataCaller(caller, project), held = this.actionService.prepareReview(bound, view, input);
@@ -215,7 +240,7 @@ export class LocalHost<Runtime> {
         try { context = contextFor(caller); }
         catch (error) { return refuseCall(this.reports, caller, capability, error); }
         const descriptor = this.capabilities.descriptor(capability);
-        return this.homeLine.run(() => this.actionService.invoke(context, capability, input), descriptor?.action?.scheduling === "concurrent" ? "concurrent" : step ? "step" : "serial");
+        return this.homeLine.run(() => this.actionService.invoke(context, capability, input), runsBesideLine(descriptor) ? "concurrent" : step ? "step" : "serial");
       },
     };
   }
@@ -268,7 +293,7 @@ export class LocalHost<Runtime> {
               if (this.capabilities.descriptor(capability) !== catalog) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
               return this.state === "running" && !this.line.isClosing(project.storage_key);
             });
-            return this.homeLine.run(() => this.actionService.invoke(context, capability, input), catalog.action?.scheduling === "concurrent" ? "concurrent" : step ? "step" : "serial");
+            return this.homeLine.run(() => this.actionService.invoke(context, capability, input), runsBesideLine(catalog) ? "concurrent" : step ? "step" : "serial");
           }
           await this.withRuntime(project, () => undefined);
           caller.signal?.throwIfAborted();

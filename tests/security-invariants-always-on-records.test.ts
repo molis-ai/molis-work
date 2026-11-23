@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -26,7 +26,7 @@ const refused = (code: string) => (error: unknown) => error instanceof ActionErr
 
 function exampleManifest(): PluginManifest {
   return {
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.stays", version: "1.0.0", name: "Stays on", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.stays", version: "1.0.0", name: "Stays on", kind: "app",
     publisher: { publisher_id: "someone", signature: "stays-on-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, always_on: true,
   };
@@ -35,7 +35,7 @@ function exampleManifest(): PluginManifest {
 test("RAC-386 S-34 the Runtime refuses to uninstall a plugin while its 常开 agreement stands, and allows it once the agreement is revoked", async () => {
   const db = new DatabaseSync(":memory:");
   db.exec(PLUGIN_TRUST_SCHEMA_SQL);
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, consents: new SqlitePluginConsentLedger(db) });
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, consents: new SqlitePluginConsentLedger(db) });
   const definition = { manifest: exampleManifest(), async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition;
   const { install } = runtime.install({ trust: UNSIGNED_TRUST, definition, deployment: "local", grants: [], consents: [ALWAYS_ON] });
   await runtime.start(install.install_id);
@@ -176,7 +176,7 @@ test("RAC-401 S-34 an existing current store stays byte-for-byte unchanged; miss
   const f = await catalogFixture(t), db = seedStore(f.home);
   t.after(() => db.close());
   const ledger = new SqlitePluginConsentLedger(db);
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, { hostIds: ISOLATED_HOST_IDS, consents: ledger });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, consents: ledger });
   const definition = { manifest: exampleManifest(), async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition;
   const { install } = runtime.install({ definition, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
   const before = filesAt(f.home);
@@ -193,7 +193,7 @@ test("RAC-401 S-34 each query sees persisted revocation, new consent and install
   t.after(() => db.close());
   const ledger = new SqlitePluginConsentLedger(db), repository = new SqlitePluginRuntimeRepository(db);
   const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, consents: ledger });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, consents: ledger });
   const { install } = runtime.install({ deployment: "local", trust: HOST_BUILD_TRUST, grants: [], consents: [ALWAYS_ON],
     definition: { manifest: shelf, async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition });
   const writable = openTestSqlite(join(f.home, "projects/catalog.db"));
@@ -242,8 +242,10 @@ test("MEM-42 one discovery reads and validates the current Home plugin library o
   t.diagnostic(`Home plugin validation: ${versionReads} version reads on ${connections.size} connections`);
   assert.equal(versionReads, 1, "one synchronous membership read shares its current always-on result between members and hidden marks");
   assert.equal(connections.size, 1);
-  for (const connection of connections) assert.throws(() => connection.prepare("SELECT 1"), /not open/u, "the read retains no connection");
+  for (const connection of connections) assert.throws(() => connection.prepare("DELETE FROM plugin_consents").run(), /readonly/iu, "the held RO connection cannot write");
   assert.deepEqual(filesAt(f.home), before, "discovery changes no files, agreements or installation records");
+  f.catalog.close();
+  for (const connection of connections) assert.throws(() => connection.prepare("SELECT 1"), /not open/u, "closing the Home owner closes its held RO connection");
 });
 
 test("ASR-12 one read-only Home aggregate shares its directory across projections and project enumeration", async t => {
@@ -257,10 +259,14 @@ test("ASR-12 one read-only Home aggregate shares its directory across projection
   const access = cachedHost.ensureWebCatalog(f.home, openMolisWorkProjectCatalog);
   await access.warm();
   const directory = () => builtinMarketDirectory(f.home).filter(entry => entry.always_on).map(entry => entry.id);
-  let reads = 0;
+  let opens = 0, freshnessChecks = 0;
+  const connections = new Set<DatabaseSync>();
   const prepare = DatabaseSync.prototype.prepare;
   const observation = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
-    if (sql === "PRAGMA user_version" && this.location() === db.location()) reads++;
+    if (this.location() === db.location()) {
+      if (sql === "PRAGMA user_version") { opens++; connections.add(this); }
+      if (sql === "PRAGMA data_version") freshnessChecks++;
+    }
     return prepare.call(this, sql);
   });
   try {
@@ -271,10 +277,12 @@ test("ASR-12 one read-only Home aggregate shares its directory across projection
         for (const project of [f.project, second]) assert.equal(catalog.projectPluginMembership(project.project_id, directory).hidden.includes("shelf"), false);
       });
       await withReadOnlyPluginDirectory(f.home, async () => { await Promise.resolve(); builtinMarketDirectory(f.home); });
-      assert.equal(reads, 1, "nested projections and extra projects do not discover the same directory again");
+      assert.equal(opens, 1, "nested projections and extra projects do not discover the same directory again");
+      assert.equal(freshnessChecks, 1, "nested projections reuse the request directory without re-probing SQLite");
     });
     await withReadOnlyPluginDirectory(f.home, async () => { builtinMarketDirectory(f.home); });
-    assert.equal(reads, 2, "a new aggregate always reads its own current directory");
+    assert.equal(opens, 1, "unchanged Home plugin store reuses the held RO connection without reopening");
+    assert.equal(freshnessChecks, 2, "a new aggregate always checks live store freshness for its own directory");
     const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
     const ledger = new SqlitePluginConsentLedger(db);
     ledger.record({ plugin_id: shelf.plugin_id, publisher_signature: shelf.publisher.signature, manifest_digest: pluginManifestDigest(shelf),
@@ -282,25 +290,33 @@ test("ASR-12 one read-only Home aggregate shares its directory across projection
     const policy = projectActionAvailability(access.withCatalog, f.home), caller = person([], f.project.project_id);
     const action = { provider: { provider_id: shelf.plugin_id, plugin_id: shelf.plugin_id, title: "Shelf", kind: "plugin" as const } };
     await withReadOnlyPluginDirectory(f.home, async () => {
-      const before = reads;
+      const beforeOpens = opens;
       await access.withCatalog({ homeDirectory: f.home }, catalog => assert.equal(catalog.projectPluginMembership(f.project.project_id, directory).hidden.includes("shelf"), false));
-      assert.equal(reads, before + 1);
+      assert.equal(opens, beforeOpens + 1, "external consent write reopens and re-validates the held RO connection");
       await Promise.resolve();
       for (const row of ledger.consents(shelf.plugin_id)) ledger.revoke(row.consent_id, "2026-11-07T02:00:00.000Z");
+      const checksAfterProjection = freshnessChecks;
       await access.withCatalog({ homeDirectory: f.home }, catalog => {
         assert.throws(() => catalog.projectPluginMembership(f.project.project_id, () => { throw new Error("projection provider failed"); }), /projection provider failed/u);
       });
-      assert.equal(reads, before + 1, "a failed projection provider did not open or retain a Home library");
+      assert.equal(opens, beforeOpens + 1, "a failed projection provider did not open or retain a Home library");
+      assert.equal(freshnessChecks, checksAfterProjection);
       assert.equal((await policy(caller, action)).available, false, "the actual cached owner restores default live admission after the projection provider throws");
+      const checksAfterLive = freshnessChecks;
+      assert.equal(opens, beforeOpens + 2, "live admission detects revocation and reopens to re-validate");
       assert.equal((await policy.snapshotForDiscovery(caller))(caller, action).available, false, "post-await discovery is also current");
-      assert.equal(reads, before + 3, "two protected current checks are counted separately from the one directory discovery");
+      assert.equal(opens, beforeOpens + 2, "unchanged post-await discovery reuses the freshly validated held RO handle");
+      assert.ok(freshnessChecks > checksAfterLive, "post-await discovery still checks live freshness independently of the presentation directory");
+      const checksBeforePresentation = freshnessChecks;
       await access.withCatalog({ homeDirectory: f.home }, catalog => assert.equal(catalog.projectPluginMembership(f.project.project_id, directory).hidden.includes("shelf"), false));
-      assert.equal(reads, before + 3, "the presentation directory survives only in its own request");
+      assert.equal(opens, beforeOpens + 2, "the presentation directory survives only in its own request");
+      assert.equal(freshnessChecks, checksBeforePresentation);
     });
     await withReadOnlyPluginDirectory(f.home, async () => {
       await access.withCatalog({ homeDirectory: f.home }, catalog => assert.equal(catalog.projectPluginMembership(f.project.project_id, directory).hidden.includes("shelf"), true));
     });
   } finally { observation.mock.restore(); await cachedHost.close(); }
+  for (const connection of connections) assert.throws(() => connection.prepare("SELECT 1"), /not open/u, "closing the Host releases every held RO connection");
 });
 
 test("ASR-12 Home reach reads one fresh directory for any number of projects, after catalog waits and independently of the surrounding request", async t => {
@@ -325,21 +341,24 @@ test("ASR-12 Home reach reads one fresh directory for any number of projects, af
     manifest_digest: pluginManifestDigest(shelf), granted_by: "user", grants: [ALWAYS_ON], at });
   grant("2026-11-07T01:00:00.000Z");
   const reach = homeProjectReach(f.home, () => []), caller = person([]), expected = [f.project.project_id];
-  let reads = 0;
-  const connections = new Set<DatabaseSync>(), prepare = DatabaseSync.prototype.prepare;
+  let opens = 0, freshnessChecks = 0;
+  const allConnections = new Set<DatabaseSync>(), connections = new Set<DatabaseSync>(), prepare = DatabaseSync.prototype.prepare;
   const observation = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
-    if (sql === "PRAGMA user_version" && this.location() === db.location()) { reads++; connections.add(this); }
+    if (this.location() === db.location()) {
+      if (sql === "PRAGMA user_version") { opens++; connections.add(this); allConnections.add(this); }
+      if (sql === "PRAGMA data_version") freshnessChecks++;
+    }
     return prepare.call(this, sql);
   });
-  const read = async (ids: readonly string[]) => {
-    reads = 0; connections.clear();
+  const read = async (ids: readonly string[], expectReopen: boolean) => {
+    opens = 0; freshnessChecks = 0; connections.clear();
     assert.deepEqual([...(await reach(shelf, caller))!].sort(), [...ids].sort());
-    assert.equal(reads, 1, "one current directory read for this synchronous enumeration");
-    assert.equal(connections.size, 1, "additional projects do not open additional Home plugin connections");
-    for (const connection of connections) assert.throws(() => connection.prepare("SELECT 1"), /not open/u);
+    assert.equal(opens, expectReopen ? 1 : 0, expectReopen ? "one validated RO open for this enumeration" : "unchanged store reuses held RO connection with zero reopens");
+    assert.equal(connections.size, expectReopen ? 1 : 0, "additional projects do not open additional Home plugin connections");
+    assert.ok(freshnessChecks >= 1, "each enumeration still checks live store freshness");
   };
   try {
-    await read(expected);
+    await read(expected, true);
     await withCatalog({ homeDirectory: f.home }, async catalog => {
       for (let index = 0; index < 4; index++) {
         const created = await catalog.createProject({ display_name: `project ${index}`, actor_id: "test" });
@@ -347,23 +366,25 @@ test("ASR-12 Home reach reads one fresh directory for any number of projects, af
         hideShelf(f.home, created.project_id);
       }
     });
-    await read(expected);
+    await read(expected, false);
     await withReadOnlyPluginDirectory(f.home, async () => {
       assert.equal(builtinMarketDirectory(f.home).find(entry => entry.id === "shelf")!.always_on, true);
       let release!: () => void;
       gate = new Promise<void>(resolve => { release = resolve; });
-      const pending = read([]);
+      const pending = read([], true);
       await Promise.resolve();
       for (const row of ledger.consents(shelf.plugin_id)) ledger.revoke(row.consent_id, "2026-11-07T02:00:00.000Z");
       release(); await pending; gate = undefined;
       assert.equal(builtinMarketDirectory(f.home).find(entry => entry.id === "shelf")!.always_on, true, "the surrounding projection remains old");
-      await read([]);
+      await read([], false);
     });
     grant("2026-11-07T03:00:00.000Z");
-    await read(expected);
+    await read(expected, true);
     db.exec("PRAGMA user_version=2");
     await assert.rejects(reach(shelf, caller), { code: "storage.store_too_new" }, "a later call still validates the actual store");
   } finally { observation.mock.restore(); }
+  await host.close();
+  for (const connection of allConnections) assert.throws(() => connection.prepare("SELECT 1"), /not open/u, "closing the Host releases every held RO connection");
 });
 
 test("ASR-12 a read-only directory never authorizes after await; new requests see revocation, consent and installation changes without crossing Homes", async t => {
@@ -372,7 +393,7 @@ test("ASR-12 a read-only directory never authorizes after await; new requests se
   hideShelf(a.home, a.project.project_id);
   const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
   const ledger = new SqlitePluginConsentLedger(db), repository = new SqlitePluginRuntimeRepository(db);
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, consents: ledger, assertPresentation: () => undefined });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, consents: ledger, assertPresentation: () => undefined });
   const { install } = runtime.install({ deployment: "local", trust: HOST_BUILD_TRUST, grants: [], consents: [ALWAYS_ON],
     definition: { manifest: shelf, async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition });
   const policy = projectActionAvailability(async (_options, work) => work(a.catalog), a.home), caller = person([], a.project.project_id);

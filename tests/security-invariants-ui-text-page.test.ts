@@ -19,7 +19,7 @@ async function pageSession(origin: string, path: string) {
   return { cookie, [header]: proof };
 }
 
-const owner = "io.molis.work.example.text-page";
+const owner = "com.example.text-page";
 const manifest = { plugin_id: owner, kind: "app", ui: { contributions: [], locales: { default: "zh", available: ["zh", "en"] } } } as PluginManifest;
 
 function connectText(home: string, projectId: string, title: string) {

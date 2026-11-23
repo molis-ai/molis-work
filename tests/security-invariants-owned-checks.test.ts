@@ -7,7 +7,8 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type PrologueNo
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { assistantConnectionCheckers, AssistantStore, ASSISTANT_STORE_NAME, withConnectorConnections, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { assistantConnectionCheckers, AssistantStore, ASSISTANT_STORE_NAME, LocalHost, withConnectorConnections, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
 import { openTestHome } from "./fixtures/test-home.js";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
@@ -211,4 +212,36 @@ test("S-27 ASC-25 ASC-34: revoking a business grant or changing work during the 
     try { await assert.rejects(reading, { code: "actions.forbidden" }); }
     finally { release.resolve(); delayed.mock.restore(); network.mock.restore(); }
   }
+});
+
+test("S-27 assistantConnectionCheckers authorize and read use O(1) discoverOne without full discover or inspectActions", async t => {
+  const f = await connectionFixture(t), originalFetch = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) =>
+    String(input) === "https://api.github.com/user" ? Response.json({ id: 42, login: "chosen-account" }) : originalFetch(input, init));
+  await f.home.web.post(`/api/settings/connectors/connections/${f.row.connection_id}/verify`, {});
+
+  let discoverCalls = 0, inspectActionsCalls = 0;
+  const origDiscover = ActionService.prototype.discover;
+  const origInspectActions = LocalHost.prototype.inspectActions;
+  t.mock.method(ActionService.prototype, "discover", function (this: ActionService, ...args: Parameters<ActionService["discover"]>) {
+    discoverCalls++; return origDiscover.apply(this, args);
+  });
+  t.mock.method(LocalHost.prototype, "inspectActions", function (this: LocalHost<unknown>, ...args: Parameters<LocalHost<unknown>["inspectActions"]>) {
+    inspectActionsCalls++; return origInspectActions.apply(this, args);
+  });
+
+  // `molis.connector-setup` authorize checks only `withConnectionActions` + `exactBoundActionView` via O(1) discoverOne.
+  const setupChecker = assistantConnectionCheckers(f.home.home, f.home.host).find(value => value.id === "molis.connector-setup")!;
+  await assert.rejects(setupChecker.authorize(f.scope, { authorization_id: "00000000-0000-4000-8000-000000000001" }), { code: "actions.forbidden" });
+  assert.equal(discoverCalls, 0, "connector-setup authority uses O(1) discoverOne instead of ActionService.discover");
+  assert.equal(inspectActionsCalls, 0, "connector-setup authority never calls LocalHost.inspectActions");
+
+  await f.checker.authorize(f.scope, f.params);
+  assert.equal((await f.read()).status, "satisfied");
+  assert.equal(discoverCalls, 0, "connection-ready checker uses O(1) discoverOne instead of ActionService.discover");
+
+  const key = JSON.stringify(["connectors.records.read", 1, "system.connectors"]);
+  f.store.setActionEnabled(LOCAL_PERSON_ACTOR_ID, key, false);
+  assert.equal((await f.read()).status, "pending", "revocation still takes effect immediately on the O(1) path");
+  assert.equal(discoverCalls, 0);
 });

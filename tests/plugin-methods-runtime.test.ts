@@ -28,7 +28,7 @@ import { roleOf } from "./fixtures/assistant-roles.js";
  * read them by id and version; they are withdrawn when it is disabled or uninstalled, and an upgrade registers the new version's.
  */
 
-const PLUGIN_ID = "io.molis.work.example.methodprobe";
+const PLUGIN_ID = "com.example.methodprobe";
 const declared = (skill_id: string, version = 1): PluginMethodDeclaration => ({ skill_id, version, name: `方法 ${skill_id}`, summary: `何时用 ${skill_id}`, tools: ["read-capability"],
   description: `用户要 ${skill_id} 时使用。`, applies_to: "assistant" });
 const body = (skill_id: string, version = 1, text = `${skill_id} 第 ${version} 版的做法`): PluginMethodDefinition => ({ ...declared(skill_id, version), body: text });
@@ -156,18 +156,18 @@ test("W4-02-04 RAC-192 RAC-194 a built-in plugin's methods come with its running
     } finally { project.store.close(); }
     // A method's body goes into another Agent's round: only a plugin the Host runs itself registers one, and a sandboxed package that carries methods
     // does not start until an install can show the person what it adds (S-60, PG-017 BL-493).
-    const sandboxed = platformIn(home), generated = probe({ pluginId: "io.molis.work.example.generated", execution: "sandbox" });
+    const sandboxed = platformIn(home), generated = probe({ pluginId: "com.example.generated", execution: "sandbox" });
     try {
       assert.deepEqual((await sandboxed.platform.start([{ definition: generated.definition, grants: [] }])).running, []);
       assert.equal(generated.started(), 0, "the plugin never started");
       assert.equal(sandboxed.platform.runtime.get(sandboxed.platform.runtime.list()[0]!.install_id).last_error_code, "sandbox.service_not_given");
-      assert.deepEqual(listed(home, "io.molis.work.example.generated"), [], "its methods are not registered");
+      assert.deepEqual(listed(home, "com.example.generated"), [], "its methods are not registered");
     } finally { sandboxed.store.close(); }
   }));
 
 test("RAC-191 PG-051 V-05 a running definition's Agent block registers its roles and prompts; the person's edit is what a run gets, and outlives a stop", { timeout: 60_000 },
   withHome(async home => {
-    const AGENT_ID = "io.molis.work.example.agentprobe";
+    const AGENT_ID = "com.example.agentprobe";
     const text = { prompt_id: "probe-role", version: 1, body: "按清单逐项核对" };
     const plugin = probe({ pluginId: AGENT_ID, methods: [], bodies: [] });
     const definition: PluginDefinition = { ...plugin.definition, agent_prompts: [text],
@@ -201,7 +201,7 @@ function agentProbe(options: { version?: string; prompt?: string; signature?: st
     manifest: { ...plugin.definition.manifest, agent: { roles: [{ role_id: "checker", version: 1, name: "核对员", workspace: "none", prompts: [prompt] }], prompts: [{ prompt_id: prompt, version: 1 }] } } };
   return definition;
 }
-const AGENT_PROBE = "io.molis.work.example.agentprobe";
+const AGENT_PROBE = "com.example.agentprobe";
 const promptsOf = (home: string) => homeAgentDefinitions(home).prompts().filter(view => view.owner_id === AGENT_PROBE)
   .map(view => `${view.prompt_id}:${view.source.kind === "plugin" ? view.source.state : "system"}`);
 
@@ -405,7 +405,7 @@ test("RAC-2636/2641/2643 signed mixed registrations survive two projects, Home c
     complete(PACKAGE_PLUGIN_ID);
     const restored = reg.signedRoles().find(item => item.owner_id === PACKAGE_PLUGIN_ID)!;
     assert.equal(restored.default_ref.source.plugin_version, "1.2.0"); assert.equal(reg.signedMaterial(restored.install_id, restored.default_ref).body, "我的角色修订");
-    const homeId = "io.molis.work.example.signed-home-agent", homeBundle = signedAgentPackage(publisher, { pluginId: homeId, scope: "home", version: "1.1.0" });
+    const homeId = "com.example.signed-home-agent", homeBundle = signedAgentPackage(publisher, { pluginId: homeId, scope: "home", version: "1.1.0" });
     await install(a, homeBundle); complete(homeId);
     const homePrompt = reg.prompts().find(item => item.owner_id === homeId && item.kind === "agent")!;
     reg.save(homePrompt.key, "个人角色修订", null, LOCAL_PERSON_ACTOR_ID);

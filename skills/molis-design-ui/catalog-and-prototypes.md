@@ -10,6 +10,7 @@
 2. **目录与章节纪律**：
    - 保持 7 章中文名称稳定（受 `tests/design-language.test.ts` 保护）；`look-card` 标本保持紧邻 `typeface`（受 `tests/appearance-parts.test.ts` 保护）。
    - 标题不写死批次号，不留过期的「待共审」临时标签；所有标本文字走 `t()`，不得裸露未翻译 i18n 键或损坏快捷键。
+   - 图标按钮用 `renderButton({ iconOnly: true, icon, label })`。`label` 是必填的动作名，用 `t.text()` 取当前语言的文字，由 SDK 写成可访问名。
    - 左侧目录使用动态 `grid-row: 1 / span ${totalCount}`（严禁写死 `span 76` 截断新增章节），并提供 `[data-catalog-chapter]` 章节筛选芯片与 `[data-catalog-find]` 搜索框。
 3. **子板 iframe 必须穿透外观**：`/bar`、`/navigation`、`/conditions`、`/assistant` 等所有子板文档必须挂齐 `appearanceHead(appearance)`，确保在组件板切换 4 套皮肤、F1 字体、明暗或紧凑密度时全部子框同步刷新。
 4. **改组件板必跑关联测试**：组件板约有 70+ 个耦合单测与 E2E（`tests/*board*.test.ts`、`tests/primitives.test.ts`、`tests/design-language.test.ts`、`tests/appearance-parts.test.ts`、`tests/work-line-specimens.test.ts`），改结构后用 `node scripts/affected-tests.mjs` 挑出并全部跑绿。

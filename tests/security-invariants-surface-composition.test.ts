@@ -128,7 +128,7 @@ test("S-surface-composition SCS-04 a real plugin call does not share the person'
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" },
   } };
   const plugin: PluginDefinition = { manifest: {
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.surface.probe", name: "Surface probe", version: "1.0.0",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.surface.probe", name: "Surface probe", version: "1.0.0",
     kind: "app", publisher: { publisher_id: "fixture", signature: "surface-probe" }, entrypoints: [{ deployment: "local", entrypoint: "./probe.mjs" }],
     permissions: [{ permission: "actions:invoke", required: true, reason: "Ask for a surface description" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [read],

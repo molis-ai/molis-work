@@ -107,7 +107,7 @@ test("DOCK-04 方案 C: no tile keeps a plugin in the top strip — no pin, no k
 });
 
 /** A plugin that runs in the project without being one of the project's chosen plugins, as the Host reports it. */
-const installed = (id: string, name: string) => ({ id, plugin_id: `io.molis.work.generated.${id}`, name, chosen: false,
+const installed = (id: string, name: string) => ({ id, plugin_id: `studio.${id}`, name, chosen: false,
   ui: { views: [{ view_id: "app", slot: "stage" as const, title: name }] } });
 
 test("a plugin the project installed at run time opens beside like any other, and is not this list's to remove", () => {

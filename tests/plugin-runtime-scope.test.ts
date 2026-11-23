@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -14,7 +14,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 
 const manifest = (runtime: unknown, extra: Partial<PluginManifest> = {}): PluginManifest => ({
-  schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.scope", version: "1.0.0", name: "Scope fixture", kind: "app",
+  schema_version: 1, host_api_version: 1, plugin_id: "com.example.scope", version: "1.0.0", name: "Scope fixture", kind: "app",
   publisher: { publisher_id: "someone", signature: "scope-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
   ...(runtime === undefined ? {} : { runtime }), ...extra,
@@ -25,7 +25,7 @@ const sandboxed = (value: PluginManifest): PluginDefinition => ({ ...definition(
 const PINNED = { level: "pinned", publisher_key_id: `ed25519:sha256:${"a".repeat(64)}` } as const;
 /** What a signed package's Manifest says: its publisher signature is the pinned key's fingerprint (S-75.1). */
 const signed = (runtime: unknown) => manifest(runtime, { publisher: { publisher_id: "someone", signature: PINNED.publisher_key_id } });
-const runtimeOf = (scope?: "home" | "project") => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, ...(scope ? { scope } : {}) });
+const runtimeOf = (scope?: "home" | "project") => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, ...(scope ? { scope } : {}) });
 
 test("RAC-739 PEQ-06 a Manifest says it runs in the Home with runtime.scope, and may declare dual_instance: true alongside scope: home (S-48, S-80)", () => {
   assert.equal(parsePluginManifest(manifest(undefined)).runtime, undefined, "a project plugin writes nothing");
@@ -124,12 +124,12 @@ test("RAC-742 only the Host's own build can be installed with local_tools: an un
   } as Partial<PluginManifest>));
   const pinned = { level: "pinned", publisher_key_id: `ed25519:sha256:${"b".repeat(64)}` } as const;
   for (const trust of [UNSIGNED_TRUST, pinned]) {
-    const refused = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
+    const refused = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
     assert.throws(() => refused.install({ definition: declared, deployment: "local", grants: [], trust }), code("plugin.declaration_invalid"));
     assert.deepEqual(refused.list(), [], "nothing is recorded for a refused install");
   }
   assert.throws(() => assertLocalToolsAllowed(declared.manifest, UNSIGNED_TRUST), code("plugin.declaration_invalid"));
   // The Host's own build is asked nothing, and a plugin that declares none is not asked either.
-  assert.equal(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: declared, deployment: "local", trust: HOST_BUILD_TRUST }).install.publisher_trust, "host");
-  assert.equal(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: definition(manifest(undefined)), deployment: "local", grants: [], trust: UNSIGNED_TRUST }).install.publisher_trust, "unsigned");
+  assert.equal(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).install({ definition: declared, deployment: "local", trust: HOST_BUILD_TRUST }).install.publisher_trust, "host");
+  assert.equal(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS }).install({ definition: definition(manifest(undefined)), deployment: "local", grants: [], trust: UNSIGNED_TRUST }).install.publisher_trust, "unsigned");
 });

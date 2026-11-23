@@ -1,4 +1,4 @@
-import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -25,12 +25,12 @@ test("formal unknown plugins supply namespaced events and checked navigation thr
   service.registerProvider({ provider: { provider_id: "system.home", title: "Home", kind: "system", project_id: caller.project_id! }, definitions: Object.values(homeEventActions), handlers: createHomeEventHandlers(service, { capability_id: "unavailable.recommendations", version: 1 }) });
   const query = defineWorkEventsAction("unknown.notes.events", 1, ["unknown-note"], "笔记事项", ["notes:read"]);
   let events = [original]; let duringRead: (() => void) | undefined;
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.event-notes", version: "1.0.0", name: "Notes", kind: "app",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.event-notes", version: "1.0.0", name: "Notes", kind: "app",
     publisher: { publisher_id: "example", signature: "events" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "notes:read", required: false, reason: "读取原笔记" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [query] },
     async start() { return { kind: "app", actions: [{ ...query, handle: async () => { await Promise.resolve(); duringRead?.(); return { source: { surface: "notes", title: "我的笔记", icon: "note" }, events }; } }] }; } });
   const repository = new MemoryPluginRuntimeRepository();
-  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: service, project_id: caller.project_id! } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: service, project_id: caller.project_id! } });
   const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read"] }).install;
   const read = async (context = caller) => await service.invoke(context, homeEventActions.events, window) as HomeEventsResult;
   try {

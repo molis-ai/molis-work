@@ -114,6 +114,7 @@ export type { BackgroundTaskPhrase } from "@molis-ai/molis-work-contracts/platfo
 
 export interface CardAuthority {
     discover(): Promise<readonly ActionView[]>;
+    discoverOne?(reference: ActionReference): Promise<ActionView | undefined>;
     check(view: ActionView, input: unknown): void | Promise<void>;
     invoke(reference: ExactActionReference, input: unknown): Promise<unknown>;
 }

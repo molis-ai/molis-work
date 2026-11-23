@@ -31,7 +31,7 @@ interface ProbeInput { readonly name: string; readonly step: string }
 /** A plugin that exists only for the test: a table of its own in the project's library, one 成果 type of its own, and three actions that pin. */
 function probe(short: string, grants: readonly string[], peer?: () => PluginHostServices) {
   // A 成果 type has one producer, so each probe declares its own.
-  const id = `io.molis.work.example.${short}`, read = `${short}:read`, write = `${short}:write`, type = `${short}.capture`, preview = artifactPreview(id, type);
+  const id = `com.example.${short}`, read = `${short}:read`, write = `${short}:write`, type = `${short}.capture`, preview = artifactPreview(id, type);
   const gate = { entered: deferred(), release: deferred(), hook: () => {}, inner: undefined as unknown, value: undefined as unknown };
   let services: PluginHostServices | undefined;
   const table: PluginDatabaseDeclaration = { store_name: short, version: 1, read_permission: read, write_permission: write,
@@ -76,7 +76,12 @@ function probe(short: string, grants: readonly string[], peer?: () => PluginHost
         binding_signature: "official-feed-binding" }, actor_id: "someone-else", project_id: "another-project", scope: "team_project" } as PluginArtifactPublishInput)); break;
       case "head": await database.transaction(async () => {}, tx => {
         insert(tx, input.name);
-        watched(() => artifacts.join!(tx, w => { const before = w.head(`pin-${input.name}`); w.publish(pin(input.name)); return [before, w.head(`pin-${input.name}`)]; }));
+        watched(() => artifacts.join!(tx, w => {
+          const artifactId = `pin-${input.name}`;
+          const before = w.head(artifactId);
+          w.publish({ ...pin(input.name), ...pinnedArtifact(input.name, undefined, "capture-digest") });
+          return [before, w.head(artifactId)];
+        }));
       }); break;
       case "keep": {
         // A writer kept past the transaction it joined.
@@ -185,9 +190,8 @@ test("S-100 a pinned version and the plugin's own row commit together, as the Ma
   assert.equal(f.nothing("rolled"), true, "the plugin's failure after the pin rolled the version back with its own row");
   f.main.reset();
   assert.equal(await f.client.invoke(caller(permissionsOf(f.main)).context, f.main.act, { name: "seen", step: "head" }), true);
-  const [before, after] = f.main.gate.value as [unknown, { version: number } | null];
-  assert.equal(before, null);
-  assert.equal(after?.version, 1, "head sees the transaction's own pin");
+  // FVR-03: a write-only plugin can read the original revision of its own pin in the same transaction.
+  assert.deepEqual(f.main.gate.value, [null, { version: 1, source_revision: null, origin_revision: "capture-digest" }]);
 });
 
 test("S-100 a plugin's own wait does not stand in for its caller: revoked, cancelled or moved to another provider while it waits, neither the row nor the version is there", async t => {

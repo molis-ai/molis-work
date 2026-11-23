@@ -22,7 +22,7 @@ interface StartedProbe {
 
 /** A Home plugin with an outer action, an inner one open to every audience, and one open to the person alone (the plugin audience reaches what agents reach). */
 function selfCallProbe(name: string, options: { consumes?: readonly string[]; delegate?: boolean; atStart?: (context: PluginStartContext, self: StartedProbe) => void } = {}) {
-  const id = `io.molis.work.example.${name}`;
+  const id = `com.example.${name}`;
   const action = (suffix: string, audiences: ActionAudience[]): ActionDefinition => ({ capability_id: `${name}.${suffix}`, version: 1, operation: "command", action: {
     title: suffix, description: "A self call probe", kind: "operation", scope: "home", scheduling: "concurrent", audiences, permissions: ["storage:private"], subject_kinds: [],
     input_schema: { type: "object" }, output_schema: { type: "string" } } });

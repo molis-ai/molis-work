@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { requireSynchronous, type ActionExecutionContext, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionDefinition, type ActionExecutionContext, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentMemorySourceRef, AgentRuntimeAdapter, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { memoryLearningActions, type MemoryLearningRequest, type MemoryLearningTaskRequest, type MemoryLearningOwnedSource } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors, type MemoryService, type MemoryServicePorts, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
@@ -24,12 +24,30 @@ const ownerKeys = ["actor_id", "project_id", "plugin_id", "install_id", "install
 const keyFor = (payload: Pick<PluginLearningPayload, "owner" | "session_id" | "run_id">) =>
   "memory-learn:plugin:" + JSON.stringify([payload.owner.install_id, payload.owner.installation_generation, payload.session_id, payload.run_id]);
 
+const isLearningRunCapabilityId = (value: unknown): value is string =>
+  string(value) && (value === memoryLearningActions.run.capability_id || value.endsWith("." + memoryLearningActions.run.capability_id));
+
+function isMemoryLearningRunAction(action: ActionDefinition): boolean {
+  const base = memoryLearningActions.run;
+  return isLearningRunCapabilityId(action.capability_id)
+    && action.operation === base.operation
+    && action.version === base.version
+    && action.action.scope === base.action.scope
+    && action.action.kind === base.action.kind
+    && action.action.effect === base.action.effect
+    && action.action.scheduling === base.action.scheduling
+    && isDeepStrictEqual(action.action.audiences, base.action.audiences)
+    && isDeepStrictEqual(action.action.permissions, base.action.permissions)
+    && isDeepStrictEqual(action.action.input_schema, base.action.input_schema)
+    && isDeepStrictEqual(action.action.output_schema, base.action.output_schema);
+}
+
 /** Read the new durable boundary strictly; no callback, recipe, text or authorization snapshot is stored here. */
 function payloadOf(task: Pick<AgentScheduledTask, "key" | "session_id" | "payload">): PluginLearningPayload {
   const body = object(task.payload), owner = object(body?.owner), action = object(body?.owner_action);
   if (!body || !only(body, ["source_kind", "owner", "owner_action", "session_id", "run_id", "sources"]) || body.source_kind !== "plugin-run"
     || !owner || !only(owner, ownerKeys) || !ownerKeys.every(key => string(owner[key]))
-    || !action || !only(action, ["capability_id", "version", "provider_id"]) || action.capability_id !== memoryLearningActions.run.capability_id
+    || !action || !only(action, ["capability_id", "version", "provider_id"]) || !isLearningRunCapabilityId(action.capability_id)
     || action.version !== memoryLearningActions.run.version || !string(action.provider_id) || !string(body.session_id) || !string(body.run_id) || body.session_id !== task.session_id
     || !Array.isArray(body.sources) || !body.sources.length || body.sources.length > 6 || body.sources.some(raw => {
       const ref = object(raw); return !ref || !only(ref, ["event_id", "version"]) || typeof ref.event_id !== "string" || !ref.event_id || ref.event_id.length > 1000 || ref.version !== "1";
@@ -55,7 +73,8 @@ export function pluginMemoryLearning(input: {
     const reference = await input.projectReference?.(owner.project_id);
     if (!reference) throw memoryErrors.unavailable("项目来源主人尚未装配");
     const reaches = await input.localHost.projectPluginReach(owner.project_id);
-    if (reaches(owner.plugin_id) !== true) throw memoryErrors.forbidden("项目已关闭这个来源插件");
+    // Built-in plugins disabled on this project answer `false`; installed/third-party plugins are not in that map (`undefined`) and are verified by runtime records below.
+    if (reaches(owner.plugin_id) === false) throw memoryErrors.forbidden("项目已关闭这个来源插件");
     // A queued run can be the first call after Host restart. Start the same project runtime directly;
     // an enqueue already comes from its running installation.
     const platform = await input.localHost.withProject(reference, runtime => runningProjectPlatform(runtime.store, owner.project_id), { activatePlugins });
@@ -68,9 +87,9 @@ export function pluginMemoryLearning(input: {
     const plugin = context.host_plugin, scope = currentPluginInvocation();
     if (context.audience !== "plugin" || !plugin || !plugin.project_id || !scope || scope.install_id !== plugin.install_id)
       throw memoryErrors.forbidden("自动学习只能由当前来源安装发起");
-    const definition = plugin.declaration.manifest.actions?.find(action => action.capability_id === memoryLearningActions.run.capability_id && action.version === memoryLearningActions.run.version);
-    if (!definition || definition.operation !== "command" || !definition.action.audiences?.includes("plugin"))
-      throw memoryErrors.unavailable("来源插件没有装配学习主人");
+    const matches = (plugin.declaration.manifest.actions ?? []).filter(isMemoryLearningRunAction);
+    if (matches.length !== 1) throw memoryErrors.unavailable("来源插件没有装配学习主人");
+    const definition = matches[0]!;
     const { reference, platform } = await platformFor({ project_id: plugin.project_id, plugin_id: plugin.plugin_id });
     const record = platform.runtime.list().find(record => record.install_id === plugin.install_id);
     if (!record || record.state !== "running" || record.plugin_id !== plugin.plugin_id || record.installation_generation !== scope.installation_generation)
@@ -138,8 +157,10 @@ export function pluginMemoryLearning(input: {
     if (!task || task.kind !== "memory.learn" || task.state !== "running") throw memoryErrors.forbidden("这份原学习任务不在本次运行中");
     const payload = payloadOf(task), { owner } = payload, scope = currentPluginAction();
     if (request.session_id !== payload.session_id || request.run_id !== payload.run_id || !scope || scope.install_id !== owner.install_id
-      || scope.installation_generation !== owner.installation_generation || scope.definition.capability_id !== memoryLearningActions.run.capability_id
-      || scope.definition.version !== memoryLearningActions.run.version) throw memoryErrors.forbidden("形成只能嵌套在本次当前来源主人调用内");
+      || scope.installation_generation !== owner.installation_generation
+      || scope.definition.capability_id !== payload.owner_action.capability_id
+      || scope.definition.version !== payload.owner_action.version
+      || !isMemoryLearningRunAction(scope.definition)) throw memoryErrors.forbidden("形成只能嵌套在本次当前来源主人调用内");
     const assertCurrent = authority(context, owner), check = sourceCheck(context), original = await originals(payload);
     if (!original || !isDeepStrictEqual(payload.sources, original.sources.map(({ event_id, version }) => ({ event_id, version }))))
       throw memoryErrors.forbidden("学习任务的完整本人原件已不可核验");

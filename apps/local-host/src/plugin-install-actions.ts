@@ -1,4 +1,4 @@
-import { ActionError, bindActionHandler, inputSchemaFor, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, inputSchemaFor, type ActionDefinition, type ActionHandlerBinding, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_INSTALL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_INSTALL_WRITE, type PluginInstalledPermissionView, type PluginInstalledView, type PluginPublisherPin, type PluginUninstallResult, type PluginUninstallTarget, type ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 export { PLUGIN_INSTALL_PROVIDER_ID };
@@ -49,7 +49,7 @@ const consentRow = {
 };
 /** The installation an uninstall names (BL-915): the `uninstall_target` of the row the person acted on, checked against the trusted row under its lock. */
 const uninstallTarget = { type: "object", additionalProperties: false, required: ["install_id", "installation_generation", "version", "manifest_digest"],
-  properties: { install_id: { type: "string", minLength: 1, maxLength: 200 }, installation_generation: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "string", minLength: 1, maxLength: 200 }, manifest_digest: { type: "string", minLength: 1, maxLength: 200 } } };
+  properties: { install_id: { type: "string", minLength: 1, maxLength: 200 }, installation_generation: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "string", minLength: 1, maxLength: 200 }, manifest_digest: { type: "string", minLength: 1, maxLength: 200 } } } as const;
 const installedView = {
   type: "object", additionalProperties: false,
   required: ["install_id", "plugin_id", "name", "version", "state", "trust", "publisher_signature", "publisher_label", "manifest_available", "permissions", "jobs", "consents", "pending_defaults", "recovery_error"],
@@ -158,7 +158,20 @@ const homeControlled = (title: string, description: string) => ({ ...metadata, s
  * in a project, like the install: `user` audience and the protected entry's `user_action`. The same three for a package installed in the Home are the
  * Host settings door's (BL-715), with no project.
  */
+const repairContract = {
+  input_schema: { type: "object", additionalProperties: false, required: ["plugin_id", "target"],
+    properties: { plugin_id: { type: "string", minLength: 1, maxLength: 200 }, target: uninstallTarget, bundle: { type: "object" } } },
+  output_schema: { type: "object", additionalProperties: false, required: ["plugin_id", "version"], properties: { plugin_id: text, version: text } },
+} as const;
+type RepairAction = ActionDefinition<InferActionInput<typeof repairContract.input_schema>, { plugin_id: string; version: string }>;
+const repairTitle = "装回插件的已安装版本";
+const repairDescription = "本人在宿主设置入口装回损坏的插件包。重新验签并核对原安装，沿用已批准的权限和现有数据。";
+
 export const pluginControlActions = {
+  repair: { capability_id: "plugins.installed.repair", version: /* @version action.plugins.installed.repair */ 1, operation: "command",
+    action: { ...controlled(repairTitle, repairDescription), ...repairContract } } as RepairAction,
+  homeRepair: { capability_id: "plugins.home.installed.repair", version: /* @version action.plugins.home.installed.repair */ 1, operation: "command",
+    action: { ...homeControlled(repairTitle, repairDescription), ...repairContract } } as RepairAction,
   disable: { capability_id: "plugins.installed.disable", version: /* @version action.plugins.installed.disable */ 1, operation: "command", action: { ...controlled("停用签名包装的插件",
     "停用这个项目里一个从签名的包装进来的插件：它的动作停止提供，数据保留，之后可以再启用或卸载。有常开同意的插件不能停用。"),
     input_schema: { type: "object", properties: controlInput, required: ["plugin_id"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string }, { plugin_id: string; state: string }>,
@@ -230,6 +243,14 @@ export function pluginInstallHandlers(service: PluginInstallService, imports?: S
       const { plugin_id, keep_data, target } = input as { plugin_id: string; keep_data?: boolean; target?: PluginUninstallTarget };
       return { plugin_id, ...await service.control({ action, plugin_id, keep_data: keep_data === true, ...target ? { target } : {} }, who, caller) };
     } })),
+    bindActionHandler(pluginControlActions.repair, async ({ plugin_id, target, bundle }, caller) => {
+      assertPluginPermissionSettingsEntry(caller);
+      return service.repair({ plugin_id, expected_installation: { scope: "project", ...target }, bundle }, caller);
+    }),
+    bindActionHandler(pluginControlActions.homeRepair, async ({ plugin_id, target, bundle }, caller) => {
+      assertHomePluginPermissionSettingsEntry(caller);
+      return service.repair({ plugin_id, expected_installation: { scope: "home", ...target }, bundle }, caller);
+    }),
     bindActionHandler(pluginControlActions.enable, async (input, caller) => {
       const who = pluginInstallPerson(caller);
       return { plugin_id: input.plugin_id, ...await service.control({ ...input, action: "enable", caller }, who) };

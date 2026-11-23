@@ -20,7 +20,7 @@ import { PENDING, within } from "./fixtures/stopped-calls.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 
-const dependencyId = "io.molis.work.surface.source";
+const dependencyId = "com.example.surface.source";
 const actionId = (pluginId: string, publisher: string, localId: string) => sandboxActionId(sandboxPackageBuildId(pluginId, publisher), localId);
 
 function surfacePackage(publisher = newPublisher(), options: { pluginId?: string; version?: string; dependency?: string; writable?: boolean; listId?: string; startupDelay?: number; scope?: "home" | "project" } = {}): PluginPackageBundle {
@@ -135,7 +135,7 @@ test("S-surface-composition SCS-16 signed Home confirmations from different proj
   assert.equal(home.installation(PACKAGE_PLUGIN_ID)?.state, "running");
   assert.equal(home.installation(dependencyId)?.version, "1.1.0");
 
-  const refusedId = "io.molis.work.surface.refused", refusedPublisher = newPublisher();
+  const refusedId = "com.example.surface.refused", refusedPublisher = newPublisher();
   const currentRef = actionId(dependencyId, source.identity, "notes.scan") + "@1";
   const stalePreview = await previewOf(a, first, surfacePackage(refusedPublisher, { pluginId: refusedId, dependency: currentRef }));
   const removing = await previewOf(b, second, replacement(source, "1.1.0", "1.2.0", "notes.search"));
@@ -160,7 +160,7 @@ test("S-surface-composition SCS-16 cancellation, revoked authority and Home clos
   const project = await h.createProject("Queued confirmation");
   const home = h.host.homePlugins!, client = h.host.actionClient(project.reference), caller = person(project.project_id);
   for (const cause of ["cancelled", "forbidden", "closed"] as const) {
-    const publisher = newPublisher(), pluginId = "io.molis.work.surface." + cause;
+    const publisher = newPublisher(), pluginId = "com.example.surface." + cause;
     const preview = await previewOf(client, caller, surfacePackage(publisher, { pluginId }));
     const release = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();
     const held = home.installationScope.run(async () => { entered.resolve(); await release.promise; });
@@ -194,7 +194,7 @@ test("S-surface-composition SCS-16 system references are sampled once for a sign
   } };
   const remove = h.host.actionRegistry().registerProvider({ provider: { provider_id: "system.surface-reference", kind: "system", title: "Reference" },
     definitions: [definition], handlers: [{ ...definition, handle: () => true }] });
-  const first = newPublisher(), second = newPublisher(), secondId = "io.molis.work.surface.next";
+  const first = newPublisher(), second = newPublisher(), secondId = "com.example.surface.next";
   const dependency = definition.capability_id + "@1", client = h.projectClient(), base = person();
   const initial = await previewOf(client, base, surfacePackage(first, { dependency }));
   const next = await previewOf(client, base, surfacePackage(second, { pluginId: secondId, dependency }));
@@ -430,7 +430,7 @@ test("QEA-82 SCS-16 an unreadable unsigned installation only refuses its actual 
   const platform = await h.host.withProject(h.reference, runtime => runningProjectPlatform(runtime.store, caller.project_id!));
   assert.ok(platform);
   const recordOf = (id: string) => platform.runtime.list().find(record => record.plugin_id === id && record.state !== "uninstalled") ?? null;
-  const owner = newPublisher(), missingId = "io.molis.work.surface.restoring";
+  const owner = newPublisher(), missingId = "com.example.surface.restoring";
   const missing = readSandboxPackage(surfacePackage(owner, { pluginId: missingId, scope: "project" }).payload).manifest;
   const unsigned = { ...missing, presentation: undefined, publisher: { publisher_id: "fixture", signature: "fixture-surface-restoring" } };
   const definition: PluginDefinition = { manifest: unsigned, execution: "sandbox", start: async () => assert.fail("the retained installation is awaiting its declaration owner") };
@@ -439,7 +439,7 @@ test("QEA-82 SCS-16 an unreadable unsigned installation only refuses its actual 
   await confirm(client, caller, await previewOf(client, caller, candidate));
   assert.equal(recordOf(PACKAGE_PLUGIN_ID)?.state, "running", "unrelated self-contained presentation is valid");
   const reference = actionId(missingId, owner.identity, "notes.list") + "@1";
-  const deniedOwner = newPublisher(), deniedId = "io.molis.work.surface.missing-ref";
+  const deniedOwner = newPublisher(), deniedId = "com.example.surface.missing-ref";
   const denied = surfacePackage(deniedOwner, { pluginId: deniedId, dependency: reference, scope: "project" });
   await assert.rejects(previewOf(client, caller, denied), { code: "plugin.declaration_invalid" });
   assertAbsent(h.home, deniedId, deniedOwner.identity, () => recordOf(deniedId));

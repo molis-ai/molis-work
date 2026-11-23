@@ -152,7 +152,7 @@ test("BL-491 RAC-2629 an installed package chooses among the enabled models insi
   assert.equal(view.selection, undefined);
   assert.deepEqual(await r.ask({ op: "settings.save", choice: { provider_id: "fixture", model_id: "model" } }), { provider_id: "fixture", model_id: "model" });
   const preference = join(r.h.home, "plugin-files", installId, ".model-settings", "preference.json");
-  assert.deepEqual(JSON.parse(readFileSync(preference, "utf8")), { schema_version: 2, selection: { provider_id: "fixture", model_id: "model" }, revision: 1, receipts: {} });
+  assert.deepEqual(JSON.parse(readFileSync(preference, "utf8")), { schema_version: 1, selection: { provider_id: "fixture", model_id: "model" }, revision: 1, receipts: {} });
 });
 
 test("BL-491 RAC-2630 a package cannot save an address, a connection, a format, the reserved provider or anything unknown; nothing is written and no provider is made", mac, async t => {
@@ -217,14 +217,14 @@ test("BL-491 RAC-2654 a package that asks for model settings or image generation
   // The install error does not carry the cause, so the guard itself is asked: a project's instance of a package with either effect never starts, and says why.
   const context = { project_id: "p", install_id: "refusal", installation_generation: "1", requireGrant: () => {} } as Partial<PluginStartContext> as PluginStartContext;
   for (const effects of [{ imageGeneration: ["read"] }, { modelSettings: ["read"] }] satisfies SandboxEffects[]) {
-    const contract = { pluginId: "io.molis.work.example.projectrefusal", operations: [{ id: "draw", kind: "command" as const, effects, input: { type: "null" }, output: { type: "null" } }] };
-    const release = { buildId: "project-refusal", pluginId: "io.molis.work.example.projectrefusal", version: 1, bundlePath: "/nowhere", nodes: [], prompts: [], design: { title: "refusal", contract, parts: [], acceptance: [] } } as AgentRelease;
+    const contract = { pluginId: "com.example.projectrefusal", operations: [{ id: "draw", kind: "command" as const, effects, input: { type: "null" }, output: { type: "null" } }] };
+    const release = { buildId: "project-refusal", pluginId: "com.example.projectrefusal", version: 1, bundlePath: "/nowhere", nodes: [], prompts: [], design: { title: "refusal", contract, parts: [], acceptance: [] } } as AgentRelease;
     await assert.rejects(sandboxedPluginDefinition(release, effects, generatedPluginManifest(release)).start(context), (error: { code?: string; message?: string }) =>
       error.code === "plugin.declaration_invalid" && /模型设置和图片生成只给装在 Home 里的插件/u.test(error.message ?? ""), JSON.stringify(effects));
   }
   // The same package without those two effects, and with the rest of them (the model and the approved domain), installs in the project: the refusal is theirs.
   const { modelSettings: _settings, imageGeneration: _images, ...rest } = EFFECTS;
-  await r.install(bundle("project", rest, "io.molis.work.example.control"));
+  await r.install(bundle("project", rest, "com.example.control"));
   assert.equal(r.h.host.homePlugins!.hasPackage(PACKAGE_PLUGIN_ID), false);
 });
 
@@ -356,7 +356,7 @@ for (const certificate of ["untrusted", "wrong-san", "trusted"] as const) test(`
     assert.equal(action.action.execution?.cost, "metered");
     const result = await r.ask({ op: "image.generate", url, revision: state.revision }) as { images?: Array<{ base64: string }>; revision?: string; error?: string };
     assert.ok(provider.lookups.policy > 0, "Host's promises DNS policy lookup reached the fixture");
-    assert.ok(provider.lookups.socket > 0, "the real TLS socket's callback DNS lookup reached the fixture");
+    assert.deepEqual(provider.tlsNames, [IMAGE_DOMAIN], "the real TLS client presents the approved host name to the provider");
     if (certificate === "trusted") {
       assert.equal(result.error, undefined); assert.equal(result.revision, state.revision); assert.equal(result.images?.length, 1);
       assert.deepEqual(Buffer.from(result.images![0]!.base64, "base64"), IMAGE_PNG);

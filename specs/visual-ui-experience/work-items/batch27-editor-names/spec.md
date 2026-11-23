@@ -2,7 +2,7 @@
 
 状态：本片实现与隔离 Home 实操通过，待第 27 批整体验证及一骏本人验收（2026-11-09）。
 
-depends_on 为第 27 批基点 `8ad5927c3` 的工作台插件槽、内置插件字典和共用单选组键盘逻辑。本片承接 [第 27 批](../../../post-anticorruption-roadmap/reference/batches/27.md) 的 [F-17](../../copy-help-inventory.md#54-第二轮新增的跨页面问题)，对应 [BL-1038](../../../backlog/BL-1038.md) 和 [VUX-52、58](../../spec.md#4-验收标准)。
+depends_on 为第 27 批基点 `8ad5927c3` 的工作台插件槽、内置插件字典和共用单选组键盘逻辑。本片承接 [第 27 批](../../../post-anticorruption-roadmap/reference/batches/27.md) 的 [F-17](../../copy-help-inventory.md#54-第二轮新增的跨页面问题)，对应 [BL-1038 结清记录](../../../archive/accessible-editor-controls/spec.md) 和 [VUX-52、58](../../spec.md#4-验收标准)。
 
 在真实 Host 的浏览器无障碍树中，Dataset 标题和表格图标，PPT 的标题、页标题与页操作，Jelly 的开始时间、结束时间和备注，Feed 和 Inbox 的图标动作已有名称。PPT 的主题色单选项名称仍是色值，例如 `#5e6ad2`。同时，普通保存将十六进制值规范成小写，打开编辑器时按区分大小写的字符串匹配，导致柔白背景和深灰文字的两个单选项在重开后失去已选状态。
 

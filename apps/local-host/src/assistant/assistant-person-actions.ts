@@ -29,6 +29,7 @@ export function assistantPersonActions(localHost: MolisWorkLocalHost,
       const context = makeContext(reference, decision);
       return {
         discover: async () => client.discover(await context),
+        discoverOne: async action => client.discoverOne(await context, action),
         invoke: async (action, input) => {
           const caller = { ...await context, actor_kind: "user" as const, user_action: decision.entry };
           await decision.beforeEffect();
@@ -49,6 +50,7 @@ export function assistantPersonActions(localHost: MolisWorkLocalHost,
         views.catch(() => { if (directories.get(key)?.views === views) directories.delete(key); });
         return views;
       },
+      discoverOne: async action => client.discoverOne(await personContext(reference), action),
       invoke: async (action, input) => client.invoke(await personContext(reference), action, input),
     };
   };

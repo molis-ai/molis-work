@@ -24,9 +24,10 @@ import { projectRouteControl } from "./plugin-actions-client.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { readText, htmlLang } from "./web-locale.js";
 import { randomUUID } from "node:crypto";
+import { installedRepairStage } from "./installed-stage-section.js";
 import { installedStageSection } from "./workbench-renderer.js";
 import { installedPluginWords } from "./installed-plugin-page.js";
-import { assertStageInstallation, installedStageIdentity, installedStagePath, requestedStageInstallation } from "./installed-stage-identity.js";
+import { assertStageInstallation, installedStageIdentity, installedStagePath, requestedStageInstallation, sameInstalledRelease } from "./installed-stage-identity.js";
 import { captureWebSessionAuthority } from "./web-sessions.js";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 
@@ -92,6 +93,9 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const page = sidePage ?? /^\/plugins\/([a-z0-9][a-z0-9.-]*)$/u.exec(url.pathname);
   const route = /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
   if (!page && !route) return false;
+  const pageAuthority = route ? pluginPageRequest(request) : undefined;
+  const bound = pageAuthority?.installedRoute();
+  if (bound?.projectId != null) return false;
   let expected: SurfaceInstallationRef | undefined;
   try { expected = page ? requestedStageInstallation(url) : undefined; }
   catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); return true; }
@@ -129,6 +133,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     return true;
   }
   const install = home.installation(pluginId);
+  if (bound && (!install || !sameInstalledRelease(bound.release, install))) return unavailableStage(response, { scope: "home", ...bound.release });
   // A running Home half that does not bind the route leaves it to the project's half, unchanged. A Home half that binds nothing
   // (stopped, revoked or uninstalled) leaves it only to a project half that binds it; one that does not, or whose platform cannot be
   // started, is not this route's to answer: the Home answers it as it answers any stopped Home plugin's (RAC-1300, RAC-1301).
@@ -201,7 +206,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     await changeHomePlugin(request, response, home, platform, pluginId, operation);
     return true;
   }
-  const abort = new AbortController(), pageAuthority = pluginPageRequest(request);
+  const abort = new AbortController();
   const stop = () => abort.abort(new ActionError("actions.cancelled", "调用已取消"));
   const disconnected = () => { if (!response.writableEnded) stop(); };
   request.once("aborted", disconnected); response.once("close", disconnected);
@@ -364,6 +369,12 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
     if (registration && !declaredStageContributionId(registration)) return [];
     return [{ project_plugin_id: entry.key, manifest: entry.manifest, workbench: registration?.workbench }];
   });
+  const prefix = options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "";
+  for (const damaged of host.damagedPackages()) {
+    if (options?.shown && !options.shown.includes(damaged.record.plugin_id)) continue;
+    const repair = installedRepairStage(damaged, "home", prefix);
+    if (repair) unavailable.push(repair.unavailable);
+  }
   const sideOnly = sideOpenedPlugins(registered);
   const draw = (entry: (typeof registered)[number], view: UiContribution & { readonly producer?: string }) => {
     const result = renderStagePage(view, options?.model(entry.project_plugin_id) ?? homeViewModel(entry.manifest.plugin_id), entry.project_plugin_id,
@@ -378,7 +389,7 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
   for (const entry of registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id)
     || options?.views && Object.hasOwn(options.views, `home:${entry.project_plugin_id}`))) {
     const pluginId = entry.manifest.plugin_id, stage = stageContributionId(entry.manifest), key = `home:${entry.project_plugin_id}`;
-    if (options?.views && !Object.hasOwn(options.views, key)) continue;
+    if (unavailable.some(item => item.surface === entry.project_plugin_id) || (options?.views && !Object.hasOwn(options.views, key))) continue;
     if (host.hasPackage(pluginId)) {
       const release = host.packageStage(pluginId), record = host.installation(pluginId);
       const actual = captureRuntimeStageOwner(platform, "home", entry);

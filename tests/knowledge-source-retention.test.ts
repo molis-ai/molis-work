@@ -133,7 +133,7 @@ test("A4-K unavailable/missing state retains adopted cards; withdrawn current pr
   const { definePlugin } = await import("@molis-ai/molis-work-plugin-sdk");
   const { PluginRuntime, SqlitePluginRuntimeRepository } = await import("@molis-ai/molis-work-plugin-runtime");
   let version = 0;
-  const definition = (withState: boolean) => definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.a4-source", version: `1.0.${version++}`, name: "A4 owner",
+  const definition = (withState: boolean) => definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.a4-source", version: `1.0.${version++}`, name: "A4 owner",
     kind: "app", publisher: { publisher_id: "example", signature: "a4-source" }, ...(version > 1 ? { upgrade_compatibility: { compatible_from_versions: Array.from({ length: version - 1 }, (_, index) => `1.0.${index}`) } } : {}), entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "artifact:read", required: false, reason: "读取资料" }], actions: [source, reader, ...(withState ? [state] : [])],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
@@ -206,7 +206,7 @@ test("A4-K a current legacy reader without a search source keeps the raw-subject
   const home = await openTestHome(t, { catalogPolicy: false }), project = await home.createProject("reader only");
   const host: MolisWorkLocalHost = home.host;
   const reader = defineSubjectContextAction("legacy.body", 1, "legacy_document", "原资料", ["artifact:read"]), subject = { kind: "legacy_document", id: "direct" };
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.reader-only", version: "1.0.0", name: "reader only",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.reader-only", version: "1.0.0", name: "reader only",
     kind: "app", publisher: { publisher_id: "example", signature: "reader-only" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "artifact:read", required: false, reason: "读取" }], actions: [reader], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
     async start() { return { kind: "app", actions: [{ ...reader, handle: () => subjectContext({ subject, revision: "1", title: "仅供引用", content: "legacy-body" }) }] }; } });

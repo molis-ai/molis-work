@@ -130,7 +130,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
       </div>
       <p class="pages-placement-line" data-placement-target></p>
       <p class="pages-search-empty" data-pages-search-empty hidden>${uiText("pages.list.no-match")}</p>
-      <div data-pages-rows role="listbox" aria-multiselectable="true" aria-label="${uiText("pages.doc.name")}"></div>
+      <div data-pages-rows role="treegrid" aria-multiselectable="true" aria-label="${uiText("pages.doc.name")}"></div>
     </div>
     <div class="plugin-stage-workspace" data-pages-stage-workspace data-floating-stage hidden>
       <div class="plugin-stage-detail-bar">

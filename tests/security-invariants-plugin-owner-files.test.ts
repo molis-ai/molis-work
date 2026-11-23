@@ -207,9 +207,9 @@ test("S-plugin-data plugins.data refuses non-person, delegated, quarantined, uno
     databases: { home: homeDb },
   });
 
-  const ownedId = "io.molis.work.example.p06data";
-  const unownedId = "io.molis.work.example.p06unowned";
-  const quarantinedId = "io.molis.work.example.p06quarantined";
+  const ownedId = "com.example.p06data";
+  const unownedId = "com.example.p06unowned";
+  const quarantinedId = "com.example.p06quarantined";
   const ownedManifest = makeManifest(ownedId, "sig-p06-owned", ownedDecl);
   const unownedManifest = makeManifest(unownedId, "sig-p06-unowned", unownedDecl);
   const quarantinedManifest = makeManifest(quarantinedId, "sig-p06-quarantined", quarantinedDecl);
@@ -414,10 +414,10 @@ test("S-plugin-data plugins.data refuses non-person, delegated, quarantined, uno
     "built-in Shelf Home owner_files must be refused under project scope",
   );
 
-  const homeSandboxFilesId = "io.molis.work.example.p12homesandbox";
-  const hostExecFilesId = "io.molis.work.example.p12hostexec";
-  const multiInstallId = "io.molis.work.example.p23multi";
-  const projectOnlyHomeDbId = "io.molis.work.example.p23projonly";
+  const homeSandboxFilesId = "com.example.p12homesandbox";
+  const hostExecFilesId = "com.example.p12hostexec";
+  const multiInstallId = "com.example.p23multi";
+  const projectOnlyHomeDbId = "com.example.p23projonly";
   const hardenedDbDecl: HomePluginDatabaseDeclaration = {
     store_name: "p23multi",
     version: 1,

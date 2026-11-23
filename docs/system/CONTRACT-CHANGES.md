@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-22 单动作点查收口（`AgentActionClient`、`CardAuthority`、`exactActionView`／`exactBoundActionView` 与常驻动作网关 `discoverOne`）。`packages/contracts/src/platform/actions.ts` 公开导出 `exactActionView` 与 `exactBoundActionView`（与 `actionViewFor` 共用同一精确匹配与唯一性规则，删除 `apps/local-host/src/exact-action-view.ts`）；`AgentActionClient` 与插件 SDK `CardAuthority` 新增可选只读点查方法 `discoverOne?(reference: ActionReference): Promise<ActionView | undefined>`，未实现它的既有调用方与测试替身继续沿用列表兜底；常驻动作网关 `/api/internal/action-service` 新增 `operation: "discoverOne"`，保持与 `discover`／`invoke` 同等的 Home、凭据证明、项目范围、实例一致与禁带 `call_id` 校验。按阶段一原位更新公开 API 快照；无动作 schema、持久库结构或版本变化。
+
 2026-11-22 第 47 批（47-1 C 创作台归平台）。创作台不再是内置插件：包从 `plugins/native/plugin-builder` 搬到 `horizontal/plugin-studio`（`@molis-ai/molis-work-plugin-studio`），移出内置插件登记与构建期例外名单；`platform/plugin-registration` 新增类型 `HostSurfaceRegistration`（取 `PluginRegistration` 的项目键、Manifest、外壳部分与同步集合），宿主与外壳各一份「平台框内页面」名单，测试核对一致。界面编号与地址 `plugin-builder`、`/api/plugin-builder/*`、Manifest 编号 `io.molis.work.plugin-builder`（签名包不能用，S-75）、词键、草稿与发布、草稿同步身份、存储键都不变。删 `AgentDefinitionSource.origin`（仓库内读取已删完，阶段一直接删）。错误码：新增 `plugin.capability_refused`、`plugin.capability_unavailable`（类别 invalid），已装包能力拒绝从 `plugin_builder.capability_*` 改为这两个；发布身份两个拒绝码改为平台的 `plugin.publisher_identity_invalid`、`plugin.publisher_revoked`，后者 HTTP 状态从 403 变 400；已装包页面与调用路由的拒绝改按动作形状回、状态码按类别，没有编码的意外失败回 500 `actions.execution_failed`。旧通道（不经签名包）装过的创作台插件不再列出、不再启动，数据不迁移（用户 2026-11-21 定）。API 快照、两份生成登记表与 Goals 金样已刷新；升级须知见 CHANGELOG 第 47 批。
 
 2026-11-22 第 47 批（评审补）。`plugins.install.preview@1` 的输出 schema 补上服务早已返回的可选字段 `memory_scene_after_restart`（`const: true`，第 44 批 BL-b44-coding-scene-enum 加的）：输出是 `additionalProperties: false`，命中这一项的包预览此前会被动作层拒绝。同版本补可选字段，调用方不受影响；动作快照已刷新。
@@ -9,6 +11,7 @@
 2026-11-21 第 47 批（SMP-11 生成插件申报状态机）。沙箱插件合同 `SandboxPluginContract` 增加可选的 `state_machines`（新类型 `SandboxStateMachine`：状态所在的字段、每个取值的状态家族、起始与终止取值、版本）。合同带这一项时，`sandboxPluginManifest` 只按它写出 Manifest 的 `state_machines`（SDK 新增 `sandboxStateMachineDeclarations`、`sandboxStateMachineProblems`），包自己另写的声明与合同不一致即验包不过；合同没有这一项（这一项之前冻结的设计、手工打的签名包）时照旧。创作台的设计答卷从此必须带 `states`（没有状态写空列表），漏写由宿主退回补；设计者提示词升到第 4 版。只加可选字段，已装的包与已存的草稿不受影响；API 快照已刷新。
 
 2026-11-21 第 47 批（47-1 原处的安装单）。页面宿主接口 `UiPluginClientHost` 增加 `packageInstall(place, { bundle })`：页面把自己持有的签名包整包交给外壳，外壳在页面框外画安装单并经宿主安装；页面只得到装上的插件编号与版本、本人先不装、或拒绝的错误码。`plugins.install.confirm@1` 增加可选输入 `optional_permissions`（只能是那次预览里包自己请求的可选权限）与可选输出 `permission_changes_failed`；`plugins.install.preview@1` 的输出增加可选的 `publisher.local` 与 `secrets`。都是只加可选字段，现有调用方不受影响；API 与动作快照已刷新。安全记录见 [S-package-install-sheet](security-invariants/S-package-install-sheet.md)。
+
 2026-11-22 第 36A 批第 4 项后半（逐屏打磨方案乙）。Coding 的 `coding.changesets.read@1` 输入增加可选的 `stats: true`（页面路由 `?stats=1`）：只返回 `{ stats: { added_lines, removed_lines, files: [{ path, added_lines, removed_lines }] } | null }`，即每个文件落盘后的净增减行，不带文件内容、阅读器标记和成果引用，也不固定版本；没有写入落盘（全部被拒，或这一轮没有写入）时返回 0 行和空的文件列表；有写入失败或结果不明、或同一文件多次写入之间被改过、行数说不准时返回 `stats: null`。不传该字段的调用方读到的仍是原来的完整变更，授权范围不变。按阶段一原位扩充并更新动作快照；无持久字段、状态机或兼容路径。仓内改用它的只有 Coding 页面的回合结束卡。同一批里 Coding 多了一条内置指令 `/settings`（「本轮设置」）：内置指令的名字优先，项目或个人写的同名提示词指令 `/settings` 不再出现在指令列表里，要用得改名。见[逐屏打磨 P4 记录](../../specs/screen-polish/p4-coding.md)。
 
 2026-11-19 主干复查。Agent Runtime 的子任务能力增加可选只读 `listForRuns`。助理传入已核实会话的原执行，Prologue 一次枚举子任务、只读取匹配的父执行；现有逐轮接口继续用于单轮查询和仅实现逐轮接口的适配器。验收见[主干复查修复](../../specs/main-review-1119/spec.md)。
@@ -79,6 +82,8 @@
 
 第 61 批复核修复保留既有动作身份。阶段一动作快照记录 `connectors.setup.prepare@1` 新增 `created`，`connectors.authorization.cancel@1` 新增可选的 `expected_status`，供采用者仅补偿自己的准备请求。`connectors.records.read@1` 的可选 `connector_category` 用于助理当前工作的账号约束，输出加 `account_label`。`automation.adoption.adopt@1` 增加可选的能力包去处。`feed.sources.add_account@1` 声明 `sources:pull_connector` 和并行调度，公开调用方须持有该权限，来源与事件仍同事务写入。各原调用方沿现行合同，持久化 schema 和 vendored SDK 沿当前版本。
 
+2026-11-22 Memory 会话精确提供方消歧（BL-memory-shared-scene-session-binding，用户拍板方案 A）：`MemorySessionTarget` 及 `memorySessionTargetSchema`（`memory.operations.list@1` 输出）对非助理插件会话改为必带精确 `plugin_id` 与 `provider_id`（助理会话不含这两项），阶段一原位收严 `format.memory.session-clear-plan = 1` 校验（不升库或格式版本、无旧格式兜底）；受保护插件会话 HTTP 入口改为 `/projects/:project_id/api/memory/sessions/:kind/:plugin_id/:id/*`（可选 query `memory_session_provider`），设置页 S-47 白名单新增 `memory_session_plugin` 与 `memory_session_provider`。同项目多插件申报同名 `memory_scene` 并提供会话绑定时按精确提供方身份消歧与展示，不再互相冲突。仓库内消费方（Host、Memory、Workbench、Coding 插件与测试）、公开 API 及动作合同快照同片同步。
+
 ## 1. 哪些算合同
 
 这里的合同是别人（别的包、别的进程、外部插件、用户的数据）依赖的形状：
@@ -125,6 +130,8 @@
 
 7. **当前保留机制**见下节：它们属于现行功能或依赖，不是兼容窗口，不允许据此增加历史格式读取。
 8. **破坏性变更要在升级须知里写一条。** 装新版本的人要动手的合同变更（MCP 工具名变了、固定的引用要重选、动作升了版本），在 `docs/releases/CHANGELOG.md` 的 `[Unreleased]`「升级须知」里写一条：谁要动什么；发布时它随版本发出去。PR 描述照第 2 条列消费者，升级须知是给用户看的，两处都要。
+
+**第 47 批独立复核修复。** 新增 `plugins.installed.repair@1` 与 `plugins.home.installed.repair@1`，由宿主的安装提供方登记。仅相应范围的本人设置入口可调用，输入固定到安装身份、代次、版本和 Manifest 摘要，可附原签名包；沿用安装原批准。安装单的错误在 `details.install_phase` 给出 `check`／`install`／`start`，由外壳本地化。插件和现有安装调用方的合同及库格式不变。见[修复需求书](../../specs/batch-47-review-fixes/spec.md)。
 
 ### 当前保留机制
 
@@ -530,3 +537,5 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - **第 36A 批合后独立复核（2026-11-22，用户确认 POLISH-49）**：DOM 事件 `molis:assistant-open`（`packages/contracts/src/platform/dom-events.ts`）的 `detail` 原位增加可选字段 `open?: boolean`（缺省或 `true` 照旧展开助理面板；传 `false` 时只把手上的东西放进情境条并聚焦输入框，保持对话当前开合状态不变，供浮条「✦ 助理」与「带到助理」使用）。纯可选扩展，既有调用方零影响；公开 API 快照 `tooling/gates/api/contracts/platform/dom-events.txt` 同步刷新。
 
 - **已装沙箱包看得到的拒绝码改名；`start` 可交 `state_machines`**（第 47 批，2026-11-22）：沙箱调用结果里的能力拒绝码从 `plugin_builder.capability_refused`／`capability_unavailable` 改为 `plugin.capability_refused`／`plugin.capability_unavailable`（类别仍是 invalid），发布身份拒绝码改为 `plugin.publisher_identity_invalid`、`plugin.publisher_revoked`（HTTP 从 403 变 400）；按旧码判断的插件要改。已装包页面与调用路由的拒绝按动作形状回、状态码按类别。插件的 `start` 返回值可以多交 `state_machines`（代码运行的状态机），与 Manifest 的 `state_machines` 对不上时不启动；随宿主发布的双向核对，本地开发的交出才核对。不留兼容期。
+
+- **`PluginArtifactWriter.head` 返回固定成果的原始修订**（BL-feed-product-version-replay）。事务内读取自己成果线的最新版本时，`origin_revision` 是保存时的字符串，导入成果返回 `null`。`artifact:write`、原调用者和生产者签名仍由现有事务授权检查。已有调用方可继续使用 `version` 和数字投影 `source_revision`，自行实现写入者的调用方需补齐新字段。Feed 用原始修订判断捕捉内容是否变化。

@@ -86,7 +86,7 @@ test("RAC-2644 RAC-2645 RAC-2647 real Home sandbox uses only the invoking projec
   await assert.rejects(f.call(f.b, "reach.submit", { text: "B without consent" }), rejected);
   await assert.rejects(f.call(null, "reach.write", { ...written, project_id: f.a.project_id }), rejected);
   assert.deepEqual(await f.call(f.b, "notes.list", {}), [{ id: "1", text: "Home data" }]);
-  const other = "io.molis.work.example.otherreach";
+  const other = "com.example.otherreach";
   await f.install(projectReachPackage(newPublisher(), { pluginId: other }));
   await assert.rejects(f.call(f.a, "reach.read", read, other), rejected);
   const history = f.ledger.consents(REACH_PLUGIN_ID);

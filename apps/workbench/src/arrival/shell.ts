@@ -1,6 +1,6 @@
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { ACCOUNT_CLIENT_SCRIPT } from "../scripts/account.js";
-import { t as uiText, escapeHtml, icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, icon, renderEmpty, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderCaption, renderIconSprite, renderWordmark, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { homePluginSideTabs } from "../home-plugin-navigation.js";
 import { renderSidePanel, renderSideStrip, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
@@ -173,4 +173,26 @@ export function renderPersonalAccountEntry(controlToken: string, desktop: boolea
 /** Credential-free document for external entry; the next navigation uses the normal session rules. */
 export function renderAccountSameOriginEntry(): string {
   return '<!doctype html><meta charset="utf-8"><title>Molis Work</title><script>location.replace(location.href)</script><noscript><a href="/">Molis Work</a></noscript>';
+}
+
+/** A failed page can be retried on the same URL even when the Workbench client cannot load. */
+export function renderServiceUnavailablePage(lang: string, desktop: boolean): string {
+  const title = uiText.text("workbench.http.service-unavailable");
+  const notice = renderEmpty({
+    icon: "circle-alert",
+    className: "mw-empty--error",
+    title,
+    body: uiText.text("workbench.http.service-unavailable-next"),
+    action: `<a class="mw-btn mw-btn--secondary mw-btn--lg" data-slot="button" href=""><span data-slot="button-label">${uiText("common.control.retry")}</span></a>`,
+  });
+  return renderWorkbenchDocument({
+    lang,
+    title: `${title} · Molis Work`,
+    body_attributes: { class: "arrival-page immersive-workbench", "data-native-desktop": desktop ? "true" : null },
+    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-arrival.css">`,
+    body_html: `${renderIconSprite()}<div class="arrival" data-screen="unavailable">
+      <header class="arrival-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}><span class="arrival-brand">${icon("brand")}${renderWordmark()}</span></header>
+      <main class="arrival-stage"><div class="stage-single"><div class="stage-sheet">${notice}</div></div></main>
+    </div>`,
+  }, { languageScript: false });
 }

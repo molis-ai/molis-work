@@ -14,7 +14,7 @@ import type { PluginAppContribution, PluginDefinition, PluginManifest } from "@m
  * in full, and ports and events still reach only project instances.
  */
 
-const PLUGIN = "io.molis.work.example.dual";
+const PLUGIN = "com.example.dual";
 const PROJECT = "project-one";
 const home: ActionCallContext = { actor_id: "alice", audience: "user", permissions: [] };
 const inProject: ActionCallContext = { ...home, project_id: PROJECT };

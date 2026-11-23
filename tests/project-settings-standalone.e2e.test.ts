@@ -14,6 +14,7 @@ import { ensureStorageSpace } from "@molis-ai/molis-work-storage";
 import { projectReplicationOwner } from "@molis-ai/molis-work-module-projects";
 import { readPluginRuntimeRecords, PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
+import { HOST_STAND_IN_IDS } from "./fixtures/isolated-host.js";
 
 /** 项目设置 in the first place's list: from 960px the right end has no project, so this is where a person opens it (POLISH-05 as rewritten, POLISH-71). */
 const PROJECT_SETTINGS = "[data-top-corner-list] [data-directory-open=project-settings]";
@@ -29,7 +30,7 @@ test("PCSYNC-20 missing plugin hints inspect actual local installations without 
         const db = openTestSqlite(project.database_path);
         try {
           const repository = new SqlitePluginRuntimeRepository(db);
-          const runtime = new PluginRuntime(repository, undefined, { hostIds: HOST_PLUGIN_IDS, scope: "project" });
+          const runtime = new PluginRuntime(repository, undefined, { hostIds: HOST_PLUGIN_IDS, releaseIds: HOST_STAND_IN_IDS, scope: "project" });
           installed = runtime.install({ definition: { manifest: githubIntegrationManifest, execution: "sandbox", async start() { starts++; throw new Error("inspection must not start plugin code"); }, async stop() {} },
             trust: { level: "unsigned" }, grants: [], deployment: "local" }).install;
           repository.save({ ...installed, state: "disabled" });

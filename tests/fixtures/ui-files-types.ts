@@ -119,7 +119,7 @@ export const FONT_SCHEME: UiFontSchemeFile = {
 
 export const LOCALE_EN: UiLocalePack = {
   format_version: UI_FORMAT_VERSIONS.locale,
-  owner: "io.molis.work.example.notes",
+  owner: "com.example.notes",
   locale: "en",
   messages: {
     "notes.main.title": "Notes",
@@ -174,7 +174,7 @@ const PLURAL: UiMessage = { plural_arg: "count", forms: { other: "{count} files"
 export const provider: UiTextProvider = {
   locale: () => null,
   noContext: () => "throw",
-  ownerOfPrefix: prefix => prefix === "notes" ? "io.molis.work.example.notes" : null,
+  ownerOfPrefix: prefix => prefix === "notes" ? "com.example.notes" : null,
   message: (_owner, key) => key === "notes.files" ? PLURAL : null,
   defaultLocale: () => "zh",
 };

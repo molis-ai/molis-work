@@ -2,8 +2,8 @@ import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/ac
 import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { createHash, randomUUID } from "node:crypto";
 import { feedErrors } from "./contract/feed.js";
-import type { ArtifactJsonValue, ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { PluginArtifactPublishInput, PluginArtifactWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { ArtifactJsonValue } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { PluginArtifactWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FeedItemRecord, FeedOutRuleMatch, FeedOutRuleRecord } from "./projection.js";
 import type { FeedSql } from "./store/sql.js";
 
@@ -164,17 +164,21 @@ function feedCapturePayload(item: FeedItemRecord): ArtifactJsonValue {
   };
 }
 
-export function registerFeedCaptureVersion(
+function registerFeedCaptureVersion(
   artifacts: PluginArtifactWriter,
   item: FeedItemRecord,
   rule: FeedOutRuleRecord,
-): ArtifactVersionResult {
+): void {
   const artifactId = feedCaptureArtifactId(item.item_id, rule.rule_id);
   const payload = feedCapturePayload(item);
+  const revision = createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 16);
   const latest = artifacts.head(artifactId);
-  const input = (version: number, supersedes: number | null): PluginArtifactPublishInput => ({
+  // The pinned revision describes the captured content across producer upgrades.
+  if (latest?.origin_revision === revision) return;
+
+  artifacts.publish({
     artifact_id: artifactId,
-    version,
+    version: (latest?.version ?? 0) + 1,
     artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID,
     schema_version: FEED_CAPTURE_SCHEMA_VERSION,
     content: { kind: "inline", payload },
@@ -182,21 +186,10 @@ export function registerFeedCaptureVersion(
       feed_item_id: item.item_id,
       rule_id: rule.rule_id,
     },
-    // The message as captured (artifact-positioning A1): its revision is the captured content, so unchanged content
-    // replays the newest version and an edited item is captured as a new one.
-    origin: { kind: "pinned", subject: { kind: "feed_item", id: item.item_id }, revision: createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 16) },
+    origin: { kind: "pinned", subject: { kind: "feed_item", id: item.item_id }, revision },
     title: item.title.trim() || "Feed 捕获", media_type: "application/json",
-    ...(supersedes != null ? { supersedes_version: supersedes } : {}),
+    supersedes_version: latest?.version ?? null,
   });
-  try {
-    // A replay has to name what the newest version names, `supersedes` included, or the 成果库 takes it for other content.
-    // Feed only ever writes the next version over the newest, so that is always the one before it. A conflict is left for
-    // content that did change, or a version an earlier Feed wrote: the 成果库 compares the producer's version too.
-    return artifacts.publish(input(latest?.version ?? 1, latest && latest.version > 1 ? latest.version - 1 : null));
-  } catch (error) {
-    if (!isVersionConflict(error) || latest == null) throw error;
-    return artifacts.publish(input(latest.version + 1, latest.version));
-  }
 }
 
 /**
@@ -337,13 +330,4 @@ function parseMatch(value: unknown): FeedOutRuleMatch {
   } catch {
     return {};
   }
-}
-
-function isVersionConflict(error: unknown): boolean {
-  return Boolean(
-    error
-    && typeof error === "object"
-    && "code" in error
-    && (error as { code?: unknown }).code === "artifacts.artifact.version_conflict",
-  );
 }

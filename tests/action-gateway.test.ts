@@ -9,9 +9,9 @@ import http from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { isRuntimeContextMcpTool, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { newCallId, recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
+import { ActionService, newCallId, recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { changeMcpClientCredential, createMcpClientProof, LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { changeMcpClientCredential, createMcpClientProof, LocalHost, LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { LocalActionGatewayClient, ACTION_GATEWAY_PATH, actionGatewayHomeId } from "../apps/local-host/dist/action-gateway.js";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -38,7 +38,7 @@ test("official MCP process uses the shared Host registry and durable writes with
   let cancelled: (() => void) | undefined, finished: (() => void) | undefined;
   await host.withProject(reference, runtime => {
     runtime.store.db.exec("CREATE TABLE gateway_notes (actor TEXT NOT NULL, text TEXT NOT NULL)");
-    host.actionRegistry(reference).registerProvider({ provider: { provider_id: "unknown-gateway", title: "Unknown", kind: "plugin", plugin_id: "io.molis.work.example.gateway" },
+    host.actionRegistry(reference).registerProvider({ provider: { provider_id: "unknown-gateway", title: "Unknown", kind: "plugin", plugin_id: "com.example.gateway" },
       definitions: [save], handlers: [{ ...save, handle: async (context, input) => {
         try {
           context.signal?.addEventListener("abort", () => cancelled?.(), { once: true });
@@ -368,7 +368,7 @@ async function residentCallIdFixture() {
     output_schema: { type: "object", properties: { seen: { type: "integer" } }, required: ["seen"], additionalProperties: false } } };
   let ran = 0;
   await host.withProject(reference, () => {
-    host.actionRegistry(reference).registerProvider({ provider: { provider_id: "unknown-gateway", title: "Unknown", kind: "plugin", plugin_id: "io.molis.work.example.gateway" },
+    host.actionRegistry(reference).registerProvider({ provider: { provider_id: "unknown-gateway", title: "Unknown", kind: "plugin", plugin_id: "com.example.gateway" },
       definitions: [save, look], handlers: [{ ...save, handle: async () => { ran++; return { saved: ran }; } }, { ...look, handle: async () => ({ seen: ran }) }] });
   });
   const origin = served.origin;
@@ -381,7 +381,7 @@ async function residentCallIdFixture() {
     origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token, "x-molis-work-client-proof": proofFor(home, caller.actor_id, body) } });
   const envelope = { home_id: actionGatewayHomeId(home), project_id: project.project_id };
   const stop = async () => { await served.close(); await host.close(); await rm(home, { recursive: true, force: true }); };
-  return { host, caller, gateway, saveView, lookView, send, envelope, stop, ran: () => ran };
+  return { home, project, served, host, caller, gateway, saveView, lookView, send, envelope, stop, ran: () => ran };
 }
 
 test("W3-01 D through the gateway the rows of the resident Host carry the number the MCP process made, and it is shown only for an operation that left a row", { timeout: 30_000 }, async () => {
@@ -451,7 +451,155 @@ test("W3-01 D the gateway takes a number only on an invocation and only as the U
     await refusedBody(invoke);
     for (const call_id of ["", "not-a-uuid", "ABCDEF12-0000-4000-8000-000000000000", `${randomUUID()}x`, 7, null, [randomUUID()], { id: randomUUID() }]) await refusedBody({ ...invoke, call_id });
     await refusedBody({ ...envelope, operation: "discover", call_id: randomUUID() });
+    await refusedBody({ ...envelope, operation: "discoverOne", capability: { capability_id: save.capability_id, version: save.version }, call_id: randomUUID() });
     assert.equal(ran(), 0, "no handler ran for a refused request");
     assert.deepEqual(host.callLog!.recent(100).filter(row => row.capability_id === saveView.capability_id || row.capability_id === lookView.capability_id), [], "no fixture invocation row was written");
   } finally { await stop(); }
+});
+
+test("gateway discoverOne queries a single action natively over HTTP without full discover or inspectActions while enforcing instance_id, proof and revocation", { timeout: 30_000 }, async t => {
+  const { project, served, host, caller, gateway, saveView, send, envelope, ran, stop } = await residentCallIdFixture();
+  let unrelatedAvailability = 0;
+  const unrelated: ActionDefinition = { ...save, capability_id: "unknown.gateway.unrelated", operation: "query", action: { ...save.action, kind: "query", permissions: [] } };
+  await host.withProject(project.reference, () => {
+    host.actionRegistry(project.reference).registerProvider({
+      provider: { provider_id: "unknown-unrelated", title: "Unrelated", kind: "plugin", plugin_id: "io.molis.work.example.unrelated" },
+      definitions: [unrelated],
+      handlers: [{ ...unrelated, availability: () => { unrelatedAvailability++; return { available: true }; }, handle: () => ({ saved: 0 }) }],
+    });
+  });
+  let discoverCalls = 0, inspectActionsCalls = 0;
+  const origDiscover = ActionService.prototype.discover;
+  const origInspectActions = LocalHost.prototype.inspectActions;
+  t.mock.method(ActionService.prototype, "discover", function (this: ActionService, ...args: Parameters<ActionService["discover"]>) {
+    discoverCalls++; return origDiscover.apply(this, args);
+  });
+  t.mock.method(LocalHost.prototype, "inspectActions", function (this: LocalHost<unknown>, ...args: Parameters<LocalHost<unknown>["inspectActions"]>) {
+    inspectActionsCalls++; return origInspectActions.apply(this, args);
+  });
+  try {
+    const found = await gateway.discoverOne(caller, { capability_id: save.capability_id, version: save.version });
+    assert.equal(found?.capability_id, save.capability_id);
+    assert.equal(found?.provider.provider_id, saveView.provider.provider_id);
+    assert.equal(discoverCalls, 0, "discoverOne does not call ActionService.discover");
+    assert.equal(inspectActionsCalls, 0, "discoverOne does not call LocalHost.inspectActions");
+    assert.equal(unrelatedAvailability, 0, "unrelated provider availability is never evaluated");
+
+    assert.equal(await gateway.discoverOne(caller, { capability_id: "unknown.gateway.missing", version: 1 }), undefined);
+    await served.revoke(caller.actor_id, caller.project_id, [saveView]);
+    discoverCalls = 0; inspectActionsCalls = 0;
+    assert.equal(await gateway.discoverOne(caller, saveView), undefined, "revoked action disappears immediately from discoverOne");
+    assert.equal(discoverCalls, 0);
+    assert.equal(inspectActionsCalls, 0);
+    await served.grant(caller.actor_id, caller.project_id, [saveView]);
+    discoverCalls = 0; inspectActionsCalls = 0;
+    assert.equal((await gateway.discoverOne(caller, saveView))?.capability_id, save.capability_id);
+
+    const badInput = await send({ ...envelope, operation: "discoverOne", capability: { capability_id: save.capability_id, version: save.version }, input: {} });
+    assert.equal(badInput.status, 400);
+    assert.equal((await badInput.json() as { code: string }).code, "actions.input_invalid");
+    const missingCap = await send({ ...envelope, operation: "discoverOne" });
+    assert.equal(missingCap.status, 400);
+    assert.equal((await missingCap.json() as { code: string }).code, "actions.input_invalid");
+    const stale = await send({ ...envelope, operation: "discoverOne", instance_id: "old-host", capability: { capability_id: save.capability_id, version: save.version } });
+    assert.equal(stale.status, 409);
+    assert.equal((await stale.json() as { code: string }).code, "actions.host_replaced");
+    const unauthenticated = await fetch(served.origin + ACTION_GATEWAY_PATH, { method: "POST",
+      headers: { origin: served.origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": served.controlToken },
+      body: JSON.stringify({ ...envelope, operation: "discoverOne", capability: { capability_id: save.capability_id, version: save.version } }) });
+    assert.equal(unauthenticated.status, 403);
+    assert.equal(discoverCalls, 0);
+    assert.equal(inspectActionsCalls, 0);
+    assert.equal(ran(), 0);
+    assert.deepEqual(host.callLog!.recent(50), []);
+  } finally { await stop(); }
+});
+
+test("resident LocalMcpServer skips per-call ensureCatalog and uses O(1) discoverOne while enforcing live revocation and host_replaced", { timeout: 30_000 }, async t => {
+  const { home, project, served, host, caller, saveView, lookView, ran, stop } = await residentCallIdFixture();
+  let unrelatedAvailability = 0;
+  const unrelated: ActionDefinition = { ...save, capability_id: "unknown.gateway.unrelated-mcp", operation: "query", action: { ...save.action, kind: "query", permissions: [] } };
+  await host.withProject(project.reference, () => {
+    host.actionRegistry(project.reference).registerProvider({
+      provider: { provider_id: "unknown-unrelated-mcp", title: "Unrelated", kind: "plugin", plugin_id: "io.molis.work.example.unrelated-mcp" },
+      definitions: [unrelated],
+      handlers: [{ ...unrelated, availability: () => { unrelatedAvailability++; return { available: true }; }, handle: () => ({ saved: 0 }) }],
+    });
+  });
+  let targetOrigin = served.origin;
+  const proxy = http.createServer(async (req, res) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const headers: Record<string, string> = {};
+    for (const [k, v] of Object.entries(req.headers)) if (typeof v === "string" && k.toLowerCase() !== "host") headers[k] = v;
+    headers.origin = targetOrigin;
+    const upstream = await fetch(`${targetOrigin}${req.url ?? "/"}`, { method: req.method, headers, body: chunks.length ? Buffer.concat(chunks) : undefined });
+    res.writeHead(upstream.status, { "content-type": upstream.headers.get("content-type") ?? "application/json" });
+    res.end(Buffer.from(await upstream.arrayBuffer()));
+  });
+  await new Promise<void>(resolve => proxy.listen(0, "127.0.0.1", resolve));
+  const proxyAddr = proxy.address();
+  assert.ok(proxyAddr && typeof proxyAddr === "object");
+  const proxyOrigin = `http://127.0.0.1:${proxyAddr.port}`;
+  const mcp = new LocalMcpServer(withCatalog, "runtime", { projectId: project.project_id, databasePath: project.database_path, webBaseUrl: proxyOrigin }, {
+    homeDirectory: home, webBaseUrl: proxyOrigin, runtimeContext: { runtime_id: "call-id", stable_work_context_id: "call-id-session", host_declares_stable: true },
+  }, host, proxyOrigin);
+
+  let hostTwo: MolisWorkLocalHost | undefined;
+  let servedTwo: Awaited<ReturnType<typeof serveTestHost>> | undefined;
+  let discoverCalls = 0, inspectActionsCalls = 0;
+  const origDiscover = ActionService.prototype.discover;
+  const origInspectActions = LocalHost.prototype.inspectActions;
+  t.mock.method(ActionService.prototype, "discover", function (this: ActionService, ...args: Parameters<ActionService["discover"]>) {
+    discoverCalls++; return origDiscover.apply(this, args);
+  });
+  t.mock.method(LocalHost.prototype, "inspectActions", function (this: LocalHost<unknown>, ...args: Parameters<LocalHost<unknown>["inspectActions"]>) {
+    inspectActionsCalls++; return origInspectActions.apply(this, args);
+  });
+  try {
+    const saveName = molisWorkActionToolName(saveView), lookName = molisWorkActionToolName(lookView);
+    const listed = await mcp.handleMessage({ id: 1, method: "tools/list", params: {} }) as { result: { tools: Array<{ name: string }> } };
+    assert.ok(listed.result.tools.some(tool => tool.name === saveName));
+    assert.ok(listed.result.tools.some(tool => tool.name === lookName));
+
+    discoverCalls = 0; inspectActionsCalls = 0; unrelatedAvailability = 0;
+    const readRes = await mcp.handleMessage({ id: 2, method: "tools/call", params: { name: lookName, arguments: {} } }) as { result: { isError: boolean; structuredContent: unknown } };
+    assert.equal(readRes.result.isError, false);
+    assert.deepEqual(readRes.result.structuredContent, { seen: 0 });
+    const writeRes = await mcp.handleMessage({ id: 3, method: "tools/call", params: { name: saveName, arguments: { text: "fast" } } }) as { result: { isError: boolean; structuredContent: unknown } };
+    assert.equal(writeRes.result.isError, false);
+    assert.deepEqual(writeRes.result.structuredContent, { saved: 1 });
+    assert.equal(discoverCalls, 0, "cached resident tools/call never calls ActionService.discover");
+    assert.equal(inspectActionsCalls, 0, "cached resident tools/call never calls LocalHost.inspectActions");
+    assert.equal(unrelatedAvailability, 0, "cached resident tools/call never evaluates unrelated providers");
+
+    // Revoking the grant must refuse immediately with mcp.tool_unknown without executing the handler or leaving a new callLog row.
+    const rowsBeforeRevoke = host.callLog!.recent(100).length;
+    await served.revoke(caller.actor_id, caller.project_id, [saveView]);
+    const revokedRes = await mcp.handleMessage({ id: 4, method: "tools/call", params: { name: saveName, arguments: { text: "after revoke" } } }) as { result: { isError: boolean; content: Array<{ text: string }> } };
+    assert.equal(revokedRes.result.isError, true);
+    assert.equal((JSON.parse(revokedRes.result.content[0]!.text) as { code: string }).code, "mcp.tool_unknown");
+    assert.equal(ran(), 1);
+    assert.equal(host.callLog!.recent(100).length, rowsBeforeRevoke);
+
+    // Re-grant, re-list, then restart the resident Host (new instanceId): cached call must fail closed with actions.host_replaced.
+    await served.grant(caller.actor_id, caller.project_id, [saveView]);
+    await mcp.handleMessage({ id: 5, method: "tools/list", params: {} });
+    await served.close();
+    await host.close();
+    hostTwo = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+    servedTwo = await serveTestHost(null, { home, host: hostTwo });
+    targetOrigin = servedTwo.origin;
+    const replacedRes = await mcp.handleMessage({ id: 6, method: "tools/call", params: { name: saveName, arguments: { text: "stale host" } } }) as { result: { isError: boolean; content: Array<{ text: string }> } };
+    assert.equal(replacedRes.result.isError, true);
+    assert.equal((JSON.parse(replacedRes.result.content[0]!.text) as { code: string }).code, "actions.host_replaced");
+    assert.equal(ran(), 1);
+  } finally {
+    await mcp.close();
+    proxy.closeAllConnections();
+    await new Promise<void>(resolve => proxy.close(() => resolve()));
+    await servedTwo?.close();
+    await hostTwo?.close();
+    await stop();
+  }
 });

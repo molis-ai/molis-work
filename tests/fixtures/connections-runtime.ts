@@ -4,7 +4,7 @@ import type { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
 /** A Home plugin declaring one connection slot (`services.connections`, S-57; GitHub unless `service` names another), with the actions its checks call. */
 export function connectionsProbe(name = "connectionsprobe", options: { permissions?: string[]; execution?: "sandbox"; slots?: boolean; binding?: "per_record"; service?: string } = {}) {
-  const id = `io.molis.work.example.${name}`, permissions = ["storage:private", ...(options.permissions ?? ["connections:use"])];
+  const id = `com.example.${name}`, permissions = ["storage:private", ...(options.permissions ?? ["connections:use"])];
   const contexts: PluginStartContext[] = [];
   const action = (suffix: string, needed: string[], shape: { concurrent?: boolean; query?: boolean } = {}): ActionDefinition<Record<string, never>, unknown> => ({
     capability_id: `${name}.${suffix}`, version: 1, operation: shape.query ? "query" : "command", action: {

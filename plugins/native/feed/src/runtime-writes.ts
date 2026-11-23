@@ -1,5 +1,5 @@
 import type { ActionDefinition, ActionExecutionContext, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginProjectDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginProjectDatabase, PluginProjectDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FeedRuntimePorts } from "./runtime-ports.js";
 
 /**
@@ -15,26 +15,46 @@ export interface FeedWriter {
    * journal events are all committed or none. For a handler that has to wait (for a model, another plugin, a decryption) before it
    * writes: do the waiting first, then commit what was decided. The journal's actor is the original caller's.
    */
-  commit<T>(caller: ActionExecutionContext, body: () => T): Promise<T>;
+  commit<T>(caller: ActionExecutionContext, body: () => T, afterWrite?: (transaction: PluginProjectDatabaseTransaction) => void): Promise<T>;
   /** The same commit for work that has no caller: a job the installation keeps, whose last check is its own `beforeEffect` and whose actor is named. */
-  commitAs<T>(guard: { beforeEffect(): Promise<void> }, actorId: string, body: () => T): Promise<T>;
+  commitAs<T>(guard: { beforeEffect(): Promise<void> }, actorId: string, body: () => T, afterWrite?: (transaction: PluginProjectDatabaseTransaction) => void): Promise<T>;
   /**
    * The handlers of the commands among `definitions`, each run so that its synchronous part is one commit. What the handler does after
    * its first `await` is outside the commit and cannot write (it fails loudly): that is a judgment started after the write, not a
    * second write. A handler that throws before its first `await` rolls everything it wrote back. Queries are returned as they are,
    * and they read through the read-only client.
    */
-  writing(definitions: readonly ActionDefinition[], bindings: readonly ActionHandlerBinding[]): ActionHandlerBinding[];
+  writing(
+    definitions: readonly ActionDefinition[],
+    bindings: readonly ActionHandlerBinding[],
+    afterWrite?: (capabilityId: string, transaction: PluginProjectDatabaseTransaction) => void,
+  ): ActionHandlerBinding[];
 }
 
 const isThenable = (value: unknown): value is PromiseLike<unknown> =>
   typeof value === "object" && value !== null && typeof (value as { then?: unknown }).then === "function";
 
 export function createFeedWriter(database: PluginProjectDatabase, ports: Pick<FeedRuntimePorts, "within">): FeedWriter {
-  const commitAs = <T>(guard: { beforeEffect(): Promise<void> }, actorId: string, body: () => T): Promise<T> =>
-    database.transaction(() => guard.beforeEffect(), transaction => ports.within(transaction, actorId, body));
-  const commit = <T>(caller: ActionExecutionContext, body: () => T): Promise<T> => commitAs(caller, caller.audit_actor_id ?? caller.actor_id, body);
-  const writing = (definitions: readonly ActionDefinition[], bindings: readonly ActionHandlerBinding[]): ActionHandlerBinding[] => {
+  const commitAs = <T>(
+    guard: { beforeEffect(): Promise<void> },
+    actorId: string,
+    body: () => T,
+    afterWrite?: (transaction: PluginProjectDatabaseTransaction) => void,
+  ): Promise<T> => database.transaction(() => guard.beforeEffect(), transaction => ports.within(transaction, actorId, () => {
+    const result = body();
+    afterWrite?.(transaction);
+    return result;
+  }));
+  const commit = <T>(
+    caller: ActionExecutionContext,
+    body: () => T,
+    afterWrite?: (transaction: PluginProjectDatabaseTransaction) => void,
+  ): Promise<T> => commitAs(caller, caller.audit_actor_id ?? caller.actor_id, body, afterWrite);
+  const writing = (
+    definitions: readonly ActionDefinition[],
+    bindings: readonly ActionHandlerBinding[],
+    afterWrite?: (capabilityId: string, transaction: PluginProjectDatabaseTransaction) => void,
+  ): ActionHandlerBinding[] => {
     const commands = new Set(definitions.filter(definition => definition.operation === "command").map(definition => `${definition.capability_id}@${definition.version}`));
     return bindings.map(binding => {
       if (!commands.has(`${binding.capability_id}@${binding.version}`)) return { ...binding };
@@ -45,7 +65,7 @@ export function createFeedWriter(database: PluginProjectDatabase, ports: Pick<Fe
           started = binding.handle(caller, input);
           // Nothing may reject unobserved if the commit fails after the handler has started its asynchronous part.
           if (isThenable(started)) started.then(undefined, () => {});
-        });
+        }, afterWrite ? transaction => afterWrite(binding.capability_id, transaction) : undefined);
         return await started;
       } };
     });

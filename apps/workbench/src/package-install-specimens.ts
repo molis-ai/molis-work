@@ -16,7 +16,7 @@ const row = (permission: string, reason: string, more: Partial<PackageInstallPer
 
 function sample(more: Partial<PackageInstallSheet> = {}): PackageInstallSheet {
   const s = uiText.text;
-  return { preview_id: "specimen", plugin_id: "io.molis.work.example.checkin", name: s("workbench.package-install-specimens.meeting-check-in"), version: "1.0.0", from_version: null,
+  return { preview_id: "specimen", plugin_id: "com.example.checkin", name: s("workbench.package-install-specimens.meeting-check-in"), version: "1.0.0", from_version: null,
     runtime_scope: "project", dual: false, publisher: { label: null, local: true, trusted: true },
     permissions: [row("storage:private", "", { required: true, on: true }), row("capabilities:call", s("workbench.package-install-specimens.note-absences-in-goals")), row("network:request", "")],
     jobs: [{ reason: s("workbench.package-install-specimens.monday-reminder-to-import-the-list") }], secrets: [], network: ["calendar.example.com"], ...more };

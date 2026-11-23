@@ -689,7 +689,7 @@ test('W2-18-UPGRADE-SECRETS-01 an upgrade saves the key the person typed and the
   const file = join(home, 'project.db'); seedDemoBoard(file); const store = new LocalProjectDatabase(file);
   cleanups.push(async () => { await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); });
   const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0) }, installed = await ensureInstalledPlugins(options);
-  const buildId = randomUUID(), pluginId = 'io.molis.work.generated.' + buildId;
+  const buildId = randomUUID(), pluginId = 'studio.' + buildId;
   // A design always has at least one page (agent-experience refuses one without); the studio canvas draws from the first.
   const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [{ id: 'main', title: '天气', regions: [{ id: 'main', title: '天气', operationIds: ['fetch'] }] }], acceptance: [], operations: [
     { id: 'fetch', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: {}, errors: [], examples: [{ input: null, output: 'v1' }] }] };

@@ -9,7 +9,7 @@ import { DEFAULT_SANDBOX_LIMITS, SandboxBroker, SandboxImageHolder, assertContra
 // the address a call names being one of the operation's approved `networkDomains`, the settings a package sees and may save, and the size of an image result.
 // The Host's half (the pinned origin, the names, the clean-up) is tests/sandbox-home-model-image.test.ts.
 
-const IDENTITY = { projectId: null, installationId: "install-sbx", pluginId: "io.molis.work.example.sbximage", namespace: "installed" } as const;
+const IDENTITY = { projectId: null, installationId: "install-sbx", pluginId: "com.example.sbximage", namespace: "installed" } as const;
 const code = (expected: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === expected;
 const HOST = "images.example.com", ADDRESS = `https://${HOST}/v1`;
 const operation = (kind: "query" | "command", effects: SandboxEffects): SandboxOperationContract => ({ id: "go", kind, input: { type: "null" }, output: { type: "null" }, errors: [], effects, examples: [] });

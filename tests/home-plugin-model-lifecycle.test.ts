@@ -124,11 +124,15 @@ test("W3-06-F-07 a disconnected real Home HTTP request cancels the model and can
 });
 
 test("W3-06-F-06 Home close revokes every installation before awaiting the first plugin's cleanup", { timeout: 60_000 }, async t => {
-  const first = homeProbe("first-close"), next = homeProbe("next-close"), entered = deferred(), release = deferred();
+  const probes = [homeProbe("first-close"), homeProbe("next-close")], entered = deferred(), release = deferred();
   const entries: HostLogEntry[] = [];
   t.after(captureHostLog(entries));
-  const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [first.definition, next.definition] } });
+  const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: probes.map(probe => probe.definition) } });
   await host.homePlugins!.ready();
+  // Installations stop in install_id order, and an install_id is a hash of the plugin id: `next` is whichever stops first, `first`
+  // the one whose cleanup the close then waits on.
+  const installOf = (probe: ReturnType<typeof homeProbe>) => host.homePlugins!.installation(probe.id)!.install_id;
+  const [next, first] = [...probes].sort((a, b) => installOf(a) < installOf(b) ? -1 : 1) as [ReturnType<typeof homeProbe>, ReturnType<typeof homeProbe>];
   const held = next.contexts.at(-1)!.services!, heldInstall = host.homePlugins!.installation(next.id)!.install_id;
   const activeModel = held.model!.availability();
   assert.notEqual(activeModel.available ? undefined : activeModel.code, "actions.provider_stopped");

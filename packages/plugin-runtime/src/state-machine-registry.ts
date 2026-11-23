@@ -19,6 +19,8 @@ export interface StateMachineRegistryPorts {
   builtin(): readonly PluginManifest[];
   /** The installation libraries the caller's scope reaches: the Home's, and the project's when one is named. Nothing is started. */
   open(projectId: string | undefined): Promise<{ readonly stores: readonly StateMachineRegistryStore[]; close(): void }>;
+  /** Only installations the host still recognizes, before reading their artifacts. */
+  includes?(record: PluginInstanceRecord): boolean;
   /** The host's verified copy of an installation's Manifest where no release was archived yet (installed, never started). */
   manifest?(store: StateMachineRegistryStore, record: PluginInstanceRecord): PluginManifest | undefined;
 }
@@ -79,7 +81,7 @@ async function readEntries(ports: StateMachineRegistryPorts, projectId: string |
     return projectStateMachines({
       builtin: ports.builtin(),
       installations: opened.stores.flatMap(store => readPluginRuntimeRecords(store.db)
-        .filter(record => record.state !== "uninstalled")
+        .filter(record => record.state !== "uninstalled" && (ports.includes?.(record) ?? true))
         .map(record => ({ scope: store.scope, record, manifest: record.publisher_trust === "host" ? undefined : storedManifest(store, record, ports) }))),
     });
   } finally {

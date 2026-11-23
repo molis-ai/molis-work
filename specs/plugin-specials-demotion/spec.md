@@ -1,13 +1,13 @@
 # 特殊逻辑平民化：特殊插件收归平台、平台特例收成公开声明（Platform Specials Demotion）
 
-状态：方案已定稿并对齐最新 `origin/main`（`5bfd52b87b`）与在途 PR（`#2239`、`#2245`、`#2250`、`#2252`～`#2260`），最终拍板汇总见第 7 节末与路线书[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)；尚未改任何业务代码，[`44B-0`](../post-anticorruption-roadmap/reference/batches/44b.md)（保留 `io.molis.work.` 前缀安全补洞）可立即单独开工，其余作为 [`44B`](../post-anticorruption-roadmap/reference/batches/44b.md) 在在途 PR 合入后开工。完整端到端工程蓝图与跨批次协调见[合并实施总纲](implementation-plan.md)。
+状态：方案已定稿并对齐最新 `origin/main`（`5bfd52b87b`）与在途 PR（`#2239`、`#2250`、`#2253`～`#2258`、`#2260` 待合；`#2245`、`#2252`、`#2259` 已合入），最终拍板汇总见第 7 节末与路线书[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)；尚未改任何业务代码，[`44B-0`](../post-anticorruption-roadmap/reference/batches/44b.md)（保留 `io.molis.work.` 前缀安全补洞）可立即单独开工，其余作为 [`44B`](../post-anticorruption-roadmap/reference/batches/44b.md) 在在途 PR 合入后开工。完整端到端工程蓝图与跨批次协调见[合并实施总纲](implementation-plan.md)。
 
 需求维护：Claude / Antigravity；实现：待分配。类型：底层与架构（主）、横向能力、产品线（Shelf、Feed、Inbox、Goals、Coding、Alchemist、官方集成）。前身：[插件同等地位收口](../plugin-equal-standing/spec.md)（第 44 批，及在途复核清扫 [#2258](https://github.com/molis-ai/molis-work/pull/2258)）；本需求把范围扩到**全仓所有特殊地位与特例接线**，并彻底清零插件形态特例。
 
 > **2026-11-22 合并终审基线校准（相对 `1d38f73928`）**：
 > - `text-stats` 已于 `#2243` 退役删除、`overview.lead` 已于 `#2240` 删除、`skill-scenes` 已于 `#2248` 修复，现役平等内置插件收敛为 **20 个**（不含收归平台的创作台 `#2239`、纯平台化后的 Shelf 与彻底删除的旧 Alchemist）。
-> - 在途 `#2258`（第 44 批复核清扫）已实装：250+ 处共用样式 `.mw-*` 泛化与永久门禁 `findSharedStylePluginSelectors`（M7 主体）、Goals `demo-seed` 迁出（M1 主体）、`WORK_PROGRESS_CONTINUITY_PROTOCOL`（替代 `server/src/continuity/` Goals 硬编码）、兄弟插件 `goals:*` 可选化与画框泛化——**`44B` 直接消费其成果，不重复改写**。
-> - 在途 `#2259`（决定 64/65）新增 `91-0c` 统一列表-详情舞台容器并删 7 处外壳插件名分支，可与 `44B` 并行/前置。
+> - 在途 `#2258`（第 44 批复核清扫，待合前置）合入后提供：250+ 处共用样式 `.mw-*` 泛化与永久门禁 `findSharedStylePluginSelectors`（M7 主体）、Goals `demo-seed` 迁出（M1 主体）、`WORK_PROGRESS_CONTINUITY_PROTOCOL`（替代 `server/src/continuity/` Goals 硬编码）、兄弟插件 `goals:*` 可选化与画框泛化——**`44B` 直接消费其成果，不重复改写**。
+> - 已合入 `#2259`（决定 64/65）新增 `91-0c` 统一列表-详情舞台容器并删 7 处外壳插件名分支，`44B` 在其之上实施。
 > - 终审新增覆写与补漏：① **D1/U9 覆写**：Shelf 彻底剥离插件外衣收归纯平台模块 `modules/shelf`（`system.shelf`，`/api/platform/shelf`），`always_on = 0`、`dual_instance = 0`、免重写 ~3,150 行 Rust M5 伴侣协议；② **D2/D5 与 Clean v1（U13）统一**：彻底删除旧 Alchemist（含 `home-stores.ts` 与 `better-sqlite3` 豁免），D5 存储改名直接 Clean v1 拍平（仅冻结 macOS 钥匙串服务名）；③ 补齐 `#2231` `platform-sync-catalog.ts` Inbox 劫持修复、保留整个 `io.molis.work.` 前缀（含漏掉的 `characters`/`assistant`）、Goals `management_actions`/`approval_outcomes`、连接器 20 CLI/`feishu`/`lark`/`figma`/`Sentry-Bearer`/`typesafe`、`youtube` 收编进 `rss`、`planning-methods` 迁入 `packages/system-skills/`、3 处 `provider_id` 统一、`RuntimePluginDirectory` 与 `PLATFORM_SETTINGS_REGISTRY`。
 
 ## 白话说明
@@ -61,7 +61,7 @@
 | P7 | **内容包**（`plugins/content/{design-accessibility,planning-methods}`） | `planning-methods` 以 `system.default_state:"auto"` 随系统自带，混在 `plugins/content/` 中形成内容包特例 | 系统自带方法与普通可安装内容包混置 | `44B` 将 `planning-methods` 移出 `plugins/content/` 归纯平台 `packages/system-skills/`，清零内容包系统特例（原 E4 归零）；普通内容包 `design-accessibility` 机制不变 |
 | P8 | **Sessions**（`horizontal/sessions`） | 提供方 `system.sessions`，`plugin-registry.ts:37` 拒绝占用其项目键 | 无 | 平台部件；`web-assets.ts:151-154`、`web-request.ts:291` 随 M15 `HostSurfaceRegistration` 统一登记 |
 | P9 | **Schedule** | 普通 Runtime 插件；全仓唯一 `default_enabled:true`（`registration.ts:10`） | 仅作空白分区的初始选择（可随时移除）；调度引擎本身归平台（`horizontal/scheduler`） | 普通 UPP 插件；`default_enabled` 作为平台预设初值（E3），不给运行时特权 |
-| P10 | **Git／Diff**（Coding 家族；`text-stats` 已于 `#2243` 删除） | 普通 Runtime 插件；`git` 命令与并行 worktree 由宿主运行（`workspace-git*.ts` 约 1,400 行 + `projects.workspace.writers.*`） | SDK 里有 `git-porcelain.ts`、`diff-view.ts`、`git.*` 错误码；Agent Host 审查种类写死 `git-index`、`git-integration` | **D6 已定 B（归 `109` [UPP-B3] 与 Coding 同步迁）**：宿主 `workspace-git*.ts`、`projects.workspace.writers.*` 与 SDK `git-porcelain.ts`/`git.*` 整体迁入 `plugins/native/git`；平台仅提供 argv-only、分区目录监禁的受限 VCS 执行能力（`S-git-plugin-command-scope`）；Coding/Diff 声明对 Git 的可选依赖并在无 Git 时优雅降级；审查种类开放由插件申报（保留第 99 批 `#2244` `install_id` 隔离） |
+| P10 | **Git／Diff**（Coding 家族；`text-stats` 已于 `#2243` 删除） | 普通 Runtime 插件；`git` 命令与并行 worktree 由宿主运行（`workspace-git*.ts` 约 1,400 行 + `projects.workspace.writers.*`） | SDK 里有 `git-porcelain.ts`、`diff-view.ts`、`git.*` 错误码；Agent Host 审查种类写死 `git-index`、`git-integration` | **D6 已定 B（归 `109` [UPP-B3] 与 Coding 同步迁）**：宿主 `workspace-git*.ts`、`projects.workspace.writers.*` 与 SDK `git-porcelain.ts`/`git.*` 整体迁入 `plugins/native/git`；平台仅提供 argv-only、分区目录监禁的受限 VCS 执行能力（`S-git-plugin-command-scope`）；Coding 声明 Git 为随启用依赖（V9，可单独移除、先提示，V10），Diff 声明可选依赖，无 Git 时优雅降级；审查种类开放由插件申报（保留第 99 批 `#2244` `install_id` 隔离） |
 
 ### 2.1 按登记出身给的受信标记
 
@@ -207,7 +207,7 @@
 | M11 | 连接器驱动能力（D3） | 宿主按驱动声明的能力分派，清单由登记生成 | `builtin-integrations.ts` 手写清单、6 个 `connector-*` 的服务名分支、3 个以集成命名的文件、Gmail 上手来源、`/api/feed/connectors/…` 回调 |
 | M12 | 成果类型声明可搜字段 | 成果库索引按声明 | `SEARCHABLE_FIELDS` |
 | M13 | Agent 场景包与审查种类登记（工具包、执行规则、看板放行、审查种类及其渲染） | Agent Host 只跑通用回合；外壳按主人登记渲染审查 | `OFFICIAL_CODING_PACK`、`codingExecutionRules`、`coding-*` 资源名、`git-*` 审查名单与标题表 |
-| M14 | 依赖与「个人插件」声明（D4） | 开 A 连带开 B、每个项目可见，按安装信任放行 | 登记层 `companions`、`personal`、`runtime.dual_instance` |
+| M14 | 依赖与随启用声明（D4 终版：个人插件分类已废除） | 依赖声明加通用 `enable_with`（开 A 时一并开 B，V9）；不再有「个人插件」声明 | 登记层 `companions`、`personal`、`runtime.dual_instance` |
 | M15 | 平台框内页面登记（#2239 的 `HostSurfaceRegistration`）扩到成果库、Characters、Sessions | 平台自己的页面一份登记，宿主与外壳都从它取 | `web-assets.ts`、`web-request.ts` 里逐个写的平台页面路由；首页权限名单 |
 | M16 | 流程主人声明（已有 `flowOwners`） | 观测按声明分类 | `FLOW_SERVICES` 里的插件 id |
 | M17 | 「主人核过的来源绑定」 | 放置服务对声明了的接收方写保留地址 | `placement` 的 `kind === "form"` |
@@ -218,12 +218,12 @@
 
 ## 6. 分片与排期（正式批号 `44B`）
 
-正式立批为路线书 **[`44B` 特殊逻辑平民化](../post-anticorruption-roadmap/reference/batches/44b.md)**（**等在途 `#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260` 合入后开工；与 `#2259` 的 `91-0c` 可并行/前置；排在 `106`～`111` [UPP]、`91-2..4`、`91B`、`105`、`45`～`90`、`REL-4`、`SRV` 之前**）。一批一个 PR、批内子分支（决定 31）；`44B-0` 可提前切出独立安全小 PR。
+正式立批为路线书 **[`44B` 特殊逻辑平民化](../post-anticorruption-roadmap/reference/batches/44b.md)**（**等在途 `#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260` 合入后开工；`#2259`（`91-0c`）已合入；排在 `106`～`111` [UPP]、`91-2..4`、`91B`、`105`、`45`～`90`、`REL-4`、`SRV` 之前**）。一批一个 PR、批内子分支（决定 31）；`44B-0` 可提前切出独立安全小 PR。
 
 | 片 | 内容 | 依赖 | 冲突面 |
 | --- | --- | --- | --- |
 | `44B-0` | **P0 安全补洞**：全局保留 `io.molis.work.` 前缀（覆盖 `characters`、`assistant`、`shelf`、`artifacts` 等），补 `S-reserved-host-prefix` 拒绝测试；修 `agent-surface.ts:245` 与 `contracts/modules/characters.ts:133` 第三方前缀正则 | 无，可立即单独切小 PR | `host-plugin-ids.ts`、`install-identity.ts` |
-| `44B-1` | 合同与 SDK 改名与声明（4.4 全部，M2～M4、M6、M8～M10、M12～M14 的合同部分，统一 `resolveActionProviderId`、`artifacts.subject.embeds@1`、`SyncTopologicalLayer`）；`api:update`、`actions:update` | `44B-0` | `dom-events.ts`、`plugin-manifest.ts`、`functions.ts`、`plugin-source-pull.ts` |
+| `44B-1` | 合同与 SDK 改名与声明（4.4 全部，M2～M4、M6、M8～M10、M12～M13 的合同部分（M14 依赖与 `enable_with` 随 `106` Manifest 新字段），统一 `resolveActionProviderId`、`artifacts.subject.embeds@1`、`SyncTopologicalLayer`）；`api:update`、`actions:update` | `44B-0` | `dom-events.ts`、`plugin-manifest.ts`、`functions.ts`、`plugin-source-pull.ts` |
 | `44B-2` | 存储与持久化 Clean v1 直接拍平（4.6，按 D5+U13 终审）：直接改中性名、`same-version-exceptions.json`、重生 `0.1.0` 金样，不写过渡升级段（macOS 钥匙串服务名冻结） | `44B-1` | `packages/storage`、`tooling/versions.json` |
 | `44B-3` | **Shelf 纯平台收口（D1 终审）+ 宿主清零**：剥离 `plugins/native/shelf` 收归 `modules/shelf`（`system.shelf`，`/api/platform/shelf`），切 Tauri 路由并删 `always_on` 与 `PLUGIN_MODULE_IMPORT_ALLOWLIST`；彻底删旧 Alchemist（含 `home-stores.ts` 与 `better-sqlite3`）；官方集成连接器驱动化（`youtube` 并入 `rss`、清 20 CLI 与厂商硬编码、合并 `integration-registry.ts`）；`planning-methods` 迁入 `packages/system-skills/`；修 `#2231` `platform-sync-catalog.ts` Inbox 劫持；收口 `PLATFORM_SETTINGS_REGISTRY`、`HostSurfaceRegistration` 与 Goals `management_actions`/`approval_outcomes` | `44B-1`、`#2239`、`#2258` | `apps/desktop`、`modules/shelf`、`web-request.ts`、`project-host.ts`、`home-stores.ts`；跑 `native-checks rust` |
 | `44B-4` | 外壳与目录收口（4.3，消费 `#2258` 共享样式与画框泛化、衔接 `#2259` `91-0c`）：补清剩余 M2/M3/M8/M9 外壳分支与 `RuntimePluginDirectory`，跑 `pnpm visual:compare` | `44B-1`、`#2258` | `apps/workbench/src` |
@@ -252,8 +252,8 @@
 | D3 | A 扩展：官方集成收成平台声明式连接器驱动，合并独立 `integration-registry.ts` 进 Home 软件层统一运行时，`youtube` 收编进 `rss` 驱动，`planning-methods` 迁入 `packages/system-skills/`，清零全部 20 CLI 与厂商硬编码 |
 | D4 | 另立[统一工作分区需求书](../unified-partition-plugins/spec.md)（批号 `106`～`111`）：废除个人/项目插件分类，`personal` 与项目同构、Home 装包一次分区按需启用、星型单向 Push、干净 v1 清零双轨 |
 | D5 | **终审按 U13 统一为 Clean v1 直接拍平**：存储表、前缀、密钥引用与事件直接改中性名拍平（`same-version-exceptions.json` + 重生 `0.1.0` 金样，不写过渡升级段），仅 **macOS 钥匙串服务名 `com.molis.work.feed.secretstore` 冻结** |
-| D6 | **B（归 `109` [UPP-B3] 与 Coding 同波迁移）**：宿主 `workspace-git*.ts`（约 1,400 行）、`projects.workspace.writers.*`（并行 worktree 与整合审查）与 SDK 的 `git-porcelain.ts`、`git.*` 整体搬进 `plugins/native/git`；Diff、Coding 声明可选依赖并在无 Git 时优雅降级；审查种类开放由插件申报（保留第 99 批 `#2244` `install_id` 隔离）；本机 `git` 走 argv-only、分区目录监禁、宿主信任门控的受限 VCS 执行能力（`S-git-plugin-command-scope`） |
-| D7 | **终审全量排期**：`44B-0` 可立即单独切安全小 PR；消费已实装在途 PR（`#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260`），允许 `91-0c`（`#2259`）并行/前置；随后串行推进 `44B → 106(A) → 107(B1) → 108(B2) → 109(B3) → 110(B4) → 111(C)`，全部排在 `91-2..4`、`91B`、`105`、`45`～`90`、`REL-4`、`SRV` 之前 |
+| D6 | **B（归 `109` [UPP-B3] 与 Coding 同波迁移）**：宿主 `workspace-git*.ts`（约 1,400 行）、`projects.workspace.writers.*`（并行 worktree 与整合审查）与 SDK 的 `git-porcelain.ts`、`git.*` 整体搬进 `plugins/native/git`；Coding 声明 Git 为随启用依赖（V9，可单独移除、先提示，V10），Diff 声明可选依赖，无 Git 时优雅降级；审查种类开放由插件申报（保留第 99 批 `#2244` `install_id` 隔离）；本机 `git` 走 argv-only、分区目录监禁、宿主信任门控的受限 VCS 执行能力（`S-git-plugin-command-scope`） |
+| D7 | **终审全量排期**：`44B-0` 可立即单独切安全小 PR；消费在途待合前置 PR（`#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260`），`91-0c`（`#2259`）已合入；随后串行推进 `44B → 106(A) → 107(B1) → 108(B2) → 109(B3) → 110(B4) → 111(C)`，全部排在 `91-2..4`、`91B`、`105`、`45`～`90`、`REL-4`、`SRV` 之前 |
 | D8 | A：组件板与样例里的真实插件名换成中性样例名 |
 
 ## 8. 验收（编号 PSD-xx，测试名或注释写编号）

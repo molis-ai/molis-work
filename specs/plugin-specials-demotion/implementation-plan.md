@@ -1,6 +1,6 @@
 # 特殊逻辑平民化 + 统一工作分区 · 合并实施总纲（Implementation Plan）
 
-状态：已定稿并对齐最新 `origin/main`（`5bfd52b87b`）与在途 PR（`#2239`、`#2245`、`#2250`、`#2252`～`#2260`），对应路线书 [决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66) 与批次 [`44B`](../post-anticorruption-roadmap/reference/batches/44b.md)、[`106`](../post-anticorruption-roadmap/reference/batches/106.md)～[`111`](../post-anticorruption-roadmap/reference/batches/111.md)；尚未改业务代码。
+状态：已定稿并对齐最新 `origin/main`（`5bfd52b87b`）与在途 PR（`#2239`、`#2250`、`#2253`～`#2258`、`#2260` 待合；`#2245`、`#2252`、`#2259` 已合入），对应路线书 [决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66) 与批次 [`44B`](../post-anticorruption-roadmap/reference/batches/44b.md)、[`106`](../post-anticorruption-roadmap/reference/batches/106.md)～[`111`](../post-anticorruption-roadmap/reference/batches/111.md)；尚未改业务代码。
 
 配套需求书：[特殊逻辑平民化](spec.md)（验收 `PSD-01～08`）· [统一工作分区](../unified-partition-plugins/spec.md)（验收 `UPP-01～36`）。
 
@@ -10,7 +10,7 @@
 
 面向真实用户与开发者，终态收敛为三样清晰概念，**零特例插件、零双轨装配、零旧结构兼容读取**：
 
-1. **工作分区（Partition）**：顶上固定的保留分区 `personal`（`<Home>/personal-space/`）+ 你的各个项目（`<Home>/projects/<id>/`）。二者完全同构（成果库、资料、目录、对象终端、要求与认可、可信决定、调度、事件与端口、**右栏「讨论 / IM」作个人随手记与自对话流**）；个人空间的业务对象可单向按版本推送到项目，再推原地更新，项目改过先问再覆，被覆盖版本全部留本机可恢复（最近 1 版上云）。自写 Skill 保持双层：个人全局技能（Home 层全分区可用，个人空间直接读写不建第二套）+ 项目专属分区技能。
+1. **工作分区（Partition）**：顶上固定的保留分区 `personal`（`<Home>/personal-space/`）+ 你的各个项目（`<Home>/projects/<id>/`）。二者完全同构（成果库、资料、目录、对象终端、要求与认可、可信决定、调度、事件与端口、**右栏「讨论 / IM」作成员只有本人的群聊（与项目讨论同一套 IM，V12）**）；个人空间的业务对象可单向按版本推送到项目，再推原地更新，项目改过先问再覆，被覆盖版本全部留本机可恢复（最近 1 版上云）。自写 Skill 保持双层：个人全局技能（Home 层全分区可用，个人空间直接读写不建第二套）+ 项目专属分区技能。
 2. **纯平台系统部件（`system.*`，非插件，不进插件目录与市场）**：
    - `system.shelf`（`modules/shelf`，`kind: "system"`，`/api/platform/shelf`，`HostSurfaceRegistration` 右栏常驻中转架与桌面热键/轮盘/拖放/剪贴板）
    - `system.artifacts`（`modules/artifacts`）、`system.characters`（`modules/characters`，`/api/platform/characters`）、`system.assistant`、`system.computer`、`system.sessions`（`horizontal/sessions`）
@@ -27,8 +27,9 @@
 |---|---|---|---|
 | `always_on` 常开插件机制与 `always-on-plugins.ts` | **0** | `44B` | G1 / G2 |
 | `dual_instance` 双实例机制与 `scripts/gates/dual-instance.mjs` 豁免 | **0** | `109`（Shelf 在 `44B` 先清） | G2 |
-| 普通插件 `HomePluginHost` / `runtime.scope: "home"` / `outsideBuild` | **0** | `108`～`109` | G2 |
-| `personal: true` / `hidden` / `project_plugin_exclusions` / `project_rows` / `project_reach` / `home-aggregate` | **0** | `107`～`108` | G2 |
+| 普通插件 `HomePluginHost` / `runtime.scope: "home"` / `outsideBuild` / `home-package-admission` | **0** | `109` | G2 |
+| `personal: true` / `hidden` / `project_plugin_exclusions` / `project_reach` / `home-aggregate` | **0** | `108` | G2 |
+| `databases.home.partition` 复用器 / `project_rows` / 跨库 `artifact_join` | **0** | 复用器 `107`；后两项 `109`（Work Brief 最后迁） | G2 |
 | `APPROVED_BUILD_TIME_EXCEPTIONS` / `NATIVE_PLUGIN_HTTP_FILES` / `PLUGIN_MODULE_IMPORT_ALLOWLIST` | **0** | `44B` | G1 / G2 |
 | `better-sqlite3` 驱动例外（`sqlite-driver-owners.json`） | **0** | `44B` | 既有 SQLite 边界门禁 |
 | 宿主内 `workspace-git*.ts` 与 `projects.workspace.writers.*` | **0**（整体迁入 `plugins/native/git`） | `109` | G1 |
@@ -66,7 +67,7 @@ flowchart LR
 |---|---|---|
 | `#2239`（第 47 批） | 创作台迁入 `horizontal/plugin-studio`，引入 `HostSurfaceRegistration` | `44B` 直接复用 `HostSurfaceRegistration` 承载 `system.shelf`、`system.artifacts`、`system.characters`、`system.sessions`，并将残留 `agent-host/adapters/plugin-builder.ts` 迁入 `horizontal/plugin-studio` |
 | `#2258`（第 44 批独立复核，在途待合） | 共享样式 250+ `.mw-*` 泛化 + 永久门禁 `findSharedStylePluginSelectors`、Goals `demo-seed` 迁回、`WORK_PROGRESS_CONTINUITY_PROTOCOL`、兄弟插件可选 `goals:*`、画框泛化 | **`44B` 消费其全部成果，不重复改写**；仅核验并补齐 `#2258` 未覆盖的剩余平台点名（Shelf、Alchemist、连接器、来源拉取、合同命名等） |
-| `#2259`（决定 64/65） | 增设 `91-0c` 统一列表-详情容器 `.mw-stage-list-detail`、删 7 处外壳插件名分支 | 允许 `91-0c` 与 `44B` 并行/前置；本方案使用**决定 66** 避让 64/65；`91-2..4` 与 `91B` 排在 `111` 之后 |
+| `#2259`（决定 64/65） | 增设 `91-0c` 统一列表-详情容器 `.mw-stage-list-detail`、删 7 处外壳插件名分支 | `91-0c`（`#2259`）已合入、`44B` 在其之上实施；本方案使用**决定 66** 避让 64/65；`91-2..4` 与 `91B` 排在 `111` 之后 |
 | `#2231`（已合入） | 新增 6 项平台个人配置同步（`personal-config-sync.ts`、`platform-sync-catalog.ts`） | `44B` 修复 `platform-sync-catalog.ts` 借用 `io.molis.work.inbox` 导致拔掉 Inbox 崩盘的缺陷，并将 5 项伪插件 id 改为纯平台 `SyncSelection`；`106` 的 `horizontal/person-settings` 直接复用 `personalConfigReplica` + `assertPortableConfig` |
 | `#2253` / `#2254` / `#2255` | RO/RW 池、静息读数持久化、`discoverOne` 热路径 | 先合入主干；`106`/`108` 的 `overview_projection` 平滑替代 `#2254` 过渡静息读数；保留 `#2253` 只读并发池与 `#2255` 单查热路径 |
 | `#2257`（Feed 精准唤醒） | 交替一次性槽位（`sources` / `sources:next`）取代 30 秒轮询 | `106` 平台到期登记（`horizontal/scheduler`）沿用同一无空窗单次触发槽位模型 |
@@ -125,7 +126,7 @@ flowchart LR
 ## 6. 2026-11-23 补充拍板（V9～V15，详见[统一工作分区 §14.3](../unified-partition-plugins/spec.md)）
 
 - **V9／V10 Git 与 Coding**：写入调度整体随 Git 搬进 Git 插件；Coding 声明 Git 为随启用依赖（通用声明 `enable_with`），启用 Coding 时一并启用 Git；允许单独移除 Git，先提示「Coding 只能一次一个地改」。
-- **V11 总览表**：插件按平台定格式（待办/日程/通知/简报）在自己分区库里维护总览表，平台只读；到期提醒从中取，同步来的提醒不漏；写法进 `skills/molis-plugin-dev`、Manifest 说明与 SDK（`106`）。取代 3.2 第 1 条的「列名白名单映射」。
+- **V11 总览表**：插件按平台定格式（待办/日程/通知/简报）在自己分区库里维护总览表，平台只读；到期提醒从中取，同步来的提醒不漏；写法进 `skills/molis-plugin-dev`、Manifest 说明与 SDK（`106`）。3.2 第 1 条已按此改写。
 - **V12 随手记分工**：Shelf 先放、右栏讨论 = 只有自己的群聊（与项目讨论同一套 IM）、Jelly 留存笔记与日程、Todo 要做的事、助理帮你做。
 - **V13 个人全局技能**：项目 AI 也能用；SRV-6 团队共享前在共享确认里写明。
 - **V14 排期**：照旧，`44B` → `106`～`111` 串行，下游等 `111`。

@@ -14,7 +14,7 @@
 
 
 > [!IMPORTANT]
-> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：① 个人空间分区保留右栏「讨论 / IM」作为个人随手记与自对话流（R21）；② 跨项目个人只读视图（原 `64-3`）并入 [`108`](../post-anticorruption-roadmap/reference/batches/108.md) 的 `overview_projection`（含 Attention 投影 R13），不再另造 Home 只读合同；③ 线与事件卡「放到…」走 M4 通用接收声明（含纯平台 `system.shelf`）。
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：① 个人空间分区保留右栏「讨论 / IM」作为成员只有本人的群聊（与项目讨论同一套 IM，V12）（R21）；② 跨项目个人只读视图（原 `64-3`）并入 [`108`](../post-anticorruption-roadmap/reference/batches/108.md) 的 `overview_projection`（含 Attention 投影 R13），不再另造 Home 只读合同；③ 线与事件卡「放到…」走 M4 通用接收声明（含纯平台 `system.shelf`）。
 
 ## 1. 要解决的问题
 

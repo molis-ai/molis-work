@@ -13,7 +13,7 @@
 
 
 > [!IMPORTANT]
-> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（D6=B，落于 [`109`](../post-anticorruption-roadmap/reference/batches/109.md)）：宿主 `workspace-git*.ts` 与 `projects.workspace.writers.*` 整体迁入 `plugins/native/git`（受限 argv-only 执行边界 `S-git-plugin-command-scope`）；Coding 删 5 张表 `project_id` 列，将对 Git 的 `review:git-*` 改为可选依赖，Git 插件未启用时优雅降级为单工作区串行写，审查种类走开放 Manifest 申报（严格保留第 99 批 `#2244` `install_id` 隔离）；个人空间下 Coding 以 `outputs/personal` 为工作目录。
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（D6=B，落于 [`109`](../post-anticorruption-roadmap/reference/batches/109.md)）：宿主 `workspace-git*.ts` 与 `projects.workspace.writers.*` 整体迁入 `plugins/native/git`（受限 argv-only 执行边界 `S-git-plugin-command-scope`）；Coding 删 5 张表 `project_id` 列，把对 Git 的 `review:git-*` 改为随启用依赖（V9：启用 Coding 时一并启用 Git；可单独移除并先提示，V10），Git 被移除时优雅降级为单工作区串行写，审查种类走开放 Manifest 申报（严格保留第 99 批 `#2244` `install_id` 隔离）；个人空间下 Coding 以 `outputs/personal` 为工作目录。
 
 ## 0. 本轮产品闭环（2026-09-21，已恢复推进）
 

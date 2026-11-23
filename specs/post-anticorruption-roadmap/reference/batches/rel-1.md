@@ -127,7 +127,7 @@ F 轨核（只做定样／只读核查，认领见 #1743）。依据只有两样
 ### 仓库现状与缺口
 
 - **已有**：Tauri v2 桌面壳（`apps/desktop/src-tauri/tauri.conf.json`，bundle id `com.molis.work`，产物是 app 和 dmg，最低 macOS 13，`macOSPrivateApi: true`）。构建脚本 `apps/desktop/tooling/build-macos-release.sh` 在没给签名身份时默认用 `-`（ad-hoc），最后只跑 `codesign --verify`。`tauri.macos.conf.json` 写死了 `signingIdentity: "-"`，但环境变量 `APPLE_SIGNING_IDENTITY` 可以覆盖它。发布工作流 `.github/workflows/release-macos.yml` 只能手动触发，arm64 和 x64 各构建一份；6 个 `APPLE_*` 凭据齐全时才导入证书，交给 Tauri 签名和公证；打 tag 的构建如果缺凭据会直接失败。
-- **随包带的原生组件**（全部要签名）：`prepare-macos-runtime.sh` 下载并校验 Node 24.15.x；运行时里有 `pty.node`、`spawn-helper`（`node-pty` 裁掉其他平台和架构的预编译文件；注：**按[决定 66](../decisions.md#decision-66)，`better_sqlite3.node` 已随 `44B` 删除旧 Alchemist 彻底清零，签名清单不再含它**）；原生工具二进制（`44B` 中性化后的原 `jelly-material`/`jelly-whisper`）；`apps/local-host/native/computer/bin/Molis Work Computer Helper.app`（bundle id `com.molis.work.computer-helper`，用到屏幕录制、辅助功能、输入监控）。
+- **随包带的原生组件**（全部要签名）：`prepare-macos-runtime.sh` 下载并校验 Node 24.15.x；运行时里有 `pty.node`、`spawn-helper`（`node-pty` 裁掉其他平台和架构的预编译文件；注：**按[决定 66](../decisions.md#decision-66)，`better_sqlite3.node` 已随 `44B` 删除旧 Alchemist 彻底清零，签名清单不再含它**）；原生工具二进制（`jelly-material`/`jelly-whisper`，`44B` 不改名）；`apps/local-host/native/computer/bin/Molis Work Computer Helper.app`（bundle id `com.molis.work.computer-helper`，用到屏幕录制、辅助功能、输入监控）。
 - **缺口**：
   - main 上**没有** entitlements、`src-tauri/Info.plist`、对 Resources 里各个 Mach-O 逐个签名的步骤，也没有 `stapler` 和 `spctl` 校验。Tauri 只签 bundle 的标准位置，Resources 下的二进制它不签，这一点**属推断，未核实**。
   - Computer Helper 签名时用的是 `--timestamp=none`，也没加 `--options runtime`，**这样过不了公证**；而且它必须按 bundle 整体签名，不能只签里面的可执行文件。

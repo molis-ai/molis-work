@@ -20,7 +20,7 @@
 
 2026-11-20 按全仓体检与决定 57 两轮红队终校调整（[决定 58](reference/decisions.md#decision-58)）：不砍任何既有批次、不做大规模拆迁、100% 保留全部 AI Harness 与 RSI 工程优化；按最大批号追加 6 个横向修复与硬化正式批次 [100](reference/batches/100.md)～[105](reference/batches/105.md)（按各自真实前置开工，**不等 38～89**），同步校准 [91](reference/batches/91.md)、[91B](reference/batches/91b.md)、[62](reference/batches/62.md) 等批次的红队护栏，第 90 批仍为整条路线最终交付对账。
 
-2026-11-22 按「特殊逻辑平民化 + 统一工作分区」终审合并拍板（[决定 66](reference/decisions.md#decision-66)；决定 64/65 为在途 `#2259` 保留）：新增 [44B](reference/batches/44b.md)（特殊逻辑平民化，Shelf 剥离插件壳收归纯平台 `modules/shelf` / `system.shelf`、彻底删旧 Alchemist 与 `better-sqlite3`、官方集成驱动化、G1 门禁）与按 V1 先加后迁再删的 6 个统一工作分区正式批次 [106](reference/batches/106.md)～[111](reference/batches/111.md)（20 个平等内置插件，零 `always_on`/`dual_instance`/普通 `scope:"home"`、星型版本化 Push、Clean v1、G1～G5 门禁）。在途已实装 PR（`#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260`）先合入消费，`#2259` 的 `91-0c` 可与 `44B` 并行/前置；`44B` 与 `106`～`111` 排在 `91-2..4`、`91B`、`105`、`45`～`90`、`REL-4`、`SRV` 之前，[第 90 批](reference/batches/90.md)仍为整条路线最终交付对账。
+2026-11-22 按「特殊逻辑平民化 + 统一工作分区」终审合并拍板（[决定 66](reference/decisions.md#decision-66)；决定 64/65 随已合入的 `#2259` 保留）：新增 [44B](reference/batches/44b.md)（特殊逻辑平民化，Shelf 剥离插件壳收归纯平台 `modules/shelf` / `system.shelf`、彻底删旧 Alchemist 与 `better-sqlite3`、官方集成驱动化、G1 门禁）与按 V1 先加后迁再删的 6 个统一工作分区正式批次 [106](reference/batches/106.md)～[111](reference/batches/111.md)（20 个平等内置插件，零 `always_on`/`dual_instance`/普通 `scope:"home"`、星型版本化 Push、Clean v1、G1～G5 门禁）。在途待合前置 PR（`#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260`）先合入消费，`#2259` 的 `91-0c` 可与 `44B` 并行/前置；`44B` 与 `106`～`111` 排在 `91-2..4`、`91B`、`105`、`45`～`90`、`REL-4`、`SRV` 之前，[第 90 批](reference/batches/90.md)仍为整条路线最终交付对账。
 
 | 批次 | 批次内内容 |
 | --- | --- |

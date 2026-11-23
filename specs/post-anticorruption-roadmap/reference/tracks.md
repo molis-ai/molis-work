@@ -224,10 +224,10 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [106-2](batches/106.md#batch-106-item-2) | Home 单张安装表、`partition_plugins`、`partitions.plugins.set@1` 与新每分区装配 | C1 | 是 | C3、E |
 | [106-3](batches/106.md#batch-106-item-3) | 新平台基础设施：`person-settings`、`evidence`、到期登记、声明式 `overview_projection` 与 Manifest 新字段 | C3 | 是 | C1、G |
 | [107-1](batches/107.md#batch-107-item-1) | 6 个独立库插件迁 `databases.partition` 并删业务表 `project_id` | E | 是 | C1 |
-| [107-2](batches/107.md#batch-107-item-2) | 当波删除 `project_rows`、跨库 `artifact_join` 与 `databases.home.partition` 复用器 | C1 | 是 | E |
+| [107-2](batches/107.md#batch-107-item-2) | 当波删除 `databases.home.partition` 复用器（`project_rows`、`artifact_join` 归 109-3） | C1 | 是 | E |
 | [108-1](batches/108.md#batch-108-item-1) | Todo、Jelly、Cognia、Images、Issues 迁分区作用域与 `databases.partition` | E | 是 | C1、C3 |
 | [108-2](batches/108.md#batch-108-item-2) | 个人空间总览上线（承接原 `64-3` 跨项目个人视图）与门禁 G4 | C3 | 是 | A、D、E |
-| [108-3](batches/108.md#batch-108-item-3) | 当波删除普通插件 `scope:"home"`、`personal:true`、`hidden` 与 `project_reach` | C1 | 是 | D、E |
+| [108-3](batches/108.md#batch-108-item-3) | 当波删除 `personal:true`、`hidden` 与 `project_reach`（`scope:"home"`、`outsideBuild` 链归 109-3） | C1 | 是 | D、E |
 | [109-1](batches/109.md#batch-109-item-1) | 主库插件删 `project_id` 列与 Feed/Work Brief 摘除 Home 半 | E | 是 | B、C3 |
 | [109-2](batches/109.md#batch-109-item-2) | Workspace Git 与 `projects.workspace.writers.*` 迁入 `plugins/native/git`（D6=B）+ 开放审查种类 | B | 是 | C1、C2 |
 | [109-3](batches/109.md#batch-109-item-3) | 第三方沙箱包开放 `databases.partition` + 彻底删除双实例与旧平行装配 | C1 | 是 | E |

@@ -40,7 +40,7 @@ export function publishContext(page: PagesPage) {
 }
 
 
-/** What the list (a listbox that picks several) says is selected: the picked documents, else the open one. */
+/** What the directory says is selected: the picked documents, else the open one. */
 export const chosen = (page: PagesPage, id: string) => (page.picked.size ? page.picked.has(id) : page.sel?.id === id);
 
 /**
@@ -62,7 +62,10 @@ function surfaceFocus(page: PagesPage): SurfaceDetail | null {
 }
 
 function pickedRect(page: PagesPage) {
-  const boxes = [...page.rowsEl.querySelectorAll<HTMLElement>(".pages-doc-row[data-page-id]")].filter((row) => page.picked.has(row.dataset.pageId!)).map((row) => row.getBoundingClientRect());
+  const boxes = [...page.rowsEl.querySelectorAll<HTMLElement>(".pages-doc-row[data-page-id]")]
+    .filter((row) => page.picked.has(row.dataset.pageId!))
+    .map((row) => row.getBoundingClientRect())
+    .filter((box) => box.width > 0 && box.height > 0);
   const edge = (side: "left" | "right" | "top" | "bottom", pick: (...values: number[]) => number) => pick(...boxes.map((box) => box[side]));
   return boxes.length ? { left: edge("left", Math.min), right: edge("right", Math.max), top: edge("top", Math.min), bottom: edge("bottom", Math.max) } : null;
 }

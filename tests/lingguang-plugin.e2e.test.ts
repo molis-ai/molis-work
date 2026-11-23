@@ -260,16 +260,16 @@ test("灵光对话：回复边写边显示，停止后不保存且输入保留�
   await shot("lingguang-reply-saved");
 });
 
-test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、取消选中与单 Tab 进出", { timeout: 90_000 }, async (t) => {
+test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、单 Tab 进出和批量丢弃", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "lingguang");
   const { evaluate, waitFor } = child;
   const store = openLingguangStore(homeDirectory);
-  const ids = (() => {
+  const sparks = (() => {
     try {
-      return ["第一条灵光", "第二条灵光", "第三条灵光"].map((title) => store.create({ project_id: projectId!, title, body: `${title}正文` }).id);
+      return ["第一条灵光", "第二条灵光", "第三条灵光"].map((title) => store.create({ project_id: projectId!, title, body: `${title}正文` }));
     } finally { store.close(); }
   })();
   const key = async (name: string, code: string, windowsVirtualKeyCode: number, modifiers = 0) => {
@@ -280,7 +280,7 @@ test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、取消选中与�
   await browser.setViewport(1440, 960);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=lingguang` }, sessionId));
-  await waitFor("document.querySelectorAll('[data-lingguang-rows] [role=option][data-lingguang-id]').length === 3", 15_000);
+  await waitFor("document.querySelectorAll('[data-lingguang-rows] [role=option][data-lingguang-id]').length === 3 && document.querySelector('[data-lingguang-rows] [tabindex=\"0\"]')", 15_000);
 
   assert.deepEqual(await evaluate(`(() => {
     const list = document.querySelector('[data-lingguang-rows]');
@@ -299,7 +299,7 @@ test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、取消选中与�
   }, "BL-340 Lingguang list is a multi-selectable APG listbox with one Tab stop");
 
   const order = await evaluate<string[]>("[...document.querySelectorAll('[data-lingguang-rows] [role=option][data-lingguang-id]')].map((row) => row.dataset.lingguangId)");
-  assert.equal(order.length, ids.length);
+  assert.deepEqual([...order].sort(), sparks.map((spark) => spark.id).sort());
   const selectedIds = "[...document.querySelectorAll('[data-lingguang-rows] [role=option][aria-selected=true]')].map((row) => row.dataset.lingguangId).join()";
 
   // Start from normal page focus on the toolbar button immediately before the listbox, then drive everything with keyboard.
@@ -334,4 +334,28 @@ test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、取消选中与�
   await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[0])}`);
   await key("Tab", "Tab", 9);
   await waitFor("!document.querySelector('[data-lingguang-rows]').contains(document.activeElement)");
+
+  await key("Tab", "Tab", 9, 8);
+  await waitFor("document.activeElement?.matches('[data-lingguang-id]')");
+  await key("a", "KeyA", 65, 2);
+  await waitFor(`(${selectedIds}) === ${JSON.stringify(order.join())}`);
+  await key("End", "End", 35);
+  await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[2])}`);
+  await key(" ", "Space", 32);
+  await waitFor(`(${selectedIds}) === ${JSON.stringify(order.slice(0, 2).join())}`);
+  for (const control of ["dispatch", "brainstorm", "discard"]) {
+    await key("Tab", "Tab", 9, 8);
+    await waitFor(`document.activeElement?.matches('[data-lingguang-${control}]')`);
+  }
+  await key("Enter", "Enter", 13);
+  await waitFor("document.querySelector('[data-lingguang-confirm]')?.open");
+  await key("Tab", "Tab", 9);
+  await waitFor("document.activeElement?.matches('[data-confirm-ok]')");
+  await key("Enter", "Enter", 13);
+  await waitFor("document.querySelectorAll('[data-lingguang-id]').length === 1");
+  const after = openLingguangStore(homeDirectory);
+  try {
+    assert.deepEqual(after.list(projectId!), [sparks.find((spark) => spark.id === order[2])]);
+    for (const id of order.slice(0, 2)) assert.equal(after.get(id, projectId!).status, "discarded");
+  } finally { after.close(); }
 });

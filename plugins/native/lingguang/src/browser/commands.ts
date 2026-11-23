@@ -1,4 +1,5 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { toggleListPick } from "./list.js";
 import type { LingguangPage, Spark } from "./types.js";
 
 const uiText = globalThis.t;
@@ -60,11 +61,7 @@ export function installCommands(page: LingguangPage): void {
   const pick = async (row: HTMLElement, event: MouseEvent) => {
     const id = row.dataset.lingguangId || "";
     if (event.metaKey || event.ctrlKey) {
-      if (s.picks.has(id)) s.picks.delete(id);
-      else s.picks.add(id);
-      row.classList.toggle("is-selected", s.picks.has(id));
-      row.setAttribute("aria-selected", String(s.picks.has(id)));
-      page.syncSelectionBar();
+      toggleListPick(page, row);
       return;
     }
     if (s.selected && s.selected.id !== id) await page.save();

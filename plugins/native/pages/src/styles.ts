@@ -330,7 +330,6 @@ export const PAGES_STYLES = `
       box-shadow 130ms var(--ease-quint);
   }
   .pages-doc-cell { flex: 1 1 auto; min-width: 0; display: flex; }
-  .pages-doc-row > .mw-stage-entry,
   .pages-doc-row > .pages-doc-cell > .mw-stage-entry { flex: 1; min-width: 0; width: 100%; padding-right: 56px; background: transparent; }
   body.immersive-workbench [data-pages="directory"] .pages-doc-row:hover {
     background: var(--nav-hover);
@@ -366,7 +365,6 @@ export const PAGES_STYLES = `
   .pages-doc-mark svg { width: 14px; height: 14px; }
   .pages-doc-row.is-dragging { opacity: .45; }
   .pages-doc-row.creative-artifact-row { display: flex; align-items: center; }
-  body.immersive-workbench .pages-doc-row.creative-artifact-row > .mw-stage-entry,
   body.immersive-workbench .pages-doc-row.creative-artifact-row > .pages-doc-cell > .mw-stage-entry { flex: 1 1 auto; min-width: 0; width: 100%; padding-right: 8px; }
   .creative-artifact-act {
     display: inline-flex; align-items: center; flex: none; height: 28px; max-width: 28px;

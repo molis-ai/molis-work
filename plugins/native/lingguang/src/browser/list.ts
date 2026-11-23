@@ -5,6 +5,23 @@ import type { LingguangPage, Spark } from "./types.js";
 
 const uiText = globalThis.t;
 
+const OPTION = '[role="option"][data-lingguang-id]';
+
+const paintRow = (row: HTMLElement, selected: boolean) => {
+  row.classList.toggle("is-selected", selected);
+  row.setAttribute("aria-selected", String(selected));
+};
+
+export function toggleListPick(page: LingguangPage, row: HTMLElement): void {
+  const id = row.dataset.lingguangId;
+  if (!id) return;
+  const { picks } = page.s;
+  if (picks.has(id)) picks.delete(id);
+  else picks.add(id);
+  paintRow(row, picks.has(id));
+  page.syncSelectionBar();
+}
+
 /** The list: rows, selection, and where each spark went. */
 export function installList(page: LingguangPage): void {
   const { el, s, request } = page;
@@ -20,82 +37,20 @@ export function installList(page: LingguangPage): void {
     const sameDay = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
     return uiText.text("common.generated.formatted", { value: dateArg(date.toISOString(), sameDay ? "time" : "month-day") });
   };
-  // A row is selected while it is picked or open, and the list (a listbox that picks several) says so.
-  const paintRow = (row: Element, on: boolean) => {
-    row.classList.toggle("is-selected", on);
-    row.setAttribute("aria-selected", String(on));
-  };
-  let focusedId: string | null = null;
-  const optionRows = () => [...el.rowsEl.querySelectorAll<HTMLElement>('[role="option"][data-lingguang-id]')];
-  const syncTabStops = () => {
-    const rows = optionRows();
-    if (!rows.length) {
-      focusedId = null;
-      return;
-    }
-    const active = rows.find((row) => row.dataset.lingguangId === focusedId)
-      || rows.find((row) => row.dataset.lingguangId === s.selected?.id)
-      || rows.find((row) => s.picks.has(row.dataset.lingguangId || ""))
-      || rows[0]!;
-    focusedId = active.dataset.lingguangId || null;
-    rows.forEach((row) => { row.tabIndex = row === active ? 0 : -1; });
-  };
-  const focusRow = (row: HTMLElement | undefined) => {
-    if (!row) return;
-    focusedId = row.dataset.lingguangId || null;
-    syncTabStops();
-    row.focus();
-  };
-  const toggleRowSelection = (row: HTMLElement) => {
-    const id = row.dataset.lingguangId || "";
-    if (!id) return;
-    if (s.picks.has(id)) s.picks.delete(id);
-    else s.picks.add(id);
-    paintRow(row, s.picks.has(id));
-    page.syncSelectionBar();
-  };
-  el.rowsEl.addEventListener("focusin", (event) => {
-    const row = (event.target as Element | null)?.closest<HTMLElement>('[role="option"][data-lingguang-id]');
-    if (!row || !el.rowsEl.contains(row)) return;
-    focusedId = row.dataset.lingguangId || null;
-    syncTabStops();
-  });
+  // Only selection belongs here. The shared listbox client handles arrows and the Tab stop.
   el.rowsEl.addEventListener("keydown", (event) => {
-    if (event.altKey) return;
-    const row = (event.target as Element | null)?.closest<HTMLElement>('[role="option"][data-lingguang-id]');
-    if (!row || !el.rowsEl.contains(row)) return;
-    const rows = optionRows();
-    const index = rows.indexOf(row);
-    if (index < 0) return;
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      focusRow(rows[Math.min(index + 1, rows.length - 1)]);
-      return;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      focusRow(rows[Math.max(index - 1, 0)]);
-      return;
-    }
-    if (event.key === "Home") {
-      event.preventDefault();
-      focusRow(rows[0]);
-      return;
-    }
-    if (event.key === "End") {
-      event.preventDefault();
-      focusRow(rows[rows.length - 1]);
-      return;
-    }
+    if (event.defaultPrevented || event.isComposing || event.altKey) return;
+    const row = (event.target as Element | null)?.closest<HTMLElement>(OPTION);
+    if (!row) return;
     if (event.key === " " || event.code === "Space") {
       event.preventDefault();
-      toggleRowSelection(row);
+      if (!event.repeat) toggleListPick(page, row);
       return;
     }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
       event.preventDefault();
       s.records.forEach((record) => s.picks.add(record.id));
-      rows.forEach((item) => paintRow(item, true));
+      el.rowsEl.querySelectorAll<HTMLElement>(OPTION).forEach((item) => paintRow(item, true));
       page.syncSelectionBar();
     }
   });
@@ -150,12 +105,16 @@ export function installList(page: LingguangPage): void {
     return item;
   };
   const paintList = () => {
-    const hadFocus = el.rowsEl.contains(document.activeElement);
+    const active = document.activeElement;
+    const focusedId = active instanceof HTMLElement && el.rowsEl.contains(active) ? active.dataset.lingguangId : undefined;
     el.empty.hidden = s.records.length > 0;
     el.rowsEl.replaceChildren();
     s.records.forEach((record) => el.rowsEl.append(renderRow(record)));
-    syncTabStops();
-    if (hadFocus) el.rowsEl.querySelector<HTMLElement>('[role="option"][tabindex="0"]')?.focus();
+    if (focusedId) {
+      const rows = [...el.rowsEl.querySelectorAll<HTMLElement>(OPTION)];
+      const next = rows.find((row) => row.dataset.lingguangId === focusedId) ?? rows[0];
+      next?.focus({ preventScroll: true });
+    }
     void annotateFates(s.records);
     page.syncSelectionBar();
   };
@@ -175,7 +134,6 @@ export function installList(page: LingguangPage): void {
   };
   page.markSelected = (id) => {
     el.rowsEl.querySelectorAll<HTMLElement>("[data-lingguang-id]").forEach((row) => paintRow(row, s.picks.has(row.dataset.lingguangId || "") || row.dataset.lingguangId === id));
-    syncTabStops();
   };
   page.selectedRecords = () => s.records.filter((item) => s.picks.has(item.id));
   page.syncSelectionBar = () => {

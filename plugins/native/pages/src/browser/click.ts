@@ -43,7 +43,7 @@ async function menuClick(page: PagesPage, event: Event, hit: Hit): Promise<boole
     stop(event);
     closeMore(page);
     if (move.getAttribute("aria-expanded") === "true") closeMove(page);
-    else openMove(page, move, move.dataset.pagesMove!);
+    else openMove(page, move, move.dataset.pagesMove!, event.detail === 0);
     return true;
   }
   const star = hit("[data-pages-star]");

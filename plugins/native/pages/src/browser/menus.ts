@@ -38,15 +38,19 @@ export function toggleCreate(page: PagesPage) {
 export function closeMove(page: PagesPage) {
   const { moveMenu } = page;
   if (!moveMenu) return;
+  const trigger = moveMenu.contains(document.activeElement)
+    ? page.rowsEl.querySelector<HTMLButtonElement>('[data-pages-move][aria-expanded="true"]')
+    : null;
   moveMenu.hidden = true;
   page.movingId = "";
   page.els("[data-pages-move][aria-expanded=true]").forEach((node) => {
     node.setAttribute("aria-expanded", "false");
   });
+  trigger?.focus({ preventScroll: true });
 }
 
 /** The folder menu of one document, under the button that opened it. */
-export function openMove(page: PagesPage, trigger: HTMLElement, id: string) {
+export function openMove(page: PagesPage, trigger: HTMLElement, id: string, focusMenu: boolean) {
   const { moveMenu } = page;
   if (!moveMenu) return;
   const record = page.records.find((item) => item.id === id);
@@ -78,6 +82,7 @@ export function openMove(page: PagesPage, trigger: HTMLElement, id: string) {
   const top = below + height > window.innerHeight - 8 ? Math.max(8, box.top - height - 4) : below;
   moveMenu.style.left = left + "px";
   moveMenu.style.top = top + "px";
+  if (focusMenu) moveMenu.querySelector<HTMLButtonElement>(".is-current")?.focus({ preventScroll: true });
 }
 
 export function fillGoalSelect(page: PagesPage) {

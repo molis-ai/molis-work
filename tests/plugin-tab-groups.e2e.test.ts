@@ -346,7 +346,8 @@ test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and s
       return { folder, pages: [a, b, c] as const };
     } finally { store.close(); }
   })();
-  const [a, b, c] = seeded.pages.map((page) => page.id) as [string, string, string];
+  const c = seeded.pages[2].id;
+  const folderGroup = `[data-folder-id="${seeded.folder.id}"]`;
   const key = async (name: string, code: string, windowsVirtualKeyCode: number, modifiers = 0) => {
     for (const type of ["keyDown", "keyUp"] as const) {
       await command("Input.dispatchKeyEvent", { type, key: name, code, windowsVirtualKeyCode, modifiers }, sessionId);
@@ -356,6 +357,10 @@ test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and s
   // An open document takes the whole Pages page (36A-3), so several are picked in the list, with none open.
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded !== 'true' && document.querySelector('[data-pages-rows] button[data-page-id="${c}"]')?.getClientRects().length > 0`);
+  const order = await child.evaluate<string[]>(`[...document.querySelectorAll('${folderGroup} button[data-page-id]')].map((row) => row.dataset.pageId)`);
+  assert.deepEqual([...order].sort(), seeded.pages.slice(0, 2).map((page) => page.id).sort());
+  const [a, b] = order;
+  await evaluate("document.addEventListener('molis:surface-focus', (event) => { window.bl340Focus = event.detail; })");
   const selected = `[...document.querySelectorAll('[data-pages-rows] [role=row][data-page-id]')].filter((row) => row.getAttribute('aria-selected') === 'true').map((row) => row.dataset.pageId).sort().join()`;
   assert.deepEqual(await child.evaluate(`(() => {
     const grid = document.querySelector('[data-pages-rows]');
@@ -396,6 +401,16 @@ test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and s
   // Collapse and re-expand the folder row with ArrowLeft / ArrowRight.
   await key("ArrowLeft", "ArrowLeft", 37);
   await child.waitFor(`document.querySelector('[data-pages-folder-row=${JSON.stringify(seeded.folder.id)}]')?.getAttribute('aria-expanded') === 'false' && document.querySelector('[role=row][data-page-id="${a}"]')?.hidden === true`);
+  await key("a", "KeyA", 65, 2);
+  await child.waitFor(`(${selected}) === ${JSON.stringify(c)}`);
+  await key("ArrowDown", "ArrowDown", 40);
+  await key("ArrowDown", "ArrowDown", 40);
+  await child.waitFor(`document.activeElement?.dataset.pageId === ${JSON.stringify(c)}`);
+  await key(" ", "Space", 32);
+  await child.waitFor(`(${selected}) === ''`);
+  await key("ArrowUp", "ArrowUp", 38);
+  await key("ArrowUp", "ArrowUp", 38);
+  await child.waitFor(`document.activeElement?.dataset.pagesFolderToggle === ${JSON.stringify(seeded.folder.id)}`);
   await key("ArrowRight", "ArrowRight", 39);
   await child.waitFor(`document.querySelector('[data-pages-folder-row=${JSON.stringify(seeded.folder.id)}]')?.getAttribute('aria-expanded') === 'true' && document.querySelector('[role=row][data-page-id="${a}"]')?.hidden === false`);
   // Move down to Page A, traverse inline Move/Star cells with ArrowRight/ArrowLeft, then multi-select with Space.
@@ -403,6 +418,10 @@ test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and s
   await child.waitFor(`document.activeElement?.dataset.pageId === ${JSON.stringify(a)}`);
   await key("ArrowRight", "ArrowRight", 39);
   await child.waitFor(`document.activeElement?.dataset.pagesMove === ${JSON.stringify(a)}`);
+  await key("Enter", "Enter", 13);
+  await child.waitFor(`document.activeElement?.dataset.pagesMoveTo === ${JSON.stringify(seeded.folder.id)}`);
+  await key("Escape", "Escape", 27);
+  await child.waitFor(`document.querySelector('[data-pages-move-menu]').hidden && document.activeElement?.dataset.pagesMove === ${JSON.stringify(a)}`);
   await key("ArrowRight", "ArrowRight", 39);
   await child.waitFor(`document.activeElement?.dataset.pagesStar === ${JSON.stringify(a)}`);
   await key("ArrowLeft", "ArrowLeft", 37);
@@ -414,6 +433,7 @@ test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and s
   await child.waitFor(`document.activeElement?.dataset.pageId === ${JSON.stringify(b)}`);
   await key(" ", "Space", 32);
   await child.waitFor(`(${selected}) === ${JSON.stringify([a, b].sort().join())} && document.querySelectorAll('[data-pages-rows] .pages-doc-row.is-picked').length === 2`);
+  await waitFor(`window.bl340Focus?.granularity === 'objects' && window.bl340Focus.targets.map((target) => target.ref.id).sort().join() === ${JSON.stringify([a, b].sort().join())}`);
   assert.equal(await child.evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "false", "Space multi-select does not open the editor");
   assert.equal(await evaluate(`document.querySelector('[data-plugin-group=pages] .tab-item[data-tab-kind=item]')`), null, "Space multi-select opens no item tab");
   // Deselect B and A purely with keyboard.
@@ -422,6 +442,16 @@ test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and s
   await key("ArrowUp", "ArrowUp", 38);
   await key(" ", "Space", 32);
   await child.waitFor(`(${selected}) === '' && document.querySelectorAll('[data-pages-rows] .pages-doc-row.is-picked').length === 0`);
+  // Starring a document adds a second occurrence. The original row keeps keyboard focus through the refresh.
+  await key("ArrowRight", "ArrowRight", 39);
+  await key("ArrowRight", "ArrowRight", 39);
+  await child.waitFor(`document.activeElement?.dataset.pagesStar === ${JSON.stringify(a)}`);
+  await key("Enter", "Enter", 13);
+  await child.waitFor(`document.querySelector('[data-folder-id=starred] button[data-page-id="${a}"]') && document.activeElement?.matches('${folderGroup} [data-pages-star="${a}"][tabindex="0"]')`);
+  await key("Enter", "Enter", 13);
+  await child.waitFor(`!document.querySelector('[data-folder-id=starred]') && document.activeElement?.matches('${folderGroup} [data-pages-star="${a}"]')`);
+  await key("Home", "Home", 36);
+  await child.waitFor(`document.activeElement?.dataset.pageId === ${JSON.stringify(a)}`);
   // Tab enters and leaves the treegrid in a single stop.
   await key("Tab", "Tab", 9, 8);
   await child.waitFor("document.activeElement === document.querySelector('[data-pages-search]')");

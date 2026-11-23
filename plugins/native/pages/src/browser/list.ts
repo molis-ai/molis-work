@@ -7,7 +7,12 @@ import type { PagesRecord } from "./types.js";
 
 const uiText = globalThis.t;
 
-type ActiveCell = { readonly kind: "page" | "folder"; readonly id: string; readonly cell: number };
+type ActiveCell = {
+  readonly kind: "page" | "folder";
+  readonly id: string;
+  readonly group: string | undefined;
+  readonly column: number;
+};
 const activeCells = new WeakMap<PagesPage, ActiveCell>();
 
 function formatTime(value: string | undefined): string {
@@ -108,6 +113,7 @@ const renderFold = (page: PagesPage, key: string, label: string, items: readonly
   toggle.tabIndex = -1;
   toggle.className = "pages-folder-toggle";
   toggle.dataset.pagesFolderToggle = key;
+  toggle.setAttribute("aria-expanded", String(open));
   const caret = make("span", "goal-collection-caret");
   caret.setAttribute("aria-hidden", "true");
   caret.innerHTML = ICON("chevron-down");
@@ -156,57 +162,64 @@ const folderActions = (_page: PagesPage, folder: { readonly id: string }) => {
   return wrap;
 };
 
-const rowButtons = (row: HTMLElement) => [...row.querySelectorAll<HTMLButtonElement>("button")].filter((node) => !node.disabled);
+const rowButtons = (row: HTMLElement) => [...row.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
 
 const visibleRows = (rowsEl: HTMLElement) =>
-  [...rowsEl.querySelectorAll<HTMLElement>('[role="row"]')].filter((row) => !row.hidden && rowButtons(row).length > 0);
+  [...rowsEl.querySelectorAll<HTMLElement>('[role="row"]:not([hidden]):is([data-page-id], [data-pages-folder-row])')];
 
-const cellDescriptor = (button: HTMLElement): ActiveCell | null => {
+const groupOf = (row: HTMLElement) => row.closest<HTMLElement>("[data-folder-id]")?.dataset.folderId;
+
+const cellDescriptor = (button: HTMLButtonElement): ActiveCell | null => {
   const row = button.closest<HTMLElement>('[role="row"]');
   if (!row) return null;
-  const cells = rowButtons(row);
-  const cell = Math.max(0, cells.indexOf(button as HTMLButtonElement));
-  if (row.dataset.pageId) return { kind: "page", id: row.dataset.pageId, cell };
-  if (row.dataset.pagesFolderRow !== undefined) return { kind: "folder", id: row.dataset.pagesFolderRow, cell };
+  const column = rowButtons(row).indexOf(button);
+  if (row.dataset.pageId) return { kind: "page", id: row.dataset.pageId, group: groupOf(row), column };
+  if (row.dataset.pagesFolderRow !== undefined) return { kind: "folder", id: row.dataset.pagesFolderRow, group: groupOf(row), column };
   return null;
 };
 
-const findCell = (rowsEl: HTMLElement, active: ActiveCell | undefined): HTMLButtonElement | null => {
-  const rows = visibleRows(rowsEl);
-  if (!rows.length) return null;
-  if (active) {
-    const match = rows.find((row) => (active.kind === "page" ? row.dataset.pageId === active.id : row.dataset.pagesFolderRow === active.id));
-    if (match) {
-      const cells = rowButtons(match);
-      return cells[Math.min(active.cell, cells.length - 1)] || cells[0] || null;
-    }
-  }
-  return rowButtons(rows[0]!)[0] || null;
+const buttonInColumn = (row: HTMLElement | undefined, column: number): HTMLButtonElement | undefined => {
+  if (!row) return;
+  const cells = rowButtons(row);
+  return cells[column] ?? cells.at(-1);
 };
 
-export const syncTreegridTabStops = (page: PagesPage): HTMLButtonElement | null => {
-  const all = [...page.rowsEl.querySelectorAll<HTMLButtonElement>("button")];
-  if (!all.length) return null;
-  const target = findCell(page.rowsEl, activeCells.get(page)) || all[0]!;
-  all.forEach((button) => { button.tabIndex = button === target ? 0 : -1; });
-  const descriptor = cellDescriptor(target);
-  if (descriptor) activeCells.set(page, descriptor);
-  return target;
-};
-
-const focusCell = (page: PagesPage, button: HTMLButtonElement | undefined | null) => {
-  if (!button) return;
+const setTabStop = (page: PagesPage, button: HTMLButtonElement) => {
+  const previous = page.rowsEl.querySelector<HTMLButtonElement>('button[tabindex="0"]');
+  if (previous === button) return;
+  if (previous) previous.tabIndex = -1;
+  button.tabIndex = 0;
   const descriptor = cellDescriptor(button);
   if (descriptor) activeCells.set(page, descriptor);
-  syncTreegridTabStops(page);
-  button.focus();
 };
 
-export const setFolderOpen = (page: PagesPage, fold: HTMLElement, open: boolean) => {
+const restoreTabStop = (page: PagesPage, hadFocus: boolean) => {
+  const rows = visibleRows(page.rowsEl);
+  const active = activeCells.get(page);
+  const matching = active
+    ? rows.filter((row) => (active.kind === "page" ? row.dataset.pageId : row.dataset.pagesFolderRow) === active.id)
+    : [];
+  // Starred documents also appear in their own folder. Restore the same occurrence after a refresh.
+  const row = matching.find((candidate) => groupOf(candidate) === active?.group) ?? matching[0];
+  const button = buttonInColumn(row, active?.column ?? 0) ?? buttonInColumn(rows[0], 0);
+  if (!button) return;
+  setTabStop(page, button);
+  if (hadFocus) button.focus({ preventScroll: true });
+};
+
+const setFolderOpen = (page: PagesPage, fold: HTMLElement, open: boolean) => {
+  const header = fold.querySelector<HTMLElement>("[data-pages-folder-row]");
+  const toggle = header?.querySelector<HTMLButtonElement>("[data-pages-folder-toggle]");
+  const stop = fold.querySelector<HTMLButtonElement>('button[tabindex="0"]');
+  if (!open && toggle && stop && !header?.contains(stop)) {
+    setTabStop(page, toggle);
+    if (document.activeElement === stop) toggle.focus();
+  }
   fold.dataset.folderOpen = String(open);
-  fold.querySelector<HTMLElement>("[data-pages-folder-row]")?.setAttribute("aria-expanded", String(open));
+  header?.setAttribute("aria-expanded", String(open));
+  toggle?.setAttribute("aria-expanded", String(open));
   fold.querySelectorAll<HTMLElement>('[role="row"][aria-level="2"]').forEach((child) => { child.hidden = !open; });
-  syncTreegridTabStops(page);
+  if (page.picked.size > 1) reportFocus(page);
 };
 
 export const toggleFolder = (page: PagesPage, key: string) => {
@@ -219,61 +232,60 @@ export const toggleFolder = (page: PagesPage, key: string) => {
 export const bindListKeyboard = (page: PagesPage) => {
   page.rowsEl.addEventListener("focusin", (event) => {
     const button = (event.target as Element | null)?.closest<HTMLButtonElement>("button");
-    if (!button || !page.rowsEl.contains(button)) return;
-    const descriptor = cellDescriptor(button);
-    if (descriptor) activeCells.set(page, descriptor);
-    syncTreegridTabStops(page);
+    if (button?.closest('[role="row"]')) setTabStop(page, button);
   });
   page.rowsEl.addEventListener("keydown", (event) => {
-    if (event.altKey) return;
+    if (event.defaultPrevented || event.isComposing || event.altKey) return;
     const button = (event.target as Element | null)?.closest<HTMLButtonElement>("button");
     const row = button?.closest<HTMLElement>('[role="row"]');
-    if (!button || !row || !page.rowsEl.contains(row)) return;
+    if (!button || !row) return;
+    const key = event.key;
+    if ((key === " " || event.code === "Space") && button.dataset.pageId) {
+      event.preventDefault();
+      if (!event.repeat) togglePicked(page, button.dataset.pageId);
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && key.toLowerCase() === "a") {
+      event.preventDefault();
+      for (const visible of visibleRows(page.rowsEl)) {
+        if (visible.dataset.pageId) page.picked.add(visible.dataset.pageId);
+      }
+      paintPicked(page);
+      reportFocus(page);
+      return;
+    }
+    if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(key)) return;
     const rows = visibleRows(page.rowsEl);
     const rowIndex = rows.indexOf(row);
     const cells = rowButtons(row);
-    const cellIndex = cells.indexOf(button);
-    if (rowIndex < 0 || cellIndex < 0) return;
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      const next = rows[Math.min(rowIndex + 1, rows.length - 1)];
-      if (next) {
-        const nextCells = rowButtons(next);
-        focusCell(page, nextCells[Math.min(cellIndex, nextCells.length - 1)] || nextCells[0]);
-      }
+    const column = cells.indexOf(button);
+    if (rowIndex < 0 || column < 0) return;
+    event.preventDefault();
+    if (key === "ArrowDown" || key === "ArrowUp") {
+      const next = rows[rowIndex + (key === "ArrowDown" ? 1 : -1)];
+      buttonInColumn(next, column)?.focus();
       return;
     }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      const prev = rows[Math.max(rowIndex - 1, 0)];
-      if (prev) {
-        const prevCells = rowButtons(prev);
-        focusCell(page, prevCells[Math.min(cellIndex, prevCells.length - 1)] || prevCells[0]);
-      }
-      return;
-    }
-    if (event.key === "ArrowRight") {
-      event.preventDefault();
+    if (key === "ArrowRight") {
       const expanded = row.getAttribute("aria-expanded");
-      if (cellIndex === 0 && expanded === "false") {
+      if (column === 0 && expanded === "false") {
         const fold = row.closest<HTMLElement>("[data-folder-id]");
         if (fold) setFolderOpen(page, fold, true);
         return;
       }
-      if (cellIndex < cells.length - 1) {
-        focusCell(page, cells[cellIndex + 1]);
+      if (column < cells.length - 1) {
+        cells[column + 1]?.focus();
         return;
       }
-      if (cellIndex === 0 && expanded === "true") {
+      if (column === 0 && expanded === "true") {
         const next = rows[rowIndex + 1];
-        if (next && next.getAttribute("aria-level") === "2") focusCell(page, rowButtons(next)[0]);
+        if (next?.closest("[data-folder-id]") === row.closest("[data-folder-id]")) buttonInColumn(next, 0)?.focus();
       }
       return;
     }
-    if (event.key === "ArrowLeft") {
-      event.preventDefault();
-      if (cellIndex > 0) {
-        focusCell(page, cells[cellIndex - 1]);
+    if (key === "ArrowLeft") {
+      if (column > 0) {
+        cells[column - 1]?.focus();
         return;
       }
       if (row.getAttribute("aria-expanded") === "true") {
@@ -283,31 +295,13 @@ export const bindListKeyboard = (page: PagesPage) => {
       }
       if (row.getAttribute("aria-level") === "2") {
         const toggle = row.closest<HTMLElement>("[data-folder-id]")?.querySelector<HTMLButtonElement>("[data-pages-folder-toggle]");
-        if (toggle) focusCell(page, toggle);
+        toggle?.focus();
       }
       return;
     }
-    if (event.key === "Home") {
-      event.preventDefault();
-      focusCell(page, event.ctrlKey || event.metaKey || cellIndex === 0 ? rowButtons(rows[0]!)[0] : cells[0]);
-      return;
-    }
-    if (event.key === "End") {
-      event.preventDefault();
-      focusCell(page, event.ctrlKey || event.metaKey || cellIndex === cells.length - 1 ? rowButtons(rows[rows.length - 1]!)[0] : cells[cells.length - 1]);
-      return;
-    }
-    if ((event.key === " " || event.code === "Space") && button.dataset.pageId) {
-      event.preventDefault();
-      togglePicked(page, button.dataset.pageId);
-      return;
-    }
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
-      event.preventDefault();
-      visibleRecords(page).forEach((record) => page.picked.add(record.id));
-      paintPicked(page);
-      reportFocus(page);
-    }
+    const edge = key === "Home" ? 0 : -1;
+    if (event.ctrlKey || event.metaKey) buttonInColumn(rows.at(edge), column)?.focus();
+    else cells.at(edge)?.focus();
   });
 };
 
@@ -326,8 +320,8 @@ export const renderList = (page: PagesPage) => {
 
 const paintList = (page: PagesPage) => {
   const { rowsEl, empty, searchEmpty } = page;
-  const hadFocus = rowsEl.contains(document.activeElement);
   closeMove(page);
+  const hadFocus = rowsEl.contains(document.activeElement);
   const shown = visibleRecords(page);
   const searching = Boolean(page.query.trim());
   empty.hidden = page.records.length > 0 || searching || page.folders.length > 0;
@@ -347,8 +341,7 @@ const paintList = (page: PagesPage) => {
     const unfiled = shown.filter((record) => !record.folder_id);
     if (unfiled.length) rowsEl.append(renderFold(page, "", uiText.text("pages.folder.unfiled"), unfiled, !closed.has("")));
   }
-  const active = syncTreegridTabStops(page);
-  if (hadFocus && active) active.focus();
+  restoreTabStop(page, hadFocus);
 };
 
 /** The list could not be read: an error box with a retry in its place. */

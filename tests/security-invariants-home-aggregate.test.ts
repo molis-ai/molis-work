@@ -627,10 +627,12 @@ test("S-49 unopenable closed projects do not thrash background wakes until their
     });
   };
   const plugin1 = aggregatePlugin();
+  const opened1: string[] = [];
   const host1 = new MolisWorkLocalHost({
     homeDirectory: home,
     completeText: null,
     pluginFixtures: { project: [plugin1.definition], home: [probe.definition] },
+    onRuntimeOpen: ref => { opened1.push(ref.project_id); },
   });
   host1.configurePersonalPlanning(home, withCatalog);
   hosts.push(host1);
@@ -659,6 +661,8 @@ test("S-49 unopenable closed projects do not thrash background wakes until their
   assert.equal(existsSync(restingCacheFile(home, symlinked.storage_key)), false);
 
   // Repeat polls 2 & 3: neither broken project is re-woken while unchanged, and both still report issues.
+  const noOpens: string[] = [];
+  opened1.splice(0);
   for (let poll = 0; poll < 2; poll += 1) {
     const repeated = await collectHomeAggregate<{ project: string }>(ports1, TYPE, {});
     await ports1.resting!.readings.pass;
@@ -667,15 +671,15 @@ test("S-49 unopenable closed projects do not thrash background wakes until their
   }
   assert.equal(wakeCounts.get(corrupt.project_id), 1, "corrupt project does not thrash on repeat polls");
   assert.equal(wakeCounts.get(symlinked.project_id), 1, "symlinked project does not thrash on repeat polls");
+  assert.deepEqual(opened1, noOpens, "broken projects do not reopen on repeat polls");
 
-  // Repair both DBs on disk: next poll detects the change, wakes each once, and reads cleanly.
+  // Repair both DBs on disk: next poll detects the change, opens each once (even if cold open hits the 1x timeout retry), and reads cleanly.
   await writeFile(corrupt.storage_key, validCorrupt);
   await rm(symlinked.storage_key, { force: true });
   await writeFile(symlinked.storage_key, validSymlinked);
   await collectHomeAggregate<{ project: string }>(ports1, TYPE, {});
   await ports1.resting!.readings.pass;
-  assert.equal(wakeCounts.get(corrupt.project_id), 2, "repaired corrupt project wakes once to recover");
-  assert.equal(wakeCounts.get(symlinked.project_id), 2, "repaired symlinked project wakes once to recover");
+  assert.deepEqual(opened1.sort(), [corrupt.project_id, symlinked.project_id].sort(), "each repaired project opens once to recover");
   const recovered = await collectHomeAggregate<{ project: string }>(ports1, TYPE, {});
   assert.ok(recovered.answers.some(answer => answer.project_id === corrupt.project_id));
   assert.ok(recovered.answers.some(answer => answer.project_id === symlinked.project_id));

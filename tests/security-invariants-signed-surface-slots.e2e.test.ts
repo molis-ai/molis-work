@@ -33,7 +33,7 @@ test("IUI-07 IUI-08 IUI-13: externally packed project and Home stages mount a st
     const id = "io.molis.work.example.surface-slot-" + scope, title = "Original Inbox item for the " + scope + " slot";
     const { item } = feed.ingestItem({ source, externalId: scope, title, summary: "Original summary", occurredAt: new Date().toISOString(), attention: false });
     const { entry } = feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual");
-    const { bundle, surface } = await packSignedObjectSlot(t, scope, id, "inbox_entry");
+    const { bundle, surface, publisher } = await packSignedObjectSlot(t, scope, id, "inbox_entry");
     const parsed = readSandboxPackage(verifyPluginPackageSignature(bundle).bundle.payload);
     assert.deepEqual(parsed.ui, surface.ui);
     assert.deepEqual(parsed.nodes.find(node => node.kind === "surface-slot")?.surfaceSlot, { slot_id: "references.originals" });
@@ -59,9 +59,10 @@ test("IUI-07 IUI-08 IUI-13: externally packed project and Home stages mount a st
       mode: "component_submit", component_id: "editor", payload: { form: { id: entry.entry_id } },
     }, page)).status, 200, "the original signed component stores the reference");
     const surfaceId = scope === "home" ? id : "app-" + sandboxPackageBuildId(id, bundle.payload.manifest.publisher.signature);
-    records.push({ scope, id, surfaceId, entry, title, page, slot, endpoint });
+    records.push({ scope, id, surfaceId, entry, title, page, slot, endpoint, publisher });
   }
-  const switched = await packSignedObjectSlot(t, "home", records[0]!.id, "inbox_entry");
+  // The same publisher asking for the other range is refused; another publisher under the same id is another plugin (BL-586).
+  const switched = await packSignedObjectSlot(t, "home", records[0]!.id, "inbox_entry", undefined, records[0]!.publisher);
   await assert.rejects(client.invoke(caller, ref(pluginInstallActions.preview), { bundle: switched.bundle }), /范围不能更换/u);
   assert.equal(localHost.homePlugins?.installation(records[0]!.id), null, "a rejected scope change does not create an installation");
 

@@ -2,6 +2,10 @@
 
 状态：需求已整理（2026-10-15；2026-10-18 补充 living page、一页式脉搏、使用回顾与交互式报告页；2026-10-27 补充风险总览接续，并按用户决定将项目首页整合进 Work Brief；2026-11-04 用户改定首页为平台能力，见 §1.1 前的说明），2026-11-04 用户看原型定了首页、版本、来源与下一步的样子（见 [§7 定样决定](#design-decisions)）；基础首页已随第 15 批 #2017 实现并合入（2026-11-13，`b819373250`）；第 19 批（#2077，2026-11-14）实现了 Work Brief 本体与首页主区内容（项目简报、个人简报、风险接续），周期报告、living page、使用回顾、交互式报告页、定时生成与生成页面仍未实现或未验收。Work Brief 升级为可选安装的项目综合信息呈现插件，保留原简报能力与 Home 级运行范围，仍由同一个人助理与场景 Skill 驱动；未安装时平台提供基础首页。目标完成程度为**内部完整**。第 19 批已按定样实现并合入（#2077）；本状态按实现更新。需求维护：Codex；实现沿演进计划 E 轨，公共能力、工作台与助理分别由 C/D/A 轨协作，原负责人保留。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（`108`～`109`）：Work Brief 废除双实例与 Home 共用库（删 `scope` 枚举、`project_id`、`project_rows` 与 Home 半 `personal.get/refresh`），改为每个分区独立库（`databases.partition`），个人空间里的个人简报直接读取平台零唤醒 `overview_projection` 索引，并声明 `push` 支持将个人空间简报推送到项目。
+
 ## 1. 目标与范围
 
 项目首页与跨插件综合结果统一设计：Work Brief 组织项目概览、内容建议、变化、待关注事项、周期报告、专题分析、准备材料与方案对照，管理自己生成或采用的页面、简报正文、版本、来源和修订。首页是当前项目综合信息的入口；它展示的业务事实仍来自各插件，不再另外建设一套首页事项、日报页与简报页的业务逻辑。

@@ -18,9 +18,9 @@
 
 | 交付项 | 做什么、产出什么 | 该项前置 |
 | --- | --- | --- |
-| <a id="rel-2-item-1"></a>签名、公证与安装 | Developer ID 签名、Resources 里各 Mach-O 逐个重签（Node 去掉 `get-task-allow`、Helper 按整个 bundle 签、`--options runtime` 带时间戳）、entitlements、公证与 `stapler`／`spctl` 校验、裁掉多余的 node-pty 预编译、安装说明；仓库侧草稿 [#1818](https://github.com/molis-ai/molis-work/pull/1818) 开工时同步 main 再接；安装说明、拷贝与签名清单不含 `goal-advance` Skill（44-7 已删）。原 [26-1](26.md#batch-26-item-1) | 26-9；REL-1 第 1 项（真实签名） |
+| <a id="rel-2-item-1"></a>签名、公证与安装 | Developer ID 签名、Resources 里各 Mach-O 逐个重签（Node 去掉 `get-task-allow`、Helper 按整个 bundle 签、`--options runtime` 带时间戳）、entitlements、公证与 `stapler`／`spctl` 校验、裁掉多余的 node-pty 预编译、安装说明；**按[决定 66](../decisions.md#decision-66)，`better_sqlite3.node` 已随 `44B` 删除旧 Alchemist 彻底清零（签名清单不再含 `better_sqlite3.node`）**，安装说明与签名清单不含 `goal-advance` Skill（44-7 已删），并核验纯平台 `system.shelf` 桌面路由 `/api/platform/shelf`。原 [26-1](26.md#batch-26-item-1) | [`111`](111.md)、26-9；REL-1 第 1 项（真实签名） |
 | <a id="rel-2-item-2"></a>原生组件随包预置与首次自检 | 组件随包带上，首次启动自检、失败可恢复；开发机上组件本来就在，不受影响。原 [26-3](26.md#batch-26-item-3) | 25-1（已合入） |
-| <a id="rel-2-item-3"></a>官方包与字体的发行核对 | 随安装包带上的官方包（`plugins/content/*` 全部，含已合入的 08-10 设计与无障碍包，以及 45-2、52-3 的场景包）改用正式发布者密钥签名（开发档用 26-9 的本机开发密钥，#1794 第 13 节）；正式发布者密钥的生成、保管、轮换和撤销是凭据，你本人办，工程只写步骤；核字体能否随包分发（从 [71-2](71.md#batch-71-item-2) 拆出） | 26-9；45-2、52-3 已做出对应的包 |
+| <a id="rel-2-item-3"></a>官方包与字体的发行核对 | 随安装包带上的官方包（`plugins/content/*` 普通内容包、45-2/52-3 场景包，以及 `44B` 迁入纯平台的 `packages/system-skills/`）改用正式发布者密钥签名；正式发布者密钥的生成、保管、轮换和撤销是凭据，你本人办，工程只写步骤；核对 F1 字体（`#2222` `Inter Variable + Noto Sans SC 400/500/600`）能否随包分发（从 [71-2](71.md#batch-71-item-2) 拆出） | [`44B`](44b.md)、26-9；45-2、52-3 已做出对应的包 |
 
 <a id="goal-prompt"></a>
 
@@ -41,6 +41,8 @@
 3. 官方包与字体的发行核对（本批文件 #rel-2-item-3）
 
 界面：安装与自检复用已定的样（docs/design/runtime-and-recovery/），不重新出样。
+
+本批另有：按决定 66 签名清单删除已清零的 better_sqlite3.node，随包官方内容核对涵盖 packages/system-skills/、纯平台 system.shelf 与 F1 字体（#2222）。
 ```
 
 [ASC]: ../../../assistant-service-connections/spec.md

@@ -50,6 +50,11 @@ export interface ReplayEntry {
   expectFailure?: string;
   /** What the entry is for. */
   note?: string;
+  /**
+   * A model's answer that was changed by hand afterwards, and what was changed. It still counts as `recorded` (the rest of the
+   * answer is the model's own), so the report says how many of the recorded answers carry one.
+   */
+  amended?: string;
   /** The answer is read from the current code on every run (the prompt's own example), so there is no fixed text to take a digest of. */
   live?: boolean;
 }
@@ -94,7 +99,7 @@ function checkEntry(raw: unknown, where: string): ReplayEntry {
     resources: Array.isArray(raw.resources) ? raw.resources.filter((item): item is string => typeof item === 'string') : [], answer,
     ...(typeof raw.clarificationAllowed === 'boolean' ? { clarificationAllowed: raw.clarificationAllowed } : {}), ...(raw.shownCatalogOnly === true ? { shownCatalogOnly: true } : {}),
     ...(typeof raw.promptVersion === 'string' ? { promptVersion: raw.promptVersion } : {}), ...(typeof raw.model === 'string' ? { model: raw.model } : {}),
-    ...(typeof raw.expectFailure === 'string' ? { expectFailure: raw.expectFailure } : {}), ...(typeof raw.note === 'string' ? { note: raw.note } : {}) };
+    ...(typeof raw.expectFailure === 'string' ? { expectFailure: raw.expectFailure } : {}), ...(typeof raw.note === 'string' ? { note: raw.note } : {}), ...(typeof raw.amended === 'string' && raw.amended ? { amended: raw.amended } : {}) };
 }
 
 /** `"id — title"` lines from the catalog summary the designer was shown for actions it was not shown in full (at most eight per source: the rest of the directory is not in the record). */

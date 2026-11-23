@@ -1,9 +1,9 @@
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
-import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
+import { renderHomePackageDocument } from "./installed-plugin-http.js";
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-installed-plugins.js";
-import type { InstalledRelease } from "./installed-release.js";
+import type { InstalledRelease, PackageInstallChoices } from "./installed-release.js";
 import { assertStageInstallation, installedStageReleaseMatches } from "./installed-stage-identity.js";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { installedPageSelection } from "./plugin-page-authority.js";
@@ -34,7 +34,7 @@ import { bindHomeRegistration } from "./home-registration.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { createCallConnectionsPort } from "./connector-plugin-requests.js";
-import type { ProjectActions } from "./plugin-builder/catalog.js";
+import type { ProjectActions } from "./installed-plugin-catalog.js";
 import type { ProjectReachConsents } from "./plugin-project-reach-consent.js";
 import { assertSurfacePresentation, createHomeInstallationScope, type SurfaceInstallCatalog, type SurfaceInstallRegistry } from "./surface-installation.js";
 import { projectedPermissionDeclarations } from "./installed-permission-projection.js";
@@ -127,13 +127,18 @@ export class HomePluginHost {
    * Installs a release read from a signed package in the Home, for the person who confirmed it (`PluginInstallService`). It runs in the
    * sandbox, under the pin that confirmation made, and appears among the personal plugins every project reaches (#679).
    */
-  async installPackage(release: InstalledRelease, assertCurrent?: () => void, complete?: () => void): Promise<void> {
+  async installPackage(release: InstalledRelease, assertCurrent?: () => void, complete?: () => void, choices?: PackageInstallChoices): Promise<void> {
     await this.installationScope.run(async assertOpen => {
       const check = () => { assertOpen(); assertCurrent?.(); };
       const installed = this.installed!;
       check();
-      await installed.installPackage(release, { consent: true, assertCurrent: check, complete });
+      await installed.installPackage(release, { consent: true, assertCurrent: check, complete, ...choices });
     });
+  }
+  /** The names of the keys saved for one of the Home's packages; never a value. */
+  async savedSecrets(pluginId: string): Promise<readonly string[]> {
+    await this.ready();
+    return this.installed?.secretNames(pluginId) ?? [];
   }
   /** Switches an installed package off or on, or removes it (keeping its data or not): the install lifecycle a project's packages have. */
   async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void } = {},

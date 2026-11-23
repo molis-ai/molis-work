@@ -1,6 +1,7 @@
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { builtinPluginByManifestId } from "./plugin-registry.js";
+import { hostSurfaceByManifestId } from "./host-surfaces.js";
 import { actionErrorResponse, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
 import { registeredPageRoutes } from "./plugin-page-routes.js";
@@ -12,6 +13,7 @@ import { embeddedStageTextOwners, runtimeStageOwner } from "./project-plugin-sta
 import { homeStageHalves } from "./home-plugin-http.js";
 import { pageConnectionSlot } from "./plugin-connection-slots-http.js";
 import { pageConnectionNeed } from "./plugin-connection-need-http.js";
+import { PAGE_INSTALL_MAX_BYTES, pagePackageInstall } from "./plugin-page-install-http.js";
 import { pagePerson, pageTaskGrants } from "./plugin-page-task-grants-http.js";
 import { stageObjectAction } from "@molis-ai/molis-work-app-workbench";
 import { registeredBuiltinText } from "./ui-text-provider.js";
@@ -62,11 +64,17 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
   const slot = url.pathname === "/api/host/plugin-page-slot" && request.method === "POST";
   const need = url.pathname === "/api/host/plugin-page-connection" && request.method === "POST";
   const taskGrants = url.pathname === "/api/host/plugin-page-task-grants" && request.method === "POST";
-  if (!slot && !need && !taskGrants && !workspace && !files && !action && !check && !(url.pathname === "/api/host/plugin-pages" && request.method === "POST") && !(close && request.method === "DELETE")) return false;
+  const install = url.pathname === "/api/host/plugin-page-install" && request.method === "POST";
+  if (!install && !slot && !need && !taskGrants && !workspace && !files && !action && !check && !(url.pathname === "/api/host/plugin-pages" && request.method === "POST") && !(close && request.method === "DELETE")) return false;
   try {
     if (!serverOptions.homeDirectory) throw new ActionError("actions.unavailable", "插件页面需要 Home");
     const pages = pluginPagesFor(serverOptions.homeDirectory);
-    const body = await readLocalWebBody(request);
+    // A signed package rides in the install sheet's preview (as large as the settings door takes one); every other body is small.
+    const body = await readLocalWebBody(request, ...(install ? [PAGE_INSTALL_MAX_BYTES] : []));
+    if (install) {
+      sendLocalWebJson(response, 200, await pagePackageInstall(context, project, body));
+      return true;
+    }
     if (need) { sendLocalWebJson(response, 200, await pageConnectionNeed(context, project, body)); return true; }
     if (slot) {
       sendLocalWebJson(response, 200, await pageConnectionSlot(context, project, body)); return true;
@@ -121,9 +129,11 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
     if (!body || Object.keys(body).some(key => !["plugin_id", "mount", "producer"].includes(key)) || typeof body.plugin_id !== "string"
       || body.producer !== undefined && (typeof body.producer !== "string" || body.mount === undefined))
       throw new ActionError("actions.input_invalid", "请选择插件");
-    const entry = builtinPluginByManifestId(body.plugin_id);
+    // A platform surface (the studio) is in every project: its page has its declared requests and words but no shown-list key.
+    const surface = hostSurfaceByManifestId(body.plugin_id);
+    const entry = builtinPluginByManifestId(body.plugin_id) ?? surface;
     const selected = await stagePageSelection(context, project, body);
-    const key = selected?.project_key ?? entry?.project_plugin_id;
+    const key = selected?.project_key ?? (surface ? undefined : entry?.project_plugin_id);
     const assertScope = async (readShown = shown) => {
       if (readShown && key && !(await readShown()).includes(key)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
     };

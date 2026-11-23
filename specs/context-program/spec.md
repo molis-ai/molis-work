@@ -6,6 +6,10 @@
 
 三份完整子需求书已并入本目录：[情境浮条](context-toolbar.md)、[快速创建](quick-create.md)、[Side Shelf](side-shelf.md)；本总纲管整体状态与接续，子文档管各自细节。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：① Shelf 已从常开双实例插件收归纯平台模块 `modules/shelf`（`system.shelf`，`kind: "system"`，`/api/platform/shelf`，`HostSurfaceRegistration` 右栏常驻），归轨道 C3/D，不再属插件轨 E；② W5 跨分区拖放（个人空间 → 项目）统一调用 UPP 星型版本化 Push（触发确认框与冲突保护），项目之间沿用 `placement.copy`/`move`。
+
 ## 交接（2026-10-20）
 
 情境线（会话 ⑧）按用户 2026-10-19 的重新安排收尾：除防腐线外，各线把手头的片做完、开 PR 交 ⑤（评审、修意见、合并），写交接，然后停。本线不再开新片。

@@ -12,9 +12,9 @@ import type { AgentBuilderPorts, AgentBuild, AgentRelease, AgentPublicationContr
 import { assertHomePackageAllowed } from '../home-package-admission.js';
 import { readKeptSandboxPackage } from '../sandbox-package.js';
 import { releaseVersion } from '../installed-release.js';
-import { buildSources, readPluginPrompts } from './prompts.js';
+import { buildSources, readPluginPrompts } from '../installed-plugin-prompts.js';
 import { readBuildFile } from './build-project.js';
-import { studioPublisherIdentity } from './publisher-identity.js';
+import { studioPublisherIdentity } from '../installed-plugin-publisher.js';
 import { studioManifestWords } from './studio-words.js';
 
 const SIGNED = 'signed-package.json';

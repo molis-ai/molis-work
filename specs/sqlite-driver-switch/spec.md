@@ -4,6 +4,10 @@
 
 验收编号前缀 `SQLD`，见 §12。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（D2+U13）：全仓最后一个 `better-sqlite3` 例外（旧 `plugins/native/alchemist`）将在 [`44B`](../post-anticorruption-roadmap/reference/batches/44b.md) 随旧 Alchemist 彻底删除一并清零，届时 `tooling/gates/sqlite-driver-owners.json` 例外归零、`better_sqlite3.node` 从 macOS 发行签名清单删除，第 `82` 批重写 Alchemist 统一走 `node:sqlite` + `databases.partition`。
+
 ## 0. 给人讲清楚
 
 现在同一个程序里有两份 SQLite：项目库用第三方的 `better-sqlite3`，别的库用 Node 自带的 `node:sqlite`。两份库同时开一个文件会互相放掉文件锁，所以一直靠规矩隔开，第三方包还是原生模块，打包麻烦。这一步把项目库也换到 Node 自带的那份。

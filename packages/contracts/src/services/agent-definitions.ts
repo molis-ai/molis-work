@@ -62,8 +62,6 @@ export interface SignedAgentMaterial {
 export type AgentDefinitionSource =
   | { kind: "system"; module: string; title: string }
   | { kind: "plugin"; plugin_id: string; plugin_version: string; title: string; publisher_signature?: string;
-      /** How the Plugin came to be here: shipped with the system, or made in the Plugin Builder and installed. */
-      origin?: "builtin" | "generated";
       /** An installed Plugin the person has stopped: its prompts stay visible and editable, but nothing calls them. */
       state?: "enabled" | "disabled" };
 

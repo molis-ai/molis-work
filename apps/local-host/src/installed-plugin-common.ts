@@ -12,12 +12,15 @@ import type { installedDefinitions } from './installed-plugin-definition.js';
 import type { InstalledRelease } from './installed-release.js';
 import { PUBLISHER_REVOKED_MESSAGE, type publisherStanding, type publisherStops } from './installed-publisher-standing.js';
 import type { RecoveryErrors } from './installed-recovery-errors.js';
-import { installedCapabilityCatalog, type CatalogCapability } from './plugin-builder/catalog.js';
-import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
+import { installedCapabilityCatalog, type CatalogCapability } from './installed-plugin-catalog.js';
+import { exposedOperationPolicies, type InstalledPluginActions } from './installed-plugin-exposed-actions.js';
 import type { SandboxPackageStore } from './sandbox-package-store.js';
 
 type Standing = ReturnType<typeof publisherStanding>;
 type Definition = ReturnType<ReturnType<typeof installedDefinitions>['definition']>;
+
+/** A row a signed package's installation wrote: what a project's installed plugins (and the Home's) run, beside the built-in ones on the same platform. */
+export const isInstalledPackage = (record: Pick<PluginInstanceRecord, 'publisher_trust' | 'execution'>): boolean => record.publisher_trust === 'pinned' && record.execution === 'sandbox';
 
 /** The host's own rows of the Runtime (`ours`), never an uninstalled one; `retryUninstall` also finds the one tombstone of the plugin whose clean-up did not finish (BL-915). */
 export function installedRecords(list: () => PluginInstanceRecord[], ours: (record: PluginInstanceRecord) => boolean) {

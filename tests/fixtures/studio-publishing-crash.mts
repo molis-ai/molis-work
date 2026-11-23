@@ -1,4 +1,4 @@
-import { AgentBuilderWorkflow } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow } from '@molis-ai/molis-work-plugin-studio';
 import { publicationAuthority, publicationPorts, publicationStorage } from './studio-publishing.js';
 
 const [home, root, statePath, buildId] = process.argv.slice(2);

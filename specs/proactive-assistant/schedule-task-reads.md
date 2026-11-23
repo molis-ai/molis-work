@@ -8,6 +8,10 @@
 - **相邻的线**：19 批简报和场景 Skill 用这条通路取数（A 轨）；「授权与放行」一页（D 轨）要列出并能撤回这种授权；02② 的合同一片（N26、N27、N29）先落。
 - **负责人**：方案与 Schedule 一侧 E 轨；合同 C1；宿主改动随 E 的使用片一起落（轨道规则 4）；平台确认面 D 轨。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（`108`～`109`）：Schedule、Todo、Inbox、Goals 均为统一分区插件，各自读写当前分区库；跨分区只读汇总只经 `overview_projection` 索引（仅本机本人可读，Agent/MCP/插件调用被拒，`S-partition-isolation`）。
+
 ## 1. 用户的决定
 
 2026-11-04，经统筹转达：

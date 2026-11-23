@@ -8,6 +8,10 @@
 
 2026-10-27 用户决定更新位置要求：右栏与现有分屏、标签／标签组、底栏共用一套机制，成为较窄窗格的一种布局，不再为每种内容固定占一格。本文的 Shelf 内容、引用、落点与跨区动作要求保留；下文的「右栏」「一格」按新位置规则承接，不另建右栏导航／状态，也不改变内容 owner。统一规则、现有标签 UI 优化与「＋」原地列表菜单归[产品治理 §4.6](../product-flow-governance/spec.md#46-分屏标签右栏与底栏统一2026-10-27-用户已定)；本次仅补需求，生产整合尚未完成。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（D1/U9 终审覆写）：Shelf 不再挂插件壳（`plugins/native/shelf` 在 `44B` 删除、`always_on` 与 `dual_instance` 归零），所有内容与桌面热键/轮盘/拖放/剪贴板收归纯平台 `modules/shelf`（`system.shelf`，`/api/platform/shelf`），桌面端 Tauri Rust 仅切平台路由，免重写 ~3,150 行 M5 伴侣协议；W6（第 69 批）与 55-5 均在 `modules/shelf` 内演进。
+
 ## 1. 用户原话与已定的事
 
 原话（2026-10-01）：

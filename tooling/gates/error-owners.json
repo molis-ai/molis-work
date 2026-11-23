@@ -332,10 +332,11 @@
     },
     "plugin_builder": {
       "paths": [
+        "horizontal/plugin-studio/",
         "apps/local-host/src/plugin-builder/",
         "apps/local-host/src/plugin-builder-surface.ts"
       ],
-      "reason": "The plugin builder (Studio) plugin and its Host side."
+      "reason": "The plugin studio, a platform capability since 47-1 C (user 2026-11-22; moved from plugins/native/plugin-builder/, whose owner it keeps), and its Host side."
     },
     "rss": {
       "paths": [

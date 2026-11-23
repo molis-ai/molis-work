@@ -34,7 +34,7 @@ export function cloneAgentRegistration(registration: AgentDefinitionRegistration
 function sameSource(a: AgentDefinitionSource, b: AgentDefinitionSource): boolean {
   if (a.kind === "system") return b.kind === "system" && a.module === b.module;
   return b.kind === "plugin" && a.plugin_id === b.plugin_id && a.plugin_version === b.plugin_version
-    && a.publisher_signature === b.publisher_signature && a.origin === b.origin;
+    && a.publisher_signature === b.publisher_signature;
 }
 
 function words(source: DisplaySource, kind: "role" | "prompt", id: string, original: Record<string, string>, locale?: string): Record<string, string> {

@@ -83,7 +83,8 @@ function discoveredSections(discovered: DiscoveredPluginData): Array<{ manifest:
   return manifest ? pluginDataSectionsFromManifest(manifest).map(section => ({ manifest, section })) : [];
 }
 
-function loadVerifiedManifest(
+/** An installation's Manifest as the host can vouch for it: its stored release, else a pinned package whose digest matches the record. */
+export function loadVerifiedManifest(
   db: PluginRuntimeDatabase,
   packages: SandboxPackageStore,
   row: ReturnType<SqlitePluginRuntimeRepository["list"]>[number],

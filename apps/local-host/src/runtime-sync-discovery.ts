@@ -3,7 +3,6 @@ import { bindRuntimeSyncCollection, pluginManifestDigest } from '@molis-ai/molis
 import { syncNamespace, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
 import { ensureStorageSpace } from '@molis-ai/molis-work-storage';
 import type { HomePluginPlatform } from './home-plugins.js';
-import { runningInstalledPluginPlatform } from './installed-plugin-host.js';
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from './project-host.js';
 import { runningProjectPlatform } from './project-plugins.js';
 import { runtimeSyncRegistration, type RuntimeSyncOwner } from './runtime-sync-registration.js';
@@ -69,7 +68,6 @@ export async function discoverRuntimeSyncCollections(home: string, spaceId: stri
       authorize(); if (!current || current.database_path !== project.database_path) return;
       await host.synchronization.withExistingProject(molisWorkHostProjectReference({ databasePath: current.database_path, projectId: current.project_id }), async runtime => {
         await collect(await runningProjectPlatform(runtime.store, runtime.project_id), runtime.project_id);
-        await collect(await runningInstalledPluginPlatform(runtime.store, runtime.project_id), runtime.project_id);
       });
       authorize();
     });

@@ -6,7 +6,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-work-contracts/services/agent-host';
-import type { AgentBuild } from '@molis-ai/molis-work-plugin-builder';
+import type { AgentBuild } from '@molis-ai/molis-work-plugin-studio';
 
 let delay = 1;
 const pause = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
@@ -34,7 +34,7 @@ const DESIGN = JSON.stringify({ summary: '两个方向：录入最快的列表�
 /** Stage two: the chosen proposal in full. */
 function detail(chosen: string, title?: string, defaultLocale = "zh") {
   const base = PROPOSALS.find(item => item.id === chosen) ?? PROPOSALS[0]!, name = title ?? base.title;
-  return JSON.stringify({ summary: '细化「' + name + '」：四项功能、五个组件、四条验收。', design: { title: name, description: base.description, journey: base.journey,
+  return JSON.stringify({ summary: '细化「' + name + '」：四项功能、五个组件、四条验收。', design: { title: name, description: base.description, journey: base.journey, states: [],
     uiText: { default: defaultLocale, locales: {
       zh: { 'plugin/name': name, 'page/home/title': name, 'region/home/main/title': name,
         'part/title/title': name, 'part/title/description': base.description, 'part/editor/submitLabel': '保存', 'part/notes/title': '全部笔记',

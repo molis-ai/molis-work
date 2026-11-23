@@ -6,6 +6,10 @@
 
 2026-10-17 用户已确认下一阶段的[联网个人版同步总规格](spec.md)：D1/R2、设备自动与手动同步、完整插件范围、每账号 100 MB、删除保留 30 天。本文继续记录本机适配范围和历史证据；新阶段的实施、依赖与验收以总规格为准，不把需求确认当作功能交付。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)（`107`～`111`）：普通插件一律采用统一分区模型（20 个平等内置插件 + 第三方沙箱包），不再区分个人插件/Home 插件/双实例；业务表删除 `project_id` 列后同步线格式升版不读旧格式；`Todo` 同步线格式去除 `project:{id,title}` 建模；业务同步数据绝不触发插件自动启用（启用清单走独立同步种类 V4）。
+
 ## Requested outcome
 
 Portable business assets from every installed plugin can follow a personal account across devices. A plugin declares its collections and owns validation/restoration; the common engine owns delivery, durable receipts and conflicts. No arbitrary database, local directory, executable package, credential, running task or approval is copied implicitly.

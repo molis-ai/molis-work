@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { readSandboxPackage, readStudioDistribution, verifySyncPluginDistribution } from "@molis-ai/molis-work-app-local-host";
 import { SANDBOX_PACKAGE_FILES } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { AgentBuilderStore, builderPrivateValueReplicationOwner, validateAgentDesign, type AgentDesign } from "@molis-ai/molis-work-plugin-builder";
+import { AgentBuilderStore, builderPrivateValueReplicationOwner, validateAgentDesign, type AgentDesign } from "@molis-ai/molis-work-plugin-studio";
 import { verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { assertContract } from "@molis-ai/molis-work-plugin-sandbox";
 import { authoredObjectSlot } from "./fixtures/signed-surface-slot.js";

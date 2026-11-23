@@ -23,7 +23,6 @@ export type AgentDefinitionSource = {
     plugin_version: string;
     title: string;
     publisher_signature?: string;
-    origin?: "builtin" | "generated";
     state?: "enabled" | "disabled";
 };
 

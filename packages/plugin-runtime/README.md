@@ -92,7 +92,10 @@ Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控
 - 公开入口：`@molis-ai/molis-work-plugin-runtime`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（Manifest 解析与版本比较，路由器的拒绝用它的 `actionErrorResponse` 答）。方向：平台包只依赖 contracts/platform 与更低层平台包，公开发布面（contracts、plugin-sdk）在最下层（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 安装声明由 SDK 校验，插件自己持有业务状态并执行写入。运行时兑现核对与按安装读取的投影见[第 47 批](../../specs/post-anticorruption-roadmap/reference/batches/47.md)。 回归见 [security-invariants-state-machine-declarations.test.ts](../../tests/security-invariants-state-machine-declarations.test.ts)。
+  - 安装声明由 SDK 校验，插件自己持有业务状态并执行写入。回归见 [security-invariants-state-machine-declarations.test.ts](../../tests/security-invariants-state-machine-declarations.test.ts)。
+  - 启动兑现：代码在贡献里交出的 `state_machines` 必须和 Manifest 逐台一致（`contribution.ts` 的 `assertStateMachines`）。随宿主发布的安装（`publisher_trust: "host"`）双向核对，其余形态交出才核对；触发动作引用不查动作目录。新增一种核对项时沿这一处加，不在宿主里另写。
+  - 生命周期样板：`lifecycle-machine.ts` 的 `PLUGIN_LIFECYCLE_MACHINE` 的状态与家族取自公开词表 `pluginLifecycle`，安装库由 `lifecycleGuarded` 包住，机器没列的步子在写库前被拒。要新增一种生命周期步子，先改这张转换表和它的测试。
+  - 登记与只读查询：`state-machine-registry.ts` 的 `projectStateMachines` 是唯一的投影函数，`stateMachineActionProvider` 是 `system.state-machines` 的实现；宿主只给来源（内置清单、只读打开的安装库）。投影不建表、不启动插件，逐字段抄出声明的五项，别的不外带。回归见 [security-invariants-state-machine-registry.test.ts](../../tests/security-invariants-state-machine-registry.test.ts)。
   - 项目同意仍由同一个 consent ledger 保存：subject 是规范编码的项目与 install_id，批准集合与当时 digest 一起留存；重授在一个事务内撤旧建新。升级后的声明相同或缩小不重写旧行，声明增加须重新确认；卸载保留数据也清掉全部项目授权。
   - 安装事实存 SQLite repository；私有存储按安装 ID 隔离。
   - 只有声明的插件（`kind: "content"`）是「已声明、不启动」（`runtime-rules.ts` 的 `declaresOnly`）：安装、启用、停用、卸载、恢复的记录与状态和其他插件一样，但不选入口（`selected_entrypoint` 为空串）、启动与恢复不调执行器、不兑现 contribution，所以不起进程、不登记动作；它的 `requires` 不挡它启用（`resolution.ts`），不满足时由 Skill 目录把相应 Skill 标为不可用。它的 Skill 由宿主从验过的留存包登记。回归见 `tests/security-invariants-content-package.test.ts`（SKC-02）。

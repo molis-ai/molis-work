@@ -33,7 +33,7 @@ import { hostNetwork } from './installed-plugin-network.js';
 import { pluginSecrets } from './installed-plugin-secrets.js';
 import { createPluginModelGeneration } from './installed-plugin-model.js';
 import { installedLifecycle, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
-import { installedApprovals, installedCatalog, installedOffers, installedRecords, isInstalledPackage, packagedReleases, recoverInstalledRecords } from './installed-plugin-common.js';
+import { installedApprovals, installedCatalog, installedOffers, installedRecords, isInstalledPackage, packagedReleases, installedPackageRecovery } from './installed-plugin-common.js';
 import { forgetInstallationConnections } from './plugin-installation-cleanup.js';
 import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
 import { RecoveryErrors } from './installed-recovery-errors.js';
@@ -210,14 +210,15 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     }
     if (failures.length) throw new AggregateError(failures, '安装插件停止失败');
   };
+  const recovery = installedPackageRecovery({ packages, scope: 'project', recordFor, records, standing, stops, releaseFor, approvedFor, recoveryErrors, registerPrompts, platform, definition, expose,
+    unapproved: '找不到此安装的批准记录，请在创作台卸载并保留数据，再重新确认安装',
+    heldBack: (record, release) => release.packaged?.manifest.runtime?.dual_instance === true && !platform.dualHomeRunning(record) });
   try {
-    await recoverInstalledRecords({ records, standing, stops, releaseFor, approvedFor, recoveryErrors, registerPrompts, platform, definition, expose,
-      unapproved: '找不到此安装的批准记录，请在创作台卸载并保留数据，再重新确认安装',
-      heldBack: (record, release) => release.packaged?.manifest.runtime?.dual_instance === true && !platform.dualHomeRunning(record) });
+    await recovery.open();
     const refreshPublicActions = async () => { await stops.reconcile(); if (exposed.size) await catalog(); };
     const reconcileDualHalf = (pluginId: string, action: 'regrant' | 'disable' | 'enable' | 'uninstall', permission?: string) =>
       reconcileInstalledDualHalf({ projectId, closed: () => closed, recordFor, releaseFor, approvedFor, platform, withdraw, expose, registerPrompts, standing, definition }, pluginId, action, permission);
-    return { platform, storage, actions, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors, reconcileDualHalf,
+    return { platform, storage, actions, catalog, capabilityFor, network, secrets, lifecycle, recovery, close, records, releaseFor, recoveryErrors, reconcileDualHalf,
       /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. A package of a plugin already installed here is its upgrade (BL-623). */
       installPackage: (release: InstalledRelease, input: { consent: true } & InstalledPackageControl) =>
         lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, { ...input, refresh: refreshPublicActions }),

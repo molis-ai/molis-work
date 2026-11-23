@@ -1,3 +1,4 @@
+import type { InstalledPackageRepair } from './installed-plugin-common.js';
 import { projectDirectoryWords } from '@molis-ai/molis-work-ui-host';
 import { isPluginSceneName } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
 import { cutHead } from '@molis-ai/molis-work-plugin-sdk/whole-units';
@@ -80,6 +81,8 @@ export interface PluginInstallPorts {
   offers?(projectId: string, reference: { capability_id: string; version: number }): boolean;
   /** Switches one installation of a signed package off or on, or takes it off; answers the state it is in afterwards. */
   control(projectId: string, input: ProjectPackageControl): Promise<PackageControlOutcome>;
+  /** Repairs exactly the installation granted by a protected settings entry. */
+  repair?(input: InstalledPackageRepair, caller: ActionExecutionContext): Promise<{ plugin_id: string; version: string }>;
   /** Switches one optional permission of an installation in the project and restarts it on the new grants (`PluginRuntime.regrant`); a Host that cannot leaves it out. */
   regrant?(projectId: string, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** The same two for the plugins that run as the Home's own instance (BL-700); a Host without a Home leaves them out. */
@@ -549,6 +552,11 @@ export class PluginInstallService {
     const { homeControl } = this.ports;
     if (!homeControl) throw pluginErrors.state_invalid('这个宿主没有个人空间');
     return homeControl(input.plugin_id, action, { keep_data: input.keep_data, ...input.target ? { target: input.target } : {} }, caller);
+  }
+
+  async repair(input: InstalledPackageRepair, caller: ActionExecutionContext): Promise<{ plugin_id: string; version: string }> {
+    if (!this.ports.repair) throw pluginErrors.state_invalid('这个宿主没有插件包恢复入口');
+    return this.ports.repair(input, caller);
   }
 
   publishers(): PluginPublisherPin[] { return this.ports.ledger.publishers(); }

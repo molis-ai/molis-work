@@ -8,7 +8,7 @@ import {
   type MemoryLearningOwnedSource,
 } from "@molis-ai/molis-work-contracts/services/memory";
 
-export const ALT_CODER_PLUGIN_ID = "io.molis.work.example.alt-coder";
+export const ALT_CODER_PLUGIN_ID = "com.example.alt-coder";
 export const ALT_CODER_NAME = "Alt Coder";
 
 const idSchema = { type: "string", minLength: 1, maxLength: 200 } as const;

@@ -1,3 +1,4 @@
+import { installedRepairStage } from "./installed-stage-section.js";
 import type { PluginActiveInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { directoryWordResolver, drawRegisteredText } from "./ui-text-provider.js";
 import { pluginTextReader, projectDirectoryWords, type DirectoryWordSource, type PluginDirectory, type PluginDirectoryEntry } from "@molis-ai/molis-work-ui-host";
@@ -76,7 +77,11 @@ export async function homePluginDirectory(host?: HomePluginHost, home?: string):
     const stalled = installed.filter(({ manifest }) => !present.has(manifest.plugin_id) && host.packageError(manifest.plugin_id) !== undefined)
       .map(({ key, manifest }): PluginDirectoryEntry => ({ id: key, plugin_id: manifest.plugin_id,
         chosen: false, personal: true, home: true, ...projectDirectoryWords(manifest) }));
-    return [...running, ...stalled];
+    const repairs = host.damagedPackages().flatMap(damaged => {
+      const repair = installedRepairStage(damaged, "home", "");
+      return repair ? [repair.directory] : [];
+    });
+    return mergePluginDirectories(running, repairs, stalled);
   }
   catch (error) { hostLog.warn("plugins", "home_directory_unavailable", error); return []; }
 }

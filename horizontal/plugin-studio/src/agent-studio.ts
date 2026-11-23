@@ -20,7 +20,11 @@ const STUDIO_CLIENT_TRANSPORT = String.raw` const selector=host.mode==='preview'
  async function request(url,method='GET',body,signal,fallback=globalThis.t.text("plugin-builder.agent-studio.operation-failed-content-preserved")){
   let v;
   try{v=await globalThis.molisWorkRequest(url,{method,signal,scope:lifetime,fallback,...(body===undefined?{}:{body})});}
-  catch(e){const b=e&&typeof e==='object'&&e.body&&typeof e.body==='object'?e.body:{};throw Object.assign(e,{text:b.text,detail:b.detail});}
+  catch(e){
+   const b=e&&typeof e==='object'&&e.body&&typeof e.body==='object'?e.body:{};
+   if(b.details?.page_expired===true)throw new Error(globalThis.t.text("plugin-builder.agent-studio.page-expired-refresh"));
+   throw Object.assign(e,{text:b.text,detail:b.detail});
+  }
   lifetime.assertCurrent(signal);return v??{};
  }
  const api=(path,...args)=>request(host.api(path),...args);
@@ -103,6 +107,6 @@ export const AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   replace:next=>{try{const id=next.searchParams.get('build');if(id)sessionStorage.setItem(KEY,id);else sessionStorage.removeItem(KEY);}catch{/* Ignore sessionStorage write failure for studio build id. */}}};
  client({mountPluginClient:host.mountPluginClient,root:host.root||document.querySelector('[data-work-surface="plugin-builder"]'),mode:'studio',
   api:p=>host.route('/api/plugin-builder/studio')+p,plugin:id=>host.route('/plugins/')+id,
-  components,page,openPlugin,loadMedia:host.loadMedia,download:host.download,packageInstall:host.packageInstall,
+  components,page,openPlugin,loadMedia:host.loadMedia,download:host.download,packageInstall:host.packageInstall,drafts:host.drafts,
   openSettings:href=>globalThis.molisWorkOpenExternalUrl?globalThis.molisWorkOpenExternalUrl(href):document.dispatchEvent(new CustomEvent('molis-work:open-settings-path',{detail:{href}}))});
 }`;

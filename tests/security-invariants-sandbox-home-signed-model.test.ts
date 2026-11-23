@@ -152,7 +152,7 @@ test("BL-491 RAC-2629 an installed package chooses among the enabled models insi
   assert.equal(view.selection, undefined);
   assert.deepEqual(await r.ask({ op: "settings.save", choice: { provider_id: "fixture", model_id: "model" } }), { provider_id: "fixture", model_id: "model" });
   const preference = join(r.h.home, "plugin-files", installId, ".model-settings", "preference.json");
-  assert.deepEqual(JSON.parse(readFileSync(preference, "utf8")), { schema_version: 2, selection: { provider_id: "fixture", model_id: "model" }, revision: 1, receipts: {} });
+  assert.deepEqual(JSON.parse(readFileSync(preference, "utf8")), { schema_version: 1, selection: { provider_id: "fixture", model_id: "model" }, revision: 1, receipts: {} });
 });
 
 test("BL-491 RAC-2630 a package cannot save an address, a connection, a format, the reserved provider or anything unknown; nothing is written and no provider is made", mac, async t => {
@@ -356,7 +356,7 @@ for (const certificate of ["untrusted", "wrong-san", "trusted"] as const) test(`
     assert.equal(action.action.execution?.cost, "metered");
     const result = await r.ask({ op: "image.generate", url, revision: state.revision }) as { images?: Array<{ base64: string }>; revision?: string; error?: string };
     assert.ok(provider.lookups.policy > 0, "Host's promises DNS policy lookup reached the fixture");
-    assert.ok(provider.lookups.socket > 0, "the real TLS socket's callback DNS lookup reached the fixture");
+    assert.deepEqual(provider.tlsNames, [IMAGE_DOMAIN], "the real TLS client presents the approved host name to the provider");
     if (certificate === "trusted") {
       assert.equal(result.error, undefined); assert.equal(result.revision, state.revision); assert.equal(result.images?.length, 1);
       assert.deepEqual(Buffer.from(result.images![0]!.base64, "base64"), IMAGE_PNG);

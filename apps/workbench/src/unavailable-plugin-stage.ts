@@ -1,3 +1,4 @@
+import type { PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { t as uiText, escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderOwnerUnavailableCard, type OwnerUnavailableCard } from "./owner-unavailable-card.js";
 
@@ -22,6 +23,8 @@ export interface UnavailablePluginStage {
    * no restart (starting again cannot upgrade a store).
    */
   upgrade?: OwnerUnavailableCard | null;
+  /** Same release of a signed package, recoverable under the existing approval. */
+  packageRepair?: { plugin_id: string; target: PluginUninstallTarget; needsFile: boolean; uninstallHref: string };
 }
 
 /** A stage drawn for a plugin that did not start, either scope (`renderUnavailablePluginStage`): the shell's amber marks find it by this. */
@@ -30,6 +33,7 @@ export const UNAVAILABLE_STAGE = ":is([data-home-plugin-unavailable], [data-proj
 /** An unavailable instance has no page authority or client; only the Host explains why it cannot open, and may offer to start it again. */
 export function renderUnavailablePluginStatus(stage: UnavailablePluginStage,
   readText: (text: string, values?: Record<string, string | number>) => string, announce = true): string {
+  if (stage.packageRepair) return renderPackageRepair(stage, stage.packageRepair, announce);
   if (stage.upgrade) return renderOwnerUnavailableCard(stage.upgrade, announce);
   if (stage.status === "starting") return `<div class="mw-empty" role="status" aria-busy="true"><h2>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.plugin-starting", { plugin: stage.label }))}</h2><p>${escapeHtml(stage.reason)}</p></div>`;
   return `<div class="mw-empty"${announce ? ' role="alert"' : ""}><h2>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.plugin-unavailable", { plugin: stage.label }))}</h2><p>${escapeHtml(stage.reason)}</p>${stage.scope === "home" ? homeHint(stage, readText) : projectHint(stage, readText)}</div>`;
@@ -51,4 +55,17 @@ function projectHint(stage: UnavailablePluginStage, _L: (text: string, values?: 
     ? `<button class="mw-btn mw-btn--secondary" type="button" data-project-plugin-restart="${stage.restart}" data-restart-plugin="${escapeHtml(stage.plugin_id)}">${escapeHtml(stage.restart === "restart" ? uiText.text("workbench.unavailable-plugin-stage.restart") : uiText.text("workbench.unavailable-plugin-stage.release-quarantine-restart"))}</button><p role="status" data-project-plugin-restart-status hidden></p>`
     : "";
   return `<p>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.check-plugin-status-then-reopen"))}</p>${status}${restart}`;
+}
+
+function renderPackageRepair(stage: UnavailablePluginStage, repair: NonNullable<UnavailablePluginStage["packageRepair"]>, announce: boolean): string {
+  const { plugin_id, target, needsFile, uninstallHref } = repair;
+  const label = needsFile ? `<label>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.original-package"))}
+    <input type="file" name="bundle" accept=".json,application/json" required></label>` : "";
+  return `<div class="mw-empty"><h2>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.plugin-unavailable", { plugin: stage.label }))}</h2>
+    <p${announce ? ' role="alert"' : ""}>${escapeHtml(stage.reason)}</p>
+    <form data-package-repair="${stage.scope}" data-installation="${escapeHtml(JSON.stringify({ plugin_id, target }))}">
+      ${label}<button class="mw-btn mw-btn--primary" type="submit">${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.restore-version"))}</button>
+      <a class="mw-btn mw-btn--secondary" href="${escapeHtml(uninstallHref)}">${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.uninstall"))}</a>
+      <p role="status" hidden></p>
+    </form></div>`;
 }

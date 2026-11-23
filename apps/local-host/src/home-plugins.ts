@@ -1,3 +1,4 @@
+import type { InstalledPackageRepair } from './installed-plugin-common.js';
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { renderHomePackageDocument } from "./installed-plugin-http.js";
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -135,6 +136,24 @@ export class HomePluginHost {
       await installed.installPackage(release, { consent: true, assertCurrent: check, complete, ...choices });
     });
   }
+  async repairPackage(input: InstalledPackageRepair, caller: ActionExecutionContext) {
+    return this.installationScope.run(async assertOpen => {
+      await caller.beforeEffect();
+      return this.installed!.recovery.repair(input, () => {
+        assertOpen();
+        caller.signal?.throwIfAborted();
+        requireSynchronous(caller.assert_authority_current?.());
+      });
+    });
+  }
+  damagedPackages() {
+    const installed = this.installed;
+    return installed ? installed.records().flatMap(record => {
+      const damaged = installed.recovery.damaged(record);
+      return damaged ? [damaged] : [];
+    }) : [];
+  }
+
   /** The names of the keys saved for one of the Home's packages; never a value. */
   async savedSecrets(pluginId: string): Promise<readonly string[]> {
     await this.ready();

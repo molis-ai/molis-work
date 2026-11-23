@@ -6,12 +6,14 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
-import { sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { sandboxPackageBuildId, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { HomeConsentLedger, pluginControlActions, pluginInstallActions, homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, pluginControlActions, pluginInstallActions, homeAgentDefinitions, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageMethod, signedAgentPackage, signedPackage } from "./fixtures/sandbox-package.js";
 import { APPROVED, SECOND_PLUGIN_ID, fixture, homePackage, mac, operate, operationsOf, person, ref, refused, valuesOf } from "./fixtures/home-sandbox.js";
 import { openTestHome } from "./fixtures/test-home.js";
+import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 // All changes precede signing; compatible versions must reach the upgrade path, not fail package validation.
 function upgradePackage(publisher: ReturnType<typeof newPublisher>, version = "1.1.0", fail = false) {
@@ -368,4 +370,46 @@ test("BL-586 after a restart the plugin that was not stopped comes back with its
   const views = await operationsOf(h.projectClient(), caller);
   assert.deepEqual(byScope(views, "home"), []);
   assert.deepEqual(await operate(h.projectClient(), caller, byScope(views, "project"), "notes.list", {}), [{ id: "1", text: "Li's" }], "the other publisher's plugin is back with its data");
+});
+
+test("B47-F1 BL-586 the two installed pages read their own language and records after the other scope stops", mac, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { origin, projectId, sessionId, localHost } = browser;
+  assert.ok(projectId && localHost);
+  const client = localHost.actionClient(molisWorkHostProjectReference({ projectId, databasePath: browser.databasePath }));
+  const caller = person(projectId), prefix = origin + "/projects/" + projectId + "/";
+  const titles = { home: WANG, project: LI };
+  const rows = { home: "Only in personal space", project: "Only in this project" };
+  const surfaces = { home: PACKAGE_PLUGIN_ID, project: "" };
+  const publishers = { home: newPublisher(), project: newPublisher() };
+  for (const scope of ["home", "project"] as const) {
+    const publisher = publishers[scope];
+    const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle: namedNotes(scope, titles[scope].zh, titles[scope].en, publisher) }) as { preview_id: string };
+    await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: titles[scope].en });
+    await operate(client, caller, byScope(await operationsOf(client, caller), scope), "notes.add", { text: rows[scope] });
+    if (scope === "project") surfaces[scope] = "app-" + sandboxPackageBuildId(PACKAGE_PLUGIN_ID, publisher.identity);
+  }
+  await browser.command("Network.enable", {}, sessionId);
+  await browser.setViewport(1350, 920);
+  const frames = { home: await pluginFrameBrowser(t, browser, surfaces.home), project: await pluginFrameBrowser(t, browser, surfaces.project) };
+  const open = (scope: "home" | "project") => browser.navigate(() => browser.command("Page.navigate", { url: prefix + "?openSurface=" + surfaces[scope] }, sessionId));
+  const read = async (scope: "home" | "project", language: "zh" | "en") => {
+    const frame = frames[scope], surface = surfaces[scope], other = scope === "home" ? "project" : "home";
+    const text = "document.querySelector('[data-component-id=notes]')?.innerText";
+    await open(scope);
+    await frame.waitFor(`${text}?.includes(${JSON.stringify(rows[scope])})`, 15_000);
+    assert.ok(!(await frame.evaluate<string>(text)).includes(rows[other]));
+    assert.equal(await browser.evaluate(`document.querySelector('[data-work-surface="${surface}"]').dataset.workSurfaceLabel`), titles[scope][language]);
+  };
+  for (const language of ["zh", "en"] as const) {
+    await browser.command("Network.setExtraHTTPHeaders", { headers: { "Accept-Language": language } }, sessionId);
+    await read("home", language);
+    await read("project", language);
+  }
+  await browser.web.post("/api/settings/plugin-permissions/disable", { plugin_id: PACKAGE_PLUGIN_ID });
+  await read("project", "en");
+  await browser.web.post("/api/settings/plugin-permissions/enable", { plugin_id: PACKAGE_PLUGIN_ID });
+  await client.invoke(caller, ref(pluginControlActions.disable), { plugin_id: PACKAGE_PLUGIN_ID });
+  await read("home", "en");
 });

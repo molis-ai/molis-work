@@ -1085,7 +1085,7 @@ test('RAC-1151 an exposure failure keeps its own error when the installation cra
 
 // RAC-1196 T-035: the Host must stop only the installations the Runtime still reports as running. A record crashed in the Runtime
 // while the Supervisor still shows running must not turn the whole close into a failure, and the crash stays the record's state.
-test('RAC-1196 closing the Host does not reject for a crashed installation and the prompts stay enabled after a restart', mac, async () => {
+test('RAC-1196 closing the Host preserves the crash; a failed recovery leaves its prompt unavailable', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-crashed-close-'));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
@@ -1102,8 +1102,8 @@ test('RAC-1196 closing the Host does not reject for a crashed installation and t
     const reopened = await rig.control();
     const registry = agentDefinitionsFor(home, builtinRegistrations), key = fixture.release.pluginId + '/summary';
     const prompt = registry.prompt(key).source;
-    assert.equal(prompt.kind === 'plugin' ? prompt.state : undefined, 'enabled');
-    assert.notEqual(reopened.installations()[0]?.state, 'disabled');
+    assert.equal(reopened.installations()[0]?.state, 'failed');
+    assert.equal(prompt.kind === 'plugin' ? prompt.state : undefined, 'disabled', 'without a running installation the prompt cannot be applied');
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
 

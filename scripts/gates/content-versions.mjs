@@ -34,9 +34,10 @@ export function contentVersionChanges({ files, read }, readBase) {
     if (previous === undefined) continue;
     // A Skill that moved (plugins/content → packages/system-skills, 44B) is the same Skill: its base is where it was (a missing base blob reads as "").
     const base = file => readBase(file) || readBase(file.replace(/^packages\/system-skills\//u, "plugins/content/"));
-    // The old path of a moved Skill is gone; the Skill is where it is now.
-    const present = paths.filter(file => read(file) !== null && read(file) !== undefined);
-    const changed = (present.length ? present : paths).some(file => body(read(file)) !== body(base(file)));
+    // The old path of a moved Skill is gone and the Skill is where it is now; any other missing file is a deletion and a change.
+    const has = file => read(file) !== null && read(file) !== undefined;
+    const moved = file => !has(file) && paths.some(other => has(other) && other.replace(/^packages\/system-skills\//u, "plugins/content/") === file);
+    const changed = paths.filter(file => !moved(file)).some(file => body(read(file)) !== body(base(file)));
     if (changed && next <= previous) errors.push(key + " changed content without advancing its version");
     if (!changed && next !== previous) errors.push(key + " advanced without changing its content");
   }

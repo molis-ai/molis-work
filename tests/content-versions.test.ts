@@ -32,4 +32,9 @@ test("content versions: a content pack Skill body that changes must advance its 
   };
   assert.deepEqual(moved(body, 1), [], "a moved Skill is compared with where it was");
   assert.match(moved(body.replace("设计与规划", "设计和规划"), 1)[0] ?? "", /changed content without advancing its version/u);
+  // Only the old path of a moved Skill is let go: deleting one language of a Skill in place is still a change.
+  const en = file.replace(/SKILL\.md$/u, "SKILL.en.md");
+  const deleted = contentVersionChanges({ files: [file, en], read: (path: string) => (path === file ? body : path === "tooling/versions.json" ? table(1) : undefined) },
+    (path: string) => (path === "tooling/versions.json" ? table(1) : path === file || path === en ? body : undefined));
+  assert.match(deleted[0] ?? "", /changed content without advancing its version/u, "a deleted translation needs a new version");
 });

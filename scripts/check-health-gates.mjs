@@ -38,6 +38,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
+import { acquireSlot } from "./machine-slot.mjs";
 import ts from "typescript";
 import { oldNamesWantsText, SOURCE_COUNT_RULES } from "./gates/source-counts.mjs";
 import { browserWantsText } from "./gates/browser-graph.mjs";
@@ -91,6 +92,7 @@ if (flags.has("--json") && !flags.has("--report")) fail(`--json goes with --repo
 if (options.top !== undefined && !(Number(options.top) > 0)) fail(`--top needs a positive number\n${USAGE}`);
 const update = flags.has("--update"), report = flags.has("--report");
 const root = options.root ? path.resolve(options.root) : path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+await acquireSlot("health", { label: `health ${path.basename(root)}`, say: line => console.error(line) });
 const baselinePath = healthBaselinePath(root);
 const limitsPath = path.join(root, "tooling/gates/limits.json");
 // The package table of specs/archive/repository-anti-corruption §5 is checked against the registry (the scratch repositories of

@@ -40,7 +40,8 @@ test("staleReason: built when nothing is recorded or the inputs changed; a packa
 });
 
 test("options: --clean (or MOLIS_WORK_BUILD_CLEAN=1), --jobs and --dry-run", () => {
-  assert.deepEqual(parseOptions([], {}), { clean: false, jobs: 4, dryRun: false });
+  assert.deepEqual(parseOptions([], {}), { clean: false, jobs: 2, dryRun: false });
+  assert.equal(parseOptions([], { CI: "true" }).jobs, 4, "CIP-11 CI retains four build workers");
   assert.deepEqual(parseOptions(["--clean", "--jobs", "2", "--dry-run"], {}), { clean: true, jobs: 2, dryRun: true });
   assert.equal(parseOptions([], { MOLIS_WORK_BUILD_CLEAN: "1" }).clean, true);
 });

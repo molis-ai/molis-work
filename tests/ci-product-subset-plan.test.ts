@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { classifyFile } from "../scripts/ci-linux-probe/select.mjs";
 import { BROWSER_SMOKES, datingProblems, dayNumber, LIST_FILE, parseList, parseQuarantine, QUARANTINE_FILE, QUARANTINE_LIMITS, readPlan, REQUIRED_ENTRIES, resolvePlan } from "../scripts/ci-product-subset/plan.mjs";
 import { productSubsetProblems } from "../scripts/gates/product-subset.mjs";
-import { blockingJobs, jobBlock } from "./fixtures/ci-workflow.js";
+import { blockingJobs, jobBlock, testRunsInJob } from "./fixtures/ci-workflow.js";
 
 // specs/archive/repository-anti-corruption §4.7 (W2-16, decision #14): the rules the CI product subset's two files keep, as the health gate
 // and the runner both read them (scripts/ci-product-subset/plan.mjs). Each rule is mutation-verified here on small scratch
@@ -55,12 +55,12 @@ const noProblems = (over: Scratch = {}) => assert.deepEqual(problemsOf(over), []
 // The test files a CI job runs, as the paths its steps name plus the paths named by the root package.json scripts it reaches through
 // `pnpm <script>` or `pnpm run <script>` (followed to any depth: `workspace:verify` runs `boundary:test`). Comment lines are not steps.
 // `pnpm --filter ...`, `pnpm -r` and `pnpm exec` run package scripts and tools, not root scripts, and are not followed. A script file that
-// starts tests by itself (`node scripts/x.mjs` spawning them) is not read: the job text and package.json are all this sees.
+// starts tests by itself is not read. The scoped gate command is resolved to its complete fallback when looking for duplicates.
 const TEST_PATH = /\btests\/[A-Za-z0-9*._-]+\.test\.(?:ts|mjs)\b/g;
 function blockingTestFiles(job: string, scripts: Record<string, string>): string[] {
   const steps = (text: string) => text.split("\n").filter((line) => !line.trim().startsWith("#")).join("\n");
   const reached = (text: string) => [...text.matchAll(/(?:^|[\s&|;(])pnpm[ \t]+(?:run[ \t]+)?([A-Za-z][A-Za-z0-9:_-]*)/g)].map((match) => match[1]).filter((name) => Object.hasOwn(scripts, name));
-  const texts = [steps(job)];
+  const texts = [steps(job), ...testRunsInJob(job).map(words => words.join(" "))];
   const seen = new Set<string>();
   const queue = reached(texts[0]);
   for (let name = queue.shift(); name !== undefined; name = queue.shift()) {

@@ -9,6 +9,7 @@ import { computeVersions, generateVersions, readVersionInputs } from "../scripts
 import { CODE_FILE, walkFiles } from "../scripts/script-paths.mjs";
 import { isTestFile, readSourceFiles, SOURCE_ROOTS, versionSource } from "../scripts/version-source.mjs";
 import { applyExceptions, checkExceptions, manifestFindings, markdownFindings, registeredFactProblems, sourceDeclarationFindings, strayMarkerFindings, versionDeclarationProblems } from "../scripts/gates/version-declarations.mjs";
+import { jobBlock, testRunsInJob } from "./fixtures/ci-workflow.js";
 
 // N34-VS-01 to 04 (specs/post-anticorruption-roadmap/reference/batches/02.md): tooling/versions.json is the one hand-edited
 // source. The real tree is checked as it is, and each way of bypassing the source is checked on the smallest input that shows it.
@@ -704,9 +705,8 @@ test("VG-13 what each script scans is pinned, so sharing the walk did not narrow
   for (const pattern of workspace) assert.ok(SOURCE_ROOTS.some((directory: string) => pattern === directory || pattern.startsWith(`${directory}/`)), pattern);
 });
 
-test("VG-14 CI's gate job runs this file", () => {
-  const step = readFileSync(path.join(repository, ".github/workflows/ci.yml"), "utf8").split("\n").find(line => line.includes("tests/doc-reference-gates.test.ts") && line.includes("tests/verify-release-versions.test.ts")) ?? "";
-  assert.match(step, /tests\/version-source\.test\.ts/);
+test("VG-14 the complete CI gate job runs the version self-test", () => {
+  assert.ok(testRunsInJob(jobBlock("gate-rules")).some(args => args.includes("tests/version-source.test.ts")));
 });
 
 test("VG-15 an exception names the literals it lets through and how many, so a new one in that file is seen (BL-1067)", () => {

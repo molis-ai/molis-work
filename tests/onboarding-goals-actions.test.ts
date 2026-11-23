@@ -19,7 +19,8 @@ import { callerPlugin, issuedCaller, registerProbe, startPlugin, withReaderRole 
 // N-12: Host-internal callers of Goals (the first-run Goal) call the Goals actions, through the client that starts the project's
 // Runtime plugins (Goals is one of them). The project guidance a Run starts with is the platform's since batch 44 (contract-design §9).
 
-const RUNTIME_PLUGINS = ["io.molis.work.coding", "io.molis.work.diff", "io.molis.work.shelf"];
+// Shelf is a platform part (44B): its one Home instance is there from the Host's start, in every project, so it is not among these.
+const RUNTIME_PLUGINS = ["io.molis.work.coding", "io.molis.work.diff"];
 
 const personCaller = (projectId: string): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
   permissions: ["goals:read", "goals:write", "artifact:read", "files:read", "git:read"] });

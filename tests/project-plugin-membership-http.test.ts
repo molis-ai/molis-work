@@ -39,18 +39,8 @@ test("SPC-C08 public membership actions and HTTP use the same observation and re
   assert.deepEqual(opened, [], "the settings index cannot wake either project runtime");
   await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, catalog => {
     const id = project.project_id;
-    const readWithFiles = () => {
-      assert.ok(catalog.projectPluginMembership(id, () => ["git"]).plugins.includes("git"));
-      return ["files"];
-    };
-    const projected = catalog.projectPluginMembership(id, readWithFiles);
-    const versioned = catalog.projectPluginMembershipWithRevision(id, readWithFiles);
-    assert.ok(projected.plugins.includes("files") && !projected.plugins.includes("git"));
-    assert.deepEqual(versioned.plugins, projected.plugins);
-    assert.notEqual(versioned.revision, observed.revision);
     assert.deepEqual(catalog.projectPluginMembership(id), { plugins: observed.plugins, hidden: observed.hidden });
-    assert.throws(() => catalog.projectPluginMembershipWithRevision(id, () => { throw new Error("fixture directory read"); }), /fixture directory read/u);
-    assert.deepEqual(catalog.projectPluginMembershipWithRevision(id), observed, "scoped page directories do not leak to the next read");
+    assert.deepEqual(catalog.projectPluginMembershipWithRevision(id), observed, "the versioned read is the same observation");
   });
   const caller = { ...person(["projects:settings"], project.project_id), actor_id: "test-action-person" };
   const client = f.host.actionClient(project.reference, false), actions = bindActionClient(client, () => caller);

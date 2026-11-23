@@ -1,6 +1,6 @@
 import type { AgentQuestionType } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { isSubjectReader, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PLATFORM_PLUGIN_REGISTRATIONS, builtinPluginByManifestId } from "./plugin-registry.js";
+import { SHIPPED_PARTS, builtinPluginByManifestId } from "./plugin-registry.js";
 import { boundReferenceKinds, type ReferenceKindCandidate } from "@molis-ai/molis-work-service-agent-host";
 
 /**
@@ -42,7 +42,7 @@ export function pluginReferenceKinds(plugin_id: string, installation: string, ac
  * The Runtime's kinds: the plugins the Host ships, bounded and ordered as each round's own list is (BL-152). A round in a
  * project replaces it with that project's (agent-reference-kinds.ts); a round the Host cannot list for keeps this one.
  */
-export function hostReferenceKinds(manifests: ReadonlyArray<{ plugin_id: string; actions?: ReadonlyArray<{ action: Declared }> }> = PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest)): Array<{ kind: string; title: string }> {
+export function hostReferenceKinds(manifests: ReadonlyArray<{ plugin_id: string; actions?: ReadonlyArray<{ action: Declared }> }> = SHIPPED_PARTS.map(entry => entry.manifest)): Array<{ kind: string; title: string }> {
   return boundReferenceKinds(manifests.flatMap(manifest => pluginReferenceKinds(manifest.plugin_id, manifest.plugin_id, (manifest.actions ?? []).map(definition => definition.action)))).kinds;
 }
 

@@ -177,7 +177,7 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refus
     assert.deepEqual(report.blocked, []); assert.deepEqual(report.running, []);
     const running = runningPluginDirectory(platform.supervisor);
     assert.deepEqual(running.map(entry => [entry.id, entry.plugin_id, entry.chosen]), [[pluginId, pluginId, false]], "the real Host directory does not grant the built-in key or trust to a different publisher");
-    assert.equal(running[0]!.personal, undefined); assert.equal(running[0]!.always_on, undefined);
+    assert.equal(running[0]!.personal, undefined);
     const directory = pluginDirectoryFor(running), market = builtinPluginDirectory().find(entry => entry.id === "pages")!;
     assert.deepEqual(directory.find(entry => entry.id === "pages"), market, "a different Runtime key does not remove the not-running built-in market entry");
     const rail = railEntries(["pages"], directory);
@@ -242,7 +242,7 @@ test("RAC-619 the Host's marks (personal, home, always_on, companions) are kept 
     marked("many", true, { companions: Array.from({ length: 50 }, (_, index) => `p${index}`) }),
     marked("loose-home", false, { personal: "yes", home: 1 }),
   ]) as PluginDirectoryEntry[];
-  assert.deepEqual([kept!.personal, kept!.always_on, kept!.companions], [true, true, ["inbox", "feed"]], "a plain key is kept once; a repeated one, a key outside the pattern and a non-string are dropped");
+  assert.deepEqual([kept!.personal, kept!.companions], [true, ["inbox", "feed"]], "a plain key is kept once; a repeated one, a key outside the pattern and a non-string are dropped");
   // 07-1 S4b (口径 9): an entry the project does not choose is a Home one, and a package installed in the Home is the person's own as a
   // built-in Home plugin is, so it keeps the Host's two Home marks (`personal`, `home`; `isPersonalPlugin` reads both). It still carries
   // none of the project's marks. Before S4b such an entry carried no mark at all; that expectation changed with the rule, not loosened.

@@ -195,10 +195,10 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   await screenshot("lingguang-converted");
 
   // 4. AC4 — one Shelf item used in two projects: no copies; deleted, both projects say so and can clean the row up.
-  const admitted = await post("/api/plugins/io.molis.work.shelf/items", { text: "A 厂 12 元，B 厂 15 元，C 厂 11 元。", title: "竞品价格表" });
+  const admitted = await post("/api/platform/shelf/items", { text: "A 厂 12 元，B 厂 15 元，C 厂 11 元。", title: "竞品价格表" });
   const item = admitted.item as { item_id: string; name: string };
   assert.ok(item?.item_id, "admitted into the Shelf");
-  // Shelf is a 常开插件 living in the side panel (W2'-2): its tab is its own document, so the steps inside it run there, and
+  // Shelf is a platform part living in the side panel (W2'-2): its tab is its own document, so the steps inside it run there, and
   // what it asks of the page (the shared dialog, the cards) reaches the page through the side panel.
   const shelfShows = async (id: string) => {
     await waitFor("document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'", 15_000);

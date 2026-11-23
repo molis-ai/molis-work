@@ -171,7 +171,7 @@ test("a new project database is made at the baseline, its plugins' tables made a
   t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const origin = `http://127.0.0.1:${address.port}/projects/${project.project_id}`;
-  for (const path of ["/", "/api/plugins/io.molis.work.shelf/project-results", "/feed", "/schedule", "/coding"]) await (await fetch(origin + path)).arrayBuffer();
+  for (const path of ["/", "/api/platform/shelf/project-results", "/feed", "/schedule", "/coding"]) await (await fetch(origin + path)).arrayBuffer();
   assert.deepEqual(shapeOf(project.database_path), opened);
   assert.deepEqual(ledgerOf(project.database_path), ledger, "and records nothing new");
 });

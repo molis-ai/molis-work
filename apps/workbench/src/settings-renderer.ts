@@ -12,7 +12,7 @@ import { renderAppearanceRecovery, renderAppearanceSettingsDocument, renderRunti
 import { appearanceClientTag, appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
 import { findPluginSettingsNavItem } from "./plugin-settings-catalog.js";
 import { BUILTIN_PLUGIN_WORKBENCH, pluginSettingsStyleLinks } from "./plugin-workbench.js";
-import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.js";
 import type { ProjectSettingsPagePorts } from "./project-settings-pages.js";
 import { renderConnectorsSettings } from "./settings-connectors.js";
 import { renderPromptSettings } from "./settings-prompts.js";
@@ -62,7 +62,7 @@ export interface SettingsRenderPrimitives {
 /** Settings clients use stable keys carried as literals in the registered bundle. */
 function settingsText(page: ReturnType<typeof findPluginSettingsNavItem>, packsFor: SettingsRenderPrimitives["catalogTextPacks"]): string {
   if (!page) return "";
-  const manifest = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === page.plugin_id)?.manifest;
+  const manifest = SHIPPED_WORKBENCH_PARTS.find(entry => entry.manifest.plugin_id === page.plugin_id)?.manifest;
   const client = BUILTIN_PLUGIN_WORKBENCH.find(pack => pack.contributions.some(contribution =>
     contribution.descriptor.contribution_id === page.contribution_id))?.settingsClient;
   if (!manifest || !client) return "";

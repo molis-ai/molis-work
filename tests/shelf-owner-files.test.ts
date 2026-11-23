@@ -8,7 +8,7 @@ import test from "node:test";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOwnerFilesClient, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
-import { SHELF_ACTION_PERMISSIONS, SHELF_OWNER_FILES, SHELF_PLUGIN_ID, shelfActions } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_ACTION_PERMISSIONS, SHELF_OWNER_FILES, SHELF_PLUGIN_ID, shelfActions } from "@molis-ai/molis-work-module-shelf/surface";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";

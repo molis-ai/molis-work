@@ -5,7 +5,7 @@ import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredStageContributionId, renderHomePluginPage, sideOpenedPlugins, stageContributionId, renderStagePage, type RenderedStagePage, type UnavailablePluginStage, type WorkbenchAppearancePorts } from "@molis-ai/molis-work-app-workbench";
 import type { UiContribution, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { builtinPluginByManifestId, builtinPluginByProjectKey, runsInHome } from "./plugin-registry.js";
+import { builtinPluginByProjectKey, runsInHome, shippedPartByManifestId, shippedPartByProjectKey } from "./plugin-registry.js";
 import { describePluginTablesRefusal, rollbackHrefFor } from "./home-unavailable-owners.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -61,8 +61,6 @@ async function changeHomePlugin(request: IncomingMessage, response: ServerRespon
       sendLocalWebJson(response, state.status === "running" ? 200 : 503, { state, ...(state.message ? { error: state.message } : {}) });
     } else {
       assertConnected();
-      const refusal = home.leaveRefusal(pluginId, "停用");
-      if (refusal) throw refusal;
       const install = home.installation(pluginId);
       platform.supervisor.revoke(pluginId);
       if (install && install.state !== "disabled") await platform.runtime.stop(install.install_id);
@@ -265,7 +263,7 @@ async function routeProject(segment: string, pluginId: string, projectPlugins: H
   try { projectId = decodeURIComponent(segment); } catch { return new ActionError("actions.missing", "找不到这个项目"); }
   const found = projectPlugins ? await projectPlugins(projectId) : null;
   if (!found) return new ActionError("actions.missing", "找不到这个项目");
-  const shipped = builtinPluginByManifestId(pluginId);
+  const shipped = shippedPartByManifestId(pluginId);
   if (!found.reaches(pluginId) && (!dualInstance || (shipped && runsInHome(shipped)))) return new ActionError("actions.plugin_disabled", "此项目未启用该插件");
   return { ...molisWorkHostProjectReference({ databasePath: found.database_path, projectId }), display_name: found.display_name };
 }
@@ -364,7 +362,7 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
   catch (error) { failure = { code: error instanceof ActionError ? error.code : "actions.plugin_unavailable", message: uiText.text("workbench.home-plugin-http.start-failed") }; }
   const registered = host.registered().flatMap(entry => {
     if (options?.shown && !options.shown.includes(entry.key)) return [];
-    const byKey = builtinPluginByProjectKey(entry.key);
+    const byKey = shippedPartByProjectKey(entry.key);
     const registration = byKey?.manifest.plugin_id === entry.manifest.plugin_id ? byKey : undefined;
     if (registration && !declaredStageContributionId(registration)) return [];
     return [{ project_plugin_id: entry.key, manifest: entry.manifest, workbench: registration?.workbench }];

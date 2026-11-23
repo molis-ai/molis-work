@@ -100,7 +100,7 @@ test("RAC-399 S-75 an id the Host's build ships, or one under it, is not for ano
 
 test("PSD-04 S-reserved-host-prefix a package not of the Host's build is refused any id under io.molis.work., listed in the Host's build or not, unsigned or under a pinned key", () => {
   const h = observed(new Set<string>());
-  for (const id of ["io.molis.work.characters", "io.molis.work.assistant", "io.molis.work.shelf", "io.molis.work.artifacts", "io.molis.work.not-yet-released"]) {
+  for (const id of ["io.molis.work.characters", "io.molis.work.assistant", "system.shelf", "io.molis.work.artifacts", "io.molis.work.not-yet-released"]) {
     h.refused(() => install(h.runtime, id, "someone")); h.refused(() => install(h.runtime, id, FINGERPRINT, PINNED));
   }
   assert.equal(install(h.runtime, "io.molis.work.characters", "host-label", HOST_BUILD_TRUST).install.publisher_trust, "host", "the Host's own build keeps the prefix");
@@ -128,9 +128,9 @@ test("RAC-394 RAC-399 S-75 identity refusals precede consents and retained or di
     await h.runtime.uninstall(original.install.install_id, { retain_private_data });
     // This id becomes part of the next Host build. A refusal must not prepare/erase the earlier uninstalled installation's data.
     hostIds.add(id);
-    const requested = { ...manifest(id, "owner"), always_on: true };
+    const requested = manifest(id, "owner");
     h.refused(() => h.runtime.install({ definition: definition(requested), deployment: "local", grants: [], trust: UNSIGNED_TRUST,
-      discard_kept_data: true, consents: [{ kind: "always_on", subject: "always_on" }] }));
+      discard_kept_data: true }));
   }
 });
 

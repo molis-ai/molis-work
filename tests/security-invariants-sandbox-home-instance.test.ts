@@ -30,12 +30,11 @@ const changed = (release: Release, edit: { manifest?: (manifest: PluginManifest)
 };
 
 // QEA-136: the positive install includes the person's real confirmation.
-test("RAC-962 RAC-963 S-80 the Home's Runtime takes a package only of its own range, under a pin, in the sandbox, without always_on or what only a project holds; a refusal leaves nothing", mac, async t => {
+test("RAC-962 RAC-963 S-80 the Home's Runtime takes a package only of its own range, under a pin, in the sandbox, without what only a project holds; a refusal leaves nothing", mac, async t => {
   const h = await fixture(t), publisher = newPublisher();
   const bundle = homePackage(publisher), home = releaseOf(h.home, bundle);
   const cases: Array<[string, Release, string]> = [
     ["a package of the project's range", releaseOf(h.home, signedPackage(newPublisher(), undefined, { pluginId: SECOND_PLUGIN_ID })), "plugin.home_scope_unavailable"],
-    ["always_on", changed(home, { manifest: manifest => Object.assign({}, manifest, { always_on: true }) }), "plugin.declaration_invalid"],
     ["output ports, which a project's database holds", changed(home, { manifest: manifest => Object.assign({}, manifest, { ports: { inputs: [], outputs: [{ port_id: "x" }] } }) }), "plugin.state_invalid"],
     ["no signature behind it (unsigned)", changed(home, { trust: UNSIGNED_TRUST }), "plugin.home_scope_unavailable"],
     ["the Host's own trust level on a sandboxed package", changed(home, { trust: HOST_BUILD_TRUST }), "plugin.grant_denied"],

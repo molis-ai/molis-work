@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { HomeConsentLedger, LocalMcpServer, composeAgentHost, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, composeAgentHost, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -123,9 +123,6 @@ test("S-acceptance-person-decides APR-15 APR-16: same ReviewReference across Ass
   });
   const project = await env.createProject("Acceptance APR-15/16", ["todo"]), pid = project.project_id, ref = project.reference;
   await env.host.homePlugins?.ready();
-  const ledger = new HomeConsentLedger(env.home);
-  const consent = ledger.consents("io.molis.work.goals").find(row => row.kind === "always_on" && row.revoked_at === null);
-  if (consent) ledger.revoke(consent.consent_id, new Date().toISOString());
   await env.host.ensureWebCatalog(env.home).withCatalog({ homeDirectory: env.home },
     (catalog: { removeProjectPlugin(input: { project_id: string; plugin_id: string; actor_id: string }): unknown }) =>
       catalog.removeProjectPlugin({ project_id: pid, plugin_id: "goals", actor_id: LOCAL_PERSON_ACTOR_ID }));

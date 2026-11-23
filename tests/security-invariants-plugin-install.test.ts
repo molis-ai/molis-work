@@ -259,7 +259,6 @@ const NOT_IN_THE_FORMAT: Array<[string, (files: PackageFiles, manifest: PluginMa
   ["a Manifest whose view is somewhere else", (_files, manifest) => { manifest.ui!.views![0]!.title = "Another"; }],
   // BL-588: whatever a Manifest declares beyond the sandbox shape has no sandbox form, so it is refused at the package, not installed to run in the Host.
   ["an integration plugin (a connector driver runs in the Host)", (_files, manifest) => { Object.assign(manifest, { kind: "integration" }); }],
-  ["a request for every project's always-on place", (_files, manifest) => { manifest.always_on = true; }],
   ["a look for local tools", (_files, manifest) => { Object.assign(manifest, { local_tools: { tools: [{ tool_id: "git", binaries: ["git"] }] } }); manifest.permissions = [...manifest.permissions, { permission: "local-tools:read", required: true, reason: "x" }]; }],
   ["an event of its own", (_files, manifest) => { Object.assign(manifest, { events: { publishes: [{ event_type_id: "com.example.notes.changed", type_version: 1 }], subscribes: [] } }); }],
   ["a port of its own", (_files, manifest) => { Object.assign(manifest, { ports: { inputs: [], outputs: [] } }); }],
@@ -547,7 +546,7 @@ test("PSD-04 PSD-04a S-reserved-host-prefix a signed package outside the release
   const h = await harness(undefined, true);
   try {
     const publisher = newPublisher();
-    const ids = ["io.molis.work.characters", "io.molis.work.assistant", "io.molis.work.shelf", "io.molis.work.artifacts", "io.molis.work.not-yet-released", "io.molis.work.content.design-accessibility", "system.artifacts", "system.characters"];
+    const ids = ["io.molis.work.characters", "io.molis.work.assistant", "system.shelf", "io.molis.work.artifacts", "io.molis.work.not-yet-released", "io.molis.work.content.design-accessibility", "system.artifacts", "system.characters"];
     // The two ids the old list missed: refused by the prefix alone, with no entry of their own.
     for (const id of ["io.molis.work.characters", "io.molis.work.assistant", "io.molis.work.not-yet-released"]) assert.ok(!HOST_PLUGIN_IDS.has(id), `${id} is not in the Host's list`);
     const results: Record<string, string> = {};

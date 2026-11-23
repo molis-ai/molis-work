@@ -22,7 +22,7 @@ import {
   renderShelfSettings as renderShelfSettingsDocument,
   shelfManifest,
   shelfSettingsUiDescriptor,
-} from "@molis-ai/molis-work-plugin-shelf";
+} from "@molis-ai/molis-work-module-shelf/surface";
 import { feedUiContribution } from "@molis-ai/molis-work-plugin-feed";
 import { inboxUiContribution } from "@molis-ai/molis-work-plugin-inbox";
 
@@ -270,7 +270,7 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   assert.deepEqual(live.map((item) => item.section_id), ["shelf"]);
   assert.equal(isHostGlobalSettingsSection("characters"), true);
   const shelf = live.find((item) => item.section_id === "shelf");
-  assert.equal(shelf?.plugin_id, "io.molis.work.shelf");
+  assert.equal(shelf?.plugin_id, "system.shelf");
   assert.equal(shelf?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
   assert.equal(shelf?.label, "Shelf");
   assert.deepEqual(listPluginSettingsNavItems(shownProjectPlugins(["goals"])).map((item) => item.section_id), ["shelf"]);
@@ -375,7 +375,7 @@ for (const declared of [true, false]) {
     execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", String.raw`
       import assert from "node:assert/strict";
       import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-      import { registration } from "@molis-ai/molis-work-plugin-shelf/registration";
+      import { shelfSurface as registration } from "@molis-ai/molis-work-module-shelf/surface";
       const manifest = structuredClone(registration.manifest);
       const view = manifest.ui.views.find(item => item.slot === "settings");
       assert.ok(view, "the existing Shelf settings view is the input");
@@ -385,9 +385,9 @@ for (const declared of [true, false]) {
       registration.manifest = parsed;
       const { installHostUiText } = await import("@molis-ai/molis-work-app-local-host");
       installHostUiText();
-      const { BUILTIN_PLUGIN_CATALOG, listPluginSettingsNavItems } = await import("@molis-ai/molis-work-app-workbench");
-      const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.project_plugin_id === "shelf");
-      assert.equal(entry, registration, "the catalog consumes the original registration object");
+      const { HOST_FRAMED_SURFACES, listPluginSettingsNavItems } = await import("@molis-ai/molis-work-app-workbench");
+      const entry = HOST_FRAMED_SURFACES.find(item => item.project_plugin_id === "shelf");
+      assert.equal(entry, registration, "the shell consumes the platform part's original registration object");
       assert.equal(entry.manifest, parsed, "the catalog consumes the parsed Manifest");
       const nav = listPluginSettingsNavItems(["shelf"]).find(item => item.section_id === "shelf");
       assert.ok(nav);
@@ -569,10 +569,10 @@ test("Shelf drop-wheel preference persists through the store and HTTP settings p
   assert.match(appearancePage, /class="settings-document appearance-document"/);
   assert.doesNotMatch(appearancePage, /data-settings-panel="shelf"|name="drop_wheel_enabled"|class="shelf-settings-document"/);
 
-  const read = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`)).json() as { drop_wheel_enabled: boolean };
+  const read = await (await fetch(`${origin}/api/platform/shelf/settings`)).json() as { drop_wheel_enabled: boolean };
   assert.equal(read.drop_wheel_enabled, true);
 
-  const rejected = await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`, {
+  const rejected = await fetch(`${origin}/api/platform/shelf/settings`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ drop_wheel_enabled: false,
@@ -584,7 +584,7 @@ test("Shelf drop-wheel preference persists through the store and HTTP settings p
   assert.equal(afterward.drop_wheel_enabled, true);
   assert.deepEqual(afterward.custom_runtimes, []);
 
-  const postPref = async (operation: "read" | "write", body: unknown) => fetch(`${origin}/api/plugins/io.molis.work.shelf/preferences/${operation}`, {
+  const postPref = async (operation: "read" | "write", body: unknown) => fetch(`${origin}/api/platform/shelf/preferences/${operation}`, {
     method: "POST", headers: headers(), body: JSON.stringify(body),
   });
   const wheel = "shelf.drop_wheel";
@@ -597,7 +597,7 @@ test("Shelf drop-wheel preference persists through the store and HTTP settings p
   assert.deepEqual(await (await postPref("write", write)).json(), saved);
   assert.equal((await postPref("write", { ...write, request_id: "stale", change: { set: true } })).status, 409);
   assert.equal(openTestShelfStore(homeDirectory).settings().drop_wheel_enabled, false);
-  const reread = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`)).json() as { drop_wheel_enabled: boolean };
+  const reread = await (await fetch(`${origin}/api/platform/shelf/settings`)).json() as { drop_wheel_enabled: boolean };
   assert.equal(reread.drop_wheel_enabled, false);
   const after = await (await fetch(`${origin}/settings/shelf`)).text();
   assert.doesNotMatch(after, /name="drop_wheel_enabled"[^>]*checked/);

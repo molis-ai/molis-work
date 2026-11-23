@@ -295,7 +295,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
 
   assert.deepEqual(
     settingsEntries(everything).map((entry) => entry.plugin_id),
-    ["io.molis.work.shelf"],
+    ["system.shelf"],
     "设置目录同样由 Manifest 决定（Goals 的规划设置页第 41 批随方法库删了）",
   );
 
@@ -325,15 +325,13 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("feed"), ["inbox"]);
 });
 
-test("a 常开插件 is shown in every project, even one that once hid it, and is neither offered nor removable", async () => {
+test("Shelf is a platform part, not a project plugin: no project lists it and nobody adds it; a hidden personal plugin stays hidden", async () => {
   const { pluginMarketCards } = await import("@molis-ai/molis-work-app-workbench");
   const { shownProjectPlugins } = await import("@molis-ai/molis-work-app-local-host");
-  // A project's list of hidden plugins leaves out a 常开 one (tests/security-invariants-always-on-records.test.ts), so a mark made before Shelf became
-  // always on never reaches here; a hidden ordinary personal plugin stays hidden.
   const shown = shownProjectPlugins(["goals"], ["lingguang"]);
-  assert.ok(shown.includes("shelf"));
+  assert.equal(shown.includes("shelf"), false);
   assert.equal(shown.includes("lingguang"), false);
-  assert.equal(pluginMarketCards().some((card) => card.id === "shelf"), false, "nobody adds what is always on");
+  assert.equal(pluginMarketCards().some((card) => card.id === "shelf"), false, "nobody adds a platform part");
 });
 
 test("OPEN-PLACE-01 a plugin opens where its declarations put it: the work area if it has a stage, else its side tab", async () => {

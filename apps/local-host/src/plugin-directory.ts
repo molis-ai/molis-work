@@ -5,7 +5,6 @@ import { pluginTextReader, projectDirectoryWords, type DirectoryWordSource, type
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { hostLog } from "./host-log.js";
 import type { HomePluginHost } from "./home-plugins.js";
-import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { BUILTIN_PLUGIN_REGISTRY, PLATFORM_PLUGIN_REGISTRATIONS, builtinPluginByManifestId } from "./plugin-registry.js";
 
 /** What the directory reads of a Runtime's supervisor: which plugins it holds enabled, how each one is doing, and its Manifest. */
@@ -25,11 +24,9 @@ export interface DirectorySource {
  * A built-in is the one the catalog names with the same id and publisher; its entry carries the catalog's project key and is
  * chosen by the project's plugin list. Any other plugin is keyed by its Manifest id and is in the project because it runs there.
  * The key is the Host's to give, never read from the Manifest, and so are a built-in's marks (W5-02 B1): `personal` and `companions`
- * from the platform's own registration, `home` from that registration's own Manifest (its Runtime is the Home's), `always_on` from
- * what this Home agreed to (`alwaysOnProjectPlugins`; without a Home, none).
+ * from the platform's own registration, `home` from that registration's own Manifest (its Runtime is the Home's).
  */
-export function runningPluginDirectory(source: DirectorySource, home?: string): PluginDirectoryEntry[] {
-  const alwaysOn = home ? readOnlyAlwaysOnProjectPlugins(home) : [];
+export function runningPluginDirectory(source: DirectorySource): PluginDirectoryEntry[] {
   return source.enabledPluginIds().flatMap(pluginId => {
     const state = source.state(pluginId), running = source.activeInstance?.(pluginId)?.source?.();
     const producer = running?.manifest.plugin_id === pluginId ? running : null;
@@ -38,24 +35,23 @@ export function runningPluginDirectory(source: DirectorySource, home?: string): 
     const registration = builtinPluginByManifestId(manifest.plugin_id);
     const builtin = registration?.manifest.publisher.signature === manifest.publisher.signature ? registration : undefined;
     return [{ id: builtin?.project_plugin_id ?? manifest.plugin_id, plugin_id: manifest.plugin_id,
-      chosen: builtin !== undefined, ...(builtin ? builtinMarks(builtin, alwaysOn) : {}), ...projectDirectoryWords(manifest, directoryWordResolver(producer ? pluginTextReader(producer.activation) : null)) }];
+      chosen: builtin !== undefined, ...(builtin ? builtinMarks(builtin) : {}), ...projectDirectoryWords(manifest, directoryWordResolver(producer ? pluginTextReader(producer.activation) : null)) }];
   });
 }
 
-function builtinMarks(builtin: PluginRegistration, alwaysOn: readonly string[]): Pick<PluginDirectoryEntry, "personal" | "home" | "always_on" | "companions"> {
+function builtinMarks(builtin: PluginRegistration): Pick<PluginDirectoryEntry, "personal" | "home" | "companions"> {
   const companions = BUILTIN_PLUGIN_REGISTRY.companions(builtin.project_plugin_id);
   return { ...(builtin.personal === true ? { personal: true as const } : {}), ...(builtin.manifest.runtime?.scope === "home" ? { home: true as const } : {}),
-    ...(alwaysOn.includes(builtin.project_plugin_id) ? { always_on: true as const } : {}), ...(companions.length ? { companions } : {}) };
+    ...(companions.length ? { companions } : {}) };
 }
 
 /**
  * The built-ins as the market lists them, with the same marks as a running one: the directory a page is drawn with ends with these, so
  * a built-in no Runtime here runs stays one to add, and the shell reads what it adds along or locks from the Host, never from its own copy.
  */
-export function builtinMarketDirectory(home?: string): PluginDirectoryEntry[] {
-  const alwaysOn = home ? readOnlyAlwaysOnProjectPlugins(home) : [];
+export function builtinMarketDirectory(): PluginDirectoryEntry[] {
   return PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id,
-    chosen: true, ...builtinMarks(entry, alwaysOn), ...drawRegisteredText(entry.manifest, resolve => projectDirectoryWords(entry.manifest, resolve)) }));
+    chosen: true, ...builtinMarks(entry), ...drawRegisteredText(entry.manifest, resolve => projectDirectoryWords(entry.manifest, resolve)) }));
 }
 
 /**
@@ -66,10 +62,10 @@ export function builtinMarketDirectory(home?: string): PluginDirectoryEntry[] {
  * package that runs one instance each side is no one's own tool: it is not marked. A package that did not come back keeps its place, as it kept it on the
  * titlebar before: its stage says why, and wherever it is named it carries the amber point.
  */
-export async function homePluginDirectory(host?: HomePluginHost, home?: string): Promise<PluginDirectoryEntry[]> {
+export async function homePluginDirectory(host?: HomePluginHost): Promise<PluginDirectoryEntry[]> {
   if (!host) return [];
   try {
-    const running = runningPluginDirectory((await host.ready()).supervisor, home)
+    const running = runningPluginDirectory((await host.ready()).supervisor)
       .map(entry => entry.chosen || host.dualInstance(entry.plugin_id) ? entry : { ...entry, personal: true as const, home: true as const });
     const present = new Set(running.map(entry => entry.plugin_id));
     let installed: ReturnType<HomePluginHost["registered"]> = [];
@@ -87,8 +83,8 @@ export async function homePluginDirectory(host?: HomePluginHost, home?: string):
 }
 
 /** The directory a Home's pages read (the project list's as well as each project's): its own Runtimes' plugins, then the market's. */
-export async function pagePluginDirectory(host: HomePluginHost | undefined, home: string | undefined): Promise<PluginDirectoryEntry[]> {
-  return mergePluginDirectories(await homePluginDirectory(host, home), builtinMarketDirectory(home));
+export async function pagePluginDirectory(host: HomePluginHost | undefined): Promise<PluginDirectoryEntry[]> {
+  return mergePluginDirectories(await homePluginDirectory(host), builtinMarketDirectory());
 }
 
 /** Several Runtimes' entries as one directory: a plugin that runs in more than one (a dual-instance one) is listed once, by its first. */

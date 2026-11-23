@@ -26,7 +26,7 @@ import {
   shelfUiContribution,
   type ShelfListModel,
   type ShelfUiModel,
-} from "@molis-ai/molis-work-plugin-shelf";
+} from "@molis-ai/molis-work-module-shelf/surface";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
@@ -412,7 +412,7 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /href="#icon-/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-expanded|dataset\.expanded/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-collapse/);
-  const rows = readFileSync(new URL("../plugins/native/shelf/src/browser/rows.ts", import.meta.url), "utf8");
+  const rows = readFileSync(new URL("../modules/shelf/src/surface/browser/rows.ts", import.meta.url), "utf8");
   assert.match(rows, /copy: "copy", hide: "x", down: "download", trash: "trash"/);
   // Soft Workbench (DESIGN.md → Typography): the confirm heading takes the 600 title role.
   assert.match(SHELF_STYLES, /shelf-confirm-title \{[^}]*font-weight: var\(--weight-title, 600\)/);
@@ -447,8 +447,8 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.equal(english("按下…"), "Press…");
   assert.equal(english("默认"), "Default");
   assert.equal(english("这个组合被占用。"), "This shortcut is already in use.");
-  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /molis-shelf-notice/);
-  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /molis-shelf-refresh/);
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /molis:shelf-notice/);
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /molis:shelf-refresh/);
   assert.ok(clientSays("原材料已不在工作区，无法对照。"));
   assert.match(SHELF_STYLES, /--da-font: var\(--font\)/);
   assert.match(SHELF_STYLES, /--clay: var\(--mark-clay\)/);
@@ -510,7 +510,7 @@ test("PG-026-S4-01 PG-026-S4-02 demo HTTP restores samples and preserves a succe
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
-  const origin = `http://127.0.0.1:${address.port}`, shelf = origin + "/api/plugins/io.molis.work.shelf/";
+  const origin = `http://127.0.0.1:${address.port}`, shelf = origin + "/api/platform/shelf/";
   const post = (url: string, body: object) => fetch(url, { method: "POST", headers: {
     origin, "content-type": "application/json", "x-molis-work-control-token": token,
     "x-molis-work-idempotency-key": crypto.randomUUID(),
@@ -584,14 +584,14 @@ test("the Shelf plugin routes admit, extract, and do not expose origin paths", a
     "x-molis-work-control-token": token,
     "x-molis-work-idempotency-key": `shelf-http-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   });
-  const first = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/`)).json() as {
+  const first = await (await fetch(`${origin}/api/platform/shelf/`)).json() as {
     materials: Array<{ item_id: string; name: string; origin_hash: string; origin_realpath?: string }>;
     recipes: Array<{ recipe: string; available: boolean }>;
   };
   assert.equal(first.materials[0]?.name, "试用示例.pdf");
   assert.equal(first.materials[0]?.origin_realpath, undefined);
   assert.equal(first.recipes.find((item) => item.recipe === "extract_text")?.available, true);
-  const extractedResponse = await fetch(`${origin}/api/plugins/io.molis.work.shelf/jobs`, {
+  const extractedResponse = await fetch(`${origin}/api/platform/shelf/jobs`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ recipe: "extract_text", item_id: first.materials[0]!.item_id }),
@@ -602,10 +602,10 @@ test("the Shelf plugin routes admit, extract, and do not expose origin paths", a
   assert.equal(extracted.origin_hash, first.materials[0]?.origin_hash);
   assert.match(extracted.result.preview_text, new RegExp(SAMPLE_PDF_TEXT));
   assert.equal(extracted.snapshot.results[0]?.name, "pdf.md");
-  const beforeEdit = await fetch(`${origin}/api/plugins/io.molis.work.shelf/items/${encodeURIComponent(extracted.result.item_id)}/file`);
+  const beforeEdit = await fetch(`${origin}/api/platform/shelf/items/${encodeURIComponent(extracted.result.item_id)}/file`);
   const expectedContentHash = beforeEdit.headers.get("etag")?.replaceAll('"', "");
   assert.equal(expectedContentHash, hashBytes(Buffer.from(await beforeEdit.arrayBuffer())));
-  const editedResponse = await fetch(`${origin}/api/plugins/io.molis.work.shelf/items/${encodeURIComponent(extracted.result.item_id)}/edit`, {
+  const editedResponse = await fetch(`${origin}/api/platform/shelf/items/${encodeURIComponent(extracted.result.item_id)}/edit`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ text: `${extracted.result.preview_text}\n编辑过的副本`, expected_content_hash: expectedContentHash }),
@@ -613,17 +613,17 @@ test("the Shelf plugin routes admit, extract, and do not expose origin paths", a
   assert.equal(editedResponse.status, 200);
   const edited = await editedResponse.json() as { item: { preview_text: string; origin_hash: string } };
   assert.match(edited.item.preview_text, /编辑过的副本/);
-  const copy = await fetch(`${origin}/api/plugins/io.molis.work.shelf/items/${encodeURIComponent(extracted.result.item_id)}/file`);
+  const copy = await fetch(`${origin}/api/platform/shelf/items/${encodeURIComponent(extracted.result.item_id)}/file`);
   assert.match(await copy.text(), /编辑过的副本/);
-  const blocked = await fetch(`${origin}/api/plugins/io.molis.work.shelf/items/${encodeURIComponent(first.materials[0]!.item_id)}/edit`, {
+  const blocked = await fetch(`${origin}/api/platform/shelf/items/${encodeURIComponent(first.materials[0]!.item_id)}/edit`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ text: "nope" }),
   });
   assert.equal(blocked.status, 400);
-  const still = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/`)).json() as { materials: Array<{ origin_hash: string }> };
+  const still = await (await fetch(`${origin}/api/platform/shelf/`)).json() as { materials: Array<{ origin_hash: string }> };
   assert.equal(still.materials[0]?.origin_hash, first.materials[0]?.origin_hash);
-  const hidden = await fetch(`${origin}/api/plugins/io.molis.work.shelf/items/${encodeURIComponent(extracted.result.item_id)}/hide`, {
+  const hidden = await fetch(`${origin}/api/platform/shelf/items/${encodeURIComponent(extracted.result.item_id)}/hide`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({}),
@@ -631,27 +631,27 @@ test("the Shelf plugin routes admit, extract, and do not expose origin paths", a
   assert.equal(hidden.status, 200);
   const afterHide = await hidden.json() as { snapshot: { results: Array<{ item_id: string }> } };
   assert.equal(afterHide.snapshot.results.some((entry) => entry.item_id === extracted.result.item_id), false);
-  const hiddenFile = await fetch(`${origin}/api/plugins/io.molis.work.shelf/items/${encodeURIComponent(extracted.result.item_id)}/file`);
+  const hiddenFile = await fetch(`${origin}/api/platform/shelf/items/${encodeURIComponent(extracted.result.item_id)}/file`);
   assert.equal(hiddenFile.status, 200);
   assert.match(await hiddenFile.text(), /编辑过的副本/);
-  const removed = await fetch(`${origin}/api/plugins/io.molis.work.shelf/items/${encodeURIComponent(extracted.result.item_id)}/delete`, {
+  const removed = await fetch(`${origin}/api/platform/shelf/items/${encodeURIComponent(extracted.result.item_id)}/delete`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({}),
   });
   assert.equal(removed.status, 200);
-  const gone = await fetch(`${origin}/api/plugins/io.molis.work.shelf/items/${encodeURIComponent(extracted.result.item_id)}/file`);
+  const gone = await fetch(`${origin}/api/platform/shelf/items/${encodeURIComponent(extracted.result.item_id)}/file`);
   assert.equal(gone.status, 404);
-  const afterResultDelete = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/`)).json() as { materials: Array<{ origin_hash: string }>; results: unknown[] };
+  const afterResultDelete = await (await fetch(`${origin}/api/platform/shelf/`)).json() as { materials: Array<{ origin_hash: string }>; results: unknown[] };
   assert.equal(afterResultDelete.materials[0]?.origin_hash, first.materials[0]?.origin_hash);
   assert.equal(afterResultDelete.results.length, 0);
-  const denied = await fetch(`${origin}/api/plugins/io.molis.work.shelf/jobs`, {
+  const denied = await fetch(`${origin}/api/platform/shelf/jobs`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ recipe: "summarize", item_id: first.materials[0]!.item_id }),
   });
   assert.equal(denied.status, 503, "no model configured is the platform's actions.connection_required, as at Jelly, Todo, Form and Dataset");
-  const clipResponse = await fetch(`${origin}/api/plugins/io.molis.work.shelf/clipboard`, {
+  const clipResponse = await fetch(`${origin}/api/platform/shelf/clipboard`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ text: "本周待办：完善文件预览与结果对照。" }),
@@ -661,7 +661,7 @@ test("the Shelf plugin routes admit, extract, and do not expose origin paths", a
   assert.equal(clip.clip.title, "本周待办：完善文件预览与结果对照。");
   assert.equal(clip.snapshot.clipboard.length, 1);
   assert.equal(clip.snapshot.current_clip_id, clip.clip.clip_id);
-  const again = await fetch(`${origin}/api/plugins/io.molis.work.shelf/clipboard`, {
+  const again = await fetch(`${origin}/api/platform/shelf/clipboard`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ text: "本周待办：完善文件预览与结果对照。" }),
@@ -669,7 +669,7 @@ test("the Shelf plugin routes admit, extract, and do not expose origin paths", a
   const againBody = await again.json() as { clip: { clip_id: string }; snapshot: { clipboard: unknown[] } };
   assert.equal(againBody.clip.clip_id, clip.clip.clip_id);
   assert.equal(againBody.snapshot.clipboard.length, 1);
-  const concealed = await fetch(`${origin}/api/plugins/io.molis.work.shelf/clipboard`, {
+  const concealed = await fetch(`${origin}/api/platform/shelf/clipboard`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ text: "hunter2", types: ["org.nspasteboard.ConcealedType"] }),
@@ -678,7 +678,7 @@ test("the Shelf plugin routes admit, extract, and do not expose origin paths", a
   assert.equal(concealedBody.clip, null);
   assert.equal(concealedBody.snapshot.clipboard.length, 1);
   assert.equal(concealedBody.snapshot.current_clip_id, null);
-  const deleted = await fetch(`${origin}/api/plugins/io.molis.work.shelf/clipboard/${encodeURIComponent(clip.clip.clip_id)}/delete`, {
+  const deleted = await fetch(`${origin}/api/platform/shelf/clipboard/${encodeURIComponent(clip.clip.clip_id)}/delete`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({}),

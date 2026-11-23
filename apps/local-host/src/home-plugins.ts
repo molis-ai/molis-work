@@ -14,7 +14,7 @@ import { PLUGIN_PRESENTATION_CAPABILITY, type UiSlotDescriptor } from "@molis-ai
 import { PluginViewRevisions } from "./plugin-view-revisions.js";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
 import { declarationOwnersFor, type SettingsVersionClaims } from "./declaration-owners.js";
-import { HOST_BUILD_TRUST, leaveRefusal, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository, type PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository, type PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
 import { HomePluginExecutor } from "./home-plugin-executor.js";
 import { registeredNativePlugin } from "./native-plugin-release-artifact.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
@@ -25,7 +25,6 @@ import { assertImageGenerationEntries } from "./plugin-image-generation-entries.
 import { assertProjectCleanupEntries, registerPluginProjectCleanup, type PluginProjectCleanup } from "./plugin-project-cleanup.js";
 import { fixtureAdmission, pluginFixtureEntries, pluginHomeFor, fixtureDeclarationsFor, type PluginFixture } from "./home-side.js";
 import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
-import { recordHostAlwaysOnAgreements } from "./always-on-plugins.js";
 import { openHomePluginStore } from "./home-plugin-store.js";
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
 import { HOST_PLUGIN_IDS, RELEASE_PACKAGE_IDS } from "./host-plugin-ids.js";
@@ -81,6 +80,8 @@ export class HomePluginHost {
     ownerClosing?(): boolean;
     settingsVersionClaims?: SettingsVersionClaims;
     projectActions?(projectId: string, pluginId: string): Promise<ProjectActions>;
+    /** The open projects' 成果库, for what a Home instance consumes (`homePluginArtifactsFor`). */
+    projectArtifacts?: import("./plugin-home-artifacts.js").HomeProjectArtifactStores;
     /** The Home's action directory without the Host's preparation of it (which waits for this host to be ready): what an installed package's capability catalog is read from. */
     inspect?(caller: ActionCallContext): Promise<readonly ActionView[]> | readonly ActionView[] }) {
     this.homeDirectory = options.home;
@@ -250,10 +251,6 @@ export class HomePluginHost {
       check();
     };
   }
-  /** Why the plugin may not be switched off or uninstalled (it is 常开 and the person's agreement stands); asked before anything is touched. */
-  leaveRefusal(providerId: string, action: "停用" | "卸载"): ActionError | undefined {
-    return leaveRefusal(this.db ? new SqlitePluginConsentLedger(this.db) : undefined, this.installation(providerId), action);
-  }
   invalidateView(providerId: string): void {
     const record = this.installation(providerId);
     if (record) this.platform?.invalidateView(record.plugin_id);
@@ -381,7 +378,6 @@ async function startHomePlatformRuntime(input: {
     providerFor: identity.providerFor, dualInstance: isDualDefinition, localePacks: identity.localePacks });
   // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
   const ledger = new SqlitePluginConsentLedger(db);
-  recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
   const runtime: PluginRuntime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, releaseIds: RELEASE_PACKAGE_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(options.fixtures ?? []), options.installed), declarationOwners: declarationOwnersFor(options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
     assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, installationScope.catalog(), runtime, rollback),
     redemption: definition => isDualDefinition(definition) ? { partial: true, outside_project: true } : {},

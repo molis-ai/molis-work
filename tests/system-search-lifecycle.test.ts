@@ -28,7 +28,7 @@ test("a plugin disabled in the project leaves the results and comes back when en
   { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "system-search-lifecycle-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "生命周期", actor_id: "owner" }));
-  // Goals is a 常开 plugin (ac-trust T3) that no project removes; Schedule is an ordinary project plugin, so it is the one switched off and on here.
+  // Schedule is an ordinary project plugin, so it is the one switched off and on here.
   await withCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" }); });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const open = () => {

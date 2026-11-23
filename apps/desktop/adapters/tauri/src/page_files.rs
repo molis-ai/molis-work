@@ -198,7 +198,7 @@ mod tests {
             "/api/host/plugin-page-files/",
             "/api/host/plugin-page-files?x=1",
             "/api/host/plugin-page-actions",
-            "/api/plugins/io.molis.work.shelf/jobs",
+            "/api/platform/shelf/jobs",
             "/projects//api/host/plugin-page-files",
             "/projects/a b/api/host/plugin-page-files",
             "/projects/a/b/api/host/plugin-page-files",

@@ -2,7 +2,7 @@
   "name": "@molis-ai/molis-work-module-shelf",
   "version": "0.0.0",
   "private": true,
-  "description": "Personal shelf items, copy-jobs, hashes, and local text extraction.",
+  "description": "Shelf, the platform's personal shelf: items, copy-jobs, hashes, local text extraction, and the surface the runtime hosts as system.shelf.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
@@ -17,19 +17,28 @@
     "./contract": {
       "types": "./dist/contract.d.ts",
       "import": "./dist/contract.js"
+    },
+    "./surface": {
+      "types": "./dist/surface/index.d.ts",
+      "import": "./dist/surface/index.js"
     }
   },
   "files": [
+    "prompts",
+    "locales",
     "dist",
     "README.md"
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/surface/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --outfile=dist/surface/shelf-client.js && node ../../scripts/client-literals.mjs --factory dist/surface/shelf-client.js && esbuild src/surface/browser/settings/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/surface/shelf-settings-client.js && node ../../packages/plugin-sdk/tooling/build-native-markdown.mjs prompts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

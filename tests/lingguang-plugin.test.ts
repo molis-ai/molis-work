@@ -101,7 +101,7 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
   const entry = islandEntries([...enabled]).find((item) => item.id === "lingguang");
   assert.equal(entry?.label, "灵光");
   assert.equal(entry?.glyph, "idea");
-  const market = pluginMarketCards({}, builtinMarketDirectory()).find((card) => card.id === "lingguang");
+  const market = pluginMarketCards(builtinMarketDirectory()).find((card) => card.id === "lingguang");
   assert.equal(market?.personal, true);
   assert.equal(market?.copy, "先记下想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
@@ -134,7 +134,7 @@ test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 
   assert.match(html, /data-plugin-id="lingguang"/);
   // Top strip (WLN-16, 第 32 批): the start page behind ＋ lists every entry of the project, then the person's own tray and
   // the project button; the Assistant sits in the work line at the foot. 灵光 is a tab of the side panel, right after
-  // Shelf, the 常开插件, and still opens as a full stage from the start page.
+  // Shelf, the platform part, and still opens as a full stage from the start page.
   const stack = html.slice(html.indexOf('class="workbench-header immersive-titlebar"'), html.indexOf('id="goal-tree-pane"'));
   const stripAt = stack.indexOf("data-plugin-strip"), assistantAt = stack.indexOf("data-assistant-island");
   // specs/screen-polish §3 方案 C (POLISH-05): the right end is the side's switch, the layout button and the project; no tray of the person's own.
@@ -147,7 +147,7 @@ test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 
   const tabsAt = html.search(/data-side-tabs[ >]/);
   const strip = html.slice(tabsAt, html.indexOf("</div></div>", tabsAt));
   const tabs = [...strip.matchAll(/data-side-tab="([^"]+)"/g)].map(match => match[1]);
-  assert.deepEqual(tabs.slice(0, 6), ["plugin:shelf/side", "plugin:lingguang/side", "files", "browser", "computer", "discussion"], "侧栏的格按 order 排：Shelf（常开插件）、灵光、文件、浏览器、电脑、讨论，没写 order 的插件格排在后面");
+  assert.deepEqual(tabs.slice(0, 6), ["plugin:shelf/side", "plugin:lingguang/side", "files", "browser", "computer", "discussion"], "侧栏的格按 order 排：Shelf（平台部件）、灵光、文件、浏览器、电脑、讨论，没写 order 的插件格排在后面");
   assert.match(stack.slice(stripAt, sideAt), /data-plugin-id="lingguang"/, "插件切换列表是项目的全部入口，灵光也在其中");
   assert.match(stack, /data-assistant-island/);
   assert.doesNotMatch(stack, /data-assistant-toggle/, "助手是 Dock 里的一个容器，不再是浮窗开关");

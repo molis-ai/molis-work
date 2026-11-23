@@ -1,6 +1,5 @@
 import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http.js";
 import { handleKitSettingsHttp } from "./kit-settings-http.js";
-import { withReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
 import { handleTaskGrantsSettingsHttp } from "./task-grants-settings-http.js";
 import { resolveConfiguredHome } from "./product-home.js";
@@ -80,7 +79,6 @@ export async function handleMolisWorkWebRequest(
   agentHost: AgentHost,
   agentReady: () => Promise<void>,
 ): Promise<void> {
-  const readonly = request.method === "GET";
   const handle = async () => {
     const context: WebRequestContext = { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, webViewCache, projectSchedules,
       ptyHost, webUrl, localHost, composition, agentHost, agentReady };
@@ -113,7 +111,7 @@ export async function handleMolisWorkWebRequest(
     await withOwnerUnavailablePage(context, resolved.options.project?.project_id ?? null,
       () => dispatchWebRoutes(PROJECT_ROUTES, projectRequestContext(context, resolved.options)));
   };
-  return readonly ? withReadOnlyPluginDirectory(serverOptions.homeDirectory, handle) : handle();
+  return handle();
 }
 
 /**
@@ -195,7 +193,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the shell view and the stages of the plugins this project shows (PEQ-01, PEQ-03). */
-function projectWebView({ options, webViewCache, localHost, hostReference, serverOptions, shownPluginSelection, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">,
+function projectWebView({ options, webViewCache, localHost, hostReference, shownPluginSelection, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">,
   { scope = "shell", withMembershipRevision = false }: { scope?: "shell" | "page"; withMembershipRevision?: boolean } = {}) {
   return async (): Promise<MolisWorkWebView> => {
     let view = await cachedMolisWorkWebView(webViewCache, options);
@@ -217,12 +215,12 @@ function projectWebView({ options, webViewCache, localHost, hostReference, serve
       (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: ownerRead(owner) }), stage_request);
     view = { ...view, stage_data: prepared.data, plugin_stage_views: prepared.views };
     // A fragment consumes its matched owner's data, not the other stages or the Home shell.
-    if (scope === "page") return setStageErrors({ ...view, plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory) }, prepared.errors);
+    if (scope === "page") return setStageErrors({ ...view, plugin_directory: await pagePluginDirectory(localHost.homePlugins) }, prepared.errors);
     const homeStages = await renderHomePluginStages(localHost.homePlugins, { project_id: hostReference.project_id, shown: view.shown_plugins, views: prepared?.views, page_owner: view.page_owner,
       model: id => composition.workbenchRenderer.declaredStageModel(id, view) });
     return setStageErrors({ ...view, plugin_stages: homeStages.html, plugin_panels: homeStages.panels, plugin_overlays: homeStages.overlays,
       plugin_stage_surfaces: homeStages.surfaces, ...(homeStages.page ? { page_stage: homeStages.page } : {}), unavailable_plugin_stages: homeStages.unavailable,
-      plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory) }, prepared.errors);
+      plugin_directory: await pagePluginDirectory(localHost.homePlugins) }, prepared.errors);
   };
 }
 

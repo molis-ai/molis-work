@@ -26,7 +26,7 @@ import { assertSqliteDatabaseFiles, HOME_SECURITY_DIRNAME } from "@molis-ai/moli
 import { homeStores, platformModelPreferences } from "./home-stores.js";
 import type { HomeUpgradeDescriptor, UpgradeBlock } from "./home-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { SHIPPED_PARTS } from "./plugin-registry.js";
 import { projectDatabasePlugins, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 
 const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = join("projects", "*", "molis-work.db");
@@ -95,7 +95,7 @@ const HOME_BLOCK: UpgradeBlock = { kind: "home" };
 function libraryDescriptor(store: HomeStore): HomeUpgradeDescriptor {
   const { baseline, partition } = store.library!, name = store.library!.file ?? `${store.path}.db`;
   const pattern = partition ? join(store.path, "projects", "*", name) : join(store.path, name);
-  const plugin = PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest)
+  const plugin = SHIPPED_PARTS.map(entry => entry.manifest)
     .find(manifest => manifest.plugin_id === store.owner && manifest.databases?.home?.store_name === store.path);
   const block: UpgradeBlock = plugin ? { kind: "plugin", plugin_id: plugin.plugin_id } : PLATFORM_LIBRARY_BLOCKS[store.path] ?? HOME_BLOCK;
   return { owner: store.owner, block, pattern, baseline, open: file => openHomeSqliteFile(file), ...(partition ? { paths: (home: string) => partitionFiles(home, store) } : {}),

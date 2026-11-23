@@ -110,12 +110,10 @@ export const APP_IMPORT_ALLOWLIST: readonly string[] = [
 
 /**
  * Plugin → Module edges that exist today, by package path. A Plugin reaches a business fact through the unified action
- * directory or a public Contract, not through a Module implementation package. The Shelf plugin still imports the Shelf
- * Module's recipes and its settings parser: that is debt to remove, not a precedent, and the list only shrinks.
+ * directory or a public Contract, not through a Module implementation package. Empty since Shelf became a platform part (44B); the
+ * list only shrinks.
  */
-export const PLUGIN_MODULE_IMPORT_ALLOWLIST: readonly string[] = [
-  "plugins/native/shelf -> modules/shelf",
-];
+export const PLUGIN_MODULE_IMPORT_ALLOWLIST: readonly string[] = [];
 
 /**
  * The listed layer exceptions that nothing uses: entries of APP_IMPORT_ALLOWLIST or PLUGIN_MODULE_IMPORT_ALLOWLIST for which

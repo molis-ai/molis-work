@@ -7,7 +7,7 @@ import { imagesManifest, IMAGES_CLIENT_FACTORY_SCRIPT, imagesUiContribution } fr
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginMarketCards, railEntries } from "@molis-ai/molis-work-app-workbench";
 import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-module-shelf/contract";
-import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfActions } from "@molis-ai/molis-work-module-shelf/surface";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { IMAGE_PNG, imageReply } from "./fixtures/images-runtime.js";
 import type { ImageJob } from "@molis-ai/molis-work-plugin-images/contract";
@@ -18,7 +18,7 @@ test("图片插件通过Manifest进入个人导航和市场，客户端可解析
   assert.ok(PERSONAL_PLUGIN_IDS.includes("images"));
   installHostUiText();
   runWithLocale("zh", () => {
-    assert.equal(pluginMarketCards({}, builtinMarketDirectory()).find((card) => card.id === "images")?.personal, true);
+    assert.equal(pluginMarketCards(builtinMarketDirectory()).find((card) => card.id === "images")?.personal, true);
     assert.equal(railEntries(["images"]).find(entry => entry.id === "images")?.label, "图片");
   });
   assert.equal(imagesUiContribution.descriptor.navigation_id, "images");

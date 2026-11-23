@@ -247,7 +247,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `shelf/catalog.json`、`shelf/catalog.json.lock.sqlite`、`shelf/files/<item>/`、`shelf/jobs/<job>/` | `modules/shelf/src/store.ts:848`（`catalog.json` 路径）、`:870`（打开；`files/`、`jobs/` 由 `plugins/native/shelf/src/plugin.ts:15` 的 `SHELF_OWNER_FILES` 声明）；桌面壳也读 `catalog.json` 的设置（`apps/desktop/adapters/tauri/src/shelf_http.rs:146`） | JSON 加文件 · `catalog.json` 的 `version` = 1（`modules/shelf/src/catalog-shape.ts#CATALOG_VERSION`，2026-11-19 发布前 v1 复位拍平；现行条目含偏好回执且不带原件路径） | 必备份 | purge（`installer/uninstall.ts:52`） |
+| `shelf/catalog.json`、`shelf/catalog.json.lock.sqlite`、`shelf/files/<item>/`、`shelf/jobs/<job>/` | `modules/shelf/src/store.ts:848`（`catalog.json` 路径）、`:870`（打开；`files/`、`jobs/` 由 `modules/shelf/src/surface/plugin.ts:15` 的 `SHELF_OWNER_FILES` 声明）；桌面壳也读 `catalog.json` 的设置（`apps/desktop/adapters/tauri/src/shelf_http.rs:146`） | JSON 加文件 · `catalog.json` 的 `version` = 1（`modules/shelf/src/catalog-shape.ts#CATALOG_VERSION`，2026-11-19 发布前 v1 复位拍平；现行条目含偏好回执且不带原件路径） | 必备份 | purge（`installer/uninstall.ts:52`） |
 | `computer/settings.json` | `apps/local-host/src/computer/computer-settings.ts`：助理能否用这台 Mac 的总开关、人加的禁用应用 | JSON · `version` = 1 | 必备份 | purge（`computer` 已登记） |
 | `computer/records/<id>/record.json`、`computer/records/<id>/<序号>.png` | `apps/local-host/src/computer/computer-records.ts`：每一轮用电脑的目标、步骤与回执，步骤的脱敏截图（结束 30 天后删截图，文字留下） | JSON · `version` = 1；截图是文件 | 必备份（截图是屏幕内容，只留在这个 Home 和它自己的快照里） | purge（`computer` 已登记） |
 | `browser/sites.json` | `apps/local-host/src/browser/browser-surfaces.ts:36`：侧栏浏览器允许、拒绝了哪些站点，助理能否使用浏览器 | JSON · `version` = 1（`:61`） | 必备份 | purge |

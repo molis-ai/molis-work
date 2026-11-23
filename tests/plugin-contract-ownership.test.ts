@@ -9,7 +9,7 @@ import { actionErrorResponse, pollingIntegrationBinding } from "@molis-ai/molis-
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import * as coding from "@molis-ai/molis-work-plugin-coding/contract";
 import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
-import { shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfManifest } from "@molis-ai/molis-work-module-shelf/surface";
 import * as shelf from "@molis-ai/molis-work-module-shelf/contract";
 import * as images from "@molis-ai/molis-work-plugin-images/contract";
 import * as dataset from "@molis-ai/molis-work-plugin-dataset/contract";
@@ -141,8 +141,8 @@ test("RAC-873 Audit #10: Shelf and Images discover providers by role and import 
   const sources = (root: string): string[] => readdirSync(root, { withFileTypes: true }).flatMap(entry =>
     entry.isDirectory() ? sources(join(root, entry.name)) : entry.name.endsWith(".ts") ? [readFileSync(join(root, entry.name), "utf8")] : []);
   const repository = join(dirname(fileURLToPath(import.meta.url)), "..");
-  assert.ok(sources(join(repository, "plugins/native/shelf/src")).every(text => !text.includes("molis-work-plugin-coding")), "Shelf does not import Coding");
-  assert.ok(sources(join(repository, "plugins/native/images/src")).every(text => !text.includes("molis-work-module-shelf") && !text.includes("molis-work-plugin-shelf")), "Images does not import Shelf");
+  assert.ok(sources(join(repository, "modules/shelf/src")).every(text => !text.includes("molis-work-plugin-coding")), "Shelf does not import Coding");
+  assert.ok(sources(join(repository, "plugins/native/images/src")).every(text => !text.includes("molis-work-module-shelf")), "Images does not import Shelf");
 });
 
 // PG-111 Feed (T-110): Feed's records, Sources, Signals and the Listener's state are Feed's; what the platform's source pull and an integration's

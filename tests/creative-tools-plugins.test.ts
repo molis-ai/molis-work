@@ -12,7 +12,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
-  BUILTIN_PLUGIN_CATALOG, pluginMarketCards, railEntries,
+  pluginMarketCards, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import { datasetActions, mergeDatasetDraftRows, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
@@ -112,12 +112,9 @@ test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
     rail.filter((id) => ["form", "dataset", "ppt"].includes(id)),
     ["form", "dataset", "ppt"],
   );
-  const market = pluginMarketCards({}, builtinMarketDirectory());
-  // PEQ-12: only Shelf remains an always-on plugin; Goals is optional and removable like any other plugin.
-  const alwaysOn = BUILTIN_PLUGIN_CATALOG.filter((entry) => entry.manifest.always_on === true).map((entry) => entry.project_plugin_id);
-  assert.deepEqual(alwaysOn, ["shelf"]);
+  const market = pluginMarketCards(builtinMarketDirectory());
   assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id),
-    PERSONAL_PLUGIN_IDS.filter((id) => !alwaysOn.includes(id)));
+    [...PERSONAL_PLUGIN_IDS]);
   assert.equal(market.find((card) => card.id === "form")?.copy, "建问卷，收答卷，看逐题汇总。");
 });
 

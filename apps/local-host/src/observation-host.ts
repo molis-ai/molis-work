@@ -16,7 +16,7 @@ import { ObservationLayer, observationKeys, purgeObservationPluginFile, type Cov
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { hostLog } from "./host-log.js";
 import { isRegenerableDemo } from "./plugin-demo-seed.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { SHIPPED_PARTS } from "./plugin-registry.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 import { OBSERVATION_OWNER } from "./project-deleted-owners.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
@@ -186,7 +186,7 @@ export function createHostObservation(home: string, ports: HostObservationPorts 
   const automaticSecrets = createLazyFileSecretStore(home, { keychain: "cached" });
   const extraCoverage: CoveragePlanEntry[] = [];
   const flowOwners = new Set<string>();
-  for (const registration of PLATFORM_PLUGIN_REGISTRATIONS) {
+  for (const registration of SHIPPED_PARTS) {
     for (const entry of registration.observation?.coverage ?? []) {
       extraCoverage.push({
         owner: `plugin:${registration.manifest.plugin_id}`,

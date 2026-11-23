@@ -719,7 +719,6 @@
     "tests/security-invariants-agent-evidence.test.ts": 10,
     "tests/security-invariants-agent-offer-runs.test.ts": 1,
     "tests/security-invariants-agent-run-session.test.ts": 2,
-    "tests/security-invariants-always-on-records.test.ts": 1,
     "tests/security-invariants-always-on.test.ts": 2,
     "tests/security-invariants-appearance.test.ts": 1,
     "tests/security-invariants-artifact-declarations.test.ts": 2,

@@ -15,7 +15,6 @@ import { acceptanceActions, type AcceptanceView } from "@molis-ai/molis-work-con
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
-import { takeBackGoals } from "./fixtures/goals-agreement.js";
 
 // ac-trust T3b (RAC-400, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4.1): the person takes back the agreement that keeps Goals
 // in every project, and a project made after that has no Goals. Its pages draw and answer with the plugin list, home and links as for any other plugin that is not on (Goals' stage and dialogs stay
@@ -24,7 +23,6 @@ import { takeBackGoals } from "./fixtures/goals-agreement.js";
 async function withoutGoals(t: Parameters<typeof test>[1] extends (t: infer T, ...rest: never[]) => unknown ? T : never) {
   const home = await mkdtemp(join(tmpdir(), "goals-absent-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  takeBackGoals(home);
   const project = await catalog.createProject({ display_name: "没有 Goals", actor_id: "test" });
   assert.equal(catalog.listProjectPlugins(project.project_id).includes("goals"), false, "the project has no Goals");
   // The server builds its own Host, with the catalog policy for which plugins a project's actions may reach, as the app's does.

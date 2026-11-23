@@ -181,10 +181,12 @@ export interface PluginManagementActionDeclaration {
 
 export type {PluginDistributionVerifier,BuiltinSyncBinding,ReplicaDatabase,AggregateReplicaContext,AggregateCopyContext,SyncDocumentStorage,ProjectSyncServices,ProjectSyncUploadContext,ProjectSyncContentOwner} from './plugin-sync-registration.js';
 /**
- * A surface of the platform's own that the shell frames like a plugin's page (47-1 C: the plugin studio): its stage, page requests,
- * sheet and program, and the sync collections it owns. It is not a plugin and is in no plugin catalog.
+ * A surface of the platform's own that the shell frames like a plugin's page (47-1 C: the plugin studio; 44B: Shelf): its stage, page
+ * requests, sheet and program, and the sync collections it owns. One the runtime hosts (Shelf) also names the code its Home instance
+ * starts from (`runtime`) and its Home store (`home_store`). It is not a plugin and is in no plugin catalog: nothing installs, switches
+ * off or adds it to a project.
  */
-export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_id" | "manifest" | "workbench" | "sync">;
+export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_id" | "manifest" | "workbench" | "sync" | "runtime" | "home_store" | "observation">;
 
 export interface PluginRegistration {
   readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;

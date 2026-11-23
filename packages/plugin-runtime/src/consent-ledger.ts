@@ -138,7 +138,7 @@ function defaultWiringReadsSystemSource(subject: string): boolean {
 function newRows(entry: PluginConsentEntry, existing: readonly PluginConsentRecord[]): PluginConsentRecord[] {
   const rows: PluginConsentRecord[] = [];
   for (const grant of entry.grants) {
-    if (!["always_on", "default_wiring", "default_group", "local_directory"].includes(grant.kind)) {
+    if (!["default_wiring", "default_group", "local_directory"].includes(grant.kind)) {
       throw pluginErrors.state_invalid("项目同意必须由项目设置单独记录");
     }
     const same = existing.filter(row => key(row) === key({ ...entry, ...grant }));

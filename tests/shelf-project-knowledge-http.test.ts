@@ -35,7 +35,7 @@ test("Shelf saves the confirmed full text into project knowledge, a new version 
       ...(body === undefined ? {} : { headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(body) }) });
     return { status: response.status, body: await response.json().catch(() => null) };
   };
-  const shelf = "/api/plugins/io.molis.work.shelf", at = (each: { project_id: string }) => `/projects/${encodeURIComponent(each.project_id)}${shelf}`;
+  const shelf = "/api/platform/shelf", at = (each: { project_id: string }) => `/projects/${encodeURIComponent(each.project_id)}${shelf}`;
   const documents = () => openProjectVersionStores(store).artifacts.query;
 
   const original = "﻿旧版🌲\r\n" + "完整原文。".repeat(700) + "\n末尾不能被预览截断";

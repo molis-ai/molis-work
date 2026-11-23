@@ -45,6 +45,8 @@ const SCANNED = [
   /^plugins\/[^/]+\/[^/]+\/src\//,
   // The plugin studio moved out of plugins/ when it became a platform capability (47-1 C); its words stay scanned.
   /^horizontal\/plugin-studio\/src\//,
+  // So did Shelf, into its Module (44B).
+  /^modules\/shelf\/src\/surface\//,
 ];
 const NOT_SOURCE = /(^|\/)(dist|node_modules|fixtures|resources|tests?)\//;
 
@@ -144,7 +146,7 @@ const JOINED_BASELINE: Readonly<Record<string, number>> = {
   "plugins/native/goals/src/proposal-normalizer.ts": 2,
   "plugins/native/inbox/src/work-events.ts": 2,
   "plugins/native/pages/src/actions.ts": 1,
-  "plugins/native/shelf/src/ai.ts": 1,
+  "modules/shelf/src/surface/ai.ts": 1,
   "plugins/native/todo/src/browser/list-rows.ts": 1,
   "plugins/native/todo/src/browser/review-choices.ts": 1,
   "plugins/native/todo/src/organize-model.ts": 1,

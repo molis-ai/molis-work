@@ -18,7 +18,7 @@ Molis Work 是本地优先的 **Agent OS**、**人机与团队协作工作台**�
 
 - **Agent OS**：提供一个 Home 的常驻宿主、统一动作目录与授权护栏、插件运行时、同一个 Prologue AI 运行时（内置个人助理、子代理、后台任务、记忆、工作记录与评测、技能与能力包），以及外部 AI 开发工具会话的接入与治理。
 - **协作工作台**：工作台外壳围绕项目、主线与事项线组织人机持续协作（明确交办、结果回流、项目指导、平台可信用户决定与审批规则、要求/证据/逐项认可、对象工作终端、项目讨论 IM），并向个人同步与多人实时团队协作演进（当前以单 Home 本机协作为主，团队共享项目与团队记忆仍在演进中）。
-- **多插件基座**：业务内容与事实归插件或 Module，每项事实只有一个主人（完整归属见 `docs/SSOT-MATRIX.md`）。项目插件（Goals、Inbox、Feed、Schedule 和 Coding 一族）在项目里按需添加或移除（新项目不默认安装 Goals，移除后数据保留、重新添加恢复）；个人插件（日历与笔记、待办、文档、知识库等）在所有项目里可用，其中仅 Shelf 声明为常开。
+- **多插件基座**：业务内容与事实归插件或 Module，每项事实只有一个主人（完整归属见 `docs/SSOT-MATRIX.md`）。项目插件（Goals、Inbox、Feed、Schedule 和 Coding 一族）在项目里按需添加或移除（新项目不默认安装 Goals，移除后数据保留、重新添加恢复）；个人插件（日历与笔记、待办、文档、知识库等）在所有项目里可用，项目可以隐藏；置物架 Shelf 是平台部件，不算插件。
 
 成功意味着：人与多个 AI 在同一个工作台里找得到、读得懂、推进并核对得了自己的工作，清楚每项内容的归属与授权边界；新增一个插件不必改平台，它的能力经同一个动作目录、同一套授权被页面、助理、工作流和外部 MCP 客户端使用。
 
@@ -29,7 +29,7 @@ Molis Work 是本地优先的 **Agent OS**、**人机与团队协作工作台**�
 - **一个 Home，一个常驻宿主。** `~/.molis-work` 下只有一个执行进程，管项目数据库、插件、动作目录和 AI 运行时。浏览器和 macOS App 打开同一个 loopback 工作台；CLI 与 MCP 入口不自己执行，转发给常驻宿主。
 - **项目按插件组织。** 当前登记 23 个，以各包 `src/registration.ts` 为准（`apps/workbench/src/builtin-plugins.ts` 由它们生成），分两类：
   - 项目插件 9 个，都在项目里按需添加或移除（移除后数据保留，重新添加恢复）：Goals（拥有 Goal 的事实；新项目不默认装，与其余项目插件同等地位）、Inbox、Feed、Schedule、风险、Work Brief（双实例：项目一半在项目里，个人简报那一半由 Home 装配），以及 Coding 一族（Coding、Git、Diff）。原来的参考插件 Text stats 已退役删除，插件作者的样板是 `examples/plugin-sample`，平台端口连线的测试用 `tests/fixtures/` 下的夹具。项目文件夹的浏览、阅读和固定快照、选区是平台的资料服务（侧栏与主区的「资料」），不是插件；原来的 Files 插件第 06 批退役。
-  - 个人插件 14 个，对每个项目都开着，项目可以隐藏（仅 Shelf 声明为常开）：Cognia、插件创作工作台、图片、Jelly、Shelf、灵光、待办、Issue、Pages、Forms、Dataset、PPT、炼金术士、工作流程。成果库是平台能力；角色（Character）是设置里的一节。Shelf 仍由插件登记，入口在右栏。
+  - 个人插件 11 个，对每个项目都开着，项目可以隐藏：Cognia、图片、Jelly、灵光、待办、Issue、Pages、Forms、Dataset、PPT、工作流程。成果库、插件创作台与置物架 Shelf 是平台能力（Shelf 第 44B 批起是平台部件，入口在右栏）；角色（Character）是设置里的一节。
 - **每项事实一个主人。** 项目指导归平台项目服务（`modules/projects`），可信用户决定与项目审批规则归平台审批服务（`horizontal/project-approvals`），要求/证据/逐项认可归平台认可模块（`modules/acceptance`），对象工作终端服务归宿主装配（`apps/local-host/src/work-terminal-service.ts`，底层 PTY 宿主归 `horizontal/runtime-host`）；Goal、关系和工作事件历史归 Goals，来源配置归来源（Sources）、信息流条目归 Feed、需要用户介入的事项归 Inbox，固定版本的成果归成果库；个人插件各管自己的内容（日历与笔记归 Jelly，待办归待办插件，知识库归 Cognia，文档归 Pages，演示稿归 PPT，等等），内容放在 Home 级的库里。其他插件不复制这些事实；完整归属与成熟度以 `docs/SSOT-MATRIX.md` 为准。
 - **能力注册一次，到处可用。** 插件把查询和操作登记到动作目录；页面、工作流、Agent 和外部 MCP 客户端从同一目录发现并调用，权限按调用方和每个 MCP 客户端的授予裁决，执行过的调用留下记录。被取消或撤权的调用不再产生任何写入。
 - **AI 经同一运行时。** 文字、结构化判断、图片与 Agent 运行都经 Home 的 Prologue Runtime；模型、凭据与预算在同一处设置。Agent 的副作用进入审查队列，由人决定。

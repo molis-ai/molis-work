@@ -73,13 +73,8 @@ test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact
     const entry = catalog.body.artifacts[0];
     assert.equal(entry.kind, "changeset"); assert.equal(entry.file_count, 2);
     assert.deepEqual(entry.reference, saved.body.reference); assert.equal(entry.change, undefined);
-    const shelfResults = await request('/api/plugins/io.molis.work.shelf/project-results');
-    assert.equal(shelfResults.status, 200);
-    assert.deepEqual(shelfResults.body.results[0].reference, saved.body.reference);
-    assert.equal(shelfResults.body.results[0].connected, true, "selected Coding output reaches Shelf through its declared input");
-    const shelfPreview = await request('/api/plugins/io.molis.work.shelf/project-result?artifact_id='+encodeURIComponent(saved.body.reference.artifact_id)+'&version=1');
-    assert.equal(shelfPreview.status, 200); assert.match(shelfPreview.body.text, /修改 1/); assert.match(shelfPreview.body.text, /修改 2/);
-    assert.match(shelfPreview.body.text, /保存时执行状态：执行结果未知/); assert.match(shelfPreview.body.text, /保存时执行状态：已执行/);
+    // Shelf, a Home-hosted platform part since 44B, is not served by this project-plugin harness: its reading of a real Coding result is in
+    // shelf-project-results-http, and the change set's text in coding-results-document.
     readable = false; const priorReads = reads;
     assert.deepEqual((await request(prefix, 'POST')).body.reference, saved.body.reference);
     const before = await request();
@@ -185,9 +180,6 @@ test("DEL-01～06 DEL-08: the fixed change set lists what a confirmed integratio
     assert.equal(diff.status, 200); assert.equal(diff.body.view.files[1].kind, "deleted"); assert.equal(diff.body.view.removed, true);
     assert.match(diff.body.html, /这个文件被删除了/); assert.deepEqual(diff.body.view.rows.map((row: { kind: string }) => row.kind), ["delete", "delete"]);
     { const output = await fetch(`http://127.0.0.1:${address.port}${prefix}/output`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ expected_reference: null }) }); assert.equal(output.status, 200, await output.text()); }
-    const shared = await request(`/api/plugins/io.molis.work.shelf/project-result?artifact_id=${encodeURIComponent(saved.body.reference.artifact_id)}&version=1`);
-    assert.equal(shared.status, 200); assert.match(shared.body.text, /## 修改 2 · src\/gone\.ts[^#]*修改后：文件已删除/);
-    assert.doesNotMatch(shared.body.text, /maybe\.ts|unconfirmed\.ts|save-err\.ts|lost\.ts|fail\.ts|kept-by-person\.ts|cancelled\.ts|expired\.ts|waiting\.ts|cmd\.ts|later\.ts|old\.cfg|empty-child\.cfg/);
     const catalog = await request(`/api/plugins/${CODING}/artifacts`); assert.equal(catalog.body.artifacts[0].file_count, 4);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

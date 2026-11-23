@@ -165,7 +165,9 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-design-system",
       "@molis-ai/molis-work-plugin-sdk",
       // The platform's plugin studio (47-1 C): the shell frames its declared surface.
-      "@molis-ai/molis-work-plugin-studio"
+      "@molis-ai/molis-work-plugin-studio",
+      // Shelf, a platform part (44B): the shell frames its declared surface the same way.
+      "@molis-ai/molis-work-module-shelf"
     ],
     extraDependencies: {
       marked: "^18.0.11",
@@ -389,7 +391,10 @@ export const WORKSPACE_PACKAGES = [
     maturity: "slice",
     capabilities: [
       "shelf.store.v1",
-      "shelf.jobs.v1"
+      "shelf.jobs.v1",
+      "shelf.ui-contribution.v1",
+      "shelf.http-routes.v1",
+      "shelf.actions.v1"
     ],
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-plugin-sdk"

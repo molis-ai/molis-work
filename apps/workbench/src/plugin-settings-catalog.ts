@@ -4,7 +4,8 @@ import type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/pl
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { registeredIconNames } from "@molis-ai/molis-work-design-system";
 import { viewContributionId } from "./declared-stages.js";
-import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, settingsEntries } from "./plugin-catalog.js";
+import { builtinPluginDirectory, settingsEntries } from "./plugin-catalog.js";
+import { SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.js";
 import { listWorkbenchUiContributions, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
 
 /** 能力 is four settings categories served from /capabilities/<id> (specs/artifact-positioning S6b). */
@@ -44,7 +45,7 @@ function declaredSettingsIcons(): ReadonlyMap<string, PluginIconName> {
  */
 let settingsInputs: ReadonlyMap<string, { action?: ActionDefinition; runtimes: boolean; address: { query: string; hash: string } }> | undefined;
 function declaredSettingsInputs(): NonNullable<typeof settingsInputs> {
-  settingsInputs ??= new Map(BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.ui?.views ?? []).flatMap(view => {
+  settingsInputs ??= new Map(SHIPPED_WORKBENCH_PARTS.flatMap(entry => (entry.manifest.ui?.views ?? []).flatMap(view => {
     if (view.slot !== "settings") return [];
     const declared = view.settings_data?.action;
     const action = declared ? entry.manifest.actions?.find(item => item.capability_id === declared) : undefined;

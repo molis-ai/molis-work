@@ -18,7 +18,6 @@ import { registration as pagesRegistration } from "@molis-ai/molis-work-plugin-p
 import { registration as pptRegistration } from "@molis-ai/molis-work-plugin-ppt/registration";
 import { registration as riskRegistration } from "@molis-ai/molis-work-plugin-risk/registration";
 import { registration as scheduleRegistration } from "@molis-ai/molis-work-plugin-schedule/registration";
-import { registration as shelfRegistration } from "@molis-ai/molis-work-plugin-shelf/registration";
 import { registration as todoRegistration } from "@molis-ai/molis-work-plugin-todo/registration";
 import { registration as workBriefRegistration } from "@molis-ai/molis-work-plugin-work-brief/registration";
 import { registration as workflowsRegistration } from "@molis-ai/molis-work-plugin-workflows/registration";
@@ -33,7 +32,6 @@ export const PLATFORM_PLUGIN_REGISTRATIONS: readonly (PluginRegistration & { rea
   { ...inboxRegistration, package_name: "@molis-ai/molis-work-plugin-inbox" },
   { ...scheduleRegistration, package_name: "@molis-ai/molis-work-plugin-schedule" },
   { ...feedRegistration, package_name: "@molis-ai/molis-work-plugin-feed" },
-  { ...shelfRegistration, package_name: "@molis-ai/molis-work-plugin-shelf" },
   { ...lingguangRegistration, package_name: "@molis-ai/molis-work-plugin-lingguang" },
   { ...todoRegistration, package_name: "@molis-ai/molis-work-plugin-todo" },
   { ...pagesRegistration, package_name: "@molis-ai/molis-work-plugin-pages" },

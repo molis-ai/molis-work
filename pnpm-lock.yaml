@@ -154,9 +154,6 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:packages/plugin-sdk
-      '@molis-ai/molis-work-plugin-shelf':
-        specifier: workspace:*
-        version: link:plugins/native/shelf
       '@molis-ai/molis-work-plugin-studio':
         specifier: workspace:*
         version: link:horizontal/plugin-studio
@@ -447,9 +444,6 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
-      '@molis-ai/molis-work-plugin-shelf':
-        specifier: workspace:*
-        version: link:../../plugins/native/shelf
       '@molis-ai/molis-work-plugin-studio':
         specifier: workspace:*
         version: link:../../horizontal/plugin-studio
@@ -593,6 +587,9 @@ importers:
       '@molis-ai/molis-work-module-artifacts':
         specifier: workspace:*
         version: link:../../modules/artifacts
+      '@molis-ai/molis-work-module-shelf':
+        specifier: workspace:*
+        version: link:../../modules/shelf
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:../../plugins/native/coding
@@ -647,9 +644,6 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
-      '@molis-ai/molis-work-plugin-shelf':
-        specifier: workspace:*
-        version: link:../../plugins/native/shelf
       '@molis-ai/molis-work-plugin-studio':
         specifier: workspace:*
         version: link:../../horizontal/plugin-studio
@@ -981,6 +975,10 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   modules/sync-replication:
     dependencies:
@@ -1373,22 +1371,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
-    devDependencies:
-      esbuild:
-        specifier: ^0.28.2
-        version: 0.28.2
-
-  plugins/native/shelf:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@molis-ai/molis-work-module-shelf':
-        specifier: workspace:*
-        version: link:../../../modules/shelf
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk

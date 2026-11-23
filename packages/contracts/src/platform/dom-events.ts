@@ -34,7 +34,7 @@ export const platformDomEventsContract = {
  * The platform's own name prefixes: three styles grew side by side; the rename to one is a separate change that edits this
  * list and every name below. A plugin's events need no entry here: a name that starts with `molis-<owner>-` is valid when the
  * event's registered `owner` is exactly `<owner>` and all of that owner's files belong to one `plugins/<group>/<package>/`
- * directory (`molis-shelf-notice` is owned by `shelf`). An owner mixing plugin and platform files, or different plugin
+ * directory (`molis-notes-saved` would be owned by `notes`). An owner mixing plugin and platform files, or different plugin
  * packages, must be split. The longest complete owner prefix wins. Every plugin gets the same treatment and this table
  * names none of them (ac-artifacts A4, PG-096). Platform owners use only the prefixes below.
  */
@@ -144,7 +144,7 @@ export const PAGE_STATE_OWNERS = {
     state: "The effective Home appearance that this document has finished preparing and rendered.",
   },
   shelf: {
-    files: ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/browser/terminal.ts", "plugins/native/shelf/src/browser/settings/reload.ts"],
+    files: ["modules/shelf/src/surface/browser/document.ts", "modules/shelf/src/surface/browser/tui.ts", "modules/shelf/src/surface/browser/terminal.ts", "modules/shelf/src/surface/browser/settings/reload.ts"],
     state: "The Shelf surface: its list and selection, the notice line and the input to the terminal Agent.",
   },
   "character-handoff": {
@@ -213,26 +213,6 @@ export interface DomEventDeclaration {
  * `node scripts/gates/dom-events.mjs --report` computes both from the source, so it cannot go stale.
  */
 export const DOM_EVENTS = [
-  {
-    name: "molis-shelf-notice", kind: "request", owner: "shelf", on: "window",
-    detail: "{ message }",
-    summary: "Show a one-line notice in the Shelf. Sent by the desktop shell, the native drop wheel and the Shelf's own terminal.",
-  },
-  {
-    name: "molis-shelf-refresh", kind: "request", owner: "shelf", on: "window",
-    detail: "{ item_ids? }",
-    summary: "Reload the Shelf list and select the last of item_ids. Sent when something landed in the Shelf outside its page (desktop shell, drop wheel, Shelf settings).",
-  },
-  {
-    name: "molis-shelf-send-tui", kind: "request", owner: "shelf", on: "window",
-    detail: "{ item_ids, text? }",
-    summary: "Send the named Shelf items, or text, to the terminal Agent. Sent by the native drop wheel (Rust).",
-  },
-  {
-    name: "molis-shelf-tui-unsent", kind: "announcement", owner: "shelf", on: "window",
-    detail: "{ texts, message }",
-    summary: "The Shelf terminal was not connected, so typed text was not sent; the Shelf puts it back into its input.",
-  },
   {
     name: "molis-work:attention", kind: "announcement", owner: "attention", on: "document",
     detail: "the /api/attention answer ({ background_tasks: { tasks, issues }, notices, plugin_events_pending, board_cursor, line, tasks }) and started; a part that could not be read or that this page does not have is null, started is the read's performance.now()",
@@ -530,6 +510,26 @@ export const DOM_EVENTS = [
     name: "molis:placement-result", kind: "request", owner: "placement", on: "window",
     detail: "{ verb, title, object?, note?, file? }",
     summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
+  },
+  {
+    name: "molis:shelf-notice", kind: "request", owner: "shelf", on: "window",
+    detail: "{ message }",
+    summary: "Show a one-line notice in the Shelf. Sent by the desktop shell, the native drop wheel and the Shelf's own terminal.",
+  },
+  {
+    name: "molis:shelf-refresh", kind: "request", owner: "shelf", on: "window",
+    detail: "{ item_ids? }",
+    summary: "Reload the Shelf list and select the last of item_ids. Sent when something landed in the Shelf outside its page (desktop shell, drop wheel, Shelf settings).",
+  },
+  {
+    name: "molis:shelf-send-tui", kind: "request", owner: "shelf", on: "window",
+    detail: "{ item_ids, text? }",
+    summary: "Send the named Shelf items, or text, to the terminal Agent. Sent by the native drop wheel (Rust).",
+  },
+  {
+    name: "molis:shelf-tui-unsent", kind: "announcement", owner: "shelf", on: "window",
+    detail: "{ texts, message }",
+    summary: "The Shelf terminal was not connected, so typed text was not sent; the Shelf puts it back into its input.",
   },
   {
     name: "molis:side-browser-control", kind: "announcement", owner: "side-panel", on: "document",

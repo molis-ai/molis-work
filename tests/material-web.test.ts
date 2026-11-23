@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import { shelfActions, SHELF_ACTION_PERMISSIONS } from '@molis-ai/molis-work-plugin-shelf';
+import { shelfActions, SHELF_ACTION_PERMISSIONS } from '@molis-ai/molis-work-module-shelf/surface';
 import { readMaterialWebsite } from '../apps/local-host/src/material-web.js';
 import { shelfStoreProvider, openTestShelfStore } from './shelf-direct-actions.js';
 

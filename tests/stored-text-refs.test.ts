@@ -9,7 +9,6 @@ import { assistantCardHtml } from "@molis-ai/molis-work-app-local-host";
 import { workBriefActions, type BriefRefreshed } from "@molis-ai/molis-work-plugin-work-brief";
 import { pagePack, pageText, pluginIdOf, withPageText } from "./fixtures/page-text.js";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
-import { takeBackGoals } from "./fixtures/goals-agreement.js";
 
 // BL-action-card-outcome-text, BL-work-brief-source-name-text (user 2026-11-17): what is kept and shown later is a key with its raw values, or
 // the owner's own words as a `literal`, never a sentence made in the language of the day; what older versions stored as sentences is
@@ -95,7 +94,6 @@ test("BL-action-card-outcome-text: the same stored card reads in the language sh
 
 test("BL-work-brief-source-name-text: a source's name is kept as its Manifest's name_text and reads in the language shown", { timeout: 90_000 }, async t => {
   const f = await serveHomeRuntime(t);
-  takeBackGoals(f.home);
   const here = await f.project("来源名字");
   const path = `/api/settings/projects/${encodeURIComponent(here.project_id)}/plugins`;
   const { projects } = await (await f.request("/api/settings/project-plugins")).json() as { projects: Array<{ project_id: string; revision: string }> };
@@ -121,7 +119,6 @@ test("BL-work-brief-source-name-text: a source's name is kept as its Manifest's 
 
 test("BL-work-brief-source-name-text: the Plugin Runtime names a plugin's provider by its Manifest's name_text, bound to the plugin", { timeout: 90_000 }, async t => {
   const f = await serveHomeRuntime(t);
-  takeBackGoals(f.home);
   const here = await f.project("名字来源");
   const { projects } = await (await f.request("/api/settings/project-plugins")).json() as { projects: Array<{ project_id: string; revision: string }> };
   const added = await f.request(`/api/settings/projects/${encodeURIComponent(here.project_id)}/plugins`, { method: "POST",

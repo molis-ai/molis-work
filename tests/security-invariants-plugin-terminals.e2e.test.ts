@@ -105,7 +105,7 @@ test("SYS-15-F2/F3 Shelf isolated page copies owned files through the shell and 
   t.after(() => { if (priorPath === undefined) delete process.env.MOLIS_WORK_LOCAL_TOOLS_PATH; else process.env.MOLIS_WORK_LOCAL_TOOLS_PATH = priorPath; });
   // Only the final desktop IPC is captured. Real page authorization, owner-file resolution and trusted mouse activation run.
   await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: "if(parent===window){globalThis.nativeCalls=[];globalThis.__TAURI__={core:{invoke:async(name,input)=>{nativeCalls.push({name,input})}}}}" }, browser.sessionId);
-  const api = `/projects/${browser.projectId}/api/plugins/io.molis.work.shelf`;
+  const api = `/projects/${browser.projectId}/api/platform/shelf`;
   const added = await browser.web.post<{ item: { item_id: string; relative_path: string } }>(api + "/items", { filename: "frame-copy.txt", bytes_base64: Buffer.from("owned file handed off through the shell").toString("base64") });
   const open = async () => {
     await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/side/shelf/side` }, browser.sessionId));

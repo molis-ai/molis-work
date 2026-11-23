@@ -7,7 +7,7 @@ import type { UiTerminalEvent, UiTerminalCommand, UiTerminalMountOptions } from 
 import { pageTextScript } from "./fixtures/page-text.js";
 
 // RAC-717: the terminal well is Shelf's own browser code (src/browser/terminal.ts); the platform's entry no longer carries it.
-const compiled = buildSync({ entryPoints: [fileURLToPath(new URL("../plugins/native/shelf/src/browser/terminal.ts", import.meta.url))],
+const compiled = buildSync({ entryPoints: [fileURLToPath(new URL("../modules/shelf/src/surface/browser/terminal.ts", import.meta.url))],
   bundle: true, write: false, format: "cjs", platform: "browser", target: "es2022" }).outputFiles[0]!.text;
 type Recovery = { texts: string[]; message: string };
 type Bridge = { open(): void; send(text: string): boolean; isLive(): boolean };
@@ -19,7 +19,7 @@ const flush = async () => { await new Promise(resolve => setImmediate(resolve));
 function fixture(options: { english?: boolean } = {}) {
   const window = new EventTarget(), recovered: Recovery[] = [], requests: string[] = [], writes: UiTerminalCommand[] = [];
   let mounted: UiTerminalMountOptions | undefined, unavailable = false, failedWrite = false, disposed = 0;
-  window.addEventListener("molis-shelf-tui-unsent", event => recovered.push(structuredClone((event as CustomEvent<Recovery>).detail)));
+  window.addEventListener("molis:shelf-tui-unsent", event => recovered.push(structuredClone((event as CustomEvent<Recovery>).detail)));
   const screen = { dataset: {} };
   const context = {
     module: { exports: {} as { installTerminal(page: unknown): void } }, window, CustomEvent, document: { documentElement: {} },
@@ -36,7 +36,7 @@ function fixture(options: { english?: boolean } = {}) {
       async send(command: UiTerminalCommand) { if (failedWrite) throw new Error("连接已断开"); writes.push(structuredClone(command)); },
     },
   };
-  const page = { bench: { querySelector: () => screen }, api: "/projects/fixture/api/plugins/io.molis.work.shelf",
+  const page = { bench: { querySelector: () => screen }, api: "/projects/fixture/api/platform/shelf",
     lifetime: { signal: new AbortController().signal } };
   runInNewContext(`${pageTextScript(options.english ? "en" : "zh", "shelf")}\n${compiled}`, context, { filename: "shelf-terminal.js" });
   context.module.exports.installTerminal(page);
@@ -60,7 +60,7 @@ test("SYS-15 Shelf startup rejection restores queued input once and does not rep
 test("SYS-15 Shelf opens only its backend terminal and flushes queued input after attach", async () => {
   const f = fixture(); assert.equal(f.bridge.send("未打开"), false);
   f.bridge.open(); f.bridge.open(); f.bridge.send("启动期间输入"); await flush();
-  assert.deepEqual(f.requests, ["/projects/fixture/api/plugins/io.molis.work.shelf/terminal"]); assert.deepEqual(f.writes, []);
+  assert.deepEqual(f.requests, ["/projects/fixture/api/platform/shelf/terminal"]); assert.deepEqual(f.writes, []);
   f.spawned(); assert.equal(f.bridge.isLive(), true);
   assert.deepEqual(f.writes, [{ type: "write", panelId, data: "启动期间输入\r" }]);
   f.spawned(); assert.equal(f.writes.length, 1, "another attach acknowledgement must not repeat input");

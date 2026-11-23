@@ -41,7 +41,7 @@ test('PTR-02 local trial login creates a personal project, saves full text and a
   const text='完整正文🌲\r\n'+('离线保存与重启\n'.repeat(7000));
   const page=(await json(prefix+'/api/plugins/io.molis.work.pages/pages',{title:'首用文档',markdown:text})).document;assert.ok(page.id);
   const attachment=Buffer.from(Array.from({length:300007},(_,i)=>(i*29)%256));
-  const itemsPath=prefix+'/api/plugins/io.molis.work.shelf/items';
+  const itemsPath=prefix+'/api/platform/shelf/items';
   const item=(await json(itemsPath,{filename:'完整附件.bin',mime:'application/octet-stream',bytes_base64:attachment.toString('base64')})).item;assert.ok(item.item_id);
   const saved=(await json(prefix+'/api/plugins/io.molis.work.pages/pages/'+page.id)).document;assert.ok(JSON.stringify(saved.body).includes('完整正文🌲'));assert.equal(JSON.stringify(saved.body).split('离线保存与重启').length-1,7000);
   const attachmentPath=itemsPath+'/'+encodeURIComponent(item.item_id)+'/file';

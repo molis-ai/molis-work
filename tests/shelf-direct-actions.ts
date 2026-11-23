@@ -6,7 +6,7 @@ import { ActionError, requireSynchronous, type ActionDefinition, type ActionProv
 import type { PluginOwnerFilesClient, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ShelfAiPorts, ShelfMaterialPorts } from "@molis-ai/molis-work-module-shelf/contract";
 import { openShelfStore, SHELF_ENGINES, type ShelfLocalToolsPort, type ShelfRuntimeLookup, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
-import { createShelfActionHandlers, shelfManifest, shelfStorePorts, SHELF_ACTIONS, SHELF_OWNER_FILES, SHELF_PLUGIN_ID, type ShelfActionPorts, type ShelfPluginRouteHandler, type ShelfPluginRouteRequest } from "@molis-ai/molis-work-plugin-shelf";
+import { createShelfActionHandlers, shelfManifest, shelfStorePorts, SHELF_ACTIONS, SHELF_OWNER_FILES, SHELF_PLUGIN_ID, type ShelfActionPorts, type ShelfPluginRouteHandler, type ShelfPluginRouteRequest } from "@molis-ai/molis-work-module-shelf/surface";
 import { shelfTestAi } from "./shelf-test-ai.js";
 
 /**

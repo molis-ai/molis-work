@@ -4737,7 +4737,6 @@ export interface PluginManifest {
         signature: string;
     };
     host_api_version: 1;
-    always_on?: boolean;
     summary?: string;
     summary_text?: TextRef;
     entrypoints: PluginEntrypointManifest[];
@@ -8886,7 +8885,6 @@ export declare const pluginDataActions: {
 export declare function pluginDataSectionsFromManifest(manifest: Pick<PluginManifest, "plugin_id" | "name" | "databases" | "sync" | "owner_files" | "runtime">): PluginDataSectionDeclaration[];
 
 export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
-    readonly always_on: "invalid";
     readonly capability_denied: "invalid";
     readonly capability_refused: "invalid";
     readonly capability_unavailable: "invalid";
@@ -8935,6 +8933,8 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly upgrade_validation_failed: "invalid";
     readonly upgrade_validation_missing: "invalid";
 }>;
+
+export declare function pluginRouteBase(pluginId: string): string;
 
 export declare function portTypeKey(artifactTypeId: string, schemaVersion: number): string;
 

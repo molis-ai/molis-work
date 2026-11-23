@@ -54,7 +54,7 @@ test('ASR-02 PTR-01 S-124 authenticated personal cleanup refuses while complete 
   await json('/api/settings/projects/'+project.project_id+'/plugins',{plugin_id:'pages',expected_revision:await projectPluginRevision({get:path=>json(path)},project.project_id)});
   const markdown='唯一正文🌲\r\n'+('原件不可被清理\n'.repeat(1300));
   const document=(await json(prefix+'/api/plugins/io.molis.work.pages/pages',{title:'唯一正文',markdown})).document;
-  const bytes=Buffer.from(Array.from({length:20017},(_,index)=>(index*31)%256)),items=prefix+'/api/plugins/io.molis.work.shelf/items';
+  const bytes=Buffer.from(Array.from({length:20017},(_,index)=>(index*31)%256)),items=prefix+'/api/platform/shelf/items';
   const item=(await json(items,{filename:'unique.bin',mime:'application/octet-stream',bytes_base64:bytes.toString('base64')})).item;
   const beforeDocument=(await json(prefix+'/api/plugins/io.molis.work.pages/pages/'+document.id)).document;
   for(const path of ['/api/sync/purge-trash','/api/sync/history/purge']){

@@ -1260,7 +1260,7 @@ QEA-79 在真实隔离 Home 新导入及固定版本预览验证中、英文，�
 
 ### QF-83 / P3 英文资料侧栏仍显示中文的来源分组（PF-15）
 
-QEA-79 的英文宽屏实操中，导入警告和成果详情已是英文，资料侧栏仍显示「项目成果」「置物架」。两个标签来自 `modules/artifacts/src/artifact-actions.ts:59` 与 `plugins/native/shelf/src/search.ts:45` 的动作声明。`apps/local-host/src/side-files-http.ts:48,94` 转发动作标题，工作台 `apps/workbench/src/side-panel-files.ts:263` 原样绘制。隔离 Home 实证 `qf-15-en-1440-light.png`。
+QEA-79 的英文宽屏实操中，导入警告和成果详情已是英文，资料侧栏仍显示「项目成果」「置物架」。两个标签来自 `modules/artifacts/src/artifact-actions.ts:59` 与 `modules/shelf/src/surface/search.ts:45` 的动作声明。`apps/local-host/src/side-files-http.ts:48,94` 转发动作标题，工作台 `apps/workbench/src/side-panel-files.ts:263` 原样绘制。隔离 Home 实证 `qf-15-en-1440-light.png`。
 
 资料侧栏与 Goal「加输入」已经共用这一个发现与首批读取入口。补充平台文件来源的显示合同是候选处置。来源 owner 声明自己的标签，Host 按该次界面语言和真实提供方取词，两个页面消费同一显示结果；动作标识、文件名和用户目录仍由原主人负责。复用现有 TextRef 与词包解析，保留外部声明的原文。还需确认来源分组与系统生成的虚拟文件夹标签如何声明，至少迁移成果、Shelf 与一个项目插件，经两个真实消费者验证切换语言。影响为界面语言混用，处置需要补充公开来源合同和迁移多方声明，排在当前审批写入与已确认的正常路径回归之后。
 
@@ -1429,7 +1429,7 @@ main `43a3c3fa2f` 与候选独立构建并实测了 67 个静态资源和十组�
 
 主干 `#2118` 将卡片结果的常见反馈转为 SDK 生成的键和参数，由原卡片持久化并随 Workbench 语言显示。Assistant 自有库从 1 到 2 对历史内容转为原文引用。项目库从 4 到 5 沿 Runtime 的私值转换，只迁移 Coding 正式安装声明的值。Work Brief 自有库从 1 到 2，保留已写历史原文，新来源取 Manifest 的名称引用。该版本已审批的转换与本轮资料导入固定版本是不同事实，结构与回读分别验收。[卡片结果](../../packages/plugin-sdk/src/action-cards.ts#L124) · [项目升级](../../apps/local-host/src/project-database-schema.ts#L67) · [简报升级](../../plugins/native/work-brief/src/database.ts#L43) · [原批准 PR](https://github.com/molis-ai/molis-work/pull/2118)
 
-PF-15 复核。合并后的资料侧栏入口仍按原动作 `title` 展示成果和置物架来源，现行 Work Brief 已提供真实的 Manifest `name_text` 读取场景。后续资料来源合同可复用现有 TextRef 和实际语言读取，需先统一两个页面消费的同一个来源描述。[资料来源](../../apps/local-host/src/side-files-http.ts#L48) · [置物架声明](../../plugins/native/shelf/src/search.ts#L45)
+PF-15 复核。合并后的资料侧栏入口仍按原动作 `title` 展示成果和置物架来源，现行 Work Brief 已提供真实的 Manifest `name_text` 读取场景。后续资料来源合同可复用现有 TextRef 和实际语言读取，需先统一两个页面消费的同一个来源描述。[资料来源](../../apps/local-host/src/side-files-http.ts#L48) · [置物架声明](../../modules/shelf/src/surface/search.ts#L45)
 
 候选完整构建及本地 7 文件 168 项通过。三条连续升级、实际项目打开、Assistant 网关与卡片结果、导入历史及现行版本、隔离浏览器切换前后的警告和发布版本均已验证。包边界核对 75 包、4,398 个源文件和 24,022 条 import，公开合同及源码健康均通过。动作、44 个数据库结构、版本和 111 份 API 快照匹配源码。日志 `quality-audit-b111-{stored-words,boundary,health,regenerate}.log`。[存储与显示验收](../../tests/stored-text-refs.test.ts#L59) · [实际导入界面](../../tests/artifact-import-warning.e2e.test.ts#L10)
 

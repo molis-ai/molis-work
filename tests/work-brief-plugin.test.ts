@@ -5,7 +5,6 @@ import { RISK_WRITE, riskActions, type RiskRecord } from "@molis-ai/molis-work-p
 import { WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_WRITE, workBriefActions, workBriefPersonalActions, workBriefPresentationActions, type PersonalView, type BriefRefreshed, type BriefSaved, type BriefVersion, type BriefView } from "@molis-ai/molis-work-plugin-work-brief";
 import type { PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { surfaceCompositionActions, type SurfaceDescription } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import { takeBackGoals } from "./fixtures/goals-agreement.js";
 import { defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
@@ -20,7 +19,6 @@ const RISK_ID = "io.molis.work.risk";
 async function fixture(t: Parameters<typeof serveHomeRuntime>[0]) {
   const f = await serveHomeRuntime(t), { host } = f;
   // Decision 42: the projects carry no Goals. The person took back the agreement that keeps it in every project before making them.
-  takeBackGoals(f.home);
   const open = async (name: string, plugins: readonly string[] = ["risk", "work-brief"]) => {
     const here = await f.project(name);
     const revision = async () => {

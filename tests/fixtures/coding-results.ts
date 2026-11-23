@@ -5,12 +5,13 @@ import type { CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/wor
 import type { PluginActionClient, PluginArtifactClient, PluginConsumableFilter, PluginHostServices, PluginProcessItemClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingResultDocumentHandler } from "@molis-ai/molis-work-plugin-coding";
 import { codingResultDocument } from "@molis-ai/molis-work-plugin-coding/contract";
-import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfManifest, shelfRuntimeActionHandlers } from "@molis-ai/molis-work-module-shelf/surface";
+import type { ShelfStore } from "@molis-ai/molis-work-module-shelf";
 
 /** Fixed Coding results and a fake platform around them, for the tests of Coding's text action and of the copy Shelf makes of it (W5-01-CODING). */
 
 export const CODING_PLUGIN = "io.molis.work.coding";
-export const SHELF_PLUGIN = "io.molis.work.shelf";
+export const SHELF_PLUGIN = "system.shelf";
 export const PROJECT_ID = "project-1";
 export const PROJECT_PATH = "/projects/project-1";
 export const OWNER = "web-user";
@@ -141,10 +142,11 @@ export function codingDocumentHandler(platform: FakePlatform): ActionHandlerBind
 }
 
 /**
- * Shelf started over the fake platform. Its `services.actions.invoke` runs Coding's real handler, as the platform does for a consumed
- * action, and records what it was asked. `connected` are the references its input ports hold.
+ * Shelf's result actions over the fake platform, as its Home instance binds them for a caller in the project. Its
+ * `services.actions.dependencies.invoke` runs Coding's real handler, as the platform does for a consumed action, and records what it
+ * was asked; what it would put on the shelf is recorded and refused.
  */
-export async function startShelf(platform: FakePlatform, options: { connected?: Record<string, ArtifactReference>; receive?: ShelfResultPorts["receive"] } = {}) {
+export async function startShelf(platform: FakePlatform) {
   const coding = codingDocumentHandler(platform), asked: string[] = [];
   const codingView = {
     capability_id: codingResultDocument.capability_id, version: codingResultDocument.version, operation: codingResultDocument.operation,
@@ -167,10 +169,8 @@ export async function startShelf(platform: FakePlatform, options: { connected?: 
     },
   };
   const written: unknown[] = [];
-  const receive: ShelfResultPorts["receive"] = options.receive ?? (async preview => { written.push(preview); throw new Error("receiving is not under test"); });
-  const context = startContext(SHELF_PLUGIN, { artifacts: platform.artifacts(SHELF_PLUGIN), actions,
-    inputs: { status: () => { throw new Error("not under test"); }, read: () => null, selectedGroup: () => undefined, reference: port => options.connected?.[port] ?? null } });
-  const running = await createShelfPlugin({ projectPath: () => PROJECT_PATH, receive }).start(context);
-  if (!running || running.kind !== "app" || !running.actions) throw new Error("Shelf starts as an app with actions");
-  return { handlers: running.actions, asked, written };
+  const refuse = async (input?: unknown): Promise<never> => { written.push(input); throw new Error("receiving is not under test"); };
+  const store = (): Pick<ShelfStore, "admit" | "snapshot"> => ({ admit: refuse, snapshot: refuse });
+  const context = startContext(SHELF_PLUGIN, { artifacts: platform.artifacts(SHELF_PLUGIN), actions }, { project_id: null });
+  return { handlers: shelfRuntimeActionHandlers(context, shelfManifest, store), asked, written };
 }

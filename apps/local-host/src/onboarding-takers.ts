@@ -1,7 +1,7 @@
 import { intakeMaterial, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { installedArtifacts } from "./artifact-type-registry.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { SHIPPED_PARTS } from "./plugin-registry.js";
 
 /** What onboarding hands a plugin (contract-design §2.5). */
 export type OnboardingMaterialKind = "code_root" | "documents" | "drafts";
@@ -26,11 +26,11 @@ export interface OnboardingTaker {
  */
 export function onboardingTakers(kind: OnboardingMaterialKind): OnboardingTaker[] {
   const effective = installedArtifacts.effective(), byId = new Map(effective.map(manifest => [manifest.plugin_id, manifest] as const)), known = installedArtifacts.known();
-  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {
+  const shipped = SHIPPED_PARTS.flatMap(entry => {
     const installed = byId.get(entry.manifest.plugin_id);
     return installed ? [[installed, entry.project_plugin_id] as const] : known.has(entry.manifest.plugin_id) ? [] : [[entry.manifest, entry.project_plugin_id] as const];
   });
-  const shippedIds = new Set(PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest.plugin_id));
+  const shippedIds = new Set(SHIPPED_PARTS.map(entry => entry.manifest.plugin_id));
   const sources: ReadonlyArray<readonly [PluginManifest, string]> = [...shipped, ...effective.filter(manifest => !shippedIds.has(manifest.plugin_id)).map(manifest => [manifest, manifest.plugin_id] as const)];
   return sources.flatMap(([manifest, project_plugin_id]) => {
     const action = manifest.actions?.find(item => intakeMaterial(item.action.intake, kind));

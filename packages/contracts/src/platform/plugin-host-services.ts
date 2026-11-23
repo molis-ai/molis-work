@@ -140,7 +140,7 @@ export interface PluginHostServices {
   readonly evidenceCollector?: import("./plugin-source-pull.js").PluginEvidenceCollectorClient;
   /** A person-authorized directory, only when the Manifest declares directory:read; the Host never lets the Plugin name an absolute path. */
   readonly directory?: import("./plugin-directory.js").PluginDirectoryService;
-  /** Project artifact services are absent from Home activations. */
+  /** A Home activation that consumes 成果 reads those of the project each of its actions is called for; it publishes none. */
   readonly artifacts?: PluginArtifactClient;
   /** Present when the Manifest declares `process_items.produces`. */
   readonly processItems?: PluginProcessItemClient;

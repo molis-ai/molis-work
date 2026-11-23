@@ -559,7 +559,7 @@ test("Pages 是个人插件，不进项目启用名单", () => {
   const entry = rail.find((item) => item.id === "pages");
   assert.equal(entry?.label, "Pages");
   assert.equal(entry?.glyph, "note");
-  const market = runWithLocale("zh", () => pluginMarketCards({}, builtinMarketDirectory()).find((card) => card.id === "pages"));
+  const market = runWithLocale("zh", () => pluginMarketCards(builtinMarketDirectory()).find((card) => card.id === "pages"));
   assert.equal(market?.personal, true);
   assert.equal(market?.copy, "写文档，可导出 Markdown / PDF。");
 });

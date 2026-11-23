@@ -22,7 +22,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await browser.waitFor("document.documentElement.dataset.resolvedTheme === 'light'");
-  // 常开插件 (specs/context-program/side-shelf.md §3.2): Shelf is not in the plugin switcher and never opens in the work area. It is the side
+  // A platform part (44B; specs/context-program/side-shelf.md §3.2): Shelf is not in the plugin switcher and never opens in the work area. It is the side
   // panel's first tab, where the panel opens when this browser remembers no tab.
   await browser.waitFor("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')");
   assert.equal(await browser.evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=shelf], [data-plugin-section=shelf], [data-directory-panel=shelf], [data-work-surface=shelf]')?.outerHTML ?? null"), null);
@@ -191,7 +191,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
     materials: Array<{ origin_hash: string; origin_realpath?: string }>;
     results: Array<{ name: string; preview_text: string }>;
     recipes: Array<{ recipe: string; available: boolean }>;
-  }>("fetch(document.body.dataset.routePrefix+'/api/plugins/io.molis.work.shelf/',{cache:'no-store'}).then(response => response.json())");
+  }>("fetch(document.body.dataset.routePrefix+'/api/platform/shelf/',{cache:'no-store'}).then(response => response.json())");
   assert.equal(snapshot.materials[0]?.origin_realpath, undefined);
   assert.equal(snapshot.results[0]?.name, "pdf.md");
   assert.match(snapshot.results[0]?.preview_text ?? "", /编辑过的副本/);
@@ -199,7 +199,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   const clipBody = "本周待办：完善文件预览与结果对照。";
   const beforeMaterials = await evaluate<number>("document.querySelectorAll('[data-shelf-list=materials] [data-shelf-item]').length");
   await evaluate(`(async () => {
-    await fetch(document.body.dataset.routePrefix+"/api/plugins/io.molis.work.shelf/clipboard", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ text: ${JSON.stringify(clipBody)} }) });
+    await fetch(document.body.dataset.routePrefix+"/api/platform/shelf/clipboard", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ text: ${JSON.stringify(clipBody)} }) });
   })()`);
   // Re-enter through the client lifecycle, not a private data-attribute observer: the side panel hides the tab when
   // another is chosen and shows it again, which the lifecycle reads from \`hidden\`.
@@ -275,7 +275,7 @@ test("Shelf opens as the side panel's first tab, extracts the sample PDF, and ke
   const goneId = await evaluate<string>("document.querySelector('[data-shelf-item][data-shelf-name=\"gone.md\"]').dataset.shelfItem");
   await click('[data-shelf-item][data-shelf-name="gone.md"] [data-shelf-row-action="delete"]');
   await waitFor("!document.querySelector('[data-shelf-item][data-shelf-name=\"gone.md\"]')", 8_000);
-  const deleted = await evaluate<number>(`fetch(document.body.dataset.routePrefix+"/api/plugins/io.molis.work.shelf/items/" + encodeURIComponent(${JSON.stringify(goneId)}) + "/file").then(response => response.status)`);
+  const deleted = await evaluate<number>(`fetch(document.body.dataset.routePrefix+"/api/platform/shelf/items/" + encodeURIComponent(${JSON.stringify(goneId)}) + "/file").then(response => response.status)`);
   assert.equal(deleted, 404);
 
   // The settings page is part of the Shelf surface, so it gets the same review

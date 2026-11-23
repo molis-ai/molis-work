@@ -1009,7 +1009,6 @@
     "action.shelf.material.save": 1,
     "action.shelf.preferences.read": 1,
     "action.shelf.preferences.write": 1,
-    "action.shelf.results.copy": 1,
     "action.shelf.results.list": 1,
     "action.shelf.results.preview": 1,
     "action.shelf.results.receive": 1,

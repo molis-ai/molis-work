@@ -4,7 +4,7 @@ import { intakeMaterial, isArtifactLinkSubjectsAction, isArtifactReferrersAction
 import { ARTIFACTS_HOST_PRODUCER, type ArtifactLinkKinds } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactFileDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRuntime, PluginSupervisor } from "@molis-ai/molis-work-plugin-runtime";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { SHIPPED_PARTS } from "./plugin-registry.js";
 
 // The platform's table of 成果 types, read from what each producer's Manifest declares (PG-079, PG-064 in
 // specs/archive/repository-anti-corruption/privileges.md; slices/ac-artifacts.md §3.3). It lives in the Host with the other platform
@@ -134,12 +134,12 @@ const sourceOf = (manifest: PluginManifest, surface: string): ArtifactProducerSo
  */
 export function artifactProducerSources(): readonly ArtifactProducerSource[] {
   const effective = installedArtifacts.effective(), byId = new Map(effective.map(manifest => [manifest.plugin_id, manifest] as const)), known = installedArtifacts.known();
-  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {
+  const shipped = SHIPPED_PARTS.flatMap(entry => {
     const installed = byId.get(entry.manifest.plugin_id);
     if (installed) return [sourceOf(installed, entry.project_plugin_id)];
     return known.has(entry.manifest.plugin_id) ? [] : [sourceOf(entry.manifest, entry.project_plugin_id)];
   });
-  const shippedIds = new Set(PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest.plugin_id));
+  const shippedIds = new Set(SHIPPED_PARTS.map(entry => entry.manifest.plugin_id));
   return [
     ...shipped,
     ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, name: host.name, surface: host.surface, artifacts: { produces: host.produces, consumes: [] }, actions: host.actions })),

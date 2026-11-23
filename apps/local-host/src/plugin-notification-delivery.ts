@@ -5,7 +5,7 @@ import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { hostLog } from "./host-log.js";
 import { installedPluginManifest } from "./plugin-installation-directory.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { SHIPPED_PARTS } from "./plugin-registry.js";
 import { bindPluginNotificationDelivery } from "./plugin-notification-service.js";
 
 /** A plugin of the project that declares `notifications.receive`, with the permissions its receiving action asks for. */
@@ -43,7 +43,7 @@ export function declaredNotificationReceivers(manifests: Iterable<PluginManifest
 /** The Manifests a project has now: the shipped plugins' and those installed in its library (a shipped one is not shadowed by an installed copy). */
 export function projectNotificationSources(db: PluginRuntimeDatabase): Pick<NotificationDeliveryPorts, "receivers" | "senderName"> {
   const manifests = (): Map<string, PluginManifest> => {
-    const byId = new Map<string, PluginManifest>(PLATFORM_PLUGIN_REGISTRATIONS.map(entry => [entry.manifest.plugin_id, entry.manifest] as const));
+    const byId = new Map<string, PluginManifest>(SHIPPED_PARTS.map(entry => [entry.manifest.plugin_id, entry.manifest] as const));
     for (const record of pluginInstallRecords(db).list()) {
       const installed = byId.has(record.plugin_id) ? null : installedPluginManifest(db, record.install_id);
       if (installed) byId.set(record.plugin_id, installed.manifest);

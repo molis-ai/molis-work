@@ -12,7 +12,6 @@ import { assertRuleKeysUnreserved, isHostTrust, type InProcessAdmission } from "
 import { actionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure } from "./install-identity.js";
 import { InstallLocks } from "./install-locks.js";
 import { recordInstallConsents, type PluginConsentLedger } from "./consent-ledger.js";
-import { leaveRefusal } from "./always-on-rules.js";
 import { pluginActionProvider, type PluginRuntimeActions } from "./action-provider.js";
 export { PROJECT_REACH_PERMISSION, type PluginProjectReach } from "./action-provider.js";
 import { advanceReadCheckGeneration, outsidePluginAction } from "./action-scope.js";
@@ -60,7 +59,7 @@ export interface PluginInstallInput {
   retain_private_data?: boolean;
   /** With `host` trust: what the existing install's own build declared (its Manifest in the release archive), so following this build switches on only the optional permissions new to the plugin. */
   declared_before?: readonly string[];
-  /** Consents to the declarations of the Manifest that ask for them (`always_on`, a default wiring, a default input group). A `host` install is recorded as agreeing to all of them by the Host. */
+  /** Consents to the declarations of the Manifest that ask for them (a default wiring, a default input group). A `host` install is recorded as agreeing to all of them by the Host. */
   consents?: readonly PluginConsentGrant[];
   /** The person agreed to drop the private data an uninstall kept, which this version cannot read; the Host deletes it. */
   discard_kept_data?: boolean;
@@ -626,8 +625,7 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   /** See `UninstallOptions` (BL-915). */
   uninstall(installId: string, options: UninstallOptions = {}): Promise<PluginLifecycleReceipt> {
-    const refusal = leaveRefusal(this.options.consents, this.repository.get(installId), "卸载");
-    return refusal ? Promise.reject(refusal) : this.locks.run(installId, () => this.uninstallOnce(installId, options));
+    return this.locks.run(installId, () => this.uninstallOnce(installId, options));
   }
 
   /** Take back an install that did not finish (`installed`): the row goes back to the uninstalled record it replaced (`earlier`), whole, or is marked uninstalled with nothing kept when there was none; its code stops. See `abandonRefusal`. */

@@ -764,13 +764,13 @@
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
-    "file": "plugins/native/shelf/src/settings-ui.ts",
+    "file": "modules/shelf/src/surface/settings-ui.ts",
     "name": "io.molis.work.native.shelf.settings.v1",
     "values": { "io.molis.work.native.shelf.settings.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
-    "file": "plugins/native/shelf/src/ui.ts",
+    "file": "modules/shelf/src/surface/ui.ts",
     "name": "io.molis.work.native.shelf.ui.v1",
     "values": { "io.molis.work.native.shelf.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"

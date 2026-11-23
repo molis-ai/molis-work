@@ -257,7 +257,6 @@ export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
 export * from "./project-host.js";
 export { projectActionAvailability } from "./project-action-availability.js";
-export { withReadOnlyPluginDirectory } from "./always-on-plugins.js";
 export { homeProjectReach } from "./project-reach.js";
 export { AccountRefreshPages } from "./account-refresh-pages.js";
 export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopmentHost } from "./local-plugin-development.js";

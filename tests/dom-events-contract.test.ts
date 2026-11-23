@@ -234,7 +234,7 @@ test("renaming an event in its dispatcher only is caught from both sides", () =>
 test("deleting a registry entry leaves its dispatchers and listeners unregistered", () => {
   const entryOf = /  \{\n    name: "molis:placement-request"[\s\S]*?\n  \},\n/;
   const problems = domEventProblems(withRegistry(entryOf, ""));
-  assert.ok(problems.some((problem) => /shelf\/src\/browser\/material\.ts:\d+ dispatches "molis:placement-request", which is not registered/.test(problem)), problems.join("\n"));
+  assert.ok(problems.some((problem) => /shelf\/src\/surface\/browser\/material\.ts:\d+ dispatches "molis:placement-request", which is not registered/.test(problem)), problems.join("\n"));
   assert.ok(problems.some((problem) => /placement\.ts:\d+ listens to "molis:placement-request", which has a page event prefix but is not registered/.test(problem)), problems.join("\n"));
 });
 
@@ -265,8 +265,8 @@ test("an owner's files exist, and an owner without events is deleted", () => {
 test("the registry itself is held to its shape: order, names, prefixes, fields", () => {
   const twice = domEventProblems(withRegistry('    name: "molis:surface-landing-flash"', '    name: "molis-work:select-item"'));
   assert.ok(twice.some((problem) => /"molis-work:select-item" is listed twice/.test(problem)), twice.join("\n"));
-  const order = domEventProblems(withRegistry(/name: "molis-shelf-notice"/, 'name: "molis-shelf-zeta"'));
-  assert.ok(order.some((problem) => /"molis-shelf-refresh" is out of name order \(after "molis-shelf-zeta"\)/.test(problem)), order.join("\n"));
+  const order = domEventProblems(withRegistry(/name: "molis:shelf-notice"/, 'name: "molis:shelf-zeta"'));
+  assert.ok(order.some((problem) => /"molis:shelf-refresh" is out of name order \(after "molis:shelf-zeta"\)/.test(problem)), order.join("\n"));
   const prefix = domEventProblems(withRegistry('    name: "molis:surface-landing-flash"', '    name: "pane-open-group"'));
   assert.ok(prefix.some((problem) => /"pane-open-group" starts with none of DOM_EVENT_PREFIXES/.test(problem)), prefix.join("\n"));
   const unusedPrefix = domEventProblems(withRegistry('"molis:"] as const', '"molis:", "legacy-"] as const'));
@@ -508,13 +508,14 @@ test("the gate's own command line checks and reports the working tree", () => {
 test("RAC-426: the platform's prefix table names no plugin; a plugin's events follow molis-<owner>- and their registered owner", () => {
   assert.ok(!DOM_EVENT_PREFIXES.some(prefix => Object.keys(PAGE_STATE_OWNERS).some(owner => prefix === `molis-${owner}-`)), "no owner has a prefix of its own in the table");
   assert.deepEqual([...DOM_EVENT_PREFIXES], ["molis-work:", "molis:"]);
-  const shelf = DOM_EVENTS.filter(event => event.owner === "shelf");
-  assert.ok(shelf.length >= 4 && shelf.every(event => event.name.startsWith("molis-shelf-")), "Shelf's names are unchanged and satisfy the rule");
+  // No plugin owns a page event today: Shelf's became the platform's with Shelf itself (44B, molis:shelf-*).
+  assert.ok(DOM_EVENTS.every(event => DOM_EVENT_PREFIXES.some(prefix => event.name.startsWith(prefix))), "every registered name has a platform prefix");
   assert.deepEqual(domEventProblems(tree), []);
-  const wrongOwner = domEventProblems(withRegistry('name: "molis-shelf-notice", kind: "request", owner: "shelf"', 'name: "molis-shelf-notice", kind: "request", owner: "assistant"'));
-  assert.ok(wrongOwner.some(problem => /"molis-shelf-notice" starts with molis-shelf-, which is shelf's prefix, but it is owned by "assistant"/.test(problem)), wrongOwner.join("\n"));
-  const typo = problemsWith({ [NEW_FILE]: script("host.listen(window, 'molis-shelf-nocice', () => {});") });
-  assert.ok(typo.some(problem => /listens to "molis-shelf-nocice", which has a page event prefix but is not registered/.test(problem)), typo.join("\n"));
+  // A plugin owner's prefix (Coding's character-handoff files) is still that owner's alone.
+  const wrongOwner = domEventProblems(withRegistry('name: "molis:shelf-notice", kind: "request", owner: "shelf"', 'name: "molis-character-handoff-notice", kind: "request", owner: "shelf"'));
+  assert.ok(wrongOwner.some(problem => /"molis-character-handoff-notice" starts with molis-character-handoff-, which is character-handoff's prefix, but it is owned by "shelf"/.test(problem)), wrongOwner.join("\n"));
+  const typo = problemsWith({ [NEW_FILE]: script("host.listen(window, 'molis-character-handoff-nocice', () => {});") });
+  assert.ok(typo.some(problem => /listens to "molis-character-handoff-nocice", which has a page event prefix but is not registered/.test(problem)), typo.join("\n"));
 });
 
 test("RAC-426: overlapping owner prefixes match the longest complete owner in either registry order", () => {
@@ -583,12 +584,12 @@ export const DOM_EVENTS = ${JSON.stringify(events)};`,
 });
 
 test("RAC-426: a page-state owner cannot mix plugin and platform files or two plugin packages", () => {
-  const shelfFiles = /(\bshelf:\s*\{\s*)files:\s*\[[^\]]*\],/;
-  const shelfFile = PAGE_STATE_OWNERS.shelf.files[0];
+  const codingFiles = /("character-handoff":\s*\{\s*)files:\s*\[[^\]]*\],/;
+  const codingFile = PAGE_STATE_OWNERS["character-handoff"].files[0];
   assert.deepEqual(domEventProblems(tree), []);
-  for (const mixed of [[shelfFile, SIDE], [shelfFile, PAGE_STATE_OWNERS["character-handoff"].files[0]]]) {
-    const problems = domEventProblems(withRegistry(shelfFiles, `$1files: ${JSON.stringify(mixed)},`));
-    assert.ok(problems.some(problem => /owner "shelf" mixes plugin and platform files or different plugin packages; split it into separate owners/.test(problem)), problems.join("\n"));
+  for (const mixed of [[codingFile, SIDE], [codingFile, PAGE_STATE_OWNERS["surface-landing"].files[0]]]) {
+    const problems = domEventProblems(withRegistry(codingFiles, `$1files: ${JSON.stringify(mixed)},`));
+    assert.ok(problems.some(problem => /owner "character-handoff" mixes plugin and platform files or different plugin packages; split it into separate owners/.test(problem)), problems.join("\n"));
   }
 });
 

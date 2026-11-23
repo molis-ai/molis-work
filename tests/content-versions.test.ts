@@ -38,3 +38,14 @@ test("content versions: a content pack Skill body that changes must advance its 
     (path: string) => (path === "tooling/versions.json" ? table(1) : path === file || path === en ? body : undefined));
   assert.match(deleted[0] ?? "", /changed content without advancing its version/u, "a deleted translation needs a new version");
 });
+
+test("content versions: Shelf's prompts moved to its Module (44B) are versioned there and compared with where they were", () => {
+  const now = "modules/shelf/prompts/shelf.translate.md", was = "plugins/native/shelf/prompts/shelf.translate.md", prompt = "version: 1\n把下面的文字翻译成中文。\n";
+  const versions = (version: number) => JSON.stringify({ versions: { "prompt.shelf.translate": version } });
+  const check = (current: string, version: number) => contentVersionChanges({ files: [was, now],
+    read: (path: string) => (path === now ? current : path === "tooling/versions.json" ? versions(version) : undefined) },
+    (path: string) => (path === was ? prompt : path === "tooling/versions.json" ? versions(1) : undefined));
+  assert.deepEqual(check(prompt, 1), [], "an unchanged moved prompt keeps its version");
+  assert.match(check(prompt.replace("中文", "英文"), 1)[0] ?? "", /changed content without advancing its version/u);
+  assert.deepEqual(check(prompt.replace("中文", "英文"), 2), []);
+});

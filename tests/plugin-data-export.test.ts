@@ -182,9 +182,9 @@ test("Audit #7 plugins.data.sections and plugins.data.export serve built-in and 
   assert.equal(truncatedItems?.rows.length, 5000);
 
   // Project-only plugin without project_id is refused; unknown plugin_id is refused; Home-scoped Shelf owner_files refused under project scope.
-  assert.ok(listed.sections.some(section => section.plugin_id === "io.molis.work.shelf" && section.scope === "home"), "P1-2: Shelf sections are home-scoped");
+  assert.ok(listed.sections.some(section => section.plugin_id === "system.shelf" && section.scope === "home"), "P1-2: Shelf sections are home-scoped");
   await assert.rejects(
-    projectClient.invoke(projectCaller, ref(pluginDataActions.export), { plugin_id: "io.molis.work.shelf", project_id: projectA.project_id }),
+    projectClient.invoke(projectCaller, ref(pluginDataActions.export), { plugin_id: "system.shelf", project_id: projectA.project_id }),
     refused("actions.scope_mismatch"),
   );
   await assert.rejects(

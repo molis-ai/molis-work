@@ -3,7 +3,7 @@ import { stateMachineActionProvider } from "@molis-ai/molis-work-plugin-runtime"
 import { openReadOnlyHomePluginStore } from "./home-plugin-store.js";
 import { loadVerifiedManifest, type PluginDataExportPorts } from "./plugin-data-export.js";
 import { isRetiredStudioInstallation } from "./plugin-install-records.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { SHIPPED_PARTS } from "./plugin-registry.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { SandboxPackageStore } from "./sandbox-package-store.js";
 
@@ -15,7 +15,7 @@ export function stateMachineRegistryProvider(ports?: PluginDataExportPorts): Act
   if (!ports) return stateMachineActionProvider();
   const packages = new SandboxPackageStore(ports.homeDirectory);
   return stateMachineActionProvider({
-    builtin: () => PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest),
+    builtin: () => SHIPPED_PARTS.map(entry => entry.manifest),
     includes: record => !isRetiredStudioInstallation(record),
     async open(projectId) {
       const project = projectId ? await ports.resolveProject(projectId) : null;

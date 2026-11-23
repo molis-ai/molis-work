@@ -7,7 +7,7 @@ import { presentationCatalog, validatePresentationDeclaration } from "@molis-ai/
 import { HomeLine } from "./home-line.js";
 import { fixtureDeclarationsFor } from "./home-side.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { SHIPPED_PARTS } from "./plugin-registry.js";
 import { SandboxPackageStore } from "./sandbox-package-store.js";
 
 /** Composition-only read of the system registry. No caller, availability test, or plugin startup. */
@@ -63,7 +63,7 @@ async function scopedCheck<Result>(check: ScopedCheck, operation: () => Promise<
 
 function startingManifests(catalog: SurfaceInstallCatalog, scope: "home" | "project"): readonly PluginManifest[] {
   return catalog.pending ?? [
-    ...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => scope === "home" ? entry.runtime : entry.project_runtime).map(entry => entry.manifest),
+    ...SHIPPED_PARTS.filter(entry => scope === "home" ? entry.runtime : "project_runtime" in entry && entry.project_runtime).map(entry => entry.manifest),
     ...fixtureDeclarationsFor(catalog.home, scope).map(entry => entry.definition.manifest),
   ];
 }

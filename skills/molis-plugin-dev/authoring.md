@@ -53,7 +53,7 @@ molis_cli="$HOME/.molis-work/bin/molis-work"
 contracts_tgz="/实际目录/molis-ai-molis-work-contracts-0.0.0.tgz"
 plugin_sdk_tgz="/实际目录/molis-ai-molis-work-plugin-sdk-0.0.0.tgz"
 plugin_dev_dir="$(mktemp -d)"
-"$molis_cli" plugin create "$plugin_dev_dir/sample" io.molis.work.example.notes local-developer local-development-binding
+"$molis_cli" plugin create "$plugin_dev_dir/sample" com.example.notes local-developer local-development-binding
 npm --prefix "$plugin_dev_dir/sample" install --offline --ignore-scripts --no-audit --no-fund \
   "$contracts_tgz" "$plugin_sdk_tgz"
 "$molis_cli" plugin validate "$plugin_dev_dir/sample/manifest.json"

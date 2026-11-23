@@ -75,7 +75,7 @@ async function standIn(t: TestContext, hosts: readonly string[]) {
 }
 
 test("S-104 RAC-2522: pasting a credential for a package's service pins the connection to the package declaring it now; a built-in service pins nothing", async t => {
-  const home = await openTestHome(t), a = pack("io.molis.work.example.feedprobe", "Feed probe");
+  const home = await openTestHome(t), a = pack("com.example.feedprobe", "Feed probe");
   await attach(home, a);
   const id = await paste(home, SERVICE, "Probe account");
   assert.deepEqual(pinOf(home, id), { plugin_id: a.manifest.plugin_id, install_id: a.install_id, plugin_title: "Feed probe" });
@@ -90,7 +90,7 @@ test("S-104 RAC-2522: pasting a credential for a package's service pins the conn
 });
 
 test("S-104 RAC-2522: a new token for a connection that is already made does not move its pin to the package that declares the service now", async t => {
-  const home = await openTestHome(t), a = pack("io.molis.work.example.feedprobe", "Feed probe"), b = pack("io.molis.work.example.feedprobe", "Feed probe");
+  const home = await openTestHome(t), a = pack("com.example.feedprobe", "Feed probe"), b = pack("com.example.feedprobe", "Feed probe");
   await attach(home, a);
   const id = await paste(home, SERVICE, "Probe account");
   await detach(home, a);
@@ -102,7 +102,7 @@ test("S-104 RAC-2522: a new token for a connection that is already made does not
 });
 
 test("S-104 RAC-2523: a connection made through a prepared setup page is pinned like a pasted one", async t => {
-  const home = await openTestHome(t), a = pack("io.molis.work.example.feedprobe", "Feed probe");
+  const home = await openTestHome(t), a = pack("com.example.feedprobe", "Feed probe");
   await attach(home, a);
   const prepared = await home.host.homeActionClient().invoke(caller, connectorSetupAction,
     { service_id: SERVICE, method: "token", display_name: "Probe account", expected_revision: null }) as { authorization_id: string };
@@ -111,7 +111,7 @@ test("S-104 RAC-2523: a connection made through a prepared setup page is pinned 
 });
 
 test("S-104 RAC-2522: a package detached while its service's connection is being made still leaves that connection pinned to it", async t => {
-  const home = await openTestHome(t), a = pack("io.molis.work.example.feedprobe", "Feed probe");
+  const home = await openTestHome(t), a = pack("com.example.feedprobe", "Feed probe");
   await attach(home, a);
   const registry = await homeIntegrationRegistry(home.home);
   // The package goes the moment the services are listed for the card, which is where the paste POST finds out whose service this is.
@@ -131,9 +131,9 @@ test("S-104 RAC-2522: a package detached while its service's connection is being
 test("S-104 RAC-2524: a package of another publisher that declares the same service later gets nothing of the first package's connection, and no request leaves", async t => {
   const { seen, testServer, lookup } = await standIn(t, ["api.example-feed.com"]);
   const home = await openTestHome(t), port = createCallConnectionsPort(home.home, { lookup, allowAddress: () => true, testServer });
-  const a = pack("io.molis.work.example.feedprobe", "Feed probe");
+  const a = pack("com.example.feedprobe", "Feed probe");
   // Another plugin id, and the same plugin id signed by someone else: each is another installation.
-  for (const b of [pack("io.molis.work.example.impostor", "Impostor"), pack(a.manifest.plugin_id, "Feed probe")]) {
+  for (const b of [pack("com.example.impostor", "Impostor"), pack(a.manifest.plugin_id, "Feed probe")]) {
     await attach(home, a);
     const id = await paste(home, SERVICE, "Probe account");
     assert.equal((await port.request(callAs(a, id), dispatch(`${ORIGIN}/items`))).authenticated, true, "the package it was made for sends with it");
@@ -156,7 +156,7 @@ test("S-104 RAC-2524: a package of another publisher that declares the same serv
 test("S-104 RAC-2524: a package's connection of a kind that sends no bearer is refused for the package too, and nothing is sent", async t => {
   const { seen, testServer, lookup } = await standIn(t, ["api.example-feed.com"]);
   const home = await openTestHome(t), port = createCallConnectionsPort(home.home, { lookup, allowAddress: () => true, testServer });
-  const a = pack("io.molis.work.example.feedprobe", "Feed probe");
+  const a = pack("com.example.feedprobe", "Feed probe");
   await attach(home, a);
   const id = withConnectorConnections(home.home, store => {
     const saved = store.saveProtocol({ connectionId: randomUUID(), serviceId: SERVICE, displayName: "Local MCP", credentialRef: null, transport: "stdio" });
@@ -170,11 +170,11 @@ test("S-104 RAC-2524: a package's connection of a kind that sends no bearer is r
 test("S-104 RAC-2525: the same publisher's package installed again is the same installation, and its connection works as before", async t => {
   const { seen, testServer, lookup } = await standIn(t, ["api.example-feed.com"]);
   const home = await openTestHome(t), port = createCallConnectionsPort(home.home, { lookup, allowAddress: () => true, testServer });
-  const publisher = newPublisher(), a = pack("io.molis.work.example.feedprobe", "Feed probe", publisher);
+  const publisher = newPublisher(), a = pack("com.example.feedprobe", "Feed probe", publisher);
   await attach(home, a);
   const id = await paste(home, SERVICE, "Probe account");
   await detach(home, a);
-  const again = pack("io.molis.work.example.feedprobe", "Feed probe (v2)", publisher);
+  const again = pack("com.example.feedprobe", "Feed probe (v2)", publisher);
   assert.equal(again.install_id, a.install_id, "the installation is the plugin id and the publisher's signature");
   await attach(home, again);
   assert.equal((await port.request(callAs(again, id), dispatch(`${ORIGIN}/items`))).authenticated, true);
@@ -187,7 +187,7 @@ test("S-104 RAC-2525: the same publisher's package installed again is the same i
 test("S-104 RAC-2526: a slot of another installation is refused a pinned connection, and nothing is sent", async t => {
   const { seen, testServer, lookup } = await standIn(t, ["api.github.com"]);
   const home = await openTestHome(t), port = createPluginConnectionsPort(home.home, { lookup, allowAddress: () => true, testServer });
-  const owner = { plugin_id: "io.molis.work.example.feedprobe", install_id: "install-slot-owner", plugin_title: "Feed probe" };
+  const owner = { plugin_id: "com.example.feedprobe", install_id: "install-slot-owner", plugin_title: "Feed probe" };
   const target = (install_id: string): PluginConnectionTarget => ({ plugin_id: owner.plugin_id, install_id, slot_id: "feed", service_id: "github" });
   acceptGithubKeys(t);
   const id = await paste(home, "github", "GitHub account");
@@ -205,7 +205,7 @@ test("S-104 RAC-2526: a slot of another installation is refused a pinned connect
 
 test("S-104 RAC-2527: describing a call's connection as another installation says it is not there, without its name", async t => {
   const home = await openTestHome(t), port = createCallConnectionsPort(home.home);
-  const a = pack("io.molis.work.example.feedprobe", "Feed probe"), b = pack("io.molis.work.example.impostor", "Impostor");
+  const a = pack("com.example.feedprobe", "Feed probe"), b = pack("com.example.impostor", "Impostor");
   await attach(home, a);
   const id = await paste(home, SERVICE, "Probe account");
   assert.deepEqual(port.describe(callAs(a, id)), { bound: true, display_name: "Probe account", state: "connected" });
@@ -220,7 +220,7 @@ test("S-104 RAC-2529: a built-in service's connections are pinned to nothing and
   const github = await paste(home, "github", "GitHub account"), model = await paste(home, "model-api", "Model account");
   assert.deepEqual([pinOf(home, github), pinOf(home, model)], [null, null]);
   for (const install_id of ["install-one", "install-two"]) {
-    const call: CallConnection = { plugin_id: "io.molis.work.example.feedprobe", install_id, service_id: "github", connection_id: github };
+    const call: CallConnection = { plugin_id: "com.example.feedprobe", install_id, service_id: "github", connection_id: github };
     assert.equal((await port.request(call, dispatch("https://api.github.com/user"))).authenticated, true, install_id);
     assert.equal(port.describe(call).state, "connected");
   }

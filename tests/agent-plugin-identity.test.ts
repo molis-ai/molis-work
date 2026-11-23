@@ -46,15 +46,15 @@ test("real Plugin executor binds unknown Agent declarations and rejects forged o
       agent: { roles: [{ role_id: "private-reader", version: 1, execution: "read-only", prompts: ["reader"], host_tools: [] }], prompts: [{ prompt_id: "reader", version: 1 }] } },
       agent_prompts: [{ prompt_id: "reader", version: 1, body: "Answer from supplied context only.", layer: "role" }],
       async start(context) { contexts.push(context); return { kind: "app" }; },
-      async stop() { if (plugin_id === "io.molis.work.example.own-agent") { stopEntered(); await stopWait; } } };
+      async stop() { if (plugin_id === "com.example.own-agent") { stopEntered(); await stopWait; } } };
     definitions.push(definition); return definition;
   };
   const actions = { registry: local.actionRegistry(project), client: { ...local.actionClient(project), ...local.syncActionClient(project) }, project_id: project.project_id };
   const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "web-user", artifacts, processItems, ui: new UiHost(), dependencyCheck: hostDependencyCheck(local.client(project)),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS });
-  const first = runtime.install({ trust: { level: "unsigned" }, definition: make("io.molis.work.example.own-agent"), deployment: "local", grants: [] }).install;
-  const second = runtime.install({ trust: { level: "unsigned" }, definition: make("io.molis.work.example.other-agent"), deployment: "local", grants: [] }).install;
+  const first = runtime.install({ trust: { level: "unsigned" }, definition: make("com.example.own-agent"), deployment: "local", grants: [] }).install;
+  const second = runtime.install({ trust: { level: "unsigned" }, definition: make("com.example.other-agent"), deployment: "local", grants: [] }).install;
   try {
     await runtime.start(first.install_id); await runtime.start(second.install_id);
     const a = contexts[0]!, b = contexts[1]!, api = a.services!.actions!, other = b.services!.actions!;

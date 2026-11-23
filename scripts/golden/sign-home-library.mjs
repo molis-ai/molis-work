@@ -13,7 +13,7 @@ const { SANDBOX_PACKAGE_FILES } = await import("@molis-ai/molis-work-contracts/p
 const { signPluginPackage } = await import("@molis-ai/molis-work-plugin-runtime");
 const { newPublisher, packageFiles, payloadOf } = await import(new URL("../../tests/fixtures/sandbox-package.ts", import.meta.url).href);
 
-const PLUGIN_ID = "io.molis.work.example.golden-home-library";
+const PLUGIN_ID = "com.example.golden-home-library";
 const SCHEMA = "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL UNIQUE);";
 const code = version => `// ${version}
 export const operations = {

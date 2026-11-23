@@ -20,7 +20,7 @@ export const LOCAL_TOOLS: PluginLocalToolsDeclaration = {
 /** A Home plugin that declares `local_tools` and exposes the service through real actions; the service is what the Host built for it. */
 /** `null` declares none: what a plugin that does not look for tools is. */
 export function localToolsProbe(name = "toolsprobe", declaration: PluginLocalToolsDeclaration | null = LOCAL_TOOLS) {
-  const id = `io.molis.work.example.${name}`, permissions = ["storage:private", PLUGIN_LOCAL_TOOLS_PERMISSION], contexts: PluginStartContext[] = [];
+  const id = `com.example.${name}`, permissions = ["storage:private", PLUGIN_LOCAL_TOOLS_PERMISSION], contexts: PluginStartContext[] = [];
   const action = (suffix: string, operation: "query" | "command"): ActionDefinition<{ path?: string }, unknown> => ({
     capability_id: `${name}.${suffix}`, version: 1, operation,
     action: { title: suffix, description: "Ask the Host's local tools service", kind: operation === "query" ? "query" : "operation", scope: "home", audiences: ["user"],

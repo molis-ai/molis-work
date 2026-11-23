@@ -58,7 +58,7 @@ test("RAC-962 RAC-963 S-80 the Home's Runtime takes a package only of its own ra
 // QEA-136: check the durable installation, data and availability after reopening the Home.
 test("RAC-964 S-84 a Home package runs only while its publisher's pin stands: a missing or revoked pin prevents startup and leaves its data intact", mac, async t => {
   const h = await fixture(t), revoked = newPublisher(), missing = newPublisher();
-  const third = "io.molis.work.example.third";
+  const third = "com.example.third";
   await h.install(homePackage(revoked));
   await h.install(homePackage(newPublisher(), { pluginId: SECOND_PLUGIN_ID }));
   await h.install(homePackage(missing, { pluginId: third }));

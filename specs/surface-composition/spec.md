@@ -546,7 +546,7 @@ Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自�
 
 原文档的异步写前检查也必须保留：`pluginPageRequest(request).beforeEffect()` 含 Home `packageDocument` 捕获的项目可达性检查，不能用仅查 `page.assertCurrent` 和动作可见性的闭包替换。网关把原文档检查与同步的页／安装检查组合后，经现有 `withProjectReachInvocation` 传入实际执行 control，每次写前仍检查原项目。
 
-旧签名 `/call` 拒绝 `binding: "submit"` 和外部原始 `{ operation, input }`。内部动作桥只在 `currentPluginAction()` 与原激活、安装代次、实际提供方和动作 `local_id` 全部相符时进入原沙箱执行段；HTTP 同样有 `execution`，不能再以它存在作为内部调用证明。保留现有 `withProjectReachInvocation` 和生命周期 control，执行段不回调页面网关，避免递归。项目已装页 GET 和 `/call` 目前只匹配 `io.molis.work.generated.<uuid>`，须改为现行合法插件 id 后再核当前项目的确切签包／生成安装记录；未知、内置或 Home 仍沿原分流，不增页面或授权路由。
+旧签名 `/call` 拒绝 `binding: "submit"` 和外部原始 `{ operation, input }`。内部动作桥只在 `currentPluginAction()` 与原激活、安装代次、实际提供方和动作 `local_id` 全部相符时进入原沙箱执行段；HTTP 同样有 `execution`，不能再以它存在作为内部调用证明。保留现有 `withProjectReachInvocation` 和生命周期 control，执行段不回调页面网关，避免递归。项目已装页 GET 和 `/call` 目前只匹配 `studio.<uuid>`，须改为现行合法插件 id 后再核当前项目的确切签包／生成安装记录；未知、内置或 Home 仍沿原分流，不增页面或授权路由。
 
 打开、开始及启用都按原卡的完整安装引用比对当前记录；同名不同 scope、卸载重装、换代、同版本不同 digest 均拒绝旧卡。主区继续走既有 `dualStageOwner` 与挂载 producer，签名懒加载页取文档时再核原安装，不能先验旧记录、等待后打开新包。导航意图由可信 Host 适配为现有工作台选择，不把 `UiViewSelection` 当作已经具备跨 owner 权限的公开入口。
 

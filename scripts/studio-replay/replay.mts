@@ -44,7 +44,7 @@ export interface ReplayResult {
   digest?: string;
 }
 
-const PLUGIN_ID = 'io.molis.work.generated.replay', REVISION = 'replay';
+const PLUGIN_ID = 'studio.replay', REVISION = 'replay';
 /**
  * The host's two refusals for an action that is not in the directory it checked against: `项目能力目录中没有：` (validateAgentDesign,
  * agent-validation.ts) and `用了能力目录里没有的「` (the propose stage, agent-workflow.ts); the words are the host's own, so they

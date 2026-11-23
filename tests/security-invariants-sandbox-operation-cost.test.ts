@@ -6,7 +6,7 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { exposeInstalledPlugin, exposedActionId, exposedOperationCosts } from '@molis-ai/molis-work-app-local-host';
 
 const caller = { actor_id: 'owner', project_id: 'p', audience: 'user' as const, permissions: [] };
-const release = (name: string, effects: Record<string, SandboxEffects>) => ({ buildId: name, pluginId: 'io.molis.work.generated.' + name, version: 1,
+const release = (name: string, effects: Record<string, SandboxEffects>) => ({ buildId: name, pluginId: 'studio.' + name, version: 1,
   design: { title: name, contract: { operations: Object.entries(effects).map(([id, effects]) => ({ id, kind: 'command', effects,
     input: { type: 'null' }, output: { type: 'string' } })) } } } as AgentRelease);
 const reference = (value: AgentRelease, operation = 'run') => ({ capability_id: exposedActionId(value, operation), version: value.version, provider_id: 'plugin:' + value.pluginId });

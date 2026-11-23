@@ -20,7 +20,7 @@ import { SNAPSHOT_SOURCE, snapshotSourcePlugin } from "./fixtures/snapshot-sourc
 
 /** The source the defaults read: a plugin that hands on snapshots (the retired Files plugin was the one before). */
 const FILES = SNAPSHOT_SOURCE.plugin_id;
-const PROBE = "io.molis.work.example.wordcount";
+const PROBE = "com.example.wordcount";
 const SIGNATURE = "probe-wordcount";
 const filesSignature = SNAPSHOT_SOURCE.signature;
 

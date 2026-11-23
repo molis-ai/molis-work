@@ -103,7 +103,7 @@ async function publishedFixture(home: string, name: string, lookup = false, secr
   const store = new LocalProjectDatabase(databasePath), storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage);
   const draft = builder.create('An unfinished draft must not resume when an installed plugin runs');
   const waiting = builder.update(draft.id, draft.revision, value => { value.active = { token: 'interrupted-draft', stage: 'design' }; value.phase = 'designing'; });
-  const buildId = randomUUID(), pluginId = fixedPluginId ?? 'io.molis.work.generated.' + buildId;
+  const buildId = randomUUID(), pluginId = fixedPluginId ?? 'studio.' + buildId;
   const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [
     { id: 'save', kind: 'command', input: { type: 'object', additionalProperties: false, required: ['value'], properties: { value: { type: 'string' } } }, output: { type: 'string' }, effects: { storage: ['write'] }, errors: [], examples: [{ input: { value: 'value' }, output: 'value' }] },
     { id: 'read', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: { storage: ['read'] }, errors: [], examples: [{ input: null, output: 'empty' }] },
@@ -725,7 +725,7 @@ test('a failing installed plugin is recorded with its own reason at startup, not
   let store = new LocalProjectDatabase(databasePath);
   try {
     const storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
-    const installIdOf = (buildId: string) => 'plugin-install-' + createHash('sha256').update('io.molis.work.generated.' + buildId + '\u0000' + installedSignature(buildId)).digest('hex').slice(0, 32);
+    const installIdOf = (buildId: string) => 'plugin-install-' + createHash('sha256').update('studio.' + buildId + '\u0000' + installedSignature(buildId)).digest('hex').slice(0, 32);
     // The plugin restored first also sorts first by plugin id, so the Supervisor's sorted failure list starts with it.
     let first = '', second = '';
     for (let n = 1; !first; n++) {
@@ -733,7 +733,7 @@ test('a failing installed plugin is recorded with its own reason at startup, not
       if (installIdOf(a) < installIdOf(b)) { first = a; second = b; }
     }
     const make = async (buildId: string, bundle: string, grants: string[]) => {
-      const pluginId = 'io.molis.work.generated.' + buildId;
+      const pluginId = 'studio.' + buildId;
       const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [
         { id: 'read', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: { storage: ['read'] }, errors: [], examples: [{ input: null, output: 'empty' }] }] };
       const bundlePath = join(home, buildId + '.mjs'); await writeFile(bundlePath, bundle);
@@ -1199,8 +1199,8 @@ test('RAC-1199 closing the Host aggregates a Runtime read failure, revokes the i
 // run: the record that goes is first, then last. The first order is where "keep going after a failure" is observable — with the record that
 // goes last there is nothing after it the loop could skip.
 for (const [order, gonePluginId, keptPluginId] of [
-  ['first', 'io.molis.work.generated.close-order-a-gone', 'io.molis.work.generated.close-order-z-kept'],
-  ['last', 'io.molis.work.generated.close-order-z-gone', 'io.molis.work.generated.close-order-a-kept'],
+  ['first', 'studio.close-order-a-gone', 'studio.close-order-z-kept'],
+  ['last', 'studio.close-order-z-gone', 'studio.close-order-a-kept'],
 ] as const) test(`RAC-2406 closing the Host keeps going when the installation record is gone ${order} in the close order`, { ...mac, timeout: 90_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-record-gone-close-'));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();

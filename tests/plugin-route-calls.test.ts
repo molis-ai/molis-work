@@ -10,7 +10,7 @@ import { PENDING, within } from "./fixtures/stopped-calls.js";
 // the request with 403 and ends the call, so what the handler calls afterwards does nothing (BL-411). BL-404: a route's coded
 // failure is answered by its kind there and then, so a hand-written route needs no catch of its own.
 
-const PLUGIN_ID = "io.molis.work.example.route-calls";
+const PLUGIN_ID = "com.example.route-calls";
 
 interface Probe {
   ping(): string | undefined;

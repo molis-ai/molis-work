@@ -3,7 +3,7 @@ import type { PluginDefinition, PluginStartContext, PluginUpgradeContext } from 
 import type { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
 export function materialsProbe(name = "materialsprobe", options: { permissions?: string[]; readPermissions?: string[]; version?: string; execution?: "sandbox" } = {}) {
-  const id = `io.molis.work.example.${name}`, permissions = ["storage:private", ...(options.permissions ?? ["materials:read", "materials:fetch"])];
+  const id = `com.example.${name}`, permissions = ["storage:private", ...(options.permissions ?? ["materials:read", "materials:fetch"])];
   const contexts: PluginStartContext[] = [], preflight: PluginUpgradeContext[] = [];
   const action = (suffix: string, needed: string[], concurrent = true): ActionDefinition<Record<string, never>, unknown> => ({
     capability_id: `${name}.${suffix}`, version: 1, operation: "command", action: {

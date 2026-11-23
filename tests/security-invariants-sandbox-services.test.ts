@@ -20,7 +20,7 @@ import { homeProbe } from "./fixtures/home-runtime.js";
 // through the broker. What the sandbox is not given is a refusal with a code when the installation starts, never a silent absence. This file
 // asserts those refusals; the per-service ones (over-reach, unapproved, after revoke) sit beside each service as it is given.
 
-const PLUGIN_ID = "io.molis.work.example.sbxservices";
+const PLUGIN_ID = "com.example.sbxservices";
 const NOT_GIVEN = { code: "sandbox.service_not_given" } as const;
 const MODEL_CONFIGURATION: import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration = {
   preference: { store_name: "sandbox-model-settings", file_name: "model.json" }, custom_provider: { provider_id: "sandbox-model", display_name: "Sandbox model" },

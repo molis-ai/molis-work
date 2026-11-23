@@ -6,6 +6,7 @@ import {validateBuilderDirectories,type BuilderPortableDirectory} from './sync-f
 import {validateBuilderResults,validateBuilderSelection,validateBuilderReleaseFiles} from './sync-records.js';
 import {validateBuilderDesignDomain,validateBuilderNodeDomain,validateBuilderPreviewDomain,validateBuilderSnapshotLinks,validateBuilderDecisionLinks} from './sync-domain.js';
 import {isStudioBuildFailure,isStudioStepLabel} from './studio-collaboration.js';
+import { studioPluginId } from './studio-plugin-id.js';
 
 export interface BuilderPortableState {format:/* @version format.builder.portable */ 1;builds:Record<string,unknown>[];releases:Record<string,unknown>[];files:Record<string,BuilderPortableDirectory[]>}
 const errors=defineErrorCodes('plugin_builder',{sync_invalid:'invalid',sync_busy:'unavailable'});
@@ -55,19 +56,19 @@ function build(value:unknown){
  if(b.scopeCheckPending!==undefined&&b.scopeCheckPending!==true||b.runtimeScope!==undefined&&b.runtimeScope!=='home')builderSyncInvalid();
  if(!id(b.id)||b.revision!==0||b.active!==null||typeof b.brief!=='string'||typeof b.title!=='string'||!['draft','clarifying','choosing','paused'].includes(String(b.phase))
   ||typeof b.clarificationAnswered!=='boolean'||!isStudioBuildFailure(b.error)||!stamp(b.createdAt)||!stamp(b.updatedAt))builderSyncInvalid();
- const s=pick(b,[...snapshotFields,'checks']);snapshot(s,'io.molis.work.generated.'+b.id);
- if(b.design!==null&&object(object(b.design).contract).pluginId!=='io.molis.work.generated.'+b.id)builderSyncInvalid();
+ const s=pick(b,[...snapshotFields,'checks']);snapshot(s,studioPluginId(b.id));
+ if(b.design!==null&&object(object(b.design).contract).pluginId!==studioPluginId(b.id))builderSyncInvalid();
  for(const message of list(b.messages)){const m=object(message);keys(m,['role','text'],['role','text']);if(!['user','assistant'].includes(String(m.role))||typeof m.text!=='string')builderSyncInvalid();}
  strings(b.questions);if(b.notes!==undefined)strings(b.notes);
  if(b.chosen!==undefined&&typeof b.chosen!=='string')builderSyncInvalid();
  if(b.rework!==undefined&&Object.values(object(b.rework)).some(v=>typeof v!=='string'))builderSyncInvalid();
  if(b.pendingPart!==undefined){const p=object(b.pendingPart);keys(p,['id','candidates','reason'],['id','candidates','reason']);if(!id(p.id)||typeof p.reason!=='string')builderSyncInvalid();strings(p.candidates);}
- for(const candidate of list(b.candidates)){const c=object(candidate);keys(c,['id','title','description','rationale','journey','effects','preview','mockup'],['id','title','description','rationale','journey','effects','preview']);if(!id(c.id)||['title','description','rationale'].some(k=>typeof c[k]!=='string'))builderSyncInvalid();strings(c.journey);object(c.effects);const p=object(c.preview);keys(p,['contract','parts','presentation'],['contract','parts']);if(object(p.contract).pluginId!=='io.molis.work.generated.'+b.id)builderSyncInvalid();list(p.parts);if(c.mockup!==undefined){const m=object(c.mockup);keys(m,['status','jobId','imageId','reason'],['status']);if(!['ready','failed'].includes(String(m.status)))builderSyncInvalid();if(m.jobId!==undefined&&!id(m.jobId)||m.imageId!==undefined&&!id(m.imageId)||m.reason!==undefined&&typeof m.reason!=='string'||m.status==='ready'&&(!id(m.jobId)||!id(m.imageId)))builderSyncInvalid();}}
+ for(const candidate of list(b.candidates)){const c=object(candidate);keys(c,['id','title','description','rationale','journey','effects','preview','mockup'],['id','title','description','rationale','journey','effects','preview']);if(!id(c.id)||['title','description','rationale'].some(k=>typeof c[k]!=='string'))builderSyncInvalid();strings(c.journey);object(c.effects);const p=object(c.preview);keys(p,['contract','parts','presentation'],['contract','parts']);if(object(p.contract).pluginId!==studioPluginId(b.id))builderSyncInvalid();list(p.parts);if(c.mockup!==undefined){const m=object(c.mockup);keys(m,['status','jobId','imageId','reason'],['status']);if(!['ready','failed'].includes(String(m.status)))builderSyncInvalid();if(m.jobId!==undefined&&!id(m.jobId)||m.imageId!==undefined&&!id(m.imageId)||m.reason!==undefined&&typeof m.reason!=='string'||m.status==='ready'&&(!id(m.jobId)||!id(m.imageId)))builderSyncInvalid();}}
  for(const step of list(b.steps)){const s=object(step);keys(s,['id','agent','action','label','status','operationId','detail','at','selection'],['id','agent','action','label','status','at']);if(!id(s.id)||!['design','ui','code','host'].includes(String(s.agent))||typeof s.action!=='string'||!isStudioStepLabel(s.label)||!['done','waiting','failed','cancelled'].includes(String(s.status))||!stamp(s.at)||s.operationId!==undefined&&typeof s.operationId!=='string'||s.detail!==undefined&&typeof s.detail!=='string')builderSyncInvalid();if(s.selection!==undefined)validateBuilderSelection(s.selection);}
  for(const run of list(b.runs)){const r=object(run);keys(r,['id','role','phase','configuredModel','reportedModels','promptVersion','error'],['id','role','phase','configuredModel','reportedModels','promptVersion']);if(!id(r.id)||['role','phase','configuredModel','promptVersion'].some(k=>typeof r[k]!=='string')||r.error!==undefined&&typeof r.error!=='string')builderSyncInvalid();strings(r.reportedModels);}
  for(const candidate of list(b.candidates))validateBuilderPreviewDomain(object(object(candidate).preview),object(candidate).effects);
  validateBuilderDecisionLinks(b);
- for(const h of list(b.history))snapshot(h,'io.molis.work.generated.'+b.id);return b;
+ for(const h of list(b.history))snapshot(h,studioPluginId(b.id));return b;
 }
 function release(value:unknown){
  const r=object(value),required=[...releaseFields,'distribution'];
@@ -77,7 +78,7 @@ function release(value:unknown){
  if(!['project','home'].includes(String(distribution.runtime_scope))||typeof distribution.publisher_key_id!=='string'||!/^ed25519:sha256:[a-f0-9]{64}$/.test(distribution.publisher_key_id))builderSyncInvalid();
  if(!id(r.buildId)||!id(r.pluginId)||!Number.isSafeInteger(r.version)||Number(r.version)<1||!stamp(r.publishedAt))builderSyncInvalid();
  const d=design(r.design),c=object(d.contract),m=object(r.manifest);keys(m,['version','pluginId','revision','effects'],['version','pluginId','revision','effects']);
- if(m.version!==/* @version format.builder.build-manifest */ 1||m.pluginId!==r.pluginId||c.pluginId!==r.pluginId||r.pluginId!=='io.molis.work.generated.'+r.buildId||m.revision!==c.revision||!isDeepStrictEqual(m.effects,r.permissions)||!isDeepStrictEqual(m.effects,effectsFromContract((r.design as AgentDesign).contract)))builderSyncInvalid();validateBuilderNodeDomain(d,r.nodes,[],true);
+ if(m.version!==/* @version format.builder.build-manifest */ 1||m.pluginId!==r.pluginId||c.pluginId!==r.pluginId||r.pluginId!==studioPluginId(r.buildId)||m.revision!==c.revision||!isDeepStrictEqual(m.effects,r.permissions)||!isDeepStrictEqual(m.effects,effectsFromContract((r.design as AgentDesign).contract)))builderSyncInvalid();validateBuilderNodeDomain(d,r.nodes,[],true);
  const ids=new Set<string>();for(const prompt of list(r.prompts)){const p=object(prompt);keys(p,['id','title','purpose','body'],['id','title','purpose','body']);if(!id(p.id)||ids.has(p.id)||['title','purpose','body'].some(k=>typeof p[k]!=='string'))builderSyncInvalid();ids.add(p.id);}return r as Record<string,unknown>&Pick<AgentRelease,'design'|'nodes'>;
 }
 /** Validate the entire owner unit before project creation or staging any target bytes. */

@@ -14,7 +14,7 @@ import { HOST_BUILD_TRUST, MemoryPluginConsentLedger, MemoryPluginRuntimeReposit
 // is a row that is revoked by `revoked_at`, never rewritten or deleted, and the Host's later start does not undo a revocation.
 // What the consent makes true elsewhere (the always-on list, refusing removal) is checked where that list is built.
 
-const PLUGIN_ID = "io.molis.work.example.always-on";
+const PLUGIN_ID = "com.example.always-on";
 const ALWAYS_ON = { kind: "always_on", subject: consentSubject.alwaysOn() } as const;
 
 function manifest(version: string, extra: Partial<PluginManifest> = {}): PluginManifest {

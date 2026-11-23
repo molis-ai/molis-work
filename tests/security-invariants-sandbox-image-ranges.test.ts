@@ -13,7 +13,7 @@ import { DEFAULT_SANDBOX_LIMITS, SandboxBroker, SandboxImageHolder, createSandbo
 // The adapter's cap is tests/prologue-inference-native.test.ts; the signed package through the production Host, Seatbelt and Prologue against a real HTTPS provider is RAC-2655 / B27-IMG-02.
 
 const MiB = 1024 * 1024, KiB = 1024;
-const IDENTITY = { projectId: null, installationId: "install-img", pluginId: "io.molis.work.example.sbximg", namespace: "installed" } as const;
+const IDENTITY = { projectId: null, installationId: "install-img", pluginId: "com.example.sbximg", namespace: "installed" } as const;
 const OTHER = { ...IDENTITY, installationId: "install-other" } as const;
 const code = (expected: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === expected;
 const HOST = "images.example.com", ADDRESS = `https://${HOST}/v1`;

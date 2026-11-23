@@ -38,7 +38,7 @@ const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: {
 }), { hostIds: new Set() });
 const permission = "review:git-worktree", queue = composition.agentHost.reviews;
 const { install } = runtime.install({ trust: { level: "unsigned" }, deployment: "local", grants: [permission], definition: {
-  manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.review-caller", version: "1.0.0", name: "Review caller", kind: "app",
+  manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.review-caller", version: "1.0.0", name: "Review caller", kind: "app",
     publisher: { publisher_id: "example", signature: "review-caller" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.js" }],
     permissions: [{ permission, required: true, reason: "Review a worktree" }], capabilities: { provides: [], consumes: [peek.capability_id, writerDirectoryCapabilities.prepare.capability_id] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },

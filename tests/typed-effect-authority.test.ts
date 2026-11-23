@@ -30,7 +30,7 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
     // Hold the downstream Goals policy only after the actual originating execution's async check completed.
     // SDK discovery pins the consumed action too, but only the actual invoke has a dispatcher-issued call_id.
     if (held && originChecked && caller.call_id && view.capability_id === "goals.note"
-      && caller.audience === "plugin" && caller.host_plugin?.plugin_id === "io.molis.work.example.typed-authority") {
+      && caller.audience === "plugin" && caller.host_plugin?.plugin_id === "com.example.typed-authority") {
       entered.resolve(); await release.promise;
     }
     return { available: true };
@@ -43,7 +43,7 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
   const beforeState = await goals.invoke(goalsActions.state, { goal_id });
   const progress = { goal_id, body: "One genuinely authorized note", idempotency_key: "typed-note" };
   const definition: PluginDefinition = { manifest: {
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.typed-authority", version: "1.0.0", name: "Typed consumer", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.typed-authority", version: "1.0.0", name: "Typed consumer", kind: "app",
     publisher: { publisher_id: "example", signature: "typed-authority-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "goals:write", required: true, reason: "Record authorized progress" }],
     capabilities: { provides: [], consumes: [goalsActions.note.capability_id] },

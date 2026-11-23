@@ -14,7 +14,7 @@ test('the designer prompt example is itself a valid design once the host expands
   const start = text.indexOf('【mode = "detail" 的完整回答示例】') + '【mode = "detail" 的完整回答示例】'.length;
   const example = text.slice(start, text.indexOf('\n\nmode = "propose"', start)).trim();
   const dropped: string[] = [];
-  const design = strict(expandDesign(parseModelJson(example), base, 'io.molis.work.generated.example', 'r1', dropped));
+  const design = strict(expandDesign(parseModelJson(example), base, 'studio.example', 'r1', dropped));
   assert.deepEqual(dropped, [], 'the example must not rely on anything the host drops');
   assert.deepEqual(design.contract.operations.map(item => item.id), ['notes.list', 'notes.add', 'notes.remove']);
   assert.deepEqual(design.parts.find(part => part.id === 'remove')?.submit?.input, { id: { source: 'selection', componentId: 'notes', field: 'id' } });
@@ -54,19 +54,19 @@ test('one-line acceptance steps parse, and a single-field form needs no field na
 test('examples that can never pass on an empty store are rejected before any code is written', () => {
   const design = { operations: [{ id: 'notes.list', kind: 'query', input: {}, output: [{ id: 'string' }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [{ id: 'n1' }] }] }],
     pages: [{ id: 'home', parts: [{ id: 'notes', intent: 'collection', purpose: 'p', read: 'notes.list' }] }], acceptance: [{ id: 'a', steps: ['expect notes x'] }] };
-  assert.throws(() => expandDesign(design, base, 'io.molis.work.generated.x', 'r', []), /空存储/);
+  assert.throws(() => expandDesign(design, base, 'studio.x', 'r', []), /空存储/);
   for (const field of ['includes', 'outputIncludes', 'expect']) for (const expected of [[{ id: 'n1' }], { id: 'n1' }, {}]) {
     const partial = { ...design, operations: [{ ...design.operations[0], examples: [{ input: {}, [field]: expected }] }] };
-    assert.throws(() => expandDesign(partial, base, 'io.molis.work.generated.x', 'r', []), /空存储/, field + ' cannot bypass the same empty-store rule');
+    assert.throws(() => expandDesign(partial, base, 'studio.x', 'r', []), /空存储/, field + ' cannot bypass the same empty-store rule');
   }
   for (const effects of [{ capabilities: ['goals.list'] }, { networkDomains: ['example.com'] }, {}]) {
     const external = { ...design, operations: [{ ...design.operations[0], effects, examples: [{ input: {}, includes: [{ id: 'n1' }] }] }] };
-    assert.doesNotThrow(() => expandDesign(external, base, 'io.molis.work.generated.x', 'r', []), 'capability, network and static data are not an empty local store');
+    assert.doesNotThrow(() => expandDesign(external, base, 'studio.x', 'r', []), 'capability, network and static data are not an empty local store');
   }
   const unused = { ...design, operations: [...design.operations.map(item => ({ ...item, examples: [{ input: {}, output: [] }] })), { id: 'notes.add', kind: 'command', input: { text: 'string' }, output: 'string', effects: ['storage'], examples: [{ input: { text: 'a' }, output: 'a' }] }] };
-  assert.throws(() => expandDesign(unused, base, 'io.molis.work.generated.x', 'r', []), /没有任何组件使用/);
+  assert.throws(() => expandDesign(unused, base, 'studio.x', 'r', []), /没有任何组件使用/);
   const query = { ...design, operations: [{ ...design.operations[0], effects: { storage: ['write'] }, examples: [{ input: {}, output: [] }] }] };
-  assert.throws(() => expandDesign(query, base, 'io.molis.work.generated.x', 'r', []), /查询（query）不能写入/);
+  assert.throws(() => expandDesign(query, base, 'studio.x', 'r', []), /查询（query）不能写入/);
 });
 
 test('real MiniMax answers written against the old format normalize into proposals or fail with a reason the model can act on', () => {
@@ -79,7 +79,7 @@ test('real MiniMax answers written against the old format normalize into proposa
     for (const [index, candidate] of candidates.entries()) {
       const dropped: string[] = [];
       try {
-        const proposal = normalizeProposal(candidate, index, 'io.molis.work.generated.x', dropped);
+        const proposal = normalizeProposal(candidate, index, 'studio.x', dropped);
         normalized++;
         assert.ok(proposal.id && proposal.journey.length && proposal.preview.parts.length, 'candidate-id / journal / separate parts are understood');
         assert.ok(proposal.preview.contract.operations.every(operation => operation.input.type === 'object'));
@@ -102,11 +102,11 @@ test('a sketched proposal that repeats a part on its second page gets the repeat
     { id: 'pick', title: '选目标', parts: [{ id: 'title', intent: 'heading', purpose: '标题' }, { id: 'goals', intent: 'collection', purpose: '目标', read: 'goals.refresher' }] },
     { id: 'write', title: '写进展', parts: [{ id: 'title', intent: 'heading', purpose: '标题' }, { id: 'goals', intent: 'collection', purpose: '目标', read: 'goals.refresher' }] },
   ] };
-  const proposal = normalizeProposal(candidate, 1, 'io.molis.work.generated.x', []);
+  const proposal = normalizeProposal(candidate, 1, 'studio.x', []);
   assert.deepEqual(proposal.preview.parts.map(part => part.pageId + '/' + part.id), ['pick/title', 'pick/goals', 'write/title-write', 'write/goals-write']);
   // A full design is referred to by its acceptance steps, so there the repeat is still the designer's to fix.
   const design = { operations: [{ ...operations[0], examples: [{ input: {}, output: { items: [] } }] }], pages: candidate.pages, acceptance: [{ id: 'a', steps: ['expect goals 包含 目标'] }] };
-  assert.throws(() => expandDesign(design, base, 'io.molis.work.generated.x', 'r', []), /组件标识重复/);
+  assert.throws(() => expandDesign(design, base, 'studio.x', 'r', []), /组件标识重复/);
 });
 
 test('a form can take one field from another part and show a command result; the rest stays the person\'s to fill', () => {
@@ -122,7 +122,7 @@ test('a form can take one field from another part and show a command result; the
     acceptance: [{ id: 'a', steps: ['fill asker = 间隔重复', 'submit asker', 'expect answer 包含 ［模型替身］', 'fill answer.answer = 我想是因为提取', 'submit answer'] }],
   };
   const dropped: string[] = [];
-  const result = validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped), ['model.generate'], [], contract => assertContract(contract));
+  const result = validateAgentDesign(expandDesign(design, base, 'studio.x', 'r', dropped), ['model.generate'], [], contract => assertContract(contract));
   const asker = result.parts.find(part => part.id === 'asker')!, answer = result.parts.find(part => part.id === 'answer')!;
   assert.equal(asker.submit?.outputPath, 'question');
   assert.deepEqual(answer.submit?.input, { concept: { source: 'form', field: 'concept', prefill: { componentId: 'asker', field: 'concept' } }, question: { source: 'form', field: 'question', prefill: { componentId: 'asker', field: 'question' } }, answer: { source: 'form', field: 'answer' } });
@@ -141,7 +141,7 @@ test('a prefilled field must exist in what it is taken from, before any code is 
     ] }],
     acceptance: [{ id: 'a', steps: ['fill asker = x', 'submit asker', 'submit answer', 'expect answer x'] }],
   };
-  assert.throws(() => validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', []), ['model.generate'], [], contract => assertContract(contract)),
+  assert.throws(() => validateAgentDesign(expandDesign(design, base, 'studio.x', 'r', []), ['model.generate'], [], contract => assertContract(contract)),
     /answer 的 concept 取自 asker\.concept，但 asker 的命令结果里没有 concept：把 concept 加进 concepts\.ask 的 output/);
 });
 
@@ -159,7 +159,7 @@ test('host messages name the part, the operation and the allowed values, so a re
     ] }],
     acceptance: [{ id: 'a', steps: ['fill editor.title = x', 'fill editor.status = 未读', 'submit editor', 'expect books x'] }],
   });
-  const check = (value: unknown) => () => validateAgentDesign(expandDesign(value, base, 'io.molis.work.generated.x', 'r', []), [], [], contract => assertContract(contract));
+  const check = (value: unknown) => () => validateAgentDesign(expandDesign(value, base, 'studio.x', 'r', []), [], [], contract => assertContract(contract));
   assert.throws(check(design('想读', { op: 'books.update', input: { id: 'selection:books.id', status: 'form' } })), /操作 books\.add 第 1 个示例的 status 是「想读」，不在 未读\/在读\/已读 之内/);
   assert.throws(check(design('未读', { op: 'books.update', input: { id: 'selection:books.id' } })), /组件 advance：缺少必需输入的绑定：status（books\.update 要求 status/);
 });
@@ -176,7 +176,7 @@ test('a constant the operation cannot accept is refused at design time with what
     ] }],
     acceptance: [{ id: 'a', steps: ['select books x', 'submit advance', 'expect books 在读'] }],
   };
-  assert.throws(() => validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', []), [], [], contract => assertContract(contract)),
+  assert.throws(() => validateAgentDesign(expandDesign(design, base, 'studio.x', 'r', []), [], [], contract => assertContract(contract)),
     /组件 advance：常量「"next:books\.status"」不是 books\.update 的 status 能接受的值（只能是 未读\/在读\/已读）；要按当前记录推算/);
 });
 
@@ -192,7 +192,7 @@ test('"form.category" and "form?" are form fields, not constants', () => {
   const design = { operations: [{ id: 'expenses.list', kind: 'query', input: { 'category?': '餐饮|交通', 'note?': 'string' }, output: [{ id: 'string' }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [] }] }],
     pages: [{ id: 'home', parts: [{ id: 'list', intent: 'collection', purpose: '账单', props: { idField: 'id' }, read: { op: 'expenses.list', input: { category: 'form.category?', note: 'form?' } } }] }],
     acceptance: [{ id: 'a', steps: ['fill list.category = 餐饮', 'expect-not list x'] }] };
-  const valid = validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', []), [], [], contract => assertContract(contract));
+  const valid = validateAgentDesign(expandDesign(design, base, 'studio.x', 'r', []), [], [], contract => assertContract(contract));
   assert.deepEqual(valid.parts[0]!.read?.input, { category: { source: 'form', field: 'category' }, note: { source: 'form', field: 'note' } });
 });
 
@@ -200,28 +200,28 @@ test('an example cannot pin today\'s date; a date it was given may be checked', 
   const design = (example: unknown) => ({ operations: [{ id: 'summary.read', kind: 'query', input: { 'month?': 'string(YYYY-MM)' }, output: { month: 'string', total: 'number' }, effects: { storage: ['read'] }, examples: [example] }],
     pages: [{ id: 'home', parts: [{ id: 'summary', intent: 'description', purpose: '合计', read: 'summary.read' }] }], acceptance: [{ id: 'a', steps: ['expect summary 0'] }] });
   const dropped: string[] = [];
-  const settled = expandDesign(design({ input: {}, includes: { month: '1970-01', total: 0 } }), base, 'io.molis.work.generated.x', 'r', dropped);
+  const settled = expandDesign(design({ input: {}, includes: { month: '1970-01', total: 0 } }), base, 'studio.x', 'r', dropped);
   assert.deepEqual(settled.contract.operations[0]!.examples[0], { input: {}, outputIncludes: { total: 0 } }, 'a partial expectation drops the date it cannot meet');
   assert.match(dropped.join(), /month（依赖当天日期/);
   const exact: string[] = [];
-  assert.deepEqual(expandDesign(design({ input: {}, output: { month: '1970-01', total: 0 } }), base, 'io.molis.work.generated.x', 'r', exact).contract.operations[0]!.examples[0],
+  assert.deepEqual(expandDesign(design({ input: {}, output: { month: '1970-01', total: 0 } }), base, 'studio.x', 'r', exact).contract.operations[0]!.examples[0],
     { input: {}, outputIncludes: { total: 0 } }, 'an exact output keeps checking what does not depend on today');
   assert.match(exact.join(), /month（依赖当天日期/);
-  assert.throws(() => expandDesign(design({ input: {}, output: { month: { label: '1970-01' }, total: 0 } }), base, 'io.molis.work.generated.x', 'r', []), /期望结果写了具体日期「1970-01」/, 'a date deeper inside still goes back');
-  assert.doesNotThrow(() => expandDesign(design({ input: { month: '2026-09' }, includes: { month: '2026-09', total: 0 } }), base, 'io.molis.work.generated.x', 'r', []));
+  assert.throws(() => expandDesign(design({ input: {}, output: { month: { label: '1970-01' }, total: 0 } }), base, 'studio.x', 'r', []), /期望结果写了具体日期「1970-01」/, 'a date deeper inside still goes back');
+  assert.doesNotThrow(() => expandDesign(design({ input: { month: '2026-09' }, includes: { month: '2026-09', total: 0 } }), base, 'studio.x', 'r', []));
 });
 
 test('an example that expects a type name instead of a value is sent back', () => {
   const design = { operations: [{ id: 'summary.read', kind: 'query', input: {}, output: { month: 'string', total: 'number' }, effects: { storage: ['read'] }, examples: [{ input: {}, includes: { month: 'string', total: 0 } }] }],
     pages: [{ id: 'home', parts: [{ id: 'summary', intent: 'description', purpose: '合计', read: 'summary.read' }] }], acceptance: [{ id: 'a', steps: ['expect summary 0'] }] };
   const dropped: string[] = [];
-  assert.deepEqual(expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped).contract.operations[0]!.examples[0], { input: {}, outputIncludes: { total: 0 } });
+  assert.deepEqual(expandDesign(design, base, 'studio.x', 'r', dropped).contract.operations[0]!.examples[0], { input: {}, outputIncludes: { total: 0 } });
   assert.match(dropped.join(), /month（写成了类型名/);
   // A list written as the word "array" (seen from MiniMax on a model-backed operation) is dropped the same way.
   const listed = { ...design, operations: [{ ...design.operations[0]!, id: 'minutes.extract', kind: 'command', input: { text: 'string' }, output: { id: 'string', todos: ['string'] }, effects: { storage: ['read', 'write'], capabilities: ['model.generate'] },
     examples: [{ input: { text: 'x' }, includes: { todos: 'array' } }] }], pages: [{ id: 'home', parts: [{ id: 'form', intent: 'input', purpose: '提炼', submit: 'minutes.extract' }] }] };
   const alsoDropped: string[] = [];
-  assert.deepEqual(expandDesign(listed, base, 'io.molis.work.generated.x', 'r', alsoDropped).contract.operations[0]!.examples[0], { input: { text: 'x' }, outputIncludes: {} });
+  assert.deepEqual(expandDesign(listed, base, 'studio.x', 'r', alsoDropped).contract.operations[0]!.examples[0], { input: { text: 'x' }, outputIncludes: {} });
   assert.match(alsoDropped.join(), /todos（写成了类型名/);
 });
 
@@ -238,7 +238,7 @@ test('a form that "submits" the query a list reads becomes that list\'s filter b
     ] }],
     acceptance: [{ id: 'filter', steps: ['fill editor.note = 公交', 'fill editor.category = 交通', 'submit editor', 'fill filter.category = 餐饮', 'submit filter', 'expect-not list 公交'] }],
   };
-  const valid = validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', []), [], [], contract => assertContract(contract));
+  const valid = validateAgentDesign(expandDesign(design, base, 'studio.x', 'r', []), [], [], contract => assertContract(contract));
   assert.deepEqual(valid.parts.map(part => part.id), ['editor', 'list']);
   assert.deepEqual(valid.parts[1]!.read?.input, { category: { source: 'form', field: 'category' } });
   assert.deepEqual(valid.acceptance[0]!.steps.slice(3), [{ action: 'fill', componentId: 'list', field: 'category', value: '餐饮' }, { action: 'expectAbsent', componentId: 'list', text: '公交' }]);
@@ -256,11 +256,11 @@ test('a collection can be filtered by its query\'s own input, and a step on a mi
     ] }],
     acceptance: [{ id: 'filter', steps: ['fill editor.title = 代码大全', 'fill editor.status = 想读', 'submit editor', 'fill books = 在读', 'expect-not books 代码大全'] }],
   };
-  const valid = validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', []), [], [], contract => assertContract(contract));
+  const valid = validateAgentDesign(expandDesign(design, base, 'studio.x', 'r', []), [], [], contract => assertContract(contract));
   assert.deepEqual(valid.parts.find(part => part.id === 'books')?.read?.input, { status: { source: 'form', field: 'status' } });
   assert.deepEqual(valid.acceptance[0]!.steps[3], { action: 'fill', componentId: 'books', field: 'status', value: '在读' });
   const wrong = { ...design, acceptance: [{ id: 'filter', steps: ['submit editor', 'fill books.author = x', 'expect books x'] }] };
-  assert.throws(() => validateAgentDesign(expandDesign(wrong, base, 'io.molis.work.generated.x', 'r', []), [], [], contract => assertContract(contract)),
+  assert.throws(() => validateAgentDesign(expandDesign(wrong, base, 'studio.x', 'r', []), [], [], contract => assertContract(contract)),
     /验收「filter」第 2 步：组件 books 没有可填写的字段 author（它的字段是 status）/);
 });
 
@@ -278,13 +278,13 @@ test('a separate filter part beside a list (as MiniMax writes it) becomes the li
     acceptance: [{ id: 'filter', steps: ['fill editor.title = 黑客与画家', 'fill editor.status = 在读', 'submit editor', 'fill filter.status = 未读', 'expect-not books 黑客与画家'] }],
   });
   const dropped: string[] = [];
-  const valid = validateAgentDesign(expandDesign(design('status?'), base, 'io.molis.work.generated.x', 'r', dropped), [], [], contract => assertContract(contract));
+  const valid = validateAgentDesign(expandDesign(design('status?'), base, 'studio.x', 'r', dropped), [], [], contract => assertContract(contract));
   assert.deepEqual(valid.parts.map(part => part.id), ['editor', 'books']);
   assert.deepEqual(valid.parts[1]!.read?.input, { status: { source: 'form', field: 'status' } });
   assert.deepEqual(valid.acceptance[0]!.steps[3], { action: 'fill', componentId: 'books', field: 'status', value: '未读' });
   assert.ok(dropped.some(note => /filter 是列表 books 的筛选/.test(note)));
   const notes: string[] = [];
-  const relaxed = validateAgentDesign(expandDesign(design('status'), base, 'io.molis.work.generated.x', 'r', notes), [], [], contract => assertContract(contract));
+  const relaxed = validateAgentDesign(expandDesign(design('status'), base, 'studio.x', 'r', notes), [], [], contract => assertContract(contract));
   assert.deepEqual(relaxed.contract.operations.find(operation => operation.id === 'books.list')!.input.required, [], 'a query input its examples leave out is a filter, so optional');
   assert.ok(notes.some(note => /books\.list 的 status 是筛选条件/.test(note)));
 });
@@ -296,7 +296,7 @@ test('an operation that reads a platform capability promises a partial result, n
     pages: [{ id: 'home', parts: [{ id: 'goals', intent: 'collection', purpose: '目标', props: { idField: 'id', titleField: 'title' }, read: 'reports.goals' }] }],
     acceptance: [{ id: 'a', steps: ['expect goals 示例目标'] }] };
   const dropped: string[] = [];
-  const valid = validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped), ['goals.list'], [], contract => assertContract(contract));
+  const valid = validateAgentDesign(expandDesign(design, base, 'studio.x', 'r', dropped), ['goals.list'], [], contract => assertContract(contract));
   assert.deepEqual(valid.contract.operations[0]!.examples[0], { input: {}, outputIncludes: [] });
   assert.match(dropped.join(), /用到平台能力，精确结果改为部分匹配/);
 });
@@ -311,7 +311,7 @@ test('a case must choose a record before pressing a button that lives on records
       { id: 'remove', intent: 'action', purpose: '删除', submit: { op: 'logs.remove', input: { id: 'selection:logs.id' } } },
     ] }],
     acceptance: [{ id: 'not_found', steps: ['submit remove', 'expect logs 找不到'] }] };
-  assert.throws(() => validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', []), [], [], contract => assertContract(contract)),
+  assert.throws(() => validateAgentDesign(expandDesign(design, base, 'studio.x', 'r', []), [], [], contract => assertContract(contract)),
     /remove 是 logs 每条记录上的按钮，先写 select logs/);
 });
 
@@ -325,11 +325,11 @@ test('RAC-2928 a wrapped collection requires an explicit array projection withou
     props: { idField: 'id', titleField: 'text', emptyText: '清单还是空的' }, read }] }],
   acceptance: [{ id: 'empty-list', steps: ['page home', 'expect items-result 清单还是空的'] }] });
   for (const read of ['items.list', { op: 'items.list', show: 'missing' }, { op: 'items.list', show: 'items.text' }]) {
-    assert.throws(() => expandDesign(design(read), base, 'io.molis.work.generated.x', 'r', []),
+    assert.throws(() => expandDesign(design(read), base, 'studio.x', 'r', []),
       /组件 items-result.*items\.list.*read\.show.*输出合同/);
   }
   const dropped: string[] = [];
-  const expanded = strict(expandDesign(design({ op: 'items.list', show: 'items' }), base, 'io.molis.work.generated.x', 'r', dropped));
+  const expanded = strict(expandDesign(design({ op: 'items.list', show: 'items' }), base, 'studio.x', 'r', dropped));
   assert.equal(expanded.parts[0]!.intent, 'collection');
   assert.deepEqual(expanded.parts[0]!.read, { operationId: 'items.list', input: {}, outputPath: 'items' });
   assert.deepEqual(expanded.contract.operations[0]!.output, output);
@@ -344,9 +344,9 @@ test('RAC-2928 nested collection wrappers reject missing and scalar projections 
   ], pages: [{ id: 'home', parts: [{ id: 'items-result', intent: 'collection', purpose: '清单', read }] }],
   acceptance: [{ id: 'empty-list', steps: ['expect items-result 空'] }] });
   for (const read of ['items.list', { op: 'items.list', show: 'result' }, { op: 'items.list', show: 'count' }]) {
-    assert.throws(() => expandDesign(design(read), base, 'io.molis.work.generated.x', 'r', []), /read\.show.*数组字段/);
+    assert.throws(() => expandDesign(design(read), base, 'studio.x', 'r', []), /read\.show.*数组字段/);
   }
-  const expanded = strict(expandDesign(design({ op: 'items.list', show: 'result.items' }), base, 'io.molis.work.generated.x', 'r', []));
+  const expanded = strict(expandDesign(design({ op: 'items.list', show: 'result.items' }), base, 'studio.x', 'r', []));
   assert.equal(expanded.parts[0]!.intent, 'collection');
   assert.equal(expanded.parts[0]!.read!.outputPath, 'result.items');
 });
@@ -362,7 +362,7 @@ test('RAC-2929 a list-type part over a query that returns one scalar summary kee
     ] }],
     acceptance: [{ id: 'a', steps: ['submit add', 'expect today 1'] }] };
   const dropped: string[] = [];
-  const valid = validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped), [], [], contract => assertContract(contract));
+  const valid = validateAgentDesign(expandDesign(design, base, 'studio.x', 'r', dropped), [], [], contract => assertContract(contract));
   assert.equal(valid.parts[0]!.intent, 'description');
   assert.match(dropped.join(), /改用正文显示/);
   assert.deepEqual(valid.contract.operations[0]!.output, { type: 'object', properties: {
@@ -391,7 +391,7 @@ test('real designer slips are normalized once, in the open: choices, optional ma
       acceptance: [{ id: 'add', steps: ['fill editor.title = 暗黑模式', 'fill editor.tag = 设计', 'submit editor', 'expect ideas 暗黑模式'] }, { id: 'missing', steps: ['submit remove', 'expect ideas 找不到'] }] }],
   };
   const notes: string[] = [];
-  const valid = validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', notes), [], [], contract => assertContract(contract));
+  const valid = validateAgentDesign(expandDesign(design, base, 'studio.x', 'r', notes), [], [], contract => assertContract(contract));
   const list = valid.contract.operations.find(operation => operation.id === 'ideas.list')!;
   assert.deepEqual(list.input.properties!.tag!.enum, ['设计', '阅读', '产品'], 'the filter offers the same choices the form writes');
   assert.deepEqual(list.input.required, [], '"string?" marks the field optional');
@@ -413,7 +413,7 @@ test('an example cannot expect a field its own output does not have: the expecta
     pages: [{ id: 'home', parts: [{ id: 'editor', intent: 'input', purpose: '记', submit: { op: 'ideas.add', input: { title: 'form', description: 'form' } } }, { id: 'ideas', intent: 'collection', purpose: '看', read: 'ideas.list', props: { idField: 'id', titleField: 'title' } }] }],
     acceptance: [{ id: 'a', steps: ['fill editor.title = 留白', 'fill editor.description = 空白', 'submit editor', 'expect ideas 留白'] }] };
   const notes: string[] = [];
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', notes);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', notes);
   assert.deepEqual(expanded.contract.operations[0]!.examples[0], { input: { title: '留白', description: '在卡片之间留大量空白，让眼睛先看清结构' }, outputIncludes: { title: '留白' } });
   assert.ok(notes.some(note => /期望的 description 不在 output 里/.test(note)));
 });
@@ -426,7 +426,7 @@ test('a plugin operation named like a capability, or a {{field}} its part cannot
       { id: 'count', intent: 'description', purpose: '今天的杯数', props: { description: sentence }, ...(read ? { read: op } : {}) },
       { id: 'add', intent: 'action', purpose: '记一杯', props: { submitLabel: '喝了一杯' }, submit: 'water.add' }] }],
     acceptance: [{ id: 'a', steps: ['submit add', 'expect count 1 杯'] }] });
-  const check = (value: unknown) => validateAgentDesign(expandDesign(value, base, 'io.molis.work.generated.x', 'r', []), ['goals.list'], [], contract => assertContract(contract));
+  const check = (value: unknown) => validateAgentDesign(expandDesign(value, base, 'studio.x', 'r', []), ['goals.list'], [], contract => assertContract(contract));
   assert.throws(() => check(design('goals.list', true, '今天已经喝了 {{count}} 杯')), /和平台能力同名.*effects\.capabilities/);
   assert.throws(() => check(design('water.today', true, '今天已经喝了 {{cups}} 杯')), /\{\{cups\}\}.*read/);
   assert.doesNotThrow(() => check(design('water.today', true, '今天已经喝了 {{count}} 杯')));
@@ -442,12 +442,12 @@ test('a success example that looks a record up by id on an empty store is unmeet
       { id: 'remove', intent: 'action', purpose: '删', props: { submitLabel: '删除' }, submit: { op: 'words.remove', input: { id: 'selection:words.id' } } }] }],
     acceptance: [{ id: 'a', steps: ['fill editor.word = apple', 'submit editor', 'expect words apple'] }] };
   const notes: string[] = [];
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', notes);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', notes);
   assert.deepEqual(expanded.contract.operations[2]!.examples, [{ input: { id: 'missing' }, error: 'not_found' }]);
   assert.ok(notes.some(note => /这个成功示例已去掉/.test(note)));
   // A delete that does not mind a missing record ({removed: false}) is a valid example on an empty store and stays.
   const tolerant = structuredClone(design); tolerant.operations[2]!.examples = [{ input: { id: 'missing' }, output: { removed: false } } as never];
-  assert.deepEqual(expandDesign(tolerant, base, 'io.molis.work.generated.x', 'r', []).contract.operations[2]!.examples, [{ input: { id: 'missing' }, output: { removed: false } }]);
+  assert.deepEqual(expandDesign(tolerant, base, 'studio.x', 'r', []).contract.operations[2]!.examples, [{ input: { id: 'missing' }, output: { removed: false } }]);
 });
 
 test('several broken operation references go back in one repair, not one per round', () => {
@@ -461,7 +461,7 @@ test('several broken operation references go back in one repair, not one per rou
     { id: 'entries', intent: 'collection', purpose: '待处理事项', read: 'entries.list' },
     { id: 'remove', intent: 'action', purpose: '删除备注', submit: { op: 'notes.remove', input: { id: 'selection:entries.id' } } },
   ] }], acceptance: [{ id: 'add', description: '记下后能看到', steps: ['fill editor.note = 先看', 'submit editor', 'expect entries 先看'] }] };
-  assert.throws(() => expandDesign(design, base, 'io.molis.work.generated.x', 'r', []), (error: Error) =>
+  assert.throws(() => expandDesign(design, base, 'studio.x', 'r', []), (error: Error) =>
     /有 3 处要一起改/.test(error.message) && /entries 的 read 绑定了不存在的操作 entries\.list/.test(error.message)
     && /remove 的 submit 绑定了不存在的操作 notes\.remove/.test(error.message) && /inbox_entries\.list、notes\.list 没有任何组件使用/.test(error.message));
 });
@@ -474,7 +474,7 @@ test('a part naming its own field ("editor.note") means the person fills it', ()
     { id: 'items', intent: 'collection', purpose: '事项', read: 'items.list', props: { idField: 'id', titleField: 'title' } },
     { id: 'editor', intent: 'input', purpose: '记备注', submit: { op: 'items.setnote', input: { id: 'selection:items.id', note: 'editor.note' } } },
   ] }], acceptance: [{ id: 'note', description: '记下备注后看到', steps: ['select items 事项一', 'fill editor.note = 跟进', 'submit editor', 'expect items 跟进'] }] };
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', []);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', []);
   assert.deepEqual(expanded.parts.find(part => part.id === 'editor')!.submit!.input.note, { source: 'form', field: 'note' });
 });
 
@@ -488,7 +488,7 @@ test('a lookup by a snake_case id ("entry_id") that also expects to find one on 
     { id: 'notes', intent: 'collection', purpose: '备注', read: 'notes.list', props: { idField: 'id', titleField: 'text' } },
   ] }], acceptance: [{ id: 'add', description: '记下后看到', steps: ['fill editor.entry_id = e1', 'fill editor.text = 跟进', 'submit editor', 'expect notes 跟进'] }] };
   const dropped: string[] = [];
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', dropped);
   assert.deepEqual(expanded.contract.operations[1]!.examples.map(example => example.error ?? 'ok'), ['not_found']);
   assert.ok(dropped.some(line => /entry_id/.test(line)));
 });
@@ -506,13 +506,13 @@ test('acceptance cannot expect another plugin\'s data to change or empty: those 
     { id: 'shown', description: '看到事项', steps: ['expect tasks 示例'] },
   ] };
   const dropped: string[] = [];
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', dropped);
   assert.deepEqual(expanded.acceptance.map(test => test.id), ['shown']);
   assert.deepEqual(expanded.contract.acceptance.map(test => test.id), ['shown']);
   assert.ok(dropped.some(line => /固定替身/.test(line)));
   // When every case needed the other plugin's data to change, what can still be checked is that its record shows.
   const onlyImpossible = { ...design, acceptance: design.acceptance.slice(0, 2) };
-  const fallback = expandDesign(onlyImpossible, base, 'io.molis.work.generated.x', 'r', []);
+  const fallback = expandDesign(onlyImpossible, base, 'studio.x', 'r', []);
   assert.deepEqual(fallback.acceptance.map(test => [test.id, test.steps]), [['shows-records', [{ action: 'expect', componentId: 'tasks', text: '示例' }]]]);
 });
 
@@ -524,9 +524,9 @@ test('a site an operation reaches is named by its exact host', () => {
     { id: 'check', intent: 'input', purpose: '查一次', submit: 'weather.today', props: { submitLabel: '查天气' } },
     { id: 'history', intent: 'collection', purpose: '记录', read: 'weather.list', props: { idField: 'id', titleField: 'text' } },
   ] }], acceptance: [{ id: 'check', description: '查一次', steps: ['submit check', 'expect history 示例'] }] });
-  assert.doesNotThrow(() => strict(expandDesign(design('api.open-meteo.com'), base, 'io.molis.work.generated.x', 'r', [])));
+  assert.doesNotThrow(() => strict(expandDesign(design('api.open-meteo.com'), base, 'studio.x', 'r', [])));
   for (const bad of ['https://api.open-meteo.com/v1', '127.0.0.1', '*.example.com', 'printer.local', 'localhost'])
-    assert.throws(() => strict(expandDesign(design(bad), base, 'io.molis.work.generated.x', 'r', [])), /确切域名/, bad);
+    assert.throws(() => strict(expandDesign(design(bad), base, 'studio.x', 'r', [])), /确切域名/, bad);
 });
 
 test('a list result expected "to include" one record written as that record means the list contains it', () => {
@@ -535,7 +535,7 @@ test('a list result expected "to include" one record written as that record mean
   ], pages: [{ id: 'home', title: '快处理', parts: [{ id: 'tasks', intent: 'collection', purpose: '待处理', read: 'tasks.list', props: { idField: 'id', titleField: 'title' } }] }],
   acceptance: [{ id: 'shown', description: '看到事项', steps: ['expect tasks 示例'] }] };
   const dropped: string[] = [];
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', dropped);
   assert.deepEqual(expanded.contract.operations[0]!.examples[0], { input: {}, outputIncludes: [{ title: '示例' }] });
   assert.ok(dropped.some(line => /列表里有这样一条/.test(line)));
 });
@@ -550,7 +550,7 @@ test('an operation that only passes a request to another plugin cannot promise t
     { id: 'done', intent: 'action', purpose: '完成', submit: { op: 'tasks.done', input: { id: 'selection:tasks.id', revision: 'selection:tasks.revision' } } },
   ] }], acceptance: [{ id: 'shown', description: '看到事项', steps: ['expect tasks 示例'] }] };
   const dropped: string[] = [];
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', dropped);
   assert.deepEqual(expanded.contract.operations[1]!.examples, [{ input: { id: 'missing', revision: 1 }, outputIncludes: {} }]);
   assert.ok(dropped.some(line => /总是成功/.test(line)));
 });
@@ -566,7 +566,7 @@ test('a command\'s result shown "beside" its binding is shown; a model stand-in 
     { id: 'runnow', intent: 'action', purpose: '现在汇总', submit: { op: 'summary.run', input: {} }, submitShow: { op: 'summary.run', show: 'text' } },
   ] }], acceptance: [{ id: 'run', description: '汇总', steps: ['fill editor.text = 上午写了周报', 'submit editor', 'submit runnow', 'expect runnow ［模型替身］上午写了周报'] }] };
   const dropped: string[] = [];
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', dropped);
   assert.equal(expanded.parts.find(part => part.id === 'runnow')!.submit!.outputPath, 'text');
   assert.ok(!dropped.some(line => /submitShow/.test(line)), 'not reported as dropped');
   assert.deepEqual(expanded.acceptance[0]!.steps.filter(step => step.action === 'expect').map(step => (step as { text: string }).text), ['［模型替身］', '上午写了周报']);
@@ -580,7 +580,7 @@ test('a part choosing from itself ("selection:calendar.habitId" in its own read)
     { id: 'editor', intent: 'input', purpose: '加习惯', submit: 'habits.add' },
     { id: 'calendar', intent: 'schedule', purpose: '打卡日历', read: { op: 'habits.days', input: { habitId: 'selection:calendar.habitId' } }, props: { idField: 'id', titleField: 'date' } },
   ] }], acceptance: [{ id: 'add', description: '加一个', steps: ['fill editor.name = 跑步', 'submit editor', 'expect calendar 暂无'] }] };
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', []);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', []);
   assert.deepEqual(expanded.parts.find(part => part.id === 'calendar')!.read!.input.habitId, { source: 'form', field: 'habitId' });
 });
 
@@ -600,7 +600,7 @@ test('a list of another plugin\'s data stays the stand-in even when the design s
     { id: 'complete', description: '完成一条', steps: ['select tasks 示例', 'submit done', 'expect tasks done', 'expect-not tasks 示例', 'expect done done'] },
     { id: 'shown', description: '看到事项', steps: ['expect tasks 示例'] },
   ] };
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', []);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', []);
   assert.deepEqual(expanded.acceptance.find(test => test.id === 'complete')!.steps.map(step => step.action + ':' + ('componentId' in step ? step.componentId : '')), ['select:tasks', 'submit:done', 'expect:done'], 'after the write only the button feedback is checked');
 });
 
@@ -614,12 +614,12 @@ test('text expected on a part that only shows fixed words, right after another p
     { id: 'history', intent: 'collection', purpose: '以前的', read: 'meetings.list', props: { idField: 'id', titleField: 'preview' } },
   ] }], acceptance: [{ id: 'summarize', description: '看到待办', steps: ['fill editor.text = 周二前提交方案', 'submit editor', 'expect result 周二前提交方案', 'expect result 提炼出的三条待办'] }] };
   const dropped: string[] = [];
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', dropped);
   assert.equal(expanded.parts.find(part => part.id === 'editor')!.submit!.outputPath, undefined, 'two fields of content (todos, raw): the whole result shows, nothing hidden');
   assert.deepEqual(expanded.acceptance[0]!.steps.filter(step => step.action === 'expect').map(step => (step as { componentId: string }).componentId), ['editor', 'result'], 'its own fixed words stay where they are');
   // One field of content beside its id and time is that field.
   const single = { ...design, operations: [design.operations[0], { ...design.operations[1], output: { id: 'string', todos: ['string'], createdAt: 'datetime' } }] };
-  assert.equal(expandDesign(single, base, 'io.molis.work.generated.x', 'r', []).parts.find(part => part.id === 'editor')!.submit!.outputPath, 'todos');
+  assert.equal(expandDesign(single, base, 'studio.x', 'r', []).parts.find(part => part.id === 'editor')!.submit!.outputPath, 'todos');
 });
 
 test('an exact expected result missing a required output field is explained, not reported as "$: missing"', () => {
@@ -630,7 +630,7 @@ test('an exact expected result missing a required output field is explained, not
     { id: 'notes', intent: 'collection', purpose: '记下的事', read: 'notes.list', props: { idField: 'id', titleField: 'text' } },
     { id: 'make', intent: 'input', purpose: '整理', submit: 'report.make' },
   ] }], acceptance: [{ id: 'make', description: '整理', steps: ['fill make.week = 本周', 'submit make', 'expect notes 暂无'] }] };
-  assert.throws(() => strict(expandDesign(design, base, 'io.molis.work.generated.x', 'r', [])), /report\.make 第 1 个示例的期望结果缺少 documentTitle/);
+  assert.throws(() => strict(expandDesign(design, base, 'studio.x', 'r', [])), /report\.make 第 1 个示例的期望结果缺少 documentTitle/);
 });
 
 
@@ -646,7 +646,7 @@ test('steps with nothing in them, fills on parts with nothing to fill, and cases
     { id: 'ghost', description: '不存在的组件', steps: ['submit add', 'expect editor 1'] },
   ] };
   const dropped: string[] = [];
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', dropped);
   assert.deepEqual(expanded.acceptance.map(test => test.id), ['add']);
   assert.deepEqual(expanded.acceptance[0]!.steps.map(step => step.action), ['submit', 'expect']);
   assert.ok(dropped.some(line => /不存在的组件 editor/.test(line)));
@@ -661,7 +661,7 @@ test('a field written into the text of a part that reads nothing is shown where 
     { id: 'preview', intent: 'description', purpose: '提炼结果', props: { description: '三条待办：{{action_items}}' } },
     { id: 'history', intent: 'collection', purpose: '以前的', read: 'meetings.list', props: { idField: 'id', titleField: 'preview' } },
   ] }], acceptance: [{ id: 'go', description: '提炼', steps: ['fill editor.text = 周二交方案', 'submit editor', 'expect editor 周二交方案'] }] };
-  const expanded = strict(expandDesign(design, base, 'io.molis.work.generated.x', 'r', []));
+  const expanded = strict(expandDesign(design, base, 'studio.x', 'r', []));
   assert.equal(expanded.parts.find(part => part.id === 'editor')!.submit!.outputPath, 'action_items');
   assert.equal(expanded.parts.find(part => part.id === 'preview')!.props.description, '三条待办：');
 });
@@ -677,7 +677,7 @@ test('a sentence of record fields over a list query means the result of the comm
     { id: 'history', intent: 'collection', purpose: '以前的', read: 'minutes.list', props: { idField: 'id', titleField: 'title' } },
   ] }], acceptance: [{ id: 'go', description: '提炼', steps: ['fill extract-input.text = 周五发布', 'submit extract-input', 'expect extract-result ［模型替身］周五发布'] }] };
   const dropped: string[] = [];
-  const expanded = validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped), ['model.generate'], [], contract => assertContract(contract));
+  const expanded = validateAgentDesign(expandDesign(design, base, 'studio.x', 'r', dropped), ['model.generate'], [], contract => assertContract(contract));
   const result = expanded.parts.find(part => part.id === 'extract-result')!, runner = expanded.parts.find(part => part.id === 'extract-input')!;
   assert.equal(result.read, undefined);
   assert.equal(runner.submit!.outputPath, undefined, 'several fields show as the whole result, each labelled');
@@ -697,7 +697,7 @@ test('an idempotency key is the code\'s to make, and the sentence a command just
     { id: 'record-btn', intent: 'action', purpose: '记录', submit: { op: 'progress.record', input: { goal_id: 'selection:goal-list.id', summary: 'form', idempotency_key: 'form' } } },
   ] }], acceptance: [{ id: 'go', description: '记一句', steps: ['select goal-list 示例', 'fill polish-btn.draft = 写了向导', 'submit polish-btn', 'expect polish-btn ［模型替身］写了向导', 'submit record-btn'] }] };
   const dropped: string[] = [];
-  const result = validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped), ['goals.list', 'model.generate', 'goals.progress.record'], [], contract => assertContract(contract));
+  const result = validateAgentDesign(expandDesign(design, base, 'studio.x', 'r', dropped), ['goals.list', 'model.generate', 'goals.progress.record'], [], contract => assertContract(contract));
   const record = result.contract.operations.find(operation => operation.id === 'progress.record')!, part = result.parts.find(item => item.id === 'record-btn')!;
   assert.deepEqual(Object.keys(record.input.properties ?? {}), ['goal_id', 'summary']);
   assert.ok(!('idempotency_key' in (record.examples[0]!.input as object)));
@@ -718,7 +718,7 @@ test('buttons written inside the list they act on become parts of the page besid
       actions: [{ id: 'remove-habit', intent: 'action', purpose: '删除选中的习惯', props: { submitLabel: '删除' }, submit: { op: 'habits.remove', input: { id: 'selection:habits-list.id' } } }] },
   ] }], acceptance: [{ id: 'go', description: '删', steps: ['fill editor.title = 读书', 'submit editor', 'select habits-list 读书', 'submit remove-habit', 'expect-not habits-list 读书'] }] };
   const dropped: string[] = [];
-  const result = strict(expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped));
+  const result = strict(expandDesign(design, base, 'studio.x', 'r', dropped));
   assert.deepEqual(result.parts.map(part => part.id), ['editor', 'habits-list', 'remove-habit']);
   assert.equal(result.parts.find(part => part.id === 'remove-habit')!.submit!.operationId, 'habits.remove');
   assert.ok(dropped.some(note => /嵌套的按钮 remove-habit/.test(note)));
@@ -734,7 +734,7 @@ test('an example value that only names its field ("loggedAt": "loggedAt") checks
     { id: 'drink', intent: 'action', purpose: '记一杯', submit: { op: 'water.add', input: {} } },
   ] }], acceptance: [{ id: 'go', description: '记一杯', steps: ['submit drink', 'expect today 今天已经喝了 1 杯'] }] };
   const dropped: string[] = [];
-  const result = strict(expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped));
+  const result = strict(expandDesign(design, base, 'studio.x', 'r', dropped));
   assert.deepEqual(result.contract.operations[0]!.examples[0], { input: {}, outputIncludes: {} });
   assert.deepEqual(result.contract.operations[1]!.examples[0], { input: {}, output: { count: 0 } }, 'a real value stays exact');
   assert.ok(dropped.some(note => /loggedAt 写的是占位词/.test(note)));
@@ -750,7 +750,7 @@ test('a form asking for the id of a record takes it from the list of those recor
     { id: 'habits', intent: 'collection', purpose: '习惯', read: 'habits.list', props: { idField: 'id', titleField: 'name' } },
     { id: 'checkin', intent: 'input', purpose: '打卡', submit: 'checkins.add' },
   ] }], acceptance: [{ id: 'go', description: '打卡', steps: ['fill editor.name = 晨跑', 'submit editor', 'select habits 晨跑', 'submit checkin', 'expect habits 晨跑'] }] };
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', []);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', []);
   assert.deepEqual(expanded.parts.find(part => part.id === 'checkin')!.submit!.input.habitId, { source: 'form', field: 'habitId', prefill: { componentId: 'habits', field: 'id' } });
 });
 
@@ -767,11 +767,11 @@ test('a case that expects an operation to report its declared error is left to t
     { id: 'add', description: '记一杯', steps: ['submit add', 'expect summary 今天已经喝了 1 杯'] },
     { id: 'undo_empty', description: '没有可撤销', steps: ['submit undo', 'expect summary 今天还没有打卡记录'] },
   ] };
-  const expanded = expandDesign(design, base, 'io.molis.work.generated.x', 'r', []);
+  const expanded = expandDesign(design, base, 'studio.x', 'r', []);
   assert.deepEqual(expanded.acceptance.map(test => test.id), ['add']);
   // Real MiniMax answer (喝水打卡, round 6): the case expected the error's code on the button.
   const byCode = { ...design, acceptance: [design.acceptance[0], { id: 'undo_empty', description: '命令会返回 nothing_to_undo', steps: ['expect undo 撤销', 'submit undo', 'expect undo nothing_to_undo'] }] };
-  assert.deepEqual(expandDesign(byCode, base, 'io.molis.work.generated.x', 'r', []).acceptance.map(test => test.id), ['add']);
+  assert.deepEqual(expandDesign(byCode, base, 'studio.x', 'r', []).acceptance.map(test => test.id), ['add']);
 });
 
 test('RAC-2934 explicit negative acceptance validates bindings, fields, outcomes and every parameter', () => {
@@ -793,7 +793,7 @@ test('RAC-2934 explicit negative acceptance validates bindings, fields, outcomes
       { action: 'expectValue', componentId: 'editor', field: 'text', value: '' },
     ] }],
   };
-  const expand = (value: unknown) => strict(expandDesign(value, base, 'io.molis.work.generated.negative', 'negative', []));
+  const expand = (value: unknown) => strict(expandDesign(value, base, 'studio.negative', 'negative', []));
   const valid = expand(raw);
   assert.deepEqual(valid.acceptance[0]!.steps, raw.acceptance[0]!.steps);
   assert.equal(valid.parts[0]!.props.requiredText, '正文不能为空');

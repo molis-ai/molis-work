@@ -73,10 +73,10 @@ test("file entries page by kind and id with a revision over every entry; preview
 
 test("PAS-08: the side slot places a plugin's tab only while the plugin is enabled, and the panel renders it as a frame", () => {
   assert.equal(UI_VIEW_SLOTS.includes("side"), true);
-  const manifest = { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.side", version: "1.0.0", name: "侧栏样例", kind: "native",
+  const manifest = { schema_version: 1, host_api_version: 1, plugin_id: "com.example.side", version: "1.0.0", name: "侧栏样例", kind: "native",
     publisher: { publisher_id: "example", signature: "example-side" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
-    ui: { contributions: ["io.molis.work.example.side.notes"], views: [{ view_id: "notes", slot: "side", context_binding: "focused-object", title: "随手记", icon: "note" }] } } as const;
+    ui: { contributions: ["com.example.side.notes"], views: [{ view_id: "notes", slot: "side", context_binding: "focused-object", title: "随手记", icon: "note" }] } } as const;
   assert.deepEqual(new UiViewRegistry([{ manifest: manifest as never, enabled: true }]).slot("side").map(view => view.view_id), ["notes"]);
   assert.deepEqual(new UiViewRegistry([{ manifest: manifest as never, enabled: false }]).slot("side"), [], "a disabled plugin leaves no tab behind");
   assert.equal(new UiViewRegistry([{ manifest: manifest as never, enabled: true }]).slot("side")[0]!.context_binding, "focused-object");
@@ -90,7 +90,7 @@ test("PAS-08: the side slot places a plugin's tab only while the plugin is enabl
     withoutTasks: renderSideStrip(primitives, tabs),
   }));
   assert.match(strip, /data-side-tab="plugin:example\/notes"/u);
-  assert.match(strip, /data-side-context-owner="io\.molis\.work\.example\.side" data-side-context-surface="example" hidden/u);
+  assert.match(strip, /data-side-context-owner="com\.example\.side" data-side-context-surface="example" hidden/u);
   assert.match(html, /data-side-body="plugin:example\/notes" data-side-src="\/projects\/p1\/side\/example\/notes"/u);
   assert.match(strip, /data-side-tab="files"[\s\S]*data-side-tab="browser"[\s\S]*data-side-tab="computer"[\s\S]*data-side-tab="discussion"[\s\S]*data-side-tab="tasks"/u, "the panel's own tabs in side-shelf §3.2's order, the background tasks after them");
   assert.match(html, /data-side-body="files"[\s\S]*data-side-body="browser"[\s\S]*data-side-body="computer"[\s\S]*data-side-body="discussion"[\s\S]*data-side-body="tasks"/u);
@@ -142,7 +142,7 @@ test("real Host: the file tab lists and previews plugin files through the action
     // A plugin nobody told the Host about: its declarations alone put its files in the panel.
     const entries = defineFileEntriesAction("newcomer.files.entries", 1, [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
     const content = defineFileContentAction("newcomer.files.content", 1, [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
-    const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.newcomer-files", version: "1.0.0", name: "新插件",
+    const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.newcomer-files", version: "1.0.0", name: "新插件",
       kind: "app", publisher: { publisher_id: "example", signature: "example-newcomer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [{ permission: "newcomer:read", required: false, reason: "读取文件" }], actions: [entries, content], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
       async start() { return { kind: "app", actions: [
@@ -226,7 +226,7 @@ test("BSH-13 one request answers every source's first page: a failing source doe
     for (const name of ["good", "broken", "unset"] as const) {
       const sourceKinds = [{ kind: `${name}-file`, title: name, surface: name }];
       const entries = defineFileEntriesAction(`${name}.files.entries`, 1, sourceKinds, `${name} 来源`, [`${name}:read`]);
-      const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: `io.molis.work.example.${name}-files`, version: "1.0.0", name,
+      const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: `com.example.${name}-files`, version: "1.0.0", name,
         kind: "app", publisher: { publisher_id: "example", signature: `example-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
         permissions: [{ permission: `${name}:read`, required: false, reason: "读取文件" }], actions: [entries], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
         async start() { return { kind: "app", actions: [{ ...entries, ...bindFileEntriesHandler(entries, () => {
@@ -265,7 +265,7 @@ test("BSH-13 one request answers every source's first page: a failing source doe
 
 test("a Plugin names the websites it uses in the side panel browser as exact origins, and the author's check prints them", async () => {
   const manifest = (permissions: unknown[]) => ({
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.sites", version: "1.0.0", name: "Sites", kind: "integration",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.sites", version: "1.0.0", name: "Sites", kind: "integration",
     publisher: { publisher_id: "local-developer", signature: "local-development-identity" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions, capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
   });

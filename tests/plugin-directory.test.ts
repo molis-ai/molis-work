@@ -44,7 +44,7 @@ const PROJECT = "project-plugin-directory";
 
 /** A plugin that runs in the project without the project choosing it, as the Host reports it. */
 function installed(id: string, over: Partial<PluginDirectoryEntry["ui"]["views"][number]> = {}, name = "Notes"): PluginDirectoryEntry {
-  return { id, plugin_id: `io.molis.work.example.${id}`, name, chosen: false,
+  return { id, plugin_id: `com.example.${id}`, name, chosen: false,
     ui: { views: [{ view_id: "main", slot: "navigator", title: name, icon: "note", ...over }] } };
 }
 
@@ -197,7 +197,7 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refus
 });
 
 test("RAC-605-KEY-02 equal Manifest ids retain each entry's slots, chosen state, view identity and the original ordering", () => {
-  const pluginId = "io.molis.work.example.shared";
+  const pluginId = "com.example.shared";
   const entry = (id: string, chosen: boolean, order: number): PluginDirectoryEntry => ({ id, plugin_id: pluginId, name: id, chosen, ui: { views: [
     { view_id: "main", slot: "navigator", title: `${id} nav`, order },
     { view_id: "island", slot: "island", title: `${id} island`, order },
@@ -270,7 +270,7 @@ test("RAC-605 the Host reads the directory from the Manifests the project's Runt
   const admit = (value: PluginDefinition): PluginDefinition => { installedByHand.add(value); return value; };
   const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", actions: pluginActions(store, DEMO_PROJECT_ID),
     escapeHtml: String, translate: (value: string) => value, installedByHand };
-  const pluginId = "io.molis.work.example.directory-fixture";
+  const pluginId = "com.example.directory-fixture";
   const station = startingStation("directory-notes", "笔记", { title: "写一条笔记", hint: "先写下来。" });
   const definition = (name: string): PluginDefinition => admit({
     manifest: { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name, kind: "app",
@@ -318,7 +318,7 @@ test("RAC-609-BLOCK-01 an installed plugin blocked by a missing dependency leave
   const platform = createPluginPlatform({ db: store.db, project_id: DEMO_PROJECT_ID, actor_id: "tester", actions: pluginActions(store, DEMO_PROJECT_ID),
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(), home: null,
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
-  const blockedId = "io.molis.work.example.directory-blocked", siblingId = "io.molis.work.example.directory-sibling", starts: string[] = [];
+  const blockedId = "com.example.directory-blocked", siblingId = "com.example.directory-sibling", starts: string[] = [];
   const stations = new Map([blockedId, siblingId].map(id => [id, startingStation(id.split(".").pop()!, "Note", { title: `Start ${id}`, hint: "An actual Runtime entry" })]));
   const definition = (pluginId: string, missing = false): PluginDefinition => ({
     manifest: { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",

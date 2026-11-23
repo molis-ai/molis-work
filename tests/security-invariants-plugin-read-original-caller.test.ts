@@ -45,7 +45,7 @@ async function probeHome(t: TestContext) {
   const park = async (which: keyof typeof parked) => { if (parked[which]) { enter.resolve(); await release.promise; } };
   const definition: PluginDefinition = {
     manifest: {
-      schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.bl943", version: "1.0.0", name: "Original caller probe", kind: "app",
+      schema_version: 1, host_api_version: 1, plugin_id: "com.example.bl943", version: "1.0.0", name: "Original caller probe", kind: "app",
       publisher: { publisher_id: "fixture", signature: "fixture-bl943" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: grants.map(permission => ({ permission, required: true, reason: "Probe the library" })),
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

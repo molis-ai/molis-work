@@ -56,7 +56,7 @@ async function fixture(t: import("node:test").TestContext) {
   await host.actionClient(reference).discover(user);
   let last: ActionExecutionContext | undefined;
   const start = async (name: string, permissions: string[]) => {
-    const id = "io.molis.work.example." + name;
+    const id = "com.example." + name;
     owned.add(id);
     const command: ActionDefinition = { capability_id: name + ".run", version: 1, operation: "command", action: { title: name, description: "Runs a dock judgment as the plugin", kind: "operation", scope: "project",
       audiences: ["user"], permissions: [], scheduling: "concurrent", subject_kinds: [], input_schema: { type: "object" }, output_schema: {} } };

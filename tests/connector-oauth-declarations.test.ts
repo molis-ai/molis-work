@@ -38,7 +38,7 @@ const method = (extra: Partial<PluginOAuthMethodDeclaration> = {}): PluginOAuthM
 
 function manifest(serviceId: string, oauth: unknown): PluginManifest {
   return {
-    schema_version: 1, plugin_id: "io.molis.work.example.oauth-fixture", version: "1.0.0", name: "oauth-fixture", kind: "integration",
+    schema_version: 1, plugin_id: "com.example.oauth-fixture", version: "1.0.0", name: "oauth-fixture", kind: "integration",
     publisher: { publisher_id: "io.example", signature: "example-signature-v1" }, host_api_version: 1,
     entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

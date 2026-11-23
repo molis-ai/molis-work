@@ -44,7 +44,7 @@ test('Builder refuses another owner format and malformed editing floors without 
 
 test('FSS-36 a Studio v1 draft with word references needs its language files before saving', async t => {
  const {storage,owner}=await fixture(t),build=owner.create('保留原文');
- const design=expandDesign(JSON.parse(detail('原文笔记')),{id:'draft',title:'原文笔记',description:'文字保留',rationale:'笔记',journey:['Write']},'io.molis.work.generated.notes','draft-r1',[]);
+ const design=expandDesign(JSON.parse(detail('原文笔记')),{id:'draft',title:'原文笔记',description:'文字保留',rationale:'笔记',journey:['Write']},'studio.notes','draft-r1',[]);
  const saved=owner.update(build.id,build.revision,row=>{row.design=design;row.candidates=[{
   id:'original',title:'原文',description:'保留原文',rationale:'笔记',journey:['Write'],effects:{},
   preview:{contract:structuredClone(design.contract),parts:structuredClone(design.parts)},

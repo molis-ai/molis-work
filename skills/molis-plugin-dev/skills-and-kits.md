@@ -60,7 +60,7 @@
 4. **打包**：`plugin_id` 必须以 `io.molis.work.` 开头；版本是 SemVer；范围 `--scope project`（默认）或 `home`（个人空间的技能，跨项目都在）。
 
    ```bash
-   molis-work-plugin pack-content my-skills weekly.json --plugin-id io.molis.work.example.weekly --name 每周回顾 --version 1.0.0 --publisher-id example --publisher-key-id ed25519:sha256:… --scope home
+   molis-work-plugin pack-content my-skills weekly.json --plugin-id com.example.weekly --name 每周回顾 --version 1.0.0 --publisher-id example --publisher-key-id ed25519:sha256:… --scope home
    ```
 
    打包时就过 Manifest 与技能声明的全部检查，不过就不写输出（符号链接、别处的文件、超上限都拒绝，不会悄悄丢掉）。附带文件的大小与 SHA-256 由命令算好写进声明。

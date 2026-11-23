@@ -30,7 +30,7 @@ import { callAs, callerPlugin, issuedCaller, registerProbe, startPlugin } from "
 const REVIEW = "review:git-worktree";
 const refused = { code: "agent.review_not_permitted" }, notHeld = { code: "plugin.grant_denied" };
 const declared: PluginManifest["permissions"] = [{ permission: REVIEW, required: false, reason: "Creates a worktree a person reviews first" }];
-const pluginId = (name: string) => `io.molis.work.example.${name}`;
+const pluginId = (name: string) => `com.example.${name}`;
 
 /** A Manifest that asks the Host for a new worktree, declaring the permissions given. */
 function worktreeManifest(name: string, permissions: PluginManifest["permissions"]): PluginManifest {

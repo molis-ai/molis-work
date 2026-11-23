@@ -357,7 +357,7 @@ test("Artifact type folds use the names their owners declare, and an undeclared 
 });
 
 test("FSS-35 FSS-38 the Artifact version list uses the active producer release of this project", async t => {
-  const id = "io.molis.work.example.producer", artifactType = "io.example.producer.note", word = "producer.artifacts.type-title";
+  const id = "com.example.producer", artifactType = "io.example.producer.note", word = "producer.artifacts.type-title";
   const preview = defineArtifactPreviewAction("producer.artifacts.preview", 1, "Preview", []);
   const start = async (name: string, release: string, schema_version: number, title: string, binding_signature: string) => {
     const type = { artifact_type_id: artifactType, schema_version, title: name,

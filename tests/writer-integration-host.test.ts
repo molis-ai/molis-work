@@ -36,7 +36,7 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
  let composition=make();await composition.ready;
  // Integrating is a review only the installation holding review:git-integration asks for, through its own session (S-50); reading
  // what would be integrated is that installation's too (W5-01-CODING-46). Both are the Host's actions, offered to plugins only (PG-035).
- const plugins=reviewPlugins(localHost,reference,path.join(home,"plugins.db")),coding="io.molis.work.coding",reviewer="io.molis.work.example.reviewer";
+ const plugins=reviewPlugins(localHost,reference,path.join(home,"plugins.db")),coding="io.molis.work.coding",reviewer="com.example.reviewer";
  const integrate=[{permission:"review:git-integration",required:true,reason:"Brings a child's result back once a person approves"},{permission:"workspace:read",required:true,reason:"Reads what a child's result would bring back"}] as const;
  const granted=["review:git-integration","workspace:read"],consumes=[integration.read.capability_id,integration.prepare.capability_id,agent.readRunReviews.capability_id];
  const install_id=await plugins.start(coding,[...integrate],granted,consumes);

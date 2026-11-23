@@ -37,7 +37,7 @@ async function started(t: Parameters<typeof serveHomeRuntime>[0], probe = projec
   return { ...served, ...granted, probe, remove, exist: (ids: string[]) => action.invoke(probe.caller(), probe.exist, { ids }) as Promise<Record<string, boolean>> };
 }
 
-const manifestWithout = (declared: boolean): PluginManifest => ({ schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.projectsunit", version: "1.0.0", name: "projectsunit", kind: "app",
+const manifestWithout = (declared: boolean): PluginManifest => ({ schema_version: 1, host_api_version: 1, plugin_id: "com.example.projectsunit", version: "1.0.0", name: "projectsunit", kind: "app",
   publisher: { publisher_id: "example", signature: "projects-unit" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: declared ? [{ permission: PLUGIN_PROJECTS_EXIST_PERMISSION, required: false, reason: "Ask" }] : [],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] });
@@ -207,7 +207,7 @@ test("S-96 RAC-1065-MANIFEST only the validated projects effect derives an optio
 test("S-96 RAC-1065-BROKER operation approval and the unchanged 200-id bound guard the shared client", async () => {
   let reads = 0;
   const projects = createPluginProjectsClient(manifestWithout(true), { existing: async () => { reads++; return new Set(["kept", "unasked"]); } }, gate);
-  const identity = { projectId: "project", installationId: "sandbox-projects", pluginId: "io.molis.work.example.projectsunit", namespace: "installed" } as const;
+  const identity = { projectId: "project", installationId: "sandbox-projects", pluginId: "com.example.projectsunit", namespace: "installed" } as const;
   const operation = (approved: boolean): SandboxOperationContract => ({ id: "projects", kind: "query", input: { type: "null" }, output: { type: "null" },
     errors: [], effects: approved ? { projects: ["exist"] } : {}, examples: [] });
   const broker = new SandboxBroker(identity, { projects: ["exist"] }, { projects }, DEFAULT_SANDBOX_LIMITS);
@@ -307,7 +307,7 @@ test("S-96 RAC-1067 a project instance is given the service by the same rule, an
       artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
     platforms.push(platform);
     let context: PluginStartContext | undefined;
-    const definition: PluginDefinition = { manifest: { ...manifestWithout(declare), plugin_id: `io.molis.work.example.${name}`, name, publisher: { publisher_id: "example", signature: `fixture-${name}` } },
+    const definition: PluginDefinition = { manifest: { ...manifestWithout(declare), plugin_id: `com.example.${name}`, name, publisher: { publisher_id: "example", signature: `fixture-${name}` } },
       async start(value) { context = value; return { kind: "app", actions: [] }; } };
     const report = await platform.start([{ definition, trust: { level: "host" } }]);
     assert.deepEqual(report.failed, []);

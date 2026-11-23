@@ -40,7 +40,7 @@ type Project = Awaited<ReturnType<Fixture["project"]>>;
  * what the next call does (`use`), and the action answers with what came back or the code and message it was refused with.
  */
 function launchProbe(name: string, options: { terminal?: boolean; ownerFiles?: boolean; halves?: readonly Where[] } = {}) {
-  const id = `io.molis.work.example.${name}`, halves = options.halves ?? ["project"];
+  const id = `com.example.${name}`, halves = options.halves ?? ["project"];
   const files = { read: `${name}:files-read`, write: `${name}:files-write` };
   // An action that starts a terminal in the owner files also makes the folder it starts in.
   const declared = [...(options.terminal === false ? [] : [TERMINAL]), ...(options.ownerFiles ? [files.read, files.write] : [])];
@@ -510,7 +510,7 @@ test("RAC-2557 S-103 a sandboxed package that asks for terminal:run is stopped b
   const started: string[] = [];
   const sandboxed = (id: string, required: boolean): PluginDefinition => ({ manifest: manifest(id, required), execution: "sandbox",
     async start(context) { started.push(context.plugin_id); return { kind: "app" }; } });
-  const asks = [["io.molis.work.example.sbxtermrequired", true, ["storage:private", TERMINAL]], ["io.molis.work.example.sbxtermapproved", false, ["storage:private", TERMINAL]]] as const;
+  const asks = [["com.example.sbxtermrequired", true, ["storage:private", TERMINAL]], ["com.example.sbxtermapproved", false, ["storage:private", TERMINAL]]] as const;
 
   const project = { project_id: "board", storage_key: join(home, "project.sqlite") };
   const store = new LocalProjectDatabase(project.storage_key);

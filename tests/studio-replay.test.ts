@@ -104,7 +104,7 @@ test("FSS-74 both detail prompt examples freeze the actual UI slots and use the 
     assert.ok(answer && typeof answer === "object" && "design" in answer);
     const draft = answer.design;
     assert.ok(draft && typeof draft === "object" && "uiText" in draft);
-    const design = expandDesign(answer, example!.base!, "io.molis.work.generated.prompt-example", "example", []);
+    const design = expandDesign(answer, example!.base!, "studio.prompt-example", "example", []);
     const valid = validateAgentDesign(design, [], [], assertContract);
     const frozen = freezeStudioUi(valid, draft.uiText, { ...studioTestLanguages, current });
     assert.equal(frozen.contract.ui?.locales.default, current);

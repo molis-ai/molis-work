@@ -89,7 +89,7 @@ test("RAC-2669 ASC-10 ASC-13 BL-920: the plugin slots bound to a connection are 
   const feedInstall = home.host.homePlugins!.installations().find(row => row.plugin_id === FEED_PLUGIN_ID)!.install_id;
   const account = withConnectorConnections(home.home, store => store.createToken({ serviceId: "github", displayName: "Work", token: "fixture-feed-usage-key" }));
   const bind = (scopeId: string, pluginId: string, slotId: string) => withConnectorConnections(home.home, store => store.bind({ scopeId, pluginId, slotId, serviceId: "github", connectionId: account.connection_id }));
-  bind(pluginBindingScope({ install_id: "install-example" }), "io.molis.work.example.slots", "account");
+  bind(pluginBindingScope({ install_id: "install-example" }), "com.example.slots", "account");
   for (const [project, record] of [[a, "source-1"], [a, "source-2"], [b, "source-3"]] as const) {
     bind(pluginBindingScope({ install_id: feedInstall, project_id: project.project_id, record_key: record }), FEED_PLUGIN_ID, "github");
   }
@@ -98,7 +98,7 @@ test("RAC-2669 ASC-10 ASC-13 BL-920: the plugin slots bound to a connection are 
   const rows = (usages: Usage[]) => usages.map(usage => JSON.stringify([usage.title, usage.detail, usage.enabled])).sort();
   assert.deepEqual(rows(platform(atHome)), rows([
     // An installation this Home no longer has keeps its ids: there is no Manifest left to name it by.
-    { title: "io.molis.work.example.slots · account", detail: "插件这个安装发出的请求都用这个账号", enabled: true },
+    { title: "com.example.slots · account", detail: "插件这个安装发出的请求都用这个账号", enabled: true },
     { title: "Feed · 读取你为这个来源选好的账号", detail: "项目「A」里 2 条记录用这个账号", enabled: true },
     { title: "Feed · 读取你为这个来源选好的账号", detail: "项目「B」里 1 条记录用这个账号", enabled: true },
   ] as Usage[]));

@@ -17,7 +17,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // leaves them. A fresh install has every optional permission switched on, so a built-in plugin works as it did; one the person
 // switches off stays off across starts and builds, and only the actions that need it are unavailable.
 
-const PLUGIN_ID = "io.molis.work.example.bundled-grants";
+const PLUGIN_ID = "com.example.bundled-grants";
 const REQUIRED = { permission: "grants:required", required: true, reason: "插件没有它就不能运行" } as const;
 const OPTIONAL = { permission: "grants:optional", required: false, reason: "缺它时插件只能做一部分事" } as const;
 const NEWER = { permission: "grants:newer", required: false, reason: "只有新构建声明的可选能力" } as const;

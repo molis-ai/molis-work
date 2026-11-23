@@ -28,7 +28,7 @@ const code = (expected: string) => (error: unknown) => error instanceof ActionEr
 
 function manifest(service_id: string): PluginManifest {
   return {
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.connectionservices", version: "1.0.0", name: "Connection services", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.connectionservices", version: "1.0.0", name: "Connection services", kind: "app",
     publisher: { publisher_id: "example", signature: "connection-services" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "connections:use", required: false, reason: "连接服务测试声明" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
@@ -94,7 +94,7 @@ const dispatch = (url: string): PluginConnectionDispatch =>
 
 async function bound(t: TestContext, service_id: string) {
   const home = await mkdtemp(join(tmpdir(), "connection-services-home-")); t.after(() => rm(home, { recursive: true, force: true }));
-  const target = { plugin_id: "io.molis.work.example.connectionservices", install_id: `install-s71-${service_id}`, slot_id: "account", service_id };
+  const target = { plugin_id: "com.example.connectionservices", install_id: `install-s71-${service_id}`, slot_id: "account", service_id };
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: service_id, displayName: service_id, token: BEARER_VALUE }));
   withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(target.install_id), pluginId: target.plugin_id, slotId: "account", serviceId: service_id, connectionId: connection.connection_id }));
   return { home, target, connection_id: connection.connection_id };
@@ -139,7 +139,7 @@ test("S-69 RAC-346 a bound connection pinned to one origin is refused on the ser
   assert.equal(seen.length, sent, "the refused request was not sent, with or without the credential");
 });
 
-const BOUND = { plugin_id: "io.molis.work.example.connectionservices", slot_id: "account" };
+const BOUND = { plugin_id: "com.example.connectionservices", slot_id: "account" };
 
 /** A connection made the way the Host makes one (`activateConnectorConnection`), bound to the test slot. */
 async function made(t: TestContext, service_id: string, completion: Parameters<typeof activateConnectorConnection>[1], home?: string) {

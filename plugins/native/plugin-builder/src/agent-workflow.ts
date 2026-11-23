@@ -26,6 +26,7 @@ import { acceptPresentationReview } from './agent-review.js';
 import { displayProblem } from './agent-diagnostics.js';
 export { failureReason, humanize } from './agent-diagnostics.js';
 import type { AgentBuild, AgentDesign, AgentBuildSnapshot, AgentBuildStep, AgentProposal, AgentRelease } from './agent-model.js';
+import { studioPluginId } from './studio-plugin-id.js';
 
 export interface AgentBuilderPorts {
   projectId: string;
@@ -226,7 +227,7 @@ export class AgentBuilderWorkflow {
       const list = Array.isArray(value.candidates) ? value.candidates : Array.isArray(value.proposals) ? value.proposals : null;
       if (!list || list.length < 2 || list.length > 3) throw new Error('初次要给 2–3 个在页面结构或关键行为上有实质差异的方案（candidates）');
       const dropped: string[] = [];
-      const proposals = list.map((item, index) => normalizeProposal(item, index, 'io.molis.work.generated.' + id, dropped));
+      const proposals = list.map((item, index) => normalizeProposal(item, index, studioPluginId(id), dropped));
       if (new Set(proposals.map(item => item.id)).size !== proposals.length) throw new Error('方案标识重复');
       for (const proposal of proposals) for (const capability of proposal.effects.capabilities ?? [])
         if (!ids.includes(capability)) throw new Error(`方案 ${proposal.id} 用了能力目录里没有的「${capability}」；目录为空时只能用插件自己的存储`);
@@ -263,7 +264,7 @@ export class AgentBuilderWorkflow {
   private acceptDesign(id: string, output: string, base: { id: string; title: string; description: string; rationale: string; journey: string[] }, capabilities: CatalogEntry[], resources: string[]) {
     const language = this.ports.designLanguages?.();
     const value = parseModelJson(output, language !== undefined), dropped: string[] = [];
-    const design = expandDesign(value, base, 'io.molis.work.generated.' + id, randomUUID(), dropped, capabilities);
+    const design = expandDesign(value, base, studioPluginId(id), randomUUID(), dropped, capabilities);
     const valid = validateAgentDesign(design, capabilities.map(item => item.id), resources, this.ports.validateContract);
     const source = value && typeof value === 'object' && !Array.isArray(value) && 'design' in value ? (value as { design: unknown }).design : value;
     if (language) freezeStudioUi(valid, source && typeof source === 'object' && 'uiText' in source ? source.uiText : undefined, language, this.store.require(id).design?.contract.ui?.locales);

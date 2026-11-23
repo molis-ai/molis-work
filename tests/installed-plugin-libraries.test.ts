@@ -36,7 +36,7 @@ interface ProbeOptions {
 /** An installed plugin (not on any start list): one write action over its library; it keeps the services it was started with. */
 function probe(options: ProbeOptions = {}) {
   const { name = "ledgerprobe", signature = "publisher-one", version = "1.1.0", library = {} } = options;
-  const id = `io.molis.work.example.${name}`;
+  const id = `com.example.${name}`;
   const shape = { scope: "project" as const, audiences: ["user" as const], permissions: [], subject_kinds: [] };
   const note: ActionDefinition<{ text: string }, string> = { capability_id: `${id}.note`, version: 1, operation: "command",
     action: { ...shape, title: "记一行", description: "把一行字写进插件自己的库", kind: "operation",

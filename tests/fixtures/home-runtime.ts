@@ -71,7 +71,7 @@ export async function serveHomeRuntime(t: TestContext, options: NonNullable<Cons
 
 /** A Home definition with optional business grants: being a fixture does not grant read/write/model/configuration. */
 export function homeProbe(name = "homeprobe", version = "1.0.0") {
-  const id = `io.molis.work.example.${name}`, read = `${name}:read`, write = `${name}:write`, configure = `${name}:configure`;
+  const id = `com.example.${name}`, read = `${name}:read`, write = `${name}:write`, configure = `${name}:configure`;
   const permissions = ["storage:private", read, write, configure, "model:invoke"];
   const contexts: PluginStartContext[] = [], stopped: unknown[] = [];
   const routed: Array<string | null> = [];

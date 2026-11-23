@@ -36,7 +36,7 @@ const WRITE = { permission: "dataprobe:write", required: true, reason: "写自�
 const LIBRARY = "probe-notes";
 const DECLARATION: PluginDatabaseDeclaration = { store_name: LIBRARY, version: 1, read_permission: READ.permission, write_permission: WRITE.permission,
   schema: "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" };
-const idOf = (name: string) => `io.molis.work.example.${name}`;
+const idOf = (name: string) => `com.example.${name}`;
 
 /** The Home's top-level entries that are not a library, registered or not (docs/system/HOME-DATA.md sections 5 and 6). */
 const HOME_DIRECTORIES = ["feed", "config", "agent-runtime", "browser", "shelf", "logs", "releases", "bin", "cache", "backups", "plugin-builder",

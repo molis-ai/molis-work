@@ -39,7 +39,7 @@ test("BFP-01 BL-131: updating 20 Inbox suggestions reads the page once and says 
   const definition: ActionDefinition = { capability_id: "fixture.bfp." + randomUUID(), version: 1, operation: "command", action: {
     title: "固定判断", description: "固定返回先核查", kind: "judgment", scope: "project", audiences: ["user", "workflow", "mcp"], permissions: ["fixture:bfp"], subject_kinds: ["inbox_entry"],
     input_schema: inboxNextScene.input_schema, output_schema: inboxNextScene.result_schema, output_type: inboxNextScene.result_type } };
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.bfp", version: "1.0.0", name: "固定判断插件",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.bfp", version: "1.0.0", name: "固定判断插件",
     kind: "app", publisher: { publisher_id: "example", signature: "bfp-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [{ permission: "fixture:bfp", required: true, reason: "运行固定判断" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: () => {

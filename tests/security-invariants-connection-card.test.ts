@@ -30,7 +30,7 @@ const MANAGEMENT = ["connectors:management:read", "connectors:management:write"]
 
 /** A Home plugin with image generation (`image_generation`), and one action that binds its `cover` target at an address it names. */
 function imageProbe(name: string) {
-  const id = `io.molis.work.example.${name}`, declaration = { store_name: name, read_permission: `${name}:read`, write_permission: `${name}:write`, generate_permission: `${name}:generate` };
+  const id = `com.example.${name}`, declaration = { store_name: name, read_permission: `${name}:read`, write_permission: `${name}:write`, generate_permission: `${name}:generate` };
   const permissions = ["storage:private", "model:invoke", declaration.read_permission, declaration.write_permission, declaration.generate_permission];
   const contexts: PluginStartContext[] = [];
   const rebind: ActionDefinition<{ base_url: string; connection_id: string }, { bound: true }> = { capability_id: `${name}.rebind`, version: 1, operation: "command", action: {

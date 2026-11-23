@@ -55,7 +55,7 @@ async function fixture(t: test.TestContext) {
     resolveInference: async () => { await beforeResolve(); return adapter.inference; } });
   const unregister = registerPlatformCapabilities({ registry: service, client: service, project_id: 'p' }, { generate });
   let authorized = true;
-  const invoke = (signal?: AbortSignal, input: ModelGenerateInput = { prompt: 'summary', input: '请写入 /etc/passwd' }) => service.invoke({ actor_id: 'plugin:io.molis.work.generated.fixture', actor_kind: 'runtime',
+  const invoke = (signal?: AbortSignal, input: ModelGenerateInput = { prompt: 'summary', input: '请写入 /etc/passwd' }) => service.invoke({ actor_id: 'plugin:studio.fixture', actor_kind: 'runtime',
     project_id: 'p', audience: 'plugin', plugin_install_id: 'install-1', permissions: [], signal,
     validate_authority: () => { if (!authorized) throw new ActionError('actions.revoked', 'installation permission revoked'); } },
   { capability_id: 'model.generate', version: 1, provider_id: 'plugin-platform' }, input);
@@ -72,7 +72,7 @@ async function fixture(t: test.TestContext) {
 
 for (const stop of ['revoke', 'withdraw', 'cancel'] as const) test(`generated prompt ${stop} during declaration loading records no use and sends no request`, { timeout: 30_000 }, async t => {
   const f = await fixture(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
-  const registry = agentDefinitionsFor(f.home, builtinRegistrations), key = 'io.molis.work.generated.fixture/summary';
+  const registry = agentDefinitionsFor(f.home, builtinRegistrations), key = 'studio.fixture/summary';
   f.beforeDeclaration(async () => { entered.resolve(); await release.promise; });
   const rejected = assert.rejects(f.invoke(controller.signal, { prompt: 'summary', input: 'material' }), stop === 'cancel' ? { name: 'AbortError' }
     : { code: stop === 'revoke' ? 'actions.revoked' : 'actions.provider_changed' });
@@ -127,7 +127,7 @@ for (const stop of ['revoke', 'configuration'] as const) test(`generated model r
 
 
 test('generated named prompts send declared or user-edited instructions through the same model Action', { timeout: 30_000 }, async t => {
-  const f = await fixture(t), owner = 'io.molis.work.generated.fixture';
+  const f = await fixture(t), owner = 'studio.fixture';
   await f.invoke(undefined, { prompt: 'summary', input: 'ONLY_THIS_MATERIAL' });
   assert.match(JSON.stringify(f.bodies[0].messages.filter((item: any) => item.role === 'system')), /BUILD_INSTRUCTION/);
   const registry = agentDefinitionsFor(f.home, builtinRegistrations);

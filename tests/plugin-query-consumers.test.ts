@@ -158,7 +158,7 @@ import { runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 import { serveHomeRuntime, deferred } from "./fixtures/home-runtime.js";
 
 for (const selected of ["project", "home"] as const) test(`RAC-2507 RAC-2508 RAC-2509 RAC-2510 stage/objects retain the selected ${selected} owner and finite surfaces`, { timeout: 90_000 }, async t => {
-  const id = `io.molis.work.example.stage-${selected}`, contribution = `${id}.main`, foreign = `${id}.foreign`, permission = `${selected}-stage:read`;
+  const id = `com.example.stage-${selected}`, contribution = `${id}.main`, foreign = `${id}.foreign`, permission = `${selected}-stage:read`;
   const action = (suffix: string, object = false): ActionDefinition => ({ capability_id: `${id}.${suffix}`, version: 1, operation: "query", action: {
     title: suffix, description: "Owned read", kind: "query", scope: "project", audiences: ["user"], permissions: [permission], subject_kinds: [],
     input_schema: { type: "object", properties: object ? { object_id: { type: "string", minLength: 1 } } : {}, required: object ? ["object_id"] : [], additionalProperties: false }, output_schema: {} } });
@@ -262,7 +262,7 @@ test("T405-FULL17-A/B Inbox SSR and fragment read their saved judgment metadata 
     subject_kinds: ["inbox_entry"], input_schema: inboxNextScene.input_schema, output_schema: inboxNextScene.result_schema, output_type: inboxNextScene.result_type } };
   let executions = 0;
   const views: ActionCallContext[] = [], plugin: PluginDefinition = { manifest: {
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.inbox-metadata", version: "1.0.0", name: "判断元数据",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.inbox-metadata", version: "1.0.0", name: "判断元数据",
     kind: "app", publisher: { publisher_id: "example", signature: "inbox-metadata" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "metadata-fixture:judge", required: true, reason: "执行独立判断" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [rule],

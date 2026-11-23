@@ -1,4 +1,4 @@
-import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_PLUGIN_ID_PREFIX, pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDefinition, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentGrant, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { assertConsentsDeclared, assertPluginTrust, assertScopeFitsRuntime, assertTrustFitsDefinition, type InProcessAdmission } from "./trust-rules.js";
@@ -17,8 +17,10 @@ const nested = (a: string, b: string): boolean => a.startsWith(`${b}.`) || b.sta
 /**
  * Checks what an install is called with, and answers its trust. S-75.1: only `pinned` may carry a fingerprint, matching its trusted key
  * (`plugin.signer_mismatch`). S-75.2 and S-75.4, for an install that is not of the Host's build: its `plugin_id` may not be one the
- * Host's build ships (`hostIds`) or nest with one, and may not nest with the id of another publisher's installation that is not
- * uninstalled (`plugin.id_namespace_conflict`); only the same pinned key's ids may nest. Unsigned labels never establish identity.
+ * Host's build ships (`hostIds`) or nest with one, may not sit under the Host's prefix `io.molis.work.` at all (S-reserved-host-prefix:
+ * the prefix is reserved as a whole, so an id the Host ships later or a platform provider without a plugin shell is never left open),
+ * and may not nest with the id of another publisher's installation that is not uninstalled (`plugin.id_namespace_conflict`); only the
+ * same pinned key's ids may nest. Unsigned labels never establish identity.
  * The Host's build is not refused here: an id
  * that comes with a later release is the Host's to give, and what already holds one is then the later one's to answer.
  */
@@ -35,6 +37,7 @@ export function assertInstallIdentity(
     throw pluginErrors.signer_mismatch("发布者签名只有验过的固定公钥才能写成指纹的形式；自己写的标签不能冒充某个发布者");
   }
   if (trust.level === "host") return trust;
+  if (id.startsWith(HOST_PLUGIN_ID_PREFIX)) throw pluginErrors.id_namespace_conflict(`插件 ID ${id} 用了只给随宿主发布的插件的前缀 ${HOST_PLUGIN_ID_PREFIX}，请换成你自己的名字`);
   for (const reserved of hostIds) {
     if (reserved === id || nested(reserved, id)) throw pluginErrors.id_namespace_conflict(`插件 ID ${id} 与随宿主发布的 ${reserved} 冲突`);
   }

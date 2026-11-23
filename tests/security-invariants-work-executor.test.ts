@@ -37,7 +37,7 @@ async function until(read: () => boolean | Promise<boolean>): Promise<void> {
   throw new Error("The expected state was not reached");
 }
 
-const USE = "executor:use", EXECUTOR_ID = "io.molis.work.example.executor", PREFIX = "example.executor";
+const USE = "executor:use", EXECUTOR_ID = "com.example.executor", PREFIX = "example.executor";
 
 /** A plugin that takes on a work through the work-executor protocol, as any installed plugin may: each of its actions needs its installation's one grant, and counts its runs. */
 function executorPlugin() {

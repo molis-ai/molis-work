@@ -39,14 +39,14 @@ export async function proveAuthoringSync(t:TestContext,o:Options):Promise<void>{
  const unit=content as {files:Record<string,Array<{slot:string;files:Array<{path:string;bytes:string}>}>>};
  const build=restored.builds.find(b=>b.id===o.itemId)!;assert.equal(build.active,null);assert.equal(build.phase,'paused');assert.equal(build.revision,1);
  assert.ok(restored.releases.some(r=>r.buildId===o.itemId),'normal publication metadata must exist');
- assert.equal(new SqlitePluginRuntimeRepository(target.db).list().filter(r=>r.plugin_id==='io.molis.work.generated.'+o.itemId).length,0);
+ assert.equal(new SqlitePluginRuntimeRepository(target.db).list().filter(r=>r.plugin_id==='studio.'+o.itemId).length,0);
  for(const directory of unit.files[o.itemId]!){const slot=directory.slot.replace(/-settled$/,''),base=slot==='current'?build.directory:slot.startsWith('release-')?restored.releases.find(r=>r.buildId===o.itemId&&r.version===Number(slot.slice(8)))?.directory:slot.startsWith('history-')?build.history[Number(slot.slice(8))]?.directory:undefined;
   assert.ok(base,'every source directory must have a target location');const path=directory.slot.endsWith('-settled')?base+'.settled':base;
   for(const file of directory.files)assert.deepEqual(readFileSync(join(path,file.path)),Buffer.from(file.bytes,'base64'));
  }
  await o.verifyTarget(target,targetHome,o.projectId,o.itemId);
  const checked=JSON.parse(privateStorage.snapshotInstallationData(owner.namespacePrefix+o.projectId).find(v=>v.item_key===owner.key)!.item_value) as {builds:Array<{id:string;phase:string;directory:string;checks:{global:{passed:boolean;bundlePath:string}}}>};
- const verified=checked.builds.find(b=>b.id===o.itemId)!;assert.equal(verified.phase,'ready');assert.equal(verified.checks.global.passed,true);const native=relative(realpathSync(targetHome),realpathSync(verified.checks.global.bundlePath));assert.ok(native&&!isAbsolute(native)&&native!=='..'&&!native.startsWith('..'+sep));assert.equal(new SqlitePluginRuntimeRepository(target.db).list().filter(r=>r.plugin_id==='io.molis.work.generated.'+o.itemId).length,0);
+ const verified=checked.builds.find(b=>b.id===o.itemId)!;assert.equal(verified.phase,'ready');assert.equal(verified.checks.global.passed,true);const native=relative(realpathSync(targetHome),realpathSync(verified.checks.global.bundlePath));assert.ok(native&&!isAbsolute(native)&&native!=='..'&&!native.startsWith('..'+sep));assert.equal(new SqlitePluginRuntimeRepository(target.db).list().filter(r=>r.plugin_id==='studio.'+o.itemId).length,0);
  assert.notEqual(verified.directory,build.directory,'explicit continuation must fork the immutable received inputs');
  for(const directory of unit.files[o.itemId]!){const slot=directory.slot.replace(/-settled$/,''),base=slot==='current'?build.directory:slot.startsWith('release-')?restored.releases.find(r=>r.buildId===o.itemId&&r.version===Number(slot.slice(8)))?.directory:build.history[Number(slot.slice(8))]?.directory;assert.ok(base);for(const file of directory.files)assert.deepEqual(readFileSync(join(directory.slot.endsWith('-settled')?base+'.settled':base,file.path)),Buffer.from(file.bytes,'base64'),'local checks must not mutate retained immutable inputs');}
  // Exercise the actual Host's separately opened sync connection while a real preview remains in flight.

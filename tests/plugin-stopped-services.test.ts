@@ -32,7 +32,7 @@ const instanceOf = (context: PluginStartContext) => ({ install_id: context.insta
  * handler notes which start it belongs to, then answers with `on.touch` when a test set one.
  */
 function stopProbe(name: string) {
-  const id = `io.molis.work.example.${name}`, write = `${name}:write`;
+  const id = `com.example.${name}`, write = `${name}:write`;
   const on: { touch?: (services: PluginHostServices, activation: number) => string | Promise<string> } = {};
   const touch: ActionDefinition<Record<string, never>, string> = { capability_id: `${name}.touch`, version: 1, operation: "command",
     action: { title: "改动", description: "处理器跑过就记下是哪一次启动", kind: "operation", scope: "project", audiences: ["user", "plugin"], permissions: [write],

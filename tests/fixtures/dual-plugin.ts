@@ -24,7 +24,7 @@ type Share = Omit<PluginAppContribution, "kind">;
  * `viewIn` moves the stage view to the project half (T-127): the half that offers it is the one that draws the stage.
  */
 export function dualPlugin(name = "dualprobe", writes = false, viewIn: Half = "home") {
-  const id = `io.molis.work.example.${name}`, read = `${name}:read`, changed = `${id}.changed`, view = `${id}.stage`;
+  const id = `com.example.${name}`, read = `${name}:read`, changed = `${id}.changed`, view = `${id}.stage`;
   const action = (suffix: string, half: Half, audiences: Array<"user" | "mcp" | "workflow">, write = false): HalfAction => ({ capability_id: `${name}.${suffix}`,
     version: 1, operation: write ? "command" : "query", action: { title: `${half} 一半的 ${suffix}`, description: `双实例的 ${half} 一半`, scope: half, permissions: [read],
       kind: write ? "operation" : "query", audiences, subject_kinds: [], input_schema: { type: "object", additionalProperties: false, properties: { call: { type: "string" } } } } });

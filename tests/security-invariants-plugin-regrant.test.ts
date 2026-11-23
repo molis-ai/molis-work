@@ -17,7 +17,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // grants and started again as one step; taking a permission away withdraws the live activation's authority at once and the new grants
 // are saved before anything is stopped. These tests drive the Runtime itself and, for the in-flight call, a real platform.
 
-const PLUGIN_ID = "io.molis.work.example.regrant";
+const PLUGIN_ID = "com.example.regrant";
 const REQUIRED = { permission: "regrant:required", required: true, reason: "插件没有它就不能运行" } as const;
 const OPTIONAL = { permission: "regrant:optional", required: false, reason: "缺它时插件只能做一部分事" } as const;
 const OTHER = { permission: "regrant:other", required: false, reason: "另一项可选能力" } as const;

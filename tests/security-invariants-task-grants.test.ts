@@ -26,7 +26,7 @@ import { homePackage, mac, person as installer, ref } from "./fixtures/home-sand
 import { PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
 import { openTestHome, serveTestHost, type TestHostServer, type TestProject } from "./fixtures/test-home.js";
 
-const READER = "io.molis.work.example.taskreader";
+const READER = "com.example.taskreader";
 /** The plugin Agent service runs its rounds on the Prologue Runtime; this fixture's Runtime answers under its id. */
 const RUNTIME = "prologue";
 const empty = { type: "object", properties: {}, additionalProperties: false } as const;
@@ -68,7 +68,7 @@ function taskReader() {
   return { definition, contexts, handled };
 }
 
-const SHELF = "io.molis.work.example.taskshelf", CHANGES = "io.molis.work.example.taskchanges";
+const SHELF = "com.example.taskshelf", CHANGES = "com.example.taskchanges";
 /** The shelf declares no read groups, so it is one whole category: its read, beside a command and a query that writes. */
 const shelfRead = query("taskshelf.list"), shelfAdded = query("taskshelf.count");
 const shelfChange: ActionDefinition = { capability_id: "taskshelf.change", version: 1, operation: "command", action: { title: "Change", description: "Changes",

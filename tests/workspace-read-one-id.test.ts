@@ -61,7 +61,7 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
     const own: ActionDefinition = { capability_id: `${name}.list`, version: 1, operation: "query", action: { title: name, description: "Lists through the workspace read", kind: "query", scope: "project",
       audiences: ["user"], permissions: ["workspace:read"], subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "object" },
       required_actions: [{ capability_id: readFile.capability_id, version: readFile.version }] } };
-    return { manifest: { schema_version: 1, host_api_version: 1, plugin_id: `io.molis.work.example.${name}`, version: "1.0.0", name, kind: "app",
+    return { manifest: { schema_version: 1, host_api_version: 1, plugin_id: `com.example.${name}`, version: "1.0.0", name, kind: "app",
         publisher: { publisher_id: "example", signature: `example-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
         permissions: [{ permission: "workspace:read", required: false, reason: "Reads the linked folder" }], capabilities: { provides: [], consumes },
         artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: ownAction ? [own] : [], routes: [] },
@@ -84,7 +84,7 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
     assert.equal(reads.host, 1);
     const call = seen[0]!;
     assert.equal(call.audience, "plugin");
-    assert.equal(call.host_plugin?.plugin_id, "io.molis.work.example.reader");
+    assert.equal(call.host_plugin?.plugin_id, "com.example.reader");
     assert.equal(call.plugin_install_id, reader.install_id);
     assert.deepEqual(call.permissions, ["workspace:read"]);
     assert.deepEqual(call.allowed_capability_ids, [readFile.capability_id, other.capability_id], "the dependency check is limited to exactly the Manifest consumption list");
@@ -125,7 +125,7 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
     const viewer = contexts.get("viewer")!.services!.actions!;
     assert.deepEqual(await viewer.invoke(readFile, query), { outcome: "directory", entries: [], truncated: false });
     assert.equal(reads.host, 2);
-    assert.equal(seen[1]!.host_plugin?.plugin_id, "io.molis.work.example.viewer");
+    assert.equal(seen[1]!.host_plugin?.plugin_id, "com.example.viewer");
     assert.deepEqual(await viewer.discover(), []);
     await assert.rejects(viewer.invoke(other, {}), { code: "actions.forbidden" }, "another plugin's action is not consumed here");
     await assert.rejects(viewer.invoke(readGit, { workspace_id: "w", kind: "status" }), { code: "actions.forbidden" }, "the other read is not listed either");

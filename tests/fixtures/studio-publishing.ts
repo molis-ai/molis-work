@@ -29,7 +29,7 @@ export function readyPublication(home: string, project: string, scope: 'project'
   const root = join(home, 'plugin-builder', project); mkdirSync(root, { recursive: true });
   const statePath = join(root, 'fixture-state.json'); writeFileSync(statePath, '{}');
   const storage = publicationStorage(statePath), ports = publicationPorts(home, root), workflow = new AgentBuilderWorkflow(storage, ports), initial = workflow.store.create('Fixed notes publication');
-  const pluginId = 'io.molis.work.generated.' + initial.id;
+  const pluginId = 'studio.' + initial.id;
   const { files } = packageFiles('fixture', undefined, { pluginId });
   const contract = JSON.parse(files['contract.json']!) as SandboxPluginContract;
   contract.operations[1]!.effects.storage = ['write', 'read'];

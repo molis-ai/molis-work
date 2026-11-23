@@ -34,7 +34,7 @@ test("unknown SDK plugin registers a real write and read through Runtime; stoppi
   const db = new DatabaseSync(":memory:");
   db.exec("CREATE TABLE notes (id INTEGER PRIMARY KEY, project TEXT NOT NULL, body TEXT NOT NULL)");
   const service = new ActionService();
-  const id = "io.molis.work.example.dynamic-notes";
+  const id = "com.example.dynamic-notes";
   const write = defineAction<{ text: string }, { id: number }>({
     capability_id: `${id}.create`, version: 1, operation: "command",
     action: { title: "新建笔记", description: "将内容保存到当前项目", kind: "operation", scope: "project",
@@ -382,7 +382,7 @@ test("unknown Runtime scene exposes actual configuration targets and preserves o
     return row ? { ...JSON.parse(row.binding), revision: row.revision } as ActionSceneBinding : null;
   };
   const configurable = { ...scene, configuration_permissions: ["notes:write"] };
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.configurable", version: "1.0.0", name: "配置位置插件",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.configurable", version: "1.0.0", name: "配置位置插件",
     kind: "app", publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["notes:write", "notes:activate"].map(permission => ({ permission, required: false, reason: "配置原业务规则" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { contributions: [] }, actions: [], action_scenes: [configurable] }, async start() { return { kind: "app", action_scenes: [{ ...configurable,

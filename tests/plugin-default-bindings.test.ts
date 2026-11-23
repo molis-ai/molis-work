@@ -28,7 +28,7 @@ import { SNAPSHOT_SOURCE, snapshotSourcePlugin } from "./fixtures/snapshot-sourc
 
 /** A plugin that hands on snapshots, started by the Host like any of its own (the retired Files plugin was the one before). */
 const FILES = SNAPSHOT_SOURCE.plugin_id;
-const PROBE = "io.molis.work.example.wordcount";
+const PROBE = "com.example.wordcount";
 
 function probe(inputs: PluginInputPortDeclaration[], groups?: PluginInputGroupDeclaration[], pluginId = PROBE): PluginDefinition {
   const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name: "字数", kind: "app",
@@ -104,7 +104,7 @@ test("W4-03-02 a default is not bound over the person's choice, nor when its sou
 }));
 
 test("W4-03-04 a plugin nobody agreed for gets no default (not Coding's changesets, not its default group, not under a built-in's id), and no built-in reads it by default", project(async platform => {
-  const installed = "io.molis.work.example.collector";
+  const installed = "com.example.collector";
   const changesetPort = (port: string, plugin_id: string, source: string): PluginInputPortDeclaration =>
     ({ port, artifact_type_id: "coding.changeset.v1", schema_version: 1, optional: true, default_source: { plugin_id, port: source } });
   const collector = probe([changesetPort("changes", "io.molis.work.coding", "changeset"), snapshotPort("text", { plugin_id: FILES, port: "before" })],

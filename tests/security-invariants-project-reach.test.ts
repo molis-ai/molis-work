@@ -21,7 +21,7 @@ import { openTestHome, serveTestHost, type TestHome, type TestHostServer, type T
  * never decides it from the audience, and nothing it is given (input, a forged context, another call's) widens it.
  */
 
-const PROBE = "reachprobe", KEEPS = "io.molis.work.example.reachprobe";
+const PROBE = "reachprobe", KEEPS = "com.example.reachprobe";
 type Behavior = (context: PluginStartContext, caller: ActionExecutionContext) => Promise<unknown>;
 
 /** A Home plugin whose `list` declares `project_reach` and answers what the Host put in its context; `plain` declares nothing; `outer` calls `list`. */

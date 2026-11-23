@@ -3,7 +3,7 @@ import type { StateMachineDeclaration } from "@molis-ai/molis-work-contracts/pla
 import { defineArtifactPreviewAction } from "@molis-ai/molis-work-plugin-sdk";
 
 /** The 成果 type the sample pins, and the name and preview action every pinned type must declare (specs/artifact-positioning A1/A7). */
-export const SAMPLE_ARTIFACT_TYPE_ID = "io.molis.work.example.note";
+export const SAMPLE_ARTIFACT_TYPE_ID = "com.example.note";
 export function sampleArtifactType(pluginId: string): { artifact_type_id: string; schema_version: number; title: string; preview: { capability_id: string; version: number } } {
   return { artifact_type_id: SAMPLE_ARTIFACT_TYPE_ID, schema_version: 1, title: "Sample result", preview: { capability_id: `${pluginId}.results.preview`, version: 1 } };
 }
@@ -78,7 +78,7 @@ export default definePlugin({
       resultMachine.assert(count === 0 ? "empty" : "saved", "save");
       const version = count + 1;
       services.artifacts.publish({
-        artifact_id: artifactId, version, artifact_type_id: "io.molis.work.example.note", schema_version: 1,
+        artifact_id: artifactId, version, artifact_type_id: "com.example.note", schema_version: 1,
         content: { kind: "inline", payload: { title: "Local sample result", sequence: version } },
         // A 成果 says what it pins, what it is called and what its content is.
         origin: { kind: "pinned", subject: { kind: "counter", id: "sample" }, revision: String(version) },
@@ -118,7 +118,7 @@ export default definePlugin({
       bindOwnerPluginAction(context, readAction, () => { const count = savedCount(); return { count, latest: count ? resultAt(count) : null }; }),
       bindOwnerPluginAction(context, publishAction, () => publishResult()),
       // The owner's half of the preview the 成果库 and the side panel show: this plugin's own type, as text.
-      bindArtifactPreview(previewAction, "io.molis.work.example.note", artifact => ({
+      bindArtifactPreview(previewAction, "com.example.note", artifact => ({
         media_type: "text/markdown", text: "# " + artifact.payload.title + "\\n\\nResult " + artifact.payload.sequence + "\\n",
       })),
     ] };

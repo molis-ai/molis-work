@@ -22,9 +22,9 @@ import { PENDING, within } from "./fixtures/stopped-calls.js";
 // plugin (Shelf has three) cannot be mistaken for an installation.
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const BUILT_IN = "io.molis.work.example.shipped";
+const BUILT_IN = "com.example.shipped";
 const WRITE = "shipped:write";
-const DEPENDENCY_PROVIDER = "io.molis.work.example.host-fixture";
+const DEPENDENCY_PROVIDER = "com.example.host-fixture";
 
 const shape = { scope: "project" as const, audiences: ["user" as const], subject_kinds: [], input_schema: { type: "object", additionalProperties: false } };
 const SAVE: ActionDefinition<Record<string, never>, number> = {
@@ -129,11 +129,11 @@ test("a plugin that declares a built-in plugin's id but is not on the Host's own
       assert.equal(host.registered.length, 0);
 
       // An installation made the way generated plugins are (explicit grants, sandboxed execution), outside the Host's list.
-      const sandboxed = plugin({ pluginId: "io.molis.work.example.generated", signature: "generated-copy", execution: "sandbox" });
+      const sandboxed = plugin({ pluginId: "com.example.generated", signature: "generated-copy", execution: "sandbox" });
       const id = host.platform.runtime.install({ trust: { level: "unsigned" }, definition: sandboxed, deployment: "local", grants: [WRITE] }).install.install_id;
       await host.platform.runtime.start(id);
       const provider = host.registered.at(-1)!;
-      assert.deepEqual([provider.provider_id, provider.plugin_install_id, provider.plugin_id], [id, id, "io.molis.work.example.generated"]);
+      assert.deepEqual([provider.provider_id, provider.plugin_install_id, provider.plugin_id], [id, id, "com.example.generated"]);
     } finally { host.store.close(); }
   }));
 
@@ -143,16 +143,16 @@ test("a PluginRuntime built without the Host's rule keeps registering under the 
   const registry: ActionRegistryPort = { registerProvider: registration => { if (registration.provider.kind === "plugin") providers.push(registration.provider); return service.registerProvider(registration); } };
   service.registerProvider({ provider: { provider_id: DEPENDENCY_PROVIDER, title: "Host fixture", kind: "system" }, definitions: [DEPENDENCY], handlers: [{ ...DEPENDENCY, handle: () => "dependency" }] });
   const plain = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry, project_id: "p" } });
-  const first = plain.install({ trust: { level: "unsigned" }, definition: plugin({ pluginId: "io.molis.work.example.plain", signature: "plain" }), deployment: "local", grants: [WRITE] }).install.install_id;
+  const first = plain.install({ trust: { level: "unsigned" }, definition: plugin({ pluginId: "com.example.plain", signature: "plain" }), deployment: "local", grants: [WRITE] }).install.install_id;
   await plain.start(first);
   assert.deepEqual([providers[0]!.provider_id, providers[0]!.plugin_install_id], [first, first]);
   await plain.stop(first);   // the capability ids are the fixture's, so only one copy at a time
 
   const ruled = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined,
     { hostIds: ISOLATED_HOST_IDS, actions: { registry, project_id: "p", providerId: record => record.plugin_id } });
-  const second = ruled.install({ trust: { level: "host" }, definition: plugin({ pluginId: "io.molis.work.example.ruled", signature: "ruled" }), deployment: "local", grants: [WRITE] }).install.install_id;
+  const second = ruled.install({ trust: { level: "host" }, definition: plugin({ pluginId: "com.example.ruled", signature: "ruled" }), deployment: "local", grants: [WRITE] }).install.install_id;
   await ruled.start(second);
-  assert.deepEqual([providers[1]!.provider_id, providers[1]!.plugin_install_id], ["io.molis.work.example.ruled", second]);
+  assert.deepEqual([providers[1]!.provider_id, providers[1]!.plugin_install_id], ["com.example.ruled", second]);
 });
 
 test("the nested check of an owner action asks the caller's authority about the provider it is registered under: the plugin_id for a bundled plugin",

@@ -171,12 +171,12 @@ test("PG-039 RAC-206: the Host's project clock has no handler of its own: it can
   try {
     // Before: the Host built its clock with an in-process index, which any code in the Host could register a handler on, and a `register()` for jobs without an installation.
     assert.equal("register" in clock, false, "the only way to register a job is an installation's own, with its binding");
-    assert.throws(() => clock.registerAction({ plugin_id: "io.molis.work.example.host-handler", capability_id: "host.wakeup", object_ref: "o", title: "t", due_at: due },
+    assert.throws(() => clock.registerAction({ plugin_id: "com.example.host-handler", capability_id: "host.wakeup", object_ref: "o", title: "t", due_at: due },
       { install_id: "host", installation_generation: "g", action_version: 1 }, effect => effect()), { code: "scheduler.handler_missing" }, "no activation is connected to the Host's clock");
     assert.equal(clock.list().length, 0, "nothing was stored");
     // A row an older library left behind, with no installation binding: it is claimed and fails as unavailable; nothing runs for it.
     db.prepare(`INSERT INTO schedule_jobs (job_id, plugin_id, capability_id, object_ref, title, recurrence_kind, interval_ms, next_due_at, enabled, created_at, updated_at)
-      VALUES ('job_left_behind', 'io.molis.work.example.host-handler', 'host.wakeup', 'o', 't', 'once', NULL, ?, 1, ?, ?)`).run(due, due, due);
+      VALUES ('job_left_behind', 'com.example.host-handler', 'host.wakeup', 'o', 't', 'once', NULL, ?, 1, ?, ?)`).run(due, due, due);
     assert.deepEqual(await clock.tick(later), { invoked: 1, failed: 1, skipped: 0 });
     assert.equal(clock.get("job_left_behind")?.last_wakeup?.status, "plugin_unavailable");
     assert.equal(clock.actionBinding("job_left_behind"), undefined, "it never had an installation to be delivered through");

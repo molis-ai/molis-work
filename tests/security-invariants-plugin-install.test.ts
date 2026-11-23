@@ -63,7 +63,7 @@ async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedg
 const signRef = { capability_id: localPackageSignAction.capability_id, version: localPackageSignAction.version, provider_id: "plugin-install" };
 const signPerson: ActionCallContext = { ...who, audience: "user", permissions: PLUGIN_INSTALL_PERMISSIONS,
   user_action: { source: "management", conversation_ref: "local-package", message_ref: "publish" } };
-const localContentId = "io.molis.work.example.local-signed-skills";
+const localContentId = "com.example.local-signed-skills";
 const localDraft = (scope: "home" | "project" = "project", version = "1.0.0") => contentPackageDraft({
   plugin_id: localContentId, version, name: "Signed Skills", scope,
   skills: [skillFromFolder(new Map([
@@ -245,7 +245,7 @@ const NOT_IN_THE_FORMAT: Array<[string, (files: PackageFiles, manifest: PluginMa
   ["a file the format does not have", files => { files["extra.txt"] = "hello"; }],
   ["no prompts.json", files => { delete files["prompts.json"]; }],
   ["no contract.json", files => { delete files["contract.json"]; }],
-  ["a contract for another plugin", files => { files["contract.json"] = files["contract.json"]!.replace(PACKAGE_PLUGIN_ID, "io.molis.work.example.other"); }],
+  ["a contract for another plugin", files => { files["contract.json"] = files["contract.json"]!.replace(PACKAGE_PLUGIN_ID, "com.example.other"); }],
   ["an interface key the format does not have", files => { files["interface.json"] = JSON.stringify({ ...JSON.parse(files["interface.json"]!), script: "alert(1)" }); }],
   ["no parts", files => { files["interface.json"] = JSON.stringify({ parts: [], nodes: [] }); }],
   ["a part that reads an operation its region does not have", files => {
@@ -261,7 +261,7 @@ const NOT_IN_THE_FORMAT: Array<[string, (files: PackageFiles, manifest: PluginMa
   ["an integration plugin (a connector driver runs in the Host)", (_files, manifest) => { Object.assign(manifest, { kind: "integration" }); }],
   ["a request for every project's always-on place", (_files, manifest) => { manifest.always_on = true; }],
   ["a look for local tools", (_files, manifest) => { Object.assign(manifest, { local_tools: { tools: [{ tool_id: "git", binaries: ["git"] }] } }); manifest.permissions = [...manifest.permissions, { permission: "local-tools:read", required: true, reason: "x" }]; }],
-  ["an event of its own", (_files, manifest) => { Object.assign(manifest, { events: { publishes: [{ event_type_id: "io.molis.work.example.notes.changed", type_version: 1 }], subscribes: [] } }); }],
+  ["an event of its own", (_files, manifest) => { Object.assign(manifest, { events: { publishes: [{ event_type_id: "com.example.notes.changed", type_version: 1 }], subscribes: [] } }); }],
   ["a port of its own", (_files, manifest) => { Object.assign(manifest, { ports: { inputs: [], outputs: [] } }); }],
   ["a permission the contract does not ask for", (_files, manifest) => { manifest.permissions = [...manifest.permissions, { permission: "network:any", required: true, reason: "x" }]; }],
 ];
@@ -562,7 +562,7 @@ test("RAC-1682 S-80 S-84 a compatible Home upgrade is saved and sent to the Home
 });
 
 type Harness = Awaited<ReturnType<typeof harness>>;
-const CHILD_ID = `${PACKAGE_PLUGIN_ID}.extra`, THIRD_ID = "io.molis.work.example.third";
+const CHILD_ID = `${PACKAGE_PLUGIN_ID}.extra`, THIRD_ID = "com.example.third";
 
 /** What the install path has written so far: the pinned publishers, the kept packages, the installations. */
 const writtenBy = async (h: Harness) => ({ pins: h.ledger.publishers().map(pin => pin.key_id).sort(), installs: h.installed.length,

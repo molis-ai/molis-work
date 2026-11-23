@@ -21,7 +21,7 @@ import { dualPlugin } from "./fixtures/dual-plugin.js";
  * Storage, events and the actions client are proven end to end, in a Test Home whose Host runs both halves (`openDualHome`).
  */
 
-const PLUGIN = "io.molis.work.example.handles";
+const PLUGIN = "com.example.handles";
 const PROJECT = "project-one";
 const FILES_READ = "handles:files-read", FILES_WRITE = "handles:files-write";
 const PERMISSIONS = ["model:invoke", "materials:read", FILES_READ];

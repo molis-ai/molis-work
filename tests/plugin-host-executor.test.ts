@@ -47,7 +47,7 @@ test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer 
   }), { hostIds: ISOLATED_HOST_IDS });
   const base = githubFixture();
   const definition: PluginDefinition = { ...base,
-    manifest: { ...base.manifest, plugin_id: "io.molis.work.example.protected-adapter",
+    manifest: { ...base.manifest, plugin_id: "com.example.protected-adapter",
       capabilities: { ...base.manifest.capabilities, consumes: [protectedEntry.capability_id] } },
     async start(context) {
       const sdk = context.services!.actions!;
@@ -86,7 +86,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
   let failStop = false;
   const contexts: PluginStartContext[] = [];
   const base = githubFixture();
-  const id = "io.molis.work.example.hosted";
+  const id = "com.example.hosted";
   // The 成果 type the plugin pins is named and has a preview of its own (specs/artifact-positioning A1/A7).
   const preview = artifactPreview(id);
   const definition: PluginDefinition = { manifest: { ...base.manifest, plugin_id: id,
@@ -270,7 +270,7 @@ test("MEM-V0-C2 current owner invocation discovers its plugin-only command, reta
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set() {}, delete: () => false }) });
   runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, actions });
-  const definition: PluginDefinition = { manifest: { ...base.manifest, plugin_id: "io.molis.work.example.memory-owner", kind: "app", integrations: undefined, connection_services: undefined, permissions: [],
+  const definition: PluginDefinition = { manifest: { ...base.manifest, plugin_id: "com.example.memory-owner", kind: "app", integrations: undefined, connection_services: undefined, permissions: [],
     actions: [ownerAction], capabilities: { provides: [], consumes: [child.capability_id] } }, async start(context) {
     const { bindOwnerPluginAction } = await import("@molis-ai/molis-work-plugin-sdk");
     return { kind: "app", actions: [bindOwnerPluginAction(context, ownerAction, async (_input, beforeWrite) => {

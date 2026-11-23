@@ -98,15 +98,15 @@ test('a plugin calls real actions as itself, only when live; writes stay stand-i
   let live = true;
   const service = catalogCapabilities({ actions, catalog: () => capabilityCatalog(actions, 'web-user'), live: () => live, declaration: declared,
     granted: () => ['goals.list', 'goals.note', 'goals.trash', 'model.generate'], author: () => '进展日志' });
-  const context = (namespace: 'preview' | 'installed') => ({ identity: { projectId: 'p', installationId: 'i', pluginId: 'io.molis.work.generated.x', namespace }, signal: new AbortController().signal }) as never;
+  const context = (namespace: 'preview' | 'installed') => ({ identity: { projectId: 'p', installationId: 'i', pluginId: 'studio.x', namespace }, signal: new AbortController().signal }) as never;
   assert.deepEqual(await service.call(context('preview'), 'goals.list', {}), { goals: [{ goal_id: 'g1' }] }, 'a trial reads the real directory');
   assert.deepEqual(await service.call(context('preview'), 'goals.note', {}), { recorded: true }, 'a trial write is a stand-in');
   assert.equal(calls.filter(call => call.id === 'goals.note').length, 0);
   await service.call(context('installed'), 'goals.note', {});
-  assert.deepEqual(calls.at(-1), { id: 'goals.note', actor: 'plugin:io.molis.work.generated.x', audit: '插件「进展日志」' }, 'the plugin writes as itself, named for people');
+  assert.deepEqual(calls.at(-1), { id: 'goals.note', actor: 'plugin:studio.x', audit: '插件「进展日志」' }, 'the plugin writes as itself, named for people');
   await assert.rejects(service.call(context('installed'), 'goals.trash', {}), /没有开放给插件的能力/);
   assert.deepEqual(await service.call(context('installed'), 'model.generate', { prompt: 'summary', input: '今天' }), { text: '真实回答' });
-  assert.deepEqual(generated, ['io.molis.work.generated.x:今天']);
+  assert.deepEqual(generated, ['studio.x:今天']);
   for (let index = 1; index < 20; index++) await service.call(context('installed'), 'model.generate', { prompt: 'summary', input: '今天' });
   await assert.rejects(service.call(context('installed'), 'model.generate', { prompt: 'summary', input: '今天' }), /次数太多/);
   live = false;
@@ -165,7 +165,7 @@ test('an action that only answers its own installation is on the board but not o
 test('an installed plugin\'s functions are actions of the directory: people, the Home AI, MCP clients and other plugins can call them; uninstalling withdraws them', async () => {
   const { exposeInstalledPlugin, exposedActionId } = await import('../apps/local-host/dist/plugin-builder/exposed-actions.js');
   const service = new ActionService(), actions = { registry: service, client: service, project_id: 'p' };
-  const contract = { version: 1, pluginId: 'io.molis.work.generated.words', revision: 'r', entities: [], pages: [], acceptance: [], operations: [
+  const contract = { version: 1, pluginId: 'studio.words', revision: 'r', entities: [], pages: [], acceptance: [], operations: [
     { id: 'words.list', kind: 'query', description: '列出生词', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array', items: { type: 'object' } }, errors: [], effects: { storage: ['read'] }, examples: [] },
     { id: 'words.add', kind: 'command', description: '记一个生词', input: { type: 'object', properties: { word: { type: 'string' } }, required: ['word'], additionalProperties: false }, output: { type: 'object' }, errors: [], effects: { storage: ['read', 'write'] }, examples: [] },
     { id: 'words.remove', kind: 'command', description: '删除一个生词', input: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false }, output: { type: 'object' }, errors: [], effects: { storage: ['read', 'write'] }, examples: [] },
@@ -180,7 +180,7 @@ test('an installed plugin\'s functions are actions of the directory: people, the
   assert.deepEqual(ids('plugin'), ['generated.4603746a.words.add', 'generated.4603746a.words.list'], 'another plugin cannot delete through it');
   const caller = { actor_id: 'home-ai', project_id: 'p', audience: 'agent' as const, permissions: [] };
   assert.deepEqual(await service.invoke(caller, { capability_id: exposedActionId(release, 'words.add'), version: 2 }, { word: 'serendipity' }), { id: 'w1', word: 'serendipity' });
-  assert.deepEqual(calls, [['io.molis.work.generated.words', 'words.add', { word: 'serendipity' }]]);
+  assert.deepEqual(calls, [['studio.words', 'words.add', { word: 'serendipity' }]]);
   await assert.rejects(service.invoke(caller, { capability_id: exposedActionId(release, 'words.list'), version: 2 }, {}), /插件出错了/);
   withdraw.dispose();
   assert.deepEqual(ids('agent'), [], 'uninstalled: nothing left in the directory');
@@ -201,7 +201,7 @@ test('a capability that needs another action is not offered to generated plugins
   assert.equal(dependent.offered, false, 'what would be refused when the plugin calls it is not offered');
   assert.match(dependent.reason!, /依赖/);
   const service = catalogCapabilities({ actions, catalog: async () => catalog, live: () => true, declaration: declared, granted: () => ['fixture.directory', 'fixture.talk'] });
-  const context = { identity: { projectId: 'p', installationId: 'i', pluginId: 'io.molis.work.generated.x', namespace: 'installed' as const }, signal: new AbortController().signal } as never;
+  const context = { identity: { projectId: 'p', installationId: 'i', pluginId: 'studio.x', namespace: 'installed' as const }, signal: new AbortController().signal } as never;
   assert.deepEqual(await service.call(context, 'fixture.directory', {}), {});
   await assert.rejects(service.call(context, 'fixture.talk', {}), /没有开放给插件的能力/, 'the refusal says so up front');
 });
@@ -250,13 +250,13 @@ async function hostProject(t: import('node:test').TestContext, approve?: readonl
   await home.host.withProject(project.reference, () => undefined);
   const actions = { registry: home.host.actionRegistry(project.reference), client: home.host.actionClient(project.reference), project_id: project.project_id,
     inspect: (caller: ActionCallContext) => home.host.inspectActions(caller, project.reference) };
-  const plugins = new Set(['io.molis.work.generated.probe']);
+  const plugins = new Set(['studio.probe']);
   // What the person approved for the probe plugin: unless the test says otherwise, the probe and the Goal actions it calls.
   const approved = new Set(approve ?? ['callers.sandbox.peek', ...Object.values(goalPluginActions).map(definition => definition.capability_id)]);
   const service = catalogCapabilities({ actions, catalog: () => capabilityCatalog(actions, 'web-user'), live: () => true,
     declaration: identity => plugins.has(identity.pluginId) ? declared(identity) : undefined, granted: identity => plugins.has(identity.pluginId) ? [...approved] : [] });
   const context = (change: { projectId?: string; pluginId?: string } = {}) => ({ identity: { projectId: project.project_id, installationId: 'sandbox-install',
-    pluginId: 'io.molis.work.generated.probe', namespace: 'installed' as const, ...change }, signal: new AbortController().signal }) as never;
+    pluginId: 'studio.probe', namespace: 'installed' as const, ...change }, signal: new AbortController().signal }) as never;
   return { actions, service, context, project, approved, host: home.host };
 }
 
@@ -295,9 +295,9 @@ test('PG110-09 S-15 a sandbox call runs under a caller the Host issues for that 
   assert.deepEqual(await service.call(context(), peek.capability_id, {}), { seen: 1 });
   const retained = seen[0]!;
   assert.deepEqual([retained.plugin_id, retained.install_id, retained.project_id, retained.actor_id],
-    ['io.molis.work.generated.probe', 'sandbox-install', project.project_id, 'plugin:io.molis.work.generated.probe']);
+    ['studio.probe', 'sandbox-install', project.project_id, 'plugin:studio.probe']);
   await assert.rejects(service.call(context({ projectId: 'another-project' }), peek.capability_id, {}), { code: 'plugin_builder.capability_denied' }, 'an identity of another project');
-  await assert.rejects(service.call(context({ pluginId: 'io.molis.work.generated.undeclared' }), peek.capability_id, {}), { code: 'plugin_builder.capability_denied' }, 'a plugin that declared nothing');
+  await assert.rejects(service.call(context({ pluginId: 'studio.undeclared' }), peek.capability_id, {}), { code: 'plugin_builder.capability_denied' }, 'a plugin that declared nothing');
   assert.equal(seen.length, 1, 'neither refused call reached the provider');
   const as = (caller: HostPluginCaller, change: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: caller.actor_id, actor_kind: 'runtime', project_id: caller.project_id,
     audience: 'plugin', permissions: ['callers:read'], plugin_install_id: caller.install_id, host_plugin: caller, ...change });
@@ -310,7 +310,7 @@ test('PG110-09 S-15 a sandbox call runs under a caller the Host issues for that 
     hold = undefined;
     const current = seen.at(-1)!;
     await assert.rejects(actions.client.invoke(as(current, { plugin_install_id: 'another-install' }), peek, {}), { code: 'host.plugin_caller_mismatch' }, 'another installation');
-    await assert.rejects(actions.client.invoke(as(current, { actor_id: 'plugin:io.molis.work.generated.other' }), peek, {}), { code: 'host.plugin_caller_mismatch' }, 'another person');
+    await assert.rejects(actions.client.invoke(as(current, { actor_id: 'plugin:studio.other' }), peek, {}), { code: 'host.plugin_caller_mismatch' }, 'another person');
   } finally { release.resolve(); }
   assert.deepEqual(await pending, { seen: 2 });
   assert.equal(seen.length, 2, 'only the two sandbox calls reached the provider');

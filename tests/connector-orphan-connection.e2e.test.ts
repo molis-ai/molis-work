@@ -9,7 +9,7 @@ import { newPublisher } from "./fixtures/sandbox-package.js";
 
 // RAC-2424 (T-119 follow-up): a connection whose package was removed has no card and no detail panel, so its own row carries the controls.
 // The person replaces the token there, sees the new token after reopening the page, then removes the connection from the same row.
-const PLUGIN_ID = "io.molis.work.example.orphanprobe";
+const PLUGIN_ID = "com.example.orphanprobe";
 const SERVICE = "example-orphan";
 /** A throwaway credential made per call, so no credential-shaped literal sits in the file. */
 const probeToken = (n: number) => `fixture-orphan-probe-token-${String(n).padStart(4, "0")}`;

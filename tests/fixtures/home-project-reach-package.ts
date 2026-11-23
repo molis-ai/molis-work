@@ -3,7 +3,7 @@ import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platf
 import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { newPublisher, signedPackage } from "./sandbox-package.js";
 
-export const REACH_PLUGIN_ID = "io.molis.work.example.projectreach";
+export const REACH_PLUGIN_ID = "com.example.projectreach";
 export const REACH_GOAL_ID = "PROJECT-REACH-GOAL";
 
 /** Real signed Home package; every project write goes through the Goals action and its production owner. */

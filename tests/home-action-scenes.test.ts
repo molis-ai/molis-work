@@ -215,7 +215,7 @@ test("BCC-07 Home judgment resolves a formally installed plugin's own subjects a
     let marker = "original", available = true;
     const now = new Date().toISOString();
     let onRead: (() => void) | undefined;
-    const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.judgment-subject", version: "1.0.0", name: "笔记事项",
+    const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.judgment-subject", version: "1.0.0", name: "笔记事项",
       kind: "app", publisher: { publisher_id: "example", signature: "judgment-subject" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: ["notes:read", "notes:write"].map(permission => ({ permission, required: false, reason: "读写原始笔记" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [reader, events, offerQuery, write] },
       async start() { return { kind: "app", actions: [{ ...write, handle: (_caller, value) => {
@@ -325,7 +325,7 @@ test("BCC-07 Home judgment resolves a formally installed plugin's own subjects a
     repository.save({ ...runtime.get(installId), grants: ["notes:read", "notes:write"] });
     await runtime.stop(installId); await runtime.uninstall(installId);
     assert.deepEqual((await recommendations()).judgments, []);
-    installId = runtime.install({ trust: { level: "unsigned" }, definition: { ...plugin, manifest: { ...plugin.manifest, plugin_id: "io.molis.work.example.replacement-subject" } }, deployment: "local", grants: ["notes:read", "notes:write"] }).install.install_id;
+    installId = runtime.install({ trust: { level: "unsigned" }, definition: { ...plugin, manifest: { ...plugin.manifest, plugin_id: "com.example.replacement-subject" } }, deployment: "local", grants: ["notes:read", "notes:write"] }).install.install_id;
     await runtime.start(installId);
     assert.deepEqual((await recommendations()).judgments, [], "identical content from a replacement provider cannot inherit original recommendations");
     const replacement = await displayed();

@@ -19,7 +19,7 @@ const definitions = [
   action("lingguang.capture", "operation", {}, ["plugin"]),
 ];
 const user: ActionCallContext = { actor_id: "alice", project_id: "p", audience: "user", permissions: [] };
-const plugin: ActionCallContext = { actor_id: "plugin:io.molis.work.generated.x", project_id: "p", audience: "plugin", permissions: [] };
+const plugin: ActionCallContext = { actor_id: "plugin:studio.x", project_id: "p", audience: "plugin", permissions: [] };
 
 test("generated plugins reach what agents reach, except what cannot be undone or opts out; others see no change", async () => {
   const service = new ActionService();

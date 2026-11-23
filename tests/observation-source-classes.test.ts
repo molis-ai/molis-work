@@ -12,7 +12,7 @@ import { currentObservationSource, readRecords } from "@molis-ai/molis-work-serv
 // cursor it is the first read of what the account already held; with a rebuilt cursor, a catch-up of what a break missed; any other pull is
 // real. The class covers the provider's work during the pull and ends with it, and the record joins the call that asked for the pull.
 
-const PLUGIN = "io.molis.work.example.sourceclass", INSTALL = "plugin-install-source-class";
+const PLUGIN = "com.example.sourceclass", INSTALL = "plugin-install-source-class";
 
 async function boundSource(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "observation-source-classes-")), observation = createHostObservation(home);

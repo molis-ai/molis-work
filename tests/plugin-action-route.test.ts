@@ -31,7 +31,7 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
   let calls = 0, failStart = false;
   const contexts: PluginStartContext[] = [];
   const definition: PluginDefinition = {
-    manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.unfamiliar", version: "1.0.0", name: "Unfamiliar", kind: "app",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.unfamiliar", version: "1.0.0", name: "Unfamiliar", kind: "app",
       publisher: { publisher_id: "example", signature: "example-unfamiliar" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: ["unknown.backend"] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
       actions: [action], routes: [{ route_id: action.capability_id, method: "POST", path: "/double" }] },
@@ -52,7 +52,7 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
     assert.equal(contribution.kind, "app");
     if (contribution.kind !== "app") throw new Error("Expected app contribution");
     const route = contribution.routes![0]!;
-    const request = (actor_id: string, body: unknown) => ({ actor_id, body, params: {}, query: {}, method: "POST" as const, pathname: "/api/plugins/io.molis.work.example.unfamiliar/double" });
+    const request = (actor_id: string, body: unknown) => ({ actor_id, body, params: {}, query: {}, method: "POST" as const, pathname: "/api/plugins/com.example.unfamiliar/double" });
     assert.deepEqual(await route.handle(request("owner", { value: 7 })), { status: 200, body: { doubled: 14 } });
     assert.equal((await route.handle(request("owner", { value: "bad" }))).status, 400);
     assert.equal((await route.handle(request("intruder", { value: 7 }))).status, 403);

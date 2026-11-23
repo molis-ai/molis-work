@@ -10,7 +10,7 @@ import type { PluginDatabaseDeclaration, PluginDatabaseUpgradeStep, PluginManife
 import { openProjectPluginDatabases, seedDemoBoard, upgradePluginTables } from "@molis-ai/molis-work-app-local-host";
 import { openSqliteConnection, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 
-export const PROBE_ID = "io.molis.work.example.probe";
+export const PROBE_ID = "com.example.probe";
 
 export const declaration = (version: number, schema: string, upgrades?: readonly PluginDatabaseUpgradeStep[], store = "probe"): PluginDatabaseDeclaration =>
   ({ store_name: store, version, read_permission: `${store}:read`, write_permission: `${store}:write`, schema, ...(upgrades ? { upgrades } : {}) });

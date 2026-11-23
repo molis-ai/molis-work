@@ -941,7 +941,7 @@ test("ensureStarted that finishes after revoke cannot register an active instanc
 test("PRERR-02: Runtime distinguishes its current refusals from foreign common errors", async () => {
   const failures = [pluginErrors.state_invalid("原始状态拒绝"), pluginErrors.storage_denied("private-store-fixture-detail"), new ActionError("actions.forbidden", "foreign-fixture-detail", { kind: "forbidden" })];
   for (const [index, failure] of failures.entries()) {
-    const pluginId = "io.molis.work.example.error-boundary-" + index;
+    const pluginId = "com.example.error-boundary-" + index;
     const repository = new MemoryPluginRuntimeRepository();
     const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
     const definition: PluginDefinition = { manifest: probeManifest(pluginId), async start() { throw failure; } };

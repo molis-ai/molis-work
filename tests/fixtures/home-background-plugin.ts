@@ -16,7 +16,7 @@ import { startProjectPlugins } from "./plugin-callers.js";
  * stands for a third-party plugin that answers badly: its output schema accepts any object, and the Host checks the rest.
  */
 
-export const BACKGROUND_PLUGIN_ID = "io.molis.work.example.homebg";
+export const BACKGROUND_PLUGIN_ID = "com.example.homebg";
 const READ = "homebg:read";
 
 /**

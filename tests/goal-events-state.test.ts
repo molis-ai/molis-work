@@ -2048,7 +2048,7 @@ test("under the project human-approval rule an acceptance given for the current 
   }
 });
 
-const REPLACEMENT = "io.molis.work.example.goals-provider";
+const REPLACEMENT = "com.example.goals-provider";
 
 test("the Goals management caller pins the owner and leaves protected decisions to the platform entry", async () => {
   const seen: Array<{ caller: ActionCallContext; action: ActionReference; input: unknown }> = [];

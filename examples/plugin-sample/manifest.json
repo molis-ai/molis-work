@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "host_api_version": 1,
-  "plugin_id": "io.molis.work.example.notes",
+  "plugin_id": "com.example.notes",
   "version": "2.0.0",
   "name": "Local Plugin Sample",
   "name_text": {
@@ -42,7 +42,7 @@
   ],
   "state_machines": [
     {
-      "machine_id": "io.molis.work.example.notes.result",
+      "machine_id": "com.example.notes.result",
       "version": 1,
       "states": {
         "empty": "idle",
@@ -59,25 +59,25 @@
   "artifacts": {
     "produces": [
       {
-        "artifact_type_id": "io.molis.work.example.note",
+        "artifact_type_id": "com.example.note",
         "schema_version": 1,
         "title": "Sample result",
         "preview": {
-          "capability_id": "io.molis.work.example.notes.results.preview",
+          "capability_id": "com.example.notes.results.preview",
           "version": 1
         }
       }
     ],
     "consumes": [
       {
-        "artifact_type_id": "io.molis.work.example.note",
+        "artifact_type_id": "com.example.note",
         "schema_version": 1
       }
     ]
   },
   "ui": {
     "contributions": [
-      "io.molis.work.example.notes.main"
+      "com.example.notes.main"
     ],
     "locales": {
       "default": "en",
@@ -89,7 +89,7 @@
   },
   "actions": [
     {
-      "capability_id": "io.molis.work.example.notes.health",
+      "capability_id": "com.example.notes.health",
       "version": 1,
       "operation": "query",
       "action": {
@@ -134,7 +134,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.results.read",
+      "capability_id": "com.example.notes.results.read",
       "version": 1,
       "operation": "query",
       "action": {
@@ -214,7 +214,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.results.publish",
+      "capability_id": "com.example.notes.results.publish",
       "version": 1,
       "operation": "command",
       "action": {
@@ -279,7 +279,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.results.preview",
+      "capability_id": "com.example.notes.results.preview",
       "version": 1,
       "operation": "query",
       "action": {
@@ -378,7 +378,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.notes.read",
+      "capability_id": "com.example.notes.notes.read",
       "version": 1,
       "operation": "query",
       "action": {
@@ -524,7 +524,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.notes.create",
+      "capability_id": "com.example.notes.notes.create",
       "version": 1,
       "operation": "command",
       "action": {
@@ -596,7 +596,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.attach.bind",
+      "capability_id": "com.example.notes.attach.bind",
       "version": 1,
       "operation": "command",
       "action": {
@@ -721,7 +721,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.attach.list",
+      "capability_id": "com.example.notes.attach.list",
       "version": 1,
       "operation": "query",
       "action": {
@@ -812,7 +812,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.attach.release",
+      "capability_id": "com.example.notes.attach.release",
       "version": 1,
       "operation": "command",
       "action": {
@@ -915,7 +915,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.attach.candidates",
+      "capability_id": "com.example.notes.attach.candidates",
       "version": 1,
       "operation": "query",
       "action": {
@@ -1012,7 +1012,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.attach.create",
+      "capability_id": "com.example.notes.attach.create",
       "version": 1,
       "operation": "command",
       "action": {
@@ -1129,7 +1129,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.resume.summary",
+      "capability_id": "com.example.notes.resume.summary",
       "version": 1,
       "operation": "query",
       "action": {
@@ -1330,7 +1330,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.notes.clear.review",
+      "capability_id": "com.example.notes.notes.clear.review",
       "version": 1,
       "operation": "query",
       "action": {
@@ -1371,7 +1371,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.notes.clear",
+      "capability_id": "com.example.notes.notes.clear",
       "version": 1,
       "operation": "command",
       "action": {
@@ -1388,7 +1388,7 @@
         ],
         "requires_trusted_decision": true,
         "trusted_decision_request": {
-          "capability_id": "io.molis.work.example.notes.notes.clear.review",
+          "capability_id": "com.example.notes.notes.clear.review",
           "version": 1
         },
         "input_schema": {
@@ -1415,7 +1415,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.settings.read",
+      "capability_id": "com.example.notes.settings.read",
       "version": 1,
       "operation": "query",
       "action": {
@@ -1595,7 +1595,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.settings.write",
+      "capability_id": "com.example.notes.settings.write",
       "version": 1,
       "operation": "command",
       "action": {
@@ -1885,7 +1885,7 @@
       }
     },
     {
-      "capability_id": "io.molis.work.example.notes.work_prompt",
+      "capability_id": "com.example.notes.work_prompt",
       "version": 1,
       "operation": "query",
       "action": {
@@ -1988,7 +1988,7 @@
   "work_terminals": [
     {
       "subject_kind": "sample_note",
-      "prompt_action": "io.molis.work.example.notes.work_prompt"
+      "prompt_action": "com.example.notes.work_prompt"
     }
   ],
   "settings_entries": {
@@ -2012,11 +2012,11 @@
       }
     ],
     "read": {
-      "capability_id": "io.molis.work.example.notes.settings.read",
+      "capability_id": "com.example.notes.settings.read",
       "version": 1
     },
     "write": {
-      "capability_id": "io.molis.work.example.notes.settings.write",
+      "capability_id": "com.example.notes.settings.write",
       "version": 1
     }
   }

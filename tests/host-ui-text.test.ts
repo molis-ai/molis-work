@@ -112,7 +112,7 @@ test("FSS-60 t checks the in-process prefix, while say reads only the exact boun
 
 /** A project plugin with one stage view whose page says its own words, and the files its Manifest declares, counting what is read. */
 function viewsProbe(title = "My own words", zhTitle = "我自己的词", oldWord = "") {
-  const id = "io.molis.work.example.views-probe", contribution_id = `${id}.main`;
+  const id = "com.example.views-probe", contribution_id = `${id}.main`;
   const files: Record<string, string> = {
     "locales/en.json": JSON.stringify(pack(id, "en", { "views-probe.main.title": title, ...(oldWord ? { "views-probe.main.old": oldWord } : {}) })),
     "locales/zh.json": JSON.stringify(pack(id, "zh", { "views-probe.main.title": zhTitle })),

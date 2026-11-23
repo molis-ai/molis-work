@@ -28,7 +28,7 @@ const template = libraryTemplate();
 /** Another plugin beside the probe, with tables the probe's steps try to reach; one of them is named like the probe's with a U+00A0 after it. */
 const NEIGHBOUR = probeManifest(declaration(1, `CREATE TABLE neighbour_items (id INTEGER PRIMARY KEY, note TEXT);
 CREATE INDEX neighbour_items_note ON neighbour_items(note);
-CREATE TABLE "probe_notes " (id INTEGER PRIMARY KEY, note TEXT);`, undefined, "neighbour"), { id: "io.molis.work.example.neighbour" });
+CREATE TABLE "probe_notes " (id INTEGER PRIMARY KEY, note TEXT);`, undefined, "neighbour"), { id: "com.example.neighbour" });
 
 /** The probe has tables named `main` and `if` too, the two names a reader of the first word alone gets wrong. */
 const PROBE_SCHEMA = `CREATE TABLE probe_notes (id INTEGER PRIMARY KEY, note TEXT);

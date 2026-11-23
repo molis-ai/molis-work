@@ -44,7 +44,7 @@ test("RAC-385-SETTINGS S-77 the real Host settings entry lists, revokes and pres
 interface Directive { mode: "own" | "invoke" | "query" | "delegate"; action: "list" | "revoke"; input: Record<string, string> }
 
 function consentProbe() {
-  const id = "io.molis.work.example.consententry", run = "consententry:run", seen: ActionExecutionContext[] = [];
+  const id = "com.example.consententry", run = "consententry:run", seen: ActionExecutionContext[] = [];
   const permissions = [run, "actions:delegate", ...PLUGIN_CONSENT_PERMISSIONS];
   const action: ActionDefinition<Directive, unknown> = { capability_id: "consententry.run", version: 1, operation: "command", action: {
     scope: "home", title: "Check consent entry", description: "Exercise the real plugin action clients", kind: "operation", scheduling: "concurrent",
@@ -100,7 +100,7 @@ test("RAC-393-PAGE RAC-393-DELEGATE S-77 a real plugin page with user_action and
 
 test("RAC-390-LIVE S-77 a running Host reconciles a revoked default on the next project request and never rebinds it", async t => {
   // The default it reads is the platform's materials source, which every project has (the retired Files plugin was the one before).
-  const id = "io.molis.work.example.consentreader", signature = "consent-reader", source = { plugin_id: SYSTEM_MATERIALS_SOURCE.plugin_id, port: "before" };
+  const id = "com.example.consentreader", signature = "consent-reader", source = { plugin_id: SYSTEM_MATERIALS_SOURCE.plugin_id, port: "before" };
   const reader: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "Consent reader", kind: "app",
     publisher: { publisher_id: "example", signature }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "artifact:read", required: true, reason: "Read the explicitly agreed snapshot input" }],

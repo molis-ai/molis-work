@@ -23,7 +23,7 @@ interface Directive { op: "discover" | "invoke" | "query"; reference?: ActionRef
 
 /** A Home plugin whose one action does what the directive says through `services.actions.directory`, then stores what it got. */
 function delegateProbe(name: string, options: { declare?: boolean; consumes?: readonly string[]; permissions?: readonly string[] } = {}) {
-  const id = `io.molis.work.example.${name}`, contexts: PluginStartContext[] = [], seen: ActionExecutionContext[] = [];
+  const id = `com.example.${name}`, contexts: PluginStartContext[] = [], seen: ActionExecutionContext[] = [];
   const action: ActionDefinition<Directive, unknown> = { capability_id: `${name}.run`, version: 1, operation: "command", action: {
     title: "Use the action directory", description: "Reach another action as the original caller", kind: "operation", scope: "home", scheduling: "concurrent",
     audiences: ["user", "agent", "mcp", "workflow"], permissions: ["storage:private"], subject_kinds: [],
@@ -394,7 +394,7 @@ const PERSON_HOLDS_PROVIDER = "system.project-workspaces";
  * person's caller, `projectRouteControl` carries it and `bindPluginActionRoute` passes it on. The action then delegates through the directory.
  */
 function routeProbe(name: string, consumes: readonly string[] = []) {
-  const id = `io.molis.work.example.${name}`, contexts: PluginStartContext[] = [];
+  const id = `com.example.${name}`, contexts: PluginStartContext[] = [];
   const action: ActionDefinition<Directive, unknown> = { capability_id: `${name}.run`, version: 1, operation: "command", action: {
     title: "Use the action directory from a page", description: "Reach another action as the person on the page", kind: "operation", scope: "project", scheduling: "concurrent",
     audiences: ["user"], permissions: ["storage:private"], subject_kinds: [],
@@ -480,7 +480,7 @@ test("W5-01-DELEGATE-08 S-43 from the page, a plugin holding actions:delegate st
  * keeps what it had: its own grants, and nothing the person holds.
  */
 function pageProbe(name: string, delegate: boolean, consumes: readonly string[] = [], required = true) {
-  const id = `io.molis.work.example.${name}`, contexts: PluginStartContext[] = [];
+  const id = `com.example.${name}`, contexts: PluginStartContext[] = [];
   const action: ActionDefinition<Directive, unknown> = { capability_id: `${name}.run`, version: 1, operation: "command", action: {
     title: "Use the action directory from a page", description: "Reach another action from the page's own action", kind: "operation", scope: "project", scheduling: "concurrent",
     audiences: ["user"], permissions: ["storage:private"], subject_kinds: [],

@@ -15,7 +15,7 @@ import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 // a record under the same `install_id`, each with its own generation and its own grants. The local person's call context reads each
 // instance's authority from the record of the database that instance lives in; it never lets one record stand in for the other.
 
-const PLUGIN_ID = "io.molis.work.example.dual-instance", PERMISSION = "dual:use";
+const PLUGIN_ID = "com.example.dual-instance", PERMISSION = "dual:use";
 const action = (capability_id: string, scope: "home" | "project"): ActionDefinition<Record<string, never>, string> => ({ capability_id, version: 1, operation: "query",
   action: { title: capability_id, description: "同一个插件两个实例各自的动作", kind: "query", scope, audiences: ["user"], permissions: [PERMISSION], subject_kinds: [],
     input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } });

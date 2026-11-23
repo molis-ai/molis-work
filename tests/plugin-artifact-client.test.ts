@@ -23,7 +23,7 @@ const sessionCaller = (manifest: PluginManifest, context: PluginStartContext, ac
   ({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: actor, project_id: DEMO_PROJECT_ID, declaration: { manifest }, assertActive: () => {} });
 
 function artifactAuthor(name: string, schemaVersion = 1) {
-  const pluginId = `io.molis.work.example.${name}`;
+  const pluginId = `com.example.${name}`;
   const preview = artifactPreview(pluginId);
   const manifest: PluginManifest = {
     schema_version: 1, host_api_version: 1, plugin_id: pluginId, version: "1.0.0", name, kind: "app",
@@ -81,7 +81,7 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
     const first = producer.client.publish(value);
     assert.equal(first.artifact.project_id, DEMO_PROJECT_ID);
     assert.equal(first.artifact.owner_actor_id, "author");
-    assert.equal(first.artifact.producer_plugin_id, "io.molis.work.example.producer");
+    assert.equal(first.artifact.producer_plugin_id, "com.example.producer");
     assert.equal(first.artifact.scope, "personal");
     assert.deepEqual(consumer.client.read({ artifact_id: value.artifact_id, version: 1 }), first.artifact);
     const actions = pluginActions(store, DEMO_PROJECT_ID);
@@ -228,7 +228,7 @@ test("W5-01-D1-01 W5-01-D1-04 W5-01-D1-05: SDK queries expose fixed contracts an
       assert.throws(() => actions.client.invokeSync(noRead, unavailable, input), { code: "artifacts.plugin_denied" });
     }
     const listAction = sdk.find(value => value.capability_id === `${prefix}.list`)!;
-    for (const badFilter of [null, "io.molis.work.example.producer", ["example.item"], 123, { producer_id: "io.molis.work.example.producer" }, { actor_id: "forged" }, { project_id: "other" }]) {
+    for (const badFilter of [null, "com.example.producer", ["example.item"], 123, { producer_id: "com.example.producer" }, { actor_id: "forged" }, { project_id: "other" }]) {
       assert.throws(() => Reflect.apply(producer.client.listConsumable, null, [badFilter]), { code: "actions.input_invalid" });
       assert.throws(() => actions.client.invokeSync(caller, listAction, badFilter), { code: "actions.input_invalid" });
     }

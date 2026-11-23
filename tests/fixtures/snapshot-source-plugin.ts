@@ -3,7 +3,7 @@ import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_S
   FILES_COLLECTION_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 /** The id and publisher of the probe below. */
-export const SNAPSHOT_SOURCE = { plugin_id: "io.molis.work.example.snapshots", signature: "probe-snapshots" } as const;
+export const SNAPSHOT_SOURCE = { plugin_id: "com.example.snapshots", signature: "probe-snapshots" } as const;
 
 /**
  * A plugin that hands on file snapshots at its output ports and does nothing else: the source tests of wiring, default bindings and

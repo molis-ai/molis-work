@@ -21,7 +21,7 @@ import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-file
 // the person's accounts to one of the plugin's records, in one project. Only the person binds; the plugin names a record key, reads
 // whether there is an account (never which connection or its credential) and can only take an account away.
 
-const PLUGIN = "io.molis.work.example.connectionrecords", INSTALL = "plugin-install-records";
+const PLUGIN = "com.example.connectionrecords", INSTALL = "plugin-install-records";
 const BEARER_VALUE = "fixture-bearer-value-for-s72";
 const MANAGEMENT = ["connectors:management:read", "connectors:management:write"];
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
@@ -130,7 +130,7 @@ test("S-71 RAC-347 a record's account serves only that record, in the call's pro
   assert.equal(seen.at(-1), `Bearer ${BEARER_VALUE}`);
   // Another record (one whose key the bound one's starts with, too), another project, another plugin or installation: anonymous.
   for (const [project, record, instance] of [["p-1", "src-10", {}], ["p-1", "src", {}], ["p-2", "src-1", {}], ["p-10", "src-1", {}],
-    ["p-1", "src-1", { plugin_id: "io.molis.work.example.otherrecords" }], ["p-1", "src-1", { install_id: `${INSTALL}x` }]] as const) {
+    ["p-1", "src-1", { plugin_id: "com.example.otherrecords" }], ["p-1", "src-1", { install_id: `${INSTALL}x` }]] as const) {
     assert.equal(await send(project, record, instance), false, `${project} ${record} ${JSON.stringify(instance)}`);
   }
   assert.equal(seen.filter(value => value !== undefined).length, 1, "the credential went out once, for the bound record");
@@ -281,12 +281,12 @@ test("S-71 RAC-470 deleting a project removes its per_record bindings, of every 
   // The kept project's id begins with the deleted one's, as an anchored match must tell apart; and an id that only ends like it.
   const rows: Array<{ scope: string; plugin: string; slot: string }> = [
     { scope: pluginBindingScope({ install_id: INSTALL, project_id: gone.project_id, record_key: "src-1" }), plugin: PLUGIN, slot: "feed" },
-    { scope: pluginBindingScope({ install_id: "plugin-install-other", project_id: gone.project_id, record_key: "src-1" }), plugin: "io.molis.work.example.otherrecords", slot: "feed" },
+    { scope: pluginBindingScope({ install_id: "plugin-install-other", project_id: gone.project_id, record_key: "src-1" }), plugin: "com.example.otherrecords", slot: "feed" },
     { scope: pluginBindingScope({ install_id: INSTALL, project_id: kept.project_id, record_key: "src-1" }), plugin: PLUGIN, slot: "feed" },
     { scope: pluginBindingScope({ install_id: INSTALL, project_id: `${gone.project_id}0`, record_key: "src-1" }), plugin: PLUGIN, slot: "feed" },
     { scope: pluginBindingScope({ install_id: INSTALL, project_id: `x${gone.project_id}`, record_key: "src-1" }), plugin: PLUGIN, slot: "feed" },
     { scope: pluginBindingScope({ install_id: INSTALL }), plugin: PLUGIN, slot: "account" },
-    { scope: "home", plugin: "io.molis.work.example.otherrecords", slot: "account" },
+    { scope: "home", plugin: "com.example.otherrecords", slot: "account" },
   ];
   for (const row of rows) withConnectorConnections(home, store => store.bind({ scopeId: row.scope, pluginId: row.plugin, slotId: row.slot, serviceId: "github", connectionId: connection.connection_id }));
   const left = () => rows.filter(row => withConnectorConnections(home, store => store.binding(row.scope, row.plugin, row.slot)) !== null).map(row => row.scope);

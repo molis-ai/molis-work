@@ -15,7 +15,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 
 /** A project plugin with one view (unless `views` is false) and a command whose handler makes its pages read again. */
 function viewProbe(name: string, views = true) {
-  const id = `io.molis.work.example.${name}`, write = `${name}:write`, contexts: PluginStartContext[] = [], atStart: unknown[] = [];
+  const id = `com.example.${name}`, write = `${name}:write`, contexts: PluginStartContext[] = [], atStart: unknown[] = [];
   const touch: ActionDefinition<Record<string, never>, string> = { capability_id: `${name}.touch`, version: 1, operation: "command",
     action: { title: "改动", description: "改了以后让自己的页面重新读取", kind: "operation", scope: "project", audiences: ["user"], permissions: [write],
       subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } };

@@ -33,7 +33,7 @@ async function fixture(run: (f: {
     const actions = Object.fromEntries(Object.entries(declarations).map(([role, definition]) => [role, version === undefined ? definition : { ...definition, version }])) as unknown as WorkflowContentActions;
     const plugin = definePlugin({ manifest: {
       upgrade_compatibility: { compatible_from_versions: ["1.0.0"] },
-      schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.unknown-drafts", version: `${version ?? 1}.0.0`, name: "未知草稿",
+      schema_version: 1, host_api_version: 1, plugin_id: "com.example.unknown-drafts", version: `${version ?? 1}.0.0`, name: "未知草稿",
       kind: "app", publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: caller.permissions.map(permission => ({ permission, required: true, reason: "读取和保存草稿" })),
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: Object.values(actions),

@@ -8,7 +8,7 @@ import { exposeInstalledPlugin, exposedActionId, exposedOperationCosts } from '.
 import { createMcpActionGrant, resolveMcpActionContext } from '../apps/local-host/src/mcp-action-grants.js';
 
 const caller = { actor_id: 'owner', project_id: 'p', audience: 'user' as const, permissions: [] };
-const release = (name: string, effects: Record<string, SandboxEffects>) => ({ buildId: name, pluginId: 'io.molis.work.generated.' + name, version: 1,
+const release = (name: string, effects: Record<string, SandboxEffects>) => ({ buildId: name, pluginId: 'studio.' + name, version: 1,
   design: { title: name, contract: { operations: Object.entries(effects).map(([id, effects]) => ({ id, kind: 'command', effects,
     input: { type: 'null' }, output: { type: 'string' } })) } } } as AgentRelease);
 const reference = (value: AgentRelease, operation = 'run') => ({ capability_id: exposedActionId(value, operation), version: value.version, provider_id: 'plugin:' + value.pluginId });
@@ -77,7 +77,7 @@ test('cost refresh preserves exact MCP grants; a new release still requires its 
 
 test('a command that already committed is reported as done-but-unconfirmed when the caller\'s authority ends during the call, never as a plain failure to retry', async () => {
   const service = new ActionService(), actions = { registry: service, client: service, project_id: 'p' };
-  const contract = { version: 1, pluginId: 'io.molis.work.generated.notes', revision: 'r', entities: [], pages: [], acceptance: [], operations: [
+  const contract = { version: 1, pluginId: 'studio.notes', revision: 'r', entities: [], pages: [], acceptance: [], operations: [
     { id: 'notes.add', kind: 'command', description: '记一条', input: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false }, output: { type: 'object' }, errors: [], effects: { storage: ['read', 'write'] }, examples: [] },
     { id: 'notes.list', kind: 'query', description: '列出', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'array' }, errors: [], effects: { storage: ['read'] }, examples: [] },
   ] };

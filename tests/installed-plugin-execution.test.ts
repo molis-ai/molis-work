@@ -45,7 +45,7 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
       finally { finished.resolve(); }
     } }] });
   const effects = { capabilities: ['fixture.wait'], storage: ['read', 'write'] as Array<'read' | 'write'> };
-  const contract: SandboxPluginContract = { version: 1, pluginId: 'io.molis.work.generated.control', revision: 'one', entities: [], pages: [], acceptance: [], operations: [
+  const contract: SandboxPluginContract = { version: 1, pluginId: 'studio.control', revision: 'one', entities: [], pages: [], acceptance: [], operations: [
     { id: 'save', kind: 'command', input: { type: 'string' }, output: { type: 'string' }, effects, errors: [], examples: [{ input: 'text', output: 'text' }] },
   ] };
   const bundlePath = join(home, 'plugin.mjs');
@@ -130,7 +130,7 @@ test('W3-07-8-02 PG-006 a real sandbox reaches the Goal actions through the prod
         try{await sdk.capability.call(id,value);denied.push({id,code:'allowed'})}catch(error){denied.push({id,code:error.code})}}
       const own=await sdk.capability.call('goals.progress.record',{goal_id:input.goal_id,based_on_cursor:input.cursor,summary:'own progress',idempotency_key:'own'});
       return {listed:listed.goals.some(goal=>goal.goal_id===input.goal_id),denied,actor:own.progress_summary.actor_id};}};`);
-    const identity = { projectId: DEMO_PROJECT_ID, installationId: 'real-sandbox-install', pluginId: 'io.molis.work.generated.goal-scope', namespace: 'installed' as const };
+    const identity = { projectId: DEMO_PROJECT_ID, installationId: 'real-sandbox-install', pluginId: 'studio.goal-scope', namespace: 'installed' as const };
     const contract: SandboxPluginContract = { version: 1, pluginId: identity.pluginId, revision: 'one', entities: [], pages: [], acceptance: [],
       operations: [{ id: 'run', kind: 'command', input: { type: 'object', additionalProperties: false, properties: { goal_id: { type: 'string' }, cursor: { type: 'integer', minimum: 0 } }, required: ['goal_id', 'cursor'] },
         output: { type: 'object', additionalProperties: false, properties: { listed: { type: 'boolean' }, actor: { type: 'string' },
@@ -189,7 +189,7 @@ test('PG006-01 PG006-02 PG006-03 PG006-04 PG006-05 S-15 a sandbox reaches a Goal
     const call = `async(input,sdk)=>{try{const out=await sdk.capability.call(input.id??${JSON.stringify(progress.capability_id)},input.id?{}:{goal_id:input.goal_id,based_on_cursor:input.cursor,summary:'progress '+input.key,idempotency_key:input.key});return {actor:out.progress_summary?.actor_id??''}}catch(error){return {refused:error.code,message:String(error.message)}}}`;
     const bundlePath = join(directory, 'plugin.mjs');
     await writeFile(bundlePath, `const call=${call};export const operations={record:call,undeclared:call,hidden:call};`);
-    const identity = { projectId: DEMO_PROJECT_ID, installationId: 'granted-install', pluginId: 'io.molis.work.generated.goal-grants', namespace: 'installed' as const };
+    const identity = { projectId: DEMO_PROJECT_ID, installationId: 'granted-install', pluginId: 'studio.goal-grants', namespace: 'installed' as const };
     const operation = (id: string, effects: SandboxEffects) => ({ id, kind: 'command' as const, effects, errors: [],
       input: { type: 'object', additionalProperties: false, properties: { goal_id: { type: 'string' }, cursor: { type: 'integer', minimum: 0 }, key: { type: 'string' }, id: { type: 'string' } }, required: ['goal_id', 'cursor', 'key'] },
       output: { type: 'object', additionalProperties: false, properties: { actor: { type: 'string' }, refused: { type: 'string' }, message: { type: 'string' } }, required: [] },
@@ -267,7 +267,7 @@ for (const mode of ['cancelled', 'revoked'] as const) test(`PLIB-10 S-18 an inst
   const withdrawDependency = service.registerProvider({ provider: { provider_id: 'fixture', title: 'Fixture', kind: 'system', project_id: DEMO_PROJECT_ID }, definitions: [wait],
     handlers: [{ ...wait, handle: async (_context, input) => { entered.resolve(); await releaseGate.promise; return input; } }] });
   const effects = { capabilities: ['fixture.wait'], projectDatabase: ['read', 'write'] as Array<'read' | 'write'> };
-  const contract: SandboxPluginContract = { version: 1, pluginId: 'io.molis.work.generated.tables', revision: 'one', entities: [], pages: [], acceptance: [], operations: [
+  const contract: SandboxPluginContract = { version: 1, pluginId: 'studio.tables', revision: 'one', entities: [], pages: [], acceptance: [], operations: [
     { id: 'save', kind: 'command', input: { type: 'string' }, output: { type: 'string' }, effects, errors: [], examples: [{ input: 'text', output: 'text' }] },
   ] };
   const bundlePath = join(home, 'plugin.mjs');

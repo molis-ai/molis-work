@@ -111,7 +111,7 @@ function projectRig(t: TestContext, stop: (context: PluginStartContext) => Promi
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), ui: new UiHost(), invalidateView: () => {},
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
-  const id = "io.molis.work.example.projectstop", starts: PluginStartContext[] = [];
+  const id = "com.example.projectstop", starts: PluginStartContext[] = [];
   const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "projectstop", kind: "app",
     publisher: { publisher_id: "example", signature: "project-stop" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },

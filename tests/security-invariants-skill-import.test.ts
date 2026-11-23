@@ -283,13 +283,13 @@ test("SKC-10 S-skill-import CLI pack-content packs a folder of Skills with the s
     const folder = join(h.root, "pack"), output = join(h.root, "out.json"), lines: string[] = [], publisher = newPublisher();
     await writeSkill(folder, "notes", good("notes"), { "references/template.md": "## 模板\n" });
     const out = { stdout: (value: string) => lines.push(value), stderr: (value: string) => lines.push(value) };
-    const options = ["--plugin-id", "io.molis.work.example.packed-skills", "--name", "打包的技能", "--version", "1.0.0", "--publisher-id", "example", "--publisher-key-id", publisher.identity];
+    const options = ["--plugin-id", "com.example.packed-skills", "--name", "打包的技能", "--version", "1.0.0", "--publisher-id", "example", "--publisher-key-id", publisher.identity];
     assert.equal(await runPluginCli(["pack-content", folder, output, ...options], out), 0, lines.join(""));
     const bundle = JSON.parse(await readFile(output, "utf8")) as PluginPackageBundle;
     assert.deepEqual(parseContentPackage(bundle.payload).manifest.methods!.map(method => method.skill_id), ["notes"]);
     // The import's packer makes the same package from the same folder.
     const files = new Map([["SKILL.md", Buffer.from(good("notes"))], ["references/template.md", Buffer.from("## 模板\n")]]);
-    assert.deepEqual(contentPackagePayload({ plugin_id: "io.molis.work.example.packed-skills", version: "1.0.0", name: "打包的技能", scope: "project",
+    assert.deepEqual(contentPackagePayload({ plugin_id: "com.example.packed-skills", version: "1.0.0", name: "打包的技能", scope: "project",
       publisher: { publisher_id: "example", signature: publisher.identity }, skills: [skillFromFolder(files)] }), bundle.payload);
     const signed = signPluginPackage(bundle, publisher.signer);
     assert.equal(verifyPluginPackageSignature(signed).key_id, publisher.identity);
@@ -310,7 +310,7 @@ for (const scope of ["project", "home"] as const) test(`SKC-10 SPC-15 S-skill-im
     await writeSkill(join(userHome, ".claude", "skills"), "plain", skillMd(["name: plain", "description: 用户要整理时使用。"]));
     const h = await installedPackageHost();
     try {
-      const prior = contentPackageDraft({ plugin_id: "io.molis.work.example.previously-signed", version: "1.0.0", name: "Previous publication",
+      const prior = contentPackageDraft({ plugin_id: "com.example.previously-signed", version: "1.0.0", name: "Previous publication",
         scope: "home", skills: [skillFromFolder(new Map([["SKILL.md", Buffer.from(good("prior"))]]))] });
       const { preview_id: priorPreview } = await h.client.invoke(h.person, signing, prior) as LocalPackageSignResult;
       await h.client.invoke(h.person, pluginInstallActions.confirm, { preview_id: priorPreview, consent: true, pin_label: "My existing publisher" });
@@ -489,7 +489,7 @@ test("BL-skill-settings-installed-plugin-scenes S-skill-import: local Skill impo
       const previewRef = { capability_id: skillImportActions.preview.capability_id, version: skillImportActions.preview.version };
       const input = { source: { kind: "runtime", runtime_id: "claude-code" } };
 
-      await h.install(signedPackage(newPublisher(), undefined, { pluginId: "io.molis.work.example.import-scene", name: "Import Scene", memoryScene: "import-scene" }));
+      await h.install(signedPackage(newPublisher(), undefined, { pluginId: "com.example.import-scene", name: "Import Scene", memoryScene: "import-scene" }));
 
       const preview = await h.client.invoke(person, previewRef, input) as { preview_id: string; scenes?: Array<{ scene: string; name: string; scope?: string }> };
       assert.ok(preview.scenes?.some(row => row.scene === "import-scene" && row.name === "Import Scene" && row.scope === "project"));
@@ -509,7 +509,7 @@ test("BL-skill-settings-installed-plugin-scenes S-skill-import: local Skill impo
       assert.equal(catalog.skills.find(skill => skill.pack.plugin_id === imported.plugin_id && skill.ref.skill_id === "plain")?.applies_to, "import-scene");
 
       // Disabling the plugin immediately removes the scene from preview and refuses confirm.
-      await h.control("disable", { plugin_id: "io.molis.work.example.import-scene" });
+      await h.control("disable", { plugin_id: "com.example.import-scene" });
       const preview3 = await h.client.invoke(person, previewRef, input) as { preview_id: string; scenes?: Array<{ scene: string }> };
       assert.equal(preview3.scenes?.some(row => row.scene === "import-scene"), false);
       await assert.rejects(

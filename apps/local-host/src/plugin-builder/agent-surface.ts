@@ -242,8 +242,8 @@ export function renderHomePackageDocument(input: Omit<Parameters<typeof installe
 export async function handleAgentStudioHttp(request: IncomingMessage, response: ServerResponse, url: URL, options: AgentStudioOptions, controlToken: string): Promise<boolean> {
   const preview = /^\/plugin-builder\/studio\/preview\/([a-f0-9-]{36})$/u.exec(url.pathname);
   const api = /^\/api\/plugin-builder\/studio(\/.*)?$/u.exec(url.pathname);
-  const installedPage = /^\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]{0,185})$/u.exec(url.pathname);
-  const installedCall = /^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]{0,185})\/call$/u.exec(url.pathname);
+  const installedPage = /^\/plugins\/([a-z][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)+)$/u.exec(url.pathname);
+  const installedCall = /^\/api\/plugins\/([a-z][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)+)\/call$/u.exec(url.pathname);
   if (!preview && !api && !installedPage && !installedCall) return false;
   const method = request.method ?? 'GET', prefix = options.routePrefix ?? '';
   // These pages are frame documents: the studio's trial or the host's own acceptance run asks for them with the frame

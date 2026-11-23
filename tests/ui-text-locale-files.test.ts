@@ -284,7 +284,7 @@ test("FSS-53 FSS-60 a real signed installation binds words to its authorized pag
         'notes.list': async (_input, sdk) => {
           const title = sdk.t.text('notes.main.saved', { count: 2 });
           const common = sdk.t.text('common.text.unavailable');
-          const foreign = sdk.say.text({ owner: 'io.molis.work.example.other', key: 'other.stage.title', fallback: 'Other owner unavailable' });
+          const foreign = sdk.say.text({ owner: 'com.example.other', key: 'other.stage.title', fallback: 'Other owner unavailable' });
           if (!old) {
             const wait = new Promise(resolve => { finish = resolve; });
             old = wait.then(() => sdk.t.text('notes.main.saved', { count: 3 }));

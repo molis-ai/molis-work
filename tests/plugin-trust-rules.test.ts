@@ -14,7 +14,7 @@ const code = (expected: string) => (error: unknown) => error instanceof ActionEr
 
 function manifest(extra: Partial<PluginManifest> = {}): PluginManifest {
   return {
-    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.trust", version: "1.0.0", name: "Trust fixture", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "com.example.trust", version: "1.0.0", name: "Trust fixture", kind: "app",
     publisher: { publisher_id: "someone", signature: "trust-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     ...extra,
@@ -95,7 +95,7 @@ for (const storage of ["memory", "sqlite"] as const) test(`RAC-2645 RAC-2648 RAC
   const ledger = storage === "memory" ? new MemoryPluginConsentLedger() : new SqlitePluginConsentLedger(db);
   try {
     const ids = ["goals.plugin.progress", "goals.plugin.state"];
-    const entry = { plugin_id: "io.molis.work.example.reach", publisher_signature: KEY_ID, manifest_digest: "v1", project_id: "A", install_id: "home-1", approved_capability_ids: ids, at: "one" };
+    const entry = { plugin_id: "com.example.reach", publisher_signature: KEY_ID, manifest_digest: "v1", project_id: "A", install_id: "home-1", approved_capability_ids: ids, at: "one" };
     const first = ledger.grantProjectReach(entry);
     assert.deepEqual(readProjectReachSubject(first.subject), { project_id: "A", install_id: "home-1" });
     assert.equal(first.granted_by, "user"); assert.equal(first.kind, "project_reach");
@@ -144,7 +144,7 @@ test("QEA-146 installation cleanup checks every active subject before withdrawin
   db.exec(PLUGIN_TRUST_SCHEMA_SQL);
   const ledger = new SqlitePluginConsentLedger(db);
   try {
-    const entry = { plugin_id: "io.molis.work.example.reach", publisher_signature: KEY_ID, manifest_digest: "v1",
+    const entry = { plugin_id: "com.example.reach", publisher_signature: KEY_ID, manifest_digest: "v1",
       project_id: "A", install_id: "home-1", approved_capability_ids: ["goals.plugin.state"], at: "one" };
     const a = ledger.grantProjectReach(entry);
     const b = ledger.grantProjectReach({ ...entry, project_id: "B" });

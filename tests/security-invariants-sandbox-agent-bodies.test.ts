@@ -235,7 +235,7 @@ function jsonLines(value: unknown): Array<Record<string, unknown>> {
 async function modelConsumer(t: TestContext, withOther = false) {
   const h = await installedPackageHost(), publisher = newPublisher();
   await h.install(signedText(publisher));
-  if (withOther) await h.install(signedAgentPackage(newPublisher(), { pluginId: "io.molis.work.example.other-agent" }));
+  if (withOther) await h.install(signedAgentPackage(newPublisher(), { pluginId: "com.example.other-agent" }));
   const requests: string[] = [], queue = new AgentReviewQueue(), agentHost = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.signed-material-test", appVersion: "1.0.0" }, storageRoot: join(h.home, "test-sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
@@ -290,7 +290,7 @@ for (const invalidation of ["disable", "publisher", "generation", "version", "ca
   test(`RAC-2642 S-105 ${invalidation} after startPlaced but before Host start rejects the selected body and preserves another installation`, { ...mac, timeout: 120_000 }, async t => {
     const f = await modelConsumer(t, true), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     let current = true;
-    const otherId = "io.molis.work.example.other-agent";
+    const otherId = "com.example.other-agent";
     const start = f.agentHost.start.bind(f.agentHost);
     t.mock.method(f.agentHost, "start", async (...args: Parameters<typeof start>) => { entered.resolve(); await release.promise; return start(...args); });
     try {
@@ -332,7 +332,7 @@ test("RAC-2642 S-105 read@1 checks source after the asynchronous effect fence an
 for (const scope of ["project", "home"] as const) {
   test(`RAC-2636 S-105 a failed initial ${scope} package start leaves no offered or remembered Agent declarations`, { ...mac, timeout: 120_000 }, async () => {
     const h = await installedPackageHost(), publisher = newPublisher();
-    const pluginId = `io.molis.work.example.failed-${scope}`;
+    const pluginId = `com.example.failed-${scope}`;
     try {
       await assert.rejects(h.install(signedAgentPackage(publisher, { pluginId, scope, broken: true })), /安装没有完成|startup failed/);
       const registry = homeAgentDefinitions(h.home);

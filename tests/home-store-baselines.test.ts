@@ -85,7 +85,7 @@ test("RAC-2645 the prior Runtime consent shape falsely labeled as current is ref
     assert.ok(!old.includes("approved_capability_ids"));
     const db = new DatabaseSync(file);
     db.exec(old + " PRAGMA user_version=1;");
-    db.prepare("INSERT INTO plugin_consents VALUES (?,?,?,?,?,?,?,?,?)").run("kept", "io.molis.work.example.old", "publisher", "always_on", "always_on", "old", "then", "user", null);
+    db.prepare("INSERT INTO plugin_consents VALUES (?,?,?,?,?,?,?,?,?)").run("kept", "com.example.old", "publisher", "always_on", "always_on", "old", "then", "user", null);
     db.close();
     const bytes = readFileSync(file), files = readdirSync(directory);
     assert.throws(() => new HomeConsentLedger(home).revokeProjectReach({ project_id: "A" }, "now"), /结构与当前基线不一致/u);

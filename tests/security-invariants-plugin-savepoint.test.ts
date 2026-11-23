@@ -25,7 +25,7 @@ interface ProbeInput { readonly name: string; readonly step: Step }
 
 /** A plugin that exists only for the test, with a table of its own in the project's library and the journal permission. */
 function probe() {
-  const short = "savepointprobe", id = `io.molis.work.example.${short}`, read = `${short}:read`, write = `${short}:write`;
+  const short = "savepointprobe", id = `com.example.${short}`, read = `${short}:read`, write = `${short}:write`;
   const gate = { hook: () => {}, value: undefined as unknown, kept: undefined as PluginProjectDatabaseTransaction | undefined };
   const table: PluginDatabaseDeclaration = { store_name: short, version: 1, read_permission: read, write_permission: write,
     schema: `CREATE TABLE ${short}_notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);` };

@@ -1,6 +1,6 @@
 import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, bindActionHandler, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PLUGIN_ID_PATTERN, pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentRecord } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { consentSubject, pluginManifestDigest, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { systemOutputSource } from "@molis-ai/molis-work-contracts/platform/project-materials";
@@ -24,7 +24,7 @@ export const PLUGIN_CONSENT_WRITE = "plugin-consents:write";
 export const PLUGIN_CONSENT_PERMISSIONS = [PLUGIN_CONSENT_READ, PLUGIN_CONSENT_WRITE];
 
 const metadata = { scope: "home", audiences: ["user"], subject_kinds: [] } as const;
-const PLUGIN_ID = "^io\\.molis\\.work\\.[a-z0-9][a-z0-9.-]*$";
+const PLUGIN_ID = PLUGIN_ID_PATTERN;
 const consentView = {
   type: "object", additionalProperties: false,
   oneOf: [

@@ -67,7 +67,7 @@ test("PFG-19: unknown registered scenes can be authored in the real editor, supp
       return localHost.actionClient(reference).invoke(context, write, { state: outcome.suggested_behavior_ids[0]! });
     },
   });
-  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.review-scenes", version: "1.0.0", name: "笔记审核",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "com.example.review-scenes", version: "1.0.0", name: "笔记审核",
     kind: "app", publisher: { publisher_id: "example", signature: "review-scenes" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["notes:read", "notes:write"].map(permission => ({ permission, required: false, reason: "读写原笔记审核" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [read, write], action_scenes: [scene, nextVersion, other] },

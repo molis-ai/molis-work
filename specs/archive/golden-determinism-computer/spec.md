@@ -1,8 +1,10 @@
 # 金样生成确定性与电脑设置回放
 
-状态：工程验证通过，待合入（2026-11-23，Codex）。
+> 归档（2026-11-23）：判定为**已实现**。常速和模拟慢机生成逐字节一致，三份金样回放通过。macOS 经设置入口读回电脑设置，模拟 Linux 明确报告该项未运行。 [PR #2273](https://github.com/molis-ai/molis-work/pull/2273)
 
-在最新 `origin/main` 的独立工作树处理 BL-golden-generation-nondeterministic 和 BL-golden-computer-settings。依照 [金样回放设计](../upgrade-continuity/golden-replay-design.md) §2、§5 和 [#1743 的复现记录](https://github.com/molis-ai/molis-work/issues/1743#issuecomment-6847046532)，用 `.nvmrc` 的 Node 24.15.0 与内置 SQLite 3.51.3 复现两条 UPG2-02，再从生成步骤定位并控制漂移源。以实际还原出的文件和主人的设置入口验证电脑设置。范围是生成、回放及其夹具，使用隔离 Home。
+状态：工程验证通过（2026-11-23，Codex）。
+
+在最新 `origin/main` 的独立工作树处理 BL-golden-generation-nondeterministic 和 BL-golden-computer-settings。依照 [金样回放设计](../../upgrade-continuity/golden-replay-design.md) §2、§5 和 [#1743 的复现记录](https://github.com/molis-ai/molis-work/issues/1743#issuecomment-6847046532)，用 `.nvmrc` 的 Node 24.15.0 与内置 SQLite 3.51.3 复现两条 UPG2-02，再从生成步骤定位并控制漂移源。以实际还原出的文件和主人的设置入口验证电脑设置。范围是生成、回放及其夹具，使用隔离 Home。
 
 基线 `5bfd52b87b` 的两次常速生成中，一份多了 `memory_markers.upkeep`，对应的 Prologue `queued-tasks` 记录从版本 1 变为 3。记忆服务首次启动把整理排在固定时钟的一分钟以后。Prologue 用真实的单次定时器唤醒，触发时把预定时间直接交给队列，生成器冻结 `Date` 也无法挡住这次运行。生成期间保留队列写入和原来的到期时间，暂停未来任务的唤醒。立即到期的任务与请求超时仍走真实定时器。慢机回归同时加速这次一分钟唤醒和宿主的周期任务。
 

@@ -403,6 +403,7 @@ test("BL-b44-feed-home-dir-and-styles the platform's shared style modules name n
 test("102-1 PEQ plugin-base stylesheet ships all core SDK primitives and plugin-workbench serves feature sheets declaratively with zero hardcoded plugin IDs", () => {
   const base = renderMolisWorkPluginBaseStylesheet();
   for (const marker of [
+    "svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }",
     ".mw-label", ".mw-check-group", ".mw-number",
     ".mw-severity-grid", ".mw-calendar", ".mw-date-picker",
     ".mw-sidebar", ".mw-frame", ".mw-diff",
@@ -431,10 +432,10 @@ test("102-1 PEQ plugin-base stylesheet ships all core SDK primitives and plugin-
     project_plugin_id: "acme-feature-only",
     contributions: [],
     clientFactory: "() => {}",
-    frameStyleFeatures: ["detail-reading"],
+    frameStyleFeatures: ["detail-reading", "coding-basics"],
   };
   const featureOnlyServed = pluginFrameServedStylesheet("acme-feature-only", [featureOnlyPack]);
-  assert.ok(featureOnlyServed && featureOnlyServed.includes(".mw-detail"), "102-1 PEQ: stylesheet-less framed plugin with frameStyleFeatures still gets served");
+  assert.ok(featureOnlyServed && featureOnlyServed.includes(".mw-detail") && featureOnlyServed.includes(".mw-file-group") && featureOnlyServed.includes(".mw-file-kind"), "102-1 PEQ: stylesheet-less framed plugin with frameStyleFeatures gets detail-reading and file-list rules");
   const sharedOnlyPack: BuiltinPluginWorkbenchPack = {
     project_plugin_id: "acme-shared-only",
     contributions: [],

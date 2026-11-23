@@ -47,7 +47,7 @@ export { COSS_CONTROL_STYLES, PLUGIN_COSS_CONTROL_STYLES } from "./styles/coss-c
 export { PLUGIN_FOUNDATION_STYLES } from "./styles/foundation.js";
 export { PRIMITIVE_STYLES, PRIMITIVE_PLUGIN_STYLES } from "./styles/primitives.js";
 export { MOTION_STYLES, PLUGIN_MOTION_STYLES } from "./styles/motion.js";
-export { ARRIVAL_COMPONENT_STYLES } from "./styles/arrival-components.js";
+export { ARRIVAL_COMPONENT_STYLES, FILE_LIST_STYLES } from "./styles/arrival-components.js";
 export { INTERACTION_TEXTURE_STYLES } from "./styles/interaction-texture.js";
 export { MICRO_INTERACTION_STYLES, MICRO_INTERACTION_CLIENT_SCRIPT } from "./styles/micro-interactions.js";
 export { CRAFT_FINISH_STYLES, CRAFT_FINISH_CLIENT_SCRIPT } from "./styles/craft-finish.js";

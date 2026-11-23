@@ -3,7 +3,7 @@
  * context and status blocks, the goal track, the file list, the project brief, a button's Enter key and the mixed
  * checkbox. Tokens only; motion is opacity and transform, from the shared durations and curves.
  */
-export const ARRIVAL_COMPONENT_STYLES = `
+const ARRIVAL_COMPONENT_HEAD = `
   /* ───────── Wordmark and caption ───────── */
   .mw-wordmark { position: relative; display: inline-block; white-space: nowrap; font-size: 17px; font-weight: var(--weight-title, 600); letter-spacing: -.03em; line-height: 1; color: var(--ink); }
   .mw-wordmark__caret { position: absolute; left: calc(100% + .08em); bottom: .04em; width: .36em; height: .07em; border-radius: 1px; background: var(--accent); opacity: 0; }
@@ -53,6 +53,9 @@ export const ARRIVAL_COMPONENT_STYLES = `
   .mw-goal-track.is-dense .mw-goal-track__name { display: none; }
 
   /* ───────── File list ───────── */
+`;
+
+export const FILE_LIST_STYLES = `
   .mw-file-group + .mw-file-group { margin-top: 20px; }
   .mw-file-group__head { display: flex; align-items: center; gap: 12px; min-height: 40px; cursor: default; }
   label.mw-file-group__head { cursor: pointer; }
@@ -85,6 +88,9 @@ export const ARRIVAL_COMPONENT_STYLES = `
   .mw-file-kind--pdf { background: color-mix(in srgb, var(--mark-clay, var(--red)) 12%, transparent); color: var(--mark-clay, var(--red)); }
   .mw-file-kind--doc, .mw-file-kind--docx { background: color-mix(in srgb, var(--mark-blue, var(--accent)) 12%, transparent); color: var(--mark-blue, var(--accent)); }
   .mw-file-group .mw-status { font-size: 12px; }
+`;
+
+const ARRIVAL_COMPONENT_TAIL = `
 
   /* The checkbox's mixed state: only some of a group's files are chosen. */
   .mw-check:indeterminate, .mw-check[data-mixed] { border-color: var(--action); background: var(--action); }
@@ -139,3 +145,5 @@ export const ARRIVAL_COMPONENT_STYLES = `
   @media (max-width: 980px) { .mw-brief__cols { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 600px) { .mw-brief { padding-inline: 20px; } }
 `;
+
+export const ARRIVAL_COMPONENT_STYLES = ARRIVAL_COMPONENT_HEAD + FILE_LIST_STYLES + ARRIVAL_COMPONENT_TAIL;

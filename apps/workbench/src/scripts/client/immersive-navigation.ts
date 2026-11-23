@@ -15,7 +15,6 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const stage = document.querySelector("[data-plugin-stage]");
   const header = document.querySelector(".immersive-titlebar");
   const scrim = document.querySelector("[data-directory-dismiss]");
-  const directoryFilterMenus = () => [];
   const narrow = () => matchMedia("(max-width: 600px)").matches;
   const currentPlugin = () => {
     if (treePane?.dataset.desktopDirectory === "settings") return "settings";
@@ -96,11 +95,6 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   };
   document.querySelector("[data-directory-show]")?.addEventListener("click", showDirectory);
   scrim?.addEventListener("click", hideDirectory);
-  document.addEventListener("click", (event) => {
-    directoryFilterMenus().forEach((menu) => {
-      if (menu.open && !menu.contains(event.target)) menu.open = false;
-    });
-  });
   document.addEventListener("click", event => {
     if (event.target.closest("[data-inbox-row]")) {
       if (narrow()) setMobileView("document");
@@ -153,8 +147,6 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   }
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" && !event.defaultPrevented && !document.querySelector("dialog[open], .mw-help-card")) {
-      const openMenu = directoryFilterMenus().find((menu) => menu.open);
-      if (openMenu) { event.preventDefault(); openMenu.open = false; openMenu.querySelector("summary")?.focus(); return; }
       if (workspace.classList.contains("is-directory-drawer-open")) { event.preventDefault(); hideDirectory(); }
     }
     if (event.key === "Tab" && workspace.classList.contains("is-directory-drawer-open")) {

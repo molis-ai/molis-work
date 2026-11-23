@@ -64,10 +64,12 @@ test("STRIP-01: the object on show goes with a Send only once added with +: then
   assert.deepEqual((await related()).map(work => work.relation), ["origin"], "added: the new work is linked under the object it started from");
 });
 
-test("STRIP-02: ✦助理 puts what is in hand in the strip with the object it is from, writes no words, and the Send carries it", { timeout: 120_000 }, async t => {
+test("STRIP-02 POLISH-49: ✦助理 puts what is in hand in the strip with the object it is from, keeps dialog open/closed state unchanged, writes no words, and the Send carries it", { timeout: 120_000 }, async t => {
   const b = await openNotes(t);
   if (!b) return;
   const { evaluate, waitFor, click, model, related, asked, send } = b;
+  assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), true, "dialog starts closed");
+  await b.child.click("[data-pages-editor] .ProseMirror p");
   await b.child.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const range = document.createRange(); range.selectNodeContents(editor.querySelector('p').firstChild);
@@ -77,8 +79,15 @@ test("STRIP-02: ✦助理 puts what is in hand in the strip with the object it i
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(ask)}))`, 8000);
   await click(ask);
   await waitFor(`(document.querySelector(${JSON.stringify(STRIP)})?.textContent || '').includes('选中的内容 · 发布笔记') && document.activeElement?.matches('[data-assistant-composer] .mw-composer__input')`, 10_000);
+  assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), true, "POLISH-49: clicking ✦ 助理 while closed leaves the dialog closed");
   assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "", "no words are written for the person");
   assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(STRIP + " .is-optional")}))`), false, "the document the passage is from is not offered again: it comes with the passage");
+  // POLISH-49: when the dialog is already open, an open:false handoff keeps it open too.
+  await evaluate("document.querySelector('[data-work-bar] [data-dialog-open]')?.click()");
+  await waitFor("!document.querySelector('[data-assistant-panel]').hidden", 5_000);
+  await evaluate("document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { open: false, materials: [{ title: '补充片', text: '附加内容' }] } }))");
+  await waitFor(`(document.querySelector(${JSON.stringify(STRIP)})?.textContent || '').includes('补充片') && document.activeElement?.matches('[data-assistant-composer] .mw-composer__input')`, 5_000);
+  assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), false, "POLISH-49: open:false handoff while open leaves the dialog open");
   await send("这段怎么改更清楚");
   for (let tries = 0; tries < 150 && !model.requests.length; tries++) await new Promise(resolve => setTimeout(resolve, 100));
   assert.ok(asked(0).includes(FIRST), "the model reads the passage that was in hand");

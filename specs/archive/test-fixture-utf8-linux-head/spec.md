@@ -27,7 +27,9 @@
 
 ## 验收记录
 
-`pnpm build` 与 ShellCheck 通过。macOS 定向运行 [请求夹具回归](../../../tests/fixture-request-text.test.ts) 6/6、[Linux 检出回归](../../../tests/linux-repro.test.ts) 5/5。TFLH-01 在同一份 JSON 里把「猫」和 🐱 各从第一个 UTF-8 字节后切开，收到的完整 JSON 与消息正文都和原文相等。[Linux 定向 CI](https://github.com/molis-ai/molis-work/actions/runs/45239002580) 使用实现提交 `88931f570c1d7caf7b62ea711d51eeb76d7b3c6d`。
+`pnpm build` 与 ShellCheck 通过。macOS 定向运行 [请求夹具回归](../../../tests/fixture-request-text.test.ts) 6/6、[Linux 检出回归](../../../tests/linux-repro.test.ts) 5/5。TFLH-01 在同一份 JSON 里把「猫」和 🐱 各从第一个 UTF-8 字节后切开，收到的完整 JSON 与消息正文都和原文相等。
+
+[Linux 首跑](https://github.com/molis-ai/molis-work/actions/runs/45239002580) 发现 Git 的错误措辞随版本变化。不可读来源用例核对 Git 的退出码、出错路径、卷的检出状态和后续阶段是否启动。最终复跑见 [#2282](https://github.com/molis-ai/molis-work/pull/2282)。
 
 | 运行场景 | 日志中的实际 HEAD | 结果 |
 | --- | --- | --- |

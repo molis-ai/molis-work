@@ -106,12 +106,12 @@ test("TFLH-03 an unreadable source stops both a fresh run and runs with cached c
   const f = fixture(t);
   const checkout = join(f.root, "unreadable worktree");
   mkdirSync(checkout);
-  writeFileSync(join(checkout, ".git"), "gitdir: /nonexistent-linux-repro-gitdir\n");
+  writeFileSync(join(checkout, ".git"), `gitdir: ${join(f.root, "unmounted-gitdir")}\n`);
   for (const cached of [undefined, f.old, f.wanted]) {
     if (cached) f.cache(cached);
     const result = f.run({ checkout, rebuild: true });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /not (?:a|appear to be a) git repository/i);
+    assert.equal(result.status, 128, result.stderr);
+    assert.ok(result.stderr.includes(checkout), result.stderr);
     assert.deepEqual(result.phases, []);
     assert.equal(result.stdout, "");
     if (cached) assert.equal(git(f.repo, "rev-parse", "HEAD"), cached);

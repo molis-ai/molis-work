@@ -3,7 +3,8 @@
 // for it. The files are now dealt out by how long they take, longest first, each to the shard with the least so far; every shard
 // computes the same deal from the same list and the same weights, so each file still belongs to exactly one shard.
 //
-// The weights are the seconds a file took on a CI runner (tests/ci-shard-weights.json, refreshed by scripts/ci-shard-weights.mjs).
+// The weights estimate CI seconds from previous runs, including observed retry costs where they affect the critical path.
+// scripts/ci-shard-weights.mjs refreshes the timings in tests/ci-shard-weights.json.
 // They only steer the balance: a file the table does not know (new, renamed) gets the median of the known ones, a missing or unreadable
 // table gives every file the same weight, and stale numbers make a leg slower, never a file unrun.
 import { readFileSync } from "node:fs";

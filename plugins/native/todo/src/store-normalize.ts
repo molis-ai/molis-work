@@ -1,3 +1,4 @@
+import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { TodoEditableField, TodoItem, TodoLinkKind, TodoRelation, TodoSource } from "./contract.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isTodoDate, isTodoInstant, isTodoTime } from "./dates.js";
@@ -16,7 +17,7 @@ export function normalizeFields(patch: TodoFields, current: TodoItem | null, acc
   const out: { -readonly [K in keyof NormalizedFields]: NormalizedFields[K] } = {};
   if (patch.title !== undefined) {
     const title = String(patch.title).replace(/\s+/gu, " ").trim();
-    if (!title || [...title].length > 200) throw invalid("标题须为 1 到 200 个字");
+    if (!title || exceedsCharacters(title, 200)) throw invalid("标题须为 1 到 200 个字");
     out.title = title;
   }
   if (patch.notes !== undefined) {

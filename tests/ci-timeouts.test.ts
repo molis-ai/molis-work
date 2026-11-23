@@ -16,8 +16,9 @@ const JOBS: Record<string, { limit: number; longest: number; blocking: boolean }
   build: { limit: 30, longest: 200, blocking: true },
   // New combined Auth WASM + Work browser fixture; bounded conservatively pending CI measurement.
   "account-login": { limit: 60, longest: 0, blocking: true },
-  // Consolidated gate job (Batch 100-2: gates + health-gate-rules + architecture-boundaries + action-contracts).
+  // Both gate jobs retain the generous limit of the original combined job until there are slice measurements.
   gates: { limit: 45, longest: 1400, blocking: true },
+  "gates-built": { limit: 45, longest: 1400, blocking: true },
   "security-invariants": { limit: 40, longest: 1315, blocking: true },
   // Measured on the same window when it joined the table (2026-10-31): 939 s at the longest of 422 successful jobs.
   "product-subset": { limit: 35, longest: 939, blocking: true },
@@ -99,7 +100,7 @@ test("RAC-1906 ci.yml: every setup-work step (including Install pnpm and pnpm in
       assert.ok(SETUP_WORK.limit * 60 >= 1.8 * SETUP_WORK.longest, "above 1.8 times the longest it took");
     }
   }
-  assert.equal(seen, 7, "the seven blocking jobs that install pnpm and dependencies through setup-work");
+  assert.equal(seen, 8, "the eight blocking job definitions that install pnpm and dependencies through setup-work");
   for (const name of Object.keys(JOBS)) assert.equal(setupWorkSteps(jobBlock(name)).length, 1, `${name} runs setup-work once`);
 });
 

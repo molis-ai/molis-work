@@ -67,11 +67,18 @@ test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains h
       for (const result of ["failure", "cancelled", "skipped"]) assert.equal(Boolean(evaluateExpression(condition, scope(event, result))), true, `${name}: ${result} runs full`);
     }
   }
-  // On doc-only PRs / merge groups, `build` is skipped and `gates` still runs its non-build checks.
+  // The source jobs can finish without a build. Only a successful build can start its consumers.
   const gatesCond = /^    if: \$\{\{ (.*) \}\}$/m.exec(jobBlock("gates"))![1]!;
+  const built = jobBlock("gates-built");
+  const builtCond = /^    if: \$\{\{ (.*) \}\}$/m.exec(built)![1]!;
+  assert.match(jobBlock("gates"), /^    needs: \[test-selection, queue-check\]$/m);
   for (const event of ["pull_request", "merge_group"]) {
-    assert.equal(Boolean(evaluateExpression(gatesCond, { ...scope(event), "needs.build.result": "skipped" })), true, `${event}: gates runs when build skipped on doc-only change`);
-    assert.equal(Boolean(evaluateExpression(gatesCond, { ...scope(event, "success", { documentation_mode: "code" }), "needs.build.result": "failure" })), false, `${event}: gates does not run when build failed on code change`);
+    for (const result of ["failure", "cancelled", "skipped"]) {
+      const context = { ...scope(event), "needs.build.result": result };
+      assert.equal(evaluateExpression(gatesCond, context), true, `${event}: source gates can run when build is ${result}`);
+      assert.equal(evaluateExpression(builtCond, context), false, `${event}: built gates cannot run when build is ${result}`);
+    }
+    assert.equal(evaluateExpression(builtCond, scope(event)), true, `${event}: built gates run after a successful build`);
   }
   // Non-doc merge_group always runs account-login even if account_login_mode is none.
   const accountCond = /^    if: \$\{\{ (.*) \}\}$/m.exec(jobBlock("account-login"))![1]!;
@@ -79,12 +86,30 @@ test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains h
   assert.equal(Boolean(evaluateExpression(accountCond, scope("pull_request", "success", { documentation_mode: "code", account_login_mode: "none" }))), false);
   const gates = jobBlock("gates");
   assert.match(gates, /node scripts\/check-health-gates.mjs --base "\$base"/);
-  for (const prefix of ["name: Gate rules reject", "name: Health gates reject", "name: Build gate rules reject", "name: Studio Skill replay rules reject"]) {
-    const step = gates.split("\n      - ").find(item => item.startsWith(prefix))!;
+  for (const [prefix, block, slice] of [
+    ["name: Gate rules reject", gates, ""],
+    ["name: Health gates reject", built, "health-1"],
+    ["name: Build gate rules reject", built, "page-budgets"],
+    ["name: Studio Skill replay rules reject", built, "contracts"],
+  ] as const) {
+    const step = block.split("\n      - ").find(item => item.startsWith(prefix))!;
     const cond = /if: \$\{\{ (.*) \}\}/.exec(step)![1]!;
-    assert.equal(evaluateExpression(cond, scope("pull_request")), false, prefix);
-    assert.equal(evaluateExpression(cond, scope("schedule")), true, prefix);
+    assert.equal(evaluateExpression(cond, { ...scope("pull_request"), "matrix.slice": slice }), false, prefix);
+    assert.equal(evaluateExpression(cond, { ...scope("schedule"), "matrix.slice": slice }), true, prefix);
   }
+  const matrix = /^        slice: \$\{\{ (.*) \}\}$/m.exec(built)![1]!;
+  const full = ["contracts", "page-budgets", "health-1", "health-2"];
+  for (const event of ["pull_request", "merge_group"]) {
+    assert.deepEqual(evaluateExpression(matrix, scope(event)), full.slice(0, 2));
+    for (const result of ["failure", "cancelled", "skipped"]) {
+      assert.deepEqual(evaluateExpression(matrix, scope(event, result)), full);
+    }
+    assert.deepEqual(evaluateExpression(matrix, scope(event, "success", { gate_rules_mode: "whole" })), full);
+  }
+  assert.deepEqual(evaluateExpression(matrix, scope("schedule")), full);
+  const healthShard = /^          HEALTH_SHARD: \$\{\{ (.*) \}\}$/m.exec(built)![1]!;
+  assert.deepEqual(full.slice(2).map(slice => evaluateExpression(healthShard, { "matrix.slice": slice })), ["1/2", "2/2"]);
+  assert.match(built, /--shard "\$HEALTH_SHARD" tests\/health-gates-\*\.test\.ts/);
   const selection = jobBlock("test-selection");
   assert.match(selection, /PUSH_BEFORE: \$\{\{ github.event.merge_group.base_sha \}\}/);
   assert.match(selection, /base="\$\(node scripts\/ci-health-base.mjs\)"/);
@@ -93,12 +118,14 @@ test("CIP-01 CIP-02 CIP-04 workflow skips only successful scoped work, retains h
 test("CIP-03 Verify executes the real shell verdict and rejects unauthorized skips, failures and cancellation", () => {
   const step = jobBlock("verify").split("\n      - ").find(step => step.startsWith("name: Required package gate"))!;
   const script = stepScript(step);
-  const names = ["BUILD", "ACCOUNT_LOGIN", "GATES", "SECRET_SCAN", "SHELL_CHECKS", "NATIVE_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
+  const names = ["BUILD", "ACCOUNT_LOGIN", "GATES", "GATES_BUILT", "SECRET_SCAN", "SHELL_CHECKS", "NATIVE_CHECKS", "SECURITY_INVARIANTS", "PRODUCT_SUBSET", "GOLDEN_REPLAY", "GOLDEN_REPLAY_THIRD_PARTY"];
   const skippedNames = names.filter(name => !["GATES", "SECRET_SCAN"].includes(name));
   const env = { ...process.env, GITHUB_EVENT_NAME: "merge_group", QUEUE_CHECK_RESULT: "skipped", QUEUE_VERIFIED: "", TEST_SELECTION_RESULT: "success", ...Object.fromEntries(Object.entries(modes).map(([k,v]) => [k.toUpperCase(),v])), ...Object.fromEntries(names.map(name => [`${name}_RESULT`, skippedNames.includes(name) ? "skipped" : "success"])) };
   const verdict = (over: Record<string,string> = {}) => spawnSync("bash", ["-eo", "pipefail", "-c", script], { env: { ...env, ...over }, encoding: "utf8" }).status;
   assert.equal(verdict(), 0);
   assert.equal(verdict({ GITHUB_EVENT_NAME: "pull_request" }), 0);
+  const green = Object.fromEntries(names.map(name => [`${name}_RESULT`, "success"]));
+  assert.equal(verdict({ ...green, DOCUMENTATION_MODE: "code", GATES_BUILT_RESULT: "skipped" }), 1, "code changes require every built gate slice");
   assert.notEqual(verdict({ GITHUB_EVENT_NAME: "merge_group", DOCUMENTATION_MODE: "code" }), 0, "non-doc merge_group cannot skip account-login/security/product");
   for (const result of ["failure", "cancelled", "skipped"]) assert.notEqual(verdict({ TEST_SELECTION_RESULT: result }), 0, result);
   for (const name of names) for (const result of ["failure", "cancelled"]) assert.notEqual(verdict({ [`${name}_RESULT`]: result }), 0, name);

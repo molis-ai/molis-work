@@ -60,7 +60,7 @@ export function workflowFiles(): { file: string; text: string }[] {
 
 /**
  * A `${{ … }}` expression of a workflow evaluated for given values of the contexts it reads (`github.event_name`,
- * `needs.<job>.result`, `needs.<job>.outputs.<name>`, …). Only what the conditions of ci.yml use is known: those names (each must be
+ * `needs.<job>.result`, `needs.<job>.outputs.<name>`, `matrix.<key>`). Only what the conditions of ci.yml use is known: those names (each must be
  * given, so a misspelled one fails instead of reading as empty), `!cancelled()` and `always()` (true), `fromJSON`, quoted strings,
  * `==`, `!=`, `!`, `&&`, `||` and parentheses; anything else fails, so a new term is added here before a test trusts it. GitHub's
  * `&&` and `||` give back an operand as JavaScript's do, and a missing output is given as the empty string.
@@ -69,7 +69,7 @@ export function evaluateExpression(expression: string, contexts: Record<string, 
   const values: string[] = [];
   const code = expression
     .replace(/!cancelled\(\)|\balways\(\)/g, "true")
-    .replace(/\b(?:github|needs)(?:\.[A-Za-z0-9_-]+)+/g, (name) => {
+    .replace(/\b(?:github|needs|matrix)(?:\.[A-Za-z0-9_-]+)+/g, (name) => {
       assert.ok(Object.hasOwn(contexts, name), `the test gives ${name} (${expression})`);
       values.push(contexts[name]!);
       return `values[${values.length - 1}]`;

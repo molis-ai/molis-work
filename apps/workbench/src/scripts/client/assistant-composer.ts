@@ -279,6 +279,48 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     composer = window.molisComposer(compose, options);
     target.bind(composer, input, refreshComposerWords, () => pageInFront() === target);
   };
+  /* 「在：事项名 ×」 pill in the composer's bottom row (MLN-16, BL-dialog-info-column-prototype-gaps #4):
+     shows the active work item; pressing × clears it so the next Send goes to the whole project instead. */
+  const pillXSvg = ${JSON.stringify(icon("x"))};
+  const pill = document.createElement("span");
+  pill.className = "work-item-pill";
+  pill.dataset.workItemPill = "";
+  pill.hidden = true;
+  const pillLabel = document.createElement("span");
+  pillLabel.className = "work-item-pill-label";
+  const pillClear = document.createElement("button");
+  pillClear.type = "button";
+  pillClear.dataset.workItemPillClear = "";
+  pillClear.innerHTML = pillXSvg;
+  pill.append(pillLabel, pillClear);
+  pillClear.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    itemScopeDismissed = true;
+    fresh = false;
+    paintItemPill();
+    void switchTo(null).then(() => { syncComposer(); drawHead(); input.focus(); });
+  });
+  function paintItemPill() {
+    const wi = !boundPage && project ? activeWorkItem() : null;
+    const clearText = readText("workbench.assistant-composer.clear-work-item");
+    pillClear.setAttribute("aria-label", clearText);
+    pillClear.title = clearText;
+    if (!wi) { pill.hidden = true; return; }
+    const labelText = readText("workbench.assistant-composer.in-work-item", { name: wi.name });
+    if (pillLabel.textContent !== labelText) { pillLabel.textContent = labelText; pillLabel.title = labelText; }
+    pill.hidden = false;
+    const to = compose.querySelector(".mw-composer__to");
+    const start = compose.querySelector(".mw-composer__start");
+    const foot = compose.querySelector(".mw-composer__foot");
+    if (to && pill.previousElementSibling !== to) to.after(pill);
+    else if (!to && start && pill.parentElement !== start) start.append(pill);
+    else if (!to && !start && foot && pill.parentElement !== foot) foot.prepend(pill);
+  }
+  const pillObserver = new MutationObserver(() => {
+    if (!pill.hidden && !pill.isConnected) paintItemPill();
+  });
+  pillObserver.observe(compose, { childList: true, subtree: true });
   const mountComposer = () => {
     island.removeAttribute("data-receiver"); drawHead(); paintAim(false);
     refreshComposerWords = assistantInputName; refreshComposerWords();
@@ -291,6 +333,8 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       stop: () => control("stop"),
       submit: sendNow });
     const work = getWork(); composer.setRunning(Boolean(work && isLive(work.state)));
+    paintItemPill();
+    void composer.ready?.().then(() => paintItemPill(), () => {});
   };
   /** Keeps the composer on the receiver in front; redrawn only when what it shows changed, so a poll never closes its menu. */
   function syncComposer() {
@@ -309,6 +353,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     const work = getWork(); composer.setRunning(Boolean(work && isLive(work.state)));
     const now = shown();
     if (now !== painted) { painted = now; composer.refresh(); }
+    paintItemPill();
   }
   const asOutcome = (res, id) => res.consumed === false ? { state: "failed", message: readText("workbench.assistant-composer.the-original-send-is-confirmed-the-draft-here") } : ({ state: "sent", ...(res.elsewhere ? { elsewhere: true } : {}),...(res.outcome === "repeated" || res.outcome === "queued" ? { receipt: { input_id: "send." + id, replayed: res.outcome === "repeated", delivered: res.outcome === "queued" ? "queued" : "run" } } : {}) });
   async function submit(sent, before) {

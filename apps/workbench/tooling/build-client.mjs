@@ -96,6 +96,14 @@ const BROWSER_BUNDLES = [
     target: "es2022",
     outfile: "dist/language-client.js",
   },
+  {
+    ...DEFAULT_BROWSER,
+    entryPoints: ["src/browser/mainline-entry.ts"],
+    globalName: "molisWorkMainline",
+    target: "es2022",
+    legalComments: "none",
+    outfile: "dist/mainline-client.js",
+  },
 ];
 
 // Phase 1: build all browser bundles + in-memory composite bundles concurrently in one esbuild service.
@@ -148,6 +156,8 @@ const workRecords = new URL("../dist/work-records-client.js", import.meta.url);
 writeFileSync(workRecords, compactClientScript(readFileSync(workRecords, "utf8")));
 const sessions = new URL("../dist/sessions-client.js", import.meta.url);
 writeFileSync(sessions, compactClientScript(readFileSync(sessions, "utf8")));
+const mainline = new URL("../dist/mainline-client.js", import.meta.url);
+writeFileSync(mainline, compactClientScript(readFileSync(mainline, "utf8")));
 
 const source = workbenchClientSource();
 if (!source.startsWith(UI_REQUEST_CLIENT_SCRIPT)) throw new Error("Workbench request bootstrap must be first");

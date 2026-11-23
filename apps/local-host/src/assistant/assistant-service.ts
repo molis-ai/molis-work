@@ -37,7 +37,7 @@ import { hasExternalSessionContext } from "./assistant-external-sessions.js";
 import { checkLanding } from "./assistant-landing.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 import { readComposerMaterials, sendScope } from "./assistant-composer-materials.js";
-import { eventServes, lineEventsFor, mainSendInput } from "./assistant-line-actions.js";
+import { eventServes, lineEventsFor, mainSendInput, verifyWorkItem } from "./assistant-line-actions.js";
 import { AssistantReportRounds } from "./assistant-task-reports.js";
 import { AssistantMaterialAccess } from "./assistant-attachments.js";
 import { RUNTIME, MAX_TEXT, sessionRef, checkText, assertSendCurrent, type AssistantServicePorts, type AssistantCaller } from "./assistant-service-shared.js";
@@ -250,10 +250,12 @@ export class AssistantService {
       assertSendCurrent(stillCurrent);
       originalInput?.assertCurrent(); assertLifetime?.();
       requireSynchronous(caller.assertBeforeStart?.());
-      const serves = existing ? undefined : await eventServes(input, this.ports.scopeActions && (() => this.ports.scopeActions!({ project_ref: caller.project_ref })));
+      const scopeActions = this.ports.scopeActions && (() => this.ports.scopeActions!({ project_ref: caller.project_ref }));
+      const serves = existing ? undefined : await eventServes(input, scopeActions);
+      const workItemId = existing ? existing.work_item_id : await verifyWorkItem(input.work_item_id, sendScope(input.scope, caller, choice), scopeActions);
       originalInput?.assertCurrent(); assertLifetime?.();
       requireSynchronous(caller.assertBeforeStart?.());
-      work = existing ? this.store.get(this.actorId, existing.work_id) : await this.createWork(text, input.scope, context, caller, choice, input.main === true, serves);
+      work = existing ? this.store.get(this.actorId, existing.work_id) : await this.createWork(text, input.scope, context, caller, choice, input.main === true, serves, workItemId);
       this.store.permissionTransitions.assertWorkPermissionTransitionFree(work.work_id);
       if (work.archived || work.delegated_by?.taken_back_at) throw assistantErrors.state("这项工作已经归档或收回");
       const workId = work.work_id;
@@ -365,13 +367,13 @@ export class AssistantService {
     return this.reads.publicWork(work, hasSession ? await this.reads.stateSafely(work) : "idle");
   }
 
-  private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller, choice: AssistantSendInput["executor"], main = false, serves?: StoredWork["serves"]): Promise<StoredWork> {
+  private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller, choice: AssistantSendInput["executor"], main = false, serves?: StoredWork["serves"], workItemId?: string): Promise<StoredWork> {
     const wanted = sendScope(scope, caller, choice);
     // Chosen only among the executors this project offers now, and kept by the plugin's id.
     const executor = choice?.kind === "plugin" ? await this.dispatcher.executorOf({ project_ref: caller.project_ref }, choice.plugin_id) : null;
     const scopeTitle = wanted.kind === "project" ? await this.ports.projectTitle?.(wanted.project_id).catch(() => null) : null;
     await caller.beforeStart?.(); requireSynchronous(caller.assertBeforeStart?.());
-    return this.store.create({ actor_id: this.actorId, title: main ? "" : titleFrom(text), scope: wanted, origin: context && !hasExternalSessionContext(context) ? context.source : null, ...(scopeTitle ? { scope_title: scopeTitle } : {}), ...(main ? { main: true as const } : {}), ...(serves ? { serves } : {}),
+    return this.store.create({ actor_id: this.actorId, title: main ? "" : titleFrom(text), scope: wanted, origin: context && !hasExternalSessionContext(context) ? context.source : null, ...(scopeTitle ? { scope_title: scopeTitle } : {}), ...(main ? { main: true as const } : {}), ...(workItemId ? { work_item_id: workItemId } : {}), ...(serves ? { serves } : {}),
       ...(executor ? { executor: { kind: "plugin" as const, plugin_id: executor.provider.plugin_id, title: executor.provider.title, session_id: null } } : {}),
       ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
   }

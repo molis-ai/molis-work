@@ -4,7 +4,7 @@ import { homeButton, homeReadAt, homeWord, isPlacementControl, renderHome, rende
 import { createPositionCorrections } from "./project-position-corrections.js";
 import { positionMenuKey } from "./project-position-menu.js";
 import { createPositionPeek } from "./project-position-peek.js";
-import { mountHomePages } from "./project-home-pages.js";
+import type { mountHomePages } from "./project-home-pages.js";
 
 interface HomeHost {
   root?: HTMLElement;
@@ -410,9 +410,10 @@ export function mountHome(host: HomeHost) {
     else if (!shown) leave();
   };
   const primary = yieldPrimary(root);
+  const mountPages = (globalThis as { molisWorkMainline?: { mountHomePages?: typeof mountHomePages } }).molisWorkMainline?.mountHomePages;
   const homePages =
-    host.projectKey && host.projectKey !== "personal"
-      ? mountHomePages({
+    host.projectKey && host.projectKey !== "personal" && mountPages
+      ? mountPages({
           root,
           projectKey: host.projectKey,
           routePrefix: host.routePrefix ?? `/projects/${encodeURIComponent(host.projectKey)}`,

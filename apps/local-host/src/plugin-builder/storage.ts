@@ -1,6 +1,6 @@
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
-import { BUILDER_PLUGIN_ID, builderManifest,prepareBuilderLocalEdit,type AgentBuilderWorkflow } from '@molis-ai/molis-work-plugin-builder';
+import { BUILDER_PLUGIN_ID, builderManifest,prepareBuilderLocalEdit,type AgentBuilderWorkflow } from '@molis-ai/molis-work-plugin-studio';
 import {assertPassiveSyncIdle} from '../passive-sync-execution.js';
 
 /** Host-created sandbox identities for live authoring trials, never an identifier from capability input. */

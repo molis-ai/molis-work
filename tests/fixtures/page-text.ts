@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { BUILTIN_PLUGIN_CATALOG, type WebLocale } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES, type WebLocale } from "@molis-ai/molis-work-app-workbench";
 import { inspectLocaleSet } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pageTextForPacks, pageTextReaderScriptForPacks, pageTextScriptForPacks, shippedPagePack, withPagePacks } from "./page-text-packs.js";
 
-const builtins = new Map(BUILTIN_PLUGIN_CATALOG.map(entry => [entry.project_plugin_id, entry.manifest]));
+const builtins = new Map([...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES].map(entry => [entry.project_plugin_id, entry.manifest]));
 
 /** The actual built-in locale file; nothing projects a word from an unrelated owner's dictionary. */
 export function pagePack(owner: string, locale: string): UiLocalePack {

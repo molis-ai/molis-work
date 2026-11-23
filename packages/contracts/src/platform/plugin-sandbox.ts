@@ -185,6 +185,22 @@ export interface SandboxSettingsDeclaration {
   readonly write_operation: string;
 }
 
+/**
+ * One state the plugin's records move through (SMP-11): the field every operation carries it in, and each value of that field
+ * with its family of the public vocabulary (`STATE_RING_FAMILIES`). The Host writes the signed Manifest's `state_machines` from
+ * these (`sandboxStateMachineDeclarations`); a generated plugin declares its states nowhere else.
+ */
+export interface SandboxStateMachine {
+  /** The field's name in the operations' inputs and outputs; its enum lists exactly the keys of `states`. */
+  field: string;
+  /** Raised when the values, their families, the start or the ends change between releases. */
+  version: number;
+  /** Value → family key. */
+  states: Record<string, string>;
+  initial: string;
+  terminal: string[];
+}
+
 /** On-demand help declared by a generated or sandboxed plugin, accepting either literal copy or owned TextRefs. */
 export interface SandboxHelpSectionDeclaration {
   readonly id: string;
@@ -219,6 +235,8 @@ export interface SandboxPluginContract {
   presentation?: PresentationDeclaration;
   settings_entries?: SandboxSettingsDeclaration;
   entities: Array<{ id: string; schema: SandboxSchema; description?: string }>;
+  /** Present, possibly empty, on every design made since SMP-11; absent on a contract frozen before it. */
+  state_machines?: SandboxStateMachine[];
   pages: Array<{
     id: string;
     title: SandboxVisibleText;

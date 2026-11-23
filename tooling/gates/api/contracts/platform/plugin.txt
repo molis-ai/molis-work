@@ -3894,6 +3894,7 @@ export interface PluginAppContribution {
     sync?: readonly import('./plugin-sync.js').PluginSyncBinding[];
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionHandlerBinding[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
+    state_machines?: readonly StateMachineDeclaration[];
     views?: readonly UiContribution[];
     routes?: readonly PluginRouteBinding[];
     onUpstreamReady?(inputs: PluginUpstreamReadyInputs, context: PluginInputDeliveryContext): void | Promise<void>;
@@ -4576,6 +4577,7 @@ export interface PluginIntegrationContribution {
     };
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionHandlerBinding[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
+    state_machines?: readonly StateMachineDeclaration[];
 }
 
 export interface PluginInteractionClient {
@@ -6516,6 +6518,8 @@ export declare const SKILL_RESOURCE_FOLDERS: {
 
 export declare const SKILL_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
+export declare const STATE_MACHINES_PROVIDER_ID = "system.state-machines";
+
 export declare const STATE_MACHINE_DECLARATION_LIMITS: {
     readonly machines: 32;
     readonly states: 64;
@@ -7050,6 +7054,27 @@ export interface StateMachineDeclaration<State extends string = string> {
     readonly states: Readonly<Record<State, StateRingFamily>>;
     readonly initial: State;
     readonly terminal: readonly State[];
+}
+
+export interface StateMachineGetResult {
+    readonly entry: StateMachineRegistryEntry | null;
+}
+
+export interface StateMachineListResult {
+    readonly entries: readonly StateMachineRegistryEntry[];
+    readonly empty_reason?: "no_home" | "no_plugins_in_scope";
+}
+
+export interface StateMachineRegistryEntry {
+    readonly owner: "platform" | "plugin";
+    readonly owner_id: string;
+    readonly version: string | null;
+    readonly scope: "platform" | "home" | "project";
+    readonly source: "platform" | "builtin" | "installed";
+    readonly install_id: string | null;
+    readonly installation_state: string | null;
+    readonly machines: readonly StateMachineDeclaration[];
+    readonly unknown?: "manifest_unavailable" | "declaration_invalid";
 }
 
 export interface SubjectActionOffer {
@@ -8846,6 +8871,8 @@ export declare function pluginDataSectionsFromManifest(manifest: Pick<PluginMani
 export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
     readonly always_on: "invalid";
     readonly capability_denied: "invalid";
+    readonly capability_refused: "invalid";
+    readonly capability_unavailable: "invalid";
     readonly consent_required: "invalid";
     readonly consent_revoked: "invalid";
     readonly consent_unknown: "not_found";
@@ -8949,6 +8976,16 @@ export declare function searchRevisionOf(parts: readonly string[]): string;
 export declare function searchText(value: unknown, max?: number): string;
 
 export declare const skillEntriesOf: (appliesTo: SkillAppliesTo, pluginScenes: readonly string[]) => string[];
+
+export declare const stateMachineActions: {
+    readonly list: ActionDefinition<{
+        plugin_id?: string;
+    }, StateMachineListResult>;
+    readonly get: ActionDefinition<{
+        machine_id: string;
+        install_id?: string;
+    }, StateMachineGetResult>;
+};
 
 export declare function subjectContext(input: Omit<ActionSubjectContext, "truncated" | "offset" | "length"> & {
     truncated?: boolean;

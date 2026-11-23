@@ -6,10 +6,10 @@
     "discoverScenes": 0,
     "projectPluginReads": 16,
     "sqliteOpens": 16,
-    "actionDirectoryRows": 111,
+    "actionDirectoryRows": 113,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 31,
-    "shippedRegistrationRows": 3288
+    "shippedRegistrationRows": 2882
   },
   "projectBrief": {
     "prepareContext": 1,
@@ -21,7 +21,7 @@
     "actionDirectoryRows": 5,
     "sceneDirectoryRows": 1,
     "ownerResolutions": 4,
-    "shippedRegistrationRows": 744
+    "shippedRegistrationRows": 682
   },
   "rightSide": {
     "prepareContext": 4,
@@ -33,7 +33,7 @@
     "actionDirectoryRows": 252,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 231,
-    "shippedRegistrationRows": 1704
+    "shippedRegistrationRows": 1562
   },
   "contextual": {
     "prepareContext": 1,
@@ -45,7 +45,7 @@
     "actionDirectoryRows": 19,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 17,
-    "shippedRegistrationRows": 216
+    "shippedRegistrationRows": 198
   },
   "sideFileSources": {
     "prepareContext": 1,
@@ -57,7 +57,7 @@
     "actionDirectoryRows": 9,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 6,
-    "shippedRegistrationRows": 216
+    "shippedRegistrationRows": 198
   },
   "sideFileFirstPages": {
     "prepareContext": 1,
@@ -69,7 +69,7 @@
     "actionDirectoryRows": 9,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 12,
-    "shippedRegistrationRows": 720
+    "shippedRegistrationRows": 660
   },
   "sideFileEntries": {
     "prepareContext": 1,
@@ -81,7 +81,7 @@
     "actionDirectoryRows": 9,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 7,
-    "shippedRegistrationRows": 336
+    "shippedRegistrationRows": 308
   },
   "sideFilePreview": {
     "prepareContext": 1,
@@ -93,7 +93,7 @@
     "actionDirectoryRows": 38,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 30,
-    "shippedRegistrationRows": 336
+    "shippedRegistrationRows": 308
   },
   "sideFileMissingSource": {
     "prepareContext": 0,
@@ -141,7 +141,7 @@
     "actionDirectoryRows": 0,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 0,
-    "shippedRegistrationRows": 192
+    "shippedRegistrationRows": 176
   },
   "knowledgeUnknown": {
     "prepareContext": 0,
@@ -153,7 +153,7 @@
     "actionDirectoryRows": 0,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 0,
-    "shippedRegistrationRows": 48
+    "shippedRegistrationRows": 44
   },
   "memoryUnknown": {
     "prepareContext": 0,
@@ -165,7 +165,7 @@
     "actionDirectoryRows": 0,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 0,
-    "shippedRegistrationRows": 48
+    "shippedRegistrationRows": 44
   },
   "goalPanes": {
     "prepareContext": 4,
@@ -177,6 +177,6 @@
     "actionDirectoryRows": 2,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 6,
-    "shippedRegistrationRows": 3168
+    "shippedRegistrationRows": 2816
   }
 }

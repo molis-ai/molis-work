@@ -2,6 +2,10 @@
 
 状态：第 61 批盘点及合后修复，负责人为第 61 批主会话。48 项服务按现行目录逐行对照，交接范围见 [§4](#gaps-for-62)。需求书见 [spec.md](spec.md)，历史逐方式盘点见 [coverage.md](coverage.md)。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：① `44B` 将官方集成全量收口为平台声明式连接器驱动，清零宿主 20 CLI/`feishu`/`lark`/`figma`/`github`/`gmail`/`Sentry-Bearer`/`typesafe` 分支并合并独立 `integration-registry.ts`，`youtube` 并入 `rss` 驱动；② `G-01` 移除已于 `44B` 彻底删除的旧 Alchemist；③ `G-02`/`G-03`/`G-05` 基于 `106`～`110` 统一分区与 `services.personSettings` 实施，连接名称同步但密钥/令牌永不出本机（`S-person-settings-private`），`plugin-installation:<install>` 本人默认连接槽收紧仅对本机本人与获准助理可用。
+
 ## 1. 怎么读、从哪来
 
 - `homeConnectorDirectory` 在空 Home 列出 48 项，服务声明提供类别和线索。Feed 来源须同时有可绑定的服务槽和与服务 id 相符的来源集成。飞书、Lark、企业微信、Bitbucket 已声明来源集成，截至本次复核没有 Feed 的绑定槽。文档、固定记录读取及网页搜索归各适配器。目录入口见 [Host 实现](../../apps/local-host/src/connector-directory.ts)。

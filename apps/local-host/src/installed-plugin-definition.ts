@@ -1,8 +1,8 @@
 import type { PluginDefinition, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxServices, SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
-import { sandboxedPluginDefinition } from './plugin-builder/installed.js';
-import type { CatalogCapability } from './plugin-builder/catalog.js';
+import { sandboxedPluginDefinition } from './installed-plugin-sandbox-definition.js';
+import type { CatalogCapability } from './installed-plugin-catalog.js';
 import type { InstalledRelease } from './installed-release.js';
 import { covered } from './installed-plugin-lifecycle.js';
 import { rememberInstalledActionSource } from './installed-action-registration.js';
@@ -20,8 +20,6 @@ export interface InstalledDefinitionPorts {
   /** Throws when the installation this identity names is no longer the running one. */
   assertInstalled(identity: Readonly<SandboxIdentity>): void;
   grantedCapabilities(identity: Readonly<SandboxIdentity>): readonly string[];
-  /** The earlier versions of a studio release a later one is compatible with; none for a package. */
-  earlier(release: InstalledRelease): readonly number[];
   /** A project package's executor has no Home services; hold only its verified Agent declarations while this definition runs. */
   holdAgentDefinitions?(definition: PluginDefinition, installId: string): (() => void) | undefined;
   /** An integration package's definition (BL-530): only the Home's instance runs them, so only the Home gives this. */
@@ -32,16 +30,18 @@ const keyOf = (release: InstalledRelease) => JSON.stringify([release.pluginId, r
 
 /**
  * The sandboxed definition of each release, built once: Plugin Runtime keeps the implementation of a release across version switches, so
- * a rollback must hand it the same object. Every Host call the sandbox makes first checks that its installation is still the running one.
+ * the return after a failed upgrade must hand it the same object. Every Host call the sandbox makes first checks that its installation is still the running one.
  */
 export function installedDefinitions(ports: InstalledDefinitionPorts) {
   const definitions = new Map<string, { pluginId: string; value: PluginDefinition }>();
   return {
     definition(release: InstalledRelease, approved: SandboxEffects): PluginDefinition {
+      // An installation runs what a signed package holds and nothing else (PG-083): a release that is not from one is not started.
+      if (!release.packaged) throw new Error('只运行从签名的安装包装进来的插件');
       if (!covered(release.permissions, approved)) throw new Error('此版本的安装批准不足，请重新确认权限');
       const prior = definitions.get(keyOf(release));
       if (prior) return prior.value;
-      if (release.packaged?.manifest.kind === 'integration') {
+      if (release.packaged.manifest.kind === 'integration') {
         if (!ports.integration) throw new Error('集成包只装进 Home');
         const value = ports.integration(release, release.permissions, ports.assertInstalled);
         rememberInstalledActionSource(value, release);
@@ -52,14 +52,14 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
       const guard = <Context extends { identity: Readonly<SandboxIdentity>; signal: AbortSignal; beforeEffect?(): Promise<void> | void }>(context: Context): Context & { beforeEffect(): Promise<void> } => ({ ...context, beforeEffect: async () => {
         await context.beforeEffect?.(); context.signal.throwIfAborted(); ports.assertInstalled(context.identity);
       } });
-      const sandbox = sandboxedPluginDefinition(release, release.permissions, [...ports.earlier(release)], {
+      const sandbox = sandboxedPluginDefinition(release, release.permissions, release.packaged.manifest, {
         capabilities: ports.callCatalog ?? ports.catalog, assertLive: ports.assertInstalled, grantedCapabilities: ports.grantedCapabilities,
         backgroundLocale: () => lastUsedLocale(ports.home),
         capability: { async call(context, id, input) { const guarded = guard(context); await guarded.beforeEffect(); return capability.call(guarded, id, input); } },
         network: { async request(context, input, authorization) { const guarded = guard(context); await guarded.beforeEffect(); return ports.network.request(guarded, input, authorization); } },
-      }, release.packaged?.manifest);
+      });
       let withdraw: (() => void) | undefined;
-      const value: PluginDefinition = release.packaged && ports.holdAgentDefinitions ? { ...sandbox,
+      const value: PluginDefinition = ports.holdAgentDefinitions ? { ...sandbox,
         async start(context) {
           const held = ports.holdAgentDefinitions!(value, context.install_id); withdraw = held;
           try { return await sandbox.start(context); }

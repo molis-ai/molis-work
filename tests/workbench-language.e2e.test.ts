@@ -1681,7 +1681,7 @@ test("FSS-35 catalog Agent display retains a real role and prompt draft through 
   // A same-ID/version generated registration keeps its original display words, even if they spell a built-in word.
   const definitions = homeAgentDefinitions(b.homeDirectory), coding = definitions.registrations().find(row => row.owner_id === "io.molis.work.coding");
   assert.ok(coding?.source.kind === "plugin");
-  definitions.register({ ...coding, source: { ...coding.source, origin: "generated", publisher_signature: "fixture-signed-source" },
+  definitions.register({ ...coding, source: { ...coding.source, publisher_signature: "fixture-signed-source" },
     roles: coding.roles.map(role => role.role_id === "planner" ? { ...role, name: "评论中的个人助理" } : role) }, "fixture-signed-installation");
   const roleKey = "io.molis.work.assistant/role:thread-reply", promptKey = "io.molis.work.assistant/assistant-thread";
   const link = `.characters-builtin-item[href*="role=${encodeURIComponent(roleKey)}"]`;

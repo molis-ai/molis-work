@@ -2,6 +2,10 @@
 
 状态：已实现（[第 09 批](../post-anticorruption-roadmap/reference/batches/09.md)，PR #2015；能力包页用户 2026-11-10 验收通过）。2026-11-11 收尾（PR #2019：合并三份技能引用比对键、删旧地址 302、清旧方法路尾项）后按审计整改补了 CPK-10 的三方案比较正文、CPK-08 的收口与 BL 去处、CPK-02 的偏离记录（见合同设计稿 §10）。CPK-02 按用户 2026-11-11 裁定「版本不升，做代码修复」用现有持久数据补上：包上次升级来自 `plugin-packages/` 留存的签名包，连接带的 MCP 发现差异来自 `config/connector-mcp-tools.json` 的 `change`（都不改库结构、不升版本）；项目 MCP 服务器的发现差异随第 62 批 MCP M0。余项：CPK-11 的 `[人工]` 验收在仓库里只有 2026-11-10 本人确认的转述，没有一手记录。2026-11-08 用户提出并定范围，在第 08 批技能包之上扩展。2026-11-09 用户更正模型：能力包是**装东西的对象**——页面先是能力包列表，一个包下面列它的技能、MCP、工具，以及搭配的角色，角色带着自己的提示词（§4.0）；定样选 A（列表＋包详情）。合同设计稿由第 09 批合同台出（9-8，[合同设计稿](contract-design.md)，第 4 稿已冻结，实现偏离记在其 §10）。名称已定（2026-11-08）：界面叫「能力包」，英文 AI kits，代码与动作 id 用 `kit`（§9）。决策见 §12。
 
+
+> [!IMPORTANT]
+> **2026-11-22 架构校准（[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：[特殊逻辑平民化](../plugin-specials-demotion/spec.md) + [统一工作分区](../unified-partition-plugins/spec.md)）**：按[决定 66](../post-anticorruption-roadmap/reference/decisions.md#decision-66)：① `planning-methods` 在 `44B` 从 `plugins/content/` 迁入纯平台 `packages/system-skills/`；② 自写 Skill 保持双层——个人全局技能（Home 层，个人空间直接读写）+ 项目专属分区技能（R22）；③ 能力包与技能场景候选继续基于 `#2248` 实时读取当前分区有效插件场景。
+
 ## 1. 问题
 
 平台上给 AI 用的东西有五类：技能（方法）、提示词、角色、工具、MCP。它们今天各有各的登记处、引用写法、开关和用量记录，没有一个地方能看到「有哪些、从哪来、什么版本、干什么用、用在哪、开没开、用了多少」。2026-11-08 对 main `c902b9aa35` 的只读盘点：

@@ -9,7 +9,7 @@ import { buildSync } from "esbuild";
 import { UI_VIEW_HUES, type UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import * as designSystem from "@molis-ai/molis-work-design-system";
 import {
-  BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, clientPluginDirectory, pluginTabGlyphs, renderMolisWorkPrimitiveCatalog,
+  BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES, builtinPluginDirectory, clientPluginDirectory, hostSurfaceDirectory, pluginTabGlyphs, renderMolisWorkPrimitiveCatalog,
   renderPluginDirectoryData, sanitizePluginDirectory,
 } from "@molis-ai/molis-work-app-workbench";
 import {
@@ -35,7 +35,8 @@ test("RAC-701 the Manifest's hue names are the design system's colour names, one
 });
 
 test("RAC-702 each built-in plugin declares the colour it had on the tab strip before the table was deleted", () => {
-  const declared = Object.fromEntries(BUILTIN_PLUGIN_CATALOG.flatMap(entry => {
+  // The platform's own framed surface (the studio, 47-1 C) keeps the colour it had as a plugin.
+  const declared = Object.fromEntries([...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES].flatMap(entry => {
     const hue = hueOf(entry.manifest.ui?.views);
     return hue ? [[entry.project_plugin_id, hue]] : [];
   }));
@@ -116,7 +117,7 @@ test("RAC-707 the icon inventory on the board keeps the platform surfaces and th
 });
 
 test("RAC-708 a plugin installed at run time is drawn like a built-in: its hue reaches the page's data the same way", () => {
-  const installed = sanitizePluginDirectory(builtinPluginDirectory().map(entry => ({ ...entry, chosen: false })));
+  const installed = sanitizePluginDirectory([...builtinPluginDirectory(), ...hostSurfaceDirectory()].map(entry => ({ ...entry, chosen: false })));
   const hues = Object.fromEntries(clientPluginDirectory(installed).flatMap(entry => entry.hue ? [[entry.id, entry.hue]] : []));
   assert.deepEqual(hues, { artifacts: "pink", sessions: "indigo", ...COLOURS });
 });

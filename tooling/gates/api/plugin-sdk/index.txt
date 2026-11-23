@@ -1123,6 +1123,10 @@ export declare function sandboxRoleIdentity(pluginId: string, name: string): {
 
 export declare function sandboxStartProblems(contract: SandboxPluginContract): string[];
 
+export declare function sandboxStateMachineDeclarations(contract: Contract): StateMachineDeclaration[] | undefined;
+
+export declare function sandboxStateMachineProblems(contract: Contract): string[];
+
 export declare const sandboxUiContribution: (pluginId: string) => string;
 
 export declare function sandboxUiDeclaration(input: {
@@ -1215,6 +1219,8 @@ export declare function zonedParts(timeZone: string | undefined, { seconds, shor
 }): (at: number | Date) => Record<string, string>;
 
 // Declarations the exports above refer to, which no entry exports itself:
+
+type Contract = Pick<SandboxPluginContract, "pluginId" | "operations" | "state_machines">;
 
 type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'projectDatabase' | 'connections' | 'materials' | 'ownerFiles' | 'networkDomains' | 'secretRefs' | 'capabilities'>;
 

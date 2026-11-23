@@ -1,9 +1,11 @@
 import {PLATFORM_PLUGIN_REGISTRATIONS} from './plugin-registry.js';
-import type {PluginRegistration as BuiltinPluginEntry} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
+import type {HostSurfaceRegistration as BuiltinPluginEntry} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
+import {HOST_SURFACE_REGISTRATIONS} from './host-surfaces.js';
 import type {PluginSyncCollection} from '@molis-ai/molis-work-contracts/platform/plugin';
 
 /** Bind by declared collection identity, never by its position in a manifest. No declaration grants consent. */
-export function builtinSyncBindings(catalog:readonly BuiltinPluginEntry[]=PLATFORM_PLUGIN_REGISTRATIONS){
+/** The built-in plugins' collections and the platform's own surfaces' (the studio's drafts, 47-1 C), under the identity each always had. */
+export function builtinSyncBindings(catalog:readonly BuiltinPluginEntry[]=[...PLATFORM_PLUGIN_REGISTRATIONS,...HOST_SURFACE_REGISTRATIONS]){
  return catalog.flatMap(entry=>(entry.manifest.sync?.collections??[]).flatMap(collection=>{
   const binding=Object.hasOwn(entry.sync??{},collection.id)?entry.sync![collection.id]:undefined;
   if(!binding)return [];

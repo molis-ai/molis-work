@@ -124,24 +124,6 @@ export type BuiltinSyncBinding = ({
 
 export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_id" | "manifest" | "workbench" | "sync" | "runtime" | "home_store" | "observation">;
 
-export interface PluginApprovalOutcome {
-    readonly kind: string;
-    readonly id: string;
-    readonly digest: string;
-}
-
-export interface PluginApprovalOutcomesBinding {
-    readonly collection_id: string;
-    readonly subject_kinds: readonly string[];
-    readOutcome(db: {
-        prepare(sql: string): {
-            all(...params: string[]): unknown[];
-        };
-    }, project: string, decision: string, subjectKind: string): PluginApprovalOutcome | null;
-    outcomesFromFacts(facts: Readonly<Record<string, import("@molis-ai/molis-work-contracts/platform/sync-transport").ProjectReplicaRows>>): Map<string, PluginApprovalOutcome>;
-    assertHistory(previous: ReadonlyMap<string, PluginApprovalOutcome>, incoming: ReadonlyMap<string, PluginApprovalOutcome>, facts: Readonly<Record<string, import("@molis-ai/molis-work-contracts/platform/sync-transport").ProjectReplicaRows>>): void;
-}
-
 export interface PluginBoardSpecimen {
     readonly id: string;
     readonly title: string;
@@ -176,7 +158,6 @@ export interface PluginObservationCoverageDeclaration {
 
 export interface PluginRegistration {
     readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
-    readonly approval_outcomes?: PluginApprovalOutcomesBinding;
     readonly observation?: {
         readonly coverage?: readonly PluginObservationCoverageDeclaration[];
     };

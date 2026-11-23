@@ -1,62 +1,41 @@
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginApprovalOutcomesBinding } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import type { PluginSyncIdentity } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+import type { PluginSyncCollection, PluginSyncIdentity } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import type { ProjectReplicaRows } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
-import { decisionOwnerMatches, projectReviewDecisions, readProjectReviewDecision } from "@molis-ai/molis-work-service-project-approvals";
+import { approvalOutcomeCollection, approvalOutcomesFromFacts, assertApprovalOutcomeHistory, decisionOwnerMatches, projectReviewDecisions,
+  readApprovalOutcome, readProjectReviewDecision } from "@molis-ai/molis-work-service-project-approvals";
 import type { ReplicaDatabase, SqliteDatabase } from "@molis-ai/molis-work-storage";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
-type Collection = PluginSyncIdentity & { readonly collection_id: string; readonly schema_version: number };
 const errors = defineErrorCodes("host", { approval_dependency_missing: "conflict" });
 const incompatible = () => new ActionError("actions.conflict", "同步的插件结果与原平台决定不一致");
 const pendingApproval = (): never => { throw errors.approval_dependency_missing("原审批记录还在同步，原插件数据已保留", { sync_waiting: true }); };
 
-function findApprovalOutcomesOwner(identity: PluginSyncIdentity): { readonly manifest: PluginManifest; readonly binding: PluginApprovalOutcomesBinding } | null {
-  for (const registration of PLATFORM_PLUGIN_REGISTRATIONS) {
-    if (!registration.approval_outcomes) continue;
-    const { manifest } = registration;
-    if (identity.plugin_id === manifest.plugin_id
-      && identity.publisher_signature === manifest.publisher.signature
-      && identity.publisher_id === manifest.publisher.publisher_id) {
-      return { manifest, binding: registration.approval_outcomes };
-    }
-  }
-  return null;
+/** A collection whose Manifest says where approved decisions leave their results syncs together with the platform's decision records. */
+export function hasApprovalOutcomes(collection: PluginSyncCollection): boolean {
+  return Boolean(collection.approval_outcomes?.length);
 }
 
-export function isPluginApprovalCollection(identity: Collection): boolean {
-  const owner = findApprovalOutcomesOwner(identity);
-  if (!owner) return false;
-  const collection = owner.manifest.sync?.collections.find(row => row.id === owner.binding.collection_id);
-  return identity.collection_id === collection?.id && identity.schema_version === collection.schema_version;
-}
-
-/** The same owner that produced the outcome reads it from the still-open original transaction. */
+/**
+ * The platform reads the decision's result where the owner's Manifest declares it, in the still-open original transaction, and freezes its
+ * digest on the decision record (44B: no plugin code runs). An owner that declares no results has none to freeze.
+ */
 export function freezePluginApprovalOutcome(db: SqliteDatabase, manifest: PluginManifest, record: ProjectTrustedDecision): void {
-  const owner = findApprovalOutcomesOwner({
-    plugin_id: manifest.plugin_id,
-    publisher_id: manifest.publisher.publisher_id,
-    publisher_signature: manifest.publisher.signature,
-  });
-  if (!owner) return;
+  const collection = approvalOutcomeCollection(manifest.sync?.collections);
+  if (!collection) return;
   const project = record.reference.owner.project_id;
-  const { kind, id } = record.review.target.subject;
-  if (!owner.binding.subject_kinds.includes(kind)) throw incompatible();
-  const outcome = owner.binding.readOutcome(db, project, record.decision_id, kind);
-  if (!outcome || outcome.id !== id) throw incompatible();
+  const outcome = readApprovalOutcome(db, collection, project, record.decision_id, record.review.target.subject);
+  if (!outcome) throw incompatible();
   projectReviewDecisions(db, project).freezeOutcome(record, outcome.digest);
 }
 
-export function verifyPluginApprovalLinks(db: ReplicaDatabase, project: string, owner: Collection, facts: Readonly<Record<string, ProjectReplicaRows>>,
-  previous?: Readonly<Record<string, ProjectReplicaRows>>): void {
-  const binding = findApprovalOutcomesOwner(owner)?.binding;
-  if (!binding) throw incompatible();
+/** Synced results match the platform's frozen decision records: the same owner, subject and digest, and no decision dropped while its subject stays. */
+export function verifyPluginApprovalLinks(db: ReplicaDatabase, project: string, owner: PluginSyncIdentity, collection: PluginSyncCollection,
+  facts: Readonly<Record<string, ProjectReplicaRows>>, previous?: Readonly<Record<string, ProjectReplicaRows>>): void {
+  if (!hasApprovalOutcomes(collection)) throw incompatible();
   const originalOwner = { kind: "plugin", plugin_id: owner.plugin_id, publisher_signature: owner.publisher_signature } as const;
-  const outcomes = binding.outcomesFromFacts(facts);
-  const previousOutcomes = previous ? binding.outcomesFromFacts(previous) : null;
-  if (previousOutcomes) binding.assertHistory(previousOutcomes, outcomes, facts);
+  const outcomes = approvalOutcomesFromFacts(collection, facts);
+  if (previous) assertApprovalOutcomeHistory(collection, approvalOutcomesFromFacts(collection, previous), outcomes, facts);
   for (const [id, outcome] of outcomes) {
     const record = readProjectReviewDecision(db, project, id);
     if (!record) return pendingApproval();

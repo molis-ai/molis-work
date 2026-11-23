@@ -134,28 +134,6 @@ export interface PluginWorkbenchRegistration {
  * specs/archive/repository-anti-corruption/privileges.md).
  */
 /** One decision outcome digest computed from the owning plugin's immutable rows. */
-export interface PluginApprovalOutcome {
-  readonly kind: string;
-  readonly id: string;
-  readonly digest: string;
-}
-
-/**
- * Trusted owner binding for freezing and verifying synced decision outcomes alongside platform project approvals.
- * Declaring this grants no approval or synchronization authority.
- */
-export interface PluginApprovalOutcomesBinding {
-  readonly collection_id: string;
-  readonly subject_kinds: readonly string[];
-  readOutcome(db: { prepare(sql: string): { all(...params: string[]): unknown[] } }, project: string, decision: string, subjectKind: string): PluginApprovalOutcome | null;
-  outcomesFromFacts(facts: Readonly<Record<string, import("./sync-transport.js").ProjectReplicaRows>>): Map<string, PluginApprovalOutcome>;
-  assertHistory(
-    previous: ReadonlyMap<string, PluginApprovalOutcome>,
-    incoming: ReadonlyMap<string, PluginApprovalOutcome>,
-    facts: Readonly<Record<string, import("./sync-transport.js").ProjectReplicaRows>>,
-  ): void;
-}
-
 /** One observation coverage fact declared by a built-in plugin package for the platform's coverage register. */
 export interface PluginObservationCoverageDeclaration {
   readonly fact: string;
@@ -178,8 +156,6 @@ export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_i
 
 export interface PluginRegistration {
   readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
-  /** Trusted owner binding for freezing and verifying synced decision outcomes against platform project approvals. */
-  readonly approval_outcomes?: PluginApprovalOutcomesBinding;
   /** Optional observation facts reported by this plugin, collected dynamically into the observation coverage plan. */
   readonly observation?: {
     readonly coverage?: readonly PluginObservationCoverageDeclaration[];

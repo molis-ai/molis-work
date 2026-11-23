@@ -3,7 +3,7 @@ import type { RuntimeSyncCollection } from '@molis-ai/molis-work-plugin-runtime'
 import { partitionedReplica, syncNamespace, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
 import { readRuntimeSyncValue, runtimeSyncKey, runtimeSyncValue, scopeRuntimeReplica } from './runtime-sync-scope.js';
 import { projectApprovalSyncSelection } from './platform-sync-catalog.js';
-import { isPluginApprovalCollection } from './project-approval-sync-links.js';
+import { hasApprovalOutcomes } from './project-approval-sync-links.js';
 
 export interface RuntimeSyncOwner { projectId: string | null; binding: RuntimeSyncCollection }
 
@@ -35,7 +35,7 @@ export function runtimeSyncRegistration(home: string, spaceId: string, owners: r
       const found=scope.binding.hasReference(projectId,assetId,version);authorize();return found;
     },
     dependencies: [...identity.dependencies.map(collection => ({ ...selection, collection_id: collection.id, schema_version: collection.schema_version })),
-      ...(isPluginApprovalCollection(selection) ? [projectApprovalSyncSelection] : [])],
+      ...(hasApprovalOutcomes(identity.collection) ? [projectApprovalSyncSelection] : [])],
     available: () => owners.some(row => row.binding.available()), refresh: async () => authorize(),
     withReplica(run) { authorize(); if(!owners.some(row=>row.binding.available()))throw new ActionError('actions.plugin_unavailable','同步插件实例已停止'); return run({...partitionedReplica({ home, namespace: syncNamespace(selection), authorize,
       partitions: () => { authorize(); return [...byScope].filter(([, row]) => row.binding.available()).map(([id]) => id); },

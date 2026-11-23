@@ -1,5 +1,4 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { goalsApprovalOutcomesBinding } from "./approval-outcomes.js";
 import { createGoalsPlugin } from "./plugin.js";
 import { GOALS_PAGE_CLIENT_FACTORY_SCRIPT } from "./page-client.js";
 import { GOALS_WORKBENCH_STYLESHEET } from "./workbench-styles.js";
@@ -13,7 +12,6 @@ import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goa
 export const registration: PluginRegistration = {
   project_plugin_id: GOALS_PROJECT_PLUGIN_ID, catalog_order: 6,
   manifest: goalsManifest,
-  approval_outcomes: goalsApprovalOutcomesBinding,
   project_runtime: { create: createGoalsPlugin, package_name: "@molis-ai/molis-work-plugin-goals", factory_export: "createGoalsPlugin" },
   workbench: {
     order: 19,

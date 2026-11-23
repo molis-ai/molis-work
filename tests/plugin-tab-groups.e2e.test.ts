@@ -350,7 +350,10 @@ test("D24 BL-340 QA-024 PTG-06 Pages treegrid keeps ⌘-click/middle-click and s
   const folderGroup = `[data-folder-id="${seeded.folder.id}"]`;
   const key = async (name: string, code: string, windowsVirtualKeyCode: number, modifiers = 0) => {
     for (const type of ["keyDown", "keyUp"] as const) {
-      await command("Input.dispatchKeyEvent", { type, key: name, code, windowsVirtualKeyCode, modifiers }, sessionId);
+      await command("Input.dispatchKeyEvent", {
+        type, key: name, code, windowsVirtualKeyCode, modifiers,
+        ...(type === "keyDown" && name === "Enter" ? { text: "\r", unmodifiedText: "\r" } : {}),
+      }, sessionId);
     }
   };
   await browser.setViewport(1440, 1000);

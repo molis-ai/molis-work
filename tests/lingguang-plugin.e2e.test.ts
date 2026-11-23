@@ -274,7 +274,10 @@ test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、单 Tab 进出和
   })();
   const key = async (name: string, code: string, windowsVirtualKeyCode: number, modifiers = 0) => {
     for (const type of ["keyDown", "keyUp"] as const) {
-      await command("Input.dispatchKeyEvent", { type, key: name, code, windowsVirtualKeyCode, modifiers }, sessionId);
+      await command("Input.dispatchKeyEvent", {
+        type, key: name, code, windowsVirtualKeyCode, modifiers,
+        ...(type === "keyDown" && name === "Enter" ? { text: "\r", unmodifiedText: "\r" } : {}),
+      }, sessionId);
     }
   };
   await browser.setViewport(1440, 960);
@@ -302,10 +305,12 @@ test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、单 Tab 进出和
   assert.deepEqual([...order].sort(), sparks.map((spark) => spark.id).sort());
   const selectedIds = "[...document.querySelectorAll('[data-lingguang-rows] [role=option][aria-selected=true]')].map((row) => row.dataset.lingguangId).join()";
 
-  // Start from normal page focus on the toolbar button immediately before the listbox, then drive everything with keyboard.
+  // The shared Help button is the last toolbar control before the listbox.
+  const help = '[data-lingguang=directory] [data-mw-help-trigger][data-mw-help-auto]';
+  await waitFor(`document.querySelector(${JSON.stringify(help)})?.getClientRects().length > 0`);
   await browser.evaluate("document.querySelector('iframe[data-plugin-frame=lingguang]')?.focus()");
-  await evaluate("document.querySelector('[data-lingguang-read-link]').focus()");
-  await waitFor("document.activeElement === document.querySelector('[data-lingguang-read-link]')");
+  await evaluate(`document.querySelector(${JSON.stringify(help)}).focus()`);
+  await waitFor(`document.activeElement.matches(${JSON.stringify(help)})`);
   await key("Tab", "Tab", 9);
   await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[0])}`);
 
@@ -329,7 +334,7 @@ test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、单 Tab 进出和
 
   // Tab enters and leaves the listbox in a single stop.
   await key("Tab", "Tab", 9, 8);
-  await waitFor("document.activeElement === document.querySelector('[data-lingguang-read-link]')");
+  await waitFor(`document.activeElement.matches(${JSON.stringify(help)})`);
   await key("Tab", "Tab", 9);
   await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[0])}`);
   await key("Tab", "Tab", 9);
@@ -343,9 +348,9 @@ test("BL-340 QA-024 PTG-06 灵光列表支持纯键盘多选、单 Tab 进出和
   await waitFor(`document.activeElement?.dataset.lingguangId === ${JSON.stringify(order[2])}`);
   await key(" ", "Space", 32);
   await waitFor(`(${selectedIds}) === ${JSON.stringify(order.slice(0, 2).join())}`);
-  for (const control of ["dispatch", "brainstorm", "discard"]) {
+  for (const control of [help, "[data-lingguang-dispatch]", "[data-lingguang-brainstorm]", "[data-lingguang-discard]"]) {
     await key("Tab", "Tab", 9, 8);
-    await waitFor(`document.activeElement?.matches('[data-lingguang-${control}]')`);
+    await waitFor(`document.activeElement?.matches(${JSON.stringify(control)})`);
   }
   await key("Enter", "Enter", 13);
   await waitFor("document.querySelector('[data-lingguang-confirm]')?.open");

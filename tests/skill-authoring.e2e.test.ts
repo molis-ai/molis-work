@@ -153,7 +153,7 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 B42-F02 B42-F05 B42-F06 B42-F
   await page.click(act("sk-side", "try"));
   await page.wait("document.querySelectorAll('.sk-case [data-kit-act=sk-run]').length === 2", { describe: state });
   await page.click(`[data-sk-bar] [data-kit-act="sk-run"]`);
-  await page.wait("document.querySelector('[data-sk-bar]')?.innerText.includes('采用为第 2 版')", { describe: state });
+  await page.wait("document.querySelector('[data-sk-bar]')?.innerText.includes('采用为新版')", { describe: state });
   assert.deepEqual(await page.evaluate("[...document.querySelectorAll('.sk-case [data-kit-act=sk-run]')].map(node => node.innerText.trim())"), ["再回放", "再回放"], "replaying the second case preserves the first case's replayed state");
   await page.click(act("sk-adopt"));
   await page.wait("document.activeElement?.matches('[data-slot=leave-bar]')", { describe: state });
@@ -192,7 +192,7 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 B42-F02 B42-F05 B42-F06 B42-F
   await page.click(`[data-sk-bar] [data-kit-act="sk-run"]`);
   await page.wait("document.querySelectorAll('.sk-case [data-kit-act=sk-run]').length === 2 && document.querySelectorAll('.sk-case [data-kit-act=sk-run]')[0].innerText.includes('再回放')", { describe: state });
   await page.click(`[data-sk-bar] [data-kit-act="sk-run"]`);
-  await page.wait("[...document.querySelectorAll('.mw-replay-cell')].some(cell => cell.dataset.verdict === 'match') && document.querySelector('[data-sk-bar]')?.innerText.includes('采用为第 3 版')", { describe: state });
+  await page.wait("[...document.querySelectorAll('.mw-replay-cell')].some(cell => cell.dataset.verdict === 'match') && document.querySelector('[data-sk-bar]')?.innerText.includes('采用为新版')", { describe: state });
   await page.click(act("sk-adopt"));
   await page.wait(noticeHas("已采用为第 3 版"), { describe: state });
   assert.equal((await mine())[0]?.ref.version, 3);
@@ -229,12 +229,13 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 B42-F02 B42-F05 B42-F06 B42-F
   await page.wait(noticeHas("已恢复「每周周报」的内容"), { describe: state });
   [skill] = await mine();
   assert.deepEqual([skill?.name, skill?.state, skill?.ref.version, skill?.based_on], ["每周周报", "auto", 1, undefined]);
+  assert.match(await text(orphan), /技能已删除/);
   await page.click(orphan);
   await page.wait("!!document.querySelector('[data-sk-work]')", { describe: state });
   await page.click(act("sk-discard"));
   await page.wait(noticeHas("已放弃草稿"), { describe: state });
 
-  // B42-F05: two live drafts can be adopted in order. An extra draft of a live skill is still a normal draft.
+  // B42-F05: a page opened before another draft was created still warns that later adoptions replace earlier ones.
   const competing = async (body: string) => {
     const opened = await api<SkillDraft>("drafts/create", { scope: "project", target: { kind: "own", skill_id: skill!.ref.skill_id } });
     assert.deepEqual(opened.cases, [], "the deleted skill's known answers were not restored");
@@ -244,21 +245,20 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 B42-F02 B42-F05 B42-F06 B42-F
     assert.equal(updated.revision, opened.revision + 1);
     return opened.draft_id;
   };
-  const firstCompeting = await competing("# 第一份草稿的做法"), secondCompeting = await competing("# 第二份草稿的做法");
+  const secondCompeting = await competing("# 第二份草稿的做法");
   const kitPath = `${f.origin}/projects/${project.project_id}/settings/kit`;
-  await page.command("Page.navigate", { url: kitPath });
-  await page.wait(`!!document.querySelector('.sk-drafts [data-kit-act="sk-open"]')`, { describe: state });
-  assert.doesNotMatch(await text(".sk-drafts [data-kit-act=sk-open]"), /技能已删除/);
-  for (const [draftId, body, version] of [[firstCompeting, "第一份", 2], [secondCompeting, "第二份", 3]] as const) {
-    await page.command("Page.navigate", { url: `${kitPath}?draft=${draftId}` });
-    await page.wait(`document.querySelector('#au-body')?.value === '# ${body}草稿的做法'`, { describe: state });
-    assert.match(await text("[data-sk-bar]"), /后采用的版本会覆盖先采用的版本/);
-    await page.click(act("sk-adopt"));
-    await page.wait(noticeHas(`已采用为第 ${version} 版`), { describe: state });
-    [skill] = await mine();
-    const source = await api<SkillAuthoredSource>("source", { ref: skill!.ref });
-    assert.equal(source.body, `# ${body}草稿的做法`);
-  }
+  await page.command("Page.navigate", { url: `${kitPath}?draft=${secondCompeting}` });
+  await page.wait("document.querySelector('#au-body')?.value === '# 第二份草稿的做法'", { describe: state });
+  const firstCompeting = await competing("# 第一份草稿的做法");
+  const firstAdoption = await api<{ skill_version: number }>("drafts/adopt", { draft_id: firstCompeting, expected_revision: 2 });
+  assert.equal(firstAdoption.skill_version, 2);
+  const [firstVersion] = await mine();
+  assert.equal((await api<SkillAuthoredSource>("source", { ref: firstVersion!.ref })).body, "# 第一份草稿的做法");
+  assert.match(await text("[data-sk-bar]"), /后采用的版本会覆盖先采用的版本/);
+  await page.click(act("sk-adopt"));
+  await page.wait(noticeHas("已采用为第 3 版"), { describe: state });
+  [skill] = await mine();
+  assert.equal((await api<SkillAuthoredSource>("source", { ref: skill!.ref })).body, "# 第二份草稿的做法");
 
   // 改一份通用技能：说明不能直接改；「改一份我的」开草稿；写进占位符就列出来让你换成自己用的；采用时把原来的关掉。
   const systemSkill = "[...document.querySelectorAll('.kit-detail [data-kit-act=item]')].find(node => node.innerText.includes('分析与决策'))";

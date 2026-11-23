@@ -22,7 +22,12 @@ test("B42-F01 HostCompleteText hands back the complete model and usage receipt o
   } satisfies PrologueTextResult;
   const complete = hostCompleteText({ env: env(), resolveInference: async () => ({
     async completeTextResult(input) {
-      if (input.prompt === "failed") throw new PrologueInferenceError("agent.inference.failed", "failed", 502, { ...execution, state: "failed" });
+      if (input.prompt === "failed") {
+        const failed = { ...execution, state: "failed" } as const;
+        input.onReceipt?.(failed);
+        throw new PrologueInferenceError("agent.inference.failed", "failed", 502, failed);
+      }
+      input.onReceipt?.(execution);
       return { ...execution, value };
     },
     async completeText() { assert.fail("the Host must request the receipt"); },

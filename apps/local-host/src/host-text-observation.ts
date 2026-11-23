@@ -9,7 +9,7 @@ export function observeHostTextUsage(home: string, caller: ActionCallContext, pr
   const recorder = liveObservation(home)?.sink("agent").bind(caller);
   if (!recorder) return undefined;
   return ({ run_ref, state, configuredModel, reportedModels, usage, protocol, prompt_includes_cache }: HostTextReceipt) => {
-    for (const receipt of usage.length ? usage : [undefined]) {
+    for (const receipt of usage) {
       recorder.record({
         fact: "agent.usage", stage: "inference", outcome: state === "completed" ? "succeeded" : state === "cancelled" ? "cancelled" : "failed",
         work: { run_id: run_ref.id },
@@ -25,16 +25,16 @@ export function observeHostTextUsage(home: string, caller: ActionCallContext, pr
   };
 }
 
-function usageDetail(receipt: PrologueUsageReceipt | undefined): ObservationDetail {
+function usageDetail(receipt: PrologueUsageReceipt): ObservationDetail {
   const detail: Record<string, number | string> = {};
-  for (const [key, count] of [["input_tokens", receipt?.input], ["output_tokens", receipt?.output],
-    ["cache_read_tokens", receipt?.cacheRead], ["cache_write_tokens", receipt?.cacheWrite]] as const) {
-    detail[`${key}_source`] = count?.source ?? "unknown";
-    if (count && count.source !== "unknown" && count.tokens !== undefined) detail[key] = count.tokens;
+  for (const [key, count] of [["input_tokens", receipt.input], ["output_tokens", receipt.output],
+    ["cache_read_tokens", receipt.cacheRead], ["cache_write_tokens", receipt.cacheWrite]] as const) {
+    detail[`${key}_source`] = count.source;
+    if (count.source !== "unknown" && count.tokens !== undefined) detail[key] = count.tokens;
   }
-  const cost = receipt?.cost;
-  detail.cost_source = cost?.source ?? "unknown";
-  if (cost && cost.source !== "unknown" && cost.amount !== undefined && cost.currency) {
+  const { cost } = receipt;
+  detail.cost_source = cost.source;
+  if (cost.source !== "unknown" && cost.amount !== undefined && cost.currency) {
     detail.cost = cost.amount;
     detail.currency = cost.currency;
   }

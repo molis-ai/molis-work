@@ -36,7 +36,7 @@
 
 不要为了统一把单次调用塞进 Agent 循环，也不要在插件或 Host 里直接依赖 `@prologue/sdk`——只有 `horizontal/agent-host` 声明了这个依赖（`scripts/workspace-packages.mjs`），其他包经它的公开入口使用。
 
-文字模型入口可通过 `onReceipt` 取得 Prologue 的运行、模型与用量回执。起草、修订、回放和 Runtime 插件的模型动作共用宿主的记账函数，记录落在现有的工作记录里。见[单次文字模型用量](../horizontal/observation.md#接入一种新事实)。
+文字模型入口可通过 `onReceipt` 取得 Prologue 的终态运行、模型与用量回执。起草、修订、回放和 Runtime 插件的模型动作共用宿主的记账函数，在现有工作记录里写实际用量回执。正文交付另经原调用的末次授权复查。见[单次文字模型用量](../horizontal/observation.md#接入一种新事实)。
 
 ## 3. 调用链
 

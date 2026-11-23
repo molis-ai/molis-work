@@ -152,8 +152,10 @@ function statusOf(w: Workshop): { text: string; state?: "owed" | "saving" | "fai
 /** Adopting needs a replay of this revision first: the draft has known answers and none was replayed since the last change. */
 export const owed = (w: Workshop) => nextUntried(w) !== undefined;
 
-export function adoptBar(w: Workshop, overwrites: boolean): string {
-  const status = statusOf(w), busy = Boolean(w.adopting || w.asking || w.running), label = w.next ? improve("adopt-version", { v: w.next }) : improve("adopt-new");
+export function adoptBar(w: Workshop): string {
+  const status = statusOf(w), busy = Boolean(w.adopting || w.asking || w.running);
+  const editsOwnSkill = w.draft.target.kind === "own";
+  const label = improve(editsOwnSkill ? "adopt-version" : "adopt-new");
   const blocked = w.save.kind !== "saved";
   let primary: string;
   if (w.save.kind === "conflict") primary = button(improve("review-conflict"), { variant: "primary", attrs: act("sk-review-conflict"), disabled: busy });
@@ -164,7 +166,7 @@ export function adoptBar(w: Workshop, overwrites: boolean): string {
     actions: [{ label: readText("common.control.retry"), variant: "secondary", size: "sm", attrs: act("sk-adopt") }] }) : "";
   const differs = (draft: SkillDraft) => draft.trial?.cells.filter(cell => cell.side === "draft" && cell.verdict === "differs").reduce((sum, cell) => sum + Math.max(1, cell.differences.length), 0) ?? 0;
   return `<div class="sk-work__bar" data-sk-bar>${failed}${renderAdoptBar({ primary, actions: button(improve("discard"), { variant: "ghost", attrs: act("sk-discard"), disabled: busy }),
-    status: overwrites ? improve("adopt-overwrites", { status: status.text }) : status.text,
+    status: editsOwnSkill && w.draft.base ? improve("adopt-overwrites", { status: status.text }) : status.text,
     ...(status.state ? { state: status.state } : {}),
     ...(w.confirm ? { confirm: { id: "sk-confirm", text: improve("confirm-differs", { n: typeof w.confirm === "number" ? w.confirm : Math.max(1, differs(w.draft)) }),
       actions: button(improve("go-back"), { variant: "ghost", attrs: act("sk-confirm-back") }) + button(improve("adopt-anyway"), { variant: "primary", attrs: act("sk-adopt-anyway") }) } } : {}) })}</div>`;
@@ -177,11 +179,11 @@ export function sideMarkup(w: Workshop): string {
   return `${side}<div class="sk-panel" role="tabpanel" aria-labelledby="sk-side-${w.side}">${w.side === "try" ? tryPanel(w) : comparePanel(w)}</div>`;
 }
 
-export function workshopMarkup(w: Workshop, limits: SkillWritingLimits, overwrites: boolean): string {
+export function workshopMarkup(w: Workshop, limits: SkillWritingLimits): string {
   const narrow = renderTabs({ label: improve("work-label"), className: "sk-narrow-tabs", tabs: (["edit", "try", "compare"] as const).map(value => (
     { id: value, label: improve(`tab-${value}`), selected: w.tab === value, attrs: { id: `sk-tab-${value}`, ...act("sk-tab", value) } })) });
   return `<div class="sk-work" data-sk-work data-tab="${w.tab}">${head(w)}${narrow}<div class="sk-work__cols"><div class="sk-col sk-col--edit">${editor(w, limits)}</div>
-    <aside class="sk-col sk-col--side" data-sk-side aria-label="${esc(improve("side-label"))}">${sideMarkup(w)}</aside></div>${adoptBar(w, overwrites)}</div>`;
+    <aside class="sk-col sk-col--side" data-sk-side aria-label="${esc(improve("side-label"))}">${sideMarkup(w)}</aside></div>${adoptBar(w)}</div>`;
 }
 
 /** Open drafts without a Skill row holding them (new Skills, drafts of deleted Skills, or extra drafts), plus discarded drafts. */

@@ -8,8 +8,8 @@ import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { SKILL_AUTHORED_PLUGIN_IDS, SKILLS_PERMISSIONS, skillAuthoringActions, skillCatalogActions, skillDraftActions, type SkillAuthoredFields, type SkillAuthoredSaveResult, type SkillAuthoredSource,
-  type SkillBodyReadResult, type SkillCatalogEntry, type SkillDraft, type SkillScope } from "@molis-ai/molis-work-contracts/services/skills";
-import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, handlePluginTrustHttp, molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+  type SkillBodyReadResult, type SkillCatalogEntry, type SkillDraft, type SkillScope, type SkillVersion } from "@molis-ai/molis-work-contracts/services/skills";
+import { DEMO_PROJECT_ID, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, handlePluginTrustHttp, homeAgentDefinitions, molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { signedContentPackage } from "./fixtures/content-package.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { caller, mac } from "./fixtures/signed-package-host.js";
@@ -62,7 +62,7 @@ async function harness(completeText: ((prompt: unknown) => Promise<string>) | nu
     const draft = await client.invoke(person, ref(skillDraftActions.create), { scope, target: skill_id ? { kind: "own", skill_id } : { kind: "new" }, fields: written }) as SkillDraft;
     return post<Result>("drafts/adopt", { draft_id: draft.draft_id, expected_revision: draft.revision });
   };
-  return { client, person, post, save, mine, source, installed, reference, host,
+  return { client, person, post, save, mine, source, installed, reference, host, home,
     async close() { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await host.close(); await rm(base, { recursive: true, force: true }); } };
 }
 
@@ -106,7 +106,7 @@ test("SKL-41-2-AU-01 a Skill the person writes is saved off, from this machine, 
   } finally { await h.close(); }
 });
 
-test("SKL-41-2-AU-02 removing one of the person's Skills keeps the rest; removing the last takes the package off; removal takes only the settings door, and no Agent or plugin can write or remove one", mac, async () => {
+test("SKL-41-2-AU-02 B42-F06 B42-F07 B42-F08 removal uses the settings door, keeps the other Skills, and gives a same-name rebuild its own identity", mac, async () => {
   const h = await harness();
   try {
     const a = await h.save({ ...fields("alpha"), scope: "project" }), b = await h.save({ ...fields("beta"), scope: "project" });
@@ -124,18 +124,40 @@ test("SKL-41-2-AU-02 removing one of the person's Skills keeps the rest; removin
           `${action.capability_id} must be refused for ${audience}`);
       }
     }
-    assert.equal((await h.mine()).length, 2);
+    const before = await h.mine();
+    assert.equal(before.length, 2);
+    const old = before.find(skill => skill.ref.skill_id === a.skill_id)!;
+    const uses = homeAgentDefinitions(h.home).skills;
+    uses.recordUse({ ref: old.ref, name: old.name, scope_ref: DEMO_PROJECT_ID, caller: "assistant", at: new Date().toISOString() });
+    const orphan = await h.client.invoke(h.person, ref(skillDraftActions.create), { scope: "project", target: { kind: "own", skill_id: a.skill_id } }) as SkillDraft;
+    assert.deepEqual((await h.mine()).find(skill => skill.ref.skill_id === a.skill_id)!.recent_uses, { assistant: 1 });
 
     assert.deepEqual(await h.post("remove", { scope: "project", skill_id: a.skill_id, expected_version: 1 }), { skill_id: a.skill_id, remaining: 1 });
     assert.deepEqual((await h.mine()).map(skill => skill.ref.skill_id), [b.skill_id]);
+    const written = fields("alpha", { body: "恢复的正文。" });
+    const rebuilt = await h.save({ ...written, scope: "project" });
+    const fresh = (await h.mine()).find(skill => skill.ref.skill_id === rebuilt.skill_id)!;
+    assert.equal(fresh.ref.install_id, old.ref.install_id, "the other Skill kept the original installation in place");
+    assert.notEqual(fresh.ref.skill_id, old.ref.skill_id);
+    assert.equal(fresh.ref.version, 1);
+    assert.equal(fresh.recent_uses, undefined);
+    assert.deepEqual(uses.uses(old.ref.install_id, old.ref.skill_id).map(use => use.ref), [old.ref]);
+    const versions = await h.client.invoke(h.person, ref(skillDraftActions.versions), { scope: "project", skill_id: fresh.ref.skill_id }) as { versions: SkillVersion[] };
+    assert.deepEqual(versions.versions.map(version => version.fields.body), [written.body]);
+    const oldDraft = await h.client.invoke(h.person, ref(skillDraftActions.read), { draft_id: orphan.draft_id }) as SkillDraft;
+    assert.equal(oldDraft.base, undefined);
+    await assert.rejects(h.post("drafts/adopt", { draft_id: orphan.draft_id, expected_revision: orphan.revision }), refused("skills.authored_unknown"));
+    assert.equal((await h.source(fresh)).body, written.body);
+
+    await h.post("remove", { scope: "project", skill_id: rebuilt.skill_id, expected_version: 1 });
     assert.deepEqual(await h.post("remove", { scope: "project", skill_id: b.skill_id, expected_version: 1 }), { skill_id: b.skill_id, remaining: 0 });
     assert.deepEqual([await h.mine(), await h.installed()], [[], []]);
     await assert.rejects(h.post("remove", { scope: "project", skill_id: b.skill_id, expected_version: 1 }), refused("skills.authored_unknown"));
 
     // After the package was taken off the person writes again: a new package, the Skill off.
     const again = await h.save({ ...fields("alpha"), scope: "project" });
-    assert.equal(again.skill_id, "alpha");
-    assert.deepEqual((await h.mine()).map(skill => [skill.ref.skill_id, skill.state]), [["alpha", "off"]]);
+    assert.ok(![a.skill_id, rebuilt.skill_id].includes(again.skill_id));
+    assert.deepEqual((await h.mine()).map(skill => [skill.name, skill.state]), [["alpha", "off"]]);
   } finally { await h.close(); }
 });
 

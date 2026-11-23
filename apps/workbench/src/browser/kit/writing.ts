@@ -162,6 +162,6 @@ export function skillWriting(page: WritingPage) {
     run, holds, focus: focusIn, decorate: skill.decorate, fromAddress,
     strip,
     asking: () => view.asking && askingMarkup(view.asking, c.limits, Boolean(project)),
-    workshop: () => view.workshop && workshopMarkup(view.workshop, c.limits, c.adoptionOverwrites(view.workshop.draft)),
+    workshop: () => view.workshop && workshopMarkup(view.workshop, c.limits),
   };
 }

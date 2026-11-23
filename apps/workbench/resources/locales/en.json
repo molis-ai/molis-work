@@ -10106,7 +10106,7 @@
     "workbench.import.continue-transcribing": "Continue transcribing",
     "workbench.import.transcription-stopped": "Stopped: {done} transcribed, {remaining} still to transcribe.",
     "workbench.import.hide": "Hide",
-    "workbench.skill-improve.adopt-version": "Adopt as version {v}",
+    "workbench.skill-improve.adopt-version": "Adopt as new version",
     "workbench.skill-improve.adopt-new": "Adopt as a new skill",
     "workbench.skill-improve.replay-first": "Replay first",
     "workbench.skill-improve.discard": "Discard draft",

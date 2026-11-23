@@ -247,10 +247,10 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
         ...(request.images === undefined ? {} : { images: request.images }),
         ...(request.structured === undefined ? {} : { structured: request.structured }),
         ...(request.onProgress === undefined ? {} : { onProgress: request.onProgress }),
+        ...(request.onReceipt === undefined ? {} : { onReceipt: execution => reportTextReceipt(request.onReceipt, execution, protocol, prompt_includes_cache) }),
         ...(config.prompt_cache === undefined || config.prompt_cache === "off" ? {} : { prompt_cache: config.prompt_cache }),
       });
       boundedSignal.throwIfAborted();
-      reportTextReceipt(request.onReceipt, completed, protocol, prompt_includes_cache);
       await checkAuthority();
       return completed;
     })(), boundedSignal);
@@ -260,9 +260,6 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
     if (error instanceof ActionError) throw error;
     if (isDispatchRefusal(error)) throw new Error(`${error.message}；没有发给模型，材料已保留`);
     if (authorityFailure && error === authorityFailure.cause) throw error;
-    if (error instanceof PrologueInferenceError && dispatched && error.execution) {
-      reportTextReceipt(request.onReceipt, error.execution, protocol, prompt_includes_cache);
-    }
     const unavailable = inferenceServiceUnavailableReason(error);
     if (unavailable) throw new ActionError("actions.service_unavailable", `${unavailable}；材料已保留`);
     const status = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;

@@ -197,8 +197,9 @@ export class SkillWorkshop {
     const saved = this.ports.savedAt(skill.ref.source.plugin_id, skill.ref.source.publisher_signature), found = new Map<number, SkillVersion>();
     for (const release of this.chain(skill)) {
       const declaration = release.manifest.methods?.find(method => method.skill_id === skillId);
+      if (!declaration) break;
       const body = (release.agentBodies as readonly SandboxAgentBody[] | undefined)?.find(item => item.kind === "method" && item.entry_id === skillId)?.body;
-      if (!declaration || body === undefined) continue;
+      if (body === undefined) continue;
       // Walking back, a version seen again is an older release that held it unchanged: it was adopted no later than that release.
       const at = saved.get(release.manifest.version);
       found.set(declaration.version, { version: declaration.version, fields: fieldsOf(declaration, body), ...(at ? { adopted_at: at } : {}) });

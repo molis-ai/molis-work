@@ -9,7 +9,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { UNMARKED_IMAGES_NOTE } from "@molis-ai/molis-work-service-agent-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
-import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { hostCompleteText, type HostTextReceipt } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
 import { feedInformationPlanAction } from "@molis-ai/molis-work-plugin-feed";
@@ -129,6 +129,37 @@ test("B42-F01 Skills and Feed use the same work records for their Prologue recei
   }
   assert.ok(usage.at(-1)?.install_id, "Feed usage belongs to the installed action provider");
   assert.doesNotMatch(JSON.stringify(usage), /只给模型看|只给调用方看|configured-fixture-key/);
+}));
+
+test("B42-F01 a Prologue preflight refusal has no usage, and a response held back by the final authority check keeps its actual usage", async () => fixture(async f => {
+  configure(f);
+  const provider = f.catalog.models.get("configured")!;
+  f.catalog.models.upsert({ ...provider, prompt_cache: "required" });
+  const { project_id, database_path } = await f.catalog.createProject({ display_name: "Inference receipt boundaries", actor_id: "test" });
+  const reference = molisWorkHostProjectReference({ databasePath: database_path, projectId: project_id });
+  const caller: ActionCallContext = { actor_id: "test", project_id, audience: "user", permissions: [...SKILLS_PERMISSIONS, "model:invoke"],
+    user_action: { source: "management", conversation_ref: "fixture", message_ref: "usage-boundary" } };
+  const actions = bindActionClient(f.host.actionClient(reference), () => caller);
+  const complete = hostCompleteText({ homeDirectory: f.home, selection: { provider_id: "configured", model_id: "configured-model" } })!;
+  const receipts: HostTextReceipt[] = [];
+  await assert.rejects(complete("private input", { onReceipt: receipt => receipts.push(receipt) }), { code: "MODEL_PROMPT_CACHE_UNAVAILABLE" });
+  await assert.rejects(actions.invoke(skillAuthoringActions.draft, { intent: "private input" }));
+  assert.equal(f.requests.length, 0);
+  assert.deepEqual(receipts.map(receipt => [receipt.state, receipt.usage.length]), [["failed", 0]]);
+
+  f.catalog.models.upsert(provider);
+  f.answer(async () => {
+    f.catalog.models.upsert({ ...provider, enabled: false });
+    return { model: "provider-reported", choices: [{ message: { content: "private answer" } }] };
+  });
+  await assert.rejects(actions.invoke(skillAuthoringActions.draft, { intent: "private input" }), { code: "actions.configuration_changed" });
+  assert.equal(f.requests.length, 1);
+  const observation = f.host.observation!.layer;
+  observation.flush();
+  const usage = readRecords(observation.writer.database()!.db, { fact: "agent.usage", project_id });
+  assert.deepEqual(usage.map(record => [record.detail.reported_model, record.detail.input_tokens, record.detail.output_tokens]), [["provider-reported", 4, 4]]);
+  assert.ok(usage[0]?.work.run_id);
+  assert.doesNotMatch(JSON.stringify(usage), /private input|private answer/);
 }));
 
 test("configured image input goes to an unmarked or vision model, is refused for a model marked as not seeing, and refuses a late result after vision is disabled (decision 51)", async () => fixture(async f => {

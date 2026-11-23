@@ -551,10 +551,10 @@
       "payload": "stores/agent-declarations/agent-declarations.db.sql",
       "schema_version": 1,
       "tables": {
-        "install_declarations": 14,
+        "install_declarations": 13,
         "molis_storage_space": 1
       },
-      "sha256": "860d5a46afaf0907b0f2b22d3505952a6cbc100c7bcfc42e6dea4b9780322808"
+      "sha256": "f102584c3ca2cac5c93b96818e74ae8f287fbcad3741921ae38462056cfa7613"
     },
     {
       "path": "agent-definitions/agent-definitions.db",
@@ -1058,14 +1058,14 @@
       "schema_version": 1,
       "tables": {
         "molis_storage_space": 1,
-        "plugin_consents": 8,
+        "plugin_consents": 5,
         "plugin_private_values": 1,
         "plugin_publishers": 2,
-        "plugin_runtime_installs": 9,
-        "plugin_runtime_release_artifacts": 8
+        "plugin_runtime_installs": 8,
+        "plugin_runtime_release_artifacts": 7
       },
-      "sha256": "0d5b99d94ec7bd3e692e5983a95bc4f159491dd2931987daa2d716c65553148f",
-      "expanded_sha256": "49751fb23c32b2d5f00540996c6f37c16225df2be9d107e287e8e56dda47ef19"
+      "sha256": "d14b6adc904574a89d4305fed1d8f70845460b422242b72b9e979d470b691800",
+      "expanded_sha256": "2405ff2c3ce2e6c16bca82091547ff4d07f05f40e1c6f6e02b0d708976c41b26"
     },
     {
       "path": "ppt/ppt.db",
@@ -1226,12 +1226,12 @@
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
         "plugin_port_artifact_bindings": 0,
-        "plugin_port_bindings": 6,
+        "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
         "plugin_private_values": 0,
         "plugin_project_databases": 6,
-        "plugin_runtime_installs": 16,
-        "plugin_runtime_release_artifacts": 16,
+        "plugin_runtime_installs": 15,
+        "plugin_runtime_release_artifacts": 15,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -1347,8 +1347,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "3c35c76675b8450c86225d38702bfcbd03db9acd604f11829a053aa8f2d633a1",
-      "expanded_sha256": "4952a5f87f2bc60df43c77c51efb5cabd209e1feb377072f598d2e0d1c758e0e"
+      "sha256": "87faf7578a930f29fec70084730272fef3e811c470ca5454545e9e2ff3939e40",
+      "expanded_sha256": "2a0b5396113e56d4ee7da8d6a842c1b287fa048928781c0c4b7eddc02fb1da93"
     },
     {
       "path": "projects/molis-work-v1-demo/molis-work.db",
@@ -1447,12 +1447,12 @@
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
         "plugin_port_artifact_bindings": 0,
-        "plugin_port_bindings": 6,
+        "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
         "plugin_private_values": 1,
         "plugin_project_databases": 6,
-        "plugin_runtime_installs": 16,
-        "plugin_runtime_release_artifacts": 16,
+        "plugin_runtime_installs": 15,
+        "plugin_runtime_release_artifacts": 15,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -1568,8 +1568,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "0632cbe1ea67bb9073c3baf4c0c46fe6582beb08ed43b9a65f5ed42f8c9e3eac",
-      "expanded_sha256": "5a6428f370b235cea2fa97026de1d6595421674f24999760778f501863bbba1d"
+      "sha256": "57f5cea979c83cf7feb0297bd4e42bd02d8028f55e68489303fd438988fb2915",
+      "expanded_sha256": "ffc897ae12f5f8ae93a0ff82e5cf41626b3faa2cf0d0ec287c86b3498ac34f35"
     },
     {
       "path": "projects/personal/molis-work.db",
@@ -1668,12 +1668,12 @@
         "plugin_input_groups": 0,
         "plugin_notifications": 0,
         "plugin_port_artifact_bindings": 0,
-        "plugin_port_bindings": 2,
+        "plugin_port_bindings": 0,
         "plugin_port_outputs": 0,
         "plugin_private_values": 0,
         "plugin_project_databases": 6,
-        "plugin_runtime_installs": 8,
-        "plugin_runtime_release_artifacts": 8,
+        "plugin_runtime_installs": 7,
+        "plugin_runtime_release_artifacts": 7,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -1789,8 +1789,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "048916a959fb7dec743cec6654544a52e642bbccecf44c66ea9d69e496f9889c",
-      "expanded_sha256": "34c9ada57e147b88cc4aba07a35f46bd3761d2d13011fc4e3ea68c7851272dd6"
+      "sha256": "8eaeaf6dc86fb3a299294990329d745bff3f3afcfab68f4e2b10b84b2a0327ca",
+      "expanded_sha256": "9f4e649a05f74d44cbda1a6619a847175e261bb6e071b879c4af1ad4bc5ffcc3"
     },
     {
       "path": "projects/project-332cb2e6-77a9-4dda-b5d6-d367eb3ccfda/molis-work.db",
@@ -1889,12 +1889,12 @@
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
         "plugin_port_artifact_bindings": 0,
-        "plugin_port_bindings": 6,
+        "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
         "plugin_private_values": 2,
         "plugin_project_databases": 6,
-        "plugin_runtime_installs": 17,
-        "plugin_runtime_release_artifacts": 16,
+        "plugin_runtime_installs": 16,
+        "plugin_runtime_release_artifacts": 15,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -2010,8 +2010,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "52e3c7e891b885a6b5dbb30cab2d13c5a7694d934d682788e2480e5eec71447d",
-      "expanded_sha256": "ff2c4e8307aa820602ecae1b76c456f27d47da336c9bac086889afe322b48f8e"
+      "sha256": "9414c0131842dfb1d26110eb2c7ae53a28e546a7394d6eb7ffd9fb7eef6a38fd",
+      "expanded_sha256": "6b57ad3d19de0eed3a648ce5c552bc179a16f2fbd390b92f8402decf9998fe56"
     },
     {
       "path": "sbxdb-07ba5a137b9c31eb32d2afc59b67135f/sbxdb-07ba5a137b9c31eb32d2afc59b67135f.db",
@@ -2058,10 +2058,10 @@
       "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-declarations/agent-declarations.db.sql",
       "schema_version": 1,
       "tables": {
-        "install_declarations": 14,
+        "install_declarations": 13,
         "molis_storage_space": 1
       },
-      "sha256": "a84e0497ce972ff588eb3ad8f3f1a73d94e453d240613a6a71b610db7cd9c013"
+      "sha256": "43031045adb1f46040baa5a0ff5c86927f4032b85a270e6f779dfa0cc4f7e409"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-definitions/agent-definitions.db",
@@ -2518,14 +2518,14 @@
       "schema_version": 1,
       "tables": {
         "molis_storage_space": 1,
-        "plugin_consents": 8,
+        "plugin_consents": 5,
         "plugin_private_values": 0,
         "plugin_publishers": 0,
-        "plugin_runtime_installs": 8,
-        "plugin_runtime_release_artifacts": 8
+        "plugin_runtime_installs": 7,
+        "plugin_runtime_release_artifacts": 7
       },
-      "sha256": "d2a4210ef7d9de8d915b9f150cbe3ed324f17c3fd41a62e7c38eebac18453378",
-      "expanded_sha256": "1a59be1edcedf05cdbff4b3865040bf15fc569bbca8e532d6463ffbe102d04f9"
+      "sha256": "1efa76ce2633b9442b7e8d8b2143a50e26356a8955c008b4762dfeb12083caed",
+      "expanded_sha256": "70a2181fecea5f81124910d3a62f44bc49fd1eb83cb300e783b2b67e8f2df091"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/ppt/ppt.db",
@@ -2686,12 +2686,12 @@
         "plugin_input_groups": 0,
         "plugin_notifications": 0,
         "plugin_port_artifact_bindings": 0,
-        "plugin_port_bindings": 2,
+        "plugin_port_bindings": 0,
         "plugin_port_outputs": 0,
         "plugin_private_values": 0,
         "plugin_project_databases": 6,
-        "plugin_runtime_installs": 8,
-        "plugin_runtime_release_artifacts": 8,
+        "plugin_runtime_installs": 7,
+        "plugin_runtime_release_artifacts": 7,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -2807,8 +2807,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "afaa9664316830882793583add9e62048d766578e4f98089b2c4b3fc7a6b4c9f",
-      "expanded_sha256": "ce468e4e54d9ca3859c7ae9eaa690a43f888d08064610a12b2a2474ab756e66e"
+      "sha256": "1fd287a0f2ed71bbaf55bec398991da2f2b6d6d0d4ac5e6ea69f8ec7497256dd",
+      "expanded_sha256": "0612f521dea1b2015475c2ada500214ec3f5ceed8951f3d44354ec6547576c8b"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-ac770e89-50a0-440c-91f9-497bb93109dc/molis-work.db",
@@ -2907,12 +2907,12 @@
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
         "plugin_port_artifact_bindings": 0,
-        "plugin_port_bindings": 6,
+        "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
         "plugin_private_values": 0,
         "plugin_project_databases": 6,
-        "plugin_runtime_installs": 16,
-        "plugin_runtime_release_artifacts": 16,
+        "plugin_runtime_installs": 15,
+        "plugin_runtime_release_artifacts": 15,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -3028,8 +3028,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "521592384c265e8c230291ddb006cdaa9915c1665b802a238dee98342357c41e",
-      "expanded_sha256": "7eaa6a8cb356e65d893ea761622afefee918fb4f82598385bd525bc0c9e8f8ce"
+      "sha256": "1b0e5c1653aa96d349b486fe2b53536685f6640397873b058763e5fde5ffd219",
+      "expanded_sha256": "beaf127c2190c938143a6cfc2298721efd801143deb96cad26c0fc3a4d03ad28"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",

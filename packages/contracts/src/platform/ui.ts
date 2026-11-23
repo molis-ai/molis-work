@@ -570,6 +570,8 @@ export interface UiClientScope extends UiRequestScope {
   dispose(): void;
   frame(callback: () => void): number;
   whenVisible(start: (signal: AbortSignal) => (() => void) | void): () => void;
+  /** While visible, reads a reply with a string revision and refreshes on entry or change. False retries the refresh on the next check. Returns a stop function. */
+  watchRevision(read: (signal: AbortSignal) => Promise<unknown>, refresh: (signal: AbortSignal) => Promise<boolean | void>): () => void;
 }
 
 /** The shared question card operations consumed by plugin pages. */

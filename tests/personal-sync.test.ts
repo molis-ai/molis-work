@@ -5,6 +5,7 @@ import {openDatasetStore,openFormStore,openLingguangStore,openPptStore,openTodoS
 import type {TestContext} from "node:test";
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {createHash} from 'node:crypto';
 import {readdirSync,readFileSync} from 'node:fs';
 
 import {join} from 'node:path';
@@ -224,6 +225,120 @@ test('PCSYNC-15 choosing remote archives the exact inspected local branch before
   assert.equal(f.events.length,before,'an archive is not a new business head or an acknowledgement');
   assert.equal(f.clients[1].recoveries(namespace).length,1,'the original atomic local journal also remains available');
 });
+
+for(const scenario of ['connected','offline','restart'] as const)test(
+  `SCKP-01 SCKP-02 choosing remote keeps 35 local attachments: ${scenario}`,
+  async t=>{
+    const {f,page,namespace,conflict}=await conflictedPages(t);
+    const chunkSize=4*1024*1024;
+    const sources=Array.from({length:35},(_,index)=>{
+      // Ten single-part blobs use 30 requests. The first part of this blob uses request 32.
+      const bytes=index===10?Buffer.alloc(chunkSize+17,42):Buffer.from(`local file ${index}`);
+      return {bytes,size:bytes.length,digest:createHash('sha256').update(bytes).digest('hex')};
+    });
+    const references=sources.map(({digest,size})=>({digest,size}));
+    const sourceByDigest=new Map(sources.map(source=>[source.digest,source]));
+    const total=sources.reduce((sum,source)=>sum+source.size,0);
+    const cloud=new Map<string,{ready:boolean;parts:Map<number,string>}>();
+    const reserves:string[]=[];
+    const samples:Array<Pick<ReturnType<PersonalSync['indicatorStatus']>,'running'|'transfer'>>=[];
+    let interrupted=false;
+    const transport:typeof fetch=async(input,init)=>{
+      const url=new URL(String(input));
+      if(!url.pathname.startsWith('/v1/blobs/'))return f.transport(input,init);
+      samples.push(client.indicatorStatus());
+      const body=typeof init?.body==='string'?JSON.parse(init.body):null;
+      assert.equal(body?.namespace??url.searchParams.get('namespace'),namespace);
+      const digest=body?.digest??url.searchParams.get('digest');
+      const source=sourceByDigest.get(digest);
+      assert.ok(source);
+      let receipt=cloud.get(digest);
+      if(url.pathname==='/v1/blobs/reserve'){
+        assert.equal(body.size,source.size);
+        reserves.push(digest);
+        if(!receipt){
+          receipt={ready:false,parts:new Map()};
+          cloud.set(digest,receipt);
+        }
+        return Response.json({digest,size:source.size,ready:receipt.ready,parts:[...receipt.parts].map(([part,checksum])=>({part,checksum}))});
+      }
+      assert.ok(receipt);
+      assert.equal(receipt.ready,false);
+      if(url.pathname==='/v1/blobs/chunk'){
+        assert.equal(init?.method,'PUT');
+        const part=Number(url.searchParams.get('part'));
+        if(source===sources[10]&&part===1&&!interrupted&&scenario!=='connected'){
+          interrupted=true;
+          if(scenario==='offline')throw new Error('OFFLINE');
+          client.close();
+          return new Response(null);
+        }
+        assert.ok(Buffer.isBuffer(init?.body));
+        assert.deepEqual(init.body,source.bytes.subarray(part*chunkSize,(part+1)*chunkSize));
+        assert.equal(receipt.parts.has(part),false,'an acknowledged part should never be sent twice');
+        receipt.parts.set(part,createHash('sha256').update(init.body).digest('hex'));
+        return new Response(null);
+      }
+      assert.equal(url.pathname,'/v1/blobs/complete');
+      assert.equal(receipt.parts.size,Math.ceil(source.size/chunkSize));
+      receipt.ready=true;
+      return Response.json({ready:true});
+    };
+    const openClient=()=>new PersonalSync({
+      home:f.homes[1],spaceId:f.space.spaceId,endpoint:'http://127.0.0.1:8788',fetch:transport,
+      authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'synthetic-only';}},
+      registrations:[{
+        selection,title:'Pages',async refresh(){},async prepare(){},withReplica:run=>f.withReplica(1,run),
+        content:{encode(_key,value){return {value,blobs:sources};},async decode(_key,value){return value;}},
+      }],
+    });
+    let client=openClient();
+    t.after(()=>client.close());
+    f.onRetention(async(route,payload)=>{
+      assert.equal(route,'/v1/history/archive');
+      assert.deepEqual((payload as {attachments:unknown}).attachments,references);
+      assert.ok(references.every(reference=>cloud.get(reference.digest)?.ready),'an archive must reference complete blobs');
+      assert.equal(f.withStore(1,s=>s.get(page.id).title),'local B');
+      samples.push(client.indicatorStatus());
+      return undefined;
+    });
+    const resolve=()=>client.resolve(namespace,conflict.key,'remote',conflict.revision,conflict.state);
+    const eventsBefore=f.events.length;
+    let sampleStart=0;
+    if(scenario!=='connected'){
+      await assert.rejects(resolve,{code:scenario==='offline'?'sync_replication.transport_backoff':'sync_replication.sync_scope'});
+      assert.ok(interrupted);
+      assert.equal(f.withStore(1,s=>s.get(page.id).title),'local B');
+      assert.equal(f.withReplica(1,r=>r.conflicts().length),1);
+      assert.equal(f.retained.length,0);
+      assert.equal([...cloud.values()].filter(receipt=>receipt.ready).length,10);
+      assert.deepEqual([...cloud.get(sources[10]!.digest)!.parts.keys()],[0]);
+      if(scenario==='restart')client=openClient();
+      assert.equal(client.indicatorStatus().transfer,null);
+      const reserveStart=reserves.length;
+      sampleStart=samples.length;
+      await resolve();
+      assert.deepEqual([...new Set(reserves.slice(reserveStart))],references.slice(10).map(ref=>ref.digest),'retry skips files recorded in SQLite');
+      assert.equal(samples[sampleStart]?.transfer?.done,sources.slice(0,10).reduce((sum,source)=>sum+source.size,0));
+    }else{
+      await resolve();
+    }
+    const received=samples.slice(sampleStart);
+    assert.ok(received.length>32);
+    assert.ok(received.every(sample=>sample.running&&sample.transfer?.total===total));
+    const bytes=received.map(sample=>sample.transfer!.done);
+    assert.ok(bytes.every((done,index)=>index===0||done>=bytes[index-1]!),'reported bytes never go backwards at a budget boundary');
+    assert.ok(bytes.some(done=>done>0&&done<total),'in-flight requests expose intermediate progress');
+    assert.equal(bytes.at(-1),total);
+    assert.equal(client.indicatorStatus().transfer,null);
+    assert.equal(client.indicatorStatus().running,false);
+    assert.equal(f.withStore(1,s=>s.get(page.id).title),'remote A');
+    assert.equal(f.withReplica(1,r=>r.conflicts().length),0);
+    assert.equal(f.retained.length,1);
+    assert.deepEqual(f.retained[0]!.mutation.value,conflict.local);
+    assert.equal(f.events.length,eventsBefore);
+  },
+);
 
 for(const failure of ['quota','offline','invalid-receipt','remote-changed'] as const)test('PCSYNC-15 failed cloud retention keeps original and conflict: '+failure,async t=>{
   const {f,page,namespace,conflict}=await conflictedPages(t);

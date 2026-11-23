@@ -17,4 +17,8 @@ export default async function ({ http, projectId, tag }: GoldenWriteContext) {
   await http("/locale?lang=en&next=/settings/appearance", { method: "GET" });
   await http(`/projects/${encodeURIComponent(projectId)}/`, { method: "GET" });
   readsBack(await http("/", { method: "GET" }), projectId);
+  if (process.platform === "darwin") {
+    const bundle_id = `io.molis.work.golden.${tag}`;
+    readsBack(await http("/api/computer/forbidden", { body: { bundle_id, name: "金样应用" } }), bundle_id);
+  }
 }

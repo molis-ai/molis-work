@@ -88,6 +88,8 @@
     "work-brief.next.state.stale": "已失效",
     "work-brief.next.state.unknown": "结果未确认",
     "work-brief.next.undo": "撤回",
+    "work-brief.next.old": "旧版步骤",
+    "work-brief.next.old-note": "新版已移除这一步。请到原处核对执行结果，再清除这条记录。",
     "work-brief.next.unknown-note": "这次执行没有确认结果，可能已经生效，也可能没有。请先到原处核对，再清除这条记录；清除后可以重新执行。",
     "work-brief.next.unknown-toast": "结果未确认，请到原处核对",
     "work-brief.old.back": "回到当前版本",

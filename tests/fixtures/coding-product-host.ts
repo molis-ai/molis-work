@@ -41,7 +41,8 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
   const providerRequests: string[] = [];
   const provider = options.loopbackProvider ? createServer(async (request, response) => {
     try {
-      let body = ""; for await (const chunk of request) body += chunk;
+      let body = "";
+      for await (const chunk of request.setEncoding("utf8")) body += chunk;
       providerRequests.push(body);
       const payload = JSON.parse(body) as CodingProviderRequest;
       const result = isKnowledgeOrganize(body) ? cogniaModelResponse(organizedCard) : await respond(payload, requests.push(payload));
@@ -112,7 +113,7 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
     off = adapter.observe(ref, view => { if (!["completed", "failed", "cancelled"].includes(view.phase)) return;
       clearTimeout(timer); queueMicrotask(() => off()); resolve(view); });
   });
-  return { home, get origin() { return current.origin; }, get host() { return current.host; }, directory, project, other, workspaceId, call, ended, requests, providerRequests, close,
+  return { home, get origin() { return current.origin; }, get host() { return current.host; }, directory, project, other, workspaceId, call, ended, requests, providerRequests, providerEndpoint: endpoint, close,
     get web() { return new LocalHostHttpClient(current); },
     async restart() { await close(); current = await open(); release = current.release; closing = undefined; },
   };

@@ -173,7 +173,7 @@
 | [62](reference/batches/62.md) | [四策略、SDK 补缺与逐服务验收](reference/batches/62.md#batch-62-item-1) |
 |  | [项目模型限制与出站边界](reference/batches/62.md#batch-62-item-2) |
 |  | [组合候选目录与引用语义](reference/batches/62.md#batch-62-item-3) |
-| [63](reference/batches/63.md) | [全平台评测扩展](reference/batches/63.md#batch-63-item-1) |
+| [63](reference/batches/63.md) | [全平台评测扩展](reference/batches/63.md#batch-63-item-1)（含[Skill、Tool、Memory 的基线与分批验收顺序](reference/dependencies.md#recall-delivery-order)） |
 | [63A](reference/batches/63a.md) | [记忆形成质量（P2-01）](reference/batches/63a.md#batch-63a-item-1)（2026-11-18 从 64 拆出，[决定 52](reference/decisions.md#decision-52)） |
 |  | [记忆整理（Dreaming）、按需原文与用户控制](reference/batches/63a.md#batch-63a-item-2) |
 |  | [常驻层（P2-05）](reference/batches/63a.md#batch-63a-item-3) |

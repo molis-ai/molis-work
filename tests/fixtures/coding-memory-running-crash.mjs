@@ -12,9 +12,8 @@ const reference = await catalog({ homeDirectory }, catalog => {
   const project = catalog.getProject(projectId);
   return molisWorkHostProjectReference({ projectId, databasePath: project.database_path });
 });
-await host.actionClient(reference).discover(await host.localPersonContext(reference));
-const service = ensureSystemAgentService(host, homeDirectory, catalog); await service.ready;
-const platform = await host.withProject(reference, runtime => runningProjectPlatform(runtime.store, projectId));
+const service = ensureSystemAgentService(host, homeDirectory, catalog);
+const platform = await host.withProject(reference, runtime => runningProjectPlatform(runtime.store, projectId), { activatePlugins: true });
 if (!platform) throw new Error("normal project owner assembly did not start");
 const invoke = platform.invokeOwnedAction.bind(platform);
 platform.invokeOwnedAction = async (owner, action, input, control) => {
@@ -24,4 +23,9 @@ platform.invokeOwnedAction = async (owner, action, input, control) => {
   process.stdout.write("running-durable\n", () => process.exit(0));
   await new Promise(() => {});
 };
-setTimeout(() => { throw new Error("original running queue did not reach the current owner"); }, 25_000);
+// Start the real queue only after the catalog and the interruption point are ready.
+await service.ready;
+setTimeout(() => {
+  const task = service.agentHost.adapter("prologue").schedule.find(taskKey);
+  throw new Error(`Original running queue did not reach the current owner: ${task?.state ?? "missing"} (${task?.last_failure ?? "no failure recorded"})`);
+}, 25_000);

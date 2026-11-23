@@ -1,4 +1,8 @@
-// A machine slow enough for a generation to outlive the Host's rounds, without the wait: every period of ten seconds or more comes due twice a second.
-// Install with `node --import`, before anything arms a timer. On a generation whose clock does not hold them back, this changes the golden every time.
-const real = globalThis.setInterval;
-globalThis.setInterval = (callback, period, ...rest) => real(callback, period >= 10_000 ? 500 : period, ...rest);
+// Simulate a generation that outlives both the Host's periodic rounds and Memory's first Prologue queue wake.
+// Install with `node --import` before the generator installs its clock.
+const interval = globalThis.setInterval, timeout = globalThis.setTimeout;
+globalThis.setInterval = (callback, period, ...rest) => interval(callback, period >= 10_000 ? 500 : period, ...rest);
+globalThis.setTimeout = (callback, delay, ...rest) => {
+  const memoryWake = delay === 60_000 && new Error().stack.includes("/@prologue/sdk/dist/orchestration/core/queue.js:");
+  return timeout(callback, memoryWake ? 500 : delay, ...rest);
+};

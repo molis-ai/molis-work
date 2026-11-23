@@ -23,7 +23,7 @@ import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/
 import { newPublisher } from './fixtures/sandbox-package.js';
 import { packagedStudioRelease } from './fixtures/studio-package.js';
 
-test('installed and authoring model calls bind their own release through the real Host, sandbox and shared Runtime', { skip: process.platform !== 'darwin', timeout: 60_000 }, async t => {
+test('SBXN-04 installed and authoring model calls bind their own release through the real Host, sandbox and shared Runtime', { skip: process.platform !== 'darwin', timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), 'generated-prompt-binding-'));
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = 'file';
   const systems: string[] = [];
@@ -119,4 +119,10 @@ test('installed and authoring model calls bind their own release through the rea
     { capability_id: 'model.generate', version: 1, provider_id: 'plugin-platform' }, { prompt: 'summary', input: '' }), /安装执行身份已失效/);
   await one.lifecycle('disable', v2);
   await assert.rejects(invoke(a)); assert.equal(systems.length, beforeRejected);
+  // SBXN-03: the installed-plugin path preserves the Host's recovery message through Plugin Runtime.
+  const originalNode = process.execPath;
+  process.execPath = join(home, 'missing-node');
+  try {
+    await assert.rejects(one.lifecycle('enable', v2), /Sandboxed plugins cannot start with this Node\.js installation.*nodejs\.org/);
+  } finally { process.execPath = originalNode; }
 });

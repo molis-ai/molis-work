@@ -28,7 +28,8 @@ for (const change of ["unchanged", "remove", "class-off"] as const) test(`C1 act
     forgettingPhase: () => service.forgettingPhase(), owners: project => ledger.owners(project),
     candidateOwners: project => ledger.candidateOwners(project), projectExists: async project => project === caller.project_id, deletingProject: () => undefined }));
   const server = createServer(async (req, res) => {
-    let body = ""; for await (const chunk of req) body += chunk;
+    let body = "";
+    for await (const chunk of req.setEncoding("utf8")) body += chunk;
     const request = JSON.parse(body) as Request; seen.push(request);
     const result = seen.length === 1 ? cogniaScriptedResponse({ name: request.tools!.find(tool => tool.name.startsWith("molis-action-"))!.name, input: { scope: "project" } })
       : cogniaScriptedResponse(undefined, "完成。");

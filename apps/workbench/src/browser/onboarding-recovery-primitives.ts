@@ -4,6 +4,7 @@ import {
   renderMaterialIssueRow,
   renderMaterialsFunnel,
   renderMaterialsTrack,
+  renderNote,
   renderScopeDeltaCard,
 } from "@molis-ai/molis-work-plugin-sdk/ui";
 
@@ -13,6 +14,7 @@ const recoveryParts = {
   renderMaterialsFunnel,
   renderMaterialsTrack,
   renderMaterialIssueRow,
+  renderNote,
   renderScopeDeltaCard,
 };
 

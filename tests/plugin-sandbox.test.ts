@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { copyFile, mkdir, mkdtemp, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import childProcesses from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
+import { promisify } from 'node:util';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { createBatchProcessMonitor, createSandboxRunner, assertContract, assertProposalContract, parsePsBatchOutput, parsePsCpuMs, type SandboxLimits, type SandboxServices, type SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import { currentCallId, newCallId, withCallId } from '@molis-ai/molis-work-kernel';
@@ -65,6 +67,84 @@ test('read-only proposal validation shares strict schema rules but cannot author
 test('the actual sandbox runner refuses an unproven proposal before reading a bundle', mac, async () => {
   const proposal=contract();proposal.operations[0]!.examples=[];
   await assert.rejects(createSandboxRunner({bundlePath:'/does-not-exist/proposal.mjs',contract:proposal,identity,grants:{},services:{}}),code('sandbox.invalid_contract'));
+});
+
+test('SBXN-01 SBXN-02 SBXN-03 Seatbelt runs linked Node and refuses missing or escaping libraries before worker launch', { ...mac, timeout: 30_000 }, async t => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'sandbox-linked-node-')));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const keg = join(root, 'Cellar', 'node@24', '24.15.0');
+  const bin = join(keg, 'bin'), lib = join(keg, 'lib');
+  const node = join(bin, 'node'), library = join(lib, 'libnode-fixture.dylib');
+  const alias = join(root, 'node-link');
+  const dependencyKeg = join(root, 'Cellar', 'fixture', '1.0.0');
+  const dependency = join(dependencyKeg, 'lib', 'libfixture.dylib');
+  const opt = join(root, 'opt', 'fixture');
+  const source = join(root, 'fixture.c');
+  const execFile = promisify(childProcesses.execFile);
+  for (const directory of [bin, lib, join(dependencyKeg, 'lib'), join(root, 'opt')]) {
+    await mkdir(directory, { recursive: true });
+  }
+  // Model a Homebrew dependency in another keg, reached through opt and a symlink next to libnode.
+  await writeFile(source, 'int sandbox_test_symbol(void) { return 0; }');
+  await execFile('/usr/bin/clang', ['-dynamiclib', '-Wl,-install_name,@loader_path/libfixture.dylib', source, '-o', dependency]);
+  await symlink(dependencyKeg, opt);
+  const dependencyAlias = join(opt, 'lib', 'libfixture.dylib');
+  await symlink(dependencyAlias, join(lib, 'libfixture.dylib'));
+  // Re-export the system library so the repository's Node still runs its own startup and worker.
+  await writeFile(source, 'extern int sandbox_test_symbol(void); int sandbox_test_link(void) { return sandbox_test_symbol(); }');
+  await execFile('/usr/bin/clang', ['-dynamiclib', '-Wl,-install_name,@rpath/libnode-fixture.dylib', '-Wl,-reexport-lc++',
+    source, dependencyAlias, '-o', library]);
+  await copyFile(process.execPath, node, constants.COPYFILE_FICLONE);
+  await execFile('/usr/bin/install_name_tool', ['-change', '/usr/lib/libc++.1.dylib', '@rpath/libnode-fixture.dylib',
+    '-add_rpath', '@loader_path', '-add_rpath', '@loader_path/../lib', node]);
+  await execFile('/usr/bin/codesign', ['--force', '--sign', '-', node]);
+  await symlink(node, alias);
+  const runtime = join(root, 'release', 'runtime'), copiedNode = join(runtime, 'node'), copiedLibrary = join(runtime, 'libnode-fixture.dylib');
+  const copiedDependency = join(runtime, 'libfixture.dylib');
+  await mkdir(runtime, { recursive: true });
+  await copyFile(node, copiedNode, constants.COPYFILE_FICLONE);
+  await copyFile(library, copiedLibrary);
+  await copyFile(dependency, copiedDependency);
+
+  const originalNode = process.execPath;
+  try {
+    const probe = `import fs from 'node:fs'; export const operations={run:async input=>{
+      const [library, dependency, unrelated]=JSON.parse(input);
+      const loaded=[library,dependency].every(file=>fs.readFileSync(file).length>0);
+      try { fs.readFileSync(unrelated); return 'readable'; }
+      catch (error) { return JSON.stringify([loaded,error.code]); }
+    }};`;
+    for (const layout of [
+      { executable: alias, direct: library, indirect: dependency, directory: lib },
+      { executable: copiedNode, direct: copiedLibrary, indirect: copiedDependency, directory: runtime },
+    ]) {
+      const unrelated = join(layout.directory, 'unrelated.dylib');
+      await writeFile(unrelated, 'private');
+      process.execPath = layout.executable;
+      const worker = await fixture(probe);
+      try { assert.equal(await worker.runner.call('run', JSON.stringify([layout.direct, layout.indirect, unrelated])), '[true,"EPERM"]'); }
+      finally { await worker.close(); }
+    }
+
+    process.execPath = alias;
+    const outside = join(root, 'private', 'libfixture.dylib');
+    await mkdir(join(root, 'private'));
+    await rename(dependency, outside);
+    await symlink(outside, dependency);
+    const observed = t.mock.method(childProcesses, 'spawn', childProcesses.spawn);
+    syncBuiltinESMExports();
+    try {
+      const open = () => fixture("export const operations={run:async()=>''};");
+      await assert.rejects(open(), {
+        code: 'sandbox.node_runtime_unavailable', message: /outside the supported runtime locations.*nodejs\.org/,
+      });
+      await rm(dependency);
+      await assert.rejects(open(), {
+        code: 'sandbox.node_runtime_unavailable', message: /could not be loaded in a clean environment.*nodejs\.org/,
+      });
+      assert.equal(observed.mock.callCount(), 0, 'unsupported runtimes are refused before launching the sandbox worker');
+    } finally { observed.mock.restore(); syncBuiltinESMExports(); }
+  } finally { process.execPath = originalNode; }
 });
 
 test('real Seatbelt process has empty environment and cannot read/write host files or execute children', mac, async () => {

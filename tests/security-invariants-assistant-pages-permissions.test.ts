@@ -480,7 +480,8 @@ test("APR-07/08/11 ASC-51/52: Assistant reuses one real connector MCP tool acros
       if (request.headers.authorization !== "Bearer fixture-" + request.url?.slice(1) + "-account") { response.writeHead(401).end(); return; }
       if (request.method === "GET") { response.writeHead(405).end(); return; }
       if (request.method === "DELETE") { response.writeHead(204).end(); return; }
-      let text = ""; for await (const chunk of request) text += String(chunk);
+      let text = "";
+      for await (const chunk of request.setEncoding("utf8")) text += chunk;
       const message = JSON.parse(text) as { method: string; id?: number; params: { protocolVersion: string; arguments: { note: string } } };
       if (message.id === undefined) { response.writeHead(202).end(); return; }
       let result: unknown;

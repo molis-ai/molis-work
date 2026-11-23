@@ -1,6 +1,6 @@
 # Feed 捕捉成果跨产品版本重放
 
-状态：本地验证通过，待合入（2026-11-23）。
+状态：已随 [#2267](https://github.com/molis-ai/molis-work/pull/2267) 合入 main（`be1840d221`，2026-11-23）。
 
 目标为功能可用。Feed 的捕捉线按消息和规则确定，已保存的 `origin.revision` 是捕捉内容的指纹。现有重放尝试重写最新版本，成果库的 `sameVersion` 会比较整份记录，包括生产插件版本。产品升版后，Feed 把 `version_conflict` 当作内容变化，于是追加了一版。
 

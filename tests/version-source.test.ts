@@ -705,8 +705,8 @@ test("VG-13 what each script scans is pinned, so sharing the walk did not narrow
   for (const pattern of workspace) assert.ok(SOURCE_ROOTS.some((directory: string) => pattern === directory || pattern.startsWith(`${directory}/`)), pattern);
 });
 
-test("VG-14 the complete CI gate job runs the version self-test", () => {
-  assert.ok(testRunsInJob(jobBlock("gate-rules")).some(args => args.includes("tests/version-source.test.ts")));
+test("VG-14 the complete source gate job runs the version self-test", () => {
+  assert.ok(testRunsInJob(jobBlock("gates")).some(args => args.includes("tests/version-source.test.ts")));
 });
 
 test("VG-15 an exception names the literals it lets through and how many, so a new one in that file is seen (BL-1067)", () => {

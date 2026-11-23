@@ -31,11 +31,14 @@ export function composeSection(say: (key: string) => string): string {
   </div>`;
   const composeFilterMenu = renderMenu({
     items: renderMenuItem({ label: "只看进行中", iconName: "check" }) + renderMenuItem({ label: "含已归档", iconName: "archive" }) + renderMenuItem({ label: "清除筛选", iconName: "x" }),
+    labelledBy: "compose-filter-button",
+    className: "mw-anchored-menu",
+    attrs: { id: "compose-filter-menu", popover: "auto" },
   });
   const composeToolbar = `<div class="mw-compose mw-compose--toolbar">${renderToolbar({ body: `
     <div class="mw-compose__search">${renderInputGroup({ start: icon("search"), control: renderInput({ type: "search", placeholder: "搜索标题、来源" }) })}</div>
     ${renderToggleGroup({ label: "视图", items: [{ value: "list", label: "列表", current: true }, { value: "board", label: "看板" }, { value: "canvas", label: "画布" }] })}
-    <div class="mw-compose__anchor">${renderButton({ label: "筛选", variant: "secondary", icon: "filter", attrs: { "data-compose-menu-toggle": "", "aria-expanded": "false", "aria-haspopup": "menu" } })}<div class="mw-compose__menu" data-compose-menu hidden>${composeFilterMenu}</div></div>
+    ${renderButton({ label: "筛选", variant: "secondary", icon: "filter", attrs: { id: "compose-filter-button", "data-anchored-menu": true, popovertarget: "compose-filter-menu", "aria-controls": "compose-filter-menu", "aria-expanded": "false", "aria-haspopup": "menu" } })}${composeFilterMenu}
     <span class="mw-compose__spacer"></span>
     ${renderButton({ label: "新建", variant: "primary", icon: "plus" })}` })}</div>`;
   const composeForm = renderForm({

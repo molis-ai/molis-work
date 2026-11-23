@@ -28,6 +28,7 @@ import { WORK_RECORDS_BOARD_STYLES, categoryBarSection, kindMarkSection } from "
 import { LANGUAGE_BOARD_STYLES, languageSection, motionGrammarSpecimens, pairingSection, zonesSection } from "./catalog-language.js";
 import { RECOVERY_BOARD_STYLES, recoverySections } from "./recovery-parts.js";
 import { CODING_BASICS_BOARD_STYLES, codingBasicsSection } from "./coding-basics.js";
+import { HOME_PAGE_ADOPTION_BOARD_STYLES, homePageAdoptionSections } from "./catalog-home-page-adoption.js";
 
 export const PRIMITIVE_CATALOG_IDS = PLUGIN_COMPONENTS.map(({ kind }) => kind);
 const catalogComponents = new Map(PLUGIN_COMPONENTS.map(component => [component.kind, component]));
@@ -419,13 +420,14 @@ export function renderPrimitiveCatalog(options: {
     ${arrivalSection(say)}
     ${recoverySections(say)}
     ${codingBasicsSection(say)}
+    ${homePageAdoptionSections(say)}
     ${composeSection(say)}
     ${renderCatalogExamples(section)}
     ${options.presentationLocale ? presentationSection(options.presentationLocale, options.presentationPlugins) : ""}`;
   const extraSections = extraChapters.map((item) => item.sectionsHtml).join("\n");
   return `<div class="mw-catalog">
     ${catalogIndex(sections, say, extraChapters)}
-    <style>${CATALOG_EXTRA_STYLES}${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}${SKILL_SELECTION_BOARD_STYLES}${CAPABILITY_PACK_BOARD_STYLES}${WORK_RECORDS_BOARD_STYLES}${LANGUAGE_BOARD_STYLES}${RECOVERY_BOARD_STYLES}${CODING_BASICS_BOARD_STYLES}${options.presentationLocale ? PRESENTATION_FORM_STYLES + PRESENTATION_BOARD_STYLES : ""}</style>
+    <style>${CATALOG_EXTRA_STYLES}${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}${SKILL_SELECTION_BOARD_STYLES}${CAPABILITY_PACK_BOARD_STYLES}${WORK_RECORDS_BOARD_STYLES}${LANGUAGE_BOARD_STYLES}${RECOVERY_BOARD_STYLES}${CODING_BASICS_BOARD_STYLES}${HOME_PAGE_ADOPTION_BOARD_STYLES}${options.presentationLocale ? PRESENTATION_FORM_STYLES + PRESENTATION_BOARD_STYLES : ""}</style>
     ${sections}
     ${extraSections}
   </div>

@@ -5,12 +5,11 @@ import {channel} from 'node:diagnostics_channel';
 const pageEvents=[];channel('molis-work.account-pages').subscribe(event=>pageEvents.push({event:event.event,reason:event.reason}));
 import http from 'node:http';
 import {randomBytes} from 'node:crypto';
-import {readFileSync,mkdtempSync,mkdirSync,existsSync,rmSync} from 'node:fs';
+import {readFileSync,mkdtempSync,mkdirSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve,isAbsolute} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createDesktopWebHost} from '@molis-ai/molis-work-app-desktop';
-import {NATIVE_SESSION_FILE,NATIVE_SESSION_HEADER} from '@molis-ai/molis-work-app-local-host';
 import {ChromeHarness} from '@molis-ai/molis-work-test-kit/browser';
 const source=process.env.MOLIS_AUTH_SOURCE;assert.ok(source&&isAbsolute(source));
 const {getRustProxy,initializeLocalRuntime}=await import(pathToFileURL(resolve(source,'worker/scripts/local-runtime.mjs')).href);
@@ -27,9 +26,8 @@ async function readControl(){const {current}=await json('/api/spaces',undefined,
 async function browserCookie(){const result=await page.command('Network.getCookies',{urls:[origin]});cookie=result.cookies.filter(c=>c.name==='molis-work-session').map(c=>c.name+'='+c.value).join('; ');assert.ok(cookie);}
 
 
-let stage='setup',completed=0,activePopup;const streams=new Set();
+let stage='setup';const streams=new Set();
 const users=new Map(),projects=new Map(),retired=[];
-async function until(check,label){const deadline=Date.now()+15000;while(!await check()){assert.ok(Date.now()<deadline,label);await new Promise(resolve=>setTimeout(resolve,25));}}
 function navigation(target,matches){const pending=new Promise((resolve,reject)=>{const timer=setTimeout(()=>{off();reject(Error('Navigation timeout: '+stage));},15000);const off=browser.on('Page.frameNavigated',(params,session)=>{if(session===target.sessionId&&!params.frame.parentId&&matches(new URL(params.frame.url))){clearTimeout(timer);off();resolve();}});});void pending.catch(()=>{});return pending;}
 async function ready(){await page.command('Page.bringToFront');await page.wait("document.readyState==='complete' && !document.body.inert && !document.body.hasAttribute('data-account-registering') && Boolean(document.querySelector('[data-account-link]')) && document.querySelector('[data-personal-action=logout]')?.hidden===false");}
 async function form(target,phone){
@@ -49,17 +47,17 @@ async function verified(phone){
  const visible=(await json('/api/settings/projects')).projects.map(p=>p.project_id);assert.ok(visible.includes(projects.get(phone)));for(const [other,id]of projects)if(other!==phone)assert.ok(!visible.includes(id),'another account project leaked');
  for(const stale of retired.slice(-2)){const old=await fetch(origin+'/api/personal/status',{headers:{Cookie:stale.cookie}});assert.equal((await old.json()).identity,null);const denied=await fetch(origin+'/api/settings/projects',{headers:{Cookie:cookie,'x-molis-work-control-token':stale.token}});assert.equal(denied.status,409);}
 }
-async function signIn(phone){stage='sign in '+(completed+1);if(!await page.evaluate("Boolean(document.querySelector('.account-dialog input[name=address]'))")){const arrived=navigation(page,url=>url.searchParams.get('accountEntry')==='1');await page.command('Page.navigate',{url:origin});await arrived;}
+async function signIn(phone){stage='sign in';if(!await page.evaluate("Boolean(document.querySelector('.account-dialog input[name=address]'))")){const arrived=navigation(page,url=>url.searchParams.get('accountEntry')==='1');await page.command('Page.navigate',{url:origin});await arrived;}
  const landed=navigation(page,url=>url.origin===origin&&!url.searchParams.has('accountLogin'));await form(page,phone);await landed;await page.wait("document.readyState==='complete' && !document.body.hasAttribute('data-account-entry')");await verified(phone);}
-async function menu(){await ready();if(await page.evaluate("document.querySelector('#mw-account-menu').hidden"))await page.click('[data-account-link]');await page.wait("!document.querySelector('#mw-account-menu').hidden");}
-async function signOut(){stage='logout '+(completed+1);retired.push({cookie,token:control});await menu();const arrived=navigation(page,url=>url.searchParams.get('accountEntry')==='1');await page.click('[data-personal-action=logout]');await arrived;await page.wait("Boolean(document.querySelector('.account-dialog input[name=address]')) && !document.querySelector('.account-form').hasAttribute('aria-busy')");await browserCookie();control=rootToken;const state=await json('/api/personal/status');assert.equal(state.identity,null);assert.equal(state.preparation,null);assert.equal(streams.size,0,'logout must close all previous account event streams');const denied=await fetch(origin+'/api/settings/projects',{headers:{Cookie:cookie,'x-molis-work-control-token':rootToken}});assert.equal(denied.status,401);}
+async function menu(){await ready();if(await page.evaluate("document.querySelector('#mw-account-menu').hidden"))await page.click('.bar-account [data-account-link]');await page.wait("!document.querySelector('#mw-account-menu').hidden");}
+async function signOut(){stage='logout';retired.push({cookie,token:control});await menu();const arrived=navigation(page,url=>url.searchParams.get('accountEntry')==='1');await page.click('[data-personal-action=logout]');await arrived;await page.wait("Boolean(document.querySelector('.account-dialog input[name=address]')) && !document.querySelector('.account-form').hasAttribute('aria-busy')");await browserCookie();control=rootToken;const state=await json('/api/personal/status');assert.equal(state.identity,null);assert.equal(state.preparation,null);assert.equal(streams.size,0,'logout must close all previous account event streams');const denied=await fetch(origin+'/api/settings/projects',{headers:{Cookie:cookie,'x-molis-work-control-token':rootToken}});assert.equal(denied.status,401);}
 try{
  authOrigin=await listen(authServer);const reserve=http.createServer();origin=await listen(reserve);await close(reserve);
  proxy=await getRustProxy({AUTH_ORIGIN:authOrigin,UNIFIED_ACCOUNT_CONFIG:JSON.stringify({environmentId:'unified-local',kind:'LOCAL',authOrigin,providerMode:'MOCK',deliveryMode:'MOCK'})});await initializeLocalRuntime(proxy,false);
  for(const sql of readFileSync(resolve(source,'worker/unified-account-local-seed.sql'),'utf8').replaceAll('http://127.0.0.1:8787',authOrigin).replaceAll('http://127.0.0.1:4207',origin).replace(/--[^\n]*/g,'').split(';').map(s=>s.trim()).filter(Boolean))await proxy.env.DB.prepare(sql).run();
  process.env.MOLIS_WORK_ACCOUNT_CONFIG=JSON.stringify({environmentId:'unified-local',environmentKind:'LOCAL',authOrigin,productOrigin:origin,applicationId:'molis-work-unified-local-app',clientId:'molis-work-unified-local',policyProfile:'unified-account-v2',redirectAllowlist:[origin+'/account/callback'],providerMode:'MOCK',deliveryMode:'MOCK'});
  const boot=()=>createDesktopWebHost({ptyClientFilePath:()=>resolve('dist/web/pty-client.js')})({homeDirectory:home,controlToken:rootToken});server=boot();server.prependListener('request',(req,res)=>{if(req.url?.startsWith('/api/personal/events')){streams.add(res);res.once('close',()=>streams.delete(res));}});await listen(server,Number(new URL(origin).port));
- browser=await ChromeHarness.start(join(home,'chrome'));assert.ok(browser);page=await browser.page();await page.command('Page.enable');await page.command('Network.enable');await page.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{const original=fetch;window.fetch=async(...args)=>{if(String(args[0]).includes('action=cancel')||String(args[0]).includes('login-cancel'))(window.rapidCancels??=[]).push(new Error('cancel request').stack);const r=await original(...args);if(!r.ok)window.qaFailure={path:new URL(args[0],location.href).pathname,status:r.status,step:args[1]?.body?JSON.parse(args[1].body).step:undefined,body:await r.clone().json().catch(()=>null)};return r;};})()`});await page.viewport(1440,900);
+ browser=await ChromeHarness.start(join(home,'chrome'));assert.ok(browser);page=await browser.page();await page.command('Page.enable');await page.command('Network.enable');await page.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{const original=fetch;window.fetch=async(...args)=>{const r=await original(...args);if(!r.ok)window.qaFailure={path:new URL(args[0],location.href).pathname,status:r.status,body:await r.clone().json().catch(()=>null)};return r;};})()`});await page.viewport(1440,900);
 
  // WUA-32: real browser history and retired login URL cannot restore a logged-out identity.
  const phone='+8613800000811';
@@ -104,12 +102,12 @@ try{
  const delivered=await proxy.env.DB.prepare('SELECT credential FROM auth_mock_delivery WHERE destination=? ORDER BY created_at DESC LIMIT 1').bind(otpPhone).first();assert.ok(delivered);
  await page.fill('input[name=code]',delivered.credential==='000000'?'111111':'000000');await page.click('.account-form button[type=submit]');
  await page.wait('Boolean(window.qaFailure)');assert.equal((await json('/api/personal/status')).identity,null);
- assert.equal((await page.evaluate('window.qaFailure')).status,403);
+ const wrongCode=await page.evaluate('window.qaFailure');assert.equal(wrongCode.path,'/api/account/auth/login/code');assert.equal(wrongCode.status,403);assert.equal(wrongCode.body.details.authCode,'INVALID_CREDENTIALS');
  // Expire only the isolated challenge, preserving the schema created_at < expires_at constraint.
- await proxy.env.DB.prepare('UPDATE auth_verification_challenge SET created_at=1,expires_at=2 WHERE canonical_target=?').bind(otpPhone).run();
+ const changed=await proxy.env.DB.prepare('UPDATE auth_verification_challenge SET created_at=1,expires_at=2 WHERE canonical_target=?').bind(otpPhone).run();assert.equal(changed.meta.changes,1);
  await page.evaluate('window.qaFailure=null');await page.fill('input[name=code]',delivered.credential);await page.click('.account-form button[type=submit]');
  await page.wait('Boolean(window.qaFailure)');assert.equal((await json('/api/personal/status')).identity,null);
- assert.ok([400,403,409].includes((await page.evaluate('window.qaFailure')).status));
+ const expired=await page.evaluate('window.qaFailure');assert.equal(expired.path,'/api/account/auth/login/code');assert.equal(expired.body.details.authCode,'INVALID_CREDENTIALS');
  // Start the ordinary phone form again during the delivery cooldown. The Worker must refuse another message.
  await page.evaluate('window.qaFailure=null');
  await submitPhoneNumber(page,otpPhone.slice(3));
@@ -121,10 +119,19 @@ try{
  // Closing the harness terminates its Chrome process; restart the same on-disk profile.
  await browser.close();browser=undefined;
  browser=await ChromeHarness.start(join(home,'chrome'));assert.ok(browser);page=await browser.page();await page.command('Page.enable');await page.command('Network.enable');await page.viewport(1440,900);
- stage='Chrome process restart';const restarted=navigation(page,url=>url.searchParams.get('accountEntry')==='1'&&url.href!==retiredLogin);await page.command('Page.navigate',{url:retiredLogin});await restarted;
- await page.wait("Boolean(document.querySelector('.account-dialog input[name=address]'))");await browserCookie();
- assert.equal((await json('/api/personal/status')).identity,null,'restarted Chrome profile cannot restore logged-out identity');
+ stage='Chrome process restart';
+ // The interrupted OTP form still owns a pending sign-in. A new browser opening the retired URL must stay anonymous.
+ const entryRequest=browser.event('Network.responseReceived',params=>params.response.url===origin+'/api/personal/login');
+ await page.command('Page.navigate',{url:retiredLogin});
+ const entry=await entryRequest;assert.equal(entry.response.status,409,'the retired page cannot take over the pending sign-in');
+ await page.wait("document.querySelector('[data-account-entry-retry]')?.hidden===false && !document.querySelector('.account-dialog input[name=address]')");
+ const afterRestart=await page.evaluate("fetch('/api/personal/status').then(response=>response.json())");
+ assert.equal(afterRestart.identity,null,'restarted Chrome profile cannot restore logged-out identity');
  for(const stale of retired){const denied=await fetch(origin+'/api/settings/projects',{headers:{Cookie:stale.cookie,'x-molis-work-control-token':stale.token}});assert.ok([401,409].includes(denied.status),'old page token remains denied after Chrome restart');}
  process.stdout.write(JSON.stringify({result:'PASS',checks:['logout browser history','retired login URL','wrong OTP denied','expired OTP denied','actual resend rate limit','one delivery during cooldown','same-account history retains cache','logout history removes physical cache','Chrome process restart with same profile and old URL remains anonymous','retired tokens denied after Chrome restart'],limitations:[]})+'\n');
-}catch(error){if(activePopup){process.stderr.write(String(await activePopup.evaluate('document.body.innerText').catch(()=>''))+'\n');process.stderr.write(JSON.stringify(await activePopup.evaluate('window.qaFailure').catch(()=>null))+'\n');}process.stderr.write(JSON.stringify({stage,completed,pageEvents})+'\n');if(page){process.stderr.write(JSON.stringify(await page.evaluate('window.rapidCancels').catch(()=>null))+'\n');process.stderr.write(String(await page.evaluate('document.body.innerText').catch(()=>''))+'\n');process.stderr.write(JSON.stringify(await page.evaluate('window.qaFailure').catch(()=>null))+'\n');await page.screenshot(join(evidence,'failure.png')).catch(()=>undefined);}throw error;}
+}catch(error){
+ console.error(JSON.stringify({stage,pageEvents}));
+ if(page)await page.screenshot(join(evidence,'failure.png')).catch(()=>undefined);
+ throw error;
+}
 finally{await browser?.close();if(server)await close(server);await close(authServer);await proxy?.dispose();rmSync(home,{recursive:true,force:true});}

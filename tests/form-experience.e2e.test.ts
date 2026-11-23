@@ -28,8 +28,9 @@ const words = {
 
 async function keyboard(b: Browser, key: keyof typeof keys) {
   const event = { key, code: key === " " ? "Space" : key, windowsVirtualKeyCode: keys[key], nativeVirtualKeyCode: keys[key] };
-  await b.command("Input.dispatchKeyEvent", key === "Enter"
-    ? { ...event, type: "keyDown", text: "\r", unmodifiedText: "\r" }
+  const text = key === "Enter" ? "\r" : key === " " ? " " : "";
+  await b.command("Input.dispatchKeyEvent", text
+    ? { ...event, type: "keyDown", text, unmodifiedText: text }
     : { ...event, type: "rawKeyDown" }, b.sessionId);
   await b.command("Input.dispatchKeyEvent", { ...event, type: "keyUp" }, b.sessionId);
 }
@@ -161,7 +162,12 @@ test("Form: author, fill and export through the real Host in both languages and 
     await navigate(() => command("Page.navigate", { url }, sessionId));
     await b.waitFor("document.body.dataset.desktopSurface === 'form'");
     await frame.clientReady();
-    if (id) await waitFor(`${node(formTitle)}.value === ${JSON.stringify(title)}`);
+    if (id) {
+      await waitFor(`${node(formTitle)}.value === ${JSON.stringify(title)}`);
+      // A freshly loaded editor frame needs a real interaction before the keyboard journey.
+      await click(formTitle);
+      await focused(formTitle);
+    }
   };
   const file = await downloads(t, b);
   await b.setViewport(1440, 900);
@@ -226,8 +232,11 @@ test("Form: author, fill and export through the real Host in both languages and 
           await screenshot(b, `checkboxes-${variant}`);
           const paint = await evaluate<{ checked: boolean; visible: boolean; mark: boolean; contrast: number }[]>(checkboxPaint);
           await focus(required);
-          await press(" "); await saved(); assert.equal(stored().questions[0]?.required, false);
-          await press(" "); await saved(); assert.equal(stored().questions[0]?.required, true);
+          await focused(required);
+          await press(" "); await waitFor(`!${node(required)}.checked`); await saved();
+          assert.equal(stored().questions[0]?.required, false);
+          await press(" "); await waitFor(`${node(required)}.checked`); await saved();
+          assert.equal(stored().questions[0]?.required, true);
           const count = answers().length;
           const fill = "[data-form-fill]";
           await focus(fill); await press("Enter");

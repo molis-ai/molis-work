@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 // specs/visual-ui-experience VUX-39 (§render-lifecycle 同源标本): what the component board was still missing — its own language
@@ -10,11 +11,30 @@ import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js
 
 const CJK = /[㐀-鿿]/;
 
+type AssertTrue<T extends true> = T;
+// AEC-04: the same public renderer used by the board rejects an icon button with no label at compile time.
+export type CatalogIconButtonRequiresLabel = AssertTrue<
+  { iconOnly: true; icon: "x" } extends Parameters<typeof renderButton>[0] ? false : true
+>;
+
 test("VUX-39 the board switches its own language, and its plugin rows are Shelf's, Diff's and Coding's own rows in Chinese, English and mixed words", { timeout: 180_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, navigate, waitFor, origin } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await t.test("AEC-04 · the icon-only button specimen is named in both languages", async () => {
+    const selector = "#button button.mw-btn--icon-only";
+    for (const [lang, name] of [["en", "Close"], ["zh", "关闭"]]) {
+      await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog?lang=${lang}#button` }, sessionId));
+      await waitFor(`document.querySelector('${selector}')?.checkVisibility()`);
+      const { root } = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
+      const { nodeId } = await command<{ nodeId: number }>("DOM.querySelector", { nodeId: root.nodeId, selector }, sessionId);
+      const { nodes } = await command<{ nodes: { ignored: boolean; role?: { value: string }; name?: { value: string } }[] }>(
+        "Accessibility.getPartialAXTree", { nodeId, fetchRelatives: false }, sessionId);
+      const control = nodes.find(entry => !entry.ignored);
+      assert.deepEqual([control?.role?.value, control?.name?.value], ["button", name], lang);
+    }
+  });
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog?lang=en#plugin-rows` }, sessionId));
   await waitFor("document.readyState === 'complete' && !!document.querySelector('#plugin-rows')", 20_000);
   await evaluate("document.querySelector('#plugin-rows').scrollIntoView()");

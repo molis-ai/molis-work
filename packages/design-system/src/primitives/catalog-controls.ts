@@ -12,7 +12,7 @@ export function buttonSection(say: Say): string {
   const danger = renderButton({ label: "删除", variant: "danger" });
   const dangerOutline = renderButton({ label: "移入回收站", variant: "danger-outline" });
   const link = renderButton({ label: "打开链接", variant: "link" });
-  const iconBtn = renderButton({ label: "关闭", variant: "ghost", size: "icon", icon: "x", iconOnly: true });
+  const iconBtn = renderButton({ label: say("common.control.close"), variant: "ghost", size: "icon", icon: "x", iconOnly: true });
   const loading = renderButton({ label: "保存中", variant: "primary", loading: true });
   const loadingIcon = renderButton({ label: "导出中", variant: "secondary", icon: "download", loading: true });
   const disabled = renderButton({ label: say("workbench.capabilities.unavailable"), variant: "primary", disabled: true });

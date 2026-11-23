@@ -7684,6 +7684,7 @@
     "workbench.settings-plugins.pinned-publisher-name": "You pinned this publisher as {name}",
     "workbench.settings-plugins.platform-version-mismatch": "The plugin version does not match this platform",
     "workbench.settings-plugins.plugin": "Plugin",
+    "workbench.settings-plugins.plugin-details": "{plugin} details",
     "workbench.settings-plugins.plugin-s-permissions-currently-unavailable-personal-space": "This plugin’s permissions are currently unavailable in your personal space",
     "workbench.settings-plugins.plugin-stops-running-offers-no-actions-its-data": "{plugin} stops running and offers no actions; its data is kept and you can switch it on again at any time.",
     "workbench.settings-plugins.plugin-uninstalled-its-data-deleted-cannot-be-undone": "{plugin} is uninstalled and its data is deleted. This cannot be undone.",

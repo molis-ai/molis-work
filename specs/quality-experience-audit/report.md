@@ -349,7 +349,7 @@ PF-03/05/07/13 是采用或职责收口候选，即使目前只有一个实际�
 | [第 36 批角色与主线遗留](../backlog/BL-b36-review-followups.md) | 主干已补角色过期选择恢复、撤销及事项归属事务。本轮核对主线与任务的写入仍归不同服务，现有任务面板只提交事件去处 | 保留 [ROLE-14 本人体验](../backlog/BL-b36-roles-acceptance.md)、[角色细节](../backlog/BL-b36-review-followups-roles.md) 和第 37 批项。事项页面若同时提交两种去处，应明确分别结算的结果；另跟进独立的事项修订与两份下一步 schema |
 | [BL-state-machine-migration](../backlog/BL-state-machine-migration.md) | 144/89/55/32是旧盘点口径；SDK 已有，但所有布尔组合不都是真状态机 | 按实际 owner/合法迁移/取消恢复复核，剔除纯派生与资源句柄；保留逐批迁移，不宣称本轮确认了全部144条 |
 | [BL-acceptance-first-slice-limits](../backlog/BL-acceptance-first-slice-limits.md) | modules/acceptance 已有项目范围事实；个人范围及可信决定接线未齐 | 保留对39/44批的依赖，别再开第二套“要求—证据—认可”存储 |
-| [BL-1064](../bl-1064-node-sandbox/spec.md) | 锁定 Node 已有；本轮也发现默认24.14与要求24.15不符，切换后相关初始化恢复 | 2026-11-23 已补 Homebrew 动态库启动、拒绝诊断与 CLI 安装验证，见规格书 |
+| [BL-1064](../archive/bl-1064-node-sandbox/spec.md) | 锁定 Node 已有；本轮也发现默认24.14与要求24.15不符，切换后相关初始化恢复 | 2026-11-23 已补 Homebrew 动态库启动、拒绝诊断与 CLI 安装验证，见规格书 |
 | 待本人验收 69 条及第 32 批验收缺口 | 工程证据与本人认可分别记录，部分真实模型与多事项场景仍待验 | 合并重复的验收入口时保留原编号与负责人 |
 
 BL-1039 和 BL-1040 的工程记录可以清理，保留第 27 批本人验收和墓碑映射。随本轮改造结算的条目按表中范围在合入后处理。已完成子项归入原 spec，重叠事项沿同一实施路径。Git 草稿、执行终态、导入停止的实际结果分别见 QF-03、QF-06、QF-10。

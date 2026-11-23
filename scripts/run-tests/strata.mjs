@@ -26,6 +26,8 @@ export const VISUAL_AUDIT_TESTS = Object.freeze([
   "tests/touch-targets-fine-pointer-dark.e2e.test.ts",
   "tests/touch-targets-fine-pointer.e2e.test.ts",
   "tests/touch-targets.e2e.test.ts",
+  "tests/truncation-tip-desktop.e2e.test.ts",
+  "tests/truncation-tip-mobile.e2e.test.ts",
   "tests/truncation-tip.e2e.test.ts",
   "tests/visual-order-details-dark.e2e.test.ts",
   "tests/visual-order-details-layers.e2e.test.ts",

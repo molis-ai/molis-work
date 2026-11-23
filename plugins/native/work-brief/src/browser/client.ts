@@ -68,7 +68,10 @@ async function write<O>(page: BriefPage, capability: string, input: Record<strin
     page.toast(text("conflict.reread"), true);
     await loadHead(page, { quiet: true });
     return null;
-  } finally { page.state.busy = ""; page.render(); }
+  } finally {
+    page.state.busy = "";
+    page.render();
+  }
 }
 
 const briefOf = (page: BriefPage) => page.state.head?.brief ?? null;

@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { RISK_WRITE, riskActions, type RiskRecord } from "@molis-ai/molis-work-plugin-risk";
-import { createHomeWorkBriefPlugin, WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_WRITE, workBriefActions, workBriefPersonalActions, workBriefPresentationActions, type PersonalView, type BriefRefreshed, type BriefSaved, type BriefVersion, type BriefView } from "@molis-ai/molis-work-plugin-work-brief";
+import { WORK_BRIEF_PLUGIN_ID, WORK_BRIEF_WRITE, workBriefActions, workBriefPersonalActions, workBriefPresentationActions, type PersonalView, type BriefRefreshed, type BriefSaved, type BriefVersion, type BriefView } from "@molis-ai/molis-work-plugin-work-brief";
 import type { PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { surfaceCompositionActions, type SurfaceDescription } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { takeBackGoals } from "./fixtures/goals-agreement.js";
-import { createSyncConflictState, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
+import { defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
-import { pluginSyncNamespace } from "@molis-ai/molis-work-app-local-host";
-import { createSqliteReplica, namespacedReplicaDatabase, homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { syncOwnerPair } from "./fixtures/runtime-personal-sync.js";
 
 // Work Brief in a project that has no Goals: its sources are whatever the directory offers (here Risk), read as the caller.
@@ -454,13 +454,19 @@ test("WBR-03 a basis that is gone keeps the gone gap and withholds its title, th
 });
 
 test("WBR-07 clear an interrupted step after replacement and reopen, then retry the same inbound write", { timeout: 90_000 }, async t => {
-  const { call, caller, here, host, change, open, f } = await fixture(t);
-  const other = await open("另一个项目");
+  const { owner, source, target } = await syncOwnerPair(t, ["risk", "work-brief"], 2);
+  const here = target.project(), host = target.host;
+  const reference = molisWorkHostProjectReference({ projectId: here.project_id, databasePath: here.database_path });
+  const caller = { ...person([...RISK_WRITE, ...WORK_BRIEF_WRITE], here.project_id), actor_id: owner };
+  const call = <O>(definition: Parameters<typeof ref>[0], input: unknown, who: ActionCallContext = caller) =>
+    target.actions().invoke(who, ref(definition), input) as Promise<O>;
+  const other = (definition: Parameters<typeof ref>[0], input: unknown) =>
+    target.actions(1).invoke({ ...caller, project_id: target.project(1).project_id }, ref(definition), input);
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let calls = 0;
   const probe = { ...riskActions.addNote, capability_id: "probe.step.run",
     action: { ...riskActions.addNote.action, subject_kinds: [], scheduling: "concurrent" as const } };
-  t.after(host.actionRegistry(here.reference).registerProvider({ provider: { provider_id: "probe", title: "Probe", kind: "system", project_id: here.project_id },
+  t.after(host.actionRegistry(reference).registerProvider({ provider: { provider_id: "probe", title: "Probe", kind: "system", project_id: here.project_id },
     definitions: [probe], handlers: [{ ...probe, handle: async ctx => {
       calls++;
       entered.resolve();
@@ -481,38 +487,44 @@ test("WBR-07 clear an interrupted step after replacement and reopen, then retry 
   } finally { abort.abort(); release.resolve(); }
   await run;
   await call(workBriefActions.save, { request_id: once(), brief_id, base_version: 1, draft: { claims, next: [] } });
-  await change("DELETE", "work-brief");
-  await change("POST", "work-brief");
+  assert.equal(await host.closeProject(reference), true);
+  await target.openProjects();
   const view = await call<BriefView>(workBriefActions.get, { brief_id });
   assert.deepEqual(view.version!.next, []);
   assert.deepEqual(view.marks.map(mark => [mark.option_id, mark.state]), [[option_id, "unknown"]]);
-  await assert.rejects(other.call(workBriefActions.get, { brief_id }), { code: "work_brief.not_found" });
-  await assert.rejects(other.call(workBriefActions.setNext, { ...step, state: null }), { code: "work_brief.not_found" });
-  const db = openSqliteConnection(homeSqlitePath(f.home, "work-brief"));
-  try {
-    const { briefCollection } = await import("../plugins/native/work-brief/dist/replication.js");
-    const owner = briefCollection.create(db, { actorId: caller.actor_id, spaceId: "test-space", authorize() {},
-      canUploadProject: () => true, hasArtifact: () => true, project: () => ({ title: "项目" }) });
-    const key = JSON.stringify([here.project_id, "brief", brief_id]), value = owner.read(key);
-    assert.ok(value && typeof value === "object" && "brief" in value && value.brief && typeof value.brief === "object");
-    const namespace = pluginSyncNamespace(createHomeWorkBriefPlugin().manifest, "briefs");
-    const replica = createSqliteReplica(namespacedReplicaDatabase(db, namespace), { ...owner, authorize() {}, conflictState: createSyncConflictState });
-    const remoteTitle = "另一台设备的简报";
-    const event = { key, operationId: "other-device:1", base: 0, revision: 1, value: { ...value, brief: { ...value.brief, title: remoteTitle } } };
-    replica.receive(event);
-    const pending = replica.inspectConflict!(key);
-    assert.ok(pending);
-    assert.deepEqual(pending.remote, JSON.parse(JSON.stringify(event.value)));
-    assert.throws(() => replica.resolve(key, "remote", pending.revision, pending.state), { code: "work_brief.conflict" });
-    assert.equal(await code(call(workBriefActions.runNext, step)), "work_brief.option_stale");
-    await call(workBriefActions.setNext, { ...step, state: null });
-    const reviewed = replica.inspectConflict!(key);
-    assert.ok(reviewed);
-    replica.resolve(key, "remote", reviewed.revision, reviewed.state);
-    assert.deepEqual(replica.conflicts(), []);
-    const received = await call<BriefView>(workBriefActions.get, { brief_id });
-    assert.equal(received.brief!.title, remoteTitle);
-    assert.deepEqual(received.marks, []);
-    assert.equal(calls, 1);
-  } finally { db.close(); }
+  await assert.rejects(other(workBriefActions.get, { brief_id }), { code: "work_brief.not_found" });
+  await assert.rejects(other(workBriefActions.setNext, { ...step, state: null }), { code: "work_brief.not_found" });
+  const binding = await target.bind(WORK_BRIEF_PLUGIN_ID);
+  const local = binding.withReplica(replica => replica.next());
+  assert.ok(local);
+  const { key } = local;
+  const peer = await source.bind(WORK_BRIEF_PLUGIN_ID);
+  const firstEvent = { ...local, revision: 1 };
+  await peer.prepare(firstEvent);
+  peer.withReplica(replica => replica.receive(firstEvent));
+  binding.withReplica(replica => replica.acknowledge(key, local.operationId, 1));
+  const restored = await source.actions().invoke(caller, ref(workBriefActions.get), { brief_id }) as BriefView;
+  const remoteText = "另一台设备核对后的结论";
+  await source.actions().invoke(caller, ref(workBriefActions.edit), { brief_id, expected_revision: restored.brief!.revision,
+    claim_id: restored.version!.claims[0]!.claim_id, text: remoteText });
+  const update = peer.withReplica(replica => replica.next());
+  assert.ok(update);
+  assert.equal(update.key, key);
+  const event = { ...update, revision: 2 };
+  await binding.prepare(event);
+  binding.withReplica(replica => replica.receive(event));
+  const pending = binding.withReplica(replica => replica.inspectConflict!(key));
+  assert.ok(pending);
+  assert.deepEqual(pending.remote, JSON.parse(JSON.stringify(event.value)));
+  assert.throws(() => binding.withReplica(replica => replica.resolve(key, "remote", pending.revision, pending.state)), { code: "work_brief.conflict" });
+  assert.equal(await code(call(workBriefActions.runNext, step)), "work_brief.option_stale");
+  await call(workBriefActions.setNext, { ...step, state: null });
+  const reviewed = binding.withReplica(replica => replica.inspectConflict!(key));
+  assert.ok(reviewed);
+  binding.withReplica(replica => replica.resolve(key, "remote", reviewed.revision, reviewed.state));
+  assert.deepEqual(binding.withReplica(replica => replica.conflicts()), []);
+  const received = await call<BriefView>(workBriefActions.get, { brief_id });
+  assert.equal(received.version!.claims[0]!.text, remoteText);
+  assert.deepEqual(received.marks, []);
+  assert.equal(calls, 1);
 });

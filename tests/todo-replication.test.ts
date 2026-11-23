@@ -194,7 +194,7 @@ test("Todo concurrent edits conflict and malformed payload cannot replace valid 
 });
 
 test("Todo titles use the same 200 code points for ordinary writes and replica reads and writes", async t => {
-  const f = fixture(t), [a, b] = f.stores, client = actionsFor(a!);
+  const f = fixture(t), [a] = f.stores, client = actionsFor(a!);
   const title = "😀".repeat(200), oversized = title + "😀";
   const { item } = await client.invoke(todoActions.create, { title });
   const first = f.take();

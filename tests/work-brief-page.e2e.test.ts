@@ -205,6 +205,8 @@ for (const width of WIDTHS) test(`WBR-02 WBR-22 WBR-25 WBR-27 POLISH-82 the brie
   } finally { db.close(); }
   await evaluate(`window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { capability_id: "work-brief.briefs.save" } }))`);
   await waitFor(has(act("undo-next", old.option_id)));
+  const originalTarget = `[data-wb-slot="next"][data-kind="risk"][data-id="${supplier.risk_id}"]`;
+  await waitFor(`${has(act("undo-next", old.option_id))}.closest('.wb-step').querySelector(${JSON.stringify(originalTarget)})`);
   assert.equal(await evaluate(`Boolean(${has(act("run-next", old.option_id))})`), false);
   await click(act("undo-next", old.option_id));
   await waitFor(`!${has(act("undo-next", old.option_id))}`);

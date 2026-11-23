@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { modelPromptText, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { TodoOrganizer, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, organizeParts, passageFound, todoActions, todoManifest, todoOrganizeActions as organize, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { TodoOrganizer, type TodoCandidateDecision, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, organizeParts, passageFound, todoActions, todoManifest, todoOrganizeActions as organize, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 
 const TODAY = "2026-09-28";
@@ -617,7 +617,7 @@ test("55-3 T3-02 reopened decisions survive pagination and explicit close across
   const f = fixture(t, () => exampleAnswer());
   const { batch } = await f.inA.invoke(organize.extract, { materials: [MAIL] });
   const db = f.store.database();
-  const handled = await f.inA.invoke(organize.apply, { id: batch.batch_id, decisions: batch.candidates.map((candidate, index) =>
+  const handled = await f.inA.invoke(organize.apply, { id: batch.batch_id, decisions: batch.candidates.map<TodoCandidateDecision>((candidate, index) =>
     ({ candidate_id: candidate.candidate_id, action: index === 2 ? "ignore" : "add" })) });
   await f.inA.invoke(todoActions.revert, { batch_id: handled.change_batch_id });
   const reopened = (await f.inA.invoke(organize.get, { id: batch.batch_id })).batch;
@@ -660,21 +660,31 @@ test("batch subject preserves storage and decode failures and hides inaccessible
   await assert.rejects(read(f.inA, batch.batch_id), /SQLite read failed/);
 });
 
-test("review and onboarding adopt all six default choices, skip decided entries and reject stale keeps", async t => {
-  const { actionFor } = await import("../plugins/native/todo/dist/candidate-action.js");
-  const { keepDecisions, todoOnboardingActions } = await import("../plugins/native/todo/dist/onboarding-drafts.js");
+test("onboarding keeps six candidate relations through the registered action and refuses stale revisions", async t => {
   const f = fixture(t, () => exampleAnswer());
   const { batch } = await f.me.invoke(organize.extract, { materials: [MAIL] });
-  const choices = [null, "same", "update", "conflict", "maybe_done", "reopen"] as const;
-  const candidates = choices.map((relation, index) => ({ ...batch.candidates[0]!, candidate_id: String(index), existing: relation && {
-    item_id: String(index), title: "事项", changes: {}, protected: [], reason: "", relation,
-  } }));
-  const expected = ["add", "merge", "update", "update", "complete", "reopen"];
-  assert.deepEqual(candidates.map(actionFor), expected);
-  assert.deepEqual(keepDecisions({ ...batch, candidates }, candidates.map(c => c.candidate_id)).map(d => d.action), expected);
-  const input = { id: batch.batch_id, expected_revision: batch.revision, keep: [batch.candidates[0]!.candidate_id] };
-  const first = await f.me.invoke(todoOnboardingActions.keep, input);
-  await assert.rejects(f.me.invoke(todoOnboardingActions.keep, input), { code: "todo.conflict" });
-  const retry = await f.me.invoke(todoOnboardingActions.keep, { ...input, expected_revision: first.batch.revision });
-  assert.deepEqual(retry, first);
+  const db = f.store.database();
+  const row = db.get("SELECT body_json FROM todo_batches WHERE batch_id = ?", [batch.batch_id]) as { body_json: string };
+  const body = JSON.parse(row.body_json);
+  const relations = [null, "same", "update", "conflict", "maybe_done", "reopen"] as const;
+  const date = "2026-11-30";
+  body.candidates = [];
+  for (const [i, relation] of relations.entries()) {
+    const item = relation ? (await f.me.invoke(todoActions.create, { title: String(i) })).item : null;
+    if (item && relation === "reopen") await f.me.invoke(todoActions.status, { id: item.id, status: "done" });
+    body.candidates.push({ ...batch.candidates[0]!, candidate_id: String(i), depends_on: [], existing: item && {
+      item_id: item.id, title: item.title, reason: "", relation, changes: relation === "update" ? { due_date: date } : {},
+      protected: relation === "conflict" ? [{ field: "due_date", value: date }] : [],
+    } });
+  }
+  db.run("UPDATE todo_batches SET body_json = ? WHERE batch_id = ?", [JSON.stringify(body), batch.batch_id]);
+  const keep = todoManifest.actions!.find(definition => definition.capability_id === "todo.onboarding.keep")!;
+  const input = { id: batch.batch_id, expected_revision: batch.revision, keep: relations.map((_, i) => String(i)) };
+  const first = await f.me.invoke(keep, input);
+  const saved = (await f.me.invoke(organize.get, { id: batch.batch_id })).batch;
+  assert.deepEqual(saved.candidates.map(c => c.decision?.action), ["added", "merged", "updated", "updated", "updated", "updated"]);
+  const changed = await Promise.all(saved.candidates.map(c => f.me.invoke(todoActions.get, { id: c.decision!.item_id! })));
+  assert.deepEqual(changed.slice(2).map(({ item }) => [item.due_date, item.status]), [[date, "open"], [null, "open"], [null, "done"], [null, "open"]]);
+  await assert.rejects(f.me.invoke(keep, input), { code: "todo.conflict" });
+  assert.deepEqual(await f.me.invoke(keep, { ...input, expected_revision: saved.revision }), first);
 });

@@ -396,35 +396,58 @@ function claimTag(i){
   const place=/云/.test(i.who)?'云端':/本机/.test(i.who)?'本机':'';
   return [agent,i.login&&loginName(i.login),place].filter(Boolean).join('-');
 }
-// 认领板正文 -> 每项进展 -> 每批状态。页面只有这一份算法，内嵌快照和线上读到的都走它
+function boardRows(md){
+  const rows=new Map();
+  let batch;
+  for(const line of md.split(/\r?\n/)){
+    if(!line.startsWith('|')||/^\|\s*(---|批次\s)/.test(line))continue;
+    const cells=line.trim().replace(/^\||\|$/g,'').split(/(?<!\\)\|/).map(x=>x.trim());
+    if(cells.length!==6)continue;
+    if(cells[0])batch=cells[0];
+    if(!Object.hasOwn(byId,batch))continue;
+    // 交付项的第一个链接后面可能还有迁移去处或 Backlog 编号。
+    const link=/^\[(.*?)\]\(([^()\s]+)\)/.exec(cells[1]);
+    const anchor=link?.[2].match(/#([a-z0-9-]+-item-\d+[a-z]*)$/)?.[1];
+    if(!rows.has(batch))rows.set(batch,[]);
+    rows.get(batch).push({cells,title:link?.[1],anchor});
+  }
+  return rows;
+}
+function claimersByAnchor(md,claimers){
+  const result={};
+  for(const [batch,rows] of boardRows(md)){
+    rows.forEach(({anchor},index)=>{
+      const login=claimers[`${batch}-${index+1}`];
+      if(anchor&&login)result[anchor]=login;
+    });
+  }
+  return result;
+}
+let itemClaimers=claimersByAnchor(D.board||'',D.claimers);
+// 内嵌和线上认领板都按交付项锚点关联。没有一条能唯一对上的行，就不据它判断可领或合入。
 function applyBoard(md){
-  const rows={};let cur=null;
-  md.split(/\r?\n/).forEach(l=>{
-    if(!l.startsWith('|')||/^\|\s*(---|批次\s)/.test(l))return;
-    const c=l.trim().replace(/^\||\|$/g,'').split(/(?<!\\)\|/).map(x=>x.trim());
-    if(c.length!==6)return;
-    if(c[0])cur=c[0];
-    (rows[cur]=rows[cur]||[]).push(c);
-  });
+  const rows=boardRows(md);
   boardOff=0;
   D.batches.forEach(b=>{
-    const rs=rows[b.id]||[];
-    if(rs.length!==b.items.length)boardOff++;
-    b.items.forEach((it,i)=>{
-      const r=rs[i]||['','','','','待认领',''];
-      const name=(r[1].match(/\[([^\]]+)\]/)||[])[1]||r[1];
-      if(rs[i]&&name!==it.t)boardOff++;
-      // 状态只认固定词开头，开头的粗体不算状态。读不懂的行仍按有人认领显示，但要算进「对不上」，不能悄悄当成进行中
-      const cell=r[4].replace(/^\*\*(.+?)\*\*/,'$1').trim();
+    const rs=rows.get(b.id)||[];
+    const byAnchor=new Map();
+    for(const row of rs)byAnchor.set(row.anchor,byAnchor.has(row.anchor)?null:row);
+    if(rs.length!==b.items.length||b.items.some(it=>!byAnchor.get(it.anchor)))boardOff++;
+    b.items.forEach(it=>{
+      const row=byAnchor.get(it.anchor);
+      const [, ,who='',ref='',status='',date='']=row?.cells||[];
+      if(row&&row.title!==it.t)boardOff++;
+      // 状态只认固定词开头，开头的粗体不算状态。读不懂的行仍按有人认领显示，但要算进「对不上」。
+      const cell=status.replace(/^\*\*(.+?)\*\*/,'$1').trim();
       const base=BASES.find(k=>cell.startsWith(k));
-      if(rs[i]&&!base)boardOff++;
-      it.s=base||(r[2]&&r[2]!=='—'?'已认领':cell);
+      if(row&&!base)boardOff++;
+      it.s=base||(who&&who!=='—'?'已认领':cell);
       // 整段都在括号里才去掉括号，不留半边
       it.note=base?cell.slice(base.length).replace(/^[：:，,。\s]+/,'').trim().replace(/^[（(]([^（）()]*)[）)]$/,'$1'):cell;
-      it.draft=/定样|只读|核查|盘点/.test(r[2]+r[4]);it.draftWord=(/定样/.test(r[2]+r[4])&&'只做定样')||(/只读|核查/.test(r[2]+r[4])&&'只读核查')||(/盘点/.test(r[2]+r[4])&&'只做盘点')||'';
-      it.who=r[2];it.date=r[5];it.login=D.claimers[`${b.id}-${i+1}`]||'';
-      it.prs=[...r[3].matchAll(/#(\d+)/g)].map(m=>m[1]);
-      it.branch=(r[3].match(/`([^`]+)`/)||[])[1]||'';
+      it.draft=/定样|只读|核查|盘点/.test(who+status);it.draftWord=(/定样/.test(who+status)&&'只做定样')||(/只读|核查/.test(who+status)&&'只读核查')||(/盘点/.test(who+status)&&'只做盘点')||'';
+      it.who=who;it.date=date;it.login=who?(itemClaimers[it.anchor]||''):'';
+      it.prs=[...ref.matchAll(/#(\d+)/g)].map(m=>m[1]);
+      it.branch=(ref.match(/`([^`]+)`/)||[])[1]||'';
     });
   });
   const nodeItems=n=>n.items.map(i=>byId[n.owner].items[i]);
@@ -451,8 +474,8 @@ function applyBoard(md){
   });
 }
 // 上次读到的进展，比发布时内嵌的新就先用它；只是方便，读写失败不影响页面
-const BOARD_KEY='molis-board';
-try{const s=JSON.parse(localStorage.getItem(BOARD_KEY));if(s&&s.at>D.boardAt&&typeof s.body==='string'){D.board=s.body;D.boardAt=s.at;if(s.claimers)D.claimers=s.claimers}}catch(e){}
+const BOARD_KEY='molis-board-v2';
+try{const s=JSON.parse(localStorage.getItem(BOARD_KEY));if(s&&s.at>D.boardAt&&typeof s.body==='string'){D.board=s.body;D.boardAt=s.at;if(s.claimers)itemClaimers=s.claimers}}catch(e){}
 applyBoard(D.board);
 const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
 const $=id=>document.getElementById(id);
@@ -810,13 +833,14 @@ async function readBoard(attempt=0){
   boardFailed=false;
   const j=got.reduce((a,x)=>x.updated_at>a.updated_at?x:a);
   const who=got.find(x=>x.claimers);
-  const whoChanged=who&&JSON.stringify(who.claimers)!==JSON.stringify(D.claimers);
-  if(whoChanged)D.claimers=who.claimers;
+  const claimers=who&&claimersByAnchor(who.body,who.claimers);
+  const whoChanged=claimers&&JSON.stringify(claimers)!==JSON.stringify(itemClaimers);
+  if(whoChanged)itemClaimers=claimers;
+  const fresh=j.updated_at>=boardAt&&j.body!==boardBody;
   if(j.updated_at>=boardAt)boardAt=j.updated_at;
-  const fresh=j.updated_at>=D.boardAt&&j.body!==boardBody;
   if(fresh)boardBody=j.body;
   if(fresh||whoChanged){applyBoard(boardBody);repaint()}
-  try{localStorage.setItem(BOARD_KEY,JSON.stringify({body:boardBody,at:boardAt,claimers:D.claimers}))}catch(e){}
+  try{localStorage.setItem(BOARD_KEY,JSON.stringify({body:boardBody,at:boardAt,claimers:itemClaimers}))}catch(e){}
   renderSource();
 }
 readBoard();

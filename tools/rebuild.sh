@@ -15,7 +15,7 @@ FULL_SHA=$(git -C "$REPO" rev-parse "$REF")
 gh api repos/molis-ai/molis-work/issues/1743 > "$TMP/issue.json"
 python3 -I "$TOOLS/claimers.py" "$TMP/claimers.json"
 python3 -I "$TOOLS/build_data.py" "$TOOLS" "$TMP/$ROAD/reference" "$TMP/data.json" "$FULL_SHA"
-python3 -I "$TOOLS/build.py" "$TMP/data.json" "$TMP/$ROAD/reference/batches" "$TOOLS/template.html" "$TMP/page.html" "$TMP/issue.json" "$COMMIT" "$TMP/claimers.json"
+python3 -I "$TOOLS/build.py" "$TMP/data.json" "$TOOLS/template.html" "$TMP/page.html" "$TMP/issue.json" "$COMMIT" "$TMP/claimers.json"
 {
   printf '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light dark}body{margin:0}[hidden]{display:none!important}</style></head><body>'
   cat "$TMP/page.html"

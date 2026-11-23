@@ -566,6 +566,31 @@ Toasts are one component, `.mw-toast` (`renderToast`; styles in the design syste
 
 `mw-card` is paper with a `--line` hairline and 12px corners where a card is needed at all; its padding is its only rhythm (a paragraph's own margins never add to the panel's) and footer actions sit in a row 8px apart; `mw-table` uses hairline rows and 500-weight headers. Settings documents group rows into cards on the sheet; plugins do not wrap sections in cards by default.
 
+**Choose the table by what the person is doing.**
+
+| Task | How to lay it out |
+| --- | --- |
+| Find a record | Give the identifying column first claim on width. Size dates to their localized format, right-align tabular numbers and keep empty values distinct from zero. Keep header and body columns aligned while scrolling. A quiet grid should still show which cell has keyboard focus during editing. |
+| Filter work | Put a small set of mutually exclusive states above the existing list or table. Give the selected state a visible boundary. Keep each count beside its label and scoped to the same filters and records. Label page counts as such or omit them. Keep the filter and its clear action reachable when no rows match. |
+| Review changes | Keep enough unchanged context to locate an edit. Mark changes with a light semantic wash and a sign, label or strike. Keep the summary and action together. Offer per-item selection only when the underlying review can apply that selection, and reflect its actual scope in the action. |
+
+**Compose related content on one surface.** Group ordinary steps with spacing, type weight and dividers aligned to the text. Give a source or decision its own boundary when the person can inspect or act on it. Use the current skin’s paper, inset groups, tag corners and action colors.
+
+- A collapsed activity group names the current action and object. An outstanding failure or uncertain result stays visible alongside work still in progress. Keep manually opened details, focus and reading position stable as new events arrive. Show a fraction only when the total is known.
+- A material preview places its title above a short readable excerpt, with the source directly below. Disambiguate matching names with an allowed path suffix or version. Label attachments as attachments. A claim-level citation requires a link to its supporting passage. Only actionable references get a link or button affordance.
+- A suggestion names the object in the sentence and opens alternatives in place. A question offers the allowed answers and preserves a draft. An authorization shows the affected object and scope alongside one primary action with a concrete verb. The existing approval entry owns that action.
+- A workflow node names the action and object, with its parameters in reading order. A property row keeps the field, unit and current value together. Pair a slider with precise entry when both can edit the same bounded continuous value. Use the field’s existing choices for discrete values.
+
+#### Data charts
+
+Lead with the question the chart answers. The conclusion, legend, values and marks must describe the same objects, period and units. Keep counts and values readable without pointing or relying on color.
+
+| Question | Form and evidence |
+| --- | --- |
+| How is a whole divided? | For a few mutually exclusive categories, use a segmented horizontal bar with labels, counts and shares of a named denominator. Selecting a segment keeps the chart in place and exposes its value. For long labels, many categories or overlapping choices use independent bars. For multi-select questions, use the number of respondents to that question as the denominator. Show an empty state for zero responses. |
+| How did two series change? | Pair each series name with its change and unit above the plot. Use a common time range and comparable units, and distinguish the series by labels or line style as well as hue. Draw the lines from actual observations. |
+| When did a value cross a reference? | Label the measured series, reference and period. Use distinct line styles for actuals and threshold. Give the observed value and the difference in text. Check light and dark appearances. With only an aggregate, show the known value and any comparable budget as numbers. |
+
 ## The way in
 
 The screens a person passes through on the way into the work — the **project chooser** (`/`, the first page of every day), the **opening** and two **Welcome** questions of a first run, the **new-project journey**, and the **update page** — are one frame and one stylesheet (`/assets/molis-work-arrival.css`): a titlebar, a stage and the resident bar. Only what is inside the stage changes from screen to screen; the titlebar and the bar never move. The pages are separate documents, so the way from one to the next is a page load into the same frame. Everything on them is an `mw-*` component; the page sheet only lays them out. Gradients live only in the opening's and Welcome's ambient light and the goal card's warm light.

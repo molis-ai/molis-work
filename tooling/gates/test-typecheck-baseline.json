@@ -1,6 +1,6 @@
 {
   "note": "Recorded per-file TypeScript diagnostics for tooling/types/tsconfig.tests.json (Batch 100-2). May only shrink; update with `node scripts/gates/test-typecheck.mjs --update --base origin/main`.",
-  "total": 4177,
+  "total": 4172,
   "files": {
     "apps/workbench/src/browser/characters/action-client.ts": 8,
     "scripts/memory-evaluation/baseline.mts": 2,
@@ -415,7 +415,6 @@
     "tests/home-plugin-platform.test.ts": 1,
     "tests/home-plugin-private-store.test.ts": 1,
     "tests/home-plugin-project-cleanup.test.ts": 2,
-    "tests/home-plugin-read-cost.test.ts": 5,
     "tests/home-plugin-unavailable.test.ts": 1,
     "tests/home-restore-cli.test.ts": 1,
     "tests/home-restore-content.test.ts": 2,

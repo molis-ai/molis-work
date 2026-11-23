@@ -71,8 +71,9 @@ test("W4-03-01 Coding's family is wired from its own Manifests, and Diff's snaps
   // what the person brings into a round is now picked from project knowledge (specs/project-knowledge PMAT-18), not wired. Snapshots come
   // from the platform's materials service since Files retired (specs/batch-06-shared-tools §3, BSH-06).
   assert.deepEqual(defaults(platform), [
+    "com.example.snapshot-reader.text ← system.materials.before",
     "diff.after ← system.materials.after", "diff.before ← system.materials.before", "diff.changeset ← coding.changeset", "diff.git-changeset ← git.changeset",
-    "example.snapshot-reader.text ← system.materials.before", "shelf.coding-changeset ← coding.changeset", "shelf.coding-report ← coding.report",
+    "shelf.coding-changeset ← coding.changeset", "shelf.coding-report ← coding.report",
   ]);
   assert.equal(platform.wiring.selectedGroup("io.molis.work.diff"), "snapshots");
 }));

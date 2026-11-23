@@ -106,7 +106,7 @@ test("SKL-41-2-AU-01 a Skill the person writes is saved off, from this machine, 
   } finally { await h.close(); }
 });
 
-test("SKL-41-2-AU-02 B42-F06 B42-F07 B42-F08 removal uses the settings door, keeps the other Skills, and gives a same-name rebuild its own identity", mac, async () => {
+test("SKL-41-2-AU-02 B42-F06 B42-F07 B42-F08 removal takes only the settings door, and no Agent or plugin can write or remove one. A same-name rebuild has its own identity.", mac, async () => {
   const h = await harness();
   try {
     const a = await h.save({ ...fields("alpha"), scope: "project" }), b = await h.save({ ...fields("beta"), scope: "project" });

@@ -250,7 +250,11 @@ test("SKP-11 PWA-14 PWA-103 PWA-105 SKL-41-2-AU-10 B42-F02 B42-F05 B42-F06 B42-F
   await page.command("Page.navigate", { url: `${kitPath}?draft=${secondCompeting}` });
   await page.wait("document.querySelector('#au-body')?.value === '# 第二份草稿的做法'", { describe: state });
   const firstCompeting = await competing("# 第一份草稿的做法");
-  const firstAdoption = await api<{ skill_version: number }>("drafts/adopt", { draft_id: firstCompeting, expected_revision: 2 });
+  const firstResponse = await f.request(`/projects/${project.project_id}/api/plugin-trust/skills/drafts/adopt`, {
+    method: "POST", body: { draft_id: firstCompeting, expected_revision: 2 },
+  });
+  assert.equal(firstResponse.status, 200);
+  const firstAdoption = await firstResponse.json() as { skill_version: number };
   assert.equal(firstAdoption.skill_version, 2);
   const [firstVersion] = await mine();
   assert.equal((await api<SkillAuthoredSource>("source", { ref: firstVersion!.ref })).body, "# 第一份草稿的做法");

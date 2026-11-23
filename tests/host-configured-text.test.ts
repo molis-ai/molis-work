@@ -9,7 +9,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { UNMARKED_IMAGES_NOTE } from "@molis-ai/molis-work-service-agent-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
-import { hostCompleteText, type HostTextReceipt } from "@molis-ai/molis-work-app-local-host";
+import { hostCompleteText, type HostCompleteText, type HostTextReceipt } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
 import { feedInformationPlanAction } from "@molis-ai/molis-work-plugin-feed";
@@ -31,12 +31,12 @@ async function fixture(run: (f: {
   home: string; host: MolisWorkLocalHost; catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
   modelOrigin: string; requests: { url: string; headers: Record<string, unknown>; body: any }[];
   answer: (handler: (body: any) => Promise<unknown>) => void;
-}) => Promise<void>) {
+}) => Promise<void>, textForHome?: (home: string) => HostCompleteText) {
   const home = await mkdtemp(join(tmpdir(), "configured-text-"));
   const old = { ...process.env };
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   for (const key of ["MOLIS_WORK_TEXT_API_KEY", "MINIMAX_API_KEY", "MOLIS_WORK_TEXT_BASE_URL", "MOLIS_WORK_TEXT_MODEL", "MOLIS_WORK_TEXT_API_FORMAT"]) delete process.env[key];
-  const homeOwner = new MolisWorkLocalHost({ homeDirectory: home });
+  const homeOwner = new MolisWorkLocalHost({ homeDirectory: home, ...(textForHome ? { completeText: textForHome(home) } : {}) });
   const withCatalog = homeOwner.configurePersonalPlanning(home, homeOwner.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   const requests: { url: string; headers: Record<string, unknown>; body: any }[] = [];
   let handler = async (_body: any): Promise<unknown> => ({ choices: [{ message: { content: "模型读取到了全局配置。" } }] });
@@ -131,36 +131,42 @@ test("B42-F01 Skills and Feed use the same work records for their Prologue recei
   assert.doesNotMatch(JSON.stringify(usage), /只给模型看|只给调用方看|configured-fixture-key/);
 }));
 
-test("B42-F01 a Prologue preflight refusal has no usage, and a response held back by the final authority check keeps its actual usage", async () => fixture(async f => {
-  configure(f);
-  const provider = f.catalog.models.get("configured")!;
-  f.catalog.models.upsert({ ...provider, prompt_cache: "required" });
-  const { project_id, database_path } = await f.catalog.createProject({ display_name: "Inference receipt boundaries", actor_id: "test" });
-  const reference = molisWorkHostProjectReference({ databasePath: database_path, projectId: project_id });
-  const caller: ActionCallContext = { actor_id: "test", project_id, audience: "user", permissions: [...SKILLS_PERMISSIONS, "model:invoke"],
-    user_action: { source: "management", conversation_ref: "fixture", message_ref: "usage-boundary" } };
-  const actions = bindActionClient(f.host.actionClient(reference), () => caller);
-  const complete = hostCompleteText({ homeDirectory: f.home, selection: { provider_id: "configured", model_id: "configured-model" } })!;
+test("B42-F01 a Prologue preflight refusal has no usage, and a response held back by the final authority check keeps its actual usage", async () => {
   const receipts: HostTextReceipt[] = [];
-  await assert.rejects(complete("private input", { onReceipt: receipt => receipts.push(receipt) }), { code: "MODEL_PROMPT_CACHE_UNAVAILABLE" });
-  await assert.rejects(actions.invoke(skillAuthoringActions.draft, { intent: "private input" }));
-  assert.equal(f.requests.length, 0);
-  assert.deepEqual(receipts.map(receipt => [receipt.state, receipt.usage.length]), [["failed", 0]]);
+  await fixture(async f => {
+    configure(f);
+    const provider = f.catalog.models.get("configured")!;
+    const { project_id, database_path } = await f.catalog.createProject({ display_name: "Inference receipt boundaries", actor_id: "test" });
+    const reference = molisWorkHostProjectReference({ databasePath: database_path, projectId: project_id });
+    const caller: ActionCallContext = { actor_id: "test", project_id, audience: "user", permissions: [...SKILLS_PERMISSIONS, "model:invoke"],
+      user_action: { source: "management", conversation_ref: "fixture", message_ref: "usage-boundary" } };
+    const actions = bindActionClient(f.host.actionClient(reference), () => caller);
+    await assert.rejects(actions.invoke(skillAuthoringActions.draft, { intent: "wire preflight" }));
+    assert.equal(f.requests.length, 0);
+    assert.deepEqual(receipts.map(receipt => [receipt.state, receipt.usage.length]), [["failed", 0]]);
 
-  f.catalog.models.upsert(provider);
-  f.answer(async () => {
-    f.catalog.models.upsert({ ...provider, enabled: false });
-    return { model: "provider-reported", choices: [{ message: { content: "private answer" } }] };
+    f.answer(async () => {
+      f.catalog.models.upsert({ ...provider, enabled: false });
+      return { model: "provider-reported", choices: [{ message: { content: "private answer" } }] };
+    });
+    await assert.rejects(actions.invoke(skillAuthoringActions.draft, { intent: "private input" }), { code: "actions.configuration_changed" });
+    assert.equal(f.requests.length, 1);
+    assert.deepEqual(receipts.map(receipt => [receipt.state, receipt.usage.length]), [["failed", 0], ["completed", 1]]);
+    const observation = f.host.observation!.layer;
+    observation.flush();
+    const usage = readRecords(observation.writer.database()!.db, { fact: "agent.usage", project_id });
+    assert.deepEqual(usage.map(record => [record.work.run_id, record.detail.reported_model, record.detail.input_tokens, record.detail.output_tokens]),
+      [[receipts[1]!.run_ref.id, "provider-reported", 4, 4]]);
+    assert.doesNotMatch(JSON.stringify(usage), /private input|private answer/);
+  }, home => (prompt, options) => {
+    const complete = hostCompleteText({ homeDirectory: home })!;
+    // Prologue accepts the schema but refuses to send a wire body above 4 MiB after starting the Run.
+    const structured = prompt.includes("wire preflight")
+      ? { mode: "native", schema: { type: "object", description: "x".repeat(4 * 1024 * 1024) } } as const : undefined;
+    return complete(prompt, { ...options, structured,
+      onReceipt(receipt) { receipts.push(receipt); options?.onReceipt?.(receipt); } });
   });
-  await assert.rejects(actions.invoke(skillAuthoringActions.draft, { intent: "private input" }), { code: "actions.configuration_changed" });
-  assert.equal(f.requests.length, 1);
-  const observation = f.host.observation!.layer;
-  observation.flush();
-  const usage = readRecords(observation.writer.database()!.db, { fact: "agent.usage", project_id });
-  assert.deepEqual(usage.map(record => [record.detail.reported_model, record.detail.input_tokens, record.detail.output_tokens]), [["provider-reported", 4, 4]]);
-  assert.ok(usage[0]?.work.run_id);
-  assert.doesNotMatch(JSON.stringify(usage), /private input|private answer/);
-}));
+});
 
 test("configured image input goes to an unmarked or vision model, is refused for a model marked as not seeing, and refuses a late result after vision is disabled (decision 51)", async () => fixture(async f => {
   configure(f);

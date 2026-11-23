@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { modelPromptText, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, organizeParts, passageFound, todoActions, todoManifest, todoOrganizeActions as organize, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { TodoOrganizer, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, organizeParts, passageFound, todoActions, todoManifest, todoOrganizeActions as organize, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 
 const TODAY = "2026-09-28";
@@ -28,7 +28,7 @@ function fixture(t: { after(fn: () => void): void }, model: Model | null) {
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
   const as = (project_id: string | null, audience: ActionCallContext["audience"] = "user") =>
     bindActionClient(service, () => ({ actor_id: audience === "user" ? "web-user" : "assistant", project_id, audience, permissions: [...TODO_ACTION_PERMISSIONS] }));
-  return { service, store, me: as(null), agent: as(null, "agent"), inA: as("project-a"), agentA: as("project-a", "agent"), inB: as("project-b"), prompts };
+  return { home, service, store, me: as(null), agent: as(null, "agent"), inA: as("project-a"), agentA: as("project-a", "agent"), inB: as("project-b"), prompts };
 }
 
 /** What a model would answer for the example in spec 6.6, plus one invented passage that must not survive. */
@@ -586,4 +586,95 @@ test("TODO-ORGANIZE-DATA-LIMIT: the pre-check lets a part whose data is exactly 
   assert.ok(exact > 0, "a material length whose part data is exactly 180,000 characters was found");
   const refused = await probe(exact + 1);
   assert.deepEqual(refused, { refused: 1 }, "one character over the data position is refused, saying it is one character over");
+});
+
+test("split adoption records only newly enabled dependencies in the second undo batch", async t => {
+  for (const order of [[0, 1], [1, 0]]) {
+    const f = fixture(t, () => exampleAnswer());
+    const { batch } = await f.me.invoke(organize.extract, { materials: [MAIL] });
+    const apply = (index: number) => f.me.invoke(organize.apply, { id: batch.batch_id,
+      decisions: [{ candidate_id: batch.candidates[index]!.candidate_id, action: "add" }] });
+    const first = await apply(order[0]!), second = await apply(order[1]!);
+    const firstId = first.results[0]!.item_id!;
+    const links = async (id: string) => (await f.me.invoke(todoActions.get, { id })).item.links;
+    const pair = (result: typeof second) => [0, 1].map(i => (order[0] === i ? first : result).results[0]!.item_id!);
+    const [sent, wait] = pair(second);
+    assert.deepEqual((await links(sent!)).map(link => [link.relation, link.subject.id]), [["blocked_by", wait]]);
+    await f.me.invoke(todoActions.revert, { batch_id: second.change_batch_id });
+    assert.deepEqual((await f.me.invoke(todoActions.list, { view: "all" })).items.map(item => item.id), [firstId]);
+    assert.deepEqual(await links(firstId), []);
+    const again = await apply(order[1]!);
+    const [source, target] = pair(again), restored = await links(source!);
+    assert.deepEqual(restored.map(link => [link.relation, link.subject.id]), [["blocked_by", target]]);
+    await assert.rejects(apply(order[1]!), { code: "todo.conflict" });
+    await f.me.invoke(todoActions.link, { id: source!, remove_link_id: restored[0]!.link_id });
+    await apply(2);
+    assert.deepEqual(await links(source!), []);
+  }
+});
+
+test("55-3 T3-02 reopened decisions survive pagination and explicit close across reopen", async t => {
+  const f = fixture(t, () => exampleAnswer());
+  const { batch } = await f.inA.invoke(organize.extract, { materials: [MAIL] });
+  const db = f.store.database();
+  const handled = await f.inA.invoke(organize.apply, { id: batch.batch_id, decisions: batch.candidates.map((candidate, index) =>
+    ({ candidate_id: candidate.candidate_id, action: index === 2 ? "ignore" : "add" })) });
+  await f.inA.invoke(todoActions.revert, { batch_id: handled.change_batch_id });
+  const reopened = (await f.inA.invoke(organize.get, { id: batch.batch_id })).batch;
+  assert.deepEqual(reopened.candidates.map(c => c.decision?.action ?? null), [null, null, "ignored"]);
+  for (const project of ["project-b", "project-a"]) {
+    for (let i = 0; i < 50; i++) {
+      db.run(`INSERT INTO todo_batches(batch_id, project_id, origin, method, title, body_json, status, created_at, updated_at, revision)
+        SELECT ?, ?, origin, method, title, ?, 'done', '2099-01-01', updated_at, 1 FROM todo_batches WHERE batch_id = ?`,
+        [project + i, project, JSON.stringify({ materials: [], candidates: [], reference_only: [], notes: [] }), batch.batch_id]);
+    }
+    assert.deepEqual((await f.agentA.invoke(organize.list, {})).batches, [reopened]);
+    await assert.rejects(f.agentA.invoke(organize.get, { id: "project-b0" }), { code: "todo.not_found" });
+  }
+  const closed = (await f.inA.invoke(organize.close, { id: batch.batch_id })).batch;
+  const store = openTodoStore(f.home);
+  try {
+    const owner = new TodoOrganizer(store), access = { projectId: "project-a", projectIds: [], actor: "user" as const, actorId: "web-user" };
+    assert.deepEqual(owner.list(access), []);
+    assert.equal(owner.get(batch.batch_id, access).status, "done");
+    assert.deepEqual(owner.get(batch.batch_id, access).candidates.map(c => c.decision?.action ?? null), [null, null, "ignored"]);
+    assert.equal(owner.close(batch.batch_id, access).revision, closed.revision);
+    assert.equal(owner.list(access, "all").length, 50);
+    assert.ok(owner.list(access, "all").every(entry => entry.project_id === "project-a"));
+    db.run("DELETE FROM todo_batches WHERE created_at = '2099-01-01'");
+    assert.deepEqual(owner.list(access, "all"), [closed]);
+  } finally { store.close(); }
+});
+
+test("batch subject preserves storage and decode failures and hides inaccessible IDs", async t => {
+  const f = fixture(t, () => exampleAnswer());
+  const { batch } = await f.inA.invoke(organize.extract, { materials: [MAIL] });
+  const read = (client: typeof f.inA, id: string) => client.invoke(organize.subject, { subject_id: id });
+  const missing = { code: "todo.not_found", message: "找不到这份整理结果" };
+  await assert.rejects(read(f.inA, "missing"), missing);
+  const db = f.store.database();
+  db.run("UPDATE todo_batches SET body_json = ? WHERE batch_id = ?", ["private damaged body", batch.batch_id]);
+  await assert.rejects(read(f.inB, batch.batch_id), missing);
+  await assert.rejects(read(f.inA, batch.batch_id), { message: `Cannot decode todo_batches.body_json for batch ${batch.batch_id}` });
+  t.mock.method(db, "get", () => { throw new Error("SQLite read failed"); });
+  await assert.rejects(read(f.inA, batch.batch_id), /SQLite read failed/);
+});
+
+test("review and onboarding adopt all six default choices, skip decided entries and reject stale keeps", async t => {
+  const { actionFor } = await import("../plugins/native/todo/dist/candidate-action.js");
+  const { keepDecisions, todoOnboardingActions } = await import("../plugins/native/todo/dist/onboarding-drafts.js");
+  const f = fixture(t, () => exampleAnswer());
+  const { batch } = await f.me.invoke(organize.extract, { materials: [MAIL] });
+  const choices = [null, "same", "update", "conflict", "maybe_done", "reopen"] as const;
+  const candidates = choices.map((relation, index) => ({ ...batch.candidates[0]!, candidate_id: String(index), existing: relation && {
+    item_id: String(index), title: "事项", changes: {}, protected: [], reason: "", relation,
+  } }));
+  const expected = ["add", "merge", "update", "update", "complete", "reopen"];
+  assert.deepEqual(candidates.map(actionFor), expected);
+  assert.deepEqual(keepDecisions({ ...batch, candidates }, candidates.map(c => c.candidate_id)).map(d => d.action), expected);
+  const input = { id: batch.batch_id, expected_revision: batch.revision, keep: [batch.candidates[0]!.candidate_id] };
+  const first = await f.me.invoke(todoOnboardingActions.keep, input);
+  await assert.rejects(f.me.invoke(todoOnboardingActions.keep, input), { code: "todo.conflict" });
+  const retry = await f.me.invoke(todoOnboardingActions.keep, { ...input, expected_revision: first.batch.revision });
+  assert.deepEqual(retry, first);
 });

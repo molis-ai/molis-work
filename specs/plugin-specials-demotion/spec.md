@@ -261,7 +261,7 @@
 - **PSD-01**（拔掉测试）：对全部 20 个内置插件，隔离 Home 里逐一移除后项目页、助理、MCP、设置、桌面壳启动、同步、备份恢复均不报错（含移除 Inbox 后 `platform-sync-catalog` 不崩、移除 Git 后 Coding/Diff 优雅降级）。
 - **PSD-02**（平台不点名）：门禁 **G1** 在 main 上降到只剩第 3 节具名例外（零插件形态例外）。
 - **PSD-03**（同一条路）：固定公钥第三方样例插件声明 M2～M4、M6、M8～M10、M12～M13 中各一项，获得与内置插件同等位置，且非 `io.molis.work.*` 插件页面与角色模板正常加载不 404。
-- **PSD-04a**（命名放开，V16）：固定公钥第三方包以 `com.example.notes` 安装、创作台生成插件以 `local.generated.<id>` 安装均成功，页面与调用路由不 404；SDK 校验接受通用反向域名。
+- **PSD-04a**（命名放开，V16）：固定公钥第三方包以 `com.example.notes` 安装、创作台生成插件以 `studio.<编号>` 安装均成功，页面与调用路由不 404；SDK 校验接受通用反向域名。
 - **PSD-04**（冒名前缀）：非宿主包以任意 `io.molis.work.*`（含 `characters`、`assistant`、`shelf`、`artifacts`）安装被拒，`plugin.id_namespace_conflict`（`S-reserved-host-prefix`）。
 - **PSD-05**（Clean v1 基线）：D5 改名拍平后，重生 `0.1.0` 金样回放通过，证据、拉取游标、「等你」条目与 `system.shelf` 数据全部正常；`better-sqlite3` 与 Alchemist 豁免清零。
 - **PSD-06**（纯平台 Shelf 与桌面壳）：Shelf 经 `/api/platform/shelf` 与 `HostSurfaceRegistration` 运行，热键、拖放、轮盘、剪贴板在真实 macOS 上照常；`always_on` 机制与 `plugins/native/shelf` 完全删除。

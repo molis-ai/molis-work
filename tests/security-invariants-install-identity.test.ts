@@ -24,7 +24,7 @@ const install = (runtime: PluginRuntime, pluginId: string, signature: string, tr
   runtime.install({ definition: definition(manifest(pluginId, signature)), deployment: "local", grants: [], trust });
 
 /** Observe all writes through the actual Runtime ports, including the kept-data hook that must never run on an identity refusal. */
-function observed(hostIds: ReadonlySet<string> = ISOLATED_HOST_IDS) {
+function observed(hostIds: ReadonlySet<string> = ISOLATED_HOST_IDS, releaseIds?: ReadonlySet<string>) {
   const repository = new MemoryPluginRuntimeRepository(), consents = new MemoryPluginConsentLedger(), actions = new ActionService();
   const effects: string[] = [], privateData = new Map<string, string>();
   const rows = new Map<string, PluginInstanceRecord>();
@@ -39,7 +39,7 @@ function observed(hostIds: ReadonlySet<string> = ISOLATED_HOST_IDS) {
   const storage = { get: repository.get.bind(repository), list: repository.list.bind(repository), save: (r: PluginInstanceRecord) => {
     effects.push("save"); rows.set(r.install_id, structuredClone(r)); repository.save(r);
   } };
-  const runtime = new PluginRuntime(storage, executor, { hostIds, consents: ledger, actions: { registry: actions, project_id: "p" } });
+  const runtime = new PluginRuntime(storage, executor, { hostIds, ...(releaseIds ? { releaseIds } : {}), consents: ledger, actions: { registry: actions, project_id: "p" } });
   const snapshot = () => ({ installs: runtime.list(), effects: [...effects], rows: [...rows.values()], privateData: [...privateData],
     consents: runtime.list().flatMap(r => consents.consents(r.plugin_id)), publishers: consents.publishers() });
   function refused(run: () => unknown, expected = "plugin.id_namespace_conflict") {
@@ -96,6 +96,22 @@ test("RAC-399 S-75 an id the Host's build ships, or one under it, is not for ano
   assert.equal(install(h.runtime, "com.example.shipped", "host-label", HOST_BUILD_TRUST).install.publisher_trust, "host");
   assert.equal(install(h.runtime, "com.example.shipped.child", "host-label", HOST_BUILD_TRUST).install.publisher_trust, "host");
   assert.equal(install(h.runtime, "com.example.other", "someone").install.publisher_trust, "unsigned");
+});
+
+test("PSD-04 S-reserved-host-prefix a package not of the Host's build is refused any id under io.molis.work., listed in the Host's build or not, unsigned or under a pinned key", () => {
+  const h = observed(new Set<string>());
+  for (const id of ["io.molis.work.characters", "io.molis.work.assistant", "io.molis.work.shelf", "io.molis.work.artifacts", "io.molis.work.not-yet-released"]) {
+    h.refused(() => install(h.runtime, id, "someone")); h.refused(() => install(h.runtime, id, FINGERPRINT, PINNED));
+  }
+  assert.equal(install(h.runtime, "io.molis.work.characters", "host-label", HOST_BUILD_TRUST).install.publisher_trust, "host", "the Host's own build keeps the prefix");
+});
+
+test("PSD-04a S-reserved-host-prefix only an id this release ships in its package folder passes the prefix check, and other names stay open", () => {
+  const h = observed(new Set<string>(), new Set(["io.molis.work.content.shipped-pack"]));
+  assert.equal(install(h.runtime, "io.molis.work.content.shipped-pack", FINGERPRINT, PINNED).install.publisher_trust, "pinned");
+  h.refused(() => install(h.runtime, "io.molis.work.content.other-pack", FINGERPRINT, PINNED));
+  assert.equal(install(h.runtime, "com.example.notes", "someone").install.plugin_id, "com.example.notes");
+  assert.equal(install(h.runtime, "studio.294ae82b-b3fe-4dd6-8e65-28613de2a18e", FINGERPRINT, PINNED).install.plugin_id, "studio.294ae82b-b3fe-4dd6-8e65-28613de2a18e");
 });
 
 test("RAC-394 RAC-399 S-75 identity refusals precede consents and retained or discarded private-data cleanup", async () => {

@@ -5,12 +5,12 @@
  * installing one is the same preview and confirmation, its publisher is not pinned in advance, and none goes through a built-in
  * `registration` or gets the build's trust. Reading them installs nothing, registers no Skill and keeps no setting.
  */
-import { constants } from 'node:fs';
+import { constants, readdirSync } from 'node:fs';
 import { lstat, open, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import { pluginErrors, type PluginManifest, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { HOST_PLUGIN_ID_PREFIX, pluginErrors, type PluginManifest, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { LocalPackageSignInput } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { completeContentPackagePayload } from '@molis-ai/molis-work-plugin-sdk';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
@@ -26,6 +26,18 @@ const MAX_PACKAGE_BYTES = 64 * 1024 * 1024;
  */
 export function bundledPackagesDirectory(): string {
   return path.join(path.dirname(fileURLToPath(import.meta.url)), 'bundled-plugins');
+}
+
+/**
+ * The plugin ids under the Host's prefix that a release folder carries, read from its file names (`<plugin_id>.json`, `<plugin_id>.draft.json`)
+ * without opening them (S-reserved-host-prefix). A package is still verified in full when it is listed or previewed; this only says which
+ * ids the release may install without the build's trust. A folder that is not there carries none.
+ */
+export function releasePackageIds(directory: string): ReadonlySet<string> {
+  let names: string[];
+  try { names = readdirSync(directory); } catch { return new Set(); }
+  return new Set(names.map(name => name.endsWith(DRAFT_SUFFIX) ? name.slice(0, -DRAFT_SUFFIX.length) : name.endsWith('.json') ? name.slice(0, -'.json'.length) : '')
+    .filter(id => id.startsWith(HOST_PLUGIN_ID_PREFIX)));
 }
 
 /** One bundled package that verified: its file in the folder, the signed bundle as it lies there, its Manifest as read, and the key that signed it. */

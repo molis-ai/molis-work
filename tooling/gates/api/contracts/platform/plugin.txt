@@ -3136,6 +3136,8 @@ export declare const HOST_EVENT_SOURCE = "host";
 
 export declare const HOST_EVENT_TYPES: readonly HostEventType[];
 
+export declare const HOST_PLUGIN_ID_PREFIX = "io.molis.work.";
+
 export declare const HOST_REVIEW_SETTLED_EVENT = "host.review.settled";
 
 export declare const HOST_WORKSPACE_CHANGED_EVENT = "host.workspace.changed";
@@ -3638,6 +3640,8 @@ export declare const PLUGIN_DATA_EXPORT_VERSION = 1;
 export declare const PLUGIN_DATA_PROVIDER_ID = "system.plugin-data";
 
 export declare const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16384;
+
+export declare const PLUGIN_ID_PATTERN = "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$";
 
 export declare const PLUGIN_INSTALL_PROVIDER_ID = "plugin-install";
 

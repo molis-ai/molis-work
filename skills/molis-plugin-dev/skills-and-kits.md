@@ -57,7 +57,7 @@
 
    输出的 `publisher_identity`（`ed25519:sha256:…`）就是下一步的 `--publisher-key-id`。私钥只留在你自己手里。
 
-4. **打包**：`plugin_id` 必须以 `io.molis.work.` 开头；版本是 SemVer；范围 `--scope project`（默认）或 `home`（个人空间的技能，跨项目都在）。
+4. **打包**：`plugin_id` 用你自己的反向域名（如 `com.acme.meeting-skills`），`io.molis.work.` 只给随宿主发布的包，用了会被拒；版本是 SemVer；范围 `--scope project`（默认）或 `home`（个人空间的技能，跨项目都在）。
 
    ```bash
    molis-work-plugin pack-content my-skills weekly.json --plugin-id com.example.weekly --name 每周回顾 --version 1.0.0 --publisher-id example --publisher-key-id ed25519:sha256:… --scope home

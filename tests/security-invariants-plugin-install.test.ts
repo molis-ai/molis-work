@@ -541,6 +541,22 @@ test("RAC-1680 RAC-1681 S-84 a package whose plugin id the Host's build ships, o
   } finally { await h.done(); }
 });
 
+test("PSD-04 PSD-04a S-reserved-host-prefix a signed package outside the release asking for any io.molis.work. id is refused at the preview, the release's own pack id included, before anything is written", async () => {
+  const h = await harness(undefined, true);
+  try {
+    const publisher = newPublisher();
+    const ids = ["io.molis.work.characters", "io.molis.work.assistant", "io.molis.work.shelf", "io.molis.work.artifacts", "io.molis.work.not-yet-released", "io.molis.work.content.design-accessibility"];
+    // The two ids the old list missed: refused by the prefix alone, with no entry of their own.
+    for (const id of ["io.molis.work.characters", "io.molis.work.assistant", "io.molis.work.not-yet-released"]) assert.ok(!HOST_PLUGIN_IDS.has(id), `${id} is not in the Host's list`);
+    const results: Record<string, string> = {};
+    for (const id of ids) for (const [range, bundle] of [["project", signedPackage(publisher, undefined, { pluginId: id })], ["Home", homeBundle(publisher, { pluginId: id })]] as const)
+      results[`${range} ${id}`] = await h.service.preview({ bundle }, who).then(() => "previewed", (error: unknown) => error instanceof ActionError ? error.code : String(error));
+    assert.deepEqual(results, Object.fromEntries(Object.keys(results).map(name => [name, "plugin.id_namespace_conflict"])), "every one is refused at the preview");
+    h.nothingWritten();
+    assert.equal(await confirmIn(h.service)(signedPackage(publisher, undefined, { pluginId: "studio.294ae82b-b3fe-4dd6-8e65-28613de2a18e" })), "installed", "a name of its own installs");
+  } finally { await h.done(); }
+});
+
 test("RAC-1682 S-80 S-84 a compatible Home upgrade is saved and sent to the Home port for running and disabled installations", async () => {
   const h = await harness(undefined, true);
   try {
@@ -598,7 +614,7 @@ test("RAC-1835 S-75 S-84 another publisher's package whose plugin id is on the d
     // The Home's Runtime holds a's second plugin.
     assert.equal(await confirm(homeBundle(a, { pluginId: SECOND_PLUGIN_ID })), "installed");
     results["Home, b below a's id"] = await step(homeBundle(b, { pluginId: `${SECOND_PLUGIN_ID}.extra` }));
-    results["Home, b above a's id"] = await step(homeBundle(b, { pluginId: "io.molis.work.example" }));
+    results["Home, b above a's id"] = await step(homeBundle(b, { pluginId: "com.example" }));
     const refusedUntouched = { code: "plugin.id_namespace_conflict", unchanged: true };
     assert.deepEqual(results, Object.fromEntries(Object.keys(results).map(name => [name, refusedUntouched])), "refused, with no publisher pinned, no package kept and nothing installed");
   } finally { await h.done(); }

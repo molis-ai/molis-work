@@ -11,13 +11,13 @@ import { diffOf, draftBand, textOf, upstreamMarkup, versionsMarkup } from "./wor
 
 export function skillActions(c: WritingContext, edit: DraftEditing) {
   const { project, view, draw, say } = c;
-  /** The Skill just deleted, for 撤销; the version compared in a detail. */
+  /** The deleted Skill's fields and state for content restore; the version compared in a detail. */
   let removed: { source: SkillAuthoredSource; state: SkillCatalogEntry["state"] } | undefined, openVersion: { key: string; version: number } | undefined;
 
   async function undelete(): Promise<void> {
     if (!removed) return;
     const { source, state } = removed;
-    // Kept until it is back: a restore that fails leaves 撤销 in the notice to try again, and the deleted text is not lost.
+    // Keep the fields until adoption succeeds so the person can retry a failed restore.
     let skillId: string;
     try {
       const draft = await createDraft(project, source.scope, { kind: "new" }, fieldsOfSource(source));
@@ -39,7 +39,7 @@ export function skillActions(c: WritingContext, edit: DraftEditing) {
       view.item = undefined;
       await c.reload();
       draw("detail");
-      return say(written("deleted", { n: source.name }), "success", { label: readText("workbench.context-bus.undo"), attrs: act("au-undelete") });
+      return say(written("deleted", { n: source.name }), "success", { label: written("restore-content"), attrs: act("au-undelete") });
     }
     if (entry.skill.draft) return edit.openDraft(entry.skill.draft.draft_id);
     if (name === "skill-edit") return edit.create(entry.skill.pack.scope, { kind: "own", skill_id: entry.skill.ref.skill_id });

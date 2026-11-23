@@ -41,11 +41,10 @@ const refused = async <T>(run: () => T | Promise<T>): Promise<T> => {
   catch (error) { throw error instanceof ActionError ? error : shelfErrors.invalid(error instanceof Error ? error.message : "Shelf 请求无效"); }
 };
 
-/** Owner-bound: the results land in the local user's personal Shelf. `manifest` is Shelf's own: its input ports and the types it consumes. */
+/** Owner-bound: the results land in the local user's personal Shelf. */
 export function shelfRuntimeActionHandlers(context: PluginStartContext,
-  manifest: Pick<PluginManifest, "ports" | "artifacts" | "process_items">): ActionHandlerBinding[] {
+  manifest: Pick<PluginManifest, "ports">): ActionHandlerBinding[] {
   const services = context.services;
-  const consumed = new Set([...manifest.artifacts.consumes, ...manifest.process_items?.consumes ?? []].map(type => type.artifact_type_id));
   // The version is read here, as this plugin; its text is discovered from the producer's declared document or preview role (Audit #10).
   const read = async (ref: ArtifactReference) => {
     const record = await refused(() => services?.artifacts?.read(ref));
@@ -69,7 +68,7 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext,
   return [
     bindOwnerPluginAction(context, shelfRuntimeActions.results, async () => {
       const connected = (manifest.ports?.inputs ?? []).flatMap(({ port }) => { const ref = services?.inputs?.reference(port); return ref ? [ref] : []; });
-      const listed = (services?.artifacts?.listConsumable() ?? []).filter(row => consumed.has(row.artifact_type_id)).map(({ artifact_id, version }) => ({ artifact_id, version }));
+      const listed = (services?.artifacts?.listConsumable() ?? []).map(({ artifact_id, version }) => ({ artifact_id, version }));
       const seen = new Set<string>(), rows: { reference: ArtifactReference; title: string; connected: boolean }[] = [];
       for (const ref of [...connected, ...listed]) {
         const key = JSON.stringify([ref.artifact_id, ref.version]); if (seen.has(key)) continue; seen.add(key);

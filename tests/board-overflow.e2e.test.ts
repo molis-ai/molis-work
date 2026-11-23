@@ -16,19 +16,83 @@ const SPILL = `(() => { const W = document.documentElement.clientWidth;
       return true; });
     return spills.length ? [(figure.closest('section[id]')?.id || '?') + ' «' + (figure.querySelector('figcaption')?.textContent || '').trim().slice(0, 24) + '» ' + spills.slice(0, 3).map((el) => el.tagName.toLowerCase() + '.' + String(el.className).split(' ')[0] + ' ' + Math.round(el.getBoundingClientRect().width) + 'px').join(', ')] : []; }); })()`;
 
-test("VUX-39: every specimen on the component board fits its box at three widths", { timeout: 120_000 }, async (t) => {
+test("VUX-39, DTC-01 (BL-1052): specimens fit at three widths and the English board has no sideways scroll at 390px", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
   const found: string[] = [];
-  for (const width of WIDTHS) {
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  const viewports = [...WIDTHS.map(width => ({ width, lang: "zh" })), { width: 390, lang: "en" }];
+  for (const { width, lang } of viewports) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-    await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog` }, sessionId));
+    await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog?lang=${lang}` }, sessionId));
     await waitFor("document.readyState === 'complete' && document.querySelectorAll('.mw-catalog__specimen').length > 50", 15_000);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    assert.equal(await evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth"), true);
-    for (const spill of await evaluate<string[]>(SPILL)) found.push(`${width}px ${spill}`);
+    await evaluate("document.fonts.ready.then(() => true)");
+    const page = await evaluate<{ lang: string; viewport: number; document: [number, number]; board: [number, number] }>(`(() => {
+      const root = document.documentElement, board = document.querySelector('.mw-catalog');
+      return { lang: root.lang, viewport: innerWidth, document: [root.clientWidth, root.scrollWidth], board: [board.clientWidth, board.scrollWidth] };
+    })()`);
+    assert.equal(page.lang.split("-")[0], lang);
+    assert.equal(page.viewport, width);
+    for (const [name, [client, scroll]] of Object.entries({ document: page.document, board: page.board })) {
+      if (scroll > client) found.push(`${width}px ${lang}: ${name} scrolls to ${scroll}px within ${client}px`);
+    }
+    if (lang === "en") {
+      const sections = await evaluate<string[]>(`['compose', 'interaction', 'assistant', 'data-table'].flatMap(id => {
+        const section = document.getElementById(id);
+        return section && section.scrollWidth <= section.clientWidth ? [] : [id];
+      })`);
+      for (const section of sections) found.push(`${width}px ${lang}: #${section} is missing or overflows its section`);
+    }
+    for (const spill of await evaluate<string[]>(SPILL)) found.push(`${width}px ${lang}: ${spill}`);
   }
   assert.deepEqual(found, [], "a specimen runs past its box");
+
+  await t.test("DTC-01: the compose filter opens inside the narrow board", async () => {
+    await browser.click("#compose-filter-button");
+    const menu = "document.querySelector('#compose-filter-menu')";
+    const trigger = "document.querySelector('#compose-filter-button')";
+    await waitFor(`${menu}.matches(':popover-open') && ${trigger}.getAttribute('aria-expanded') === 'true'`);
+    assert.equal(await evaluate(`(() => {
+      const board = document.querySelector('.mw-catalog'), edge = board.getBoundingClientRect(), popup = ${menu}.getBoundingClientRect();
+      return popup.left >= edge.left && popup.right <= edge.right && board.scrollWidth <= board.clientWidth;
+    })()`), true);
+    for (const type of ["rawKeyDown", "keyUp"]) {
+      await command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+    }
+    await waitFor(`!${menu}.matches(':popover-open') && document.activeElement === ${trigger}`);
+  });
+
+  await t.test("DTC-01: the narrow table scrolls to its action column inside the board", async () => {
+    const table = await evaluate<{ moved: boolean; actionVisible: boolean; boardStill: boolean }>(`(() => {
+      const scroller = document.querySelector('#data-table .mw-dt__scroll');
+      scroller.scrollLeft = scroller.scrollWidth;
+      const action = scroller.querySelector('tbody td:last-child button').getBoundingClientRect();
+      const edge = scroller.getBoundingClientRect();
+      return {
+        moved: scroller.scrollLeft > 0,
+        actionVisible: action.width > 0 && action.left >= edge.left && action.right <= edge.right,
+        boardStill: document.querySelector('.mw-catalog').scrollLeft === 0,
+      };
+    })()`);
+    assert.deepEqual(table, { moved: true, actionVisible: true, boardStill: true });
+  });
+
+  await t.test("DTC-03: four rows stagger by 60ms and reduced motion removes the delays", async () => {
+    const rowStyles = `[...document.querySelectorAll('[data-motion-list] > li')].map(row => {
+      const style = getComputedStyle(row);
+      return [style.animationName, style.animationDelay];
+    })`;
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
+    // Exercise the motion CSS with the browser's automation-only still mode lifted.
+    await evaluate("document.documentElement.removeAttribute('data-craft-still'); true");
+    await browser.click("[data-motion-demo=arrive]");
+    await waitFor("document.querySelector('[data-motion-list]').classList.contains('is-arriving')");
+    assert.deepEqual(await evaluate(rowStyles), [
+      ["craft-rise", "0s"], ["craft-rise", "0.06s"], ["craft-rise", "0.12s"], ["craft-rise", "0.18s"], ["none", "0s"],
+    ]);
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+    assert.deepEqual(await evaluate(`(${rowStyles}).map(([, delay]) => delay)`), ["0s", "0s", "0s", "0s", "0s"]);
+  });
 });
 
 test("BQN-01, BQN-02: the narrow question gives its title room and keeps its controls inside the card", { timeout: 120_000 }, async (t) => {

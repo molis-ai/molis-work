@@ -16,6 +16,8 @@
 
 **内容规则：** 小内容可以是任意可往返 JSON，平台只做规范化、摘要和保存，不解释字段。大内容保存 Storage/Blob reference、摘要和大小。没有安装兼容 consumer 时仍能保存、同步和重放，只是不能在本地解释。
 
+SDK 的动作输入从 schema 推导。写入时，schema 校验成果与过程项的外层字段，成果模块的 `registerVersion` 负责校验并规范化 inline payload 和 metadata。插件直接调用 SDK 时仍使用 `PluginArtifactPublishInput` 或 `PluginProcessItemInput`。
+
 **个人与 Team：** 本地 Plugin 新建 Artifact 默认是 personal。只有用户在 Plugin 内明确选择共享，或 Team Plugin 已获得 Team 授权，才能注册 `team_project` 版本；同步机制由 Exchange/Sync 负责，不由本 Module 实现。
 
 **归属：** 版本的生产者（工作流、Agent、MCP 客户端、人）记在 `created_by`；归属 `owner_actor_id` 另给。一个人的 Home 装配 `homeOwner` 后，这个 Home 里的个人成果一律归这个人，不论谁生产，也不要求读它的行为者就是生产者；固定与导入端口传本机的人。已存的、归在行为者名下的身份读作这个人的，不迁移数据。`team_project` 仍归共享它的行为者。

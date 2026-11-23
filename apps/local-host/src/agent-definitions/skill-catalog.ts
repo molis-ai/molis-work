@@ -11,7 +11,7 @@ import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-def
 import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_EXCERPT_CHARS, SKILL_ROUND_AUTO_LIMIT, SKILL_SETTINGS_LOCKED_REASONS, skillErrors, type SkillAuthoredFields, type SkillAuthoredSource, type SkillAvailability, type SkillBodyReadResult,
   type SkillCatalogEntry, type SkillCatalogListRequest, type SkillReadRefusal, type SkillResourceContent, type SkillSceneChoice, type SkillSettingsSetRequest } from "@molis-ai/molis-work-contracts/services/skills";
 import type { AgentDefinitions } from "./agent-definitions.js";
-import { USES_KEPT, type SkillSetting } from "./skill-settings.js";
+import { skillUseVersionKey, USES_KEPT, type SkillSetting } from "./skill-settings.js";
 import { skillSettingReceipt } from "./skill-setting-receipt.js";
 import { KIT_LIMITS, type KitReport } from "@molis-ai/molis-work-contracts/platform/kit-report";
 
@@ -138,7 +138,7 @@ export class SkillCatalog {
       const latest = this.ports.definitions.skills.latestUses(scopeOf(caller)), counted = this.ports.definitions.skills.usesByCaller(scopeOf(caller));
       const rows = skills.filter(skill => listable(skill, caller, input.applies_to)).map(skill => entry(skill, settings.get(settingKey(skill.ref.install_id, skill.ref.skill_id))))
         .map(row => {
-          const key = settingKey(row.ref.install_id, row.ref.skill_id), used = latest.get(key), uses = counted.get(key);
+          const used = latest.get(settingKey(row.ref.install_id, row.ref.skill_id)), uses = counted.get(skillUseVersionKey(row.ref));
           return { ...row, ...used ? { last_used: { at: used.at, caller: used.caller, ...(used.run_ref ? { run_ref: used.run_ref } : {}) } } : {}, ...uses ? { recent_uses: uses } : {} };
         })
         .filter(row => (caller.audience === "user" || row.state !== "off") && (!input.states || input.states.includes(row.state)));

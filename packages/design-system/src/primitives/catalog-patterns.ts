@@ -112,7 +112,8 @@ ${ITEM_ROW_STYLES}
   .mw-dt__bar > div > strong { margin-right: 4px; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
   .mw-dt:not([data-picked]) .mw-dt__bulk, .mw-dt[data-picked] .mw-dt__bar > div:not(.mw-dt__bulk) { display: none; }
   .mw-dt[data-picked] .mw-dt__bar { background: color-mix(in srgb, var(--accent) 6%, transparent); }
-  .mw-dt__scroll { overflow-x: auto; }
+  /* The accessible column label is positioned within the table's own scroller. */
+  .mw-dt__scroll { position: relative; overflow-x: auto; }
   .mw-dt table { width: 100%; min-width: 600px; border-collapse: collapse; font-size: 13px; }
   .mw-dt--small table { min-width: 0; }
   .mw-dt th { height: 36px; padding: 0 12px; background: color-mix(in srgb, var(--ink) 2.5%, transparent); box-shadow: inset 0 1px 0 var(--line), inset 0 -1px 0 var(--line); color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); text-align: left; white-space: nowrap; }

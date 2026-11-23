@@ -106,7 +106,7 @@ Host 持同一 Home 租约，按实际 Catalog 成员和声明的 Home 库检查
 | `ppt/ppt.db` | `plugins/native/ppt/src/database.ts`（`PPT_DATABASE`） | 1 · DELETE／EXTRA | `presentations`、`presentation_copies` |
 | `lingguang/lingguang.db` | `plugins/native/lingguang/src/store.ts:282`，基线 `:246` | 1 · 回滚 | `sparks`、`conversations`、`spark_requests`、`messages` |
 | `feed-content/feed-content.db` | Feed 的 Home 半：`plugins/native/feed/src/content-ledger.ts`（`FEED_HOME_DATABASE`），由 Manifest 的 `databases.home` 登记 | 1 · 回滚 | `feed_content_holds`（各项目的 Feed 来源引用哪份正文） |
-| `todo/todo.db` | `plugins/native/todo/src/store.ts:522-524`，基线 `:464` | 1 · WAL | `todo_items`、`todo_changes`、`todo_requests`、`todo_batches`、`todo_source_memory` |
+| `todo/todo.db` | [TODO_HOME_STORE](../../plugins/native/todo/src/store.ts) 登记位置，[TODO_DATABASE](../../plugins/native/todo/src/database.ts) 声明版本与表结构 | 1 · WAL | `todo_items`、`todo_changes`、`todo_requests`、`todo_batches`、`todo_source_memory` |
 | `jelly/jelly.db` | `plugins/native/jelly/src/store.ts:97-100`，基线 `:89` | 1 · WAL | `jelly_workspace`、`jelly_note_versions`、`jelly_history`、`jelly_previews` |
 | `cognia/cognia.db` | `plugins/native/cognia/src/store.ts:146-148`，基线 `:136` | 1 · WAL | `cognia_domains`、`cognia_sources`、`cognia_materials`、`cognia_versions`、`cognia_previews`、`cognia_drafts` |
 | `workflows/workflows.db` | `plugins/native/workflows/src/store.ts:195-197`，基线 `:166` | 1 · WAL | `workflows`、`instances` |

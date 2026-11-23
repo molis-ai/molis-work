@@ -41,7 +41,7 @@ import { syncDevicePreference } from './device.js';
 import { syncError } from './sync-errors.js';
 import { validateSyncEndpoint } from './endpoint.js';
 import { parseSyncQuota, syncResponseMessage, isSyncQuotaError } from './quota.js';
-import {blobTransfer,blobReference} from './blob-transfer.js';
+import {blobTransfer,blobReference,type BlobChannel} from './blob-transfer.js';
 import {syncItemFailures,itemFailureKey,isPermanentItemFailure,isTemporaryOwnerFailure} from './item-failures.js';
 import {assertSyncDependencies,unavailableSyncSelections} from './selection-dependencies.js';
 import {syncRegistrations,assertSyncRegistration} from './registrations.js';
@@ -64,7 +64,7 @@ export class PersonalSync {
   private lastProgress:ReturnType<typeof syncProgress>|null=null;
   private indicatorDirty=false;
   private localChangePending=false;
-  private transferBytes:{done:number;total:number}|null=null;
+  private transfers=new Set<{kind:'cycle'|'conflict';done:number;total:number}>();
   private closed=false;
   private changingDevice=false;
   private cycleAbort:AbortController|null=null;
@@ -98,6 +98,25 @@ export class PersonalSync {
   private db<T>(run:(db:import('node:sqlite').DatabaseSync)=>T):T {
     return withSyncDatabase(this.options.home,run);
   }
+  private trackTransfer(kind:'cycle'|'conflict') {
+    const progress={kind,done:0,total:0};
+    this.transfers.add(progress);
+    const onProgress:NonNullable<BlobChannel['onProgress']>=delta=>{
+      progress.total+=delta.total;
+      progress.done=Math.min(progress.total,progress.done+delta.done);
+    };
+    return {onProgress,finish:()=>this.transfers.delete(progress)};
+  }
+  private get transferBytes(){
+    const total={done:0,total:0};
+    const conflicts=[...this.transfers].filter(progress=>progress.kind==='conflict');
+    for(const progress of conflicts.length?conflicts:this.transfers){
+      total.done+=progress.done;
+      total.total+=progress.total;
+    }
+    return total.total>0?total:null;
+  }
+  private get isRunning(){return !!this.running||this.transfers.size>0;}
   private assert(){this.options.authority.assertCurrent();if(this.closed||this.controller.signal.aborted)throw syncError('scope','同步已停止');}
   policy():SpaceSyncPolicy {
     this.assert();
@@ -175,14 +194,9 @@ export class PersonalSync {
     this.localChangePending=false;
     const errors=unavailableSyncSelections(this.registry.current(),policy);
     const budget={remaining:32};
-    const transfer={done:0,total:0};
-    this.transferBytes=null;
-    const onProgress=(delta:{done:number;total:number})=>{
-      transfer.total+=delta.total;transfer.done=Math.min(transfer.total,transfer.done+delta.done);
-      this.transferBytes=transfer.total>0?{...transfer}:null;
-    };
     const selectedRegistrations=this.registry.current().filter(r=>policy.selections.some(s=>syncNamespace(s)===syncNamespace(r.selection)));
     const layers=partitionSyncLayers(selectedRegistrations);
+    const {onProgress,finish}=this.trackTransfer('cycle');
     const syncOne=async(registration:SyncRegistration)=>{
       const namespace=syncNamespace(registration.selection);
       const check=()=>assertSyncRegistration(registration,()=>this.assert());
@@ -269,7 +283,7 @@ export class PersonalSync {
       if (this.cycleAbort === cycleAbort) {
         this.cycleAbort = null;
       }
-      this.transferBytes = null;
+      finish();
     }
     if(this.writes!==startedWrites)this.quota=parseSyncQuota(await this.request('/v1/quota'));
     if(errors.length)throw new Error(errors.join('\n'));
@@ -285,15 +299,15 @@ export class PersonalSync {
         ? { selection: r.selection, title: r.title, group, ...r.withReplica(a => a.counts()), conflicts: r.withReplica(a => a.conflicts()), failures: syncItemFailures(this.options.home, () => this.assert()).list(namespace) }
         : { selection: r.selection, title: r.title, group, pending: 0, conflicts: [], failures: [] };
     });
-    const running=!!this.running,progress=syncProgress({policy,collections,running,error:this.error,lastSuccess:this.lastSuccess});
+    const running=this.isRunning,progress=syncProgress({policy,collections,running,error:this.error,lastSuccess:this.lastSuccess});
     this.lastProgress=progress;
     this.indicatorDirty=false;
     return {policy,device:this.device.read(),quota:this.quota,running,error:this.error,lastSuccess:this.lastSuccess,collections,progress,transfer:this.transferBytes,unavailable:policy.selections.filter(s=>!this.registry.current().some(r=>syncNamespace(r.selection)===syncNamespace(s)))};
   }
   indicatorStatus(){
     this.assert();
-    const snapshot=(this.indicatorDirty&&!this.running)?this.status().progress:(this.lastProgress??this.status().progress);
-    const running=!!this.running;
+    const running=this.isRunning;
+    const snapshot=(this.indicatorDirty&&!running)?this.status().progress:(this.lastProgress??this.status().progress);
     const progress={...snapshot,complete:!running&&!this.error&&!!this.lastSuccess&&snapshot.selected>0
       &&!snapshot.pending&&!snapshot.conflicts&&!snapshot.waiting&&!snapshot.failures&&!snapshot.unavailable};
     return {running,error:this.error,lastSuccess:this.lastSuccess,progress,transfer:this.transferBytes};
@@ -316,9 +330,27 @@ export class PersonalSync {
     const registration=this.selected(namespace),policyRevision=this.policy().revision,signal=this.controller.signal;
     const check=()=>{assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);if(signal.aborted||this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');};
     await registration.refresh();check();
-    const inspection=await retainConflict({home:this.options.home,namespace,key,choice,revision,state,policyRevision,registration,channel:{assert:check,json:(route,body)=>this.request(route,body,body===undefined?'GET':'POST',check),binary:async(route,body)=>{const response=await this.send(route,body===undefined?undefined:Buffer.from(body),body===undefined?'GET':'PUT','application/octet-stream',check);if(!response.ok)throw syncError('invalid','同步附件传输失败');const bytes=new Uint8Array(await response.arrayBuffer());check();return bytes;}}});
-    if(choice==='remote')await registration.content?.prepare?.(key,inspection.remote);
-    check();await withSyncMutation(registration,{kind:'resolve',key,choice,revision:inspection.revision,state:inspection.state},check,r=>r.resolve(key,choice,inspection.revision,inspection.state));await this.run();
+    const {onProgress,finish}=this.trackTransfer('conflict');
+    try{
+      const channel:BlobChannel={
+        assert:check,onProgress,
+        json:(route,body)=>this.request(route,body,body===undefined?'GET':'POST',check),
+        binary:async(route,body)=>{
+          const response=await this.send(route,body===undefined?undefined:Buffer.from(body),body===undefined?'GET':'PUT','application/octet-stream',check);
+          if(!response.ok)throw syncError('invalid','同步附件传输失败');
+          const bytes=new Uint8Array(await response.arrayBuffer());
+          check();
+          return bytes;
+        },
+      };
+      const inspection=await retainConflict({home:this.options.home,namespace,key,choice,revision,state,policyRevision,registration,channel});
+      if(choice==='remote')await registration.content?.prepare?.(key,inspection.remote);
+      check();
+      await withSyncMutation(registration,{kind:'resolve',key,choice,revision:inspection.revision,state:inspection.state},check,r=>r.resolve(key,choice,inspection.revision,inspection.state));
+    }finally{
+      finish();
+    }
+    await this.run();
   }
   private selected(namespace:string){this.assert();const registration=this.registry.current().find(r=>syncNamespace(r.selection)===namespace);if(!registration||!this.policy().selections.some(s=>syncNamespace(s)===namespace))throw syncError('scope','此同步集合已关闭或不存在');return registration;}
   inspectConflict(namespace:string,key:string){const registration=this.selected(namespace),view=registration.withReplica(r=>r.inspectConflict?.(key)??null);return view?{...view,location:registration.locate?.(key)??registration.withReplica(r=>r.locate?.(key)??null)}:null;}

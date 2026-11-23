@@ -9,15 +9,17 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { UNMARKED_IMAGES_NOTE } from "@molis-ai/molis-work-service-agent-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
-import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { hostCompleteText, type HostCompleteText, type HostTextReceipt } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
+import { feedInformationPlanAction } from "@molis-ai/molis-work-plugin-feed";
+import { readRecords } from "@molis-ai/molis-work-service-observation";
 import { createConsumerModelConfiguration } from "../apps/local-host/dist/model-configuration.js";
 import { JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
 import { asideReply } from "./fixtures/ending-review.js";
 import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { SKILLS_PERMISSIONS, skillAuthoringActions, skillDraftActions } from "@molis-ai/molis-work-contracts/services/skills";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const listen = async (server: Server) => {
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -29,12 +31,12 @@ async function fixture(run: (f: {
   home: string; host: MolisWorkLocalHost; catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
   modelOrigin: string; requests: { url: string; headers: Record<string, unknown>; body: any }[];
   answer: (handler: (body: any) => Promise<unknown>) => void;
-}) => Promise<void>) {
+}) => Promise<void>, textForHome?: (home: string) => HostCompleteText) {
   const home = await mkdtemp(join(tmpdir(), "configured-text-"));
   const old = { ...process.env };
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   for (const key of ["MOLIS_WORK_TEXT_API_KEY", "MINIMAX_API_KEY", "MOLIS_WORK_TEXT_BASE_URL", "MOLIS_WORK_TEXT_MODEL", "MOLIS_WORK_TEXT_API_FORMAT"]) delete process.env[key];
-  const homeOwner = new MolisWorkLocalHost({ homeDirectory: home });
+  const homeOwner = new MolisWorkLocalHost({ homeDirectory: home, ...(textForHome ? { completeText: textForHome(home) } : {}) });
   const withCatalog = homeOwner.configurePersonalPlanning(home, homeOwner.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   const requests: { url: string; headers: Record<string, unknown>; body: any }[] = [];
   let handler = async (_body: any): Promise<unknown> => ({ choices: [{ message: { content: "模型读取到了全局配置。" } }] });
@@ -58,7 +60,7 @@ async function fixture(run: (f: {
           emit("content_block_delta", { index: 0, delta: { type: "text_delta", text: payload.content?.map((part: any) => part.text ?? "").join("\n") ?? "" } });
           emit("content_block_stop", { index: 0 }); emit("message_delta", { delta: { stop_reason: "end_turn" }, usage: { output_tokens: 4 } }); emit("message_stop", {});
         } else {
-          response.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: payload.choices?.[0]?.message?.content ?? "" }, finish_reason: null }] })}\n\n`);
+          response.write(`data: ${JSON.stringify({ model: payload.model, choices: [{ index: 0, delta: { content: payload.choices?.[0]?.message?.content ?? "" }, finish_reason: null }] })}\n\n`);
           response.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 4, completion_tokens: 4, total_tokens: 8 } })}\n\n`);
           response.write("data: [DONE]\n\n");
         }
@@ -79,6 +81,92 @@ function configure(f: Parameters<Parameters<typeof fixture>[0]>[0], providerId =
     prompt_cache: format === "anthropic-messages" ? "required" : "off", models: [{ model_id: `${providerId}-model`, enabled: true }] });
   return connection;
 }
+
+test("B42-F01 Skills and Feed use the same work records for their Prologue receipts", { timeout: 60_000 }, async () => fixture(async f => {
+  configure(f);
+  const { project_id } = await f.catalog.createProject({ display_name: "Shared inference receipts", actor_id: "test" });
+  for (const plugin_id of ["inbox", "feed"]) {
+    if (!f.catalog.listProjectPlugins(project_id).includes(plugin_id)) f.catalog.addProjectPlugin({ project_id, plugin_id, actor_id: "test" });
+  }
+  const { database_path } = f.catalog.getProject(project_id);
+  const reference = molisWorkHostProjectReference({ databasePath: database_path, projectId: project_id });
+  const caller: ActionCallContext = { actor_id: "test", project_id, audience: "user",
+    permissions: [...SKILLS_PERMISSIONS, "model:invoke", "feed:read", "inbox:read"],
+    user_action: { source: "management", conversation_ref: "fixture", message_ref: "usage" } };
+  const actions = bindActionClient(f.host.actionClient(reference), () => caller);
+  const providerReply = (text: string) => ({ model: "provider-receipt-model", choices: [{ message: { content: text } }] });
+  const fields = { name: "周报整理", description: "用来整理进展。", body: "# 整理最近的进展", applies_to: "assistant" };
+  f.answer(async () => providerReply(JSON.stringify(fields)));
+  const initial = await actions.invoke(skillAuthoringActions.draft, { intent: "只给模型看的起草材料" });
+  const draft = await actions.invoke(skillDraftActions.create, { scope: "project", target: { kind: "new" }, fields: initial,
+    case: { title: "一份周报", task: "只给模型看的回放材料", expected: "按状态归类。" } });
+  f.answer(async () => providerReply(JSON.stringify({ ...fields, body: "按状态归类。" })));
+  const revised = await actions.invoke(skillDraftActions.revise, { draft_id: draft.draft_id, expected_revision: draft.revision, instruction: "按状态分组" });
+  assert.equal(revised.fields.body, "按状态归类。");
+  f.answer(async request => providerReply(String(request.messages.at(-1)?.content).includes("对照技能回放的结果")
+    ? JSON.stringify({ results: [{ index: 0, verdict: "match", differences: [] }] }) : "按状态归类。"));
+  const trial = await actions.invoke(skillDraftActions.runTrial, { draft_id: draft.draft_id, expected_revision: revised.revision, case_id: draft.cases[0]!.case_id });
+  assert.equal(trial.verdict, "match");
+  f.answer(async () => providerReply(JSON.stringify({ message: "只给调用方看的方案", action: null })));
+  assert.equal((await actions.invoke(feedInformationPlanAction, { prompt: "只给模型看的方案材料" })).message, "只给调用方看的方案");
+
+  const observation = f.host.observation!.layer;
+  observation.flush();
+  const db = observation.writer.database()!.db;
+  const usage = readRecords(db, { fact: "agent.usage", project_id }).filter(record => record.stage === "inference");
+  assert.deepEqual(usage.map(record => [record.detail.prompt_id, record.source_class]), [
+    ["skills.draft", "real"], ["skills.revise", "real"], ["skills.trial", "trial"], ["skills.trial-judge", "trial"], ["feed.information-plan", "real"],
+  ]);
+  assert.equal(new Set(usage.map(record => record.work.run_id)).size, 5);
+  const calls = readRecords(db, { fact: "action.call", project_id });
+  for (const record of usage) {
+    assert.equal(record.conditions.model?.model_id, "configured-model");
+    assert.deepEqual([record.detail.reported_model, record.detail.input_tokens, record.detail.output_tokens, record.detail.input_tokens_source,
+      record.detail.cache_write_tokens, record.detail.cache_write_tokens_source, record.detail.prompt_includes_cache],
+    ["provider-receipt-model", 4, 4, "reported", undefined, "unknown", true]);
+    assert.deepEqual(record.evidence, []);
+    assert.ok(record.work.call_id && calls.some(call => call.work.call_id === record.work.call_id && call.source_class === record.source_class));
+  }
+  assert.ok(usage.at(-1)?.install_id, "Feed usage belongs to the installed action provider");
+  assert.doesNotMatch(JSON.stringify(usage), /只给模型看|只给调用方看|configured-fixture-key/);
+}));
+
+test("B42-F01 a Prologue preflight refusal has no usage, and a response held back by the final authority check keeps its actual usage", async () => {
+  const receipts: HostTextReceipt[] = [];
+  await fixture(async f => {
+    configure(f);
+    const provider = f.catalog.models.get("configured")!;
+    const { project_id, database_path } = await f.catalog.createProject({ display_name: "Inference receipt boundaries", actor_id: "test" });
+    const reference = molisWorkHostProjectReference({ databasePath: database_path, projectId: project_id });
+    const caller: ActionCallContext = { actor_id: "test", project_id, audience: "user", permissions: [...SKILLS_PERMISSIONS, "model:invoke"],
+      user_action: { source: "management", conversation_ref: "fixture", message_ref: "usage-boundary" } };
+    const actions = bindActionClient(f.host.actionClient(reference), () => caller);
+    await assert.rejects(actions.invoke(skillAuthoringActions.draft, { intent: "wire preflight" }));
+    assert.equal(f.requests.length, 0);
+    assert.deepEqual(receipts.map(receipt => [receipt.state, receipt.usage.length]), [["failed", 0]]);
+
+    f.answer(async () => {
+      f.catalog.models.upsert({ ...provider, enabled: false });
+      return { model: "provider-reported", choices: [{ message: { content: "private answer" } }] };
+    });
+    await assert.rejects(actions.invoke(skillAuthoringActions.draft, { intent: "private input" }), { code: "actions.configuration_changed" });
+    assert.equal(f.requests.length, 1);
+    assert.deepEqual(receipts.map(receipt => [receipt.state, receipt.usage.length]), [["failed", 0], ["completed", 1]]);
+    const observation = f.host.observation!.layer;
+    observation.flush();
+    const usage = readRecords(observation.writer.database()!.db, { fact: "agent.usage", project_id });
+    assert.deepEqual(usage.map(record => [record.work.run_id, record.detail.reported_model, record.detail.input_tokens, record.detail.output_tokens]),
+      [[receipts[1]!.run_ref.id, "provider-reported", 4, 4]]);
+    assert.doesNotMatch(JSON.stringify(usage), /private input|private answer/);
+  }, home => (prompt, options) => {
+    const complete = hostCompleteText({ homeDirectory: home })!;
+    // Prologue accepts the schema but refuses to send a wire body above 4 MiB after starting the Run.
+    const structured = prompt.includes("wire preflight")
+      ? { mode: "native", schema: { type: "object", description: "x".repeat(4 * 1024 * 1024) } } as const : undefined;
+    return complete(prompt, { ...options, structured,
+      onReceipt(receipt) { receipts.push(receipt); options?.onReceipt?.(receipt); } });
+  });
+});
 
 test("configured image input goes to an unmarked or vision model, is refused for a model marked as not seeing, and refuses a late result after vision is disabled (decision 51)", async () => fixture(async f => {
   configure(f);

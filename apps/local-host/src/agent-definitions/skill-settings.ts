@@ -51,6 +51,10 @@ export interface SkillUse {
 /** Uses kept per Skill: the AI kit says its counts are of this many recent rows. */
 export const USES_KEPT = 200;
 
+export function skillUseVersionKey({ install_id, skill_id, version }: Pick<SkillRef, "install_id" | "skill_id" | "version">): string {
+  return `${install_id}\0${skill_id}\0${version}`;
+}
+
 export class SkillSettingsStore {
   constructor(private readonly db: DatabaseSync, private readonly now: () => Date) {}
 
@@ -118,12 +122,12 @@ export class SkillSettingsStore {
     return result;
   }
 
-  /** How many of each Skill's kept uses in this scope each entry made: one read for a whole list. */
+  /** How many kept uses each entry made of each version in this scope: one read for a whole list. */
   usesByCaller(scopeRef: string): Map<string, Record<SkillUseCaller, number>> {
-    const rows = this.db.prepare("SELECT install_id, skill_id, caller, COUNT(*) AS count FROM skill_uses WHERE scope_ref = ? GROUP BY install_id, skill_id, caller").all(scopeRef) as Array<{ install_id: string; skill_id: string; caller: SkillUseCaller; count: number }>;
+    const rows = this.db.prepare("SELECT install_id, skill_id, version, caller, COUNT(*) AS count FROM skill_uses WHERE scope_ref = ? GROUP BY install_id, skill_id, version, caller").all(scopeRef) as Array<{ install_id: string; skill_id: string; version: number; caller: SkillUseCaller; count: number }>;
     const result = new Map<string, Record<SkillUseCaller, number>>();
     for (const row of rows) {
-      const key = `${row.install_id}\0${row.skill_id}`;
+      const key = skillUseVersionKey(row);
       result.set(key, { ...result.get(key), [row.caller]: Number(row.count) });
     }
     return result;

@@ -37,6 +37,8 @@ test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact
   try {
     const preview = await request(); assert.equal(preview.status, 200, JSON.stringify(preview.body)); assert.equal(preview.body.reference, null);
     assert.equal(preview.body.change.files.length, 2); assert.equal(preview.body.change.files[0].review.execution, "unknown"); assert.equal(preview.body.change.files[1].review.execution, "applied");
+    assert.match(preview.body.html, /data-phase="ready"/u);
+    assert.doesNotMatch(preview.body.html, /data-coding-line-side=/u, "feedback requires a fixed reference");
     // 只回统计 (screen-polish 方案乙, `stats`): a write whose outcome is unknown cannot be counted exactly, so the answer is no count; the answer is the count alone, and asking fixes no version.
     assert.deepEqual((await request(prefix+'?stats=1')).body, { stats: null });
     // Every write turned down: nothing reached the disk, which is a known zero (no lines, no files), not "cannot say".

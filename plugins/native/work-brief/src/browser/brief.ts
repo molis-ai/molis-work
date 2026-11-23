@@ -174,11 +174,20 @@ function nextCard(page: BriefPage, option: NextOption, mark: NextMark | undefine
 
 function next(page: BriefPage, view: BriefView): string {
   const version = view.version!;
-  if (!version.next.length) return `<p class="wb-muted">${esc(text("next.none"))}</p>`;
+  const currentIds = new Set(version.next.map(option => option.option_id));
+  const interrupted = view.marks.filter(mark => mark.state === "unknown" && !currentIds.has(mark.option_id));
+  if (!version.next.length && !interrupted.length) return `<p class="wb-muted">${esc(text("next.none"))}</p>`;
   const marks = new Map(view.marks.map(mark => [mark.option_id, mark]));
   // One ink-blue button on a screen: the first step still open, and none while a proposal waits.
   const first = view.proposal ? undefined : version.next.find(option => !marks.has(option.option_id))?.option_id;
-  return `<div class="wb-next">${version.next.map(option => nextCard(page, option, marks.get(option.option_id), option.option_id === first)).join("")}</div>`;
+  const cards = version.next.map(option => nextCard(page, option, marks.get(option.option_id), option.option_id === first));
+  for (const mark of interrupted) {
+    const target = mark.card?.target;
+    cards.push(renderCard({ className: "wb-step", title: mark.card?.title || text("next.old"), description: text("next.old-note"),
+      action: nextMark("unknown"), body: target ? slot("next", target) : "", footer: act(text("next.clear"), "undo-next",
+        { variant: "ghost", icon: "check", value: mark.option_id, disabled: Boolean(page.state.busy) }) }));
+  }
+  return `<div class="wb-next">${cards.join("")}</div>`;
 }
 
 export function renderBrief(page: BriefPage): string {

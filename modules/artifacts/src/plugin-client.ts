@@ -1,7 +1,7 @@
 import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginArtifactErrors } from "./plugin-errors.js";
 import type {
-  PluginArtifactClient, PluginArtifactWriter, PluginStartContext, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput,
+  PluginArtifactClient, PluginArtifactWriter, PluginStartContext, PluginProcessItemClient,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindActionHandler, type ActionDefinition, type ActionRegistryPort, type SyncActionClient, type ActionCallContext, type ActionAvailability, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -44,20 +44,22 @@ export function createPluginArtifactClient(input: Omit<PluginArtifactOperationsI
   const definitions = [read, head, own, publish, recordItem, processHead, processOwn, list];
   const caller: ActionCallContext = { actor_id, project_id: input.actions.project_id, audience: "plugin", host_plugin: input.plugin_caller,
     plugin_install_id: context.install_id, permissions: manifest.permissions.map(item => item.permission), allowed_actions: definitions };
+  const readAccess = { execution: "sync", availability: () => available("artifact:read") } as const;
+  const writeAccess = { execution: "sync", availability: () => available("artifact:write") } as const;
   const dispose = input.actions.registry.registerProvider({
     provider: { provider_id: providerId, title: `${manifest.name} · 成果 SDK`, kind: "system", project_id: input.actions.project_id },
     definitions,
     availability: call => call.actor_id === actor_id && call.plugin_install_id === context.install_id
       ? { available: true } : denied("成果 SDK 属于其他安装实例或用户"),
     handlers: [
-      { ...read, execution: "sync", availability: () => available("artifact:read"), handle: (_call, value) => operations.client.read(value as Parameters<PluginArtifactClient["read"]>[0]) },
-      { ...head, execution: "sync", availability: () => available("artifact:read"), handle: (_call, value) => operations.client.head((value as { artifact_id: string }).artifact_id) },
-      { ...own, execution: "sync", availability: () => available("artifact:read"), handle: (_call, value) => operations.client.readOwn(value as Parameters<PluginArtifactClient["readOwn"]>[0]) },
-      { ...publish, execution: "sync", availability: () => available("artifact:write"), handle: (_call, value) => operations.client.publish(value as PluginArtifactPublishInput) },
-      { ...recordItem, execution: "sync", availability: () => available("artifact:write"), handle: (_call, value) => operations.process.record(value as PluginProcessItemInput) },
-      { ...processHead, execution: "sync", availability: () => available("artifact:read"), handle: (_call, value) => operations.process.head((value as { artifact_id: string }).artifact_id) },
-      { ...processOwn, execution: "sync", availability: () => available("artifact:read"), handle: (_call, value) => operations.process.readOwn(value as Parameters<PluginProcessItemClient["readOwn"]>[0]) },
-      bindActionHandler(list, filter => operations.client.listConsumable(filter), { execution: "sync", availability: () => available("artifact:read") }),
+      bindActionHandler(read, value => operations.client.read(value), readAccess),
+      bindActionHandler(head, ({ artifact_id }) => operations.client.head(artifact_id), readAccess),
+      bindActionHandler(own, value => operations.client.readOwn(value), readAccess),
+      bindActionHandler(publish, value => operations.client.publish(value), writeAccess),
+      bindActionHandler(recordItem, value => operations.process.record(value), writeAccess),
+      bindActionHandler(processHead, ({ artifact_id }) => operations.process.head(artifact_id), readAccess),
+      bindActionHandler(processOwn, value => operations.process.readOwn(value), readAccess),
+      bindActionHandler(list, filter => operations.client.listConsumable(filter), readAccess),
     ],
   });
   const invoke = (definition: ActionDefinition, value: unknown) => {
@@ -83,11 +85,10 @@ function sdkArtifactActions(installId: string) {
   const providerId = `sdk.artifacts.${installId}`;
   const titles = { read: "读取插件成果", head: "读取插件成果线的最新版本", own: "读取插件自己固定的版本", publish: "发布插件成果", record: "记下插件过程项",
     "process-head": "读取插件过程项的最新版本", "process-own": "读取插件自己的过程项", list: "列出插件可消费的固定版本" };
-  // `Input` is only ever read from the operation's schema (`list`); the other operations keep their unknown input.
-  const define = <Input = unknown>(operation: keyof typeof pluginArtifactContracts, version: number): ActionDefinition<Input> => {
+  const define = <Operation extends keyof typeof pluginArtifactContracts>(operation: Operation, version: number) => {
     const read = operation !== "publish" && operation !== "record";
     const contract = pluginArtifactContracts[operation];
-    const definition = createActionDefinition<Input>(`${providerId}.${operation}`, read ? "query" : "command", {
+    const definition = createActionDefinition<InferActionInput<typeof pluginArtifactContracts[Operation]["input"]>>(`${providerId}.${operation}`, read ? "query" : "command", {
       title: titles[operation], description: "使用当前安装实例的类型合同和生产者身份访问成果",
       audiences: ["plugin"], permissions: [read ? "artifact:read" : "artifact:write"], subject_kinds: ["artifact"],
       input_schema: contract.input, output_schema: contract.output,
@@ -95,5 +96,5 @@ function sdkArtifactActions(installId: string) {
     return { ...definition, provider_id: providerId };
   };
   return { providerId, read: define("read", /* @version action-family.sdk.artifacts.read */ 1), head: define("head", /* @version action-family.sdk.artifacts.head */ 1), own: define("own", /* @version action-family.sdk.artifacts.own */ 1), publish: define("publish", /* @version action-family.sdk.artifacts.publish */ 1), recordItem: define("record", /* @version action-family.sdk.artifacts.record */ 1),
-    processHead: define("process-head", /* @version action-family.sdk.artifacts.process-head */ 1), processOwn: define("process-own", /* @version action-family.sdk.artifacts.process-own */ 1), list: define<InferActionInput<typeof pluginArtifactContracts.list.input>>("list", /* @version action-family.sdk.artifacts.list */ 1) };
+    processHead: define("process-head", /* @version action-family.sdk.artifacts.process-head */ 1), processOwn: define("process-own", /* @version action-family.sdk.artifacts.process-own */ 1), list: define("list", /* @version action-family.sdk.artifacts.list */ 1) };
 }

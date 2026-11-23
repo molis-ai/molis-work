@@ -1,13 +1,10 @@
 import type { TodoBatch, TodoCandidate } from "../contract.js";
 import type { CandidateChoice, CandidateDecision, TodoPage } from "./types.js";
 
+import { actionFor, type ApplyAction } from "../candidate-action.js";
+export { actionFor } from "../candidate-action.js";
+
 const uiText = globalThis.t;
-
-type ExistingRelation = NonNullable<TodoCandidate["existing"]>["relation"];
-
-/** What applying a candidate does: add it, or change the todo it meets. */
-type ApplyAction = "add" | "merge" | "update" | "complete" | "reopen";
-const ACTION_OF: Record<ExistingRelation, Exclude<ApplyAction, "add">> = { same: "merge", update: "update", conflict: "update", maybe_done: "complete", reopen: "reopen" };
 
 /** What a candidate's choice is now (made on first sight from the candidate's own preselection). */
 export function choiceFor(page: TodoPage, candidate: TodoCandidate): CandidateChoice {
@@ -18,7 +15,6 @@ export function choiceFor(page: TodoPage, candidate: TodoCandidate): CandidateCh
   }
   return choice;
 }
-export const actionFor = (candidate: TodoCandidate): ApplyAction => (candidate.existing ? ACTION_OF[candidate.existing.relation] : "add");
 
 /** What "apply" would do for the candidates the person kept, in words ("加入 2 项待办、合并 1 项"); empty when none is kept. */
 export function applyLabel(page: TodoPage, batch: TodoBatch): string {

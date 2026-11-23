@@ -8,6 +8,11 @@
  */
 
 export const VISUAL_AUDIT_TESTS = Object.freeze([
+  "tests/chinese-layers-mobile.e2e.test.ts",
+  "tests/chinese-layers-settings-desktop.e2e.test.ts",
+  "tests/chinese-layers-settings-mobile.e2e.test.ts",
+  "tests/chinese-layers-settings-tablet.e2e.test.ts",
+  "tests/chinese-layers-tablet.e2e.test.ts",
   "tests/chinese-layers.e2e.test.ts",
   "tests/chinese-walkthrough.e2e.test.ts",
   "tests/dialog-submit-rules.e2e.test.ts",
@@ -17,8 +22,16 @@ export const VISUAL_AUDIT_TESTS = Object.freeze([
   "tests/narrow-surfaces.e2e.test.ts",
   "tests/remaining-forms-viewport.e2e.test.ts",
   "tests/repeat-no-accumulation.e2e.test.ts",
+  "tests/touch-targets-dark.e2e.test.ts",
+  "tests/touch-targets-fine-pointer-dark.e2e.test.ts",
+  "tests/touch-targets-fine-pointer.e2e.test.ts",
   "tests/touch-targets.e2e.test.ts",
+  "tests/truncation-tip-desktop.e2e.test.ts",
+  "tests/truncation-tip-mobile.e2e.test.ts",
   "tests/truncation-tip.e2e.test.ts",
+  "tests/visual-order-details-dark.e2e.test.ts",
+  "tests/visual-order-details-layers.e2e.test.ts",
+  "tests/visual-order-details-phone.e2e.test.ts",
   "tests/visual-order-details.e2e.test.ts",
   "tests/visual-order.e2e.test.ts",
 ]);
@@ -41,6 +54,8 @@ const REQUIRED_GATE_RULE_FILES = [
   "tests/ci-timeouts.test.ts",
   "tests/cursor-skill-links.test.ts",
   "tests/doc-reference-gates.test.ts",
+  "tests/doc-reference-gates-violations-1.test.ts",
+  "tests/doc-reference-gates-violations-2.test.ts",
   "tests/first-screen-budget.test.mjs",
   "tests/first-screen-report.test.mjs",
   "tests/package-inventory-gate.test.ts",
@@ -70,19 +85,27 @@ export function isGateMetaTest(file) {
   return isGateRuleTest(name) || separateGateTests.has(name);
 }
 
-/** The checkout owns the full list. An empty, malformed or foreign selection runs it all. */
-export function gateRuleFiles(testFiles, selection) {
+function gateRuleGroup(file) {
+  if (file.startsWith("tests/health-gates-")) return "health";
+  if (file.startsWith("tests/first-screen-") || file === "tests/page-assets-budget.test.ts" || file === "tests/plugin-styles-gate.test.ts") return "budgets";
+  return "source";
+}
+
+/** Validate the selection against the entire suite so each job applies the same fallback. */
+export function gateRuleFiles(testFiles, selection, group) {
   const suite = testFiles.filter(isGateRuleTest);
   const missing = REQUIRED_GATE_RULE_FILES.filter(file => !suite.includes(file));
   if (missing.length) throw new Error(`Missing gate self-tests: ${missing.join(", ")}`);
-  if (!selection) return suite;
+  const groupFiles = group === undefined ? suite : suite.filter(file => gateRuleGroup(file) === group);
+  if (!groupFiles.length) throw new Error(`The ${group ?? "complete"} gate self-test suite is empty`);
+  if (!selection) return groupFiles;
   let files;
   try {
     files = JSON.parse(selection);
   } catch {
-    return suite;
+    return groupFiles;
   }
-  if (!Array.isArray(files) || !files.length || !files.every(file => suite.includes(file))) return suite;
+  if (!Array.isArray(files) || !files.length || !files.every(file => suite.includes(file))) return groupFiles;
   const selected = new Set(files);
-  return suite.filter(file => selected.has(file));
+  return groupFiles.filter(file => selected.has(file));
 }

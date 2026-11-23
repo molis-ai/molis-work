@@ -156,7 +156,7 @@ test("生产方给的 diff 是片段，视图明说自己不是整份文件", ()
   );
 });
 
-test("重命名式多文件变更列出全部文件，只渲染选中的那个", () => {
+test("SCC-04: 多文件固定变更保留每次写入，按索引或路径读取一条", () => {
   const change = {
     scope: "run-frozen" as const,
     run_id: "run-8",
@@ -168,19 +168,35 @@ test("重命名式多文件变更列出全部文件，只渲染选中的那个",
         review: { review_id: "v1", before_text: "a\n", after_text: "a\nb\n", decision: "approved" as const, execution: "applied" as const } },
       { path: "b.ts", kind: "added" as const, added_lines: 1, removed_lines: 0, diff: "",
         review: { review_id: "v2", before_text: null, after_text: "x\n", decision: "approved" as const, execution: "applied" as const } },
+      { path: "a.ts", kind: "deleted" as const, added_lines: 0, removed_lines: 2, diff: "",
+        review: { review_id: "v3", before_text: "a\nb\n", after_text: "", decision: "approved" as const, execution: "applied" as const } },
     ],
   };
-  const first = compareRunChangeSet({ content: change, source_plugin_id: "c", content_version: 1 });
-  assert.equal(first.files.length, 2);
+  const input = { content: change, source_plugin_id: "c", content_version: 2 };
+  const first = compareRunChangeSet(input);
+  assert.deepEqual(first.files.map(file => [file.path, file.kind]), [["a.ts", "modified"], ["b.ts", "added"], ["a.ts", "deleted"]]);
   assert.equal(first.before?.path, "a.ts");
+  assert.equal(compareRunChangeSet(input, "a.ts").removed, false, "路径取第一次写入");
 
-  const second = compareRunChangeSet({ content: change, source_plugin_id: "c", content_version: 1 }, "b.ts");
+  const second = compareRunChangeSet(input, "b.ts");
   assert.equal(second.before?.path, "b.ts");
   assert.equal(second.created, true);
 
-  const missing = compareRunChangeSet({ content: change, source_plugin_id: "c", content_version: 1 }, "c.ts");
+  const deleted = compareRunChangeSet(input, "b.ts", 2);
+  assert.deepEqual(deleted.before, { workspace_id: "w", workspace_name: "w", path: "a.ts", source_plugin_id: "c", content_version: 2 });
+  assert.equal(deleted.removed, true, "显式索引读的是第三条删除");
+  assert.equal(deleted.created, false);
+  assert.deepEqual(deleted.rows.map(row => [row.kind, row.text]), [["delete", "a"], ["delete", "b"]]);
+
+  const missing = compareRunChangeSet(input, "c.ts");
   assert.equal(missing.phase, "unavailable");
-  assert.equal(missing.files.length, 2, "看不了这一个，不代表别的文件也不该列出来");
+  assert.deepEqual(missing.files, first.files);
+
+  const empty = compareRunChangeSet({ ...input, content: { ...change, files: [] } }, "c.ts");
+  assert.equal(empty.phase, "ready");
+  assert.equal(empty.message, "这一轮没有可读取的文本改动审查；命令及外部操作请查看执行记录");
+  assert.deepEqual(empty.files, []);
+  assert.deepEqual(empty.rows, []);
 });
 
 test("hunk 头声明的行数必须和实际行数对得上", () => {

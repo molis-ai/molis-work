@@ -66,7 +66,7 @@ export const inboxManifest: PluginManifest = {
   capabilities: { provides: [], consumes: ["feed.briefs.read", "feed.items.content"] },
   artifacts: { produces: [], consumes: [] },
   sync:{protocol_version:/* @version sync.protocol */ 1,collections:[{id:'attention',database:'project',title:'注意事项与处理历史',schema_version:/* @version sync.collection.inbox.attention */ 1,requires:[],sections:attentionSections}]},
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

@@ -49,7 +49,7 @@ export const workBriefManifest: PluginManifest = {
       preview: { capability_id: briefArtifactPreview.capability_id, version: briefArtifactPreview.version } }],
     consumes: [],
   },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

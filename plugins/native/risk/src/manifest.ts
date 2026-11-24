@@ -43,7 +43,7 @@ export const riskManifest: PluginManifest = {
   // A risk's review is a Schedule task (review.ts); called as the risk action's caller.
   capabilities: { provides: [], consumes: [...Object.values(SCHEDULE_TASKS).map(reference => reference.capability_id), "search.references"] },
   artifacts: { produces: [], consumes: [] },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

@@ -91,3 +91,7 @@
   - `--measure-wide: 1152px`（Dataset 宽表、PPT 工作区、Goals 画布/看板、Workflows 链）
 - **详情顶栏 `.plugin-stage-detail-bar`**：锁死 `48px` 单行（返回 + 标题 + 最多 1 主 1 次 + `···` 更多菜单），**严禁设 `overflow-x: auto` 裁切弹层菜单**。
 - **代码对照 `.mw-diff`**：左右分栏模式（`.mw-diff-split`）故意保持同行对齐几何，不在 `@container` 下纵向折成单列，以守住代码行号与增删逐行对齐契约（`VUX-33`）。
+- **生成首页采用三原语（`@molis-ai/molis-work-design-system/home-page-adoption`，`/__ui/catalog` 登记）**：
+  - `renderCompareAdoptBar`（`.mw-compare-adopt-bar`）：并排对照底部决策条，左侧放检查摘要，右侧放退出/放弃与唯一主按钮「采用…（↵）」；主按钮内 `.mw-kbd` 须走高对比度反色样式。
+  - `renderCheckSummary`（`.mw-check-summary`）：可点击展开的检查状态标与详情浮层，逐项配 `renderStateRing`（未通过用 `state: "failed"`，非 `blocked` 空心圆）与直白说明；对照底条内用 `placement: "up"`。
+  - `renderEditConflict`（`.mw-edit-conflict`）：手动修改与新草稿的字段级对照卡，琥珀色提示 + 双侧对照（容器 ≤360px 自动折单列）+ 三选一处理按钮（均为次级/轻按钮，不与平面主按钮竞争）；选完收成一行静默确认与「改选」链接。

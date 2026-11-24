@@ -1,6 +1,7 @@
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { escapeHtml as e, icon, renderButton, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { runBusy } from "./busy.js";
 import type { MainlineContentEntryView, WorkItemChangedDetail, WorkItemSummary } from "./mainline-types.js";
 
 export interface WorkItemContentsHost {
@@ -109,15 +110,15 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
       dlg.dataset.mainlineHoldDialog = "";
       const rows = cand.targets.map((t) => {
         const checked = heldSet.has(t.subject.id) ? " checked" : "";
-        return `<label class="ml-hold-choice"><input type="checkbox" name="item" value="${e(t.subject.id)}"${checked}><span>${e(nameOf(t.subject.id))}</span></label>`;
+        return `<label class="mw-check-row ml-hold-choice"><input class="mw-check" type="checkbox" name="item" value="${e(t.subject.id)}"${checked}><span>${e(nameOf(t.subject.id))}</span></label>`;
       }).join("");
       dlg.innerHTML = `<div class="ml-hold-shell">`
         + `<h2>${e(uiText.text("workbench.mainline.hold-dialog-title"))}${title ? ` · ${e(title)}` : ""}</h2>`
         + `<p>${e(uiText.text("workbench.mainline.hold-dialog-desc"))}</p>`
         + `<div class="ml-hold-list" data-hold-list>${rows || `<p class="side-ic-empty">${e(uiText.text("workbench.mainline.empty-title"))}</p>`}</div>`
         + `<form class="ml-hold-create" data-hold-create>`
-        + `<input class="ml-create-input" type="text" data-hold-new-name maxlength="200" placeholder="${e(uiText.text("workbench.mainline.hold-new-placeholder"))}">`
-        + renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.mainline.hold-new-button"), attrs: { type: "submit" } })
+        + `<input class="mw-input ml-create-input" type="text" data-hold-new-name maxlength="200" placeholder="${e(uiText.text("workbench.mainline.hold-new-placeholder"))}">`
+        + renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.mainline.hold-new-button"), attrs: { type: "submit", "data-hold-create-submit": "" } })
         + `</form>`
         + `<div class="ml-hold-foot">${renderButton({ variant: "secondary", size: "sm", label: uiText.text("common.control.close"), attrs: { "data-hold-close": "" } })}</div></div>`;
       document.body.append(dlg);
@@ -137,18 +138,29 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
           host.showToast(err, true);
         });
       });
+      let creatingHold = false;
       dlg.addEventListener("submit", (ev) => {
         const form = (ev.target as Element)?.closest<HTMLFormElement>("[data-hold-create]");
         if (!form) return;
         ev.preventDefault();
+        if (creatingHold) return;
         const input = form.querySelector<HTMLInputElement>("[data-hold-new-name]");
+        const submitBtn = form.querySelector<HTMLButtonElement>("[data-hold-create-submit]");
         const name = input?.value.trim() ?? "";
         if (!name) return;
-        void api("/api/mainline/holds/create", { subject, name }).then(async () => {
-          dlg.close();
-          host.showToast(uiText.text("workbench.mainline.put-in-toast"));
-          await Promise.all([load(), host.refreshMainline()]);
-        }).catch((err) => host.showToast(err, true));
+        creatingHold = true;
+        void runBusy(submitBtn, async () => {
+          try {
+            await api("/api/mainline/holds/create", { subject, name });
+            dlg.close();
+            host.showToast(uiText.text("workbench.mainline.put-in-toast"));
+            await Promise.all([load(), host.refreshMainline()]);
+          } catch (err) {
+            host.showToast(err, true);
+          } finally {
+            creatingHold = false;
+          }
+        });
       });
       dlg.showModal();
     } catch (error) {
@@ -167,12 +179,16 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
           page?: { entries?: Array<{ title: string; subject?: ActionSubject }> };
         }>;
       }>(host.route("/api/side/files/sources?first_pages=1"), { method: "GET" });
+      const heldEntries = itemId === currentItemId ? entries : [];
+      const existingKeys = new Set(heldEntries.map((entry) => `${entry.subject.kind}|${entry.subject.id}`));
       const objects: Array<{ title: string; group: string; subject: ActionSubject }> = [];
       for (const source of sourcesRes.sources ?? []) {
         if (source.state !== "ready") continue;
         const groupTitle = source.plugin_id === "system.materials" ? uiText.text("workbench.side-panel-files.folder") : source.title;
         for (const row of source.page?.entries ?? []) {
-          if (row.subject) objects.push({ title: row.title, group: groupTitle, subject: row.subject });
+          if (row.subject && !existingKeys.has(`${row.subject.kind}|${row.subject.id}`)) {
+            objects.push({ title: row.title, group: groupTitle, subject: row.subject });
+          }
         }
       }
       const dlg = document.createElement("dialog");
@@ -198,7 +214,8 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
         if (!btn?.dataset.pickObj) return;
         const chosen = objects[Number(btn.dataset.pickObj)];
         if (!chosen) return;
-        void api("/api/mainline/holds/bind", { subject: chosen.subject, target: { kind: "work_item", id: itemId } }).then(async () => {
+        void runBusy(btn, async () => {
+          await api("/api/mainline/holds/bind", { subject: chosen.subject, target: { kind: "work_item", id: itemId } });
           dlg.close();
           host.showToast(uiText.text("workbench.mainline.put-in-toast"));
           await Promise.all([load(), host.refreshMainline()]);

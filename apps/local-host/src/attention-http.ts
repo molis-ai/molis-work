@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { sendLocalWebJson } from "./web-http.js";
+import { homePageRequestBound } from "./home-page-authority.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { repeatingFailure } from "./host-log.js";
 
@@ -26,7 +27,7 @@ export interface AttentionSources {
    */
   mainline?: {
     line(item?: string | null): Promise<{ table: unknown }>;
-    summary?(): Promise<{ has_items: boolean; current: string | null }>;
+    summary?(): Promise<{ has_items: boolean; current: string | null; source_kinds?: string[] }>;
   } | null;
   /**
    * Hear that something this page shows may have changed (`attention-changes.ts`): the page's one stream (`GET /api/attention/events`)
@@ -75,7 +76,7 @@ export async function handleAttentionHttp(request: IncomingMessage, response: Se
  * the line and the tasks are not in its answer either.
  */
 function attentionEvents(request: IncomingMessage, response: ServerResponse, changes: NonNullable<AttentionSources["changes"]>): void {
-  if (pluginPageRequest(request)) { sendLocalWebJson(response, 403, { error: "forbidden", message: "插件页面不读这个通道" }); return; }
+  if (pluginPageRequest(request) || homePageRequestBound(request)) { sendLocalWebJson(response, 403, { error: "forbidden", message: "插件页面不读这个通道" }); return; }
   response.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", "x-accel-buffering": "no" });
   response.flushHeaders();
   const send = () => { if (!response.writableEnded) response.write("event: changed\ndata: {}\n\n"); };

@@ -340,6 +340,35 @@ export async function readHomePageFiles(
   return ports.open(projectId).readFilesVerified(input);
 }
 
+/** Reads the currently adopted generated homepage version, verified files, and approved actions for opening a live session. */
+export function readAdoptedHomePageSessionTarget(
+  ports: Pick<HomePagesPorts, "open">,
+  projectId: string,
+): { ref: HomePageRef; version: HomePageVersion; approved_actions: ExactActionReference[] } {
+  const store = ports.open(projectId);
+  const state = store.selectionState();
+  if (state.selection.kind !== "page") {
+    throw homeErrors.page_not_found("当前项目使用的是基础首页，没有已采用的生成首页");
+  }
+  const ref: HomePageRef = { page_id: state.selection.page_id, version: state.selection.version };
+  const verified = store.readFilesVerified(ref);
+  const detail = store.readVersion(ref);
+  return {
+    ref,
+    version: verified.version,
+    approved_actions: detail?.approval?.approved_actions ?? [],
+  };
+}
+
+/** Reads pruned version records for a project's generated homepage (for inspect UI notices). */
+export function readPrunedHomePageVersions(
+  ports: Pick<HomePagesPorts, "open">,
+  projectId: string,
+  pageId?: string,
+): Array<{ page_id: string; version: number; pruned_at: string }> {
+  return ports.open(projectId).prunedVersions(pageId);
+}
+
 /** Action definitions and handlers for all 8 `homePageActions`, wired into `system.home` by the Host. */
 export function homePageActionHandlers(ports: HomePagesPorts): ActionHandlerBinding[] {
   return [

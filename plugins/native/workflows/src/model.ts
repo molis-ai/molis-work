@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { WORKFLOWS_AI_HANDOFF } from "./prompts.js";
 import type { ActionAvailability, ActionResultPresentation, WorkflowContentBinding, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -375,7 +376,7 @@ export function aiHandoffPrompt(link: WorkflowLink, input: WorkflowPayload, from
       ...(input.source ? { source: input.source } : {}),
       ...(input.url ? { url: input.url } : {}),
       body: input.body.slice(0, 60_000),
-    }, crypto.randomUUID().replaceAll("-", "").slice(0, 16)),
+    }, randomBytes(8).toString("hex")),
   ].join("\n"));
 }
 

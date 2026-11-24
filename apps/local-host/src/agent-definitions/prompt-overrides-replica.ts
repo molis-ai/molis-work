@@ -33,16 +33,28 @@ export function promptOverrideConfigReplica(db: ReplicaDatabase, actor: string, 
     if (!definitions.hasPrompt(owner, prompt)) throw new ActionError('actions.unavailable', '当前设备尚未登记这段提示词', { details: { sync_waiting: true } });
     return definitions.prompt(key);
   };
-  const assertEditableKey = (key: string): [string, string] => {
+  const isProtectedKey = (key: string): boolean => {
     const [owner, promptId] = readKey(key);
-    if (definitions.hasPrompt(owner, promptId) && definitions.prompt(key).override_policy === 'protected') {
+    return definitions.hasPrompt(owner, promptId) && definitions.prompt(key).override_policy === 'protected';
+  };
+  const assertEditableKey = (key: string): [string, string] => {
+    const parsed = readKey(key);
+    if (isProtectedKey(key)) {
       throw agentDefinitionErrors.prompt_override_protected('受保护的 Prompt 不能通过同步改写或重置', { key });
     }
-    return [owner, promptId];
+    return parsed;
   };
   return personalConfigReplica(db, namespace, { spaceId, authorize }, {
     maximumBytes: 384 * 1024,
     key: assertEditableKey,
+    // Skip protected keys before outbox reading so a tampered protected row cannot head-of-line poison sync.
+    canUpload(key) {
+      try {
+        return !isProtectedKey(key);
+      } catch {
+        return true;
+      }
+    },
     read(key) {
       const saved = db.prepare('SELECT base_version,body,updated_at FROM prompt_overrides WHERE key=? AND actor_id=?').get(key, actor);
       if (!saved) return null;
@@ -59,9 +71,6 @@ export function promptOverrideConfigReplica(db: ReplicaDatabase, actor: string, 
       assertEditableKey(key);
       if (value === null && !existing) return;
       const prompt = view(key);
-      if (prompt.override_policy === 'protected') {
-        throw agentDefinitionErrors.prompt_override_protected('受保护的 Prompt 不能通过同步改写或重置', { key });
-      }
       const incoming = value === null ? null : portable(value, key);
       if (incoming && incoming.baseVersion !== prompt.default_version) throw new ActionError('actions.conflict', '提示词的默认版本已变化');
       const revision = Number(db.prepare('SELECT MAX(revision) AS revision FROM prompt_history WHERE key=?').get(key)?.revision ?? 0) + 1;

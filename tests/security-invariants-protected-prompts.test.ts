@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import vm from "node:vm";
 import { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { AgentDefinitionRegistration, PromptOverridesFile } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import {
@@ -14,6 +15,7 @@ import {
   resolveModelPrompt,
 } from "@molis-ai/molis-work-app-local-host";
 import { ensureStorageSpace, openBaselineHomeSqlite, personalStorageSpace } from "@molis-ai/molis-work-storage";
+import { workbenchClientSource } from "@molis-ai/molis-work-app-workbench";
 import { kitHost } from "./fixtures/kit-host.js";
 import { openTestHome, type TestHome } from "./fixtures/test-home.js";
 import goldenWriteAgentDefinitions from "./golden-writes/agent-definitions.ts";
@@ -271,6 +273,73 @@ test("S-protected-prompt-override: override import preview/confirm and personal 
   assert.equal(syncDb.prepare("SELECT COUNT(*) AS n FROM prompt_overrides WHERE key = ?").get(INSTRUCTION_KEY)?.n, 0);
   assert.equal(syncDb.prepare("SELECT COUNT(*) AS n FROM prompt_history WHERE key = ?").get(INSTRUCTION_KEY)?.n, 0);
   assert.equal(promptReplica.withReplica(replica => replica.counts().conflicts), 0);
+
+  // 5) P1 #1: A tampered protected row in prompt_overrides must NOT head-of-line poison replica.next() for editable rows.
+  const editableOwnerId = "system:editable-sync-test";
+  const editablePromptId = "editable.note";
+  const editableKey = `${editableOwnerId}/${editablePromptId}`;
+  syncDefinitions.register({
+    owner_id: editableOwnerId,
+    source: { kind: "system", module: "editable-sync-test", title: "可编辑同步测试" },
+    prompts: [{
+      prompt_id: editablePromptId,
+      version: 1,
+      kind: "instruction",
+      override_policy: "editable",
+      title: "普通可编辑提示词",
+      purpose: "验证同步队列不被受保护行阻塞",
+      used_by: ["同步测试"],
+      body: "默认内容",
+    }],
+    roles: [],
+  });
+  syncDb.prepare("INSERT INTO prompt_overrides(key,revision,base_version,body,updated_at,actor_id,default_ref) VALUES (?,?,?,?,?,?,NULL)")
+    .run(INSTRUCTION_KEY, 1, 1, "磁盘篡改的受保护行", new Date().toISOString(), actor);
+  syncDefinitions.save(editableKey, "用户正常改写的内容", null, actor);
+  const nextMutation = promptReplica.withReplica(replica => replica.next());
+  assert.ok(nextMutation, "editable override must still be yielded by replica.next()");
+  assert.equal(nextMutation.key, editableKey, "tampered protected key is skipped instead of throwing or uploading");
+  promptReplica.withReplica(replica => replica.acknowledge(nextMutation.key, nextMutation.operationId, 1));
+  assert.equal(promptReplica.withReplica(replica => replica.next()), null, "protected key is never uploaded even after editable keys drain");
+
+  // 6) P2 #5: Multi-row batch confirm fails atomically when any row turns protected before commit — earlier editable rows stay uncommitted.
+  definitions.register({
+    owner_id: editableOwnerId,
+    source: { kind: "system", module: "editable-sync-test", title: "可编辑批量测试" },
+    prompts: [{
+      prompt_id: editablePromptId,
+      version: 1,
+      kind: "instruction",
+      override_policy: "editable",
+      title: "普通可编辑提示词",
+      purpose: "批量原子测试",
+      used_by: ["批量测试"],
+      body: "默认内容",
+    }],
+    roles: [],
+  });
+  definitions.register(protectedRegistration("editable"));
+  const batchPreview = await h.invoke<{ preview_id: string; rows: Array<{ row_id: string; status: string }> }>(
+    promptOverrideActions.preview,
+    {
+      file: {
+        format: "molis.prompt-overrides",
+        format_version: 1,
+        exported_at: new Date().toISOString(),
+        overrides: [
+          { owner_id: editableOwnerId, prompt_id: editablePromptId, title: "第一条", base_version: 1, body: "新内容一" },
+          { owner_id: OWNER_ID, prompt_id: INSTRUCTION_ID, title: "第二条", base_version: 1, body: "新内容二" },
+        ],
+      },
+    },
+  );
+  assert.deepEqual(batchPreview.rows.map(row => row.status), ["applicable", "applicable"]);
+  definitions.register(protectedRegistration("protected"));
+  await assert.rejects(
+    h.invoke(promptOverrideActions.confirm, { preview_id: batchPreview.preview_id, row_ids: batchPreview.rows.map(row => row.row_id) }),
+    errorCode("agent_definitions.prompt_override_protected"),
+  );
+  assert.equal(definitions.prompt(editableKey).effective, "default", "row 1 must not be partially committed when row 2 is protected");
 });
 
 test("S-protected-prompt-override: unregistered prompts and raw strings are refused by effective() and resolveModelPrompt(), while golden-writes skips protected prompts", async t => {
@@ -339,4 +408,233 @@ test("S-protected-prompt-override: unregistered prompts and raw strings are refu
   });
   assert.equal(savedKey, "system:editable/demo");
   assert.equal(savedBody, "金样提示词 v1-protected-test");
+});
+
+test("S-protected-prompt-override (P1 #2): Settings UI and Kit prompt editor render protected prompts read-only with no Save/Reset/Advanced controls", async () => {
+  type Listener = (...args: unknown[]) => void;
+  class FakeEl {
+    tagName: string;
+    className = "";
+    textContent = "";
+    value = "";
+    rows = 0;
+    maxLength = 0;
+    type = "";
+    disabled = false;
+    hidden = false;
+    readOnly = false;
+    open = false;
+    translate = true;
+    href = "";
+    title = "";
+    dataset: Record<string, string> = {};
+    attrs = new Map<string, string>();
+    children: FakeEl[] = [];
+    parentNode: FakeEl | null = null;
+    listeners = new Map<string, Listener[]>();
+    classList = {
+      add: (name: string) => { if (!this.className.split(" ").includes(name)) this.className = `${this.className} ${name}`.trim(); },
+      remove: (name: string) => { this.className = this.className.split(" ").filter(c => c && c !== name).join(" "); },
+    };
+    constructor(tag: string) { this.tagName = tag.toUpperCase(); }
+    get isConnected(): boolean { return true; }
+    setAttribute(name: string, val: string) { this.attrs.set(name, String(val)); }
+    removeAttribute(name: string) { this.attrs.delete(name); }
+    getAttribute(name: string) { return this.attrs.get(name) ?? null; }
+    append(...nodes: Array<FakeEl | string>) {
+      for (const node of nodes) {
+        if (typeof node === "string") { this.textContent += node; continue; }
+        node.parentNode = this;
+        this.children.push(node);
+      }
+    }
+    replaceChildren(...nodes: Array<FakeEl | string>) {
+      this.children = [];
+      this.textContent = "";
+      this.append(...nodes);
+    }
+    addEventListener(type: string, fn: Listener) {
+      const list = this.listeners.get(type) ?? [];
+      list.push(fn);
+      this.listeners.set(type, list);
+    }
+    click() { for (const fn of this.listeners.get("click") ?? []) fn({}); }
+    matches(sel: string): boolean {
+      if (sel.startsWith("[") && sel.endsWith("]")) {
+        const inner = sel.slice(1, -1);
+        const eq = inner.indexOf("=");
+        const attr = eq >= 0 ? inner.slice(0, eq) : inner;
+        const expected = eq >= 0 ? inner.slice(eq + 1).replace(/^["']|["']$/g, "") : undefined;
+        if (attr.startsWith("data-")) {
+          const camel = attr.slice(5).replace(/-([a-z])/g, (_, ch: string) => ch.toUpperCase());
+          const actual = this.dataset[camel];
+          return expected === undefined ? actual !== undefined : actual === expected;
+        }
+        return expected === undefined ? this.attrs.has(attr) : this.attrs.get(attr) === expected;
+      }
+      if (sel.startsWith(".")) return this.className.split(/\s+/).includes(sel.slice(1));
+      return this.tagName.toLowerCase() === sel.toLowerCase();
+    }
+    all(): FakeEl[] {
+      const out: FakeEl[] = [];
+      const walk = (n: FakeEl) => { for (const c of n.children) { out.push(c); walk(c); } };
+      walk(this);
+      return out;
+    }
+    querySelector(sel: string): FakeEl | null { return this.all().find(n => n.matches(sel)) ?? null; }
+    querySelectorAll(sel: string): FakeEl[] { return this.all().filter(n => n.matches(sel)); }
+    closest(sel: string): FakeEl | null { let cur: FakeEl | null = this; while (cur) { if (cur.matches(sel)) return cur; cur = cur.parentNode; } return null; }
+    contains(other: FakeEl | null): boolean { return Boolean(other && (other === this || this.all().includes(other))); }
+    focus() {}
+  }
+
+  const fakeDoc = {
+    activeElement: null,
+    createElement: (tag: string) => new FakeEl(tag),
+    querySelector: () => null,
+    querySelectorAll: () => [],
+  };
+  const fullClient = workbenchClientSource();
+  const promptScriptStart = fullClient.indexOf("globalThis.molisWorkBindPromptSettings =");
+  const promptScriptEndMarker = "globalThis.molisWorkBindPromptSettings(document);";
+  const promptScriptEnd = fullClient.indexOf(promptScriptEndMarker, promptScriptStart);
+  assert.ok(promptScriptStart >= 0 && promptScriptEnd > promptScriptStart, "workbench client exports prompt settings binder");
+  const PROMPT_SETTINGS_CLIENT_SCRIPT = fullClient.slice(promptScriptStart, promptScriptEnd + promptScriptEndMarker.length);
+
+  const runSettings = async (failDetail: boolean) => {
+    const root = new FakeEl("section");
+    root.dataset.promptSettings = "";
+    const body = new FakeEl("div"); body.dataset.promptBody = "";
+    const search = new FakeEl("input"); search.dataset.promptSearch = "";
+    const diag = new FakeEl("div"); diag.dataset.promptDiagnostics = "";
+    const diagFold = new FakeEl("details"); diag.append(diagFold);
+    const diagBody = new FakeEl("div"); diagBody.dataset.promptDiagnosticsBody = "";
+    root.append(body, search, diag, diagBody);
+    const writes: string[] = [];
+    const protectedRecord = {
+      key: INSTRUCTION_KEY,
+      owner_id: OWNER_ID,
+      source: { kind: "system", module: "safety-gate-test", title: "安全门控测试" },
+      prompt_id: INSTRUCTION_ID,
+      kind: "instruction",
+      override_policy: "protected" as const,
+      title: "命令安全放行判断",
+      purpose: "受安全保护",
+      used_by: ["安全门控"],
+      default_version: 1,
+      default_body: "严格审查命令风险。",
+      effective: "default" as const,
+      body: "严格审查命令风险。",
+      default_updated: false,
+    };
+    const molisWorkRequest = Object.assign(
+      async (url: string, options?: { body?: unknown }) => {
+        if (options?.body !== undefined) { writes.push(url); throw new Error("unexpected write"); }
+        if (url === "/api/agent-definitions/prompts") return { prompts: [protectedRecord] };
+        if (url === "/api/agent-definitions/roles") return { roles: [] };
+        if (url.startsWith("/api/agent-definitions/prompt?key=")) {
+          if (failDetail) throw new Error("network failure");
+          return {
+            prompt: protectedRecord,
+            editor: { editable: protectedRecord.body, locked_format: "JSON", required_keys: ["allow"], format_intact: true },
+            history: [],
+            uses: [],
+          };
+        }
+        throw new Error(`unexpected request: ${url}`);
+      },
+      { show: (el: FakeEl, err: unknown) => { el.textContent = String(err); } },
+    );
+    const sandbox: Record<string, unknown> = {
+      document: { ...fakeDoc, matches: () => false, querySelector: (sel: string) => sel === "[data-prompt-settings]" ? root : null },
+      location: { search: "", hash: "", href: "http://127.0.0.1/settings/prompts" },
+      history: { state: null, replaceState: () => {} },
+      CSS: { escape: (v: string) => v },
+      URLSearchParams,
+      URL,
+      setTimeout,
+      requestAnimationFrame: (fn: () => void) => fn(),
+      t: { text: (key: string) => key },
+      molisWorkRequest,
+      window: {},
+    };
+    sandbox.globalThis = sandbox;
+    vm.runInNewContext(PROMPT_SETTINGS_CLIENT_SCRIPT, sandbox);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const badge = root.querySelector(".prompt-state--protected");
+    assert.ok(badge, "protected prompt renders protected state badge");
+    const openBtn = root.querySelector("button");
+    assert.ok(openBtn, "row toggle button exists");
+    assert.equal(openBtn.textContent, "workbench.settings-prompts.view");
+    openBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const textarea = root.querySelector("textarea");
+    assert.ok(textarea, "read-only textarea renders prompt body");
+    assert.equal(textarea.readOnly, true, `textarea stays readOnly (failDetail=${failDetail})`);
+    assert.equal(textarea.getAttribute("aria-busy"), null);
+    assert.ok(root.querySelector("[data-prompt-protected='true']"), "read-only protected note is visible");
+    const saveBtn = root.all().find(n => n.tagName === "BUTTON" && n.textContent === "workbench.settings-prompts.save-my-version");
+    const resetBtn = root.all().find(n => n.tagName === "BUTTON" && n.textContent === "workbench.settings-prompts.restore-default");
+    assert.equal(saveBtn?.hidden, true, "Save button is hidden for protected prompts");
+    assert.equal(saveBtn?.disabled, true, "Save button stays disabled");
+    assert.equal(resetBtn?.hidden, true, "Reset button is hidden for protected prompts");
+    assert.equal(root.querySelector("[data-prompt-advanced='true']"), null, "Advanced full edit panel is never mounted for protected prompts");
+    assert.deepEqual(writes, []);
+  };
+  await runSettings(false);
+  await runSettings(true);
+
+  // Also verify Capability Pack inline prompt editor (`mountKitPromptEditor`) renders protected prompts strictly read-only.
+  const esbuild = await import("esbuild");
+  const kitEditorBundle = await esbuild.build({
+    entryPoints: [new URL("../apps/workbench/src/browser/kit/prompt-editor.ts", import.meta.url).pathname],
+    bundle: true,
+    write: false,
+    format: "cjs",
+    platform: "browser",
+  });
+  const kitExports: Record<string, unknown> = {};
+  const kitModule = { exports: kitExports };
+  const kitSandbox: Record<string, unknown> = {
+    module: kitModule,
+    exports: kitExports,
+    document: fakeDoc,
+    t: { text: (key: string) => key },
+    molisWorkRequest: Object.assign(
+      async () => { throw new Error("should not write"); },
+      { show: () => {} },
+    ),
+    Date,
+    Math,
+    encodeURIComponent,
+  };
+  kitSandbox.globalThis = kitSandbox;
+  vm.runInNewContext(kitEditorBundle.outputFiles[0]!.text, kitSandbox);
+  const mountKitPromptEditor = (kitModule.exports as {
+    mountKitPromptEditor: (
+      container: unknown,
+      promptKey: string,
+      hooks: { onSaved: (next: unknown) => void; say: (text: string, tone?: string) => void },
+      initialData: unknown,
+    ) => void;
+  }).mountKitPromptEditor;
+  const container = new FakeEl("div");
+  mountKitPromptEditor(container, INSTRUCTION_KEY, { onSaved: () => {}, say: () => {} }, {
+    prompt: {
+      key: INSTRUCTION_KEY,
+      title: "命令安全放行判断",
+      body: "严格审查命令风险。",
+      default_body: "严格审查命令风险。",
+      effective: "default",
+      override_policy: "protected",
+    },
+    editor: { editable: "严格审查命令风险。", locked_format: "JSON", required_keys: ["allow"], format_intact: true },
+  });
+  const textarea = container.querySelector("textarea");
+  assert.ok(textarea, "kit editor shows prompt text");
+  assert.equal(textarea.readOnly, true, "kit editor textarea is readOnly for protected prompt");
+  assert.ok(container.querySelector("[data-prompt-protected='true']"), "kit editor shows protected read-only notice");
+  assert.equal(container.querySelector("[data-prompt-save-simplified='true']"), null, "kit editor omits Save button");
+  assert.equal(container.querySelector("[data-prompt-reset='true']"), null, "kit editor omits Reset button");
+  assert.equal(container.querySelector("[data-prompt-advanced='true']"), null, "kit editor omits Advanced full edit panel");
 });

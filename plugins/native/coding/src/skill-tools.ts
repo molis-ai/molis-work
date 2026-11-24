@@ -66,7 +66,11 @@ export function autoSkillMaterial(entries: readonly SkillCatalogEntry[], tools: 
     listed.push(row);
   }
   if (!listed.length) return null;
-  const markdown = agentBodyIn(CODING_AUTO_SKILL_CATALOG, locale);
-  const [title, ...instructions] = markdown.split("\n");
-  return { material_id: "coding-auto-skills", title: title!, text: [...instructions, "", JSON.stringify(listed)].join("\n").trimStart() };
+  const fallbackTitle = agentBodyIn(CODING_AUTO_SKILL_CATALOG, locale).split("\n")[0]?.trim() || CODING_AUTO_SKILL_CATALOG.title;
+  return {
+    material_id: "coding-auto-skills",
+    title: fallbackTitle,
+    text: JSON.stringify(listed),
+    instruction_prompt_id: CODING_AUTO_SKILL_CATALOG.prompt_id,
+  };
 }

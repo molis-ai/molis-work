@@ -84,19 +84,24 @@ export function promptOverrideHandlers(definitions: () => AgentDefinitions, now 
       const refused = picked.find(({ row }) => row?.status !== "applicable");
       if (refused) throw agentDefinitionErrors.overrides_row_not_applicable("只有能套用的行可以确认", { row_id: refused.row_id, status: refused.row?.status ?? "unknown" });
       const register = definitions();
-      for (const { row } of picked) {
-        let current: ReturnType<AgentDefinitions["prompt"]> | undefined;
-        try {
-          current = register.prompt(row!.key);
-        } catch {
-          current = undefined;
+      const assertNoProtected = () => {
+        for (const { row } of picked) {
+          let current: ReturnType<AgentDefinitions["prompt"]> | undefined;
+          try {
+            current = register.prompt(row!.key);
+          } catch {
+            current = undefined;
+          }
+          if (current?.override_policy === "protected") {
+            throw agentDefinitionErrors.prompt_override_protected("受保护的 Prompt 不能通过导入改写", { key: row!.key });
+          }
         }
-        if (current?.override_policy === "protected") {
-          throw agentDefinitionErrors.prompt_override_protected("受保护的 Prompt 不能通过导入改写", { key: row!.key });
-        }
-      }
+      };
+      assertNoProtected();
       held.delete(input.preview_id);
       await caller.beforeEffect();
+      // Re-check every selected key after awaiting beforeEffect so a batch cannot partially commit before hitting a newly protected prompt.
+      assertNoProtected();
       const applied: Array<{ key: string; revision: number }> = [];
       const skipped: Array<{ row_id: string; reason: string }> = [];
       for (const { row_id, row } of picked) {

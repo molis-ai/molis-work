@@ -185,6 +185,21 @@ test("SKP-10: Coding's round lists the automatic Skills for Coding and offers th
     assert.ok(codingPrompts.find(prompt => prompt.prompt_id === id)?.body_by_locale?.en, `${id} ships an English translation`);
   }
 
+  // P1 #3: coding.auto-skill-catalog is resolved via AgentDefinitions (recording prompt_uses and honoring Settings overrides).
+  const definitions = homeAgentDefinitions(f.home);
+  const autoKey = `${CODING}/${CODING_AUTO_SKILL_CATALOG.prompt_id}`;
+  const afterDefault = definitions.prompt(autoKey);
+  assert.ok(afterDefault.last_used, "default Coding round recorded a prompt_uses row for coding.auto-skill-catalog");
+  assert.equal(afterDefault.last_used?.user_revision, null);
+  definitions.save(autoKey, "自定义自动技能目录\n\n仅在必要时选用与当前任务直接相关的自动技能。", null, "web-user");
+  from = mark();
+  await startRound("按自定义技能提示整理这次会议纪要");
+  const overriddenPack = JSON.stringify(roundRequests(from)[0]?.messages);
+  assert.match(overriddenPack, /自定义自动技能目录/u, "Settings override title reaches the next Coding round");
+  assert.match(overriddenPack, /仅在必要时选用与当前任务直接相关的自动技能/u, "Settings override body reaches the next Coding round");
+  assert.equal(definitions.prompt(autoKey).last_used?.user_revision, 1, "prompt_uses records the overridden user_revision");
+  definitions.reset(autoKey, 1, "web-user");
+
   // d. With nothing set to 「自动」 there is no material and no Skill tool on the round.
   const revised = (await client.invoke(person, action(skillCatalogActions.list), {})) as { skills: SkillCatalogEntry[] };
   for (const id of ["auto-coding", "auto-both"]) {

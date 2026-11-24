@@ -284,10 +284,19 @@ export class AssistantRoundMaterials {
         dynamic.push(...chunked({ title: formatted.title }, `material-${material.material_id}`, formatted.text));
       }
       // Reserve 1 slot for pinned `situation` and all `signed-*` items so the 30-item cap never truncates either (Decision 58).
+      // Under overflow, prioritize per-turn `dynamic` safety/user materials (`undone`, `unsettled`, `object`, `page`, `material-*`)
+      // over `semiStatic` catalogs, while keeping the cold-to-hot assembly order (`semiStatic` -> `situation` -> `dynamic` -> `signed`).
       const budget = Math.max(0, 30 - signed.length - 1);
-      const keptSemiStatic = semiStatic.slice(0, budget);
-      const keptDynamic = dynamic.slice(0, Math.max(0, budget - keptSemiStatic.length));
+      const keptDynamic = dynamic.slice(0, budget);
+      const keptSemiStatic = semiStatic.slice(0, Math.max(0, budget - keptDynamic.length));
       const assembled = [...keptSemiStatic, situationMaterial, ...keptDynamic, ...signed];
+      const keptSet = new Set(assembled);
+      const keptAllOf = (prefix: string) => {
+        const items = dynamic.filter(item => item.material_id === prefix || item.material_id.startsWith(`${prefix}.`));
+        return items.length > 0 && items.every(item => keptSet.has(item));
+      };
+      if (told.undos.length && !keptAllOf("undone")) told.undos = [];
+      if (told.unsettled.length && !keptAllOf("unsettled")) told.unsettled = [];
       const skillHandles = new Map<string, SkillRef>();
       for (const item of assembled) {
         const chunkHandles = methodHandleChunks.get(item.material_id);

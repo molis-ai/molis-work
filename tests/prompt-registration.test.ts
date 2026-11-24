@@ -294,12 +294,34 @@ function inspectModelCallSites(filePath: string, sourceText: string): { calls: s
     }
   }
 
-  const unitNodes: Array<{ id: string; exported: boolean; node: ts.Node }> = [];
+  const classMemberName = (member: ts.ClassElement): string | null => {
+    if (ts.isConstructorDeclaration(member)) return "constructor";
+    if (ts.isClassStaticBlockDeclaration(member)) return "<static>";
+    if (ts.isMethodDeclaration(member) || ts.isGetAccessorDeclaration(member) || ts.isSetAccessorDeclaration(member) || ts.isPropertyDeclaration(member)) {
+      const { name } = member;
+      if (ts.isIdentifier(name) || ts.isPrivateIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) return name.text;
+      return "<computed>";
+    }
+    return null;
+  };
+  const isPrivateMember = (member: ts.ClassElement): boolean => {
+    if (ts.canHaveModifiers(member) && ts.getModifiers(member)?.some(mod => mod.kind === ts.SyntaxKind.PrivateKeyword)) return true;
+    return (ts.isMethodDeclaration(member) || ts.isGetAccessorDeclaration(member) || ts.isSetAccessorDeclaration(member) || ts.isPropertyDeclaration(member))
+      && ts.isPrivateIdentifier(member.name);
+  };
+
+  const unitNodes: Array<{ id: string; exported: boolean; node: ts.Node; className?: string }> = [];
   for (const statement of source.statements) {
     if (ts.isFunctionDeclaration(statement) && statement.name) {
       unitNodes.push({ id: statement.name.text, exported: isExportedStatement(statement), node: statement });
-    } else if (ts.isClassDeclaration(statement) && statement.name) {
-      unitNodes.push({ id: statement.name.text, exported: isExportedStatement(statement), node: statement });
+    } else if (ts.isClassDeclaration(statement)) {
+      const className = statement.name?.text ?? "<anonymous-class>";
+      const classExported = isExportedStatement(statement);
+      for (const member of statement.members) {
+        const memberName = classMemberName(member);
+        if (!memberName) continue;
+        unitNodes.push({ id: `${className}.${memberName}`, exported: classExported && !isPrivateMember(member), node: member, className });
+      }
     } else if (ts.isVariableStatement(statement)) {
       const exported = isExportedStatement(statement);
       for (const declaration of statement.declarationList.declarations) {
@@ -328,7 +350,8 @@ function inspectModelCallSites(filePath: string, sourceText: string): { calls: s
   for (const entry of unitNodes) {
     const unit = getUnit(entry.id, entry.exported);
     const shadowed = new Set<string>();
-    if (ts.isFunctionDeclaration(entry.node) || ts.isClassDeclaration(entry.node)) {
+    if (ts.isFunctionDeclaration(entry.node) || ts.isMethodDeclaration(entry.node) || ts.isGetAccessorDeclaration(entry.node)
+      || ts.isSetAccessorDeclaration(entry.node) || ts.isPropertyDeclaration(entry.node)) {
       const unitName = entry.node.name;
       ts.forEachChild(entry.node, child => {
         if (child !== unitName) collectLocalBindingNames(child, shadowed);
@@ -359,6 +382,15 @@ function inspectModelCallSites(filePath: string, sourceText: string): { calls: s
           const method = callee.name.text;
           if (METHOD_MODEL_CALLS.has(method) && (method !== "completeText" || node.arguments.length > 0)) {
             unit.modelCalls.push({ kind: `.${method}`, line, isTypedCompleteText: method === "completeText" });
+          }
+          if (entry.className) {
+            const receiver = unwrapExpression(callee.expression);
+            if (receiver.kind === ts.SyntaxKind.ThisKeyword || (ts.isIdentifier(receiver) && receiver.text === entry.className)) {
+              const targetId = `${entry.className}.${method}`;
+              if (knownUnitIds.has(targetId) && targetId !== unit.id) {
+                unit.calledLocalUnits.add(targetId);
+              }
+            }
           }
         }
       }
@@ -476,6 +508,30 @@ test("per-call-site AST gate rejects sibling rogue calls, comment-only mentions,
   `;
   const moduleResult = inspectModelCallSites("modules/example/src/rogue.ts", moduleStartRun);
   assert.equal(moduleResult.unregistered.length, 2, JSON.stringify(moduleResult));
+
+  const classSiblingRogue = `
+    import { resolveModelPrompt } from "./agent-definitions/instructions.js";
+    import { hostTextGeneration, hostTextForCommit } from "./host-complete-text.js";
+    export class MixedService {
+      legitimate(home: string, prompt: any) {
+        const generate = hostTextGeneration({ homeDirectory: home });
+        return generate?.(resolveModelPrompt(home, prompt, "ok"));
+      }
+      rogue(home: string) {
+        return hostTextForCommit(home);
+      }
+      private internalHelper(home: string) {
+        return hostTextGeneration({ homeDirectory: home });
+      }
+      validCaller(home: string, prompt: any) {
+        const generate = this.internalHelper(home);
+        return generate?.(resolveModelPrompt(home, prompt, "ok"));
+      }
+    }
+  `;
+  const classResult = inspectModelCallSites("apps/local-host/src/synthetic-class.ts", classSiblingRogue);
+  assert.equal(classResult.unregistered.length, 1, JSON.stringify(classResult));
+  assert.match(classResult.unregistered[0]!, /MixedService\.rogue -> hostTextForCommit/);
 });
 
 test("Plugin Builder's designer and code Agents are registered as the prompts they run, not its unused manifest set", () => {

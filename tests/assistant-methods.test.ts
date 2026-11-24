@@ -419,3 +419,92 @@ test("M3 S-skill-delegation: assistant-dispatch isolates per-round skill handles
     service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true });
   }
 });
+
+test("P1 #4: 30-item cap prioritizes dynamic safety context over semi-static catalogs and clears told when truncated", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "assistant-overflow-cap-"));
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const longLine = "说明内容".repeat(120);
+  const manyMethods: SkillCatalogEntry[] = Array.from({ length: 450 }, (_, idx) => ({
+    ...entry(idx),
+    name: `自动方法-${idx}`,
+    description: `${longLine}-${idx}`,
+    when_to_use: `${longLine}-use-${idx}`,
+    when_not_to_use: `${longLine}-not-${idx}`,
+    pack: { ...entry(idx).pack, title: `扩展包-${idx}` },
+  }));
+  let capturedMaterials: AgentTextMaterial[] = [];
+  let currentMethods: SkillCatalogEntry[] = manyMethods;
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async () => reply("收到。")));
+  const queue = new AgentReviewQueue(), agentHost = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-overflow-cap", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture", context_tokens: 1_000_000 }),
+    resolveCredential: () => "fixture-only" });
+  agentHost.register(adapter);
+  const realStart = agentHost.start.bind(agentHost);
+  agentHost.start = (async (runtimeId, request, authority) => {
+    capturedMaterials = [...(request.text_materials ?? [])];
+    return realStart(runtimeId, request, authority);
+  }) as typeof agentHost.start;
+  const service = new AssistantService(store, {
+    pages: async () => [],
+    host: async () => agentHost,
+    authority: async () => ({
+      manifest: { roles: [{ role_id: "assistant", version: 1, name: "个人工作助理", workspace: "business", execution: "operate", prompts: [], host_tools: [] }], prompts: [] },
+      authorizedDirectories: [],
+      actions: async () => ({ discover: async () => [], invoke: async () => ({ results: [] }) }),
+    }),
+    methods: {
+      roles: () => [],
+      bindSigned: async () => new Map(),
+      readSigned: () => { throw new Error("not read"); },
+      recordSignedUse: () => {},
+      recordSkillUse: () => {},
+      skills: async () => currentMethods,
+      readSkills: async () => [],
+    },
+  }, "web-user");
+  try {
+    // Case A: semi-static catalogs exceed 30 items; dynamic safety context (`undone`, `material-*`) and `situation` must survive.
+    const workA = store.create({ actor_id: "web-user", scope: { kind: "personal" }, title: "超额半静态测试", origin: null });
+    store.saveUndo("web-user", {
+      undo_id: "undo-a", work_id: workA.work_id, title: "已撤销的改动", state: "undone",
+      created_at: "2026-11-24T00:00:00.000Z", undone_at: "2026-11-24T00:01:00.000Z",
+      reference: { capability_id: "demo.undo", version: 1, provider_id: "demo.provider" }, input: {},
+    });
+    const sentA = await service.send({
+      work_id: workA.work_id, text: "继续处理", request_id: "overflow-semi-1",
+      materials: [{ material_id: "m1", kind: "text", title: "用户补充材料", text: "必须看到的本轮材料", explicit: true }],
+    }, {});
+    await until(async () => (await service.read(sentA.work.work_id)).work.state === "completed", "case A");
+    assert.equal(capturedMaterials.length, 30);
+    const idsA = capturedMaterials.map(item => item.material_id);
+    const situationIdx = idsA.indexOf("situation");
+    const undoneIdx = idsA.indexOf("undone");
+    const matIdx = idsA.indexOf("material-m1");
+    assert.ok(idsA.some(id => id.startsWith("methods.")), "semi-static methods fill the prefix before situation");
+    assert.ok(situationIdx > 0, "situation remains pinned after semi-static prefix");
+    assert.ok(undoneIdx > situationIdx, "undone safety context is preserved after situation");
+    assert.ok(matIdx > situationIdx, "user material is preserved after situation");
+    assert.equal(store.undos("web-user", workA.work_id).find(u => u.undo_id === "undo-a")?.told, true, "undo is marked told when actually included");
+
+    // Case B: dynamic `undone` itself chunks past the 29-slot budget (`30 - 1` pinned `situation`),
+    // so the partially truncated `undone` series MUST NOT be marked told.
+    currentMethods = [];
+    const workB = store.create({ actor_id: "web-user", scope: { kind: "personal" }, title: "超额动态测试", origin: null });
+    const longUndoTitle = "undo-detail-".repeat(45);
+    for (let idx = 0; idx < 1100; idx++) {
+      store.saveUndo("web-user", {
+        undo_id: `undo-b-${idx}`, work_id: workB.work_id, title: `${longUndoTitle}-${idx}`, state: "undone",
+        created_at: "2026-11-24T00:00:00.000Z", undone_at: "2026-11-24T00:01:00.000Z",
+        reference: { capability_id: "demo.undo", version: 1, provider_id: "demo.provider" }, input: {},
+      });
+    }
+    const sentB = await service.send({ work_id: workB.work_id, text: "继续处理", request_id: "overflow-dynamic-1" }, {});
+    await until(async () => (await service.read(sentB.work.work_id)).work.state === "completed", "case B");
+    assert.equal(capturedMaterials.length, 30);
+    assert.equal(capturedMaterials.filter(item => item.material_id.startsWith("undone.")).length, 29, "only 29 of the >29 undone chunks fit beside pinned situation");
+    assert.ok(store.undos("web-user", workB.work_id).every(u => u.told !== true), "partially truncated undone safety context must not be marked told");
+  } finally {
+    service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true });
+  }
+});

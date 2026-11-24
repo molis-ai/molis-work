@@ -2406,6 +2406,7 @@ export type AgentTextMaterial = {
     material_id: string;
     title: string;
     text: string;
+    instruction_prompt_id?: string;
 } & AgentMaterialSource & AgentMaterialOrigin;
 
 export interface AgentTextReviewDocument {

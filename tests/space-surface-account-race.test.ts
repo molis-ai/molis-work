@@ -194,7 +194,7 @@ test('ASR-05 cancelling the first token exchange permits a new login before the 
 });
 
 
-test('ASR-09 event reconnect refuses missing, forged and departed page bindings without registering a new participant', async t => {
+test('WUA-35 event reconnect refuses missing, forged and departed page bindings without registering a new participant', async t => {
  const f=await accountRefreshFixture(t,accountProbeCore);
  try {
   await f.login('alice');

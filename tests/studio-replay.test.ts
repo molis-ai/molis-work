@@ -202,7 +202,7 @@ async function throughWorkflow(entry: ReplayEntry): Promise<{ accepted: boolean;
   } finally { await workflow.close(); }
 }
 
-test("the replay accepts and refuses exactly what the studio workflow does, with the same words", async () => {
+test("QEV-01: the replay accepts and refuses exactly what the studio workflow does, with the same words", async () => {
   const entries = committed();
   assert.ok(entries.some(entry => entry.mode === "propose") && entries.some(entry => entry.mode === "detail") && entries.some(entry => entry.mode === "revise"), "all three stages are compared");
   let next = 0;

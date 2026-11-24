@@ -32,9 +32,9 @@
 
 | 槽 | 放哪 | 例子 |
 | --- | --- | --- |
-| `navigator` | 一级入口：出现在底栏的插件切换列表里，可以被人钉进 Dock（技术标识沿用 `navigator`） | Feed、Inbox、Pages、Goals、Sessions |
+| `navigator` | 一级入口：出现在底栏的插件切换列表里，可以被人钉进 Dock（技术标识沿用 `navigator`） | Feed、Inbox、Pages、Goals、Coding |
 | `stage` | 工作区里的工具面，不进插件切换列表 | Diff |
-| `settings` | 全局设置目录 | Shelf、Coding 偏好 |
+| `settings` | 全局设置目录 | Coding 偏好 |
 | `island` | 个人常驻入口：底栏右侧，项目圆钮旁 | 灵光 |
 | `side` | 侧栏里的一个标签：在工作旁边打开，与讨论、浏览器、文件并列（specs/archive/side-panel） | 需要边工作边看的小工具面 |
 
@@ -82,7 +82,7 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 
 设置页实际需要平台的 Agent 运行时列表时，在同一个 `settings` view 声明 `settings_runtimes: true`（例如 Coding）。不声明时宿主不查询，`context.runtimes` 是未请求的空集合；声明后查询失败会走原 HTTP 错误链，不会伪装成「没有运行时」。这个声明独立于 `settings_data`，值只许 `true`，其他槽不能使用。现有内置设置接线范围同上，未扩为已安装 Runtime 插件的动态设置支持。
 
-不是所有一等入口都是「列表点开详情」：Goals 是树、画布和 Goal 文档；Feed 是文章列 + 阅读页；判断规则编辑器在「能力」；Sessions 是会话/终端；Shelf 是置物架。抄最近的同类，不要强套 plugin-stage。
+主要入口按用户要做的事选布局。Goals 用树、画布和 Goal 文档，Feed 用文章列表与阅读页，判断规则编辑器在「能力」，对象工作终端围绕一个工作对象打开，Shelf 在右栏放材料。插件可参照用途相近的入口选用视图。
 
 ## 舞台（列表 + 详情）
 

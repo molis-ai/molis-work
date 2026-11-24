@@ -64,7 +64,7 @@ Manifest 里有两类声明会改变插件在别处的效果，安装预览把�
 
 ## 个人 vs 项目
 
-插件 `registration`（各包 `src/registration.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。今天（`BUILTIN_PLUGIN_CATALOG`，由各包的 `registration` 生成）：Cognia、插件创作台、Images、Jelly、Shelf、灵光、Todo、Pages、Forms、Dataset、PPT、Workflows、Issues。
+插件 `registration`（各包 `src/registration.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。例如 Images、Jelly。完整成员见[生成的插件登记](../../apps/local-host/src/plugin-registry.generated.ts)，个人属性由条目对应的包声明。
 
 其余按项目启用。必选输入口会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。Feed 启用会带上 Inbox（Feed `registration` 上的 `companions`）。
 
@@ -80,7 +80,8 @@ Manifest 里有两类声明会改变插件在别处的效果，安装预览把�
 - `kind`：`primary-page` | `embedded` | `overlay` | `settings-page`。
 
 构建期 Native：第 44B 批起已没有。  
-经 Plugin Runtime 启动的插件（`app`，以及 Shelf 这样的 `native`）：`start()` 返回的 `views` 必须覆盖 Manifest 每一条，否则启动失败。  
+经 Plugin Runtime 启动的插件（`app`，以及 Images 这样的 `native`）：`start()` 返回的 `views` 必须覆盖 Manifest 每一条，否则启动失败。
+
 所有 framed 插件页面由宿主统一下发 `<80 KB` 基础样式表 `molis-work-plugin-base.css`（含 `@container plugin-stage` 容器查询、四档版心/主从左栏令牌、`mw-*` 纸面控件与 `.mw-section-well` / `.mw-inset-group` / `.mw-inset-row` / `.mw-tabs__list--underline` / `.mw-glyph-status` / `.mw-signal` 原语）与共享微交互脚本（`molisBusy`、`molisToast`、`molisAutosave`、`molisEnhanceDateInputs`、`molisCopy`、`molisReflow`、`molisStreamText`、`molisFollow`）；完整视觉、动效与布局规范见 [UI 与视觉设计 Skill](../molis-design-ui/SKILL.md)。
 
 ## HTTP

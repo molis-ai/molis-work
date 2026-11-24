@@ -101,9 +101,10 @@ test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, r
   let remote='', user='alice';
   const peer=v2AccountPeer(()=>user),upstream=peer.server;
   remote=await listen(upstream);
-  const names=['MOLIS_WORK_ACCOUNT_CONFIG'];
+  const names=['MOLIS_WORK_ACCOUNT_CONFIG', 'MOLIS_WORK_SECRET_BACKEND'];
   const previous=names.map(name=>process.env[name]);
   process.env.MOLIS_WORK_ACCOUNT_CONFIG='';
+  process.env.MOLIS_WORK_SECRET_BACKEND='file';
   const rootToken='synthetic-space-web-root-control-0123456789';
   const localCatalog=await openMolisWorkProjectCatalog({homeDirectory:home});
   const localProject=await localCatalog.createProject({display_name:'Local retained project',actor_id:'local'});localCatalog.close();
@@ -154,6 +155,24 @@ test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, r
     const aToken=token;
     assert.notEqual(token,rootToken);
     assert.notEqual((await request('/projects/'+localProject.project_id)).status,200);
+    // ASR-09 A model and its connection belong to the signed-in account throughout A → B → A.
+    const modelInput = { display_name: 'Account model', base_url: 'https://model.example.test/v1',
+      api_format: 'openai-chat-completions', prompt_cache: 'off', enabled: true, models: [{ model_id: 'account-model', enabled: true }] };
+    const modelPath = '/api/settings/models/account-test';
+    const modelListed = async () => {
+      const response = await request('/api/settings/models');
+      assert.equal(response.status, 200);
+      const {providers} = await response.json() as {providers: Array<{provider_id: string}>};
+      return providers.some(provider => provider.provider_id === 'account-test');
+    };
+    const createdConnection = await post('/api/settings/connectors/connections', {
+      service_id: 'model-api', display_name: 'Alice model connection', token: 'synthetic-account-connection',
+    });
+    assert.equal(createdConnection.status, 201);
+    const {connection} = await createdConnection.json() as {connection: {connection_id: string}};
+    const modelSave = {...modelInput, connection_id: connection.connection_id};
+    assert.equal((await post(modelPath, modelSave)).status, 200);
+    assert.equal(await modelListed(), true);
     const aHome=join(home,'spaces',a.spaceId);
     await installation(0);assert.equal(existsSync(join(aHome,'config','installation.json')),false,'installation metadata is not copied into the business Home');
     const servicePlan=await post('/api/settings/web-service/plan',{action:'start'});assert.equal(servicePlan.status,200);const {plan_id}=await servicePlan.json();
@@ -170,6 +189,9 @@ test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, r
     assert.equal((await request('/api/personal/not-an-api')).status,404);
     await login('bob');const b=(await scopes()).current;assert.equal(b.ownerUserId,'bob');assert.notEqual(b.spaceId,a.spaceId);
     await installation(0);
+    assert.equal(await modelListed(), false);
+    assert.equal((await post(modelPath, modelSave)).status, 400, "B cannot bind A's connection even with its exact id");
+    assert.equal(await modelListed(), false, 'a rejected binding leaves no provider');
     const stalePlan=await request('/api/settings/web-service/confirm',{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-work-control-token':aToken,'x-molis-work-idempotency-key':'stale-installation-plan'},body:JSON.stringify({plan_id,decision:'declined'})});assert.equal(stalePlan.status,403);
     const declined=await post('/api/settings/web-service/confirm',{plan_id,decision:'declined'});assert.equal(declined.status,200);assert.equal((await declined.json()).status,'declined','the installation keeps one plan owner across account Homes');
     await assert.rejects(gateway.discover(caller),{code:'host.request_refused'},'old account MCP cannot reopen its Home after sign-out; unknown/closed Homes share the opaque control refusal');
@@ -180,6 +202,8 @@ test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, r
     await login('alice');assert.equal((await scopes()).current.spaceId,a.spaceId);
     await installation(1);assert.equal(existsSync(join(aHome,'config','installation.json')),false);
     await assert.rejects(gateway.discover(caller),{code:'host.request_refused'},'ASR-03 the original A client cannot adopt the new A credential');
+    assert.equal(await modelListed(), true);
+    assert.equal((await post(modelPath, modelSave)).status, 200, 'A can use its own connection again');
     const reconnected=new LocalActionGatewayClient({url:origin,homeDirectory:aHome,credentialHomeDirectory:home,clientId:'runtime:space-test',projectId:aProject.project_id});
     assert.ok(Array.isArray(await reconnected.discover(caller)),'an explicit new A connection reads the current personal credential');
     assert.equal((await request('/projects/'+aProject.project_id)).status,200);

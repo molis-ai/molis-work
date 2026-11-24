@@ -161,7 +161,7 @@ for (const reason of ['cancel', 'leave', 'disconnect'] as const) test(`ASR-04 ${
 });
 
 
-test('ASR-09 reconnect bindings survive a transport loss but refuse another lease and A-to-B-to-A', t => {
+test('WUA-35 reconnect bindings survive a transport loss but refuse another lease and A-to-B-to-A', t => {
   const pages = new AccountRefreshPages(), a = account(), b = account(), nextA = account();
   t.after(() => pages.close());
   const binding = pages.register('page', a.lease);
@@ -180,7 +180,7 @@ test('ASR-09 reconnect bindings survive a transport loss but refuse another leas
   pages.connection('page', nextA.lease, next);
 });
 
-test('ASR-09 a late registration cannot resurrect a departed page or block the next logout', t => {
+test('WUA-35 a late registration cannot resurrect a departed page or block the next logout', t => {
   const pages = new AccountRefreshPages(), a = account(); t.after(() => pages.close());
   pages.register('owner', a.lease);
   pages.leave('not-yet-registered', a.lease);

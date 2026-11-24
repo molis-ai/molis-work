@@ -5,7 +5,7 @@ description: Complete UI, visual design, color/skin, Sans+Chinese typography, co
 
 # Molis Work 设计与前端工程 Skill（写完即过线）
 
-本 Skill 是 Molis Work **所有界面表面**（工作台外壳、到达/引导、设置全集、24 个内置插件、生成插件、侧栏、IM、独立/导出页、桌面壳、组件板 `/__ui/catalog` 与 `docs/design/` 原型）的**统一执行手册**。
+本 Skill 是 Molis Work **所有界面表面**（工作台外壳、到达/引导、设置全集、[内置插件](../../apps/local-host/src/plugin-registry.generated.ts)、生成插件、侧栏、IM、独立/导出页、桌面壳、组件板 `/__ui/catalog` 与 `docs/design/` 原型）的**统一执行手册**。
 完整规范见根目录 [`DESIGN.md`](../../DESIGN.md)，生产标本见组件板 `/__ui/catalog`；插件平台协议另读 [`molis-plugin-dev`](../molis-plugin-dev/SKILL.md)，模型与 Agent 另读 [`molis-prologue-ai`](../molis-prologue-ai/SKILL.md)。
 
 **产品气质**：Soft Workbench（阳光净透浅底 + 静谧瓷青深底）——明净桌面托起一张连续纯白纸页，暗色以 `1px` 顶部玻璃高光（`--edge-highlight`）立面；以**对齐六律**建立一眼整洁的几何秩序，**图标与色彩优先**取代冗长状态说明字，唯一墨青/深墨主操作，琥珀只留给「轮到你」，所有切换与流式反馈坚持**无页面刷新感的连续动效**（持久化 DOM + FLIP + 容器高度呼吸 + 光影浸润流式），克制、可中断、确定可恢复。

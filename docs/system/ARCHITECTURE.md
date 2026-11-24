@@ -45,7 +45,7 @@ Desktop / Workbench / CLI / MCP（stdio MCP 经动作网关转发）
 
 回答“跨插件的产品行为由谁统一管”。目前有十三项：记忆（`horizontal/memory`）、放置（`horizontal/placement`）、系统搜索（`horizontal/search`）、项目资料（`horizontal/knowledge`）、呈现组合（`horizontal/surfaces`）、能力包目录（`horizontal/kit`）、主线服务（`horizontal/mainline`，事项线的读取、后台任务总表的读取与命令，第 32 批起）、Home 外观（`horizontal/appearance`）、观测采集（`horizontal/observation`）、端到端评测（`horizontal/evaluation`）、外部会话（`horizontal/sessions`）、项目自动化建议（`horizontal/automation-recommender`）和项目审批与可信决定（`horizontal/project-approvals`）；情境排序在 `packages/kernel` 的 `contextual.ts`，是内核里的例外。它们可以持有跨插件的策略——哪些内容可以记住、对象放在哪里、搜索结果怎样按调用者权限聚合、呈现怎样按位置和对象组合、能力包怎样现算、外观怎样选择和撤销、情境里先给用户看什么——也可以保存本服务自己的机制记录，例如记忆的开关与候选、放置的关联与来源、可删除重建的搜索索引、外部会话的读取范围与归属决定、项目自动化建议偏好、平台可信决定与项目审批规则；但不拥有任何业务事实：对象事实总向所有者读取，策略不改写插件或 Module 的事实，也不替它们决定业务结果。它们的能力以系统动作登记在同一个动作目录里，情境排序是目前唯一的例外：它只给工作台自己的选区条用，只有工作台的 HTTP 传输（`/api/contextual/*`），准备输入与上报信号都经调用者自己的动作，判断只排序、不执行（2026-10-10 的日常取舍；删除条件：助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作，HTTP 改为调这个动作）。代码位置暂不变动：十三项都在 `horizontal/` 下，情境排序在 `packages/kernel` 里与内核核心分开（边界由 `pnpm health:check` 守着，见 [包边界](PACKAGE-BOUNDARIES.md) §6）。
 
-插件创作台（`horizontal/plugin-studio`，47-1 C）是平台自带的能力，不是插件，也不在上面这些平台产品服务里：它拥有自己的草稿、构建与发布记录，产出的才是插件，与其他插件走同一套签名包、安装与运行机制。
+工作台另有两个[平台自带入口](../../apps/local-host/src/host-surface-list.ts)。插件创作台（`horizontal/plugin-studio`，47-1 C）拥有草稿、构建与发布记录，产出的插件走统一签名、安装和运行机制。置物架（`modules/shelf`，44B）在 Home 启动，持有个人材料与副本，始终可以从工作台打开。两者均由平台登记，无需在项目中安装。
 
 ### Plugin
 
@@ -81,7 +81,7 @@ Goals 是内置插件，拥有 Goal 的事实；成果（Artifacts）的正式�
 
 当前本地 Goal 工作使用一套事件协议。Goals 保存意图、笔记、类型版本、报告、当前约定与要求，并决定显式收尾的完成效果；其中 Governance 职责在 Goals 插件内部保存可信用户决定与有限树提案。Native Goals 组合用例和界面，Host 提供已绑定项目、Session 身份与同库事务，MCP/Web 不另算工作状态。普通记录不要求先建立规划。
 
-旧 Claim/Run/Evidence/Review 连同历史表、迁移与展示已于 2026-10-05 删除；Goal 历史就是事件记录加 Goals 日志。Runtime 进程和终端由 Runtime Host 与终端工作区负责（Sessions 已下线，重做见 BL-177）。当前调用合同见 [Goals](../modules/goals.md) 和 [Runtime](../runtime.md)。Governance（可信用户决定与有限树提案）现在是 Goals 插件内部的职责，不是独立的模块或事实 owner：原 `modules/governance-collaboration` 的代码已并入 `plugins/native/goals`（S9-3），其职责说明见 [Governance & Collaboration](../modules/governance-collaboration.md)。
+旧 Claim/Run/Evidence/Review 连同历史表、迁移与展示已于 2026-10-05 删除；Goal 历史就是事件记录加 Goals 日志。Runtime 进程和终端由 Runtime Host 与终端工作区负责。旧 Sessions 插件已下线；[外部会话服务](../../horizontal/sessions/README.md)已提供获准来源的发现与读取，各来源支持程度及后续控制能力见 [BL-177](../../specs/backlog/BL-177.md)。当前调用合同见 [Goals](../modules/goals.md) 和 [Runtime](../runtime.md)。Governance（可信用户决定与有限树提案）现在是 Goals 插件内部的职责，不是独立的模块或事实 owner：原 `modules/governance-collaboration` 的代码已并入 `plugins/native/goals`（S9-3），其职责说明见 [Governance & Collaboration](../modules/governance-collaboration.md)。
 
 ## 6. Local 与 Server
 

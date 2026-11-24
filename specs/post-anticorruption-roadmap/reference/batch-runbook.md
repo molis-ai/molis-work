@@ -11,7 +11,7 @@
 ## 一、先读
 
 - 本批文件 `specs/post-anticorruption-roadmap/reference/batches/NN.md`（服务端批是 `srv-N.md`，发行批是 `rel-N.md`）：交付、前置、可并行项和界面要求都以它为准；它和本手册或 Goal Prompt 对不上时以本批文件为准，并顺手改正。
-- 规则：`AGENTS.md`；[执行规则](execution-rules.md)；[需求开发流程](development-workflow.md)；[轨道与冲突规则](tracks.md)；[并行开发](../../../docs/system/PARALLEL-DEVELOPMENT.md)。
+- 规则：`AGENTS.md`；[执行规则](execution-rules.md)；[需求开发流程](development-workflow.md)；[轨道与冲突规则](tracks.md)；[并行开发](../../../docs/system/PARALLEL-DEVELOPMENT.md)。 可复制的批次指令只链接受检工作树的规则。机器可用槽数以并行开发手册与调度器为准，插件装配以作者手册与实际登记为准；带日期的旧数值只描述当时的安排。
 - 开发要求：需求开发流程第 4 节（开工前检查 15 项）、第 4.1 节（平台能力检查：该不该落成平台能力）、第 5 节（界面与体验）、第 8 节（有更好的方案就换、边做边清理、写法要优雅）、第 10.1 节（防腐与代码质量）、第 11.1 节（批次收尾检查）；`docs/prompts/repository-systematic-review.md` 第 3～12 节；`docs/reviews/adversarial-review-2026-11-01.md` 的 N42～N56（调用次数）；命名照 `docs/system/GLOSSARY.md`。
 - 原需求：Goal Prompt 里列的原需求，行为与验收以它们为准。
 

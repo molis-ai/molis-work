@@ -55,7 +55,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | --- | --- | --- |
 | `native` | 一等产品入口。内置插件在自己的登记中声明 `project_runtime` 或 `runtime`，由 Plugin Runtime 监督器启动 | 装配步骤、已退役的构建期例外和样例以[宿主接线](host.md)为准 |
 | `app` | Plugin Runtime **真的** `start()`，兑现 views/routes/actions | Coding、Git、Diff |
-| `integration` | 外部世界 → Connector / Signal | GitHub、Gmail、RSS、YouTube、Catalog、Web Query |
+| `integration` | 外部世界 → Connector / Signal | GitHub、Gmail、RSS（也读 YouTube 频道）、Catalog、Web Query |
 
 没跑在 Runtime 里就不要标 `app`。插件不 import 另一个插件的 implementation。
 

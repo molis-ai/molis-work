@@ -22,8 +22,6 @@ const READERS = new Map([
   // file was read: "zh" is also the default language, so a reader that falls back to the default when the file is missing or unreadable
   // (`lastUsedLocale`, say) would pass here without reading anything.
   ["config/ui-locale.json", [({ home }) => readUiLocale(home), "zh"]],
-  // Goldens made before BL-b44-feed-home-dir-and-styles hold it under `feed/`; the upgrade renames that directory to `security/`.
-  ["feed/secrets.json", [({ http }) => http("/api/settings/models", GET), "present"]],
   ["security/secrets.json", [({ http }) => http("/api/settings/models", GET), "present"]],
   ["interface/state.json", [async ({ call }) => {
     const { selection, selection_revision, recovery } = await call("appearance.selection.get", { request_id: "appearance-seed" });

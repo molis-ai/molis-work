@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { HomeConsentLedger } from "@molis-ai/molis-work-app-local-host";
-import { bindDatabaseSpace, ensureStorageSpace, personalStorageSpace } from "@molis-ai/molis-work-storage";
+import { bindDatabaseSpace, ensureStorageSpace, personalStorageSpace, releaseHeldHomeSqlite } from "@molis-ai/molis-work-storage";
 
 test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while each read checks current identity and facts", async t => {
   // Each read is the Home ledger's observed publishers, read through the held read-only handle (since 44B no project membership read opens
@@ -103,4 +103,28 @@ test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while eac
     for (const f of fixtures) f.catalog.close();
     for (const connection of connections) assert.throws(() => connection.prepare("SELECT 1"), /not open/u, "closing each catalog releases its held RO connection");
   } finally { ddl.mock.restore(); checks.mock.restore(); }
+});
+
+// MEM-42 and ASR-12, rewritten after 44B removed always-on plugins and the request-scoped directory they kept: a change written
+// through a Home's ledger (a publisher pinned, then taken back) is what the very next read-only read of that Home sees, and another
+// Home's reads see nothing of it.
+test("MEM-42 ASR-12 the next read-only read sees a Home's own pin and its revocation at once, and never another Home's", async t => {
+  const seed = async () => {
+    const home = await mkdtemp(join(tmpdir(), "home-plugin-fresh-read-"));
+    t.after(async () => { releaseHeldHomeSqlite(home); await rm(home, { recursive: true, force: true }); });
+    mkdirSync(join(home, "plugin-runtime"));
+    const db = new DatabaseSync(join(home, "plugin-runtime", "plugin-runtime.db"));
+    try { db.exec(readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8")); } finally { db.close(); }
+    return new HomeConsentLedger(home);
+  };
+  const a = await seed(), b = await seed();
+  const seen = (ledger: HomeConsentLedger) => ledger.observedPublishers().map(pin => [pin.key_id, pin.revoked_at]);
+  assert.deepEqual(seen(a), []);
+  assert.deepEqual(seen(b), []);
+  a.pinPublisher({ key_id: "key-a", public_key_spki_base64: "AAAA", label: "A", pinned_at: "2026-11-24T00:00:00.000Z", pinned_by: "test" });
+  assert.deepEqual(seen(a), [["key-a", null]], "the pin is read at once");
+  assert.deepEqual(seen(b), [], "another Home sees nothing of it");
+  a.revokePublisher("key-a", "2026-11-24T01:00:00.000Z");
+  assert.deepEqual(seen(a), [["key-a", "2026-11-24T01:00:00.000Z"]], "taking it back is read at once");
+  assert.deepEqual(seen(b), []);
 });

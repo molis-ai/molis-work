@@ -29,6 +29,7 @@ import { installedStageSection } from "./workbench-renderer.js";
 import { installedPluginWords } from "./installed-plugin-page.js";
 import { assertStageInstallation, installedStageIdentity, installedStagePath, requestedStageInstallation, sameInstalledRelease } from "./installed-stage-identity.js";
 import { captureWebSessionAuthority } from "./web-sessions.js";
+import { isHostedPlatformPart } from "./platform-part-routes.js";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 
 /** The project a Home route names: where its library is and whether it reaches a Home plugin (`projectReachablePlugins`); null when there is none. */
@@ -111,7 +112,8 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   if (side !== null && !sideView) { sendLocalWebJson(response, 404, { error: "插件没有这个侧栏入口" }); return true; }
   const operation = route ? url.pathname.slice(`/api/plugins/${pluginId}/`.length) : "";
   // The Host's lifecycle operations are the Home's: under a project's path they are not there, and nothing starts or retries.
-  if (prefixed && PLUGIN_MANAGEMENT_OPERATIONS.has(operation)) {
+  // A platform part the Runtime hosts (Shelf, S-34) has none at all: nobody turns it off, restarts, upgrades or removes it.
+  if ((prefixed || isHostedPlatformPart(pluginId)) && PLUGIN_MANAGEMENT_OPERATIONS.has(operation)) {
     const missing = actionErrorResponse(new ActionError("actions.missing", "插件没有这个入口"));
     sendLocalWebJson(response, missing.status, missing.body); return true;
   }

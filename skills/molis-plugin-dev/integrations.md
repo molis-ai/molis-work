@@ -32,11 +32,11 @@ Manifest 的 `connection_services` 写插件接触的服务和设置页上的卡
 
 `createProvider` 返回的 port 负责 `health` 和 `sync`（cursor、`normal` / `rebuild_cursor`）。真实 `health` 可以返回 `account: { login, account_id? }`，只有经过认证的服务响应中已验证的身份才填写；有稳定账号 id 时一并返回，显示名称和本地保存的标签不能替代身份。未返回时保持未知，不能从 message 文案解析账号。SDK 把它收成 Connector Driver 的 `poll` 和 Signal Adapter 的 `toSignalDraft`。不要在 Native 插件里直接 fetch GitHub。
 
-现有：GitHub、Gmail、RSS、YouTube Channel、Catalog（按连接器 id 生成 Manifest）、Web Query。
+现有：GitHub、Gmail、RSS（也读 YouTube 频道）、Catalog（按连接器 id 生成 Manifest）、Web Query。
 
 ## 权限
 
-- `network:<host>`：实际要访问的主机。YouTube 公开 Feed 可以只有 network。
+- `network:<host>`：实际要访问的主机。RSS 读公开 Feed（含 YouTube 频道）可以只有 network。
 - `secret:<name>`：不可导出的凭据引用。Gmail/GitHub/Catalog 需要；Web Query 的 secret 可以 `required: false`。
 - 不要在私人存储里存可导出的 token。
 

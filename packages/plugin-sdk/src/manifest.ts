@@ -134,6 +134,9 @@ export function parsePluginManifest(input: unknown): PluginManifest {
         if ((field !== "artifacts" || key !== "produces") && Object.hasOwn(type, "title_text")) {
           invalid("title_text 只用于 artifacts.produces");
         }
+        // Only a producer may let a person copy its type out of the project (Shelf), and only by writing `true`.
+        if (key === "consumes" && Object.hasOwn(type, "copy_out")) invalid(`${field}.consumes 不能写 copy_out，只有产出方能标`);
+        if (key === "produces" && type.copy_out !== undefined && type.copy_out !== true) invalid(`${field}.produces 的 copy_out 只能写 true`);
       }
     }
   }

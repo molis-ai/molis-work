@@ -4820,6 +4820,7 @@ export interface PluginManifest {
                 version: number;
             };
             searchable_fields?: readonly string[];
+            copy_out?: true;
         }>;
         consumes: Array<{
             artifact_type_id: string;
@@ -4831,6 +4832,7 @@ export interface PluginManifest {
         produces: Array<{
             artifact_type_id: string;
             schema_version: number;
+            copy_out?: true;
         }>;
         consumes: Array<{
             artifact_type_id: string;

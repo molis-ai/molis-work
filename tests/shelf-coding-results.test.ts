@@ -18,11 +18,12 @@ import {
  */
 
 const REPOSITORY = join(dirname(fileURLToPath(import.meta.url)), "..");
+// What the Host gives Shelf on each call (`copyOutTypes`): the types their producer marks `copy_out` (44B review P-07).
 const CONSUMED = new Set(
-  [...shelfManifest.artifacts.consumes, ...(shelfManifest.process_items?.consumes ?? [])].map(({ artifact_type_id }) => artifact_type_id),
+  [...codingManifest.artifacts.produces, ...(codingManifest.process_items?.produces ?? [])].filter(type => type.copy_out === true).map(({ artifact_type_id }) => artifact_type_id),
 );
 const owner = callerFor({ audience: "user" });
-const heading = (title: string, id: string) => `# ${title}\n\n这是 Coding 固定成果的 Shelf 副本，不代表当前工作区状态或目标验收。编辑副本不改变原成果。\n来源：${id} v1\n保存时间：2026-10-20T08:30:00.000Z\n\n`;
+const heading = (title: string, id: string) => `# ${title}\n\n这是固定成果的 Shelf 副本，不代表当前工作区状态或目标验收。编辑副本不改变原成果。\n来源：${id} v1\n保存时间：2026-10-20T08:30:00.000Z\n\n`;
 const source = (reference: typeof REPORT_REFERENCE, content_hash: string) => ({ project_id: PROJECT_ID, project_path: PROJECT_PATH, reference, producer_plugin_id: "io.molis.work.coding", content_hash });
 
 async function preview(platform: ReturnType<typeof fakePlatform>, reference: typeof REPORT_REFERENCE) {
@@ -32,6 +33,7 @@ async function preview(platform: ReturnType<typeof fakePlatform>, reference: typ
 
 // The expectations below are fixed values: they were taken from the host's own composition (`codingShelfMaterial`) on these same fixtures
 // before it was deleted, and the new path matched it byte for byte, key order included (the fingerprint hashes the source object's text).
+// The heading no longer names Coding (44B review P-07): only that line changed, so only the fingerprints were taken again.
 test("W5-01-CODING-07 the preview of a fixed report is the very copy the host used to compose: heading, source and fingerprint", async () => {
   const platform = fakePlatform({ artifacts: [reportRecord()] }, CONSUMED);
   const copy = await preview(platform, REPORT_REFERENCE);
@@ -39,7 +41,7 @@ test("W5-01-CODING-07 the preview of a fixed report is the very copy the host us
     title: "已固定的原报告",
     text: heading("已固定的原报告", "coding-report:session-a:run-1") + REPORT_BODY,
     source: source(REPORT_REFERENCE, "2903e1e56689b2bf03ed6d8543af273f95834aab8604a2eddf1ad9033af7d617"),
-    fingerprint: "3e71fc1430d439b648ad4d8ebedcd648a807d6fb9ec2517d386a4ff1689a737c",
+    fingerprint: "5275ff180fd4b404ce699a3caab360b990c6f892bfe4d83ca682f8cd94c3e45c",
   });
   assert.deepEqual(Object.keys((copy as { source: object }).source), ["project_id", "project_path", "reference", "producer_plugin_id", "content_hash"]);
 });
@@ -50,7 +52,7 @@ test("W5-01-CODING-08 the preview of a fixed change set is the very copy the hos
     title: "这一轮的固定变更",
     text: heading("这一轮的固定变更", "coding-changeset:session-a:run-1") + CHANGE_SET_MARKDOWN,
     source: source(CHANGESET_REFERENCE, "9d6065d0946a3b148e32150f7b5d890d73b69f987debcc627292d0017cfd2f7e"),
-    fingerprint: "f01017348b1a2f77d37568ea62dfa0a0164d24bed8b1ea5018a29135b79a5b1e",
+    fingerprint: "41c9311c9e1ee84709b9f664a4e97707f96177349e3183de5c8dcad203446cde",
   });
 });
 
@@ -64,6 +66,11 @@ test("W5-01-CODING-09 Audit #10 Coding declares the artifact-document role and S
     assert.ok(manifest.permissions.some(row => row.permission === permission && row.required), `Shelf's Manifest requires ${permission}`);
   }
   assert.deepEqual(shelfRuntimeActions.preview.action.audiences, ["user", "agent", "workflow", "mcp"], "Shelf's own actions are not changed");
+});
+
+test("P-07 Shelf names no plugin's types: Coding marks the report and the change set copy_out, and not its plan", () => {
+  assert.deepEqual({ artifacts: shelfManifest.artifacts.consumes, process_items: shelfManifest.process_items }, { artifacts: [], process_items: undefined });
+  assert.deepEqual([...CONSUMED].sort(), ["coding.changeset.v1", "coding.report.v1"]);
 });
 
 test("SCC-03 W5-01-CODING-10 Shelf uses the platform's consumable list for the caller's project, and skips candidates with no usable text", async () => {

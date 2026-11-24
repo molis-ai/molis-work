@@ -17,24 +17,28 @@ type Say = (text: string, values?: Record<string, string | number>) => string;
 type Kind = "person" | "ai";
 interface Who { readonly name: string; readonly kind: Kind; readonly mark?: string; readonly assistant?: boolean }
 
-const YOU: Who = { name: "你", kind: "person" };
-const ZHE: Who = { name: "阿哲", kind: "person", mark: "哲" };
+const YOU: Who = { name: "", kind: "person" };
+const ZHE: Who = { name: "workbench.catalog-board.wb.collab-zhe", kind: "person", mark: "workbench.catalog-board.wb.collab-zhe-mark" };
 const CODEX: Who = { name: "Codex", kind: "ai" };
 const CLAUDE: Who = { name: "Claude Code", kind: "ai" };
 const ASSISTANT: Who = { name: "workbench.collab-specimens.assistant", kind: "ai", assistant: true };
 
 /** A person is round, an AI is square; the Assistant carries its spark instead of an initial. UI role names (“你”, the
- * Assistant) are words of the interface and go through the translator; real sample person names stay as data. */
-const nameOf = (say: Say, who: Who) => who === YOU ? say("workbench.collab-specimens.you") : who.assistant ? say("workbench.collab-specimens.assistant") : who.name;
+ * Assistant) are words of the interface and go through the translator. */
+const nameOf = (say: Say, who: Who) => who === YOU ? say("workbench.collab-specimens.you")
+  : who === ZHE ? say("workbench.catalog-board.wb.collab-zhe")
+  : who.assistant ? say("workbench.collab-specimens.assistant") : who.name;
 function who(say: Say, entry: Who, size: "sm" | "lg" = "sm"): string {
-  const face = entry.assistant ? icon("sparkles") : (entry.mark ?? Array.from(entry.name)[0]!);
   const name = nameOf(say, entry);
+  const face = entry.assistant ? icon("sparkles")
+    : entry === ZHE ? say("workbench.catalog-board.wb.collab-zhe-mark")
+    : (entry.mark ?? Array.from(name)[0]!);
   return `<span class="mw-who${size === "lg" ? " mw-who--lg" : ""}" data-kind="${entry.kind}"${entry.assistant ? " data-assistant" : ""} role="img" aria-label="${name}${entry.kind === "ai" ? say("workbench.collab-specimens.ai") : say("workbench.collab-specimens.person")}">${face}</span>`;
 }
 
 /** Who has it: the person's round face, and the AI they handed it to stacked behind. */
 function owner(say: Say, label: string | null, ...faces: Who[]): string {
-  return `<span class="mw-owner"><span class="mw-owner__faces">${faces.map((face) => who(say, face)).join("")}</span><span>${label ? say(label) : faces[0]?.name ?? ""}</span></span>`;
+  return `<span class="mw-owner"><span class="mw-owner__faces">${faces.map((face) => who(say, face)).join("")}</span><span>${label ? say(label) : faces[0] ? nameOf(say, faces[0]) : ""}</span></span>`;
 }
 
 function specimen(caption: string, body: string): string {
@@ -124,7 +128,7 @@ export function renderCollabSection(say: Say): string {
       ${specimen(say("workbench.collab-specimens.what-the-ai-brings-tappable-answers-answering"), broughtSpecimen(say))}
       ${specimen(say("workbench.collab-specimens.the-same-thing-joined-and-the-rule"), sourcesSpecimen(say))}
       ${specimen(say("workbench.collab-specimens.review-each-tap-every-platform-once-before"), reviewSpecimen(say))}
-      ${renderReceiptLayersSpecimen()}
+      ${renderReceiptLayersSpecimen(say)}
     </div>
   </section>`;
 }

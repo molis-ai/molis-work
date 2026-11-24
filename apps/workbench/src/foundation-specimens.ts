@@ -1,13 +1,23 @@
-import { renderCollapsible, renderToggleGroup } from "@molis-ai/molis-work-design-system";
+import { renderCollapsible, renderToggleGroup, resolveCatalogSay, type CatalogSay } from "@molis-ai/molis-work-design-system";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
  * The design mechanisms of specs/visual-ui-experience §5, on the component board: each specimen is the shipped markup and
  * the shipped sensor, so what the board shows is what a strip in the workbench does.
  */
-const VIEWS = ["全部", "今天", "本周", "等待中", "已完成", "已委派", "稍后", "归档", "共享给我"];
+const VIEW_KEYS = [
+  "workbench.catalog-board.wb.fn-view-all",
+  "workbench.catalog-board.wb.fn-view-today",
+  "workbench.catalog-board.wb.fn-view-week",
+  "workbench.catalog-board.wb.fn-view-waiting",
+  "workbench.catalog-board.wb.fn-view-done",
+  "workbench.catalog-board.wb.fn-view-delegated",
+  "workbench.catalog-board.wb.fn-view-later",
+  "workbench.catalog-board.wb.fn-view-archived",
+  "workbench.catalog-board.wb.fn-view-shared",
+] as const;
 
-function strip(label: string, attrs = "", items = VIEWS): string {
+function strip(label: string, items: readonly string[], attrs = ""): string {
   const group = renderToggleGroup({ label, items: items.map((text, index) => ({ value: String(index), label: text, current: index === 0 })) });
   return group.replace(/^<(\w+) /, `<$1 data-overflow-fade data-catalog-fade${attrs} `);
 }
@@ -16,27 +26,30 @@ function strip(label: string, attrs = "", items = VIEWS): string {
 const MEDIA_SPECIMEN = "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" font-family="system-ui" font-size="40" fill="#8a7f78">`
   + Array.from({ length: 40 }, (_, i) => `<rect x="${(i % 8) * 200 + 4}" y="${Math.floor(i / 8) * 200 + 4}" width="192" height="192" rx="12" fill="${i % 2 ? "#e9e3dd" : "#d8cfc7"}"/><text x="${(i % 8) * 200 + 24}" y="${Math.floor(i / 8) * 200 + 64}">${i + 1}</text>`).join("") + `</svg>`);
 
-export function renderFoundationSection(): string {
+export function renderFoundationSection(explicitSay?: CatalogSay): string {
+  const say = resolveCatalogSay(explicitSay);
+  const views = VIEW_KEYS.map(key => say(key));
   const specimen = (caption: string, body: string) => `<figure class="mw-catalog__specimen"><figcaption>${caption}</figcaption><div class="mw-catalog-fade-box">${body}</div></figure>`;
-  return `<section class="mw-catalog__section" id="foundation" data-primitive="foundation"><h2>视觉机制</h2>
+  const lines = Array.from({ length: 14 }, (_, index) => say("workbench.catalog-board.wb.fn-fit-line", { n: index + 1 })).join("&#10;");
+  return `<section class="mw-catalog__section" id="foundation" data-primitive="foundation"><h2>${t("workbench.primitive-catalog.foundation")}</h2>
     <div class="mw-catalog__specimens">
-      ${specimen("放不下 · 右侧有更多", strip("视图（起点）"))}
-      ${specimen("滚到中间 · 两侧都有", strip("视图（中间）", ' data-catalog-scroll="middle"'))}
-      ${specimen("从右到左", strip("视图（从右到左）", ' dir="rtl"'))}
-      ${specimen("放得下 · 不淡出", strip("视图（放得下）", "", VIEWS.slice(0, 3)))}
+      ${specimen(say("workbench.catalog-board.wb.fn-cap-overflow-end"), strip(say("workbench.catalog-board.wb.fn-lbl-start"), views))}
+      ${specimen(say("workbench.catalog-board.wb.fn-cap-overflow-mid"), strip(say("workbench.catalog-board.wb.fn-lbl-mid"), views, ' data-catalog-scroll="middle"'))}
+      ${specimen(say("workbench.catalog-board.wb.fn-cap-rtl"), strip(say("workbench.catalog-board.wb.fn-lbl-rtl"), views, ' dir="rtl"'))}
+      ${specimen(say("workbench.catalog-board.wb.fn-cap-fits"), strip(say("workbench.catalog-board.wb.fn-lbl-fits"), views.slice(0, 3)))}
     </div>
     <div class="mw-catalog__specimens">
-      <figure class="mw-catalog__specimen"><figcaption>复制 · 成功与失败</figcaption><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary" data-catalog-copy="ok">复制</button><button type="button" class="mw-btn mw-btn--secondary" data-catalog-copy="fail">复制（会失败）</button></div></figure>
-      <figure class="mw-catalog__specimen"><figcaption>折叠 · 自然高度</figcaption>${renderCollapsible({ summary: "这一轮读过的文件（3）", body: "<p>specs/visual-ui-experience/spec.md</p><p>DESIGN.md</p><p>packages/design-system/src/styles/disclosure.ts</p>" })}</figure>
-      <figure class="mw-catalog__specimen"><figcaption>会变的数字 · 宽度不跳</figcaption><div class="mw-catalog-row"><span class="mw-num" data-num-ghost="59 分 59 秒" data-catalog-elapsed>0 秒</span><button type="button" class="mw-btn mw-btn--secondary">停止</button></div></figure>
-      <figure class="mw-catalog__specimen"><figcaption>媒体缩放 · 以观察点为锚</figcaption><div class="mw-catalog-media" data-catalog-media><img alt="1600 × 1000 的网格图" src="${MEDIA_SPECIMEN}"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-catalog-media-zoom>${t("workbench.primitive-catalog.actual-size")}</button></div></figure>
-      <figure class="mw-catalog__specimen"><figcaption>新写出的文字 · 2px（选用）</figcaption><div class="mw-catalog-stream" data-catalog-stream="2"></div></figure>
-      <figure class="mw-catalog__specimen"><figcaption>新写出的文字 · 6px（对照上限）</figcaption><div class="mw-catalog-stream" data-catalog-stream="6"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-catalog-stream-replay>重播</button><label class="mw-catalog-row"><input type="checkbox" data-catalog-stream-slow>慢放 4 倍</label></div></figure>
-      <figure class="mw-catalog__specimen"><figcaption>跟随到底 · 往上滚就停</figcaption><div class="mw-catalog-follow" data-catalog-follow style="height:120px;overflow:auto;font-size:12px;line-height:20px"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary" data-catalog-latest hidden>↓ 新消息</button></div></figure>
+      <figure class="mw-catalog__specimen"><figcaption>${say("workbench.catalog-board.wb.fn-cap-copy")}</figcaption><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary" data-catalog-copy="ok">${say("workbench.catalog-board.wb.fn-copy-ok")}</button><button type="button" class="mw-btn mw-btn--secondary" data-catalog-copy="fail">${say("workbench.catalog-board.wb.fn-copy-fail")}</button></div></figure>
+      <figure class="mw-catalog__specimen"><figcaption>${say("workbench.catalog-board.wb.fn-cap-disclosure")}</figcaption>${renderCollapsible({ summary: say("workbench.catalog-board.wb.fn-disclosure-sum"), body: "<p>specs/visual-ui-experience/spec.md</p><p>DESIGN.md</p><p>packages/design-system/src/styles/disclosure.ts</p>" })}</figure>
+      <figure class="mw-catalog__specimen"><figcaption>${say("workbench.catalog-board.wb.fn-cap-num")}</figcaption><div class="mw-catalog-row"><span class="mw-num" data-num-ghost="${say("workbench.catalog-board.wb.fn-num-ghost")}" data-catalog-elapsed>${say("workbench.catalog-board.wb.fn-num-init")}</span><button type="button" class="mw-btn mw-btn--secondary">${say("workbench.catalog-board.wb.fn-stop")}</button></div></figure>
+      <figure class="mw-catalog__specimen"><figcaption>${say("workbench.catalog-board.wb.fn-cap-media")}</figcaption><div class="mw-catalog-media" data-catalog-media><img alt="${say("workbench.catalog-board.wb.fn-media-alt")}" src="${MEDIA_SPECIMEN}"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-catalog-media-zoom>${t("workbench.primitive-catalog.actual-size")}</button></div></figure>
+      <figure class="mw-catalog__specimen"><figcaption>${say("workbench.catalog-board.wb.fn-cap-stream-2")}</figcaption><div class="mw-catalog-stream" data-catalog-stream="2"></div></figure>
+      <figure class="mw-catalog__specimen"><figcaption>${say("workbench.catalog-board.wb.fn-cap-stream-6")}</figcaption><div class="mw-catalog-stream" data-catalog-stream="6"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-catalog-stream-replay>${say("workbench.catalog-board.wb.fn-replay")}</button><label class="mw-catalog-row"><input type="checkbox" data-catalog-stream-slow>${say("workbench.catalog-board.wb.fn-slow")}</label></div></figure>
+      <figure class="mw-catalog__specimen"><figcaption>${say("workbench.catalog-board.wb.fn-cap-follow")}</figcaption><div class="mw-catalog-follow" data-catalog-follow style="height:120px;overflow:auto;font-size:12px;line-height:20px"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary" data-catalog-latest hidden>${say("workbench.catalog-board.wb.fn-new-msg")}</button></div></figure>
     </div>
     <div class="mw-catalog__specimens">
-      <figure class="mw-catalog__specimen"><figcaption>输入框 · 随内容长高</figcaption><textarea class="mw-textarea mw-catalog-fit" data-fit rows="2" aria-label="试着写几行" placeholder="试着写几行，再删掉"></textarea></figure>
-      <figure class="mw-catalog__specimen"><figcaption>输入框 · 达到上限（160px）</figcaption><textarea class="mw-textarea mw-catalog-fit" data-fit style="--fit-max:160px" rows="2" aria-label="达到上限的输入框">第 1 行：写到上限之后在框内滚动&#10;第 2 行：写到上限之后在框内滚动&#10;第 3 行：写到上限之后在框内滚动&#10;第 4 行：写到上限之后在框内滚动&#10;第 5 行：写到上限之后在框内滚动&#10;第 6 行：写到上限之后在框内滚动&#10;第 7 行：写到上限之后在框内滚动&#10;第 8 行：写到上限之后在框内滚动&#10;第 9 行：写到上限之后在框内滚动&#10;第 10 行：写到上限之后在框内滚动&#10;第 11 行：写到上限之后在框内滚动&#10;第 12 行：写到上限之后在框内滚动&#10;第 13 行：写到上限之后在框内滚动&#10;第 14 行：写到上限之后在框内滚动</textarea></figure>
+      <figure class="mw-catalog__specimen"><figcaption>${say("workbench.catalog-board.wb.fn-cap-fit")}</figcaption><textarea class="mw-textarea mw-catalog-fit" data-fit rows="2" aria-label="${say("workbench.catalog-board.wb.fn-fit-label")}" placeholder="${say("workbench.catalog-board.wb.fn-fit-placeholder")}"></textarea></figure>
+      <figure class="mw-catalog__specimen"><figcaption>${say("workbench.catalog-board.wb.fn-cap-fit-max")}</figcaption><textarea class="mw-textarea mw-catalog-fit" data-fit style="--fit-max:160px" rows="2" aria-label="${say("workbench.catalog-board.wb.fn-fit-max-label")}">${lines}</textarea></figure>
     </div>
   </section>`;
 }

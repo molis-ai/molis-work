@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { trustedReviewActions } from "@molis-ai/molis-work-contracts/services/project-approvals";
-import { printCliJson as print } from "./protocol.js";
+import { printCliJson as print, cliText } from "./protocol.js";
 
 /**
  * What a command may do, handed over by the Host: the platform's protected review operations as the person on this machine, for the one
@@ -20,7 +20,7 @@ export async function dispatchCliProjectCommand(
   const { project_id, ...payload } = input;
   // The payload must carry the project this command is bound to: it names the project, the action takes it from the call.
   const bound = (project: unknown) => {
-    if (project !== actions.project_id) throw new ActionError("actions.scope_mismatch", "请求不属于当前项目");
+    if (project !== actions.project_id) throw new ActionError("actions.scope_mismatch", cliText("workbench.cli.v1-scope-mismatch"));
   };
   switch (operation) {
   case "review-request":
@@ -32,7 +32,7 @@ export async function dispatchCliProjectCommand(
     print(await actions.invoke(trustedReviewActions.decide, payload));
     break;
   default:
-    throw new Error(`未知 V1 operation: ${operation}`);
+    throw new Error(cliText("workbench.cli.v1-unknown-op", { operation: String(operation ?? "") }));
   }
   return 0;
 }

@@ -147,9 +147,7 @@ export class HomeConsentLedger implements PluginConsentLedger {
   revoke: PluginConsentLedger["revoke"] = (consentId, at) => this.use(ledger => ledger.revoke(consentId, at));
   grantProjectReach: PluginConsentLedger["grantProjectReach"] = entry => this.use(ledger => ledger.grantProjectReach(entry));
   revokeProjectReach: PluginConsentLedger["revokeProjectReach"] = (selection, at) => {
-    const existing = openReadOnlyHomePluginStore(this.home);
-    if (!existing) return 0;
-    existing.close();
+    if (!withReadOnlyHomePluginStore(this.home, () => true)) return 0;
     return this.use(ledger => ledger.revokeProjectReach(selection, at));
   };
   publishers: PluginConsentLedger["publishers"] = () => this.use(ledger => ledger.publishers());

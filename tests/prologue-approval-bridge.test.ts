@@ -392,3 +392,22 @@ test("SAI-06/08: a refused wider app allowance preserves the already accepted de
   const receipt = await queue.respond({ review_id: request.review_id, version: request.reference.version, actor_id: "person", decision: "approve", remember: "app-this-round" });
   assert.deepEqual(ledger.answers, ["allow"]); assert.equal(receipt.status, "approved"); assert.ok(!receipt.delivery_error);
 });
+
+test("approval delivery failure before consumeApproval still locks one-time consumption and allows subsequent settlement", async () => {
+  const ledger = pendingLedger(), queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store, now: () => new Date("2026-09-19T00:00:00.000Z") });
+  const bridge = new PrologueApprovalBridge({
+    queue, pendings: ledger.port, now: () => new Date("2026-09-19T00:00:00.000Z"),
+    recordDecision: async () => { throw new Error("记录审批结果失败"); },
+  });
+  const request = bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document, reference: REFERENCE, approval: APPROVAL });
+  const receipt = await bridge.decide({ review_id: request.review_id, version: request.reference.version, decision: "approve", actor_id: "tester" });
+  assert.equal(receipt.status, "approved");
+  assert.equal(receipt.delivery_error, "记录审批结果失败");
+  assert.deepEqual(ledger.answers, [], "never answered execution owner after recordDecision failed");
+  assert.throws(() => queue.consumeApproval(request.review_id), { code: "agent.review_not_approved" },
+    "committed approval whose delivery failed cannot be consumed again");
+  const settled = queue.settle(request.review_id, { ok: false, error: "执行未完成" });
+  assert.equal(settled.effect_settled, false);
+  assert.equal(settled.effect_error, "执行未完成");
+  assert.equal(settled.delivery_error, undefined);
+});

@@ -120,6 +120,16 @@ test("BSH-01 · the real owner refuses a nonzero pending library before starting
   linkSync(external, file + "-shm");
   assert.throws(() => runHomeUpgrade(f.home), { code: "actions.input_invalid" });
   assert.deepEqual(readFileSync(external), sentinel);
+  rmSync(file + "-shm", { force: true });
+  // A single plugin library newer than this build must not crash assertNoPendingArtifactRows: ensureHomeUpgraded isolates only that plugin.
+  const newer = openSqliteConnection(file);
+  try {
+    newer.prepare("UPDATE datasets SET publication_pending_json = NULL").run();
+    newer.exec(`PRAGMA user_version = ${DATASET_DATABASE.version + 1}`);
+  } finally { newer.close(); }
+  const report = runHomeUpgrade(f.home);
+  const unit = report.units.find(item => item.relative_path === "dataset/dataset.db");
+  assert.equal(unit?.state, "too_new", "too-new plugin library is isolated as too_new instead of crashing whole-Home startup");
 });
 
 test("BSH-03 · a registered project recovers the WAL mode change; staging stays in WAL and linked SQLite files are refused", { timeout: 20_000 }, async t => {

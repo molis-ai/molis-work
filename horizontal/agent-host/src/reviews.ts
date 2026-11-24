@@ -433,6 +433,9 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     }, write) });
     try {
       const receipt = await handler.respond(input, commit);
+      if (committed && (receipt.delivery_error || receipt.effect_error !== null) && row.receipt.status === "approved") {
+        this.#consumed.add(input.review_id);
+      }
       if (key && committed && !receipt.delivery_error && !receipt.effect_error) {
         try { assertCurrent(); this.permissions.rememberCommand(key, request, input.actor_id, row.receipt.decided_at!); }
         catch { this.rememberFailed(input.review_id, "原操作已决定，后续授权范围已变化，请重新设置"); }
@@ -447,6 +450,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   deliveryFailed(reviewId: string, message: string): AgentReviewReceipt {
     const row = this.#rows.get(reviewId);
     if (!row) throw agentErrors.review_unknown("找不到这条待审操作");
+    if (row.receipt.status === "approved") this.#consumed.add(reviewId);
     if (!row.receipt.effect_settled && row.receipt.effect_error === null) row.receipt.delivery_error = message;
     return structuredClone(row.receipt);
   }

@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { lstat, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { collectHomeAggregate, homeAggregatePorts, HomeAggregateInputEach, HomeConsentLedger, LocalHost, molisWorkHostProjectReference, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { activeLocale, collectHomeAggregate, homeAggregatePorts, homeBackgroundTasks, HomeAggregateInputEach, HomeConsentLedger, LocalHost, molisWorkHostProjectReference, MolisWorkLocalHost, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type BackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { inspectActionDeclarations, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
@@ -718,4 +718,249 @@ test("S-49 unopenable closed projects do not thrash background wakes until their
   assert.ok(afterRestart.answers.some(answer => answer.project_id === corrupt.project_id && answer.resting === true));
   await ports2.resting!.readings.pass;
   assert.deepEqual(opened2, [active.project_id], "only the project shut down with active work wakes quietly");
+});
+
+test("S-49 resting snapshots invalidate on Home aggregate DB writes, restart-bound waiting tasks, expired reported failures, and locale switch", { timeout: 60_000 }, async t => {
+  const home = await realpath(await mkdtemp(join(tmpdir(), "home-aggregate-semantics-")));
+  const hosts: MolisWorkLocalHost[] = [];
+  t.after(async () => {
+    for (const host of hosts.reverse()) {
+      try { await host.close(); } catch { /* already closed */ }
+    }
+    await rm(home, { recursive: true, force: true });
+  });
+  const projectRow = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "SemanticsProj", actor_id: "user" }));
+  const proj = molisWorkHostProjectReference({ projectId: projectRow.project_id, databasePath: projectRow.database_path });
+  const BG_PLUGIN_ID = "com.example.bgsemantics";
+  const bgAction: ActionDefinition<Record<string, never>, BackgroundTaskCollection> = {
+    capability_id: "bgsemantics.tasks", version: 1, operation: "query",
+    action: {
+      title: "后台任务探针", description: "测试休眠聚合语义", kind: "query", scope: "project", scheduling: "concurrent",
+      audiences: ["user"], subject_kinds: ["probe_task"], permissions: [READ], home_aggregate: true, output_type: BACKGROUND_TASKS_OUTPUT_TYPE,
+      input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "object" },
+    },
+  };
+  let mode: "approval" | "verify" | "expired-failed" | "clean" = "approval";
+  const makeBgPlugin = (): PluginDefinition => ({
+    manifest: {
+      schema_version: 1, host_api_version: 1, plugin_id: BG_PLUGIN_ID, version: "1.0.0", name: "bgsemantics", kind: "app",
+      publisher: { publisher_id: "example", signature: "bgsemantics" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+      permissions: [{ permission: READ, required: true, reason: "读后台任务" }],
+      capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+      actions: [bgAction],
+    },
+    async start() {
+      return {
+        kind: "app", views: [],
+        actions: [{
+          ...bgAction,
+          handle(): BackgroundTaskCollection {
+            const locale = activeLocale() ?? "zh";
+            const nowIso = new Date().toISOString();
+            const expiredIso = new Date(Date.now() - 15 * 60_000).toISOString();
+            if (mode === "clean") return { source: { surface: "bgsemantics", title: "Probe", icon: "code" }, tasks: [] };
+            if (mode === "expired-failed") {
+              return {
+                source: { surface: "bgsemantics", title: "Probe", icon: "code" },
+                tasks: [{
+                  subject: { kind: "probe_task", id: "failed-img" }, title: locale === "en" ? "Failed image" : "生图失败",
+                  state: "failed", waiting: false, updated_at: expiredIso, step: { text: locale === "en" ? "Failed" : "失败" },
+                  details: [], executor: { kind: "plugin", label: "Probe" }, serves: [], scope: "project", commands: [], decisions: [],
+                  open: { kind: "surface", surface: "bgsemantics", id: null, title: "Probe", label: "Open" }, reports_to: "assistant",
+                }],
+              };
+            }
+            const state = mode === "approval" ? "approval" : "verify";
+            return {
+              source: { surface: "bgsemantics", title: "Probe", icon: "code" },
+              tasks: [{
+                subject: { kind: "probe_task", id: "sess-1" }, title: locale === "en" ? "Review session" : "待审会话",
+                state, waiting: state === "approval", updated_at: nowIso,
+                step: { text: locale === "en" ? `step:${state}:en` : `step:${state}:zh` },
+                details: [], executor: { kind: "plugin", label: "Probe" }, serves: [], scope: "project", commands: [], decisions: [],
+                open: { kind: "surface", surface: "bgsemantics", id: null, title: "Probe", label: "Open" },
+              }],
+            };
+          },
+        }],
+      };
+    },
+  });
+  const startHost = (opened: string[]) => {
+    const host = new MolisWorkLocalHost({
+      homeDirectory: home, completeText: null, pluginFixtures: { project: [makeBgPlugin()] },
+      onRuntimeOpen: ref => { opened.push(ref.project_id); },
+    });
+    host.configurePersonalPlanning(home, withCatalog);
+    hosts.push(host);
+    return host;
+  };
+  const projects = [{ project_id: proj.project_id, display_name: "SemanticsProj" }];
+
+  // 1. Same-process sleep keeps waiting-approval resting summary, and switches cleanly across zh/en locales.
+  const opened1: string[] = [];
+  const host1 = startHost(opened1);
+  const ports1 = homeAggregatePorts(host1);
+  await runWithLocale("zh", async () => {
+    await homeBackgroundTasks(ports1, projects);
+    await ports1.resting!.readings.pass;
+  });
+  assert.equal(await host1.sleepIfIdle(proj, 0), true);
+  opened1.length = 0;
+  const zhResting = await runWithLocale("zh", () => homeBackgroundTasks(ports1, projects));
+  assert.equal(zhResting.tasks[0]?.state, "approval");
+  assert.equal(zhResting.tasks[0]?.step?.text, "step:approval:zh");
+  assert.equal(zhResting.tasks[0]?.resting, true);
+  assert.deepEqual(opened1, [], "same-process zh resting hit opens zero projects");
+
+  // Switching to English must not serve the zh resting reading.
+  const enMiss = await runWithLocale("en", () => homeBackgroundTasks(ports1, projects));
+  assert.equal(enMiss.tasks.length, 0, "en read does not reuse zh cached strings");
+  await ports1.resting!.readings.pass;
+  assert.deepEqual(opened1, [proj.project_id], "en miss wakes quietly in en");
+  assert.equal(await host1.sleepIfIdle(proj, 0), true);
+  opened1.length = 0;
+  const enResting = await runWithLocale("en", () => homeBackgroundTasks(ports1, projects));
+  assert.equal(enResting.tasks[0]?.step?.text, "step:approval:en");
+  assert.equal(enResting.tasks[0]?.resting, true);
+  assert.deepEqual(opened1, []);
+
+  // 2. Writing to a Home-level aggregate DB (images/images.db) invalidates the sleeping project immediately.
+  await mkdir(join(home, "images"), { recursive: true });
+  const imgDb = new DatabaseSync(join(home, "images", "images.db"));
+  try {
+    imgDb.exec("CREATE TABLE probe (id INTEGER PRIMARY KEY); INSERT INTO probe VALUES (1);");
+  } finally {
+    imgDb.close();
+  }
+  const afterImagesWrite = await runWithLocale("zh", () => homeBackgroundTasks(ports1, projects));
+  assert.equal(afterImagesWrite.tasks.length, 0, "creating/writing images.db invalidates sleeping project immediately");
+  await ports1.resting!.readings.pass;
+  assert.deepEqual(opened1, [proj.project_id]);
+  assert.equal(await host1.sleepIfIdle(proj, 0), true);
+  await host1.close();
+
+  // 3. Restarting Host must NOT replay a pre-restart waiting-approval task from disk; it must wake once and reconcile to verify.
+  mode = "verify";
+  const opened2: string[] = [];
+  const host2 = startHost(opened2);
+  const ports2 = homeAggregatePorts(host2);
+  const afterRestart = await runWithLocale("zh", () => homeBackgroundTasks(ports2, projects));
+  assert.equal(afterRestart.tasks.length, 0, "pre-restart approval task is not replayed blindly after restart");
+  await ports2.resting!.readings.pass;
+  assert.deepEqual(opened2, [proj.project_id], "project wakes quietly once to reconcile pre-restart approval state");
+  assert.equal(await host2.sleepIfIdle(proj, 0), true);
+  const reconciled = await runWithLocale("zh", () => homeBackgroundTasks(ports2, projects));
+  assert.equal(reconciled.tasks[0]?.state, "verify");
+  assert.equal(reconciled.tasks[0]?.resting, true);
+  await host2.close();
+
+  // 4. Restarting again with `verify` (non-process-bound) serves directly from disk with zero opens.
+  const opened3: string[] = [];
+  const host3 = startHost(opened3);
+  const ports3 = homeAggregatePorts(host3);
+  const verifyPersisted = await runWithLocale("zh", () => homeBackgroundTasks(ports3, projects));
+  assert.equal(verifyPersisted.tasks[0]?.state, "verify");
+  assert.equal(verifyPersisted.tasks[0]?.resting, true);
+  await ports3.resting!.readings.pass;
+  assert.deepEqual(opened3, [], "post-restart verify state persists across restarts with zero opens");
+
+  // 5. Time-expired `reports_to` failed task (>10 min old) fails `stillValid` and re-reads cleanly instead of freezing forever.
+  mode = "expired-failed";
+  await host3.withProject(proj, () => undefined);
+  await runWithLocale("zh", () => homeBackgroundTasks(ports3, projects));
+  assert.equal(await host3.sleepIfIdle(proj, 0), true);
+  mode = "clean";
+  opened3.length = 0;
+  const expiredRead = await runWithLocale("zh", () => homeBackgroundTasks(ports3, projects));
+  assert.equal(expiredRead.tasks.length, 0, "expired reported failure (>10m) is rejected by stillValid");
+  await ports3.resting!.readings.pass;
+  assert.deepEqual(opened3, [proj.project_id], "expired reported failure triggers quiet refresh");
+  await host3.close();
+
+  // 6. Assistant DB per-project isolation (no wake storm on notices/rounds/main works) and third-party Home library invalidation.
+  const projOtherCreated = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "SleepingSibling", actor_id: "user" }));
+  const projOther = molisWorkHostProjectReference({ projectId: projOtherCreated.project_id, databasePath: projOtherCreated.database_path });
+  const bothProjects = [...projects, { project_id: projOther.project_id, display_name: "SleepingSibling" }];
+  await mkdir(join(home, "assistant"), { recursive: true });
+  const assistantDb = new DatabaseSync(join(home, "assistant", "assistant.db"));
+  try {
+    assistantDb.exec(`
+      CREATE TABLE assistant_works (work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL);
+      CREATE TABLE assistant_observed (actor_id TEXT NOT NULL, work_id TEXT NOT NULL, state TEXT NOT NULL, PRIMARY KEY(actor_id, work_id));
+      CREATE TABLE assistant_notices (notice_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL, dedupe TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL);
+      CREATE TABLE assistant_rounds (work_id TEXT NOT NULL, run_id TEXT NOT NULL, position INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY(work_id, run_id));
+    `);
+  } finally {
+    assistantDb.close();
+  }
+  mode = "verify";
+  const opened4: string[] = [];
+  const host4 = startHost(opened4);
+  const ports4 = homeAggregatePorts(host4);
+  await host4.withProject(proj, () => undefined);
+  await host4.withProject(projOther, () => undefined);
+  await runWithLocale("zh", async () => {
+    await homeBackgroundTasks(ports4, bothProjects);
+    await ports4.resting!.readings.pass;
+  });
+  assert.equal(await host4.sleepIfIdle(proj, 0), true);
+  assert.equal(await host4.sleepIfIdle(projOther, 0), true);
+  opened4.length = 0;
+  // Unrelated writes (notice, round, personal work, project main conversation) must NOT invalidate either sleeping project.
+  const assistantUnrelated = new DatabaseSync(join(home, "assistant", "assistant.db"));
+  try {
+    assistantUnrelated.prepare("INSERT INTO assistant_notices VALUES ('n1','user','w-main','done','new','d1','2026-11-24T00:00:00Z','{}')").run();
+    assistantUnrelated.prepare("INSERT INTO assistant_rounds VALUES ('w-main','r1',1,'{\"text\":\"long chat\"}')").run();
+    assistantUnrelated.prepare("INSERT INTO assistant_works VALUES ('w-personal','user',1,'2026-11-24T00:00:00Z',0,?)")
+      .run(JSON.stringify({ work_id: "w-personal", scope: { kind: "personal" } }));
+    assistantUnrelated.prepare("INSERT INTO assistant_works VALUES ('w-main','user',1,'2026-11-24T00:00:00Z',0,?)")
+      .run(JSON.stringify({ work_id: "w-main", main: true, project_ref: { project_id: proj.project_id } }));
+  } finally {
+    assistantUnrelated.close();
+  }
+  const afterUnrelatedAssistant = await runWithLocale("zh", () => homeBackgroundTasks(ports4, bothProjects));
+  assert.equal(afterUnrelatedAssistant.tasks.filter(task => task.resting === true).length, 2, "unrelated assistant writes keep both sleeping projects cached");
+  await ports4.resting!.readings.pass;
+  assert.deepEqual(opened4, [], "unrelated assistant writes trigger zero wakes");
+  // Writing a non-main project work for `proj` invalidates ONLY `proj`, leaving `projOther` asleep.
+  const assistantProjectWork = new DatabaseSync(join(home, "assistant", "assistant.db"));
+  try {
+    assistantProjectWork.prepare("INSERT INTO assistant_works VALUES ('w-task-1','user',1,'2026-11-24T00:01:00Z',0,?)")
+      .run(JSON.stringify({ work_id: "w-task-1", project_ref: { project_id: proj.project_id } }));
+  } finally {
+    assistantProjectWork.close();
+  }
+  const afterTargetedWork = await runWithLocale("zh", () => homeBackgroundTasks(ports4, bothProjects));
+  assert.deepEqual(afterTargetedWork.tasks.map(task => task.project_id), [projOther.project_id], "only the affected project invalidates while sibling stays resting");
+  await ports4.resting!.readings.pass;
+  assert.deepEqual(opened4, [proj.project_id], "only the affected project wakes quietly");
+  assert.equal(await host4.sleepIfIdle(proj, 0), true);
+  // Third-party Home library registered in plugin-libraries/plugin-libraries.db invalidates sleeping projects on write.
+  await mkdir(join(home, "plugin-libraries"), { recursive: true });
+  await mkdir(join(home, "third-party-agg"), { recursive: true });
+  const libLedger = new DatabaseSync(join(home, "plugin-libraries", "plugin-libraries.db"));
+  try {
+    libLedger.exec(`
+      CREATE TABLE plugin_home_libraries (
+        plugin_id TEXT PRIMARY KEY, publisher_signature TEXT NOT NULL, store_name TEXT NOT NULL UNIQUE,
+        version INTEGER NOT NULL, schema_digest TEXT NOT NULL, created_at TEXT NOT NULL
+      );
+      INSERT INTO plugin_home_libraries VALUES ('example.third-party.agg', 'sig-1', 'third-party-agg', 1, '${"a".repeat(64)}', '2026-11-24T00:00:00Z');
+    `);
+  } finally {
+    libLedger.close();
+  }
+  const thirdPartyDb = new DatabaseSync(join(home, "third-party-agg", "third-party-agg.db"));
+  try {
+    thirdPartyDb.exec("CREATE TABLE jobs (id INTEGER PRIMARY KEY); INSERT INTO jobs VALUES (1);");
+  } finally {
+    thirdPartyDb.close();
+  }
+  opened4.length = 0;
+  const afterThirdPartyWrite = await runWithLocale("zh", () => homeBackgroundTasks(ports4, bothProjects));
+  assert.equal(afterThirdPartyWrite.tasks.length, 0, "installed third-party Home library mutation invalidates sleeping projects");
+  await ports4.resting!.readings.pass;
+  assert.deepEqual(opened4.sort(), [proj.project_id, projOther.project_id].sort());
+  await host4.close();
 });

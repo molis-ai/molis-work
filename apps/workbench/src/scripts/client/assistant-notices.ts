@@ -21,7 +21,7 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
     attentionRead({ count: true }, pending.signal).then(result => {
       if (!pending.signal.aborted && pending === badgeRead) { attentionObjectsCount = result.count; attentionSubjects = Array.isArray(result.subjects) ? result.subjects : []; canRestoreAttention = result.can_restore === true; paintAttention(); }
     }, () => {
-      if (!pending.signal.aborted && pending === badgeRead) { badgeAt = null; attentionObjectsCount = 0; attentionSubjects = []; canRestoreAttention = false; paintAttention(); }
+      if (!pending.signal.aborted && pending === badgeRead) { badgeAt = null; }
     });
   };
   let notices = [];
@@ -183,20 +183,42 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
   barNotices?.addEventListener("click", () => { const shut = noticePop.hidden || noticeTrigger !== barNotices; setNotices(shut, "notices", barNotices); });
   // Notices come with the page's attention read (attention.ts).
   const loadNotices = () => document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
+  let autoSeenPending = null, autoSeenFor = null, autoSeenFailures = 0, autoSeenRetryAfter = 0;
   document.addEventListener("molis-work:attention", (event) => {
     const detail = event.detail || {};
     readBadge(detail.board_cursor);
     if (typeof detail.plugin_events_pending === "number" && detail.started > pluginHeldSince) pluginWaiting = detail.plugin_events_pending;
     if (Array.isArray(detail.notices)) {
       notices = detail.notices;
+      if (autoSeenFor !== curId) { autoSeenFor = curId; autoSeenFailures = 0; autoSeenRetryAfter = 0; }
       // A work the person has open in front of them is being seen: its notices need no badge.
-      if (panel && !panel.hidden && curId && notices.some((notice) => notice.work_id === curId && !notice.held)) { void settleNotice({ work_id: curId }, "seen"); return; }
+      if (panel && !panel.hidden && curId && notices.some((notice) => notice.work_id === curId && !notice.held)) {
+        if (!autoSeenPending && Date.now() >= autoSeenRetryAfter) {
+          void settleNotice({ work_id: curId }, "seen", true);
+          if (autoSeenFailures === 0) return;
+        }
+      }
     }
     paintAttention();
   });
-  const settleNotice = async (target, state) => {
-    try { await api("/notices", "POST", Object.assign({ state }, target)); } catch { /* the next read shows it again */ }
-    loadNotices();
+  const settleNotice = async (target, state, auto = false) => {
+    if (auto) {
+      if (autoSeenPending || Date.now() < autoSeenRetryAfter) return;
+      autoSeenPending = target.work_id || "";
+    }
+    try {
+      await api("/notices", "POST", Object.assign({ state }, target));
+      if (auto && autoSeenFor === (target.work_id || "")) { autoSeenFailures = 0; autoSeenRetryAfter = 0; }
+      loadNotices();
+    } catch {
+      if (auto && autoSeenFor === (target.work_id || "")) {
+        autoSeenFailures += 1;
+        autoSeenRetryAfter = Date.now() + Math.min(30000, 1000 * (2 ** Math.min(autoSeenFailures - 1, 5)));
+        paintAttention();
+      }
+    } finally {
+      if (auto && autoSeenPending === (target.work_id || "")) autoSeenPending = null;
+    }
   };
   if (project) {
     let looking = false;

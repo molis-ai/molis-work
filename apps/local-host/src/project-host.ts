@@ -72,7 +72,7 @@ import { agentStudioOpen, releaseAgentStudio } from "./plugin-builder/agent-surf
 import { clearProjectRestingReadings, homeAggregatePorts, persistProjectRestingReadings, persistShutdownRestingReadings, trackRestingSleepPersist } from "./home-aggregate.js";
 import { backgroundWorkUnderWay } from "./home-background-tasks.js";
 import { readOnlyAlwaysOnProjectPlugins, withFreshReadOnlyPluginDirectory } from "./always-on-plugins.js";
-import { computeProjectRestingFingerprint, homePluginsSemanticStamp, pluginFixturesStamp } from "./resting-readings-store.js";
+import { computeProjectRestingFingerprint, homeAggregateStoresFingerprint, homePluginsSemanticStamp, pluginFixturesStamp } from "./resting-readings-store.js";
 import { installedPluginsStarting, releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPreparedProject } from "./project-plugin-ports.js";
 import fs from "node:fs";
@@ -606,6 +606,8 @@ export class MolisWorkLocalHost {
     if (!home || !this.catalogRunner || references.length === 0) return new Map();
     const homePluginsStamp = homePluginsSemanticStamp(home, pluginFixturesStamp(this.options.pluginFixtures));
     if (!homePluginsStamp) return new Map(references.map(reference => [reference.storage_key, null]));
+    const homeAggregateStoresStamp = homeAggregateStoresFingerprint(home, { fixtures: this.options.pluginFixtures, homePluginsStamp });
+    if (!homeAggregateStoresStamp) return new Map(references.map(reference => [reference.storage_key, null]));
     try {
       return await this.catalogRunner({ homeDirectory: home }, catalog => withFreshReadOnlyPluginDirectory(home, () => {
         const byId = new Map(catalog.listProjects().map(project => [project.project_id, project]));
@@ -623,6 +625,7 @@ export class MolisWorkLocalHost {
             createdAt: project.created_at,
             membership,
             homePluginsStamp,
+            homeAggregateStoresStamp,
           }));
         }
         return result;
@@ -662,12 +665,13 @@ export class MolisWorkLocalHost {
   }
 
   close(): Promise<void> {
+    let openBeforeClose: Array<{ readonly reference: LocalHostProjectReference; readonly usedAt: number | undefined; readonly persistable: boolean }> = [];
     return closeHomeStorageLifetime(this, this.closing, [
         ["page-drafts", () => this.draftReferences.close()], ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
         ["projects", async () => {
           if (!this.host) return;
           const runtimesByProject = new Map(this.host.openRuntimes().map(runtime => [runtime.project_id, runtime]));
-          const openBeforeClose = this.host.projects()
+          openBeforeClose = this.host.projects()
             .filter(project => project.state !== "closing")
             .map(project => {
               const runtime = runtimesByProject.get(project.project_id);
@@ -684,12 +688,13 @@ export class MolisWorkLocalHost {
               };
             });
           await this.host.close();
-          if (openBeforeClose.length) {
-            try { await persistShutdownRestingReadings(this, openBeforeClose); }
-            catch (error) { hostLog.warn("home", "resting_readings_shutdown_failed", error); }
-          }
         }], ["functions", () => this.systemFunctions?.dispose()],
         ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["observation", () => this.observation?.close()], ["sessions", () => this.sessions?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)], ["evaluation", () => closeHomeEvaluation(this.personalPlanningHome)], ["assistant", () => this.assistantStore?.close()],
+        ["resting-readings", async () => {
+          if (!openBeforeClose.length) return;
+          try { await persistShutdownRestingReadings(this, openBeforeClose); }
+          catch (error) { hostLog.warn("home", "resting_readings_shutdown_failed", error); }
+        }],
     ], () => this.webCatalog?.access.close(), [["connectors", () => closeConnectorResources(this.options.homeDirectory, this.connectorMcp)],
       ["home-side", () => releaseHomeSide(this)]]);
   }

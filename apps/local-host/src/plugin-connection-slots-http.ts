@@ -29,27 +29,32 @@ const RECORD_QUERY = ["project", "plugin_id", "slot_id", "record_key"], RECORD_B
 type TrustedPage = NonNullable<ReturnType<typeof pluginPageRequest>>;
 
 /**
- * The current page, for a request only the trusted shell makes: the outer document's `x-molis-context-page`, in the page's own project.
+ * The current page, for a request only the trusted shell makes: the outer document's `x-molis-context-page`, in the page's own project or its projectless Home.
  * The child's fetch bridge drops that header, and the transport guard refuses it beside the child's `x-molis-plugin-page`.
  */
-export function trustedPluginPage(context: WebRequestContext, project: LocalHostProjectReference | undefined): { page: TrustedPage; project: LocalHostProjectReference } {
+export function scopedContextPage(context: WebRequestContext, project: LocalHostProjectReference | undefined): TrustedPage {
   const page = pluginPageRequest(context.request);
-  if (!page || !context.request.headers["x-molis-context-page"] || !project || project.project_id !== page.project_id)
-    throw new ActionError("actions.forbidden", "账号选择需要当前项目的可信控件");
-  return { page, project };
+  if (!page || !context.request.headers["x-molis-context-page"] || (project?.project_id ?? null) !== page.project_id)
+    throw new ActionError("actions.forbidden", "连接卡需要当前页面的可信控件");
+  return page;
+}
+
+export function trustedPluginPage(context: WebRequestContext, project: LocalHostProjectReference | undefined): { page: TrustedPage; project: LocalHostProjectReference } {
+  if (!project) throw new ActionError("actions.forbidden", "账号选择需要当前项目的可信控件");
+  return { page: scopedContextPage(context, project), project };
 }
 
 /**
  * The person's own action client, fenced by the page: every call's authority check asks the page again, and its effect boundary too.
  * `press` stamps the calls as one press of the person in a trusted Host control (S-58); the fence stays the page's either way.
  */
-export async function pageOwnerClient(context: WebRequestContext, project: LocalHostProjectReference, page: TrustedPage,
+export async function pageOwnerClient(context: WebRequestContext, project: LocalHostProjectReference | undefined, page: TrustedPage,
   press?: Pick<ActionCallContext, "actor_kind" | "user_action">) {
   const original = await localWebActionContext(context.localHost, project, LOCAL_OWNER_PERMISSIONS, page.signal);
   const caller: ActionCallContext = { ...original, ...press,
     validate_authority: async (...args) => { await original.validate_authority?.(...args); await page.beforeEffect(); },
     assert_authority_current: (...args) => { original.assert_authority_current?.(...args); page.assertCurrent(); } };
-  return bindActionClient(context.localHost.actionClient(project), () => caller);
+  return bindActionClient(project ? context.localHost.actionClient(project) : context.localHost.homeActionClient(), () => caller);
 }
 
 /** Trusted Host picker only: same owner actions as the person's record-slot UI, fenced by the current page. */

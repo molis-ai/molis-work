@@ -147,6 +147,7 @@
     "common.component-connection-need.description": "接上账号后继续刚才的操作",
     "common.component-connection-need.name": "原处连接卡",
     "common.component-connection-need.preview": "安装插件后，可以在这里连接账号。",
+    "common.component-connection-need.unavailable": "暂时无法打开连接卡。已保留输入，可以重试。",
     "common.component-context-menu.description": "右键出现的操作",
     "common.component-context-menu.name": "右键菜单",
     "common.component-date-picker.description": "日期、月份、时间",

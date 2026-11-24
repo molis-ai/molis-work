@@ -38,14 +38,12 @@ export function pcSubmit(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry) {
               report(part, 'error', t.text("common.generated.input-preserved"));
               return;
             }
-            const selectionChanged = () => Object.values(node.submit!.input).some(binding =>
-              binding.source === 'selection' && payload.selection[binding.componentId] !== c.selection[binding.componentId]);
             const controller = part.connection = new AbortController();
             try {
               const target = need.kind === 'image' ? need : { kind: 'slot' as const, slot_id: need.slot_id, ...(recordField && typeof key === 'string' ? { record_key: key } : {}) };
               const outcome = await options.connectionNeed(part.connectionPlace, target, { signal: controller.signal });
               if (!live(part, generation) || controller.signal.aborted || c.currentPage !== node.pageId) return;
-              if (outcome.status !== 'connected' || part.draft !== submitted || selectionChanged()) {
+              if (outcome.status !== 'connected' || part.draft !== submitted) {
                 report(part, '', '');
                 return;
               }
@@ -55,14 +53,16 @@ export function pcSubmit(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry) {
                 dialog.returnValue = '';
                 dialog.showModal();
                 controller.signal.addEventListener('abort', () => dialog.close(''), { once: true });
-                if (!await confirmed || controller.signal.aborted || !live(part, generation) || selectionChanged()) {
+                if (!await confirmed || controller.signal.aborted || !live(part, generation)) {
                   report(part, '', '');
                   return;
                 }
               }
-            } catch (error) {
-              if (!controller.signal.aborted) throw error;
-              if (live(part, generation)) report(part, '', '');
+            } catch {
+              if (live(part, generation)) {
+                if (controller.signal.aborted) report(part, '', '');
+                else report(part, 'error', t.text('common.component-connection-need.unavailable'));
+              }
               return;
             } finally { part.connection = undefined; }
           }

@@ -164,7 +164,7 @@ export function pcOutput(c: State & Kit & Rel & Rec & Det) {
     part.output.replaceChildren(fragment);
     if (binding === 'read' && Array.isArray(value) && node.props.idField && c.selection[node.id]) {
       const selectedId = at(c.selection[node.id], node.props.idField);
-      c.selection[node.id] = value.find(row => at(row, node.props.idField) === selectedId);
+      c.replaceSelection(node.id, value.find(row => at(row, node.props.idField) === selectedId));
     }
     showDetail(part);
   }

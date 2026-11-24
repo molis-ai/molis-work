@@ -47,6 +47,53 @@ test('SCS-11: opening a signed record refuses two matches in one component and o
   })()`);
   assert.deepEqual(result, { rows: 3, opened: false, focusStayed: true, selected: 0, extraReads: 0, writes: 0 });
 });
+test('BL-1057 changing records closes the pending card while refreshing the same record preserves its submission', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'studio-record-card-'));
+  const browser = await openStudioChrome(dir);
+  t.after(async () => { try { await browser?.close(); } finally { await rm(dir, { recursive: true, force: true }); } });
+  if (!browser) { t.skip('Chrome is required'); return; }
+  const page = await componentPage(browser);
+  const nodes = [
+    { id: 'notes', kind: 'directory', intent: 'collection', pageId: 'home', regionId: 'main', purpose: 'Notes',
+      props: { idField: 'id', titleField: 'text' }, read: { operationId: 'notes.list', input: {} } },
+    { id: 'save', kind: 'connection-need', intent: 'action', pageId: 'home', regionId: 'main', purpose: 'Save',
+      props: { submitLabel: 'Save' }, submit: { operationId: 'notes.add', input: { text: { source: 'selection', componentId: 'notes', field: 'id' } } },
+      connectionNeed: { slot_id: 'source', recordField: 'text' } },
+  ];
+  const view = { contract: packageContract(), nodes, connected: ['notes.list', 'notes.add'] };
+  await page.evaluate(`(async () => {
+    document.body.innerHTML='<main id="root"></main>';
+    window.bindings = []; window.submissions = [];
+    window.app = (${PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT})({root: document.querySelector('#root'),
+      call: async (id, binding, payload) => {
+        if (binding === 'read') return [{id:'A',text:'first'},{id:'B',text:'second'}];
+        submissions.push(payload.selection.notes.id); return true;
+      },
+      connectionNeed: (place, target, {signal}) => new Promise(resolve => {
+        window.currentCard = {key: target.record_key, signal};
+        window.connect = () => { if (signal.aborted) return; bindings.push(target.record_key); resolve({status:'connected'}); };
+        signal.addEventListener('abort', () => resolve({status:'cancelled'}), {once:true});
+      })
+    });
+    await app.update(${JSON.stringify(view)});
+  })()`);
+  const choose = (id: string) => page.click('[data-record-id="' + id + '"] [data-pc-select]');
+  const submit = '[data-component-id="save"] [type=submit]';
+  await choose('A');
+  await page.click(submit);
+  await page.wait("window.currentCard?.key === 'A'");
+  await choose('B');
+  await page.wait('currentCard.signal.aborted');
+  await page.evaluate('connect()');
+  assert.deepEqual(await page.evaluate('[bindings,submissions]'), [[], []]);
+  await page.click(submit);
+  await page.wait("window.currentCard.key === 'B'");
+  await page.evaluate("app.refresh('notes')");
+  assert.equal(await page.evaluate('currentCard.signal.aborted'), false);
+  await page.evaluate('connect()');
+  await page.wait('submissions.length === 1');
+  assert.deepEqual(await page.evaluate('[bindings,submissions]'), [['B'], ['B']]);
+});
 test('BL-1057 a per-record connection must belong to the submitted command and use a bound string field', () => {
   const perRecord = { slots: [{ slot_id: 'source', service_id: 'github', binding: 'per_record' as const, reason: 'Save the account note' }] };
   const connected = structuredClone(contract);

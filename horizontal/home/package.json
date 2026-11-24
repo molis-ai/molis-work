@@ -1,0 +1,32 @@
+{
+  "name": "@molis-ai/molis-work-service-home",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The project homepage service: manages generated page definitions, immutable versions, SHA-256 content-addressed files, explicit approval receipts, retention, and design-language checks in its own Home store.",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
+    "@molis-ai/molis-work-storage": "workspace:*"
+  }
+}

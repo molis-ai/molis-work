@@ -177,6 +177,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
           receipt: showToast,
           changed: () => { projectHome?.sync(); tabWorkspace?.syncHomeClones?.(); projectPositions?.invalidate(); },
           offerApi: (path, method, body, signal) => molisWorkRequest(route(path), { method, body, signal }),
+          routePrefix: route(""),
+          headers: () => molisWorkControlHeaders(),
           words: (text, signal) => globalThis.molisWorkSurfaceText?.install(route("/api/ui/locales"), text, signal) ?? Promise.resolve(),
         }),
         discussionObjects: frame => projectPositions?.discussion(frame, (path, body, signal) => molisWorkRequest(path, { body, signal })),

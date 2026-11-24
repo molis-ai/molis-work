@@ -17,6 +17,7 @@
 
 - [助理三条路径定样](assistant-proactive-paths/README.md)
 - [37-1 · 生成页面运行、采用与恢复定样（原型）](generated-page-adoption/README.md)
+- [第 37 批合并定样：36A 第一页挂载与事项工作台](batch-37-workbench/README.md) — 2026-11-23 新增，待用户确认；实现与定样同一个 PR，落地后移入归档
 - [Onboarding 全程：可点的定样（路线书第 04 批）](onboarding-full-journey/README.md)
 - [创作台主路径定样](plugin-studio-main-path/README.md)
 - [运行与恢复定样（第 25、26 批）](runtime-and-recovery/README.md)

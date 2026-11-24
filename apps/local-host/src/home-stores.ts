@@ -9,6 +9,7 @@ import { ARTIFACTS_HOME_STORE } from "@molis-ai/molis-work-module-artifacts";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTERS_HOME_STORE } from "@molis-ai/molis-work-module-characters";
 import { MAINLINE_HOME_STORE } from "@molis-ai/molis-work-service-mainline";
+import { HOME_PAGES_HOME_STORE } from "@molis-ai/molis-work-service-home";
 import { FUNCTIONS_HOME_STORE } from "@molis-ai/molis-work-module-judgment-rules";
 import { KNOWLEDGE_CARDS_HOME_STORE, MEMORY_FORGETTING_HOME_STORE, MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE,
   homeStoreRegistry, inspectMemoryForgetting, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
@@ -117,6 +118,8 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("horizontal/observation", OBSERVATION_HOME_STORE),
     // Each person's work items of each project (specs/work-mainline §6): names, references and the arrangement only.
     ...owned("horizontal/mainline", MAINLINE_HOME_STORE),
+    // Generated project home pages, versions, verified SHA-256 blobs and approval receipts (Batch 37).
+    ...owned("horizontal/home", HOME_PAGES_HOME_STORE),
     ...owned("horizontal/blueprints", BLUEPRINTS_HOME_STORE),
     ...owned("horizontal/evaluation", EVALUATION_HOME_STORE),
     ...owned("horizontal/sessions", EXTERNAL_SESSIONS_HOME_STORE),

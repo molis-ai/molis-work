@@ -7,7 +7,7 @@ import { bindActionHandler, defineBackgroundTasksAction, inputSchemaFor, defineT
 import type { ReviewRequest, StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ASSISTANT_NEXT_STEP_REVIEW, type AssistantPendingReview, type AssistantScope, type AssistantSendInput, type AssistantWorkState, assistantUnderWay, assistantWaitsOnPerson } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { MAINLINE_PROVIDER_ID, mainlineActions, type BackgroundTasksReadResult, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import { MAINLINE_PROVIDER_ID, mainlineActions, mainlineItemActions, type BackgroundTasksReadResult, type MainlineReadResult, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { assistantErrors } from "./assistant-errors.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { workTitle } from "./assistant-work-title.js";
@@ -303,29 +303,80 @@ export function assistantLineSource(store: Pick<AssistantStore, "list" | "observ
   };
 }
 
-/** The standing main conversation of a scope with a counterpart (the Assistant: null), if it has been opened and not put away. */
-export function mainWorkOf(store: Pick<AssistantStore, "list">, actorId: string, scope: AssistantScope, character: AssistantCharacterRef | null): StoredWork | undefined {
+/** Validates an optional work item id carried on `AssistantSendInput` (MLN-16). */
+export function workItemIdOf(raw: unknown): string | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "string" || !raw.trim() || raw.length > 200) {
+    throw assistantErrors.invalid("事项标识无效");
+  }
+  return raw;
+}
+
+/** The standing main conversation of a scope (and optional work item) with a counterpart (the Assistant: null), if open. */
+export function mainWorkOf(
+  store: Pick<AssistantStore, "list">,
+  actorId: string,
+  scope: AssistantScope,
+  character: AssistantCharacterRef | null,
+  workItemId: string | null = null,
+): StoredWork | undefined {
   return store.list(actorId, { limit: Number.MAX_SAFE_INTEGER }).find(work => work.main && !work.delegated_by && work.scope.kind === scope.kind
     && (scope.kind !== "project" || work.scope.kind === "project" && work.scope.project_id === scope.project_id)
+    && (work.work_item_id ?? null) === workItemId
     && (work.character === undefined || storedCharacter(work.character)) && roleKey(work.character?.ref) === roleKey(character));
 }
 /**
- * Where a message said at 「现在」 goes (specs/work-line §3.2): the standing conversation of its scope with its counterpart, once
- * there is one. A main conversation is with one counterpart, so naming another one in it goes to that one's own main conversation
- * instead of changing who this one is with.
+ * Where a message said at 「现在」 goes (specs/work-line §3.2, specs/work-mainline §4.3 / MLN-16): the standing conversation of its
+ * scope (and work item, when set) with its counterpart, once there is one. Naming another counterpart in a main conversation routes
+ * to that counterpart's own main conversation in the same scope and work item; `work_item_id` on an existing work is immutable.
  */
 export function mainSendInput(store: Pick<AssistantStore, "list">, actorId: string, input: AssistantSendInput, scope: (input: AssistantSendInput) => AssistantScope): AssistantSendInput {
-  if (input.work_id && input.character !== undefined) {
+  const requestedItemId = workItemIdOf(input.work_item_id);
+  if (input.work_id) {
     const held = store.list(actorId, { limit: Number.MAX_SAFE_INTEGER }).find(work => work.work_id === input.work_id);
-    if (held?.main && (held.character === undefined || storedCharacter(held.character)) && roleKey(held.character?.ref) !== roleKey(input.character)) {
+    if (held && requestedItemId !== undefined && (held.work_item_id ?? null) !== requestedItemId) {
+      throw assistantErrors.invalid("不能修改已有工作所属的事项");
+    }
+    if (input.character !== undefined && held?.main && (held.character === undefined || storedCharacter(held.character)) && roleKey(held.character?.ref) !== roleKey(input.character)) {
       const { work_id: _work, draft_revision: _revision, target: _target, delivery: _delivery, ...rest } = input;
-      input = { ...rest, main: true, scope: held.scope };
+      input = { ...rest, main: true, scope: held.scope, ...(held.work_item_id ? { work_item_id: held.work_item_id } : {}) };
     }
   }
   if (!input.main || input.work_id) return input;
   if (input.executor?.kind === "plugin") throw assistantErrors.invalid("主对话由助理或一个 Character 承担，不交给执行方插件");
-  const standing = mainWorkOf(store, actorId, scope(input), input.character ?? null);
+  const resolvedScope = scope(input);
+  const itemId = workItemIdOf(input.work_item_id);
+  if (itemId !== undefined && resolvedScope.kind !== "project") {
+    throw assistantErrors.invalid("个人工作不能关联项目事项");
+  }
+  const standing = mainWorkOf(store, actorId, resolvedScope, input.character ?? null, itemId ?? null);
   return standing ? { ...input, work_id: standing.work_id } : input;
+}
+
+/**
+ * Verifies a `work_item_id` against `system.mainline` as the caller before creating or routing a project work (MLN-16):
+ * rejects personal scope, missing/forged ids, and ids belonging to another project.
+ */
+export async function verifyWorkItem(
+  workItemId: string | undefined,
+  scope: AssistantScope,
+  actions: (() => Promise<Pick<AgentActionClient, "invoke">>) | undefined,
+): Promise<string | undefined> {
+  const checked = workItemIdOf(workItemId);
+  if (checked === undefined) return undefined;
+  if (scope.kind !== "project") {
+    throw assistantErrors.invalid("只有项目工作才能关联事项");
+  }
+  const client = await actions?.();
+  if (!client) throw assistantErrors.unsupported("这项工作现在读不到项目主线");
+  const read = await client.invoke(
+    { capability_id: mainlineItemActions.read.capability_id, version: mainlineItemActions.read.version, provider_id: MAINLINE_PROVIDER_ID },
+    {},
+  ) as MainlineReadResult;
+  if (!read.mainline.items.some(item => item.item_id === checked)) {
+    throw assistantErrors.not_found("当前项目主线上没有这件事项，或你读不到它");
+  }
+  return checked;
 }
 /**
  * A new work said in an event's tab (specs/work-line §4.4, WLN-12): it is done for that event. The event has to be on the person's

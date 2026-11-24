@@ -66,24 +66,37 @@ function renderProjectCorner(
   manageHref = "/",
 ): string {
   const href = (path: string) => desktopShell ? withDesktopQuery(path) : path;
-  const options = projects.length ? projects : currentProject ? [currentProject] : [];
-  const name = currentProject?.display_name ?? uiText.text("workbench.settings-navigation.choose-project");
+  const allOptions = projects.length ? projects : currentProject ? [currentProject] : [];
+  const options = allOptions.filter((project) => project.project_id !== "personal");
+  const isPersonal = currentProject?.project_id === "personal";
+  const name = isPersonal
+    ? uiText.text("workbench.settings-navigation.personal-space")
+    : (currentProject?.display_name ?? uiText.text("workbench.settings-navigation.choose-project"));
   const home = uiText.text("workbench.settings-navigation.project-home");
   const switchLabel = uiText.text("workbench.settings-navigation.switch-project");
   const isCurrent = (project: WebProjectNavigation) => project.project_id === currentProject?.project_id;
   const projectRow = (project: WebProjectNavigation) => `<button class="top-corner-project" type="button" data-corner-project="${escapeHtml(project.project_id)}" aria-pressed="${isCurrent(project)}">${icon(isCurrent(project) ? "folder-open" : "folder")}<span>${escapeHtml(project.display_name)}</span>${isCurrent(project) ? `<small>${uiText("workbench.settings-navigation.current")}</small>` : ""}</button>`;
+  // Decision 66: Personal Space is pinned at the top of the switcher's left column above the project list.
+  const personalRow = `<a class="top-corner-personal" href="${href("/projects/personal/")}" data-corner-personal${isPersonal ? ' aria-current="page"' : ""}>${icon("user")}<span>${uiText("workbench.settings-navigation.personal-space")}</span></a><div class="top-corner-sep" aria-hidden="true"></div>`;
   // The current project's home is pressed (the page's script opens it as a tab); another project's is that project's address.
   const homeRow = (project: WebProjectNavigation) => isCurrent(project)
     ? `<button class="top-corner-page" type="button" data-corner-home>${icon("home")}<span>${escapeHtml(home)}</span></button>`
     : `<a class="top-corner-page" href="${href(`/projects/${encodeURIComponent(project.project_id)}/`)}">${icon("home")}<span>${escapeHtml(home)}</span></a>`;
   // 项目设置 belongs to the project, so it is one of its pages (the strip's right end holds only the side and the split, POLISH-05).
-  const settingsRow = (project: WebProjectNavigation) => `<a class="top-corner-page" href="${href(`/projects/${encodeURIComponent(project.project_id)}/settings`)}"${isCurrent(project) ? ' data-directory-open="project-settings"' : ""}>${icon("tune")}<span>${uiText("workbench.settings-navigation.project-settings")}</span></a>`;
-  const pages = (project: WebProjectNavigation) => `<div class="top-corner-pages" data-corner-pages="${escapeHtml(project.project_id)}"${isCurrent(project) ? "" : " hidden"}><p class="top-corner-head"><strong>${escapeHtml(project.display_name)}</strong><small>${uiText("workbench.settings-navigation.choose-to-go")}</small></p>${homeRow(project)}${settingsRow(project)}</div>`;
+  const settingsHrefOf = (project: WebProjectNavigation) => href(`/projects/${encodeURIComponent(project.project_id)}/settings`);
+  const settingsRow = (project: WebProjectNavigation) => `<a class="top-corner-page" href="${settingsHrefOf(project)}"${isCurrent(project) ? ' data-directory-open="project-settings"' : ""}>${icon("tune")}<span>${uiText("workbench.settings-navigation.project-settings")}</span></a>`;
+  const pages = (project: WebProjectNavigation) => {
+    const inner = isCurrent(project) && project.project_id !== "personal"
+      ? `<div class="top-corner-mainline" data-corner-mainline data-settings-href="${escapeHtml(settingsHrefOf(project))}">${homeRow(project)}${settingsRow(project)}</div>`
+      : `${homeRow(project)}${settingsRow(project)}`;
+    return `<div class="top-corner-pages" data-corner-pages="${escapeHtml(project.project_id)}"${isCurrent(project) ? "" : " hidden"}><p class="top-corner-head"><strong>${escapeHtml(project.display_name)}</strong><small>${uiText("workbench.settings-navigation.choose-to-go")}</small></p>${inner}</div>`;
+  };
+  const pageGroups = isPersonal && currentProject ? [currentProject, ...options] : options;
   return `<div class="top-corner" data-top-corner>
-    <button class="top-corner-cell" type="button" data-top-corner-toggle aria-expanded="false" aria-controls="top-corner-list" aria-label="${escapeHtml(`${name} › ${home} · ${switchLabel}`)}" title="${escapeHtml(switchLabel)}">${icon("home")}<span class="top-corner-project-name">${escapeHtml(name)}</span>${icon("chevron-right")}<span class="top-corner-page-name">${escapeHtml(home)}</span>${icon("chevron-down")}</button>
+    <button class="top-corner-cell" type="button" data-top-corner-toggle aria-expanded="false" aria-controls="top-corner-list" aria-label="${escapeHtml(`${name} › ${home} · ${switchLabel}`)}" title="${escapeHtml(switchLabel)}">${icon("home")}<span class="top-corner-project-name">${escapeHtml(name)}</span>${icon("chevron-right")}<span class="top-corner-item-ring" data-top-corner-ring hidden><span class="top-corner-item-dot" aria-hidden="true"></span></span><span class="top-corner-page-name">${escapeHtml(home)}</span>${icon("chevron-down")}</button>
     <div class="top-corner-list" id="top-corner-list" data-top-corner-list role="group" aria-label="${escapeHtml(switchLabel)}" hidden>
-      <section class="top-corner-projects"><p class="top-corner-head"><strong>${uiText("workbench.settings-navigation.projects")}</strong></p><div class="top-corner-rows">${options.map(projectRow).join("")}</div><div class="top-corner-foot"><a class="top-corner-manage" href="${href(manageHref)}">${icon("grid")}<span>${uiText("workbench.settings-navigation.all-projects")}</span></a><a class="top-corner-manage" href="${href("/onboarding?mode=new-project")}" data-corner-new>${icon("plus")}<span>${uiText("workbench.settings-navigation.new-project")}</span></a></div></section>
-      <section class="top-corner-right">${options.map(pages).join("")}</section>
+      <section class="top-corner-projects">${personalRow}<p class="top-corner-head"><strong>${uiText("workbench.settings-navigation.projects")}</strong></p><div class="top-corner-rows">${options.map(projectRow).join("")}</div><div class="top-corner-foot"><a class="top-corner-manage" href="${href(manageHref)}">${icon("grid")}<span>${uiText("workbench.settings-navigation.all-projects")}</span></a><a class="top-corner-manage" href="${href("/onboarding?mode=new-project")}" data-corner-new>${icon("plus")}<span>${uiText("workbench.settings-navigation.new-project")}</span></a></div></section>
+      <section class="top-corner-right">${pageGroups.map(pages).join("")}</section>
     </div>
   </div>`;
 }

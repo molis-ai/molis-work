@@ -267,7 +267,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   ${page?.after_global_search ?? ""}
   <div class="mw-toast toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(readText)}${renderAppearanceRecovery(readText, appearance)}
   ${bootstrap ? `<script id="${escapeHtml(bootstrap.id)}" type="application/json">${JSON.stringify(bootstrap.value).replaceAll("<", "\\u003c")}</script>` : ""}
-  <script src="/assets/molis-work-workbench.js"></script>${knowledgeClientTag()}
+  <script src="/assets/molis-work-mainline.js"></script><script src="/assets/molis-work-workbench.js"></script>${knowledgeClientTag()}
   ${parts?.terminal_client ? '<script src="/desktop/pty-client.js"></script>' : ""}`,
   });
   return prefixLocalLinks(html, view.route_prefix, desktopShell);

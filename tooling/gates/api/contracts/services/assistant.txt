@@ -12,7 +12,7 @@ export declare const ASSISTANT_NEXT_STEP_REVIEW = "next-step";
 
 export declare const ASSISTANT_PERSONAL_OWNER = "home";
 
-export declare const ASSISTANT_PLUGIN_ID = "system.assistant";
+export declare const ASSISTANT_PLUGIN_ID = "io.molis.work.assistant";
 
 export declare const ASSISTANT_RELATIONS: {
     readonly origin: "assistant.work.origin";
@@ -686,6 +686,7 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
         kind: string;
         id: string;
     };
+    work_item_id?: string;
     executor?: AssistantExecutorChoice;
     mode?: string;
     executor_session_id?: string;
@@ -841,6 +842,7 @@ export interface AssistantWork {
     budget_tokens?: number;
     ask_each_step?: true;
     main?: true;
+    work_item_id?: string;
     serves?: Array<{
         kind: string;
         id: string;

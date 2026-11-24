@@ -222,6 +222,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-service-observation",
       "@molis-ai/molis-work-service-project-approvals",
       "@molis-ai/molis-work-service-evaluation",
+      "@molis-ai/molis-work-service-home",
       "@molis-ai/molis-work-service-knowledge",
       "@molis-ai/molis-work-service-mainline",
       "@molis-ai/molis-work-service-memory",
@@ -529,6 +530,16 @@ export const WORKSPACE_PACKAGES = [
     capabilities: ["appearance.selection.get.v1", "appearance.selection.apply.v1", "appearance.selection.undo.v1"],
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-design-system",
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-storage"
+    ]
+  }),
+  entry("horizontal/home", "@molis-ai/molis-work-contracts/services/home", {
+    maturity: "slice",
+    capabilities: [
+      "home.pages.v1"
+    ],
+    extraWorkspaceDependencies: [
       "@molis-ai/molis-work-plugin-sdk",
       "@molis-ai/molis-work-storage"
     ]

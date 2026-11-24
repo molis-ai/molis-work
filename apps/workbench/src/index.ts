@@ -56,7 +56,9 @@ export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 export { renderAgentReviewRecovery } from "./agent-review-recovery.js";
 export {
   isDecidable,
+  isReviewDocumentReadable,
   leakedMarkup,
+  renderAgentReviewDocument,
   renderAgentReviewSurface,
   reviewPhase,
   reviewSourceSummary,
@@ -93,6 +95,7 @@ export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-
 export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter } from "./scripts/write-checkers.js";
 export { connectorSwitchLeft } from "./scripts/connector-replacement.js";
 export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
+export { renderMolisWorkMainlineClientScript } from "./page-assets.js";
 export { renderMolisWorkKitClientScript } from "./settings-kit.js";
 export { renderMolisWorkWorkRecordsClientScript } from "./settings-work-records.js";
 export { renderMolisWorkChooserSearchClientScript } from "./arrival/chooser-search.js";

@@ -1,6 +1,6 @@
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { ActionError, actionReachesAudience, type ActionCallContext, type ActionMetadata } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionReachesAudience, type ActionCallContext, type ActionMetadata, type HomePageSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_REVIEW_PERMISSION_PREFIX, type PluginReviewKind } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { hostErrors } from "./host-errors.js";
 
@@ -11,6 +11,18 @@ import { hostErrors } from "./host-errors.js";
  * withdrawn object (a stopped, disabled, uninstalled or revoked installation, a closed project, a Host restart) is not one.
  */
 const issued = new WeakMap<HostPluginCaller, { readonly held: ReadonlySet<string>; readonly current?: (permission: string) => boolean; readonly routes: Map<string, HostPluginCaller> }>();
+
+/**
+ * Process-local Host-issued generated home-page subjects (`home-page` and `home-page-preview`, S-home-page-authority).
+ * A forged or revoked `HomePageSubject` object is absent from this WeakMap and refused before any action runs.
+ */
+const issuedHomePages = new WeakMap<HomePageSubject, { readonly held: ReadonlySet<string>; readonly assertActive: () => void }>();
+
+/** Registers a Host-issued generated home-page subject; the returned callback withdraws it immediately upon close/revocation. */
+export function issueHomePageCaller(subject: HomePageSubject, held: Iterable<string>, assertActive: () => void): () => void {
+  issuedHomePages.set(subject, { held: new Set(held), assertActive });
+  return () => { issuedHomePages.delete(subject); };
+}
 
 /** Registers a caller the Host built, with the permissions it holds; the returned release withdraws it and its routed copies. */
 export function issuePluginCaller(caller: HostPluginCaller, held: Iterable<string>, current?: (permission: string) => boolean): () => void {
@@ -72,7 +84,7 @@ export function dependencyCaller(projectId: string, definition: { readonly capab
  * a plugin-audience call carries one. A plugin's permissions are narrowed to what it holds, whatever the call claims.
  */
 export function verifiedCaller(caller: ActionCallContext): ActionCallContext {
-  if (caller.audience !== "plugin" && !caller.host_plugin) return caller;
+  if (caller.audience !== "plugin" && !caller.host_plugin && !caller.home_page) return caller;
   const held = issuedTo(caller);
   return { ...caller, permissions: caller.permissions.filter(permission => held.has(permission)) };
 }
@@ -84,13 +96,22 @@ export function verifiedCaller(caller: ActionCallContext): ActionCallContext {
  * as such, not as unseen.
  */
 export function admitPluginCall(caller: ActionCallContext, capabilityId: string, action: Pick<ActionMetadata, "kind" | "effect" | "plugin" | "audiences" | "permissions">): void {
-  if (caller.audience !== "plugin" && !caller.host_plugin) return;
+  if (caller.audience !== "plugin" && !caller.host_plugin && !caller.home_page) return;
   const held = issuedTo(caller);
   if (!actionReachesAudience(action, capabilityId, "plugin")) return;
   if (action.permissions.some(permission => !held.has(permission))) throw new ActionError("actions.plugin_permission", "插件没有声明或没有获得这项动作所需的授权");
 }
 
 function issuedTo(caller: ActionCallContext): ReadonlySet<string> {
+  if (caller.home_page) {
+    if (caller.host_plugin) throw hostErrors.plugin_caller_mismatch("不能同时携带插件与生成首页身份");
+    const entry = issuedHomePages.get(caller.home_page);
+    if (!entry) throw hostErrors.plugin_caller_invalid("生成首页调用没有宿主发出的有效身份");
+    entry.assertActive();
+    if (caller.audience !== "plugin") throw hostErrors.plugin_caller_mismatch("生成首页身份只能用于页面动作调用");
+    if (caller.home_page.project_id !== caller.project_id) throw hostErrors.plugin_caller_mismatch("生成首页调用的项目与宿主发出的身份不一致");
+    return entry.held;
+  }
   const plugin = caller.host_plugin, entry = plugin ? issued.get(plugin) : undefined;
   if (!plugin || !entry) throw hostErrors.plugin_caller_invalid("插件调用没有宿主发出的有效身份");
   plugin.assertActive();

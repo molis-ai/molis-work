@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync, renameSync, statSync, truncateSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { formatHomePageSubject } from "@molis-ai/molis-work-contracts/services/home";
 import { currentCallId, markCallRecorded, refusalExpected, type CallContext, type CallDescription, type CallOutcome } from "@molis-ai/molis-work-kernel";
 
 /**
@@ -28,6 +29,8 @@ export interface ActionCallRecord {
   refused?: true;
   /** The plugin (Manifest `plugin_id`) whose running action made this call through its action directory (`actions:delegate`); `actor_id` stays the original caller. */
   delegated_by?: string;
+  /** The generated homepage or preview subject (`home-page:...` / `home-page-preview:...`) that made this call via the page gateway. */
+  home_page?: string;
   /** Identical consecutive outcomes (a page polling the same command) are one entry: how many, and the latest time. */
   count?: number;
   last_at?: string;
@@ -51,7 +54,7 @@ const OPERATIONS: readonly string[] = ["command", "query", "unknown"];
 /** A client asking for ids that do not exist is one entry whatever it asked for; any other repeat needs the same call. */
 const unknownId = (row: ActionCallRecord) => row.refused === true && row.code === "actions.missing";
 const sameCall = (a: ActionCallRecord, b: ActionCallRecord) => a.actor_id === b.actor_id && a.audience === b.audience && a.project_id === b.project_id
-  && a.ok === b.ok && a.code === b.code && a.refused === b.refused && a.delegated_by === b.delegated_by
+  && a.ok === b.ok && a.code === b.code && a.refused === b.refused && a.delegated_by === b.delegated_by && a.home_page === b.home_page
   && (unknownId(a) && unknownId(b) || a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id && a.operation === b.operation && a.message === b.message);
 const lastDistinct = (ids: readonly string[], id: string) => [...ids.filter(other => other !== id), id].slice(-FOLDED);
 /**
@@ -63,9 +66,10 @@ const reasonOf = (outcome: Extract<CallOutcome, { ok: false }>): string =>
   /^actions\.(input|output)_invalid/.test(outcome.code ?? "") ? outcome.message.split("：")[0]! : outcome.message;
 const ranCommand = (row: ActionCallRecord) => row.operation === "command" && row.refused !== true;
 
-/** Which kind of row a call leaves, if any: every command; a read (or a call to an id nobody has) only when it failed. */
-function recordedOperation(operation: string, outcome: CallOutcome): ActionCallRecord["operation"] | undefined {
+/** Which kind of row a call leaves, if any: every command; a read (or a call to an id nobody has) when it failed or came from a generated home page / preview. */
+function recordedOperation(operation: string, outcome: CallOutcome, hasHomePage: boolean): ActionCallRecord["operation"] | undefined {
   if (operation === "command") return "command";
+  if (hasHomePage && operation === "query") return "query";
   if (outcome.ok) return undefined;
   return operation === "query" ? "query" : "unknown";
 }
@@ -109,14 +113,15 @@ export class ActionCallLog {
   constructor(homeDirectory: string) { this.file = path.join(homeDirectory, RELATIVE_PATH); }
 
   record(caller: CallContext, action: CallDescription, outcome: CallOutcome): void {
-    const operation = recordedOperation(action.operation, outcome);
+    const operation = recordedOperation(action.operation, outcome, Boolean(caller.home_page));
     // A refusal that a page was looking for (an optional area its project does not have) is its answer, not something a person will look up.
     if (!operation || !outcome.ok && outcome.refused && refusalExpected(outcome.code)) return;
     this.write({ at: new Date().toISOString(), call_id: caller.call_id, operation, capability_id: action.capability_id, version: action.version, provider_id: action.provider_id ?? "",
       provider_title: action.provider_title, title: action.title, actor_id: caller.actor_id, audience: caller.audience ?? "user", project_id: caller.project_id ?? null,
       ok: outcome.ok, ...(outcome.ok ? {} : { ...(outcome.code ? { code: outcome.code } : {}), ...(outcome.refused ? { refused: true as const } : {}),
         ...(operation === "command" && !outcome.refused ? { message: reasonOf(outcome) } : {}) }),
-      ...(caller.delegated_by ? { delegated_by: caller.delegated_by } : {}) });
+      ...(caller.delegated_by ? { delegated_by: caller.delegated_by } : {}),
+      ...(caller.home_page ? { home_page: formatHomePageSubject(caller.home_page) } : {}) });
     // Only now that the row is in the file may the operation that is waiting for its answer show its number to a person.
     if (currentCallId() === caller.call_id) markCallRecorded();
   }

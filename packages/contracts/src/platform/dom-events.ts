@@ -171,6 +171,15 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/browser/skill-picks.ts", "apps/workbench/src/browser/plugin-frame/skill-picks.ts"],
     state: "The one 「依据」 panel of a round's Skills (specs/prologue-strategies/skill.md §10): which round's line asked, the catalog as read when it opened, and the person's choice until they make it; for a plugin frame, the page's own mark for the round it asked about.",
   },
+  "mainline-switcher": {
+    files: [
+      "apps/workbench/src/browser/mainline-switcher.ts",
+      "apps/workbench/src/browser/work-item-page.ts",
+      "apps/workbench/src/browser/work-item-contents.ts",
+      "apps/workbench/src/scripts/client/top-corner.ts",
+    ],
+    state: "The current project's mainline work-item selection, switcher list, per-item counts, and 「放进事项」 picker dialog.",
+  },
 } as const satisfies Readonly<Record<string, PageStateOwner>>;
 
 export type PageStateOwnerId = keyof typeof PAGE_STATE_OWNERS;
@@ -405,6 +414,21 @@ export const DOM_EVENTS = [
     name: "molis-work:ui-environment-changed", kind: "announcement", owner: "appearance", on: "window",
     detail: '{ revision: string, changed: ("skin" | "font" | "mono")[] }',
     summary: "This document has rendered the prepared appearance; frames update and open terminals remeasure.",
+  },
+  {
+    name: "molis-work:work-item-changed", kind: "announcement", owner: "mainline-switcher", on: "document",
+    detail: "{ item_id, item_name, previous_id, first_entry, source, other_waiting, items, task_items }",
+    summary: "The active work item on this project's mainline changed, or its list/counts refreshed; attention, tab workspace, assistant, work bar, side contents and global search follow it.",
+  },
+  {
+    name: "molis-work:work-item-hold-open", kind: "request", owner: "mainline-switcher", on: "document",
+    detail: "{ subject, title?, mode?: 'hold' | 'as-item' }",
+    summary: "Open the 「放进事项」 dialog or create a work item from an object on the current project's mainline.",
+  },
+  {
+    name: "molis-work:work-item-switch", kind: "request", owner: "mainline-switcher", on: "document",
+    detail: "{ item_id?, open_switcher?, previous?, open_organize? }",
+    summary: "Ask the mainline switcher to switch to another work item (or project home), jump back to the previous item, open the top-left switcher, or open 「整理主线」.",
   },
   {
     name: "molis-work:work-terminal-subject-changed", kind: "request", owner: "work-terminal", on: "document",

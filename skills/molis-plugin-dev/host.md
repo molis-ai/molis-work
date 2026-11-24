@@ -92,6 +92,8 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 要让首页在各项目里读到这些还在跑的工作，把读它们的项目范围只读查询标 `home_aggregate: true` 并写 `output_type`（不调用模型、不计费）；首页只在打开的项目里、按那个项目的授权逐个调，调用是只读的。规则同上一处。首页标题栏的后台任务列表走这条路：用 SDK 的 `defineBackgroundTasksAction` 声明、回答 `{ source: { surface, title, icon }, tasks }`（每行带任务对象、状态环取值、谁在办、为哪些事件办、打开位置；停止这类命令写成自己的动作引用），宿主不认识具体插件（写法见 `docs/platform/PLUGIN-DEVELOPMENT.md`，例子是 `plugins/native/coding/src/home-background.ts`）。
 
+Agent 会话等平台审批时，任务行用 `held_reviews: { session_id, ids }` 交出待审记录引用。先用 `agent.reviews.pending-ids@1` 批量取自己安装范围内的编号。卡片的提案和同意、拒绝来自平台的原审批，前提是项目、安装和 Agent 会话都匹配。
+
 ### 流式路由
 
 等待模型或外部服务时，动作声明 `scheduling: "concurrent"`，路由声明 POST 与 `stream: "ndjson"`，仍用 `bindPluginActionRoute`。动作通过 `caller.on_progress?.({ stage, progress, text_delta? })` 发进度，Host 将它编码为 NDJSON 的 `progress` 行，最后写唯一 `result` 或 `error` 行。不要让插件写末行，也不要复制或展开 `request.execution` 来补进度；SDK 用动作客户端第四个传输参数传 `on_progress`，保留可信控制对象的身份。直接路由可用 `request.emit`，它只在声明 stream 时存在。

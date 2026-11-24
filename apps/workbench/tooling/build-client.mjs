@@ -56,7 +56,6 @@ const BROWSER_BUNDLES = [
     outfile: "dist/write-checkers-client.js",
   },
   { ...DEFAULT_BROWSER, entryPoints: ["src/browser/project-directories-entry.ts"], outfile: "dist/project-directories-client.js" },
-  { ...DEFAULT_BROWSER, entryPoints: ["src/browser/work-bar.ts"], outfile: "dist/work-bar-client.js" },
   { ...DEFAULT_BROWSER, entryPoints: ["src/browser/settings-view-height.ts"], outfile: "dist/settings-view-height-client.js" },
   { ...DEFAULT_BROWSER, entryPoints: ["src/browser/board/conditions-frame.ts"], outfile: "dist/board-conditions-frame.js" },
   { ...DEFAULT_BROWSER, entryPoints: ["src/browser/board/conditions-section.ts"], outfile: "dist/board-conditions-section.js" },
@@ -95,6 +94,14 @@ const BROWSER_BUNDLES = [
     entryPoints: ["src/browser/language-entry.ts"],
     target: "es2022",
     outfile: "dist/language-client.js",
+  },
+  {
+    ...DEFAULT_BROWSER,
+    entryPoints: ["src/browser/mainline-entry.ts"],
+    globalName: "molisWorkMainline",
+    target: "es2022",
+    legalComments: "none",
+    outfile: "dist/mainline-client.js",
   },
 ];
 
@@ -148,6 +155,8 @@ const workRecords = new URL("../dist/work-records-client.js", import.meta.url);
 writeFileSync(workRecords, compactClientScript(readFileSync(workRecords, "utf8")));
 const sessions = new URL("../dist/sessions-client.js", import.meta.url);
 writeFileSync(sessions, compactClientScript(readFileSync(sessions, "utf8")));
+const mainline = new URL("../dist/mainline-client.js", import.meta.url);
+writeFileSync(mainline, compactClientScript(readFileSync(mainline, "utf8")));
 
 const source = workbenchClientSource();
 if (!source.startsWith(UI_REQUEST_CLIENT_SCRIPT)) throw new Error("Workbench request bootstrap must be first");

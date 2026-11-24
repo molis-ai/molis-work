@@ -166,7 +166,7 @@ export function shellPageRead(request: IncomingMessage, origin: string): boolean
   const context = requestSessions.get(request);
   return !!context && context.owner.accepts(context, request.headers[WEB_PAGE_SESSION_HEADER])
     && request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined
-    && request.headers["x-molis-plugin-page"] === undefined && request.headers["x-molis-context-page"] === undefined
+    && request.headers["x-molis-plugin-page"] === undefined && request.headers["x-molis-context-page"] === undefined && request.headers["x-molis-home-page"] === undefined
     && (request.headers.origin === undefined || request.headers.origin === origin)
     && (request.headers["sec-fetch-site"] === undefined || request.headers["sec-fetch-site"] === "same-origin");
 }

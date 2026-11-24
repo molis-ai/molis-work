@@ -9,12 +9,17 @@ import type {
   HomePageSelectResult,
   HomePageVersionSummary,
 } from "@molis-ai/molis-work-contracts/services/home";
-import { escapeHtml, renderAlert, renderBadge, t as uiText } from "./mainline-ui.js";
+import { escapeHtml, renderAlert, t as uiText } from "./mainline-ui.js";
 import { mountMergeEditor } from "./home-page-merge.js";
 import { mountHomePageFrame, type MountedHomePageFrame } from "./plugin-frame/home-page-document.js";
 import { runBusy } from "./busy.js";
 import {
+  checkedGrants,
   homePageRefKey,
+  mirrorBasicPage,
+  relabelApprovalDialog,
+  relabelComparison,
+  updateComparison,
   localizeDesignIssueReason,
   renderApprovalDialogHtml,
   renderCompareChromeParts,
@@ -32,6 +37,22 @@ interface HomePagesUiHost {
   headers(): Record<string, string>;
   receipt(message: string): void;
   onModeChange(hasGeneratedActive: boolean): void;
+}
+
+type Session = { page_session_id: string; loaded?: HomePageFilesResult };
+async function mountVersion(host: HomePagesUiHost, ref: HomePageRef, container: HTMLElement, preview: boolean, signal: AbortSignal, onCrash?: (reason: string) => void) {
+  const session = await host.api<Session>(preview ? "/api/home-pages/preview" : "/api/home-pages/session", "POST", preview ? { ...ref, include_files: true } : {});
+  try {
+    signal.throwIfAborted();
+    const loaded = session.loaded;
+    if (!loaded || homePageRefKey(loaded.version) !== homePageRefKey(ref)) throw new Error(uiText.text("workbench.home-pages.preview-failed"));
+    return await mountHomePageFrame({ container, loaded, pageSessionId: session.page_session_id, isPreview: preview,
+      routePrefix: host.routePrefix, headers: host.headers, signal, onCrash });
+  } catch (error) {
+    void globalThis.molisWorkRequest(host.routePrefix + "/api/home-pages/session/" + encodeURIComponent(session.page_session_id),
+      { method: "DELETE", keepalive: true, headers: host.headers() }).catch(() => undefined);
+    throw error;
+  }
 }
 
 const craft = () =>
@@ -120,21 +141,6 @@ export function mountHomePages(host: HomePagesUiHost) {
 
   let liveLoad = new AbortController();
   let compareLoad = new AbortController();
-  type Session = { page_session_id: string; loaded?: HomePageFilesResult };
-  async function mountVersion(ref: HomePageRef, container: HTMLElement, preview: boolean, signal: AbortSignal, onCrash?: (reason: string) => void) {
-    const session = await host.api<Session>(preview ? "/api/home-pages/preview" : "/api/home-pages/session", "POST", preview ? { ...ref, include_files: true } : {});
-    try {
-      signal.throwIfAborted();
-      const loaded = session.loaded;
-      if (!loaded || homePageRefKey(loaded.version) !== homePageRefKey(ref)) throw new Error(uiText.text("workbench.home-pages.preview-failed"));
-      return await mountHomePageFrame({ container, loaded, pageSessionId: session.page_session_id, isPreview: preview,
-        routePrefix: host.routePrefix, headers: host.headers, signal, onCrash });
-    } catch (error) {
-      void globalThis.molisWorkRequest(host.routePrefix + "/api/home-pages/session/" + encodeURIComponent(session.page_session_id),
-        { method: "DELETE", keepalive: true, headers: host.headers() }).catch(() => undefined);
-      throw error;
-    }
-  }
   const disposeLive = () => {
     liveLoad.abort();
     liveLoad = new AbortController();
@@ -211,17 +217,7 @@ export function mountHomePages(host: HomePagesUiHost) {
       blocker: blocker(),
       checksOpen,
     });
-    const issuesSlot = compareHost.querySelector<HTMLElement>("[data-hp-compare-issues]");
-    const barSlot = compareHost.querySelector<HTMLElement>("[data-hp-compare-bar]");
-    const grid = compareHost.querySelector<HTMLElement>("[data-hp-compare-grid]");
-    if (issuesSlot) issuesSlot.innerHTML = issuesHtml;
-    if (barSlot) barSlot.innerHTML = barHtml;
-    if (grid) grid.dataset.view = compareView;
-    compareHost.querySelectorAll<HTMLButtonElement>("[data-hp-view]").forEach(btn => {
-      const on = btn.dataset.hpView === compareView;
-      btn.classList.toggle("is-current", on);
-      btn.setAttribute("aria-pressed", String(on));
-    });
+    updateComparison(compareHost, compareView, issuesHtml, barHtml);
   };
 
   const exitCompare = () => {
@@ -280,23 +276,12 @@ export function mountHomePages(host: HomePagesUiHost) {
       const draftStage = compareHost!.querySelector<HTMLElement>("[data-hp-draft-stage]")!;
       if (activeRef) {
         try {
-          compareNowFrame = await mountVersion(activeRef, nowStage, true, signal);
+          compareNowFrame = await mountVersion(host, activeRef, nowStage, true, signal);
         } catch {
           nowStage.innerHTML = `<p class="hp-quiet-note" data-hp-now-note="unavailable">${escapeHtml(uiText.text("workbench.home-pages.now-unavailable-in-compare"))}</p>`;
         }
       } else {
-        const current = host.root.querySelector("[data-home-groups]");
-        nowStage.inert = true;
-        if (current) {
-          const mirror = () => {
-            if (signal.aborted) return;
-            nowStage.replaceChildren(...Array.from(current.children, section => section.cloneNode(true)));
-            for (const node of nowStage.querySelectorAll("[id]")) node.removeAttribute("id");
-          };
-          mirror();
-          nowObserver = new MutationObserver(mirror);
-          nowObserver.observe(current, { subtree: true, childList: true, characterData: true, attributes: true });
-        }
+        nowObserver = mirrorBasicPage(host.root, nowStage, signal);
       }
 
       if (!inspect.report.ok) {
@@ -309,7 +294,7 @@ export function mountHomePages(host: HomePagesUiHost) {
           body: firstReason,
         });
       } else {
-        compareDraftFrame = await mountVersion(ref, draftStage, true, signal, reason => {
+        compareDraftFrame = await mountVersion(host, ref, draftStage, true, signal, reason => {
             draftStage.innerHTML = renderAlert({
               tone: "warning",
               title: uiText.text("workbench.home-pages.preview-crashed-title"),
@@ -347,7 +332,7 @@ export function mountHomePages(host: HomePagesUiHost) {
       liveHost!.hidden = false;
       liveMountedKey = key;
       fallbackAlert = null;
-      liveFrame = await mountVersion(targetRef, liveHost!, false, signal, reason => {
+      liveFrame = await mountVersion(host, targetRef, liveHost!, false, signal, reason => {
           disposeLive();
           fallbackAlert = {
             title: uiText.text("workbench.home-pages.load-failed-title", { v: targetRef.version }),
@@ -401,12 +386,7 @@ export function mountHomePages(host: HomePagesUiHost) {
   async function confirmDialog(triggerBtn?: HTMLElement | null): Promise<void> {
     if (!dialogTarget || !overview || !dialog || mutating) return;
     const { operation, version, inspect } = dialogTarget;
-    const approved: ExactActionReference[] = [];
-    dialog.querySelectorAll<HTMLInputElement>("input[data-hp-grant]").forEach(box => {
-      if (!box.checked || box.disabled) return;
-      const item = inspect.actions[Number(box.dataset.hpGrant)];
-      if (item) approved.push({ capability_id: item.capability_id, version: item.version, provider_id: item.provider_id });
-    });
+    const approved = checkedGrants(dialog, inspect);
     const endpoint = operation === "restore" ? "/api/home-pages/restore" : "/api/home-pages/adopt";
     mutating = true;
     try {
@@ -643,50 +623,11 @@ export function mountHomePages(host: HomePagesUiHost) {
     if (!overview) return;
     renderChrome();
     if (comparingDraft) {
-      // Re-label compare column headers, badges, ARIA labels, quiet notes & view toggle in place without tearing down live preview iframes.
-      const sideNow = uiText.text("workbench.home-pages.side-now");
-      const sideDraft = uiText.text("workbench.home-pages.side-draft");
-      const group = compareHost.querySelector<HTMLElement>("[data-hp-compare-group]");
-      if (group) group.setAttribute("aria-label", uiText.text("workbench.home-pages.compare-which"));
-      const nowBtn = compareHost.querySelector<HTMLElement>('[data-hp-view="now"]');
-      const draftBtn = compareHost.querySelector<HTMLElement>('[data-hp-view="draft"]');
-      if (nowBtn) nowBtn.textContent = sideNow;
-      if (draftBtn) draftBtn.textContent = sideDraft;
-      const nowCol = compareHost.querySelector<HTMLElement>('[data-col="now"]');
-      const draftCol = compareHost.querySelector<HTMLElement>('[data-col="draft"]');
-      if (nowCol) nowCol.setAttribute("aria-label", sideNow);
-      if (draftCol) draftCol.setAttribute("aria-label", sideDraft);
-      const nowBadge = compareHost.querySelector<HTMLElement>("[data-hp-now-badge]");
-      if (nowBadge) nowBadge.innerHTML = renderBadge({ label: uiText.text("workbench.home-pages.in-use"), tone: "success" });
-      const draftBadge = compareHost.querySelector<HTMLElement>("[data-hp-draft-badge]");
-      if (draftBadge) draftBadge.innerHTML = renderBadge({ label: uiText.text("workbench.home-pages.draft"), tone: "info" });
-      const nowTitle = compareHost.querySelector<HTMLElement>("[data-hp-now-title]");
-      if (nowTitle) {
-        nowTitle.textContent = overview.selection.kind === "page"
-          ? uiText.text("workbench.home-pages.now-version", { v: overview.selection.version })
-          : uiText.text("workbench.home-pages.default-first-page");
-      }
-      const nowNote = compareHost.querySelector<HTMLElement>("[data-hp-now-note]");
-      if (nowNote) {
-        nowNote.textContent = nowNote.dataset.hpNowNote === "unavailable"
-          ? uiText.text("workbench.home-pages.now-unavailable-in-compare")
-          : uiText.text("workbench.home-pages.now-is-default");
-      }
-      const previewNote = compareHost.querySelector<HTMLElement>(".hp-preview-note");
-      if (previewNote) previewNote.textContent = uiText.text("workbench.home-pages.preview-readonly-note");
+      relabelComparison(compareHost, overview);
       renderCompareChrome();
     }
     if (dialogTarget && dialog?.open) {
-      const grants = new Map(Array.from(dialog.querySelectorAll<HTMLInputElement>("input[data-hp-grant]"), box => [box.dataset.hpGrant, box.checked]));
-      dialog.innerHTML = renderApprovalDialogHtml({
-        operation: dialogTarget.operation,
-        target: dialogTarget.version,
-        inspect: dialogTarget.inspect,
-        overview,
-      });
-      for (const box of dialog.querySelectorAll<HTMLInputElement>("input[data-hp-grant]")) {
-        box.checked = !box.disabled && grants.get(box.dataset.hpGrant) === true;
-      }
+      relabelApprovalDialog(dialog, dialogTarget, overview);
     }
   };
 

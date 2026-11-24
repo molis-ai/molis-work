@@ -1,4 +1,4 @@
-import { createRoundState, createSessionMessages, endedOnPromise, watchRoundFacts, watchRoundLifecycle } from "@molis-ai/molis-work-service-agent-host/testing";
+import { attachStartedRound, createRoundState, createSessionMessages, endedOnPromise, watchRoundFacts, watchRoundLifecycle } from "@molis-ai/molis-work-service-agent-host/testing";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -48,16 +48,13 @@ test("RT-1/2 the Node adapter releases each round once, including a terminal eve
   for (const [type, end, letterEnd] of [
     ["completed", "completed", "completed"], ["failed", "failed", "failed"], ["cancelled", "stopped", "delivered"],
     ["tripped", "stopped", "stopped"], ["circuit-tripped", "stopped", "stopped"],
-  ] as const) {
+  ] as const) for (const registration of ["registered", "begin-fails", "handoff-fails", "no-inbox"]) {
+    const projectDirectory = registration === "no-inbox" ? undefined : "/tmp/fixture";
     const state = createRoundState(), actionController = new AbortController();
     const runRef = { kind: "run", id: "round", revision: 1 } as const, session = { ref: { kind: "session", id: "holder", revision: 1 } as const };
     const listeners = new Set<(event: { type: string }) => void>();
     const run = { ref: runRef, subscribe(listener: (event: { type: string }) => void) { listeners.add(listener); return () => listeners.delete(listener); } };
     const emit = () => { for (const listener of listeners) listener({ type }); };
-    state.actionControllers.set("round", actionController);
-    state.liveSessions.set("holder", "round"); state.runRefs.set("round", runRef);
-    state.activeRuns.set("round", { live: () => true, assertAuthority() {}, steer: async () => {} });
-    state.runWork.set("round", { project: "project", id: "job", session: session.ref, directory: "/tmp/fixture" });
     const releases: unknown[] = [], letter = { ref: { id: "question" }, state: "delivered", kind: "request", awaitReply: true };
     let letterEvent = "delivered", note = "";
     const runtime = { readClock: async () => ({ wallTimeMs: 1 }), hooks: { register() {} }, delivery: {
@@ -66,28 +63,34 @@ test("RT-1/2 the Node adapter releases each round once, including a terminal eve
       flush: async () => {},
     } };
     const messages = createSessionMessages(runtime as never, {} as never);
-    const deps = { state, options: {}, messages, surfaces: () => ({ releaseRun: () => releases.push("surface-run") }),
-      stepBoards: { unfollow: () => releases.push("board") }, workGraphs: { ended: (_run: unknown, _session: unknown, event: string) => releases.push(["graph", event]) },
-      projectWork: { end: async (project: string, id: string, phase: string) => { releases.push([project, id, phase]); } } };
+    const deps = { state, options: {}, messages, index: { update: async () => {} }, surfaces: () => ({ releaseRun: () => releases.push("surface-run") }),
+      stepBoards: { follow() {}, unfollow: () => releases.push("board") }, workGraphs: { ended: (_run: unknown, _session: unknown, event: string) => releases.push(["graph", event]) },
+      waitsPort: { queueTakenOver: async () => { if (registration === "handoff-fails") throw new Error("handoff unavailable"); } },
+      projectWork: { begin: async () => { if (registration === "begin-fails") throw new Error("board unavailable"); return "job"; },
+        projectId: async () => "board", end: async (project: string, id: string, phase: string) => { releases.push([project, id, phase]); } } };
     const guard = { reader: "person" as const, writing: true, business: true, task: "", materials: [], runs: new Map([["round", { held: new Set<"announce">(["announce"]), announcedAt: 0 }]]) };
     state.stopGuards.set("holder", guard);
     watchRoundFacts(state, run, true);
-    const lifecycle = watchRoundLifecycle(deps as never, { session_id: "holder" } as never, {
-      session, started: { run, control: { state: "running" } }, actionController, attemptIndex: 0, stepBoard: { ref: { id: "board" } },
-      surface: { release: async (phase: string) => { releases.push(["surface", phase]); } },
-      actionReviews: { releaseRun: () => true }, codeIntelligence: { close: async () => { releases.push("lsp"); } }, onAborted() {},
-    } as never);
+    const input = { session_id: "holder", queued_work_id: "job" };
+    const at = { session, started: { run, control: { state: "running" } }, actionController, attemptIndex: 0, stepBoard: { ref: { id: "board" } },
+      projectDirectory, project: "project", hasActions: true, scopePaths: [],
+      surface: { noteRun() {}, release: async (phase: string) => { releases.push(["surface", phase]); } },
+      actionReviews: { releaseRun: () => true }, codeIntelligence: { close: async () => { releases.push("lsp"); } }, onAborted() {} };
+    const lifecycle = watchRoundLifecycle(deps as never, input as never, at as never);
     emit();
-    assert.equal(state.liveSessions.get("holder"), "round", "cleanup waits until the run is attached");
+    await attachStartedRound(deps as never, input as never, { title: "fixture" } as never, at as never);
+    assert.equal(state.liveSessions.get("holder"), projectDirectory ? "round" : undefined);
+    const workStarted = registration === "registered" || registration === "handoff-fails";
+    assert.equal(state.runWork.has("round"), workStarted, registration);
     lifecycle.markReady(); emit(); lifecycle.dispose("cancelled");
     await new Promise<void>(resolve => setImmediate(resolve));
-    assert.deepEqual(releases, ["lsp", "board", ["graph", type], ["surface", end], "surface-run", ["project", "job", end]], type);
+    assert.deepEqual(releases, ["lsp", "board", ["graph", type], ["surface", end], "surface-run", ...(workStarted ? [["project", "job", end]] : [])], type);
     assert.equal(actionController.signal.aborted, true);
     assert.deepEqual([state.liveSessions.size, state.runWork.size, state.activeRuns.size, state.runRefs.size, state.actionControllers.size], [0, 0, 0, 0, 0]);
     if (type === "completed") assert.equal(endedOnPromise(state, "round", "holder"), true, "the completed view consumes its final guard facts");
     assert.deepEqual([state.roundFacts.size, guard.runs.size], [0, 0]);
-    assert.equal(letterEvent, letterEnd, type);
-    if (type === "tripped") assert.match(note, /护栏叫停/);
-    if (type === "circuit-tripped") assert.match(note, /连续尝试没有进展/);
+    assert.equal(letterEvent, projectDirectory ? letterEnd : "delivered", registration);
+    if (projectDirectory && type === "tripped") assert.match(note, /护栏叫停/);
+    if (projectDirectory && type === "circuit-tripped") assert.match(note, /连续尝试没有进展/);
   }
 });

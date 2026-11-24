@@ -134,7 +134,7 @@ dialog.mw-dialog.ml-organize-dialog::backdrop{background:var(--scrim)}
 .ml-item-empty p{margin:0;font-size:13px;color:var(--muted);line-height:1.55}
 .ml-item-empty-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
 .ml-item-contents-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:10px;background:var(--desk);border:1px solid var(--line);font-size:13px}
-.ml-item-contents-strip[hidden],body[data-side-open="true"]:has([data-side-body="item-contents"]:not([hidden])) .ml-item-contents-strip{display:none}
+.ml-item-contents-strip[hidden]{display:none}
 
 /* Right sidebar 「这件事的东西」 */
 .side-item-contents{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow:hidden}
@@ -186,7 +186,7 @@ dialog.mw-dialog.ml-hold-dialog::backdrop{background:var(--scrim)}
   .ml-item-acts{opacity:1}
 }
 @media (max-width:760px){
-  html body .workbench-header[data-dock][data-dock][data-dock]:has(.top-corner-list:not([hidden])){z-index:80}
+  html body .workbench-header[data-dock][data-dock][data-dock][data-corner-open]{z-index:80}
   html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-list{position:fixed;inset:auto 0 0 0;width:100vw;max-width:100vw;height:auto;max-height:84dvh;border-radius:16px 16px 0 0;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);z-index:140}
   html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-projects{max-height:30dvh;overflow:auto;border-right:0;border-bottom:1px solid var(--line)}
   html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-rows{overflow:visible;flex:none}

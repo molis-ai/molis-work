@@ -87,6 +87,7 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
   const closeCorner = () => {
     if (listEl.hidden) return;
     listEl.hidden = true;
+    corner.closest("[data-dock]")?.removeAttribute("data-corner-open");
     toggle.setAttribute("aria-expanded", "false");
   };
 

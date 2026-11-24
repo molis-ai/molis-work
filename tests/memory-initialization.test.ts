@@ -227,7 +227,7 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
     if (shape === "missing-ledger") assert.equal(existsSync(join(home, "upgrade")), false, "a Home with no store gets no upgrade bookkeeping");
     else if (shape === "wrong-version") {
       assert.ok(bookkeeping, "the too-new store is on the upgrade record");
-      assert.deepEqual(upgradeFile("ledger.json").units, [{ kind: "sqlite", owner: "packages/storage", relative_path: "memory/memory.db", group: null, from: 4, to: 1, state: "too_new", error: null }]);
+      assert.deepEqual(upgradeFile("ledger.json").units, [{ kind: "sqlite", owner: "packages/storage", relative_path: "memory/memory.db", group: null, from: 4, to: 2, state: "too_new", error: null }]);
     } else {
       assert.ok(bookkeeping, "every store is current, so the Home is stamped");
       assert.deepEqual(Object.keys(upgradeFile("state.json")).sort(), ["completed_at", "fingerprint", "home_identity", "schema_version"]);

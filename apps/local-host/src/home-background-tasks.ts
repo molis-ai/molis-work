@@ -23,9 +23,30 @@ const unreadable = repeatingFailure("home", "background_tasks_unreadable");
 const UNDER_WAY: ReadonlySet<string> = new Set(STATE_RING_FAMILIES.filter(family => (["running", "waiting", "syncing", "retrying"] as const)
   .some(key => key === family.key)).flatMap(family => [...family.states]));
 
+/** Active waiting states whose liveness does not survive a Host restart and must be reconciled against the new process's `startedAt`. */
+const PROCESS_BOUND_STATES: ReadonlySet<string> = new Set(["paused", "answer", "approval"]);
+
+/** Visibility window for ended background tasks that report back to the Assistant (`reports_to`, e.g. failed image jobs). */
+const REPORTED_ENDED_TTL_MS = 10 * 60_000;
+
 function hasUnderWayTasks(result: HomeAggregateResult<BackgroundTaskCollection>): boolean {
   if (result.issues.some(issue => issue.code === "actions.timeout")) return true;
   return result.answers.some(answer => backgroundTaskRows(answer.output, answer.source, answer.subject_kinds)?.some(row => UNDER_WAY.has(row.state)) ?? false);
+}
+
+function hasRestartSensitiveTasks(result: HomeAggregateResult<BackgroundTaskCollection>): boolean {
+  return result.answers.some(answer => backgroundTaskRows(answer.output, answer.source, answer.subject_kinds)
+    ?.some(row => PROCESS_BOUND_STATES.has(row.state) || row.commands.length > 0) ?? false);
+}
+
+function hasExpiredReportedTasks(result: HomeAggregateResult<BackgroundTaskCollection>, now: number): boolean {
+  return result.answers.some(answer => backgroundTaskRows(answer.output, answer.source, answer.subject_kinds)
+    ?.some(row => {
+      if (!row.reports_to) return false;
+      if (row.state !== "failed" && row.state !== "interrupted" && !BACKGROUND_TASK_DONE_STATES.has(row.state)) return false;
+      const updatedMs = Date.parse(row.updated_at);
+      return !Number.isFinite(updatedMs) || now - updatedMs > REPORTED_ENDED_TTL_MS;
+    }) ?? false);
 }
 
 function summarizeTaskOutput(output: BackgroundTaskCollection): BackgroundTaskCollection {
@@ -47,7 +68,9 @@ export async function homeBackgroundTasks(ports: HomeAggregatePorts, projects: R
     {
       projectOutput: summarizeTaskOutput,
       persistable: result => !hasUnderWayTasks(result),
-      stillValid: result => !hasUnderWayTasks(result),
+      stillValid: (result, meta) => !hasUnderWayTasks(result)
+        && !(meta?.restarted && hasRestartSensitiveTasks(result))
+        && !hasExpiredReportedTasks(result, meta?.now ?? Date.now()),
     },
   );
   const rows: HomeBackgroundTaskRow[] = [];

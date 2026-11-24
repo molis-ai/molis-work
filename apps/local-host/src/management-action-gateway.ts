@@ -41,6 +41,10 @@ export async function handleManagementActionHttp(request: IncomingMessage, respo
         if (body.evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");
         const result = await invokeProjectReviewManagement(host, reference, review, body.input, String(body.call_id), controller.signal, accountCurrent);
         if (!response.destroyed) sendJson(response, 200, { result, ...recordedCallIdField() });
+        else if (!response.writableEnded) {
+          response.statusCode = 200;
+          response.end();
+        }
       }
       catch (error) { const refused = actionErrorResponse(error); if (!response.destroyed) sendJson(response, refused.status, { ...refused.body, ...recordedCallIdField() }); }
     });

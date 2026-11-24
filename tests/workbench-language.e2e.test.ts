@@ -1264,7 +1264,7 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
   assert.deepEqual(await b.evaluate(`[originalInstalledTitle===document.querySelector(${JSON.stringify(tab)}),
     originalInstalledTitle.querySelector('.tab-item-name').textContent, originalMarketTitle===document.querySelector('[data-market-plugin=todo] h2'),
     originalMarketTitle.textContent, originalMarketTitle.nextElementSibling.textContent, JSON.parse(document.querySelector('#workbench-plugin-titles').textContent)[${JSON.stringify(surface)}]]`),
-  [true, "Reading notes", true, "Todo", "Write down what needs doing, what is for today, and who you are waiting for.", "Reading notes"]);
+  [true, "Reading notes", true, "Todo", "Write down what needs doing, what’s for today, and who you’re waiting on.", "Reading notes"]);
   assert.deepEqual([...new Set(hostTextProblems().filter(problem => !problemsBefore.has(problem)).map(problem => problem.key ?? problem.code))], [], "a viewless Home half and the installed release used their actual owners");
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(frame)}).title`), "Reading notes");
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(frame)}).parentElement.dataset.pluginPage`), opened);
@@ -1791,9 +1791,9 @@ test("FSS-35 approved library titles and Assistant settings words preserve exact
   }
   const cases = [
     ["account.seat.assign", "system.account", "分配席位", "Assign seat"],
-    ["dataset.create", "io.molis.work.dataset", "新建数据表", "New table"],
-    ["goals.list", "io.molis.work.goals", "目标目录", "Target directory"],
-    ["todo.reminders.due", "io.molis.work.todo", "到了时间的提醒", "Reminders due"],
+    ["dataset.create", "io.molis.work.dataset", "新建数据表", "Create data table"],
+    ["goals.list", "io.molis.work.goals", "目标目录", "List goals"],
+    ["todo.reminders.due", "io.molis.work.todo", "到点提醒", "List due reminders"],
   ];
   const ids = cases.map(([id, provider]) => `library-index-${provider}:${id}@1`);
   const detail = "library-detail-io.molis.work.dataset:dataset.create@1";
@@ -1805,9 +1805,9 @@ test("FSS-35 approved library titles and Assistant settings words preserve exact
   assert.match(await b.evaluate<string>("document.querySelector('.capability-detail').textContent"), /dataset\.create@1/u);
   await b.evaluate(`void (window.catalogLibrary = [...${JSON.stringify(ids)}, ${JSON.stringify(detail)}].map(id => document.getElementById(id)))`);
   await select("en"); await b.waitFor("document.documentElement.lang === 'en'");
-  assert.deepEqual(await b.evaluate(titles), [...cases.map(row => row[3]), "New table"]);
+  assert.deepEqual(await b.evaluate(titles), [...cases.map(row => row[3]), "Create data table"]);
   assert.ok(await b.evaluate("catalogLibrary.every(node => document.getElementById(node.id) === node)"));
   await go(library + "&q=" + encodeURIComponent("新建数据表"));
   await b.waitFor(`!!document.getElementById(${JSON.stringify(ids[1])})`);
-  assert.equal(await b.evaluate(`document.getElementById(${JSON.stringify(ids[1])}).textContent`), "New table", "the library still searches the original declaration");
+  assert.equal(await b.evaluate(`document.getElementById(${JSON.stringify(ids[1])}).textContent`), "Create data table", "the library still searches the original declaration");
 });

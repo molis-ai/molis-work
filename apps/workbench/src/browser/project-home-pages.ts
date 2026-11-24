@@ -411,7 +411,7 @@ export function mountHomePages(host: HomePagesUiHost) {
     mutating = true;
     try {
       await runBusy(triggerBtn, async () => {
-        await host.api<HomePageApprovalReceipt>(endpoint, "POST", {
+        const receipt = await host.api<HomePageApprovalReceipt>(endpoint, "POST", {
           page_id: version.page_id,
           version: version.version,
           approved_actions: approved,
@@ -427,6 +427,10 @@ export function mountHomePages(host: HomePagesUiHost) {
         fallbackAlert = null;
         if (comparingDraft) exitCompare();
         await sync();
+        if (overview?.revision !== receipt.revision) {
+          host.receipt(uiText.text("workbench.home-pages.decision-history"));
+          return;
+        }
         craft()?.land?.(liveHost!);
         host.receipt(
           uiText.text(operation === "restore" ? "workbench.home-pages.restored-toast" : "workbench.home-pages.adopted-toast", {
@@ -465,7 +469,7 @@ export function mountHomePages(host: HomePagesUiHost) {
     mutating = true;
     try {
       await runBusy(triggerBtn, async () => {
-        await host.api<HomePageSelectResult>("/api/home-pages/select", "POST", {
+        const receipt = await host.api<HomePageSelectResult>("/api/home-pages/select", "POST", {
           kind: "basic",
           ...await decision("basic", "", [], overview!.revision),
         });
@@ -475,6 +479,12 @@ export function mountHomePages(host: HomePagesUiHost) {
         if (comparingDraft) exitCompare();
         restoreNotice = prev ? { page: { page_id: prev.page_id, version: prev.version }, title: prev.title } : null;
         await sync();
+        if (overview?.revision !== receipt.revision) {
+          restoreNotice = null;
+          renderNotice();
+          host.receipt(uiText.text("workbench.home-pages.decision-history"));
+          return;
+        }
         craft()?.turn?.(host.root, true);
         host.receipt(uiText.text("workbench.home-pages.switched-to-default"));
       });

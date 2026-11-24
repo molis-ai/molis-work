@@ -204,7 +204,7 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
       const next = await api<MainlineViewResponse>("/api/mainline/items/view", {});
       if (generation !== readGeneration) return view;
       const prev = lastCurrent === undefined ? null : lastCurrent;
-      const changed = lastCurrent !== undefined && lastCurrent !== next.mainline.current;
+      const changed = prev !== next.mainline.current;
       if (needsGroupDefaults) {
         for (const group of next.mainline.groups) collapsedGroups.add(group.group_id);
         needsGroupDefaults = false;
@@ -214,7 +214,7 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
       if (selectedKind && !next.sources.some((s) => s.kind === selectedKind && s.create)) selectedKind = "";
       lastCurrent = next.mainline.current;
       paint();
-      if (emit) announce(next, prev, changed && Boolean(next.mainline.current && !visited.has(next.mainline.current)));
+      if (emit || changed) announce(next, prev, changed && Boolean(next.mainline.current && !visited.has(next.mainline.current)));
       return next;
     } catch {
       return view;
@@ -233,21 +233,21 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
       ++readGeneration;
       const firstEntry = Boolean(itemId && !visited.has(itemId));
       await api("/api/mainline/switch", { item_id: itemId });
-      if (itemId) {
-        visited.add(itemId);
-        writeStoredSet(VISITED_KEY, visited);
-      }
       const generation = ++readGeneration;
       const next = await api<MainlineViewResponse>("/api/mainline/items/view", {});
       if (generation !== readGeneration) return;
       view = next;
       lastCurrent = next.mainline.current;
+      announce(next, prev, firstEntry && next.mainline.current === itemId);
+      if (itemId && next.mainline.current === itemId) {
+        visited.add(itemId);
+        writeStoredSet(VISITED_KEY, visited);
+      }
       const craft = globals.molisCraft;
       const applyVisual = () => {
         if (view !== next) return;
         paint();
         closeCorner();
-        announce(next, prev, firstEntry);
         if (itemId === null && openHomeOnNull) host.openHome();
       };
       if (originEl && craft?.carry) {

@@ -835,8 +835,14 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     if (prevItem !== activeItemId) {
       delete document.body.dataset.workLineScope;
       cards.setItem(activeItemId);
+      paged = "";
+      pressing = "";
+      followed = false;
       restoreFocus();
       restoreScopeLine();
+      // The other listeners restore the new workspace and Assistant receiver synchronously.
+      // Follow its active event after that restore, then again on this scope's first live read.
+      queueMicrotask(follow);
       list.setParkedItem(activeItemId);
     }
     paintScopeToggle();

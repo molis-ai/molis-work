@@ -68,7 +68,7 @@ export function unreadablePage(
   if (!sheetFiles.length) return;
   for (const html of files.filter(file => file.media_type === "text/html" && (!entry || file.path === entry))) {
     const source = parseDocument(html.text);
-    const links = selectAll("link[rel=stylesheet][href]", source.children);
+    const links = DomUtils.findAll(node => node.name === "link" && node.attribs.rel?.trim().toLowerCase() === "stylesheet", source.children);
     const sheets = new Set(links.map(link => link.attribs.href?.replace(/^\.\//u, "")));
     for (const sheet of sheetFiles) sheets.add(sheet.path);
     const styles = [...sheets].map(path => {
@@ -76,8 +76,8 @@ export function unreadablePage(
       if (!sheet) return;
       try { return parseCss(sheet.text); } catch { return undefined; }
     });
-    const body = selectAll("body", source.children)[0];
-    const root = selectAll("html", source.children)[0];
+    const body = DomUtils.findOne(node => node.name === "body", source.children);
+    const root = DomUtils.findOne(node => node.name === "html", source.children);
     const markup = body ? DomUtils.getInnerHTML(body) : DomUtils.getOuterHTML(root?.children ?? source.children);
     // The frame places the entry's body contents inside its own html/body wrapper.
     const doc = parseDocument('<html><body class="immersive-workbench">' + markup + "</body></html>");

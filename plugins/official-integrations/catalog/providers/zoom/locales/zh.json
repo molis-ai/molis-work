@@ -11,6 +11,8 @@
     "zoom.guide.oauth-link": "查看 Zoom OAuth 应用",
     "zoom.guide.token-note": "使用 Zoom OAuth 用户访问令牌；到期后需更新。",
     "zoom.oauth.note": "在 Zoom 应用中启用用户、会议与录制的读取权限。",
-    "zoom.setup.open-zoom-app-marketplace": "打开 Zoom App Marketplace"
+    "zoom.setup.open-zoom-app-marketplace": "打开 Zoom App Marketplace",
+    "zoom.permission.network.reason": "读取 Zoom 账号信息与最新动态",
+    "zoom.permission.secret.reason": "使用已安全保存的 Zoom 连接凭据"
   }
 }

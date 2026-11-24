@@ -9,8 +9,10 @@
     "wechat.connection.title": "WeCom",
     "wechat.connection.token-label": "WeCom CorpID and Secret",
     "wechat.directory.name": "WeChat",
-    "wechat.guide.token-note": "Enter the CorpID and Secret of a custom WeCom app. Personal WeChat accounts do not have this official API.",
+    "wechat.guide.token-note": "Enter the CorpID and Secret of a custom WeCom app. Personal WeChat accounts don’t have this official API.",
     "wechat.setup.open-the-wecom-admin-console": "Open the WeCom admin console",
-    "wechat.setup.view-wecom-developer-documentation": "View WeCom developer documentation"
+    "wechat.setup.view-wecom-developer-documentation": "View WeCom developer documentation",
+    "wechat.permission.network.reason": "Read your WeChat account info and latest updates",
+    "wechat.permission.secret.reason": "Use your securely stored WeChat connection credentials"
   }
 }

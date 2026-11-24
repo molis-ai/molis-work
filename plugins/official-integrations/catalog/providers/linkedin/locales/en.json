@@ -9,7 +9,9 @@
     "linkedin.connection.token-label": "LinkedIn access token",
     "linkedin.guide.oauth-link": "View LinkedIn OAuth 2.0",
     "linkedin.guide.token-note": "Use an OpenID member access token. Posts require separate approval.",
-    "linkedin.oauth.note": "Enable Sign In with LinkedIn in the app. Standard OIDC does not provide permission to read posts in Feed.",
-    "linkedin.setup.open-linkedin-developer-dashboard": "Open LinkedIn developer dashboard"
+    "linkedin.oauth.note": "Enable Sign In with LinkedIn in the app. Standard OIDC doesn’t provide permission to read posts in Feed.",
+    "linkedin.setup.open-linkedin-developer-dashboard": "Open LinkedIn developer dashboard",
+    "linkedin.permission.network.reason": "Read your LinkedIn account info and latest updates",
+    "linkedin.permission.secret.reason": "Use your securely stored LinkedIn connection credentials"
   }
 }

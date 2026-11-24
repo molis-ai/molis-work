@@ -8,6 +8,8 @@
     "loom.connection.summary": "通过 Atlassian Rovo MCP 读取关联站点的录像。",
     "loom.guide.mcp-link": "查看 Atlassian Rovo MCP",
     "loom.guide.mcp-note": "Loom 工作区需关联 Atlassian 站点；不提供公开 REST API。",
-    "loom.setup.view-loom-api-guide": "查看 Loom API 说明"
+    "loom.setup.view-loom-api-guide": "查看 Loom API 说明",
+    "loom.permission.network.reason": "读取 Loom 账号信息与最新动态",
+    "loom.permission.secret.reason": "使用已安全保存的 Loom 连接凭据"
   }
 }

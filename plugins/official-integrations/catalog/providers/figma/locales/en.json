@@ -7,9 +7,12 @@
     "figma.connection.inbound": "API checks identity; MCP reads designs",
     "figma.connection.summary": "Designs and annotations.",
     "figma.connection.token-label": "Figma Personal Access Token",
+    "figma.connection.token-placeholder": "figu_… or figd_…",
     "figma.guide.mcp-link": "View the official Figma MCP",
     "figma.guide.mcp-note": "Enable the desktop MCP service in Figma. The cloud service is limited to approved clients.",
     "figma.guide.oauth-link": "View Figma OAuth app",
-    "figma.setup.open-figma-account-settings": "Open Figma account settings"
+    "figma.setup.open-figma-account-settings": "Open Figma account settings",
+    "figma.permission.network.reason": "Read your Figma account info and latest updates",
+    "figma.permission.secret.reason": "Use your securely stored Figma connection credentials"
   }
 }

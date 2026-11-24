@@ -11,7 +11,8 @@ import type { CodingSessionStore } from "./store.js";
  * it is the session's row in the table of background tasks (home-background.ts), which serves this same object, so the line shows
  * the event in progress or waiting from that row and back in its own state when the row is gone.
  */
-export const codingWorkEventsAction = defineWorkEventsAction("coding.events", /* @version action.coding.events */ 1, ["coding_session"], "Coding 事件", ["artifact:read"]);
+const rawCodingWorkEventsAction = defineWorkEventsAction("coding.events", /* @version action.coding.events */ 1, ["coding_session"], "Coding 事件", ["artifact:read"]);
+export const codingWorkEventsAction = { ...rawCodingWorkEventsAction, action: { ...rawCodingWorkEventsAction.action, title_text: { key: "coding.action.events.title" }, description_text: { key: "coding.action.events.description" } } };
 
 /** The sessions that ended in the window, newest first, are many in a busy project; the line shows the latest of them. */
 const MAX_ENDED = 20;

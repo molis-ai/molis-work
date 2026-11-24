@@ -11,6 +11,8 @@
     "supabase.guide.mcp-link": "查看 Supabase 官方 MCP",
     "supabase.guide.oauth-link": "查看 Supabase OAuth 应用",
     "supabase.oauth.note": "读取权限在 Supabase OAuth 应用中配置。",
-    "supabase.setup.create-supabase-access-token": "创建 Supabase Access Token"
+    "supabase.setup.create-supabase-access-token": "创建 Supabase Access Token",
+    "supabase.permission.network.reason": "读取 Supabase 账号信息与最新动态",
+    "supabase.permission.secret.reason": "使用已安全保存的 Supabase 连接凭据"
   }
 }

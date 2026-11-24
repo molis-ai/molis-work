@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.brave-search",
+  "locale": "ja",
+  "messages": {
+    "brave-search.connection.auth-help": "Brave Search API ダッシュボードで API Key を作成してください（カード登録が必要で、毎月 5 ドル分の枠があります）。接続時にキー確認のため検索を 1 回実行し、1 クエリとしてカウントされます。",
+    "brave-search.connection.inbound": "Web 検索（既定に設定した場合に使用）",
+    "brave-search.connection.summary": "Brave 独自の Web インデックスです。従量課金でカード登録が必要です。",
+    "brave-search.connection.token-label": "Brave Search API Key",
+    "brave-search.setup.open-brave-search-api-keys": "Brave Search API キーを開く",
+    "brave-search.permission.network.reason": "Brave Search でのウェブ検索とアカウント確認に使用します",
+    "brave-search.permission.secret.reason": "安全に保存された Brave Search の接続資格情報を使用します"
+  }
+}

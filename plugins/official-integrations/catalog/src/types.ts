@@ -8,6 +8,7 @@ export interface CatalogAuthContext {
   raw: string;
   accessToken: string;
   extra: Record<string, string>;
+  locale?: string;
 }
 
 export interface CatalogHttpRequest {
@@ -33,7 +34,7 @@ export interface CatalogConnectorSpec {
   readonly summary: PluginConnectionWord;
   readonly inbound: PluginConnectionWord;
   readonly token_label: PluginConnectionWord;
-  readonly token_placeholder: string;
+  readonly token_placeholder: PluginConnectionWord;
   readonly auth_help: PluginConnectionWord;
   readonly setup_links: readonly PluginConnectionLink[];
   readonly permission_host: string;

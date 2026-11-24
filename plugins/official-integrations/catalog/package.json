@@ -18,6 +18,7 @@
   "files": [
     "dist",
     "manifest.json",
+    "locales",
     "providers",
     "README.md"
   ],

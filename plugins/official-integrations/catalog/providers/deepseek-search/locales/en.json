@@ -7,6 +7,8 @@
     "deepseek-search.connection.inbound": "Web search (when it is the default)",
     "deepseek-search.connection.summary": "DeepSeek’s web search, including documents. Paid per successful request.",
     "deepseek-search.connection.token-label": "DeepSeek API key",
-    "deepseek-search.setup.open-deepseek-api-keys": "Open DeepSeek API keys"
+    "deepseek-search.setup.open-deepseek-api-keys": "Open DeepSeek API keys",
+    "deepseek-search.permission.network.reason": "Use DeepSeek Search for web search and account checks",
+    "deepseek-search.permission.secret.reason": "Use your securely stored DeepSeek Search connection credentials"
   }
 }

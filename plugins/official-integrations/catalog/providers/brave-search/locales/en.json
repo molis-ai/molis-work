@@ -7,6 +7,8 @@
     "brave-search.connection.inbound": "Web search (when it is the default)",
     "brave-search.connection.summary": "Brave’s own web index. Paid per query; a card is required.",
     "brave-search.connection.token-label": "Brave Search API key",
-    "brave-search.setup.open-brave-search-api-keys": "Open Brave Search API keys"
+    "brave-search.setup.open-brave-search-api-keys": "Open Brave Search API keys",
+    "brave-search.permission.network.reason": "Use Brave Search for web search and account checks",
+    "brave-search.permission.secret.reason": "Use your securely stored Brave Search connection credentials"
   }
 }

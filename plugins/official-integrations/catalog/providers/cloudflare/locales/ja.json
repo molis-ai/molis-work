@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.cloudflare",
+  "locale": "ja",
+  "messages": {
+    "cloudflare.connection.auth-help": "Cloudflare API Token を入力してください。アカウント確認には公式の /user/tokens/verify を呼び出します（Global API Key のメールヘッダーは使えません）。ドメイン一覧の取得には Zone.Read も必要です。",
+    "cloudflare.connection.inbound": "Feed でドメイン一覧を取得",
+    "cloudflare.connection.summary": "Workers、Pages、DNS。",
+    "cloudflare.connection.token-label": "Cloudflare API Token",
+    "cloudflare.guide.cli-link": "Wrangler CLI を見る",
+    "cloudflare.guide.mcp-link": "Cloudflare 公式 MCP を見る",
+    "cloudflare.guide.oauth-link": "Cloudflare OAuth を見る",
+    "cloudflare.oauth.api-scopes": "アプリで承認済みの読み取り専用 API scopes（スペース区切り・ドット形式）",
+    "cloudflare.oauth.client-auth": "Client 認証方式（basic / post / none）",
+    "cloudflare.oauth.note": "公式 OAuth Scopes API から必要な読み取り専用権限を選んでください。Wrangler のコロン形式 scope は使えません。",
+    "cloudflare.setup.create-cloudflare-api-token": "Cloudflare API Token を作成",
+    "cloudflare.permission.network.reason": "Cloudflare のアカウント情報と最新の更新を読み取ります",
+    "cloudflare.permission.secret.reason": "安全に保存された Cloudflare の接続資格情報を使用します"
+  }
+}

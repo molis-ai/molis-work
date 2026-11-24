@@ -1,0 +1,22 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.gmail",
+  "locale": "ja",
+  "messages": {
+    "gmail.connection.inbound": "Feed でメールを読み取り専用取得",
+    "gmail.connection.outbound": "メール送信には対応していません。この接続では受信メールの読み取りのみ行います。",
+    "gmail.connection.send-mail": "メールを送信",
+    "gmail.connection.summary": "この端末のアカウントを接続します。Feed でメールを読み取り専用で取得します。",
+    "gmail.guide.mcp-connected-note": "Google Workspace 開発者プレビューへの参加資格が必要です。",
+    "gmail.guide.mcp-link": "Gmail 公式 MCP を見る（開発者プレビュー）",
+    "gmail.guide.mcp-note": "Google Workspace 開発者プレビューへの参加資格が必要です。Molis Work ではまだ接続していません。",
+    "gmail.guide.oauth-link": "Google OAuth クライアントを作成",
+    "gmail.guide.oauth-note": "アプリ内で Gmail の読み取り専用 OAuth に対応しています。ご自身の Google Cloud クライアントとローカルコールバック設定が必要です。",
+    "gmail.guide.token-note": "OAuth Playground で gmail.readonly のアクセストークンを取得して貼り付けてください。期限切れ後は再取得が必要です。",
+    "gmail.setup.create-oauth-client": "OAuth クライアントを作成",
+    "gmail.setup.enable-the-gmail-api": "Gmail API を有効化",
+    "gmail.setup.get-a-token-in-oauth-playground": "OAuth Playground でトークンを取得",
+    "gmail.permission.network.reason": "Gmail のアカウント情報と受信トレイのメールを読み取ります",
+    "gmail.permission.secret.reason": "アカウントごとに分離して保存された Gmail の接続資格情報を使用します"
+  }
+}

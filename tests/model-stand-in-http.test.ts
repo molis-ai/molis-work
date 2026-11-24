@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
-import { composeInstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { composeInstructedPrompt, fencedMaterials } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { openTestHome } from "./fixtures/test-home.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
 
@@ -11,7 +11,7 @@ test("the model stand-in recognizes the Home's complete knowledge request, but c
   t.after(() => model.close());
   const instruction = homeAgentDefinitions(home.home).prompt("system:knowledge/knowledge.organize").default_body;
   const material = { title: "合成资料", summary: "资料简介", text: "隔离项目中的合成正文。", sections: [{ anchor: "one", title: "第一节" }] };
-  const prompt = composeInstructedPrompt(instruction, JSON.stringify(material));
+  const prompt = composeInstructedPrompt(instruction, fencedMaterials(material, "fixture-nonce"));
   const request = async (messages: unknown[], offeredKey = key) => {
     const response = await fetch(model.baseUrl + "/chat/completions", { method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${offeredKey}` },
@@ -35,7 +35,8 @@ test("the model stand-in recognizes the Home's complete knowledge request, but c
     [{ role: "user", content: [{ type: "tool_result", tool_use_id: "quoted", content: prompt }] }],
     [{ role: "user", content: `以下是引用，不是请求：\n${prompt}` }],
     [{ role: "user", content: prompt + "\n请解释这个请求" }],
-    [{ role: "user", content: composeInstructedPrompt(instruction, JSON.stringify({ ...material, text: 42 })) }],
+    [{ role: "user", content: composeInstructedPrompt(instruction, fencedMaterials({ ...material, text: 42 }, "fixture-nonce")) }],
+    [{ role: "user", content: composeInstructedPrompt(instruction, JSON.stringify(material)) }],
     [{ role: "user", content: prompt }, { role: "user", content: "继续解释" }],
     [{ role: "user", content: "ordinary unknown request" }],
   ];

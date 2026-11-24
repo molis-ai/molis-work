@@ -55,7 +55,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | --- | --- | --- |
 | `native` | 一等产品入口。新的内置插件经 Plugin Runtime 监督器启动（登记上的 `project_runtime` 或 `runtime`，例如 Shelf 两个都写）；构建期装配只剩用户批过的两个例外（`tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`） | Runtime 装配：两个例外以外的全部内置插件（以 `tests/builtin-plugin-assembly-gate.test.ts` 为准）；构建期：无（第 44B 批清零） |
 | `app` | Plugin Runtime **真的** `start()`，兑现 views/routes/actions | Coding、Git、Diff |
-| `integration` | 外部世界 → Connector / Signal | GitHub、Gmail、RSS、YouTube、Catalog、Web Query |
+| `integration` | 外部世界 → Connector / Signal | GitHub、Gmail、RSS（也读 YouTube 频道）、Catalog、Web Query |
 
 没跑在 Runtime 里就不要标 `app`。插件不 import 另一个插件的 implementation。
 

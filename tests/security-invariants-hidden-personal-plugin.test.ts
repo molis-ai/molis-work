@@ -79,6 +79,18 @@ test("RAC-580 S-72 Shelf, a platform part, stays in reach whatever the project h
   assert.equal((await availability(callerIn(project.project_id), view("pages"))).available, false);
 });
 
+// S-34: a platform part has no lifecycle. Whatever spelling reaches it — the platform path the pages use, or a project's — turning it off,
+// on, restarting, retrying, upgrading, releasing or removing it is not there, and it keeps answering afterwards.
+test("S-34 Shelf, a platform part, refuses every lifecycle operation and keeps answering", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), project = await home.createProject("Keeps Shelf");
+  const settings = await home.web.get<unknown>("/api/platform/shelf/settings");
+  for (const operation of ["disable", "enable", "restart", "retry", "upgrade", "release-quarantine", "uninstall"]) {
+    await assert.rejects(home.web.post(`/api/platform/shelf/${operation}`, {}), { status: 404, code: "actions.missing" }, operation);
+    await assert.rejects(home.web.post(`/projects/${encodeURIComponent(project.project_id)}/api/platform/shelf/${operation}`, {}), { status: 404 }, `${operation} under a project`);
+  }
+  assert.deepEqual(await home.web.get<unknown>("/api/platform/shelf/settings"), settings, "Shelf still answers, as before");
+});
+
 test("RAC-580 S-72 the availability both the action directory and discovery use refuses a hidden personal plugin, only in the project that hid it", async t => {
   const home = await openTestHome(t, { catalogPolicy: false });
   const hiding = await home.createProject("Hides Pages", ["goals"]), showing = await home.createProject("Shows Pages", ["goals"]);

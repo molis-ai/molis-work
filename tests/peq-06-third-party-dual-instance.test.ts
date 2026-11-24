@@ -172,12 +172,15 @@ test("PEQ-06 S-48 S-80 S-87 a signed third-party dual-instance package shares it
   assert.deepEqual(await operate(clientA, projectACaller, projectAViews, "project.list", {}), [{ id: "1", title: "task-in-A" }], "Project A untouched");
   assert.deepEqual(await operate(h.homeClient(), homeCaller, homeViews, "home.list", {}), [{ id: "1", text: "shared-from-home" }], "Home data still shared");
 
-  // S-48 optional permission ceiling: project half cannot enable an optional permission Home does not hold.
-  const projectInstalled = await clientA.invoke(person(projectA.project_id), ref(pluginInstallActions.installed), {}) as {
-    plugins: Array<{ install_id: string; plugin_id: string }>;
-  };
-  const projectAInstall = projectInstalled.plugins.find(row => row.plugin_id === DUAL_PLUGIN_ID);
+  // S-48 optional permission ceiling: project half cannot enable an optional permission Home does not hold,
+  // and overview does not lock out project-half toggles as Home-only (`home_managed_install_ids`).
+  const overview = await served.web.get<{ plugins: Array<{ install_id: string; plugin_id: string }>; home_managed_install_ids: string[] }>(
+    `/projects/${encodeURIComponent(projectA.project_id)}/api/plugin-trust/overview`,
+  );
+  const projectAInstall = overview.plugins.find(row => row.plugin_id === DUAL_PLUGIN_ID);
   assert.ok(projectAInstall, "Project A lists dual-instance installation");
+  assert.equal(overview.home_managed_install_ids.includes(projectAInstall.install_id), false,
+    "PEQ-06: signed third-party dual-instance package keeps its project optional permission toggles enabled");
   await assert.rejects(
     served.web.post(`/projects/${encodeURIComponent(projectA.project_id)}/api/plugin-trust/permissions/set`, {
       install_id: projectAInstall.install_id, permission: "network:request", granted: true,
@@ -232,9 +235,29 @@ test("PEQ-06 S-48 S-80 S-87 a signed third-party dual-instance package shares it
   const alwaysOnBundle = dualPackage(newPublisher(), { pluginId: "com.example.dual-always-on", alwaysOn: true });
   await assert.rejects(clientA.invoke(person(projectA.project_id), ref(pluginInstallActions.preview), { bundle: alwaysOnBundle }), refused("plugin.declaration_invalid"));
 
-  // S-87: revoking the publisher stops BOTH Home half and Project halves on reopen while keeping stored data.
+  // S-87: revoking the publisher via the settings door blocks live project/Home regrant immediately AND stops BOTH halves on reopen while keeping stored data.
+  const servedAfterRevoke = await serveTestHost(null, { home: h.home, host: h.host });
+  try {
+    const revoked = await servedAfterRevoke.web.post<{ publisher: { revoked_at: string | null } }>("/api/settings/plugin-publishers/revoke", { key_id: publisher.identity });
+    assert.ok(revoked.publisher.revoked_at);
+    await assert.rejects(
+      servedAfterRevoke.web.post(`/projects/${encodeURIComponent(projectA.project_id)}/api/plugin-trust/permissions/set`, {
+        install_id: projectAInstall.install_id, permission: "network:request", granted: true,
+      }),
+      (error: { code?: string }) => error?.code === "plugin.publisher_revoked",
+      "S-87: project optional permission regrant is refused once publisher is revoked",
+    );
+    await assert.rejects(
+      servedAfterRevoke.web.post("/api/settings/plugin-permissions/set", {
+        install_id: homeInstall.install_id, permission: "network:request", granted: true,
+      }),
+      (error: { code?: string }) => error?.code === "plugin.publisher_revoked",
+      "S-87: Home optional permission regrant is refused once publisher is revoked",
+    );
+  } finally {
+    await servedAfterRevoke.close();
+  }
   await h.host.close();
-  assert.ok(h.ledger.revokePublisher(publisher.identity, "2026-11-19T00:00:00.000Z")?.revoked_at);
   await h.reopen();
   assert.equal(h.host.homePlugins!.packageError(DUAL_PLUGIN_ID, "code"), "plugin.publisher_revoked");
   assert.notEqual(h.host.homePlugins!.installation(DUAL_PLUGIN_ID)?.state, "running");

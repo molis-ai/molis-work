@@ -3,7 +3,7 @@ import { basename, dirname, join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import {
-  assertStorageOwner, checkSqliteBaselineVersion, homeSqlitePath, readDatabaseSpace, readStorageSpace, readUpgradeStore, recoverSqliteRollbackJournals,
+  assertStorageOwner, homeSqlitePath, readDatabaseSpace, readStorageSpace, readUpgradeStore, recoverSqliteRollbackJournals, upgradeStepsProblem,
   type RollbackLibrary, type SqliteDatabase, type StorageOwner, type StorageSpace,
 } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -71,11 +71,12 @@ export function assertNoPendingArtifactRows(home: string, owner: StorageOwner): 
     if (!lstatSync(file, { throwIfNoEntry: false })) continue;
     assertSqliteLibraryReady(file);
     const ids = readUpgradeStore(file, db => {
-      // An older library its owner's declared steps take to this version still holds the old build's pending pins, and they are read here,
-      // before the upgrade below this check moves the library out of the old build's reach. Any other version is classified as before.
+      // An older library its owner's declared steps take all the way to this version still holds the old build's pending pins, and they are
+      // read here, before the upgrade below this check moves the library out of the old build's reach. Too-new, unversioned, or broken-chain
+      // libraries are left untouched here so ensureHomeUpgraded isolates only that plugin instead of crashing the entire Home.
       const found = Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
-      const upgradable = found >= 1 && found < library.version && (library.upgrades ?? []).some(step => step.from === found);
-      if (!upgradable && !checkSqliteBaselineVersion(db, file, library, root)) return [];
+      const upgradable = found >= 1 && found < library.version && upgradeStepsProblem(library, found) === undefined;
+      if (!upgradable && found !== library.version) return [];
       if (!space || JSON.stringify(readDatabaseSpace(db)) !== JSON.stringify(space)) throw wrongArtifactSpace();
       return db.prepare(`SELECT ${quoted(declaration.id_column)} AS id FROM ${quoted(declaration.table)} WHERE ${quoted(declaration.pending_column!)} IS NOT NULL LIMIT 20`)
         .all().map(row => String(row.id));

@@ -3,6 +3,9 @@ import type { HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contrac
 import { sendLocalWebJson } from "./web-http.js";
 import { homePageRequestBound } from "./home-page-authority.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
+import { repeatingFailure } from "./host-log.js";
+
+const attentionPartFailures = repeatingFailure("attention", "part_failed");
 
 /** Where each part of what waits on the person is read; every reader belongs to the part's owner. */
 export interface AttentionSources {
@@ -43,17 +46,24 @@ export interface AttentionSources {
 export async function handleAttentionHttp(request: IncomingMessage, response: ServerResponse, url: URL, sources: AttentionSources): Promise<boolean> {
   if (request.method === "GET" && url.pathname === "/api/attention/events" && sources.changes) { attentionEvents(request, response, sources.changes); return true; }
   if (request.method !== "GET" || url.pathname !== "/api/attention") return false;
-  const part = async <T>(read: () => T | Promise<T>): Promise<T | null> => {
-    try { return await read(); } catch { return null; /* that part keeps its last answer on the page */ }
+  const part = async <T>(name: string, read: () => T | Promise<T>): Promise<T | null> => {
+    try {
+      const value = await read();
+      attentionPartFailures.worked(name);
+      return value;
+    } catch (error) {
+      attentionPartFailures.failed(name, error, { part: name });
+      return null; /* that part keeps its last answer on the page */
+    }
   };
   const surface = url.searchParams.get("surface") || null;
   const item = url.searchParams.get("item")?.trim() || null;
   const absent = Promise.resolve(null), mainline = sources.mainline;
   const [background_tasks, notices, plugin_events_pending, board_cursor, line, mainline_summary] = await Promise.all([
-    sources.backgroundTasks ? part(() => sources.backgroundTasks!()) : absent, part(() => sources.notices(surface)),
-    sources.pluginEventsPending ? part(() => sources.pluginEventsPending!()) : Promise.resolve(0), sources.boardCursor ? part(() => sources.boardCursor!()) : absent,
-    mainline ? part(() => mainline.line(item)) : absent,
-    mainline?.summary ? part(() => mainline.summary!()) : absent]);
+    sources.backgroundTasks ? part("background_tasks", () => sources.backgroundTasks!()) : absent, part("notices", () => sources.notices(surface)),
+    sources.pluginEventsPending ? part("plugin_events_pending", () => sources.pluginEventsPending!()) : Promise.resolve(0), sources.boardCursor ? part("board_cursor", () => sources.boardCursor!()) : absent,
+    mainline ? part("line", () => mainline.line(item)) : absent,
+    mainline?.summary ? part("mainline_summary", () => mainline.summary!()) : absent]);
   // The task panel's table is the one the line was placed with: read once, sent beside the line it came with.
   sendLocalWebJson(response, 200, { background_tasks, notices, plugin_events_pending, board_cursor, line, tasks: line ? line.table : null, ...(mainline_summary ? { mainline_summary } : {}) });
   return true;

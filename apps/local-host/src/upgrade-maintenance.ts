@@ -32,7 +32,7 @@ export interface HomeUpgradePlan {
  * can say which identity to expect: a directory counts when it is really here, not through a link, and says of itself that it is this account.
  * Everything else is left for the open that does know, with one line in the log.
  */
-function accountHomes(root: string): readonly string[] {
+export function accountHomes(root: string): readonly string[] {
   const spaces = join(root, "spaces"), skipped = (reason: string) => hostLog.warn("host", "home_upgrade_space_skipped", undefined, { reason });
   try {
     if (!lstatSync(spaces, { throwIfNoEntry: false })) return [];

@@ -237,6 +237,11 @@ test("WLN-04 WLN-06 POLISH-34: the input takes the next request at once while th
   await waitFor("[...document.querySelectorAll('[data-work-lists] [data-work-list-rows=\"now\"] .work-task-row-main')].every(b => b.disabled && b.textContent.includes('正在核对'))", 10_000);
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
   await waitFor("!document.querySelector('[data-work-line]')?.hasAttribute('data-checking') && [...document.querySelectorAll('[data-work-lists] [data-work-list-rows=\"now\"] .work-task-row-main')].every(b => !b.disabled && !b.textContent.includes('正在核对'))", 15_000);
+  // Server-side mainline read failure (GET /api/attention returns HTTP 200 with line: null, tasks: null) must also enter data-checking and disable stale actions until a live read arrives.
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention', { detail: { line: null, tasks: null, notices: [], plugin_events_pending: 0, board_cursor: null } }))");
+  await waitFor("document.querySelector('[data-work-line]')?.hasAttribute('data-checking') && [...document.querySelectorAll('[data-work-lists] [data-work-list-rows=\"now\"] .work-task-row-main')].every(b => b.disabled && b.textContent.includes('正在核对'))", 10_000);
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
+  await waitFor("!document.querySelector('[data-work-line]')?.hasAttribute('data-checking') && [...document.querySelectorAll('[data-work-lists] [data-work-list-rows=\"now\"] .work-task-row-main')].every(b => !b.disabled && !b.textContent.includes('正在核对'))", 15_000);
 
   // B37R-3 / POLISH-34: reloading can select a different front card. Wait for the same owner's event in the
   // fresh work line to distinguish a silent restoration from an empty stack that has not received a response.

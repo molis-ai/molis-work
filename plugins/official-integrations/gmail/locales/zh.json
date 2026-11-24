@@ -4,7 +4,7 @@
   "locale": "zh",
   "messages": {
     "gmail.connection.inbound": "Feed 只读收信",
-    "gmail.connection.outbound": "出站动作未兑现：当前只读收信，不发送邮件。",
+    "gmail.connection.outbound": "目前只支持收信，不会发送邮件。",
     "gmail.connection.send-mail": "发送邮件",
     "gmail.connection.summary": "本机账号。Feed 只读收信。",
     "gmail.guide.mcp-connected-note": "需要 Google Workspace 开发者预览资格。",

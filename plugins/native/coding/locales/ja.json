@@ -893,7 +893,7 @@
     "coding.library.source-changed": "提供元が変更されました。スキルを再度検出してください。",
     "coding.library.unreadable": "スキル一覧を読み込めませんでした：{reason}。このプロジェクトでCodingが有効になっているか確認してください。",
     "coding.list.joiner": "、",
-    "coding.list.semicolon": "；",
+    "coding.list.semicolon": "、",
     "coding.live.awaiting-input": "上の質問への回答待ち",
     "coding.live.awaiting-review": "上のステップの判断待ち",
     "coding.live.paused": "一時停止中（いつでも再開できます）",
@@ -958,7 +958,7 @@
         "other": "読み取り専用資料（{count}件）"
       }
     },
-    "coding.mcp.source-unavailable": "読み取り専用資料（利用不可。再接続または再選択してください）",
+    "coding.mcp.source-unavailable": "読み取り専用資料（現在利用できません。再接続または再選択してください）",
     "coding.mcp.title": "MCPツールと資料を選択",
     "coding.mcp.tool-gone": "元のサーバー設定またはツールバージョンが利用できなくなりました。選択を解除して選び直してください。",
     "coding.mcp.unavailable-mark": "（利用不可）",

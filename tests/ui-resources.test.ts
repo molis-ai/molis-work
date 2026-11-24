@@ -106,7 +106,7 @@ test("FSS-58 a language directory's files parse, are the row's owner's, and agre
     const files = readdirSync(directory).sort();
     if (row.owner === "workbench") {
       const locales = catalog.value.languages.map(language => language.tag).sort();
-      const packs = readPacks(directory, files.filter(name => name !== "scene"));
+      const packs = readPacks(directory, files.filter(name => name !== "scene" && name !== "catalog"));
       assert.deepEqual(packs.map(pack => pack.locale), locales);
       const scene = path.join(directory, "scene");
       const scenePacks = readPacks(scene, readdirSync(scene).sort());
@@ -116,6 +116,14 @@ test("FSS-58 a language directory's files parse, are the row's owner's, and agre
         assert.ok(locales.includes(pack.locale), `${pack.locale}: a registered Workbench language`);
         for (const key of Object.keys(pack.messages)) {
           assert.ok(key.startsWith("workbench.scene.") && !startupKeys.has(key), `${key}: belongs only to scene results`);
+        }
+      }
+      const catalogDir = path.join(directory, "catalog");
+      const catalogPacks = readPacks(catalogDir, readdirSync(catalogDir).sort());
+      assert.deepEqual(catalogPacks.map(pack => pack.locale), locales);
+      for (const pack of catalogPacks) {
+        for (const key of Object.keys(pack.messages)) {
+          assert.ok(key.startsWith("workbench.catalog-board.") && !startupKeys.has(key), `${key}: belongs only to catalog board`);
         }
       }
     } else {

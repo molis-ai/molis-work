@@ -69,12 +69,21 @@ test("CLI help and failed input retain storage side effects, error order and inj
   let opens = 0;
   // Goals runs in the Host as a plugin of the project, which needs the Home the Host belongs to.
   const host = createMolisWorkLocalHost({ homeDirectory: join(directory, "home"), completeText: null, onRuntimeOpen: () => { opens += 1; } });
+  const previousLocale = process.env.MOLIS_WORK_LOCALE;
+  process.env.MOLIS_WORK_LOCALE = "zh";
   try {
     const help = await captureCli(() => runV1Cli(["--help", "--db", databasePath, "--json", "{"], { localHost: host }));
-    assert.match(help.join("\n"), /--db PATH is required[^\n]*There is no default path/);
+    assert.match(help.join("\n"), /--db PATH[^\n]*没有默认路径/);
     assert.doesNotMatch(help.join("\n"), /\.molis-work\/molis-work\.db/, "no default database path is advertised");
     assert.doesNotMatch(help.join("\n"), /\b(?:init|snapshot|active-goal|goal-tree-[a-z]+)\b/, "PEQ-15: the help names no Goals command");
     assert.equal(existsSync(dirname(databasePath)), false);
+    process.env.MOLIS_WORK_LOCALE = "en";
+    const enHelp = await captureCli(() => runV1Cli(["--help", "--db", databasePath, "--json", "{"], { localHost: host }));
+    assert.match(enHelp.join("\n"), /--db PATH[^\n]*no default path/i);
+    process.env.MOLIS_WORK_LOCALE = "ja";
+    const jaHelp = await captureCli(() => runV1Cli(["--help", "--db", databasePath, "--json", "{"], { localHost: host }));
+    assert.match(jaHelp.join("\n"), /--db PATH/);
+    process.env.MOLIS_WORK_LOCALE = "zh";
     await assert.rejects(runV1Cli(["review-request", "--db", databasePath, "--json", "{"], { localHost: host }), {
       message: `Molis Work 数据库不存在: ${databasePath}`,
     });
@@ -92,6 +101,8 @@ test("CLI help and failed input retain storage side effects, error order and inj
     }
     assert.equal(host.status().state, "running", "the injected Host outlives the commands");
   } finally {
+    if (previousLocale === undefined) delete process.env.MOLIS_WORK_LOCALE;
+    else process.env.MOLIS_WORK_LOCALE = previousLocale;
     await host.close();
     rmSync(directory, { recursive: true, force: true });
   }
@@ -102,6 +113,8 @@ test("CLI has no default database: a command without --db fails before it create
   let opens = 0;
   const host = createMolisWorkLocalHost({ onRuntimeOpen: () => { opens += 1; } });
   const previous = process.cwd();
+  const previousLocale = process.env.MOLIS_WORK_LOCALE;
+  process.env.MOLIS_WORK_LOCALE = "zh";
   process.chdir(directory);
   try {
     // A flag with no value or a blank one names nothing, and neither does a --db followed by another flag (the flag must not be
@@ -114,6 +127,8 @@ test("CLI has no default database: a command without --db fails before it create
     assert.deepEqual(readdirSync(directory), [], "nothing is created relative to the working directory");
     assert.equal(opens, 0);
   } finally {
+    if (previousLocale === undefined) delete process.env.MOLIS_WORK_LOCALE;
+    else process.env.MOLIS_WORK_LOCALE = previousLocale;
     process.chdir(previous);
     await host.close();
     rmSync(directory, { recursive: true, force: true });

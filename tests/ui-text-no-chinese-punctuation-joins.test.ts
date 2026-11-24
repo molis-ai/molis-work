@@ -104,7 +104,6 @@ const JOINED_BASELINE: Readonly<Record<string, number>> = {
   "apps/local-host/src/assistant/assistant-review-words.ts": 2,
   "apps/local-host/src/assistant/assistant-rule-actions.ts": 1,
   "apps/local-host/src/character-native-execution.ts": 1,
-  "apps/local-host/src/cli-project-maintenance.ts": 2,
   "apps/local-host/src/computer/computer-desk.ts": 1,
   "apps/local-host/src/computer/computer-driver.ts": 2,
   "apps/local-host/src/computer/computer-windows.ts": 1,

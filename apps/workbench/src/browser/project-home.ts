@@ -1,4 +1,4 @@
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, renderAlert, renderBadge, renderButton, renderPopover, renderStatusMark, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import { homeButton, homeReadAt, homeWord, isPlacementControl, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
 import { createPositionCorrections } from "./project-position-corrections.js";
@@ -6,6 +6,14 @@ import { positionMenuKey } from "./project-position-menu.js";
 import { createPositionPeek } from "./project-position-peek.js";
 import { mountHomePageFrame } from "./plugin-frame/home-page-document.js";
 import type { mountHomePages } from "./project-home-pages.js";
+
+import { renderCheckSummary, renderCompareAdoptBar, renderEditConflict } from "@molis-ai/molis-work-design-system/home-page-adoption";
+import type { installRenderers } from "./mainline-ui.js";
+
+(globalThis as { molisWorkMainline?: { installRenderers: typeof installRenderers } }).molisWorkMainline?.installRenderers({
+  escapeHtml, icon, renderAlert, renderBadge, renderButton, renderPopover, renderStatusMark, t,
+  renderCheckSummary, renderCompareAdoptBar, renderEditConflict,
+});
 
 interface HomeHost {
   root?: HTMLElement;

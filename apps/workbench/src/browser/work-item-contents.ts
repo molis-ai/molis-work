@@ -1,6 +1,6 @@
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { escapeHtml as e, icon, renderButton, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as e, icon, renderButton, t as uiText } from "./mainline-ui.js";
 import { runBusy } from "./busy.js";
 import type { MainlineContentEntryView, WorkItemChangedDetail, WorkItemSummary } from "./mainline-types.js";
 
@@ -95,7 +95,8 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
       entries = res.entries ?? [];
       paint();
     } catch {
-      if (generation === readGeneration && readingFor === currentItemId) { entries = []; paint(); }
+      if (generation === readGeneration && readingFor === currentItemId) { entries = [];
+        paint(); }
     }
   };
 
@@ -246,7 +247,14 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
       }
       more.hidden = !cursors.size;
       more.addEventListener("click", () => void find(true));
-      search.addEventListener("input", () => { searchCursor = null; if (search.value.trim()) { objects.length = 0; repaint(); } void find(false); });
+      search.addEventListener("input", () => {
+        searchCursor = null;
+        if (search.value.trim()) {
+          objects.length = 0;
+          repaint();
+        }
+        void find(false);
+      });
       document.body.append(dlg);
       dlg.addEventListener("close", () => dlg.remove());
       dlg.addEventListener("click", (ev) => {
@@ -320,7 +328,8 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
 
   document.addEventListener("molis-work:work-item-changed", (event) => {
     const detail = (event as CustomEvent<WorkItemChangedDetail>).detail;
-    if (currentItemId !== detail.item_id) { entries = []; ++readGeneration; }
+    if (currentItemId !== detail.item_id) { entries = [];
+      ++readGeneration; }
     currentItemId = detail.item_id;
     currentItemName = detail.item_name;
     allItems = detail.items;

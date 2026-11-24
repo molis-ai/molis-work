@@ -1,6 +1,6 @@
 import type { ActionSubject, OpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { Mainline, MainlineCounts, MainlineGroup, MainlineItemSource } from "@molis-ai/molis-work-contracts/services/mainline";
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText } from "./mainline-ui.js";
 
 export interface MainlineResolvedItem {
   readonly item_id: string;

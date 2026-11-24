@@ -231,7 +231,7 @@ export function inspectHomePageDesign(
         if (prop !== "color" && prop !== "background" && prop !== "background-color") return;
         const role = /^\s*var\(\s*--([a-z0-9-]+)\s*\)\s*(?:!important)?\s*$/iu.exec(value)?.[1];
         if (!role) return;
-        if (/^amber(?:-|$)/u.test(role) && !/attention|waiting|approval|question|decision|ask|danger/iu.test(selector)) amberMisused = true;
+        if (/^amber(?:-|$)/u.test(role) && !/attention|waiting|approval|question|decision|ask/iu.test(selector)) amberMisused = true;
         const pair = colors.get(selector) ?? {};
         if (prop === "color") pair.ink = role; else pair.paper = role;
         colors.set(selector, pair);

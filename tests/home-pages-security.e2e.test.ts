@@ -419,6 +419,7 @@ test("B37R-1 ONB-27: editing a merge starts with the person's text and approves 
   const overview = () => web.post<HomePageOverview>(api + "read", {});
   await web.post(api + "adopt", { page_id: first.page_id, version: 1, approved_actions: [], request_id: "original", expected_revision: (await overview()).revision });
   const reference = molisWorkHostProjectReference({ projectId: project, databasePath: browser.databasePath });
+  assert.ok(browser.localHost);
   await browser.localHost.actionClient(reference).invoke({ actor_id: "editor", audience: "agent", project_id: project, permissions: ["home:write", "home:read"] },
     { capability_id: "home.pages.drafts.save", version: 1 }, { draft: draft("Proposed notes"), page_id: first.page_id, expected_version: 1, based_on: 1 });
   const visit = () => browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + route + "/" }, browser.sessionId));

@@ -9,8 +9,8 @@ import {
   renderCheckSummary,
   renderCompareAdoptBar,
   renderEditConflict,
-  type CheckSummaryItem,
-} from "@molis-ai/molis-work-design-system/home-page-adoption";
+} from "./mainline-ui.js";
+import type { CheckSummaryItem } from "@molis-ai/molis-work-design-system/home-page-adoption";
 import {
   escapeHtml,
   icon,
@@ -20,7 +20,7 @@ import {
   renderPopover,
   renderStatusMark,
   t as uiText,
-} from "@molis-ai/molis-work-plugin-sdk/ui";
+} from "./mainline-ui.js";
 
 export interface InspectedAction extends ExactActionReference {
   readonly title: string;

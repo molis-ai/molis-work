@@ -9,7 +9,7 @@ import type {
   HomePageSelectResult,
   HomePageVersionSummary,
 } from "@molis-ai/molis-work-contracts/services/home";
-import { escapeHtml, renderAlert, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, renderAlert, renderBadge, t as uiText } from "./mainline-ui.js";
 import { mountMergeEditor } from "./home-page-merge.js";
 import type { mountHomePageFrame, MountedHomePageFrame } from "./plugin-frame/home-page-document.js";
 import { runBusy } from "./busy.js";
@@ -116,7 +116,7 @@ export function mountHomePages(host: HomePagesUiHost) {
       return await host.mountFrame({ container, loaded, pageSessionId: session.page_session_id, isPreview: preview,
         routePrefix: host.routePrefix, headers: host.headers, signal, onCrash });
     } catch (error) {
-      void fetch(host.routePrefix + "/api/home-pages/session/" + encodeURIComponent(session.page_session_id),
+      void globalThis.molisWorkRequest(host.routePrefix + "/api/home-pages/session/" + encodeURIComponent(session.page_session_id),
         { method: "DELETE", keepalive: true, headers: host.headers() }).catch(() => undefined);
       throw error;
     }
@@ -449,7 +449,8 @@ export function mountHomePages(host: HomePagesUiHost) {
       });
     } catch (error) {
       const code = (error as { code?: string } | null)?.code;
-      if (code === "home.revision_conflict") { forgetDecision(); await sync(); }
+      if (code === "home.revision_conflict") { forgetDecision();
+        await sync(); }
       host.receipt(error instanceof Error ? error.message : uiText.text("workbench.home-pages.switch-failed"));
     } finally {
       mutating = false;

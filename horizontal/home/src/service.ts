@@ -338,10 +338,10 @@ export async function readHomePageFiles(
 }
 
 /** Reads the selected version and grants. The shell route obtains verified bytes through the owner action and rechecks selection before issuing a session. */
-export function readAdoptedHomePageSessionTarget(
+function readAdoptedHomePageSessionTarget(
   ports: Pick<HomePagesPorts, "open">,
   projectId: string,
-): { ref: HomePageRef; version: HomePageVersion; approved_actions: ExactActionReference[] } {
+): { revision: string; ref: HomePageRef; version: HomePageVersion; approved_actions: ExactActionReference[] } {
   const store = ports.open(projectId);
   const state = store.selectionState();
   if (state.selection.kind !== "page") {
@@ -351,6 +351,7 @@ export function readAdoptedHomePageSessionTarget(
   const detail = store.readVersion(ref);
   if (!detail) throw homeErrors.version_not_found("当前采用的版本已不存在");
   return {
+    revision: state.revision,
     ref,
     version: detail.version,
     approved_actions: detail.approval?.approved_actions ?? [],
@@ -364,7 +365,7 @@ export async function openSelectedHomePage<T>(ports: Pick<HomePagesPorts, "open"
   const first = readAdoptedHomePageSessionTarget(ports, projectId);
   const loaded = await files(first.ref);
   const target = readAdoptedHomePageSessionTarget(ports, projectId);
-  if (target.ref.page_id !== first.ref.page_id || target.ref.version !== first.ref.version)
+  if (target.revision !== first.revision)
     throw homeErrors.revision_conflict("首页已更换，请重新打开");
   return issue(target, loaded);
 }

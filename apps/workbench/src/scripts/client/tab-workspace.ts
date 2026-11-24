@@ -228,7 +228,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     // A record in a plugin whose objects open from its own list (Forms, Dataset, PPT…): jump to it once the list is up.
     const requestedRecord = paneParams.get("openRecord");
     // Only the plugin asked for: open its page, if this project offers it (its menu lists the plugins it has on).
-    if (requestedPlugin && !requestedItem && !requestedRecord && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin)) {
+    if (requestedPlugin && !requestedItem && !requestedRecord && (requestedPlugin === "home" || Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin))) {
       if (requestedPlugin === "home" || offeredPlugin(requestedPlugin)) {
         ops.setExclusive(state, null);
         const opened = !recall(requestedPlugin) && ops.openPlugin(state, requestedPlugin);

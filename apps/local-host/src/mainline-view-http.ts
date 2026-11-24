@@ -308,7 +308,8 @@ export async function handleMainlineViewHttp(
   }
   const controller = new AbortController();
   const cancel = () => controller.abort();
-  request.once("aborted", cancel); response.once("close", cancel);
+  request.once("aborted", cancel);
+  response.once("close", cancel);
   try {
     const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS, { signal: controller.signal });
     const forms: ReadForms = subjects => host.mainlinePresentations(project.project_id, client, subjects, controller.signal);
@@ -317,6 +318,7 @@ export async function handleMainlineViewHttp(
   } catch (error) {
     const failure = actionErrorResponse(error);
     sendLocalWebJson(response, failure.status, failure.body);
-  } finally { request.off("aborted", cancel); response.off("close", cancel); }
+  } finally { request.off("aborted", cancel);
+    response.off("close", cancel); }
   return true;
 }

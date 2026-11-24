@@ -1,6 +1,6 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkLineEvent, WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
-import { escapeHtml as e, icon, renderButton, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as e, icon, renderButton, t as uiText } from "./mainline-ui.js";
 import { runBusy } from "./busy.js";
 import type { MainlineSourceView, WorkItemChangedDetail, WorkItemSummary } from "./mainline-types.js";
 

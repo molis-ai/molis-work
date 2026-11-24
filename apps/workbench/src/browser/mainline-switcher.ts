@@ -1,5 +1,5 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText } from "./mainline-ui.js";
 import { runBusy } from "./busy.js";
 import { createMainlineOrganizeDialog } from "./mainline-organize.js";
 import {

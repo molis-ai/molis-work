@@ -10,9 +10,9 @@ import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { createDesktopUninstallService } from "@molis-ai/molis-work-app-desktop";
 import { installMolisWorkHome, MolisWorkWebServiceManager, RuntimeIntegrationService, readRollbackHold, rollbackHrefFor, readRollbackPoint, rollbackHome, runHomeUpgrade } from "@molis-ai/molis-work-app-local-host";
-import { acquireStorageOwner, heldHomeSqlite, withHeldHomeSqlite } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, ensureStorageSpace, heldHomeSqlite, HOME_RESTORE_JOURNAL, personalStorageSpace, runSqliteUpgrade, upgradeNoSpaceRefusal, withHeldHomeSqlite } from "@molis-ai/molis-work-storage";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
-import { BASELINE_V2, notesDescriptor, notesOf, present, seedStore, sha256, upgradeTestHome, useDescriptors, V1, versionOf } from "./fixtures/home-upgrade-home.js";
+import { BASELINE_V2, notesDescriptor, notesOf, onStore, openNode, present, seedStore, sha256, upgradeTestHome, useDescriptors, V1, versionOf } from "./fixtures/home-upgrade-home.js";
 
 const BASELINE_V1 = { version: 1, schema: V1, upgrades: [] };
 
@@ -297,4 +297,122 @@ test("UPGR-08 the Host serves 设置 › 更新 from the Home's own files, and l
   assert.equal(lifted.status, 200);
   assert.deepEqual(await lifted.json(), { lifted: true });
   assert.equal(present(hold), false);
+});
+
+test("UPGR-03 personal account Home under spaces/ is included in rollback point, restored byte-for-byte, and blocked by pending restore journal", async t => {
+  const { area, home } = upgradeTestHome(t);
+  const space = personalStorageSpace("https://auth.example.test", "app-1", "user-1");
+  const accountHome = join(home, "spaces", space.spaceId);
+  mkdirSync(accountHome, { recursive: true, mode: 0o700 });
+  ensureStorageSpace(accountHome, space);
+  const rootStore = seedStore(home, "notes");
+  const accountStore = seedStore(accountHome, "notes", { space });
+  const v1 = useDescriptors(t, notesDescriptor("notes", { baseline: BASELINE_V1 }));
+  await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixtureSource(area, "1.0.0") });
+  runHomeUpgrade(home);
+  runHomeUpgrade(accountHome);
+  const beforeRoot = sha256(rootStore), beforeAccount = sha256(accountStore);
+  await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixtureSource(area, "2.0.0") });
+  v1();
+  useDescriptors(t, notesDescriptor("notes", { baseline: BASELINE_V2 }));
+  // Upgrade ONLY the personal account Home (leaving root untouched) to prove rollback covers spaces/<spaceId>.
+  runHomeUpgrade(accountHome);
+  assert.equal(versionOf(rootStore), 1);
+  assert.equal(versionOf(accountStore), 2);
+  const point = readRollbackPoint(home);
+  assert.equal(point.available && point.data, "restore", "account Home upgrade makes rollback data='restore'");
+  // Pending restore journal in agent-runtime/ (lockDirectory) must refuse rollbackHome.
+  const journal = join(home, "agent-runtime", HOME_RESTORE_JOURNAL);
+  mkdirSync(dirname(journal), { recursive: true });
+  writeFileSync(journal, "{}");
+  try {
+    await assert.rejects(rollbackHome(home), { code: "storage.owner.recovery_required" });
+  } finally { rmSync(journal, { force: true }); }
+  const result = await rollbackHome(home);
+  assert.deepEqual(result.restored, [join("spaces", space.spaceId, "notes", "notes.db")]);
+  assert.equal(sha256(accountStore), beforeAccount, "account Home store restored byte-for-byte");
+  assert.equal(sha256(rootStore), beforeRoot);
+  assert.equal(versionOf(accountStore), 1);
+  assert.equal(installation(home).version, "1.0.0");
+});
+
+test("UPGR-03 plugin_tables-only upgrade snapshots its parent SQLite file so rollbackHome restores it", async t => {
+  const { area, home } = upgradeTestHome(t);
+  const parent = seedStore(home, "notes");
+  onStore(parent, db => { db.exec("CREATE TABLE plugin_meta (ver INTEGER NOT NULL); INSERT INTO plugin_meta VALUES (1);"); });
+  const tablesDescriptor = (version: number) => ({
+    owner: "tests/plugin-tables",
+    block: { kind: "plugin" as const, plugin_id: "tests/plugin-tables" },
+    pattern: "notes/notes.db#plugin",
+    tables: {
+      version,
+      read: (file: string) => onStore(file, db => Number((db.prepare("SELECT ver FROM plugin_meta").get() as { ver: number }).ver)),
+      problem: (found: number) => (found === 1 && version === 2 ? undefined : "missing_step"),
+      upgrade: (file: string) => {
+        const db = openNode(file);
+        try { db.exec("BEGIN IMMEDIATE; ALTER TABLE plugin_meta ADD COLUMN note TEXT NOT NULL DEFAULT 'v2'; UPDATE plugin_meta SET ver = 2; COMMIT;"); }
+        finally { db.close(); }
+      },
+    },
+  });
+  const v1 = useDescriptors(t, notesDescriptor("notes", { baseline: BASELINE_V1 }), tablesDescriptor(1));
+  await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixtureSource(area, "1.0.0") });
+  runHomeUpgrade(home);
+  const beforeBytes = sha256(parent);
+  await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixtureSource(area, "2.0.0") });
+  v1();
+  // Parent SQLite file stays at v1; ONLY the plugin_tables descriptor upgrades 1 → 2.
+  useDescriptors(t, notesDescriptor("notes", { baseline: BASELINE_V1 }), tablesDescriptor(2));
+  const report = runHomeUpgrade(home);
+  assert.equal(report.stamped, true);
+  assert.equal(onStore(parent, db => Number((db.prepare("SELECT ver FROM plugin_meta").get() as { ver: number }).ver)), 2);
+  const point = readRollbackPoint(home);
+  assert.equal(point.available && point.data, "restore", "plugin_tables-only round is restorable via its parent snapshot");
+  const result = await rollbackHome(home);
+  assert.deepEqual(result.restored, ["notes/notes.db"]);
+  assert.equal(sha256(parent), beforeBytes, "parent SQLite file restored byte-for-byte");
+  assert.equal(onStore(parent, db => Number((db.prepare("SELECT ver FROM plugin_meta").get() as { ver: number }).ver)), 1);
+});
+
+test("UPGR-03 multi-round partial upgrade toward the same fingerprint preserves Round 1 snapshots and releases held RO handles", async t => {
+  const { area, home } = upgradeTestHome(t);
+  const alpha = seedStore(home, "alpha", { journal: "WAL" });
+  const beta = seedStore(home, "beta", { journal: "WAL" });
+  const v1 = useDescriptors(t, notesDescriptor("alpha", { baseline: BASELINE_V1 }), notesDescriptor("beta", { baseline: BASELINE_V1 }));
+  await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixtureSource(area, "1.0.0") });
+  runHomeUpgrade(home);
+  const beforeAlpha = sha256(alpha), beforeBeta = sha256(beta);
+  await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixtureSource(area, "2.0.0") });
+  v1();
+  // Hold a pooled RO SQLite handle (#2253) open on alpha before upgrading; ensureHomeUpgraded must release it so checkpoint succeeds.
+  const heldRo = withHeldHomeSqlite(home, "alpha", BASELINE_V1, db => db, { existingOnly: true })!;
+  assert.equal(heldRo.isOpen, true);
+  // Round 1: alpha commits, beta fails with upgrade_no_space (retriedNextStart).
+  let failBeta = true;
+  const betaDescriptor = notesDescriptor("beta", {
+    baseline: BASELINE_V2,
+    upgrade(file) {
+      if (failBeta) throw upgradeNoSpaceRefusal("beta/beta.db");
+      const db = openNode(file);
+      try { runSqliteUpgrade(db, file, BASELINE_V2, home); }
+      finally { db.close(); }
+    },
+  });
+  useDescriptors(t, notesDescriptor("alpha", { baseline: BASELINE_V2 }), betaDescriptor);
+  const first = runHomeUpgrade(home);
+  assert.equal(heldRo.isOpen, false, "ensureHomeUpgraded releases held RO Home handles before checkpoint/snapshot");
+  assert.equal(first.stamped, false);
+  assert.equal(versionOf(alpha), 2);
+  assert.equal(versionOf(beta), 1);
+  // Round 2 (same fingerprint): beta now succeeds. Round 1's snapshot of alpha must be preserved, not pruned.
+  failBeta = false;
+  const second = runHomeUpgrade(home);
+  assert.equal(second.stamped, true);
+  assert.equal(versionOf(beta), 2);
+  const point = readRollbackPoint(home);
+  assert.equal(point.available && point.data, "restore", "combined R1+R2 round remains restorable back to 1.0.0");
+  const rolled = await rollbackHome(home);
+  assert.deepEqual([...rolled.restored].sort(), ["alpha/alpha.db", "beta/beta.db"]);
+  assert.equal(sha256(alpha), beforeAlpha, "Round 1 store restored");
+  assert.equal(sha256(beta), beforeBeta, "Round 2 store restored");
 });

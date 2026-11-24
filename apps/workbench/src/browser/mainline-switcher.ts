@@ -444,6 +444,7 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
   });
 
   new MutationObserver(() => {
+    listEl.closest(".workbench-header")?.toggleAttribute("data-mainline-open", !listEl.hidden);
     if (!listEl.hidden) void refresh(false);
   }).observe(listEl, { attributes: true, attributeFilter: ["hidden"] });
 

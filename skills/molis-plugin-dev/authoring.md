@@ -1,6 +1,6 @@
 # SDK、CLI、存储、测试
 
-这一页说明作者 API，以及怎样用安装版 CLI 和公开两包跑起插件。[安装版开发入口](#安装版开发入口) · [中英文最小例子](text-and-appearance.md#最小的完整例子)
+这一页说明作者 API，以及怎样用安装版 CLI 和公开两包跑起插件。[安装版开发入口](#安装版开发入口) · [三语最小例子](text-and-appearance.md#最小的完整例子)
 
 内置插件接到产品时看 Host 接线。完整命令细则和 MCP 登记见源码树参考。[Host 接线](host.md) · [源码树开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md)
 
@@ -42,7 +42,7 @@ Manifest 的 `agent.prompts` 只声明提示词标识、版本等元信息；作
 
 ## CLI（第三方 / 本地样例）
 
-今天 `plugin create` 生成的是 **integration 样例**（私人计数 + Artifact + 一段 UI），不是 Native 一级入口插件。
+今天 `plugin create` 生成的是 **integration 样例**（私人计数 + Artifact + 一段 UI + `locales/{en,zh,ja}.json` 三语词包），不是 Native 一级入口插件。业务失败统一抛结构化 `ActionError(code, kind, details)`，由平台出口按当前语言转译为温和文案（细节进诊断日志）。
 
 ### 安装版开发入口
 

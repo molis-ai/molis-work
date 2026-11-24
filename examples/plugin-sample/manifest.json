@@ -83,7 +83,8 @@
       "default": "en",
       "available": [
         "en",
-        "zh"
+        "zh",
+        "ja"
       ]
     }
   },

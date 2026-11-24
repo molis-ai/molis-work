@@ -35,9 +35,9 @@ description: Complete UI, visual design, color/skin, Sans+Chinese typography, co
 4. **绝不绕过样式门禁**：插件 CSS 必须走 `workbench.stylesheet` 或平台登记样式表，禁止把整段 CSS 塞进前端 JS 字符串逃避 `tests/soft-workbench-refinement.test.ts`；绝不引用未定义的 CSS 变量。
 5. **绝不搞错色彩与形状语义**：一屏平面最多 **1 个** `mw-btn--primary`；**琥珀（`--amber` / `--amber-soft`）只留给「轮到你」**（审批/提问/决策/高危确认），严禁用于收藏、分类、普通提醒或默认高亮；状态芯片固定 `var(--r-tag, 6px)`，严禁 `999px` 球场胶囊；常态就绪保持退隐，不刷无意义绿签/蓝签。
 6. **绝不让输入框、次按钮退回无边灰块**：输入框与次按钮保持「纸面精微边框 + 轻贴面投影 + 雾蓝焦点光晕」材质；弹窗与表单底栏永远 **左取消、右主动作**；不可逆删除永远 `mw-btn--danger` + 具体动词，禁用「确定 / 提交」。
-7. **绝不挤压中文排版**：中文界面正文 `letter-spacing: 0`（严禁全局 `-0.011em` 挤压方块字），开启 `text-autospace: normal`，使用真实 `400 / 500 / 600` 三字重（`F1 Inter Variable + 思源黑体 400/500/600`），等宽数字用 `.mw-num` / `tabular-nums`。
-8. **绝不忽略容器响应与独立壳完整度**：插件舞台响应用 `@container plugin-stage` 三档断点，禁止在插件内写视口布局 `@media (max-width/min-width)`；所有 HTML 入口（Workbench、Settings、IM、插件独立文档、侧栏、Home 插件、组件板子 iframe）必须带齐 `appearanceHead()`、无延迟主题引导脚本与共享微交互脚本。
-9. **绝不吞错、冻屏或零延迟瞬闪**：异步按钮用 `window.molisBusy`（`< 250ms` 静默，禁止手写灰死或整页 `inert` 冻屏）；失败必须保留用户草稿、明确原因与重试入口，**结果未知永不自动重放**；禁止拿翻译后的中文/英文文本做 `if` 分支或过滤条件；禁止在 CSS `content:` 写死中文。
+7. **绝不挤压中文或混排日文字形**：中文/日文界面正文 `letter-spacing: 0`（严禁全局 `-0.011em` 挤压方块字），开启 `text-autospace: normal`，使用真实 `400 / 500 / 600` 三字重（`F1 Inter Variable + 思源黑体 400/500/600`），`:lang(ja)` 经全部 4 套字体方案优先回落系统日文字体栈（+0 字体字节，杜绝简中汉字配日文假名混排），等宽数字用 `.mw-num` / `tabular-nums`。
+8. **绝不忽略容器响应与独立壳完整度**：插件舞台响应用 `@container plugin-stage` 三档断点，禁止在插件内写视口布局 `@media (max-width/min-width)`；所有 HTML 入口（Workbench、Settings、IM、插件独立文档、侧栏、Home 插件、组件板子 iframe）必须带齐 `appearanceHead()`、正确的 `<html lang>`（走 `htmlLang()`）、无延迟主题引导脚本与共享微交互脚本。
+9. **绝不吞错、冻屏、硬编码文案或零延迟瞬闪**：异步按钮用 `window.molisBusy`（`< 250ms` 静默，禁止手写灰死或整页 `inert` 冻屏）；失败温和交代现状、保留草稿并给出口，**结果未知永不自动重放**；共用 `mw-*` 原语禁止写死默认中文；禁止二元 `zh`/`en` 分支、禁止闭包缓存译文或拿译文做 `if`/过滤判断、禁止在 CSS `content:` 写死单语文案；动态界面必须响应 `molis-work:language-changed`。
 10. **绝不触碰安全与桌面红线**：跨模块通信走 `packages/contracts/src/platform/dom-events.ts`；桌面占位页严守无 `'unsafe-inline'` 静态 CSP（只用外部 CSS）；顶部安全区一律读 `var(--desktop-window-safe-inline-start, 88px)`，严禁硬编码 `84px`；改完公开 UI 合同或设计系统基线，**同一 PR 同步更新本 Skill**。
 
 ---
@@ -48,7 +48,7 @@ description: Complete UI, visual design, color/skin, Sans+Chinese typography, co
 
 1. **构建先行**：`pnpm build`（单包可用 `pnpm --filter <包> run build`），确保测试读到最新产物。
 2. **静态与边界门禁**：`pnpm health:check` + `pnpm boundary:check` + `pnpm plugin-styles:check` + `node scripts/run-tests.mjs tests/soft-workbench-refinement.test.ts tests/ui-baseline.test.ts tests/ui-resources.test.ts tests/cursor-skill-links.test.ts --jobs 1`。
-3. **文案与双语巡检**：`node scripts/gates/translations.mjs --missing` + `node scripts/audit-ui-copy.mjs`（文案四标尺与黑话清单见 [`skills/molis-plugin-dev/text-and-appearance.md`](../molis-plugin-dev/text-and-appearance.md)）。
+3. **文案与三语巡检**：`node scripts/gates/translations.mjs --missing` + `node scripts/audit-ui-copy.mjs`（文案五条校准标尺、中/英/日三语准绳与黑话清单见 [`skills/molis-plugin-dev/text-and-appearance.md`](../molis-plugin-dev/text-and-appearance.md)）。
 4. **体积与首屏核对**：`pnpm page-assets:check` + `node scripts/gates/first-screen.mjs --base origin/main`（单资源涨超 `10 KB` 或新增资产/路由先问用户）。
 5. **视觉与交互定向回归**：按改动面跑 `pnpm visual:compare` 及受影响的 `tests/visual-order.e2e.test.ts` / `tests/touch-targets.e2e.test.ts` / `tests/busy-feedback.e2e.test.ts` / `tests/save-failure.e2e.test.ts`；改了 `skills/molis-plugin-dev/` 或 `plugin-builder` 提示词必跑 `pnpm studio:replay` 与隔离 `smoke`。
-6. **隔离真页目视复核**：在隔离 `MOLIS_WORK_HOME`（绝不动真实 `~/.molis-work`）检查 **浅色 + 深色**、**中文 + 英文**、**1440px 全宽 / 680px 二分屏 / 390px 窄屏**、**键盘 Tab 焦点与触控热区**。
+6. **隔离真页目视复核**：在隔离 `MOLIS_WORK_HOME`（绝不动真实 `~/.molis-work`）检查 **浅色 + 深色**、**简体中文 + English + 日本語**（原地切换无残留、三项语言切换条不折行不溢出）、**1440px 全宽 / 680px 二分屏 / 390px 窄屏**、**键盘 Tab 焦点与触控热区**。

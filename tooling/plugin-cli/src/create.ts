@@ -12,10 +12,11 @@ export interface CreatePluginProjectInput {
   binding_signature: string;
 }
 
-/** The sample's words, one file a language (`locales/<language>.json`, specs/font-and-skin-system/a-section-contract.md §1.2); a word has no `<>&"'`. */
+/** The sample's words, one file per language (`locales/<language>.json`, trilingual en/zh/ja by default); values must not contain `<>&"'`. */
 const SAMPLE_WORDS: Readonly<Record<string, Readonly<Record<string, string | { plural_arg: string; forms: Record<string, string> }>>>> = {
   en: { saved: "Saved results: {count}", "saved-count": { plural_arg: "count", forms: { one: "{count} result saved", other: "{count} results saved" } }, source: "Source: {name}", title: "Local Plugin Sample" },
   zh: { saved: "已保存的结果：{count}", "saved-count": "已保存 {count} 个结果", source: "来源：{name}", title: "本地插件样例" },
+  ja: { saved: "保存済みの結果：{count}", "saved-count": { plural_arg: "count", forms: { other: "{count} 件の結果を保存しました" } }, source: "出典：{name}", title: "ローカルプラグインサンプル" },
 };
 
 export async function createPluginProject(input: CreatePluginProjectInput): Promise<{ directory: string; plugin_id: string }> {
@@ -32,7 +33,7 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
     capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [sampleArtifactType(input.plugin_id)],
       consumes: [{ artifact_type_id: SAMPLE_ARTIFACT_TYPE_ID, schema_version: 1 }] },
-    ui: { contributions: [input.plugin_id + ".main"], locales: { default: "en", available: ["en", "zh"] } },
+    ui: { contributions: [input.plugin_id + ".main"], locales: { default: "en", available: ["en", "zh", "ja"] } },
   });
   const directory = resolve(input.directory);
   // Exclusive directory creation: never overwrite a developer's existing project, even an empty one.
@@ -52,7 +53,7 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
       + "The supplied publisher signature is a binding identity, not proof of cryptographic signing.\n\n"
       + "Install the matching local Molis Work SDK distribution, then run through the Molis Work application Host.\n"
       + "The manifest registers health, results.read, results.publish and results.preview with the common action service.\n"
-      + "Interface words use stable keys and the declared locales/en.json and locales/zh.json. Run molis-work plugin validate before packaging.\n"
+      + "Interface words use stable keys and the declared locales/en.json, locales/zh.json and locales/ja.json. Run molis-work plugin validate before packaging.\n"
       + "The saved result type has a display name and a preview action of its own, which every Artifact type a plugin pins must declare.\n"
       + "The result state machine is declared in manifest.json. Each save checks the state before writing.\n"
       + "Each poll invokes the same registered publish action; the UI displays the original private counter.\n"

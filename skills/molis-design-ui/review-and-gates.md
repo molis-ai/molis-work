@@ -9,7 +9,7 @@
 1. **一屏一主动作**：排除独立模态弹窗外，同一平面至多 1 个 `mw-btn--primary`；危险操作用 `mw-btn--danger`，次操作用纸面细边 `mw-btn--secondary`。
 2. **平面与边界清晰**：桌面（`--page`）、连续纸面（`--paper`）、轻软面（`--surface-soft`）、浮层（`--popover` + 阴影）层次分明；不出现纸中套白卡、卡套卡、或输入框/次按钮退化成无边灰块。
 3. **语义色克制不乱涂**：琥珀只属于「轮到你」；常态就绪保持中性退隐；状态芯片全为 `6px`（无 `999px` 胶囊）；静态状态不带旋转环。
-4. **中文与英文同样舒展**：中文不挤压（`letter-spacing: 0`、`text-autospace: normal`、真 `400/500/600` 字重、行高 `1.58`）；数字对齐不抖动；无截断无提示的文字、无未翻译词键或中文硬编码。
+4. **中 / 英 / 日同样舒展且零泄漏**：中文不挤压（`letter-spacing: 0`、`text-autospace: normal`、真 `400/500/600` 字重、行高 `1.58`），日语经 `:lang(ja)` 走系统日文字体栈无简中汉字混排；3 语种切换条（`简体中文 / English / 日本語`）在 `1440 / 1024 / 390` 不折行不溢出；数字对齐不抖动；无截断无提示的文字、无未翻译词键、无硬编码默认文案或二元 `zh`/`en` 分支、无异语言报错透传。
 5. **键盘、触控与分屏全成立**：悬停操作有 `:focus-within` 与 `@media (hover: none)` 等价可达；触控与窄屏目标 ≥ `44px`；`600px` 二分屏窗格零横向溢出、正文有效列宽 ≥ `280px`、无非法双滚动条。
 
 ---
@@ -36,9 +36,9 @@ node scripts/run-tests.mjs \
 
 ### B. 文案、体积与视觉回归（按改动面必跑）
 ```bash
-# 文案与双语
+# 文案与三语（含 locales/scene/ 与全声明语种零缺键）
 node scripts/gates/translations.mjs --missing
-node scripts/audit-ui-copy.mjs
+node scripts/audit-ui-copy.mjs --strict
 
 # 静态资源体积与首屏字节（单资源涨 >10KB 或新增资产/路由须先问用户）
 pnpm page-assets:check
@@ -83,6 +83,6 @@ pnpm studio:replay smoke
 
 用独立 `MOLIS_WORK_HOME` 或 `pnpm dev` 启动预览，对照以下矩阵逐格看一眼：
 - **主题**：4 套皮肤（重点默认 `A 净透云光`、及 `B`/`C`/`Folio`）× **浅色 + 深色**
-- **语言**：**简体中文**（核对 Sans + 思源黑体三字重与 `text-autospace`）+ **English**（核对 Sentence case、无硬编码中文、无英文断链）
+- **语言**：**简体中文**（核对 Sans + 思源黑体三字重与 `text-autospace`）+ **English**（核对美式 Sentence case、自然缩略、无硬编码中文）+ **日本語**（核对 `:lang(ja)` 系统日文字形、温和 `です・ます`、三项语言切换条在 `1440 / 1024 / 390` 无折行溢出、原地切换 `zh → en → ja → zh` 无旧语言残留）
 - **视口**：`1440px` 全宽 + `680px` 二分屏/开侧栏 + `390px` 手机窄屏
 - **状态**：空态 / 加载（快于 `250ms` 不闪、慢于 `250ms` 有反馈） / 成功 / 失败保草稿 / 取消 / 键盘 Tab & `Escape` 焦点回归

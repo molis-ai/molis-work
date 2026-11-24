@@ -30,6 +30,6 @@ export const BUILDER_PROMPT_TITLES: Readonly<Record<BuilderPromptName, { title: 
   designer: { title: "主线设计师", purpose: "理解需求，提出方案、细化与修订插件的产品与功能合同", used_by: ["插件创作台 · 设计"] },
   implement: { title: "代码 Agent · 实现", purpose: "按确定的设计写出插件代码", used_by: ["插件创作台 · 构建"] },
   revise: { title: "代码 Agent · 修改", purpose: "按用户的修改意见改动已有插件代码", used_by: ["插件创作台 · 修改"] },
-  repair: { title: "代码 Agent · 修复", purpose: "按宿主检查给出的失败原因修复代码", used_by: ["插件创作台 · 构建"] },
+  repair: { title: "代码 Agent · 修复", purpose: "按自动检查给出的失败原因修复代码", used_by: ["插件创作台 · 构建"] },
   acceptance: { title: "代码 Agent · 验收", purpose: "按设计里的验收项检查生成的插件", used_by: ["插件创作台 · 验收"] },
 };

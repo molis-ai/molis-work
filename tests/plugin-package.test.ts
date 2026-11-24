@@ -141,7 +141,7 @@ test("real CLI creates, packs, signs and verifies a Plugin while rejecting tampe
     const data = JSON.parse(readFileSync(signed, "utf8"));
     const verified = verifyPluginPackage(data, keys.publicKey);
     assert.equal(Buffer.from(verified.payload.files.find(file => file.path === "index.mjs")!.content_base64, "base64").toString("utf8"), code);
-    assert.deepEqual(verified.payload.files.filter(file => file.path.startsWith("locales/")).map(file => file.path).sort(), ["locales/en.json", "locales/zh.json"]);
+    assert.deepEqual(verified.payload.files.filter(file => file.path.startsWith("locales/")).map(file => file.path).sort(), ["locales/en.json", "locales/ja.json", "locales/zh.json"]);
     const untouched = readFileSync(signed, "utf8");
     assert.equal(invoke("sign", unsigned, privateFile, signed).status, 1, "existing output is not overwritten");
     assert.equal(readFileSync(signed, "utf8"), untouched);

@@ -162,14 +162,14 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 
 ## 5. 界面文字、语言与外观
 
-插件与平台界面的文案写作准则（假定用户无 AI 背景、懂·准·短·引四标尺、AI 与架构词白话转译表、九类控件公式、符号与英文 Sentence case 规范）及 SDK 写法统一见 [界面文字、语言与外观](../../skills/molis-plugin-dev/text-and-appearance.md)，术语以 [GLOSSARY](../system/GLOSSARY.md) 为准；[字体、皮肤与语言设计稿](../../specs/font-and-skin-system/a-section-contract.md)第 5、8 节说明合同。
+插件与平台界面的文案写作准则（假定用户无 AI 背景、五条校准标尺：温和友好、克制不聒噪、精准、中性、克制信息暴露，中/英/日三语规范与黑话转译表）及 SDK 写法统一见 [界面文字、语言与外观](../../skills/molis-plugin-dev/text-and-appearance.md)，术语以 [GLOSSARY](../system/GLOSSARY.md) 为准；[字体、皮肤与语言设计稿](../../specs/font-and-skin-system/a-section-contract.md)第 5、8 节说明合同。
 
-**文字属于生产者。** 工作台的语言目录随资源登记发现，内置插件、开发插件与签名安装各从自己的 `ui.locales` 和实际包文件取词。SDK `t` 读当前作用域，`say` 读生产者的明确引用；宿主渲染时按准确的 Home、项目、激活或获准安装选择读表。失效或找不到键时显示规定的后备，不尝试同名的另一个安装。公共词由平台投影为 `common.*`。
+**N 语种与文字归属生产者。** 工作台的语言目录由 [`languages.json`](../../apps/workbench/resources/languages.json) 驱动（并行支持简体中文 `zh`、英文 `en`、日语 `ja`，面向 N 语种扩展；严禁在壳层、组件或插件中写二元 `zh`/`en` 分支）。内置插件、开发插件与签名安装各从自己的 `ui.locales` 和实际包文件取词；日期/数字格式化与文档语言统一经 SDK `format` / `dateArg` / `numberArg` / `dateTimeLocale()` 与 `htmlLang()`，不写死区域字符串或 `<html lang="zh-CN">`。SDK `t` 读当前作用域，`say` 读生产者的明确引用；存盘与异步通知一律使用 `OwnedTextRef`；宿主渲染时按准确的 Home、项目、激活或获准安装选择读表。失效或找不到键时显示规定的后备，不尝试同名的另一个安装。公共词与出口报错由平台投影为 `common.*` / `common.error.*`。
 
-**页面和后台各有自己的作用域。** 同源父文档按原页面证明一次批取所需的语言包；Host 按实际获准挂载求交。沙箱 frame 不请求网络：由原始 srcdoc 一次握手领端口，在它的挂载生存期内收到必要词包和已有公共资源。后台工作开始时从自己的 Home 读取最近使用的语言；结束的页面不能给迟到的动作延续供语言。给模型的语言在轮次开始时冻结，本轮明确指定的语言优先。
+**页面、后台与报错各有统一边界。** 同源父文档按原页面证明一次批取所需的语言包（含按需加载的 `locales/scene/`）；Host 按实际获准挂载求交。沙箱 frame 不请求网络：由原始 srcdoc 一次握手领端口，在它的挂载生存期内收到必要词包和已有公共资源。后台工作开始时从自己的 Home 读取最近使用的语言；结束的页面不能给迟到的动作延续供语言。给模型的语言在轮次开始时经 `reply-language/<lang>.md`（含 `zh` / `en` / `ja`）冻结，本轮明确指定的语言优先。业务与模型错误在 Host HTTP/SSE/WS 及 Prologue 出口统一按请求语言转译为 `common.error.*` 温和文案，原始码与细节只进诊断日志与可复制的诊断编号（`call_id`）。
 
-**切换留在原处。** [`locale-switch.ts`](../../apps/workbench/src/browser/locale-switch.ts) 先准备旧、新两份表示和词包。只合并确认是界面文字的文本或属性，保留节点、草稿、焦点、选区、滚动和运行中的终端；用户文字和形状已经变动的业务部分不覆写。失败可在原位重试，晚到的旧语言结果不能盖回新语言。
+**切换留在原处（`molis-work:language-changed`）。** [`locale-switch.ts`](../../apps/workbench/src/browser/locale-switch.ts) 先准备旧、新两份表示和词包，合并登记在 `TEXT_ATTRIBUTES` 的文本与属性，并广播 `molis-work:language-changed`（独立 `/im` 页通过 `BroadcastChannel("molis-work-ui-language")` 同步）。保留节点、草稿、焦点、选区、滚动和运行中的终端；所有侧栏视图、分屏克隆模板、场景/引导页、原生插件与独立页必须监听该事件原地重绘，**严禁在闭包中缓存初次译文标签或裸拼接半句 `t()`**。失败可在原位重试，晚到的旧语言结果不能盖回新语言。
 
-**整页换外观要写到 `html > body`：** 页面各层在 `body.settings-page` 等上又写了一遍壳的令牌，只给 `<html>` 写，页面不会变。组件板的外观标本（`#look-card`、`#look-proof`、`#look-fade`）因此同时给 `html > body` 写；产品代码照这样做（[定样记录](../design/archive/appearance-selection/README.md)）。
+**字形与整页换外观：** 全部 4 套字体方案在 `:lang(ja)` 下优先指定系统日文字体栈（+0 字体字节）；整页换外观须同时写到 `html > body`（页面各层在 `body.settings-page` 等上重申了壳令牌，只给 `<html>` 写页面不会变，组件板标本 `#look-card` / `#look-proof` / `#look-fade` 同此做法，见 [定样记录](../design/archive/appearance-selection/README.md)）。
 
-改了这几处加跑：`node scripts/run-tests.mjs tests/host-ui-text.test.ts tests/ui-resources.test.ts tests/ui-baseline.test.ts`；浏览器的（要本机 Chrome）`tests/board-locale-switch.e2e.test.ts`、`tests/board-appearance.e2e.test.ts`。
+改了这几处加跑：`node scripts/run-tests.mjs tests/host-ui-text.test.ts tests/ui-resources.test.ts tests/ui-baseline.test.ts`；浏览器的（要本机 Chrome）`tests/workbench-language.e2e.test.ts`、`tests/board-locale-switch.e2e.test.ts`、`tests/board-appearance.e2e.test.ts`。

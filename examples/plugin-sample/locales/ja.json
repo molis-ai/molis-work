@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "owner": "com.example.notes",
+  "locale": "ja",
+  "messages": {
+    "notes.attach.noun": "サンプルメモ",
+    "notes.clear.choice": "クリアする",
+    "notes.main.saved": "保存済みの結果：{count}",
+    "notes.main.saved-count": {
+      "plural_arg": "count",
+      "forms": {
+        "other": "{count} 件の結果を保存しました"
+      }
+    },
+    "notes.main.source": "出典：{name}",
+    "notes.main.title": "ローカルプラグインサンプル",
+    "notes.settings.greeting": "あいさつ文",
+    "notes.settings.greeting-summary": "サンプルページに表示するメッセージ",
+    "notes.start.hint": "サンプルで新しい白紙メモを作成します",
+    "notes.start.noun": "サンプルメモ",
+    "notes.start.title": "新しいサンプルメモ"
+  }
+}

@@ -14,6 +14,8 @@
     "google-calendar.guide.token-note": "OAuth Playground で calendar.readonly のアクセストークンを取得して貼り付けてください。期限切れ後は再取得が必要です。",
     "google-calendar.setup.create-oauth-client": "OAuth クライアントを作成",
     "google-calendar.setup.enable-calendar-api": "Calendar API を有効化",
-    "google-calendar.setup.get-a-token-in-oauth-playground": "OAuth Playground でトークンを取得"
+    "google-calendar.setup.get-a-token-in-oauth-playground": "OAuth Playground でトークンを取得",
+    "google-calendar.permission.network.reason": "Google Calendar のアカウント情報と最新の更新を読み取ります",
+    "google-calendar.permission.secret.reason": "安全に保存された Google Calendar の接続資格情報を使用します"
   }
 }

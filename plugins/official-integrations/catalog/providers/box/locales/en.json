@@ -14,6 +14,8 @@
     "box.guide.oauth-link": "View Box OAuth authentication",
     "box.guide.token-note": "Create an app and a temporary developer token in the Box Developer Console. Developer tokens expire.",
     "box.oauth.note": "Set read permissions in the Box app dashboard.",
-    "box.setup.open-box-developer-console": "Open Box Developer Console"
+    "box.setup.open-box-developer-console": "Open Box Developer Console",
+    "box.permission.network.reason": "Read your Box account info and latest updates",
+    "box.permission.secret.reason": "Use your securely stored Box connection credentials"
   }
 }

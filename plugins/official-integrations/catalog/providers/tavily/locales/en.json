@@ -7,6 +7,8 @@
     "tavily.connection.inbound": "Web search (when it is the default)",
     "tavily.connection.summary": "Web search built for AI, with a free monthly allowance.",
     "tavily.connection.token-label": "Tavily API key",
-    "tavily.setup.open-tavily-api-keys": "Open the Tavily dashboard"
+    "tavily.setup.open-tavily-api-keys": "Open the Tavily dashboard",
+    "tavily.permission.network.reason": "Use Tavily for web search and account checks",
+    "tavily.permission.secret.reason": "Use your securely stored Tavily connection credentials"
   }
 }

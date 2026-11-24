@@ -36,6 +36,8 @@
     "catalog.fallback.vercel-deployment": "Vercel 部署",
     "catalog.fallback.wechat-department": "部门 {id}",
     "catalog.fallback.x-post": "X 帖子",
-    "catalog.fallback.zoom-meeting": "Zoom 会议"
+    "catalog.fallback.zoom-meeting": "Zoom 会议",
+    "catalog.permission.network.reason": "读取已连接服务的账号信息与最新动态",
+    "catalog.permission.secret.reason": "使用按服务隔离保存的连接凭据"
   }
 }

@@ -13,6 +13,8 @@
     "slack.guide.oauth-link": "Create a Slack app and install it in the workspace",
     "slack.guide.token-note": "Install the app in the workspace to get the corresponding bot or user token.",
     "slack.oauth.note": "Use the bot authorization of an installed app. Reading chats still depends on workspace and channel membership.",
-    "slack.setup.open-slack-app-dashboard": "Open Slack app dashboard"
+    "slack.setup.open-slack-app-dashboard": "Open Slack app dashboard",
+    "slack.permission.network.reason": "Read your Slack account info and latest updates",
+    "slack.permission.secret.reason": "Use your securely stored Slack connection credentials"
   }
 }

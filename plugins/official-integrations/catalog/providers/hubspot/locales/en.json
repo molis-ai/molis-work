@@ -12,6 +12,8 @@
     "hubspot.guide.mcp-link": "View the official HubSpot MCP",
     "hubspot.guide.oauth-link": "View HubSpot OAuth",
     "hubspot.guide.token-note": "Create a read-only Service Key under Settings › Integrations › Service Keys. Existing Private App Tokens still work.",
-    "hubspot.setup.view-hubspot-service-key-setup": "View HubSpot Service Key setup"
+    "hubspot.setup.view-hubspot-service-key-setup": "View HubSpot Service Key setup",
+    "hubspot.permission.network.reason": "Read your HubSpot account info and latest updates",
+    "hubspot.permission.secret.reason": "Use your securely stored HubSpot connection credentials"
   }
 }

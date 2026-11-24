@@ -7,6 +7,8 @@
     "brave-search.connection.inbound": "Web 検索（既定に設定した場合に使用）",
     "brave-search.connection.summary": "Brave 独自の Web インデックスです。従量課金でカード登録が必要です。",
     "brave-search.connection.token-label": "Brave Search API Key",
-    "brave-search.setup.open-brave-search-api-keys": "Brave Search API キーを開く"
+    "brave-search.setup.open-brave-search-api-keys": "Brave Search API キーを開く",
+    "brave-search.permission.network.reason": "Brave Search でのウェブ検索とアカウント確認に使用します",
+    "brave-search.permission.secret.reason": "安全に保存された Brave Search の接続資格情報を使用します"
   }
 }

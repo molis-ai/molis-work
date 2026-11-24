@@ -12,6 +12,8 @@
     "x.guide.oauth-link": "查看 X OAuth 2.0 PKCE",
     "x.guide.oauth-note": "需用户上下文与 tweet.read、users.read；Molis Work 暂未接入授权回调。",
     "x.guide.token-note": "需要 OAuth 用户访问令牌；App-only Bearer 不适用于当前身份接口。",
-    "x.setup.open-x-developer-portal": "打开 X Developer Portal"
+    "x.setup.open-x-developer-portal": "打开 X Developer Portal",
+    "x.permission.network.reason": "读取 X 账号信息与最新动态",
+    "x.permission.secret.reason": "使用已安全保存的 X 连接凭据"
   }
 }

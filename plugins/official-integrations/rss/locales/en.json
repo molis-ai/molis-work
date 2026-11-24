@@ -4,6 +4,7 @@
   "locale": "en",
   "messages": {
     "rss.directory.name": "RSS",
-    "rss.directory.summary": "Read updates from public RSS and Atom feeds you subscribe to."
+    "rss.directory.summary": "Read updates from public RSS and Atom feeds you subscribe to.",
+    "rss.permission.network.reason": "Read the public RSS and Atom feeds you subscribe to"
   }
 }

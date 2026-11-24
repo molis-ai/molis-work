@@ -14,6 +14,8 @@
     "bitbucket.guide.oauth-link": "查看 Bitbucket OAuth 2.0",
     "bitbucket.guide.token-note": "Bitbucket App Password 已停用；请用 API Token 或 OAuth 用户访问令牌。",
     "bitbucket.oauth.note": "Consumer 中配置 account、repository、pullrequest 读取权限。",
-    "bitbucket.setup.create-atlassian-api-token": "创建 Atlassian API Token"
+    "bitbucket.setup.create-atlassian-api-token": "创建 Atlassian API Token",
+    "bitbucket.permission.network.reason": "读取 Bitbucket 账号信息与最新动态",
+    "bitbucket.permission.secret.reason": "使用已安全保存的 Bitbucket 连接凭据"
   }
 }

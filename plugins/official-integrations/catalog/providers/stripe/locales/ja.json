@@ -14,6 +14,8 @@
     "stripe.guide.token-note": "権限を絞った制限付き API Key を作成してください。Publishable Key は貼り付けないでください。",
     "stripe.oauth.note": "Client Secret にはプラットフォームの Secret Key を入力してください。通常 Connect の read_write は書き込み権限を付与しますが、Molis Work の API プレビューは読み取り専用のままです。",
     "stripe.oauth.stripe-scope": "アプリ権限範囲：Extension は read_only、通常 Connect は read_write",
-    "stripe.setup.open-stripe-api-keys": "Stripe API キーを開く"
+    "stripe.setup.open-stripe-api-keys": "Stripe API キーを開く",
+    "stripe.permission.network.reason": "Stripe のアカウント情報と最新の更新を読み取ります",
+    "stripe.permission.secret.reason": "安全に保存された Stripe の接続資格情報を使用します"
   }
 }

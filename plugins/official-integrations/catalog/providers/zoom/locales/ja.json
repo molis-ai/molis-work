@@ -11,6 +11,8 @@
     "zoom.guide.oauth-link": "Zoom OAuth アプリを見る",
     "zoom.guide.token-note": "Zoom OAuth ユーザーアクセストークンを使ってください。期限切れ後は再取得が必要です。",
     "zoom.oauth.note": "Zoom アプリでユーザー・ミーティング・録画の読み取り権限を有効にしてください。",
-    "zoom.setup.open-zoom-app-marketplace": "Zoom App Marketplace を開く"
+    "zoom.setup.open-zoom-app-marketplace": "Zoom App Marketplace を開く",
+    "zoom.permission.network.reason": "Zoom のアカウント情報と最新の更新を読み取ります",
+    "zoom.permission.secret.reason": "安全に保存された Zoom の接続資格情報を使用します"
   }
 }

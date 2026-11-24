@@ -15,6 +15,8 @@
     "outlook.guide.token-note": "Use Graph Explorer to get a user token for testing. Register your own app for ongoing use.",
     "outlook.oauth.tenant": "Tenant ID (leave blank for personal accounts or multitenant apps)",
     "outlook.setup.get-a-token-in-graph-explorer": "Get a token in Graph Explorer",
-    "outlook.setup.register-azure-app": "Register Azure app"
+    "outlook.setup.register-azure-app": "Register Azure app",
+    "outlook.permission.network.reason": "Read your Outlook account info and latest updates",
+    "outlook.permission.secret.reason": "Use your securely stored Outlook connection credentials"
   }
 }

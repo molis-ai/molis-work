@@ -14,6 +14,8 @@
     "google-drive.guide.token-note": "Get a Drive user access token from OAuth Playground and paste it here. Replace it when it expires.",
     "google-drive.setup.create-oauth-client": "Create OAuth client",
     "google-drive.setup.enable-drive-api": "Enable Drive API",
-    "google-drive.setup.get-a-token-in-oauth-playground": "Get a token in OAuth Playground"
+    "google-drive.setup.get-a-token-in-oauth-playground": "Get a token in OAuth Playground",
+    "google-drive.permission.network.reason": "Read your Google Drive account info and latest updates",
+    "google-drive.permission.secret.reason": "Use your securely stored Google Drive connection credentials"
   }
 }

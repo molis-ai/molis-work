@@ -10,6 +10,8 @@
     "linkedin.guide.oauth-link": "LinkedIn OAuth 2.0 を見る",
     "linkedin.guide.token-note": "OpenID メンバーアクセストークンを使ってください。投稿の取得には別途承認が必要です。",
     "linkedin.oauth.note": "アプリで Sign In with LinkedIn を有効にしてください。通常の OIDC では Feed の投稿読み取り権限は付与されません。",
-    "linkedin.setup.open-linkedin-developer-dashboard": "LinkedIn 開発者ダッシュボードを開く"
+    "linkedin.setup.open-linkedin-developer-dashboard": "LinkedIn 開発者ダッシュボードを開く",
+    "linkedin.permission.network.reason": "LinkedIn のアカウント情報と最新の更新を読み取ります",
+    "linkedin.permission.secret.reason": "安全に保存された LinkedIn の接続資格情報を使用します"
   }
 }

@@ -15,6 +15,8 @@
     "teams.guide.token-note": "テスト用のユーザートークンは Graph Explorer で取得できます。継続利用する場合はご自身のアプリを登録してください。",
     "teams.oauth.tenant": "テナント ID（個人アカウントやマルチテナントアプリでは空欄可）",
     "teams.setup.get-a-token-in-graph-explorer": "Graph Explorer でトークンを取得",
-    "teams.setup.register-azure-app": "Azure アプリを登録"
+    "teams.setup.register-azure-app": "Azure アプリを登録",
+    "teams.permission.network.reason": "Microsoft Teams のアカウント情報と最新の更新を読み取ります",
+    "teams.permission.secret.reason": "安全に保存された Microsoft Teams の接続資格情報を使用します"
   }
 }

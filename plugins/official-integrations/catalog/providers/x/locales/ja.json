@@ -12,6 +12,8 @@
     "x.guide.oauth-link": "X OAuth 2.0 PKCE を見る",
     "x.guide.oauth-note": "ユーザーコンテキストと tweet.read・users.read 権限が必要です。Molis Work ではまだ認証コールバックに対応していません。",
     "x.guide.token-note": "OAuth ユーザーアクセストークンを使ってください。App-only Bearer トークンでは現在のアカウント確認エンドポイントにアクセスできません。",
-    "x.setup.open-x-developer-portal": "X Developer Portal を開く"
+    "x.setup.open-x-developer-portal": "X Developer Portal を開く",
+    "x.permission.network.reason": "X のアカウント情報と最新の更新を読み取ります",
+    "x.permission.secret.reason": "安全に保存された X の接続資格情報を使用します"
   }
 }

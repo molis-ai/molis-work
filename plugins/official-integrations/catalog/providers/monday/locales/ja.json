@@ -11,6 +11,8 @@
     "monday.guide.oauth-link": "monday OAuth を見る",
     "monday.oauth.note": "このアプリバージョンで新しい OAuth 2.1 を先に有効にしてください。",
     "monday.setup.open-monday-developer-dashboard": "monday 開発者ダッシュボードを開く",
-    "monday.setup.view-monday-com-authentication-guide": "monday.com 認証ガイドを見る"
+    "monday.setup.view-monday-com-authentication-guide": "monday.com 認証ガイドを見る",
+    "monday.permission.network.reason": "monday.com のアカウント情報と最新の更新を読み取ります",
+    "monday.permission.secret.reason": "安全に保存された monday.com の接続資格情報を使用します"
   }
 }

@@ -12,6 +12,8 @@
     "hubspot.guide.mcp-link": "HubSpot 公式 MCP を見る",
     "hubspot.guide.oauth-link": "HubSpot OAuth を見る",
     "hubspot.guide.token-note": "「Settings › Integrations › Service Keys」で読み取り専用の Service Key を作成してください。既存の Private App Token もそのまま使えます。",
-    "hubspot.setup.view-hubspot-service-key-setup": "HubSpot Service Key の作成手順を見る"
+    "hubspot.setup.view-hubspot-service-key-setup": "HubSpot Service Key の作成手順を見る",
+    "hubspot.permission.network.reason": "HubSpot のアカウント情報と最新の更新を読み取ります",
+    "hubspot.permission.secret.reason": "安全に保存された HubSpot の接続資格情報を使用します"
   }
 }

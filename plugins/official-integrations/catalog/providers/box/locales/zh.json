@@ -14,6 +14,8 @@
     "box.guide.oauth-link": "查看 Box OAuth 认证",
     "box.guide.token-note": "Box Developer Console 可创建应用和临时开发者令牌；开发者令牌会过期。",
     "box.oauth.note": "读权限在 Box 应用后台配置。",
-    "box.setup.open-box-developer-console": "打开 Box 开发者控制台"
+    "box.setup.open-box-developer-console": "打开 Box 开发者控制台",
+    "box.permission.network.reason": "读取 Box 账号信息与最新动态",
+    "box.permission.secret.reason": "使用已安全保存的 Box 连接凭据"
   }
 }

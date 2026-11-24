@@ -28,7 +28,7 @@ export const rssIntegrationManifest = {
   source_presentations: ["rss-http"],
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [
-    { permission: "network:rss", required: true, reason: "读取你选择的公开 RSS 订阅地址" },
+    { permission: "network:rss", required: true, reason: "读取你选择的公开 RSS 订阅地址", reason_text: { key: "rss.permission.network.reason" } },
   ],
   capabilities: {
     provides: [/* @version type.connector.driver.rss "connector.driver.rss.v{version}" */ "connector.driver.rss.v1", /* @version type.signal.adapter.rss "signal.adapter.rss.v{version}" */ "signal.adapter.rss.v1"],

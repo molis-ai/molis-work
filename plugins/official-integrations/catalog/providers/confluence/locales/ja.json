@@ -11,6 +11,8 @@
     "confluence.guide.oauth-link": "Atlassian OAuth 2.0 を見る",
     "confluence.oauth.site-url": "Atlassian サイト",
     "confluence.setup.create-atlassian-api-token": "Atlassian API Token を作成",
-    "confluence.setup.view-confluence-authentication-guide": "Confluence 認証ガイドを見る"
+    "confluence.setup.view-confluence-authentication-guide": "Confluence 認証ガイドを見る",
+    "confluence.permission.network.reason": "Confluence のアカウント情報と最新の更新を読み取ります",
+    "confluence.permission.secret.reason": "安全に保存された Confluence の接続資格情報を使用します"
   }
 }

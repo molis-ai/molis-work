@@ -14,6 +14,8 @@
     "google-drive.guide.token-note": "OAuth Playground で Drive アクセストークンを取得して貼り付けてください。期限切れ後は再取得が必要です。",
     "google-drive.setup.create-oauth-client": "OAuth クライアントを作成",
     "google-drive.setup.enable-drive-api": "Drive API を有効化",
-    "google-drive.setup.get-a-token-in-oauth-playground": "OAuth Playground でトークンを取得"
+    "google-drive.setup.get-a-token-in-oauth-playground": "OAuth Playground でトークンを取得",
+    "google-drive.permission.network.reason": "Google Drive のアカウント情報と最新の更新を読み取ります",
+    "google-drive.permission.secret.reason": "安全に保存された Google Drive の接続資格情報を使用します"
   }
 }

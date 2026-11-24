@@ -12,6 +12,8 @@
     "dropbox.guide.mcp-note": "Dropbox 公式リモート MCP はベータ版です。Molis Work ではまだ接続していません。",
     "dropbox.guide.oauth-link": "Dropbox OAuth ガイドを見る",
     "dropbox.guide.token-note": "Dropbox App Console でアプリを作成し、アクセストークンを取得して貼り付けてください。",
-    "dropbox.setup.open-dropbox-app-console": "Dropbox App Console を開く"
+    "dropbox.setup.open-dropbox-app-console": "Dropbox App Console を開く",
+    "dropbox.permission.network.reason": "Dropbox のアカウント情報と最新の更新を読み取ります",
+    "dropbox.permission.secret.reason": "安全に保存された Dropbox の接続資格情報を使用します"
   }
 }

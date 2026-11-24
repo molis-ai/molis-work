@@ -14,6 +14,8 @@
     "bitbucket.guide.oauth-link": "Bitbucket OAuth 2.0 を見る",
     "bitbucket.guide.token-note": "Bitbucket App Password は廃止されました。API Token または OAuth ユーザーアクセストークンを使ってください。",
     "bitbucket.oauth.note": "Consumer で account・repository・pullrequest の読み取り権限を設定してください。",
-    "bitbucket.setup.create-atlassian-api-token": "Atlassian API Token を作成"
+    "bitbucket.setup.create-atlassian-api-token": "Atlassian API Token を作成",
+    "bitbucket.permission.network.reason": "Bitbucket のアカウント情報と最新の更新を読み取ります",
+    "bitbucket.permission.secret.reason": "安全に保存された Bitbucket の接続資格情報を使用します"
   }
 }

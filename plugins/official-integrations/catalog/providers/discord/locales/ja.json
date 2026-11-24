@@ -11,6 +11,8 @@
     "discord.guide.oauth-note": "Discord OAuth2 はユーザー認証用です。現在の Molis Work のサーバーデータ接続は Bot Token を使っており、OAuth にはまだ対応していません。",
     "discord.guide.token-note": "Developer Portal で Bot を作成し、対象サーバーに追加してから Bot Token を貼り付けてください。",
     "discord.oauth.note": "ユーザー OAuth ではアカウント情報と参加サーバーを読み取れます。メッセージ取得には別途 Bot 権限が必要です。",
-    "discord.setup.open-discord-developer-portal": "Discord Developer Portal を開く"
+    "discord.setup.open-discord-developer-portal": "Discord Developer Portal を開く",
+    "discord.permission.network.reason": "Discord のアカウント情報と最新の更新を読み取ります",
+    "discord.permission.secret.reason": "安全に保存された Discord の接続資格情報を使用します"
   }
 }

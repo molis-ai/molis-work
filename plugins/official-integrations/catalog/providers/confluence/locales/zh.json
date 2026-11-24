@@ -11,6 +11,8 @@
     "confluence.guide.oauth-link": "查看 Atlassian OAuth 2.0",
     "confluence.oauth.site-url": "Atlassian 站点",
     "confluence.setup.create-atlassian-api-token": "创建 Atlassian API Token",
-    "confluence.setup.view-confluence-authentication-guide": "查看 Confluence 认证说明"
+    "confluence.setup.view-confluence-authentication-guide": "查看 Confluence 认证说明",
+    "confluence.permission.network.reason": "读取 Confluence 账号信息与最新动态",
+    "confluence.permission.secret.reason": "使用已安全保存的 Confluence 连接凭据"
   }
 }

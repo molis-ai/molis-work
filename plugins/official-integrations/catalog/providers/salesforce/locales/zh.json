@@ -15,6 +15,8 @@
     "salesforce.guide.oauth-link": "查看 Salesforce OAuth",
     "salesforce.guide.token-note": "填写 Salesforce 实例地址与访问令牌。",
     "salesforce.oauth.login-origin": "Salesforce 登录地址",
-    "salesforce.setup.view-salesforce-connected-app-guide": "查看 Salesforce Connected App 说明"
+    "salesforce.setup.view-salesforce-connected-app-guide": "查看 Salesforce Connected App 说明",
+    "salesforce.permission.network.reason": "读取 Salesforce 账号信息与最新动态",
+    "salesforce.permission.secret.reason": "使用已安全保存的 Salesforce 连接凭据"
   }
 }

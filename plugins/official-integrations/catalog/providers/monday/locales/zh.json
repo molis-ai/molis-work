@@ -11,6 +11,8 @@
     "monday.guide.oauth-link": "查看 monday OAuth",
     "monday.oauth.note": "当前 app version 必须先启用新版 OAuth 2.1。",
     "monday.setup.open-monday-developer-dashboard": "打开 monday 开发者后台",
-    "monday.setup.view-monday-com-authentication-guide": "查看 monday.com 认证说明"
+    "monday.setup.view-monday-com-authentication-guide": "查看 monday.com 认证说明",
+    "monday.permission.network.reason": "读取 monday.com 账号信息与最新动态",
+    "monday.permission.secret.reason": "使用已安全保存的 monday.com 连接凭据"
   }
 }

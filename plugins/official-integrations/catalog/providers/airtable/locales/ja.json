@@ -9,6 +9,8 @@
     "airtable.connection.token-label": "Airtable Personal Access Token",
     "airtable.guide.mcp-link": "Airtable 公式 MCP を見る",
     "airtable.guide.oauth-link": "Airtable OAuth を見る",
-    "airtable.setup.create-airtable-personal-access-token": "Airtable Personal Access Token を作成"
+    "airtable.setup.create-airtable-personal-access-token": "Airtable Personal Access Token を作成",
+    "airtable.permission.network.reason": "Airtable のアカウント情報と最新の更新を読み取ります",
+    "airtable.permission.secret.reason": "安全に保存された Airtable の接続資格情報を使用します"
   }
 }

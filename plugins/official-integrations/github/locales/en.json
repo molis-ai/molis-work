@@ -12,6 +12,8 @@
     "github.guide.oauth-note": "The app supports Device Flow. Set up your own OAuth App Client ID before first use.",
     "github.guide.token-note": "Create a PAT with notifications and read:user access, then paste it here.",
     "github.setup.create-a-personal-access-token": "Create a Personal Access Token",
-    "github.setup.register-an-oauth-app": "Register an OAuth App"
+    "github.setup.register-an-oauth-app": "Register an OAuth App",
+    "github.permission.network.reason": "Read your GitHub account info and unread notifications",
+    "github.permission.secret.reason": "Use your securely stored GitHub connection credentials"
   }
 }

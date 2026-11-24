@@ -10,6 +10,8 @@
     "sentry.guide.cli-link": "Sentry CLI",
     "sentry.guide.mcp-link": "Sentry 公式 MCP を見る",
     "sentry.guide.oauth-link": "Sentry OAuth アプリを見る",
-    "sentry.setup.create-sentry-auth-token": "Sentry Auth Token を作成"
+    "sentry.setup.create-sentry-auth-token": "Sentry Auth Token を作成",
+    "sentry.permission.network.reason": "Sentry のアカウント情報と最新の更新を読み取ります",
+    "sentry.permission.secret.reason": "安全に保存された Sentry の接続資格情報を使用します"
   }
 }

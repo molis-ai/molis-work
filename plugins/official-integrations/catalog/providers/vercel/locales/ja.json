@@ -13,6 +13,8 @@
     "vercel.guide.mcp-note": "公式 MCP はベータ版のため、クライアントの承認が必要な場合があります。Molis Work ではまだ接続していません。",
     "vercel.guide.oauth-link": "Vercel OAuth インテグレーションを見る",
     "vercel.oauth.note": "Vercel REST Integration を使います。ダッシュボードで固定コールバックと読み取り権限を設定してください。",
-    "vercel.setup.create-vercel-token": "Vercel Token を作成"
+    "vercel.setup.create-vercel-token": "Vercel Token を作成",
+    "vercel.permission.network.reason": "Vercel のアカウント情報と最新の更新を読み取ります",
+    "vercel.permission.secret.reason": "安全に保存された Vercel の接続資格情報を使用します"
   }
 }

@@ -13,6 +13,8 @@
     "vercel.guide.mcp-note": "The official MCP service is in beta and may require client approval. Molis Work hasn’t integrated it yet.",
     "vercel.guide.oauth-link": "View Vercel OAuth integration",
     "vercel.oauth.note": "Use a Vercel REST Integration. Set a fixed callback and read permissions in its dashboard.",
-    "vercel.setup.create-vercel-token": "Create Vercel token"
+    "vercel.setup.create-vercel-token": "Create Vercel token",
+    "vercel.permission.network.reason": "Read your Vercel account info and latest updates",
+    "vercel.permission.secret.reason": "Use your securely stored Vercel connection credentials"
   }
 }

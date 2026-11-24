@@ -14,6 +14,8 @@
     "google-calendar.guide.token-note": "在 OAuth Playground 获取 calendar.readonly 访问令牌后粘贴到这里；到期后需要更新。",
     "google-calendar.setup.create-oauth-client": "创建 OAuth 客户端",
     "google-calendar.setup.enable-calendar-api": "启用 Calendar API",
-    "google-calendar.setup.get-a-token-in-oauth-playground": "在 OAuth Playground 获取令牌"
+    "google-calendar.setup.get-a-token-in-oauth-playground": "在 OAuth Playground 获取令牌",
+    "google-calendar.permission.network.reason": "读取 Google Calendar 账号信息与最新动态",
+    "google-calendar.permission.secret.reason": "使用已安全保存的 Google Calendar 连接凭据"
   }
 }

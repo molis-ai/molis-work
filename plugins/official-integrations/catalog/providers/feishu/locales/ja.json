@@ -15,6 +15,8 @@
     "feishu.guide.oauth-note": "公式ではユーザー OAuth に対応していますが、現在の Molis Work では Feishu CLI でユーザー認証を行います。",
     "feishu.guide.token-note": "カスタムアプリは app_id:app_secret 形式で入力し、テナントアプリとして認証します。",
     "feishu.setup.install-and-configure-the-official-feishu-cli": "Feishu 公式 CLI をインストール・設定",
-    "feishu.setup.open-feishu-open-platform": "Feishu オープンプラットフォームを開く"
+    "feishu.setup.open-feishu-open-platform": "Feishu オープンプラットフォームを開く",
+    "feishu.permission.network.reason": "Feishu のアカウント情報と最新の更新を読み取ります",
+    "feishu.permission.secret.reason": "安全に保存された Feishu の接続資格情報を使用します"
   }
 }

@@ -10,6 +10,8 @@
     "canva.guide.mcp-link": "Canva 公式 MCP を見る",
     "canva.guide.oauth-link": "Canva Connect OAuth を見る",
     "canva.guide.token-note": "Canva には PAT がありません。ご自身の OAuth アプリで取得したアクセストークンを貼り付けてください。期限切れ後は再取得が必要です。",
-    "canva.setup.open-canva-developer-platform": "Canva 開発者プラットフォームを開く"
+    "canva.setup.open-canva-developer-platform": "Canva 開発者プラットフォームを開く",
+    "canva.permission.network.reason": "Canva のアカウント情報と最新の更新を読み取ります",
+    "canva.permission.secret.reason": "安全に保存された Canva の接続資格情報を使用します"
   }
 }

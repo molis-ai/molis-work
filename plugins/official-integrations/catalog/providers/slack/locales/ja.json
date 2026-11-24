@@ -13,6 +13,8 @@
     "slack.guide.oauth-link": "Slack アプリを作成してワークスペースにインストール",
     "slack.guide.token-note": "アプリをワークスペースにインストールし、対応する Bot トークンまたはユーザートークンを取得してください。",
     "slack.oauth.note": "インストール済みアプリの Bot 認証を使います。チャットの読み取りはワークスペースおよびチャンネル参加権限の範囲内に限られます。",
-    "slack.setup.open-slack-app-dashboard": "Slack アプリ管理画面を開く"
+    "slack.setup.open-slack-app-dashboard": "Slack アプリ管理画面を開く",
+    "slack.permission.network.reason": "Slack のアカウント情報と最新の更新を読み取ります",
+    "slack.permission.secret.reason": "安全に保存された Slack の接続資格情報を使用します"
   }
 }

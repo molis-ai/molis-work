@@ -10,6 +10,8 @@
     "huggingface.guide.cli-link": "Hugging Face CLI を見る",
     "huggingface.guide.mcp-link": "Hugging Face 公式 MCP を見る",
     "huggingface.guide.oauth-link": "Hugging Face OAuth を見る",
-    "huggingface.setup.create-hugging-face-access-token": "Hugging Face Access Token を作成"
+    "huggingface.setup.create-hugging-face-access-token": "Hugging Face Access Token を作成",
+    "huggingface.permission.network.reason": "Hugging Face のアカウント情報と最新の更新を読み取ります",
+    "huggingface.permission.secret.reason": "安全に保存された Hugging Face の接続資格情報を使用します"
   }
 }

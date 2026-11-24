@@ -11,6 +11,8 @@
     "clickup.guide.mcp-link": "查看 ClickUp 官方 MCP",
     "clickup.guide.mcp-note": "ClickUp 官方 MCP 处于公开 Beta；Molis Work 暂未接入。",
     "clickup.guide.oauth-link": "查看 ClickUp OAuth",
-    "clickup.setup.open-clickup-apps-settings": "打开 ClickUp Apps 设置"
+    "clickup.setup.open-clickup-apps-settings": "打开 ClickUp Apps 设置",
+    "clickup.permission.network.reason": "读取 ClickUp 账号信息与最新动态",
+    "clickup.permission.secret.reason": "使用已安全保存的 ClickUp 连接凭据"
   }
 }

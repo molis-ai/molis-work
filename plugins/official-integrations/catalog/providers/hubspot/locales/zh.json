@@ -12,6 +12,8 @@
     "hubspot.guide.mcp-link": "查看 HubSpot 官方 MCP",
     "hubspot.guide.oauth-link": "查看 HubSpot OAuth",
     "hubspot.guide.token-note": "在 Settings › Integrations › Service Keys 创建只读 Service Key；既有 Private App Token 仍可使用。",
-    "hubspot.setup.view-hubspot-service-key-setup": "查看 HubSpot Service Key 创建方式"
+    "hubspot.setup.view-hubspot-service-key-setup": "查看 HubSpot Service Key 创建方式",
+    "hubspot.permission.network.reason": "读取 HubSpot 账号信息与最新动态",
+    "hubspot.permission.secret.reason": "使用已安全保存的 HubSpot 连接凭据"
   }
 }

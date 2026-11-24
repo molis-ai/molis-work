@@ -36,6 +36,8 @@
     "catalog.fallback.vercel-deployment": "Vercel deployment",
     "catalog.fallback.wechat-department": "Department {id}",
     "catalog.fallback.x-post": "X post",
-    "catalog.fallback.zoom-meeting": "Zoom meeting"
+    "catalog.fallback.zoom-meeting": "Zoom meeting",
+    "catalog.permission.network.reason": "Read account info and latest updates from your connected services",
+    "catalog.permission.secret.reason": "Use your connection credentials stored separately per service"
   }
 }

@@ -13,6 +13,8 @@
     "intercom.guide.oauth-link": "Intercom OAuth を見る",
     "intercom.guide.token-note": "ご自身の Private App のみ接続してください。公開アプリの場合は公式の OAuth 手順に従ってください。",
     "intercom.oauth.note": "Intercom アプリには登録済みの HTTPS コールバックが必要です。下にコールバックを入力し、認証後のリダイレクト先 URL を貼り付けてください。",
-    "intercom.setup.open-intercom-developer-hub": "Intercom Developer Hub を開く"
+    "intercom.setup.open-intercom-developer-hub": "Intercom Developer Hub を開く",
+    "intercom.permission.network.reason": "Intercom のアカウント情報と最新の更新を読み取ります",
+    "intercom.permission.secret.reason": "安全に保存された Intercom の接続資格情報を使用します"
   }
 }

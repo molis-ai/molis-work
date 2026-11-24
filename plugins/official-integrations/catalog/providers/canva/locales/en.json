@@ -10,6 +10,8 @@
     "canva.guide.mcp-link": "View the official Canva MCP",
     "canva.guide.oauth-link": "View Canva Connect OAuth",
     "canva.guide.token-note": "Canva doesn’t issue PATs. Paste an access token from your own OAuth app and replace it when it expires.",
-    "canva.setup.open-canva-developer-platform": "Open Canva Developer Platform"
+    "canva.setup.open-canva-developer-platform": "Open Canva Developer Platform",
+    "canva.permission.network.reason": "Read your Canva account info and latest updates",
+    "canva.permission.secret.reason": "Use your securely stored Canva connection credentials"
   }
 }

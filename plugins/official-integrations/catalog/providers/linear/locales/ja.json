@@ -9,6 +9,8 @@
     "linear.connection.token-label": "Linear API Key",
     "linear.guide.mcp-link": "Linear 公式 MCP を見る",
     "linear.guide.oauth-link": "Linear OAuth アプリを見る",
-    "linear.setup.open-linear-api-settings": "Linear API 設定を開く"
+    "linear.setup.open-linear-api-settings": "Linear API 設定を開く",
+    "linear.permission.network.reason": "Linear のアカウント情報と最新の更新を読み取ります",
+    "linear.permission.secret.reason": "安全に保存された Linear の接続資格情報を使用します"
   }
 }

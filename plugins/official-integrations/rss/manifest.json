@@ -14,7 +14,7 @@
     { "deployment": "local", "entrypoint": "./dist/index.js" }
   ],
   "permissions": [
-    { "permission": "network:rss", "required": true, "reason": "读取你选择的公开 RSS 订阅地址" }
+    { "permission": "network:rss", "required": true, "reason": "读取你选择的公开 RSS 订阅地址", "reason_text": { "key": "rss.permission.network.reason" } }
   ],
   "capabilities": {
     "provides": ["connector.driver.rss.v1", "signal.adapter.rss.v1"],

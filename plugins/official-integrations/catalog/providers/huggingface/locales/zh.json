@@ -10,6 +10,8 @@
     "huggingface.guide.cli-link": "查看 Hugging Face CLI",
     "huggingface.guide.mcp-link": "查看 Hugging Face 官方 MCP",
     "huggingface.guide.oauth-link": "查看 Hugging Face OAuth",
-    "huggingface.setup.create-hugging-face-access-token": "创建 Hugging Face Access Token"
+    "huggingface.setup.create-hugging-face-access-token": "创建 Hugging Face Access Token",
+    "huggingface.permission.network.reason": "读取 Hugging Face 账号信息与最新动态",
+    "huggingface.permission.secret.reason": "使用已安全保存的 Hugging Face 连接凭据"
   }
 }

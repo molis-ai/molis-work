@@ -17,6 +17,8 @@
     "notion.guide.oauth-note": "アプリ内で Notion API OAuth に対応しています。Public connection を作成し、ローカルコールバックを設定してください。",
     "notion.guide.token-note": "公式 PAT または Internal Integration Token に対応しています。読み取れる内容はユーザー権限またはインテグレーションに共有されたページに限られます。",
     "notion.setup.create-notion-integration": "Notion インテグレーションを作成",
-    "notion.setup.notion-oauth-setup-guide": "Notion OAuth 設定ガイド"
+    "notion.setup.notion-oauth-setup-guide": "Notion OAuth 設定ガイド",
+    "notion.permission.network.reason": "Notion のアカウント情報と最新の更新を読み取ります",
+    "notion.permission.secret.reason": "安全に保存された Notion の接続資格情報を使用します"
   }
 }

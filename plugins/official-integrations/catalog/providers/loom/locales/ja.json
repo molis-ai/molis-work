@@ -8,6 +8,8 @@
     "loom.connection.summary": "Atlassian Rovo MCP 経由で連携サイトの録画を読み取ります。",
     "loom.guide.mcp-link": "Atlassian Rovo MCP を見る",
     "loom.guide.mcp-note": "Loom ワークスペースは Atlassian サイトに紐づける必要があります。公開 REST API は提供されていません。",
-    "loom.setup.view-loom-api-guide": "Loom API ガイドを見る"
+    "loom.setup.view-loom-api-guide": "Loom API ガイドを見る",
+    "loom.permission.network.reason": "Loom のアカウント情報と最新の更新を読み取ります",
+    "loom.permission.secret.reason": "安全に保存された Loom の接続資格情報を使用します"
   }
 }

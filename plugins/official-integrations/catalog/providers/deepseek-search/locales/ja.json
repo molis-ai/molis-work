@@ -7,6 +7,8 @@
     "deepseek-search.connection.inbound": "Web 検索（既定に設定した場合に使用）",
     "deepseek-search.connection.summary": "ドキュメント検索にも対応する DeepSeek の Web 検索です。成功リクエストごとに課金されます。",
     "deepseek-search.connection.token-label": "DeepSeek API Key",
-    "deepseek-search.setup.open-deepseek-api-keys": "DeepSeek API キーを開く"
+    "deepseek-search.setup.open-deepseek-api-keys": "DeepSeek API キーを開く",
+    "deepseek-search.permission.network.reason": "DeepSeek Search でのウェブ検索とアカウント確認に使用します",
+    "deepseek-search.permission.secret.reason": "安全に保存された DeepSeek Search の接続資格情報を使用します"
   }
 }

@@ -11,6 +11,8 @@
     "discord.guide.oauth-note": "Discord OAuth2 authorizes users. The Molis Work connection for server data uses a Bot Token and doesn’t support OAuth yet.",
     "discord.guide.token-note": "Create a bot in the Developer Portal, add it to the target server, then paste the Bot Token.",
     "discord.oauth.note": "User OAuth can read the identity and joined servers. A separate bot grant provides message access.",
-    "discord.setup.open-discord-developer-portal": "Open Discord Developer Portal"
+    "discord.setup.open-discord-developer-portal": "Open Discord Developer Portal",
+    "discord.permission.network.reason": "Read your Discord account info and latest updates",
+    "discord.permission.secret.reason": "Use your securely stored Discord connection credentials"
   }
 }

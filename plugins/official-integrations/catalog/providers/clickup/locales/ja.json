@@ -11,6 +11,8 @@
     "clickup.guide.mcp-link": "ClickUp 公式 MCP を見る",
     "clickup.guide.mcp-note": "ClickUp 公式 MCP はパブリックベータ版です。Molis Work ではまだ接続していません。",
     "clickup.guide.oauth-link": "ClickUp OAuth を見る",
-    "clickup.setup.open-clickup-apps-settings": "ClickUp Apps 設定を開く"
+    "clickup.setup.open-clickup-apps-settings": "ClickUp Apps 設定を開く",
+    "clickup.permission.network.reason": "ClickUp のアカウント情報と最新の更新を読み取ります",
+    "clickup.permission.secret.reason": "安全に保存された ClickUp の接続資格情報を使用します"
   }
 }

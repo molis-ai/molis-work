@@ -13,6 +13,8 @@
     "vercel.guide.mcp-note": "官方 MCP 处于 Beta，客户端可能需获准；Molis Work 暂未接入。",
     "vercel.guide.oauth-link": "查看 Vercel OAuth 集成",
     "vercel.oauth.note": "使用 Vercel REST Integration；在后台配置固定回调和读取权限。",
-    "vercel.setup.create-vercel-token": "创建 Vercel Token"
+    "vercel.setup.create-vercel-token": "创建 Vercel Token",
+    "vercel.permission.network.reason": "读取 Vercel 账号信息与最新动态",
+    "vercel.permission.secret.reason": "使用已安全保存的 Vercel 连接凭据"
   }
 }

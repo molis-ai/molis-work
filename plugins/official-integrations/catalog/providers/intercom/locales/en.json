@@ -13,6 +13,8 @@
     "intercom.guide.oauth-link": "View Intercom OAuth",
     "intercom.guide.token-note": "Connect only your own private app. For a public app, follow the official OAuth requirements.",
     "intercom.oauth.note": "The Intercom app requires a registered HTTPS callback. Enter it below and paste the authorization return address.",
-    "intercom.setup.open-intercom-developer-hub": "Open Intercom Developer Hub"
+    "intercom.setup.open-intercom-developer-hub": "Open Intercom Developer Hub",
+    "intercom.permission.network.reason": "Read your Intercom account info and latest updates",
+    "intercom.permission.secret.reason": "Use your securely stored Intercom connection credentials"
   }
 }

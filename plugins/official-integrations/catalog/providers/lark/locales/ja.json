@@ -12,6 +12,8 @@
     "lark.guide.mcp-link": "Lark 公式 MCP を見る",
     "lark.guide.oauth-link": "Lark ユーザー認証を見る",
     "lark.guide.token-note": "国際版 Lark のカスタムアプリは app_id:app_secret 形式で入力してください。",
-    "lark.setup.open-lark-open-platform": "Lark オープンプラットフォームを開く"
+    "lark.setup.open-lark-open-platform": "Lark オープンプラットフォームを開く",
+    "lark.permission.network.reason": "Lark のアカウント情報と最新の更新を読み取ります",
+    "lark.permission.secret.reason": "安全に保存された Lark の接続資格情報を使用します"
   }
 }

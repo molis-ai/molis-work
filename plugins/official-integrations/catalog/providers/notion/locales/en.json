@@ -17,6 +17,8 @@
     "notion.guide.oauth-note": "The app supports Notion API OAuth. Create a public connection and set up the local callback.",
     "notion.guide.token-note": "Use an official PAT or Internal Integration Token. The readable content depends on user permissions or the pages shared with the integration.",
     "notion.setup.create-notion-integration": "Create Notion integration",
-    "notion.setup.notion-oauth-setup-guide": "Notion OAuth setup guide"
+    "notion.setup.notion-oauth-setup-guide": "Notion OAuth setup guide",
+    "notion.permission.network.reason": "Read your Notion account info and latest updates",
+    "notion.permission.secret.reason": "Use your securely stored Notion connection credentials"
   }
 }

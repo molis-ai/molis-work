@@ -7,6 +7,8 @@
     "tavily.connection.inbound": "Web 検索（既定に設定した場合に使用）",
     "tavily.connection.summary": "AI 向けの Web 検索です。毎月の無料枠があります。",
     "tavily.connection.token-label": "Tavily API Key",
-    "tavily.setup.open-tavily-api-keys": "Tavily ダッシュボードを開く"
+    "tavily.setup.open-tavily-api-keys": "Tavily ダッシュボードを開く",
+    "tavily.permission.network.reason": "Tavily でのウェブ検索とアカウント確認に使用します",
+    "tavily.permission.secret.reason": "安全に保存された Tavily の接続資格情報を使用します"
   }
 }

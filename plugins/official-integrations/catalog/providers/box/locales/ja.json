@@ -14,6 +14,8 @@
     "box.guide.oauth-link": "Box OAuth 認証を見る",
     "box.guide.token-note": "Box Developer Console でアプリと一時的な開発者トークンを作成できます。開発者トークンには有効期限があります。",
     "box.oauth.note": "読み取り権限は Box アプリ管理画面で設定してください。",
-    "box.setup.open-box-developer-console": "Box Developer Console を開く"
+    "box.setup.open-box-developer-console": "Box Developer Console を開く",
+    "box.permission.network.reason": "Box のアカウント情報と最新の更新を読み取ります",
+    "box.permission.secret.reason": "安全に保存された Box の接続資格情報を使用します"
   }
 }

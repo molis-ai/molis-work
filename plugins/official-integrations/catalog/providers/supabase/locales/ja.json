@@ -11,6 +11,8 @@
     "supabase.guide.mcp-link": "Supabase 公式 MCP を見る",
     "supabase.guide.oauth-link": "Supabase OAuth アプリを見る",
     "supabase.oauth.note": "読み取り権限は Supabase OAuth アプリ側で設定してください。",
-    "supabase.setup.create-supabase-access-token": "Supabase Access Token を作成"
+    "supabase.setup.create-supabase-access-token": "Supabase Access Token を作成",
+    "supabase.permission.network.reason": "Supabase のアカウント情報と最新の更新を読み取ります",
+    "supabase.permission.secret.reason": "安全に保存された Supabase の接続資格情報を使用します"
   }
 }

@@ -15,6 +15,8 @@
     "gmail.guide.token-note": "在 OAuth Playground 获取 gmail.readonly 访问令牌后粘贴到这里；到期后需要更新。",
     "gmail.setup.create-oauth-client": "创建 OAuth 客户端",
     "gmail.setup.enable-the-gmail-api": "启用 Gmail API",
-    "gmail.setup.get-a-token-in-oauth-playground": "在 OAuth Playground 获取令牌"
+    "gmail.setup.get-a-token-in-oauth-playground": "在 OAuth Playground 获取令牌",
+    "gmail.permission.network.reason": "读取 Gmail 账号信息与收件箱邮件",
+    "gmail.permission.secret.reason": "使用按账号隔离保存的 Gmail 连接凭据"
   }
 }

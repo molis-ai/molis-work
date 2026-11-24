@@ -11,6 +11,8 @@
     "adobe.guide.oauth-link": "View Adobe user authorization",
     "adobe.guide.token-note": "Use an Adobe IMS user access token. In most cases you also need a Client ID.",
     "adobe.oauth.note": "Enable User Authentication in Adobe Console. Product API permissions depend on the approved scope of the app.",
-    "adobe.setup.open-adobe-developer-console": "Open Adobe Developer Console"
+    "adobe.setup.open-adobe-developer-console": "Open Adobe Developer Console",
+    "adobe.permission.network.reason": "Read your Adobe account info and latest updates",
+    "adobe.permission.secret.reason": "Use your securely stored Adobe connection credentials"
   }
 }

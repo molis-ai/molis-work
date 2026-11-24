@@ -14,6 +14,8 @@
     "stripe.guide.token-note": "Create a restricted API key. Don’t paste a publishable key.",
     "stripe.oauth.note": "Enter the platform Secret Key as the Client Secret. Standard Connect read_write grants write access, though the Molis Work API preview remains read-only.",
     "stripe.oauth.stripe-scope": "App authorization scope: read_only for Extension, read_write for standard Connect",
-    "stripe.setup.open-stripe-api-keys": "Open Stripe API keys"
+    "stripe.setup.open-stripe-api-keys": "Open Stripe API keys",
+    "stripe.permission.network.reason": "Read your Stripe account info and latest updates",
+    "stripe.permission.secret.reason": "Use your securely stored Stripe connection credentials"
   }
 }

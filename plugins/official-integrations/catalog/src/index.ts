@@ -91,8 +91,18 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
     host_api_version: /* @version host.api */ 1,
     entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
     permissions: [
-      ...[spec.permission_host, ...(spec.additional_permission_hosts ?? [])].map(host => ({ permission: `network:${host}`, required: true, reason: `读取 ${spec.title} 账号信息与最新动态` })),
-      { permission: `secret:${connectorId}`, required: true, reason: `使用已安全保存的 ${spec.title} 连接凭据` },
+      ...[spec.permission_host, ...(spec.additional_permission_hosts ?? [])].map(host => ({
+        permission: `network:${host}`,
+        required: true,
+        reason: spec.web_search ? `使用 ${spec.title} 进行网页搜索与账号状态检查` : `读取 ${spec.title} 账号信息与最新动态`,
+        reason_text: { key: `${connectorId}.permission.network.reason` },
+      })),
+      {
+        permission: `secret:${connectorId}`,
+        required: true,
+        reason: `使用已安全保存的 ${spec.title} 连接凭据`,
+        reason_text: { key: `${connectorId}.permission.secret.reason` },
+      },
     ],
     capabilities: {
       provides: [`connector.driver.${connectorId}.v${CONNECTOR_DRIVER_VERSION}`, `signal.adapter.${connectorId}.v${SIGNAL_ADAPTER_VERSION}`],

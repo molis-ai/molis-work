@@ -11,6 +11,8 @@
     "discord.guide.oauth-note": "Discord OAuth2 用于用户授权；当前 Molis Work 的服务器数据连接使用 Bot Token，暂未接入 OAuth。",
     "discord.guide.token-note": "在 Developer Portal 创建 Bot，把它加入目标服务器后粘贴 Bot Token。",
     "discord.oauth.note": "用户 OAuth 可读取身份与加入的服务器；消息能力由 Bot 授权单独提供。",
-    "discord.setup.open-discord-developer-portal": "打开 Discord Developer Portal"
+    "discord.setup.open-discord-developer-portal": "打开 Discord Developer Portal",
+    "discord.permission.network.reason": "读取 Discord 账号信息与最新动态",
+    "discord.permission.secret.reason": "使用已安全保存的 Discord 连接凭据"
   }
 }

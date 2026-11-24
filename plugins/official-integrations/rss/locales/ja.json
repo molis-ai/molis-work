@@ -4,6 +4,7 @@
   "locale": "ja",
   "messages": {
     "rss.directory.name": "RSS",
-    "rss.directory.summary": "購読している公開 RSS・Atom フィードの更新を読み込みます。"
+    "rss.directory.summary": "購読している公開 RSS・Atom フィードの更新を読み込みます。",
+    "rss.permission.network.reason": "登録した公開 RSS・Atom フィードを読み取ります"
   }
 }

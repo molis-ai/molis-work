@@ -11,6 +11,8 @@
     "figma.guide.mcp-link": "Figma 公式 MCP を見る",
     "figma.guide.mcp-note": "デスクトップ MCP は Figma 側で有効にする必要があります。クラウド MCP は承認済みクライアント限定です。",
     "figma.guide.oauth-link": "Figma OAuth アプリを見る",
-    "figma.setup.open-figma-account-settings": "Figma アカウント設定を開く"
+    "figma.setup.open-figma-account-settings": "Figma アカウント設定を開く",
+    "figma.permission.network.reason": "Figma のアカウント情報と最新の更新を読み取ります",
+    "figma.permission.secret.reason": "安全に保存された Figma の接続資格情報を使用します"
   }
 }

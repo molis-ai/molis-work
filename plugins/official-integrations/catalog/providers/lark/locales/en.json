@@ -12,6 +12,8 @@
     "lark.guide.mcp-link": "View the official Lark MCP",
     "lark.guide.oauth-link": "View Lark user authorization",
     "lark.guide.token-note": "For a custom Lark app, use app_id:app_secret.",
-    "lark.setup.open-lark-open-platform": "Open Lark Open Platform"
+    "lark.setup.open-lark-open-platform": "Open Lark Open Platform",
+    "lark.permission.network.reason": "Read your Lark account info and latest updates",
+    "lark.permission.secret.reason": "Use your securely stored Lark connection credentials"
   }
 }

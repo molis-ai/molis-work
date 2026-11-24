@@ -12,6 +12,8 @@
     "jira.guide.oauth-link": "Atlassian OAuth 2.0 を見る",
     "jira.oauth.site-url": "Atlassian サイト",
     "jira.setup.create-atlassian-api-token": "Atlassian API Token を作成",
-    "jira.setup.view-jira-cloud-authentication-guide": "Jira Cloud 認証ガイドを見る"
+    "jira.setup.view-jira-cloud-authentication-guide": "Jira Cloud 認証ガイドを見る",
+    "jira.permission.network.reason": "Jira のアカウント情報と最新の更新を読み取ります",
+    "jira.permission.secret.reason": "安全に保存された Jira の接続資格情報を使用します"
   }
 }

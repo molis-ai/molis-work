@@ -11,6 +11,8 @@
     "wechat.directory.name": "微信",
     "wechat.guide.token-note": "这里接入企业微信自建应用的 CorpID 与 Secret；个人微信没有这项官方 API。",
     "wechat.setup.open-the-wecom-admin-console": "打开企业微信管理后台",
-    "wechat.setup.view-wecom-developer-documentation": "查看企业微信开发文档"
+    "wechat.setup.view-wecom-developer-documentation": "查看企业微信开发文档",
+    "wechat.permission.network.reason": "读取 微信 账号信息与最新动态",
+    "wechat.permission.secret.reason": "使用已安全保存的 微信 连接凭据"
   }
 }

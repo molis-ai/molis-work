@@ -15,6 +15,8 @@
     "gmail.guide.token-note": "Get a gmail.readonly user access token from OAuth Playground and paste it here. Replace it when it expires.",
     "gmail.setup.create-oauth-client": "Create an OAuth client",
     "gmail.setup.enable-the-gmail-api": "Enable the Gmail API",
-    "gmail.setup.get-a-token-in-oauth-playground": "Get a token in OAuth Playground"
+    "gmail.setup.get-a-token-in-oauth-playground": "Get a token in OAuth Playground",
+    "gmail.permission.network.reason": "Read your Gmail account info and inbox messages",
+    "gmail.permission.secret.reason": "Use your Gmail connection credentials stored separately per account"
   }
 }

@@ -36,6 +36,8 @@
     "catalog.fallback.vercel-deployment": "Vercel デプロイ",
     "catalog.fallback.wechat-department": "部署 {id}",
     "catalog.fallback.x-post": "X ポスト",
-    "catalog.fallback.zoom-meeting": "Zoom ミーティング"
+    "catalog.fallback.zoom-meeting": "Zoom ミーティング",
+    "catalog.permission.network.reason": "接続済みサービスのアカウント情報と最新の更新を読み取ります",
+    "catalog.permission.secret.reason": "サービスごとに分離して保存された接続資格情報を使用します"
   }
 }

@@ -28,8 +28,8 @@ export const githubIntegrationManifest = {
   host_api_version: /* @version host.api */ 1,
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [
-    { permission: "network:github.com", required: true, reason: "读取 GitHub 账号信息与未读通知" },
-    { permission: "secret:github", required: true, reason: "使用已安全保存的 GitHub 连接凭据" },
+    { permission: "network:github.com", required: true, reason: "读取 GitHub 账号信息与未读通知", reason_text: { key: "github.permission.network.reason" } },
+    { permission: "secret:github", required: true, reason: "使用已安全保存的 GitHub 连接凭据", reason_text: { key: "github.permission.secret.reason" } },
   ],
   capabilities: {
     provides: [/* @version type.connector.driver.github "connector.driver.github.v{version}" */ "connector.driver.github.v1", /* @version type.signal.adapter.github "signal.adapter.github.v{version}" */ "signal.adapter.github.v1"],

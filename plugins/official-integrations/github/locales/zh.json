@@ -12,6 +12,8 @@
     "github.guide.oauth-note": "应用内支持 Device Flow；首次使用需要填写自己的 OAuth App Client ID。",
     "github.guide.token-note": "创建包含 notifications 和 read:user 权限的 PAT 后粘贴到这里。",
     "github.setup.create-a-personal-access-token": "创建 Personal Access Token",
-    "github.setup.register-an-oauth-app": "注册 OAuth App"
+    "github.setup.register-an-oauth-app": "注册 OAuth App",
+    "github.permission.network.reason": "读取 GitHub 账号信息与未读通知",
+    "github.permission.secret.reason": "使用已安全保存的 GitHub 连接凭据"
   }
 }

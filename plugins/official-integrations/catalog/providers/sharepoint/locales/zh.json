@@ -15,6 +15,8 @@
     "sharepoint.guide.token-note": "Graph Explorer 可获取用于测试的用户令牌；长期使用需自己注册应用。",
     "sharepoint.oauth.tenant": "租户 ID（个人账号或多租户应用可留空）",
     "sharepoint.setup.get-a-token-in-graph-explorer": "在 Graph Explorer 获取令牌",
-    "sharepoint.setup.register-azure-app": "注册 Azure 应用"
+    "sharepoint.setup.register-azure-app": "注册 Azure 应用",
+    "sharepoint.permission.network.reason": "读取 SharePoint 账号信息与最新动态",
+    "sharepoint.permission.secret.reason": "使用已安全保存的 SharePoint 连接凭据"
   }
 }

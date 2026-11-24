@@ -11,6 +11,8 @@
     "zoom.guide.oauth-link": "View Zoom OAuth app",
     "zoom.guide.token-note": "Use a Zoom OAuth user access token and replace it when it expires.",
     "zoom.oauth.note": "Enable read access to users, meetings and recordings in the Zoom app.",
-    "zoom.setup.open-zoom-app-marketplace": "Open Zoom App Marketplace"
+    "zoom.setup.open-zoom-app-marketplace": "Open Zoom App Marketplace",
+    "zoom.permission.network.reason": "Read your Zoom account info and latest updates",
+    "zoom.permission.secret.reason": "Use your securely stored Zoom connection credentials"
   }
 }

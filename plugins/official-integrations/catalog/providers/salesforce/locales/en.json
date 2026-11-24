@@ -15,6 +15,8 @@
     "salesforce.guide.oauth-link": "View Salesforce OAuth",
     "salesforce.guide.token-note": "Enter the Salesforce instance URL and access token.",
     "salesforce.oauth.login-origin": "Salesforce sign-in address",
-    "salesforce.setup.view-salesforce-connected-app-guide": "View Salesforce Connected App guide"
+    "salesforce.setup.view-salesforce-connected-app-guide": "View Salesforce Connected App guide",
+    "salesforce.permission.network.reason": "Read your Salesforce account info and latest updates",
+    "salesforce.permission.secret.reason": "Use your securely stored Salesforce connection credentials"
   }
 }

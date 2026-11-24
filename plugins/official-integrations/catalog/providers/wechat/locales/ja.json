@@ -11,6 +11,8 @@
     "wechat.directory.name": "WeChat",
     "wechat.guide.token-note": "WeCom カスタムアプリの CorpID と Secret を入力してください。個人の WeChat アカウントにはこの公式 API はありません。",
     "wechat.setup.open-the-wecom-admin-console": "WeCom 管理画面を開く",
-    "wechat.setup.view-wecom-developer-documentation": "WeCom 開発者ドキュメントを見る"
+    "wechat.setup.view-wecom-developer-documentation": "WeCom 開発者ドキュメントを見る",
+    "wechat.permission.network.reason": "WeChat のアカウント情報と最新の更新を読み取ります",
+    "wechat.permission.secret.reason": "安全に保存された WeChat の接続資格情報を使用します"
   }
 }

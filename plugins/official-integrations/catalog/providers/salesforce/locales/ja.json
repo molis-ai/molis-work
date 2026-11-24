@@ -15,6 +15,8 @@
     "salesforce.guide.oauth-link": "Salesforce OAuth を見る",
     "salesforce.guide.token-note": "Salesforce のインスタンス URL とアクセストークンを入力してください。",
     "salesforce.oauth.login-origin": "Salesforce ログイン URL",
-    "salesforce.setup.view-salesforce-connected-app-guide": "Salesforce Connected App ガイドを見る"
+    "salesforce.setup.view-salesforce-connected-app-guide": "Salesforce Connected App ガイドを見る",
+    "salesforce.permission.network.reason": "Salesforce のアカウント情報と最新の更新を読み取ります",
+    "salesforce.permission.secret.reason": "安全に保存された Salesforce の接続資格情報を使用します"
   }
 }

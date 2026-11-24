@@ -11,6 +11,8 @@
     "clickup.guide.mcp-link": "View the official ClickUp MCP",
     "clickup.guide.mcp-note": "The official ClickUp MCP service is in public beta. Molis Work hasn’t integrated it yet.",
     "clickup.guide.oauth-link": "View ClickUp OAuth",
-    "clickup.setup.open-clickup-apps-settings": "Open ClickUp Apps settings"
+    "clickup.setup.open-clickup-apps-settings": "Open ClickUp Apps settings",
+    "clickup.permission.network.reason": "Read your ClickUp account info and latest updates",
+    "clickup.permission.secret.reason": "Use your securely stored ClickUp connection credentials"
   }
 }

@@ -11,6 +11,8 @@
     "confluence.guide.oauth-link": "View Atlassian OAuth 2.0",
     "confluence.oauth.site-url": "Atlassian site",
     "confluence.setup.create-atlassian-api-token": "Create Atlassian API token",
-    "confluence.setup.view-confluence-authentication-guide": "View Confluence authentication guide"
+    "confluence.setup.view-confluence-authentication-guide": "View Confluence authentication guide",
+    "confluence.permission.network.reason": "Read your Confluence account info and latest updates",
+    "confluence.permission.secret.reason": "Use your securely stored Confluence connection credentials"
   }
 }

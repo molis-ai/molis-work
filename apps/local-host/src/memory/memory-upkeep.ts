@@ -1,4 +1,5 @@
-import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { randomBytes } from "node:crypto";
+import { fencedMaterials, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { findSubjectReader, isSubjectReader, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryUpkeepReport } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
@@ -35,7 +36,7 @@ export async function runUpkeep(service: MemoryService, input: { homeDirectory: 
   return service.upkeep(input.caller, {
     projects: input.projects,
     ...(generate ? { tidy: async entries => {
-      const result = await generate(resolveModelPrompt(input.homeDirectory, instructed(MEMORY_TIDY, JSON.stringify({ 记忆: entries })), "memory.tidy"), {
+      const result = await generate(resolveModelPrompt(input.homeDirectory, instructed(MEMORY_TIDY, fencedMaterials({ memories: entries }, randomBytes(8).toString("hex"))), "memory.tidy"), {
         structured: { mode: "local", name: "memory_pairs", schema: PAIRS_SCHEMA as never }, timeoutMs: 120_000, maxOutputTokens: 1200 });
       const found = result.structured as { duplicates?: Array<[string, string]>; conflicts?: Array<{ a: string; b: string; why: string }> } | undefined;
       return found && Array.isArray(found.duplicates) && Array.isArray(found.conflicts) ? { duplicates: found.duplicates, conflicts: found.conflicts } : null;

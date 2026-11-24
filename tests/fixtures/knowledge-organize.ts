@@ -1,3 +1,5 @@
+import { extractFencedMaterials } from "./fenced-materials.js";
+
 // Project knowledge runs on the Home's configured model (specs/project-knowledge §5), apart from a fixture's foreground turn.
 // The current Host sends its complete registered instruction and one piece's JSON in a single user message. This is protocol
 // shape matching, not caller authentication: an identical complete payload is indistinguishable. A quoted phrase is not enough.
@@ -23,7 +25,10 @@ export function isKnowledgeOrganize(raw: string): boolean {
     const content = typeof message.content === "string" ? message.content
       : Array.isArray(message.content) && message.content.length === 1 && message.content[0]?.type === "text" ? message.content[0].text : undefined;
     if (typeof content !== "string" || !content.startsWith(INSTRUCTION)) return false;
-    const data = JSON.parse(content.slice(INSTRUCTION.length));
+    const payload = content.slice(INSTRUCTION.length);
+    const fenced = extractFencedMaterials(payload);
+    if (!fenced || payload !== fenced.block) return false;
+    const data = fenced.data as Record<string, unknown>;
     return !!data && typeof data === "object" && Object.keys(data).length === 4
       && typeof data.title === "string" && typeof data.summary === "string" && typeof data.text === "string"
       && Array.isArray(data.sections) && data.sections.every((section: unknown) => !!section && typeof section === "object"

@@ -11,6 +11,7 @@ import { summarizeMemoryReport } from "../scripts/memory-evaluation/report.mjs";
 import { observeEmittedMemory } from "../scripts/memory-evaluation/request-observation.mjs";
 import type { AgentMemoryRecallFact, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { memoryEvaluationEnvironment } from "../scripts/memory-evaluation/replay.mjs";
+import { parseFencedMaterials } from "./fixtures/fenced-materials.js";
 
 test("MEM-36: the frozen corpus separates layers, complete sequences and approved history from formation labels", () => {
   const layers = new Set(MEMORY_EVALUATION_SEQUENCES.map(item => item.layer));
@@ -41,7 +42,7 @@ test("MEM-36: continuous sequences use real formation, candidate promotion, emit
     let text = "fixture task answer";
     if (body.max_tokens === 1500) {
       const prompt = body.messages.flatMap((message: { content: string | { text?: string }[] }) => typeof message.content === "string" ? [message.content] : message.content.map(part => part.text ?? "")).join("\n");
-      const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2));
+      const data = parseFencedMaterials<{ sources: Array<{ id: string; text: string }>; destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> }>(prompt);
       const slot = data.destinations.find((group: { scope: string; replacement?: string }) => group.scope === "project" && !group.replacement)?.slots.convention;
       assert.ok(slot, "fixture chooses a supplied destination, not a precomputed candidate id");
       text = JSON.stringify({ drafts: [{ slot_id: slot, text: data.sources[0].text, suggested_basis: "explicit",
@@ -132,7 +133,7 @@ test("MEM-36: partial SDK formation remains failed while preserving committed it
     const body = JSON.parse(raw);
     const prompt = body.messages.flatMap((message: { content: string | { text?: string }[] }) => typeof message.content === "string"
       ? [message.content] : message.content.map(part => part.text ?? "")).join("\n");
-    const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2));
+    const data = parseFencedMaterials<{ sources: Array<{ id: string; text: string }>; destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> }>(prompt);
     // Two drafts for the same destination: the model names its one ID twice, and the extractor gives each its own SDK slot.
     const id = data.destinations.find((group: { scope: string; replacement?: string }) => group.scope === "project" && !group.replacement).slots.convention;
     assert.equal(typeof id, "string");

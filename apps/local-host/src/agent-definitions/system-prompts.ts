@@ -16,7 +16,7 @@ export const ONBOARDING_NOTES = defineInstructionPrompt({
 });
 
 export const ONBOARDING_PROPOSAL = defineInstructionPrompt({
-  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.proposal", version: /* @version prompt.onboarding.proposal */ 3, title: "项目建议",
+  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.proposal", version: /* @version prompt.onboarding.proposal */ 4, title: "项目建议",
   purpose: "把已有材料整理成一个能继续工作的项目建议：背景、进展、下一步与待确认事项", used_by: ["项目上手"],
   ...promptBody("onboarding.proposal"),
 });

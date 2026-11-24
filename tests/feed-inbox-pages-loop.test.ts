@@ -1,4 +1,5 @@
 import { modelPromptText } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { extractFencedMaterials } from "./fixtures/fenced-materials.js";
 import { feedCaptureFixture } from "./feed-capture-fixture.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -256,8 +257,10 @@ test("RAC-2409: the information planner cuts feed titles and source names to 200
     items: [{ item_id: "i1", source_id: "s1", title, summary: "摘要" }],
     inbox_entries: [{ entry_id: "e1", subject_type: "feed_item", subject_id: "i1", status: "open" }], titleOf: () => undefined }, "project-a", { prompt: "整理" });
   const shown = feedInformationPlanData(context, "整理");
-  const start = shown.indexOf("当前范围：") + "当前范围：".length, end = shown.indexOf("\n\n用户请求：");
-  const data = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[]; items: { title: string }[]; inbox: { title: string }[] };
+  const fenced = extractFencedMaterials(shown);
+  assert.ok(fenced, "feed information plan data fences untrusted Feed/Inbox context");
+  assert.ok(shown.endsWith("\n\n用户请求：整理"), "the person's request follows the fenced context");
+  const data = fenced.data as { sources: { name: string }[]; items: { title: string }[]; inbox: { title: string }[] };
   assert.deepEqual([data.items[0]!.title, data.inbox[0]!.title, data.sources[0]!.name], ["😀".repeat(200), "😀".repeat(200), "😀".repeat(200)],
     "the prompt carries 200 whole characters of the feed title, the inbox entry's feed title and the source name, not 250");
   assert.deepEqual(checkedFeedInformationPlan({ message: "ok", action: null }, context).context, { project_id: "project-a", items: 1, inbox: 1 });

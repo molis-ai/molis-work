@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { toolField, untilSetup } from "./fixtures/connector-assistant-model.js";
 import { asideReply, endingReviewReply } from "./fixtures/ending-review.js";
 import { isKnowledgeOrganize } from "./fixtures/knowledge-organize.js";
+import { extractFencedMaterials } from "./fixtures/fenced-materials.js";
 import { CURRENT_WORK, OPEN_DETAILS } from "./fixtures/assistant-current-work.js";
 
 /** One streamed model turn: some words, then (optionally) one tool call. */
@@ -303,7 +304,8 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
       const material = last && typeof last === "object" && "content" in last ? last.content : undefined;
       let extraction = false;
       if (typeof material === "string") {
-        try { const data = JSON.parse(material.slice(material.lastIndexOf("\n\n") + 2)); extraction = Array.isArray(data.sources) && Array.isArray(data.destinations); } catch { /* Not the extraction protocol. */ }
+        const data = extractFencedMaterials(material)?.data as { sources?: unknown; destinations?: unknown } | undefined;
+        extraction = Boolean(data && Array.isArray(data.sources) && Array.isArray(data.destinations));
       }
       const kind = ending ? "ending-review" : knowledge ? "knowledge.organize" : extraction ? "memory-extraction"
         : Array.isArray(body.tools) && body.tools.some(tool => tool?.name === "list-memories") ? "main-task" : "other";
@@ -322,9 +324,8 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
       const aside = asideReply(raw);
       if (aside !== undefined) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(aside)); return; }
       if (typeof material === "string") {
-        try { const data = JSON.parse(material.slice(material.lastIndexOf("\n\n") + 2));
-          if (Array.isArray(data.sources) && Array.isArray(data.destinations)) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(JSON.stringify({ drafts: [] }))); return; }
-        } catch { /* Ordinary task text is not the extraction protocol. */ }
+        const data = extractFencedMaterials(material)?.data as { sources?: unknown; destinations?: unknown } | undefined;
+        if (data && Array.isArray(data.sources) && Array.isArray(data.destinations)) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(JSON.stringify({ drafts: [] }))); return; }
       }
       const next = steps.shift(); assert.ok(next, "a revoked Context must not make an extra Provider request");
       const result = await next(body); res.writeHead(200, { "content-type": "text/event-stream" }); res.end(result);

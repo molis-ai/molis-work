@@ -260,7 +260,8 @@ export async function regrantPluginInProject(source: ProjectPluginHost, projectI
       await installed.reconcilePublishers();
       const owned = installed.records().find(row => row.install_id === installId);
       if (owned) {
-        if (!installed.releaseFor(owned.plugin_id)) {
+        const release = installed.releaseFor(owned.plugin_id);
+        if (!release) {
           if (installed.recoveryErrors.code(owned.plugin_id) === "plugin.publisher_revoked") {
             throw pluginErrors.publisher_revoked("这个插件的发布者已被撤销信任，不能修改它的权限");
           }
@@ -268,7 +269,7 @@ export async function regrantPluginInProject(source: ProjectPluginHost, projectI
         }
         assertPermissionSwitchTarget(owned, expected);
         // A signed dual-instance package's project half cannot exceed its Home half's optional permission upper bound (PEQ-06, S-48).
-        if (granted && installed.platform.dualInstance(owned.plugin_id)) {
+        if (granted && (installed.platform.dualInstance(owned.plugin_id) || release.packaged?.manifest.runtime?.dual_instance === true)) {
           const home = source.homePlugins();
           if (!home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
           await home.reconcilePublishers();
@@ -329,13 +330,16 @@ export async function regrantHomePlugin(homePlugins: HomePluginHost | undefined,
   const platform = await homePlugins?.ready();
   if (homePlugins) await homePlugins.reconcilePublishers();
   const record = platform?.runtime.list().find(row => row.install_id === installId && row.state !== "uninstalled");
-  if (!platform || !record || !homePlugins?.manifest(record.plugin_id)) {
+  if (!platform || !record) {
     throw pluginErrors.grant_denied("这个插件没有可以开关的可选权限");
   }
-  if (isInstalledPackage(record) && !homePlugins.trustedPackageRelease(record.plugin_id)) {
-    if (homePlugins.packageError(record.plugin_id, "code") === "plugin.publisher_revoked") {
+  if (isInstalledPackage(record) && !homePlugins?.trustedPackageRelease(record.plugin_id)) {
+    if (homePlugins?.packageError(record.plugin_id, "code") === "plugin.publisher_revoked") {
       throw pluginErrors.publisher_revoked("这个插件的发布者已被撤销信任，不能修改它的权限");
     }
+    throw pluginErrors.grant_denied("这个插件没有可以开关的可选权限");
+  }
+  if (!homePlugins?.manifest(record.plugin_id)) {
     throw pluginErrors.grant_denied("这个插件没有可以开关的可选权限");
   }
   assertPermissionSwitchTarget(record, expected);

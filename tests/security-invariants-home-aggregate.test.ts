@@ -877,4 +877,90 @@ test("S-49 resting snapshots invalidate on Home aggregate DB writes, restart-bou
   await ports3.resting!.readings.pass;
   assert.deepEqual(opened3, [proj.project_id], "expired reported failure triggers quiet refresh");
   await host3.close();
+
+  // 6. Assistant DB per-project isolation (no wake storm on notices/rounds/main works) and third-party Home library invalidation.
+  const projOtherCreated = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "SleepingSibling", actor_id: "user" }));
+  const projOther = molisWorkHostProjectReference({ projectId: projOtherCreated.project_id, databasePath: projOtherCreated.database_path });
+  const bothProjects = [...projects, { project_id: projOther.project_id, display_name: "SleepingSibling" }];
+  await mkdir(join(home, "assistant"), { recursive: true });
+  const assistantDb = new DatabaseSync(join(home, "assistant", "assistant.db"));
+  try {
+    assistantDb.exec(`
+      CREATE TABLE assistant_works (work_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL);
+      CREATE TABLE assistant_observed (actor_id TEXT NOT NULL, work_id TEXT NOT NULL, state TEXT NOT NULL, PRIMARY KEY(actor_id, work_id));
+      CREATE TABLE assistant_notices (notice_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL, dedupe TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL);
+      CREATE TABLE assistant_rounds (work_id TEXT NOT NULL, run_id TEXT NOT NULL, position INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY(work_id, run_id));
+    `);
+  } finally {
+    assistantDb.close();
+  }
+  mode = "verify";
+  const opened4: string[] = [];
+  const host4 = startHost(opened4);
+  const ports4 = homeAggregatePorts(host4);
+  await host4.withProject(proj, () => undefined);
+  await host4.withProject(projOther, () => undefined);
+  await runWithLocale("zh", async () => {
+    await homeBackgroundTasks(ports4, bothProjects);
+    await ports4.resting!.readings.pass;
+  });
+  assert.equal(await host4.sleepIfIdle(proj, 0), true);
+  assert.equal(await host4.sleepIfIdle(projOther, 0), true);
+  opened4.length = 0;
+  // Unrelated writes (notice, round, personal work, project main conversation) must NOT invalidate either sleeping project.
+  const assistantUnrelated = new DatabaseSync(join(home, "assistant", "assistant.db"));
+  try {
+    assistantUnrelated.prepare("INSERT INTO assistant_notices VALUES ('n1','user','w-main','done','new','d1','2026-11-24T00:00:00Z','{}')").run();
+    assistantUnrelated.prepare("INSERT INTO assistant_rounds VALUES ('w-main','r1',1,'{\"text\":\"long chat\"}')").run();
+    assistantUnrelated.prepare("INSERT INTO assistant_works VALUES ('w-personal','user',1,'2026-11-24T00:00:00Z',0,?)")
+      .run(JSON.stringify({ work_id: "w-personal", scope: { kind: "personal" } }));
+    assistantUnrelated.prepare("INSERT INTO assistant_works VALUES ('w-main','user',1,'2026-11-24T00:00:00Z',0,?)")
+      .run(JSON.stringify({ work_id: "w-main", main: true, project_ref: { project_id: proj.project_id } }));
+  } finally {
+    assistantUnrelated.close();
+  }
+  const afterUnrelatedAssistant = await runWithLocale("zh", () => homeBackgroundTasks(ports4, bothProjects));
+  assert.equal(afterUnrelatedAssistant.tasks.filter(task => task.resting === true).length, 2, "unrelated assistant writes keep both sleeping projects cached");
+  await ports4.resting!.readings.pass;
+  assert.deepEqual(opened4, [], "unrelated assistant writes trigger zero wakes");
+  // Writing a non-main project work for `proj` invalidates ONLY `proj`, leaving `projOther` asleep.
+  const assistantProjectWork = new DatabaseSync(join(home, "assistant", "assistant.db"));
+  try {
+    assistantProjectWork.prepare("INSERT INTO assistant_works VALUES ('w-task-1','user',1,'2026-11-24T00:01:00Z',0,?)")
+      .run(JSON.stringify({ work_id: "w-task-1", project_ref: { project_id: proj.project_id } }));
+  } finally {
+    assistantProjectWork.close();
+  }
+  const afterTargetedWork = await runWithLocale("zh", () => homeBackgroundTasks(ports4, bothProjects));
+  assert.deepEqual(afterTargetedWork.tasks.map(task => task.project_id), [projOther.project_id], "only the affected project invalidates while sibling stays resting");
+  await ports4.resting!.readings.pass;
+  assert.deepEqual(opened4, [proj.project_id], "only the affected project wakes quietly");
+  assert.equal(await host4.sleepIfIdle(proj, 0), true);
+  // Third-party Home library registered in plugin-libraries/plugin-libraries.db invalidates sleeping projects on write.
+  await mkdir(join(home, "plugin-libraries"), { recursive: true });
+  await mkdir(join(home, "third-party-agg"), { recursive: true });
+  const libLedger = new DatabaseSync(join(home, "plugin-libraries", "plugin-libraries.db"));
+  try {
+    libLedger.exec(`
+      CREATE TABLE plugin_home_libraries (
+        plugin_id TEXT PRIMARY KEY, publisher_signature TEXT NOT NULL, store_name TEXT NOT NULL UNIQUE,
+        version INTEGER NOT NULL, schema_digest TEXT NOT NULL, created_at TEXT NOT NULL
+      );
+      INSERT INTO plugin_home_libraries VALUES ('example.third-party.agg', 'sig-1', 'third-party-agg', 1, '${"a".repeat(64)}', '2026-11-24T00:00:00Z');
+    `);
+  } finally {
+    libLedger.close();
+  }
+  const thirdPartyDb = new DatabaseSync(join(home, "third-party-agg", "third-party-agg.db"));
+  try {
+    thirdPartyDb.exec("CREATE TABLE jobs (id INTEGER PRIMARY KEY); INSERT INTO jobs VALUES (1);");
+  } finally {
+    thirdPartyDb.close();
+  }
+  opened4.length = 0;
+  const afterThirdPartyWrite = await runWithLocale("zh", () => homeBackgroundTasks(ports4, bothProjects));
+  assert.equal(afterThirdPartyWrite.tasks.length, 0, "installed third-party Home library mutation invalidates sleeping projects");
+  await ports4.resting!.readings.pass;
+  assert.deepEqual(opened4.sort(), [proj.project_id, projOther.project_id].sort());
+  await host4.close();
 });

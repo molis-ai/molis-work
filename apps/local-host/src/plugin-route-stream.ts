@@ -52,7 +52,8 @@ export async function answerPluginRouteStream(response: ServerResponse,
     markMutationResponseFailed(response);
     write(errorLine(overflow ? overflowError() : error));
   } finally {
-    if (!response.destroyed && !response.writableEnded) response.end();
+    // Always end the response (even if the client disconnected mid-stream) so 2xx commits settle their mutation key as complete while failed streams stay released via markMutationResponseFailed.
+    if (!response.writableEnded) response.end();
   }
   return true;
 }

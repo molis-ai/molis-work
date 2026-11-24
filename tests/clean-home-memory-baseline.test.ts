@@ -66,6 +66,8 @@ test("memory ledger v1 -> v2 upgrade disambiguates pre-b3429bd1cc Coding session
       insert.run("local-person", "memory-session-clear:coding-old", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("coding-old", "coding", { kind: "coding", id: "cs-1", project_id: "proj-1" })));
       insert.run("local-person", "memory-session-clear:assistant-old", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("assistant-old", "assistant", { kind: "assistant", id: "w-1", project_id: "proj-1" })));
       insert.run("local-person", "memory-session-clear:unknown-scene", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("unknown-scene", "custom-scene", { kind: "custom-scene", id: "x-1", project_id: "proj-1" })));
+      insert.run("local-person", "memory-session-clear:proto-kind", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("proto-kind", "toString", { kind: "toString", id: "p-1", project_id: "proj-1" })));
+      insert.run("local-person", "memory-session-clear:scene-mismatch", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("scene-mismatch", "other-scene", { kind: "coding", id: "cs-2", project_id: "proj-1" })));
       db.exec("PRAGMA user_version = 1");
     } finally { db.close(); }
     // Runtime open strictly refuses v1 without upgrading in place.
@@ -84,6 +86,10 @@ test("memory ledger v1 -> v2 upgrade disambiguates pre-b3429bd1cc Coding session
       const unknown = ledger.marker("local-person", "memory-session-clear:unknown-scene")?.body as { binding?: { target?: Record<string, unknown> } };
       assert.equal(isMemorySessionTarget(unknown.binding?.target), false, "unknown plugin scene owner is never guessed");
       assert.deepEqual(unknown.binding?.target, { kind: "custom-scene", id: "x-1", project_id: "proj-1" });
+      const proto = ledger.marker("local-person", "memory-session-clear:proto-kind")?.body as { binding?: { target?: Record<string, unknown> } };
+      assert.deepEqual(proto.binding?.target, { kind: "toString", id: "p-1", project_id: "proj-1" }, "prototype property names are ignored");
+      const mismatch = ledger.marker("local-person", "memory-session-clear:scene-mismatch")?.body as { binding?: { target?: Record<string, unknown> } };
+      assert.deepEqual(mismatch.binding?.target, { kind: "coding", id: "cs-2", project_id: "proj-1" }, "mismatched current_scene vs target.kind is left untouched");
       // Verify real MemoryService.listOperations coverage: migrated completed plans cover their accepted forgetting decisions with zero phantom needs-reconcile, while an unguessed unknown-scene plan still reports needs-reconcile.
       for (const opId of ["coding-old", "assistant-old", "unknown-scene"]) {
         ledger.forgetting.accept({

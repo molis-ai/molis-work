@@ -208,10 +208,10 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
     }
     try {
       await api("/notices", "POST", Object.assign({ state }, target));
-      if (auto) { autoSeenFailures = 0; autoSeenRetryAfter = 0; }
+      if (auto && autoSeenFor === (target.work_id || "")) { autoSeenFailures = 0; autoSeenRetryAfter = 0; }
       loadNotices();
     } catch {
-      if (auto) {
+      if (auto && autoSeenFor === (target.work_id || "")) {
         autoSeenFailures += 1;
         autoSeenRetryAfter = Date.now() + Math.min(30000, 1000 * (2 ** Math.min(autoSeenFailures - 1, 5)));
         paintAttention();

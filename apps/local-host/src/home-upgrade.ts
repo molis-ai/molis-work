@@ -447,14 +447,16 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
     // Preserve committed units, run_id, and original pre-upgrade `from` when retrying a partial round toward the same target fingerprint
     // (e.g. after freeing disk space or resolving a prerequisite) so rollback snapshots from earlier commits stay intact.
     // A previously completed round (e.g. a store put back by hand) always starts a fresh run_id.
-    const plannedPaths = new Set(planned.map(unit => unit.relative_path)), settledPaths = new Set(settled.map(unit => unit.relative_path));
-    const keptCommitted = round.ledger?.to === fingerprint && round.ledger.units.some(unit => unit.state !== "committed")
-      ? round.ledger.units.filter(unit => unit.state === "committed" && !plannedPaths.has(unit.relative_path) && !settledPaths.has(unit.relative_path))
+    const plannedPaths = new Set(planned.map(unit => unit.relative_path));
+    const settledPaths = new Set(settled.map(unit => unit.relative_path));
+    const priorIncompleteSameTarget = round.ledger?.to === fingerprint && round.ledger.units.some(unit => unit.state !== "committed");
+    const keptCommitted = priorIncompleteSameTarget
+      ? round.ledger!.units.filter(unit => unit.state === "committed" && !plannedPaths.has(unit.relative_path) && !settledPaths.has(unit.relative_path))
       : [];
-    const continuingSameTarget = keptCommitted.length > 0;
-    round.ledger = continuingSameTarget
+    const preservedFrom = stamp ?? (priorIncompleteSameTarget ? round.ledger!.from : null);
+    round.ledger = keptCommitted.length > 0
       ? { ...round.ledger!, units: [...keptCommitted, ...settled, ...planned] }
-      : newUpgradeLedger(identity, randomUUID(), stamp ?? null, fingerprint, [...settled, ...planned]);
+      : newUpgradeLedger(identity, randomUUID(), preservedFrom, fingerprint, [...settled, ...planned]);
     writeUpgradeLedger(root, round.ledger);
     runPlanned(round, planned);
   } else {
@@ -585,20 +587,33 @@ export function upgradeRoundRestorable(home: string): { readonly kind: "none" } 
   return { kind: "round", run_id: ledger.run_id, from: ledger.from, started_at: ledger.started_at, restorable };
 }
 
+export interface PreparedUpgradeRoundPutBack {
+  readonly targets: readonly string[];
+  apply(): readonly string[];
+}
+
 /**
- * Puts every store the last round moved on back from its snapshot, for going back a version (U3 §5.3 step 3), and removes the stamp so the
- * program that comes next scans them all. The caller holds the owner lock and nothing has a store open. Only stores this build's descriptors
- * list are put back: the record names them, the descriptors say where they are. Every snapshot is checked before the first is put back, so a
- * bad one changes nothing; a kill part-way leaves whole old stores and whole new ones, and doing it again finishes it.
+ * Verifies every snapshot of the last upgrade round (descriptors and SHA-256 digests) without modifying disk
+ * (`S-upgrade-restore-verified`). Multi-Home rollback calls this for every target Home first, then invokes `apply()` on each.
  */
-export function putBackUpgradeRound(home: string, owner: StorageOwner): readonly string[] {
+export function prepareUpgradeRoundPutBack(home: string, owner: StorageOwner): PreparedUpgradeRoundPutBack {
   const lockDirectory = agentRuntimeDirectory(home);
   assertStorageOwner(lockDirectory, owner);
-  const root = realpathSync(home), ledger = readUpgradeLedger(root);
-  if (!ledger) { removeUpgradeStamp(root); return []; }
+  const root = realpathSync(home);
+  const ledger = readUpgradeLedger(root);
+  if (!ledger) {
+    return {
+      targets: [],
+      apply() {
+        removeUpgradeStamp(root);
+        return [];
+      },
+    };
+  }
   const stores = listStores(homeUpgradeDescriptors(), root);
   const committed = ledger.units.filter(unit => unit.state === "committed");
-  const targets: string[] = [], seen = new Set<string>();
+  const targets: string[] = [];
+  const seen = new Set<string>();
   for (const unit of committed) {
     if (!stores.has(unit.relative_path) || stores.get(unit.relative_path)!.unlisted) {
       throw upgradeFailedRefusal("这个 Home", "snapshot_invalid", "要放回的库有不在这一版登记里的，什么都没有动");
@@ -614,7 +629,22 @@ export function putBackUpgradeRound(home: string, owner: StorageOwner): readonly
   }
   const lock = { owner, lockDirectory, home: root };
   for (const relativePath of targets) verifyUpgradeSnapshot({ ...lock, runId: ledger.run_id, relativePath });
-  removeUpgradeStamp(root);
-  for (const relativePath of targets) restoreUpgradeSnapshot({ ...lock, runId: ledger.run_id, relativePath });
-  return targets;
+  return {
+    targets,
+    apply() {
+      removeUpgradeStamp(root);
+      for (const relativePath of targets) restoreUpgradeSnapshot({ ...lock, runId: ledger.run_id, relativePath });
+      return targets;
+    },
+  };
+}
+
+/**
+ * Puts every store the last round moved on back from its snapshot, for going back a version (U3 §5.3 step 3), and removes the stamp so the
+ * program that comes next scans them all. The caller holds the owner lock and nothing has a store open. Only stores this build's descriptors
+ * list are put back: the record names them, the descriptors say where they are. Every snapshot is checked before the first is put back, so a
+ * bad one changes nothing; a kill part-way leaves whole old stores and whole new ones, and doing it again finishes it.
+ */
+export function putBackUpgradeRound(home: string, owner: StorageOwner): readonly string[] {
+  return prepareUpgradeRoundPutBack(home, owner).apply();
 }

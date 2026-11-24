@@ -416,3 +416,89 @@ test("UPGR-03 multi-round partial upgrade toward the same fingerprint preserves 
   assert.equal(sha256(alpha), beforeAlpha, "Round 1 store restored");
   assert.equal(sha256(beta), beforeBeta, "Round 2 store restored");
 });
+
+test("S-upgrade-restore-verified multi-Home rollback verifies every space before mutating root", async t => {
+  const { area, home } = upgradeTestHome(t);
+  const space = personalStorageSpace("https://auth.example.test", "app-1", "user-tampered");
+  const accountHome = join(home, "spaces", space.spaceId);
+  mkdirSync(accountHome, { recursive: true, mode: 0o700 });
+  ensureStorageSpace(accountHome, space);
+  const rootStore = seedStore(home, "notes");
+  const accountStore = seedStore(accountHome, "notes", { space });
+  const v1 = useDescriptors(t, notesDescriptor("notes", { baseline: BASELINE_V1 }));
+  await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixtureSource(area, "1.0.0") });
+  runHomeUpgrade(home);
+  runHomeUpgrade(accountHome);
+  await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixtureSource(area, "2.0.0") });
+  v1();
+  useDescriptors(t, notesDescriptor("notes", { baseline: BASELINE_V2 }));
+  runHomeUpgrade(home);
+  runHomeUpgrade(accountHome);
+  assert.equal(versionOf(rootStore), 2);
+  assert.equal(versionOf(accountStore), 2);
+  // Tamper the account Home's upgrade snapshot bytes while leaving root's snapshot intact.
+  const accountLedger = JSON.parse(readFileSync(join(accountHome, "upgrade", "ledger.json"), "utf8")) as { run_id: string };
+  const snapshotDir = join(accountHome, "upgrade", accountLedger.run_id);
+  const snapFile = readdirSync(snapshotDir).find(name => name.endsWith(".db") || (!name.endsWith(".json") && name !== "manifest.json"));
+  assert.ok(snapFile, "expected snapshot file in account Home upgrade run directory");
+  const snapPath = join(snapshotDir, snapFile);
+  const originalSnap = readFileSync(snapPath);
+  const tampered = Buffer.from(originalSnap);
+  tampered[0] = (tampered[0] ?? 0) ^ 0xff;
+  chmodSync(snapPath, 0o600);
+  writeFileSync(snapPath, tampered);
+  const rootBeforeBytes = sha256(rootStore);
+  const rootBeforeStamp = readFileSync(join(home, "upgrade", "state.json"), "utf8");
+  const accountBeforeBytes = sha256(accountStore);
+  await assert.rejects(
+    rollbackHome(home),
+    (error: { code?: string; details?: { reason?: string } }) =>
+      error.code === "storage.upgrade_failed" && error.details?.reason === "snapshot_invalid",
+  );
+  assert.equal(sha256(rootStore), rootBeforeBytes, "root store bytes stay completely untouched on multi-Home snapshot_invalid");
+  assert.equal(readFileSync(join(home, "upgrade", "state.json"), "utf8"), rootBeforeStamp, "root upgrade stamp stays intact on refusal");
+  assert.equal(sha256(accountStore), accountBeforeBytes, "account store stays untouched on refusal");
+  assert.equal(readRollbackHold(home), undefined, "no rollback hold left behind on pre-restore verification refusal");
+  assert.equal(installation(home).version, "2.0.0");
+});
+
+test("UPGR-03 zero-committed Round 1 failure (upgrade_no_space) preserves pre-upgrade from stamp for Round 2 rollback", async t => {
+  const { area, home } = upgradeTestHome(t);
+  const alpha = seedStore(home, "alpha");
+  const beta = seedStore(home, "beta");
+  const v1 = useDescriptors(t, notesDescriptor("alpha", { baseline: BASELINE_V1 }), notesDescriptor("beta", { baseline: BASELINE_V1 }));
+  await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixtureSource(area, "1.0.0") });
+  runHomeUpgrade(home);
+  const beforeAlpha = sha256(alpha);
+  const beforeBeta = sha256(beta);
+  await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixtureSource(area, "2.0.0") });
+  v1();
+  // Round 1 fails BOTH units with upgrade_no_space (0 committed units after removing upgrade/state.json).
+  let noSpace = true;
+  const guarded = (name: string) => notesDescriptor(name, {
+    baseline: BASELINE_V2,
+    upgrade(file) {
+      if (noSpace) throw upgradeNoSpaceRefusal(`${name}/${name}.db`);
+      const db = openNode(file);
+      try { runSqliteUpgrade(db, file, BASELINE_V2, home); }
+      finally { db.close(); }
+    },
+  });
+  useDescriptors(t, guarded("alpha"), guarded("beta"));
+  const round1 = runHomeUpgrade(home);
+  assert.equal(round1.stamped, false);
+  assert.equal(round1.units.filter(unit => unit.state === "committed").length, 0);
+  assert.equal(present(join(home, "upgrade", "state.json")), false, "Round 1 removed the pre-upgrade stamp");
+  // Round 2 succeeds after space is freed: it must inherit Round 1's pre-upgrade `from` stamp so rollback still works.
+  noSpace = false;
+  const round2 = runHomeUpgrade(home);
+  assert.equal(round2.stamped, true);
+  assert.equal(versionOf(alpha), 2);
+  assert.equal(versionOf(beta), 2);
+  const point = readRollbackPoint(home);
+  assert.equal(point.available && point.data, "restore", "Round 2 after 0-committed Round 1 stays restorable back to 1.0.0");
+  const rolled = await rollbackHome(home);
+  assert.deepEqual([...rolled.restored].sort(), ["alpha/alpha.db", "beta/beta.db"]);
+  assert.equal(sha256(alpha), beforeAlpha);
+  assert.equal(sha256(beta), beforeBeta);
+});

@@ -605,8 +605,9 @@ export class MolisWorkLocalHost {
     const home = this.personalPlanningHome;
     if (!home || !this.catalogRunner || references.length === 0) return new Map();
     const homePluginsStamp = homePluginsSemanticStamp(home, pluginFixturesStamp(this.options.pluginFixtures));
-    const homeAggregateStoresStamp = homeAggregateStoresFingerprint(home);
-    if (!homePluginsStamp || !homeAggregateStoresStamp) return new Map(references.map(reference => [reference.storage_key, null]));
+    if (!homePluginsStamp) return new Map(references.map(reference => [reference.storage_key, null]));
+    const homeAggregateStoresStamp = homeAggregateStoresFingerprint(home, { fixtures: this.options.pluginFixtures, homePluginsStamp });
+    if (!homeAggregateStoresStamp) return new Map(references.map(reference => [reference.storage_key, null]));
     try {
       return await this.catalogRunner({ homeDirectory: home }, catalog => withFreshReadOnlyPluginDirectory(home, () => {
         const byId = new Map(catalog.listProjects().map(project => [project.project_id, project]));

@@ -55,7 +55,7 @@ Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `r
 ## Sessions / Shelf / Artifacts / Goals
 
 - Sessions：已下线（SC-4），重做见 BL-177；终端传输留在 Host，由终端工作区使用。
-- Shelf：置物架文件与摘录，`personal`，有设置页。
+- Shelf：平台模块 `modules/shelf`，管理置物架文件与摘录。
 - Artifacts：打开已保存成果和版本。
 - Goals：树、画布、提案、决定。采用/退回是对象处置，同样先不要塞进 Feed/Inbox 池。
 - 搜索：Artifacts 列每个成果的最新版本；Goals 的条目版本与读取器版本一致。Shelf 的材料照常对外；剪贴板历史原本只给本机的人，所以单独一个受众为 `["user"]` 的来源（`shelf.clipboard.search.entries`）——来源的受众不能比你原有的读取更宽。

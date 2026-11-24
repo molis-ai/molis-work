@@ -1,6 +1,6 @@
 # 防腐后路线书 · 执行目录
 
-状态：执行中（2026-11-13）。没有统筹会话（2026-11-14 用户定，[决定 44](reference/decisions.md#decision-44)）：排期由各批主会话在收尾时维护（[批次执行手册](reference/batch-runbook.md)第十节），实施、评审、合并也由各批主会话一个会话做完（[决定 26](reference/decisions.md#decision-26)、[决定 34](reference/decisions.md#decision-34)），谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)。01 已交单；02～27 中至少 18 个批次已有合入记录，最近合入包括 15 #2017（`b819373250`）、16 #2031、17 #2058（`3b296a6337`）、22 #2038、25 #2034、27 #2010；06 等仍有在途 PR，未结算项以批次文件与认领板为准。
+状态：执行中（2026-11-24 核对第 36A、37、44B、47 批）。没有统筹会话（2026-11-14 用户定，[决定 44](reference/decisions.md#decision-44)）：排期由各批主会话在收尾时维护（[批次执行手册](reference/batch-runbook.md)第十节），实施、评审、合并也由各批主会话一个会话做完（[决定 26](reference/decisions.md#decision-26)、[决定 34](reference/decisions.md#decision-34)），谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)。各批合入记录见下表与对应批次页，本人验收见各批关联待办。
 
 **当前入口：[批次 01～27 的结算与剩余](reference/batches/) · [认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743) · [本人试用单](reference/acceptance-01.md)。** 批次文件记排期与合入结果，实时认领、分支和状态以认领板最新正文/评论为准。
 
@@ -99,15 +99,15 @@
 |  | [Coding A 期](reference/batches/35.md#batch-35-item-2) |
 | [36](reference/batches/36.md) | [角色设置、生效与恢复](reference/batches/36.md#batch-36-item-1) |
 |  | [主线第一片的合同与服务](reference/batches/36.md#batch-36-item-2) |
-| [36A](reference/batches/36a.md) | [顶部栏：纸上的页签](reference/batches/36a.md#batch-36a-item-1)（2026-11-18 加，[决定 52](reference/decisions.md#decision-52)） |
+| [36A](reference/batches/36a.md) | [顶部栏：纸上的页签](reference/batches/36a.md#batch-36a-item-1)（七项工程均已合入，含 #2142、#2218、#2232、#2233、#2235 及复核 #2252，实物验收见批次页；[决定 52](reference/decisions.md#decision-52)） |
 |  | [底栏：第十三版](reference/batches/36a.md#batch-36a-item-2)（2026-11-17 改，[决定 53](reference/decisions.md#decision-53)） |
 |  | [助理对话框、事件卡与收起态](reference/batches/36a.md#batch-36a-item-3) |
 |  | [Coding 逐屏](reference/batches/36a.md#batch-36a-item-4) |
 |  | [设置页：一种写法](reference/batches/36a.md#batch-36a-item-5) |
 |  | [首页：项目的第一页](reference/batches/36a.md#batch-36a-item-6) |
 |  | [动效落地与曲线收口](reference/batches/36a.md#batch-36a-item-7) |
-| [37](reference/batches/37.md) | [生成页面运行、采用与恢复](reference/batches/37.md#batch-37-item-1)（[#2288](https://github.com/molis-ai/molis-work/pull/2288)，SPC-10～11、ONB-25～28、WBR-26、S-home-page-*；本人验收 [BL-b37-generated-home-mainline-acceptance](../backlog/BL-b37-generated-home-mainline-acceptance.md)） |
-|  | [事项切换与工作台状态](reference/batches/37.md#batch-37-item-2)（[#2288](https://github.com/molis-ai/molis-work/pull/2288)，MLN-01～19／21～23、WLN-19／20／23／24、POLISH-62～64、决定 66；MLN-20 本人验收 [BL-b37-generated-home-mainline-acceptance](../backlog/BL-b37-generated-home-mainline-acceptance.md)） |
+| [37](reference/batches/37.md) | [生成页面运行、采用与恢复](reference/batches/37.md#batch-37-item-1)（[#2288](https://github.com/molis-ai/molis-work/pull/2288)，合后修复 [#2295](https://github.com/molis-ai/molis-work/pull/2295)、[#2298](https://github.com/molis-ai/molis-work/pull/2298)，SPC-10～11、ONB-25～28、WBR-26、S-home-page-*；本人验收 [BL-b37-generated-home-mainline-acceptance](../backlog/BL-b37-generated-home-mainline-acceptance.md)） |
+|  | [事项切换与工作台状态](reference/batches/37.md#batch-37-item-2)（[#2288](https://github.com/molis-ai/molis-work/pull/2288)，合后修复 [#2295](https://github.com/molis-ai/molis-work/pull/2295)、[#2298](https://github.com/molis-ai/molis-work/pull/2298)，MLN-01～19／21～23、WLN-19／20／23／24、POLISH-62～64、决定 66；MLN-20 本人验收 [BL-b37-generated-home-mainline-acceptance](../backlog/BL-b37-generated-home-mainline-acceptance.md)） |
 | [38](reference/batches/38.md) | [插件配置采用](reference/batches/38.md#batch-38-item-1) |
 | [39](reference/batches/39.md) | [授权、人审与统一管理页](reference/batches/39.md#batch-39-item-1) |
 |  | [可信决定回平台](reference/batches/39.md#batch-39-item-2) |
@@ -127,15 +127,15 @@
 |  | [宿主与工作台去私路、Goals 可移除](reference/batches/44.md#batch-44-item-6) |
 |  | [删除桌面胶囊、CLI 的 Goals 命令与 `goal-advance`](reference/batches/44.md#batch-44-item-7) |
 |  | [叙事与命名](reference/batches/44.md#batch-44-item-8) |
-| [44B](reference/batches/44b.md) | [P0 安全补洞：全局保留 `io.molis.work.` 前缀与修第三方前缀正则](reference/batches/44b.md#batch-44b-item-0)（2026-11-22 加，可立即可切安全小 PR，[决定 66](reference/decisions.md#decision-66)） |
+| [44B](reference/batches/44b.md) | [P0 安全补洞：全局保留 `io.molis.work.` 前缀与修第三方前缀正则](reference/batches/44b.md#batch-44b-item-0)（已随 #2262 合入，[决定 66](reference/decisions.md#decision-66)） |
 |  | [合同、SDK、纯平台身份与 Clean v1 存储改名（D5+U13）](reference/batches/44b.md#batch-44b-item-1) |
-|  | [Shelf 收归纯平台 `modules/shelf`、彻底删除旧 Alchemist、官方集成驱动化与宿主清零](reference/batches/44b.md#batch-44b-item-2) |
+|  | [Shelf 收归纯平台 `modules/shelf`、彻底删除旧 Alchemist、官方集成驱动化与宿主清零](reference/batches/44b.md#batch-44b-item-2)（#2279、#2294 已合入，独立复核修复已随 #2308 合入） |
 | [45](reference/batches/45.md) | [首次／项目场景闭环](reference/batches/45.md#batch-45-item-1) |
 |  | [官方场景包：行业观察与写作、写代码](reference/batches/45.md#batch-45-item-2) |
 | [46](reference/batches/46.md) | [情境 W4 创建与准备声明](reference/batches/46.md#batch-46-item-1) |
 |  | [通用任务引导与场景复用](reference/batches/46.md#batch-46-item-2) |
-| [47](reference/batches/47.md) | [正式插件交付的平台前置](reference/batches/47.md#batch-47-item-1) · [BL-586](../../docs/backlog-removed.md) |
-|  | [状态机登记与只读查询](reference/batches/47.md#batch-47-item-2) |
+| [47](reference/batches/47.md) | [正式插件交付的平台前置](reference/batches/47.md#batch-47-item-1)（#2239、#2264 已合入） · [BL-586](../../docs/backlog-removed.md) |
+|  | [状态机登记与只读查询](reference/batches/47.md#batch-47-item-2)（#2239、#2264 已合入，本人验收见 [BL-b47-acceptance](../backlog/BL-b47-acceptance.md)） |
 | [48](reference/batches/48.md) | [新插件创建、隔离试用与安装预演](reference/batches/48.md#batch-48-item-1) · [BL-plugin-cli-dev-uncoded-errors](../../docs/backlog-removed.md) |
 |  | [成果、搜索与工作流内容站声明](reference/batches/48.md#batch-48-item-2) |
 |  | [依赖、来源与权限可见](reference/batches/48.md#batch-48-item-3) |

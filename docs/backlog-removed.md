@@ -121,8 +121,8 @@
 | BL-feed-wake-resets-page、BL-assistant-card-press-scrolls | 已修复并删除 | 随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合入，Feed FBR-07/FSS-35 与助理 AC-05 在[最终 Linux 全量](https://github.com/molis-ai/molis-work/actions/runs/43467505571)首轮通过 |
 | BL-skill-hand-and-tools-consumers | 已关闭并删除 | 第 41 批：`find-skills`／`read-skill` 没有消费者，从 Molis 工具目录删掉，原因记在 `RUNTIME_TOOLS_NOT_OFFERED`；见 [Skill 策略 §10](../specs/prologue-strategies/skill.md) |
 | BL-coding-skill-auto | 已完成并删除 | 2026-11-11 第 09 批审计整改补做，见 [specs/README](../specs/README.md) 与 [第 09 批](../specs/post-anticorruption-roadmap/reference/batches/09.md) |
-| BL-onboarding-language-node-retention | 已完成并删除 | 2026-11-23 完成。FSS-37 的欢迎区保留由 [#2123](https://github.com/molis-ai/molis-work/pull/2123) 先行恢复，这次补齐晚到重绘时的「继续」节点保留和问候语言。整份引导回归 16/16，见 [OPENFIX-01](../specs/onboarding-language-503/spec.md#验收) |
-| BL-blank-503-notice | 已完成并删除 | 2026-11-23 完成。工作台项目页遇到本机服务 503 时展示双语原因和重试，服务恢复后可回到原地址。见 [OPENFIX-02](../specs/onboarding-language-503/spec.md#验收) |
+| BL-onboarding-language-node-retention | 已完成并删除 | 2026-11-23 完成。FSS-37 的欢迎区保留由 [#2123](https://github.com/molis-ai/molis-work/pull/2123) 先行恢复，这次补齐晚到重绘时的「继续」节点保留和问候语言。整份引导回归 16/16，见 [OPENFIX-01](../specs/archive/onboarding-language-503/spec.md#验收) |
+| BL-blank-503-notice | 已完成并删除 | 2026-11-23 完成。工作台项目页遇到本机服务 503 时展示双语原因和重试，服务恢复后可回到原地址。见 [OPENFIX-02](../specs/archive/onboarding-language-503/spec.md#验收) |
 | BL-ui-client-scope-watch-revision | 已完成并删除 | 2026-11-23，公开 `UiClientScope` 补上宿主已有的 `watchRevision` 签名，Git、Coding、Schedule 共用。见 [SCC-01](../specs/archive/sdk-contract-closeouts/spec.md#验收标准)。 |
 | BL-artifact-sdk-handler-binding | 已完成并删除 | 2026-11-23，成果 SDK 的八个动作按现行 schema 推导输入并共用 `bindActionHandler`，Shelf 直接使用平台给的可消费列表。见 [SCC-02、SCC-03](../specs/archive/sdk-contract-closeouts/spec.md#验收标准)。 |
 | BL-coding-changeset-view-shared | 已完成并删除 | 2026-11-23，Coding 和 Diff 通过 SDK `/diff-view` 的 `compareCodingChangeSet` 读取固定变更视图。见 [SCC-04](../specs/archive/sdk-contract-closeouts/spec.md#验收标准)。 |

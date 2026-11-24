@@ -129,8 +129,8 @@ export const codingManifest: PluginManifest = {
     produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: /* @version type.coding.report */ 1, title: "Coding 执行报告", title_text: { key: "coding.artifacts.type-title" }, searchable_fields: ["task", "model_answer", "body_markdown"], preview: { capability_id: "coding.artifacts.preview", version: /* @version action.coding.artifacts.preview */ 1 }, copy_out: true }],
     consumes: [CODING_REPORT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),
   },
+  // A change set is text a person may copy out of the project (Shelf takes it); the rest stays exchange data.
   process_items: {
-    // A change set is text a person may copy out of the project (Shelf takes it); the rest stays exchange data.
     produces: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, CODING_DIAGRAM_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]!,
       ...(artifact_type_id === CODING_CHANGESET_TYPE ? { copy_out: true as const } : {}) })),
     consumes: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),

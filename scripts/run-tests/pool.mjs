@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { nextRunnableTest, readWeights } from "./shard.mjs";
-import { classifyFile } from "../ci-linux-probe/select.mjs";
+import { createTestReader } from "../ci-linux-probe/select.mjs";
 import { runOnce, statusOf, stopRunning } from "../ci-linux-probe/run.mjs";
 
 // Where the durations of the last runs live: next to the dependencies of this checkout, ignored by git.
@@ -88,13 +88,14 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
   const files = targets.map((target) => path.relative(root, path.resolve(target)).split(path.sep).join("/"));
   const store = durationsFile(root);
   const durations = readDurations(store);
-  const entries = files.map((file) => ({ file, browser: classifyFile(root, file).marks.includes("browser") }));
+  const reader = createTestReader(root);
+  const entries = files.map(file => ({ file, browser: reader.classify(file).marks.includes("browser") }));
   const queue = inOrder ? entries : plan(entries, durations, readWeights(root));
   const browserCount = entries.filter((entry) => entry.browser).length;
   console.log(`run-tests: ${files.length} files, ${Math.min(jobs, files.length)} at a time (at most ${Math.min(browserJobs, browserCount)} of the ${browserCount} browser files), each with its own MOLIS_WORK_HOME`);
 
   const failed = [], stopped = [], flaky = [];
-  let finished = 0, passed = 0, culprit = null;
+  let finished = 0, passed = 0, skipped = 0, culprit = null;
   // Only files that still exist are kept: a renamed or deleted test, or a scratch file a test ran through this script, drops out.
   const finish = () => writeDurations(store, Object.fromEntries(Object.entries(durations).filter(([file]) => existsSync(path.join(root, file)))));
   const interrupt = (signal, number) => () => {
@@ -116,7 +117,11 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
     const runFile = async (entry) => {
       let result = await attempt(entry);
       for (let round = 1; round <= retries && !culprit && !ok(result); round++) {
-        const again = await attempt(entry);
+        const attemptResult = await attempt(entry);
+        // A retry in which every case skipped cannot clear the preceding failure.
+        const again = statusOf(attemptResult).status === "skipped"
+          ? { ...result, output: result.output + "\nRetry skipped every case." }
+          : attemptResult;
         // Keep the reason for the previous failure next to the retry result. onDone shows the last attempt.
         if (!culprit) console.log(`${failure(entry, result, round)}[retry ${round}] ${ok(again) ? "ok  " : statusOf(again).status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(again.seconds)}`);
         if (ok(again)) return { ...again, flaky: true };
@@ -131,10 +136,11 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
         const { status, counts } = statusOf(result);
         // After the first failure, a file that did not pass was stopped with the rest, not failed on its own.
         if (culprit && !ok(result)) { stopped.push(entry.file); console.log(`[${finished}/${files.length}] stop  ${entry.file}`); return; }
-        if (!result.timedOut && !result.flaky) durations[entry.file] = result.seconds;
+        if (status === "pass" && !result.flaky) durations[entry.file] = result.seconds;
         const tests = counts ? `${counts.pass}/${counts.tests} tests` : "no summary";
-        console.log(`[${finished}/${files.length}] ${ok(result) ? "ok  " : status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(result.seconds)}  ${tests}`);
-        if (ok(result)) { passed += 1; if (result.flaky) flaky.push(entry.file); }
+        console.log(`[${finished}/${files.length}] ${status === "pass" ? "ok  " : status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(result.seconds)}  ${tests}`);
+        if (status === "skipped") skipped++;
+        else if (ok(result)) { passed += 1; if (result.flaky) flaky.push(entry.file); }
         else failed.push({ entry, status, result });
         if (!ok(result) || verbose) console.log(report(entry, result));
         if (bail && !ok(result) && !culprit) { culprit = entry; stopRunning(); }
@@ -142,7 +148,7 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
     });
 
     const slowest = [...results].sort((a, b) => b.result.seconds - a.result.seconds).slice(0, 8);
-    console.log(`\nrun-tests: ${passed} of ${files.length} files passed${flaky.length ? ` (${flaky.length} only on a retry)` : ""} in ${minutes(Date.now() - started)} (${Math.min(jobs, files.length)} at a time)`);
+    console.log(`\nrun-tests: ${passed} of ${files.length} files passed${flaky.length ? ` (${flaky.length} only on a retry)` : ""}${skipped ? ` (${skipped} entirely skipped)` : ""} in ${minutes(Date.now() - started)} (${Math.min(jobs, files.length)} at a time)`);
     if (culprit) console.log(`stopped at the first failure (--bail): ${files.length - finished + stopped.length} of ${files.length} files did not run or were stopped`);
     console.log(`slowest: ${slowest.map(({ entry, result }) => `${entry.file} ${seconds(result.seconds)}`).join(", ")}`);
     if (flaky.length) {

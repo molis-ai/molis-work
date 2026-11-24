@@ -3,8 +3,8 @@ name: Full suite
 # The full product suite (every file `node scripts/run-tests.mjs` takes without arguments, browser files included) spread over
 # 60 shards on Ubuntu runners after a single shared build. Each shard uses three test workers and runs at most one browser test
 # file concurrently. The shards can start in one wave when the shared runner pool has enough available slots.
-# Left out: the files the Linux probe marks macOS-only (`--skip-macos-only`, scripts/ci-linux-probe/select.mjs: Seatbelt,
-# Keychain, launchctl, Swift helpers); those still run locally. Live tests skip themselves, since no key is set here.
+# --skip-macos-only omits files explicitly declared macOS-only. Mixed files run their applicable cases;
+# native cases use node:test platform guards and live cases require opt-in.
 # It informs and decides nothing: branch protection and the merge queue wait only for `Verify` (ci.yml).
 # When it runs:
 #   - a pull request, once, when the label `full-suite` is added. A later push does not run it again: add the label again (remove
@@ -178,9 +178,13 @@ jobs:
           fi
           fc-list :lang=zh family | sort -u
 
-      # Single-shard reruns use cached timings. The full matrix follows the committed weighted plan.
-      - name: Test durations
-        uses: actions/cache@v4
+      # Only a targeted dispatch sorts by previous local durations. The full matrix follows its committed plan.
+      - name: Restore test durations
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.only_files != '' }}
+        id: durations
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: actions/cache/restore@v4
         with:
           path: node_modules/.cache/molis-work-tests
           key: full-suite-durations-${{ matrix.shard }}-${{ github.run_id }}
@@ -205,6 +209,16 @@ jobs:
           else
             node scripts/run-tests.mjs --skip-macos-only $STRATA_FLAGS --shard ${{ matrix.shard }}/${{ strategy.job-total }} --timeout-seconds 900 --retries 1 $BAIL 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
           fi
+
+      # Timing hints only order the next run. An unavailable cache must not consume the shard's test budget.
+      - name: Save test durations
+        if: ${{ success() && steps.durations.outcome == 'success' && steps.durations.outputs.cache-hit != 'true' }}
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: ${{ steps.durations.outputs.cache-primary-key }}
 
       # The runner's closing lines: files passed, the slowest, the flaky files, the failed files and the command that reruns only them.
       - name: Summary
@@ -237,10 +251,61 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  # The sync integration tests consume workspace dist and the Rust Worker on ephemeral D1/R2.
+  # Run beside the Node shards, on complete suites only; no account or deployment is involved.
+  sync-worker:
+    name: Sync Worker integration
+    needs: build
+    if: ${{ needs.build.result == 'success' && !(github.event_name == 'workflow_dispatch' && inputs.only_files != '') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RUSTUP_TOOLCHAIN: 1.96.0
+      WORKER_BUILD_VERSION: 0.8.6
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Node, pnpm and dependencies
+        uses: ./.github/actions/setup-work
+        timeout-minutes: 8
+      - name: Download build outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.dist-artifact }}
+          path: ${{ runner.temp }}/dist
+      - run: tar -xzf "$RUNNER_TEMP/dist/dist.tar.gz"
+      - name: Install the pinned WASM target
+        run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --target wasm32-unknown-unknown
+      - name: Restore worker-build
+        id: compiler
+        uses: actions/cache/restore@v4
+        timeout-minutes: 1
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/sync-tools/bin/worker-build
+          key: worker-build-${{ runner.os }}-${{ runner.arch }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ env.WORKER_BUILD_VERSION }}
+      - name: Install worker-build on a cache miss
+        if: ${{ steps.compiler.outputs.cache-hit != 'true' }}
+        run: cargo install --locked --version "=$WORKER_BUILD_VERSION" --root "$RUNNER_TEMP/sync-tools" worker-build
+      - name: Build the Worker from this checkout
+        env:
+          MOLIS_WORK_WORKER_BUILD: ${{ runner.temp }}/sync-tools/bin/worker-build
+        run: npm --prefix examples/personal-sync-tools run build
+      - name: Run Worker against ephemeral D1 and R2
+        working-directory: examples/personal-sync-tools
+        run: npm ci --no-audit --no-fund && npm test
+      - name: Save worker-build
+        if: ${{ success() && steps.compiler.outcome == 'success' && steps.compiler.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        timeout-minutes: 1
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/sync-tools/bin/worker-build
+          key: ${{ steps.compiler.outputs.cache-primary-key }}
+
   # One check for the whole suite, for an integration branch or a labelled pull request to read.
   result:
     name: Full suite
-    needs: [build, shard]
+    needs: [build, shard, sync-worker]
     if: ${{ always() && (needs.build.result != 'skipped' || needs.shard.result != 'skipped') }}
     runs-on: ubuntu-latest
     permissions:
@@ -251,10 +316,13 @@ jobs:
         env:
           BUILD_RESULT: ${{ needs.build.result }}
           SHARDS_RESULT: ${{ needs.shard.result }}
+          WORKER_RESULT: ${{ needs.sync-worker.result }}
+          EXPECTED_WORKER: ${{ github.event_name == 'workflow_dispatch' && inputs.only_files != '' && 'skipped' || 'success' }}
         run: |
-          echo "build: $BUILD_RESULT; shards: $SHARDS_RESULT (each shard's summary lists its failed files and the command that reruns them)"
+          echo "build: $BUILD_RESULT; Worker: $WORKER_RESULT; shards: $SHARDS_RESULT (each shard's summary lists its failed files and the command that reruns them)"
           test "$BUILD_RESULT" = "success"
           test "$SHARDS_RESULT" = "success"
+          test "$WORKER_RESULT" = "$EXPECTED_WORKER"
 
       - uses: actions/checkout@v6
         if: ${{ success() && github.run_attempt > 1 }}
@@ -283,8 +351,8 @@ jobs:
   # (docs/system/PARALLEL-DEVELOPMENT.md §3).
   nightly-report:
     name: Open or close the red-night issue
-    needs: [build, shard]
-    if: ${{ always() && github.event_name == 'schedule' && needs.build.result != 'skipped' && needs.build.result != 'cancelled' && needs.shard.result != 'cancelled' }}
+    needs: [build, shard, sync-worker, result]
+    if: ${{ always() && github.event_name == 'schedule' && needs.build.result != 'skipped' && needs.build.result != 'cancelled' && needs.shard.result != 'cancelled' && needs.sync-worker.result != 'cancelled' && needs.result.result != 'cancelled' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -303,7 +371,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RESULT: ${{ needs.build.result == 'success' && needs.shard.result || needs.build.result }}
+          RESULT: ${{ needs.result.result }}
+          WORKER_RESULT: ${{ needs.sync-worker.result }}
           SHA: ${{ github.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
@@ -315,6 +384,7 @@ jobs:
             exit 0
           fi
           files="$(cat "$RUNNER_TEMP"/failed/*.txt 2>/dev/null | sort -u | sed 's/^/- /' || true)"
+          if [ "$WORKER_RESULT" = "failure" ]; then files="${files:+$files$'\n'}- Sync Worker integration（WASM / D1 / R2）"; fi
           [ -n "$files" ] || files="- （没拿到名单，看各分片的 Summary）"
           green="$(gh run list --workflow full-suite.yml --event schedule --branch main --status success --limit 1 --json headSha --jq '.[0].headSha // empty')"
           if [ -n "$green" ]; then
@@ -323,5 +393,5 @@ jobs:
           else
             merged=""; since="没找到上一次绿的夜间全量。"
           fi
-          body="$(printf '夜间全量（%s）两次都红的文件：\n\n%s\n\nrun：%s\n\n%s\n\n%s\n\n由合入这些改动的批次认领修复，修好后在这里回复；做法见 docs/system/PARALLEL-DEVELOPMENT.md §3 与 §8.1。下一次夜间全量全绿时自动关闭。' "${SHA:0:10}" "$files" "$RUN_URL" "$since" "$merged")"
+          body="$(printf '夜间全量（%s）失败的文件或作业：\n\n%s\n\nrun：%s\n\n%s\n\n%s\n\n由合入这些改动的批次认领修复，修好后在这里回复；做法见 docs/system/PARALLEL-DEVELOPMENT.md §3 与 §8.1。下一次夜间全量全绿时自动关闭。' "${SHA:0:10}" "$files" "$RUN_URL" "$since" "$merged")"
           if [ -n "$open" ]; then gh issue comment "$open" --body "$body"; else gh issue create --title "$title" --body "$body"; fi

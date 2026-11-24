@@ -498,10 +498,14 @@ const writtenElsewhere = (store: Map<string, Spark>) => store.set("S1", { ...sto
 test("words another caller wrote between the page's read and its discard keep the spark, whichever way the person leaves", async () => {
   // The read and the discard are two calls: the Host's copy decided at the first, and it has changed by the second.
   for (const leave of ["back", "hide", "fold", "next"] as const) {
-    let landed = false;
-    const page = await mounted([], { afterGet: store => { if (!landed) { landed = true; writtenElsewhere(store); } } });
+    let leaving = false, landed = false;
+    const page = await mounted([], { afterGet: store => {
+      if (leaving && !landed) { landed = true; writtenElsewhere(store); }
+    } });
     try {
       await page.fire(click("[data-lingguang-capture]"));
+      assert.equal(page.store.get("S1")?.body, "");
+      leaving = true;
       if (leave === "back") await page.fire(click("[data-lingguang-back]"));
       else if (leave === "hide") { page.lifetime.hideSurface(); await page.elapse(); }
       else if (leave === "fold") await page.workbenchSelectsNothing(true);

@@ -276,6 +276,28 @@ test("CIP-06 Full builds once and requests 60 shards together with worker caps a
   assert.ok(block.includes("STRATA_FLAGS: ${{ github.event_name == 'pull_request' && '--exclude-gate-meta --exclude-visual-audit' || '' }}"));
 });
 
+test("TSA-06 complete Full requires the real Worker job and only a targeted rerun can omit it", () => {
+  const worker = jobBlock("sync-worker", fullSuiteWorkflow);
+  assert.ok(worker.includes("!(github.event_name == 'workflow_dispatch' && inputs.only_files != '')"));
+  assert.ok(worker.includes("name: ${{ needs.build.outputs.dist-artifact }}"));
+  const run = worker.split("\n      - ").find(step => step.startsWith("name: Run Worker against ephemeral D1 and R2"))!;
+  assert.match(run, /working-directory: examples\/personal-sync-tools/);
+  assert.match(run, /npm test/);
+  assert.doesNotMatch(run, /continue-on-error/);
+
+  const result = jobBlock("result", fullSuiteWorkflow);
+  assert.match(result, /needs: \[build, shard, sync-worker\]/);
+  const verdict = result.split("\n      - ").find(step => step.startsWith("name: Every shard passed"))!;
+  assert.ok(verdict.includes("EXPECTED_WORKER: ${{ github.event_name == 'workflow_dispatch' && inputs.only_files != '' && 'skipped' || 'success' }}"));
+  for (const expected of ["success", "skipped"]) {
+    for (const actual of ["success", "skipped", "failure", "cancelled"]) {
+      const env = { ...process.env, BUILD_RESULT: "success", SHARDS_RESULT: "success", EXPECTED_WORKER: expected, WORKER_RESULT: actual };
+      const result = spawnSync("bash", ["-eo", "pipefail", "-c", stepScript(verdict)], { env });
+      assert.equal(result.status === 0, actual === expected, `${expected}/${actual}`);
+    }
+  }
+});
+
 test("MR19-07 plugin stylesheet and shared browser component changes run the PR visual audit", () => {
   const visual = workflowFiles().find(({ file }) => file.endsWith("/visual-audit.yml"))!.text;
   const filters = visual.split("    paths:")[1]!.split("  workflow_dispatch:")[0]!;

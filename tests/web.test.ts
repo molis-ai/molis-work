@@ -338,6 +338,7 @@ test("MEM-WEB-READY-01 Web health waits for real Catalog preparation after liste
   assert.equal(opens, 1, "HTTP and startup share the same real Catalog preparation");
 });
 
+// TSA-02. One actual listener verifies the serving process and readiness.
 test("Web health identifies the process serving the response", async () => {
   const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-health-"));
   const server = createMolisWorkWebServer({ homeDirectory });
@@ -592,36 +593,6 @@ test("Goal presentation closes criteria from the Goal result alone", () => {
   item.status = "execution_pending";
   item.goal.fulfillment_state = "unmet";
   assert.deepEqual(displayedPassedCriterionIds(item), []);
-});
-
-test("Web health identifies the process serving the response", async () => {
-  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-health-"));
-  const server = createMolisWorkWebServer({ homeDirectory });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  try {
-    const address = server.address();
-    assert.ok(address && typeof address === "object");
-    // MEM-WEB-READY-02: listen is not Catalog readiness; this real read waits for preparation.
-    const origin = `http://127.0.0.1:${address.port}`;
-    const projects = await webFetch(`${origin}/api/settings/projects`);
-    assert.equal(projects.status, 200);
-    assert.deepEqual(await projects.json(), { projects: [] });
-    const response = await webFetch(`${origin}/health`);
-    assert.equal(response.status, 200);
-    const health = await response.json() as {
-      status: string;
-      process_id?: number;
-      service_process_id?: number;
-    };
-    assert.equal(health.status, "ok");
-    assert.equal(health.process_id, process.pid);
-    assert.equal(health.service_process_id, process.pid);
-  } finally {
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve())),
-    );
-    rmSync(homeDirectory, { recursive: true, force: true });
-  }
 });
 
 test("Web first-run onboarding can be skipped without creating a project or Runtime binding", async () => {

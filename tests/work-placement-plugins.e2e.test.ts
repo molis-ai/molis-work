@@ -7,7 +7,7 @@ import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
+import { shouldSaveReviewScreenshots, specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
 function createAnswers(home: string, project: string): { formId: string; answerTimes: Record<string, string> } {
   const forms = openFormStore(home);
@@ -47,8 +47,9 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
 
   const text = JSON.stringify;
   const output = new URL(`../${specEvidenceDirectory("specs/archive/work-placement/verification")}/`, import.meta.url);
-  await mkdir(output, { recursive: true });
+  if (shouldSaveReviewScreenshots()) await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
+    if (!shouldSaveReviewScreenshots()) return;
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await writeFile(new URL(`placement-plugins-${name}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   };
@@ -63,7 +64,10 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   const visible = (selector: string, label?: string) => `[...document.querySelectorAll(${text(selector)})].find(node => node.getClientRects().length${label ? ` && node.textContent.trim() === ${text(label)}` : ""})`;
   // A list may repaint after marking its visible target. Only retry a target lost before any pointer event was sent.
   const press = async (selector: string, label?: string) => {
-    const { evaluate, waitFor, click } = viewFor(selector);
+    const view = viewFor(selector);
+    // A plugin frame can reopen a collapsed list and find this same record again after a repaint.
+    if (view !== browser && label === undefined) return view.click(selector);
+    const { evaluate, waitFor, click } = view;
     for (let attempt = 0; ; attempt++) {
       await waitFor(`Boolean(${visible(selector, label)})`, 15_000);
       await evaluate(`(() => { document.querySelectorAll('[data-e2e-target]').forEach(node => node.removeAttribute('data-e2e-target')); ${visible(selector, label)}.setAttribute('data-e2e-target', ''); })()`);

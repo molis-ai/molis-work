@@ -1,16 +1,10 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
-import { buildSync } from "esbuild";
 
 import {
   BASELINE_SKIN,
   COSS_CONTROL_STYLES,
-  CRAFT_FINISH_STYLES,
-  MICRO_INTERACTION_CLIENT_SCRIPT,
-  PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT,
-  PRIMITIVE_CATALOG_IDS,
   PRIMITIVE_STYLES,
   INTERACTION_TEXTURE_STYLES,
   MOLIS_WORK_DENSITY_STORAGE_KEY,
@@ -22,7 +16,6 @@ import {
   VISUAL_FOUNDATION_STYLES,
   interVariableFontFilePath,
   notoSansScFontFilePath,
-  renderPrimitiveCatalog,
   renderSkinScope,
 } from "@molis-ai/molis-work-design-system";
 import { pluginWorkbenchClientAsset, pluginWorkbenchPacks, STYLES } from "@molis-ai/molis-work-app-workbench";
@@ -522,12 +515,6 @@ test("visual foundation gives Goal momentum a left-to-right topology and action 
   assert.match(VISUAL_FOUNDATION_STYLES, /workspace\[data-workspace-mode="graph"\] > \.workbench-header \{[\s\S]*display: block;/);
 });
 
-test("modifier enter submits the focused enabled button and leaves other dialogs on the plain request", () => {
-  assert.match(MICRO_INTERACTION_CLIENT_SCRIPT, /form\.requestSubmit\(focused\)/);
-  assert.match(MICRO_INTERACTION_CLIENT_SCRIPT, /else form\.requestSubmit\(\)/);
-  assert.match(MICRO_INTERACTION_CLIENT_SCRIPT, /!button\.disabled && button\.form === form/);
-});
-
 test("RAC-412: the same-origin plugin client route sends only bundles in the host build, never a directory entry", () => {
   const built = new Set(pluginWorkbenchPacks().map((pack) => pack.project_plugin_id));
   for (const id of ["not-built-in", "installed-elsewhere", "..", "__proto__", "constructor", "toString"]) {
@@ -539,56 +526,6 @@ test("RAC-412: the same-origin plugin client route sends only bundles in the hos
   const route = readFileSync(new URL("../apps/local-host/src/web-assets.ts", import.meta.url), "utf8");
   assert.doesNotMatch(route, /readdir|plugins\/native|install(ed)?Dir|pluginDirectory/, "the route does not look the bundle up in a directory");
   assert.match(route, /pluginWorkbenchClientAsset\(plugin\[1\]!\)/, "it asks the host build, once, for the id in the address");
-});
-
-test("RAC-370 the component board lists every primitive's section once and carries the bundled demo script", () => {
-  const board = renderPrimitiveCatalog();
-  const sections = [...board.matchAll(/<section class="mw-catalog__section" id="([^"]+)"/g)].map((match) => match[1]!);
-  assert.equal(new Set(sections).size, sections.length, "a section id appears twice");
-  for (const id of PRIMITIVE_CATALOG_IDS) assert.match(board, new RegExp(`data-primitive="${id}"`), `the board lost the ${id} specimen`);
-  for (const id of ["language", "palette", "typeface", "icons", "icon-inventory", "craft", "motion", "arrival", "choice", "compose", "button", "field", "form", "feedback", "overlay", "menu", "tabs", "directory", "layout"]) {
-    assert.ok(sections.includes(id), `the board lost the ${id} section`);
-  }
-  for (const [before, after] of [["language", "icons"], ["icons", "button"], ["button", "feedback"], ["feedback", "directory"], ["directory", "arrival"]]) {
-    const from = sections.indexOf(before!), to = sections.indexOf(after!);
-    assert.ok(from >= 0 && to >= 0 && from < to, `the ${before} chapter comes after ${after}`);
-  }
-  const scripts = [...board.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]!);
-  assert.ok(scripts.some((script) => script.includes("data-compose-menu") && script.includes("data-catalog-open")), "the demo script is not on the board");
-});
-
-test("RAC-371 the finish layer's rules are one cascade cut between rules, not inside one", () => {
-  const readSource = (relativePath: string) => readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
-  for (const file of ["craft-finish-bar", "bar-zones", "craft-finish-assistant", "craft-finish-pages"]) {
-    const source = readSource(`packages/design-system/src/styles/${file}.ts`);
-    const start = source.indexOf("= `");
-    assert.notEqual(start, -1, `${file}.ts has no style template`);
-    const css = source.slice(start + 3, source.lastIndexOf("`"));
-    assert.equal(css.split("{").length - 1, css.split("}").length - 1, `${file}.ts ends inside a rule`);
-  }
-  const whole = readSource("packages/design-system/src/styles/craft-finish.ts");
-  assert.match(whole, /CRAFT_BAR_STYLES \+ BAR_ZONE_STYLES \+ CRAFT_ASSISTANT_STYLES \+ CRAFT_PAGES_STYLES/, "the parts are not joined in cascade order");
-  const zones = CRAFT_FINISH_STYLES.indexOf(".nav-warn-dot{display:inline-block");
-  const bar = CRAFT_FINISH_STYLES.indexOf("Bottom bar: the Dock");
-  assert.ok(bar >= 0 && zones > bar && zones < CRAFT_FINISH_STYLES.indexOf("概况: the state"));
-  assert.ok(CRAFT_FINISH_STYLES.indexOf("Bottom bar: the Dock") < CRAFT_FINISH_STYLES.indexOf("Directory: rows on the desk"));
-});
-
-test("RAC-372 the generated-plugin renderer is sent to the page as one factory made of its layers", () => {
-  const factory = (0, eval)(PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT) as unknown;
-  assert.equal(typeof factory, "function");
-  const { outputFiles, metafile } = buildSync({
-    absWorkingDir: fileURLToPath(new URL("../packages/design-system/", import.meta.url)),
-    entryPoints: ["src/plugin-component-client.ts"], bundle: true, format: "iife", platform: "browser", minify: true, charset: "utf8", globalName: "client",
-    banner: { js: "(options) => {" }, footer: { js: "return client.createPluginComponentClient(options);}" }, write: false, metafile: true,
-  });
-  assert.equal(outputFiles[0]!.text.trim(), PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, "the served factory is the built entry");
-  const [output] = Object.values(metafile.outputs);
-  for (const layer of ["kit", "records", "controls", "output", "part", "client"]) {
-    assert.ok(output?.inputs[`src/plugin-component-${layer}.ts`]?.bytesInOutput, `${layer} contributes to the same factory`);
-  }
-  assert.doesNotMatch(PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, /\bimport\b|\brequire\(/);
-  assert.equal(PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT.startsWith("(options) => {"), true);
 });
 
 test("inbox detail title uses full detail width and avoids hard-coded workbench font sizes", () => {

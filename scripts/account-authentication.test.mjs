@@ -1,4 +1,5 @@
 // WUA-10/11/12: real Host HTTP + real Auth WASM/D1. Only delivery/providers are mocked.
+import {requestPhoneChallenge} from './account-test-phone-challenge.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { mkdtemp, rm, mkdir } from 'node:fs/promises';
@@ -98,7 +99,7 @@ try {
 
  await end();await clickText('关闭');await page.click('[data-account-link]'); await page.click('#mw-account-menu [data-unified-account-link]');await page.wait("Boolean(document.querySelector('.account-form button[type=submit]'))&&!document.querySelector('.account-form button[type=submit]').disabled");
  await clickText('找回密码');assert.equal(await page.evaluate('document.querySelector(".account-form input[name=address]").type'),'email');await clickText('返回登录');assert.ok(await page.evaluate('Boolean(document.querySelector(".account-form input[name=password]"))'));
- await clickText('手机验证');const uiPhone='13800000604';await page.fill('.account-form input[name=address]',uiPhone);await page.click('.account-form input[type=checkbox]');await page.click('.account-form button[type=submit]');await page.wait("Boolean(document.querySelector('.account-form input[name=code]'))");assert.ok(await page.evaluate('document.querySelector(".account-form").textContent.includes("138****0604")'));
+ const uiPhone='13800000604';await requestPhoneChallenge(page,uiPhone);assert.ok(await page.evaluate('document.querySelector(".account-form").textContent.includes("138****0604")'));
  await page.fill('.account-form input[name=code]','000000');await page.click('.account-form button[type=submit]');await page.wait('Boolean(document.querySelector(".account-message").textContent)');assert.ok(await page.evaluate('Boolean(document.querySelector(".account-form input[name=code]"))'));
  await page.fill('.account-form input[name=code]',await code('+86'+uiPhone));await page.click('.account-form button[type=submit]');await page.wait("document.querySelector('.account-form')?.textContent.includes('退出登录')");assert.equal((await api('/session')).state,'AUTHENTICATED');
  process.stdout.write('PASS WORK-03 Chrome: real arrival entry, password login and verified email signup, responsive light/dark screenshots\n');

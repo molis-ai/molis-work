@@ -457,6 +457,8 @@ tests/uninstall-receipt.test.ts
 tests/upgrade-chain.test.ts
 tests/v1.test.ts
 tests/visual-foundation.test.ts
+tests/design-system-giants.test.ts
+tests/ui-audit-2026-09-22.test.ts
 tests/web-mutation-key-settle.test.ts
 tests/web-route-table.test.ts
 tests/web-service-settings-client.test.ts
@@ -485,6 +487,8 @@ tests/knowledge-cards.test.ts
 tests/knowledge-reads.test.ts
 tests/canonical-json-value.test.ts
 tests/feed-rule-replication.test.ts
+tests/characters-replication.test.ts
+tests/schedule-replication.test.ts
 tests/issues-replication.test.ts
 
 tests/memory-unknown-facts.test.ts

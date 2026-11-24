@@ -6,7 +6,7 @@
     "planning-methods.directory.name": "规划与拆解",
     "planning-methods.directory.summary": "把目标拆成可独立交付、可验收的结果，理清依赖和完成证据；按工作类型、领域、行业和附加约束各有方法。",
     "planning-methods.skill.domain-ai-data-product.name": "AI 与数据产品",
-    "planning-methods.skill.domain-ai-data-product.description": "同时覆盖数据、评测、运行成本、安全和用户干预。领域；适用于：AI 功能、Agent 产品、数据产品。要拆解这类目标、排出依赖和完成证据时使用。",
+    "planning-methods.skill.domain-ai-data-product.description": "规划 AI 功能、能替人执行任务的 AI 产品或数据产品时，用它拆分目标、理清依赖，并确定用什么证明完成。规划涵盖数据、效果评估、运行成本、安全和用户何时需要介入。",
     "planning-methods.skill.domain-ai-data-product.when-to-use": "要把「AI 与数据产品」这类目标拆成可独立交付、可验收的结果，并理清谁依赖谁、各自拿什么证明完成。",
     "planning-methods.skill.domain-app-product.name": "通用 App",
     "planning-methods.skill.domain-app-product.description": "覆盖核心功能、端到端用户动线、交互反馈与信息架构的产品完整性拆解。领域；适用于：通用应用产品。要拆解这类目标、排出依赖和完成证据时使用。",

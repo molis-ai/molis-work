@@ -15,7 +15,7 @@
 | [code-quality-fixes-2026-11-11](code-quality-fixes-2026-11-11.md) | 2026-11-11 审查问题修复记录 | 已修复并在本工作树完成工程验证；未推送、未开 PR（用户 2026-11-11 授权全部修复、人工验收免掉、允许本地 commit）。详细审查见同目录两份报告（`code-qual |
 | [code-quality-review-2026-11-11](code-quality-review-2026-11-11.md) | 最新代码质量复审（2026-11-11） | 一次性只读复审报告。审查对象为 `origin/main` `2630160877`（2026-11-11 15:17 UTC，PR #2028）；基线为 `5945c0271a` |
 | [implicit-state-machines-2026-11-08](implicit-state-machines-2026-11-08.md) | Molis Work 隐式状态机盘点 | 审计报告（现行快照）。对象是本机 `main` 的 `5945c0271a`（2026-11-08）。只记录现状，不改代码，不含改造决定。 |
-| [main-review-2026-11-21](main-review-2026-11-21.md) | 三天合入与按批次复核（2026-11-21） | 复核 11-18～11-21 的 75 个 PR 与全部已合入批次；修复见 [三天复核修复](../../specs/main-review-1121/spec.md)。 |
+| [main-review-2026-11-21](main-review-2026-11-21.md) | 三天合入与按批次复核（2026-11-21） | 复核 11-18～11-21 的 75 个 PR 与全部已合入批次；修复见 [三天复核修复](../../specs/archive/main-review-1121/spec.md)。 |
 | [page-asset-allowances-review-2026-11-11](page-asset-allowances-review-2026-11-11.md) | 已采用页面资源许可的评审记录（2026-11-11 审查修复） | — |
 | [performance-fix-review-2026-10-01](performance-fix-review-2026-10-01.md) | 性能修复复查（2026-10-01） | — |
 | [platform-capability-audit-2026-11-14](platform-capability-audit-2026-11-14.md) | 平台能力通用化审查 | 只读审查报告（2026-11-14）。10 处该是平台能力、现在各写一份的地方，已分进批次（决定 44），去处见路线书依赖图 11-14 一节。 |

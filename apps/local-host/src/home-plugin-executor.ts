@@ -29,6 +29,8 @@ import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletio
 import { pluginHomeFor } from "./home-side.js";
 import { declaresProjectHalf } from "./plugin-project-coordination.js";
 import { homePluginArtifactsFor, type HomeProjectArtifactStores } from "./plugin-home-artifacts.js";
+import { copyOutTypes } from "./artifact-type-registry.js";
+import { isHostedPlatformPart } from "./platform-part-routes.js";
 import { givenService } from "./plugin-declared-services.js";
 import { forgetPluginAgentDefinitions, registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
@@ -172,7 +174,8 @@ export class HomePluginExecutor implements PluginExecutor {
       const connections = pluginConnectionsFor(home, definition, authorized, assertActive);
       const installations = pluginInstallationsFor(manifest, authorized, null, this.options.installations(), assertActive, this.options.home);
       const evidenceCollector = pluginEvidenceCollectorFor(manifest, authorized, null, this.options.home, assertActive);
-      const artifacts = homePluginArtifactsFor(manifest, authorized, this.options.projectArtifacts, assertActive);
+      // A platform part that takes text out of projects (Shelf) reads what producers mark `copy_out`, never a list of plugin types (44B review P-07).
+      const artifacts = homePluginArtifactsFor(manifest, authorized, this.options.projectArtifacts, assertActive, isHostedPlatformPart(manifest.plugin_id) ? () => copyOutTypes() : undefined);
       directory = manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
         ? directoryForHome(this.options.home).connect({ plugin_id: manifest.plugin_id, install_id: context.install_id, installation_generation: context.installation_generation, name: manifest.name,
           project_id: null, actor_id: this.options.actorId, assertCurrent: () => authorize(DIRECTORY_READ_PERMISSION) }) : undefined;

@@ -3242,7 +3242,7 @@
     "workbench.client-events.reload": "重新加载",
     "workbench.client-events.request-failed": "判断规则请求失败",
     "workbench.client-events.requesting-judgment-usually-takes-few-seconds": "正在请求判断，通常需要几秒。",
-    "workbench.client-events.score-only-for-agent": "Score 只能给 Agent 用，不能绑到页面上的用途。",
+    "workbench.client-events.score-only-for-agent": "评分规则可单独试跑或交给 AI。要在页面上使用，请新建「选择一个结果」或「判断是或否」规则。",
     "workbench.client-events.score-needs-least-two-levels": "Score 至少需要两个档位",
     "workbench.client-events.settings-weren-t-saved-please-retry": "配置未保存，请重试。",
     "workbench.client-events.some-results-not-mapped-page-actions-complete-mapping": "还有结果未对应页面动作，请补齐后再发布。",

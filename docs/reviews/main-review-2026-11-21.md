@@ -1,6 +1,6 @@
 # main 三天合入与按批次复核（2026-11-21）
 
-状态：复核完成；修复见 [三天复核修复](../../specs/main-review-1121/spec.md)（同一 PR），没改的记在 BL-mr21-review-followups 与 BL-mr21-personal-purge-finalize。基线 main `b428472f46`。范围：2026-11-18～11-21 合入的 75 个 PR，以及路线书全部已合入批次（01～22、24～36A、38、39、41、42、44、48-1、56-1、58、59、61、73-3、92～98、100～102）。
+状态：复核完成；修复见 [三天复核修复](../../specs/archive/main-review-1121/spec.md)（同一 PR），没改的记在 BL-mr21-review-followups 与 BL-mr21-personal-purge-finalize。基线 main `b428472f46`。范围：2026-11-18～11-21 合入的 75 个 PR，以及路线书全部已合入批次（01～22、24～36A、38、39、41、42、44、48-1、56-1、58、59、61、73-3、92～98、100～102）。
 
 方法：12 个只读评审按 PR 组与批次分头读 diff、现行代码、批文档、认领板 #1743；P1 均由主会话再读代码核实。没有构建，也没有跑测试；静态门禁 `health:check`、`workspace:check`、`versions:check`、`secrets:check` 通过（对照 main 自身，只说明内部一致）。「CONFIRMED」=读代码确认，「PLAUSIBLE」=需运行验证。
 

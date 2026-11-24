@@ -31,6 +31,10 @@
 - **跨项目与用途边界**：非本人受众只能读当前 `context.project_id`，不得跨项目或传 `use: "lookback"`；本人跨项目读取由宿主现算当前可读且未关闭的项目集合（`S-74`）。关掉某项用途开关（`assistant`、`evaluation`、`export`）后，对应 `use` 的查询与证据读取立即拒 `observation.use_disabled`。
 - **暂停、保留期、手动清理与评测样本留存**：管理与留存动作（`settings.get/set@1`、`space.get@1`、`cleanup.preview/apply@1`、`holds.put/release/list@1`）仅对本人开放。暂停记录前先刷完已入队记录并记下 `paused_at`，恢复时记一段 `by_rule: recording_paused` 缺口；自动到期清理与手动范围清理均在单事务内删除记录、回收无引用快照并记 `expired` 缺口，其中未过期 `evaluation_holds` 覆盖的记录及其关联快照豁免清理并计入 `preserved.evaluation_samples_count`；项目删除与插件清除仍优先删除；容量提醒线到达后只提醒不删记录、不阻断写入。
 
+<a id="observation-evidence"></a>
+
+**怎样读覆盖结果。** `complete` 表示所列入口接上这项事实。评估一次工作是否成功，还要把同轮 `run_id`、`tool_call_id`、有版本的能力和平台动作联系起来，从业务主人读取最终结果。重试、拒绝和只读调用各保留原结果，缺关联时留下缺证原因，不据此推定业务成功。归因样本由[第 63 批](../../specs/post-anticorruption-roadmap/reference/batches/63.md)维护，长期使用效果在[第 76 批](../../specs/post-anticorruption-roadmap/reference/batches/76.md)观察。现行三条写入入口照常使用。
+
 ## 出了问题看哪里
 
 - 记录少了：先看 `coverage_gaps`。写不进去的批次记成 `lost`（`write_failed`、`queue_full`、`store_unavailable`），上次进程没写完就退出的记 `unknown_exit`，超出每天额度的记 `report_quota`，密钥取不到的记 `unavailable`。

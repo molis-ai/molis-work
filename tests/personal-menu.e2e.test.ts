@@ -57,7 +57,7 @@ test('an idle closed account menu does not poll, but focus, opening and a pendin
   // Completion now replaces the document. Wait for that real navigation rather than keeping a Runtime promise in the old context.
   await evaluate("window.accountPollProbe.holdNext=true;window.accountPollProbe.ticks.forEach(tick=>tick())");
   await waitFor("Boolean(window.accountPollProbe.release)");
-  // ASR-10: a completion notification while a previous status read is pending is queued, not lost until the next poll.
+  // WUA-36: a completion notification while a previous status read is pending is queued, not lost until the next poll.
   await navigate(() => command('Runtime.evaluate', {expression:"setTimeout(() => { const probe=window.accountPollProbe;probe.complete=true;const channel=new BroadcastChannel('molis-work-account');channel.postMessage('changed');channel.close();setTimeout(()=>probe.release(),50); }, 0)", returnByValue:true}, sessionId));
   await waitFor("document.querySelector('[data-personal-name]')?.textContent === '测试用户' && document.querySelector('#mw-account-menu').hidden && window.accountPollProbe.popupClosed");
   await waitFor("document.querySelector('.mw-account-toast:not([hidden])')?.textContent === '登录成功'");

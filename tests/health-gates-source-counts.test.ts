@@ -86,7 +86,9 @@ test("44B G1 definition: platform sources count plugin ids, packages, quoted sho
   assert.equal(countPlatformPluginNames("plugins/native/goals/src/a.ts", named, ids), 0);
   assert.equal(countPlatformPluginNames("apps/local-host/src/plugin-registry.generated.ts", named, ids), 0);
   assert.equal(countPlatformPluginNames("apps/local-host/src/catalog-commit.ts", 'const kind = "catalog";', ids), 0);
-  assert.equal(countPlatformPluginNames("apps/local-host/src/b.ts", 'const a = "goals:read"; const b = "subgoals"; const c = ".x.goals-y"; const d = "io.molis.work.goalsx";', ids), 0);
+  assert.equal(countPlatformPluginNames("apps/local-host/src/b.ts", 'const b = "subgoals"; const c = ".x.goals-y"; const d = "io.molis.work.goalsx"; const e = "goalsx.read";', ids), 0);
+  // P-08 (user 2026-11-24): a plugin's permission, type or action id, and a prefix test on it, name the plugin too.
+  assert.equal(countPlatformPluginNames("apps/local-host/src/c.ts", 'const a = "goals:read"; const b = `methods:write`; const c = "goals.goal.v1"; const d = id.startsWith("goals.");', ids), 4);
 });
 
 before(() => {

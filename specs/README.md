@@ -17,11 +17,8 @@
 ## 在做的
 
 - [创作台生成插件的图标与原处连接卡](studio-icon-connection/spec.md)。Codex 负责 BL-1049、BL-1057 的实现与验证。
-- [欢迎页语言切换与工作台 503 提示](onboarding-language-503/spec.md)：Codex。首次使用保留欢迎区、焦点和底栏，工作台遇到本机服务不可用时提供重试。
-- [11 月 21 日三天复核修复](main-review-1121/spec.md)：Claude，11-18～11-21 合入与全部已合入批次的复核修复（定时任务、主线半写入、预算棘轮、删兼容、公网地址一张表、整字截断、证据与文档补齐）；报告在 [`docs/reviews/main-review-2026-11-21.md`](../docs/reviews/main-review-2026-11-21.md)。
 - [11 月 19 日 main 合入复查修复](main-review-1119/spec.md)：Codex，附件、交付评估、会话发现、子任务读取、CI 和角色编辑回归。
 
-- [第 47 批独立复核修复](batch-47-review-fixes/spec.md) 覆盖签名包、安装单、创作台输入和状态机登记。负责人 Codex。
 - [第 35 批复核修复](batch-35-audit-fixes/spec.md) 覆盖 Sessions 接续、Coding A 期与共享附件。负责人 Codex。工程验证和本人验收进度见规格书。
 - [项目删除、待办与生图一致性](architecture-review-fixes/spec.md)：独立分支已实现，工程验证见该需求书。
 - [第 61 批复核修复](batch-61-audit-fixes/spec.md)：Codex，在独立分支修复 #2133 的采用、触达、账号选择与搜索问题；实施与验证见该需求书。
@@ -40,9 +37,8 @@
 
 - [state-machine-platform](state-machine-platform/spec.md)：状态与状态机的平台能力——平台能力状态统一登记、插件声明状态与迁移、启动兑现、只读登记、统一家族显示、可选的插件自管流水账；内置先强制、第三方先提示、对外开放后的阶段二第三方也强制，创作台生成必须申报，公开家族照搬现有 21 类。2026-11-08 用户已确认十二项方向；第26批已交付 Manifest 声明、SDK 状态机、公开词汇首片、只报告门禁及作者文档。Runtime 兑现、创作台合同和只读动作由第47批接续，安装预演展示由第48批接续，存量迁移仍在统一待办。
 
-- [page-client-lifecycle](page-client-lifecycle/spec.md)：插件页面客户端的通用接口（`workbench.pageClient`），Goals 的页面状态从工作台外壳搬回 Goals，实现完成待合入；Claude，分支 `fix/b44-shell-goals-state`。
-- [plugin-equal-standing](plugin-equal-standing/spec.md)：插件同等地位收口——Goals 减负（项目指导、可信决定、规划方法搬出，平台合同去掉 Goal 一等概念，宿主与工作台去私路，Goals 可移除），并清掉 Feed、Coding、Inbox、Todo、Pages、灵光、Images 在平台里被点名的地方；只保留此前定过的平台部件（Shelf、成果库、Sessions、创作台、Alchemist、Characters）。2026-11-13 需求已整理、用户已拍板 D1～D8（新项目不默认装 Goals，删桌面胶囊、CLI 的 Goals 命令与 `goal-advance` Skill；要求—证据—认可与工作终端抽成平台能力），排期为路线书第 44 批（原 44～89 顺延为 45～90；可信决定并进 39、规划方法并进 41），并含对路线书后续批次与已合入代码的复查（§9a）；片 4 已随第 41 批 #2078 完成，其余尚未实现。
-- [plugin-specials-demotion](plugin-specials-demotion/spec.md)：特殊逻辑平民化——全仓特殊插件与宿主特例盘点，必须特殊的收归纯平台（Shelf 剥离插件壳收归 `modules/shelf` / `system.shelf`、`always_on = 0`、`dual_instance = 0`、彻底删除旧 Alchemist、官方集成收成声明式连接器驱动、`planning-methods` 迁入 `packages/system-skills/`），其余收成公开声明并上线 G1 门禁。2026-11-22 用户已拍板（路线书决定 66）；[实施总纲](plugin-specials-demotion/implementation-plan.md)，排期 `44B`（含可提前切出的 `44B-0` 保留前缀安全补洞），尚未实现。
+- [插件同等地位](plugin-equal-standing/spec.md)：第 44 批 #2155 已合入，外壳页面状态、通用样式分别经 #2219、#2258 收口。PEQ-11 待一骏实物验收，剩余外壳引用见 [BL-shell-goals-leftovers](backlog/BL-shell-goals-leftovers.md)。
+- [特殊逻辑平民化](plugin-specials-demotion/spec.md)：第 44B 批已合入保留前缀（#2262）、删除旧 Alchemist（#2279）、Shelf 平台化和官方集成驱动化（#2294）。独立复核修复已随 [#2308](https://github.com/molis-ai/molis-work/pull/2308) 合入，同步衔接见 #2260。
 - [unified-partition-plugins](unified-partition-plugins/spec.md)：统一工作分区——废除个人/项目插件分类，个人空间（保留右栏 IM 与双层自写 Skill）与项目同构、Home 装包一次分区按需启用、个人空间→项目单向版本化推送（不预记+补账、`push_superseded` 全留本机+只同步最新 1 版、>256 KiB 分片、CAS GC 保护）、干净 v1 清零双轨；含 20 个平等内置插件与第三方沙箱包改造矩阵、同步规则、语义安全不变量、V1～V15、R1～R22 与 UPP-01～36。2026-11-22 用户已拍板，排期 `106`～`111`（按先加、后迁、再删接在 `44B` 之后，排在 `91-2..4`/`91B`/`105`/`45`～`90`/`REL-4`/`SRV` 之前），尚未实现。
 
 - [unified-account](unified-account/spec.md)：WORK-01 至 WORK-09 的本地隔离实现与 V2 账号统一已完成，并随 [#2013](https://github.com/molis-ai/molis-work/pull/2013)、[#2021](https://github.com/molis-ai/molis-work/pull/2021)、[#2025](https://github.com/molis-ai/molis-work/pull/2025) 合入 main（2026-11-11；合入提交 `ef06fed603`、`93eb5590ac`、`4d025ff4c6`）；真实存量迁移、外部服务与最终全量回归仍待补验。
@@ -61,7 +57,7 @@
 
 - [prologue-memory-strategy](prologue-memory-strategy/spec.md)：以记忆更精准、好用、省 token 为目标；App 自定义分类与读写策略矩阵、Prologue 多策略组合、首期质量闭环及 40 项验收。C0/Q0 已独立交付，Prologue C0 与 S1 已合并。Memory V0 按路线书决定 36 单独成批收口（[#2020](https://github.com/molis-ai/molis-work/pull/2020)）；Memory P1 已随第 31 批落地（有界历史/恢复、Molis 信封 v1 的 `state`/`applies.objects`、通用关联对象、单一写主人）；SDK Export v2/`maxEntries` 分批、显示副本与直接旧 SDK 降写三项边界见 [BL-memory-p1-residuals](backlog/BL-memory-p1-residuals.md)；原验收、历史失败及 BL-1071～BL-1077 的去向见正文。
 - [unified-input-voice](unified-input-voice/spec.md)：平台统一输入组件与本地语音；第 10 批已实现公共组件、首页与助理接入（#1991，2026-11-09 合入 main）；第 11 批 K4 Coding 与 K5「待办」来源随 #2016 合入（2026-11-11），框架页来源按 BL 留待 K6 灵光之前；其余入口与语音待后续批。10-27 已定整体体验归属、插件开放注册与补充／排队／打断操作。
-- [observation-collection](observation-collection/spec.md)：观测和采集层，统一记录全平台获准的用户行为、过程、结果与历史条件，供评测和主动助理共用；2026-10-27 从主动助理需求迁出，需求已整理；第 28 批已接入写入面（[#2059](https://github.com/molis-ai/molis-work/pull/2059)、[#2073](https://github.com/molis-ai/molis-work/pull/2073)），第 29 批接入历史查询与证据读取、用途与跨项目权限、暂停与保留清理、空间占用及「设置 › 工作记录」界面与组件板标本（实物验收见 [BL-work-records-acceptance](backlog/BL-work-records-acceptance.md)），第 30 批接入评测样本留存、独立判定与隔离回放（`observation.db` v2、`horizontal/evaluation`）。需求维护 Codex；实施沿用 C 轨。
+- [observation-collection](observation-collection/spec.md)：观测和采集层，统一记录全平台获准的用户行为、过程、结果与历史条件，供评测和主动助理共用；2026-10-27 从主动助理需求迁出，需求已整理；第 28 批已接入写入面（[#2059](https://github.com/molis-ai/molis-work/pull/2059)、[#2073](https://github.com/molis-ai/molis-work/pull/2073)），第 29 批接入历史查询与证据读取、用途与跨项目权限、暂停与保留清理、空间占用及「设置 › 工作记录」界面与组件板标本（实物验收见 [BL-work-records-acceptance](backlog/BL-work-records-acceptance.md)），第 30 批接入评测样本留存、独立判定与隔离回放（`horizontal/evaluation`；`observation.db` 现行基线为 v1）。需求维护 Codex；实施沿用 C 轨。
 - [proactive-assistant](proactive-assistant/spec.md)：个人助理的主动协助、场景 Skill 与后台任务；需求已整理；§13 的 PWA-27／PWA-137 随第 25 批 #2034 实现（2026-11-12）；§14 的 PWA-51～56 最小真实评测路径随第 30 批 #2096 实现；§7.5／§7.5.4／§12.8 的明确交办、结果回流与 Character 对话随第 32 批 #2093 实现（2026-11-16，PWA-127～140、155～159 的工程部分；PWA-132／139／140／147／159 等人工项待本人验收）；其余仍未实现。含工作记忆例程、路由、技能生成与跨源搜索；2026-10-28 补讨论中的诉求识别、主对话持续可用、连续交办和任务可视化。明确交办先在阶段 2 接通，主动工作阶段 3 复用；共用采集与维护由 observation-collection 承接，助理与评测分别消费。
 - [work-brief](work-brief/spec.md)：项目综合首页与工作简报；10-27 已定可选安装、未安装时的基础首页、共用公开来源／呈现、承接生成页面及 Feed 归属。基础首页已随第 15 批 #2017 实现并合入（2026-11-13，`b819373250`）；第 19 批（#2077，2026-11-14）实现了 Work Brief 本体与首页主区内容（项目简报、个人简报、风险接续）；周期报告、living page、使用回顾、交互式报告页、定时生成与生成页面仍未实现或未验收，界面待本人实物验收（[BL-b19-work-brief-acceptance](backlog/BL-b19-work-brief-acceptance.md)）。需求维护 Codex，实施沿原 E 轨并与 C/D/A 协作。
 - [coding-harness-optimization](coding-harness-optimization/spec.md)：Coding 与平台性能；需求已整理。第 12 批已交 Coding 执行与可见状态、项目规则的信任与来源、代码材料进引导并接续到 Coding（#2061，2026-11-14）；第 33 批已交上下文窗口与压缩、完成闭环与收尾报告、环境准备、无上界斐波那契估点与加权进度、子任务预算/重试、轮次材料清单（#2082，`91962f651c`，2026-11-15）；工程与自动化实操已过，本人验收见 [BL-batch33-acceptance](backlog/BL-batch33-acceptance.md)，后续批次照旧。
@@ -71,7 +67,7 @@
 - [work-line](work-line/spec.md)：事项线。工作台底部是当前事项的一条线（已办、现在的输入框、接下来），线上的每一项是事件，由插件和助理按同一份登记放上来（待办、日程、Coding 会话、结果、值得跟的交办、建议）；点事件移到中间展开成卡，点和说都能办；后台任务是事件背后的执行，全部任务在输入框上方的后台任务面板里；输入后助理或所选的 Character 先回应、再写明去处，任务的结果回到它；线头切换事项。线只读各插件的登记、任务板、工作记录与呈现声明，不另存。2026-11-12 需求已整理、用户定四项并入路线书 32-3／36-2／37-2／53／58／64；2026-11-14 用户改方向（线是事件登记能力、任务在背后、面板在输入框上方、结果回流，路线书决定 48）；第一片已随第 32 批 #2093 实现（2026-11-16，WLN-01～18、27～40），WLN-19～26 与事项容器仍随 36、37、53。
 - [screen-polish](screen-polish/spec.md)：逐屏打磨第一轮。顶部栏、事项线、首页、助理对话框、Coding 和设置页逐屏的流程、交互、动效与视觉方案，样稿在 [`docs/design/screen-polish/`](../docs/design/screen-polish/README.md)。方案评审中（2026-11-16）：顶部（纸上的页签）、底部（一张纸 · 景深）、首页（项目的第一页）的方向用户已定，其余待定；没有改产品代码，P0 缺陷另在 `fix/screen-polish-p0` 分支上修。
 - [conversation-execution-ui](conversation-execution-ui/spec.md)：Coding 插件与个人助理执行过程中的对话与流式体验端到端优化——单连接 SSE 增量流、自适应帧率平滑吐字与连续 `.mw-fresh` 波浪渐显、恒定 `20px` 状态环原位流转、200 轮长会话零跳变回滚、思考折行与工具过程实时信号，以及 Prologue／Agent Host 流式热路径减负（验收 CUI-01～09）。折叠摘要、材料来源、子任务进展与用量见 [CUI-10～13](conversation-execution-ui/spec.md#run-and-material-acceptance)；2026-11-18 立项并与 `product-experience-polish` 合并排期为路线书[第 91 批（91A）](post-anticorruption-roadmap/reference/batches/91.md)（前置为 35-2、36A、37-2，不等 38～89；决定 54／55）。
-- [product-experience-polish](product-experience-polish/spec.md)：全产品界面、空间布局与行为反馈深度打磨及后续开发指引收口——覆盖 23 个内置插件、4 个官方集成、生成插件渲染器与入口／账号／市场／侧栏／IM／Artifacts／Sessions 的视觉文案与状态清理、窗格级 `@container` 三档分屏响应与四档居中版心、按钮微交互与 `molisBusy`／宿主 Toast／五态自动保存／轻动效闭环、全套开发指引与插件创作台 Skill 同步更新，以及三层防回归门禁焊死（显式剔除 44-7 待删桌面胶囊。既有验收 UXP-01～19，组件组合、三类表格与图表的新增验收见 [UXP-20～28](product-experience-polish/spec.md#surface-composition-acceptance)）；2026-11-18 与 `conversation-execution-ui` 合并排期为路线书[第 91 批（91A）](post-anticorruption-roadmap/reference/batches/91.md)与[第 91B 批](post-anticorruption-roadmap/reference/batches/91b.md)（不等 38～89；决定 55）。
+- [product-experience-polish](product-experience-polish/spec.md)：全产品界面、空间布局与行为反馈深度打磨及后续开发指引收口——覆盖内置插件、4 个官方集成、生成插件渲染器与入口／账号／市场／侧栏／IM／Artifacts／Sessions 的视觉文案与状态清理、窗格级 `@container` 三档分屏响应与四档居中版心、按钮微交互与 `molisBusy`／宿主 Toast／五态自动保存／轻动效闭环、全套开发指引与插件创作台 Skill 同步更新，以及三层防回归门禁焊死（桌面胶囊已随第 44 批移除。既有验收 UXP-01～19，组件组合、三类表格与图表的新增验收见 [UXP-20～28](product-experience-polish/spec.md#surface-composition-acceptance)）；2026-11-18 与 `conversation-execution-ui` 合并排期为路线书[第 91 批（91A）](post-anticorruption-roadmap/reference/batches/91.md)与[第 91B 批](post-anticorruption-roadmap/reference/batches/91b.md)（不等 38～89；决定 55）。
 - [upgrade-continuity](upgrade-continuity/spec.md)：升级后持续可用。库的升级链从统一起点起算（先快照、再升级、失败回退、只影响主人），新程序先在副本上演练再替换，从 M1 起合同有过渡期、保存的引用自动接上，每个发布版本留金样 Home 回放；用户只感觉到功能升级。
 - [sqlite-driver-switch](sqlite-driver-switch/spec.md)：SQLite 第二步（路线书 05 ③）。项目库从 better-sqlite3 换到 node:sqlite，适配层保持语义，Alchemist 例外保留；Node 升到 24.15.x 并锁定（用户 2026-11-06 定）；已实现：SQLD-a/c/d/e 随第 05 批 #1979 于 2026-11-08 合入 main，SQLD-b（锁 Node）随 #1917 合入；正式 24.15 包与打包冒烟（SQLD-11）见 [BL-sqlite-sqld11](backlog/BL-sqlite-sqld11.md)。
 - [action-input-contracts](action-input-contracts/spec.md)：动作的版本字段与输入类型（路线书 05 ④）。N14 判断规则改用 `expected_updated_at`，过期的提交就地接住；N22 处理器迁到从 schema 推导的类型（用户 2026-11-06 定）：N14 两段（#1913、#1961）与 N22-01/02/04/06（#1909、#1939、#1923、#1893）、防回潮计数（#1951）已在第 05 批合入，N22 余片按决定 29 移到第 56 批第 3 项（第 57 批开工前全部合入，范围不变）。
@@ -100,13 +96,15 @@
 - [onboarding-coverage](onboarding-coverage/spec.md)：先接通真实文件选择、模型整理、失败恢复与材料进入项目/Coding；再扩场景包、动态引导、全局/项目/任务设置、项目助理团与 AI 交互首页；2026-11-02 补页面帮助与下一步进入引导、复用配置并返回原任务（ONB-47～49）。第 33 批已交 ONB-35～46 的混合材料、大清单、密钥扣留、增量改范围、错误分类、重启接续与 `onboarding.takes`（#2082，`91962f651c`，2026-11-15）；工程与自动化实操已过，本人验收见 [BL-batch33-acceptance](backlog/BL-batch33-acceptance.md)，其余场景与后续批次照旧。F 轨统筹；需求维护：Codex。
 - [plugin-frame-desktop-load](plugin-frame-desktop-load/spec.md)：桌面 WebKit 里沙箱插件框要能加载脚本；页面策略写上本次请求自己的回环 origin。2026-10-26，待验收。
 - [prologue-strategies](prologue-strategies/spec.md)：Prologue Context、MCP、Skill、Tool 四份策略合并为一份总纲 + 四份子文档；需求已整理，尚未实施。
-- [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐后的执行目录，01～105（含 36A、63A、91B）、服务端批与发行批每项一行；交付详情、需求来源、依赖、轨道、决策、阶段验收及历史分别放在 [reference 分类](post-anticorruption-roadmap/spec.md#reference)。[开发手册](post-anticorruption-roadmap/reference/development-workflow.md)规定每项／每片开工前先讲清具体工作。01 已交单；02～27 中至少 18 个批次已有合入记录，最近合入包括 15 #2017、16 #2031、17 #2058、22 #2038、25 #2034、27 #2010、31 #2087、41 #2086；实时认领与分支看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)。
+- [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐后的执行目录，01～111（含 36A、44B、63A、91B）、服务端批与发行批每项一行；交付详情、需求来源、依赖、轨道、决策、阶段验收及历史分别放在 [reference 分类](post-anticorruption-roadmap/spec.md#reference)。[开发手册](post-anticorruption-roadmap/reference/development-workflow.md)规定每项／每片开工前先讲清具体工作。各批合入证据见批次页，实时认领与分支看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)。
 
 - [ci-conflict-reduction](ci-conflict-reduction/spec.md)：减少页面资源预算与其他高频生成记录的冲突及重复 CI；2026-11-06 已获实施授权，历史 PR 核查、实现与本地回归完成，待独立 CI 实测，负责人 Codex。
 
 
 
 ## 现行规范
+
+- [页面客户端生命周期](page-client-lifecycle/spec.md)：Claude 维护的 `workbench.pageClient` 接口与外壳、插件的职责分工，已随 #2219 合入。
 
 仍被 `AGENTS.md`、SSOT、Skill 或包 README 引为现行规则的 spec。它们不归档；改规则就改它们。
 
@@ -157,10 +155,10 @@
 
 **验收编号。** spec 的验收标准逐条带一个编号，测试引用它；改需求时一查编号，就知道哪些测试要跟着改。
 
-- **写法**：验收标准在标题含「验收」的一节里（`## 验收标准`），每条以编号开头，有序列表、无序列表、表格第一格都行：`1. **DOCK-03** 静止时条目的按钮不可见……`。编号是 2 到 8 个大写字母、一个连字符、2 或 3 位数字。字母是这份 spec 的前缀（目录名的缩写）：一份 spec 一个前缀，一个前缀只属一份 spec，也不用 `BL`、`PMR`（待办与合入后审查的编号）。数字在这份 spec 里往上数。
+- **写法**：验收标准在标题含「验收」的一节里（`## 验收标准`），每条以编号开头，有序列表、无序列表、表格第一格都行：`1. **DOCK-03** 静止时条目的按钮不可见……`。编号是 2 到 8 个大写字母、一个连字符、2 或 3 位数字。字母是这份 spec 的前缀（目录名的缩写）：一份 spec 一个前缀，一个前缀只属一份 spec，也不用 `BL`、`PMR`（待办与合入后审查的编号）。数字在这份 spec 里往上数。 验收定义集中在权威表。进展可引用编号范围；证据行用 Markdown 链接指回定义，如 `[DOCK-03](#验收标准)`，同一要求的多次验证应保留原始编号。
 - **不改号、不复用**：删掉一条标准，把它写成 `~~DOCK-04~~ 已取消：<理由>`，编号继续占着；改一条的内容，编号不变；新加的条目从最大的号往后排。同一个标题下只要有一条带编号，其余的列表项和表格行也都要带。
 - **归档以后编号还在**：spec 移进 `archive/` 以后，它的前缀仍然属于它，别的 spec 不能再用；它的编号仍然算「有人定义」，老测试里引用的 `DOCK-03` 不会因此变成没人认的引用。检查读 `archive/<目录>/spec.md` 里的编号，只当定义用：归档的 spec 不要求测试覆盖，也不要求补编号。
-- **测试引用编号**：证明这一条的测试，把编号写进测试名（`test("DOCK-03 at rest an entry shows no buttons", …)`），或写在测试旁的注释里。一个测试证明几条就写几个；写成范围（`DOCK-01..05`）只算第一个。引用的是 `tests/` 下的测试文件和各处的 `*.test.*`；任何 `fixtures/` 目录里的文件都不算，叫 `*.test.*` 也一样（`vendor/`、`node_modules/`、`dist/`、`.impeccable/` 同；这几个目录在仓库根还是嵌在哪一层都一样）。
+- **测试引用编号**：证明这一条的测试，把编号写进测试名（`test("DOCK-03 at rest an entry shows no buttons", …)`），或写在测试旁的注释里。一个测试证明几条就写几个，也可共用前缀逐个列出，例如 `DOCK-01/03` 对应 01 和 03。写成范围（`DOCK-01..05`）只算第一个。JS/TS 读取 `tests/` 下的测试文件和各处的 `*.test.*`；Rust 同测试盘点，读取原生测试函数内的编号。编号证明找到了关联，是否执行及结果查对应测试入口的运行记录；任何 `fixtures/` 目录里的文件都不算，叫 `*.test.*` 也一样（`vendor/`、`node_modules/`、`dist/`、`.impeccable/` 同；这几个目录在仓库根还是嵌在哪一层都一样）。
 - **不能用测试证明的**（真机、要人来判断、等用户自己试用）：在那一条里写 `[人工]`，不再要求测试，证据写进 spec 的证据节。
 - **整份 spec 没有可编号的标准**（程序性的 spec，验收在别处逐项闭环）：开头状态句附近写一行 `验收编号：不适用（理由）`。
 - **检查**：`node scripts/check-spec-coverage.mjs`。现在是**报告模式**，不管找到什么退出码都是 0（只有参数写错、或 git 读不了仓库才退出 2），CI 里只当信息：列出有验收一节却没有编号的 spec、没有测试引用的编号、测试里引了 spec 里没有的编号，以及重号、串用的前缀（含已归档 spec 占着的前缀）。`--strict` 是它变成门禁以后的样子；在做的 spec 都编好号、报告里没有问题之后再把 CI 那一步改成 `--strict`。
@@ -169,7 +167,12 @@
 
 ## 梳理记录
 
+- 2026-11-24：[架构复核整改与验收证据](archive/review-evidence-maintenance/spec.md)归档（已实现，负责人 Codex）。创作台答卷与刷新、验收编号报告及其回归已随 [#2306](https://github.com/molis-ai/molis-work/pull/2306) 合入 `main`。
+
 - 2026-11-24：[插件折叠、连接动效与日程重试](archive/shared-ui-folds/spec.md)归档。负责人 Codex。SCF-01 至 SCF-03 的插件入口与组件板验证见需求书。
+- 2026-11-24：[欢迎页语言切换与工作台 503 提示](archive/onboarding-language-503/spec.md)归档（已实现，负责人 Codex）。#2266 已合入 main。
+- 2026-11-24：[11 月 21 日三天复核修复](archive/main-review-1121/spec.md)归档（部分实现，负责人 Claude）。#2203 已合入 main。
+- 2026-11-24：[第 47 批独立复核修复](archive/batch-47-review-fixes/spec.md)归档（已实现，负责人 Codex）。#2264 已合入 main。
 
 - 2026-11-23：[测试集合审查与 CI 用时](archive/test-suite-audit/spec.md)归档（已实现，负责人 Codex）。逐文件清单用 `node scripts/test-inventory.mjs` 生成，执行结果与已知失败见 [#2281](https://github.com/molis-ai/molis-work/pull/2281)。
 

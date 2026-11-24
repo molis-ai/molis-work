@@ -22,10 +22,12 @@
 //              a fixtures/, vendor/, node_modules/, dist/ or .impeccable/ folder is, at the root or nested at any depth,
 //              whatever it is called): a mention of
 //              a defined id anywhere in the file (a test name, a comment) covers it. Mentions are looked for by the
-//              prefixes the specs define, so SHA-256 or UTF-16 in a test is never taken for an id.
+//              prefixes the specs define, so SHA-256 or UTF-16 in a test is never taken for an id. For Rust only the
+//              annotated test functions are scanned, using the inventory reader.
 //
 // A snapshot is { files: string[], read(file): string | null }, as in scripts/gates/markdown.mjs.
 import { readMarkdown } from "./markdown.mjs";
+import { rustTestSource } from "../rust-test-source.mjs";
 
 /** Other id families of this repository (BACKLOG rows, post-merge-review items): a spec may not take their prefix. */
 export const RESERVED_PREFIXES = new Set(["BL", "PMR"]);
@@ -34,6 +36,8 @@ const ACCEPTANCE_HEADING = /验收|acceptance/i;
 const HEADING = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/;
 // A definition: nothing but a list marker or a table bar, then emphasis marks, then the id (indent 0 or 1: deeper is a sub-item).
 const DEFINITION = /^ ?(?:(?:[-*+]|\d{1,3}[.)])[ \t]+|\|[ \t]*)?([~*_`]*)([A-Z]{2,8})-(\d{2,3})(?![0-9A-Za-z-])/;
+// A link to the defining table or a range in a progress note cites existing criteria.
+const REFERENCE = /^ ?(?:(?:[-*+]|\d{1,3}[.)])[ \t]+|\|[ \t]*)?(?:\[[A-Z]{2,8}-\d{2,3}\](?:\(|\[)|[A-Z]{2,8}-\d{2,3}\s*(?:～|〜|–|\.\.|至)\s*(?:[A-Z]{2,8}-)?\d{2,3})/;
 const LIST_ITEM = /^ ?(?:[-*+]|\d{1,3}[.)])[ \t]+\S/;
 const TABLE_ROW = /^ ?\|.*\|[ \t]*$/;
 const TABLE_RULE = /^ ?\|?[ \t]*:?-{2,}:?[ \t]*(?:\|[ \t]*:?-{2,}:?[ \t]*)*\|?[ \t]*$/;
@@ -74,7 +78,7 @@ export function parseSpec(text) {
       return;
     }
     if (!block) return;
-    if (TABLE_RULE.test(line)) return;
+    if (TABLE_RULE.test(line) || REFERENCE.test(line)) return;
     if (TABLE_ROW.test(line) && TABLE_RULE.test(lines[index + 1] ?? "")) return; // the header row of a table
     const found = line.match(DEFINITION);
     if (found) {
@@ -103,16 +107,18 @@ const archivedSpecs = (snapshot) => specDirectories(snapshot, /^specs\/archive\/
 function testMentions(snapshot, prefixes) {
   const mentions = new Map();
   if (!prefixes.size) return { mentions, filesRead: 0 };
-  const pattern = new RegExp(`(?<![A-Za-z0-9_-])((?:${[...prefixes].join("|")})-\\d{2,3})(?![0-9A-Za-z-])`, "g");
+  const pattern = new RegExp(`(?<![A-Za-z0-9_-])(${[...prefixes].join("|")})-(\\d{2,3}(?:/\\d{2,3})*)(?![0-9A-Za-z-])`, "g");
   let filesRead = 0;
   for (const file of snapshot.files) {
-    if (!isTestFile(file)) continue;
-    const text = snapshot.read(file);
+    const text = isTestFile(file) ? snapshot.read(file) : rustTestSource(file, path => snapshot.read(path));
     if (text === null) continue;
     filesRead++;
     for (const match of text.matchAll(pattern)) {
-      if (!mentions.has(match[1])) mentions.set(match[1], new Set());
-      mentions.get(match[1]).add(file);
+      for (const number of match[2].split("/")) {
+        const id = match[1] + "-" + number;
+        if (!mentions.has(id)) mentions.set(id, new Set());
+        mentions.get(id).add(file);
+      }
     }
   }
   return { mentions: new Map([...mentions].map(([id, files]) => [id, [...files].sort()])), filesRead };

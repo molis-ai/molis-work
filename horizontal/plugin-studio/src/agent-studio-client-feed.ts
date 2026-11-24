@@ -18,7 +18,7 @@ export const STUDIO_CLIENT_FEED = String.raw` function agents(b){const rows=[];c
  function renderFeed(){
   const b=current,parts=[];
   const facts=JSON.stringify([b?.id,b?.revision,versions.map(v=>v.version),preview,busy,notice&&[notice.text,notice.detail,notice.message??notice],
-   state.capabilities,state.installations,state.components,b?null:state.builds.slice(0,6).map(x=>[x.id,x.design?.title||x.title,x.phase])]);
+   b?.phase==='choosing'&&state.capabilities,b?.phase==='ready'&&installed(b),state.components,b?null:state.builds.slice(0,6).map(x=>[x.id,x.design?.title||x.title,x.phase])]);
   if(rendered&&facts===renderedFacts)return;renderedFacts=facts;
   if(!b){parts.push('<h2>'+globalThis.t.text("plugin-builder.agent-studio.let-s-build-idea-together")+'</h2><p class="as-muted">'+globalThis.t.text("plugin-builder.agent-studio.tell-me-what-kind-plugin-want-who-uses")+'</p><div class="as-examples">'+examples().map(([t,d])=>'<button type="button" class="as-example" data-as-example="'+esc(d)+'"><b>'+esc(t)+'</b><span class="as-muted as-small">'+esc(d)+'</span></button>').join('')+'</div><p class="as-small as-muted">'+globalThis.t.text("plugin-builder.agent-studio.example-only-fills-input-box-nothing-starts-itself")+'</p>');
    if(state.builds.length)parts.push('<div class="as-recent"><h3 class="as-small as-muted">'+globalThis.t.text("plugin-builder.agent-studio.continue-earlier-plugin")+'</h3>'+state.builds.slice(0,6).map(x=>'<button type="button" class="as-recent-item" data-as-open="'+esc(x.id)+'"><b>'+esc(x.design?.title||x.title)+'</b><span class="as-phase" data-phase="'+esc(x.phase)+'">'+esc(phaseOf(x))+'</span><small>'+esc(x.brief)+'</small></button>').join('')+'</div>');}

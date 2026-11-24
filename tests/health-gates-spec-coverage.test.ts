@@ -63,6 +63,25 @@ const base = (change: (files: Files) => Files | void = () => {}): Files => {
   return change(files) ?? files;
 };
 
+test("QEV-02: definitions, evidence links and native test bodies have distinct roles", () => {
+  const requirements = spec("Native", "## 验收标准", "| 编号 | 要求 |", "| --- | --- |",
+    "| QXNAT-01 | reads the project |", "| QXNAT-02 | releases it |", "| QXNAT-03 | retains the selection |", "## 实施与验收记录",
+    "QXNAT-01～02 的验证见下表。", "| 编号 | 证据 |", "| --- | --- |",
+    "| [QXNAT-01](#验收标准) | observed on the desktop |");
+  const rust = lines("fn product() { /* QXNAT-02 */ }", "#[cfg(test)]", "mod tests {",
+    "    #[tokio::test]", "    async fn reads_the_project() {", "        // QXNAT-01/03",
+    "        assert!(reads_project());", "    }", "    fn helper() { /* QXNAT-02 */ }", "}");
+  const files = { "specs/native/spec.md": requirements, "apps/desktop/src/project.rs": rust,
+    "tests/fixtures/example.rs": lines("#[test]", "fn only_a_fixture() { /* QXNAT-02 */ }") };
+  const result = JSON.parse(check(scratch(files), "--json").out);
+  assert.deepEqual(result.specs[0].criteria.map((row: { id: string; tests: string[] }) => [row.id, row.tests]),
+    [["QXNAT-01", ["apps/desktop/src/project.rs"]], ["QXNAT-02", []], ["QXNAT-03", ["apps/desktop/src/project.rs"]]]);
+  assert.deepEqual(result.problems.map((problem: { kind: string }) => problem.kind), ["uncovered"]);
+  const duplicate = check(scratch({ ...files, "specs/native/spec.md": requirements.replace("| QXNAT-02 |", "| QXNAT-01 |") }), "--strict");
+  assert.equal(duplicate.code, 1);
+  assert.match(duplicate.out, /QXNAT-01.*defined 2 times/);
+});
+
 test("a clean repository: every criterion is cited, manual or retired; the report counts them and --strict passes", () => {
   const dir = scratch(BASE);
   const report = check(dir);
@@ -337,6 +356,22 @@ test("what counts as an id, as written", () => {
 });
 
 // ---- the command ------------------------------------------------------------------------------------------------------------
+test("QEV-04: piped output delivers every finding in a large report before exit", () => {
+  const ids = Array.from({ length: 800 }, (_, index) => `QXOUT-${100 + index}`);
+  const dir = scratch({ "specs/large/spec.md": criteria("Large", ...ids.map(id => `- ${id} covers one requirement`)) });
+
+  const json = check(dir, "--json");
+  assert.equal(json.code, 0);
+  const report = JSON.parse(json.out);
+  assert.deepEqual(report.specs[0].criteria.map((row: { id: string }) => row.id), ids);
+  assert.deepEqual(report.problems.map((row: { message: string }) => row.message.split(" ")[0]).sort(), ids);
+
+  const strict = check(dir, "--strict");
+  assert.equal(strict.code, 1);
+  const findings = Array.from(strict.out.matchAll(/^- uncovered: [^\n]+?: (QXOUT-\d+) is cited by no test/gm), match => match[1]);
+  assert.deepEqual(findings.sort(), ids);
+});
+
 test("--json prints the same findings; unusable invocations exit 2", () => {
   const dir = scratch(base((files) => { files["specs/beta/spec.md"] = BETA_UNNUMBERED; }));
   const json = check(dir, "--json");
@@ -358,7 +393,7 @@ test("run from a checkout whose path has a space and a non-ASCII letter, the com
   made.push(parent);
   const checkout = path.join(parent, "sp ace é");
   mkdirSync(path.join(checkout, "scripts", "gates"), { recursive: true });
-  for (const file of ["check-spec-coverage.mjs", "gates/spec-coverage.mjs", "gates/markdown.mjs", "gates/allowlist.mjs"]) {
+  for (const file of ["check-spec-coverage.mjs", "rust-test-source.mjs", "gates/spec-coverage.mjs", "gates/markdown.mjs", "gates/allowlist.mjs"]) {
     copyFileSync(fileURLToPath(new URL(`../scripts/${file}`, import.meta.url)), path.join(checkout, "scripts", file));
   }
   for (const [file, text] of Object.entries(BASE)) {

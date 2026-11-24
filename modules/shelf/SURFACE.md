@@ -34,7 +34,7 @@
 
 不依赖 Goals / Artifacts 实现。存进项目的文字是项目里的导入文档，由 Host 以调用者身份写入；全局 Shelf 未绑定项目时不能保存；个人副本由 Home 实例管，项目一半（存到项目资料、接收 Coding 成果）由 `createShelfPlugin` 在正式 Runtime 中启动，使用原 grants 与持久连线服务。样式不吃 Coss `interaction-texture`，新确认入口使用共享控件。
 
-项目内通过「更多 → 接收项目成果」接收 Coding 固定报告或固定变更。`coding-report` / `coding-changeset` 可选输入只提供候选，用户查看完整正文并明确接收后才创建个人副本；项目其他已保存成果也可选择。Host 校验生产者与固定身份，提交时重读原对象并核对预览指纹，浏览器不能提交替代正文。副本保存原项目、精确版本与内容指纹，提供「查看原固定成果」；再次接收同一版本复用已有副本并保留编辑。归档或不可用来源拒绝新接收，已有副本独立保留。之后保存项目材料仍携带原来源，不自动执行或验收 Goal。
+项目内通过「更多 → 接收项目成果」接收项目里的固定成果或过程项：只列产出方在 Manifest 标了 `copy_out` 的类型（例如 Coding 的固定报告与固定变更），宿主每次调用给出，Shelf 不点名任何插件的类型；用户查看完整正文并明确接收后才创建个人副本。Host 校验生产者与固定身份，提交时重读原对象并核对预览指纹，浏览器不能提交替代正文。副本保存原项目、精确版本与内容指纹，提供「查看原固定成果」；再次接收同一版本复用已有副本并保留编辑。归档或不可用来源拒绝新接收，已有副本独立保留。之后保存项目材料仍携带原来源，不自动执行或验收 Goal。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。
 
@@ -61,7 +61,7 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-project-knowledge-http.test
   - 个人架子的编辑、隐藏或移除不改项目里的旧版本。
   - 首次打开时架子里放着一份「试用示例.pdf」，是有意的首次使用引导，不是演示数据：只在架子从未放过任何材料时，由 Home 实例在自己的 `start` 里（`createHomeShelfPlugin`，`files.write(initializeShelfFiles)`，动作之外凭安装现行授权）放一次，读快照不写（`seeded_sample`；删掉以后重启实例、重新授权也不放回；放入任何材料或示例本身之后，用户删除、隐藏都不会自动放回，设置里的「使用指南」可由用户主动再放一份），写在用户 Home 的个人架子里，不进任何项目库，不读不写用户的内容。它让「提取文字、拖走结果」在没有 Agent、没有授权、没有网络时也能走完一遍（[Shelf 插件需求](../../specs/archive/shelf-plugin/spec.md)「动作与引导」）。保留是 W2-18 决定 12（2026-10-09）：不改成空状态按钮，不删除。
   - 提交时 Shelf 重读原对象并核对预览指纹，浏览器不能提交替代正文。
-  - 项目成果（Coding 的固定报告与变更）：Shelf 自己列（`services.artifacts.listConsumable()` 按 Manifest 声明的消费类型筛，加上输入端口接着的版本）、自己读（`services.artifacts.read`），正文向 Coding 要（Manifest `capabilities.consumes` 声明 `coding.results.document@1`，权限 `artifact:read`，经 `services.actions.invoke`；定义在 Coding 自己的 `@molis-ai/molis-work-plugin-coding/contract`（PG-111：不在 contracts 包里，Shelf 不导入 Coding），Shelf 只留一个按 id 发问的视图（`result-document.ts` 的 `checkedDocument`），宿主按 Coding 的定义校验输入输出与权限，`tests/shelf-coding-results.test.ts` 的 W5-01-CODING-09 钉住 Shelf 的 Manifest 消费它的 id、Coding 的 Manifest 声明的是它自己的定义）。副本的标题说明、来源和指纹由 Shelf 拼（`shelfCopyOf`），宿主不拼。只在项目里装了 Coding 时才有正文，没装是平台的 `actions.plugin_disabled`。宿主只给 `ShelfResultPorts` 两样：`projectPath()`（副本来源里要写项目页面的服务路径，只有宿主知道）和 `receive`（写入口，随 Shelf S3、S4 的宿主装配一起删）。
+  - 项目成果：Shelf 自己列（`services.artifacts.listConsumable()`）、自己读（`services.artifacts.read`），读的是调用方项目里产出方标了 `copy_out` 的类型，且只是标记方自己产出的那几份（宿主 `copyOutTypes()`，每次调用重读，产出方停用后就不再给）。正文向产出方要：经 `services.actions.dependencies` 发现它声明的成果文档角色或预览角色（Audit #10，Shelf 的 `capabilities.consumes` 为空，不钉任何插件的动作 id；Coding 的定义在 `@molis-ai/molis-work-plugin-coding/contract`，Shelf 不导入 Coding），一次列表只发现一次。Shelf 核对答复的四个字段（`result-document.ts` 的 `checkedDocument`），副本的标题说明、来源和指纹由 Shelf 拼（`shelfCopyOf`），宿主不拼。产出方没有正文角色就是 `shelf.unavailable`。
   - 旧确认不能覆盖后来的选择；跨项目、已归档或非自身的材料不能设为输出。
   - URL 入库和剪贴板转材料必须将 Action signal / beforeEffect 传到 Module；抓取后复查再保存，源剪贴板已删除时不能生成迟到材料。
   - 网页只抓公开地址和本机回环：本机页面经 `materials.readLocalPage`，其余经 `materials.readSource`；局域网地址不抓（① 裁定 D5，2026-10-22）。

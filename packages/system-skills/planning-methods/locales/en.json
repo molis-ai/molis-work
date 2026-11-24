@@ -6,7 +6,7 @@
     "planning-methods.directory.name": "Planning and breakdown",
     "planning-methods.directory.summary": "Break a goal into deliverable results with dependencies and evidence, by type of work, domain and industry.",
     "planning-methods.skill.domain-ai-data-product.name": "AI and data products",
-    "planning-methods.skill.domain-ai-data-product.description": "Cover data, evaluation, operating costs, safety and user intervention together. Domain; for: AI features, Agent products, Data products. Use it when breaking this kind of goal into results with dependencies and completion evidence.",
+    "planning-methods.skill.domain-ai-data-product.description": "Plan AI features, AI products that carry out tasks for people, or data products. Break down the goal, map dependencies and decide what will show each part is done. Cover data, evaluation, running costs, safety and when people need to step in.",
     "planning-methods.skill.domain-ai-data-product.when-to-use": "You want a goal of the kind “AI and data products” broken into results that can be delivered and accepted on their own, with what depends on what and what proves each is done.",
     "planning-methods.skill.domain-app-product.name": "General application",
     "planning-methods.skill.domain-app-product.description": "Check end-to-end user journeys, core features, interaction feedback and information architecture. Domain; for: General application products. Use when breaking this kind of goal into deliverable results with dependencies and evidence.",

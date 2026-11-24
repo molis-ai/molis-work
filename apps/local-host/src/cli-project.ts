@@ -65,7 +65,7 @@ async function runV1CliScoped(args: string[], options: V1CliOptions): Promise<nu
   });
   let homeProject = false;
   const fallback = () => {
-    if(!allowLocalFallback&&homeDatabase)throw new ActionError("actions.service_unavailable","当前账号宿主尚未连接，不能回退匿名业务。");
+    if(!allowLocalFallback&&homeDatabase)throw new ActionError("actions.service_unavailable",cliText("workbench.cli.v1-host-disconnected"));
     if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);
     return bindStandaloneReviewActions(localHost ??= createMolisWorkLocalHost(), reference, options.signal);
   };

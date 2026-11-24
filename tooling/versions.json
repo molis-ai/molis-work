@@ -1368,7 +1368,7 @@
     "prompt.dataset.name-column": 2,
     "prompt.form.draft-questions": 2,
     "prompt.feed.information-plan": 2,
-    "prompt.issues.name": 3,
+    "prompt.issues.name": 4,
     "prompt.jelly.decompose": 2,
     "prompt.knowledge.locate": 2,
     "prompt.knowledge.organize": 2,

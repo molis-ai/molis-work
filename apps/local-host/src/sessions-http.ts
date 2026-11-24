@@ -15,12 +15,18 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "./web-http.js";
 import { currentLocale } from "./web-locale.js";
 
-const TOOL_EN_BY_ID = new Map<string, string>(
-  EXTERNAL_TOOLS.map((tool) => [tool.id, tool.display_name_en ?? tool.display_name]),
+const TOOL_NAMES_BY_ID = new Map<string, Readonly<Record<string, string>>>(
+  EXTERNAL_TOOLS.map((tool) => {
+    const globalName = tool.display_name_en ?? tool.display_name;
+    return [tool.id, { zh: tool.display_name, en: globalName, ja: globalName }] as const;
+  }),
 );
 
 function localizedToolName(entryId: string, defaultName: string): string {
-  return currentLocale() === "en" ? (TOOL_EN_BY_ID.get(entryId) ?? defaultName) : defaultName;
+  const names = TOOL_NAMES_BY_ID.get(entryId);
+  if (!names) return defaultName;
+  const language = currentLocale().trim().toLowerCase().split("-")[0] ?? "en";
+  return names[language] ?? names.en ?? defaultName;
 }
 
 function invokeBody<Input, Output>(client: BoundActionClient, definition: ActionDefinition<Input, Output>, body: unknown): Promise<Output> {
@@ -78,25 +84,22 @@ export function buildSessionToolMeta(sources: readonly ExternalSessionScopeSourc
 }
 
 function localizeSessionRow<Row extends { tool: { entry_id: string; display_name: string } }>(row: Row): Row {
-  if (currentLocale() !== "en") return row;
-  return { ...row, tool: { ...row.tool, display_name: localizedToolName(row.tool.entry_id, row.tool.display_name) } };
+  const displayName = localizedToolName(row.tool.entry_id, row.tool.display_name);
+  return displayName === row.tool.display_name ? row : { ...row, tool: { ...row.tool, display_name: displayName } };
 }
 
 function withToolMeta(view: ExternalSessionScopeView) {
   return {
     ...view,
     sources: view.sources.map((s) => ({ ...s, display_name: localizedToolName(s.entry_id, s.display_name) })),
-    project_ai_reads: currentLocale() === "en"
-      ? view.project_ai_reads.map((row) => row.counts
-          ? { ...row, counts: { ...row.counts, blocked: row.counts.blocked.map((b) => ({ ...b, display_name: localizedToolName(b.entry_id, b.display_name) })) } }
-          : row)
-      : view.project_ai_reads,
+    project_ai_reads: view.project_ai_reads.map((row) => row.counts
+      ? { ...row, counts: { ...row.counts, blocked: row.counts.blocked.map((b) => ({ ...b, display_name: localizedToolName(b.entry_id, b.display_name) })) } }
+      : row),
     tool_meta: buildSessionToolMeta(view.sources),
   };
 }
 
 function localizeListOutput(out: ExternalSessionListOutput): ExternalSessionListOutput {
-  if (currentLocale() !== "en") return out;
   return {
     ...out,
     sessions: out.sessions.map(localizeSessionRow) as ExternalSessionListOutput["sessions"],
@@ -227,7 +230,7 @@ export async function handleSessionsHttp(
       case "/api/sessions/tool-search": {
         if (method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
         const out = await invokeBody(client, sessionsActions.toolSearch, await readBody(request));
-        sendJson(response, 200, currentLocale() === "en" ? { ...out, sessions: out.sessions.map(localizeSessionRow) } : out);
+        sendJson(response, 200, { ...out, sessions: out.sessions.map(localizeSessionRow) });
         return true;
       }
       default:

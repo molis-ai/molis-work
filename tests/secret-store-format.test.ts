@@ -53,6 +53,7 @@ const BAD_ENVELOPE_SHAPES = [
   { ...VALID_ENVELOPE_SHAPE, tag: Buffer.alloc(8).toString("base64") },
 ].map(shape => Buffer.from(JSON.stringify(shape)).toString("base64"));
 const BAD_ENTRIES = [NOT_SEALED_ENVELOPE, "", ...BAD_ENVELOPE_SHAPES];
+const invalidEntry = { code: "storage.secret_entry_invalid", message: /凭据格式/u };
 
 /** The env backend for one test, with its environment and cache restored afterwards. */
 function envBackend(t: TestContext) {
@@ -67,8 +68,8 @@ function envBackend(t: TestContext) {
   process.env.MOLIS_WORK_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
 }
 
-/** A Home whose current-format secrets file holds one healthy entry and one legal string that is not a sealed envelope. */
-function nonSealedFile(t: TestContext, bad = NOT_SEALED_ENVELOPE) {
+/** A Home with one healthy credential and one deliberately broken entry. */
+function fileWithBadEntry(t: TestContext, bad: string | null = NOT_SEALED_ENVELOPE) {
   const home = mkdtempSync(join(tmpdir(), "molis-secret-bad-entry-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   mkdirSync(join(home, "security"), { recursive: true });
@@ -84,18 +85,40 @@ function nonSealedFile(t: TestContext, bad = NOT_SEALED_ENVELOPE) {
 // RAC-2721 T-347 / clean-Home batch 6: one secrets file entry that is a string but not a sealed envelope — including the empty
 // string, which a truthiness check would call missing — is refused by the snapshot, by a read and by the writes that would carry
 // the file forward. The write for another key leaves the file byte for byte.
-test("RAC-2721 the snapshot, a read and a write meet a non-sealed envelope secrets entry the same way", t => {
+test("BL-secret-entry-storage-code RAC-2721 the snapshot, a read and a write refuse a malformed secret entry", t => {
   envBackend(t);
   for (const bad of BAD_ENTRIES) {
-    const f = nonSealedFile(t, bad);
+    const f = fileWithBadEntry(t, bad);
     assert.throws(() => inspectSealedSecretsSnapshot(f.home, readFileSync(f.file, "utf8")), { code: "storage.secrets_snapshot.integrity_failed" });
     const store = createLazyFileSecretStore(f.home);
-    assert.throws(() => store.get("bad"), /secret not AES-GCM sealed/, "a bad entry is refused, not reported as missing");
+    assert.throws(() => store.get("bad"), invalidEntry, "a bad entry is refused, not reported as missing");
     const before = readFileSync(f.file, "utf8");
-    assert.throws(() => store.put("another", "another-value"), /secret not AES-GCM sealed/, "a write meets the same bad entry the same way");
+    assert.throws(() => store.put("another", "another-value"), invalidEntry, "a write meets the same bad entry the same way");
     assert.equal(readFileSync(f.file, "utf8"), before, "a refused write leaves the secrets file byte for byte");
     assert.equal(createLazyFileSecretStore(f.home).get("good"), "good-plaintext");
   }
+});
+
+test("BL-secret-entry-storage-code a non-string entry in a current vault has a storage format error", t => {
+  envBackend(t);
+  const { home, file } = fileWithBadEntry(t, null);
+  const before = readFileSync(file, "utf8");
+  const store = createLazyFileSecretStore(home);
+  assert.throws(() => store.get("bad"), invalidEntry);
+  assert.throws(() => store.put("another", "another-value"), invalidEntry);
+  assert.equal(readFileSync(file, "utf8"), before);
+});
+
+test("BL-secret-entry-storage-code a well-formed envelope with an invalid authentication tag refuses a read", t => {
+  envBackend(t);
+  const { home, file } = fileWithBadEntry(t, Buffer.from(JSON.stringify(VALID_ENVELOPE_SHAPE)).toString("base64"));
+  const before = readFileSync(file, "utf8");
+  const store = createLazyFileSecretStore(home);
+  assert.throws(() => store.get("bad"), { code: "storage.secret_entry_decryption_failed", message: /无法解密/u });
+  assert.equal(store.get("good"), "good-plaintext");
+  assert.equal(store.get("never-written"), null);
+  assert.throws(() => inspectSealedSecretsSnapshot(home, before), { code: "storage.secrets_snapshot.integrity_failed" });
+  assert.equal(readFileSync(file, "utf8"), before);
 });
 
 // RAC-2722 T-347 coordinator answer: the read refuses a non-sealed envelope entry, and every write that would carry the file forward
@@ -103,10 +126,10 @@ test("RAC-2721 the snapshot, a read and a write meet a non-sealed envelope secre
 test("RAC-2722 a bad entry is refused by a read and by put, createIfAbsent and deleteIfPresent, and the file stays as it was", t => {
   envBackend(t);
   for (const bad of BAD_ENTRIES) {
-    const f = nonSealedFile(t, bad), store = createLazyFileSecretStore(f.home), before = readFileSync(f.file, "utf8");
-    assert.throws(() => store.get("bad"), /secret not AES-GCM sealed/, "a read refuses the bad entry");
+    const f = fileWithBadEntry(t, bad), store = createLazyFileSecretStore(f.home), before = readFileSync(f.file, "utf8");
+    assert.throws(() => store.get("bad"), invalidEntry, "a read refuses the bad entry");
     for (const write of [() => store.put("another", "another-value"), () => store.createIfAbsent("another", "another-value"), () => store.deleteIfPresent("good")]) {
-      assert.throws(write, /secret not AES-GCM sealed/);
+      assert.throws(write, invalidEntry);
       assert.equal(readFileSync(f.file, "utf8"), before, "a refused write leaves the secrets file byte for byte");
     }
     assert.equal(store.get("never-written"), null, "a reference that is really absent still reads as null");
@@ -119,7 +142,7 @@ test("RAC-2722 a bad entry is refused by a read and by put, createIfAbsent and d
 test("RAC-2722 deleting the bad entry itself is allowed and keeps the other entries' bytes", t => {
   envBackend(t);
   for (const bad of BAD_ENTRIES) {
-    const f = nonSealedFile(t, bad), before = JSON.parse(readFileSync(f.file, "utf8")) as { entries: Record<string, string> };
+    const f = fileWithBadEntry(t, bad), before = JSON.parse(readFileSync(f.file, "utf8")) as { entries: Record<string, string> };
     const store = createLazyFileSecretStore(f.home);
     store.delete("bad");
     const after = JSON.parse(readFileSync(f.file, "utf8")) as { entries: Record<string, string> };
@@ -136,8 +159,8 @@ test("RAC-2722 deleting the bad entry itself is allowed and keeps the other entr
 test("RAC-2722 deleting a healthy entry while another bad entry stays is refused and the file stays as it was", t => {
   envBackend(t);
   for (const bad of BAD_ENTRIES) {
-    const f = nonSealedFile(t, bad), before = readFileSync(f.file, "utf8");
-    assert.throws(() => createLazyFileSecretStore(f.home).delete("good"), /secret not AES-GCM sealed/);
+    const f = fileWithBadEntry(t, bad), before = readFileSync(f.file, "utf8");
+    assert.throws(() => createLazyFileSecretStore(f.home).delete("good"), invalidEntry);
     assert.equal(readFileSync(f.file, "utf8"), before, "a refused delete leaves the secrets file byte for byte");
     assert.equal(createLazyFileSecretStore(f.home).get("good"), "good-plaintext");
   }
@@ -159,6 +182,6 @@ test("N34-VS-02 a complete current seal writes v1 and refuses the identical ciph
   writeFileSync(file, JSON.stringify(body));
   resetSecretStoreCache();
   const before = readFileSync(file);
-  assert.throws(() => createLazyFileSecretStore(home).get("sample"), /secret not AES-GCM sealed/);
+  assert.throws(() => createLazyFileSecretStore(home).get("sample"), invalidEntry);
   assert.deepEqual(readFileSync(file), before);
 });

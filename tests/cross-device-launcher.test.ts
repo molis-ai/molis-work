@@ -5,6 +5,8 @@ import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { PAGES_SUBJECT_KIND, pagesManifest } from '@molis-ai/molis-work-plugin-pages';
+import { PAGES_ARTIFACT_TYPE_ID } from '@molis-ai/molis-work-plugin-pages/contract';
 import { openServerDatabase, Identity, ServerEvents, ContinuityService } from '@molis-ai/molis-work-server';
 
 const launcher=new URL('../dist/cli/main.js',import.meta.url).pathname;
@@ -89,7 +91,7 @@ test('compiled standalone launcher starts headless, restores a real Catalog proj
   }
 });
 
-test('W2-18-CONTINUITY-QA-01: the documented QA command starts, restores its owner and reconciles a lost real receipt',{timeout:120000},async()=>{
+test('W2-18-CONTINUITY-QA-01 BL-1032: the documented QA command starts, restores its owner and reconciles a lost real receipt',{timeout:120000},async()=>{
   const directory=await mkdtemp(join(tmpdir(),'continuity-demo-'));
   const entry=new URL('../server/tooling/continuity-demo.mts',import.meta.url).pathname;
   let server:ReturnType<typeof launch>|undefined;
@@ -100,11 +102,24 @@ test('W2-18-CONTINUITY-QA-01: the documented QA command starts, restores its own
     const connected=await fetch(origin+'/continuity/api/connect',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({code,display_name:'QA owner',device_label:'isolated fixture'})});
     assert.equal(connected.status,200);
     const cookie=connected.headers.get('set-cookie')!.split(';')[0]!;
-    const get=async()=>{const response=await fetch(origin+'/continuity/api/projects/continuity-qa',{headers:{cookie}});assert.equal(response.status,200);return response.json();};
+    const get=async(suffix="")=>{const response=await fetch(origin+'/continuity/api/projects/continuity-qa'+suffix,{headers:{cookie}});assert.equal(response.status,200);return response.json();};
     const before=await get();
     assert.equal(before.goals[0].goal_id,'mobile-handoff');
     assert.equal(before.artifacts.length,1);assert.equal(before.artifacts[0].version,2);
     assert.match(before.artifacts[0].content,/跨设备接续操作说明/);
+    const bundle = await get("/assets");
+    assert.equal(bundle.artifacts.length, 1);
+    const [document] = bundle.artifacts;
+    const declaration = pagesManifest.artifacts.produces.find(type => type.artifact_type_id === PAGES_ARTIFACT_TYPE_ID);
+    assert.ok(declaration);
+    assert.equal(document.artifact_type_id, declaration.artifact_type_id);
+    assert.equal(document.schema_version, declaration.schema_version);
+    assert.deepEqual(document.producer, {
+      plugin_id: pagesManifest.plugin_id,
+      plugin_version: pagesManifest.version,
+      binding_signature: pagesManifest.publisher.signature,
+    });
+    assert.equal(document.origin.subject.kind, PAGES_SUBJECT_KIND);
     const command={command_id:randomUUID(),project_id:'continuity-qa',goal_id:'mobile-handoff',cursor:before.goals[0].cursor,summary:'QA confirmed',next_step:'continue on desktop',next_actor:'QA owner'};
     const post=()=>fetch(origin+'/continuity/api/projects/continuity-qa/progress',{method:'POST',headers:{origin,cookie,'content-type':'application/json'},body:JSON.stringify(command)});
     await writeFile(join(directory,'lose-next-response'),'');

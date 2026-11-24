@@ -79,7 +79,7 @@ test("S-12 N30: passphrase vaults use the current salt and refuse earlier-salt c
   writeFileSync(file, JSON.stringify({ version: 1, backend: "env-key+aes-gcm", entries: { [ref]: sealed } }));
   resetSecretStoreCache();
   const reopened = runWithMolisWorkHome(home, createFileSecretStore), before = homeStorageTree(home);
-  assert.equal(reopened.get(ref), null, "earlier-salt ciphertext cannot become plaintext through a second derivation");
+  assert.throws(() => reopened.get(ref), { code: "storage.secret_entry_decryption_failed" }, "earlier-salt ciphertext cannot become plaintext through a second derivation");
   assert.throws(() => inspectSealedSecretsSnapshot(home, readFileSync(file, "utf8")), { code: "storage.secrets_snapshot.integrity_failed" });
   assert.deepEqual(homeStorageTree(home), before);
 });

@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readNativePluginJsonBody, writeNativePluginJsonResponse } from "../native-plugin-http.js";
+import { localizeWebErrorMessage, readErrorWord } from "../ui-error-words.js";
 import { type BrowserHost } from "./browser-host.js";
 import type { BrowserSiteDecisions } from "./browser-surfaces.js";
 
@@ -28,7 +29,7 @@ export async function handleBrowserHttp(request: IncomingMessage, response: Serv
     if (request.method === "GET") { writeNativePluginJsonResponse(response, { status: 200, body: { enabled: ports.sites.assistantEnabled } }); return true; }
     if (request.method === "POST") {
       const body = await readNativePluginJsonBody(request, 1_000).catch(() => ({} as Record<string, unknown>));
-      if (typeof body.enabled !== "boolean") { writeNativePluginJsonResponse(response, { status: 400, body: { error: "请说明开还是关" } }); return true; }
+      if (typeof body.enabled !== "boolean") { writeNativePluginJsonResponse(response, { status: 400, body: { error: readErrorWord("common.error.invalid") } }); return true; }
       ports.sites.setAssistantEnabled(body.enabled);
       writeNativePluginJsonResponse(response, { status: 200, body: { enabled: ports.sites.assistantEnabled } });
       return true;
@@ -41,11 +42,11 @@ export async function handleBrowserHttp(request: IncomingMessage, response: Serv
       try {
         const body = await readNativePluginJsonBody(request, 10_000);
         const decision = body.decision === "allow" || body.decision === "block" || body.decision === "forget" ? body.decision : null;
-        if (!decision || typeof body.scope !== "string") throw new Error("请说明是哪个网站、怎样处理");
+        if (!decision || typeof body.scope !== "string") throw new Error(readErrorWord("common.error.invalid"));
         const sites = ports.sites.set(body.scope, decision);
         ports.decideSite?.({ scope: body.scope, decision });
         writeNativePluginJsonResponse(response, { status: 200, body: { sites } });
-      } catch (error) { writeNativePluginJsonResponse(response, { status: 400, body: { error: error instanceof Error ? error.message : String(error) } }); }
+      } catch (error) { writeNativePluginJsonResponse(response, { status: 400, body: { error: localizeWebErrorMessage(error, "common.error.invalid") } }); }
       return true;
     }
   }
@@ -53,19 +54,19 @@ export async function handleBrowserHttp(request: IncomingMessage, response: Serv
   if (!match) return false;
   const projectId = decodeURIComponent(match[1]!);
   const json = (status: number, body: unknown) => writeNativePluginJsonResponse(response, { status, body });
-  if (!await ports.projectExists(projectId)) { json(404, { error: "找不到这个项目" }); return true; }
+  if (!await ports.projectExists(projectId)) { json(404, { error: readErrorWord("common.error.not-found") }); return true; }
   const page = ports.browsers().existingPage(projectId);
   try {
     if (match[2] === "capture" && request.method === "POST") {
-      if (!page) { json(409, { error: "侧栏浏览器还没有打开页面" }); return true; }
+      if (!page) { json(409, { error: readErrorWord("common.error.browser-no-page") }); return true; }
       json(200, { capture: await page.capture() });
       return true;
     }
     if (match[2] === "upload" && request.method === "POST") {
-      if (!page) { json(409, { error: "页面已经不再等待选择文件" }); return true; }
+      if (!page) { json(409, { error: readErrorWord("common.error.conflict") }); return true; }
       const body = await readNativePluginJsonBody(request, Math.ceil(MAX_UPLOAD_BYTES * 1.4));
       const files = Array.isArray(body.files) ? body.files as Array<{ name?: unknown; data?: unknown }> : [];
-      if (!files.length) { json(400, { error: "没有选择文件" }); return true; }
+      if (!files.length) { json(400, { error: readErrorWord("common.error.invalid") }); return true; }
       const dir = path.join(ports.browsers().uploadsRoot, randomUUID());
       fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
       let total = 0;
@@ -73,7 +74,7 @@ export async function handleBrowserHttp(request: IncomingMessage, response: Serv
         const name = String(file.name ?? "file").replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").slice(0, 200) || "file";
         const bytes = Buffer.from(String(file.data ?? ""), "base64");
         total += bytes.byteLength;
-        if (total > MAX_UPLOAD_BYTES) throw browserErrors.load_failed("文件太大了（上限 64 MB）");
+        if (total > MAX_UPLOAD_BYTES) throw browserErrors.load_failed(readErrorWord("common.error.browser-file-too-large"));
         const target = path.join(dir, name);
         fs.writeFileSync(target, bytes, { mode: 0o600 });
         return target;
@@ -85,7 +86,7 @@ export async function handleBrowserHttp(request: IncomingMessage, response: Serv
     if (match[3] && request.method === "GET") {
       const download = page?.download(match[3]);
       const file = ports.browsers().downloadPath(match[3]);
-      if (!download || download.state !== "completed" || !fs.existsSync(file)) { json(404, { error: "这个下载不存在或还没完成" }); return true; }
+      if (!download || download.state !== "completed" || !fs.existsSync(file)) { json(404, { error: readErrorWord("common.error.browser-download-missing") }); return true; }
       response.writeHead(200, {
         "content-type": "application/octet-stream",
         "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(download.filename)}`,
@@ -95,10 +96,10 @@ export async function handleBrowserHttp(request: IncomingMessage, response: Serv
       fs.createReadStream(file).pipe(response);
       return true;
     }
-    json(405, { error: "不支持这个请求" });
+    json(405, { error: readErrorWord("common.error.method-not-allowed") });
     return true;
   } catch (error) {
-    json(isBrowserError(error) ? 409 : 500, { error: error instanceof Error ? error.message : String(error) });
+    json(isBrowserError(error) ? 409 : 500, { error: localizeWebErrorMessage(error, isBrowserError(error) ? "common.error.conflict" : "common.error.internal") });
     return true;
   }
 }

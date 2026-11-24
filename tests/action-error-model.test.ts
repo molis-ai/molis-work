@@ -272,3 +272,40 @@ test("a Runtime route answers a failure with the status of its kind: the platfor
     assert.equal(typeof body.error, "string", name);
   }
 });
+
+test("Host error edge localizes account.*, technical leaks, and opposite-language strings in zh/en/ja while preserving code and details", async () => {
+  const { localizeActionErrorResponse, localizeWebErrorBody } = await import("../apps/local-host/dist/ui-error-words.js");
+  // Upstream account.* raw English is localized cleanly in zh, en, and ja.
+  const expiredZh = localizeActionErrorResponse(new ActionError("account.login_required", "Account session has expired", { kind: "forbidden", details: { step: "me" } }), "zh");
+  assert.equal(expiredZh.status, 403);
+  assert.equal(expiredZh.body.code, "account.login_required");
+  assert.deepEqual(expiredZh.body.details, { step: "me" });
+  assert.match(expiredZh.body.error, /登录已过期/u);
+  const expiredEn = localizeActionErrorResponse(new ActionError("account.login_required", "Account session has expired", { kind: "forbidden" }), "en");
+  assert.match(expiredEn.body.error, /session expired/i);
+  const expiredJa = localizeActionErrorResponse(new ActionError("account.login_required", "Account session has expired", { kind: "forbidden" }), "ja");
+  assert.match(expiredJa.body.error, /有効期限が切れました/u);
+
+  // Technical leaks (Prologue codes, SYNC_*, AJV pointers, OS paths) never pass through.
+  for (const raw of [
+    "MODEL_HTTP_ERROR: 503 Service Unavailable",
+    "SYNC_RATE_LIMITED: retry after 60s",
+    "输入不符合能力合同：/title must NOT have fewer than 1 characters",
+    "ENOENT: no such file, open /Users/alice/secret.txt",
+    "fetch failed",
+  ]) {
+    for (const locale of ["zh", "en", "ja"] as const) {
+      const body = localizeWebErrorBody(500, { error: raw, code: "actions.execution_failed", call_id: "diag-1" }, locale) as { error: string; call_id: string };
+      assert.equal(body.call_id, "diag-1");
+      assert.doesNotMatch(body.error, /MODEL_HTTP_ERROR|SYNC_RATE_LIMITED|\/title|\/Users\/|ENOENT|fetch failed/u, `${locale}: ${raw}`);
+    }
+  }
+
+  // Opposite-language domain errors are mapped cleanly by status/code; same-language domain errors are preserved.
+  const zhDomainInZh = localizeWebErrorBody(404, { error: "找不到这件待办，可能已被删除", code: "todo.not_found" }, "zh") as { error: string };
+  assert.equal(zhDomainInZh.error, "找不到这件待办，可能已被删除");
+  const zhDomainInEn = localizeWebErrorBody(404, { error: "找不到这件待办，可能已被删除", code: "todo.not_found" }, "en") as { error: string };
+  assert.doesNotMatch(zhDomainInEn.error, /\p{Script=Han}/u);
+  const zhDomainInJa = localizeWebErrorBody(404, { error: "找不到这件待办，可能已被删除", code: "todo.not_found" }, "ja") as { error: string };
+  assert.match(zhDomainInJa.error, /[\p{Script=Hiragana}\p{Script=Katakana}]/u);
+});

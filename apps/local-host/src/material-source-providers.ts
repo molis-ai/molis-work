@@ -2,6 +2,7 @@ import { decodeMaterialHTMLEntities, fetchMaterialPublicBytes, isMaterialSourceF
 import { extractUploadedMaterial, type UploadedMaterial, type MaterialUploadOptions, type MaterialUploadRequest } from "./material-upload.js";
 import { isMaterialFailure } from "./material-text.js";
 import type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { activeLocale, DEFAULT_WEB_LOCALE, pageLocale, webLanguage } from "./web-locale.js";
 
 type MaterialSourceMaterial = MaterialSourceContent;
 export interface MaterialSourceOptions extends MaterialUploadOptions {
@@ -13,7 +14,16 @@ export interface MaterialSourceOptions extends MaterialUploadOptions {
   extractMaterial?: (home: string, upload: MaterialUploadRequest, options?: MaterialUploadOptions) => Promise<UploadedMaterial>;
 }
 const desktopAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
-const pageHeaders = { "user-agent": desktopAgent, "accept-language": "zh-CN,zh;q=0.9", accept: "text/html,application/xhtml+xml,application/json" };
+function acceptLanguageHeader(): string {
+  const tag = activeLocale() ?? pageLocale() ?? DEFAULT_WEB_LOCALE;
+  const intl = webLanguage(tag)?.intl ?? tag;
+  const base = tag.split("-")[0]?.toLowerCase() ?? "en";
+  if (base === "en") return `${intl},en;q=0.9`;
+  return `${intl},${base};q=0.9,en;q=0.5`;
+}
+function pageHeaders(): Record<string, string> {
+  return { "user-agent": desktopAgent, "accept-language": acceptLanguageHeader(), accept: "text/html,application/xhtml+xml,application/json" };
+}
 const maxBinary = 25 * 1024 * 1024;
 function object(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function array(value: unknown): unknown[] { return Array.isArray(value) ? value : []; }
@@ -122,7 +132,7 @@ function fetcher(options: MaterialSourceOptions) {
   };
 }
 async function readPage(url: string, options: MaterialSourceOptions): Promise<{ html: string; response: MaterialPublicResponse }> {
-  checkAborted(options); const response = await fetcher(options)(url, { maxBytes: 4_000_000, headers: pageHeaders, signal: options.signal });
+  checkAborted(options); const response = await fetcher(options)(url, { maxBytes: 4_000_000, headers: pageHeaders(), signal: options.signal });
   if (!/text\/html|application\/xhtml\+xml/iu.test(response.type)) throw materialSourceErrors.unsupported("来源没有返回公开网页");
   return { html: response.data.toString("utf8"), response };
 }
@@ -135,7 +145,7 @@ function extensionFor(type: string, fallback: "audio" | "video" | "image"): stri
 }
 async function remoteMaterial(home: string, url: string, kind: "audio" | "video" | "image", referer: string, options: MaterialSourceOptions, maxBytes = maxBinary): Promise<{ extraction: UploadedMaterial; bytes: number }> {
   checkAborted(options); if (!https(url)) throw materialSourceErrors.invalid_media("媒体必须使用公开 HTTPS 地址");
-  const response = await fetcher(options)(url, { maxBytes, headers: { ...pageHeaders, accept: `${kind}/*,application/octet-stream`, referer: safeReferer(referer) }, signal: options.signal });
+  const response = await fetcher(options)(url, { maxBytes, headers: { ...pageHeaders(), accept: `${kind}/*,application/octet-stream`, referer: safeReferer(referer) }, signal: options.signal });
   const extension = extensionFor(response.type, kind);
   const extraction = await (options.extractMaterial ?? extractUploadedMaterial)(home, { file_name: `来源素材.${extension}`, data_base64: response.data.toString("base64"), allow_model_download: options.allow_model_download === true }, options);
   return { extraction, bytes: response.data.length };
@@ -151,7 +161,7 @@ async function bilibili(home: string, source: string, options: MaterialSourceOpt
   if (classifyMaterialSource(response.final_url) !== "bilibili" || new URL(response.final_url).hostname === "b23.tv") throw materialSourceErrors.redirect_mismatch("短链接未跳转到B站视频页");
   const state = object(materialSourceEmbeddedJSON(html, "__INITIAL_STATE__")); const video = object(state.videoData); const bvid = video.bvid ?? state.bvid; const cid = Number(video.cid ?? state.cid);
   if (typeof bvid !== "string" || !/^BV[A-Za-z\d]+$/u.test(bvid) || !Number.isSafeInteger(cid) || cid <= 0) throw materialSourceErrors.unavailable("B站公开页缺少视频身份；原链接保留");
-  const query = new URLSearchParams({ bvid, cid: String(cid) }); const request = fetcher(options); const headers = { ...pageHeaders, referer: safeReferer(response.final_url) };
+  const query = new URLSearchParams({ bvid, cid: String(cid) }); const request = fetcher(options); const headers = { ...pageHeaders(), referer: safeReferer(response.final_url) };
   const player = apiData(await request(`https://api.bilibili.com/x/player/v2?${query}`, { maxBytes: 4_000_000, headers, signal: options.signal }));
   const rank = (language: unknown) => ["zh-hans", "zh-cn", "zh", "ai-zh"].indexOf(String(language).toLowerCase());
   const subtitles = array(object(player.subtitle).subtitles).map(object).sort((a, b) => (rank(a.lan) < 0 ? 100 : rank(a.lan)) - (rank(b.lan) < 0 ? 100 : rank(b.lan)));
@@ -210,7 +220,7 @@ export async function readMaterialSource(home: string, source: string, options: 
     case "xiaoyuzhou": return xiaoyuzhou(home, source, options);
     case "xiaohongshu": return xiaohongshu(home, source, options);
     case "article": {
-      const response = await fetcher(options)(source, { maxBytes: 4_000_000, headers: pageHeaders, signal: options.signal });
+      const response = await fetcher(options)(source, { maxBytes: 4_000_000, headers: pageHeaders(), signal: options.signal });
       if (/html/iu.test(response.type)) { const article = materialHTMLArticle(response.data.toString("utf8")); return { ...article, source_url: source, provider: "article", extractor: "public-html", coverage: coverage(["提取公开网页正文，未读取嵌入音视频和图片"], true) }; }
       if (/text\/(plain|markdown)/iu.test(response.type)) { const text = response.data.toString("utf8"); return { text, source_url: source, provider: "article", extractor: "public-text", coverage: coverage([], !!text.trim()) }; }
       throw materialSourceErrors.unsupported("来源不属于可读网页；可以上传文件继续");

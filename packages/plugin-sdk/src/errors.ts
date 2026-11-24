@@ -1,5 +1,6 @@
 import { isRecord } from "./json-value.js";
 import { ACTION_ERROR_CODE, ACTION_ERROR_KIND_NAMES, ActionError, isActionErrorKind, platformErrorKind, type ActionErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
 
 // One error model (specs/archive/repository-anti-corruption W3-02): the transport derives the status from the failure's kind, and every
 // entry writes the same body, { error, code, details? }. Failures are read by shape, never by `instanceof`: a Runtime bundle or the
@@ -14,6 +15,27 @@ const STATUS_KIND = new Map(ACTION_ERROR_KIND_NAMES.map(kind => [KIND_STATUS[kin
 /** The code of a failure that has none of ours: it is a bug or an outage, not a mistake of the caller. */
 const FALLBACK_CODE = "actions.execution_failed";
 const FALLBACK_MESSAGE = "能力执行失败";
+const UI_TEXT_CONTEXT_KEY = "molis.work.ui-text.v1";
+const FALLBACK_ERROR_KEY = "common.error.internal";
+const FALLBACK_BY_LANGUAGE: Readonly<Record<string, string>> = {
+  zh: FALLBACK_MESSAGE,
+  en: "Something went wrong. Please try again.",
+  ja: "処理に失敗しました。しばらくしてからもう一度お試しください。",
+};
+
+/** Resolve the generic failure fallback in the active UI locale when a UI text context is installed. */
+function fallbackMessage(): string {
+  const provider = Reflect.get(globalThis, Symbol.for(UI_TEXT_CONTEXT_KEY)) as UiTextProvider | undefined;
+  const locale = provider?.locale?.();
+  if (!provider || typeof locale !== "string" || !locale.trim()) return FALLBACK_MESSAGE;
+  const parts = locale.trim().split("-");
+  for (let len = parts.length; len > 0; len -= 1) {
+    const candidate = provider.message("workbench", FALLBACK_ERROR_KEY, parts.slice(0, len).join("-"));
+    if (typeof candidate === "string" && candidate.trim().length > 0) return candidate;
+  }
+  const base = parts[0]?.toLowerCase() ?? "";
+  return FALLBACK_BY_LANGUAGE[base] ?? FALLBACK_BY_LANGUAGE.en!;
+}
 
 export interface ActionErrorBody {
   /** The message, in the language the exit's `translate` hook gives it (none by default). */
@@ -74,7 +96,8 @@ export function actionHttpStatus(error: unknown): number {
 
 export function actionErrorBody(error: unknown, options: ActionErrorBodyOptions = {}): ActionErrorBody {
   const failure = codedFailure(error);
-  const message = failure?.message || (error instanceof Error && error.message) || FALLBACK_MESSAGE;
+  const raw = failure?.message || (error instanceof Error && error.message) || "";
+  const message = !raw || (raw === FALLBACK_MESSAGE && !options.translate) ? fallbackMessage() : raw;
   return {
     error: options.translate ? options.translate(message) : message,
     code: failure?.code ?? FALLBACK_CODE,
@@ -91,6 +114,7 @@ export function actionErrorFromResponse(status: number, body: unknown): ActionEr
   const answer = isRecord(body) ? body : {};
   const kind = STATUS_KIND.get(status) ?? (status >= 400 && status < 500 ? "invalid" : "internal");
   const code = isModelCode(answer.code) ? answer.code : FALLBACK_CODE;
-  const message = typeof answer.error === "string" && answer.error !== "" ? answer.error : FALLBACK_MESSAGE;
+  const raw = typeof answer.error === "string" && answer.error !== "" ? answer.error : "";
+  const message = !raw || raw === FALLBACK_MESSAGE ? fallbackMessage() : raw;
   return new ActionError(code, message, { kind, ...(isRecord(answer.details) ? { details: answer.details } : {}) });
 }

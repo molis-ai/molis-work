@@ -9,6 +9,7 @@ import { homeToolKeysScript } from "@molis-ai/molis-work-app-workbench";
 import type { HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { discussionSurfaces, type DiscussionProjectLookup } from "./im-discussion-surfaces.js";
+import { localizeWebErrorMessage, readErrorWord } from "./ui-error-words.js";
 
 /** Only the IM surface is mounted here; the shared server owns identity and transport. */
 export function createLocalImServer(homeDirectory: string, projectFor?: DiscussionProjectLookup, localHost?: MolisWorkLocalHost) {
@@ -37,7 +38,7 @@ export function createLocalImServer(homeDirectory: string, projectFor?: Discussi
       if (!connect && url.pathname !== "/im" && !url.pathname.startsWith("/im/")) return false;
       if (stopping) {
         response.writeHead(503, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        response.end(JSON.stringify({ code: "im.stopping", error: "工作台正在关闭，请稍后重新连接" }));
+        response.end(JSON.stringify({ code: "im.stopping", error: readErrorWord("common.error.service-stopping") }));
         return true;
       }
       const host = request.headers.host;
@@ -49,7 +50,7 @@ export function createLocalImServer(homeDirectory: string, projectFor?: Discussi
         origin = address.origin;
       } catch {
         response.writeHead(403, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        response.end(JSON.stringify({ code: "im.server.host_denied", error: "群聊服务地址不匹配" }));
+        response.end(JSON.stringify({ code: "im.server.host_denied", error: readErrorWord("common.error.forbidden") }));
         return true;
       }
       const current = resources ??= initialize();
@@ -57,12 +58,12 @@ export function createLocalImServer(homeDirectory: string, projectFor?: Discussi
       // operator bridge is unavailable on the shared/public Server transport.
       if (connect) {
         try {
-          if (request.method !== 'POST' || !projectFor) throw new Error('不支持此项目连接');
+          if (request.method !== 'POST' || !projectFor) throw new Error(readErrorWord("common.error.method-not-allowed"));
           let project: { id: string; title: string } | null;
           // A catalog that cannot be read is the service's failure (written where it was read), not a project the caller may not join.
           try { project = await projectFor(decodeURIComponent(connect[1]!)); }
-          catch { response.writeHead(500, { 'content-type': 'application/json', 'cache-control': 'no-store' }); response.end(JSON.stringify({ code: 'im.server.catalog_unavailable', error: '项目目录暂时读不到，请稍后再试' })); return true; }
-          if (!project) throw new Error('找不到此项目');
+          catch { response.writeHead(500, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); response.end(JSON.stringify({ code: 'im.server.catalog_unavailable', error: readErrorWord("common.error.unavailable") })); return true; }
+          if (!project) throw new Error(readErrorWord("common.error.not-found"));
           let session = current.identity.session(request);
           const stored = current.continuity.projectOwner(project.id);
           // Possession of the host control token authorizes this local operator.
@@ -80,8 +81,8 @@ export function createLocalImServer(homeDirectory: string, projectFor?: Discussi
           response.writeHead(200,{'content-type':'application/json','cache-control':'no-store'});
           response.end(JSON.stringify({ok:true}));
         } catch (error) {
-          response.writeHead(403,{'content-type':'application/json','cache-control':'no-store'});
-          response.end(JSON.stringify({error:error instanceof Error ? error.message : '项目连接失败'}));
+          response.writeHead(403,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});
+          response.end(JSON.stringify({error:localizeWebErrorMessage(error, "common.error.forbidden")}));
         }
         return true;
       }

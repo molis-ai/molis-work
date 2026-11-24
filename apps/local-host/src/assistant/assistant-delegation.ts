@@ -3,8 +3,11 @@ import { roleKey } from "./assistant-characters.js";
 import { cutHead, cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { MATERIAL_PART_UNITS } from "./assistant-material-parts.js";
 import { takeBackAssistantWork } from "./assistant-work-control.js";
-import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { numberArg, say, t, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
+import { baseLanguageOf, sanitizeErrorForNotice } from "../ui-error-words.js";
+import { hasHostUiText } from "../ui-text-provider.js";
+import { activeLocale, DEFAULT_WEB_LOCALE, pageLocale } from "../web-locale.js";
 import { eventBehind } from "./assistant-line-actions.js";
 import { deliveryOf, handedBackLines, hangRequirements, readStanding, requirementsBrief, type WorkAcceptancePort } from "./assistant-delegated-delivery.js";
 export type { WorkAcceptancePort } from "./assistant-delegated-delivery.js";
@@ -414,7 +417,17 @@ export class AssistantDelegations {
       if (!stillCurrent()) return;
       if (auto >= DELEGATION_LIMITS.autoRounds) {
         this.#refused.add(ready.request_key);
-        this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original: `已经连续自己接着做了 ${DELEGATION_LIMITS.autoRounds} 轮，先停下来等你看一眼；你再说一句，它就接着做` }, key);
+        const locale = activeLocale() ?? pageLocale() ?? DEFAULT_WEB_LOCALE;
+        const count = DELEGATION_LIMITS.autoRounds;
+        const fallback = baseLanguageOf(locale) === "zh"
+          ? `已连续自动推进了 ${count} 轮，先停下来等你看看进展；你再说一句，它就会接着做。`
+          : baseLanguageOf(locale) === "ja"
+            ? `自動で ${count} ターン続けたため、確認のためいったん停止しました。メッセージを送ると再開します。`
+            : `Ran ${count} turns on its own and paused for your check-in. Send a message whenever you’re ready for it to continue.`;
+        const original = hasHostUiText()
+          ? say.text({ owner: "workbench", key: "workbench.assistant-notice.handoff-auto-limit", args: textArgs({ count: numberArg(count, "decimal") }), fallback }, { locale })
+          : fallback;
+        this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original }, key);
         return;
       }
       if (this.ports.stepGate && !this.ports.stepGate.pass(parent, "hand-back", ready.request_key, latest.ref.run_id)) return;
@@ -427,7 +440,7 @@ export class AssistantDelegations {
           : `（子任务都已交回）请核对${names}的结果，把这项工作接着做完。`, [], "host", key, stillCurrent);
       } catch (error) {
         this.#refused.add(ready.request_key);
-        this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original: error instanceof Error ? error.message : String(error) }, key);
+        this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original: sanitizeErrorForNotice(error) }, key);
       }
     } finally { this.#continuing.delete(parent.work_id); }
   }

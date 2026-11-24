@@ -1,7 +1,9 @@
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { numberArg, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import type { AssistantUsage, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
+import { readAssistantErrorWord } from "./assistant-error.js";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
 import { RUNTIME, type AssistantServicePorts } from "./assistant-service-shared.js";
@@ -62,10 +64,12 @@ export class AssistantBudget {
   /** The person's cap on one work (its sub-tasks included), or none. A sub-task is held to its delegating work's cap. */
   async saveWorkBudget(workId: string, tokens: unknown): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
-    if (work.delegated_by) throw assistantErrors.invalid(`子任务按委托它的工作「${work.delegated_by.title}」的上限计算，请在那项工作里设置`);
-    if (work.executor.kind === "plugin") throw assistantErrors.invalid("这项工作由执行方插件负责，它的用量在插件自己的会话里管理");
+    if (work.delegated_by) {
+      throw assistantErrors.invalid(readAssistantErrorWord("workbench.assistant-error.work-budget-delegated", textArgs({ title: work.delegated_by.title })));
+    }
+    if (work.executor.kind === "plugin") throw assistantErrors.invalid(readAssistantErrorWord("workbench.assistant-error.work-budget-plugin"));
     const value = tokens === null || tokens === "" || tokens === undefined ? null : Number(tokens);
-    if (value !== null && (!Number.isSafeInteger(value) || value < 1000)) throw assistantErrors.invalid("这项工作的上限至少 1000 tokens，或留空表示不单独设限");
+    if (value !== null && (!Number.isSafeInteger(value) || value < 1000)) throw assistantErrors.invalid(readAssistantErrorWord("workbench.assistant-error.work-budget-min"));
     this.store.update(this.actorId, workId, null, { budget_tokens: value ?? undefined }, false);
     return this.link.read(workId);
   }
@@ -76,7 +80,10 @@ export class AssistantBudget {
     if (usage.daily_tokens === null) return;
     const used = usage.today.input + usage.today.output;
     if (used >= usage.daily_tokens) {
-      throw assistantErrors.budget(`今天助理已用 ${used.toLocaleString("en-US")} tokens，达到你设的每日上限 ${usage.daily_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。可以明天继续，或在设置里调高上限`, { action: "打开设置", action_kind: "open_assistant_settings" });
+      throw assistantErrors.budget(
+        readAssistantErrorWord("workbench.assistant-error.daily-budget-reached", textArgs({ used: numberArg(used, "decimal"), limit: numberArg(usage.daily_tokens, "decimal") })),
+        { action: readAssistantErrorWord("workbench.assistant-error.open-settings"), action_kind: "open_assistant_settings" },
+      );
     }
   }
 }

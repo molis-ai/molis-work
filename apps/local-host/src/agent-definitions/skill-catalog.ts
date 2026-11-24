@@ -14,6 +14,10 @@ import type { AgentDefinitions } from "./agent-definitions.js";
 import { skillUseVersionKey, USES_KEPT, type SkillSetting } from "./skill-settings.js";
 import { skillSettingReceipt } from "./skill-setting-receipt.js";
 import { KIT_LIMITS, type KitReport } from "@molis-ai/molis-work-contracts/platform/kit-report";
+import { say, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { baseLanguageOf } from "../ui-error-words.js";
+import { hasHostUiText } from "../ui-text-provider.js";
+import { DEFAULT_WEB_LOCALE } from "../web-locale.js";
 
 /** Ephemeral projection of the existing installation and Agent definition owners, never a second register. */
 export interface CatalogSkill {
@@ -218,15 +222,26 @@ export class SkillCatalog {
    */
   async kitReport(caller: ActionCallContext): Promise<KitReport> {
     const { skills, scenes } = await this.list(caller, {}), counts = this.ports.definitions.skills.useCounts();
-    const english = caller.locale === "en";
+    const locale = caller.locale ?? DEFAULT_WEB_LOCALE;
+    const lang = baseLanguageOf(locale);
+    const assistantFallback = lang === "zh" ? "助理" : lang === "ja" ? "アシスタント" : "Assistant";
+    const assistantLabel = hasHostUiText()
+      ? say.text({ owner: "workbench", key: "workbench.skill-catalog.assistant", fallback: assistantFallback }, { locale })
+      : assistantFallback;
+    const versionLabel = (version: number) => {
+      const fallback = lang === "zh" ? `第 ${version} 版` : `v${version}`;
+      return hasHostUiText()
+        ? say.text({ owner: "workbench", key: "workbench.skill-catalog.version-label", args: textArgs({ version }), fallback }, { locale })
+        : fallback;
+    };
     const active = scenes ?? skillSceneChoicesOf(builtinActiveSkillScenes());
     const sceneNames = new Map(active.map(row => [row.scene, row.name]));
-    const forWhom = (entry: string) => entry === "assistant" ? (english ? "Assistant" : "助理") : sceneNames.get(entry) ?? entry;
+    const forWhom = (entry: string) => entry === "assistant" ? assistantLabel : sceneNames.get(entry) ?? entry;
     return { entries: skills.map(skill => {
       const used = counts.get(settingKey(skill.ref.install_id, skill.ref.skill_id));
       return { kind: "skill" as const, entry_id: settingKey(skill.ref.install_id, skill.ref.skill_id).replace("\0", "/"), name: skill.name, description: skill.description,
         // A copy whose source has a newer version the person has not left says so as a prompt does (design §2.5): the copy stays in use.
-        version: { label: english ? `v${skill.ref.version}` : `第 ${skill.ref.version} 版`, ...skill.based_on?.newer_version
+        version: { label: versionLabel(skill.ref.version), ...skill.based_on?.newer_version
           ? { change: { kind: "default_updated" as const, base_version: skill.based_on.source.version, default_version: skill.based_on.newer_version } } : {} },
         declares: { tools: skill.tools.slice(0, 64), permissions: [], connector_categories: skill.connector_categories.slice(0, 64) }, scope: skill.pack.scope,
         where: skillEntriesOf(skill.applies_to, active.map(row => row.scene)).slice(0, KIT_LIMITS.where).map(forWhom), availability: skill.availability.available

@@ -13,6 +13,61 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
 import { observedScopeInstallations, type ScopeInstallation } from "./scope-installations.js";
+import { say } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { baseLanguageOf } from "./ui-error-words.js";
+import { hasHostUiText } from "./ui-text-provider.js";
+import { DEFAULT_WEB_LOCALE } from "./web-locale.js";
+
+const AUTOMATION_COPY_FALLBACKS = {
+  "workbench.automation-candidates.skill-effect": {
+    zh: "让已安装的技能可以在适用的对话里使用。",
+    en: "Makes this installed skill available in matching conversations.",
+    ja: "インストール済みのスキルを該当する会話で使えるようにします。",
+  },
+  "workbench.automation-candidates.skill-risk-scripts": {
+    zh: "含脚本，启用后仍按原有工具授权执行。",
+    en: "Includes scripts. Existing tool permissions still apply.",
+    ja: "スクリプトを含みます。有効後も既存のツール権限に従って実行されます。",
+  },
+  "workbench.automation-candidates.skill-risk-quota": {
+    zh: "使用技能可能会消耗模型额度。",
+    en: "Using this skill can consume model quota.",
+    ja: "このスキルを使うとモデルの利用枠を消費する場合があります。",
+  },
+  "workbench.automation-candidates.connection-effect": {
+    zh: "完成连接后，可以从这项服务读取你授权的资料。",
+    en: "Reads the materials you grant access to after connecting.",
+    ja: "接続後、許可した資料をこのサービスから読み取れます。",
+  },
+  "workbench.automation-candidates.connection-requirement": {
+    zh: "可授权的服务账号",
+    en: "A service account you can authorize",
+    ja: "認証可能なサービスアカウント",
+  },
+  "workbench.automation-candidates.connection-risk": {
+    zh: "连接会把获准的数据交给这项服务，按对方的权限和计费规则处理。",
+    en: "The connection uses this service’s access and pricing rules.",
+    ja: "接続により許可されたデータがこのサービスへ渡され、サービス側の権限と料金規定が適用されます。",
+  },
+  "workbench.automation-candidates.role-effect": {
+    zh: "可以在适用的工作里把这类核对交给这个角色。",
+    en: "Can take on this kind of review when a role is needed.",
+    ja: "該当するワークでこの種の確認作業をこのロールに任せられます。",
+  },
+  "workbench.automation-candidates.role-risk": {
+    zh: "调用角色会消耗模型额度，工具仍受当前这一轮的权限限制。",
+    en: "Uses model quota and follows the current turn’s tool permissions.",
+    ja: "モデルの利用枠を消費し、ツールの実行は現在のターンの権限に従います。",
+  },
+} as const;
+
+type AutomationCopyKey = keyof typeof AUTOMATION_COPY_FALLBACKS;
+
+function candidateWord(key: AutomationCopyKey, locale: string | undefined): string {
+  const effective = locale ?? DEFAULT_WEB_LOCALE;
+  const fallback = AUTOMATION_COPY_FALLBACKS[key][baseLanguageOf(effective)];
+  return hasHostUiText() ? say.text({ owner: "workbench", key, fallback }, { locale: effective }) : fallback;
+}
 
 const technical = /工程|测试|代码|审查|排错|前端|debug|test|code|review|frontend|lint|typescript/i;
 const changed = () => new ActionError("actions.conflict", "建议的能力来源已变化，请重新查看");
@@ -25,15 +80,15 @@ function skillSignals(skill: SkillCatalogEntry): AutomationSignal[] {
 }
 
 /** Only registrations already visible in the original directories can become candidates. */
-function skillCandidate(skill: SkillCatalogEntry, english: boolean): AutomationCandidate {
+function skillCandidate(skill: SkillCatalogEntry, locale: string | undefined): AutomationCandidate {
   const { ref, pack } = skill;
   return { category: "skills", key: JSON.stringify([ref.source.plugin_id, ref.source.publisher_signature, ref.skill_id]), title: skill.name, names: [ref.skill_id],
     match: skillSignals(skill), existing: skill.state !== "off", reason: skill.when_to_use || skill.description,
-    effect: english ? "Makes this installed skill available in matching conversations." : "让已安装的技能可以在适用的对话里使用。",
+    effect: candidateWord("workbench.automation-candidates.skill-effect", locale),
     requirements: [pack.title + " · " + pack.version, pack.publisher_label, ...skill.tools],
     risk: skill.runs_scripts
-      ? (english ? "Includes scripts. Existing tool permissions still apply." : "含脚本。启用后仍按原工具授权执行。")
-      : (english ? "Using the skill can consume model quota." : "技能可能使用模型额度。"), next: { kind: "skill", ref } };
+      ? candidateWord("workbench.automation-candidates.skill-risk-scripts", locale)
+      : candidateWord("workbench.automation-candidates.skill-risk-quota", locale), next: { kind: "skill", ref } };
 }
 
 /**
@@ -41,7 +96,7 @@ function skillCandidate(skill: SkillCatalogEntry, english: boolean): AutomationC
  * project shows the person works with it, and that can be connected here. Nothing is named in the product: a service without hints is
  * never suggested, one an installed package declares is suggested like a built-in one.
  */
-function connectorCandidates(home: string, registry: IntegrationDeclarationsView, english: boolean) {
+function connectorCandidates(home: string, registry: IntegrationDeclarationsView, locale: string | undefined) {
   // Presence alone avoids proposing a second setup for a service already in the person's directory, including disconnected accounts.
   // No reason to read a token, test a connection or inspect its endpoint.
   const current = () => new Set(withConnectorConnections(home, store => store.list().map(row => row.service_id), true) ?? []);
@@ -56,9 +111,9 @@ function connectorCandidates(home: string, registry: IntegrationDeclarationsView
     if (!projectHints || !canConnect(row)) return [];
     if (!seen.has(id)) hints.push({ service_id: id, ...projectHints });
     return [{ category: "connections", key: id, title: row.title, match: [], service: id, existing: seen.has(id),
-      reason: row.summary, effect: english ? "Reads the material you grant access to after connecting." : "完成接入后，可从该服务读取有权限的资料。",
-      requirements: [english ? "A service account you can authorize" : "可授权的服务账号"],
-      risk: english ? "The connection uses this service’s access and pricing rules." : "连接会把获准的数据交给该服务，按服务的权限和费用规则处理。",
+      reason: row.summary, effect: candidateWord("workbench.automation-candidates.connection-effect", locale),
+      requirements: [candidateWord("workbench.automation-candidates.connection-requirement", locale)],
+      risk: candidateWord("workbench.automation-candidates.connection-risk", locale),
       next: { kind: "connection", service_id: id } }];
   });
   return { rows, hints, assertCurrent: () => {
@@ -74,11 +129,11 @@ function connectorCandidates(home: string, registry: IntegrationDeclarationsView
 export async function automationCandidates(home: string, source: ProjectPluginHost, project: LocalHostProjectReference, caller: ActionCallContext,
   projectAllows: (plugin: string) => boolean | undefined) {
   const rows: AutomationCandidate[] = [], gaps: AutomationGap[] = [];
-  const english = caller.locale?.startsWith("en") ?? false;
+  const locale = caller.locale;
   const running = existingIntegrationRegistry(home);
   const registry = await running?.catch(() => undefined);
   if (running && !registry) gaps.push({ code: "directory-unavailable", category: "connections" });
-  const connectors = connectorCandidates(home, registry ?? builtinIntegrationDeclarations(), english);
+  const connectors = connectorCandidates(home, registry ?? builtinIntegrationDeclarations(), locale);
   rows.push(...connectors.rows);
 
   const definitions = openedAgentDefinitions(home), ledger = new HomeConsentLedger(home);
@@ -107,16 +162,16 @@ export async function automationCandidates(home: string, source: ProjectPluginHo
     for (const skill of skills.skills) {
       if (!skill.availability.available || !track(skill.ref.install_id, skill.ref.installation_generation)) continue;
       settingsRevisions.set(settingsKey(skill.ref.install_id, skill.ref.skill_id), skill.settings_revision);
-      rows.push(skillCandidate(skill, english));
+      rows.push(skillCandidate(skill, locale));
     }
     const roles = projectAgentDefinitionEntries(home, definitions, scope.installations, caller.locale, pins);
     for (const row of roles.entries) {
       if (row.kind !== "role" || row.ref.kind !== "plugin" || !row.role.subagent || !row.availability.available
         || !technical.test(row.name + " " + row.description) || row.source?.kind !== "plugin" || !track(row.source.install_id)) continue;
       rows.push({ category: "roles", key: JSON.stringify([row.ref.owner_id, row.ref.role_id]), title: row.name, names: [row.ref.role_id], match: ["tests", "format", "ci", "frontend"],
-        reason: row.description, effect: english ? "Can take on this kind of review when a role is needed." : "可在适用的工作里把这一类核对交给该角色。",
+        reason: row.description, effect: candidateWord("workbench.automation-candidates.role-effect", locale),
         requirements: [row.source.title + " · " + row.version.label, row.source.publisher_label, ...row.declares.tools],
-        risk: english ? "Uses model quota and the current round’s tool permissions." : "调用角色会使用模型额度，工具仍受本轮权限限制。",
+        risk: candidateWord("workbench.automation-candidates.role-risk", locale),
         next: { kind: "role", owner_id: row.ref.owner_id, role_id: row.ref.role_id, install_id: row.source.install_id, plugin_version: row.source.version } });
     }
   } else gaps.push({ code: "directory-unavailable", category: "skills" }, { code: "directory-unavailable", category: "roles" });

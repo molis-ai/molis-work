@@ -101,7 +101,6 @@ const EMBEDDED_JOIN_ALLOWED: ReadonlyArray<{ readonly file: RegExp; readonly rea
 const JOINED_BASELINE: Readonly<Record<string, number>> = {
   "apps/local-host/src/assistant/assistant-directory.ts": 4,
   "apps/local-host/src/assistant/assistant-followups.ts": 2,
-  "apps/local-host/src/assistant/assistant-present.ts": 2,
   "apps/local-host/src/assistant/assistant-review-words.ts": 2,
   "apps/local-host/src/assistant/assistant-rule-actions.ts": 1,
   "apps/local-host/src/character-native-execution.ts": 1,

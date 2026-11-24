@@ -23,7 +23,7 @@ const readEntries = (storage: Pick<PluginPrivateStorage, "get">) => {
 
 /** The sandbox's storage transactions over the installation's private store: serialized and atomically committed. */
 export function storageTransactions(storage: PluginPrivateStorage): NonNullable<SandboxServices['storage']> {
-  if (!storage.compareAndSet) throw new Error('插件存储不支持原子写入');
+  if (!storage.compareAndSet) throw new SandboxError('sandbox.storage_unsupported', '插件存储不支持原子写入');
   let chain: Promise<unknown> = Promise.resolve();
   return {
     transaction(context, mutate) {
@@ -36,7 +36,7 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
         await context.beforeEffect?.();
         context.signal.throwIfAborted();
         const after = JSON.stringify([...working]);
-        if (after !== before && !storage.compareAndSet!(ENTRIES, raw, after)) throw new Error('数据被同时修改，请重试');
+        if (after !== before && !storage.compareAndSet!(ENTRIES, raw, after)) throw new SandboxError('sandbox.storage_conflict', '数据被同时修改，请重试');
         return result;
       };
       const next = chain.then(run, run);
@@ -73,7 +73,7 @@ export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network'> 
  */
 export function sandboxServicesFor(host: SandboxHostServices | undefined, extras: SandboxHostExtras = {}): SandboxServices {
   const storage = host?.storage;
-  if (!storage) throw new Error('插件存储尚未装配');
+  if (!storage) throw new SandboxError('sandbox.storage_unavailable', '插件存储尚未装配');
   return {
     storage: storageTransactions(storage),
     ...(host.project_statements ? { projectDatabase: sandboxDatabase(host.project_statements) } : {}),
@@ -195,7 +195,7 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
  */
 export function assertSandboxDeclarations(definition: SandboxDeclarations, held: readonly string[]): void {
   try { assertSandboxAgentDefinition(definition); }
-  catch (error) { throw new SandboxError('sandbox.service_not_given', `Sandboxed plugin ${definition.manifest.plugin_id} asks for agent: ${error instanceof Error ? error.message : '沙箱文字声明无效'}`); }
+  catch (error) { throw new SandboxError('sandbox.service_not_given', `Sandboxed plugin ${definition.manifest.plugin_id} asks for agent: ${error instanceof Error ? error.message : 'invalid sandbox text declaration'}`); }
   for (const row of SANDBOX_NOT_GIVEN) {
     if (row.declared(definition, held)) {
       throw new SandboxError('sandbox.service_not_given', `Sandboxed plugin ${definition.manifest.plugin_id} asks for ${row.service}: ${row.reason}`);

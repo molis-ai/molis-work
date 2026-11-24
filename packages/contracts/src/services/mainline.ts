@@ -206,6 +206,8 @@ export interface Mainline {
 export interface MainlineItemSource { kind: string; owner: string; create: boolean; next: boolean }
 /** How many things wait on the person and are under way, per item and per group, from one line read. */
 export interface MainlineCounts {
+  /** A task has one label only when its owner declares its item or exactly one open item holds it. */
+  task_items?: Array<{ subject: ActionSubject; item_id: string }>;
   items: Record<string, { waiting: number; running: number }>;
   groups: Record<string, { waiting: number; running: number }>;
 }
@@ -385,7 +387,7 @@ export const mainlineItemActions = {
   read: { capability_id: "mainline.read", version: /* @version action.mainline.read */ 1, operation: "query", action: { ...reads,
     title: "主线", description: "读取本人在这个项目里的主线：事项、分组与顺序、当前事项、最近切过的和已完成的；带 counts 时一次给出每件事项与每组等你、在跑的数。只读。",
     input_schema: inputSchemaFor<MainlineReadRequest>()({ type: "object", properties: { counts: { type: "boolean" } }, additionalProperties: false } as const),
-    output_schema: { type: "object", properties: { mainline: MAINLINE_SCHEMA, sources: SOURCES_SCHEMA, counts: { type: "object", properties: { items: tally, groups: tally }, required: ["items", "groups"], additionalProperties: false } },
+    output_schema: { type: "object", properties: { mainline: MAINLINE_SCHEMA, sources: SOURCES_SCHEMA, counts: { type: "object", properties: { items: tally, groups: tally, task_items: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, item_id: { type: "string" } }, required: ["subject", "item_id"], additionalProperties: false } } }, required: ["items", "groups"], additionalProperties: false } },
       required: ["mainline", "sources"], additionalProperties: false } } } as ActionDefinition<MainlineReadRequest, MainlineReadResult>,
   subject: defineSubjectContextAction("mainline.subject.read", /* @version action.mainline.subject.read */ 1, WORK_ITEM_KIND, "事项", [MAINLINE_READ_PERMISSION]),
   create: { capability_id: "mainline.items.create", version: /* @version action.mainline.items.create */ 1, operation: "command", action: { ...writes,

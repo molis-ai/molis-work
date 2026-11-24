@@ -3,7 +3,7 @@ Follow the mounted design and experience chapters for scope, operation boundarie
 
 ## Modes
 1. propose: return {"questions":["…"],"summary":"…"} (1–3 questions) only when genuine ambiguity would materially change the product and clarificationAllowed is true. Otherwise return {"summary":"1–2 sentences of understanding and assumptions","candidates":[2 or 3 structurally distinct proposals]}. Each proposal has id, title, description, rationale, journey, operations (id, kind, description, input, output only) and pages (parts with id, intent, purpose, uses only).
-2. detail: bind the chosen proposal and experience sketch into concrete parts without losing inline actions or adding steps, turn scenarios into acceptance (never seeded store data), and keep chosen effects.capabilities. Return {"summary":"…","design":{title, description, journey, operations, states, pages, acceptance, uiText}}.
+2. detail: bind the chosen proposal and experience sketch into concrete parts without losing inline actions or adding steps, turn scenarios into acceptance (never seeded store data), keep chosen effects.capabilities, and choose design.icon from iconNames for the plugin’s purpose. Return {"summary":"…","design":{icon, title, description, journey, operations, states, pages, acceptance, uiText}}.
 3. revise: revise current per request and return {"summary":"What changed and what stayed","design":{…complete revised design…}}, keeping unrequested operations and parts identical. For code-only behavior changes under an unchanged contract, add "rework":[{"op":"operation id","why":"concrete code change within 600 chars"}].
 4. If repair is present, fix only repair.validationError in repair.previousAnswer and return the full JSON.
 
@@ -30,6 +30,7 @@ Shape: "pages":[{"id":"home","title":"Quick notes","parts":[…]}]. Part shape: 
   - input: "submit":"opId" (or command display {"op":"concepts.ask","show":"question"}, prefill {"op":"concepts.add","input":{"question":"prefill:asker.question"}});
   - action: "submit":{"op":"notes.remove","input":{"id":"selection:notes.id"}} (selection: must reference a real part ID on the same page).
 - Allowed props keys only: title, description, submitLabel, requiredText, emptyText, idField, titleField, textField, columns ([{"field","label","values?"}]). See the mounted design standard for filters, metrics, row buttons and directory-detail rules.
+- Attach the platform account picker to the form that performs the original command. For example, a GitHub memo form is {"id":"memo","intent":"input","purpose":"Save the account memo","submit":"notes.save","connectionNeed":{"slot_id":"source"}}. The shell supplies the picker, Cancel and Retry inside that form. Use the memo form’s ID for that interaction. In unbound preview acceptance, fill it, submit, then assert the draft with {"action":"expectValue","componentId":"memo","field":"text","value":"draft"} using the actual command field. Exercise account selection, cancellation and binding failure after installation. The faultRead and retry steps target read queries only.
 
 ## Acceptance (detail / revise)
 Required. Each case starts empty with real UI steps and at least one assertion (see mounted design standard for stand-in and negative-case semantics):
@@ -45,7 +46,7 @@ When input includes uiText, write complete design.uiText with each tag from avai
 
 Example detail response, for syntax only. Its short text, part order and flow are not a template for other work. The selected experience and scenarios take priority.
 
-{"summary":"The selected Quick notes design writes, reads and removes on one page.","design":{"title":"Quick notes","description":"Save a sentence and see the latest on top","journey":["Write and save a sentence","See it at the top","Select a mistaken note and remove it"],"operations":[
+{"summary":"The selected Quick notes design writes, reads and removes on one page.","design":{"icon":"note","title":"Quick notes","description":"Save a sentence and see the latest on top","journey":["Write and save a sentence","See it at the top","Select a mistaken note and remove it"],"operations":[
  {"id":"notes.list","kind":"query","description":"List newest notes first","input":{},"output":[{"id":"string","text":"string"}],"effects":{"storage":["read"]},"examples":[{"input":{},"output":[]}]},
  {"id":"notes.add","kind":"command","description":"Save a note","input":{"text":"string(1..500) Note text"},"output":{"id":"string","text":"string"},"effects":{"storage":["read","write"]},"examples":[{"input":{"text":"Buy milk"},"includes":{"text":"Buy milk"}}]},
  {"id":"notes.remove","kind":"command","description":"Remove a note","input":{"id":"string"},"output":{"removed":"boolean"},"effects":{"storage":["read","write"]},"errors":[{"code":"not_found","description":"Note not found"}],"examples":[{"input":{"id":"missing"},"error":"not_found"}]}],

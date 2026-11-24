@@ -14,6 +14,7 @@ import { parsePluginManifest } from "./manifest.js";
 
 export { SANDBOX_VALIDATE_UPGRADE, assertSandboxUpgradeValidator, sandboxUpgradeOperation } from "./sandbox-actions.js";
 export { sandboxPluginManifest, sandboxIntegrationManifest, sandboxDerivedPermissions, sandboxRequestedPermissions, sandboxOperationPermissions, sandboxProjectedPermissions, sandboxOperationSwitches, SANDBOX_IMAGE_PERMISSIONS, effectsFromContract, type SandboxManifestInput, type SandboxIntegrationManifestInput } from "./sandbox-manifest.js";
+export { parseConnectionSlots } from "./connection-declarations.js";
 export { parseSandboxUi, sandboxUiContribution, sandboxUiDeclaration, type SandboxUiContribution } from "./sandbox-ui.js";
 export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandboxOperationEffects, sandboxBackgroundProblems, sandboxStartProblems } from "./sandbox-actions.js";
 export { sandboxStateMachineDeclarations, sandboxStateMachineProblems } from "./sandbox-state-machines.js";

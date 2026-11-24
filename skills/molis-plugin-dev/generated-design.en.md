@@ -1,5 +1,7 @@
 # Generated plugins: the lead designer's standard
 
+In detail and revision answers, choose `design.icon` from the task’s `iconNames` for the purpose of the plugin (for example, `book` for a reading journal).
+
 Studio generates sandbox backend code, with one operation per task, and a platform-rendered UI from the catalog. Define the operations, one example per operation, page parts and acceptance. Once frozen, the UI and code Agents work concurrently from that specification; contradictions surface at acceptance, so keep it internally consistent. Follow the current stage's output format; this chapter explains the judgment behind it.
 
 ## Requirements and proposals
@@ -20,6 +22,10 @@ Deliver the smallest complete scope: all requests and no unasked editing, catego
 Examples execute in sequence on that operation's fresh storage. Queries return empty on an empty store; use acceptance for existing records and successful updates/deletes. Examples for missing records use a declared error. Assert a subset for random IDs, only declared fields, and dates supplied by inputs. Foreign stand-ins prove schema or own storage; a missing foreign record error requires its read capability.
 
 ## Interface
+
+For a command requiring an account, choose the service from the task’s `connectionServices` and declare `connections.slots` (e.g. `[{"slot_id":"source","service_id":"github","reason":"Read the chosen repository"}]`), list that slot in the command’s `effects.connections`, and bind an action or input part with `connectionNeed: {"slot_id":"source"}`. Per-record slots use `binding:"per_record"` and the part names the submitted record ID field in `recordField`. The shell handles sign-in and resumes the submission. Drafts have no bound account. Test the unbound case in preview and the connection after installation. Use `sdk.connections.describe/request` on the backend.
+
+For a Home image plugin, use `connectionNeed: {"kind":"image","slot_id":"drawing","base_url":"https://images.example/v1"}`. The command declares bind and its actual image operations in `effects.imageGeneration`, and the service domain in `networkDomains`.
 
 Give every part an intent; the platform chooses a legal component from `/__ui/catalog`.
 

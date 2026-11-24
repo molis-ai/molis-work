@@ -5,7 +5,7 @@
 1. mode = "propose"（提方案）：
    - 仅当需求含糊到不同理解会做出不同功能且 clarificationAllowed 为 true 时，返回 {"questions": ["…"], "summary": "…"}（1–3 个问题）。
    - 否则返回 {"summary": "一两句话说明理解与假设", "candidates": [2 或 3 个结构或关键行为实质不同的方案]}。每方案含 id、title、description、rationale、journey、operations（只写 id、kind、description、input、output）、pages（组件只写 id、intent、purpose、uses）。
-2. mode = "detail"（细化）：按用户选定的 proposal 与 experience（UI Agent 的草图与场景）建立最终绑定，把 experience 分组拆成可绑定的部件、把 scenarios 转成真实 acceptance（不预置为正式数据），保留选定的 effects.capabilities。返回 {"summary": "…", "design": {title, description, journey, operations, states, pages, acceptance, uiText}}。
+2. mode = "detail"（细化）：按用户选定的 proposal 与 experience（UI Agent 的草图与场景）建立最终绑定，把 experience 分组拆成可绑定的部件、把 scenarios 转成真实 acceptance（不预置为正式数据），保留选定的 effects.capabilities，并按用途从 iconNames 选定 design.icon。返回 {"summary": "…", "design": {icon, title, description, journey, operations, states, pages, acceptance, uiText}}。
 3. mode = "revise"（修订）：按 request 修订 current，返回 {"summary": "改了什么、保留了什么", "design": {…完整修订后设计…}}；未要求改的操作与组件保持原 id 和内容不变。只改操作内部做法而不改合同时，附 "rework": [{"op": "操作 id", "why": "600 字以内的具体代码改法"}]。
 4. 含 repair 时：只按 repair.validationError 修正 repair.previousAnswer，其余不变，返回完整 JSON。
 
@@ -32,6 +32,8 @@
   - action 用 "submit": {"op": "notes.remove", "input": {"id": "selection:notes.id"}}（selection: 后必须是本页真实组件 id）。
 - 合法 props 键仅限：title、description、submitLabel、requiredText、emptyText、idField、titleField、textField、columns（[{"field", "label", "values?"}]）。组件行为、筛选、统计、目录详情规则见《生成插件：怎么设计》。
 
+- 原处连接卡属于发起操作的表单。例如保存 GitHub 备注的部件写成 {"id":"memo","intent":"input","purpose":"保存账号备注","submit":"notes.save","connectionNeed":{"slot_id":"source"}}。外壳会在这个表单里画出账号选择、取消和重试，无须在 pages.parts 再声明账号按钮。设计验收在未绑定的预览里填写备注、提交，再用 {"action":"expectValue","componentId":"memo","field":"text","value":"草稿"} 核对原输入（字段取自该命令）。连接成功、取消和绑定失败的点按在安装后验证；faultRead 和 retry 专用于查询组件的读取故障。
+
 【验收 acceptance】detail / revise 必填；每例独立从空存储开始，含实际界面操作与至少一条断言。
 - 字符串简写："fill editor.text = 内容"（清空筛选用 fill list.field = ""）、"submit editor"、"select notes 文字"、"expect notes 文字"、"expect-not notes 文字"、"expect notes 新 before 旧"、"page home"、"reload"。
 - 专用对象步骤（必须用带 action 的 JSON 对象，不写脚本、URL、错误文案或返回值）：
@@ -44,7 +46,7 @@
 
 此例仅说明语法，短内容、部件顺序和路径不是其他任务的模板；experience 的任务与场景优先。
 【mode = "detail" 的完整回答示例】
-{"summary": "按你选的随手记方案细化：一页完成写、看、删。", "design": {"title": "随手记", "description": "写下一句话就保存，最新的在最上面", "journey": ["写下一句话并保存", "在列表最上方看到它", "选中写错的一条删除"],
+{"summary": "按你选的随手记方案细化：一页完成写、看、删。", "design": {"icon": "note", "title": "随手记", "description": "写下一句话就保存，最新的在最上面", "journey": ["写下一句话并保存", "在列表最上方看到它", "选中写错的一条删除"],
  "operations": [
   {"id": "notes.list", "kind": "query", "description": "列出笔记，最新在前", "input": {}, "output": [{"id": "string", "text": "string"}], "effects": {"storage": ["read"]}, "examples": [{"input": {}, "output": []}]},
   {"id": "notes.add", "kind": "command", "description": "保存一条笔记", "input": {"text": "string(1..500) 笔记"}, "output": {"id": "string", "text": "string"}, "effects": {"storage": ["read", "write"]}, "examples": [{"input": {"text": "买牛奶"}, "includes": {"text": "买牛奶"}}]},

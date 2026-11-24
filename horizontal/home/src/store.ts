@@ -726,6 +726,11 @@ export class HomePagesStore {
     };
   }
 
+  readBasicReceipt(actorId: string, requestId: string): HomePageSelectResult | null {
+    const row = this.readReceiptInTx(actorId, "select", "basic", requestId);
+    return row ? JSON.parse(row.receipt) as HomePageSelectResult : null;
+  }
+
   readApprovalReceipt(actorId: string, operation: HomePageApprovalOperation, requestId: string): HomePageApprovalReceipt | null {
     const row = this.readReceiptInTx(actorId, "approval", operation, requestId);
     return row ? (JSON.parse(row.receipt) as HomePageApprovalReceipt) : null;

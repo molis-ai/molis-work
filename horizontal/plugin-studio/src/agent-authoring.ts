@@ -1,5 +1,5 @@
-import { isRecord as object, parseSandboxUi, sandboxStateMachineProblems } from "@molis-ai/molis-work-plugin-sdk";
-import { sandboxHelpDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { isRecord as object, parseConnectionSlots, parseSandboxUi, sandboxStateMachineProblems } from "@molis-ai/molis-work-plugin-sdk";
+import { PLUGIN_ICON_NAMES, sandboxHelpDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiHelpDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { authoredPartWords, authoredWord } from "./agent-ui-text.js";
 /** Expand the author's compact vocabulary for the strict validators. Map known variants and record dropped fields;
@@ -139,7 +139,7 @@ export function normalizeEffects(raw: unknown, kind: 'query' | 'command', where:
     for (const [key, value] of Object.entries(raw)) {
       const list = Array.isArray(value) ? value.map(String) : typeof value === 'string' ? [value] : [];
       if (key === 'storage') storage(value);
-      else if (['capabilities', 'events', 'artifacts', 'resources', 'secretRefs'].includes(key)) for (const item of list) add(key, item);
+      else if (['capabilities', 'events', 'artifacts', 'resources', 'secretRefs', 'connections', 'imageGeneration'].includes(key)) for (const item of list) add(key, item);
       else if (['networkDomains', 'network', 'domains'].includes(key)) for (const item of list) add('networkDomains', item);
       else if (key === 'secrets') for (const item of list) add('secretRefs', item);
       else fail(where, `未知的副作用「${key}」`);
@@ -360,12 +360,23 @@ function normalizePart(raw: unknown, pageId: string, operations: SandboxDataOper
   const id = slug(pick(raw, 'id', 'componentId'), `页面 ${pageId} 的组件`), where = `组件 ${id}`;
   const intent = intentOf(pick(raw, 'intent', 'kind', 'type'), where);
   const props = authoredPartWords(raw.props, where, dropped, fail);
-  for (const key of Object.keys(raw)) if (!['id', 'componentId', 'intent', 'kind', 'type', 'purpose', 'label', 'props', 'read', 'submit', 'uses', 'page', 'pageId', 'region', 'regionId', 'submitShow', 'show', 'surfaceSlot'].includes(key)) dropped.push(`${where} 的 ${key}`);
+  for (const key of Object.keys(raw)) if (!['id', 'componentId', 'intent', 'kind', 'type', 'purpose', 'label', 'props', 'read', 'submit', 'uses', 'page', 'pageId', 'region', 'regionId', 'submitShow', 'show', 'surfaceSlot', 'connectionNeed'].includes(key)) dropped.push(`${where} 的 ${key}`);
   const uses = sketch ? text(raw.uses) : '';
   const usesOperation = uses ? operations.find(item => item.id === slug(uses, where)) : undefined;
   const read = binding(raw.read ?? (usesOperation?.kind === 'query' && !usesOperation.input.required?.length ? usesOperation.id : undefined), 'read', operations, where, false, id);
   // A sketched action acts on a selection the proposal does not spell out yet, so it shows no form fields.
   const submit = binding(raw.submit ?? (usesOperation?.kind === 'command' ? intent === 'action' ? { op: usesOperation.id, input: {} } : usesOperation.id : undefined), 'submit', operations, where, intent === 'input', id);
+  const need = raw.connectionNeed;
+  let connectionNeed: PluginComponentPlan['connectionNeed'];
+  if (need !== undefined) {
+    if (sketch || !object(need) || typeof need.slot_id !== 'string') return fail(where, '连接卡在细化方案的提交零件中声明 slot_id');
+    if (need.kind === 'image' && typeof need.base_url === 'string' && Object.keys(need).every(key => ['kind', 'slot_id', 'base_url'].includes(key))) {
+      connectionNeed = { kind: 'image', slot_id: need.slot_id, base_url: need.base_url };
+    } else if ((need.kind === undefined || need.kind === 'slot') && Object.keys(need).every(key => ['kind', 'slot_id', 'recordField'].includes(key))
+      && (need.recordField === undefined || typeof need.recordField === 'string')) {
+      connectionNeed = { slot_id: need.slot_id, ...(need.recordField ? { recordField: need.recordField } : {}) };
+    } else return fail(where, 'connectionNeed 写连接槽和可选的 recordField，图片目标写 kind、slot_id 和 base_url');
+  }
   const mount = raw.surfaceSlot;
   if (mount !== undefined && (sketch || !object(mount) || Object.keys(mount).length !== 1 || typeof mount.slot_id !== 'string'
     || !mount.slot_id.trim() || intent !== 'reading' || !read || submit)) return fail(where, '对象挂载位只在细化方案的 reading 零件中写 {slot_id} 和 read');
@@ -373,7 +384,7 @@ function normalizePart(raw: unknown, pageId: string, operations: SandboxDataOper
   const shown = raw.submitShow ?? raw.show, showField = typeof shown === 'string' ? shown : object(shown) ? text(pick(shown as Json, 'show', 'path', 'field', 'outputPath')) : '';
   if (submit && showField && !submit.outputPath) submit.outputPath = showField;
   return { id, pageId, regionId: slug(pick(raw, 'regionId', 'region') || 'main', where), intent, purpose: text(pick(raw, 'purpose', 'label', 'description')).slice(0, 600) || id, props,
-    ...(read ? { read } : {}), ...(submit ? { submit } : {}), ...(object(mount) && typeof mount.slot_id === 'string' ? { surfaceSlot: { slot_id: mount.slot_id } } : {}) };
+    ...(connectionNeed ? { connectionNeed } : {}), ...(read ? { read } : {}), ...(submit ? { submit } : {}), ...(object(mount) && typeof mount.slot_id === 'string' ? { surfaceSlot: { slot_id: mount.slot_id } } : {}) };
 }
 /** Pages carry their parts; a model that lists parts separately with a pageId gets them grouped the same way. */
 function withParts(pages: unknown, parts: unknown): unknown {
@@ -623,6 +634,8 @@ function hasArrayField(schema: SandboxSchema): boolean {
 export function expandDesign(raw: unknown, base: { id: string; title: string; description: string; rationale: string; journey: string[] }, pluginId: string, revision: string, dropped: string[], capabilities: readonly CatalogEntry[] = STUDIO_CAPABILITIES): AgentDesign {
   if (!object(raw)) return fail('细化方案', '写成对象 {"operations":…, "pages":…, "acceptance":…}');
   const design = object(raw.design) ? raw.design as Json : raw;
+  const icon = PLUGIN_ICON_NAMES.find(name => name === design.icon);
+  if (design.icon !== undefined && !icon) fail('icon', '请从 iconNames 中选择图标');
   const operationsRaw = Array.isArray(design.operations) ? design.operations : object(design.contract) && Array.isArray((design.contract as Json).operations) ? (design.contract as Json).operations as unknown[] : fail('细化方案', '缺少 operations');
   const operations = (operationsRaw as unknown[]).map((operation, index) => normalizeOperation(operation, index, dropped, true, capabilities));
   if (new Set(operations.map(operation => operation.id)).size !== operations.length) fail('细化方案', '操作标识重复');
@@ -631,6 +644,7 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
   if (problems.length > 1) fail('细化方案', '有 ' + problems.length + ' 处要一起改：' + problems.map((problem, index) => '（' + (index + 1) + '）' + problem).join('；'));
   const { pages, parts } = normalizePages(pagesRaw, operations, dropped, false);
   const ui = parseSandboxUi(design.ui);
+  const connections = parseConnectionSlots(design.connections, operations.flatMap(op => op.effects.connections ?? []));
   // Scalar summaries can use a description; a wrapped collection needs an explicit array projection.
   for (const part of parts) {
     if (part.surfaceSlot) continue;
@@ -854,7 +868,7 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
     else dropped.push(`按需帮助声明格式无效（${helpProblems[0]}），已改由宿主按页面与真实能力自动生成`);
   }
   const journey = steps(pick(design, 'journey', 'journal'));
-  return { id: base.id, title: text(design.title) || base.title, description: text(design.description) || base.description, rationale: text(design.rationale) || base.rationale,
+  return { id: base.id, ...(icon ? { icon } : {}), ...(connections ? { connections } : {}), title: text(design.title) || base.title, description: text(design.description) || base.description, rationale: text(design.rationale) || base.rationale,
     journey: journey.length ? journey.slice(0, 20) : base.journey,
     contract: { version: /* @version format.sandbox.contract */ 1, pluginId, revision, entities: [], state_machines: normalizeStates(design.states, pluginId, operations), pages, operations, acceptance: acceptance.contract, ...(help ? { help } : {}) }, parts, acceptance: acceptance.browser,
     ...(design.presentation !== undefined ? { presentation: design.presentation as AgentDesign['presentation'] } : {}), ...(ui ? { ui } : {}) };

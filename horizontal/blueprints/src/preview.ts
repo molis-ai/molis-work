@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { BlueprintPart } from "@molis-ai/molis-work-contracts/platform/blueprints";
+import type { AdoptsDeclaration, BlueprintPart, ContentAdoptionInput, ContentAdoptionResult } from "@molis-ai/molis-work-contracts/platform/blueprints";
 import type { EffectiveSetting, SettingsWriteInput } from "@molis-ai/molis-work-contracts/platform/settings";
 import { blueprintsErrors, type BlueprintAdoptionPreviewInput, type BlueprintAdoptionPreviewResult,
   type BlueprintCurrentValue, type BlueprintDraftResult, type BlueprintPreviewPart } from "@molis-ai/molis-work-contracts/services/blueprints";
@@ -8,6 +8,13 @@ import { assertSandboxMatches, canonicalJsonText, inspectBlueprint } from "@moli
 import type { AdoptionStore, DiscoveredSetting, ObservedSetting, SettingBinding, SettingPlan } from "./store.js";
 
 export interface SettingsAccess {
+  homePage?: {
+    declaration: AdoptsDeclaration;
+    owner: string;
+    save(input: ContentAdoptionInput): Promise<ContentAdoptionResult>;
+    saved(request: string): Promise<ContentAdoptionResult | undefined>;
+    approved(request: string, page: string, version: number): Promise<{ action: SettingBinding["write"]; revision: string; current: string } | undefined>;
+  };
   discover(): Promise<readonly DiscoveredSetting[]>;
   read(binding: SettingBinding, keys: string[]): Promise<EffectiveSetting[]>;
   write(binding: SettingBinding, input: SettingsWriteInput): Promise<EffectiveSetting>;
@@ -88,6 +95,13 @@ export async function previewSettings(store: AdoptionStore, access: SettingsAcce
     const change = changes.get(part_id), owner = proposal.kind === "setting" ? found.get(proposal.key) : undefined;
     if (change?.selection || change?.action && (!owner || canonicalJsonText(change.action) !== canonicalJsonText(owner.binding.write))) {
       throw blueprintsErrors.part_unsupported("只能选择预览中列出的设置主人");
+    }
+    if (proposal.kind === "content" && access.homePage?.declaration.type === proposal.type) {
+      if (layer !== "project" || input.target.kind === "personal") return { ...result, decision: "skip", reason: "scope_mismatch" };
+      const { declaration, owner: provider_id } = access.homePage;
+      try { assertSandboxMatches(declaration.schema, proposal.body, (_kind, message) => { throw blueprintsErrors.part_unsupported(message); }); }
+      catch { return { ...result, decision: "skip", reason: "invalid_proposal" }; }
+      return { ...result, decision: "create", candidates: [{ kind: "owner", action: { ...declaration.adopt, provider_id }, current: { state: "missing" } }] };
     }
     if (!owner || proposal.kind !== "setting") return { ...result, decision: "skip", reason: proposal.kind === "setting" ? "undeclared" : "unsupported" };
     const { current, binding, entry } = owner;

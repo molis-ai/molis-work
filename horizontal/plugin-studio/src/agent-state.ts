@@ -1,5 +1,6 @@
+import { PLUGIN_ICON_NAMES } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
-import {isRecord,parseSandboxUi} from '@molis-ai/molis-work-plugin-sdk';
+import {isRecord,parseConnectionSlots,parseSandboxUi} from '@molis-ai/molis-work-plugin-sdk';
 import {assertContract} from '@molis-ai/molis-work-plugin-sandbox';
 import {validatePluginComponentNodes,validatePluginComponentPlans} from '@molis-ai/molis-work-design-system';
 import {validateFrozenStudioWords,validateStudioPlainWords} from './agent-ui-text.js';
@@ -11,6 +12,7 @@ const errors=defineErrorCodes('plugin_builder',{store_invalid:'invalid',store_li
 const invalid=():never=>{throw errors.store_invalid('创作数据格式版本无效，原内容已保留');};
 function wordsAreValid(design: AgentDesign | null | undefined): boolean {
  if (!design) return true;
+ if (design.icon !== undefined && !PLUGIN_ICON_NAMES.some(name => name === design.icon)) return false;
  try { validateFrozenStudioWords(design); return true; } catch { return false; }
 }
 function previewWordsAreValid(candidate: AgentProposal): boolean {
@@ -22,15 +24,16 @@ export function nextBuilderRevision(value:number):number{
  if(!Number.isSafeInteger(value)||value<0||!Number.isSafeInteger(value+1))throw errors.store_limit('草稿编辑版本已达上限，原内容已保留');
  return value+1;
 }
-const mentionsSlot=(parts:unknown)=>Array.isArray(parts)&&parts.some(part=>isRecord(part)&&(Object.hasOwn(part,'surfaceSlot')||part.kind==='surface-slot'));
+const mentionsSlot=(parts:unknown)=>Array.isArray(parts)&&parts.some(part=>isRecord(part)&&(Object.hasOwn(part,'surfaceSlot')||Object.hasOwn(part,'connectionNeed')||part.kind==='surface-slot'||part.kind==='connection-need'));
 function checkSavedUi(design:unknown,nodes:unknown):void{
  const parts=isRecord(design)?design.parts:undefined;
- if(!(isRecord(design)&&Object.hasOwn(design,'ui'))&&!mentionsSlot(parts)&&!mentionsSlot(nodes))return;
+ if(!(isRecord(design)&&(Object.hasOwn(design,'ui')||Object.hasOwn(design,'connections')))&&!mentionsSlot(parts)&&!mentionsSlot(nodes))return;
  if(!isRecord(design)||!Array.isArray(nodes))return invalid();
  try{
   const ui=parseSandboxUi(design.ui);
   assertContract(design.contract);
-  validatePluginComponentNodes(nodes,validatePluginComponentPlans(parts,design.contract,ui),design.contract);
+  const connections = parseConnectionSlots(design.connections, design.contract.operations.flatMap(op => op.effects.connections ?? []));
+  validatePluginComponentNodes(nodes,validatePluginComponentPlans(parts,design.contract,ui,connections),design.contract);
  }catch{return invalid();}
 }
 /** One current owner document. A different format is refused without rewriting or empty-state recovery. */

@@ -216,7 +216,7 @@ function outcomeOf(value: BridgedOutcome, check: (key: number) => Promise<Compos
  * The parent's side of the one input (composer-bridge.ts): the page's state becomes a receiver whose options the bar's composer
  * reads as any page's, each function a call to the page answered through the port. Only the receiver in front is bound to the bar.
  */
-export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLElement, frame: HTMLIFrameElement, pack: FramePack, visible: () => boolean) {
+export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLElement, frame: HTMLIFrameElement, pack: FramePack, visible: () => boolean, itemTabId: () => string | null) {
   let id = 0, snapshot: ComposerSnapshot | null = null, receiver: BarReceiver | null = null, bound: ComposerHandle | null = null, field: HTMLTextAreaElement | null = null;
   let retitle: (() => void) | undefined, selected: (() => boolean) | undefined;
   let sequence = 0, shown = "", lit = "", text = "", generation = 0;
@@ -301,7 +301,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     const at = snapshot!, key = pack.plugin_id + ":" + id + ":" + ++generation;
     if (receiver) receivers.delete(receiver);
     receiver = {
-      key, root, visible, placeholder: at.placeholder, options: options(),
+      key, root, visible, itemTabId, placeholder: at.placeholder, options: options(),
       bind(handle: ComposerHandle | null, box?: HTMLTextAreaElement, updateWords?: () => void, owns?: () => boolean) {
         if (bound !== handle) readiness.discard();
         if (bound && box !== field) field?.removeEventListener("input", typed);

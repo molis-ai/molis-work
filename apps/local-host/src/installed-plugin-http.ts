@@ -62,7 +62,7 @@ export async function installedPluginStages(options: InstalledPluginHttpOptions)
     }
     if (item.state !== 'running' || installed.recoveryErrors.has(item.plugin_id)
         || !installedStageReleaseMatches(item, release, installed.platform.supervisor.manifest(item.plugin_id))) return [];
-    return [{ pluginId: item.plugin_id, surface, label, directory, stage: installedStageSection({ pluginId: item.plugin_id, surface, label, prefix, installation: installedStageIdentity("project", item) }) }];
+    return [{ pluginId: item.plugin_id, surface, label, directory, stage: installedStageSection({ pluginId: item.plugin_id, surface, label, prefix, icon: words.ui.views.find(view => view.slot === 'stage')?.icon, installation: installedStageIdentity("project", item) }) }];
   });
 }
 

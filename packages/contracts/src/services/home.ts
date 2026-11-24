@@ -93,9 +93,9 @@ export interface HomePageApprovalReceipt<Operation extends HomePageApprovalOpera
   approval: HomePageApproval;
 }
 
-export interface HomePageApprovalReadQuery { by: "approval_request"; operation: HomePageApprovalOperation; request_id: string }
+export interface HomePageApprovalReadQuery { by: "approval_request"; operation: HomePageApprovalOperation | "basic"; request_id: string }
 export type HomePageApprovalReadResult =
-  | { kind: "receipt"; receipt: HomePageApprovalReceipt; current: HomeSelectionState }
+  | { kind: "receipt"; receipt: HomePageApprovalReceipt | HomePageSelectResult; current: HomeSelectionState }
   | { kind: "missing"; current: HomeSelectionState };
 
 export interface HomePageVersionSummary extends HomePageVersion { approval: HomePageApproval | null }
@@ -112,7 +112,8 @@ export type HomePageDraftSaveInput = HomePageDirectDraftSaveInput | ContentAdopt
 export interface HomePageDirectDraftSaveResult { version: HomePageVersion }
 /** In an adoption receipt, subject identifies the page and revision is the immutable draft version. */
 export type HomePageDraftSaveResult = HomePageDirectDraftSaveResult | ContentAdoptionResult;
-export interface HomePagePreviewResult { page: HomePageRef; page_session_id: string }
+export interface HomePagePreviewInput extends HomePageRef { include_files?: true }
+export interface HomePagePreviewResult { page: HomePageRef; page_session_id: string; loaded?: HomePageFilesResult }
 export interface HomePageFilesResult { version: HomePageVersion; files: HomePageFile[] }
 
 export interface HomePageApprovalInput extends HomePageRef { approved_actions: ExactActionReference[]; request_id: string; expected_revision: string }
@@ -178,15 +179,16 @@ const approvalReceiptFields = { request_id: token, selection: generated, revisio
 const approvalReceipt = closedObjectSchema({ operation: { enum: approvalOperations }, ...approvalReceiptFields });
 const approvalReply = (operation: HomePageApprovalOperation) => closedObjectSchema({ operation: { const: operation }, ...approvalReceiptFields });
 const approvalReadInput = inputSchemaFor<HomePageApprovalReadQuery>()(closedObjectSchema({
-  by: { const: "approval_request" }, operation: { enum: approvalOperations }, request_id: token,
+  by: { const: "approval_request" }, operation: { enum: [...approvalOperations, "basic"] }, request_id: token,
 }));
 const current = closedObjectSchema(state);
 const readInput = { oneOf: [inputSchemaFor<Record<string, never>>()(closedObjectSchema({})), contentAdoptionReadInputSchema(draft, [approvalReadInput])] };
 const versions = closedObjectSchema({ ...versionFields, approval: { oneOf: [approval, nullValue] } }, [...versionRequired, "approval"]);
+const selectResult = closedObjectSchema({ selection: basic, revision: token, approval: nullValue });
 const readResult = { oneOf: [
   closedObjectSchema({ ...state, versions: { type: "array", items: versions } }),
   contentAdoptionReadOutputSchema([
-    closedObjectSchema({ kind: { const: "receipt" }, receipt: approvalReceipt, current }),
+    closedObjectSchema({ kind: { const: "receipt" }, receipt: { oneOf: [approvalReceipt, selectResult] }, current }),
     closedObjectSchema({ kind: { const: "missing" }, current }),
   ]),
 ] };
@@ -194,7 +196,6 @@ const readResult = { oneOf: [
 const request = { request_id: token, expected_revision: token };
 const approveInput = inputSchemaFor<HomePageApprovalInput>()(closedObjectSchema({ ...pageRef, ...request, approved_actions: actions }));
 const selectInput = inputSchemaFor<HomePageSelectInput>()(closedObjectSchema({ ...basic.properties, ...request }));
-const selectResult = closedObjectSchema({ selection: basic, revision: token, approval: nullValue });
 const diff = { page_id: token, from_version: version, to_version: version };
 const diffInput = inputSchemaFor<HomePageDiffInput>()(closedObjectSchema(diff));
 const diffResult = closedObjectSchema({
@@ -210,7 +211,7 @@ const person = ["user"] as const;
 export const homePageActions: {
   read: ActionDefinition<HomePageReadInput, HomePageReadResult>;
   saveDraft: ActionDefinition<HomePageDraftSaveInput, HomePageDraftSaveResult>;
-  preview: ActionDefinition<HomePageRef, HomePagePreviewResult>;
+  preview: ActionDefinition<HomePagePreviewInput, HomePagePreviewResult>;
   adopt: ActionDefinition<HomePageApprovalInput, HomePageApprovalReceipt<"adopt">>;
   restore: ActionDefinition<HomePageApprovalInput, HomePageApprovalReceipt<"restore">>;
   select: ActionDefinition<HomePageSelectInput, HomePageSelectResult>;
@@ -219,8 +220,8 @@ export const homePageActions: {
 } = {
   read: homeAction("home.read", /* @version action.home.read */ 1, "读取项目主页", "读取首页选择、版本或指定请求的原回执", "query", ["user", "plugin", "agent"], readInput, readResult),
   saveDraft: homeAction("home.pages.drafts.save", /* @version action.home.pages.drafts.save */ 1, "保存首页草稿", "新建或追加页面草稿版本，保存不改变当前首页", "command", ["user", "agent"], saveInput, saveResult),
-  preview: homeAction("home.pages.preview", /* @version action.home.pages.preview */ 1, "试用首页草稿", "为固定的草稿版本打开只读动作的试用页面", "command", person, pageRefSchema,
-    closedObjectSchema({ page: pageRefSchema, page_session_id: token })),
+  preview: homeAction("home.pages.preview", /* @version action.home.pages.preview */ 1, "试用首页草稿", "为固定的草稿版本打开只读动作的试用页面", "command", person, inputSchemaFor<HomePagePreviewInput>()(closedObjectSchema({ ...pageRef, include_files: { const: true } }, ["page_id", "version"])),
+    closedObjectSchema({ page: pageRefSchema, page_session_id: token, loaded: closedObjectSchema({ version: pageVersion, files: fileList(sourceFile) }) }, ["page", "page_session_id"])),
   adopt: homeAction("home.pages.adopt", /* @version action.home.pages.adopt */ 1, "采用生成首页", "确认固定页面版本与批准的动作，再设为项目主页", "command", person, approveInput, approvalReply("adopt")),
   restore: homeAction("home.pages.restore", /* @version action.home.pages.restore */ 1, "恢复首页版本", "由本人再次批准后恢复指定页面版本", "command", person, approveInput, approvalReply("restore")),
   select: homeAction("home.select", /* @version action.home.select */ 1, "切回基础首页", "按所见的选择修订切回项目的基础首页", "command", person, selectInput, selectResult),

@@ -270,7 +270,7 @@ export class AssistantService {
       assertInput();
       this.store.requests.bindWork(this.actorId, input.request_id, work.work_id);
       if (input.subtask) await this.workSubtasks.assert(input.subtask.binding, input.subtask.operation);
-      const draftWorkId = work.work_id, ownsDraft = input.draft_revision === undefined || input.draft_revision === work.draft_revision;
+      const draftWorkId = work.work_id, ownsDraft = input.draft_revision === undefined ? !work.draft || input.work_id === work.work_id : input.draft_revision === work.draft_revision;
       let savedDraft = work.draft_revision; draftCurrent = () => ownsDraft && this.store.get(this.actorId, draftWorkId).draft_revision === savedDraft;
       // Before the input hold and the material links: a work with no session yet has no round to interrupt or wait behind.
       if (!created) assertRoundToAddress(Boolean(work.executor.kind === "plugin" ? work.executor.session_id : work.session_id), input.delivery);
@@ -344,9 +344,13 @@ export class AssistantService {
       (member, host, control) => this.followUps.stopForArchive(member.work_id, { adapter: host.adapter(RUNTIME), control }));
   }
 
-  saveDraft(workId: string, draft: string): AssistantWork {
+  saveDraft(workId: string, draft: string, expectedDraftRevision?: number): AssistantWork {
     if (typeof draft !== "string" || draft.length > MAX_TEXT) throw assistantErrors.invalid("草稿过长");
-    const work = this.store.update(this.actorId, workId, null, { draft }, false);
+    const current = this.store.get(this.actorId, workId);
+    if (expectedDraftRevision !== undefined && current.draft_revision !== expectedDraftRevision) {
+      return this.reads.publicWork(current, "idle");
+    }
+    const work = this.store.update(this.actorId, workId, current.revision, { draft }, false);
     return this.reads.publicWork(work, "idle");
   }
 

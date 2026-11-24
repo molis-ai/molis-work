@@ -1,17 +1,23 @@
 import { isRecord } from "./json-value.js";
-import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
+import { PLUGIN_CONNECTIONS_PERMISSION, type PluginConnectionsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 // The shape of a Manifest's `connections` (S0b-2, S-57): the slots where the person may bind one of their accounts. Only the shape, the
 // services and the permission are checked here; what a request may reach, and when, is for the platform while it runs
-// (packages/plugin-runtime `createPluginConnectionsClient`). `parsePluginManifest` is the one caller.
+// (packages/plugin-runtime `createPluginConnectionsClient`).
 
 /** The name a slot goes by, the same rule as a background job's. */
 const SLOT_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 const SLOT_FIELDS = new Set(["slot_id", "service_id", "reason", "binding"]);
 const BINDINGS: readonly unknown[] = ["installation", "per_record"];
 
-export function connectionDeclarationProblems(value: unknown, permissions: ReadonlySet<string>): string[] {
+export function parseConnectionSlots(value: unknown, used: readonly string[]): PluginConnectionsDeclaration | undefined {
+  const problems = connectionDeclarationProblems(value, new Set(used.length ? [PLUGIN_CONNECTIONS_PERMISSION] : []), used);
+  if (problems.length) throw new Error(problems.join('；'));
+  return value as PluginConnectionsDeclaration | undefined;
+}
+
+export function connectionDeclarationProblems(value: unknown, permissions: ReadonlySet<string>, used?: readonly string[]): string[] {
   const declaresPermission = permissions.has(PLUGIN_CONNECTIONS_PERMISSION);
   if (value === undefined) return declaresPermission ? [`声明了 ${PLUGIN_CONNECTIONS_PERMISSION} 就要在 connections.slots 里写明用哪些账号`] : [];
   if (!isRecord(value)) return ["connections 必须为对象"];
@@ -36,5 +42,7 @@ export function connectionDeclarationProblems(value: unknown, permissions: Reado
       problems.push(`连接槽 ${id} 的 service_id 必须是平台登记了请求来源的服务：${Object.keys(CONNECTOR_REQUEST_SERVICES).join("、")}`);
     }
   }
+  if (used && (used.some(id => !seen.has(id)) || [...seen].some(id => !used.includes(id))))
+    problems.push('每个连接槽都须被操作请求，每个连接效果都须有声明的槽');
   return problems;
 }

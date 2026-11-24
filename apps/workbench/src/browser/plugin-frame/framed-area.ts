@@ -39,6 +39,8 @@ export interface FramedArea {
   readonly holder: HTMLDivElement;
   /** What the kind draws into; carries `data-framed-area-head` and `data-framed-area-foot` parts for the hit test. */
   readonly surface: HTMLElement;
+  /** Height already reserved for the current width, or -1 before the first layout. */
+  readonly height: number;
   /** Follows the page's reported box; `null` hides the area until the next box. */
   layout(box: FrameBox | null): void;
   /**
@@ -157,6 +159,7 @@ export function pageFramedAreas(scope: FrameScope, root: HTMLElement, frame: HTM
       const entry: Entry = { box: null, shown: null, movedAt: performance.now(), height: -1, crossed: false, focus: null, redrawing: false, press: null, reported: false, options, place: () => place(entry),
         area: {
           holder, surface,
+          get height() { return entry.height; },
           layout(box) {
             entry.box = box && [box.x, box.y, box.width, box.height].every(Number.isFinite) && box.width > 0 ? { x: box.x, y: box.y, width: box.width, height: box.height } : null;
             entry.place(); run();

@@ -1,8 +1,9 @@
+import { randomBytes } from "node:crypto";
 import { prepareKnowledgeDispatch, type KnowledgeCatalogAccess, type PreparedKnowledgeCatalog } from "./knowledge-dispatch.js";
 import type { AgentSessionLifecycleCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError, SUBJECT_REFERENCE_TYPE, SUBJECT_STATE_TYPE, actionReachesAudience, isSubjectReader, isSearchEntriesSource, searchRevisionOf, type ActionSubjectState } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionCallContext, ActionExecutionContext, ActionHandlerBinding, ActionProviderRegistration, ActionReference, ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import {
   KNOWLEDGE_PROVIDER_ID,
   KNOWLEDGE_READ_PERMISSION,
@@ -77,7 +78,7 @@ export function knowledgeModelWriter(homeDirectory: string): KnowledgeWriter | n
   if (!generate) return null;
   return async (input, signal, beforeDispatch) => {
     let recordUse: (() => void) | undefined;
-    const prompt = resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_ORGANIZE, JSON.stringify(input)), KNOWLEDGE_ORGANIZE.prompt_id,
+    const prompt = resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_ORGANIZE, fencedMaterials(input, randomBytes(8).toString("hex"))), KNOWLEDGE_ORGANIZE.prompt_id,
       { onDispatch: record => { recordUse = record; } });
     // The use is recorded when the call is dispatched, not when its text is read: a call refused first (the generation log's
     // `actions.forbidden`) is no use of the prompt, and counting it made two generations over the same Home differ.
@@ -99,7 +100,7 @@ export function knowledgeModelLocator(homeDirectory: string): KnowledgeLocator |
   if (!generate) return null;
   return async input => {
     let recordUse: (() => void) | undefined;
-    const prompt = resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_LOCATE, knowledgeLocateData(input)), KNOWLEDGE_LOCATE.prompt_id,
+    const prompt = resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_LOCATE, knowledgeLocateData(input, randomBytes(8).toString("hex"))), KNOWLEDGE_LOCATE.prompt_id,
       { onDispatch: record => { recordUse = record; } });
     // Dispatched like a card's call: recorded at dispatch, so a refused locate call is no use of the prompt either.
     const result = await generate(prompt, { structured: { mode: "local", name: "knowledge_sections", schema: LOCATE_SCHEMA as never },

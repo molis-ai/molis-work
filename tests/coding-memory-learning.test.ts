@@ -7,15 +7,14 @@ import type { AgentRunRef, AgentMemoryCapability } from "@molis-ai/molis-work-co
 import { codingProductHost, type CodingProviderRequest } from "./fixtures/coding-product-host.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { untilSetup } from "./fixtures/connector-assistant-model.js";
+import { extractFencedMaterials } from "./fixtures/fenced-materials.js";
 
 const coding = "/api/plugins/io.molis.work.coding";
 function formation(request: CodingProviderRequest) {
   const content = request.messages.at(-1)!.content;
   const prompt = typeof content === "string" ? content : content.map(block => block.text ?? "").join("\n");
-  try {
-    const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2));
-    return data.sources && data.destinations ? data as { sources: Array<{ id: string; text: string }>; destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> } : undefined;
-  } catch { return undefined; }
+  const data = extractFencedMaterials(prompt)?.data as { sources?: Array<{ id: string; text: string }>; destinations?: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> } | undefined;
+  return data?.sources && data?.destinations ? data as { sources: Array<{ id: string; text: string }>; destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> } : undefined;
 }
 
 // MEM-21: Coding's extraction lands in the same durable candidate box, not a new inbox.

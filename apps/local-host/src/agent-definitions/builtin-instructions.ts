@@ -1,7 +1,7 @@
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { AgentPromptRegistration, AgentRoleRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { CONTEXTUAL_DRAFT, CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, KNOWLEDGE_LOCATE, KNOWLEDGE_ORGANIZE, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, SESSIONS_SUGGEST, SKILL_DRAFT, SKILL_REVISE, SKILL_TRIAL, SKILL_TRIAL_JUDGE } from "./system-prompts.js";
-import { BUILDER_CHOICE_INSTRUCTIONS, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-studio";
+import { BUILDER_INSTRUCTIONS, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-studio";
 
 /**
  * Every instruction a model call the Host makes itself uses: its own modules', which sit beside the code that calls the model, and Plugin
@@ -10,7 +10,7 @@ import { BUILDER_CHOICE_INSTRUCTIONS, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDE
  * instructions are in neither, or when a call sends a raw prompt string.
  */
 export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [
-  ...BUILDER_CHOICE_INSTRUCTIONS, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, MEMORY_EXTRACT, MEMORY_TIDY,
+  ...BUILDER_INSTRUCTIONS, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, MEMORY_EXTRACT, MEMORY_TIDY,
   CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, CONTEXTUAL_DRAFT, KNOWLEDGE_ORGANIZE, KNOWLEDGE_LOCATE, SKILL_DRAFT, SKILL_TRIAL, SKILL_TRIAL_JUDGE, SKILL_REVISE, SESSIONS_SUGGEST,
 ];
 

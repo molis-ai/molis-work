@@ -14,11 +14,12 @@ import { memoryServiceHome, originalMemorySources, scriptedMemoryExtraction } fr
 import { formationSourceBinding, learnFromQueuedWork, learnFromWork } from "../apps/local-host/dist/memory/memory-learning.js";
 import { MEMORY_EXTRACT } from "../apps/local-host/dist/agent-definitions/system-prompts.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
+import { parseFencedMaterials } from "./fixtures/fenced-materials.js";
 
 function newProjectConvention(prompt: string): string {
-  const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as {
+  const data = parseFencedMaterials<{
     destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }>;
-  };
+  }>(prompt);
   const id = data.destinations.find(group => group.scope === "project" && !group.replacement)?.slots.convention;
   assert.ok(id, "the model must select a supplied project convention destination"); return id;
 }
@@ -309,7 +310,7 @@ async function queuedLearning(t: test.TestContext) {
   let duringReceiptSourceCheck: (() => Promise<void>) | undefined;
   const generate: HostTextGeneration = async (prompt, options) => {
     await options?.beforeDispatch?.(); modelCalls++; await inModel(); extracted = true;
-    const allSources = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as { sources: Array<{ id: string; text: string }> };
+    const allSources = parseFencedMaterials<{ sources: Array<{ id: string; text: string }> }>(prompt);
     return { value: "{}", structured: { drafts: [{ slot_id: newProjectConvention(prompt), text: "以后周报都把风险放最前面", suggested_basis: "explicit", evidence: completeEvidence
       ? allSources.sources.map(source => ({ source_id: source.id, quote: source.text })) : [{ source_id: "s0", quote: "以后周报都把风险放最前面" }] }] }, run_ref: { kind: "run", id: "fixture", revision: 1 } as never,
       state: "completed" as const, configuredModel: "fixture", reportedModels: [], usage: [], validateResult: () => undefined };
@@ -684,7 +685,7 @@ test("MEM-FORM BL-1073 the model sees one ID per destination and kind; drafts na
   });
   picks = [];
   await extractor.extract({} as never, request as never);
-  const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as Record<string, unknown> & { destinations: Array<{ scope: string; slots: Record<string, string> }> };
+  const data = parseFencedMaterials<Record<string, unknown> & { destinations: Array<{ scope: string; slots: Record<string, string> }> }>(prompt);
   assert.deepEqual(data.destinations, [{ scope: "project", slots: { convention: "d0" } }, { scope: "user", slots: { preference: "d1" } }]);
   assert.ok(!("existing" in data) && !("pending" in data), "nothing saved and nothing pending sends neither list");
   picks = ["d0", "d0"];

@@ -15,6 +15,7 @@ import { cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { endingReviewAnswer } from "./fixtures/ending-review.js";
 import { untilSetup } from "./fixtures/connector-assistant-model.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { extractFencedMaterials } from "./fixtures/fenced-materials.js";
 
 type Request = CodingProviderRequest & { tools?: Array<{ name: string; description?: string }> };
 const toolResults = (request: Request) => request.messages.flatMap(message => Array.isArray(message.content) ? message.content.filter(block => block.type === "tool_result") : []);
@@ -397,8 +398,8 @@ for (const business of ["coding", "assistant"] as const) test(`MEM-35 ${business
     const last = request.messages.at(-1)?.content;
     const prompt = typeof last === "string" ? last : last?.filter(block => block.type === "text").map(block => block.text ?? "").join("\n") ?? "";
     let formation: { sources: Array<{ id: string; text: string }>; destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> } | undefined;
-    try { const parsed = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)); if (parsed.sources && parsed.destinations) formation = parsed; }
-    catch { /* This is an ordinary business request, not the registered formation instruction. */ }
+    const parsed = extractFencedMaterials(prompt)?.data as { sources?: Array<{ id: string; text: string }>; destinations?: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> } | undefined;
+    if (parsed?.sources && parsed?.destinations) formation = parsed as { sources: Array<{ id: string; text: string }>; destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> };
     if (formation) {
       const slot = formation.destinations.find(one => one.scope === "project" && !one.replacement)?.slots[kind];
       assert.ok(slot, "the person's configured project access supplies an actual fact formation slot");

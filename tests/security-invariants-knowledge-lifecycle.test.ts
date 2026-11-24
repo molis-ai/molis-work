@@ -8,7 +8,9 @@ import { setTimeout } from "node:timers/promises";
 import test, { type TestContext } from "node:test";
 import { homeSqlitePath, openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { knowledgeLocateData } from "@molis-ai/molis-work-service-knowledge";
+import { MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { knowledgeActions, type KnowledgeCardsResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { extractFencedMaterials } from "./fixtures/fenced-materials.js";
 import { openTestHome } from "./fixtures/test-home.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
@@ -96,12 +98,11 @@ test("RAC-2446: what the Host measures for knowledge.locate is exactly the data 
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const raw = Buffer.concat(chunks).toString("utf8");
     const content = JSON.parse(raw).messages[0].content as string;
-    // The locate request's data is the JSON object that starts with its question; a Host that re-serializes it differently is exactly what
-    // this test catches (canonical `{"question":`, or a reformatted `{ ... "question"`).
-    const canonical = content.indexOf('{"question":'), reformatted = content.search(/\{\s*"question"\s*:/u);
-    const at = canonical >= 0 ? canonical : reformatted;
-    if (at >= 0) {
-      locateData.push(content.slice(at));
+    // The locate request's data is the fenced JSON payload carrying its question; a Host that re-serializes it differently is exactly what
+    // this test catches (canonical fenced `{"question":...}`).
+    const fenced = extractFencedMaterials(content);
+    if (fenced && typeof fenced.data === "object" && fenced.data !== null && "question" in fenced.data) {
+      locateData.push(content.slice(content.indexOf(fenced.block)));
       response.writeHead(200, { "content-type": "text/event-stream" });
       response.end(await cogniaModelResponse(JSON.stringify({ sections: [] })).text());
       return;
@@ -118,8 +119,11 @@ test("RAC-2446: what the Host measures for knowledge.locate is exactly the data 
     { question: "这份资料讲什么？", subjects: [listed.cards[0]!.subject] });
   await untilSetup(async () => locateData.length ? locateData[0] : undefined, "the locate request reaches the model");
   const data = locateData[0]!;
-  assert.equal(data, knowledgeLocateData(JSON.parse(data)), "the measured string is exactly the one sent");
-  const parsed = JSON.parse(data) as { question: string; pieces: Array<{ piece: number }> };
+  const fenced = extractFencedMaterials(data);
+  assert.ok(fenced, "knowledge.locate data is fenced with UNTRUSTED_MATERIALS_NOTICE");
+  const parsed = fenced.data as { question: string; pieces: Array<{ piece: number; title: string; sections: Array<{ anchor: string; title: string; level: number; summary: string | null }> }> };
+  assert.equal(data, knowledgeLocateData(parsed, fenced.boundary), "the measured fenced string is exactly the one sent");
+  assert.ok([...data].length <= MODEL_DATA_MAX_CHARS, "the fenced locate payload stays within MODEL_DATA_MAX_CHARS");
   assert.deepEqual(Object.keys(parsed), ["question", "pieces"], "RAC-2741 the sent data carries exactly the question and the pieces, no other key");
   assert.equal(parsed.question, "这份资料讲什么？", "the question asked is the question sent");
   assert.equal(parsed.pieces[0]!.piece, 1, "the first piece is piece 1");

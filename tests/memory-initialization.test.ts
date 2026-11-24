@@ -15,6 +15,7 @@ import { homeBusinessTree, homeStorageTree } from "./fixtures/home-storage-files
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentMemorySourceSnapshot } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { connectorAssistantModel, untilSetup } from "./fixtures/connector-assistant-model.js";
+import { parseFencedMaterials } from "./fixtures/fenced-materials.js";
 
 const PROJECT_A = "project-onboarding-08c01264-6d29-48fb-a16c-4a27c71fac38";
 const person: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJECT_A, consumer: "ui", person: true };
@@ -130,10 +131,10 @@ test("current complete saved preferences retain automatic writing, project overr
     const content = messages.at(-1)!.content;
     const prompt = typeof content === "string" ? content : content.filter(block => block.type === "text").map(block => block.text).join("\n");
     if (!prompt.includes('"destinations":')) return "完成。";
-    const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as {
+    const data = parseFencedMaterials<{
       sources: Array<{ id: string; text: string }>;
       destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }>;
-    };
+    }>(prompt);
     const slot = data.destinations.find(destination => destination.scope === "project" && !destination.replacement)?.slots.convention;
     assert.ok(slot); assert.equal(data.sources.length, 2);
     assert.deepEqual(data.sources.map(source => source.text), [automatic.text, automatic.text]);

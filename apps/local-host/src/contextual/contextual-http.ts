@@ -14,6 +14,7 @@ import { registeredInstructionBody, registeredInstructionRevision } from "../age
 import { CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE } from "../agent-definitions/system-prompts.js";
 import { draftPorts } from "../drafting/draft-wiring.js";
 import { resolvePrologueInference } from "../prologue-inference-host.js";
+import { modelRoundLocale } from "../reply-language.js";
 import { typeSafeConfiguration, typeSafeCredential } from "../typesafe-connection.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "../web-http.js";
 import { prepareAttach, runAttach, type ConfirmReferences } from "./contextual-attach.js";
@@ -132,7 +133,8 @@ function serviceFor(home: string | undefined): ContextualJudgmentService<Caller>
   service = createContextualJudgmentService<Caller>({
     directory,
     ...(home ? { evaluate: jevEvaluator(home), configured: () => Boolean(credential(home)),
-      wording: { revision: () => judgmentWordingRevision(home), text: () => judgmentWording(home) } } : {}),
+      wording: { revision: () => judgmentWordingRevision(home), text: () => judgmentWording(home) },
+      locale: () => modelRoundLocale(home) } : {}),
     recall: (focus, caller) => recallForJudgment(focus, caller),
     screen: screenModelMaterial,
   });

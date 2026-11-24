@@ -15,7 +15,7 @@ export const PAGES_WRITING_ASSISTANT = defineInstructionPrompt({
 
 /** A document drafted from materials the person picked in Inbox. Title, their requirements and the materials are the data. */
 export const PAGES_GENERATE_FROM_MATERIALS = defineInstructionPrompt({
-  owner_id: OWNER, prompt_id: "pages.generate-from-materials", version: /* @version prompt.pages.generate-from-materials */ 2, title: "材料生成文稿",
+  owner_id: OWNER, prompt_id: "pages.generate-from-materials", version: /* @version prompt.pages.generate-from-materials */ 3, title: "材料生成文稿",
   purpose: "把 Inbox 里选中的研究材料整理成一篇可编辑的文稿", used_by: ["Inbox 整理材料到 Pages"],
   ...promptBody("pages.generate-from-materials"),
 });

@@ -1,4 +1,4 @@
-import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { WORKFLOWS_AI_HANDOFF } from "./prompts.js";
 import type { ActionAvailability, ActionResultPresentation, WorkflowContentBinding, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workflowsErrors } from "./error.js";
@@ -370,13 +370,13 @@ export function aiHandoffPrompt(link: WorkflowLink, input: WorkflowPayload, from
     `上一步：${from}；下一步：${to}。`,
     `这段交接的要求：${link.instructions.trim()}`,
     "",
-    "上一步的内容：",
-    `标题：${input.title}`,
-    input.source ? `来源：${input.source}` : "",
-    input.url ? `链接：${input.url}` : "",
-    "正文：",
-    input.body.slice(0, 60_000),
-  ].filter((line) => line !== "").join("\n"));
+    fencedMaterials({
+      title: input.title,
+      ...(input.source ? { source: input.source } : {}),
+      ...(input.url ? { url: input.url } : {}),
+      body: input.body.slice(0, 60_000),
+    }, crypto.randomUUID().replaceAll("-", "").slice(0, 16)),
+  ].join("\n"));
 }
 
 export function parseAiHandoff(text: string, input: WorkflowPayload): WorkflowPayload {

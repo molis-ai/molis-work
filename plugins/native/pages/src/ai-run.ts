@@ -1,5 +1,6 @@
+import { randomBytes } from "node:crypto";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { isPagesAiCommand, pagesAiCommandLabel, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import { pagesErrors } from "./error.js";
 import { PAGES_WRITING_ASSISTANT } from "./prompts.js";
@@ -19,7 +20,7 @@ export async function runPagesAi(
   if (!text) throw pagesErrors.invalid("没有可处理的文字");
   const label = pagesAiCommandLabel(request.command, request.style);
   if (completeText) {
-    const output = (await completeText(instructed(PAGES_WRITING_ASSISTANT, `命令：${label}\n\n${text}`))).trim();
+    const output = (await completeText(instructed(PAGES_WRITING_ASSISTANT, `命令：${label}\n\n${fencedMaterials({ text }, randomBytes(8).toString("hex"))}`))).trim();
     if (!output) throw pagesErrors.invalid("模型没有返回文字");
     // “更短” promises a shorter text: a longer one is not offered as the rewrite (seen from MiniMax M3.1, which also added facts).
     if (request.command === "rewrite" && request.style === "concise" && output.length >= text.length) {

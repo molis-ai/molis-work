@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { AssistantStore, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
+import { extractFencedMaterials } from "./fixtures/fenced-materials.js";
 
 test("A4-M binding: Coding accepts one execution identity and retains it after a competing first binding and reopen", async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-session-binding-coding-")), file = join(home, "project.db");
@@ -293,12 +294,10 @@ test("BL-memory-shared-scene-session-binding dual plugins sharing coding scene d
   const parseExtraction = (request: { messages: Array<{ content: string | Array<{ type: string; text?: string }> }> }) => {
     const content = request.messages.at(-1)!.content;
     const prompt = typeof content === "string" ? content : content.map(block => block.text ?? "").join("\n");
-    try {
-      const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2));
-      return data.sources && data.destinations
-        ? data as { sources: Array<{ id: string; text: string }>; destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> }
-        : undefined;
-    } catch { return undefined; }
+    const data = extractFencedMaterials(prompt)?.data as { sources?: Array<{ id: string; text: string }>; destinations?: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> } | undefined;
+    return data?.sources && data?.destinations
+      ? data as { sources: Array<{ id: string; text: string }>; destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> }
+      : undefined;
   };
 
   const f = await codingProductHost(t, request => {

@@ -1,5 +1,5 @@
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { KNOWLEDGE_LOCATE_MAX_SUBJECTS, type KnowledgeLocateResponse, type KnowledgeLocatedSection, type KnowledgeOutline } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { knowledgeErrors, reasonOf, reasonText } from "./errors.js";
@@ -17,13 +17,15 @@ export type KnowledgeLocator = (input: KnowledgeLocateDraftInput) => Promise<Kno
 const MAX_SECTIONS = 8;
 const TREE_SECTIONS = 300;
 const TITLE_CHARS = 120;
+/** Length of the 8-byte hex boundary used when fencing `knowledge.locate` materials; measured identically in `shownPieces`. */
+const LOCATE_BOUNDARY_HEX_CHARS = 16;
 const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind && a.id === b.id;
 const chars = (text: string) => [...text].length;
 type ShownSection = KnowledgeLocateDraftInput["pieces"][number]["sections"][number];
 
-/** The data the Host's text model reads after the locate instruction: the input as one JSON line. What is measured is what is sent. */
-export function knowledgeLocateData(input: KnowledgeLocateDraftInput): string {
-  return JSON.stringify(input);
+/** The data the Host's text model reads after the locate instruction: fenced untrusted JSON when a boundary is given, or one raw JSON line. What is measured is what is sent. */
+export function knowledgeLocateData(input: KnowledgeLocateDraftInput, boundary?: string): string {
+  return boundary === undefined ? JSON.stringify(input) : fencedMaterials(input, boundary);
 }
 
 /**
@@ -35,8 +37,8 @@ export function knowledgeLocateData(input: KnowledgeLocateDraftInput): string {
 function shownPieces(question: string, trees: readonly KnowledgeOutline[]): { pieces: KnowledgeLocateDraftInput["pieces"]; omitted: number } {
   const pieces = trees.map((tree, index) => ({ piece: index + 1, title: cutHead(tree.title, TITLE_CHARS), sections: [] as ShownSection[] }));
   const candidates = trees.map(tree => tree.sections.slice(0, TREE_SECTIONS).map(section => ({ anchor: section.anchor, title: cutHead(section.title, TITLE_CHARS), level: section.level, summary: section.summary })));
-  // A section adds its own JSON to the data, and a comma after the piece's first: the sum is exactly what is sent.
-  let size = chars(knowledgeLocateData({ question, pieces }));
+  // A section adds its own JSON to the data, and a comma after the piece's first; reserve the exact fence overhead so the sum matches what is sent.
+  let size = chars(knowledgeLocateData({ question, pieces }, "0".repeat(LOCATE_BOUNDARY_HEX_CHARS)));
   const open = new Set(pieces.keys());
   for (let turn = 0; open.size; turn++) {
     for (const index of [...open]) {

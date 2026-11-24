@@ -300,7 +300,7 @@ test("Host error edge localizes account.*, technical leaks, and opposite-languag
     const expiredEn = await server.post("/account-expired?locale=en", "{}");
     assert.match(String(expiredEn.body.error), /session expired/i);
     const expiredJa = await server.post("/account-expired?locale=ja", "{}");
-    assert.match(String(expiredJa.body.error), /有効期限が切れました/u);
+    assert.match(String(expiredJa.body.error), /ログイン期限切れ/u);
 
     // Technical leaks (Prologue codes, SYNC_*, AJV pointers, OS paths, fetch failed) never pass through.
     for (const path of ["/leak-model", "/leak-sync", "/leak-ajv", "/leak-path", "/leak-fetch"]) {

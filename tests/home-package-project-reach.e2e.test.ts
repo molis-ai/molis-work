@@ -24,7 +24,7 @@ const projectFrame = `${projectStage} > iframe[data-plugin-frame="${REACH_PLUGIN
 const homeDetails = `[data-plugin-trust-home] details:has(${panel})`;
 
 async function fixture(t: TestContext) {
-  const f = await serveHomeRuntime(t), a = await f.project("写作项目 A"), b = await f.project("研究项目 B"), publisher = newPublisher();
+  const f = await serveHomeRuntime(t), a = await f.project("写作项目 A", ["goals"]), b = await f.project("研究项目 B", ["goals"]), publisher = newPublisher();
   for (const project of [a, b]) {
     await initializeBoard(f.host, project.reference);
     await f.host.withProject(project.reference, runtime => goalApplicationOf(runtime).goalEvents.createIntent({ project_id: project.project_id,

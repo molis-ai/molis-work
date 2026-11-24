@@ -164,7 +164,7 @@
 | 比旧口径多数的 | 旧口径只有正则。现在拼出来的也算（`"ALTER " + "TABLE"`、模板、数组 `join`、字符串以大写 `ALTER` 结尾），源码目录里入库的 `.sql` 也算，`server/migrations/` 除外（D1 迁移不是 Home 的库，也没有 `upgrades` 字面量可写）。同一棵树上这两项今天都是 0，所以新旧口径的数字相同 |
 | 看不到的 | 只看文字在哪，不看谁执行它：读路径上写 `db.exec(X.upgrades[0].sql)` 看不出来（基线写在函数里时 `verify-release-versions.mjs` 会要求列进检查单，写在顶层不会）。另外这些写法也数不到：常量拼接跨了变量又不以大写 `ALTER` 结尾（`"ALTER " + noun + " t"`）；小写动词结尾（`"alter " + noun`）；两个词都被切开（`"ALT" + "ER TA" + "BLE"`）；SQL 注释夹在两词中间（`"ALTER/**/TABLE"`）；`replace`、`String.fromCharCode` 拼的；本地 `type SqliteBaseline = any`；不读的后缀（`.SQL`、`.ddl`、`.txt`、`.json`、`.js`、`.mjs`、`.cjs`、`.tsx`、`.cts`）和目录（`fixtures/`、`scripts/`、`examples/`、`vendor/`）。这些都得存心绕才写得出来，靠评审 |
 
-**手跑的建表文字（本地快查的键 `schemaExecs`）。** 按文件计数，对照 merge-base 只许减少，新文件从 0 开始。数的是 `exec` 调用的参数里出现名字带 `SCHEMA` 这个词的常量（`db.exec(X_SCHEMA_SQL)`、`db.exec(BINDING_METADATA_SCHEMA)`，模板和拼接里也算）：它绕开基线建表，没有版本，也不用写 `ALTER TABLE`，上面那个数看不到。范围是 `SOURCE_ROOTS` 下所有代码文件，包自己的测试也算（`plugins/native/schedule/tests/replication.test.ts`）；顶层 `tests/` 不算，那里是用 owner 导出的文字建内存夹具。现在 7 个文件 8 处。看不到的：常量先赋给别的变量再传；小写名字（`db.exec(baseline.schema)`，`applySqliteBaseline` 自己就这样写）；`db.prepare(...)` 和别的执行方法。
+**手跑的建表文字（本地快查的键 `schemaExecs`）。** 按文件计数，对照 merge-base 只许减少，新文件从 0 开始。数的是 `exec` 调用的参数里出现名字带 `SCHEMA` 这个词的常量（`db.exec(X_SCHEMA_SQL)`、`db.exec(BINDING_METADATA_SCHEMA)`，模板和拼接里也算）：它绕开基线建表，没有版本，也不用写 `ALTER TABLE`，上面那个数看不到。范围是 `SOURCE_ROOTS` 下所有代码文件，包目录里的测试也算；顶层 `tests/` 不算，那里是用 owner 导出的文字建内存夹具。当前数量见 `pnpm health:check`。看不到的：常量先赋给别的变量再传；小写名字（`db.exec(baseline.schema)`，`applySqliteBaseline` 自己就这样写）；`db.prepare(...)` 和别的执行方法。
 
 验证：`node scripts/run-tests.mjs tests/health-gates-schema-patches.test.ts`，以及 `tests/health-gates-merge-base.test.ts` 里的「an in-place schema patch」和「VG-34」。
 

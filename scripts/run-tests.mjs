@@ -18,9 +18,7 @@ import { prepareIsolatedTestEnv } from "./ci-linux-probe/run.mjs";
 //   --shard <k>/<n>         the k-th of n parts of the list, dealt by how long the files take (tests/ci-shard-weights.json, see
 //                           scripts/run-tests/shard.mjs; CI spreads one list over n jobs: the same list in each job gives each
 //                           file to exactly one of them)
-//   --skip-macos-only       leave out the files the Linux probe marks darwin and not browser (scripts/ci-linux-probe/select.mjs),
-//                           before --shard picks: the full suite on a Linux runner (.github/workflows/full-suite.yml). A browser
-//                           file stays: its darwin mark comes from the platform check of the shared Chrome locator.
+//   --skip-macos-only       exclude files explicitly requiring macOS; platform guards select cases inside mixed files.
 //   --exclude-gate-meta     leave out CI/gate/health/runner self-tests (scripts/run-tests/strata.mjs) before --shard picks.
 //   --exclude-visual-audit  leave out the full-screen VUX crawl tests (scripts/run-tests/strata.mjs) before --shard picks.
 // Any other `--` option is handed to `node --test` (e.g. `--test-name-pattern=…`).
@@ -88,6 +86,7 @@ const label = targets.length ? targets.join(", ").slice(0, 90) : (options.gateRu
 await acquireSlot("test", { label });
 if (!targets.length) {
   const files = (await readdir("tests")).filter(name => /\.test\.(ts|mjs)$/.test(name)).sort().map(name => `tests/${name}`);
+  if (!files.length) die("no test files found in tests/");
   if (options.gateRules === undefined) targets.push(...files);
   else {
     const { gateRuleFiles } = await import("./run-tests/strata.mjs");
@@ -100,9 +99,8 @@ if (!targets.length) {
 }
 const root = fileURLToPath(new URL("..", import.meta.url));
 if (options.skipMacosOnly) {
-  const { classifyFile } = await import("./ci-linux-probe/select.mjs");
-  const macosOnly = (file) => { const { marks } = classifyFile(root, relative(root, resolve(file))); return marks.includes("darwin") && !marks.includes("browser"); };
-  const kept = targets.filter((file) => !macosOnly(file));
+  const { isMacOnlyTest } = await import("./ci-linux-probe/select.mjs");
+  const kept = targets.filter(file => !isMacOnlyTest(root, resolve(file)));
   console.log(`run-tests: left out ${targets.length - kept.length} macOS-only files of ${targets.length}`);
   targets.splice(0, targets.length, ...kept);
 }
@@ -120,6 +118,11 @@ if (options.excludeGateMeta || options.excludeVisualAudit) {
     targets.splice(0, targets.length, ...kept);
   }
 }
+// Empty filters must never reach a bare node --test. Empty shards already exit in the planner.
+if (!targets.length && !options.shard) {
+  console.log("run-tests: 0 of 0 files passed (no applicable files)");
+  process.exit(0);
+}
 const fromEnvironment = (name, fallback) => process.env[name] === undefined ? fallback : whole(name, process.env[name], 1);
 const defaultJobs = process.env.CI === "true" ? Math.max(1, Math.min(6, Math.floor(availableParallelism() / 2))) : 1;
 const jobs = options.jobs ?? fromEnvironment("MOLIS_WORK_TEST_JOBS", defaultJobs);
@@ -127,9 +130,10 @@ const browserJobs = Math.min(jobs, options.browserJobs ?? fromEnvironment("MOLIS
 if (options.shard) {
   const { index, count } = options.shard;
   const { planShards, readWeights, describeShards } = await import("./run-tests/shard.mjs");
-  const { classifyFile } = await import("./ci-linux-probe/select.mjs");
+  const { createTestReader } = await import("./ci-linux-probe/select.mjs");
+  const reader = createTestReader(root);
   const name = (file) => relative(root, resolve(file));
-  const plan = planShards(targets, { count, jobs, browserJobs }, readWeights(root), name, (file) => classifyFile(root, name(file)).marks.includes("browser"));
+  const plan = planShards(targets, { count, jobs, browserJobs }, readWeights(root), name, (file) => reader.classify(name(file)).marks.includes("browser"));
   console.log(`run-tests: ${describeShards(plan.loads)}`);
   const mine = plan.executionOrder[index];
   if (!mine.length) { console.log(`run-tests: shard ${index + 1}/${count} of ${targets.length} files has no file`); process.exit(0); }

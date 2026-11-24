@@ -7,7 +7,7 @@ export function verifyFullRetry(jobs, { runId, artifact, count }) {
   if (!/^\d+$/.test(runId) || !Number.isSafeInteger(count) || count < 1) throw new Error("Invalid Full suite plan");
   const latest = new Map();
   for (const job of jobs) {
-    if (job.name !== "Build workspace" && !job.name.startsWith("Full suite (")) continue;
+    if (job.name !== "Build workspace" && !job.name.startsWith("Full suite (") && !(count > 1 && job.name === "Sync Worker integration")) continue;
     if (String(job.run_id) !== runId || !Number.isSafeInteger(job.run_attempt) || job.run_attempt < 1) throw new Error("Invalid Full suite job identity");
     const previous = latest.get(job.name);
     if (!previous || previous.run_attempt < job.run_attempt) latest.set(job.name, job);
@@ -24,8 +24,9 @@ export function verifyFullRetry(jobs, { runId, artifact, count }) {
   }
   latest.delete("Build workspace");
   const incomplete = [];
-  for (let index = 1; index <= count; index++) {
-    const name = `Full suite (${index}/${count})`;
+  const expected = Array.from({ length: count }, (_, index) => `Full suite (${index + 1}/${count})`);
+  if (count > 1) expected.push("Sync Worker integration");
+  for (const name of expected) {
     const shard = latest.get(name);
     const start = Date.parse(shard?.started_at);
     if (shard?.conclusion !== "success" || shard.run_attempt < producer.run_attempt

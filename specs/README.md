@@ -168,6 +168,8 @@
 
 ## 梳理记录
 
+- 2026-11-23：[测试集合审查与 CI 用时](archive/test-suite-audit/spec.md)归档（已实现，负责人 Codex）。逐文件清单用 `node scripts/test-inventory.mjs` 生成，执行结果与已知失败见 [#2281](https://github.com/molis-ai/molis-work/pull/2281)。
+
 - 2026-11-23：[第 42 批 Skill 创作余项](archive/bl-b42-followups/spec.md)归档（已实现，负责人 Codex）。工程验证见 #2271，真实供应商和本人试用见 BL-b42-acceptance。
 - 2026-11-23：[D 轨界面收口](archive/d-track-ui-closeout/spec.md)归档（已实现，负责人 Codex）。390px 英文组件板、引导提示和首显阶梯随 [#2277](https://github.com/molis-ai/molis-work/pull/2277) 合入。
 

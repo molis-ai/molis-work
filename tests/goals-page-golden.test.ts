@@ -378,6 +378,9 @@ const pages: Record<string, Draw> = {
 // `apps/workbench/src/shell-page-renderer.ts` loaded `/assets/molis-work-mainline.js`. Re-recorded (`MOLIS_WORK_GOLDEN_RECORD=1`):
 // uniform +1814 (zh) / +1892 (en) on 14 `page-*` records and +1834 (zh) / +1912 (en) on `page-current-desktop`; all 36 fragment/settings
 // records stayed byte-identical.
+// Batch 44B PR1 (#2279, deleting the old Alchemist): the inline page client no longer carries Alchemist's storage-key prefixes and
+// the built-in catalog no longer lists it. Re-recorded (`MOLIS_WORK_GOLDEN_RECORD=1`) and re-verified with RECORD unset: uniform -1998 (zh)
+// / -2189 (en) on all 16 `page-*` records; all 36 fragment/settings records stayed byte-identical, and no draw names Alchemist.
 // Batch 44B PR3 (M2～M13, on batch/44b-4): Goals' input and fixed-material rows carry the platform placement marks (`data-placement-input-*`,
 // `data-placement-snapshot*` instead of `data-goal-input-*` / `data-goal-material-snapshot*`, M3), and the shell carries the receive, character-run
 // and event-owner changes (M4, M6) plus PR1's Alchemist removal. Re-recorded (`MOLIS_WORK_GOLDEN_RECORD=1`), re-verified with RECORD unset:

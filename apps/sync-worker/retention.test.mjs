@@ -137,9 +137,36 @@ test('PCSYNC-17/18 restore within 30 server days is idempotent and competes atom
  const trash=await(await f.call('/v1/trash')).json();assert.equal(trash.items.length,1);assert.equal(trash.items[0].expiresAt-trash.items[0].deletedAt,30*86400000);
  assert.equal((await f.call('/v1/trash','bob')).status,200);assert.equal((await(await f.call('/v1/trash','bob')).json()).items.length,0);
  assert.equal((await purge(f,revision,'asset',false)).status,400);
- const results=await Promise.all([restore(f,revision),purge(f,revision)]);assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);
- if(results[0].status===200){assert.equal((await restore(f,revision)).status,200);await f.call('/v1/maintenance','alice',{});assert.equal((await f.bucket.list()).objects.length,1);}
- else{assert.equal((await restore(f,revision,'too-late')).status,409);await f.call('/v1/maintenance','alice',{});assert.equal((await f.bucket.list()).objects.length,0);}
+ const [restored,purged]=await Promise.all([restore(f,revision),purge(f,revision)]);
+ const restoreWon=restored.status===200;
+ if(restoreWon){
+  assert.equal(purged.status,409);
+  assert.equal((await purged.json()).error,'SYNC_RETENTION_CONFLICT');
+  assert.equal((await restore(f,revision)).status,200);
+ }else{
+  assert.equal(purged.status,200);
+  // An in-flight restore sees the purged head. A restore whose read starts later finds no retained content.
+  const reason=(await restored.json()).error;
+  assert.ok((restored.status===409 && reason==='SYNC_ITEM_PURGED') ||
+   (restored.status===404 && reason==='SYNC_RECOVERY_MISSING'), `unexpected restore response: ${restored.status} ${reason}`);
+ }
+ await f.call('/v1/maintenance','alice',{});
+ assert.equal((await f.bucket.list()).objects.length,restoreWon?1:0);
+ // Exercise a completed purge on every run, regardless of which request won the race above.
+ const gone=await deleted(f,'purged-first');
+ assert.equal((await purge(f,gone,'purged-first')).status,200);
+ const late=await restore(f,gone,'too-late','purged-first');
+ assert.equal(late.status,404);assert.equal((await late.json()).error,'SYNC_RECOVERY_MISSING');
+ const head=await f.db.prepare('SELECT revision,purged_at FROM sync_heads WHERE space=? AND namespace=? AND key=?').bind(f.space('alice'),f.namespace,'purged-first').first();
+ assert.equal(head.revision,gone);assert.ok(head.purged_at>0);
+ const prior=await deleted(f,'restored-first');
+ const recover=()=>restore(f,prior,'recover-first','restored-first');
+ assert.equal((await recover()).status,200);
+ const stale=await purge(f,prior,'restored-first');
+ assert.equal(stale.status,409);assert.equal((await stale.json()).error,'SYNC_RETENTION_CONFLICT');
+ assert.equal((await recover()).status,200);
+ const rows=await f.db.prepare("SELECT value FROM sync_events WHERE space=? AND namespace=? AND key=? AND action='restore'").bind(f.space('alice'),f.namespace,'restored-first').all();
+ assert.deepEqual(rows.results.map(row=>JSON.parse(row.value)),[{content:'restored-first'}]);
 });
 test('PCSYNC-17/19 expiry prunes business history but retains tombstones and idempotency receipts',async t=>{
  const f=await cloudFixture(t);await f.enable();const ref=await file(f),revision=await deleted(f,'asset',ref);await age(f,31);await oldBlobs(f);

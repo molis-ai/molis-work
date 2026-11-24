@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { isMainScript } from "./script-paths.mjs";
 import { planShards, describeShards, readWeights, WEIGHTS_FILE } from "./run-tests/shard.mjs";
-import { classifyFile } from "./ci-linux-probe/select.mjs";
+import { createTestReader, isMacOnlyTest } from "./ci-linux-probe/select.mjs";
 import { securityList, LEGS } from "./ci-test-selection.mjs";
 import { readPlan } from "./ci-product-subset/plan.mjs";
 
@@ -34,8 +34,9 @@ export function mergeWeights(previous, seen, exists) {
 
 function reportPlans(root, table) {
   const all = readdirSync(path.join(root, "tests")).filter((file) => /\.test\.(ts|mjs)$/.test(file)).map((file) => `tests/${file}`);
-  const marked = (file) => ({ file, browser: classifyFile(root, file).marks.includes("browser") });
-  const full = all.filter((file) => { const { marks } = classifyFile(root, file); return !marks.includes("darwin") || marks.includes("browser"); }).map(marked);
+  const reader = createTestReader(root);
+  const marked = (file) => ({ file, browser: reader.classify(file).marks.includes("browser") });
+  const full = all.filter(file => !isMacOnlyTest(root, file)).map(marked);
   const security = securityList(readFileSync(path.join(root, "package.json"), "utf8"), all).map(marked);
   const product = readPlan(root).entries;
   for (const [name, entries, count, jobs, browserJobs, separateBrowser] of [

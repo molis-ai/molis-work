@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { docGateProblems } from "../../scripts/gates/doc-gates.mjs";
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -25,6 +26,13 @@ const put = (file: string, text: string) => { mkdirSync(path.dirname(path.join(r
 const read = (file: string) => readFileSync(path.join(repo, file), "utf8");
 const append = (file: string, text: string) => put(file, read(file) + text);
 const commit = (message: string) => { git("add", "-A"); git("commit", "-q", "--allow-empty", "-m", message); };
+// TSA-05. Read the tracked scratch tree that the health CLI passes to its absolute document rules.
+function documentProblems(): string {
+  const files = git("ls-files", "-z").split("\0").filter(Boolean);
+  const contents = new Map(files.map(file => [file, read(file)]));
+  return docGateProblems({ files, read: (file: string) => contents.get(file) ?? null }).join("\n");
+}
+
 const gate = (...args: string[]) => {
   const run = spawnSync(process.execPath, [script, "--root", repo, ...args], { encoding: "utf8" });
   return { code: run.status, out: `${run.stdout}${run.stderr}` };
@@ -171,10 +179,10 @@ const notIdSources: Array<[file: string, id: string]> = [
 
 // absolute: a rule with no baseline; ratchet: a count that may only fall, where rewriting the committed baseline must not help.
 // `localCheck`: a ratchet whose rewritten baseline still leaves the quick local check red, and why.
-type Scenario = { name: string; mutate: () => void; expect: RegExp[]; kind: "absolute" | "ratchet"; localCheck?: RegExp[] };
+type Scenario = { name: string; mutate: () => void; expect: RegExp[]; kind: "absolute" | "cli" | "ratchet"; localCheck?: RegExp[] };
 const violations: Scenario[] = [
   // ---- broken relative links ----
-  { kind: "absolute", name: "a link to a file that does not exist", mutate: () => append("docs/guide.md", "\n[gone](missing.md)\n"),
+  { kind: "cli", name: "a link to a file that does not exist", mutate: () => append("docs/guide.md", "\n[gone](missing.md)\n"),
     expect: [/broken link: docs\/guide\.md:\d+: link missing\.md points at docs\/missing\.md, which is not tracked/] },
   { kind: "absolute", name: "a link whose target was deleted", mutate: () => git("rm", "-q", "docs/next.md"),
     expect: [/broken link: docs\/guide\.md:\d+: link next\.md points at docs\/next\.md/] },
@@ -331,9 +339,9 @@ const violations: Scenario[] = [
     expect: [/raw data in docs: docs\/design\/detector\.json:1: \/home\/dev is a path/] },
   { kind: "absolute", name: "a file URL into a home folder", mutate: () => append("docs/guide.md", "\nSee file:///Users/someone/shot.png and HOME=/home/dev.\n"),
     expect: [/docs\/guide\.md:\d+: \/Users\/someone is a path/, /docs\/guide\.md:\d+: \/home\/dev is a path/] },
-  { kind: "absolute", name: "the docs .json limit loosened", mutate: () => put("tooling/gates/limits.json", JSON.stringify({ ...baseLimits, docsJsonBytes: 1 << 20 }, null, 2) + "\n"),
+  { kind: "cli", name: "the docs .json limit loosened", mutate: () => put("tooling/gates/limits.json", JSON.stringify({ ...baseLimits, docsJsonBytes: 1 << 20 }, null, 2) + "\n"),
     expect: [/limit "docsJsonBytes" loosened 64 → 1048576/] },
-  { kind: "absolute", name: "the docs .json limit removed to switch the rule off", mutate: () => {
+  { kind: "cli", name: "the docs .json limit removed to switch the rule off", mutate: () => {
     const { docsJsonBytes: _dropped, ...rest } = baseLimits;
     put("tooling/gates/limits.json", JSON.stringify(rest, null, 2) + "\n");
   }, expect: [/limit "docsJsonBytes" removed from tooling\/gates\/limits\.json \(it was 64\)/,
@@ -357,6 +365,14 @@ export function testDocumentViolations(partition: 0 | 1) {
   // Every mutation has its own branch from the fixture base.
   for (const [index, scenario] of violations.entries()) {
     if (index % 2 !== partition) continue;
+    if (scenario.kind === "absolute") {
+      test(scenario.name, () => {
+        branch("violation", scenario.mutate);
+        const problems = documentProblems();
+        for (const pattern of scenario.expect) assert.match(problems, pattern);
+      });
+      continue;
+    }
     test(`${scenario.name} fails against the merge-base${scenario.kind === "ratchet" ? ", and --update does not hide it" : ""}`, () => {
       branch("violation", scenario.mutate);
       const caught = gate("--base", "main");

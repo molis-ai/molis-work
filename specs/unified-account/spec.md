@@ -37,7 +37,7 @@ T-01 接续记录见文末；已整理提交并进入远端评审。K-06 及首�
 
 - **WUA-33** Auth 不可用时退出仍在本地失权，恢复后可重新登录；未完成登录跨 Host 重启、中央禁用和刷新／存储失败不得复活原账号。证明：`scripts/account-high.test.mjs`、`scripts/central-account.test.mjs`、`tests/account-session.test.ts`、`tests/account-cohort-ordering.e2e.test.ts`。
 
-- **WUA-34** 已完成登录请求重放被拒且不撤销现行身份；历史恢复同账号保留缓存，退出后恢复旧页或关闭整个 Chrome 再打开旧入口不复活账号；错误／过期验证码、重复提交与真实重发限流分别拒绝。证明：`scripts/account-medium.test.mjs`。
+- **WUA-34** 已完成登录请求重放被拒且不撤销现行身份；历史恢复同账号保留缓存，退出后恢复旧页或关闭整个 Chrome 再打开旧入口不复活账号；错误／过期验证码、重复提交与真实重发限流分别拒绝。证明：`scripts/account-medium.test.mjs`、`tests/account-session.test.ts`。
 
 ## WORK-02 验证记录
 

@@ -40,6 +40,12 @@ test("ASC-63 Images: choose a service and get its model and sizes; the technical
   assert.deepEqual({ pressed: first.pressed, advanced: first.advanced, focus: first.focus }, { pressed: ["openai"], advanced: false, focus: "openai" });
   assert.match(first.offer, /gpt-image-1\.5[\s\S]*1024x1024/);
   assert.equal(await evaluate("document.querySelector('[data-images-advanced]').contains(document.querySelector('[data-images-connection-url]'))"), true);
+  // BL-1055: the shared summary still opens and closes the technical fields in this dialog.
+  const summary = '[data-images-advanced][data-slot="collapsible"] > summary';
+  await click(summary);
+  await waitFor("document.querySelector('[data-images-connection-url]').checkVisibility({contentVisibilityAuto:true}) && document.querySelector('[data-images-advanced]').open");
+  await click(summary);
+  assert.equal((await dialog()).advanced, false);
   await shot("1-openai-1440");
   await click('[data-images-preset="gemini"]');
   const gemini = await dialog();

@@ -16,10 +16,18 @@ export function mountConnectionItems(root: Document | HTMLElement = document): v
     const own = target.closest("[data-connection-toggle]");
     const row = target.closest(".settings-connection-row");
     if (!own && (!row || row.parentElement !== item || target.closest("a, button, input, select, textarea, summary, label"))) return;
-    const open = item.dataset.open !== "true";
-    item.dataset.open = String(open);
-    item.querySelector("[data-connection-toggle]")?.setAttribute("aria-expanded", String(open));
+    setConnectionItemOpen(item, item.dataset.open !== "true");
   });
+}
+
+/** Both a row press and a settings deep link update the region and its keyboard controls together. */
+export function setConnectionItemOpen(item: HTMLElement, open: boolean): void {
+  const fold = item.querySelector<HTMLElement>(".settings-connection-item__fold");
+  const toggle = item.querySelector<HTMLElement>("[data-connection-toggle]");
+  if (!open && fold?.contains(document.activeElement)) toggle?.focus({ preventScroll: true });
+  if (fold) fold.inert = !open;
+  item.dataset.open = String(open);
+  toggle?.setAttribute("aria-expanded", String(open));
 }
 
 function readJson<T>(text: string | undefined, fallback: T): T {

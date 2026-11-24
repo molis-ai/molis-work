@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-24 BL-1055。插件作者可从 `@molis-ai/molis-work-plugin-sdk/ui` 导入 `renderCollapsible`。设计系统原有入口转出同一函数，继续支持原有参数，新增可选的 `attrs` 供页面绑定控件。
+
 2026-11-24 BL-1049、BL-1057。创作台将设计者选择的图标写入现有 stage 视图的 `icon`。生成插件可在提交部件上声明 `connectionNeed`，由外壳按现行原处连接卡合同处理。SDK 导出 `parseConnectionSlots`，供创作台用清单的规则核对连接声明与操作请求的槽。详见[需求与验收](../../specs/studio-icon-connection/spec.md)。
 
 2026-11-24。新增插件只读动作 `agent.write-checks.read@1`。输入是原会话、一轮执行和写调用编号列表，返回可核实的逐写检查摘要。调用方可对缺失项稍后再读。Runtime 通过可选的 `readWriteChecks` 提供该能力，原单条命令详情继续走 `agent.command-output@1`。

@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderAlert, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import type {
   StagePageModel,
@@ -158,7 +158,11 @@ function renderReadsSection(task: ScheduleConversationTaskView, routePrefix: str
       ${note("unavailable", false, uiText.text("schedule.reads.unavailable"))}
       ${note("nothing", true, uiText.text("schedule.reads.nothing-readable"))}
       <div class="mw-alert mw-alert--warning" data-schedule-reads-note="workspace" role="status" hidden><span>${uiText("schedule.reads.workspace")} <a href="${p.escape(routePrefix)}/settings/workspaces" style="white-space:nowrap">${uiText("schedule.hint.workspace-link")}</a></span></div>
-      <div class="mw-alert mw-alert--warning" data-schedule-reads-failed role="status" hidden><strong>${uiText("schedule.reads.failed")}</strong><p>${uiText("schedule.reads.failed-body")}</p><div class="schedule-reads__actions"><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-schedule-reads-retry>${p.icon("refresh")}<span>${uiText("schedule.reads.retry")}</span></button></div></div>
+      ${renderAlert({
+        tone: "warning", title: uiText.text("schedule.reads.failed"), body: uiText.text("schedule.reads.failed-body"),
+        attrs: { "data-schedule-reads-failed": true, hidden: true },
+        actions: [{ label: uiText.text("schedule.reads.retry"), icon: "refresh", variant: "secondary", attrs: { "data-schedule-reads-retry": true } }],
+      })}
     </section>`;
 }
 

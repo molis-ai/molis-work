@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderCollapsible, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { sortGoalTreeItems } from "./tree-order.js";
 import type { GoalDisplayStatus } from "./tree-order.js";
@@ -50,7 +50,7 @@ function createDialogsRenderer(primitives: GoalsDialogPrimitives) {
           <p class="create-compose-example" data-create-example>${uiText("goals.dialogs-ui.example-new-user-knows-what-do-next-right")}</p>
           <textarea class="create-compose-outcome" data-plain-field data-fit name="outcome" rows="2" placeholder="${uiText("goals.dialogs-ui.what-will-be-different-once-done-can-leave")}" aria-label="${uiText("goals.dialogs-ui.result-want")}"></textarea>
         </div>
-        <details class="form-disclosure mw-collapsible create-more"><summary>${uiText("goals.dialogs-ui.notes-placement-priority")}</summary>
+        ${renderCollapsible({ summary: uiText.text("goals.dialogs-ui.notes-placement-priority"), className: "form-disclosure create-more", body: `
         <section class="create-more-group">
           <label class="mw-field"><span class="mw-field__label">${uiText("goals.dialogs-ui.why-do")}</span><textarea class="mw-textarea" name="why" rows="2" placeholder="${uiText("goals.dialogs-ui.why-problem-worth-solving-now")}"></textarea></label>
           <label class="mw-field"><span class="mw-field__label">${uiText("goals.dialogs-ui.how-works")}</span><textarea class="mw-textarea" name="business_logic" rows="3" placeholder="${uiText("goals.dialogs-ui.explain-practical-flow-boundaries-plain-language")}"></textarea></label>
@@ -71,7 +71,7 @@ function createDialogsRenderer(primitives: GoalsDialogPrimitives) {
         <section class="create-more-group">
           <div class="field-row field-row--split"><label class="mw-field"><span class="mw-field__label">Goal ID <small>${uiText("goals.dialogs-ui.optional")}</small></span><input class="mw-input" name="goal_id" autocomplete="off" placeholder="${uiText("goals.dialogs-ui.generated-if-empty")}"></label><label class="mw-field"><span class="mw-field__label">${uiText("goals.dialogs-ui.priority")}</span><input class="mw-input" name="priority" type="number" min="0" max="100" value="50"></label></div>
         </section>
-        </details>
+        ` })}
         <p class="form-error mw-alert mw-alert--danger" data-create-error role="alert" hidden></p>
       </div>
       <footer class="mw-form__footer"><kbd class="dialog-submit-hint" aria-hidden="true">⌘<span>↵</span></kbd><button class="mw-btn mw-btn--secondary" type="button" data-close-create>${uiText("goals.dialogs-ui.cancel")}</button><button class="mw-btn mw-btn--primary" type="submit" data-create-submit>${uiText("goals.dialogs-ui.create-goal")}</button></footer>

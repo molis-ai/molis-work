@@ -77,6 +77,7 @@ export const SURFACE_LANGUAGE_STYLES = `
   }
   ${CENTERED_EDITOR} .create-more > summary:hover { color: var(--ink); }
   ${CENTERED_EDITOR} .create-more[open] > summary { color: var(--ink); }
+  ${CENTERED_EDITOR} .create-more > .mw-collapsible__body { gap: 0; padding: 0; }
   ${CENTERED_EDITOR} .create-more-group { display: grid; gap: 12px; padding: 12px 8px; margin: 0; border: 0; }
   ${CENTERED_EDITOR} .create-more-group + .create-more-group { border-top: 1px solid var(--line); }
   ${CENTERED_EDITOR} .create-more-group h3, ${CENTERED_EDITOR} .create-more-group legend {

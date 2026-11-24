@@ -64,7 +64,7 @@
 2. **`window.molisFollow(container)`**：对话与长日志的唯一滚动主人——到底跟随，用户首个 `wheel`/`touchmove`/向上滚/选字当即交权 `detached`；新内容调 `pin()`、回底调 `toLatest()`、切会话保存/恢复 `{ scrollTop, followState }`，卸载 `dispose()`。
 3. **`window.molisStreamText(container, html, { reveal, grow, pace })`**：自适应帧率平滑流式输出 + 连续波浪 `.mw-fresh` 不掐断在途动画 + 内联 Markdown 闭合零重闪；代码块原地生长配合 `@molis-ai/molis-work-plugin-sdk/highlight` 的 `growCodeTokens`。
 4. **`window.molisShowMore(list, { key, label, keep })`**：长列表默认收前 5 项，多 1 项直接展开，`keep` 保住失败/需注意项，重画保持展开态。
-5. **`<details class="mw-collapsible">`**：自然高度展开与可中断收起；用户手动点开的 `<details>` 标 `data-user-toggled`，AI 完成时不自动合上（守 `VUX-13`）。
+5. **`<details class="mw-collapsible">`**：插件通过 SDK 的 `@molis-ai/molis-work-plugin-sdk/ui` 调用 `renderCollapsible({ summary, body })`，标题传纯文本，正文传已渲染的 HTML。工作台的连接行和连接卡通过设计系统的 `naturalFold` 按实际高度展开、反向收起；收起连接行时焦点回到开关，正文立即退出键盘导航。用户手动点开的 `<details>` 标 `data-user-toggled`，AI 完成时不自动合上（守 `VUX-13`）。
 6. **`window.molisMediaZoom`**：所有图片缩略图/附件预览统一点击灯箱放大。
 7. **`window.molisDropZone`**：文件/图片拖放区统一高亮与拖入反馈，隐藏原生 `<input type="file">`。
 8. **`data-overflow-fade` & `data-fit` & `.mw-num`**：横向可滚条仅在有更多的一侧淡出；多行输入框自动长高；跳动数字用 `data-num-ghost` 防抖动。

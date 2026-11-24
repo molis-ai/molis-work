@@ -5,6 +5,7 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 import { readMcpToolPreference, type McpActionGrant, type McpToolPreference } from "./mcp-settings-store.js";
 import { actionClientAudience, openByDefault, resolveMcpActionContext } from "./mcp-action-grants.js";
 import { isTaskGrantSubject } from "./task-grant-subjects.js";
+import { projectActionLocaleReaders, resolveActionLibraryWords } from "./web-capabilities.js";
 
 const same = (grant: McpActionGrant, view: ActionView) => grant.capability_id === view.capability_id && grant.version === view.version && grant.provider_id === view.provider.provider_id;
 
@@ -16,6 +17,8 @@ export async function readMcpActionAccess(home: string, host: MolisWorkLocalHost
   const context = resolveMcpActionContext(caller, all, saved);
   const current = scopeMissing ? [] : await (reference ? host.actionClient(reference) : host.homeActionClient()).discover(context);
   const catalog = all.filter(view => view.action.scope === (caller.project_id ? "project" : "home"));
+  const projectReaders = await projectActionLocaleReaders(host, reference);
+  const words = resolveActionLibraryWords(catalog, { host, projectReaders, locale: caller.locale ?? null });
   const grants = saved.action_grants.filter(grant => grant.client_id === caller.actor_id && grant.project_id === caller.project_id);
   const entries: McpAccessEntry[] = catalog.map(view => {
     const grant = grants.find(row => same(row, view));
@@ -28,7 +31,10 @@ export async function readMcpActionAccess(home: string, host: MolisWorkLocalHost
       : status === "unavailable" ? accepted && !accepted.availability.available ? accepted.availability.reason : "当前授权不再满足调用条件，请刷新后检查。" : undefined;
     return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id,
       ...(view.provider.plugin_id ? { plugin_id: view.provider.plugin_id } : {}),
-      title: view.action.title, provider_title: view.provider.title, description: view.action.description, kind: view.action.kind,
+      title: words.titles.get(view) ?? view.action.title,
+      provider_title: words.providers.get(view) ?? view.provider.title,
+      description: words.descriptions.get(view) ?? view.action.description,
+      kind: view.action.kind,
       permissions: view.action.permissions, status, expected: grant ? { expected_generation: grant.generation } : { expected_absent: true }, ...(reason ? { reason } : {}),
       can_enable: status === "ungranted" || status === "disabled" || status === "stale", can_revoke: !!grant?.enabled || defaultOpen };
   });

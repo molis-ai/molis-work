@@ -118,7 +118,6 @@ const JOINED_BASELINE: Readonly<Record<string, number>> = {
   "apps/local-host/src/model-connection-usages.ts": 1,
   "apps/local-host/src/plugin-development.ts": 1,
   "apps/local-host/src/project-deleted-hooks.ts": 2,
-  "apps/local-host/src/task-grant-categories.ts": 1,
   "apps/local-host/src/workspace-git-operations.ts": 1,
   "apps/workbench/src/browser/knowledge/detail.ts": 2,
   "packages/design-system/src/baseline.ts": 1,

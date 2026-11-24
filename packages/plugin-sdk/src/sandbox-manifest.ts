@@ -58,13 +58,19 @@ function projectedRows(effects: Partial<Record<keyof SandboxEffects, readonly st
     .map(([, permission, reason]) => ({ permission, reason, required: false }));
 }
 
+function withPermissionReasons(rows: readonly PermissionRow[], reasons?: Readonly<Record<string, TextRef>>): PermissionRow[] {
+  if (!reasons) return [...rows];
+  return rows.map(row => Object.hasOwn(reasons, row.permission) && reasons[row.permission] !== undefined
+    ? { ...row, reason_text: reasons[row.permission] } : row);
+}
+
 /**
  * The installation's switches beyond its Manifest's rows, from what its verified release asks for (`effects`, the union of its operations'):
  * the Host attaches them to the sandboxed definition it builds and the Runtime counts them in the grants it may hold (BL-701). An
  * integration's Manifest has no `connections:use` row, so its source connection is one of them; an app's Manifest already has it.
  */
-export function sandboxProjectedPermissions(manifest: Pick<PluginManifest, 'permissions'>, effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined): PermissionRow[] {
-  return projectedRows(effects, new Set(manifest.permissions.map(row => row.permission)));
+export function sandboxProjectedPermissions(manifest: Pick<PluginManifest, 'permissions'>, effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined, permissionReasons?: Readonly<Record<string, TextRef>>): PermissionRow[] {
+  return withPermissionReasons(projectedRows(effects, new Set(manifest.permissions.map(row => row.permission))), permissionReasons);
 }
 
 /**
@@ -137,6 +143,8 @@ export interface SandboxManifestInput {
   /** Validated wire text declarations, projected once by the public SDK. */
   textDeclarations?: Pick<SandboxPackageManifest, 'plugin_id' | 'agent' | 'methods' | 'name_text' | 'summary' | 'summary_text'>;
   stageTitleText?: TextRef;
+  /** Optional localized permission reasons keyed by permission name; defaults to `contract.permission_reasons`. */
+  permissionReasons?: Readonly<Record<string, TextRef>>;
   /** The author chooses only version/schema; the store and read/write names are deterministic platform output. */
   homeDatabase?: Pick<HomePluginDatabaseDeclaration, 'version' | 'schema' | 'upgrades'>;
   projectDatabase?: Pick<PluginDatabaseDeclaration, 'version' | 'schema' | 'upgrades'>;
@@ -182,10 +190,10 @@ function sandboxResources(input: SandboxManifestInput): Pick<PluginManifest, 'da
 }
 
 function localeFields(pluginId: string, contract?: SandboxPluginContract): Pick<PluginManifest['ui'], 'locales'> {
-  if (contract?.ui === undefined) return {};
-  const problems = sandboxLocaleProblems({ pluginId, ui: contract.ui });
+  if (contract === undefined) return {};
+  const problems = sandboxLocaleProblems({ ...contract, pluginId });
   if (problems.length) throw pluginErrors.declaration_invalid(problems.join('；'));
-  return { locales: contract.ui.locales };
+  return contract.ui === undefined ? {} : { locales: contract.ui.locales };
 }
 
 function directoryFields(input?: Pick<PluginManifest, 'name_text' | 'summary' | 'summary_text'>) {
@@ -218,12 +226,20 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
   const stateMachines = input.contract?.state_machines === undefined ? input.stateMachines : contractStateMachines(input.contract);
   if (input.effects?.background?.length && !input.contract) throw pluginErrors.declaration_invalid('后台操作需要完整合同来派生动作');
   const actionIdentity = input.actionIdentity ?? { buildId: sandboxPackageBuildId(input.pluginId, input.publisher.signature), version: 1 };
-  const actions = input.contract && (input.contract.presentation !== undefined || input.contract.settings_entries !== undefined || input.contract.operations.some(operation =>
+  const actions = input.contract && (input.contract.presentation !== undefined || input.contract.settings_entries !== undefined || input.contract.read_groups !== undefined || input.contract.operations.some(operation =>
     operation.background_job || operation.effects.background?.length || operation.external !== undefined || operation.read_protocol !== undefined || operation.action_protocol !== undefined || operation.trusted_review !== undefined
-    || operation.start !== undefined))
+    || operation.start !== undefined || operation.title_text !== undefined || operation.description_text !== undefined))
     ? sandboxOperationActions({ contract: input.contract, ...actionIdentity,
       title: input.name, scope: input.runtime?.scope === 'home' ? 'home' : 'project', dualInstance: input.runtime?.scope === 'home' && input.runtime.dual_instance === true,
       upgradeOperation: sandboxUpgradeOperation(sandboxUpgradeFields(input)), hasProjectDatabase: !!input.projectDatabase }) : undefined;
+  const readGroups = input.contract?.read_groups?.map(group => ({
+    group_id: group.group_id, title: group.title,
+    ...(group.title_text === undefined ? {} : { title_text: group.title_text }),
+    description: group.description,
+    ...(group.description_text === undefined ? {} : { description_text: group.description_text }),
+    actions: group.operations.map(opId => sandboxActionId(actionIdentity.buildId, opId)),
+  }));
+  const permissionReasons = input.permissionReasons ?? input.contract?.permission_reasons;
   const workTerminals = input.contract?.operations
     .filter(operation => operation.read_protocol?.kind === 'work_terminal_prompt')
     .map(operation => ({
@@ -251,6 +267,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'app',
     publisher: input.publisher,
     ...(actions ? { actions } : {}),
+    ...(readGroups ? { read_groups: readGroups } : {}),
     ...(workTerminals?.length ? { work_terminals: workTerminals } : {}),
     ...(settingsEntries ? { settings_entries: settingsEntries } : {}),
     ...(input.contract?.presentation === undefined ? {} : { presentation: input.contract.presentation }),
@@ -262,7 +279,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     ...(input.runtime ? { runtime: input.runtime } : {}),
     ...(input.memoryScene === undefined ? {} : { memory_scene: input.memoryScene }),
     ...sandboxResources(input),
-    permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }, ...sandboxDerivedPermissions(input.effects)],
+    permissions: withPermissionReasons([{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }, ...sandboxDerivedPermissions(input.effects)], permissionReasons),
     capabilities: { provides: [], consumes: input.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
     ...(input.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
     routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],
@@ -285,6 +302,8 @@ export interface SandboxIntegrationManifestInput {
   /** The contract projects the producer's words; this does not give an integration a page. */
   contract?: SandboxPluginContract;
   textDeclarations?: Pick<PluginManifest, 'name_text' | 'summary' | 'summary_text'>;
+  /** Optional localized permission reasons keyed by permission name; defaults to `contract.permission_reasons`. */
+  permissionReasons?: Readonly<Record<string, TextRef>>;
 }
 
 /**
@@ -293,6 +312,7 @@ export interface SandboxIntegrationManifestInput {
  * to show: no route, no view.
  */
 export function sandboxIntegrationManifest(input: SandboxIntegrationManifestInput): PluginManifest {
+  const permissionReasons = input.permissionReasons ?? input.contract?.permission_reasons;
   return {
     schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'integration',
     ...directoryFields(input.textDeclarations),
@@ -300,7 +320,7 @@ export function sandboxIntegrationManifest(input: SandboxIntegrationManifestInpu
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
     ...sandboxUpgradeFields({ upgradesFrom: input.upgradesFrom }),
     ...(input.stateMachines === undefined ? {} : { state_machines: input.stateMachines }),
-    permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }],
+    permissions: withPermissionReasons([{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }], permissionReasons),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { ...localeFields(input.pluginId, input.contract), contributions: [] },
     // An integration's sources are the Home's: one registry, which every project's Feed reads (BL-530).

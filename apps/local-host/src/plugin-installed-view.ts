@@ -3,7 +3,7 @@ import { pluginErrors, type PluginInstanceRecord, type PluginManifest, type Plug
 import { projectedPermissionsOf } from './installed-permission-projection.js';
 import { platformPermissionMeaning, type PluginConsentRecord, type PluginInstalledPermissionView, type PluginInstalledView, type PluginJobView, type PluginPendingDefaultSource, type PluginPermissionView } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { systemOutputSource } from '@molis-ai/molis-work-contracts/platform/project-materials';
-import { consentSubject, UNINSTALL_PENDING, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
+import { consentSubject, resolveManifestText, UNINSTALL_PENDING, type ManifestTextResolver, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 
 /** One installation of a project or of the Home, the Manifest it was installed with (undefined when that cannot be read), and why it is not running when its plugin host knows. */
 export interface InstalledPluginEntry { record: PluginInstanceRecord; manifest: PluginManifest | undefined;
@@ -32,12 +32,15 @@ export function assertPermissionSwitchTarget(record: PluginInstanceRecord, expec
  * What a Manifest asks for, each with the plugin's reason and what the platform says the permission is, and after them the switches the
  * Host projected from a sandboxed package's verified release (`projected`, BL-701).
  */
-export const permissionViews = (manifest: PluginManifest, requested?: readonly string[], projected: readonly PluginPermissionDeclaration[] = []): PluginPermissionView[] =>
-  [...manifest.permissions, ...projected].map(item => ({ permission: item.permission, required: item.required, requested: requested === undefined || requested.includes(item.permission), reason: item.reason, meaning: platformPermissionMeaning(item.permission) }));
+export const permissionViews = (manifest: PluginManifest, requested?: readonly string[], projected: readonly PluginPermissionDeclaration[] = [], resolve?: ManifestTextResolver): PluginPermissionView[] =>
+  [...manifest.permissions, ...projected].map(item => ({
+    permission: item.permission, required: item.required, requested: requested === undefined || requested.includes(item.permission),
+    reason: resolveManifestText(manifest.plugin_id, item.reason, item.reason_text, resolve), meaning: platformPermissionMeaning(item.permission),
+  }));
 
 /** What an installation asked for and holds: the Manifest's permissions, each with whether this installation's grants include it (PG-002). */
-export const installedPermissionViews = (manifest: PluginManifest, grants: readonly string[], requested?: readonly string[], projected?: readonly PluginPermissionDeclaration[]): PluginInstalledPermissionView[] =>
-  permissionViews(manifest, requested, projected).map(view => ({ ...view, granted: grants.includes(view.permission) }));
+export const installedPermissionViews = (manifest: PluginManifest, grants: readonly string[], requested?: readonly string[], projected?: readonly PluginPermissionDeclaration[], resolve?: ManifestTextResolver): PluginInstalledPermissionView[] =>
+  permissionViews(manifest, requested, projected, resolve).map(view => ({ ...view, granted: grants.includes(view.permission) }));
 
 /** The background jobs a Manifest declares. */
 export const jobViews = (manifest: PluginManifest): PluginJobView[] =>
@@ -59,13 +62,18 @@ export function pendingDefaultSources(record: PluginInstanceRecord, manifest: Pl
 }
 
 /** The plugin detail page's rows (ac-trust T7): the trust the install carries, what it asked for and runs, and the agreements the person gave it. */
-export function installedPluginViews(entries: readonly InstalledPluginEntry[], ledger: PluginConsentLedger): PluginInstalledView[] {
+export function installedPluginViews(entries: readonly InstalledPluginEntry[], ledger: PluginConsentLedger, resolveFor?: (entry: InstalledPluginEntry) => ManifestTextResolver | undefined): PluginInstalledView[] {
   const pins = new Map(ledger.publishers().map(pin => [pin.key_id, pin]));
-  return entries.map(({ record, manifest, recoveryCode, requestedPermissions }) => { const consents = ledger.consents(record.plugin_id); return {
-    install_id: record.install_id, plugin_id: record.plugin_id, name: manifest?.name ?? record.plugin_id, version: record.version, state: record.state,
-    trust: record.publisher_trust, publisher_signature: record.publisher_signature, publisher_label: pins.get(record.publisher_signature)?.label ?? null,
-    manifest_available: manifest !== undefined, permissions: manifest ? installedPermissionViews(manifest, record.grants, requestedPermissions, projectedPermissionsOf(record)) : [], jobs: manifest ? jobViews(manifest) : [],
-    consents, pending_defaults: pendingDefaultSources(record, manifest, consents), recovery_error: recoveryCode ? (recoveryCode === "plugin.package_invalid" && record.last_error_code && ACTION_ERROR_CODE.test(record.last_error_code) ? record.last_error_code : recoveryCode) : null,
-    ...uninstallFields(record),
-  }; });
+  return entries.map((entry) => {
+    const { record, manifest, recoveryCode, requestedPermissions } = entry;
+    const consents = ledger.consents(record.plugin_id);
+    const resolve = resolveFor?.(entry);
+    return {
+      install_id: record.install_id, plugin_id: record.plugin_id, name: manifest ? resolveManifestText(manifest.plugin_id, manifest.name, manifest.name_text, resolve) : record.plugin_id, version: record.version, state: record.state,
+      trust: record.publisher_trust, publisher_signature: record.publisher_signature, publisher_label: pins.get(record.publisher_signature)?.label ?? null,
+      manifest_available: manifest !== undefined, permissions: manifest ? installedPermissionViews(manifest, record.grants, requestedPermissions, projectedPermissionsOf(record), resolve) : [], jobs: manifest ? jobViews(manifest) : [],
+      consents, pending_defaults: pendingDefaultSources(record, manifest, consents), recovery_error: recoveryCode ? (recoveryCode === "plugin.package_invalid" && record.last_error_code && ACTION_ERROR_CODE.test(record.last_error_code) ? record.last_error_code : recoveryCode) : null,
+      ...uninstallFields(record),
+    };
+  });
 }

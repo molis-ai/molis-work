@@ -5,11 +5,23 @@ import type { PluginConnectionServiceDeclaration, PluginConnectionWord } from "@
 import { localeMessageArguments, type LocaleSetProblem } from "./locale-pack.js";
 import { tryOwnedTextRef } from "./text-ref.js";
 
-type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases"> & { readonly actions?: PluginManifest["actions"] };
+type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases"> & {
+  readonly permissions?: PluginManifest["permissions"];
+  readonly read_groups?: PluginManifest["read_groups"];
+  readonly actions?: PluginManifest["actions"];
+};
 export type DirectoryWordManifest = NameFields & {
   readonly ui?: Pick<PluginManifest["ui"], "locales" | "views">;
   readonly artifacts?: Pick<PluginManifest["artifacts"], "produces">;
 };
+
+export const DIRECTORY_WORD_LIMITS = {
+  permissionReason: 200,
+  readGroupTitle: 80,
+  readGroupDescription: 200,
+  actionTitle: 80,
+  actionDescription: 400,
+} as const;
 
 const fields = (manifest: DirectoryWordManifest) => [
   ["name_text", manifest.name_text, 80],
@@ -29,6 +41,19 @@ const fields = (manifest: DirectoryWordManifest) => [
     : [["动作 " + capability_id + " 的 composer_source.title_text", action.composer_source.title_text, 80] as const]),
 ] satisfies ReadonlyArray<readonly [string, TextRef | undefined, number]>;
 
+const localizedDeclarationFields = (manifest: DirectoryWordManifest) => [
+  ...(manifest.permissions ?? []).flatMap(({ permission, reason_text }) =>
+    reason_text === undefined ? [] : [[`权限 ${permission} 的 reason_text`, reason_text, DIRECTORY_WORD_LIMITS.permissionReason] as const]),
+  ...(manifest.read_groups ?? []).flatMap(({ group_id, title_text, description_text }) => [
+    ...(title_text === undefined ? [] : [[`读取分组 ${group_id} 的 title_text`, title_text, DIRECTORY_WORD_LIMITS.readGroupTitle] as const]),
+    ...(description_text === undefined ? [] : [[`读取分组 ${group_id} 的 description_text`, description_text, DIRECTORY_WORD_LIMITS.readGroupDescription] as const]),
+  ]),
+  ...(manifest.actions ?? []).flatMap(({ capability_id, action }) => [
+    ...(action.title_text === undefined ? [] : [[`动作 ${capability_id} 的 title_text`, action.title_text, DIRECTORY_WORD_LIMITS.actionTitle] as const]),
+    ...(action.description_text === undefined ? [] : [[`动作 ${capability_id} 的 description_text`, action.description_text, DIRECTORY_WORD_LIMITS.actionDescription] as const]),
+  ]),
+] satisfies ReadonlyArray<readonly [string, TextRef | undefined, number]>;
+
 const deletionField = "databases.home.project_rows.label";
 function deletionRef(manifest: DirectoryWordManifest): TextRef | undefined {
   const label = manifest.databases?.home?.project_rows?.label;
@@ -37,6 +62,16 @@ function deletionRef(manifest: DirectoryWordManifest): TextRef | undefined {
 
 const oneLine = (value: string, limit: number) => value.trim() !== "" && value === value.trim()
   && !/[\u0000-\u001f\u007f]/u.test(value) && [...value].length <= limit;
+
+/** Shared static-line TextRef check for Manifest and sandbox contract localized declaration fields. */
+export function staticDirectoryTextRefProblem(field: string, input: unknown, owner: string, limit: number, hasLocales: boolean): string | null {
+  const ref = tryOwnedTextRef(input, owner);
+  if (!ref) return `${field} 必须是本插件的键、通用键或原文`;
+  if ("literal" in ref) return oneLine(ref.literal, limit) ? null : `${field} 必须为一行，不超过 ${limit} 字`;
+  if (ref.args !== undefined || ref.fallback !== undefined) return `${field} 不接收参数或另一份后备文字`;
+  if (!ref.key.startsWith("common.") && !hasLocales) return `${field} 引用本插件的词须声明 ui.locales`;
+  return null;
+}
 
 const artifactTitleFields = (manifest: DirectoryWordManifest) => (manifest.artifacts?.produces ?? []).flatMap((type, index) =>
   type.title_text === undefined ? [] : [{ field: `artifacts.produces[${index}].title_text`, input: type.title_text }]);
@@ -52,14 +87,11 @@ function artifactTitleProblems(manifest: PluginManifest): string[] {
 export function directoryWordProblems(manifest: PluginManifest): string[] {
   const problems = artifactTitleProblems(manifest);
   if (manifest.summary_text !== undefined && manifest.summary === undefined) problems.push("summary_text 须同时保留 summary 原文");
-  for (const [field, input, limit] of fields(manifest)) {
+  const hasLocales = Boolean(manifest.ui.locales);
+  for (const [field, input, limit] of [...fields(manifest), ...localizedDeclarationFields(manifest)]) {
     if (input === undefined) continue;
-    const ref = tryOwnedTextRef(input, manifest.plugin_id);
-    if (!ref) problems.push(`${field} 必须是本插件的键、通用键或原文`);
-    else if ("literal" in ref) {
-      if (!oneLine(ref.literal, limit)) problems.push(`${field} 必须为一行，不超过 ${limit} 字`);
-    } else if (ref.args !== undefined || ref.fallback !== undefined) problems.push(`${field} 不接收参数或另一份后备文字`);
-    else if (!ref.key.startsWith("common.") && !manifest.ui.locales) problems.push(`${field} 引用本插件的词须声明 ui.locales`);
+    const problem = staticDirectoryTextRefProblem(field, input, manifest.plugin_id, limit, hasLocales);
+    if (problem !== null) problems.push(problem);
   }
   const deletion = deletionRef(manifest);
   if (deletion && "key" in deletion && (!tryOwnedTextRef(deletion, manifest.plugin_id) || deletion.key.startsWith("common.") || !manifest.ui.locales)) {
@@ -96,6 +128,19 @@ export function directoryPackProblems(manifest: DirectoryWordManifest, pack: UiL
       fix: "在语言文件里给它写完整短句，不含参数或复数", blocking: true,
     }];
   });
+  const declared = localizedDeclarationFields(manifest).flatMap(([field, ref, limit]) => {
+    if (ref === undefined || !("key" in ref)) return [];
+    const shared = ref.key.startsWith("common.");
+    if (shared ? sharedDefault === undefined : pack.owner !== manifest.plugin_id) return [];
+    const present = Object.hasOwn(pack.messages, ref.key);
+    if (!present && pack.locale !== (shared ? sharedDefault : manifest.ui?.locales?.default)) return [];
+    const value = staticUiMessage(present ? pack.messages[ref.key] : undefined);
+    return value !== null && oneLine(value, limit) ? [] : [{
+      file, locale: pack.locale, key: ref.key, code: "ui.locale_directory_word",
+      reason: `${field} 要取一行不超过 ${limit} 字的无参短句，默认语言不能缺词`,
+      fix: "在默认语言文件里声明这条短句；不写参数或复数", blocking: true,
+    }];
+  });
   const connector = (manifest.connection_services ?? []).flatMap(connectionFields).flatMap(([field, ref]) => {
     if (!ref || typeof ref !== "object" || !("key" in ref)) return [];
     const shared = ref.key.startsWith("common.");
@@ -106,7 +151,7 @@ export function directoryPackProblems(manifest: DirectoryWordManifest, pack: UiL
     return [{ file, locale: pack.locale, key: ref.key, code: "ui.locale_connector_word",
       reason: `${field} 要取本插件无参短句，默认语言不能缺词`, fix: "在默认语言文件里声明这条短句；不写参数或复数", blocking: true }];
   });
-  const words = [...ordinary, ...connector, ...artifactTitlePackProblems(manifest, pack, file)];
+  const words = [...ordinary, ...declared, ...connector, ...artifactTitlePackProblems(manifest, pack, file)];
   const label = deletionRef(manifest);
   if (label && "key" in label && pack.owner === manifest.plugin_id) {
     const present = Object.hasOwn(pack.messages, label.key), message = staticUiMessage(pack.messages[label.key]);

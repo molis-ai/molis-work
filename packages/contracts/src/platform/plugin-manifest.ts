@@ -35,6 +35,8 @@ export interface PluginPermissionDeclaration {
   permission: string;
   required: boolean;
   reason: string;
+  /** Localized display reason (single-line, no arguments/plurals, max 200 chars). Falls back to `reason` when omitted. */
+  reason_text?: TextRef;
   /**
    * Only with `surface:browser`: the sites the Plugin's work opens or acts on in the side panel browser, each an exact
    * origin (`https://example.com`, no path, query or fragment). Shown to the person before the Plugin is added.

@@ -335,7 +335,9 @@ test("FSS-53 built-in registrations use the same declared language files as a pl
   assert.equal(HOST_FRAMED_SURFACES.length, 1, "a second platform surface names its package here");
   for (const { entry, directory } of entries) {
     assert.ok(entry.manifest.ui.locales, entry.manifest.plugin_id);
-    assert.deepEqual(new Set(entry.manifest.ui.locales.available), new Set(["zh", "en"]), entry.manifest.plugin_id);
+    const available = new Set(entry.manifest.ui.locales.available);
+    assert.ok(available.has("zh") && available.has("en"), entry.manifest.plugin_id);
+    for (const tag of available) assert.ok(["zh", "en", "ja"].includes(tag), `${entry.manifest.plugin_id}: ${tag}`);
     assert.deepEqual(inspectPluginLocales(entry.manifest, file => readFileSync(path.join(directory, file), "utf8")), [], entry.manifest.plugin_id);
   }
 });
@@ -346,4 +348,109 @@ test("FSS-53 a package with no ui.locales is what it always was: no language fil
   const bundle = await packPluginProject(directory, path.join(directory, "out.json"));
   assert.deepEqual(bundle.payload.files.map((one) => one.path).sort(), ["entry.mjs", "manifest.json", "package.json"]);
   assert.equal(readFileSync(path.join(directory, "out.json"), "utf8").includes("locales/"), false);
+}));
+
+test("plugin validate and assertPluginLocales enforce default-locale single-line limits for permission, read-group and action *_text", withProject(async (directory) => {
+  const query = {
+    capability_id: "notes.items.list",
+    version: 1,
+    operation: "query" as const,
+    action: {
+      title: "列出笔记",
+      title_text: { key: "notes.action.list.title" },
+      description: "读取项目笔记",
+      description_text: { key: "notes.action.list.description" },
+      kind: "query" as const,
+      scope: "project" as const,
+      permissions: ["notes:read"],
+      subject_kinds: [],
+      audiences: ["user", "agent"] as const,
+      input_schema: { type: "object" },
+    },
+  };
+  const manifest = parsePluginManifest(manifestOf({
+    permissions: [{ permission: "notes:read", required: true, reason: "读取笔记", reason_text: { key: "notes.perm.read" } }],
+    actions: [query],
+    read_groups: [{
+      group_id: "notes",
+      title: "笔记",
+      title_text: { key: "notes.rg.title" },
+      description: "项目里的笔记",
+      description_text: { key: "notes.rg.desc" },
+      actions: ["notes.items.list"],
+    }],
+  }));
+  const fullEn = {
+    "notes.main.saved": "Saved {count}",
+    "notes.perm.read": "Read notes in this project",
+    "notes.rg.title": "Notes",
+    "notes.rg.desc": "Notes in this project",
+    "notes.action.list.title": "List notes",
+    "notes.action.list.description": "Read notes stored in this project",
+  };
+  const file = path.join(directory, "manifest.json");
+
+  // Missing default-locale keys block CLI validation.
+  writeProject(directory, manifest, GOOD);
+  let out = outputOf();
+  assert.equal(await runPluginCli(["validate", file], out), 1);
+  assert.match(JSON.parse(out.lines[0]!).message, /notes\.perm\.read/u);
+
+  // Default locale complete while zh misses keys: non-blocking notes only.
+  writeProject(directory, manifest, { ...GOOD, "locales/en.json": packText("en", fullEn) });
+  out = outputOf();
+  assert.equal(await runPluginCli(["validate", file], out), 0, out.lines.join());
+  const notes = JSON.parse(out.lines[0]!).locale_notes as Array<{ code: string; key: string }>;
+  assert.equal(notes.filter(item => item.code === "ui.locale_missing_key").length, 5);
+
+  // Args, plural, multiline, or over-limit strings in any locale block validation.
+  for (const [badKey, badVal] of [
+    ["notes.perm.read", "Read {count} notes"],
+    ["notes.perm.read", "x".repeat(201)],
+    ["notes.rg.title", "Two\nlines"],
+    ["notes.rg.desc", { plural_arg: "count", forms: { one: "One", other: "{count} notes" } }],
+    ["notes.action.list.title", "a".repeat(81)],
+    ["notes.action.list.description", "d".repeat(401)],
+  ] as const) {
+    assert.throws(() => validateAuthorLocales(manifest, reader({
+      ...GOOD,
+      "locales/en.json": packText("en", { ...fullEn, [badKey]: badVal }),
+    })), { code: "plugin.package_invalid" }, `${badKey}: ${JSON.stringify(badVal)}`);
+  }
+}));
+
+test("readSandboxPackage validates contract.permission_reasons for projected permissions against default locale pack", withProject(async (directory) => {
+  const publisher = newPublisher();
+  const { files, manifest } = packageFiles(publisher.identity, (pkgFiles, pkgManifest) => {
+    const contract = JSON.parse(pkgFiles[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
+    const nextContract: SandboxPluginContract = {
+      ...contract,
+      ui: { locales: LOCALES },
+      permission_reasons: {
+        "storage:private": { key: "notes.perm.storage" },
+        "network:request": { key: "notes.perm.network" },
+      },
+      operations: contract.operations.map(op => op.id === "notes.list"
+        ? { ...op, effects: { storage: ["read"], networkDomains: ["api.example.com"] } }
+        : op),
+    };
+    pkgFiles[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(nextContract);
+    pkgFiles["locales/en.json"] = packText("en", { "notes.main.saved": "Saved {count}", "notes.perm.storage": "Save notes", "notes.perm.network": "Reach api.example.com" });
+    pkgFiles["locales/zh.json"] = packText("zh", { "notes.main.saved": "已保存 {count}", "notes.perm.storage": "保存笔记", "notes.perm.network": "访问 api.example.com" });
+    return {
+      ...pkgManifest,
+      permissions: pkgManifest.permissions.map(row => row.permission === "storage:private" ? { ...row, reason_text: { key: "notes.perm.storage" } } : row),
+      ui: { ...pkgManifest.ui, locales: LOCALES },
+    };
+  }, { pluginId: PLUGIN_ID });
+  mkdirSync(path.join(directory, "locales"));
+  for (const [name, body] of Object.entries(files)) writeFileSync(path.join(directory, name), body!);
+  const packOptions = { name: manifest.name, version: manifest.version, publisherId: manifest.publisher.publisher_id, publisherKeyId: publisher.identity };
+  const bundle = await packSandboxProject(directory, path.join(directory, "localized-sandbox.json"), packOptions);
+  const signed = signPluginPackage(bundle, publisher.signer);
+  const loaded = readSandboxPackage(verifyPluginPackageSignature(signed).bundle.payload);
+  assert.deepEqual(loaded.manifest.permissions[0]?.reason_text, { key: "notes.perm.storage" });
+  // Dropping the projected permission key from default locale is refused by readSandboxPackage.
+  const missingProjected = { ...files, "locales/en.json": packText("en", { "notes.main.saved": "Saved {count}", "notes.perm.storage": "Save notes" }) };
+  assert.throws(() => readSandboxPackage(payloadOf(loaded.manifest, missingProjected)), /notes\.perm\.network/u);
 }));

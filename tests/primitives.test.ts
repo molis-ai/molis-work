@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { withPageText } from "./fixtures/page-text.js";
 import test from "node:test";
 
-import { escapeHtml, renderAttrs, renderButton, renderDirectoryPanel, renderDirectoryRow, renderField, renderInput, renderSlider } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, installTextForTest, renderAttrs, renderButton, renderDirectoryPanel, renderDirectoryRow, renderField, renderInput, renderSlider } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { workbenchPlatformText } from "@molis-ai/molis-work-app-workbench";
 import {
   INTERACTION_TEXTURE_STYLES,
   MICRO_INTERACTION_CLIENT_SCRIPT,
@@ -18,6 +19,7 @@ import {
   renderPaletteTokens,
   renderPrimitiveCatalog,
   renderSheet,
+  resolveCatalogSay,
 } from "@molis-ai/molis-work-design-system";
 
 test("primary button emits mw classes, data-slot, and escaped attributes", () => {
@@ -403,4 +405,44 @@ test("RAC-1823 the rail's thumb and texture rules name no assistant island, and 
   assert.doesNotMatch(MICRO_INTERACTION_CLIENT_SCRIPT, /assistant-island/, "the thumb's script does not look for the island card");
   assert.match(MICRO_INTERACTION_STYLES, /\.plugin-rail-items/, "the rail's own items are still a segmented track");
   assert.match(MICRO_INTERACTION_CLIENT_SCRIPT, /const current = track\.querySelector\(":scope > " \+ SEGMENT_CURRENT\);/, "and its current option is the one marked current");
+});
+
+test("P0-3 catalog say returns plain text without double HTML escaping and resolves active locale without workbench.env.title lookup", () => {
+  const sampleArg = "A & B <test>";
+  const expectedEscaped = "A &amp; B &lt;test&gt;";
+  const basePacks = (["zh", "en", "ja"] as const).map(tag => workbenchPlatformText.pack(tag)!);
+  const renamedEnvPacks = basePacks.map(pack => ({
+    ...pack,
+    messages: { ...pack.messages, "workbench.env.title": `Custom Renamed Heading (${pack.locale})` },
+  }));
+  const expectedPrefixes = {
+    zh: "选了推荐动作：",
+    en: "Chose suggested action: ",
+    ja: "推奨操作を選択しました：",
+  } as const;
+
+  for (const [label, packs] of [["standard packs", basePacks], ["renamed workbench.env.title packs", renamedEnvPacks]] as const) {
+    for (const locale of ["zh", "en", "ja"] as const) {
+      const cleanup = installTextForTest({ packs, locale });
+      try {
+        const say = resolveCatalogSay();
+        const catalogPlain = say("workbench.catalog-board.ex.ctx-log-choose", { key: sampleArg });
+        assert.ok(catalogPlain.startsWith(expectedPrefixes[locale]), `${label} (${locale}): catalog sub-pack resolved in active locale, got ${JSON.stringify(catalogPlain)}`);
+        assert.ok(catalogPlain.includes(sampleArg), `${label} (${locale}): catalog say returns unescaped plain text`);
+        assert.equal(catalogPlain.includes("&amp;") || catalogPlain.includes("&lt;"), false, `${label} (${locale}): catalog say does not pre-escape HTML`);
+        const catalogEscaped = escapeHtml(catalogPlain);
+        assert.ok(catalogEscaped.includes(expectedEscaped), `${label} (${locale}): escapeHtml(say(...)) single-escapes special characters`);
+        assert.equal(/&amp;(?:amp|lt|gt);/u.test(catalogEscaped), false, `${label} (${locale}): escapeHtml(say(...)) never double-escapes`);
+
+        const mainPlain = say("workbench.env.rename", { title: sampleArg });
+        assert.ok(mainPlain.includes(sampleArg), `${label} (${locale}): fallback t.text path returns unescaped plain text`);
+        assert.equal(mainPlain.includes("&amp;") || mainPlain.includes("&lt;"), false, `${label} (${locale}): fallback t.text path does not pre-escape HTML`);
+        const mainEscaped = escapeHtml(mainPlain);
+        assert.ok(mainEscaped.includes(expectedEscaped), `${label} (${locale}): escapeHtml(say(...)) single-escapes main workbench keys`);
+        assert.equal(/&amp;(?:amp|lt|gt);/u.test(mainEscaped), false, `${label} (${locale}): escapeHtml(say(...)) never double-escapes main workbench keys`);
+      } finally {
+        cleanup();
+      }
+    }
+  }
 });

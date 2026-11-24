@@ -249,7 +249,7 @@ plugin_state="$(mktemp -d)"
 
 集成插件的连接服务标题、简介、提示、能力标签、链接标题，以及凭据和 OAuth 设置的标签与占位文字，也可以用同一份 `TextRef`。默认语言必须有本插件的每个声明键，这些字段不带参数，也不取复数词条。授权端点、域名、范围、枚举值和设置字段名照原合同写；语言切换不改变授权。签名沙箱集成把语言声明写进现有 `contract.json` 的 `ui.locales`，其 `manifest.json` 与之相符，语言文件同包签名。
 
-**即将扩展的清单本地化字段（第二波公开合同）**：除上述已上线字段外，权限说明（`permissions[].reason_text`）、读取分组（`read_groups[].title_text` / `description_text`）与能力目录动作展示（`actions[].action.title_text` / `description_text`）将随第二波公共合同扩展同步支持可选 `TextRef`，并在 `packages/plugin-sdk` 与 `SandboxPluginContract` 中对内置、创作台与第三方插件同等开放；现阶段权限 `reason` 与动作 `title`/`description` 仍须严格遵循本节的白话、无黑话写作规范，以便平滑接入。
+**权限、读取分组与动作的本地化字段**：除上述字段外，现行公共合同已对权限说明（`permissions[].reason_text`，≤200 字）、读取分组（`read_groups[].title_text` ≤80 字 / `description_text` ≤200 字）与能力目录动作展示（`actions[].action.title_text` ≤80 字 / `description_text` ≤400 字）统一支持可选 `TextRef`，并在 `packages/plugin-sdk` 与 `SandboxPluginContract`（`permission_reasons`、`read_groups[].{title_text,description_text}`、`operations[].{title_text,description_text}`）中对内置、创作台与第三方插件同等开放；所有键均为无参单行短句、默认语言不得缺词，且原文与多语言译文都须遵循本节的白话、无黑话写作规范。
 
 ## 给模型的内容
 

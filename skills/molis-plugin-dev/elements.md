@@ -30,7 +30,7 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 
 ## 权限与能力
 
-`permissions[]`：`permission` + `required` + `reason`（面向用户写清「读取/修改什么、用来做什么」，温和直白、无黑话；第二波公共合同将同步扩展可选 `reason_text` `TextRef`，并与 `read_groups` / `actions` 的 `*_text` 声明对齐）。真权限 = Host grant ∩ Manifest 上限。常见：
+`permissions[]`：`permission` + `required` + `reason`，并可同时声明可选的 `reason_text`（`TextRef`，无参单行短句，不超过 200 字，面向用户写清「读取/修改什么、用来做什么」，温和直白、无黑话；与 `read_groups[].{title_text,description_text}` 及 `actions[].action.{title_text,description_text}` 沿同一静态目录文字合同校验）。真权限 = Host grant ∩ Manifest 上限。常见：
 
 | permission | 何时 |
 | --- | --- |

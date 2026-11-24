@@ -1,11 +1,21 @@
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { StateMachineDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginPermissionDeclaration, StateMachineDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { defineArtifactPreviewAction } from "@molis-ai/molis-work-plugin-sdk";
 
 /** The 成果 type the sample pins, and the name and preview action every pinned type must declare (specs/artifact-positioning A1/A7). */
 export const SAMPLE_ARTIFACT_TYPE_ID = "com.example.note";
 export function sampleArtifactType(pluginId: string): { artifact_type_id: string; schema_version: number; title: string; preview: { capability_id: string; version: number } } {
   return { artifact_type_id: SAMPLE_ARTIFACT_TYPE_ID, schema_version: 1, title: "Sample result", preview: { capability_id: `${pluginId}.results.preview`, version: 1 } };
+}
+
+/** Permissions declared by the generated local sample, each with a localized `reason_text` key. */
+export function samplePluginPermissions(owner: string): PluginPermissionDeclaration[] {
+  return [
+    { permission: "storage:private", required: true, reason: "Save private counter data for this sample plugin", reason_text: { key: `${owner}.permission.storage-private.reason` } },
+    { permission: "artifact:write", required: true, reason: "Save sample results into the artifact library", reason_text: { key: `${owner}.permission.artifact-write.reason` } },
+    { permission: "artifact:read", required: true, reason: "Read previously saved versions of sample results", reason_text: { key: `${owner}.permission.artifact-read.reason` } },
+    { permission: "ui:register", required: true, reason: "Show the sample plugin page in the workbench", reason_text: { key: `${owner}.permission.ui-register.reason` } },
+  ];
 }
 
 /** Serialized once into the generated manifest; handlers read these same definitions. */

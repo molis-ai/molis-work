@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { UI_FORMAT_VERSIONS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { samplePluginSource, sampleStateMachine, samplePluginActions, sampleArtifactType, SAMPLE_ARTIFACT_TYPE_ID } from "./sample-source.js";
+import { samplePluginSource, sampleStateMachine, samplePluginActions, samplePluginPermissions, sampleArtifactType, SAMPLE_ARTIFACT_TYPE_ID } from "./sample-source.js";
 
 export interface CreatePluginProjectInput {
   directory: string;
@@ -14,9 +14,36 @@ export interface CreatePluginProjectInput {
 
 /** The sample's words, one file per language (`locales/<language>.json`, trilingual en/zh/ja by default); values must not contain `<>&"'`. */
 const SAMPLE_WORDS: Readonly<Record<string, Readonly<Record<string, string | { plural_arg: string; forms: Record<string, string> }>>>> = {
-  en: { saved: "Saved results: {count}", "saved-count": { plural_arg: "count", forms: { one: "{count} result saved", other: "{count} results saved" } }, source: "Source: {name}", title: "Local Plugin Sample" },
-  zh: { saved: "已保存的结果：{count}", "saved-count": "已保存 {count} 个结果", source: "来源：{name}", title: "本地插件样例" },
-  ja: { saved: "保存済みの結果：{count}", "saved-count": { plural_arg: "count", forms: { other: "{count} 件の結果を保存しました" } }, source: "出典：{name}", title: "ローカルプラグインサンプル" },
+  en: {
+    "main.saved": "Saved results: {count}",
+    "main.saved-count": { plural_arg: "count", forms: { one: "{count} result saved", other: "{count} results saved" } },
+    "main.source": "Source: {name}",
+    "main.title": "Local Plugin Sample",
+    "permission.artifact-read.reason": "Read previously saved versions of sample results",
+    "permission.artifact-write.reason": "Save sample results into the artifact library",
+    "permission.storage-private.reason": "Save private counter data for this sample plugin",
+    "permission.ui-register.reason": "Show the sample plugin page in the workbench",
+  },
+  zh: {
+    "main.saved": "已保存的结果：{count}",
+    "main.saved-count": "已保存 {count} 个结果",
+    "main.source": "来源：{name}",
+    "main.title": "本地插件样例",
+    "permission.artifact-read.reason": "读取先前保存的示例结果版本",
+    "permission.artifact-write.reason": "将示例结果保存到成果库",
+    "permission.storage-private.reason": "在本地保存这个示例插件的计数数据",
+    "permission.ui-register.reason": "在工作台中显示示例插件页面",
+  },
+  ja: {
+    "main.saved": "保存済みの結果：{count}",
+    "main.saved-count": { plural_arg: "count", forms: { other: "{count} 件の結果を保存しました" } },
+    "main.source": "出典：{name}",
+    "main.title": "ローカルプラグインサンプル",
+    "permission.artifact-read.reason": "保存済みのサンプル結果バージョンを読み取ります。",
+    "permission.artifact-write.reason": "サンプルの結果を成果ライブラリに保存します。",
+    "permission.storage-private.reason": "このサンプルプラグイン専用のカウントデータをローカルに保存します。",
+    "permission.ui-register.reason": "ワークベンチにサンプルプラグインのページを表示します。",
+  },
 };
 
 export async function createPluginProject(input: CreatePluginProjectInput): Promise<{ directory: string; plugin_id: string }> {
@@ -26,8 +53,7 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
     name: "Local Plugin Sample", name_text: { key: owner + ".main.title" }, kind: "integration",
     publisher: { publisher_id: input.publisher_id, signature: input.binding_signature },
     entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],
-    permissions: ["storage:private", "artifact:write", "artifact:read", "ui:register"].map(permission => ({
-      permission, required: true, reason: "Save a personal result, consume its exact version and show the local sample" })),
+    permissions: samplePluginPermissions(owner),
     actions: samplePluginActions(input.plugin_id),
     state_machines: [sampleStateMachine(input.plugin_id)],
     capabilities: { provides: [], consumes: [] },
@@ -41,7 +67,7 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
   await mkdir(join(directory, "locales"));
   // A key starts with the last segment of the plugin_id, so the sample's keys follow the id it was made with.
   const localeFiles = Object.fromEntries(Object.entries(SAMPLE_WORDS).map(([locale, words]) => [`locales/${locale}.json`, JSON.stringify({ format_version: UI_FORMAT_VERSIONS.locale,
-    owner: input.plugin_id, locale, messages: Object.fromEntries(Object.entries(words).map(([name, text]) => [`${owner}.main.${name}`, text])) }, null, 2) + "\n"]));
+    owner: input.plugin_id, locale, messages: Object.fromEntries(Object.entries(words).map(([name, text]) => [`${owner}.${name}`, text])) }, null, 2) + "\n"]));
   const files: Record<string, string> = {
     "manifest.json": JSON.stringify(manifest, null, 2) + "\n",
     "index.mjs": samplePluginSource.replaceAll('t("notes.', `t("${owner}.`),

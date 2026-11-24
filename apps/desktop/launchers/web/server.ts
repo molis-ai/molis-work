@@ -24,6 +24,51 @@ function flag(args: string[], name: string): string | undefined {
   return index >= 0 ? args[index + 1] : undefined;
 }
 
+type LauncherLocale = "zh" | "en" | "ja";
+
+function resolveLauncherLocale(home: string): LauncherLocale {
+  try {
+    const raw = fs.readFileSync(path.join(home, "config", "ui-locale.json"), "utf8");
+    const parsed = JSON.parse(raw) as { schema_version?: unknown; locale?: unknown };
+    if (parsed.schema_version === 1 && typeof parsed.locale === "string") {
+      const primary = parsed.locale.trim().toLowerCase().split(/[-_]/)[0];
+      if (primary === "zh" || primary === "en" || primary === "ja") return primary;
+    }
+  } catch {
+    // Missing or unreadable preference falls back to the platform default.
+  }
+  return "zh";
+}
+
+function launcherText(locale: LauncherLocale) {
+  switch (locale) {
+    case "en":
+      return {
+        unsupportedFlag: (arg: string) =>
+          `Molis Work Web only starts by project; ${arg} is no longer supported. Create or open a project in Molis Work, or connect via MCP.`,
+        portsOccupied: "All local ports 127.0.0.1:4173–4199 are in use, so Molis Work Web couldn’t start.",
+        invalidMcpConfig: "Invalid MCP startup configuration.",
+        projectListNote: "Project list (the web page won’t change active session bindings)",
+      };
+    case "ja":
+      return {
+        unsupportedFlag: (arg: string) =>
+          `Molis Work Web はプロジェクト単位でのみ起動します。${arg} はサポートされなくなりました。Molis Work でプロジェクトを作成または開くか、MCP 経由で接続してください。`,
+        portsOccupied: "ローカルポート 127.0.0.1:4173–4199 がすべて使用中のため、Molis Work Web を起動できませんでした。",
+        invalidMcpConfig: "MCP の起動設定が無効です。",
+        projectListNote: "プロジェクト一覧（Web ページからはアクティブなセッションの紐づけを変更しません）",
+      };
+    default:
+      return {
+        unsupportedFlag: (arg: string) =>
+          `Molis Work Web 只按项目启动；${arg} 已不支持。请先在 Molis Work 里创建或打开项目，或通过 MCP 连接项目。`,
+        portsOccupied: "本地端口 127.0.0.1:4173–4199 都被其他程序占用了，Molis Work Web 暂时无法启动。",
+        invalidMcpConfig: "MCP 启动参数无效，请检查数据目录和端口配置。",
+        projectListNote: "项目列表（网页不会修改 Runtime Session 绑定）",
+      };
+  }
+}
+
 const modulePath = fileURLToPath(import.meta.url);
 const requestedModulePath = process.argv[1] ? path.resolve(process.argv[1]) : null;
 const isMain = requestedModulePath != null && (() => {
@@ -37,18 +82,19 @@ if (isMain) {
   const args = process.argv.slice(2);
   const homeArgument = flag(args, "--home");
   const explicitPort = flag(args, "--port");
+  const home = resolveConfiguredHome(homeArgument ? path.resolve(homeArgument) : undefined);
+  const words = launcherText(resolveLauncherLocale(home));
   const unsupported = ["--db", "--project-id", "--demo"].find((argument) => args.includes(argument));
   if (unsupported) {
-    console.error(`Molis Work Web 只按项目启动；${unsupported} 已不支持。请先在 Molis Work 里创建或打开项目，或由 Runtime 经 MCP 连接项目。`);
+    console.error(words.unsupportedFlag(unsupported));
     process.exitCode = 1;
   } else {
     try {
     const port = explicitPort !== undefined ? Number(explicitPort) : await selectAvailableHostPort();
-    if (port === null) throw new Error("127.0.0.1:4173–4199 均已被占用，Molis Work Web 无法监听。");
+    if (port === null) throw new Error(words.portsOccupied);
     const mcpStartup = process.env.MOLIS_WORK_MCP_WEB_STARTUP === "1";
-    if (mcpStartup && (!homeArgument || !Number.isInteger(port) || port < 1 || port > 65535)) throw new Error("Invalid MCP startup configuration");
+    if (mcpStartup && (!homeArgument || !Number.isInteger(port) || port < 1 || port > 65535)) throw new Error(words.invalidMcpConfig);
     // Before anything that opens a store, and while the port answers: whoever is waiting for this process sees that it is upgrading and leaves it be (§4.2).
-    const home = resolveConfiguredHome(homeArgument ? path.resolve(homeArgument) : undefined);
     const plan = planHomeUpgrade(home);
     if (plan.needed) await runUpgradeMaintenance({ home, port, plan });
     const server = createMolisWorkWebServer({
@@ -126,7 +172,7 @@ if (isMain) {
           if (!allowFallback || (error as NodeJS.ErrnoException)?.code !== "EADDRINUSE") throw error;
         }
       }
-      throw lastError ?? new Error("127.0.0.1:4173–4199 均已被占用，Molis Work Web 无法监听。");
+      throw lastError ?? new Error(words.portsOccupied);
     };
     const listeningPort = await listenWithRetry(port, explicitPort === undefined);
     if (mcpStartup) {
@@ -139,7 +185,7 @@ if (isMain) {
     const bound = server.address();
     const host = bound && typeof bound === "object" ? (bound.family === "IPv6" ? `[${bound.address}]` : bound.address) : "127.0.0.1";
     console.log(`Molis Work Web: http://${host}:${bound && typeof bound === "object" ? bound.port : listeningPort}`);
-    console.log("项目列表（网页不会修改 Runtime Session 绑定）");
+    console.log(words.projectListNote);
     // Said beside the start lines, once; it does not change what the Host does (the plugin statement check refuses on its own).
     const sqliteNotice = reportSqliteVersion();
     if (sqliteNotice) console.log(sqliteNotice);

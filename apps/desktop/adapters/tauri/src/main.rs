@@ -29,9 +29,14 @@ mod traffic_lights;
 mod web_identity;
 mod web_service;
 
-use native_language::{NativeLanguage, NativeLanguageState, QuitPromptKind};
-use std::path::PathBuf;
-use std::sync::{atomic::Ordering, Mutex};
+use native_language::{
+    tr, NativeLanguage, NativeLanguageState, QuitPromptKind, ShelfNoticeCode, TrayStatusKind,
+};
+use std::path::{Path, PathBuf};
+use std::sync::{
+    atomic::{AtomicU8, Ordering},
+    Mutex,
+};
 use std::thread;
 use std::time::Duration;
 use tauri::{
@@ -52,11 +57,30 @@ struct TrayMenuItems {
     quit_molis_work: MenuItem<tauri::Wry>,
 }
 
-/// The menu-bar item: its menu's words follow the interface language the main window publishes.
+/// The menu-bar item: its menu's words and status follow the interface language the main window publishes.
 #[derive(Default)]
 struct TrayState {
     locale: Mutex<NativeLanguageState>,
     menu_items: Mutex<Option<TrayMenuItems>>,
+    status: AtomicU8,
+}
+
+impl TrayState {
+    fn for_home(home: &Path) -> Self {
+        Self {
+            locale: Mutex::new(NativeLanguageState::for_home(home)),
+            menu_items: Mutex::new(None),
+            status: AtomicU8::new(TrayStatusKind::Loading as u8),
+        }
+    }
+
+    fn current_status(&self) -> TrayStatusKind {
+        TrayStatusKind::from_u8(self.status.load(Ordering::Acquire))
+    }
+
+    fn set_status_kind(&self, kind: TrayStatusKind) {
+        self.status.store(kind as u8, Ordering::Release);
+    }
 }
 
 const APP_OWNED_WEB_FAILURES_BEFORE_RECOVERY: u8 = 2;
@@ -116,13 +140,26 @@ fn update_tray_menu(
 }
 
 fn set_tray_status(app: &tauri::AppHandle, title: &str, tooltip: &str) -> Result<(), String> {
-    let tray = app
-        .tray_by_id("molis-work-status")
-        .ok_or_else(|| "Molis Work 菜单栏状态不存在".to_string())?;
+    let tray = app.tray_by_id("molis-work-status").ok_or_else(|| {
+        tr(
+            "找不到 Molis Work 菜单栏状态图标。",
+            "The Molis Work menu bar item isn’t available.",
+            "Molis Work のメニューバー項目が見つかりません。",
+        )
+        .to_string()
+    })?;
     tray.set_title(Some(title))
         .map_err(|error| error.to_string())?;
     tray.set_tooltip(Some(tooltip))
         .map_err(|error| error.to_string())
+}
+
+fn set_tray_status_kind(app: &tauri::AppHandle, kind: TrayStatusKind) {
+    let state = app.state::<TrayState>();
+    state.set_status_kind(kind);
+    let locale = current_tray_locale(state.inner()).unwrap_or_default();
+    let (title, tooltip) = locale.status(kind);
+    let _ = set_tray_status(app, title, tooltip);
 }
 
 /// The IPC grants for the pages on the proved port (`host_port::capabilities`), once for each port the
@@ -150,10 +187,7 @@ fn grant_host_capabilities(app: &tauri::AppHandle) {
 fn show_host_stopped(app: &tauri::AppHandle) {
     let runtime = app.state::<runtime::RuntimeState>();
     runtime.host_stopped.store(true, Ordering::Release);
-    let state = app.state::<TrayState>();
-    let locale = current_tray_locale(state.inner()).unwrap_or_default();
-    let (title, tooltip) = locale.stopped_status();
-    let _ = set_tray_status(app, title, tooltip);
+    set_tray_status_kind(app, TrayStatusKind::Stopped);
 }
 
 /// The tray's 「打开」 while the Host is stopped: the Host is started again on a thread of its own, then the windows load it.
@@ -180,10 +214,7 @@ pub(crate) fn reopen_host(app: tauri::AppHandle) {
 fn host_running_again(app: &tauri::AppHandle) {
     let runtime = app.state::<runtime::RuntimeState>();
     runtime.host_stopped.store(false, Ordering::Release);
-    let state = app.state::<TrayState>();
-    let locale = current_tray_locale(state.inner()).unwrap_or_default();
-    let (title, tooltip) = locale.synced_status();
-    let _ = set_tray_status(app, title, tooltip);
+    set_tray_status_kind(app, TrayStatusKind::Synced);
     let origin = host_port::origin();
     let loaded_pid = match runtime.loaded_host_pid.load(Ordering::Acquire) {
         0 => None,
@@ -484,10 +515,7 @@ fn start_web_health_monitor(app: tauri::AppHandle, resource_dir: Option<PathBuf>
                 if !should_attempt_web_recovery(consecutive_failures, owns_web_child) {
                     continue;
                 }
-                let tray_state = app.state::<TrayState>();
-                let locale = current_tray_locale(tray_state.inner()).unwrap_or_default();
-                let (title, tooltip) = locale.recovering_status();
-                let _ = set_tray_status(&app, title, tooltip);
+                set_tray_status_kind(&app, TrayStatusKind::Recovering);
                 let recovered =
                     ensure_molis_work_web(resource_dir.as_deref(), service_state.inner()).is_ok();
                 refresh_tray_quit_item(&app);
@@ -510,7 +538,8 @@ fn native_language_source(label: &str, url: Option<&Url>) -> bool {
     ipc_caller_allowed(label, url)
 }
 
-/// The main window publishes the interface language; the tray's menu follows it.
+/// The main window publishes the interface language; the tray menu, status, tooltip, drop wheel
+/// and native dialogs all follow it immediately.
 #[tauri::command]
 fn native_set_locale(
     app: tauri::AppHandle,
@@ -521,12 +550,26 @@ fn native_set_locale(
     projection: NativeLanguage,
 ) -> Result<(), String> {
     if !native_language_source(window.label(), window.url().ok().as_ref()) {
-        return Err("界面语言来源无效".into());
+        return Err(tr(
+            "界面语言来源无效。",
+            "Invalid interface language source.",
+            "表示言語の送信元が無効です。",
+        )
+        .into());
     }
     let mut language = state.locale.lock().map_err(|error| error.to_string())?;
-    language.accept(document, sequence, projection, |locale| {
-        update_tray_menu(&app, state.inner(), locale)
-    })
+    let status_kind = state.current_status();
+    let result = language.accept(document, sequence, projection, |locale| {
+        update_tray_menu(&app, state.inner(), locale)?;
+        let (title, tooltip) = locale.status(status_kind);
+        set_tray_status(&app, title, tooltip)
+    });
+    if result.is_ok() {
+        native_language::set_current(language.displayed.clone());
+        #[cfg(target_os = "macos")]
+        drop_wheel_macos::refresh_labels();
+    }
+    result
 }
 
 #[tauri::command]
@@ -561,7 +604,15 @@ struct ShelfFoundFile {
 async fn shelf_find_files(query: String) -> Result<Vec<ShelfFoundFile>, String> {
     tauri::async_runtime::spawn_blocking(move || shelf_find_files_blocking(query))
         .await
-        .map_err(|error| format!("文件搜索未完成：{error}"))
+        .map_err(|error| {
+            eprintln!("shelf_find_files join error: {error}");
+            tr(
+                "文件搜索没能完成，请稍后再试。",
+                "File search couldn’t finish. Please try again.",
+                "ファイル検索を完了できませんでした。もう一度お試しください。",
+            )
+            .to_string()
+        })
 }
 
 fn shelf_find_files_blocking(query: String) -> Vec<ShelfFoundFile> {
@@ -597,16 +648,19 @@ fn shelf_notice(
     message: &str,
     partial: bool,
     original_warning: Option<&str>,
+    notice: Option<&ShelfNoticeCode>,
     delay_ms: u64,
 ) {
     if let Some(window) = app.get_webview_window("main") {
         let encoded = serde_json::to_string(message).unwrap_or_else(|_| "\"\"".into());
         let warning = serde_json::to_string(&original_warning).unwrap_or_else(|_| "null".into());
-        let notice = format!("globalThis.molisWorkShelfNotice?.({encoded},{partial},{warning});");
+        let coded = serde_json::to_string(&notice).unwrap_or_else(|_| "null".into());
+        let call =
+            format!("globalThis.molisWorkShelfNotice?.({encoded},{partial},{warning},{coded});");
         let script = if delay_ms == 0 {
-            notice
+            call
         } else {
-            format!("setTimeout(()=>{{{notice}}},{delay_ms});")
+            format!("setTimeout(()=>{{{call}}},{delay_ms});")
         };
         let _ = window.eval(script);
     }
@@ -617,20 +671,35 @@ fn shelf_notice(
 async fn shelf_admit_paths(app: tauri::AppHandle, paths: Vec<String>) -> Result<usize, String> {
     tauri::async_runtime::spawn_blocking(move || shelf_admit_paths_blocking(&app, paths))
         .await
-        .map_err(|error| format!("文件导入未完成：{error}"))?
+        .map_err(|error| {
+            eprintln!("shelf_admit_paths join error: {error}");
+            tr(
+                "文件导入没能完成，请稍后再试。",
+                "Couldn’t finish adding files. Please try again.",
+                "ファイルの取り込みを完了できませんでした。もう一度お試しください。",
+            )
+            .to_string()
+        })?
 }
 
 fn shelf_admit_paths_blocking(app: &tauri::AppHandle, paths: Vec<String>) -> Result<usize, String> {
     // A second invocation must not interleave this command's original ordered batch.
     static ADMISSIONS: Mutex<()> = Mutex::new(());
-    let _admission = ADMISSIONS
-        .lock()
-        .map_err(|_| "文件导入状态需要核对".to_string())?;
+    let _admission = ADMISSIONS.lock().map_err(|_| {
+        tr(
+            "文件导入暂时不可用，请稍后再试。",
+            "File import is temporarily unavailable. Please try again.",
+            "ファイルの取り込みが一時的に利用できません。もう一度お試しください。",
+        )
+        .to_string()
+    })?;
     let mut added = 0;
     for path in paths {
         let candidate = std::path::Path::new(&path);
-        shelf_http::admit_file(candidate)?
-            .into_item_id(|message| shelf_notice(app, message, true, Some(message), 0));
+        shelf_http::admit_file(candidate)?.into_item_id(|message| {
+            let code = ShelfNoticeCode::key(shelf_http::ORIGINAL_NOT_REGISTERED_CODE);
+            shelf_notice(app, message, true, Some(message), Some(&code), 0);
+        });
         added += 1;
     }
     Ok(added)
@@ -642,22 +711,48 @@ fn shelf_admit_paths_blocking(app: &tauri::AppHandle, paths: Vec<String>) -> Res
 async fn files_open(endpoint: String, page_id: String, paths: Vec<String>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || files_open_blocking(&endpoint, &page_id, &paths))
         .await
-        .map_err(|error| format!("文件打开未完成：{error}"))?
+        .map_err(|error| {
+            eprintln!("files_open join error: {error}");
+            tr(
+                "没能打开这份文件，请稍后再试。",
+                "Couldn’t open this file. Please try again.",
+                "このファイルを開けませんでした。もう一度お試しください。",
+            )
+            .to_string()
+        })?
 }
 
 fn files_open_blocking(endpoint: &str, page_id: &str, paths: &[String]) -> Result<(), String> {
     let files = page_files::plugin_page_files(endpoint, page_id, paths)?;
     let [path] = files.as_slice() else {
-        return Err("请选择一份文件".into());
+        return Err(tr(
+            "请选择一份文件。",
+            "Select one file to open.",
+            "開くファイルを 1 つ選択してください。",
+        )
+        .into());
     };
     let status = std::process::Command::new("/usr/bin/open")
         .arg(path)
         .status()
-        .map_err(|error| format!("打不开这份文件：{error}"))?;
+        .map_err(|error| {
+            eprintln!("files_open spawn error: {error}");
+            tr(
+                "没能打开这份文件，请稍后再试。",
+                "Couldn’t open this file. Please try again.",
+                "このファイルを開けませんでした。もう一度お試しください。",
+            )
+            .to_string()
+        })?;
     if status.success() {
         Ok(())
     } else {
-        Err("系统没能打开这份文件".into())
+        Err(tr(
+            "系统没能打开这份文件。",
+            "Your system couldn’t open this file.",
+            "システムでこのファイルを開けませんでした。",
+        )
+        .into())
     }
 }
 
@@ -695,7 +790,15 @@ fn shelf_setup_status() -> ShelfSetupStatus {
 async fn files_copy(endpoint: String, page_id: String, paths: Vec<String>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || files_copy_blocking(&endpoint, &page_id, &paths))
         .await
-        .map_err(|error| format!("复制未完成：{error}"))?
+        .map_err(|error| {
+            eprintln!("files_copy join error: {error}");
+            tr(
+                "没能复制文件，请稍后再试。",
+                "Couldn’t copy the file. Please try again.",
+                "ファイルをコピーできませんでした。もう一度お試しください。",
+            )
+            .to_string()
+        })?
 }
 
 fn files_copy_blocking(endpoint: &str, page_id: &str, paths: &[String]) -> Result<(), String> {
@@ -707,7 +810,12 @@ fn files_copy_blocking(endpoint: &str, page_id: &str, paths: &[String]) -> Resul
     #[cfg(not(target_os = "macos"))]
     {
         let _ = files;
-        Err("这个平台还不支持复制文件".into())
+        Err(tr(
+            "当前系统暂不支持复制文件。",
+            "Copying files isn’t supported on this platform yet.",
+            "このプラットフォームではファイルのコピーにまだ対応していません。",
+        )
+        .into())
     }
 }
 
@@ -724,7 +832,15 @@ async fn files_drag_out(
         files_drag_out_blocking(&app, &endpoint, &page_id, &paths, item_ids)
     })
     .await
-    .map_err(|error| format!("拖出未完成：{error}"))?
+    .map_err(|error| {
+        eprintln!("files_drag_out join error: {error}");
+        tr(
+            "拖出文件没能完成，请稍后再试。",
+            "Couldn’t drag the file out. Please try again.",
+            "ファイルのドラッグを完了できませんでした。もう一度お試しください。",
+        )
+        .to_string()
+    })?
 }
 
 fn files_drag_out_blocking(
@@ -742,7 +858,12 @@ fn files_drag_out_blocking(
     #[cfg(not(target_os = "macos"))]
     {
         let _ = (app, files, item_ids);
-        Err("这个平台还不支持拖出".into())
+        Err(tr(
+            "当前系统暂不支持拖出文件。",
+            "Dragging files out isn’t supported on this platform yet.",
+            "このプラットフォームではファイルのドラッグアウトにまだ対応していません。",
+        )
+        .into())
     }
 }
 
@@ -790,7 +911,12 @@ fn apply_shelf_chords(
     #[cfg(not(target_os = "macos"))]
     {
         if !toggle.has_modifier() || !capture.has_modifier() || !files.has_modifier() {
-            return Err("全局快捷键必须带 ⌃ ⌥ ⇧ 或 ⌘。".into());
+            return Err(tr(
+                "全局快捷键需要包含 ⌃、⌥、⇧ 或 ⌘。",
+                "Global shortcuts must include ⌃, ⌥, ⇧, or ⌘.",
+                "グローバルショートカットには ⌃、⌥、⇧、または ⌘ を含めてください。",
+            )
+            .into());
         }
         shelf_hotkeys::adopt_chords(toggle, capture, files);
         shelf_hotkeys::set_availability(shelf_hotkeys::HotKeyAvailability {
@@ -864,7 +990,8 @@ fn install_molis_work_tray(app: &tauri::App) -> tauri::Result<()> {
 
 /// Only the local bootstrap document can receive startup details. Values are data, including an unmodified failure reason.
 fn bootstrap_view(failure: Option<&str>) -> String {
-    let values = native_language::bootstrap_view_values(failure);
+    let preferred = native_language::read_saved_home_locale(&web_service::molis_work_home());
+    let values = native_language::bootstrap_view_values(failure, preferred.as_deref());
     format!(
         r#"((data) => {{
         const show = () => {{
@@ -880,7 +1007,8 @@ fn bootstrap_view(failure: Option<&str>) -> String {
                     if (value) return value;
                 }}
             }};
-            const language = (navigator.languages || []).map(choose).find(Boolean) || find(data.catalog.default.toLowerCase());
+            const saved = typeof data.preferred_locale === 'string' ? choose(data.preferred_locale) : null;
+            const language = saved || (navigator.languages || []).map(choose).find(Boolean) || find(data.catalog.default.toLowerCase());
             document.documentElement.lang = language.html_lang;
             document.documentElement.dir = language.direction;
             try {{
@@ -905,9 +1033,11 @@ fn bootstrap_view(failure: Option<&str>) -> String {
 }
 
 fn main() {
+    let home = web_service::molis_work_home();
+    native_language::init_from_home(&home);
     let app = tauri::Builder::default()
     .manage(WebServiceState::default())
-    .manage(TrayState::default())
+    .manage(TrayState::for_home(&home))
     .manage(context_directories::ContextDirectoryState::default())
     .manage(runtime::RuntimeState::default())
     .manage(UpgradeOpeningFailure::default())
@@ -921,14 +1051,25 @@ fn main() {
         invoke.message.webview_ref().url().ok().as_ref(),
       );
       if !caller_ok {
-        invoke.resolver.reject("这个页面不能做这件事");
+        invoke.resolver.reject(tr(
+          "当前页面没有权限执行这项操作。",
+          "This page isn’t allowed to perform this action.",
+          "このページではこの操作を実行できません。",
+        ));
         return true;
       }
       let verified = match ipc_auth_tier(command) {
         IpcAuthTier::LowRiskUi => web_identity::low_risk_health_fresh(),
         IpcAuthTier::HighRisk => web_healthy(),
       };
-      if !verified { invoke.resolver.reject("本地服务身份验证失败"); return true; }
+      if !verified {
+        invoke.resolver.reject(tr(
+          "本地服务身份校验未通过，请稍后重试。",
+          "Couldn’t verify the local service. Please try again.",
+          "ローカルサービスを確認できませんでした。もう一度お試しください。",
+        ));
+        return true;
+      }
       let handle: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
       native_set_locale,
       runtime::runtime_settings_get,
@@ -1441,8 +1582,8 @@ mod tests {
 
         let zh = builtin_language("zh").unwrap();
         let (title, body, cancel, quit) = zh.quit_confirmation(super::QuitPromptKind::OwnedActive);
-        assert_eq!(title, "确定要退出 Molis Work 吗？");
-        assert!(body.contains("正在运行"));
+        assert!(title.contains("Molis Work") && !title.is_empty());
+        assert!(body.contains("正在运行") || body.contains("运行中"));
         assert_eq!(cancel, "取消");
         assert_eq!(quit, "退出 Molis Work");
 
@@ -1453,5 +1594,40 @@ mod tests {
         assert!(en_body.contains("background service"));
         assert_eq!(en_cancel, "Cancel");
         assert_eq!(en_quit, "Quit Molis Work");
+
+        let ja = builtin_language("ja").unwrap();
+        let (ja_title, ja_body, ja_cancel, ja_quit) =
+            ja.quit_confirmation(super::QuitPromptKind::OwnedActive);
+        assert!(ja_title.contains("Molis Work") && !ja_title.is_empty());
+        assert!(!ja_body.is_empty());
+        assert_eq!(ja_cancel, "キャンセル");
+        assert!(ja_quit.contains("Molis Work"));
+    }
+
+    #[test]
+    fn tray_status_tracks_state_and_reprojects_across_zh_en_ja() {
+        let tray = super::TrayState::default();
+        assert_eq!(tray.current_status(), super::TrayStatusKind::Loading);
+        let zh_lang = builtin_language("zh").unwrap();
+        let en_lang = builtin_language("en").unwrap();
+        let ja_lang = builtin_language("ja").unwrap();
+        for kind in [
+            super::TrayStatusKind::Loading,
+            super::TrayStatusKind::Recovering,
+            super::TrayStatusKind::Synced,
+            super::TrayStatusKind::Stopped,
+        ] {
+            tray.set_status_kind(kind);
+            assert_eq!(tray.current_status(), kind);
+            let zh = zh_lang.status(kind);
+            let en = en_lang.status(kind);
+            let ja = ja_lang.status(kind);
+            assert!(!zh.0.is_empty() && !zh.1.is_empty());
+            assert!(!en.0.is_empty() && !en.1.is_empty());
+            assert!(!ja.0.is_empty() && !ja.1.is_empty());
+            assert_ne!(zh.0, en.0);
+            assert_ne!(zh.0, ja.0);
+            assert_ne!(en.0, ja.0);
+        }
     }
 }

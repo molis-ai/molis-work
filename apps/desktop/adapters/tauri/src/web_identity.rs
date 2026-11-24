@@ -1,5 +1,6 @@
 //! A loopback port is an address, not an identity. The server proves knowledge of this Home's
 //! control key without receiving it. A native HTTP client keeps this socket for its actual request.
+use crate::native_language::tr;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use hmac::{Hmac, Mac};
 use serde::Deserialize;
@@ -13,7 +14,14 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-const REFUSED: &str = "本地服务身份验证失败";
+fn refused_message() -> String {
+    tr(
+        "本地服务身份校验未通过，请稍后重试。",
+        "Couldn’t verify the local service. Please try again.",
+        "ローカルサービスを確認できませんでした。もう一度お試しください。",
+    )
+    .to_string()
+}
 const MAX_HEAD: usize = 8192;
 const MAX_BODY: usize = 4096;
 /// Short lease reused only by explicitly allowlisted low-risk UI IPC commands (`S-14`).
@@ -70,10 +78,10 @@ pub(crate) fn control_token() -> Result<String, String> {
     let token = std::fs::read_to_string(
         crate::web_service::molis_work_home().join("config/web-control-token"),
     )
-    .map_err(|_| REFUSED.to_string())?;
+    .map_err(|_| refused_message())?;
     let token = token.trim();
     if !(32..=512).contains(&token.len()) || token.contains(['\r', '\n', '\0']) {
-        return Err(REFUSED.into());
+        return Err(refused_message());
     }
     Ok(token.into())
 }
@@ -217,7 +225,7 @@ pub(crate) fn low_risk_health_fresh() -> bool {
 pub(crate) fn health() -> Result<Health, String> {
     match answer()? {
         Answer::Ready(health) => Ok(health),
-        Answer::Upgrading => Err(REFUSED.into()),
+        Answer::Upgrading => Err(refused_message()),
     }
 }
 
@@ -236,8 +244,8 @@ pub(crate) fn answer_with_timeout(total_budget: Duration) -> Result<Answer, Stri
         let connect_timeout = total_budget.min(Duration::from_millis(150));
         let token = control_token()?;
         let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
-        let mut stream = TcpStream::connect_timeout(&address, connect_timeout)
-            .map_err(|_| REFUSED.to_string())?;
+        let mut stream =
+            TcpStream::connect_timeout(&address, connect_timeout).map_err(|_| refused_message())?;
         let answer = prove_until(&mut stream, &token, &format!("127.0.0.1:{port}"), deadline)?;
         proved_token = Some(token);
         Ok(answer)
@@ -263,7 +271,7 @@ pub(crate) fn answer_at(port: u16) -> Result<Answer, String> {
         let token = control_token()?;
         let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
         let mut stream = TcpStream::connect_timeout(&address, Duration::from_millis(250))
-            .map_err(|_| REFUSED.to_string())?;
+            .map_err(|_| refused_message())?;
         let answer = prove(&mut stream, &token, &format!("127.0.0.1:{port}"))?;
         proved_token = Some(token);
         Ok(answer)
@@ -292,7 +300,7 @@ pub(crate) fn authenticate(stream: &mut TcpStream, token: &str) -> Result<Health
         }
         Ok(Answer::Upgrading) | Err(_) => {
             invalidate_health_lease();
-            Err(REFUSED.into())
+            Err(refused_message())
         }
     }
 }
@@ -314,29 +322,29 @@ fn prove_until(
 ) -> Result<Answer, String> {
     let remaining = deadline.saturating_duration_since(Instant::now());
     if remaining.is_zero() {
-        return Err(REFUSED.into());
+        return Err(refused_message());
     }
     let mut random = [0_u8; 32];
     File::open("/dev/urandom")
         .and_then(|mut source| source.read_exact(&mut random))
-        .map_err(|_| REFUSED.to_string())?;
+        .map_err(|_| refused_message())?;
     let challenge = URL_SAFE_NO_PAD.encode(random);
     stream
         .set_write_timeout(Some(remaining))
-        .map_err(|_| REFUSED.to_string())?;
+        .map_err(|_| refused_message())?;
     write!(
         stream,
         "GET /health?challenge={challenge} HTTP/1.1\r\nHost: {host}\r\nConnection: keep-alive\r\n\r\n"
     )
-    .map_err(|_| REFUSED.to_string())?;
+    .map_err(|_| refused_message())?;
     let read_remaining = deadline.saturating_duration_since(Instant::now());
     if read_remaining.is_zero() {
-        return Err(REFUSED.into());
+        return Err(refused_message());
     }
     stream
         .set_read_timeout(Some(read_remaining))
-        .map_err(|_| REFUSED.to_string())?;
-    verify_response_until(stream, token, &challenge, Some(deadline)).ok_or_else(|| REFUSED.into())
+        .map_err(|_| refused_message())?;
+    verify_response_until(stream, token, &challenge, Some(deadline)).ok_or_else(refused_message)
 }
 
 trait DeadlineRead: Read {

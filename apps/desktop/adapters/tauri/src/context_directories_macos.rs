@@ -1,6 +1,7 @@
 //! AppKit owns consent; persisted, read-only security-scoped bookmarks own access.
-use crate::context_directories::{directory_name, validate_caller, DirectoryRecord};
+use crate::context_directories::{validate_caller, DirectoryRecord};
 use crate::context_directory_files::open_root;
+use crate::native_language::{choose_folder_message, choose_folder_prompt, tr};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use objc2::{rc::Retained, runtime::Bool};
 use objc2_app_kit::{NSModalResponseOK, NSOpenPanel};
@@ -26,9 +27,13 @@ impl Drop for DirectoryScope {
 }
 
 pub(crate) fn access(record: &DirectoryRecord) -> Result<DirectoryScope, String> {
-    let bytes = STANDARD
-        .decode(&record.bookmark)
-        .map_err(|_| "目录授权无效，请重新选择")?;
+    let bytes = STANDARD.decode(&record.bookmark).map_err(|_| {
+        tr(
+            "文件夹授权已失效，请重新选择。",
+            "Folder access isn’t valid anymore. Please select the folder again.",
+            "フォルダーのアクセス許可が無効になりました。もう一度選択してください。",
+        )
+    })?;
     let data = NSData::with_bytes(&bytes);
     let mut stale = Bool::NO;
     let url = unsafe {
@@ -41,15 +46,40 @@ pub(crate) fn access(record: &DirectoryRecord) -> Result<DirectoryScope, String>
             &mut stale,
         )
     }
-    .map_err(|_| "目录授权已失效，请重新选择")?;
+    .map_err(|_| {
+        tr(
+            "文件夹授权已过期，请重新选择。",
+            "Folder access expired. Please select the folder again.",
+            "フォルダーのアクセス許可が期限切れです。もう一度選択してください。",
+        )
+    })?;
     if stale.as_bool() {
-        return Err("目录位置或授权已改变，请重新选择".into());
+        return Err(tr(
+            "文件夹位置或授权已变化，请重新选择。",
+            "This folder moved or its permission changed. Please select it again.",
+            "フォルダーの場所または権限が変更されました。もう一度選択してください。",
+        )
+        .into());
     }
     if !unsafe { url.startAccessingSecurityScopedResource() } {
-        return Err("无法恢复目录授权，请重新选择".into());
+        return Err(tr(
+            "没能恢复文件夹访问权限，请重新选择。",
+            "Couldn’t restore folder access. Please select the folder again.",
+            "フォルダーのアクセス権を復元できませんでした。もう一度選択してください。",
+        )
+        .into());
     }
     let result = (|| {
-        let path = url.path().ok_or("目录地址无效，请重新选择")?.to_string();
+        let path = url
+            .path()
+            .ok_or_else(|| {
+                tr(
+                    "文件夹路径无效，请重新选择。",
+                    "This folder path isn’t valid. Please select it again.",
+                    "フォルダーパスが無効です。もう一度選択してください。",
+                )
+            })?
+            .to_string();
         let directory = open_root(Path::new(&path))?;
         Ok((path, directory))
     })();
@@ -76,8 +106,23 @@ fn bookmark(url: &NSURL) -> Result<DirectoryRecord, String> {
             None,
             None,
         )
-        .map_err(|_| "无法保存目录授权，请重新选择")?;
-    let path = url.path().ok_or("系统没有返回目录地址")?.to_string();
+        .map_err(|_| {
+            tr(
+                "没能保存文件夹授权，请重新选择。",
+                "Couldn’t save folder permission. Please select it again.",
+                "フォルダーの権限を保存できませんでした。もう一度選択してください。",
+            )
+        })?;
+    let path = url
+        .path()
+        .ok_or_else(|| {
+            tr(
+                "系统没有返回所选文件夹路径。",
+                "macOS didn’t return a folder path.",
+                "選択したフォルダーのパスを取得できませんでした。",
+            )
+        })?
+        .to_string();
     let record = DirectoryRecord {
         path,
         bookmark: STANDARD.encode(data.to_vec()),
@@ -98,7 +143,13 @@ pub(crate) fn choose(
     app.run_on_main_thread(move || {
         let result = (|| {
             validate_caller(&window)?;
-            let marker = MainThreadMarker::new().ok_or("系统选择器需要主线程")?;
+            let marker = MainThreadMarker::new().ok_or_else(|| {
+                tr(
+                    "系统文件夹选择器需要在主线程打开。",
+                    "The folder picker must open on the main thread.",
+                    "フォルダー選択ダイアログはメインスレッドで開く必要があります。",
+                )
+            })?;
             let panel = NSOpenPanel::openPanel(marker);
             panel.setCanChooseFiles(false);
             panel.setCanChooseDirectories(true);
@@ -107,11 +158,10 @@ pub(crate) fn choose(
             panel.setCanCreateDirectories(false);
             panel.setCanDownloadUbiquitousContents(false);
             panel.setShowsHiddenFiles(false);
-            panel.setPrompt(Some(&NSString::from_str("允许访问此文件夹")));
-            panel.setMessage(Some(&NSString::from_str(&format!(
-                "为“{}”选择文件夹。下一步仅预览文件列表；开始整理后才读取所选正文。",
-                directory_name(&id)
-            ))));
+            let prompt = choose_folder_prompt();
+            let message = choose_folder_message(&id);
+            panel.setPrompt(Some(&NSString::from_str(&prompt)));
+            panel.setMessage(Some(&NSString::from_str(&message)));
             let folder = match id.as_str() {
                 "downloads" => Some("Downloads"),
                 "documents" => Some("Documents"),
@@ -131,15 +181,32 @@ pub(crate) fn choose(
                 return Ok(None);
             }
             validate_caller(&window)?;
-            let url = panel.URL().ok_or("系统没有返回所选目录")?;
+            let url = panel.URL().ok_or_else(|| {
+                tr(
+                    "系统没有返回所选文件夹。",
+                    "No folder was returned by the system picker.",
+                    "選択したフォルダーを取得できませんでした。",
+                )
+            })?;
             bookmark(&url).map(Some)
         })();
         let _ = sender.send(result);
     })
-    .map_err(|_| "无法打开系统目录选择器")?;
-    receiver
-        .recv()
-        .map_err(|_| "系统目录选择器已关闭".to_string())?
+    .map_err(|_| {
+        tr(
+            "暂时打不开系统文件夹选择器，请再试一次。",
+            "Couldn’t open the folder picker right now. Please try again.",
+            "フォルダー選択ダイアログを開けませんでした。もう一度お試しください。",
+        )
+    })?;
+    receiver.recv().map_err(|_| {
+        tr(
+            "文件夹选择器已关闭。",
+            "The folder picker was closed.",
+            "フォルダー選択ダイアログが閉じられました。",
+        )
+        .to_string()
+    })?
 }
 
 #[cfg(test)]

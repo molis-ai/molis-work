@@ -79,6 +79,19 @@ export function sendUnhandledWebError(response: ServerResponse, error: unknown, 
 
 export type LocalMutationState = "in_flight" | "complete";
 
+const pendingMutationFinalizers = new WeakMap<Map<string, LocalMutationState>, WeakMap<ServerResponse, () => void>>();
+const failedMutationResponses = new WeakSet<ServerResponse>();
+
+/** Marks a response whose HTTP status is 2xx (such as an NDJSON stream) as failed so its one-time mutation key is released for retry. */
+export function markMutationResponseFailed(response: ServerResponse): void {
+  failedMutationResponses.add(response);
+}
+
+/** Releases any still-in-flight mutation key owned by `mutationKeys` once its handler exits without ending the response (e.g. disconnected client). */
+export function finalizeLocalMutation(response: ServerResponse, mutationKeys: Map<string, LocalMutationState>): void {
+  pendingMutationFinalizers.get(mutationKeys)?.get(response)?.();
+}
+
 /** Every refusal of the Host, Origin and control-token checks is this one answer, so a refused caller cannot tell which check it failed. Returns false: the request is not allowed. */
 function refuse(response: ServerResponse): false {
   // Before the request has a trusted language, read the registered owner's default.
@@ -222,30 +235,38 @@ export function authorizeLocalWebRequest(
     return false;
   }
   mutationKeys.set(idempotencyKey, "in_flight");
+  let mapFinalizers = pendingMutationFinalizers.get(mutationKeys);
+  if (!mapFinalizers) {
+    mapFinalizers = new WeakMap<ServerResponse, () => void>();
+    pendingMutationFinalizers.set(mutationKeys, mapFinalizers);
+  }
   let settled = false;
-  const settle = () => {
+  const settle = (abandoned = false) => {
     if (settled) return;
     settled = true;
-    if (response.statusCode >= 200 && response.statusCode < 400) {
+    mapFinalizers.delete(response);
+    if (!abandoned && !failedMutationResponses.has(response) && (response.headersSent || response.writableEnded) && response.statusCode >= 200 && response.statusCode < 400) {
       mutationKeys.set(idempotencyKey, "complete");
-      while (mutationKeys.size > 4096) {
-        const oldest = mutationKeys.keys().next().value as string | undefined;
-        if (!oldest) break;
-        mutationKeys.delete(oldest);
+      if (mutationKeys.size > 4096) {
+        for (const [key, state] of mutationKeys) {
+          if (mutationKeys.size <= 4096) break;
+          if (state === "complete") mutationKeys.delete(key);
+        }
       }
     } else {
       mutationKeys.delete(idempotencyKey);
     }
   };
-  response.once("finish", settle);
+  mapFinalizers.set(response, () => settle(!response.writableEnded));
+  response.once("finish", () => settle(false));
   // A client that goes away (a closed dialog, a timeout) before the answer is written never makes the response "finish", yet
   // the handler still runs to its end. The key settles with what the handler ends the response with, not with the socket:
   // until then it stays in flight, and the retry the page really makes is not refused for good.
   response.once("close", () => {
     if (settled) return;
-    if (response.writableEnded) return settle();
+    if (response.writableEnded) return settle(false);
     const end = response.end;
-    response.end = function (this: ServerResponse, ...args: Parameters<ServerResponse["end"]>) { const result = end.apply(this, args); settle(); return result; } as ServerResponse["end"];
+    response.end = function (this: ServerResponse, ...args: Parameters<ServerResponse["end"]>) { const result = end.apply(this, args); settle(false); return result; } as ServerResponse["end"];
   });
   if (handleWebSessionHttp(request, response, url)) return false;
   return true;

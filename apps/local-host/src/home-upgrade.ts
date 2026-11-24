@@ -5,7 +5,7 @@ import { closeSync, fsyncSync, lstatSync, openSync, realpathSync, renameSync, rm
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import {
   acquireStorageOwner, assertNoPendingHomeRestore, entryAt, assertStorageOwner, assertUpgradeDiskSpace, captureUpgradeFileSnapshot, captureUpgradeSnapshot, onStorageOwnerRelease, onUpgradePending,
-  pruneUpgradeSnapshots, readStorageSpace, readUpgradeStoreSpace, readUpgradeStoreVersion, readVersionedFileVersion, restoreUpgradeSnapshot, runSqliteUpgrade, upgradeSnapshotListed, verifyUpgradeSnapshot, upgradeFailedRefusal, upgradeNoSpaceRefusal, upgradeStepsProblem,
+  openSqliteConnection, pruneUpgradeSnapshots, readStorageSpace, readUpgradeStoreSpace, readUpgradeStoreVersion, readVersionedFileVersion, releaseHeldHomeSqlite, restoreUpgradeSnapshot, runSqliteUpgrade, upgradeSnapshotListed, verifyUpgradeSnapshot, upgradeFailedRefusal, upgradeNoSpaceRefusal, upgradeStepsProblem,
   upgradeVersionedFile, USER_VERSION_ACCESS, versionedFileStepsProblem, HOME_LAYOUT_MOVES,
   type StorageOwner, type StorageSpace,
 } from "@molis-ai/molis-work-storage";
@@ -223,7 +223,16 @@ function advance(round: Round, store: Store): void {
   }
   try {
     if ("file" in descriptor) captureUpgradeFileSnapshot(snapshotUnit(round, relative_path));
-    else if (!("tables" in descriptor)) captureUpgradeSnapshot(snapshotUnit(round, relative_path), descriptor.open);
+    else if ("tables" in descriptor) {
+      // A plugin's tables live inside a parent SQLite file: if that parent file did not itself upgrade (and was not already
+      // snapshotted by an earlier plugin_tables unit in this round), snapshot it once so version rollback can restore it whole.
+      const parentRel = upgradeUnitFile(descriptor, relative_path);
+      if (!upgradeSnapshotListed(round.root, round.ledger!.run_id, parentRel)) {
+        const parent = round.stores.get(parentRel)?.descriptor;
+        const parentOpen = parent && "open" in parent ? parent.open : (target: string) => openSqliteConnection(target);
+        captureUpgradeSnapshot(snapshotUnit(round, parentRel), parentOpen);
+      }
+    } else captureUpgradeSnapshot(snapshotUnit(round, relative_path), descriptor.open);
     if (!started && !("tables" in descriptor)) record(round, relative_path, { state: "snapshotted" });
   } catch (error) {
     if (lockLost(error)) throw error;
@@ -347,8 +356,17 @@ const sameOutcome = (left: readonly UpgradeUnit[], right: readonly UpgradeUnit[]
 
 /** §5.2: not enough room means this Home's round touches nothing at all, and the others go on. */
 function runPlanned(round: Round, planned: readonly UpgradeUnit[]): void {
-  // A plugin's tables are a transaction inside a file already counted, with no snapshot of their own.
-  try { assertUpgradeDiskSpace(round.root, planned.filter(unit => unit.kind !== "plugin_tables").map(unit => unit.relative_path)); }
+  // Count every file that will be snapshotted in this round, including a plugin_tables unit's parent SQLite file when not yet snapshotted.
+  const snapshotFiles = new Set<string>();
+  for (const unit of planned) {
+    if (unit.kind === "plugin_tables") {
+      const parentRel = unit.relative_path.slice(0, unit.relative_path.lastIndexOf("#"));
+      if (!upgradeSnapshotListed(round.root, round.ledger!.run_id, parentRel)) snapshotFiles.add(parentRel);
+    } else if (!upgradeSnapshotListed(round.root, round.ledger!.run_id, unit.relative_path)) {
+      snapshotFiles.add(unit.relative_path);
+    }
+  }
+  try { assertUpgradeDiskSpace(round.root, [...snapshotFiles]); }
   catch (error) {
     if (lockLost(error)) throw error;
     const seen = recordedError(error), paths = new Set(planned.map(unit => unit.relative_path)), ledger = round.ledger!;
@@ -418,6 +436,7 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
   removeUpgradeTemporaries(root);
   for (const path of REMOVED_HOME_STORES) rmSync(join(root, path), { recursive: true, force: true });
   takeLayoutMoves(root);
+  releaseHeldHomeSqlite(root);
   const round: Round = { root, lockDirectory, owner, identity, fingerprint, expectedSpace: options.expectedSpace, stores: listStores(descriptors, root), ledger: undefined, waiting: [], onUnitDone: options.onUnitDone };
   const resumed = finishInterrupted(round, previous);
   if (round.ledger?.units.some(unfinishedUnit)) return { ran: true, stamped: false, units: round.ledger.units };
@@ -425,7 +444,19 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
   if (planned.length > 0) {
     supersedeInstalledUpgradeNotice(root);
     removeUpgradeStamp(root);
-    round.ledger = newUpgradeLedger(identity, randomUUID(), stamp ?? null, fingerprint, [...settled, ...planned]);
+    // Preserve committed units, run_id, and original pre-upgrade `from` when retrying a partial round toward the same target fingerprint
+    // (e.g. after freeing disk space or resolving a prerequisite) so rollback snapshots from earlier commits stay intact.
+    // A previously completed round (e.g. a store put back by hand) always starts a fresh run_id.
+    const plannedPaths = new Set(planned.map(unit => unit.relative_path));
+    const settledPaths = new Set(settled.map(unit => unit.relative_path));
+    const priorIncompleteSameTarget = round.ledger?.to === fingerprint && round.ledger.units.some(unit => unit.state !== "committed");
+    const keptCommitted = priorIncompleteSameTarget
+      ? round.ledger!.units.filter(unit => unit.state === "committed" && !plannedPaths.has(unit.relative_path) && !settledPaths.has(unit.relative_path))
+      : [];
+    const preservedFrom = stamp ?? (priorIncompleteSameTarget ? round.ledger!.from : null);
+    round.ledger = keptCommitted.length > 0
+      ? { ...round.ledger!, units: [...keptCommitted, ...settled, ...planned] }
+      : newUpgradeLedger(identity, randomUUID(), preservedFrom, fingerprint, [...settled, ...planned]);
     writeUpgradeLedger(root, round.ledger);
     runPlanned(round, planned);
   } else {
@@ -549,10 +580,63 @@ export function upgradeRoundRestorable(home: string): { readonly kind: "none" } 
   if (!ledger) return { kind: "none" };
   if (ledger.units.some(unfinishedUnit)) return { kind: "unfinished" };
   const committed = ledger.units.filter(unit => unit.state === "committed");
-  const restorable = committed.every(unit => unit.kind === "plugin_tables"
-    ? committed.some(other => other.kind !== "plugin_tables" && unit.relative_path.startsWith(`${other.relative_path}#`))
-    : upgradeSnapshotListed(root, ledger.run_id, unit.relative_path));
+  const restorable = committed.every(unit => {
+    const target = unit.kind === "plugin_tables" ? unit.relative_path.slice(0, unit.relative_path.lastIndexOf("#")) : unit.relative_path;
+    return upgradeSnapshotListed(root, ledger.run_id, target);
+  });
   return { kind: "round", run_id: ledger.run_id, from: ledger.from, started_at: ledger.started_at, restorable };
+}
+
+export interface PreparedUpgradeRoundPutBack {
+  readonly targets: readonly string[];
+  apply(): readonly string[];
+}
+
+/**
+ * Verifies every snapshot of the last upgrade round (descriptors and SHA-256 digests) without modifying disk
+ * (`S-upgrade-restore-verified`). Multi-Home rollback calls this for every target Home first, then invokes `apply()` on each.
+ */
+export function prepareUpgradeRoundPutBack(home: string, owner: StorageOwner): PreparedUpgradeRoundPutBack {
+  const lockDirectory = agentRuntimeDirectory(home);
+  assertStorageOwner(lockDirectory, owner);
+  const root = realpathSync(home);
+  const ledger = readUpgradeLedger(root);
+  if (!ledger) {
+    return {
+      targets: [],
+      apply() {
+        removeUpgradeStamp(root);
+        return [];
+      },
+    };
+  }
+  const stores = listStores(homeUpgradeDescriptors(), root);
+  const committed = ledger.units.filter(unit => unit.state === "committed");
+  const targets: string[] = [];
+  const seen = new Set<string>();
+  for (const unit of committed) {
+    if (!stores.has(unit.relative_path) || stores.get(unit.relative_path)!.unlisted) {
+      throw upgradeFailedRefusal("这个 Home", "snapshot_invalid", "要放回的库有不在这一版登记里的，什么都没有动");
+    }
+    const target = unit.kind === "plugin_tables" ? unit.relative_path.slice(0, unit.relative_path.lastIndexOf("#")) : unit.relative_path;
+    if (unit.kind === "plugin_tables" && (!stores.has(target) || stores.get(target)!.unlisted)) {
+      throw upgradeFailedRefusal("这个 Home", "snapshot_invalid", "要放回的库有不在这一版登记里的，什么都没有动");
+    }
+    if (!seen.has(target)) {
+      seen.add(target);
+      targets.push(target);
+    }
+  }
+  const lock = { owner, lockDirectory, home: root };
+  for (const relativePath of targets) verifyUpgradeSnapshot({ ...lock, runId: ledger.run_id, relativePath });
+  return {
+    targets,
+    apply() {
+      removeUpgradeStamp(root);
+      for (const relativePath of targets) restoreUpgradeSnapshot({ ...lock, runId: ledger.run_id, relativePath });
+      return targets;
+    },
+  };
 }
 
 /**
@@ -562,16 +646,5 @@ export function upgradeRoundRestorable(home: string): { readonly kind: "none" } 
  * bad one changes nothing; a kill part-way leaves whole old stores and whole new ones, and doing it again finishes it.
  */
 export function putBackUpgradeRound(home: string, owner: StorageOwner): readonly string[] {
-  const lockDirectory = agentRuntimeDirectory(home);
-  assertStorageOwner(lockDirectory, owner);
-  const root = realpathSync(home), ledger = readUpgradeLedger(root);
-  if (!ledger) { removeUpgradeStamp(root); return []; }
-  const stores = listStores(homeUpgradeDescriptors(), root);
-  const units = ledger.units.filter(unit => unit.state === "committed" && unit.kind !== "plugin_tables");
-  if (units.some(unit => !stores.has(unit.relative_path) || stores.get(unit.relative_path)!.unlisted)) throw upgradeFailedRefusal("这个 Home", "snapshot_invalid", "要放回的库有不在这一版登记里的，什么都没有动");
-  const lock = { owner, lockDirectory, home: root };
-  for (const unit of units) verifyUpgradeSnapshot({ ...lock, runId: ledger.run_id, relativePath: unit.relative_path });
-  removeUpgradeStamp(root);
-  for (const unit of units) restoreUpgradeSnapshot({ ...lock, runId: ledger.run_id, relativePath: unit.relative_path });
-  return units.map(unit => unit.relative_path);
+  return prepareUpgradeRoundPutBack(home, owner).apply();
 }

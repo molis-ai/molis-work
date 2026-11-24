@@ -137,3 +137,95 @@ test("W5-01-STREAM-01 a route without the stream declaration never receives emit
   const response = await request(`/api/plugins/${probe.id}/direct`, { method: "POST", body: {} });
   assert.match(response.headers.get("content-type")!, /application\/json/); assert.equal(await response.json(), "plain");
 });
+
+test("W5-01-STREAM-07 NDJSON 2xx commit after mid-flight client disconnect keeps idempotency key complete while failed stream releases it", { timeout: 60_000 }, async t => {
+  const probe = streamProbe();
+  let entered = deferred();
+  let release = deferred();
+  let finished = deferred();
+  let mode: "commit" | "fail" = "commit";
+  let executions = 0;
+  probe.behavior.route = async request => {
+    executions += 1;
+    request.emit?.({ stage: "started", progress: 0.1 });
+    entered.resolve();
+    try {
+      await release.promise;
+      if (mode === "fail") throw new ActionError("actions.execution_failed", "stream failed after disconnect");
+      return { status: 200, body: { committed: true, run: executions } };
+    } finally {
+      finished.resolve();
+    }
+  };
+  const { request } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  const path = `/api/plugins/${probe.id}/direct`;
+
+  // 1. Client disconnects mid-flight, then handler commits 200: key must settle as complete and reject same-key replay with 409.
+  const commitAbort = new AbortController();
+  const commitKey = "ndjson-disconnect-commit-key";
+  const droppedCommit = request(path, {
+    method: "POST",
+    body: {},
+    headers: { "x-molis-work-idempotency-key": commitKey },
+    signal: commitAbort.signal,
+  }).then(async res => {
+    const reader = res.body?.getReader();
+    if (reader) {
+      await reader.read();
+      await reader.cancel();
+    }
+  }, () => undefined);
+  await entered.promise;
+  commitAbort.abort();
+  await droppedCommit;
+  release.resolve();
+  await finished.promise;
+  // Poll briefly for response.end() settlement to land before retrying the same key.
+  let replay = await request(path, { method: "POST", body: {}, headers: { "x-molis-work-idempotency-key": commitKey } });
+  for (let i = 0; i < 20 && replay.status === 409; i += 1) {
+    const payload = await replay.clone().json() as { code?: string };
+    if (payload.code !== "request.in_flight") break;
+    await new Promise(resolve => setTimeout(resolve, 15));
+    replay = await request(path, { method: "POST", body: {}, headers: { "x-molis-work-idempotency-key": commitKey } });
+  }
+  assert.equal(replay.status, 409, "retrying a committed NDJSON mutation key after disconnect is refused");
+  assert.notEqual((await replay.json() as { code?: string }).code, "request.in_flight", "key settled as complete, not stuck in_flight");
+  assert.equal(executions, 1, "committed NDJSON mutation did not run a second time");
+
+  // 2. Client disconnects mid-flight and handler throws: key is released so retry with the same key executes and succeeds.
+  entered = deferred();
+  release = deferred();
+  finished = deferred();
+  mode = "fail";
+  const failAbort = new AbortController();
+  const failKey = "ndjson-disconnect-fail-key";
+  const droppedFail = request(path, {
+    method: "POST",
+    body: {},
+    headers: { "x-molis-work-idempotency-key": failKey },
+    signal: failAbort.signal,
+  }).then(async res => {
+    const reader = res.body?.getReader();
+    if (reader) {
+      await reader.read();
+      await reader.cancel();
+    }
+  }, () => undefined);
+  await entered.promise;
+  failAbort.abort();
+  await droppedFail;
+  release.resolve();
+  await finished.promise;
+  mode = "commit";
+  release = deferred();
+  release.resolve();
+  let retried = await request(path, { method: "POST", body: {}, headers: { "x-molis-work-idempotency-key": failKey } });
+  for (let i = 0; i < 20 && retried.status === 409; i += 1) {
+    await new Promise(resolve => setTimeout(resolve, 15));
+    retried = await request(path, { method: "POST", body: {}, headers: { "x-molis-work-idempotency-key": failKey } });
+  }
+  assert.equal(retried.status, 200, "failed NDJSON stream after disconnect releases its key for retry");
+  const retriedLines = await streamLines(retried);
+  assert.equal(retriedLines.at(-1)?.type, "result");
+  assert.equal(executions, 3);
+});

@@ -3,10 +3,11 @@ import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { acquireStorageOwner, assertNoPendingHomeRestore, releaseHeldHomeSqlite } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, assertNoPendingHomeRestore, releaseHeldHomeSqlite, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
 import { homeIdentity, readUpgradeStamp } from "../home-upgrade-ledger.js";
-import { putBackUpgradeRound, upgradeRoundRestorable } from "../home-upgrade.js";
+import { prepareUpgradeRoundPutBack, upgradeRoundRestorable } from "../home-upgrade.js";
+import { accountHomes } from "../upgrade-maintenance.js";
 import { isCurrentInstallManifest, type InstallManifest, type TextMutation } from "./home-contract.js";
 import { replaceOwnedJson, rollbackTextMutations, writeAtomic, writeOwnedText } from "./home-files.js";
 import { launcherSource } from "./home-launcher.js";
@@ -37,6 +38,8 @@ interface RollbackRecord {
   readonly release_path: string;
   /** The upgrade stamp when the program was replaced: the store versions the kept program ran on. */
   readonly home_fingerprint: string | null;
+  /** Each personal account Home's upgrade stamp (`spaces/<spaceId>`) at the moment the program was replaced, when any existed. */
+  readonly space_fingerprints?: Readonly<Record<string, string | null>>;
   readonly kept_at: string;
 }
 
@@ -65,14 +68,20 @@ function readSmallJson(file: string): unknown {
 
 const insideHome = (relative: string) => relative !== "" && !path.isAbsolute(relative) && path.normalize(relative) === relative && !relative.split(path.sep).includes("..");
 
+function validSpaceFingerprints(value: unknown): value is Readonly<Record<string, string | null>> | undefined {
+  if (value === undefined) return true;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return Object.entries(value).every(([key, stamp]) => insideHome(key) && !key.includes(path.sep) && (stamp === null || typeof stamp === "string"));
+}
+
 function readRecord(root: string): { record: RollbackRecord; installation: InstallManifest } | undefined {
   if (!plainDirectory(path.join(root, "releases")) || !plainDirectory(path.join(root, PREVIOUS))) return undefined;
   const value = readSmallJson(path.join(root, PREVIOUS, RECORD)) as Partial<RollbackRecord> | undefined;
   const installation = readSmallJson(path.join(root, PREVIOUS, INSTALLATION));
   if (!value || value.schema_version !== RECORD_SCHEMA_VERSION || typeof value.version !== "string" || typeof value.content_digest !== "string"
     || typeof value.release_path !== "string" || !insideHome(value.release_path) || typeof value.kept_at !== "string"
-    || !(value.home_fingerprint === null || typeof value.home_fingerprint === "string") || !isCurrentInstallManifest(installation)
-    || installation.content_digest !== value.content_digest) return undefined;
+    || !(value.home_fingerprint === null || typeof value.home_fingerprint === "string") || !validSpaceFingerprints(value.space_fingerprints)
+    || !isCurrentInstallManifest(installation) || installation.content_digest !== value.content_digest) return undefined;
   if (!plainDirectory(path.join(root, value.release_path))) return undefined;
   return { record: value as RollbackRecord, installation };
 }
@@ -81,19 +90,43 @@ function currentStamp(root: string): string | null {
   try { return readUpgradeStamp(root, homeIdentity(root)) ?? null; } catch { return null; }
 }
 
+function expectedStampFor(record: RollbackRecord, root: string, directory: string): string | null {
+  if (directory === root) return record.home_fingerprint;
+  const spaceId = path.basename(directory);
+  return record.space_fingerprints && Object.hasOwn(record.space_fingerprints, spaceId)
+    ? record.space_fingerprints[spaceId]!
+    : null;
+}
+
+function evaluateRollbackPoint(
+  root: string,
+  kept: { record: RollbackRecord; installation: InstallManifest } | undefined,
+  directories: readonly string[],
+): RollbackPoint {
+  if (!kept) return { available: false, reason: "no_previous" };
+  const { record } = kept;
+  const keptAt = Date.parse(record.kept_at);
+  let needsRestore = false;
+  let writtenSince: string | null = null;
+  for (const directory of directories) {
+    const round = upgradeRoundRestorable(directory);
+    if (round.kind === "unfinished") return { available: false, reason: "upgrade_unfinished" };
+    if (round.kind === "none" || Date.parse(round.started_at) < keptAt) continue;
+    if (round.from !== expectedStampFor(record, root, directory) || !round.restorable) return { available: false, reason: "snapshot_missing" };
+    needsRestore = true;
+    if (writtenSince === null || Date.parse(round.started_at) < Date.parse(writtenSince)) writtenSince = round.started_at;
+  }
+  return { available: true, version: record.version, data: needsRestore ? "restore" : "unchanged", written_since: writtenSince };
+}
+
 /**
  * §5.4: what going back would do, read only (no store opened). Unchanged: no round has run since the program was replaced. Restore: the one
- * round since started from the stamp the kept program left, and every store it moved on can be put back. Two rounds since, or a snapshot
- * gone, is `snapshot_missing`: going back would leave stores the kept program cannot read.
+ * round since started from the stamp the kept program left, and every store it moved on (in the root Home and every account Home under
+ * `spaces/`) can be put back. Two rounds since, or a snapshot gone, is `snapshot_missing`: going back would leave stores the kept program cannot read.
  */
 export function readRollbackPoint(home: string): RollbackPoint {
-  const root = realpathSync(home), kept = readRecord(root);
-  if (!kept) return { available: false, reason: "no_previous" };
-  const round = upgradeRoundRestorable(root), { record } = kept;
-  if (round.kind === "unfinished") return { available: false, reason: "upgrade_unfinished" };
-  if (round.kind === "none" || Date.parse(round.started_at) < Date.parse(record.kept_at)) return { available: true, version: record.version, data: "unchanged", written_since: null };
-  if (round.from !== record.home_fingerprint || !round.restorable) return { available: false, reason: "snapshot_missing" };
-  return { available: true, version: record.version, data: "restore", written_since: round.started_at };
+  const root = realpathSync(home);
+  return evaluateRollbackPoint(root, readRecord(root), [root, ...accountHomes(root)]);
 }
 
 /**
@@ -109,8 +142,9 @@ export async function keepPreviousRelease(home: string, previous: InstallManifes
   try {
     if (moved) await fs.rename(moved, path.join(stage, "release"));
     await writeAtomic(path.join(stage, INSTALLATION), `${JSON.stringify(previous, null, 2)}\n`);
+    const spaceFingerprints = Object.fromEntries(accountHomes(root).map(directory => [path.basename(directory), currentStamp(directory)]));
     const record: RollbackRecord = { schema_version: RECORD_SCHEMA_VERSION, version: previous.version, content_digest: previous.content_digest,
-      release_path: releasePath, home_fingerprint: currentStamp(root), kept_at: new Date().toISOString() };
+      release_path: releasePath, home_fingerprint: currentStamp(root), space_fingerprints: spaceFingerprints, kept_at: new Date().toISOString() };
     await writeAtomic(path.join(stage, RECORD), `${JSON.stringify(record, null, 2)}\n`);
     const target = path.join(root, PREVIOUS), old = plainDirectory(target) ? path.join(releases, `.previous-old-${randomUUID()}`) : null;
     if (old) await fs.rename(target, old);
@@ -124,8 +158,9 @@ export async function keepPreviousRelease(home: string, previous: InstallManifes
 
 /**
  * §5.3: offline, under the owner lock. `saveCurrent` first takes a whole snapshot of the Home as it is now (the caller's, before the lock);
- * then the hold, then the stores, then the program. A refusal changes nothing; a failure after the hold but before the program moves removes
- * the hold again, leaving whole stores, the program that was there, and the point to go back to, so running it again finishes it.
+ * then all target snapshots are verified (`S-upgrade-restore-verified`), then the hold, then the stores, then the program. A refusal changes
+ * nothing; a failure after the hold but before the program moves removes the hold again, leaving whole stores, the program that was there, and
+ * the point to go back to, so running it again finishes it.
  *
  * The hold is written before the stores and the program, not after them: `swapProgram` deletes `releases/previous/` once the kept program is
  * in place, so a hold written afterwards that failed would leave the Home on the kept program with no point and no hold — the desktop would
@@ -133,22 +168,53 @@ export async function keepPreviousRelease(home: string, previous: InstallManifes
  * that says the Home is being kept on the older program, so the next start does not upgrade and the person can retry or lift it.
  */
 export async function rollbackHome(home: string, options: { readonly saved_to?: string | null } = {}): Promise<RollbackResult> {
-  const root = realpathSync(home), lockDirectory = agentRuntimeDirectory(root), owner = acquireStorageOwner(lockDirectory);
+  const root = realpathSync(home);
+  const owners: Array<{ readonly directory: string; readonly owner: StorageOwner }> = [];
   const installationFile = path.join(root, "config", INSTALLATION);
+  const lockDirectoryFor = (directory: string) => {
+    const lockDirectory = agentRuntimeDirectory(directory);
+    assertNoPendingHomeRestore(lockDirectory);
+    const owner = acquireStorageOwner(lockDirectory);
+    try {
+      assertNoPendingHomeRestore(lockDirectory);
+    } catch (error) {
+      owner.release();
+      throw error;
+    }
+    owners.push({ directory, owner });
+  };
   try {
-    assertNoPendingHomeRestore(root);
-    const point = readRollbackPoint(root), kept = readRecord(root);
+    // Lock the root Home first so account spaces cannot shift between enumeration and locking.
+    lockDirectoryFor(root);
+    for (const directory of accountHomes(root)) lockDirectoryFor(directory);
+    const kept = readRecord(root);
+    const point = evaluateRollbackPoint(root, kept, owners.map(entry => entry.directory));
     if (!point.available || !kept) {
       const reason = point.available ? "no_previous" : point.reason;
       throw rollbackErrors.unavailable(UNAVAILABLE[reason], { reason });
     }
     const current = readSmallJson(installationFile);
     if (!isCurrentInstallManifest(current)) throw rollbackErrors.unavailable(UNAVAILABLE.no_previous, { reason: "no_previous" });
+    const keptAt = Date.parse(kept.record.kept_at);
+    const prepared: Array<{ readonly prefix: string; readonly plan: ReturnType<typeof prepareUpgradeRoundPutBack> }> = [];
+    // Phase 1: verify descriptors and SHA-256 digests across every Home before writing the hold or restoring any file.
+    if (point.data === "restore") {
+      for (const { directory, owner } of owners) {
+        releaseHeldHomeSqlite(directory);
+        const round = upgradeRoundRestorable(directory);
+        if (round.kind !== "round" || Date.parse(round.started_at) < keptAt) continue;
+        const prefix = directory === root ? "" : `${path.relative(root, directory)}${path.sep}`;
+        prepared.push({ prefix, plan: prepareUpgradeRoundPutBack(directory, owner) });
+      }
+    }
     await writeAtomic(path.join(root, HOLD), `${JSON.stringify({ schema_version: HOLD_SCHEMA_VERSION, held_version: kept.installation.version,
       rolled_back_from: { version: current.version, content_digest: current.content_digest }, at: new Date().toISOString() }, null, 2)}\n`);
     try {
-      releaseHeldHomeSqlite(root);
-      const restored = point.data === "restore" ? putBackUpgradeRound(root, owner) : [];
+      // Phase 2: apply all verified restores, then swap the program back.
+      const restored: string[] = [];
+      for (const { prefix, plan } of prepared) {
+        for (const item of plan.apply()) restored.push(prefix + item);
+      }
       await swapProgram(root, kept);
       return { version: point.version, data: point.data, restored, saved_to: options.saved_to ?? null };
     } catch (error) {
@@ -161,8 +227,10 @@ export async function rollbackHome(home: string, options: { readonly saved_to?: 
       throw error;
     }
   } finally {
-    releaseHeldHomeSqlite(root);
-    owner.release();
+    for (const { directory, owner } of [...owners].reverse()) {
+      releaseHeldHomeSqlite(directory);
+      owner.release();
+    }
   }
 }
 

@@ -5,12 +5,16 @@ import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/mod
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { readPluginConsents, readPluginRuntimeRecords, SqlitePluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { atomicWriteFileSync } from "@molis-ai/molis-work-storage";
+import { atomicWriteFileSync, homeSqlitePath, openReadOnlyHomeSqlite } from "@molis-ai/molis-work-storage";
+import { ASSISTANT_HOME_STORE } from "./assistant/assistant-store.js";
 import type { HomeAggregateIssue } from "./home-aggregate.js";
-import { openReadOnlyHomePluginStore } from "./home-plugin-store.js";
+import { withReadOnlyHomePluginStore } from "./home-plugin-store.js";
 import { repeatingFailure } from "./host-log.js";
+import { INSTALLED_LIBRARIES_HOME_STORE, INSTALLED_LIBRARY_NAME } from "./installed-plugin-libraries.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 import type { MolisWorkLocalHostOptions } from "./project-host.js";
+import { SandboxPackageStore } from "./sandbox-package-store.js";
 
 /**
  * Rebuildable, non-authoritative resting summary cache for closed projects, stored under the Home's registered `cache/` store
@@ -48,6 +52,7 @@ export interface PersistedRestingAnswer {
 
 export interface RestingReadingSnapshot {
   readonly fingerprint: string;
+  readonly host_instance_id?: string;
   readonly keys: Readonly<Record<string, string>>;
   readonly result: {
     readonly answers: readonly PersistedRestingAnswer[];
@@ -156,6 +161,336 @@ export function sqliteFileFingerprint(databasePath: string): string | null {
 }
 
 /**
+ * Fingerprints an optional Home-level SQLite database without opening SQLite or creating sidecar files.
+ * Returns `"-"` when absent, a SHA-256 edge fingerprint when present, or `null` on symlink/unreadable errors.
+ */
+function optionalSqliteFileFingerprint(databasePath: string): string | null {
+  const main = readBoundedEdgeStamp(databasePath, SQLITE_HEADER_BYTES, 0);
+  if (!main) return null;
+  const wal = readBoundedEdgeStamp(`${databasePath}-wal`, WAL_EDGE_BYTES, WAL_EDGE_BYTES);
+  if (!wal) return null;
+  let journalInfo: ReturnType<typeof lstatSync>;
+  try {
+    journalInfo = lstatSync(`${databasePath}-journal`, { bigint: true, throwIfNoEntry: false });
+  } catch {
+    return null;
+  }
+  if (journalInfo && (journalInfo.isSymbolicLink() || !journalInfo.isFile())) return null;
+  const journal = journalInfo ? `${journalInfo.dev}:${journalInfo.ino}:${journalInfo.size}:${journalInfo.mtimeNs}` : "-";
+  if (main === "-" && wal === "-" && journal === "-") return "-";
+  return sha256(JSON.stringify([main, wal, journal]));
+}
+
+let cachedBuiltinAggregateHomeStores: readonly string[] | undefined;
+function builtinAggregateHomeStoreNames(): readonly string[] {
+  if (!cachedBuiltinAggregateHomeStores) {
+    const names = new Set<string>();
+    for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
+      const homeDb = entry.manifest.databases?.home;
+      if (!homeDb || homeDb.partition) continue;
+      if ((entry.manifest.actions ?? []).some(action => action.action.home_aggregate === true)) {
+        names.add(homeDb.store_name);
+      }
+    }
+    cachedBuiltinAggregateHomeStores = [...names].sort();
+  }
+  return cachedBuiltinAggregateHomeStores;
+}
+
+function fixtureAggregateHomeStoreNames(fixtures: MolisWorkLocalHostOptions["pluginFixtures"]): readonly string[] {
+  if (!fixtures?.home?.length) return [];
+  const names: string[] = [];
+  for (const entry of fixtures.home) {
+    const manifest = ("manifest" in entry ? entry : entry.definition).manifest;
+    const homeDb = manifest.databases?.home;
+    if (!homeDb || homeDb.partition) continue;
+    if ((manifest.actions ?? []).some(action => action.action.home_aggregate === true)) {
+      names.push(homeDb.store_name);
+    }
+  }
+  return names;
+}
+
+const HOME_AGGREGATE_STORE_DIGEST_CACHE_LIMIT = 64;
+const SQLITE_RO_BUSY_TIMEOUT_MS = 2000;
+const homeAggregateStoreDigestCache = new Map<string, { readonly fileFp: string; readonly logicalDigest: string }>();
+const installedAggregateStoresCache = new Map<string, { readonly fileFp: string; readonly homePluginsStamp: string; readonly storeNames: readonly string[] }>();
+const assistantAggregateDigestCache = new Map<string, {
+  readonly fileFp: string;
+  readonly byProject: ReadonlyMap<string, string> | "absent";
+  readonly fallback?: string;
+}>();
+
+function evictOldest<K, V>(cache: Map<K, V>, limit: number): void {
+  while (cache.size > limit) cache.delete(cache.keys().next().value!);
+}
+
+/**
+ * Discovers installed third-party Home libraries (`plugin_home_libraries`) whose plugin declares `home_aggregate: true`
+ * (or whose manifest cannot be verified offline, fail-safe), so third-party Home plugins get the same resting cache
+ * invalidation as built-in Home plugins (`specs/plugin-equal-standing`). Cached by file edge + `homePluginsStamp`.
+ */
+function installedAggregateHomeStoreNames(homeDirectory: string, homePluginsStamp: string): readonly string[] | null {
+  const ledgerPath = homeSqlitePath(homeDirectory, INSTALLED_LIBRARIES_HOME_STORE.path);
+  const fileFp = optionalSqliteFileFingerprint(ledgerPath);
+  if (fileFp === null) {
+    installedAggregateStoresCache.delete(ledgerPath);
+    return null;
+  }
+  if (fileFp === "-") {
+    installedAggregateStoresCache.delete(ledgerPath);
+    return [];
+  }
+  const cached = installedAggregateStoresCache.get(ledgerPath);
+  if (cached && cached.fileFp === fileFp && cached.homePluginsStamp === homePluginsStamp) return cached.storeNames;
+  let db: ReturnType<typeof openReadOnlyHomeSqlite>;
+  try {
+    db = openReadOnlyHomeSqlite(homeDirectory, INSTALLED_LIBRARIES_HOME_STORE.path);
+  } catch {
+    installedAggregateStoresCache.delete(ledgerPath);
+    return null;
+  }
+  try {
+    db.exec(`PRAGMA busy_timeout = ${SQLITE_RO_BUSY_TIMEOUT_MS}`);
+    const hasTable = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'plugin_home_libraries'").get();
+    if (!hasTable) return [];
+    const rows = db.prepare("SELECT plugin_id, publisher_signature, store_name FROM plugin_home_libraries ORDER BY store_name")
+      .all() as Array<{ plugin_id?: unknown; publisher_signature?: unknown; store_name?: unknown }>;
+    const storeNames: string[] = [];
+    if (rows.length > 0) {
+      let runtimeByPlugin: ReadonlyMap<string, { readonly version: string; readonly publisher_signature: string }> | undefined;
+      try {
+        const records = withReadOnlyHomePluginStore(homeDirectory, pluginDb => readPluginRuntimeRecords(pluginDb));
+        if (records) {
+          runtimeByPlugin = new Map(records.filter(r => r.state !== "uninstalled").map(r => [r.plugin_id, r]));
+        }
+      } catch {
+        runtimeByPlugin = undefined;
+      }
+      const packages = new SandboxPackageStore(homeDirectory);
+      for (const row of rows) {
+        if (typeof row.store_name !== "string" || !INSTALLED_LIBRARY_NAME.test(row.store_name)) {
+          installedAggregateStoresCache.delete(ledgerPath);
+          return null;
+        }
+        if (typeof row.plugin_id === "string" && typeof row.publisher_signature === "string") {
+          const record = runtimeByPlugin?.get(row.plugin_id);
+          if (record && record.publisher_signature === row.publisher_signature) {
+            try {
+              const manifest = packages.snapshotManifest(row.plugin_id, row.publisher_signature, record.version);
+              if (manifest && !(manifest.actions ?? []).some(action => action.action.home_aggregate === true)) {
+                continue;
+              }
+            } catch {
+              // Fail-safe: if manifest cannot be inspected offline, keep the store in the digest set.
+            }
+          }
+        }
+        storeNames.push(row.store_name);
+      }
+    }
+    installedAggregateStoresCache.set(ledgerPath, { fileFp, homePluginsStamp, storeNames });
+    evictOldest(installedAggregateStoresCache, HOME_AGGREGATE_STORE_DIGEST_CACHE_LIMIT);
+    return storeNames;
+  } catch {
+    installedAggregateStoresCache.delete(ledgerPath);
+    return null;
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Computes a logical content digest of a Home-level SQLite database (invariant across clean WAL checkpoints on
+ * shutdown, sensitive to any schema or row insert/update/delete). Cached by bounded file-edge fingerprint so steady-state
+ * polls open zero SQLite handles.
+ */
+function logicalHomeSqliteDigest(homeDirectory: string, storeName: string, dbPath: string, fileFp: string): string | null {
+  const cached = homeAggregateStoreDigestCache.get(dbPath);
+  if (cached && cached.fileFp === fileFp) return cached.logicalDigest;
+  let db: ReturnType<typeof openReadOnlyHomeSqlite>;
+  try {
+    db = openReadOnlyHomeSqlite(homeDirectory, storeName);
+  } catch {
+    homeAggregateStoreDigestCache.delete(dbPath);
+    return null;
+  }
+  try {
+    db.exec(`PRAGMA busy_timeout = ${SQLITE_RO_BUSY_TIMEOUT_MS}`);
+    const hash = createHash("sha256");
+    const schemaVersion = Number((db.prepare("PRAGMA schema_version").get() as { schema_version?: number } | undefined)?.schema_version ?? 0);
+    hash.update(`schema:${schemaVersion}\n`);
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+      .all() as Array<{ name: string }>;
+    for (const { name } of tables) {
+      hash.update(`table:${name}\n`);
+      const escaped = `"${name.replaceAll('"', '""')}"`;
+      for (const row of db.prepare(`SELECT * FROM ${escaped}`).iterate()) {
+        hash.update(JSON.stringify(row));
+        hash.update("\n");
+      }
+    }
+    const logicalDigest = hash.digest("hex");
+    homeAggregateStoreDigestCache.set(dbPath, { fileFp, logicalDigest });
+    evictOldest(homeAggregateStoreDigestCache, HOME_AGGREGATE_STORE_DIGEST_CACHE_LIMIT);
+    return logicalDigest;
+  } catch {
+    homeAggregateStoreDigestCache.delete(dbPath);
+    return null;
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Computes lightweight per-project digests for `assistant/assistant.db` covering ONLY the metadata columns read by
+ * `home_aggregate` (`assistant.events` / `assistant.background.tasks`): non-main, non-reply, non-archived project rows of
+ * `assistant_works` plus their `assistant_observed` state. Unrelated writes to `assistant_notices`, `assistant_rounds`,
+ * `assistant_cards`, `assistant_usage`, personal chats, or main conversations leave sleeping project digests untouched.
+ */
+function assistantAggregateDigest(homeDirectory: string): {
+  readonly byProject: ReadonlyMap<string, string> | "absent";
+  readonly fallback?: string;
+} | null {
+  const dbPath = homeSqlitePath(homeDirectory, ASSISTANT_HOME_STORE.path);
+  const fileFp = optionalSqliteFileFingerprint(dbPath);
+  if (fileFp === null) {
+    assistantAggregateDigestCache.delete(dbPath);
+    return null;
+  }
+  if (fileFp === "-") {
+    assistantAggregateDigestCache.delete(dbPath);
+    return { byProject: "absent" };
+  }
+  const cached = assistantAggregateDigestCache.get(dbPath);
+  if (cached && cached.fileFp === fileFp) {
+    return { byProject: cached.byProject, ...(cached.fallback !== undefined ? { fallback: cached.fallback } : {}) };
+  }
+  let db: ReturnType<typeof openReadOnlyHomeSqlite>;
+  try {
+    db = openReadOnlyHomeSqlite(homeDirectory, ASSISTANT_HOME_STORE.path);
+  } catch {
+    assistantAggregateDigestCache.delete(dbPath);
+    return null;
+  }
+  try {
+    db.exec(`PRAGMA busy_timeout = ${SQLITE_RO_BUSY_TIMEOUT_MS}`);
+    const presentTables = new Set(
+      (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('assistant_works', 'assistant_observed')").all() as Array<{ name: string }>)
+        .map(row => row.name),
+    );
+    if (!presentTables.has("assistant_works")) {
+      db.close();
+      const fallback = logicalHomeSqliteDigest(homeDirectory, ASSISTANT_HOME_STORE.path, dbPath, fileFp);
+      if (fallback === null) {
+        assistantAggregateDigestCache.delete(dbPath);
+        return null;
+      }
+      assistantAggregateDigestCache.set(dbPath, { fileFp, byProject: "absent", fallback });
+      evictOldest(assistantAggregateDigestCache, HOME_AGGREGATE_STORE_DIGEST_CACHE_LIMIT);
+      return { byProject: "absent", fallback };
+    }
+    const query = presentTables.has("assistant_observed")
+      ? `SELECT json_extract(w.body, '$.project_ref.project_id') AS project_id,
+                w.work_id, w.actor_id, w.revision, w.updated_at, o.state
+         FROM assistant_works w
+         LEFT JOIN assistant_observed o ON o.actor_id = w.actor_id AND o.work_id = w.work_id
+         WHERE w.archived = 0
+           AND json_extract(w.body, '$.project_ref.project_id') IS NOT NULL
+           AND COALESCE(json_extract(w.body, '$.main'), 0) != 1
+           AND json_extract(w.body, '$.reply_target') IS NULL
+         ORDER BY project_id, w.work_id, w.actor_id`
+      : `SELECT json_extract(w.body, '$.project_ref.project_id') AS project_id,
+                w.work_id, w.actor_id, w.revision, w.updated_at, NULL AS state
+         FROM assistant_works w
+         WHERE w.archived = 0
+           AND json_extract(w.body, '$.project_ref.project_id') IS NOT NULL
+           AND COALESCE(json_extract(w.body, '$.main'), 0) != 1
+           AND json_extract(w.body, '$.reply_target') IS NULL
+         ORDER BY project_id, w.work_id, w.actor_id`;
+    const byProject = new Map<string, string>();
+    let currentProject: string | null = null;
+    let currentHash: ReturnType<typeof createHash> | null = null;
+    const flush = () => {
+      if (currentProject !== null && currentHash !== null) {
+        byProject.set(currentProject, currentHash.digest("hex"));
+      }
+    };
+    for (const row of db.prepare(query).iterate() as Iterable<{
+      project_id: unknown;
+      work_id: unknown;
+      actor_id: unknown;
+      revision: unknown;
+      updated_at: unknown;
+      state: unknown;
+    }>) {
+      if (typeof row.project_id !== "string" || !row.project_id) continue;
+      if (row.project_id !== currentProject) {
+        flush();
+        currentProject = row.project_id;
+        currentHash = createHash("sha256");
+      }
+      currentHash!.update(JSON.stringify([row.work_id, row.actor_id, row.revision, row.updated_at, row.state ?? null]));
+      currentHash!.update("\n");
+    }
+    flush();
+    assistantAggregateDigestCache.set(dbPath, { fileFp, byProject });
+    evictOldest(assistantAggregateDigestCache, HOME_AGGREGATE_STORE_DIGEST_CACHE_LIMIT);
+    return { byProject };
+  } catch {
+    assistantAggregateDigestCache.delete(dbPath);
+    return null;
+  } finally {
+    if (db.isOpen) db.close();
+  }
+}
+
+export interface HomeAggregateStoresStamp {
+  readonly shared: string;
+  readonly assistantByProject: ReadonlyMap<string, string> | "absent";
+  readonly assistantFallback?: string;
+}
+
+/**
+ * Fingerprints Home-level SQLite stores read by `home_aggregate` providers (per-project lightweight metadata for
+ * `assistant/assistant.db`, plus built-in, fixture, and installed third-party Home plugins declaring `databases.home` +
+ * `home_aggregate`), so relevant mutations while a project rests invalidate its cached summary while unrelated writes
+ * and clean WAL checkpoints during Host shutdown preserve matching fingerprints.
+ */
+export function homeAggregateStoresFingerprint(
+  homeDirectory: string,
+  options: { readonly fixtures?: MolisWorkLocalHostOptions["pluginFixtures"]; readonly homePluginsStamp?: string } = {},
+): HomeAggregateStoresStamp | null {
+  const assistant = assistantAggregateDigest(homeDirectory);
+  if (!assistant) return null;
+  const installed = installedAggregateHomeStoreNames(homeDirectory, options.homePluginsStamp ?? "");
+  if (installed === null) return null;
+  const storeNames = [...new Set([...builtinAggregateHomeStoreNames(), ...fixtureAggregateHomeStoreNames(options.fixtures), ...installed])].sort();
+  const stamps: Array<readonly [string, string]> = [];
+  for (const storeName of storeNames) {
+    const dbPath = homeSqlitePath(homeDirectory, storeName);
+    const fileFp = optionalSqliteFileFingerprint(dbPath);
+    if (fileFp === null) {
+      homeAggregateStoreDigestCache.delete(dbPath);
+      return null;
+    }
+    if (fileFp === "-") {
+      homeAggregateStoreDigestCache.delete(dbPath);
+      stamps.push([storeName, "-"]);
+      continue;
+    }
+    const logical = logicalHomeSqliteDigest(homeDirectory, storeName, dbPath, fileFp);
+    if (logical === null) return null;
+    stamps.push([storeName, logical]);
+  }
+  return {
+    shared: sha256(JSON.stringify(stamps)),
+    assistantByProject: assistant.byProject,
+    ...(assistant.fallback !== undefined ? { assistantFallback: assistant.fallback } : {}),
+  };
+}
+
+/**
  * Non-fingerprint stat identity for a project DB whose regular-file fingerprint cannot be computed (e.g. symlink or
  * unreadable permissions). Never matches `HEX_64` so it is never persisted to disk, while letting in-memory failed-open
  * caching avoid re-waking the same broken project on every poll until the file's stat or symlink target changes.
@@ -203,58 +538,67 @@ export function pluginFixturesStamp(fixtures: MolisWorkLocalHostOptions["pluginF
   return sha256(JSON.stringify([project, home, installed]));
 }
 
+const HOME_PLUGINS_STAMP_CACHE_LIMIT = 64;
+const homePluginsStampCache = new Map<string, { readonly stamp: string; readonly digest: string }>();
+
 /**
  * Semantic stamp of Home plugin runtime installations, consents, and pinned publishers.
+ * Reuses the held read-only Home SQLite pool (`withReadOnlyHomePluginStore`) and caches the semantic digest by live DB stamp.
  * Normalizes active (`running`) and cleanly stopped (`installed`) states so a clean Host restart without permission or
  * enablement changes preserves the stamp, while any disable, uninstall, crash, quarantine, grant revocation, consent
  * revocation, publisher revocation, or version change immediately invalidates cached resting answers.
  */
 export function homePluginsSemanticStamp(homeDirectory: string, fixturesStamp: string): string | null {
-  let db: ReturnType<typeof openReadOnlyHomePluginStore>;
+  const cacheKey = `${resolve(homeDirectory)}\u0000${fixturesStamp}`;
   try {
-    db = openReadOnlyHomePluginStore(homeDirectory);
+    const digest = withReadOnlyHomePluginStore(homeDirectory, (db, stamp) => {
+      const cached = homePluginsStampCache.get(cacheKey);
+      if (cached && cached.stamp === stamp) return cached.digest;
+      const records = readPluginRuntimeRecords(db);
+      const ledger = new SqlitePluginConsentLedger(db);
+      const normalizedRecords = records.map(record => {
+        const effectiveState = record.state === "running" || record.state === "installed" ? "enabled" : record.state;
+        return [
+          record.install_id,
+          record.plugin_id,
+          record.installation_generation,
+          record.version,
+          record.manifest_digest,
+          record.publisher_id,
+          record.publisher_signature,
+          record.publisher_trust,
+          effectiveState,
+          [...record.grants].sort(),
+        ];
+      }).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+      const consents = readPluginConsents(db).map(row => [
+        row.consent_id,
+        row.plugin_id,
+        row.publisher_signature,
+        row.kind,
+        row.subject,
+        row.manifest_digest,
+        row.revoked_at !== null,
+        row.approved_capability_ids ? [...row.approved_capability_ids].sort() : null,
+      ]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+      const publishers = ledger.publishers()
+        .map(pin => [pin.key_id, pin.public_key_spki_base64, pin.revoked_at !== null] as const)
+        .sort((a, b) => a[0].localeCompare(b[0]));
+      const computed = sha256(JSON.stringify([PRODUCT_VERSION, fixturesStamp, normalizedRecords, consents, publishers]));
+      homePluginsStampCache.set(cacheKey, { stamp, digest: computed });
+      while (homePluginsStampCache.size > HOME_PLUGINS_STAMP_CACHE_LIMIT) {
+        homePluginsStampCache.delete(homePluginsStampCache.keys().next().value!);
+      }
+      return computed;
+    });
+    if (digest === undefined) {
+      homePluginsStampCache.delete(cacheKey);
+      return sha256(JSON.stringify([PRODUCT_VERSION, fixturesStamp, "absent"]));
+    }
+    return digest;
   } catch {
+    homePluginsStampCache.delete(cacheKey);
     return null;
-  }
-  if (!db) {
-    return sha256(JSON.stringify([PRODUCT_VERSION, fixturesStamp, "absent"]));
-  }
-  try {
-    const records = readPluginRuntimeRecords(db);
-    const ledger = new SqlitePluginConsentLedger(db);
-    const normalizedRecords = records.map(record => {
-      const effectiveState = record.state === "running" || record.state === "installed" ? "enabled" : record.state;
-      return [
-        record.install_id,
-        record.plugin_id,
-        record.installation_generation,
-        record.version,
-        record.manifest_digest,
-        record.publisher_id,
-        record.publisher_signature,
-        record.publisher_trust,
-        effectiveState,
-        [...record.grants].sort(),
-      ];
-    }).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
-    const consents = readPluginConsents(db).map(row => [
-      row.consent_id,
-      row.plugin_id,
-      row.publisher_signature,
-      row.kind,
-      row.subject,
-      row.manifest_digest,
-      row.revoked_at !== null,
-      row.approved_capability_ids ? [...row.approved_capability_ids].sort() : null,
-    ]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
-    const publishers = ledger.publishers()
-      .map(pin => [pin.key_id, pin.public_key_spki_base64, pin.revoked_at !== null] as const)
-      .sort((a, b) => a[0].localeCompare(b[0]));
-    return sha256(JSON.stringify([PRODUCT_VERSION, fixturesStamp, normalizedRecords, consents, publishers]));
-  } catch {
-    return null;
-  } finally {
-    db.close();
   }
 }
 
@@ -265,9 +609,17 @@ export function computeProjectRestingFingerprint(input: {
   readonly createdAt: string;
   readonly membership: ProjectPluginMembership;
   readonly homePluginsStamp: string;
+  readonly homeAggregateStoresStamp?: HomeAggregateStoresStamp;
 }): string | null {
   const dbStamp = sqliteFileFingerprint(input.reference.storage_key);
   if (!dbStamp) return null;
+  const homeStoresStamp = input.homeAggregateStoresStamp ?? homeAggregateStoresFingerprint(input.homeDirectory, { homePluginsStamp: input.homePluginsStamp });
+  if (!homeStoresStamp) return null;
+  const assistantProjectStamp = homeStoresStamp.assistantFallback !== undefined
+    ? `fallback:${homeStoresStamp.assistantFallback}`
+    : homeStoresStamp.assistantByProject === "absent"
+      ? "absent"
+      : (homeStoresStamp.assistantByProject.get(input.reference.project_id) ?? "none");
   return sha256(JSON.stringify([
     resolve(input.homeDirectory),
     input.reference.project_id,
@@ -276,6 +628,8 @@ export function computeProjectRestingFingerprint(input: {
     [...input.membership.plugins].sort(),
     [...input.membership.hidden].sort(),
     input.homePluginsStamp,
+    homeStoresStamp.shared,
+    assistantProjectStamp,
     dbStamp,
   ]));
 }
@@ -393,6 +747,9 @@ function sanitizeKeys(raw: unknown): Record<string, string> | null {
 function sanitizeSnapshotEntry(raw: unknown, expectedProjectId: string): RestingReadingSnapshot | null {
   if (!isPlainObject(raw)) return null;
   if (typeof raw.fingerprint !== "string" || !HEX_64.test(raw.fingerprint)) return null;
+  if (raw.host_instance_id !== undefined && (typeof raw.host_instance_id !== "string" || raw.host_instance_id.length === 0 || raw.host_instance_id.length > 128)) {
+    return null;
+  }
   const keys = sanitizeKeys(raw.keys);
   if (!keys) return null;
   if (!isPlainObject(raw.result)) return null;
@@ -410,7 +767,12 @@ function sanitizeSnapshotEntry(raw: unknown, expectedProjectId: string): Resting
     if (!clean) return null;
     issues.push(clean);
   }
-  return { fingerprint: raw.fingerprint, keys, result: { answers, issues } };
+  return {
+    fingerprint: raw.fingerprint,
+    ...(raw.host_instance_id !== undefined ? { host_instance_id: raw.host_instance_id } : {}),
+    keys,
+    result: { answers, issues },
+  };
 }
 
 /** Rejects prototype-polluting keys anywhere in parsed cache JSON before anything consumes it. */

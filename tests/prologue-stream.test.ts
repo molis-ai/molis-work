@@ -587,3 +587,38 @@ test("VUX-20/VUX-43: a model call waiting to retry carries the runtime's time an
   assert.equal(applyRunEvent(bad, wait(1, Number.NaN, "rate-limited"), AT), false);
   assert.equal(bad.retry_wait, undefined);
 });
+
+test("terminal phases refuse late resurrecting events, circuit-tripped closes pending approvals, and mixed pendings preserve remaining phase", () => {
+  // 1. Late non-accounting events after terminal phase cannot resurrect the Run.
+  const ended = emptyPrologueStreamState();
+  apply(ended, { type: "text-delta", text: "完成。" }, { type: "completed" });
+  assert.equal(ended.phase, "completed");
+  assert.equal(applyRunEvent(ended, { type: "text-delta", text: "迟到文本" }, AT), false);
+  assert.equal(applyRunEvent(ended, { type: "awaiting-approval", effectRef: { kind: "effect", id: "e-late", revision: 1 }, pendingRef: { kind: "pending", id: "p-late", revision: 1 }, why: "late" }, AT), false);
+  assert.equal(applyRunEvent(ended, { type: "awaiting-input", pendingRef: { id: "q-late" }, kind: "text", why: "late" }, AT), false);
+  assert.equal(applyRunEvent(ended, { type: "model-response-repair", reason: "stop-held" }, AT), false);
+  assert.equal(ended.phase, "completed");
+  assert.deepEqual(ended.awaiting_approval, []);
+  assert.deepEqual(ended.awaiting_input, []);
+
+  // 2. circuit-tripped closes any awaiting approval as not executed (matching tripped/failed/cancelled).
+  const tripped = emptyPrologueStreamState();
+  apply(tripped,
+    { type: "tool-call", call: { id: "edit-1", name: "edit" } },
+    { type: "awaiting-approval", effectRef: { kind: "effect", id: "eff-1", revision: 1 }, pendingRef: { kind: "pending", id: "pend-1", revision: 1 }, why: "修改" });
+  applyRunEvent(tripped, { type: "circuit-tripped", reason: "repeated-errors", count: 3 } as never, AT, waiting => waiting.pending_id === "pend-1" ? "edit-1" : undefined);
+  assert.equal(tripped.phase, "stopped");
+  assert.equal(tripped.activity[0]!.state, "failed");
+  assert.match(tripped.activity[0]!.summary, /等待批准时这一轮结束，没有执行/u);
+
+  // 3. Settling one pending while another kind remains open transitions phase to the remaining wait.
+  const mixed = emptyPrologueStreamState();
+  apply(mixed,
+    { type: "awaiting-approval", effectRef: { kind: "effect", id: "eff-m", revision: 1 }, pendingRef: { kind: "pending", id: "appr-1", revision: 1 }, why: "审" },
+    { type: "awaiting-input", pendingRef: { id: "inp-1" }, kind: "text", why: "问" });
+  assert.equal(mixed.phase, "awaiting-input");
+  assert.equal(settleProloguePending(mixed, "inp-1"), true);
+  assert.equal(mixed.phase, "awaiting-review", "remaining approval keeps phase in awaiting-review");
+  assert.equal(settleProloguePending(mixed, "appr-1"), true);
+  assert.equal(mixed.phase, "running");
+});

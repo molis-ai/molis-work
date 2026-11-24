@@ -677,11 +677,18 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
   ...Object.fromEntries(["steer-applied", "steer-read", "steer-withdrawn", "inputs-acknowledged"].map(type => [type, () => false])),
 };
 
+const TERMINAL_STREAM_PHASES: ReadonlySet<AgentRunPhase> = new Set(["completed", "failed", "cancelled", "stopped"]);
+const POST_TERMINAL_EVENTS: ReadonlySet<string> = new Set(["run-recovered", "usage", "usage-recorded", "compaction-usage-recorded", "memory-context"]);
+
 /**
  * Apply one event of a round to its view: the stream itself, then its supplements' receipts, which the runtime projects
- * from the same events. Returns true when the view changed.
+ * from the same events. Returns true when the view changed. Once a round has reached a terminal phase, late non-accounting
+ * events are ignored so an ended round can never resurrect back to running or waiting.
  */
 export function applyRunEvent(state: PrologueStreamState, event: PrologueEvent, at: string | null, readCall?: ApprovalCallReader): boolean {
+  if (TERMINAL_STREAM_PHASES.has(state.phase) && !POST_TERMINAL_EVENTS.has(event.type)) {
+    return false;
+  }
   const waited = state.retry_wait !== undefined && ENDS_RETRY_WAIT.has(event.type);
   if (waited) delete state.retry_wait;
   const changed = (Object.hasOwn(HANDLERS, event.type) ? HANDLERS[event.type]! : applyUnknown)(state, event, at, readCall) || waited;
@@ -728,8 +735,9 @@ export function settleProloguePending(state: PrologueStreamState, pendingId: str
   state.awaiting_input = state.awaiting_input.filter((item) => item.pending_id !== pendingId);
   const after = state.awaiting_approval.length + state.awaiting_input.length;
   if (after === before) return false;
-  if (after === 0 && (state.phase === "awaiting-review" || state.phase === "awaiting-input")) {
-    state.phase = "running";
+  if (state.phase === "awaiting-review" || state.phase === "awaiting-input") {
+    state.phase = state.awaiting_approval.length > 0 ? "awaiting-review"
+      : state.awaiting_input.length > 0 ? "awaiting-input" : "running";
   }
   return true;
 }

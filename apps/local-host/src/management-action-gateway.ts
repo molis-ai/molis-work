@@ -44,6 +44,10 @@ export async function handleManagementActionHttp(request: IncomingMessage, respo
         const result = review ? await invokeProjectReviewManagement(host, reference, review, body.input, String(body.call_id), controller.signal, accountCurrent)
           : await actions.invoke(definition!, body.input as object, body.evidence);
         if (!response.destroyed) sendJson(response, 200, { result, ...recordedCallIdField() });
+        else if (!response.writableEnded) {
+          response.statusCode = 200;
+          response.end();
+        }
       }
       catch (error) { const refused = actionErrorResponse(error); if (!response.destroyed) sendJson(response, refused.status, { ...refused.body, ...recordedCallIdField() }); }
     });

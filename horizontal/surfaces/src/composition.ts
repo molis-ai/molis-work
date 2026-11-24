@@ -31,7 +31,8 @@ function homeFor(request: SurfaceRequest, ports: SurfaceComposePorts) {
     throw new ActionError("actions.input_invalid", "首页顺序只接受不重复的插件 id");
   }
   if (request.slot.kind !== "home") return undefined;
-  if (ports.caller.audience !== "user") throw new ActionError("actions.forbidden", "首页只向本人开放");
+  if (ports.caller.audience !== "user" && !(ports.caller.audience === "plugin" && ports.caller.home_page?.kind === "home-page"
+    && ports.caller.home_page.project_id === ports.caller.project_id)) throw new ActionError("actions.forbidden", "首页只向本人开放");
   if (!ports.caller.project_id) throw new ActionError("actions.scope_mismatch", "首页需要当前项目");
   if (!ports.home) throw surfaceErrors.compose_failed("暂时读不到首页");
   return ports.home;
@@ -88,7 +89,7 @@ export class SurfaceCompositionService {
         }
         current();
       };
-      const corrections = ports.corrections.read(request.slot);
+      const corrections = home && ports.caller.home_page ? { revision: "0", corrections: [] } : ports.corrections.read(request.slot);
       const read = { request, ports, position, plugins, views, delivered, corrections, deadline, current, retain };
       const result = home ? await composeHome(read, home) : await composeGroup(read);
       current();

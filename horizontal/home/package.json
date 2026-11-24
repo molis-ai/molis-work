@@ -27,6 +27,10 @@
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
-    "@molis-ai/molis-work-storage": "workspace:*"
+    "@molis-ai/molis-work-storage": "workspace:*",
+    "css-select": "6.0.0",
+    "css-what": "7.0.0",
+    "htmlparser2": "10.1.0",
+    "postcss": "8.5.26"
   }
 }

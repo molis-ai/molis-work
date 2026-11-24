@@ -9,10 +9,12 @@ import {
   type HomePageSubject,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { homeErrors, type HomePageVersion } from "@molis-ai/molis-work-contracts/services/home";
+import { surfaceCompositionActions, SURFACES_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import { isPresentationOverviewReader, isPresentationValuesReader } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { actionKey } from "@molis-ai/molis-work-service-home";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import { issueHomePageCaller } from "./plugin-callers.js";
+import { approvedHomePageActions, issueHomePageCaller } from "./plugin-callers.js";
 import { activeLocale } from "./web-locale.js";
 import { captureWebSessionAuthority } from "./web-sessions.js";
 
@@ -100,7 +102,7 @@ export class HomePageSessionRegistry {
         throw sessionInvalid("生成首页会话已失效");
       }
       record.sessionCurrent();
-    });
+    }, approvedActions.filter(ref => record.declared.has(actionKey(ref))));
     return { page_session_id: id, subject };
   }
 
@@ -297,14 +299,17 @@ export class HomePageSessionRegistry {
       throw new ActionError("actions.forbidden", "这项动作未获得本人在当前页面版本上的批准");
     }
 
+    const compose = surfaceCompositionActions.compose;
+    const composingHome = !isPreview && ref.provider_id === SURFACES_PROVIDER_ID && ref.capability_id === compose.capability_id
+      && ref.version === compose.version && isRecord(body.input) && isRecord(body.input.slot) && body.input.slot.kind === "home";
     const caller: ActionCallContext = {
       actor_id: session.actor_id,
       project_id: session.subject.project_id,
       audience: "plugin",
       home_page: session.subject,
-      ...(isPreview ? { query_only: true as const } : {}),
+      ...(isPreview || composingHome ? { query_only: true as const, read_only_effects: true as const } : {}),
       permissions: [...permissions],
-      allowed_actions: [ref],
+      allowed_actions: composingHome ? approvedHomePageActions(session.subject) : [ref],
       signal: controller.signal,
       locale: activeLocale() ?? undefined,
       validate_authority: async () => { check(); },
@@ -333,7 +338,11 @@ export class HomePageSessionRegistry {
         kind: view.availability.kind,
       });
     }
-    const result = await client.invoke(caller, ref, body.input);
+    // Retained reads inherit the authority of this invocation, including its original version and revocation guard.
+    const cardReaders = composingHome ? views.filter(candidate => candidate.action.scope === "project" && candidate.action.audiences.includes("plugin")
+      && (isPresentationValuesReader(candidate) || isPresentationOverviewReader(candidate)))
+      .map(candidate => ({ capability_id: candidate.capability_id, version: candidate.version, provider_id: candidate.provider.provider_id })) : [];
+    const result = await client.invoke(composingHome ? { ...caller, allowed_actions: [ref, ...cardReaders] } : caller, ref, body.input);
     check();
     return result;
   }

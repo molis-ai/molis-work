@@ -69,7 +69,7 @@ interface SurfaceCallPorts {
 }
 
 export interface SurfaceComposePorts extends SurfaceCallPorts {
-  readonly caller: Pick<ActionCallContext, "actor_id" | "project_id" | "audience" | "plugin_install_id" | "calling_plugin_id">;
+  readonly caller: Pick<ActionCallContext, "actor_id" | "project_id" | "audience" | "plugin_install_id" | "calling_plugin_id" | "home_page" | "allowed_actions">;
   readonly signal?: AbortSignal;
   /** The workbench shares the position's read deadline with its final display-field projection. */
   readonly deadline?: ReturnType<typeof startDeadline>;

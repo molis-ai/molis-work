@@ -154,13 +154,28 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     await waitForHomeRow(browser, `[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`, "io.molis.work.inbox");
     await click(`[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`);
     await waitFor(`!!${TAG} && !${TAG}.disabled`);
-    await evaluate("(()=>{const previous=window.fetch;window.fetch=async(url,options)=>{const response=await previous(url,options);if(String(url).endsWith('/api/home/actions/execute'))throw new TypeError('fixture response lost');return response;}})()");
+    // Hold the committed response until the owner is offline. An ordinary background refresh may
+    // otherwise reconcile the write while the owner is still available, before the reload under test.
+    await evaluate(`(() => {
+      const previous = window.fetch;
+      window.fetch = async (url, options) => {
+        const response = await previous(url, options);
+        if (String(url).endsWith('/api/home/actions/execute')) {
+          await new Promise(resolve => { window.releaseLostOfferResponse = resolve; });
+          throw new TypeError('fixture response lost');
+        }
+        return response;
+      };
+    })()`);
     await clickTag();
+    await waitFor("typeof window.releaseLostOfferResponse === 'function'");
+    assert.equal(writes, 2);
+    await runtime.stop(installed.install_id);
+    await evaluate("window.releaseLostOfferResponse()");
     await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('执行结果尚未确认')");
     assert.equal(writes, 2); assert.deepEqual(read(), { tag: "needs-review", revision: 4 });
     assert.equal(await evaluate("!!document.querySelector('[data-home-offer]:not(:disabled)')"), false);
     await capture("mobile-response-unknown");
-    await runtime.stop(installed.install_id);
     await reloadPage();
     await waitForHomeRow(browser, `[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`, "io.molis.work.inbox");
     await click(`[data-home-subject-kind="inbox_entry"][data-home-subject-id="${taggedEntry.entry_id}"] .mw-presentation__row-title`);

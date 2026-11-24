@@ -67,6 +67,18 @@ function objectRoutes(read: ComposeRead) {
   return (kind: string): ObjectRoute => {
     const existing = routes.get(kind);
     if (existing) return existing;
+    // A generated page may hold the owner's values permission without its full object reader.
+    if (read.request.slot.kind === "home" && read.ports.caller.home_page) {
+      const matches = values.flatMap(view => {
+        if (!view.action.subject_kinds.includes(kind)) return [];
+        const plugin = plugins.find(owner => owner.scope === "project" && ownsView(owner, view) && owner.state === "running" && !owner.home?.unavailable);
+        const object = plugin?.presentation?.objects.find(entry => entry.kind === kind);
+        return plugin && object ? [{ plugin, object, values: view }] : [];
+      });
+      const route = { reader: { found: "none" as const }, ...(matches.length === 1 ? matches[0] : {}) };
+      routes.set(kind, route);
+      return route;
+    }
     const reader = findSubjectReader(views, kind);
     const view = reader.found === "one" || reader.found === "unavailable" ? reader.view : undefined;
     const plugin = view ? plugins.find(plugin => ownsView(plugin, view) && plugin.scope === view.action.scope) : undefined;
@@ -209,7 +221,7 @@ export function readAttention(read: ComposeRead) {
 }
 
 function readViews(candidates: readonly Candidate[]): ActionView[] {
-  return candidates.flatMap(({ reader, values }) => reader.found === "one" ? [reader.view, ...(values ? [values] : [])] : []);
+  return candidates.flatMap(({ reader, values }) => [...(reader.found === "one" ? [reader.view] : []), ...(values ? [values] : [])]);
 }
 
 export function retainDisplayedOperations(read: ComposeRead, rows: readonly Projected[]) {

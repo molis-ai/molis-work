@@ -350,26 +350,25 @@ type CharacterTemplateAdoptionInput = { origin: BlueprintPartOrigin; request_id:
 
 新的平台服务 `horizontal/home`（包名 `@molis-ai/molis-work-service-home`，提供方 `system.home`），宿主只做装配，与第 15 批的 `horizontal/surfaces`、本稿的 `horizontal/blueprints` 同一种写法。不放进宿主：用户 2026-11-01 定新的平台服务进 `horizontal/`。
 
-它拥有的事实（每件一个主人，别处不另存）：
+按 2026-11-23 确认的定样 A4，首页主人把每个项目的记录存入独立 Home 库 `home-pages/home-pages.db`。以下各表都按 `project_id` 分区。
 
-| 事实 | 存在哪 | 说明 |
+| 事实 | 首页库中的表 | 说明 |
 | --- | --- | --- |
-| 项目用哪个首页 | 项目库（经 storage 驱动，同第 15 批的纠正表） | `{ kind: "basic" } \| { kind: "page"; page_id; version }`；没有行就是基础首页 |
-| 生成页面的定义与版本 | 项目库 | 每页一组版本；每版有文件清单（路径、`sha256`、字节）、声明的动作、作者（助理生成、本人修改）、来源说明；文件正文按摘要存，版本只追加 |
-| 每版页面获准的动作 | 项目库 | 本人采用或恢复时批准的动作集合，带批准时间与操作者 |
+| 项目当前首页 | `home_selections` | 选择默认页或固定页面版本，缺省为默认页。 |
+| 生成页面的定义与文件 | `home_page_versions`、`home_page_blobs` | 修改生成新版本。清单记录路径、摘要和字节数，同一项目可按摘要复用文件。 |
+| 本人批准的动作及决定 | `home_page_approvals`、`home_page_receipts` | 批准与页面版本关联，重试按原请求回读本人决定。 |
+| 已裁剪版本 | `home_page_pruned` | 保留版本引用及裁剪时间，供历史与恢复流程区分。 |
 
-三张表在 `tooling/gates/table-owners.json` 里记为 `horizontal/home` 独占，并写进项目库的 `PROJECT_DATABASE_BASELINE`（`apps/local-host/src/project-database.ts`）。个人一层的首页（个人汇总）以后要时同样写法放 Home 库，本稿不定。删项目时这些行随项目库一起没了；Home 快照照项目库的规矩带上。
-
-> **2026-11-23 用户拍板调整（第 37 批）**：为避免改动 `PROJECT_DATABASE_BASELINE` 版本与在途批次金样冲突，用户确认 `horizontal/home` 改用独立 Home 级 SQLite 库 `home-pages/home-pages.db`（`HOME_PAGES_HOME_STORE`，v1，所有表按 `project_id` 分区隔离，参考 `mainline/mainline.db`），登记在 `apps/local-host/src/home-stores.ts` 与 `project-deleted-owners.ts`（删项目时按 `project_id` 清理），Home 快照与升级链照 Home 库统一覆盖。同日用户确认 37-1 挂载到 36A「项目的第一页」正文位（Work Brief 开头在上、方案 B 并排预览、删旧细栏切换）并采纳第 37 批全部 5 条设计语言增强建议。
+库版本 v1 由 [首页主人](../../horizontal/home/src/store.ts) 定义，接入 [Home 快照与升级登记](../../apps/local-host/src/home-stores.ts)。[项目删除服务](../../apps/local-host/src/project-deleted-owners.ts)按项目清理首页记录。A4 选用独立库以保持在途项目库金样和版本稳定。当天确认的工作台挂载位置、Work Brief 导语、方案 B 与五项设计要求见[第 37 批定样](../post-anticorruption-roadmap/reference/batches/37.md)。
 
 不拥有：卡片的内容与值（归各插件，经 05② 的 `PresentationValues` 现读）、基础首页的组合规则（归第 15 批的组合服务）、页面里显示和写入的业务事实（归原插件）。
 
 ### 6.2 插件注册卡片
 
-插件不另声明「首页卡片」。卡片用 05② 的呈现声明和插件级概况。首页按 `surfaces.compose@1`、`slot: { kind: "home" }` 取描述，值另用 `PresentationValues` 取。同一份声明供基础首页、生成页面、侧栏、搜索使用。基点 `13cba9962f` 的 `platform/presentation` 已公开 `home`、概况和 values，SDK `/presentation` 已有声明、取值及描述检查。`services/surface-composition` 已声明 `surfaces.compose@1`，动作目录尚无 `system.surfaces` 绑定。组合提供方和 `renderPresentationForm` 分别由第 15 批第 1、2 项交付。P-4 可以先消费这些公共形状，真实卡片组合和渲染随相应提供方接通。
+插件不另声明「首页卡片」。卡片用 05② 的呈现声明和插件级概况。首页按 `surfaces.compose@1`、`slot: { kind: "home" }` 取描述，值另用 `PresentationValues` 取。同一份声明供基础首页、生成页面、侧栏、搜索使用。公开合同见 `platform/presentation` 与 `services/surface-composition`。宿主已将 `surfaces.compose@1` 绑定到 `system.surfaces`，页面经网关调用，工作台用 SDK 的 `renderPresentationForm` 渲染同一份呈现。
 
 - 基础首页：首页服务直接画 `surfaces.compose` 给的描述（第 15 批 S-2 的内容）。
-- 生成页面：页面要放插件卡片时，同样经页面网关调 `surfaces.compose@1` 与各主人的 values 动作，这两个也要在页面声明、本人批准的动作里；页面拿到的只是描述和值，渲染用 SDK 的 `renderPresentationForm`。
+- 生成页面：页面要放插件卡片时，同样经页面网关调 `surfaces.compose@1` 与各主人的 values 动作，这两个也要在页面声明、本人批准的动作里；已采用版只取得其逐项批准、且主人显式向页面开放的本项目呈现；可传入对象引用，概况须额外逐项获准。未批准的来源、本人专属概况及个人纠正不出现在结果里。预览与普通插件不能读取首页组合。页面拿到的只是描述和值，渲染用 SDK 的 `renderPresentationForm`。
 - 所以 05② 的 `SurfaceSlotKind` 的 `home` 就是首页的组合位置，没有第二个「首页」：不在 `UI_VIEW_SLOTS` 里加 `home`，也没有 `projects.home`。
 - **（2026-11-22 删除：项目只有一个首页，插件的页面不再顶替它；`overview.lead` 与 `lead` 组已从合同里拿掉，见 `docs/system/CONTRACT-CHANGES.md` 第 8 节、路线书决定 62 ③。以下为当时的写法，留作历史。）** 首页主区内容（第 19 批）：插件在呈现声明里写 `overview.lead: { view_id }`，`home` 描述里就多一个 `kind: "lead"` 的组，首页把那个主区视图收进主区，细栏可切回基础首页。它不是第二个首页，也不是新的视图位置：视图还是插件自己的主区视图，装载、凭据和页面网关都是主区现有的那一套。已采用的生成页面优先于主区内容（第 37 批）。写法见 [确定组合 §7.4](../surface-composition/spec.md) 与 [Work Brief 合同设计](../work-brief/contract-design.md) 第 2 节。
 
@@ -631,13 +630,13 @@ type ContentAdoptionReadResult<Value> =
 
 SPC-C07 经公开 `services/blueprints` 与 Kernel `compileActionSchema` 验八项动作的输入输出，覆盖三方差异、无安装身份的随包候选、采用历史与带请求键的撤销结果并存、跳过及待核对、安装与批准状态及伪造身份拒绝。第 8 节通过公开 Manifest／SDK 验固定 `selection` 缺 CAS、错分支及错动作版本被拒。实际接入须验证 A 创建、B 复用后 A 的旧凭据撤回被拒，同键重放只推进一次，移除 B 后旧凭据仍失效。基点 `pluginInstallHandlers` 只核可信 `user_action`，Kernel 允许嵌套调用原样继承。第 37／45 批按原分工在真实调用链上验证直接批准拒绝与上一层审计，保留 SPC-14、S-blueprint-consent-context 和 S-home-page-approval 的运行验收。SPC-15 按第 6.6 节验证实际签名和安装预览。
 
-**P-4 文件与验收。** 实施用 `packages/contracts/src/services/home.ts`、`packages/plugin-sdk/src/home-page.ts` 和 `tests/home-page-contract.test.ts`。`contracts/package.json`、SDK `index.ts` 及共享 API 快照按同批顺序接入，`platform/actions` 在本批工作树独立修改，最终集成时保留其他批已合入的增量。独占文件未接公开出口时只是待接候选。现行 `apps/local-host/src/home-actions.ts` 已用 `system.home`，新八个页面动作尚无处理器，第 37 批接同一提供方。此处必要接入是公开合同、SDK 及共用声明校验，范围不含新运行服务、数据库、iframe、网关或批准流程。
+**P-4 文件与验收。** 实施用 `packages/contracts/src/services/home.ts`、`packages/plugin-sdk/src/home-page.ts` 和 `tests/home-page-contract.test.ts`。`contracts/package.json`、SDK `index.ts` 及共享 API 快照按同批顺序接入，`platform/actions` 在本批工作树独立修改，最终集成时保留其他批已合入的增量。独占文件未接公开出口时只是待接候选。第 20 批交付时八个首页动作只有合同。第 37 批已由 [system.home 的宿主登记](../../apps/local-host/src/home-actions.ts)绑定，见[现行动作快照](../../tooling/gates/actions/host-actions.tsv)。此处必要接入是公开合同、SDK 及共用声明校验，范围不含新运行服务、数据库、iframe、网关或批准流程。
 
 SPC-C06 经公开 `services/home` 和 Kernel `compileActionSchema` 验精确页面与动作版本、摘要形状、批准回读／恢复输入、身份字段拒绝和 user-only 声明。经公开 SDK 验路径穿越／重名、错误入口与类型、单文件和合计 UTF-8 字节超限、引用缺 provider 或重复。可用 `surfaceCompositionActions.compose` 公开 schema 验 `{ slot: { kind: "home" } }`，以 `/presentation` 检查真实 values 形状。没有真实页面执行入口时，以上只记合同和静态证据。
 
 SPC-C06／C07 用公开 schema 验批准请求键、按请求返回原回执、另列当前 revision 及回执缺失的形状。真实接入验 A 批准后切回基础首页，再独立批准同一页同一版。A 续做仍读 A 的原 revision，撤销不能改动后一次选择。缺少匹配回执时即使当前页相同，也不能证明 A 生效。真实写入与续做由 37／45 按已有首页主人事务和场景步骤实现。
 
-**声明版本和运行快照。** P-2b、P-3c 和 P-4 的 18 个动作版本在 `tooling/versions.json` 维护，按现有格式在 `tooling/gates/version-exceptions.json` 逐项记录暂未真实登记的原因。36、45、37 的主人实际登记时，运行快照出现对应行，版本检查同时要求删掉对应的记录。合同声明本身不写入 `host-actions.tsv`。只给本人和助理的场景草稿读写、首页草稿保存显式拒绝插件受众；首页概览仍可由插件读取，批准回执由实际主人另核可信本人和项目。
+**声明版本和运行快照。** P-2b、P-3c 和 P-4 的 18 个动作版本在 `tooling/versions.json` 维护，第 20 批交付时，未绑定的动作按原因暂记于 `tooling/gates/version-exceptions.json`。主人完成登记后，版本检查要求删除对应豁免并生成运行动作快照。第 37 批的八个 P-4 动作均已完成此项接续。合同声明本身不写入 `host-actions.tsv`。只给本人和助理的场景草稿读写、首页草稿保存显式拒绝插件受众；首页概览仍可由插件读取，批准回执由实际主人另核可信本人和项目。
 
 ### 10.1 P-3a 项目插件成员的最小接入（20-1）
 

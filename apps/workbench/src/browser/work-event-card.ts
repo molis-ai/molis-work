@@ -8,7 +8,7 @@
  * owner's words or display, 「打开」 as a tab, 「放到 Shelf」, and how it was done folded under it (WLN-11). Nothing here knows a
  * kind of event or a plugin.
  *
- * Which cards are parked is this viewer's own, per project. A part of the work bar's bundle (work-bar.ts).
+ * Which cards are parked belongs to this viewer, in the active project or work item. A part of the work bar's bundle (work-bar.ts).
  */
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { WorkLineEvent } from "@molis-ai/molis-work-contracts/services/mainline";
@@ -41,12 +41,12 @@ export interface EventCardLine {
   press(event: WorkLineEvent): LineEventPress;
 }
 
-/** Where 「放到…」 can put a card's result, asked once per page (M4): the platform's Shelf, then each receive station of the project. */
-const receivers: { asked: boolean; targets?: readonly { station: string; title: string; icon: string }[] } = { asked: false };
-
-export function installEventCards(host: WorkBarHost, line: EventCardLine): { mount(slot: HTMLElement, card: EventCardOpen): EventCardHandle; page(slot: HTMLElement, card: EventCardOpen): EventCardHandle; park(card: EventCardOpen): void; paint(): void; sideChanged(): void } {
+export function installEventCards(host: WorkBarHost, line: EventCardLine): { mount(slot: HTMLElement, card: EventCardOpen): EventCardHandle; page(slot: HTMLElement, card: EventCardOpen): EventCardHandle; park(card: EventCardOpen): void; paint(): void; setItem(item: string | null): void; sideChanged(): void } {
+  /** Where 「放到…」 can put a card's result, asked once per page (M4): the platform's Shelf, then each receive station of the project. */
+  const receivers: { asked: boolean; targets?: readonly { station: string; title: string; icon: string }[] } = { asked: false };
   const { molisWorkRequest: request } = globalThis as typeof globalThis & { molisWorkRequest?: UiRequest };
-  const live = new Set<() => void>(), key = `molis.work-line.parked:${document.body.dataset.projectId ?? ""}`;
+  const live = new Set<() => void>(), baseKey = `molis.work-line.parked:${document.body.dataset.projectId ?? ""}`;
+  let key = baseKey;
   const side = document.querySelector<HTMLElement>("[data-side-parked]"), tab = document.querySelector<HTMLElement>('[data-side-tab="conversation"]');
   const draw = (slot: HTMLElement, card: EventCardOpen, parked: boolean, page = false): EventCardHandle => {
     // (`park` is declared below: a card in a tab is parked by its own button.)
@@ -55,7 +55,14 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
     const facts = slot.querySelector<HTMLElement>(".work-card-facts")!, tasks = slot.querySelector<HTMLElement>("[data-card-tasks]")!, decisions = slot.querySelector<HTMLElement>("[data-card-decisions]")!;
     const askTitle = slot.querySelector<HTMLElement>("[data-card-ask-title]");
     const ask = slot.querySelector<HTMLElement>("[data-card-ask]")!, askBody = slot.querySelector<HTMLElement>("[data-card-ask-body]")!, now = slot.querySelector<HTMLElement>(".work-card-now")!;
-    const objects = card.composed ? host.positions?.()?.mount(slot.querySelector<HTMLElement>("[data-card-body]")!, ((body, signal) => host.positionRead!("/api/mainline/event/surfaces", body, signal)) as Parameters<PositionViews["mount"]>[1], { source: () => ({ subject: card.subject }) }) : undefined;
+    const objects = card.composed ? host.positions?.()?.mount(slot.querySelector<HTMLElement>("[data-card-body]")!, ((body, signal) => host.positionRead!("/api/mainline/event/surfaces", body, signal)) as Parameters<PositionViews["mount"]>[1], {
+      source: () => ({ subject: card.subject }), visibilityRoot: slot,
+      // A title-only chip is hidden when the card already names the event. Its next owner read can supply a fuller display.
+      onPaint: () => {
+        composed = true;
+        paint();
+      },
+    }) : undefined;
     const name = slot.querySelector<HTMLElement>("[data-card-name]"), gone = new AbortController();
     const accepting = line.acceptance(slot.querySelector<HTMLElement>("[data-card-acceptance]")!, card.subject);
     const result = slot.querySelector<HTMLElement>("[data-card-result]")!, body = slot.querySelector<HTMLElement>("[data-card-body]")!;
@@ -227,7 +234,8 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
       const slot = document.createElement("div");
       slot.className = "side-parked-card"; side.prepend(slot);
       parked.unshift({ card, slot, handle: draw(slot, card, true) });
-      keep(); showSide();
+      if (open) keep();
+      showSide();
     }
     if (open) { document.dispatchEvent(new CustomEvent("molis:side-open", { detail: { tab: "conversation", focus: false }, cancelable: true })); }
   };
@@ -243,11 +251,21 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
     if (target?.closest("[data-event-unpark]")) { const card = leave(at); if (card) host.openEvent(card); }
     else if (target?.closest("[data-event-close]")) leave(at);
   });
-  try {
-    const saved = JSON.parse(localStorage.getItem(key) ?? "[]") as Array<Partial<EventCardOpen>>;
-    for (const card of [...saved].reverse()) if (typeof card?.subject?.kind === "string" && typeof card.subject.id === "string") park({ subject: { kind: card.subject.kind, id: card.subject.id }, title: "", mark: "", owner: "", composed: card.composed === true }, false);
-  } catch { /* nothing was parked */ }
-
-  showSide();
-  return { mount: (slot, card) => draw(slot, card, false), page: (slot, card) => draw(slot, card, false, true), park: card => park(card), paint() { for (const paint of live) paint(); }, sideChanged: showSide };
+  function restoreParked() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) ?? "[]") as Array<Partial<EventCardOpen>>;
+      for (const card of [...saved].reverse()) if (typeof card?.subject?.kind === "string" && typeof card.subject.id === "string") park({ subject: { kind: card.subject.kind, id: card.subject.id }, title: "", mark: "", owner: "", composed: card.composed === true }, false);
+    } catch { /* nothing was parked */ }
+    showSide();
+  }
+  function setItem(item: string | null) {
+    const next = item ? baseKey + ":" + item : baseKey;
+    if (key === next) return;
+    for (const one of parked) { one.handle.destroy(); one.slot.remove(); }
+    parked = [];
+    key = next;
+    restoreParked();
+  }
+  restoreParked();
+  return { mount: (slot, card) => draw(slot, card, false), page: (slot, card) => draw(slot, card, false, true), park: card => park(card), paint() { for (const paint of live) paint(); }, setItem, sideChanged: showSide };
 }

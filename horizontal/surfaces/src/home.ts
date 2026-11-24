@@ -3,7 +3,7 @@ import type { PresentationOverview, PresentationOverviewDeclaration } from "@mol
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { SurfaceGroup, SurfaceHomeEnable, SurfaceHomeStart, SurfaceInstallationRef, SurfaceLede, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
-import { isPresentationOverviewReader, presentationOverviewProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
+import { isPresentationOverviewReader, isPresentationValuesReader, presentationOverviewProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ComposeRead } from "./composition.js";
 import { composeObjects, groupState, readAttention, retainDisplayedOperations, type ObjectSource } from "./objects.js";
@@ -74,7 +74,7 @@ async function readOverviews(read: ComposeRead, home: SurfaceHomePorts, groups: 
       if (plugin.state !== "running" || plugin.home.unavailable || !declaration) continue;
       for (const view of scopedViews(read.views, plugin, refOf(declaration))) {
         considered.add(view);
-        if (usable(view) && isPresentationOverviewReader(view)) matches.push({ plugin, declaration, view });
+        if (view.availability.available && actionReachesAudience(view.action, view.capability_id, read.ports.caller.audience) && isPresentationOverviewReader(view)) matches.push({ plugin, declaration, view });
       }
     }
     return matches.length === 1 ? matches : [];
@@ -199,7 +199,30 @@ function outlineGroup(owner: string, overview: OverviewAnswer | undefined, visib
     items: own.map(row => row.item), outline: nodes.map(entry => entry.node) }];
 }
 
+async function composePageCards(read: ComposeRead, home: SurfaceHomePorts) {
+  const granted = read.ports.caller.allowed_actions ?? [];
+  const views = read.views.filter(view => view.action.scope === "project" && view.action.audiences.includes("plugin")
+    && granted.some(ref => ref.provider_id === view.provider.provider_id && ref.capability_id === view.capability_id && ref.version === view.version)
+    && (isPresentationValuesReader(view) || isPresentationOverviewReader(view)));
+  const page = { ...read, views, ports: { ...read.ports, relations: () => [] } };
+  const overviews = await readOverviews(page, home, groupInstallations(read.plugins), new Set());
+  const sources: ObjectSource[] = (read.request.subjects ?? []).map(subject => ({ subject, kind: "request" }));
+  for (const { job, answer } of overviews.values()) {
+    for (const subject of answer.subjects) sources.push({ subject, kind: "overview", plugin: job.plugin });
+  }
+  const objects = await composeObjects(page, sources);
+  const owners = new Set([...overviews.keys(), ...objects.visible.map(row => row.item.owner_plugin_id)]);
+  const groups: SurfaceGroup[] = [...owners].sort(compareCodeUnits).map(owner => {
+    const rows = objects.visible.filter(row => row.item.owner_plugin_id === owner);
+    const overview = overviews.get(owner);
+    return { kind: "plugin", owner_plugin_id: owner, ...groupState(rows, objects.unreadableOwners.has(owner)),
+      items: rows.map(row => row.item), plugin_card: overview ? { summary: overview.summary, ...(overview.note ? { note: overview.note } : {}) } : {} };
+  });
+  return { groups, simpler: objects.visible.some(row => row.simpler), adjusted: false, facts: objects.facts };
+}
+
 export async function composeHome(read: ComposeRead, home: SurfaceHomePorts) {
+  if (read.ports.caller.home_page) return composePageCards(read, home);
   const attention = readAttention(read);
   const groups = groupInstallations(read.plugins);
   const considered = new Set<ActionView>();

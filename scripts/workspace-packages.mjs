@@ -544,6 +544,12 @@ export const WORKSPACE_PACKAGES = [
     capabilities: [
       "home.pages.v1"
     ],
+    extraDependencies: {
+      "css-select": "6.0.0",
+      "css-what": "7.0.0",
+      "htmlparser2": "10.1.0",
+      "postcss": "8.5.26"
+    },
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-plugin-sdk",
       "@molis-ai/molis-work-storage"

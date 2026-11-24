@@ -73,7 +73,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     }));
     problems.push(...inspectActionCrossReferences(readers.length ? [...registration.definitions, ...readers] : registration.definitions));
     if (problems.length) throw new ActionError("actions.definition_invalid", problems.join("；"));
-    const provider = structuredClone(registration.provider);
+    const { adopts, ...provider } = structuredClone(registration.provider);
     if (!provider.provider_id || !provider.title) throw new ActionError("actions.provider_invalid", "能力来源缺少身份或名称");
     const handlers = exactBindings(registration.definitions, registration.handlers, actionKey, "能力");
     const sceneHandlers = exactBindings(registration.scenes ?? [], registration.scene_handlers ?? [], sceneKey, "消费场景");
@@ -116,7 +116,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           const own = handler.availability?.(context) ?? { available: true };
           return own.available ? this.dependencyAvailability(context, definition, metadata) : own;
         };
-        const registeredDefinition = definitionForRegistration(definition, provider, handler.observation_source);
+        const accepts = provider.kind === "system" && adopts?.filter(({ adopt }) =>
+          adopt.capability_id === definition.capability_id && adopt.version === definition.version);
+        const owner = accepts && accepts.length ? { ...provider, adopts: accepts } : provider;
+        const registeredDefinition = definitionForRegistration(definition, owner, handler.observation_source);
         const execute = registerActionExecution({ registeredDefinition, handler, validateInput, validateOutput,
           registry: this.registry, resolve: (context, ref) => this.actionDefinition(context, ref), availability, effects: this.effects });
         disposers.push(this.registry.register(registeredDefinition, execute,

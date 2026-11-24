@@ -373,7 +373,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, uiText.text);
   const pickMaterials = pageMaterialsPicker(port, scope, grant.page_id, route, text => host.showToast?.(text, true));
   const pickSkill = pageSkillPicks(port, scope, frame, grant.page_id);
-  const composer = task ? () => {} : pageComposer(port, scope, root, frame, pack, visible);
+  const composer = task ? () => {} : pageComposer(port, scope, root, frame, pack, visible, () => ownItemTab(root, pack)?.tabId ?? null);
   const tasks = taskMessages(root, frame, host, pack, scope, port,
     grant.page_id, route, task);
   port.onmessage = (event: MessageEvent<FrameUp>) => {

@@ -54,7 +54,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 ### 3.1 内置插件
 
-**怎么加**：新的内置插件只走 Plugin Runtime（`AGENTS.md` 硬约束；门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。步骤见[插件开发手册](../../skills/molis-plugin-dev/host.md)「内置插件：经 Plugin Runtime 装配」：在 `plugins/native/<id>` 包中提供 Manifest、动作、界面贡献等，并从自己的 `src/registration.ts` 导出 `registration`；项目级插件在同一登记声明 `project_runtime: { create, package_name, factory_export }`，包的 `package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`，再运行 `node scripts/generate-plugin-registry.mjs`。`apps/local-host/src/project-plugins.ts` 按登记统一装配，不为新插件修改；生成的 `builtin-plugins.ts` 也不手改。HTTP 由 Manifest `routes` 声明，挂在 `/api/plugins/<plugin_id>/`，不写 `apps/local-host/src/<插件>-native-plugin-http.ts`。
+**怎么加**：新的内置插件只走 Plugin Runtime（`AGENTS.md` 硬约束；门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。步骤见[插件开发手册](../../skills/molis-plugin-dev/host.md)「内置插件：经 Plugin Runtime 装配」：在 `plugins/native/<id>` 包中提供 Manifest、动作、界面贡献等，并从自己的 `src/registration.ts` 导出 `registration`；项目级插件在同一登记声明 `project_runtime: { create, package_name, factory_export }`，包的 `package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`，再运行 `node scripts/generate-plugin-registry.mjs`。`apps/local-host/src/project-plugins.ts` 按登记统一装配，不为新插件修改；生成的 `builtin-plugins.ts` 也不手改。HTTP 由 Manifest `routes` 声明，挂在 `/api/plugins/<plugin_id>/`，不在宿主里为插件写 HTTP 文件。
 
 下表及其成本数字保留 2026-10-08 基线与各行注明的后续修订，不是新增插件的操作清单；没有逐项重新计量。新增步骤按上面的现行入口与插件开发手册执行，旧宿主装配和词典接线只用于解释历史成本。
 

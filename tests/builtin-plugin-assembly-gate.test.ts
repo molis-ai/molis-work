@@ -40,22 +40,17 @@ const HOME_RUNTIME_ENTRIES = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manife
 const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project_plugin_id));
 
 /**
- * The only built-in plugins assembled by hand at build time, each with the decision that keeps it (W6-01, BL-377): Alchemist
- * and the plugin studio are neither migrated nor deleted this round (specs/archive/repository-anti-corruption/privileges.md, the
- * 2026-10-23 note at the top; specs/post-anticorruption-roadmap/spec.md). Each names the user's dates and the BACKLOG row
- * that redoes it, and that row has to be open (RAC-2650).
+ * Built-in plugins assembled by hand at build time, each with the decision that keeps it, the user's date and the open BACKLOG
+ * row that redoes it (RAC-2650). None: the old Alchemist, the last one, was deleted in 44B (decision 66, D2), so every built-in
+ * plugin is started by a supervisor (PSD-02).
  */
-const APPROVED_BUILD_TIME_EXCEPTIONS: ReadonlyMap<string, string> = new Map([
-  ["alchemist", "user 2026-10-21, 2026-10-23: not migrated, not deleted, bypassed this round; redone under BL-377 (user 2026-10-27)"],
-]);
+const APPROVED_BUILD_TIME_EXCEPTIONS: ReadonlyMap<string, string> = new Map();
 
 /**
  * `apps/local-host/src/<name>-native-plugin-http.ts` files that exist, each with why it is there (RAC-2651). One named for a
- * built-in plugin belongs to an approved build-time exception (RAC-2811).
+ * built-in plugin belongs to an approved build-time exception (RAC-2811). None since 44B.
  */
-const NATIVE_PLUGIN_HTTP_FILES: ReadonlyMap<string, string> = new Map([
-  ["alchemist", "the routes of an approved build-time exception (APPROVED_BUILD_TIME_EXCEPTIONS)"],
-]);
+const NATIVE_PLUGIN_HTTP_FILES: ReadonlyMap<string, string> = new Map();
 
 test("RAC-2650 every built-in catalog entry is started by a supervisor or is the build-time exception the user approved", async () => {
   const buildTime = BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id as string)

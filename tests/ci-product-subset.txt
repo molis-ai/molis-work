@@ -341,13 +341,6 @@ tests/prologue-taskboard.test.ts
 tests/session-project-binding-router.test.ts
 
 # Other areas
-tests/alchemist-actions.test.ts
-tests/alchemist-host.test.ts
-tests/alchemist-plugin.test.ts
-tests/alchemist-pulse-cancel.test.ts
-tests/alchemist-pulse-close.test.ts
-tests/alchemist-runtime.test.ts
-tests/alchemist-structured-output.test.ts
 tests/announce-guard.test.ts
 tests/arrival-components.test.ts
 tests/artifacts-module.test.ts
@@ -526,3 +519,4 @@ tests/goal-events-state.test.ts
 tests/desktop-account-entry.test.ts
 tests/project-guidance-actions.test.ts
 tests/goals-terminal.test.ts
+tests/anysearch-single-owner.test.ts

@@ -19,7 +19,6 @@ import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, hasStora
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
-import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import { pluginBuilderProjectOwner } from "./plugin-builder/project-data.js";
 import { clearProjectRows } from "./plugin-project-rows.js";
 import { namedProjectDataLabel, projectDataLabel } from "./project-deletion-words.js";
@@ -155,8 +154,6 @@ function ownerOf(home: string, id: string, data: ProjectDataDeclaration) {
 export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
   return [
     ...declaredProjectOwners(home),
-    // Without a running Host there is no studio to close, only its directory to remove; the Host's own owner replaces this one.
-    { id: "alchemist", label: { key: "workbench.project-deletion.alchemist" }, clear: projectId => rm(alchemistProjectDirectory(home, projectId), { recursive: true, force: true }) },
     pluginBuilderProjectOwner(home),
     // The running Assistant closes original work permissions; another process leaves that step pending.
     { id: "assistant", label: { key: "workbench.project-deletion.assistant" }, clear: async projectId => { await purgeAssistantProject(home, projectId); } },

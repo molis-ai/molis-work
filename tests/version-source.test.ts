@@ -245,7 +245,7 @@ test("N34-VS-03 a marker beside an id has to be that id's key", () => {
     '({ capability_id: "goals.create", version: /* @version action.goals.create */ 1 });',
     '({ capability_id: "items.list", version: /* @version action.todo.items.list */ 1 });', // a factory prefixes its plugin's name
     '({ capability_id: "read", version: /* @version action-family.sdk.artifacts.read */ 1 });',
-    '({ prompt_id: "copilot", version: /* @version prompt.alchemist.copilot */ 1 });',
+    '({ prompt_id: "assistant-main", version: /* @version prompt.assistant-main */ 1 });',
     '({ capability_id: dynamicId(), version: /* @version action-family.connector.mcp-resource */ 1 });',
     'define("items.list", /* @version action.todo.items.list */ 1, "列出待办");',
     'define("read", /* @version action-family.sdk.artifacts.read */ 1);',
@@ -762,7 +762,6 @@ test("VG-20 what the exceptions used to hold moves with the table, and no except
     ...roles.flatMap((role): Array<[string, string, string]> => ["input", "output"].map(side => [`type.molis.work-executor.${role}.${side}`, executor, `/* @version type.molis.work-executor.${role}.${side} */ 2`])),
     ["type.connector.driver.catalog", catalog, "/* @version type.connector.driver.catalog */ 2"],
     ["type.signal.adapter.catalog", catalog, "/* @version type.signal.adapter.catalog */ 2"],
-    ["type.discovery.pulse", "plugins/native/alchemist/src/client-views.ts", '"discovery.pulse.v{version}" */ "discovery.pulse.v2"'],
     ["type.molis-work-local-payload", "packages/storage/src/adapters/local-payload-protection.ts", '"molis-work-local-payload-v{version}" */ "molis-work-local-payload-v2"'],
     ["type.molis-work-feed-aead", "packages/storage/src/adapters/search-storage.ts", '"molis-work-feed-aead-v{version}" */ "molis-work-feed-aead-v2"'],
   ];

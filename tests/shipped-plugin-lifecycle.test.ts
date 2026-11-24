@@ -3,7 +3,7 @@ import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-
 // (tests/probe-plugin.test.ts, W4-01), walked by the shipped plugins that run on Plugin Runtime: Todo and Jelly on the Home
 // supervisor, Pages and 灵光 on each project's. The walk itself is tests/fixtures/shipped-lifecycle.ts (the other plugins' files
 // use it too: tests/shipped-plugin-lifecycle-*.test.ts); this file keeps the four producers it was written for and RAC-1034.
-// Goals has migrated too (its walk is RAC-1230 below, BL-756): 常开; it has had no Home half since batch 41 (41-2). Alchemist is passed over (2026-10-23).
+// Goals has migrated too (its walk is RAC-1230 below, BL-756): 常开; it has had no Home half since batch 41 (41-2).
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

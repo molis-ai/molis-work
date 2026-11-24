@@ -76,7 +76,7 @@ test("RAC-2620.1 SCS-11 installed stages defer the frame of their exact installa
   assert.deepEqual([notes, books, local].map(id => plus.find(item => item.id === id)?.personal === true), [true, true, false], "＋ lists the two Home packages with the person's own");
   // The built-ins by the same rule, from the Host's own registrations (registered personal and run in the Home), as the coordinator
   // listed them for 07-1 S4b: Cognia, Images, Issue, Jelly, Shelf and Todo are the person's own; Goals and Feed (dual, not personal)
-  // and 灵光, Pages, PPT, Dataset, Forms, Workflows, Alchemist and the studio (personal, but per project) are not.
+  // and 灵光, Pages, PPT, Dataset, Forms, Workflows and the studio (personal, but per project) are not.
   const own = builtinMarketDirectory().filter(isPersonalPlugin).map(item => item.id).sort();
   assert.deepEqual(own, ["cognia", "images", "issues", "jelly", "shelf", "todo"]);
 });

@@ -1,6 +1,6 @@
 # 接到本仓库产品
 
-Manifest 写完不等于底栏插件切换里有入口：内置插件还要在自己包里写 `registration`（目录条目）和 Plugin Runtime 监督器条目（见「内置插件：经 Plugin Runtime 装配」）；第三方插件看 [authoring.md](authoring.md)。不要抄两个构建期例外（Alchemist、插件创作台）的短名 HTTP。
+Manifest 写完不等于底栏插件切换里有入口：内置插件还要在自己包里写 `registration`（目录条目）和 Plugin Runtime 监督器条目（见「内置插件：经 Plugin Runtime 装配」）；第三方插件看 [authoring.md](authoring.md)。构建期例外第 44B 批起已没有，不要新写短名 HTTP。
 
 
 自动记忆形成的来源主人协议是 `memory.learning.enqueue/run/form@1`（定义经 contracts 的 services/memory 导出）。它仅面向 plugin，JSON 只传引用，不开放模型工具或 MCP。当前 Host executor 通过真实 session.context.services.actions.invoke 重新进入当前安装；不直调 handler，不自动 enable。owner 在尚未返回的嵌套 form 内提供 `assert_memory_sources_current` 同步收紧检查，Memory 选定实际来源并集后绑定。旧、新检查求交，Promise/thenable 拒绝；不把它放入 payload、后台作业或插件 callback view。原 beforeEffect、grant、issued 身份和最终 Storage/ledger 围栏仍全部成立。queued 重启用当前正常装配，running 未知结果不自动重放。
@@ -9,7 +9,7 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要在�
 
 持久对象有显式状态时，在插件的 Manifest 申报 `state_machines`，转换和写入留在本插件。平台能力的公开词汇由 contracts 提供。见[状态与转换](state-machine.md)。
 
-新的内置插件（任何 kind）只走 Plugin Runtime：由监督器启动，得到安装记录、升级检查、崩溃恢复和每个安装独立的私人存储。不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往构建期名单加条目；构建期只剩用户批过的两个例外，见下面「构建期 Native」一节（门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。
+新的内置插件（任何 kind）只走 Plugin Runtime：由监督器启动，得到安装记录、升级检查、崩溃恢复和每个安装独立的私人存储。不在宿主里为插件写 HTTP 文件，也不往构建期名单加条目；构建期名单第 44B 批起为空，见下面「构建期 Native」一节（门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。
 
 典型目录：`plugins/native/<id>/src/{manifest,ui,client,styles,en,routes,index}.ts`。私人库对照 Pages / 灵光；不要新建第二张业务 Module 表。
 
@@ -120,11 +120,10 @@ Agent 会话等平台审批时，任务行用 `held_reviews: { session_id, ids }
 
 导航、设置位置、项目启用由 catalog 和 Manifest 推导；客户端与 i18n 仍需接线。公共动作注册后自动进入 MCP 目录，没有另外的 MCP 适配。
 
-### 构建期 Native（用户批过的两个例外）
+### 构建期 Native（已清零）
 
-`APPROVED_BUILD_TIME_EXCEPTIONS` 里的两个（Alchemist、插件创作台；用户 2026-10-21、10-23 定不迁、不删、本轮绕过，以后由 BL-377 重做）仍是手写接线：Host 里的 `registerProvider(...)`（`project-host.ts`）、`apps/local-host/src/<id>-native-plugin-http.ts` 和目录条目（各包的 `registration`）。只有改这些旧插件时才看这一段，新插件不照抄。
+`APPROVED_BUILD_TIME_EXCEPTIONS` 第 44B 批起为空：插件创作台第 47 批起是平台能力，最后一个构建期例外（旧炼金术士，连同它的 `alchemist-native-plugin-http.ts`）在第 44B 批删除。新插件只走 Plugin Runtime。
 
-- 手写 HTTP 文件：`<id>-native-plugin-http.ts` 只剩 Alchemist 的 `alchemist-native-plugin-http.ts`，由 `apps/local-host/src/web-request.ts` 里的显式直连路由处理（`handleAlchemistNativePluginHttp`，不经适配桥）。Pages、灵光、Schedule、Feed、Inbox 等都已迁完，路由是 Manifest `routes`。`artifact-library-http.ts` 是平台成果库的路由文件（PG-077），不是插件的。
 - Shelf 不属于这一份：它已由监督器启动（在 `RUNTIME_ASSEMBLED`，不是构建期例外），路由从 Shelf S3 起是 Manifest 声明的插件路由（`/api/plugins/io.molis.work.shelf/…`），宿主里已没有 Shelf 名下的文件（Shelf S4：演示数据的示例由常驻宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回），新插件不照抄。
 - `project_id` 同样由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 
@@ -191,7 +190,7 @@ Inbox 的显式判断与 Feed 入箱事件已这样接通，参考 `plugins/nati
 2. 同一个 `onEvent` 接收：`event.source_plugin_id` 是 `"host"`，`sequence` 是 0；`correlation_id` 在 `host.review.settled` 上是 `review_id`，在 `host.workspace.changed` 上是 null。
 3. 只在插件运行时投、至多一次，不落库、不重投，停着就错过：拿 `operation_id` 读操作的现状，不要把这条事件当唯一的事实来源。
 
-构建期 Native（Alchemist、插件创作台两个例外）没有这条总线。不要为了「完整」给它们加 `events:`。Integration 的进来走 Signal，不是这条总线。Functions「事件去向」也不是。
+构建期 Native 已没有（第 44B 批）。不要为了「完整」给它们加 `events:`。Integration 的进来走 Signal，不是这条总线。Functions「事件去向」也不是。
 
 Workbench 标签选中是另一种纯 UI 通知：Host 在当前插件根节点派发 `molis-work:select-item`，`detail.itemId` 为对象 ID，回到插件列表时为 `null`。Pages 等插件通过自己的公开 HTTP 读取对象并恢复编辑器；切换时要保存未落盘输入，忽略过期读取。要的对象读不到（已删除）时：在条目本来的位置用自己的话说明（`mw-alert`，留在页面上，不用会消失的轻提示），并在插件根上发 `molis-work:item-unreadable`（`{ itemId }`，冒泡），工作台就不会按标签名给这个面命名、助理也不会把它当「正在看」带上；`detail.quiet` 为真时是人没要的重开（重新载入、后退），只发事件、不出声。读被 Host 的路由拒绝（403、`actions.*` 码：没有授权，或项目停用了这个插件）不是「已删除」：对读取请求把 `host.readRefusal(status, code)` 的返回当作错误文字（空串表示不是这类拒绝），照样放在条目本来的位置、照样发 `molis-work:item-unreadable`，且重开时也要说（条目还在，人可以去授权）。这个 DOM 通知不承担跨插件业务写入，也不是 Plugin Runtime 事件合同。
 

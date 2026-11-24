@@ -30,7 +30,7 @@ const ZH_RULES = [
 const EN_PROPER_NOUNS = new Set([
   "Molis", "Work", "Goal", "Goals", "Frame", "Inbox", "Feed", "Schedule", "Coding", "Git", "Diff",
   "Cognia", "Jelly", "Shelf", "Pages", "Forms", "Dataset", "PPT", "PowerPoint", "Issue", "Brief",
-  "Alchemist", "Studio", "Prologue", "AI", "Runtime", "Agent", "Agents", "Skill", "Skills", "Character", "Characters",
+  "Studio", "Prologue", "AI", "Runtime", "Agent", "Agents", "Skill", "Skills", "Character", "Characters",
   "TypeSafe", "MCP", "OAuth", "API", "CLI", "TUI", "SSH", "HTTP", "HTTPS", "JSON", "CSV", "PDF", "Markdown", "Word", "ID",
   "GitHub", "GitLab", "Bitbucket", "Gmail", "Google", "Drive", "Calendar", "Microsoft", "Outlook", "OneDrive", "SharePoint", "Teams",
   "Slack", "Discord", "Notion", "Linear", "Jira", "Confluence", "Asana", "Monday", "ClickUp", "Trello", "Atlassian", "X",

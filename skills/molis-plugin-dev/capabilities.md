@@ -53,7 +53,7 @@
 
 调用 Host Capability 时可传 `{ signal, before_effect }` 收紧本次执行。Plugin SDK 保留取消信号，Host 在 invocation 暴露它并持续核对原身份；这些选项不允许覆盖 plugin_caller。异步结果返回后仍须业务版本与提交检查。过程进度不等于已验证结果，未知用量不等于零。
 
-长任务的进程内取消、时限和周期性所有权检查使用 Plugin SDK `createExecutionLifetime`；同步 `monitor.check()` 抛错会取消该次执行。外部等待传其 signal，返回后 `assertActive()` 再进入业务事务/CAS，并在 finally dispose。它不授予执行权限，不替代 beforeEffect，不拥有持久状态或重试策略。Alchemist 的续租和 Images 的取消监测是实际示例；业务取消、关闭、失租不得写成普通失败，结果未知的收费调用不得自动重放。
+长任务的进程内取消、时限和周期性所有权检查使用 Plugin SDK `createExecutionLifetime`；同步 `monitor.check()` 抛错会取消该次执行。外部等待传其 signal，返回后 `assertActive()` 再进入业务事务/CAS，并在 finally dispose。它不授予执行权限，不替代 beforeEffect，不拥有持久状态或重试策略。Images 的取消监测是实际示例；业务取消、关闭、失租不得写成普通失败，结果未知的收费调用不得自动重放。
 
 
 ### 让动作结果可以直接读懂

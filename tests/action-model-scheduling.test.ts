@@ -10,10 +10,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
  * beside that queue (and commit only against what it read), or one slow reply stalls every other operation.
  * Exceptions are listed with the reason they may stay serial.
  */
-const SERIAL_BY_DESIGN: Record<string, string> = {
-  "alchemist.pulse.start@1": "enqueues a market pulse; the worker owns its lifetime",
-
-};
+const SERIAL_BY_DESIGN: Record<string, string> = {};
 const configurationOnly = (id: string) => id.startsWith("scenes.enable:");
 
 test("every action that waits on a model runs beside the serial queue unless it is listed with a reason", async () => {
@@ -37,7 +34,6 @@ test("every action that waits on a model runs beside the serial queue unless it 
   const serial = [...found].filter(([, scheduling]) => scheduling !== "concurrent").map(([id]) => id).sort();
   assert.deepEqual(serial, Object.keys(SERIAL_BY_DESIGN).sort());
   assert.equal(found.get("images.jobs.start@1"), "concurrent", "Runtime background acceptance uses a concurrent model-authorized action");
-  assert.ok(found.has("alchemist.reuse.assess@1"), "custom AI permissions must also enter the scheduling check");
 });
 
 test("real Native AI declarations reach the Builder catalog and stop metered automatic queries", async () => {
@@ -48,7 +44,7 @@ test("real Native AI declarations reach the Builder catalog and stop metered aut
   const ref = molisWorkHostProjectReference({ databasePath: join(home, 'a.sqlite'), projectId: 'a' });
   try {
     const catalog = await capabilityCatalog({ registry: host.actionRegistry(ref), client: host.actionClient(ref), project_id: 'a', inspect: caller => host.inspectActions(caller, ref) }, 'web-user');
-    for (const id of ['pages.ai', 'pages.generate', 'form.questions.draft', 'dataset.columns.ai', 'lingguang.conversation.message', 'jelly.plan.generate', 'cognia.knowledge.query', 'images.jobs.start', 'alchemist.reuse.assess']) {
+    for (const id of ['pages.ai', 'pages.generate', 'form.questions.draft', 'dataset.columns.ai', 'lingguang.conversation.message', 'jelly.plan.generate', 'cognia.knowledge.query', 'images.jobs.start']) {
       const entry = catalog.find(item => item.id === id); assert.ok(entry, id);
       assert.equal(entry.execution.cost, 'metered', id);
       assert.throws(() => normalizeEffects({ capabilities: [id] }, 'query', 'page load', catalog), /不能调用收费能力/, id);

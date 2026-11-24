@@ -6,13 +6,13 @@ import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-fra
 
 // Observe the real dispatch after the registered factory has wired its handler. Never claim the request in the fixture.
 const observe = `window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){
-  target[key]=host=>{const result=factory(host);if(!['ppt','schedule','issues','alchemist'].includes(key))return result;window.selections=[];window.selectionClicks=[];window.selectionOpens=[];
+  target[key]=host=>{const result=factory(host);if(!['ppt','schedule','issues'].includes(key))return result;window.selections=[];window.selectionClicks=[];window.selectionOpens=[];
     const request=window.molisWorkRequest;
     window.molisWorkRequest=Object.assign(async(url,options)=>{const result=await request(url,options);
       if(options?.method==='POST'&&new URL(url,'http://plugin.invalid').pathname.endsWith('/open'))selectionOpens.push(url);return result;},request);
-    const root=document.querySelector('[data-ppt=workbench],[data-schedule-workbench],[data-issues=workbench],[data-alchemist=workbench]');
+    const root=document.querySelector('[data-ppt=workbench],[data-schedule-workbench],[data-issues=workbench]');
     root.addEventListener('molis-work:select-item',event=>queueMicrotask(()=>selections.push({id:event.detail?.itemId,claimed:event.defaultPrevented})));
-    root.addEventListener('click',event=>{const row=event.target.closest('[data-ppt-id],[data-schedule-row],[data-issue-id],[data-alchemist-id]');if(row)selectionClicks.push(row.dataset.pptId||row.dataset.scheduleTaskId||row.dataset.issueId||row.dataset.alchemistId);});
+    root.addEventListener('click',event=>{const row=event.target.closest('[data-ppt-id],[data-schedule-row],[data-issue-id]');if(row)selectionClicks.push(row.dataset.pptId||row.dataset.scheduleTaskId||row.dataset.issueId);});
     return result;};return true;
 }});`;
 
@@ -30,21 +30,19 @@ test("QEA-72: a normal PPT object link still uses the unclaimed row selection ex
   assert.deepEqual(await child.evaluate("selectionClicks"), [deck.id]);
 });
 
-for (const plugin of ["issues", "alchemist"] as const) test(`QEA-72: a normal ${plugin} object link is claimed and opens its stored object without row fallback`, { timeout: 90_000 }, async t => {
+test("QEA-72: a normal issues object link is claimed and opens its stored object without row fallback", { timeout: 90_000 }, async t => {
+  const plugin = "issues";
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   await browser.setViewport(1440, 900);
   await pluginFrameInitScript(t, browser, observe);
   const title = `Explicit ${plugin} destination`;
-  const api = plugin === "issues" ? "/api/plugins/io.molis.work.issues" : `/projects/${browser.projectId}/api/alchemist/studio/api/v1`;
-  const made = plugin === "issues"
-    ? await browser.web.post<{ id: string }>(api + "/create", { title, type: "experience", description: "Keep the destination selected by the person" })
-    : (await browser.web.post<{ direction: { id: string } }>(api + "/directions", { title, description: "Keep the destination selected by the person" })).direction;
-  const read = async () => plugin === "issues" ? browser.web.get(api + "/read?id=" + encodeURIComponent(made.id))
-    : (await browser.web.get<{ directions: Array<{ id: string }> }>(api + "/bootstrap")).directions.find(row => row.id === made.id);
+  const api = "/api/plugins/io.molis.work.issues";
+  const made = await browser.web.post<{ id: string }>(api + "/create", { title, type: "experience", description: "Keep the destination selected by the person" });
+  const read = async () => browser.web.get(api + "/read?id=" + encodeURIComponent(made.id));
   const before = await read();
   const child = await pluginFrameBrowser(t, browser, plugin);
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=${plugin}&openItem=${made.id}` }, browser.sessionId));
-  const heading = plugin === "issues" ? "[data-issue-title]" : "[data-alc-title]";
+  const heading = "[data-issue-title]";
   await child.waitFor(`document.querySelector(${JSON.stringify(heading)})?.textContent===${JSON.stringify(title)}`);
   assert.ok((await child.evaluate<Array<{ id: string; claimed: boolean }>>("selections")).some(entry => entry.id === made.id && entry.claimed));
   assert.deepEqual(await child.evaluate("selectionClicks"), []);

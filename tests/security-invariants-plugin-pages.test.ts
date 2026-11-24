@@ -42,8 +42,7 @@ test("SYS-15 S-47 registered HTTP pages allow only their own concrete routes and
     assert.equal(response.status, 200, await response.clone().text());
     return { "x-molis-plugin-page": (await response.json()).page_id as string };
   };
-  for (const [id, read, foreign] of [["io.molis.work.plugin-builder", "/api/plugin-builder/studio/state", "/api/alchemist/studio/api/v1/bootstrap"],
-    ["io.molis.work.alchemist", "/api/alchemist/studio/api/v1/bootstrap", "/api/plugin-builder/studio/state"]]) {
+  for (const [id, read, foreign] of [["io.molis.work.plugin-builder", "/api/plugin-builder/studio/state", "/api/plugins/io.molis.work.todo/items"]]) {
     const headers = await open(id), second = await open(id);
     assert.equal((await f.request(prefix + read, { headers })).status, 200);
     // QEA-16: choosing Home's attention projection never expands a plugin page's trusted route scope.

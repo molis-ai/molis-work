@@ -2,16 +2,15 @@ import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/
 import type { AgentPromptRegistration, AgentRoleRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { CONTEXTUAL_DRAFT, CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, KNOWLEDGE_LOCATE, KNOWLEDGE_ORGANIZE, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, SESSIONS_SUGGEST, SKILL_DRAFT, SKILL_REVISE, SKILL_TRIAL, SKILL_TRIAL_JUDGE } from "./system-prompts.js";
 import { BUILDER_CHOICE_INSTRUCTIONS, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-studio";
-import { ALCHEMIST_INSTRUCTIONS } from "../alchemist-prologue.js";
 
 /**
- * Every instruction a model call the Host makes itself uses: its own modules', which sit beside the code that calls the model, Plugin
- * Builder's (a platform capability, PG-051 Q2) and Alchemist's (served by the Host, not run by the Plugin Runtime). A running plugin's
+ * Every instruction a model call the Host makes itself uses: its own modules', which sit beside the code that calls the model, and Plugin
+ * Builder's (a platform capability, PG-051 Q2). A running plugin's
  * come with its definition (`PluginDefinition.instructions`, PG-051). `tests/prompt-registration.test.ts` fails when a call's
  * instructions are in neither, or when a call sends a raw prompt string.
  */
 export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [
-  ...BUILDER_CHOICE_INSTRUCTIONS, ...ALCHEMIST_INSTRUCTIONS, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, MEMORY_EXTRACT, MEMORY_TIDY,
+  ...BUILDER_CHOICE_INSTRUCTIONS, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, MEMORY_EXTRACT, MEMORY_TIDY,
   CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, CONTEXTUAL_DRAFT, KNOWLEDGE_ORGANIZE, KNOWLEDGE_LOCATE, SKILL_DRAFT, SKILL_TRIAL, SKILL_TRIAL_JUDGE, SKILL_REVISE, SESSIONS_SUGGEST,
 ];
 

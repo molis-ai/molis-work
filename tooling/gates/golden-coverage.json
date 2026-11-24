@@ -14,10 +14,6 @@
       "reason": "只有带检查点的长任务才写；脚本化模型那一轮对话没有产生，目录不在"
     },
     {
-      "path": "alchemist/projects/<id>/search-content/",
-      "reason": "正文来自联网搜索，金样不联网（UPG2-06）"
-    },
-    {
       "path": "artifacts/projects/<编码后的 project_id>/originals/<sha256>",
       "reason": "只有超过 6 MB 的原件才落文件（ARTIFACT_ORIGINAL_INLINE_MAX_BYTES）；放进金样就要入库一份 6 MB 以上的文件，artifacts.ts 写的小文件在项目库里"
     },
@@ -254,14 +250,6 @@
       "cases": [
         "discussion.ts"
       ]
-    },
-    "alchemist/projects/<编码后的 project_id>/studio.sqlite": {
-      "cases": [
-        "alchemist.ts"
-      ]
-    },
-    "alchemist/projects/<编码后的 project_id>/search.sqlite": {
-      "none": "行来自联网搜索，金样不联网，是空库（清单 imports）"
     },
     "conversation-attachments/conversation-attachments.db": {
       "cases": [

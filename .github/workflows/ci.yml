@@ -321,10 +321,6 @@ jobs:
         if: ${{ matrix.slice == 'contracts' }}
         run: node scripts/run-tests.mjs tests/dom-events-contract.test.ts tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts tests/shell-page-gate.test.ts tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts tests/artifact-host-writers.test.ts
 
-      - name: Alchemist plugin tests
-        if: ${{ matrix.slice == 'contracts' }}
-        run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test
-
       - name: Studio Skill replay
         if: ${{ matrix.slice == 'contracts' }}
         env:

@@ -138,6 +138,5 @@ test("developer diagnostics say what each source registered and what is not in e
     const assistant = report.owners.find(owner => owner.owner_id === "io.molis.work.assistant")!;
     assert.ok(assistant.prompts > 0 && assistant.roles > 0);
     assert.ok(assistant.issues.some(issue => issue.level === "info" && /还没有被调用过/.test(issue.text)));
-    assert.ok(report.owners.find(owner => owner.owner_id === "io.molis.work.alchemist")!.instructions > 0, "Alchemist now registers its model instructions");
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

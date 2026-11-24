@@ -1775,7 +1775,6 @@ test("FSS-35 approved library titles and Assistant settings words preserve exact
   }
   const cases = [
     ["account.seat.assign", "system.account", "分配席位", "Assign seat"],
-    ["alchemist.memory.playbook.revise", "io.molis.work.alchemist", "修改研究方法", "Edit research method"],
     ["dataset.create", "io.molis.work.dataset", "新建数据表", "New table"],
     ["goals.list", "io.molis.work.goals", "目标目录", "Target directory"],
     ["todo.reminders.due", "io.molis.work.todo", "到了时间的提醒", "Reminders due"],
@@ -1793,6 +1792,6 @@ test("FSS-35 approved library titles and Assistant settings words preserve exact
   assert.deepEqual(await b.evaluate(titles), [...cases.map(row => row[3]), "New table"]);
   assert.ok(await b.evaluate("catalogLibrary.every(node => document.getElementById(node.id) === node)"));
   await go(library + "&q=" + encodeURIComponent("新建数据表"));
-  await b.waitFor(`!!document.getElementById(${JSON.stringify(ids[2])})`);
-  assert.equal(await b.evaluate(`document.getElementById(${JSON.stringify(ids[2])}).textContent`), "New table", "the library still searches the original declaration");
+  await b.waitFor(`!!document.getElementById(${JSON.stringify(ids[1])})`);
+  assert.equal(await b.evaluate(`document.getElementById(${JSON.stringify(ids[1])}).textContent`), "New table", "the library still searches the original declaration");
 });

@@ -45,7 +45,6 @@
 | Skill 目录 | 一个范围（某个项目，或个人空间）里装着的全部 Skill，每项带精确引用 `SkillRef`、在这个范围的状态（关、自动、仅手动）和能不能用；归宿主的 Agent 定义登记，由 `system.skills` 的 `skills.catalog.list@1` 等动作读写（`packages/contracts/src/services/skills.ts`，`specs/skill-packs/contract-design.md` 第 8 节）。助理和 Coding 读同一份，不各存名单 | 设置里「技能」一节 | 共同目录（指它时；共同目录是动作目录的旧称，不指 Skill）、方法目录、平台方法目录 |
 | 规划方法 | 技能目录里随系统自带的技能包（`plugins/content/planning-methods`，37 个）；和 Goals 没有关系 | 规划方法、规划与拆解 | Goals 的方法库、方法包（method pack） |
 | 我的技能 | 本人在能力包页新建／修改、用这台电脑的发布身份签名的一个内容包（项目与个人空间各一个）；与从本机导入的同类 | 能力包页的「我的技能」 | 个人方法库、自建方法 |
-| 研究方法 | 炼金术士里用户确认保存、可沿用的研究做法 | 研究方法 | playbook |
 | 连接方式 | 一个服务的授权途径（OAuth、命令行、令牌、MCP） | 连接方式 | method（代码里的 `ConnectorMethod*`） |
 | Agent | 多轮、带工具、按角色运行并受审查的 AI 工作者；外部的叫外部 Agent，是在外部 Runtime 里运行的工作者 | 日常界面写 AI 或助理；与外部工具对比时写内置 AI（见 U6、4.1） | 把 Claude Code、Codex 这类产品叫 Agent（它们是 Runtime） |
 | Runtime（AI Runtime） | 能运行 Agent 或与用户对话的 AI 环境，含外部 AI 工具这个产品（Claude Code、Codex 等） | 具体产品名、外部 AI 工具、电脑上的 AI 工具（见 U6、4.1） | 把外部产品叫 Agent；与 Plugin Runtime、项目运行对象混写（见 2.3） |
@@ -267,7 +266,6 @@
 **其余三种「方法」（必须写全名）**
 
 - 规划方法（planning method）：拆解与规划用的方法，是技能目录里随系统自带的一包技能（`plugins/content/planning-methods`，37 个，给个人助理用，默认「自动」；用户 2026-11-14 定，第 41 批）。和 Goals 没有关系：助理用它拆解，结果要不要写进 Goals 由助理用 Goals 自己的动作决定。Goals 只留图检查与变更影响（`goals.planning.graph.check`、`goals.planning.impact`），不存、不采用方法。旧称：Goals 的方法库、个人方法、`PlanningMethodPack`（已删）。
-- 研究方法（research method）：炼金术士里用户确认保存、可在新研究里沿用的做法，代码里叫 playbook（`memory.playbook.*`，`plugins/native/alchemist/src/studio/shared/contracts/actions.ts`）。
 - 连接方式（connection method）：一个服务可用的授权途径，`ConnectorMethodOption`（`kind` 为 `oauth`、`cli`、`token`、`mcp`，`packages/contracts/src/services/connector-host.ts`）。
 
 **写后检查器与等待检查器（必须写全名）**
@@ -446,13 +444,12 @@
 | `form` | Forms | Forms | id 单数，名称复数 |
 | `dataset` | Dataset | Dataset | |
 | `ppt` | PPT | PPT | |
-| `alchemist` | 炼金术士 | 炼金术士 | |
 | `workflows` | 工作流程 | 工作流程 | Manifest 的 `plugin_id` 是 `io.molis.work.native.workflows`，比其他插件多一段 `.native.`（表后第 1 条） |
 | `issues` | Issue | Issue | |
 | `risk` | 风险 | 风险 | |
 | `work-brief` | Work Brief | Work Brief | |
 
-中文界面里显示名中英文混用：16 个用英文（Goals、Inbox、Feed、Schedule、Coding、Git、Diff、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue、Work Brief），8 个用中文（成果、插件创作工作台、图片、灵光、待办、炼金术士、工作流程、风险）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/archive/repository-anti-corruption/spec.md` §1），不在清单里。
+中文界面里显示名中英文混用：16 个用英文（Goals、Inbox、Feed、Schedule、Coding、Git、Diff、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue、Work Brief），7 个用中文（成果、插件创作工作台、图片、灵光、待办、工作流程、风险）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/archive/repository-anti-corruption/spec.md` §1），不在清单里。
 
 表外的几处不规则：
 
@@ -626,7 +623,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 | --- | --- |
 | 判断场景 | `docs/platform/PLUGIN-DEVELOPMENT.md`、`plugins/native/inbox/README.md`、`tooling/plugin-cli/README.md`、`.cursor/rules/plugin-dev-skill.mdc`、`skills/molis-plugin-dev/{SKILL,elements,examples,host}.md`、`specs/action-architecture/spec.md` |
 | 判断函数 | `docs/SSOT-MATRIX.md`、`docs/platform/PROLOGUE-AI.md`、`modules/judgment-rules/README.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/BACKLOG.md`、`specs/action-architecture/spec.md` |
-| 共同目录、能力目录、能力板、能力库 | `docs/SSOT-MATRIX.md`、`docs/modules/actions.md`、`docs/modules/shelf.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`docs/platform/PROLOGUE-AI.md`、`packages/plugin-sdk/README.md`、`apps/workbench/src/judgment-rules/README.md`、`plugins/native/{alchemist,coding,feed,inbox}/README.md`、`skills/` 下 6 个文件 |
+| 共同目录、能力目录、能力板、能力库 | `docs/SSOT-MATRIX.md`、`docs/modules/actions.md`、`docs/modules/shelf.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`docs/platform/PROLOGUE-AI.md`、`packages/plugin-sdk/README.md`、`apps/workbench/src/judgment-rules/README.md`、`plugins/native/{coding,feed,inbox}/README.md`、`skills/` 下 6 个文件 |
 | 函数调用 | `docs/platform/PROLOGUE-AI.md`、`specs/action-architecture/spec.md` |
 | Functions 插件 | `modules/judgment-rules/README.md`、`plugins/native/inbox/README.md`、`apps/workbench/src/judgment-rules/README.md` |
 | 方法（指 Skill） | `docs/horizontal/agent-host.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`plugins/native/coding/README.md`、`specs/coding-plugin/spec.md` |

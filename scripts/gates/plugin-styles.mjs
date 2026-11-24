@@ -113,7 +113,7 @@ export function rulesInSharedSheet(split, stylesheet, id, { sharedClasses = [], 
 
 const DEFAULT_SHARED_STYLE_PLUGIN_PREFIXES = [
   "goal", "goals", "feed", "inbox", "coding", "shelf", "git", "lingguang",
-  "alchemist", "dataset", "pages", "ppt", "schedule", "todo", "risk", "jelly",
+  "dataset", "pages", "ppt", "schedule", "todo", "risk", "jelly",
   "text-stats", "plugin-builder",
 ];
 // `form` overlaps HTML `<form>` platform classes (`.form-disclosure`, `.form-actions`, `.form-error`) and `diff`

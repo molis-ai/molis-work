@@ -18,12 +18,12 @@ async function open(t: Parameters<typeof openGoalBrowser>[0], plugin: string): P
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return null;
   const { command, sessionId, navigate, waitFor, origin, projectId } = browser;
-  const child=await pluginFrameBrowser(t,browser,plugin==="home"?"alchemist":plugin), cognia=await pluginFrameBrowser(t,browser,"cognia");
+  const child=await pluginFrameBrowser(t,browser,plugin), cognia=await pluginFrameBrowser(t,browser,"cognia");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?desktop=1&openPlugin=${plugin}` }, sessionId));
   await waitFor(`document.body.dataset.desktopSurface === ${JSON.stringify(plugin)}`, 15_000);
-  if(plugin!=="home")await browser.surfaceReady(plugin);
+  await browser.surfaceReady(plugin);
   return {...browser,child,cognia};
 }
 
@@ -82,22 +82,6 @@ test("workflows: an AI handoff stops saying the model is missing", { timeout: 90
   await firstModelIsReady(browser);
   await waitFor("document.querySelector('[data-wf-readiness]')?.dataset.ready === 'true'", 10_000);
   assert.equal(await evaluate("document.querySelector('[data-wf-readiness] [data-wf-action=model-settings]')"), null, "the way to the settings is gone with the problem");
-});
-
-test("alchemist: the banner that asks for a model is gone from the open direction", { timeout: 90_000 }, async t => {
-  const browser = await open(t, "home");
-  if (!browser) return;
-  const { command, sessionId, navigate, origin, projectId } = browser;
-  const {evaluate,waitFor,click}=browser.child;
-  const created = await browser.evaluate<number>(`(async () => (await fetch('/projects/${projectId}/api/alchemist/studio/api/v1/directions', { method: 'POST',
-    headers: molisWorkControlHeaders(), body: JSON.stringify({ description: '帮助独立开发者保存访谈原句和假设' }) })).status)()`);
-  assert.equal(created, 201);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?desktop=1&openPlugin=alchemist` }, sessionId));
-  await waitFor("document.querySelector('[data-alc-open=direction]')", 15_000);
-  await click("[data-alc-open=direction]");
-  await waitFor("/还没有可用模型/.test(document.querySelector('[data-alc-content]')?.textContent || '')", 10_000);
-  await firstModelIsReady(browser);
-  await waitFor("!/还没有可用模型/.test(document.querySelector('[data-alc-content]')?.textContent || '')", 10_000);
 });
 
 test("jelly: its settings link leaves the modal dialog, and the model dialog comes back with the new provider", { timeout: 90_000 }, async t => {

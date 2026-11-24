@@ -1,18 +1,16 @@
 import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { access } from "node:fs/promises";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { alchemistActions as alchemist } from "@molis-ai/molis-work-plugin-alchemist";
+import { pagesActions as pages } from "@molis-ai/molis-work-plugin-pages";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { openTestHome } from "./fixtures/test-home.js";
 
 // Every MCP client here starts its own forwarding process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
 // whole test at two files at once): the budget only stops a hang, it is not a speed check.
-test("production MCP reads persisted scoped grants on every list/call, shares real Alchemist data and preserves revocation after restart", { timeout: 120_000 }, async t => {
+test("production MCP reads persisted scoped grants on every list/call, shares real Pages data and preserves revocation after restart", { timeout: 120_000 }, async t => {
   const clients: Client[] = [];
   const testHome = await openTestHome(t), home = testHome.home;
   const a = await testHome.createProject("授权项目 A"), b = await testHome.createProject("授权项目 B");
@@ -30,33 +28,33 @@ test("production MCP reads persisted scoped grants on every list/call, shares re
   try {
     const catalog = await testHome.inspect("runtime:alpha", a.project_id);
     const definition = (id: string) => catalog.find(row => row.capability_id === id)!;
-    assert.ok(definition(alchemist.directionCreate.capability_id));
-    await assert.rejects(access(join(home, "alchemist/projects", a.project_id, "studio.sqlite")), { code: "ENOENT" });
+    assert.ok(definition(pages.create.capability_id));
     const alpha = await connect(a, "alpha"), beta = await connect(a, "beta"), otherProject = await connect(b, "alpha");
     const names = async (client: Client) => {
       try { return (await client.listTools()).tools.map(tool => tool.name); }
       catch (error) { throw new Error(`${String(error)}\n${diagnostics.get(client)?.() ?? ""}`); }
     };
-    const createName = molisWorkActionToolName(alchemist.directionCreate), bootstrapName = molisWorkActionToolName(alchemist.bootstrap);
+    const createName = molisWorkActionToolName(pages.create), listName = molisWorkActionToolName(pages.list);
     assert.equal((await names(alpha)).includes(createName), false);
-    await testHome.grant("runtime:alpha", a.project_id, [definition(alchemist.directionCreate.capability_id), definition(alchemist.bootstrap.capability_id)]);
-    await testHome.grant("runtime:beta", a.project_id, [definition(alchemist.bootstrap.capability_id)]);
+    await testHome.grant("runtime:alpha", a.project_id, [definition(pages.create.capability_id), definition(pages.list.capability_id)]);
+    await testHome.grant("runtime:beta", a.project_id, [definition(pages.list.capability_id)]);
     assert.ok((await names(alpha)).includes(createName));
     assert.equal((await names(beta)).includes(createName), false);
     assert.equal((await names(otherProject)).includes(createName), false);
-    const created = await alpha.callTool({ name: createName, arguments: { description: "正式 MCP 授权写入的研究方向" },
+    const created = await alpha.callTool({ name: createName, arguments: { title: "正式 MCP 授权写入的文档" },
       _meta: { actor_id: "runtime:beta", project_id: b.project_id } });
     assert.equal(created.isError, false, JSON.stringify(created));
-    const state = await beta.callTool({ name: bootstrapName, arguments: {} });
+    const createdId = (created.structuredContent as { document: { id: string } }).document.id;
+    const state = await beta.callTool({ name: listName, arguments: {} });
     assert.equal(state.isError, false);
-    assert.ok(JSON.stringify(state.structuredContent).includes((created.structuredContent as any).direction.id));
-    for (const client of [beta, otherProject]) assert.equal((await client.callTool({ name: createName, arguments: { description: "不能写入" } })).isError, true);
-    assert.equal((await alpha.callTool({ name: createName, arguments: { description: "不能冒充", actor_id: "beta" } })).isError, true);
-    await testHome.revoke("runtime:alpha", a.project_id, [definition(alchemist.directionCreate.capability_id)]);
+    assert.ok(JSON.stringify(state.structuredContent).includes(createdId), "written into project A under alpha's grant, not the _meta project");
+    for (const client of [beta, otherProject]) assert.equal((await client.callTool({ name: createName, arguments: { title: "不能写入" } })).isError, true);
+    assert.equal((await alpha.callTool({ name: createName, arguments: { title: "不能冒充", actor_id: "beta" } })).isError, true);
+    await testHome.revoke("runtime:alpha", a.project_id, [definition(pages.create.capability_id)]);
     assert.equal((await names(alpha)).includes(createName), false);
-    assert.equal((await alpha.callTool({ name: createName, arguments: { description: "撤权后不能写入" } })).isError, true);
+    assert.equal((await alpha.callTool({ name: createName, arguments: { title: "撤权后不能写入" } })).isError, true);
     await alpha.close(); const restarted = await connect(a, "alpha");
     assert.equal((await names(restarted)).includes(createName), false);
-    assert.deepEqual((await restarted.callTool({ name: bootstrapName, arguments: {} })).structuredContent, { ...state.structuredContent, actor: { id: "runtime:alpha", name: "runtime:alpha" } });
+    assert.deepEqual((await restarted.callTool({ name: listName, arguments: {} })).structuredContent, state.structuredContent, "the kept read grant reads the same documents after restart");
   } finally { await Promise.all(clients.map(client => client.close())); }
 });

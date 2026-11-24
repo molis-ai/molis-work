@@ -165,7 +165,7 @@ const declaredStagePlugins = () => [...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SU
 
 test("W5-06 PRR-12 every shown plugin's stage comes from the view that opens it, once", () => {
   const plugins = declaredStagePlugins();
-  for (const plugin of ["feed", "inbox", "schedule", "pages", "form", "dataset", "ppt", "workflows", "lingguang", "plugin-builder", "todo", "alchemist"]) {
+  for (const plugin of ["feed", "inbox", "schedule", "pages", "form", "dataset", "ppt", "workflows", "lingguang", "plugin-builder", "todo"]) {
     assert.ok(plugins.includes(plugin), `${plugin} declares its stage in its Manifest`);
   }
   const html = draw({ ...emptyView(), enabled_plugins: [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS] } as MolisWorkWebView);

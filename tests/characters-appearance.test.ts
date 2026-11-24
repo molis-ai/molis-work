@@ -6,7 +6,7 @@ import { groupedGlobalSettingsSections } from "../apps/workbench/src/settings-se
 import { renderPluginRail } from "../apps/workbench/src/immersive-shell.ts";
 import { chinesePagePacks, pageTextForPacks, shippedPagePack, withPagePacks } from "./fixtures/page-text-packs.js";
 
-const packs = chinesePagePacks("goals", "alchemist", "pages", "plugin-builder", "inbox");
+const packs = chinesePagePacks("goals", "pages", "plugin-builder", "inbox");
 const inChinese = <T>(draw: () => T): T => withPagePacks("zh", packs, draw);
 
 // Soft Workbench (DESIGN.md → Plugin identity): plugins carry no identity colour on screen. Characters is a surface of the
@@ -54,11 +54,11 @@ test("Characters is not among the plugins", () => {
     escapeHtml: (value: unknown) => String(value),
     icon: (name: string) => `<svg data-icon="${name}"></svg>`,
   };
-  const html = inChinese(() => renderPluginRail(primitives, ["goals", "characters", "alchemist", "pages", "plugin-builder", "inbox"]));
+  const html = inChinese(() => renderPluginRail(primitives, ["goals", "characters", "pages", "plugin-builder", "inbox"]));
   const items = html.slice(html.indexOf("plugin-rail-items"), html.indexOf("</nav>"));
   // Backbone first, then this project's plugins in groups, and the toggle that opens them all.
-  // Groups read as purposes (plugin-e2e-review §3.1): 推进 holds the backbone, 写与做 the things one makes, 研究 the research tools.
-  assert.match(items, /data-rail-zone="core"[^>]*data-plugin-id="home"[\s\S]*>推进<[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*写与做[\s\S]*data-rail-zone="tool"[^>]*data-plugin-id="pages"[\s\S]*研究[\s\S]*data-plugin-id="alchemist"[\s\S]*data-rail-tools-toggle/);
+  // Groups read as purposes (plugin-e2e-review §3.1): 推进 holds the backbone, 写与做 the things one makes.
+  assert.match(items, /data-rail-zone="core"[^>]*data-plugin-id="home"[\s\S]*>推进<[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*写与做[\s\S]*data-rail-zone="tool"[^>]*data-plugin-id="pages"[\s\S]*data-rail-tools-toggle/);
   // Every entry carries one line saying what the person gets there.
   assert.match(items, /data-plugin-id="pages"[^>]*>[\s\S]*?<span>Pages<\/span><small class="plugin-rail-hint">[^<]+<\/small>/);
   // 角色 is a settings page (Settings › 角色), not a plugin to switch to.

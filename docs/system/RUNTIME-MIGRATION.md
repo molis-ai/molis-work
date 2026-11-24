@@ -48,7 +48,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 - `RUNTIME_ASSEMBLED`（14）：coding、dataset、diff、feed、form、git、goals、inbox、lingguang、pages、ppt、schedule、shelf、workflows（text-stats 2026-11-22 退役删除），由 `apps/local-host/src/project-plugins.ts` 的监督器启动。
 - Home 级（5）：issues、todo、cognia、images、jelly，Manifest 写 `runtime: { scope: "home" }`、包自己的 `registration` 带 `runtime: { create, … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
-- `APPROVED_BUILD_TIME_EXCEPTIONS`（2）：alchemist、plugin-builder；其余目录条目都在上面两类里。
+- `APPROVED_BUILD_TIME_EXCEPTIONS`（0）：插件创作台第 47 批起是平台能力，旧炼金术士第 44B 批删除；目录条目都在上面两类里。
 
 PPT 的本地 Runtime 迁移候选已实现（见防腐 spec W5-01-PPT；宿主 `ppt-actions.ts`/`ppt-native-plugin-http.ts` 已删，尚未推送/合入）。
 
@@ -62,7 +62,7 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 
 范围（个人或项目）取自插件 `registration` 的 `personal`；数据位置取自 Home 存储登记（`apps/local-host/src/home-stores.ts` 的 `homeStores()`）、`apps/local-host/src/project-database-schema.ts` 和各包。
 
-**批准的构建期例外（2；2026-10-18 取消的历史 4 个见第 1、3 节）**：Alchemist、插件创作台（`plugin-builder`）。
+**批准的构建期例外（0；2026-10-18 取消的历史 4 个见第 1、3 节）**：最后两个（插件创作台、Alchemist）已在第 47、44B 批移出。
 
 **要迁的（14）**。「实例」一列是放置规则的结果（见表后），「项目分区的 Home 数据」一列说明有没有要在「项目已删」步骤里清的数据（见 4.2 和 6）：
 
@@ -78,7 +78,6 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 | Jelly | 是 | Home 级 | `{home}/jelly/jelly.db` | 没有（包里没有 `project_id`） | 36、32 |
 | Cognia | 是 | Home 级 | `{home}/cognia/cognia.db` | 没有 | 21、14 |
 | Images | 是 | Home 级 | `{home}/images/images.db`，另有运行锁 | 有：`jobs` 表带 `project_id`（`plugins/native/images/src/store.ts`） | 7、61；另有 `ImagesHostService` |
-| Alchemist | 是 | Home 级 | 没有 Home 级的库；每个项目一个目录 `{home}/alchemist/projects/<id>/`，里面 `studio.sqlite`（工作室，`alchemist-service-host.ts`）与 `search.sqlite`（搜索，`alchemist-search.ts`） | 有：每个项目一个工作室库（`alchemist-service-host.ts`），决定里的「工作室与密钥」 | 没有 `*-actions.ts`（`AlchemistHostService`）、51 |
 | Inbox | 否 | 每个项目一个 | 项目库，表由 Attention 模块建（`ATTENTION_SCHEMA_SQL`） | 不需要：项目库随项目目录一起移走 | 70、92 |
 | Schedule | 否 | 每个项目一个 | 项目库，表由插件在 Manifest 的 `databases.project` 声明（`plugins/native/schedule/src/database.ts`），宿主开库时按声明建 | 不需要 | 26、92；另有 `scheduleReminderActionProvider` |
 | Feed | 否 | 每个项目一个 | 项目库，12 张表都由插件在 Manifest 的 `databases.project` 声明（`plugins/native/feed/src/database.ts`；FI-5 起条目、来源、信号和 Listener 的表也在这里，原先建它们的 Feed、Sources、Signals 模块已删） | 项目库部分不需要；Home 里的 Feed 安全目录（`resolveHomeSecurityDirectory`，`packages/storage/src/adapters/local-security-paths.ts`）放密钥文件，有没有按项目分区的内容由 Feed 自己的计划核 | 已迁（FI-4～7）：宿主不再有 Feed 的适配文件（`feed-native-plugin-http.ts` 在 `e5d3cdaeb` 删，页面路由进了 Feed 的 Manifest），也不在 `content-action-providers.ts` 的 `nativeContentProviders` 里登记；仍 import Feed 的宿主文件 12 个（`git grep -l "@molis-ai/molis-work-plugin-feed" -- apps/local-host/src`，本表原记 29 个），其中按 Feed 命名的页面投影（`feed_source_catalog`、舞台的 `feedItem` 端口）归 PG-060 |
@@ -270,10 +269,10 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 | --- | --- | --- |
 | 目录条目 | 22（2026-11-13，`BUILTIN_PLUGIN_CATALOG`；第 06 批 Files 退役） | 22（迁移本身不增减目录条目） |
 | `RUNTIME_ASSEMBLED`（Runtime 装配的内置插件） | 15（2026-11-13，登记上有 `project_runtime` 的；Home 级另算） | 17（两个构建期例外迁完后；BL-377 重做后另算） |
-| `APPROVED_BUILD_TIME_EXCEPTIONS`（构建期装配的内置插件） | 2（Alchemist、插件创作台） | 0（BL-377 重做后） |
-| `apps/local-host/src/*-native-plugin-http.ts` | 1 个文件（T-382 后只剩 `alchemist-native-plugin-http.ts`；平台成果库为 `artifact-library-http.ts`） | 0（BL-377 重做后） |
+| `APPROVED_BUILD_TIME_EXCEPTIONS`（构建期装配的内置插件） | 0（第 44B 批） | 0 |
+| `apps/local-host/src/*-native-plugin-http.ts` | 0（第 44B 批删掉最后的 `alchemist-native-plugin-http.ts`；平台成果库为 `artifact-library-http.ts`） | 0 |
 | 以插件命名的 `apps/local-host/src/*-actions.ts` | 0（平台自己的 `artifact-actions.ts` 等不算按插件命名） | 0 |
-| `project-host.ts` 里按插件逐个登记的 `registerProvider` | 3 处调用，其中按插件命名的只有 Alchemist 1 处 | 0 |
+| `project-host.ts` 里按插件逐个登记的 `registerProvider` | 按插件命名的 0 处（第 44B 批删掉 Alchemist 那一处） | 0 |
 | 新增一个内置插件在包外的手改文件数（外加 SSOT 一行，两端都要） | 11（2026-10-25 历史基线，见 EXTENSION-POINTS.md 3.1；不是目标） | 1（要 X-1；没有 X-1 是 4） |
 
 量法：目录条目和两份名单数 `tests/builtin-plugin-assembly-gate.test.ts` 里的集合与 `BUILTIN_PLUGIN_CATALOG` 的条数；两类 `*-native-plugin-http.ts`、`*-actions.ts` 数文件与行数，`ls apps/local-host/src/*-native-plugin-http.ts`、`wc -l`；按插件登记的 `registerProvider` 数 `project-host.ts` 里的行：`grep -c -E "registerProvider\((pages|ppt|form|dataset|lingguang|inbox|schedule|scheduleReminder|shelfProject|workflows|images|jelly|todo|cognia|shelf)ActionProvider|registerProvider\(this\.alchemist\.provider" apps/local-host/src/project-host.ts`（Feed 通过 `nativeContentProviders` 的循环登记，不在这一行数里）；包外手改文件数用 EXTENSION-POINTS.md 第 1 节的两条命令。W6-04 用同一套方法重量并记入 spec。

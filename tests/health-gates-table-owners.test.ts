@@ -380,8 +380,8 @@ test("the real repository's allowance names no journal table (PG-094 S9-1), no G
   // that footing.
   assert.deepEqual(ownedBy("plugins/native/goals"), []);
   assert.deepEqual(Object.keys(file.shared), []);
-  assert.deepEqual(Object.fromEntries(Object.entries(file.same_name).map(([table, entry]) => [table, [...entry.packages].sort()])),
-    { jobs: ["plugins/native/alchemist", "plugins/native/images"], workspaces: ["modules/projects", "plugins/native/alchemist"] });
+  // The two same-name pairs left with the old Alchemist (44B): no two packages create a table of one name any more.
+  assert.deepEqual(file.same_name, {});
   // BL-802: Feed's store owns the Feed store's tables; the rest of the Feed package goes through its functions. One area today.
   assert.deepEqual(Object.keys(file.areas), ["plugins/native/feed/src/store"]);
 });

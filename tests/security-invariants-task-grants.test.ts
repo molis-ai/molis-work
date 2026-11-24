@@ -8,12 +8,14 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { MolisWorkLocalHost, pluginInstallActions, projectDeletedHooksFor, readMcpToolPreference, taskGrantActionProvider } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, installHostUiText, pluginInstallActions, projectDeletedHooksFor, readMcpToolPreference, taskGrantActionProvider } from "@molis-ai/molis-work-app-local-host";
 import {
   LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionView, type ExactActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PluginAgentRunInput, PluginDefinition, PluginReadGroupDeclaration, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { SANDBOX_PACKAGE_FILES, type PluginAgentRunInput, type PluginDefinition, type PluginReadGroupDeclaration, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import { sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { agentHostCapabilities, type AgentActionClient, type AgentRunView, type AgentRuntimeAdapter, type AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import {
@@ -23,7 +25,7 @@ import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-co
 import { SCHEDULE_PLUGIN_ID, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { isLocalHostHttpError, readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { homePackage, mac, person as installer, ref } from "./fixtures/home-sandbox.js";
-import { PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
+import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 import { openTestHome, serveTestHost, type TestHostServer, type TestProject } from "./fixtures/test-home.js";
 
 const READER = "com.example.taskreader";
@@ -655,4 +657,53 @@ test("S-task-grant-subjects uninstalling a plugin takes its tasks' grants with i
   assert.ok((await subjects()).length > 0);
   await home.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/uninstall`, { keep_data: true });
   assert.deepEqual(await subjects(), [], "kept data or not, what its tasks could read goes with it");
+});
+
+test("agent.task_grants.list localizes read_groups title_text and description_text in the caller locale", mac, async t => {
+  installHostUiText();
+  const home = await openTestHome(t), project = await home.createProject("Localized task grants");
+  const client = home.host.actionClient(project.reference);
+  const publisher = newPublisher();
+  const locales = { default: "en", available: ["en", "zh"] } as const;
+  const bundle = signedPackage(publisher, (files) => {
+    const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
+    const nextContract: SandboxPluginContract = {
+      ...contract,
+      ui: { locales },
+      read_groups: [{
+        group_id: "notes",
+        title: "笔记",
+        title_text: { key: "notes.rg.title" },
+        description: "项目笔记列表",
+        description_text: { key: "notes.rg.desc" },
+        operations: ["notes.list"],
+      }],
+    };
+    files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(nextContract);
+    files["locales/en.json"] = JSON.stringify({ format_version: 1, owner: PACKAGE_PLUGIN_ID, locale: "en", messages: {
+      "notes.rg.title": "Notes",
+      "notes.rg.desc": "Read project notes",
+    } });
+    files["locales/zh.json"] = JSON.stringify({ format_version: 1, owner: PACKAGE_PLUGIN_ID, locale: "zh", messages: {
+      "notes.rg.title": "项目笔记",
+      "notes.rg.desc": "读取本项目里的笔记",
+    } });
+    return sandboxPluginManifest({
+      pluginId: PACKAGE_PLUGIN_ID,
+      version: "1.0.0",
+      name: "Example notes",
+      publisher: { publisher_id: "example", signature: publisher.identity },
+      presentation: false,
+      contract: nextContract,
+    });
+  });
+  const preview = await client.invoke(installer(project.project_id), ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
+  await client.invoke(installer(project.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Localized publisher" });
+  const baseCaller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: ["projects:settings"] };
+  const enListed = await client.invoke({ ...baseCaller, locale: "en" }, ref(agentTaskGrantActions.list), {}) as TaskGrantListResult;
+  const zhListed = await client.invoke({ ...baseCaller, locale: "zh" }, ref(agentTaskGrantActions.list), {}) as TaskGrantListResult;
+  const enGroup = enListed.categories.find(item => item.plugin_id === PACKAGE_PLUGIN_ID && item.group_id === "notes");
+  const zhGroup = zhListed.categories.find(item => item.plugin_id === PACKAGE_PLUGIN_ID && item.group_id === "notes");
+  assert.deepEqual([enGroup?.title, enGroup?.description], ["Notes", "Read project notes"]);
+  assert.deepEqual([zhGroup?.title, zhGroup?.description], ["项目笔记", "读取本项目里的笔记"]);
 });

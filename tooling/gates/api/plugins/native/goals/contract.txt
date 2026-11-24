@@ -1959,7 +1959,9 @@ export declare const goalEntryActions: {
                 version: number;
             };
             title: string;
+            title_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             description: string;
+            description_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             local_id?: string;
             kind: "query" | "judgment" | "operation" | "navigation";
             scope: "home" | "project";
@@ -2040,7 +2042,9 @@ export declare const goalEntryActions: {
             audiences: readonly ["user"];
             subject_kinds: string[];
             title: string;
+            title_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             description: string;
+            description_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             local_id?: string;
             kind: "query" | "judgment" | "operation" | "navigation";
             scope: "home" | "project";
@@ -2139,7 +2143,9 @@ export declare const goalEntryActions: {
                 version: number;
             };
             title: string;
+            title_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             description: string;
+            description_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             local_id?: string;
             kind: "query" | "judgment" | "operation" | "navigation";
             scope: "home" | "project";
@@ -2220,7 +2226,9 @@ export declare const goalEntryActions: {
             audiences: readonly ["user"];
             subject_kinds: string[];
             title: string;
+            title_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             description: string;
+            description_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             local_id?: string;
             kind: "query" | "judgment" | "operation" | "navigation";
             scope: "home" | "project";
@@ -2315,7 +2323,9 @@ export declare const goalEntryActions: {
             readonly audiences: readonly ["user"];
             readonly subject_kinds: string[];
             readonly title: string;
+            readonly title_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             readonly description: string;
+            readonly description_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             readonly local_id?: string;
             readonly kind: "query" | "judgment" | "operation" | "navigation";
             readonly scope: "home" | "project";
@@ -2403,7 +2413,9 @@ export declare const goalEntryActions: {
                 version: number;
             };
             readonly title: string;
+            readonly title_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             readonly description: string;
+            readonly description_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             readonly local_id?: string;
             readonly kind: "query" | "judgment" | "operation" | "navigation";
             readonly scope: "home" | "project";

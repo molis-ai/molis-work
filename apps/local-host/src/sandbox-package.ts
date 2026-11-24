@@ -83,6 +83,15 @@ function signedLocalePacks(manifest: PluginLocaleManifest, files: ReadonlyMap<st
   return pluginLocaleReader(manifest, read);
 }
 
+/** Include projected-permission `reason_text` refs from `contract.permission_reasons` in locale-pack verification. */
+function localeManifestWithContractReasons(manifest: PluginLocaleManifest, contract: SandboxPluginContract): PluginLocaleManifest {
+  const declared = new Set((manifest.permissions ?? []).map(row => row.permission));
+  const extra = Object.entries(contract.permission_reasons ?? {})
+    .filter(([permission]) => !declared.has(permission))
+    .map(([permission, reason_text]) => ({ permission, reason: permission, required: false, reason_text }));
+  return extra.length > 0 ? { ...manifest, permissions: [...(manifest.permissions ?? []), ...extra] } : manifest;
+}
+
 function promptsOf(value: unknown): SandboxPackagePrompt[] {
   if (!Array.isArray(value) || value.length > MAX_PROMPTS) refuse('prompts.json 要是不超过 ' + MAX_PROMPTS + ' 项的数组');
   const seen = new Set<string>();
@@ -137,7 +146,7 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   // and the icon of its page, a name of the platform's set. This reads the Manifest itself (the install path has, but this is exported and takes any payload),
   // so a name outside the set is refused here and `icon` below is one of the set.
   const agentBodies = readSandboxAgentBodies(manifest, files);
-  const localePacks = signedLocalePacks(manifest, files), fallback = localePacks?.pack(localePacks.default);
+  const localePacks = signedLocalePacks(localeManifestWithContractReasons(manifest, contract), files), fallback = localePacks?.pack(localePacks.default);
   for (const ref of sandboxUiTextRefs(contract, parts, usesPluginFieldWords(contract, fallback))) if (typeof ref !== 'string' && 'key' in ref && ref.key && !ref.key.startsWith('common.') && !Object.hasOwn(fallback?.messages ?? {}, ref.key))
     refuse('界面引用缺少主人默认词：' + ref.key);
   const named = manifest.ui.views?.[0]?.icon;
@@ -255,5 +264,5 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
   for (const id of [SANDBOX_INTEGRATION_OPERATIONS.health, SANDBOX_INTEGRATION_OPERATIONS.poll]) if (!contract.operations.some(item => item.id === id)) refuse('合同缺少操作 ' + id);
   if (Boolean(manifest.source_presentations?.length) !== contract.operations.some(item => item.id === SANDBOX_INTEGRATION_OPERATIONS.presentation)) refuse('来源展示声明与 integration.presentation 操作必须一同兑现');
   const permissions = validated('contract.json 的权限', () => effectsFromContract(contract));
-  return { manifest, localePacks: signedLocalePacks(manifest, files), contract, entrypoint, permissions };
+  return { manifest, localePacks: signedLocalePacks(localeManifestWithContractReasons(manifest, contract), files), contract, entrypoint, permissions };
 }

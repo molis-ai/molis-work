@@ -2,7 +2,7 @@ import type { ActionSchema } from "./action-schema.js";
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 export * from "./action-input.js";
-export { actionFieldInput, actionFieldLabel, actionFieldLabelSource, actionFieldOptions, actionFieldValue } from "./action-field-presentation.js";
+export { actionFieldInput, actionFieldLabel, actionFieldLabelKey, actionFieldLabelSource, actionFieldOptions, actionFieldValue, COMMON_ACTION_FIELD_KEYS, type ActionFieldTextReader } from "./action-field-presentation.js";
 export * from "./action-execution.js";
 export type { ActionDelegationTarget, ActionDelegationOperation, ActionDelegationDeclaration, ActionDelegationEffect, ActionDelegationExtraction } from "./action-delegation.js";
 import { ActionError, type ActionErrorKind } from "./action-errors.js";
@@ -10,7 +10,7 @@ export * from "./action-errors.js";
 import type { ActionExecutionPolicy } from "./action-execution.js";
 import type { ActionDelegationDeclaration } from "./action-delegation.js";
 import type { ActionDelegationSource, ActionPersonEntry } from "./action-source.js";
-import type { OwnedTextRef, UiLanguageTag } from "./ui-text.js";
+import type { OwnedTextRef, TextRef, UiLanguageTag } from "./ui-text.js";
 import type { ActionResultView } from "./action-result.js";
 import type { SubjectOfferChoice } from "./action-offers.js";
 export * from "./background-tasks.js";
@@ -281,7 +281,11 @@ export interface ActionExecutionContext extends ActionCallContext, ActionPersonE
 
 export interface ActionMetadata {
   readonly title: string;
+  /** Localized display title (single-line, no arguments/plurals, max 80 chars). Falls back to `title` when omitted. */
+  readonly title_text?: TextRef;
   readonly description: string;
+  /** Localized display description (single-line, no arguments/plurals, max 400 chars). Falls back to `description` when omitted. */
+  readonly description_text?: TextRef;
   /** Stable name inside this provider. Consumers resolve it within one plugin, then invoke the exact public reference. */
   readonly local_id?: string;
   readonly kind: "query" | "judgment" | "operation" | "navigation";
@@ -815,10 +819,10 @@ function pinnedOrigin(context: ActionCallContext, origin: ActionReference): Exac
 
 /** A Manifest declares every permission its actions use; these stay optional because the Host grants them per call. */
 export function actionPermissionDeclarations(definitions: readonly ActionDefinition[], reason: string,
-  declared: readonly { readonly permission: string }[] = []): { permission: string; required: boolean; reason: string }[] {
+  declared: readonly { readonly permission: string }[] = [], reasonText?: TextRef): { permission: string; required: boolean; reason: string; reason_text?: TextRef }[] {
   const known = new Set(declared.map(item => item.permission));
   return [...new Set(definitions.flatMap(definition => definition.action.permissions))].filter(permission => !known.has(permission))
-    .map(permission => ({ permission, required: false, reason }));
+    .map(permission => ({ permission, required: false, reason, ...(reasonText === undefined ? {} : { reason_text: reasonText }) }));
 }
 
 function object(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }

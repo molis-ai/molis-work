@@ -111,3 +111,77 @@ test("system capability pages derive unknown capabilities, bindings, lifecycle a
     await host.close(); await rm(home, { recursive: true, force: true });
   }
 });
+
+test("capabilities library renders localized action title_text, description_text and provider title_text with search and fallback", async () => {
+  // Real Host HTTP projection resolves ActionMetadata.title_text, description_text, and provider.title_text and falls back cleanly when omitted.
+  const home = await mkdtemp(join(tmpdir(), "capability-i18n-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, functions: { env: {} } });
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: "capabilities-i18n-test-control-token-0123456789" });
+  const localizedDef: ActionDefinition = {
+    capability_id: "sample.localized.read",
+    version: 1,
+    operation: "query",
+    action: {
+      title: "原始标题",
+      title_text: { literal: "Localized Action Title" },
+      description: "原始描述",
+      description_text: { literal: "Localized Action Description" },
+      kind: "query",
+      scope: "home",
+      audiences: ["user"],
+      permissions: [],
+      subject_kinds: [],
+      input_schema: { type: "object" },
+    },
+  };
+  const fallbackDef: ActionDefinition = {
+    capability_id: "sample.fallback.read",
+    version: 1,
+    operation: "query",
+    action: {
+      title: "回退能力标题",
+      description: "回退能力说明",
+      kind: "query",
+      scope: "home",
+      audiences: ["user"],
+      permissions: [],
+      subject_kinds: [],
+      input_schema: { type: "object" },
+    },
+  };
+  const stopLocalized = host.actionRegistry().registerProvider({
+    provider: { provider_id: "com.example.localized", title: "原始提供方", title_text: { literal: "Localized Provider Name" }, kind: "plugin", plugin_id: "com.example.localized" },
+    definitions: [localizedDef],
+    handlers: [{ ...localizedDef, handle: () => ({}) }],
+  });
+  const stopFallback = host.actionRegistry().registerProvider({
+    provider: { provider_id: "com.example.fallback", title: "回退提供方", kind: "plugin", plugin_id: "com.example.fallback" },
+    definitions: [fallbackDef],
+    handlers: [{ ...fallbackDef, handle: () => ({}) }],
+  });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object");
+    const base = `http://127.0.0.1:${address.port}`;
+    const detail = await (await fetch(`${base}/capabilities/library?action=sample.localized.read&version=1`, { headers: { cookie: "molis_work_locale=en" } })).text();
+    assert.match(detail, /Localized Action Title/);
+    assert.match(detail, /Localized Action Description/);
+    assert.match(detail, /Localized Provider Name/);
+
+    // Search filters against localized description and provider words as well as raw declarations.
+    const searched = await (await fetch(`${base}/capabilities/library?q=Localized+Provider`, { headers: { cookie: "molis_work_locale=en" } })).text();
+    assert.match(searched, /Localized Action Title/);
+    assert.doesNotMatch(searched, /回退能力标题/);
+
+    // Omitting *_text falls back cleanly to raw title, description, and provider title.
+    const fallback = await (await fetch(`${base}/capabilities/library?action=sample.fallback.read&version=1`, { headers: { cookie: "molis_work_locale=en" } })).text();
+    assert.match(fallback, /回退能力标题/);
+    assert.match(fallback, /回退能力说明/);
+    assert.match(fallback, /回退提供方/);
+  } finally {
+    stopLocalized();
+    stopFallback();
+    if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close(); await rm(home, { recursive: true, force: true });
+  }
+});

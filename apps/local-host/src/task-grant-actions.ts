@@ -4,14 +4,17 @@ import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-
 import {
   agentTaskGrantActions, type TaskGrantCategoryReference, type TaskGrantClearRequest, type TaskGrantListRequest, type TaskGrantListResult, type TaskGrantSetCategory, type TaskGrantSetRequest, type TaskGrantSubject,
 } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import { resolveManifestText, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { currentInstalledPluginHost } from "./installed-plugin-host.js";
 import { createMcpActionGrant } from "./mcp-action-grants.js";
 import { actionGrantKey, readMcpToolPreference, removeMcpActionGrants, replaceMcpClientGrants, type McpActionGrant, type McpToolPreference } from "./mcp-settings-store.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { categoryKey, namedCategory, offeredCategories, recordedCategories, subjectCategories, subjectRevision, taskReadableCatalog, type DeclarationOf, type ProviderDeclaration } from "./task-grant-categories.js";
 import { parseTaskGrantSubject, taskGrantSubjectId, TASK_GRANT_SUBJECT_PREFIX, type TaskGrantSubjectIdentity } from "./task-grant-subjects.js";
-import { directoryWordResolver, registeredInstallationText } from "./ui-text-provider.js";
+import { manifestWordResolver, registeredInstallationText } from "./ui-text-provider.js";
+import { activeLocale } from "./web-locale.js";
 
 /** The Host's own provider of the three task grant actions (`agent.task_grants.*`, services/agent-task-grants). */
 export const TASK_GRANTS_PROVIDER_ID = "system.task-grants";
@@ -31,7 +34,7 @@ export interface TaskGrantPorts {
   /** The project's catalog, Home actions included, as registered now. */
   catalog(caller: ActionCallContext, reference: LocalHostProjectReference): Promise<readonly ActionView[]>;
   currentCatalog?(caller: ActionCallContext, reference: LocalHostProjectReference): readonly Omit<ActionView, "availability">[];
-  declarations(reference: LocalHostProjectReference): Promise<TaskGrantDeclarations>;
+  declarations(reference: LocalHostProjectReference, locale?: string): Promise<TaskGrantDeclarations>;
 }
 
 type Host = Pick<MolisWorkLocalHost, "withProject" | "homePlugins" | "inspectActions" | "inspectActionMetadata" | "projects">;
@@ -42,17 +45,31 @@ type Host = Pick<MolisWorkLocalHost, "withProject" | "homePlugins" | "inspectAct
  * id, as the Plugin Runtime registers it. A plugin provider whose Manifest cannot be read offers nothing (`null`); a provider of the
  * Host's own has none to read (`{}`): it is one whole category if it declares `task_readable`, and offers nothing otherwise (`readableByTask`).
  */
-export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "homePlugins">, reference: LocalHostProjectReference): Promise<TaskGrantDeclarations> {
-  const { entries, current } = await host.withProject(reference, runtime => {
+export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "homePlugins">, reference: LocalHostProjectReference, requestedLocale?: string): Promise<TaskGrantDeclarations> {
+  const { entries, current, projectReaders } = await host.withProject(reference, runtime => {
     const current = () => installedPluginEntries(runtime.store.db);
-    return { entries: current(), current };
+    const installedHost = currentInstalledPluginHost(runtime.store, runtime.project_id);
+    const list = current();
+    const projectReaders = new Map<string, PluginLocaleReader | null>();
+    for (const { record } of list) {
+      projectReaders.set(
+        record.install_id,
+        record.publisher_trust === "host"
+          ? registeredInstallationText(record)
+          : installedHost?.releaseFor(record.plugin_id)?.packaged?.localePacks ?? null,
+      );
+    }
+    return { entries: list, current, projectReaders };
   });
   const home = host.homePlugins;
-  const provides = (record: PluginInstanceRecord, providerId: string) => record.install_id === providerId || record.plugin_id === providerId && record.publisher_trust === "host";
+  const provides = (record: PluginInstanceRecord, providerId: string) =>
+    record.install_id === providerId
+    || (record.plugin_id === providerId && record.publisher_trust === "host")
+    || (record.execution === "sandbox" && `plugin:${record.plugin_id}` === providerId);
   const manifestOf = (providerId: string, at = entries): { record: PluginInstanceRecord; manifest: PluginManifest | undefined } | undefined => {
     const own = at.find(({ record }) => provides(record, providerId));
     if (own) return own;
-    const record = home?.installation(providerId);
+    const record = home?.installation(providerId) ?? (providerId.startsWith("plugin:") ? home?.installation(providerId.slice("plugin:".length)) : undefined);
     return record && provides(record, providerId) ? { record, manifest: home?.manifest(record.plugin_id) } : undefined;
   };
   const homeEntries = (home?.installations() ?? []).map(record => ({ record, manifest: home?.manifest(record.plugin_id) }));
@@ -61,22 +78,50 @@ export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "ho
   const identity = (entry: ReturnType<typeof manifestOf>) => entry && JSON.stringify([entry.record.install_id, entry.record.installation_generation,
     entry.record.manifest_digest, entry.record.state, entry.manifest?.read_groups?.map(group => [group.group_id, group.actions])]);
   const declarations = new Map<string, ProviderDeclaration>();
+  const readerOf = (record: PluginInstanceRecord): PluginLocaleReader | null => {
+    if (projectReaders.has(record.install_id)) return projectReaders.get(record.install_id) ?? null;
+    return record.publisher_trust === "host"
+      ? registeredInstallationText(record)
+      : home?.packageStage(record.plugin_id)?.packaged?.localePacks ?? null;
+  };
   const declaration = (manifest: PluginManifest, record: PluginInstanceRecord): ProviderDeclaration => {
     const existing = declarations.get(record.install_id);
     if (existing) return existing;
-    const reader = registeredInstallationText(record);
-    const resolve = reader && directoryWordResolver(reader);
-    const result: ProviderDeclaration = { description: manifest.summary?.trim() ? manifest.summary : undefined, read_groups: manifest.read_groups,
-      display: resolve ? group => {
-        const owner = manifest.plugin_id;
-        if (!group) return {
-          title: manifest.name_text && "key" in manifest.name_text ? resolve({ ...manifest.name_text, owner }, manifest.name) : undefined,
-          description: manifest.summary_text && "key" in manifest.summary_text ? resolve({ ...manifest.summary_text, owner }, manifest.summary ?? "") : undefined,
-        };
-        const key = textKeyPrefix(owner) + ".read-group." + group.group_id;
-        return { title: resolve({ owner, key: key + ".title" }, group.title),
-          description: resolve({ owner, key: key + ".description" }, group.description) };
-      } : undefined };
+    const reader = readerOf(record);
+    const locale = requestedLocale ?? activeLocale();
+    const resolve = manifestWordResolver(reader, locale);
+    const hasPackKey = (key: string): boolean => {
+      if (!reader) return false;
+      const pack = (locale ? reader.pack(locale) : null) ?? reader.pack(reader.default);
+      return Boolean(pack && Object.hasOwn(pack.messages, key));
+    };
+    const owner = manifest.plugin_id;
+    const result: ProviderDeclaration = {
+      description: manifest.summary?.trim() ? manifest.summary : undefined,
+      read_groups: manifest.read_groups,
+      display: group => {
+        if (!group) {
+          return {
+            title: manifest.name_text !== undefined ? resolveManifestText(owner, manifest.name, manifest.name_text, resolve) : undefined,
+            description: manifest.summary_text !== undefined ? resolveManifestText(owner, manifest.summary ?? "", manifest.summary_text, resolve) : undefined,
+          };
+        }
+        const conventional = `${textKeyPrefix(owner)}.read-group.${group.group_id}`;
+        const title = group.title_text !== undefined
+          ? resolveManifestText(owner, group.title, group.title_text, resolve)
+          : resolve && hasPackKey(`${conventional}.title`)
+            ? resolve({ owner, key: `${conventional}.title` }, group.title)
+            : group.title;
+        const description = group.description_text !== undefined
+          ? resolveManifestText(owner, group.description, group.description_text, resolve)
+          : resolve && hasPackKey(`${conventional}.description`)
+            ? resolve({ owner, key: `${conventional}.description` }, group.description)
+            : group.description;
+        return { title, description };
+      },
+      actionTitle: view => resolveManifestText(owner, view.action.title, view.action.title_text, resolve),
+      separator: resolve ? resolve({ owner: "workbench", key: "common.list.separator" }, "、") : undefined,
+    };
     declarations.set(record.install_id, result);
     return result;
   };
@@ -120,7 +165,7 @@ export function taskReadableHost(host: Host & Pick<MolisWorkLocalHost, "actionCl
 export function taskGrantHostPorts(homeDirectory: string, host: Host): TaskGrantPorts {
   return { homeDirectory, project: projectId => host.projects().find(project => project.project_id === projectId),
     catalog: (caller, reference) => host.inspectActions(caller, reference), currentCatalog: (caller, reference) => host.inspectActionMetadata(caller, reference),
-    declarations: reference => taskGrantDeclarations(host, reference) };
+    declarations: (reference, locale) => taskGrantDeclarations(host, reference, locale) };
 }
 
 /** The catalog as a task of this project sees it registered, to read what it may be given; the actor is no subject of anyone's. */
@@ -134,9 +179,9 @@ interface Answering { projectId: string; reference: LocalHostProjectReference; o
  * action can be called is read as with them: a second read, only when some readable action needs a permission, so that an action is
  * `unavailable` because its provider cannot serve it, never because nothing is granted yet. The reads only describe; they run nothing.
  */
-async function readCatalog(ports: TaskGrantPorts, asked: Answering, signal: AbortSignal | undefined) {
+async function readCatalog(ports: TaskGrantPorts, asked: Answering, signal: AbortSignal | undefined, locale?: string) {
   const first = await ports.catalog(catalogCaller(asked.projectId, [], signal), asked.reference);
-  const declarations = await ports.declarations(asked.reference);
+  const declarations = await ports.declarations(asked.reference, locale);
   const permissions = [...new Set(taskReadableCatalog(first, declarations.of).flatMap(view => view.action.permissions))].sort();
   const catalog = permissions.length ? await ports.catalog(catalogCaller(asked.projectId, permissions, signal), asked.reference) : first;
   return { catalog, declarations };
@@ -215,7 +260,7 @@ async function setCategories(ports: TaskGrantPorts, caller: ActionExecutionConte
   asked = answering(ports, caller), original?: McpToolPreference): Promise<TaskGrantSubject> {
   const clientId = taskGrantSubjectId(asked.projectId, input.plugin_install_id, input.key);
   // Read now, at the call: what the catalog and the Manifests offer at this moment is what the categories record (§3.2).
-  const { catalog, declarations } = await readCatalog(ports, asked, caller.signal);
+  const { catalog, declarations } = await readCatalog(ports, asked, caller.signal, caller.locale);
   if (!declarations.installed(input.plugin_install_id)) throw new ActionError("actions.input_invalid", "这个项目里没有这个插件安装");
   const stale = (current: McpToolPreference) => {
     if (subjectRevision(current, clientId, catalog, declarations.of) !== input.expected_revision) throw new ActionError("actions.conflict", "这个任务的授权已在别处改过，请刷新后再改");
@@ -263,18 +308,18 @@ function taskGrantWriteControl(caller: ActionExecutionContext, ownerCurrent?: ()
 
 async function listSubjects(ports: TaskGrantPorts, caller: ActionExecutionContext, input: TaskGrantListRequest): Promise<TaskGrantListResult> {
   const asked = answering(ports, caller);
-  return taskGrantSubjects(ports, asked, await readMcpToolPreference(ports.homeDirectory), caller.signal, installationOf(asked, input.plugin_install_id, false), asked.ownInstall === undefined);
+  return taskGrantSubjects(ports, asked, await readMcpToolPreference(ports.homeDirectory), caller.signal, installationOf(asked, input.plugin_install_id, false), asked.ownInstall === undefined, caller.locale);
 }
 
 /** One settings projection can reuse the original grant file it already read. */
 export async function taskGrantSubjects(ports: TaskGrantPorts, asked: Pick<Answering, "projectId" | "reference">, preference: McpToolPreference,
-  signal?: AbortSignal, install?: string, offer = false): Promise<TaskGrantListResult> {
+  signal?: AbortSignal, install?: string, offer = false, locale?: string): Promise<TaskGrantListResult> {
   const subjects = [...new Set(preference.action_grants.map(grant => grant.client_id))].sort().flatMap(clientId => {
     const subject = parseTaskGrantSubject(clientId);
     return subject && subject.project_id === asked.projectId && (install === undefined || subject.plugin_install_id === install) ? [subject] : [];
   });
   if (!subjects.length && !offer) return { categories: [], subjects: [] };
-  const { catalog, declarations } = await readCatalog(ports, { ...asked, ownInstall: undefined }, signal);
+  const { catalog, declarations } = await readCatalog(ports, { ...asked, ownInstall: undefined }, signal, locale);
   // Only what `set` takes as a new category (R5): one with nothing callable now is not offered; a subject that holds it sees it
   // under its own state (`unavailable`), never as a switch that would be refused.
   const offered = offeredCategories(catalog, declarations.of).filter(entry => entry.members.some(view => view.availability.available));

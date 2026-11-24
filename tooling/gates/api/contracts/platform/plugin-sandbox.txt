@@ -440,6 +440,8 @@ export interface SandboxPluginContract {
     ui?: {
         readonly locales: PluginLocalesDeclaration;
     };
+    permission_reasons?: Readonly<Record<string, TextRef>>;
+    read_groups?: readonly SandboxReadGroupDeclaration[];
     help?: SandboxHelpDeclaration;
     operations: SandboxOperationContract[];
     presentation?: PresentationDeclaration;
@@ -481,6 +483,15 @@ export interface SandboxProtocolOperation extends SandboxOperationFields {
     background_job?: never;
     trusted_review?: never;
     start?: never;
+}
+
+export interface SandboxReadGroupDeclaration {
+    readonly group_id: string;
+    readonly title: string;
+    readonly title_text?: TextRef;
+    readonly description: string;
+    readonly description_text?: TextRef;
+    readonly operations: readonly string[];
 }
 
 export interface SandboxReadOperation extends SandboxOperationFields {
@@ -689,6 +700,8 @@ export type SandboxWorkerMessage = {
 interface SandboxOperationFields {
     id: string;
     description?: string;
+    title_text?: TextRef;
+    description_text?: TextRef;
     errors: Array<{
         code: string;
         description: string;

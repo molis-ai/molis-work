@@ -481,6 +481,7 @@ export interface SandboxIntegrationManifestInput {
     source_presentations?: NonNullable<PluginManifest['source_presentations']>;
     contract?: SandboxPluginContract;
     textDeclarations?: Pick<PluginManifest, 'name_text' | 'summary' | 'summary_text'>;
+    permissionReasons?: Readonly<Record<string, TextRef>>;
 }
 
 export interface SandboxManifestInput {
@@ -503,6 +504,7 @@ export interface SandboxManifestInput {
     };
     textDeclarations?: Pick<SandboxPackageManifest, 'plugin_id' | 'agent' | 'methods' | 'name_text' | 'summary' | 'summary_text'>;
     stageTitleText?: TextRef;
+    permissionReasons?: Readonly<Record<string, TextRef>>;
     homeDatabase?: Pick<HomePluginDatabaseDeclaration, 'version' | 'schema' | 'upgrades'>;
     projectDatabase?: Pick<PluginDatabaseDeclaration, 'version' | 'schema' | 'upgrades'>;
     connections?: PluginManifest['connections'];
@@ -692,7 +694,7 @@ export declare function actionCardView(card: ActionCard & {
     readonly run_id?: string | null;
     readonly from?: AssistantCard["from"];
     readonly source_object?: AssistantCard["source_object"];
-}): AssistantCard;
+}, reader?: ActionFieldTextReader): AssistantCard;
 
 export declare function actionErrorBody(error: unknown, options?: ActionErrorBodyOptions): ActionErrorBody;
 
@@ -1087,6 +1089,9 @@ export declare function sandboxIntegrationManifest(input: SandboxIntegrationMani
 export declare function sandboxLocaleProblems(contract: {
     readonly pluginId: string;
     readonly ui?: unknown;
+    readonly operations?: readonly unknown[];
+    readonly permission_reasons?: unknown;
+    readonly read_groups?: unknown;
 }): string[];
 
 export declare function sandboxOperationActions(input: {
@@ -1110,7 +1115,7 @@ export declare const sandboxPackageBuildId: (pluginId: string, signature: string
 
 export declare function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest;
 
-export declare function sandboxProjectedPermissions(manifest: Pick<PluginManifest, 'permissions'>, effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined): PermissionRow[];
+export declare function sandboxProjectedPermissions(manifest: Pick<PluginManifest, 'permissions'>, effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined, permissionReasons?: Readonly<Record<string, TextRef>>): PermissionRow[];
 
 export declare function sandboxPromptId(entryId: string): string;
 

@@ -16,6 +16,8 @@ import {
 } from "./source-declarations.js";
 import { workExecutorDeclarationProblems } from "./work-executor-declarations.js";
 import { actionDelegationDeclarationProblems } from "./action-delegation-declarations.js";
+import { textRefProblems } from "./ui/text-ref.js";
+import { DIRECTORY_WORD_LIMITS } from "./ui/directory-words.js";
 
 // The shape checks for a Manifest's `actions` and `action_scenes`, made when a Manifest is parsed, when a plugin registers its
 // actions with the Kernel, and when an author calls `defineAction`. Moved here from the contracts package (W3-03): they run code,
@@ -126,8 +128,23 @@ function isCompleteBody(a: unknown): a is ActionBody {
 
 // ---- references to other scenes, views and actions --------------------------------------------------------------------------
 
+function validActionTextRef(value: unknown, limit: number): boolean {
+  if (textRefProblems(value).length > 0) return false;
+  const ref = value as Record<string, unknown>;
+  if ("literal" in ref && typeof ref.literal === "string") {
+    return ref.literal.trim() !== "" && ref.literal === ref.literal.trim() && !/[\u0000-\u001f\u007f]/u.test(ref.literal) && [...ref.literal].length <= limit;
+  }
+  return ref.args === undefined && ref.fallback === undefined;
+}
+
 function referenceProblems(key: string, a: ActionBody): string[] {
   const problems: string[] = [];
+  if (a.title_text !== undefined && !validActionTextRef(a.title_text, DIRECTORY_WORD_LIMITS.actionTitle)) {
+    problems.push(`能力 ${key} 的 title_text 必须是无参一行文字引用（不超过 ${DIRECTORY_WORD_LIMITS.actionTitle} 字）`);
+  }
+  if (a.description_text !== undefined && !validActionTextRef(a.description_text, DIRECTORY_WORD_LIMITS.actionDescription)) {
+    problems.push(`能力 ${key} 的 description_text 必须是无参一行文字引用（不超过 ${DIRECTORY_WORD_LIMITS.actionDescription} 字）`);
+  }
   if (a.result_scene !== undefined && (!isRecord(a.result_scene) || !isId(a.result_scene.scene_id) || !isVersion(a.result_scene.version) || !isText(a.result_scene.provider_id))) {
     problems.push(`能力 ${key} 的结果场景引用无效`);
   }

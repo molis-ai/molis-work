@@ -352,6 +352,10 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     store.set(scoped("item-editor"), JSON.stringify({ mount: mountedFor, start: input.selectionStart, end: input.selectionEnd,
       direction: input.selectionDirection, top: input.scrollTop, recipient: !curId && talkDraft ? nextChar : undefined }));
   }
+  // A window can close without pagehide. Keep the person's last selection while this input owns it.
+  const rememberFocusedEditor = () => { if (document.activeElement === input && !returningEditor) rememberItemEditor(); };
+  input.addEventListener("select", rememberFocusedEditor);
+  input.addEventListener("scroll", rememberFocusedEditor);
   window.addEventListener("pagehide", rememberItemEditor);
   function onWorkItemChanged(event) {
     const detail = event?.detail || {};
@@ -376,6 +380,8 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   document.addEventListener("molis-work:language-changed", paintItemPill);
   function disposeWorkItemPill() {
     document.removeEventListener("molis-work:work-item-changed", onWorkItemChanged);
+    input.removeEventListener("select", rememberFocusedEditor);
+    input.removeEventListener("scroll", rememberFocusedEditor);
     window.removeEventListener("pagehide", rememberItemEditor);
     document.removeEventListener("molis-work:language-changed", paintItemPill);
     pillObserver.disconnect();

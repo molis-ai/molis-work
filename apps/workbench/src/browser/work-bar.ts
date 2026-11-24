@@ -717,8 +717,10 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     const found = [...events.values()].find(one => "owner" in front ? pageKey(one) === front.id : Boolean(front.id) && one.open?.kind !== "surface" && one.open?.surface === front.surface && one.open?.id === front.id);
     if (found) {
       const at = keyOf(found.subject);
+      // Restoring an item's highlighted row does not reopen its Assistant conversation.
+      const enteringItemPage = Boolean(activeItemId) && paged !== at;
       paged = at;
-      if (at !== focused && at !== pressing) {
+      if ((at !== focused || enteringItemPage) && at !== pressing) {
         list.show("info");
         host.openEvent(press(found), true);
       }

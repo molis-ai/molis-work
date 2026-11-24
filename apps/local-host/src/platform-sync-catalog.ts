@@ -1,7 +1,6 @@
 import { CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE } from "@molis-ai/molis-work-contracts/modules/characters";
 import { modulesProjectsContract } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { SyncSelection } from "@molis-ai/molis-work-module-sync-replication";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from './plugin-registry.js';
 
 /** Platform-owned stores retain their consent identities without impersonating Runtime plugins. */
 export interface PlatformSyncCollection {
@@ -15,19 +14,9 @@ export interface PlatformSyncCollection {
 export const projectApprovalSyncSelection = { plugin_id: "system.project-approvals", publisher_id: "molis",
   publisher_signature: "official-project-approvals-binding", collection_id: "approvals",
   schema_version: /* @version sync.collection.platform.approvals */ 1 } satisfies SyncSelection;
-// The trusted registry already declares the platform-owned attention section and its v1 wire identity.
-const attentionDeclarations = PLATFORM_PLUGIN_REGISTRATIONS.flatMap(({ manifest }) =>
-  (manifest.sync?.collections ?? [])
-    .filter(collection => collection.sections?.platform.includes('attention'))
-    .map(collection => ({ manifest, collection })));
-if (attentionDeclarations.length !== 1) throw new Error('Expected one platform attention collection');
-const { manifest, collection } = attentionDeclarations[0]!;
-export const attentionSyncManifest = manifest;
-export const attentionSyncSelection: SyncSelection = {
-  plugin_id: manifest.plugin_id, publisher_id: manifest.publisher.publisher_id,
-  publisher_signature: manifest.publisher.signature, collection_id: collection.id,
-  schema_version: collection.schema_version,
-};
+/** The person's waiting list ("等你") and its history: the platform's own project collection, whichever plugin shows it (44B). */
+export const attentionSyncSelection = { plugin_id: "system.attention", publisher_id: "molis", publisher_signature: "official-attention-binding",
+  collection_id: "attention", schema_version: /* @version sync.collection.platform.attention */ 1 } satisfies SyncSelection;
 function personalConfiguration(owner: 'appearance' | 'surfaces' | 'prompt-overrides' | 'blueprints' | 'judgment-rules',
   id: string, title: string, version: number): PlatformSyncCollection {
   return { owner, store: owner, title, selection: { plugin_id: 'system.' + owner, publisher_id: 'molis',

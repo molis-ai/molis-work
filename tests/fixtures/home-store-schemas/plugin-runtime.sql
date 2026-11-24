@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS plugin_consents (
   consent_id TEXT PRIMARY KEY,
   plugin_id TEXT NOT NULL,
   publisher_signature TEXT NOT NULL,
-  kind TEXT NOT NULL CHECK (kind IN ('always_on', 'default_wiring', 'default_group', 'local_directory', 'project_reach')),
+  kind TEXT NOT NULL CHECK (kind IN ('default_wiring', 'default_group', 'local_directory', 'project_reach')),
   subject TEXT NOT NULL,
   manifest_digest TEXT NOT NULL,
   granted_at TEXT NOT NULL,

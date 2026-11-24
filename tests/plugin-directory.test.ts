@@ -59,7 +59,7 @@ function view(directory?: readonly PluginDirectoryEntry[]): MolisWorkWebView {
     route_prefix: `/projects/${PROJECT}`,
     demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {},
     input_bindings: [], policy_bindings: [], events: [],
-    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
+    feed: { sources: [], feed_items: [], attention_entries: [], runs: [], out_rules: [] },
     enabled_plugins: [...EVERYTHING],
     ...(directory ? { plugin_directory: directory } : {}),
   } as MolisWorkWebView;

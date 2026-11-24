@@ -3934,8 +3934,8 @@ export interface PluginArtifactWriter {
 export interface PluginAttentionClient {
     list(): PluginAttentionEntryRecord[];
     get(entryId: string): PluginAttentionEntryRecord;
-    listInbox(): AttentionEntryRecord[];
-    getInbox(entryId: string): AttentionEntryRecord;
+    listWaiting(): AttentionEntryRecord[];
+    getWaiting(entryId: string): AttentionEntryRecord;
     findActiveForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord | null;
     findForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord[];
     events(entryId?: string): PluginAttentionEvent[];
@@ -3944,7 +3944,7 @@ export interface PluginAttentionClient {
 
 export interface PluginAttentionDeclaration {
     readonly subjects: readonly PluginAttentionSubjectDeclaration[];
-    readonly inbox?: readonly AttentionSubjectType[];
+    readonly waiting?: readonly AttentionSubjectType[];
 }
 
 export interface PluginAttentionEntryInput extends PluginAttentionSubjectReference {
@@ -7232,7 +7232,7 @@ export interface SyncSectionTable {
 export interface SyncSectionsDeclaration {
     readonly kind: string;
     readonly business: readonly SyncSectionDeclaration[];
-    readonly platform: readonly ('relation-edges' | 'attention')[];
+    readonly platform: readonly 'relation-edges'[];
     readonly journal: boolean;
     readonly journalIgnoredTypes?: readonly string[];
 }

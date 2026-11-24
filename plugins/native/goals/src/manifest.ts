@@ -96,7 +96,7 @@ export const goalsManifest: PluginManifest = {
     { kind: "goal.input", role: "input" }, { kind: "goal.input.proposal", role: "input", proposal: true },
     { kind: "goal.output", role: "output" }, { kind: "goal.output.proposal", role: "output", proposal: true },
   ] },
-  attention: { subjects: [{ type: "goal_decision", object_kind: "goal", reasons: [{ id: "goal_decision", attention: "needs_decision" }] }], inbox: ["goal_decision"] },
+  attention: { subjects: [{ type: "goal_decision", object_kind: "goal", reasons: [{ id: "goal_decision", attention: "needs_decision" }] }], waiting: ["goal_decision"] },
   databases: { project: GOALS_PROJECT_DATABASE },
   background: { jobs: [{ job_id: GOALS_CATCH_UP_JOB, reason: "项目打开时补开目标板，补齐待决定的提醒", permissions: ["storage:private", "attention:read", "attention:write", "journal:project"] }] },
   routes: GOALS_ROUTES,

@@ -79,7 +79,6 @@ export {
   resolveHomeDirectory,
   resolveHomeSecurityDirectory,
   HOME_SECURITY_DIRNAME,
-  HOME_LAYOUT_MOVES,
   readProductEnv,
   resolveProjectDatabaseFile,
   DEFAULT_HOME_DIRNAME,

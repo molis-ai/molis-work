@@ -27,7 +27,7 @@ export interface SyncSectionsDeclaration {
   readonly kind: string;
   readonly business: readonly SyncSectionDeclaration[];
   /** Narrow platform projections, admitted only with their corresponding service permissions. */
-  readonly platform: readonly ('relation-edges' | 'attention')[];
+  readonly platform: readonly 'relation-edges'[];
   readonly journal: boolean;
   /** Owner bootstrap events remain in snapshots but do not create an upload by themselves. */
   readonly journalIgnoredTypes?: readonly string[];

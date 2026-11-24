@@ -555,7 +555,7 @@ test("Feed draws only what its model holds: an inbox-bound entry keeps the stage
 test("A demo project whose Feed holds nothing is given no invented sources or messages (E-3)", () => {
   const built = buildFeedStageUiModel({ route_prefix: "/projects/demo", shown_plugins: ["feed"], primitives,
     context: { project: { project_id: "demo", display_name: "Demo" }, demo: true, cli_availability: {} },
-    data: { snapshot: { feed_items: [], sources: [], runs: [], out_rules: [], offset: 0, next_offset: null, facets: [] }, inbox_entries: [], source_catalog: [], source_messages: {}, source_presentations: {},
+    data: { snapshot: { feed_items: [], sources: [], runs: [], out_rules: [], offset: 0, next_offset: null, facets: [] }, attention_entries: [], source_catalog: [], source_messages: {}, source_presentations: {},
       connector_auth: { github: { bound: false }, gmail: { bound: false } } } });
   assert.deepEqual(built.entries, []);
   assert.deepEqual(built.sources, []);
@@ -664,7 +664,7 @@ test("RAC-2507 RAC-2512 Feed stage and reader keep instance data, current sugges
   assert.equal(stage.connector_auth.github.bound, true);
   const row = stage.snapshot.feed_items.find(row => row.item_id === item.item_id);
   assert.equal(row?.body, null); assert.deepEqual(row?.suggested_behavior_ids, [FEED_SAVE_OPTION_ID]);
-  assert.equal(stage.inbox_entries.some(entry => entry.subject_id === item.item_id), true);
+  assert.equal(stage.attention_entries.some(entry => entry.subject_id === item.item_id), true);
   const reader = await service.invoke(caller, feedQueryActions.reader, { object_id: item.item_id });
   assert.equal(reader.item.body, "Exact owner body"); assert.deepEqual(reader.item.suggested_behavior_ids, [FEED_SAVE_OPTION_ID]);
   assert.equal(reader.inbox_active, true); assert.equal(reader.promote_available, true);

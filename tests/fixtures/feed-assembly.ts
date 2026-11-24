@@ -82,7 +82,7 @@ export function createDemoFeedApplication(db: SqliteDatabase, options: DemoFeedA
     }, {
       eventSink: event => {
         appendEvent(event.project_id, "inbox_entry", event.entry_id, event.type, event.reason, event.payload, event.at);
-        if (event.type === "inbox_entry.created") inboxCreated({ project_id: event.project_id, entry_id: event.entry_id });
+        if (event.type === "attention_entry.created") inboxCreated({ project_id: event.project_id, entry_id: event.entry_id });
       },
     })),
     ledger: feedLedger(createContextLedger(db, { authorize: access => access.scope.kind === "personal" && access.actor_id === FEED_PLUGIN_ID })),

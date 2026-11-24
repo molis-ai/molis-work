@@ -161,9 +161,9 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `modules/artifacts` | `ARTIFACTS_SCHEMA_SQL` | `library_artifacts`、`library_artifact_versions`（成果库） |
 | | `PROCESS_ITEMS_SCHEMA_SQL` | `process_items`、`process_item_versions`（过程项，不进成果库） |
 | `packages/storage` | `LOCAL_JOURNAL_SCHEMA_SQL` | `events`、`idempotency_records`（共享日志，见 4.5） |
-| | `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | `feed_runtime_blobs` |
+| | `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | `opaque_blobs` |
 | `modules/context-ledger` | `CONTEXT_LEDGER_SCHEMA` | `context_edges` |
-| `modules/attention-resumption` | `ATTENTION_SCHEMA_SQL` | `inbox_entries`、`attention_events` |
+| `modules/attention-resumption` | `ATTENTION_SCHEMA_SQL` | `attention_entries`、`attention_events` |
 | `modules/projects` | `PROJECT_GUIDANCE_SCHEMA_SQL`（`src/project-guidance.ts`） | `guidance_entries`、`guidance_revisions`（项目长期说明及其修订，第 44 批从 Goals 接过来） |
 | `modules/acceptance` | `ACCEPTANCE_SCHEMA_SQL`（`src/schema.ts`） | `acceptance_subjects`、`acceptance_requirements`、`acceptance_deliveries`、`acceptance_checks`、`acceptance_decisions`（要求与认可，第 44 批从 Home 库搬进项目库），`acceptance_sync_resolving`（同步冲突选择时的临时标记） |
 | `packages/plugin-runtime` | `PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL` | `plugin_runtime_installs`（含 `publisher_trust` 列） |
@@ -229,7 +229,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 ### 6.1 Agent 运行时、凭据与证据
 
-`security/` 是平台的凭据与证据目录（`HOME_SECURITY_DIRNAME`，`packages/storage/src/adapters/local-security-paths.ts`）。它原来叫 `feed/`，名字是 Feed 的，内容却归平台（BL-b44-feed-home-dir-and-styles，用户 2026-11-21 定）：还留着 `feed/` 的 Home 在下次启动时由升级过程整目录改名一次（`HOME_LAYOUT_MOVES`，`apps/local-host/src/home-upgrade.ts`），一个 `rename`、不复制，所以不会多出一份密文；`feed/` 不是普通目录，或两个名字同时在，升级停下、什么都不动。Keychain 条目的服务名 `com.molis.work.feed.secretstore` 与证据正文的引用前缀 `molis-work-feed/` 是存下来的值，不随目录改名。用旧文件密钥（`aes-gcm-file`）的 Home 在改名前做的快照记的是 `home:feed/secrets.key`，新构建不认，不能用来恢复；真实 Home 用 Keychain，不受影响。
+`security/` 是平台的凭据与证据目录（`HOME_SECURITY_DIRNAME`，`packages/storage/src/adapters/local-security-paths.ts`）。它原来叫 `feed/`，名字是 Feed 的，内容却归平台（BL-b44-feed-home-dir-and-styles，用户 2026-11-21 定）；第 44B 批按 Clean v1 删掉了旧目录的搬家（没有用户，不留兼容），还留着 `feed/` 的 Home 不再被认。Keychain 条目的服务名 `com.molis.work.feed.secretstore` 是存下来的值，冻结不改；证据正文的引用前缀 44B 起是 `molis-work-evidence/`、密钥引用是 `system:evidence:content-key:v1`。
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
@@ -241,7 +241,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `git-operation-details.json`（Home 根目录） | `apps/local-host/src/workspace-git-actions.ts:52`：Git 操作审查产生的细节文字，按项目与操作 id 存；同一进程里的保存排队写 | JSON 文件 · 无版本 | 必备份，与 `agent-runtime/` 同一时点（`molis-git-review-*` 记录里只有回执） | purge |
 | `security/secrets.json` | `packages/storage/src/adapters/file-secret-store.ts:82`；`SecretStore` 的密文，含模型 API Key、连接器凭据、Feed 证据密钥（`apps/local-host/src/project-catalog.ts:179`、`apps/local-host/src/agent-connector-ports.ts:33`） | JSON，AES-256-GCM 封条 · 文件字段 `version` = 1（`packages/storage/src/adapters/file-secret-store.ts:60`），旧格式拒绝 | 密钥。主密钥在 macOS Keychain，不在 Home 里（第 8 节） | purge |
 | `security/secrets.key` | `packages/storage/src/adapters/file-secret-store.ts:134`：没有 Keychain、没有 `MOLIS_WORK_ENCRYPTION_KEY` 时的安装密钥文件 | 密钥文件 · 0600 | 密钥；真实 Home 里不存在，用的是 Keychain | purge |
-| `security/evidence/blobs/**` | `packages/storage/src/adapters/evidence-content.ts`：Feed 证据正文，引用形如 `molis-work-feed/sha256/<hash>` | 加密文件 · 无存储版本 | 必备份，读取要求 `secrets.json`、其原后端主密钥和唯一正文密钥引用 `system:feed:evidence-content-key:v1`；缺钥、错钥或损坏密文拒绝，不另写副本；缺钥时目录里还有正文，就保留旧文件、暂停新写入（Feed 同步先停下说明缺钥），目录为空才在首次保存时建钥（BL-1065）。已删除的恢复目录按未知数据拒绝快照；真实切换沿第 02 批重建窗口 | purge |
+| `security/evidence/blobs/**` | `packages/storage/src/adapters/evidence-content.ts`：Feed 证据正文，引用形如 `molis-work-evidence/sha256/<hash>` | 加密文件 · 无存储版本 | 必备份，读取要求 `secrets.json`、其原后端主密钥和唯一正文密钥引用 `system:evidence:content-key:v1`；缺钥、错钥或损坏密文拒绝，不另写副本；缺钥时目录里还有正文，就保留旧文件、暂停新写入（Feed 同步先停下说明缺钥），目录为空才在首次保存时建钥（BL-1065）。已删除的恢复目录按未知数据拒绝快照；真实切换沿第 02 批重建窗口 | purge |
 
 ### 6.2 文件型状态
 

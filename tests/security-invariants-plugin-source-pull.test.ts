@@ -141,7 +141,7 @@ test("S-97 RAC-1016: a call that loses its authority once a body is held writes 
   const entry = f.catalog[0]!, probe = await f.start("pullrevoke", [FEED]);
   f.feeds.set(entry.feed_url, rss("Revoke feed", [{ id: "revoke-1", title: "Revoke one", text: "A body whose caller loses its authority while it is held." }, { id: "revoke-2", title: "Revoke two", text: "A second body that must not follow." }]));
   // Each search record by its namespace and key, with the token every insert and update gives it anew.
-  const records = () => new Map((f.runtime.store.db.prepare("SELECT namespace, key, cas_token FROM feed_runtime_blobs").all() as Array<{ namespace: string; key: string; cas_token: string }>)
+  const records = () => new Map((f.runtime.store.db.prepare("SELECT namespace, key, cas_token FROM opaque_blobs").all() as Array<{ namespace: string; key: string; cas_token: string }>)
     .map(row => [`${row.namespace}\0${row.key}`, row.cas_token]));
   let revoked = false, recordsWhenRevoked = new Map<string, string>();
   const told: string[] = [];
@@ -183,7 +183,7 @@ test("S-97 RAC-1017: the service exists only for what the Manifest declares, and
   const options = { hold: async () => {} };
   // Outside every call: `start`, a timer.
   await assert.rejects(feedOnly.services().sourcePull!.pull!(request, options), code("plugin.source_pull_call_required"));
-  await assert.rejects(readOnly.services().sourcePull!.evidence!.read(`molis-work-feed/sha256/${"a".repeat(64)}`), code("plugin.source_pull_call_required"));
+  await assert.rejects(readOnly.services().sourcePull!.evidence!.read(`molis-work-evidence/sha256/${"a".repeat(64)}`), code("plugin.source_pull_call_required"));
   // The action must declare the permission, and be concurrent to pull; a read-only call does not pull or forget.
   await assert.rejects(feedOnly.in(services => services.sourcePull!.pull!(request, options), feedOnly.plain, []), code("plugin.source_pull_permission_undeclared"));
   await assert.rejects(feedOnly.in(services => services.sourcePull!.pull!(request, options), feedOnly.serial), code("plugin.source_pull_action_not_concurrent"));
@@ -272,8 +272,8 @@ test("S-97 RAC-1018: evidence is read back only by an installation that holds ev
   const probe = await f.start("pullevidence", [EVIDENCE]);
   const stored = evidence().write("# Evidence\n\nA body written for the read test.").contentRef;
   assert.equal(await probe.in(services => services.sourcePull!.evidence!.read(stored)), "# Evidence\n\nA body written for the read test.");
-  assert.equal(await probe.in(services => services.sourcePull!.evidence!.read(`molis-work-feed/sha256/${"0".repeat(64)}`)), null, "a reference with no body is null, not an error");
-  for (const bad of ["research:pkg", "../../etc/passwd", `molis-work-feed/sha256/${"A".repeat(64)}`, "", `molis-work-feed/sha256/${"a".repeat(63)}`, 5]) {
+  assert.equal(await probe.in(services => services.sourcePull!.evidence!.read(`molis-work-evidence/sha256/${"0".repeat(64)}`)), null, "a reference with no body is null, not an error");
+  for (const bad of ["research:pkg", "../../etc/passwd", `molis-work-evidence/sha256/${"A".repeat(64)}`, "", `molis-work-evidence/sha256/${"a".repeat(63)}`, 5]) {
     await assert.rejects(probe.in(services => services.sourcePull!.evidence!.read(bad as string)), code("plugin.source_pull_request_invalid"), String(bad));
   }
   await assert.rejects(probe.in(services => services.sourcePull!.evidence!.read(stored), probe.plain, []), code("plugin.source_pull_permission_undeclared"));
@@ -285,7 +285,7 @@ test("S-97 RAC-1019: forgetting search records takes the pull's own, in this pro
   const f = await fixture(t);
   const entry = f.catalog[0]!, probe = await f.start("pullforget", [FEED]);
   f.feeds.set(entry.feed_url, rss("Forget feed", [{ id: "forget-1", title: "Forget one", text: "A body whose search record is forgotten." }]));
-  const records = () => (f.runtime.store.db.prepare("SELECT key FROM feed_runtime_blobs WHERE namespace LIKE '%/data/operation/v1'").all() as Array<{ key: string }>).length;
+  const records = () => (f.runtime.store.db.prepare("SELECT key FROM opaque_blobs WHERE namespace LIKE '%/data/operation/v1'").all() as Array<{ key: string }>).length;
   const result = await probe.in(services => services.sourcePull!.pull!({ kind: "rss", operation_id: "pull-forget-1", source_name: entry.name, definition_id: entry.id }, { hold: async () => {} })) as { operation_id: string };
   assert.equal(records(), 1, "the pull left one search record in the project's library");
   assert.deepEqual(await probe.in(services => services.sourcePull!.forget!(["some-other-pull"])), { records_deleted: 0 });

@@ -14,7 +14,7 @@ test("W5-01-ALC-RES03: each opaque storage mutation checks current authority at 
   const store = createSearchOpaqueBlobStore(storage.db, () => { if (!authorized) throw new Error("revoked"); });
   const key = { namespace: "test", key: "operation" };
   const created = await store.createIfAbsent({ ...key, opaque: "original" }); assert.ok(created.created);
-  const before = storage.db.prepare("SELECT * FROM feed_runtime_blobs").all();
+  const before = storage.db.prepare("SELECT * FROM opaque_blobs").all();
   authorized = false;
   const expectedCasToken = created.casToken;
   await assert.rejects(store.createIfAbsent({ ...key, key: "new", opaque: "new" }), /revoked/);
@@ -22,12 +22,12 @@ test("W5-01-ALC-RES03: each opaque storage mutation checks current authority at 
   await assert.rejects(store.compareAndSetBefore({ ...key, opaque: "changed", expectedCasToken, deadlineUnixMs: Date.now() + 60_000 }), /revoked/);
   await assert.rejects(store.delete({ ...key, expectedCasToken }), /revoked/);
   assert.throws(() => store.collect({ namespace: key.namespace, discard: () => true }), /revoked/);
-  assert.deepEqual(storage.db.prepare("SELECT * FROM feed_runtime_blobs").all(), before);
+  assert.deepEqual(storage.db.prepare("SELECT * FROM opaque_blobs").all(), before);
   assert.equal((await store.read(key))?.opaque, "original", "read-only inspection remains available");
   authorized = true;
   // A caller-supplied predicate can revoke synchronously; check after it, immediately before DELETE.
   assert.throws(() => store.collect({ namespace: key.namespace, discard: () => { authorized = false; return true; } }), /revoked/);
-  assert.deepEqual(storage.db.prepare("SELECT * FROM feed_runtime_blobs").all(), before);
+  assert.deepEqual(storage.db.prepare("SELECT * FROM opaque_blobs").all(), before);
 });
 
 test("W5-01-ALC-RES03: search bootstrap secrets reject create and delete after authority is withdrawn", async () => {

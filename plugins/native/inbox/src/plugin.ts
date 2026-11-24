@@ -1,4 +1,3 @@
-import { syncBindings } from "./sync.js";
 import { randomUUID } from "node:crypto";
 import { ActionError, DOCUMENT_GENERATION_ROLES, WORKFLOW_CONTENT_VERSIONS, documentGenerationRoleOf, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type DocumentGenerationRole, type WorkflowItemRef, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionEntryRecord, AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
@@ -96,7 +95,7 @@ export function createInboxPlugin(): PluginDefinition {
     const recordOf = (entry: AttentionEntryRecord): InboxActionEntry => ({ ...entry, project_id: projectId });
     /** The entry as Attention has it; one that is not Inbox's to show is `inbox.entry_not_found`, the code the pages and callers know. */
     const entryOf = (entryId: string): AttentionEntryRecord => {
-      try { return attention.getInbox(entryId); }
+      try { return attention.getWaiting(entryId); }
       catch (error) { if (error instanceof ActionError && error.code === "attention.entry_not_found") throw inboxErrors.entry_not_found("Inbox Entry 不存在"); throw error; }
     };
     const bindings = new InboxSceneBindings({ get: (statement, ...parameters) => database.get(statement, parameters as never[]) ?? undefined,
@@ -150,14 +149,14 @@ export function createInboxPlugin(): PluginDefinition {
       },
     });
     const content: InboxContentPorts = {
-      entries: () => attention.listInbox(), entry: entryOf, briefs,
+      entries: () => attention.listWaiting(), entry: entryOf, briefs,
       readSubject: async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context,
       readFeed: id => ask<WorkflowPayload>(FEED.read, { item_id: id }),
       receiveFeed: input => ask<WorkflowItemRef>(FEED.receive, input),
       admit: itemId => ask<{ entry_id: string }>(FEED.admit, { item_id: itemId }),
     };
     const actions = [...createInboxActionHandlers({ ...sceneRuntime.ports, ...pages,
-      listEntries: () => attention.listInbox().map(recordOf),
+      listEntries: () => attention.listWaiting().map(recordOf),
       stageSubjects: (entries, caller) => {
         // N42–N56: lazily discover once per inbox.stage.read call when non-Feed subjects exist (0 discovers for Feed-only).
         let discovered: readonly ActionView[] | Promise<readonly ActionView[]> | undefined;
@@ -187,6 +186,6 @@ export function createInboxPlugin(): PluginDefinition {
       return handlers[route_id]!({ params: request.params, request: { method: request.method as "GET" | "POST", pathname: request.pathname,
         query: new URLSearchParams(request.query), body: request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {} } });
     } }));
-    return { kind: "app", sync: syncBindings(context), views: [inboxUiContribution], actions, routes, action_scenes: [sceneRuntime.handler] };
+    return { kind: "app", views: [inboxUiContribution], actions, routes, action_scenes: [sceneRuntime.handler] };
   } };
 }

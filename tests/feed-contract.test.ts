@@ -59,9 +59,9 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
       const snapshot = feed.snapshot(DEMO_PROJECT_ID);
       assert.equal(snapshot.feed_items.length, 3);
       assert.equal(snapshot.feed_items.every((item) => item.item_type === "feed"), true);
-      assert.equal(snapshot.inbox_entries.length, 2);
+      assert.equal(snapshot.attention_entries.length, 2);
       assert.equal("items" in snapshot, false);
-      assert.equal(snapshot.inbox_entries.every((entry) => !Object.hasOwn(entry, "body")), true);
+      assert.equal(snapshot.attention_entries.every((entry) => !Object.hasOwn(entry, "body")), true);
       // Feed has no Goal facts: a Goal's decision reminder is Goals' to open, so Feed refuses to.
       assert.throws(() => feed.createInboxEntry({
         projectId: DEMO_PROJECT_ID,
@@ -120,7 +120,7 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
         ingested[0]!.item.revision,
       );
       assert.equal(resolved.item_type, "feed");
-      assert.equal(feed.snapshot(DEMO_PROJECT_ID).inbox_entries.find(
+      assert.equal(feed.snapshot(DEMO_PROJECT_ID).attention_entries.find(
         (entry) => entry.subject_id === resolved.item_id,
       )?.status, "done");
     } finally {

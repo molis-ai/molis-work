@@ -837,8 +837,8 @@
   },
   {
     "file": "apps/local-host/src/search-intelligence-client.ts",
-    "name": "feed-intent-v1",
-    "values": { "feed-intent-v1": 1 },
+    "name": "search-store-v1",
+    "values": { "search-store-v1": 1 },
     "reason": "搜索 SDK 的键命名空间，写进存储的键里，改它就找不到已有记录，不是当前版本号。"
   },
   {
@@ -897,8 +897,8 @@
   },
   {
     "file": "packages/storage/src/adapters/search-storage.ts",
-    "name": "molis-work-feed-cas-v1.X",
-    "values": { "molis-work-feed-cas-v1.X": 1 },
+    "name": "molis-work-opaque-cas-v1.X",
+    "values": { "molis-work-opaque-cas-v1.X": 1 },
     "reason": "乐观并发令牌的固定前缀，后面是随机数；令牌只按整串相等比较，不解析版本。"
   },
   {

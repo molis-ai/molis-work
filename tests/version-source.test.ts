@@ -763,7 +763,7 @@ test("VG-20 what the exceptions used to hold moves with the table, and no except
     ["type.connector.driver.catalog", catalog, "/* @version type.connector.driver.catalog */ 2"],
     ["type.signal.adapter.catalog", catalog, "/* @version type.signal.adapter.catalog */ 2"],
     ["type.molis-work-local-payload", "packages/storage/src/adapters/local-payload-protection.ts", '"molis-work-local-payload-v{version}" */ "molis-work-local-payload-v2"'],
-    ["type.molis-work-feed-aead", "packages/storage/src/adapters/search-storage.ts", '"molis-work-feed-aead-v{version}" */ "molis-work-feed-aead-v2"'],
+    ["type.molis-work-opaque-aead", "packages/storage/src/adapters/search-storage.ts", '"molis-work-opaque-aead-v{version}" */ "molis-work-opaque-aead-v2"'],
   ];
   const real = versionSource(repository);
   const raised = { ...real, versions: { ...real.versions, ...Object.fromEntries(moved.map(([key]) => [key, 2])) } };

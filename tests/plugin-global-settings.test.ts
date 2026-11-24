@@ -400,7 +400,7 @@ for (const declared of [true, false]) {
           cursor: 0, goals: [], relations: [], goal_tree_proposals: [] },
         project: { project_id: "p1", display_name: "Settings" }, projects: [{ project_id: "p1", display_name: "Settings" }],
         route_prefix: "/projects/p1", demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {},
-        input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
+        input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], attention_entries: [], runs: [], out_rules: [] },
         enabled_plugins: ["shelf"],
       });
       const tags = html.match(/<[^>]*data-settings-section="[^"]+"[^>]*>/g) ?? [];

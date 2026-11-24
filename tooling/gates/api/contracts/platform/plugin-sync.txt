@@ -205,7 +205,7 @@ export interface SyncSectionTable {
 export interface SyncSectionsDeclaration {
     readonly kind: string;
     readonly business: readonly SyncSectionDeclaration[];
-    readonly platform: readonly ('relation-edges' | 'attention')[];
+    readonly platform: readonly 'relation-edges'[];
     readonly journal: boolean;
     readonly journalIgnoredTypes?: readonly string[];
 }

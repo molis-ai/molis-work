@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { assertNoPendingArtifactRows, recoverHomeLibraryTransactions } from "./home-library-recovery.js";
 import { recoverInstalledHomeUpgrade } from "./installed-home-upgrade-recovery.js";
-import { closeSync, fsyncSync, lstatSync, openSync, realpathSync, renameSync, rmSync } from "node:fs";
+import { lstatSync, realpathSync, rmSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import {
   acquireStorageOwner, assertNoPendingHomeRestore, entryAt, assertStorageOwner, assertUpgradeDiskSpace, captureUpgradeFileSnapshot, captureUpgradeSnapshot, onStorageOwnerRelease, onUpgradePending,
   pruneUpgradeSnapshots, readStorageSpace, readUpgradeStoreSpace, readUpgradeStoreVersion, readVersionedFileVersion, restoreUpgradeSnapshot, runSqliteUpgrade, upgradeSnapshotListed, verifyUpgradeSnapshot, upgradeFailedRefusal, upgradeNoSpaceRefusal, upgradeStepsProblem,
-  upgradeVersionedFile, USER_VERSION_ACCESS, versionedFileStepsProblem, HOME_LAYOUT_MOVES,
+  upgradeVersionedFile, USER_VERSION_ACCESS, versionedFileStepsProblem,
   type StorageOwner, type StorageSpace,
 } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -372,28 +372,6 @@ function runPlanned(round: Round, planned: readonly UpgradeUnit[]): void {
  */
 export const REMOVED_HOME_STORES: readonly string[] = [];
 
-/** The renames of `HOME_LAYOUT_MOVES` this Home still has to take: its old directory is there. */
-function pendingLayoutMoves(root: string): ReadonlyArray<{ readonly from: string; readonly to: string }> {
-  return HOME_LAYOUT_MOVES.filter(({ from }) => lstatSync(join(root, from), { throwIfNoEntry: false }) !== undefined);
-}
-
-/**
- * A directory the platform renamed (`HOME_LAYOUT_MOVES`, BL-b44-feed-home-dir-and-styles): a Home that still has the old name gets it
- * renamed once, before the stores are listed, so each store is then looked at in its current place. It is one `rename` inside the Home,
- * so nothing is copied (no second copy of the secrets lies about) and a failure leaves the old directory as it was. An old name that is
- * not a plain directory, or a Home that has both names, is not guessed at: the round stops and nothing is moved.
- */
-function takeLayoutMoves(root: string): void {
-  for (const { from, to } of pendingLayoutMoves(root)) {
-    const old = lstatSync(join(root, from));
-    if (!old.isDirectory() || old.isSymbolicLink()) throw upgradeFailedRefusal(from, "layout_refused", `这个 Home 的 ${from} 不是普通目录，没有把它改名为 ${to}，也没有改动任何库。`);
-    if (lstatSync(join(root, to), { throwIfNoEntry: false })) throw upgradeFailedRefusal(to, "layout_conflict", `这个 Home 同时有 ${from} 和 ${to}，不知道该留哪个，没有改名，也没有改动任何库。`);
-    renameSync(join(root, from), join(root, to));
-    const directory = openSync(root, "r");
-    try { fsyncSync(directory); } finally { closeSync(directory); }
-  }
-}
-
 /**
  * The upgrade process (upgrade-chain-design §2.2, §3, §6). The caller holds this Home's lock and has opened no business store. A stamp that
  * matches costs one small file and opens nothing; otherwise every store's version is read, the older ones are upgraded one at a time, and a
@@ -417,7 +395,6 @@ export function ensureHomeUpgraded(home: string, owner: StorageOwner, options: {
   const previous = readUpgradeLedger(root);
   removeUpgradeTemporaries(root);
   for (const path of REMOVED_HOME_STORES) rmSync(join(root, path), { recursive: true, force: true });
-  takeLayoutMoves(root);
   const round: Round = { root, lockDirectory, owner, identity, fingerprint, expectedSpace: options.expectedSpace, stores: listStores(descriptors, root), ledger: undefined, waiting: [], onUnitDone: options.onUnitDone };
   const resumed = finishInterrupted(round, previous);
   if (round.ledger?.units.some(unfinishedUnit)) return { ran: true, stamped: false, units: round.ledger.units };
@@ -489,7 +466,7 @@ export function pendingUpgradeUnits(home: string): number {
     for (const store of stores.values()) {
       if (lookAt(root, store, false).kind === "older" && !settledFailure(root, stores, store, earlier.get(store.relative_path), false)) older += 1;
     }
-    return older + pendingLayoutMoves(root).length + installed;
+    return older + installed;
   } catch { return 1; }
 }
 

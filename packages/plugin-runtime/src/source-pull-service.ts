@@ -19,7 +19,7 @@ const errors = defineErrorCodes("plugin", {
 });
 
 const OPERATION_ID = /^[A-Za-z0-9._:-]{1,200}$/u;
-const EVIDENCE_REF = /^molis-work-feed\/sha256\/[0-9a-f]{64}$/u;
+const EVIDENCE_REF = /^molis-work-evidence\/sha256\/[0-9a-f]{64}$/u;
 /** The fields each kind of request may carry, and no others: where a pull goes is the platform's to decide, never an argument. */
 const REQUEST_FIELDS: Readonly<Record<SourcePullKind, readonly string[]>> = Object.freeze({
   rss: ["kind", "operation_id", "source_name", "definition_id", "cursor"],

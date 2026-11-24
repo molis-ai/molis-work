@@ -86,7 +86,7 @@ function emptyView(): MolisWorkWebView {
     feed: {
       sources: [],
       feed_items: [],
-      inbox_entries: [],
+      attention_entries: [],
       runs: [],
       out_rules: [],
     },

@@ -50,6 +50,11 @@
     "diff.waiting.choose-input": "先选一组对比内容：两个已固定的文件版本、Coding 准备的改动，或 Git 未提交改动",
     "diff.waiting.choose-snapshots": "请先选择两个已固定的文件版本进行对比",
     "diff.waiting.git-change-set": "在 Git 里选一处改动，这里就会显示",
-    "diff.waiting.snapshots": "先在侧栏「资料」阅读器里分别固定「对比前」和「对比后」，这里就会显示两者的差异"
+    "diff.waiting.snapshots": "先在侧栏「资料」阅读器里分别固定「对比前」和「对比后」，这里就会显示两者的差异",
+    "diff.cap.compare.description": "逐行比较你提供的两段文本并保留原有换行符；如果差异过大超出计算预算，会返回完整删除与新增结果。只读，不修改文件也不保存记录。",
+    "diff.cap.compare.title": "比较两段文本",
+    "diff.cap.state.description": "读取明确指定的固定文件版本或当前已选对比组，完整保留版本号、来源和失效状态；只读，不会读取磁盘上的当前文件。",
+    "diff.cap.state.title": "读取固定差异",
+    "diff.permission.artifact-read.reason": "读取用于对比的固定文件版本与变更"
   }
 }

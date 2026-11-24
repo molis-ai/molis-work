@@ -50,6 +50,11 @@
     "diff.waiting.choose-input": "Choose what to compare: two pinned file versions, a Coding change, or unstaged Git changes",
     "diff.waiting.choose-snapshots": "Choose two pinned file versions to compare",
     "diff.waiting.git-change-set": "Choose a change in Git and it shows here",
-    "diff.waiting.snapshots": "Pin a “Before” and “After” version in the Materials reader first to view their differences here"
+    "diff.waiting.snapshots": "Pin a “Before” and “After” version in the Materials reader first to view their differences here",
+    "diff.cap.compare.description": "Compare two provided texts line by line while preserving original line endings. If the diff exceeds the calculation budget, returns full deletions and additions. Read-only — doesn’t edit files or save artifacts.",
+    "diff.cap.compare.title": "Compare two texts",
+    "diff.cap.state.description": "Read explicitly specified pinned versions or the currently selected comparison inputs while preserving version numbers, provenance, and staleness status. Read-only — never reads current files from disk.",
+    "diff.cap.state.title": "Read pinned diff",
+    "diff.permission.artifact-read.reason": "Read pinned file versions and change sets for side-by-side comparison"
   }
 }

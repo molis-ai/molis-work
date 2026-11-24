@@ -50,6 +50,11 @@
     "diff.waiting.choose-input": "比較する対象を選んでください：固定した 2 つのファイル版、Coding の変更、または Git の未コミット変更",
     "diff.waiting.choose-snapshots": "比較する固定ファイル版を 2 つ選んでください",
     "diff.waiting.git-change-set": "Git で変更を選ぶと、ここに表示されます",
-    "diff.waiting.snapshots": "先にサイドバーの「資料」リーダーで「比較前」と「比較後」をそれぞれ固定すると、差分がここに表示されます"
+    "diff.waiting.snapshots": "先にサイドバーの「資料」リーダーで「比較前」と「比較後」をそれぞれ固定すると、差分がここに表示されます",
+    "diff.cap.compare.description": "指定された 2 つのテキストを元の改行コードを保ったまま行単位で比較します。計算上限を超える場合は全削除と全追加として返します。読み取り専用で、ファイルの変更や記録の保存は行いません。",
+    "diff.cap.compare.title": "2 つのテキストを比較",
+    "diff.cap.state.description": "明示的に指定された固定版または現在選択中の比較対象を読み取り、バージョン・出典・失効状態をそのまま保持します。読み取り専用で、ディスク上の現在のファイルは読み取りません。",
+    "diff.cap.state.title": "固定差分を読み取る",
+    "diff.permission.artifact-read.reason": "比較対象となる固定ファイル版と変更セットを読み取り専用で取得します。"
   }
 }

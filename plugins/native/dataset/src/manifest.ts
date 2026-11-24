@@ -8,6 +8,7 @@ import {
 } from "./contract.js";
 import { DATASET_UI_CONTRIBUTION_ID } from "./ui.js";
 import { datasetActions, datasetContentActions, DATASET_ACTION_PERMISSIONS } from "./actions.js";
+import { localizeAction, localizePermission } from "./action-text.js";
 import { DATASET_DATABASE } from "./database.js";
 
 export { DATASET_PLUGIN_ID, DATASET_PROJECT_PLUGIN_ID };
@@ -32,8 +33,8 @@ export const datasetManifest: PluginManifest = {
     { permission: "artifact:read", required: true, reason: "给下一版编号、恢复没存完的固定版本时读回自己固定的数据表" },
     ...DATASET_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write" && permission !== "artifact:read")
       .map(permission => ({ permission, required: permission !== "model:invoke", reason: "数据表动作使用的读取、编辑或显式模型调用" })),
-  ],
-  actions: [...Object.values(datasetActions), ...Object.values(datasetContentActions)],
+  ].map(localizePermission),
+  actions: [...Object.values(datasetActions), ...Object.values(datasetContentActions)].map(localizeAction),
   databases: { home: DATASET_DATABASE },
   routes: [
     { route_id: "dataset.list", method: "GET", path: "/datasets" },

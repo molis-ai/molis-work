@@ -1,4 +1,5 @@
 import { imagesActions, IMAGES_ACTION_PERMISSIONS } from "./actions.js";
+import { localizeAction, localizePermission } from "./action-text.js";
 import { IMAGES_FILES_WRITE, IMAGES_OWNER_FILES } from "./owner-files.js";
 import type { PluginManifest, PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { IMAGES_PLUGIN_ID } from "./contract.js";
@@ -31,7 +32,7 @@ export const imagesManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-images-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  actions: Object.values(imagesActions),
+  actions: Object.values(imagesActions).map(localizeAction),
   runtime: { scope: "home" },
   databases: { home: IMAGES_DATABASE },
   owner_files: IMAGES_OWNER_FILES,
@@ -42,8 +43,8 @@ export const imagesManifest: PluginManifest = {
     ...IMAGES_ACTION_PERMISSIONS.map(permission => permission === IMAGES_FILES_WRITE
       ? { permission, required: true, reason: "保存和删除本机生成的图片文件" } : { permission, required: false, reason: "图片动作" }),
     { permission: "storage:private", required: true, reason: "保存生图配置、项目生成记录和本机图片" },
-    { permission: "actions:delegate", required: false, reason: "按文件收纳角色将选中的图片保存到已装插件" },
-  ],
+    { permission: "actions:delegate", required: false, reason: "将选中的图片保存到项目里支持接收文件的其他插件" },
+  ].map(localizePermission),
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
   ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },

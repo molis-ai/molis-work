@@ -6,17 +6,12 @@
  * start refusing designs that used to pass. What it cannot prove: what a changed Skill or prompt does to the model's
  * next answer. The answers are fixed, so that needs a real model (smoke.mts).
  *
- * The checks mirror `AgentBuilderWorkflow.acceptDesign` and the propose stage in
- * horizontal/plugin-studio/src/agent-workflow.ts; tests/studio-replay.test.ts drives the real workflow with the
- * same answers and fails if the two ever disagree. That test covers the committed corpus and the run-record shapes its own
- * scratch Home builds, not an arbitrary Home: the copy of the workflow's checks below (`proposeAnswer`, the rework loop in
- * `designAnswer`) can drift from the original for a corpus nobody committed, until the workflow's pure checks are pulled out
- * of plugin-builder so that both call one function (docs/platform/STUDIO-SKILL-REPLAY.md §2.1).
- *
- * Entries rebuilt from a run record (`shownCatalogOnly`) know only the actions the designer was shown; see `CATALOG_MISS`.
+ * The host and replay share the proposal, expansion, validation and rework rules. The replay labels
+ * the stage that refused an answer. A stored answer has no live release history or current UI languages;
+ * the workflow tests and the smoke cover those host-specific paths.
  */
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { BUILDER_PROMPTS, expandDesign, normalizeProposal, parseModelJson, validateAgentDesign, type CatalogEntry } from '@molis-ai/molis-work-plugin-studio';
+import { BUILDER_PROMPTS, expandDesign, readStudioProposals, readStudioRework, parseModelJson, validateAgentDesign, type CatalogEntry } from '@molis-ai/molis-work-plugin-studio';
 import { entryDigest, type DesignBase, type ReplayEntry } from './corpus.mjs';
 
 export interface ReplayEnv { validateContract(contract: unknown): void }
@@ -70,38 +65,17 @@ class Stopped extends Error { constructor(readonly stage: ReplayStage, message: 
 const at = <T,>(stage: ReplayStage, work: () => T): T => { try { return work(); } catch (error) { throw error instanceof Stopped ? error : new Stopped(stage, error instanceof Error ? error.message : String(error)); } };
 
 function proposeAnswer(entry: ReplayEntry): Pick<ReplayResult, 'outcome' | 'notes' | 'shape'> {
-  const value = at('parse', () => parseModelJson(entry.answer)) as Record<string, unknown>;
-  return at('propose', () => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('答案不是 JSON 对象');
-    if (Array.isArray(value.questions) && value.questions.length) {
-      if (entry.clarificationAllowed === false || value.questions.length > 3 || value.questions.some(question => typeof question !== 'string' || !question.trim() || question.length > 1000))
-        throw new Error('已经澄清过一次，这次必须直接给出方案，把仍不确定的地方写成假设放进 summary');
-      return { outcome: 'questions' as const, notes: 0, shape: `${value.questions.length} questions` };
-    }
-    const list = Array.isArray(value.candidates) ? value.candidates : Array.isArray(value.proposals) ? value.proposals : null;
-    if (!list || list.length < 2 || list.length > 3) throw new Error('初次要给 2–3 个在页面结构或关键行为上有实质差异的方案（candidates）');
-    const dropped: string[] = [], ids = entry.capabilities.map(item => item.id);
-    const proposals = list.map((item, index) => normalizeProposal(item, index, PLUGIN_ID, dropped));
-    if (new Set(proposals.map(item => item.id)).size !== proposals.length) throw new Error('方案标识重复');
-    for (const proposal of proposals) for (const capability of proposal.effects.capabilities ?? [])
-      if (!ids.includes(capability)) throw new Error(`方案 ${proposal.id} 用了能力目录里没有的「${capability}」；目录为空时只能用插件自己的存储`);
-    return { outcome: 'proposals' as const, notes: dropped.length, shape: `${proposals.length} proposals` };
-  });
+  const value = at('parse', () => parseModelJson(entry.answer));
+  const result = at('propose', () => readStudioProposals(value, PLUGIN_ID, entry.capabilities.map(item => item.id), entry.clarificationAllowed !== false));
+  if (result.kind === 'questions') return { outcome: 'questions', notes: 0, shape: `${result.questions.length} questions` };
+  return { outcome: 'proposals', notes: result.dropped.length, shape: `${result.proposals.length} proposals` };
 }
 
 function designAnswer(entry: ReplayEntry, env: ReplayEnv): Pick<ReplayResult, 'outcome' | 'notes' | 'shape'> {
   const value = at('parse', () => parseModelJson(entry.answer)), dropped: string[] = [], catalog = asCatalog(entry), base = entry.base as DesignBase;
   const design = at('expand', () => expandDesign(value, base, PLUGIN_ID, REVISION, dropped, catalog));
   const valid = at('validate', () => validateAgentDesign(design, catalog.map(item => item.id), entry.resources, contract => env.validateContract(contract)));
-  at('rework', () => {
-    const listed = value && typeof value === 'object' && !Array.isArray(value) ? (value as { rework?: unknown }).rework : undefined;
-    for (const item of Array.isArray(listed) ? listed : []) {
-      const row = item as { op?: unknown; operation?: unknown; why?: unknown; change?: unknown };
-      const op = String(row?.op ?? row?.operation ?? ''), why = String(row?.why ?? row?.change ?? '').trim();
-      if (!valid.contract.operations.some(operation => operation.id === op)) throw new Error('rework 引用了不存在的操作：' + op);
-      if (!why || why.length > 600) throw new Error('rework 的 why 写清要在代码里做的改变（600 字以内）：' + op);
-    }
-  });
+  at('rework', () => readStudioRework(value, valid.contract.operations));
   return { outcome: 'design', notes: dropped.length, shape: `${valid.contract.operations.length} operations, ${valid.parts.length} parts, ${valid.acceptance.length} acceptance cases` };
 }
 

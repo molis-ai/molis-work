@@ -6,7 +6,7 @@
 
 | 概念 | 含义 | 谁负责 |
 | --- | --- | --- |
-| 位置 | 对象存在哪里：**个人空间**或**某个项目**，恰好一个 | 插件的分区（`project_id`；个人空间是保留分区 `personal`）；只存个人的插件（Shelf、Cognia、Jelly）永远在个人空间 |
+| 位置 | 对象存在哪里：**个人空间**或**某个项目**，恰好一个 | 插件的分区（`project_id`；个人空间是保留分区 `personal`）；只存个人的插件（Cognia、Jelly）永远在个人空间 |
 | 访问范围 | 除本人外哪些工作环境能读 | 由位置决定：个人空间分区只有你；Home 级插件的内容是你的，但各项目里获授权使用该插件的助理和工作流能读（界面写“只有你和获授权的助理”）；项目里是该项目的助理、Runtime、工作流和授权客户端 |
 | 关联 | 和哪项工作有关（用于项目、Goal 资料、来自哪里） | 系统放置服务（关系写在它自己的 Context Ledger）；Goal 资料由 Goals 的输入绑定记 |
 | 入口 | 从哪里能打开 | 插件目录、项目首页“关联资料”、Goal“资料”、搜索、完成提示；入口不代表归属 |
@@ -35,7 +35,7 @@
 
    ```html
    <span data-placement-slot data-placement-saved="off"></span>   <!-- 自己已显示保存状态时加 saved=off -->
-   <span data-placement-slot data-placement-scope="home"></span>  <!-- Home 级插件（Shelf、Cognia、Jelly） -->
+   <span data-placement-slot data-placement-scope="home"></span>  <!-- Home 级插件（Cognia、Jelly） -->
    <p data-placement-target></p>                                  <!-- 新建入口旁：工作台填成“新建内容存到 …” -->
    ```
 
@@ -60,5 +60,5 @@
 
 ## 样例与验证
 
-- 样例：Pages（导出 Markdown/网页/打印）、PPT（放映、导出 PPTX、接收大纲）、问卷（收集、填写页文件、导入答卷、存成数据表）、数据表（接收 CSV）、灵光（转成文档、建成 Goal）、Shelf（用于本项目 vs 存一份固定版本）。
+- 样例：Pages（导出 Markdown/网页/打印）、PPT（放映、导出 PPTX、接收大纲）、问卷（收集、填写页文件、导入答卷、存成数据表）、数据表（接收 CSV）、灵光（转成文档、建成 Goal）。平台置物架也区分「用于本项目」与「存一份固定版本」。
 - 测试：`tests/work-placement.test.ts`。

@@ -14,7 +14,7 @@ async function until(check: () => boolean | Promise<boolean>) {
   while (!await check()) { assert.ok(Date.now()<end,'condition did not recover within 15 seconds'); await new Promise(resolve=>setTimeout(resolve,50)); }
 }
 
-test('ASR-09 real browser reconnects its original page, saves embedded drafts, then logs out', {timeout:90_000}, async () => {
+test('WUA-35 real browser reconnects its original page, saves embedded drafts, then logs out', {timeout:90_000}, async () => {
   const home=mkdtempSync(join(tmpdir(),'molis-account-reconnect-'));
   const previous=process.env.MOLIS_WORK_ACCOUNT_CONFIG,auth=v2AccountPeer();
   await new Promise<void>(resolve=>auth.server.listen(0,'127.0.0.1',resolve));

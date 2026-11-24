@@ -1,4 +1,5 @@
 // V2U-04/06/07: actual installation Host + actual Auth/D1 + Chrome. Only delivery is an explicit mock.
+// WUA-31: rapid login, switching and logout, including logout while a switch is still pending.
 import {requestPhoneChallenge} from './account-test-phone-challenge.mjs';
 import assert from 'node:assert/strict';
 import {channel} from 'node:diagnostics_channel';

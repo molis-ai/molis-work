@@ -2,8 +2,8 @@ import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { pluginFrameBrowser } from './fixtures/plugin-frame-browser.js';
 import { LocalHostHttpClient } from '@molis-ai/molis-work-test-kit/local-host-http';
 import { withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
-import { newPublisher } from './fixtures/sandbox-package.js';
-import { packagedStudioRelease } from './fixtures/studio-package.js';
+import { newPublisher, signedPackage } from './fixtures/sandbox-package.js';
+import { packagedStudioRelease, pinStudioPublisher } from './fixtures/studio-package.js';
 import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from './fixtures/review-evidence.js';
 import { framedStudioPage, studioHarnessRequests, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
 import { pluginPagesFor, WebSessions } from "@molis-ai/molis-work-app-local-host";
@@ -37,7 +37,7 @@ import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import {proveAuthoringSync} from './fixtures/authoring-sync-proof.js';
 import { literalStudioExcerpt } from './fixtures/studio-bilingual.js';
 import { pluginTextSlot, pluginTextSlotKey } from '@molis-ai/molis-work-design-system';
-import { readSandboxPackage } from '@molis-ai/molis-work-app-local-host';
+import { readSandboxPackage, SandboxPackageStore } from '@molis-ai/molis-work-app-local-host';
 
 function studioServer(options: Parameters<typeof handleAgentStudioHttp>[3] & { homeDirectory: string }, token: string, mutations: Map<string, LocalMutationState>, setup?: {
   observe?(request: IncomingMessage, response: import('node:http').ServerResponse): void; locale?: 'zh' | 'en'; page?: boolean; languageControls?: true;
@@ -745,7 +745,17 @@ test('studio in English: its controls, labels, phases and boards are English', {
         && ${gate}?.textContent===${JSON.stringify(gateLabel)} && ${step}?.textContent===${JSON.stringify(caseLabel)} && ${screen}?.textContent===${JSON.stringify(screenLabel)}`);
       assert.ok((await page.evaluate<string>(`${failureGuidance}.textContent`)).startsWith(guidance!));
       assert.deepEqual(await page.evaluate(switched), preserved);
-      // A same-state read still reaches the normal render path after the in-place language update.
+      // QEV-03: an installation elsewhere in this project changes /state while this draft and its log stay the same.
+      if (lang === 'zh') {
+        const publisher = newPublisher(), bundle = signedPackage(publisher);
+        const plugin = readSandboxPackage(bundle.payload), packages = new SandboxPackageStore(home);
+        pinStudioPublisher(home, publisher);
+        packages.save(bundle, plugin);
+        const installed = await ensureInstalledPlugins(options);
+        const release = packages.load(plugin.manifest.plugin_id, publisher.identity, plugin.manifest.version);
+        await installed.lifecycle('install', release, { consent: true });
+        assert.ok(installed.installations().some(item => item.pluginId === plugin.manifest.plugin_id));
+      }
       await page.evaluate(`(async()=>{const fetch=window.fetch;try{await new Promise(resolve=>{
         window.fetch=async(...args)=>{const response=await fetch(...args);if(String(args[0]).endsWith('/api/plugin-builder/studio/state'))await response.clone().json().then(resolve);return response;};
         document.dispatchEvent(new CustomEvent('molis-work:model-ready'));});
@@ -758,6 +768,7 @@ test('studio in English: its controls, labels, phases and boards are English', {
   } finally {
     await browser.close();
     await releaseAgentStudio(store, DEMO_PROJECT_ID);
+    await releaseInstalledPlugins(store, DEMO_PROJECT_ID);
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve())); store.close();
     await rm(home, { recursive: true, force: true });

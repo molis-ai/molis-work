@@ -9823,7 +9823,7 @@
     "common.error.account-credential-store": "本机凭据存储暂时不可用，请检查系统钥匙串或凭据存储权限后再试。",
     "common.error.account-changed": "当前空间已经切换，刷新页面后就可以继续。",
     "common.error.account-not-ready": "账号环境还在准备中，稍等一会儿再试即可。",
-    "common.error.account-switching": "账号正在切换，稍等片刻即可。",
+    "common.error.account-switching": "账号正在切换，请稍候",
     "common.error.account-page-expired": "页面会话已失效，刷新页面后再试一次。",
     "common.error.account-local-only-disabled": "当前安装使用已登录账号空间，不能切换匿名工作区。",
     "common.error.sync-unavailable": "同步暂时不可用，本地改动都保留着，稍后再试即可。",

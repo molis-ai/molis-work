@@ -59,8 +59,7 @@ export const shelfActions = {
     "读取置物架副本或文件夹内文件的原始字节", "query", object({ item_id: id, child: { type: "string", maxLength: 1000 } }, ["item_id"]),
     object({ name: text, mime: text, bytes_base64: text }), read, LOCAL),
   // Defined in the Shelf contract, so another plugin invokes this very definition.
-  admit: { ...SHELF_ADMIT_ACTION, action: { ...SHELF_ADMIT_ACTION.action,
-    title_text: { key: "shelf.action.items-admit.title" }, description_text: { key: "shelf.action.items-admit.description" } } },
+  admit: SHELF_ADMIT_ACTION,
   // Version 2 names no original folder: a folder has no 原件已变 check, and only the platform keeps a path (`original`).
   admitFolder: define<{ name: string; entries: { relative: string; bytes_base64: string; mime?: string }[] }, { item: ShelfItemRecord }>("items.admit-folder", /* @version action.shelf.items.admit-folder */ 1, "放进文件夹",
     "把本机界面选中的整个文件夹复制进置物架，最多 32 MB", "command",

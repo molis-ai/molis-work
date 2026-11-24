@@ -10637,7 +10637,7 @@
     "common.error.account-credential-store": "Local credential storage isn’t available right now. Check your system keychain or storage permissions and try again.",
     "common.error.account-changed": "Your workspace space changed. Refresh the page to continue.",
     "common.error.account-not-ready": "Your account space is still getting ready. Try again in a moment.",
-    "common.error.account-switching": "Switching accounts — just a moment.",
+    "common.error.account-switching": "Switching accounts. Please wait.",
     "common.error.account-page-expired": "This page session expired. Refresh the page and try again.",
     "common.error.account-local-only-disabled": "This installation uses your signed-in account space and can’t switch to an anonymous workspace.",
     "common.error.sync-unavailable": "Sync is temporarily unavailable. Your local changes are safe — try again in a moment.",

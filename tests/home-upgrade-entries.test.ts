@@ -139,7 +139,8 @@ test("UPG1-16: a project in the recycle bin is upgraded with the rest, and opens
   raiseProjectBaseline(t);
   assert.equal(versionOf(f.project.database_path), REAL_PROJECT_VERSION);
   const report = runHomeUpgrade(f.home);
-  assert.deepEqual(report.units.map(unit => [unit.relative_path, unit.state]), [[relative(f.home, f.project.database_path), "committed"]]);
+  // UPP-01: the personal partition is always there from Home initialization, and its library is upgraded with every project's.
+  assert.deepEqual(report.units.map(unit => [unit.relative_path, unit.state]), [["personal-space/molis-work.db", "committed"], [relative(f.home, f.project.database_path), "committed"]]);
   assert.equal(versionOf(f.project.database_path), REAL_PROJECT_VERSION + 1);
   await change("back-again", false);
   await assert.rejects(runV1Cli(cliEntryProbe(f.project.database_path, id), { homeDirectory: f.home, actionServiceUrl: CLOSED_PORT }), REACHED_THE_PLATFORM);

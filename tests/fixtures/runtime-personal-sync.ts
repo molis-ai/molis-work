@@ -70,7 +70,7 @@ export async function runtimePersonalSync(home:string,space:StorageSpace,authori
  const catalogAccess=host.ensureWebCatalog(home,openMolisWorkProjectCatalog);
   const withCatalog=host.configurePersonalPlanning(home,catalogAccess.withCatalog);
  const openProjects=async()=>{
-  for(const project of await withCatalog({homeDirectory:home},catalog=>catalog.listProjects()))
+  for(const project of await withCatalog({homeDirectory:home},catalog=>catalog.listPartitions()))
    await host.withProject(molisWorkHostProjectReference({databasePath:project.database_path,projectId:project.project_id}),async()=>{}, {activatePlugins:true});
  };
  const lease={userId:space.ownerUserId!,applicationId:'work',authOrigin:options.authOrigin??'http://127.0.0.1:8787',signal:new AbortController().signal,assertCurrent:authorize,accessToken:options.accessToken??(async()=>'synthetic-only')};

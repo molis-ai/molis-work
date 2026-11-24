@@ -5,7 +5,6 @@ import {ensureStorageSpace} from '@molis-ai/molis-work-storage';
 import {readLocalWebBody,sendLocalWebJson} from './web-http.js';
 import {ProjectDeletionService,type ProjectDeletionPorts} from './project-deletion-service.js';
 import {readUnpublishedCopyProjectIds} from './project-copy-journal.js';
-import {PERSONAL_SPACE_PROJECT_ID} from './personal-space.js';
 import type {LocalWebCatalogRunner} from './web-project-settings.js';
 /** Mounted behind the existing settings Origin/control/mutation gate. Actor and Home come from that boundary. */
 export async function handleProjectRecycleHttp(request:IncomingMessage,response:ServerResponse,url:URL,home:string,withCatalog:LocalWebCatalogRunner,ports:ProjectDeletionPorts):Promise<boolean>{
@@ -25,7 +24,7 @@ export async function handleProjectRecycleHttp(request:IncomingMessage,response:
      return [item];
     }
     const ids=[
-     ...catalog.listProjects().filter(p=>p.data_class==='user'&&p.project_id!==PERSONAL_SPACE_PROJECT_ID).map(p=>p.project_id),
+     ...catalog.listProjects().filter(p=>p.data_class==='user').map(p=>p.project_id),
      ...catalog.recycle.list().map(p=>p.project_id),
     ].filter(id=>!unpublished.has(id)&&!catalog.recycle.isStagedCopy(id));
     return ids.map(id=>{const {database_path:_path,...item}=catalog.recycle.inspect(id);return item;});

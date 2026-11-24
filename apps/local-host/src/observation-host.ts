@@ -93,7 +93,7 @@ export function hostObservationPorts(
   return {
     catalogProjects: () => {
       const runner = catalogRunner();
-      return runner ? runner({ homeDirectory }, catalog => catalog.listProjects().map(project => project.project_id)) : Promise.resolve(undefined);
+      return runner ? runner({ homeDirectory }, catalog => catalog.listPartitions().map(project => project.project_id)) : Promise.resolve(undefined);
     },
     openProjects: () => host.projects(),
     withOpenProject: (reference, fn) => host.withExistingRuntime(reference, fn),

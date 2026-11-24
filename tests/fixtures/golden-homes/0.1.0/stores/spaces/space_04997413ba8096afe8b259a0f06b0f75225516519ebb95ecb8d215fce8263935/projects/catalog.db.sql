@@ -29,6 +29,13 @@ CREATE TABLE model_providers (
       thinking TEXT NOT NULL DEFAULT 'off'
     );
 CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL);
+CREATE TABLE partition_plugins (
+      partition_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL,
+      enabled_at TEXT NOT NULL,
+      enabled_by TEXT NOT NULL,
+      PRIMARY KEY (partition_id, plugin_id)
+    );
 CREATE TABLE plugin_terminal_panel_aliases (
       panel_id TEXT NOT NULL REFERENCES plugin_terminal_panels(panel_id) ON DELETE CASCADE,
       runtime_id TEXT NOT NULL,
@@ -100,12 +107,6 @@ CREATE TABLE project_plugin_exclusions (
       project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
       plugin_id TEXT NOT NULL,
       removed_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, plugin_id)
-    );
-CREATE TABLE project_plugins (
-      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
-      plugin_id TEXT NOT NULL,
-      added_at TEXT NOT NULL,
       PRIMARY KEY (project_id, plugin_id)
     );
 CREATE TABLE project_portable_plugins (
@@ -195,6 +196,16 @@ CREATE TABLE workspaces (
 INSERT INTO "catalog_meta"("key","value") VALUES('owner','molis-work-project-catalog-v1');
 INSERT INTO "catalog_meta"("key","value") VALUES('schema_version','1');
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935','{"spaceId":"space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935","kind":"personal","ownerUserId":"golden-person","teamId":null,"issuer":"https://golden.invalid","applicationId":"io.molis.work.golden"}');
+INSERT INTO "partition_plugins"("partition_id","plugin_id","enabled_at","enabled_by") VALUES('personal','schedule','2026-01-15T09:00:00.000Z','web-user');
+INSERT INTO "partition_plugins"("partition_id","plugin_id","enabled_at","enabled_by") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','coding','2026-01-15T09:00:00.000Z','owner');
+INSERT INTO "partition_plugins"("partition_id","plugin_id","enabled_at","enabled_by") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','diff','2026-01-15T09:00:00.000Z','owner');
+INSERT INTO "partition_plugins"("partition_id","plugin_id","enabled_at","enabled_by") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','feed','2026-01-15T09:00:00.000Z','owner');
+INSERT INTO "partition_plugins"("partition_id","plugin_id","enabled_at","enabled_by") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','git','2026-01-15T09:00:00.000Z','owner');
+INSERT INTO "partition_plugins"("partition_id","plugin_id","enabled_at","enabled_by") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','goals','2026-01-15T09:00:00.000Z','owner');
+INSERT INTO "partition_plugins"("partition_id","plugin_id","enabled_at","enabled_by") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','inbox','2026-01-15T09:00:00.000Z','owner');
+INSERT INTO "partition_plugins"("partition_id","plugin_id","enabled_at","enabled_by") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','risk','2026-01-15T09:00:00.000Z','owner');
+INSERT INTO "partition_plugins"("partition_id","plugin_id","enabled_at","enabled_by") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','schedule','2026-01-15T09:00:00.000Z','owner');
+INSERT INTO "partition_plugins"("partition_id","plugin_id","enabled_at","enabled_by") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','work-brief','2026-01-15T09:00:00.000Z','owner');
 INSERT INTO "project_catalog_replica_changes"("seq","key") VALUES(1,'project-adcfbd21-e22e-44f4-af64-38851fbc840c');
 INSERT INTO "project_catalog_replica_changes"("seq","key") VALUES(2,'project-adcfbd21-e22e-44f4-af64-38851fbc840c');
 INSERT INTO "project_catalog_replica_changes"("seq","key") VALUES(3,'project-adcfbd21-e22e-44f4-af64-38851fbc840c');
@@ -216,16 +227,6 @@ INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-c1c060c9-cd2f-45da-a924-993273da1c3e','project-adcfbd21-e22e-44f4-af64-38851fbc840c','project.plugin_added','owner','{"plugin_id":"feed"}','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-fe4e76c6-a57b-4df1-bc2b-8f2a3f05abb1','project-adcfbd21-e22e-44f4-af64-38851fbc840c','project.plugin_added','owner','{"plugin_id":"risk"}','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_events"("event_id","project_id","type","actor_id","payload_json","created_at") VALUES('project-event-ff35c904-bcdf-4a82-97f1-ea67e261bd01','project-adcfbd21-e22e-44f4-af64-38851fbc840c','project.plugin_added','owner','{"plugin_id":"git"}','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('personal','schedule','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','coding','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','diff','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','feed','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','git','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','goals','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','inbox','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','risk','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','schedule','2026-01-15T09:00:00.000Z');
-INSERT INTO "project_plugins"("project_id","plugin_id","added_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','work-brief','2026-01-15T09:00:00.000Z');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('personal','schedule');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','coding');
 INSERT INTO "project_portable_plugins"("project_id","plugin_id") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c','diff');

@@ -6,7 +6,7 @@ import { normalizeRuntimeProjectSuggestionClues, scoreProjectSuggestion } from "
 /** Resolve confirmed Session and workspace facts before offering non-authoritative suggestions. Never writes a binding. */
 export class RuntimeProjectResolution {
   constructor(
-    private readonly projects: Pick<ProjectsQueryApi, "getProject" | "listProjects" | "selections" | "workspaceIdAt" | "workspaceProjectSelections">,
+    private readonly projects: Pick<ProjectsQueryApi, "getProject" | "listPartitions" | "selections" | "workspaceIdAt" | "workspaceProjectSelections">,
     private readonly workContexts: Pick<RuntimeContextBindingRepository, "find" | "rejectedProjectIds" | "hasUnboundEvent" | "confirmedProjectIdsForOtherSessions">,
   ) {}
 resolveRuntimeContext(
@@ -67,7 +67,7 @@ runtimeContextSuggestions(
     }
     if (normalizedClues.length === 0) return [];
     const rejectedProjectIds = includeRejected ? new Set<string>() : this.rejectedSuggestionProjectIds(context);
-    return this.projects.listProjects()
+    return this.projects.listPartitions()
       .map((project, index) => {
         const match = scoreProjectSuggestion(project, normalizedClues);
         return match
@@ -103,7 +103,7 @@ private latestConfirmedProjectIdForOtherSession(context: NormalizedRuntimeWorkCo
       context.runtime_id,
       context.stable_work_context_id,
     );
-    const currentProjectIds = new Set(this.projects.listProjects().map((project) => project.project_id));
+    const currentProjectIds = new Set(this.projects.listPartitions().map((project) => project.project_id));
     return projectIds.find((projectId) => currentProjectIds.has(projectId)) ?? null;
   }
 

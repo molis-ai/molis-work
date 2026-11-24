@@ -65,7 +65,7 @@ export interface ProjectScheduleRuntime {
 }
 
 export type ResolvedWebRequest =
-  | { kind: "catalog_index"; projects: WebProjectNavigation[] }
+  | { kind: "catalog_index"; projects: WebProjectNavigation[]; /** The person's projects, the personal space not counted (first run, counts). */ projectCount: number }
   /** `gone`: the catalog said it holds no such project (BL-attention-404-by-code); without it the address names no project at all. */
   | { kind: "project_not_found"; gone?: true }
   | { kind: "board"; pathname: string; options: ResolvedWebBoardOptions };

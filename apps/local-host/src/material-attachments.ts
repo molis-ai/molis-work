@@ -12,11 +12,12 @@ import { supportsMaterialExtension } from "@molis-ai/molis-work-plugin-sdk";
 import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { extractHomeMaterial } from "./material-home.js";
 import { readMaterialDocuments } from "./material-documents.js";
+import { activationPartition } from "./activation-partition.js";
 
 /**
  * Conversation attachments (platform capability audit 2026-11-14 §6): what the person brings into a conversation, kept by the
  * platform's material service so that the assistant, Coding and every other caller read it one way. One row per owner and content:
- * the caller's plugin installation, and its project ('' for the Home). The bytes are kept once by their sha256 in `blobs/`, never
+ * the caller's plugin installation, and its partition (a project, or `personal` for the personal space and a Home-level caller alike). The bytes are kept once by their sha256 in `blobs/`, never
  * changed, and dropped when no row names them any more. A document's text is read once, when it is attached, by the same readers
  * material import uses (PDF, Office, a picture's words, a recording's transcript, text).
  */
@@ -30,7 +31,7 @@ const ATTACHMENTS_BASELINE: SqliteBaseline = { version: /* @version database.con
 ` };
 export const CONVERSATION_ATTACHMENTS_HOME_STORE: HomeStoreDeclaration = { path: "conversation-attachments", library: { baseline: ATTACHMENTS_BASELINE } };
 
-/** Whose attachment it is: the caller's own installation, and its project, or null for the Home. */
+/** Whose attachment it is: the caller's own installation, and its project, or null for the Home (kept in the personal space's rows). */
 export interface AttachmentOwner { plugin_id: string; install_id: string; project_id: string | null }
 
 export const attachmentErrors = defineErrorCodes("material.attachment", {
@@ -46,7 +47,7 @@ export const attachmentErrors = defineErrorCodes("material.attachment", {
 const SHA256 = /^[0-9a-f]{64}$/u;
 const subjectId = (sha256: string) => `ca_${sha256}`;
 const blobsOf = (home: string) => path.join(home, CONVERSATION_ATTACHMENTS_HOME_STORE.path, "blobs");
-const ownerKey = (owner: AttachmentOwner) => [owner.plugin_id, owner.install_id, owner.project_id ?? ""] as const;
+const ownerKey = (owner: AttachmentOwner) => [owner.plugin_id, owner.install_id, activationPartition(owner.project_id)] as const;
 
 function withStore<T>(home: string, use: (db: ReturnType<typeof openBaselineHomeSqlite>) => T): T {
   const db = openBaselineHomeSqlite(home, CONVERSATION_ATTACHMENTS_HOME_STORE.path, ATTACHMENTS_BASELINE);
@@ -220,7 +221,7 @@ export async function forgetProjectAttachments(home: string, projectId: string):
 
 /** One installation's attachments in one project (or the Home: null), when it is uninstalled or its data dropped. */
 export async function forgetInstallationAttachments(home: string, pluginId: string, installId: string, projectId: string | null): Promise<void> {
-  await forget(home, "plugin_id = ? AND install_id = ? AND project_id = ?", [pluginId, installId, projectId ?? ""]);
+  await forget(home, "plugin_id = ? AND install_id = ? AND project_id = ?", [pluginId, installId, activationPartition(projectId)]);
 }
 
 /** Some of one owner's attachments, by reference, once nothing of the owner names them any more; bytes no other row names go with them. */

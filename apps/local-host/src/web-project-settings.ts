@@ -47,7 +47,7 @@ async function renameProjectFromHttp(request: IncomingMessage, response: ServerR
 export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner, diagnostics?: WebServerOptions["installationDiagnostics"]) {
   const handleProjectDeletion = createProjectDeletionHttp(withMolisWorkProjectCatalog);
   async function settingsProjects(homeDirectory: string | undefined): Promise<WebSettingsProject[]> {
-    return withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjects().map(settingsProject));
+    return withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listPartitions().map(settingsProject));
   }
 
   /** `demoSamples` puts the demo's samples in Home plugins back through their own actions once the demo is made or rebuilt. */
@@ -134,7 +134,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
 
 async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalogRunner, request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, setProjectPlugin: SetProjectPluginFromWeb): Promise<boolean> {
   if (request.method === "GET" && url.pathname === "/api/settings/project-plugins") {
-    const projects = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.listProjects().map(project => ({
+    const projects = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.listPartitions().map(project => ({
       project_id: project.project_id, display_name: project.display_name,
       ...projectPluginMembershipForPage(catalog, project.project_id),
     })));

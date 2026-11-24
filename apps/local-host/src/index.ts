@@ -294,7 +294,9 @@ export { captureRuntimeStageOwner, renderProjectRuntimeStages, type ProjectPlugi
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts } from "./project-plugin-http.js";
 export { handlePluginTrustHttp } from "./plugin-trust-http.js";
 export { collectRetained } from "./uninstall-retained.js";
-export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
+export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins, runningProjectPlatform, startPartitionPluginInstance } from "./project-plugins.js";
+export { assembledPerPartition, openPartitionPluginLibrary, PARTITION_PLUGIN_IDLE_MS, PartitionPluginAssembly, partitionPluginScope, type PartitionPluginAssemblyOptions, type PartitionPluginHandle, type PartitionPluginLease, type PartitionPluginScope, type PartitionWakeReason } from "./partition-plugin-assembly.js";
+export { openHomePluginStore } from "./home-plugin-store.js";
 export { announceConnectionChanged } from "./connection-change-events.js";
 export { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories, runningPluginDirectory, type DirectorySource } from "./plugin-directory.js";
 export { runningPluginText, type RunningPluginText, type RunningRelease } from "./running-plugin-text.js";

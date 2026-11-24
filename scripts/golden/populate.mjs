@@ -155,7 +155,7 @@ function createEmptyLibraries(home) {
  * This runs after the owners' write cases, so the case that writes to this library says so and runs here, on the cards that stay.
  */
 async function cardsInOneOrder(home, account, projects, named, seed) {
-  const personal = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listProjects().find(project => project.project_id === "personal"));
+  const personal = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listPartitions().find(project => project.project_id === "personal"));
   const holders = Object.values({ ...projects, ...(personal ? { personal } : {}) }).sort((a, b) => a.project_id < b.project_id ? -1 : a.project_id > b.project_id ? 1 : 0);
   rmSync(path.join(home, "knowledge"), { recursive: true, force: true });
   await named("knowledge-rebuild");

@@ -37,7 +37,7 @@ export async function handleAuthorizationManagementHttp(context: WebRequestConte
       throw new ActionError("actions.forbidden", "只有本机授权管理入口能读取这些记录");
     }
     if (!home) throw new ActionError("actions.service_unavailable", "授权管理暂时不可用");
-    const list = await context.composition.withCatalog({ homeDirectory: home }, catalog => catalog.listProjects());
+    const list = await context.composition.withCatalog({ homeDirectory: home }, catalog => catalog.listPartitions());
     const projects = new Map(list.map(project => [project.project_id, molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path })]));
     const projectId = url.searchParams.get("project") || null;
     if (projectId && !projects.has(projectId)) throw new ActionError("actions.missing", "找不到这份授权所在的项目");

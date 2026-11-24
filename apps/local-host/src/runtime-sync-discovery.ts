@@ -59,12 +59,12 @@ export async function discoverRuntimeSyncCollections(home: string, spaceId: stri
   };
   await isolate(async () => { if (host.homePlugins) await collect(await host.homePlugins.ready(), null); });
   authorize();
-  const projects = await withCatalog({ homeDirectory: home }, catalog => catalog.listProjects());
+  const projects = await withCatalog({ homeDirectory: home }, catalog => catalog.listPartitions());
   authorize();
   for (const project of [...projects].sort((a,b)=>a.project_id.localeCompare(b.project_id))) {
     await isolate(async () => {
       authorize();
-      const current = await withCatalog({ homeDirectory: home }, catalog => catalog.listProjects().find(row => row.project_id === project.project_id));
+      const current = await withCatalog({ homeDirectory: home }, catalog => catalog.listPartitions().find(row => row.project_id === project.project_id));
       authorize(); if (!current || current.database_path !== project.database_path) return;
       await host.synchronization.withExistingProject(molisWorkHostProjectReference({ databasePath: current.database_path, projectId: current.project_id }), async runtime => {
         await collect(await runningProjectPlatform(runtime.store, runtime.project_id), runtime.project_id);

@@ -38,7 +38,8 @@ import type { HomeStoreSnapshotExclusion } from "@molis-ai/molis-work-contracts/
 import { DIRECTORY_GRANTS_HOME_STORE } from "./plugin-directory-store.js";
 import { DISCUSSION_HOME_STORE } from "./im-server.js";
 import { PLACEMENT_HOME_STORE } from "./placement-actions.js";
-import { ordinarySnapshot, omittedSnapshot, projectSnapshot, agentSnapshot, securitySnapshot, managedToolsSnapshot, builderSnapshot,
+import { PERSONAL_SPACE_DIRECTORY } from "@molis-ai/molis-work-module-projects";
+import { ordinarySnapshot, omittedSnapshot, personalSpaceSnapshot, projectSnapshot, agentSnapshot, securitySnapshot, managedToolsSnapshot, builderSnapshot,
   browserSnapshot, directoryAccessSnapshot, runtimeBackupSnapshot, excluded, type HomeStoreSnapshotPolicy, type HomeSnapshotStore, type HomeSnapshotStoreRegistry } from "./home-store-snapshot.js";
 
 type Declaration = HomeStoreDeclaration & { readonly snapshot?: HomeStoreSnapshotPolicy };
@@ -72,6 +73,8 @@ export const platformModelPreferences = (): readonly { readonly owner: string; r
 export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
   const registered = registry ??= Object.assign(homeStoreRegistry([
     ...owned("apps/local-host", { path: "projects", snapshot: projectSnapshot }, { path: "logs", snapshot: omittedSnapshot("Diagnostic logs", "preserve") }),
+    // The personal space's partition root (specs/unified-partition-plugins §4.1, `partitionRoot`): kept like a project's, made at Home initialization.
+    ...owned("apps/local-host", { path: PERSONAL_SPACE_DIRECTORY, snapshot: personalSpaceSnapshot }),
     // Each project's default output directory, `outputs/<project_id>/` (specs/shared-sources-and-surfaces §3): the person's own files, made
     // the first time something writes or runs there. A snapshot carries none of it and a restore leaves it as it is (SSC-23); purge clears it.
     ...owned("modules/projects", { path: "outputs", snapshot: omittedSnapshot("Files in each project's default output directory stay where they are", "preserve") }),

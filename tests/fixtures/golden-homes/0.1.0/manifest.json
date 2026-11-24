@@ -1082,6 +1082,7 @@
         "context_edges": 0,
         "model_providers": 1,
         "molis_storage_space": 1,
+        "partition_plugins": 25,
         "plugin_terminal_panel_aliases": 0,
         "plugin_terminal_panels": 0,
         "project_catalog_replica_changes": 0,
@@ -1095,7 +1096,6 @@
         "project_events": 25,
         "project_instruction_settings": 0,
         "project_plugin_exclusions": 0,
-        "project_plugins": 25,
         "project_portable_plugins": 25,
         "project_recycle": 0,
         "project_recycle_receipts": 0,
@@ -1109,7 +1109,7 @@
         "workspace_source_links": 0,
         "workspaces": 4
       },
-      "sha256": "e75ab4fc435289b43f17fa1ece4b038bd42434e5cc0ff0eee6185db32e7a73dd"
+      "sha256": "dddb986a6a6049d1b050e6a723d86d79fda9e8240ea2c24394f7f6559f2ec181"
     },
     {
       "path": "projects/goalboard-v1-demo/molis-work.db",
@@ -2436,6 +2436,7 @@
         "context_edges": 0,
         "model_providers": 0,
         "molis_storage_space": 1,
+        "partition_plugins": 10,
         "plugin_terminal_panel_aliases": 0,
         "plugin_terminal_panels": 0,
         "project_catalog_replica_changes": 10,
@@ -2449,7 +2450,6 @@
         "project_events": 10,
         "project_instruction_settings": 0,
         "project_plugin_exclusions": 0,
-        "project_plugins": 10,
         "project_portable_plugins": 10,
         "project_recycle": 0,
         "project_recycle_receipts": 0,
@@ -2463,7 +2463,7 @@
         "workspace_source_links": 0,
         "workspaces": 2
       },
-      "sha256": "fa1a8b36de806694e4f339461cc08412e6a71a14723c99cf242ad7175b4770f2"
+      "sha256": "fe0bf52e2e772385d5744a2720eb2cc580f30453c0d545b46393fcafe4dc8f97"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/personal/molis-work.db",

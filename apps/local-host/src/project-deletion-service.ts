@@ -82,7 +82,7 @@ export class ProjectDeletionService {
     return this.withCatalog({ homeDirectory }, async catalog => {
       if (readStorageSpace(catalog.homeDirectory)?.kind === 'personal') throw catalogErrors.personal_deletion_unavailable('个人项目暂不支持永久删除，请使用项目回收与恢复');
       // An already deleted project is not in the list: its persisted receipt replays without asking the terminals or the runtime.
-      const project = catalog.listProjects().find(item => item.project_id === input.project_id.trim());
+      const project = catalog.listPartitions().find(item => item.project_id === input.project_id.trim());
       if (project) {
         const assertNoLiveTerminal = () => {
           if (catalog.terminalPanels.listIds(project.project_id).some(panelId => this.ports.isPanelAlive(panelId))) {

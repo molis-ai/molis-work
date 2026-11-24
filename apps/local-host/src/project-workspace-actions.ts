@@ -1,7 +1,7 @@
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { announceWorkspaceSettingsChange } from "./workspace-settings-events.js";
-import { ActionError, bindActionHandler, requireSynchronous, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions as a, projectPluginActions, type DirectoryChange, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
+import { ActionError, bindActionHandler, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, partitionPluginActions, projectDirectoryActions as a, projectPluginActions, type VersionedProjectPluginMembership, type DirectoryChange, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { MaterialOriginQuery, MaterialPin, MaterialRef, RecentMaterial } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { MaterialRecentUses, type MaterialRecentCaller } from "@molis-ai/molis-work-module-projects";
@@ -112,17 +112,16 @@ export function projectWorkspaceActionProvider(projectId: string, catalogOwner: 
 /** The Catalog owns membership even when the project's runtime has never been opened. */
 export function projectPluginMembershipActionProvider(catalogOwner: ProjectCatalogOwner,
   refreshOpenProjectPlugins: (projectId: string) => Promise<ProjectPluginRefreshResult | null>): ActionProviderRegistration {
-  const handlers = [
-    bindActionHandler(projectPluginActions.get, (_input, caller) =>
-      withProjectCatalog(catalogOwner, catalog => catalog.projectPluginMembershipWithRevision(caller.project_id!))),
-    bindActionHandler(projectPluginActions.set, async (input, caller) => {
+  /** One membership write, one change (`projects.plugins.set@1`) or several in any partition (`partitions.plugins.set@1`), and what follows it. */
+  const writeMembership = async <Saved extends VersionedProjectPluginMembership>(caller: ActionExecutionContext,
+    write: (catalog: MolisWorkProjectCatalog, projectId: string) => Saved): Promise<Saved> => {
       const projectId = caller.project_id!;
       await caller.beforeEffect();
       const { before, saved } = await withProjectCatalog(catalogOwner, catalog => catalog.commit(() => {
         const before = catalog.projectPluginMembershipWithRevision(projectId);
         requireSynchronous(caller.assert_authority_current?.());
         caller.signal?.throwIfAborted();
-        return { before, saved: catalog.setProjectPlugin(projectId, caller.actor_id, input) };
+        return { before, saved: write(catalog, projectId) };
       }, caller.beforeEffect));
       const home = catalogOwner()?.home;
       if (home) {
@@ -148,9 +147,18 @@ export function projectPluginMembershipActionProvider(catalogOwner: ProjectCatal
       const observation = await withProjectCatalog(catalogOwner, catalog => catalog.projectPluginMembershipWithRevision(projectId))
         .then(membership => ({ membership }), () => ({ committed_membership: saved }));
       throw hostErrors.project_plugins_refresh_failed("插件选择已保存，切换尚未完成。请刷新项目。", { committed: true, ...observation });
-    }),
+  };
+  const handlers = [
+    bindActionHandler(projectPluginActions.get, (_input, caller) =>
+      withProjectCatalog(catalogOwner, catalog => catalog.projectPluginMembershipWithRevision(caller.project_id!))),
+    bindActionHandler(projectPluginActions.set, (input, caller) =>
+      writeMembership(caller, (catalog, projectId) => catalog.setProjectPlugin(projectId, caller.actor_id, input))),
+    bindActionHandler(partitionPluginActions.get, (_input, caller) =>
+      withProjectCatalog(catalogOwner, catalog => catalog.partitionPluginMembership(caller.project_id!))),
+    bindActionHandler(partitionPluginActions.set, (input, caller) =>
+      writeMembership(caller, (catalog, partitionId) => catalog.setPartitionPlugins(partitionId, caller.actor_id, input))),
   ];
-  return { provider: workspaceProvider, definitions: Object.values(projectPluginActions), handlers,
+  return { provider: workspaceProvider, definitions: [...Object.values(projectPluginActions), ...Object.values(partitionPluginActions)], handlers,
     availability: () => catalogOwner() ? { available: true } : catalogUnavailable };
 }
 

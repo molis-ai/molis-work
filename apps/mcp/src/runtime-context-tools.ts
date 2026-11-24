@@ -52,7 +52,7 @@ async function listRuntimeProjects(ports: McpRuntimeContextPorts, callContext: M
         next_action: current.next_action,
         current_project: current.project,
         suggested_projects: current.suggested_projects,
-        projects: catalog.listProjects().map((project) => ({
+        projects: catalog.listPartitions().map((project) => ({
           project_id: project.project_id,
           display_name: project.display_name,
           source: project.source,

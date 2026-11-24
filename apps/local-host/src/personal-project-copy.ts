@@ -4,7 +4,6 @@ import type { ProjectCopyOwner } from "@molis-ai/molis-work-contracts/services/p
 import { previewProjectCopy, executeProjectCopy, type ProjectCopyPreviewView, type ProjectCopyReceipt, type ProjectCopySource } from "@molis-ai/molis-work-service-placement";
 import { readStorageSpace } from "@molis-ai/molis-work-storage";
 import { openProjectCopyJournal } from "./project-copy-journal.js";
-import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 const errors = defineErrorCodes("host", { copy_space_invalid: "forbidden", copy_project_invalid: "invalid" });
@@ -62,7 +61,7 @@ export async function listCopyableLocalProjects(
     authorize();
     return catalog
       .listProjects()
-      .filter(project => project.project_id !== PERSONAL_SPACE_PROJECT_ID && !catalog.recycle.isRecycled(project.project_id))
+      .filter(project => !catalog.recycle.isRecycled(project.project_id))
       .map(project => ({
         project_id: project.project_id,
         display_name: project.display_name,

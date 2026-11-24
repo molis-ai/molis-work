@@ -248,9 +248,10 @@ test("RAC-1813 binding from a Runtime with neither a Session id nor a project di
     const nowhere: RuntimeWorkContext = { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false };
     const bind = (context: RuntimeWorkContext) => catalog.bindRuntimeContext({ context, project_id: alpha.project_id,
       actor_id: "runtime-codex", user_confirmed: true });
-    // (a)(b)(c) nothing to key the choice on: refused, no Session binding and no workspace membership recorded (Alpha's own output stays its only one).
+    // (a)(b)(c) nothing to key the choice on: refused, no Session binding and no workspace membership recorded (Alpha's own output stays its only
+    // one; the other is the personal space's, made at Home initialization, UPP-01).
     const memberships = catalog.listWorkspaceMemberships();
-    assert.deepEqual(memberships.map((membership) => membership.roles), [["output"]]);
+    assert.deepEqual(memberships.map((membership) => [membership.project_id, membership.roles]).sort(), [[alpha.project_id, ["output"]], ["personal", ["output"]]].sort());
     assert.throws(() => bind(nowhere), refused("work.context.stable_identity_required"));
     assert.deepEqual(catalog.listRuntimeContextBindings(), []);
     assert.deepEqual(catalog.listWorkspaceMemberships(), memberships);
@@ -272,9 +273,10 @@ test("RAC-1814 create-and-bind from a Runtime with only a project directory make
     const created = await create();
     assert.equal(created.status, "bound");
     const projectId = created.connection!.project_id;
-    // The new project's own default output directory is its member too (SSC-17); the Runtime's directory joins as an input.
+    // The new project's own default output directory is its member too (SSC-17); the Runtime's directory joins as an input. The personal space's
+    // output was there from Home initialization (UPP-01).
     assert.deepEqual(catalog.listWorkspaceMemberships().map((membership) => [membership.project_id, membership.roles[0]]).sort(),
-      [[projectId, "input"], [projectId, "output"]]);
+      [["personal", "output"], [projectId, "input"], [projectId, "output"]].sort());
     assert.deepEqual(catalog.listWorkspaceMemberships().find((membership) => membership.roles.includes("input"))?.workspace_id,
       rowAt(catalog, created.context.workspace!.canonical_path));
     assert.deepEqual(catalog.listRuntimeContextBindings(), []);

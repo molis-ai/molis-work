@@ -143,7 +143,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | owner | 表 |
 | --- | --- |
 | `packages/storage` | `catalog_meta`（`src/catalog-metadata.ts`） |
-| `modules/projects` | `projects`、`project_plugins`、`project_plugin_exclusions`、`project_events`、`project_deletions`、`workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列记这个文件夹对项目是输入、输出或两者）、`workspace_source_links`（另一台设备的目录对应到本机哪个文件夹，只在本机、不同步）（`src/repository.ts`），`project_deletion_steps`（`src/deletion-steps.ts`），`project_recycle` 与 `project_recycle_receipts`（`src/recycle.ts`，原项目事实保留，观察时刻不是服务端到期时刻），`project_instruction_settings`（`src/repository.ts` 建、`src/workspace-repository.ts` 读写：项目关读取的开关与本人确认过的输出；外键随项目删除） |
+| `modules/projects` | `projects`、`partition_plugins`、`project_plugin_exclusions`、`project_events`、`project_deletions`、`workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列记这个文件夹对项目是输入、输出或两者）、`workspace_source_links`（另一台设备的目录对应到本机哪个文件夹，只在本机、不同步）（`src/repository.ts`），`project_deletion_steps`（`src/deletion-steps.ts`），`project_recycle` 与 `project_recycle_receipts`（`src/recycle.ts`，原项目事实保留，观察时刻不是服务端到期时刻），`project_instruction_settings`（`src/repository.ts` 建、`src/workspace-repository.ts` 读写：项目关读取的开关与本人确认过的输出；外键随项目删除） |
 | `modules/private-work-context` | `runtime_context_bindings`、`runtime_context_binding_events`、`runtime_context_setup_requests`、`runtime_context_suggestion_rejections` |
 | `modules/context-ledger` | `context_edges` |
 | `apps/local-host`（退役表说明） | `goal_desktop_panels`、`goal_desktop_panel_aliases`：已从干净 v1 基线移除，不再建表；现行终端记录归下面的 `plugin_terminal_panels` |

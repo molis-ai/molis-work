@@ -1,8 +1,7 @@
-import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
-import { homeSqlitePath, readDatabaseSpace, sqliteRollbackSidecars, sqliteLibraryDirectoryExists, pendingSqliteRecovery, type SqliteDatabase, type StorageSpace } from "@molis-ai/molis-work-storage";
+import { listProjectRoots, partitionRootsOnDisk } from "@molis-ai/molis-work-module-projects";
+import { homeSqlitePath, readDatabaseSpace, sqliteRollbackSidecars, pendingSqliteRecovery, type SqliteDatabase, type StorageSpace } from "@molis-ai/molis-work-storage";
 
 export const wrongArtifactSpace = () => new ActionError("actions.home_mismatch", "成果固定的库与当前 Home 空间不一致");
 
@@ -22,11 +21,6 @@ export function assertArtifactProjectIdentity(db: SqliteDatabase, space: Storage
 export function homeLibraryRollbackSidecars(root: string, libraries: readonly string[], registeredProjects?: readonly string[]): string[] {
   const found = libraries.flatMap(name => sqliteRollbackSidecars(homeSqlitePath(root, name)));
   if (registeredProjects) return [...found, ...registeredProjects.flatMap(path => sqliteRollbackSidecars(join(root, path)))];
-  const projects = join(root, "projects");
-  if (sqliteLibraryDirectoryExists(projects)) {
-    for (const entry of readdirSync(projects, { withFileTypes: true })) {
-      if (entry.isDirectory() || entry.isSymbolicLink()) found.push(...sqliteRollbackSidecars(join(projects, entry.name, "molis-work.db")));
-    }
-  }
+  for (const partition of partitionRootsOnDisk(root)) found.push(...sqliteRollbackSidecars(join(partition, "molis-work.db")));
   return found;
 }

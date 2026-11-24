@@ -55,6 +55,8 @@ export interface CatalogRequestContext {
   readonly controlToken: string;
   readonly localHost: MolisWorkLocalHost;
   readonly projects: WebProjectNavigation[];
+  /** The person's projects without the personal space: what first run and counts read. */
+  readonly projectCount: number;
   readonly composition: LocalWebComposition;
   readonly deletionPorts: ProjectDeletionPorts;
   readonly agentRuntimes: () => Promise<readonly AgentRuntimeDescriptor[]>;
@@ -118,7 +120,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   })) },
   { id: "blueprints", handle: ({ request, response, url, serverOptions, localHost, controlToken, composition }) =>
     handleBlueprintHttp(request, response, url, localHost, controlToken, composition, undefined, serverOptions.assertAccountCurrent) },
-  { id: "onboarding", handle: ({ request, response, url, serverOptions, projects, localHost, controlToken, composition }) => composition.handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken) },
+  { id: "onboarding", handle: ({ request, response, url, serverOptions, projectCount, localHost, controlToken, composition }) => composition.handleOnboarding(request, response, url, serverOptions.homeDirectory, projectCount, localHost, controlToken) },
   { id: "component-board", handle: ({ request, response, url, composition }) => handleComponentBoardHttp(request, response, url, composition.PAGE_CSP, composition.appearance) },
   { id: "settings-home", handle: ({ request, response, url, composition }) => {
     if (!(request.method === "GET" && url.pathname === "/settings")) return false;
@@ -138,8 +140,8 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   { id: "mcp-action-settings", handle: ({ request, response, url, serverOptions, localHost, composition }) => handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog, serverOptions.assertAccountCurrent) },
   { id: "runtime-settings", handle: ({ request, response, url, runtimeIntegrations, webService, serverOptions }) => handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService, serverOptions.assertAccountCurrent) },
   { id: "project-settings", handle: context => {
-    const { request, response, url, serverOptions, projects, deletionPorts, localHost, composition } = context;
-    return composition.projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts, projectPluginSetter(context),
+    const { request, response, url, serverOptions, projectCount, deletionPorts, localHost, composition } = context;
+    return composition.projectSettings.handle(request, response, url, serverOptions.homeDirectory, projectCount, deletionPorts, projectPluginSetter(context),
       () => seedDemoHomeSamples(homeActions(localHost)));
   } },
   { id: "pty-client", handle: ({ request, response, url, composition }) => {
@@ -147,9 +149,9 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     composition.servePtyClient(request, response);
     return true;
   } },
-  { id: "health", handle: ({ request, response, url, projects }) => {
+  { id: "health", handle: ({ request, response, url, projectCount }) => {
     if (!(request.method === "GET" && url.pathname === "/health")) return false;
-    sendJson(response, 200, { status: "ok", process_id: process.pid, service_process_id: serviceProcessId(), project_count: projects.length, desktop_tui: true });
+    sendJson(response, 200, { status: "ok", process_id: process.pid, service_process_id: serviceProcessId(), project_count: projectCount, desktop_tui: true });
     return true;
   } },
   // What runs on its own here and what was missed, from every owner that declares the runs types (resident-runtime-design §2.2).
@@ -168,10 +170,10 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     sendJson(response, 200, { lifted: await liftRollbackHold(serverOptions.homeDirectory) });
     return true;
   } },
-  { id: "project-index", handle: async ({ request, response, url, serverOptions, projects, controlToken, composition, localHost }) => {
+  { id: "project-index", handle: async ({ request, response, url, serverOptions, projects, projectCount, controlToken, composition, localHost }) => {
     if (!(request.method === "GET" && url.pathname === "/")) return false;
     const desktopShell = composition.isDesktopShellRequest(request, url);
-    const onboarding = molisWorkOnboardingStatus(serverOptions.homeDirectory, projects.length);
+    const onboarding = molisWorkOnboardingStatus(serverOptions.homeDirectory, projectCount);
     if (onboarding.first_run_required || onboarding.update_required) {
       const modeQuery = onboarding.update_required ? "?mode=update" : "";
       const desktopQuery = desktopShell ? `${modeQuery ? "&" : "?"}desktop=1` : "";

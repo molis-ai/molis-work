@@ -15,11 +15,11 @@ import { dispatchCatalogRoutes } from "./web-catalog-routes.js";
 export async function handleLocalCatalogWebRequest(
   request: IncomingMessage, response: ServerResponse, url: URL, serverOptions: WebServerOptions,
   runtimeIntegrations: RuntimeIntegrationService, webService: MolisWorkWebServiceManager, controlToken: string,
-  localHost: MolisWorkLocalHost, projects: WebProjectNavigation[], composition: LocalWebComposition,
+  localHost: MolisWorkLocalHost, projects: WebProjectNavigation[], projectCount: number, composition: LocalWebComposition,
   deletionPorts: ProjectDeletionPorts,
   agentRuntimes: () => Promise<readonly AgentRuntimeDescriptor[]> = async () => [],
 ): Promise<void> {
-  if (await dispatchCatalogRoutes({ request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, projects, composition, deletionPorts, agentRuntimes })) return;
+  if (await dispatchCatalogRoutes({ request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, projects, projectCount, composition, deletionPorts, agentRuntimes })) return;
   if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
     sendJson(response, 400, { error: uiText.text("workbench.catalog.choose-molis-work-project-first") });
     return;

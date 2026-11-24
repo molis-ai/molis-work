@@ -13,6 +13,7 @@ import { assertArtifactProjectRoot } from "./artifact-row-storage-policy.js";
 import { assertSqliteLibraryReady } from "@molis-ai/molis-work-storage";
 import { projectDatabases } from "./platform-upgrade-stores.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
+import { partitionDatabasePath, partitionOfDatabasePath } from "@molis-ai/molis-work-module-projects";
 
 /** A project database recovery cannot open: gone, or at another schema version than this build's baseline. */
 
@@ -29,9 +30,10 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
 
   constructor(path: string, options: { existingOnly?: boolean; homeStorage?: { home: string; owner: StorageOwner } } = {}) {
     const home = managedProjectHome(path);
-    const candidateHome = home && pathUtil.basename(path) === "molis-work.db" ? fs.realpathSync(home) : undefined;
-    if (candidateHome) {
-      path = pathUtil.join(candidateHome, "projects", pathUtil.basename(pathUtil.dirname(path)), "molis-work.db");
+    const partition = home ? partitionOfDatabasePath(path) : undefined;
+    const candidateHome = home && partition ? fs.realpathSync(home) : undefined;
+    if (candidateHome && partition) {
+      path = partitionDatabasePath(candidateHome, partition.partitionId);
       assertSqliteLibraryReady(path);
     }
     const existing = existsSync(path), held = options.homeStorage;
@@ -60,17 +62,17 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
 }
 
 function managedProjectHome(path: string): string | undefined {
-  const candidate = pathUtil.resolve(pathUtil.dirname(path), '../..');
+  const partition = partitionOfDatabasePath(pathUtil.resolve(path));
   // Standalone libraries never borrow the process default Home.
-  return pathUtil.basename(pathUtil.dirname(pathUtil.dirname(path))) === 'projects'
-    && fs.existsSync(pathUtil.join(candidate, 'storage-space.json')) ? candidate : undefined;
+  return partition && fs.existsSync(pathUtil.join(partition.homeDirectory, 'storage-space.json')) ? partition.homeDirectory : undefined;
 }
 
 /** Only a project this Home actually owns can change its journal mode. */
 function catalogOwnedProject(path: string, held: { home: string; owner: StorageOwner }): { space: StorageSpace; id: string } | undefined {
   assertStorageOwner(agentRuntimeDirectory(held.home), held.owner);
   const space = readStorageSpace(held.home);
-  if (space && projectDatabases(held.home, space).includes(pathUtil.relative(held.home, path))) return { space, id: pathUtil.basename(pathUtil.dirname(path)) };
+  const partition = partitionOfDatabasePath(path);
+  if (space && partition && projectDatabases(held.home, space).includes(pathUtil.relative(held.home, path))) return { space, id: partition.partitionId };
   return undefined;
 }
 

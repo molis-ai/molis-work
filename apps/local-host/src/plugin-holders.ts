@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { join, resolve } from "node:path";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { listCatalogProjectsForUninstall } from "@molis-ai/molis-work-module-projects";
+import { listCatalogProjectsForUninstall, partitionDatabasePath } from "@molis-ai/molis-work-module-projects";
 import { readPluginReleaseManifest, readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { LocalCatalogMetadata, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { openReadOnlyHomePluginStore } from "./home-plugin-store.js";
@@ -92,11 +92,10 @@ export function heldInstalls(home: string | null, current?: { readonly db: Runti
   const catalog = new LocalSqliteStorage(catalogPath, { readonly: true });
   try {
     if (!isOwnedCatalogOwner(new LocalCatalogMetadata(catalog.db).owner())) throw new Error("项目目录不是本 Home 建的，读不了其中的安装");
-    const root = resolve(home, "projects") + sep;
     for (const project of listCatalogProjectsForUninstall(catalog.db, join(home, "projects"))) {
       if (!wantsProject(project.project_id) || current?.scope.kind === "project" && current.scope.project_id === project.project_id) continue;
-      const file = resolve(project.database_path);
-      if (!file.startsWith(root)) throw new Error(`项目库 ${project.project_id} 不在本 Home 的项目目录里，读不了其中的安装`);
+      // The path is worked out from the id under this Home (`partitionRoot`), never read from the catalog.
+      const file = resolve(partitionDatabasePath(home, project.project_id));
       const db = new LocalSqliteStorage(file, { readonly: true });
       try {
         // A project that never ran a Plugin Runtime has no table, and so holds nothing.

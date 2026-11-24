@@ -34,7 +34,7 @@ export async function handleDirectoryGrantHttp(context: WebRequestContext, proje
 /** Each grant as the person reads it: which plugin, which folder, in which project, and what read it lately. */
 async function listGrants(context: WebRequestContext, grants: Awaited<ReturnType<ReturnType<typeof directoryForHome>["list"]>>) {
   const names = grants.some(grant => grant.project_id) ? new Map(await context.composition.withCatalog({ homeDirectory: context.serverOptions.homeDirectory },
-    catalog => catalog.listProjects().map(project => [project.project_id, project.display_name] as const))) : new Map<string, string>();
+    catalog => catalog.listPartitions().map(project => [project.project_id, project.display_name] as const))) : new Map<string, string>();
   return grants.map(({ install_id: _install, actor_id: _actor, device: _device, inode: _inode, ...grant }) => ({ ...grant,
     project_name: grant.project_id ? names.get(grant.project_id) ?? grant.project_id : null }));
 }

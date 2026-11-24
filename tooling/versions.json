@@ -840,6 +840,8 @@
     "action.pages.subject.read": 1,
     "action.pages.templates": 1,
     "action.pages.update": 1,
+    "action.partitions.plugins.get": 1,
+    "action.partitions.plugins.set": 1,
     "action.placement.attach": 1,
     "action.placement.attach.targets": 1,
     "action.placement.convert": 1,

@@ -1,5 +1,7 @@
 import type { ProjectPluginId, ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+
 import { projectDatabasePath } from "./project-paths.js";
 import { text, type ProjectsSqliteDatabase, type Row } from "./sqlite.js";
 
@@ -13,10 +15,16 @@ export interface StoredPluginMembershipFacts {
 export class ProjectRecordsRepository {
   constructor(private readonly db: ProjectsSqliteDatabase, private readonly projectsDirectory: string, readonly spaceId?: string) {}
 
+  /** The person's projects: every live partition but the personal space (specs/unified-partition-plugins C2). */
   listProjects(): ProjectRecord[] {
+    return this.listPartitions().filter(row => row.project_id !== PERSONAL_SPACE_PROJECT_ID);
+  }
+
+  /** Every live partition, the personal space first: what a platform loop walks (sync, search, schedules, backups, upgrades, clean-up). */
+  listPartitions(): ProjectRecord[] {
     return (this.db.prepare(
-      "SELECT * FROM projects WHERE project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1) ORDER BY display_name COLLATE NOCASE, created_at, project_id",
-    ).all() as Row[]).map(row => ({ ...mapProject(row, this.projectsDirectory), ...(this.spaceId ? { spaceId: this.spaceId } : {}) }));
+      "SELECT * FROM projects WHERE project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1) ORDER BY project_id <> ?, display_name COLLATE NOCASE, created_at, project_id",
+    ).all(PERSONAL_SPACE_PROJECT_ID) as Row[]).map(row => ({ ...mapProject(row, this.projectsDirectory), ...(this.spaceId ? { spaceId: this.spaceId } : {}) }));
   }
 
   getProject(projectId: string): ProjectRecord | null {
@@ -46,20 +54,20 @@ export class ProjectRecordsRepository {
   }
 
   listProjectPlugins(projectId: string): ProjectPluginId[] {
-    return (this.db.prepare("SELECT plugin_id FROM project_plugins WHERE project_id = ? ORDER BY plugin_id")
+    return (this.db.prepare("SELECT plugin_id FROM partition_plugins WHERE partition_id = ? ORDER BY plugin_id")
       .all(projectId) as { plugin_id: ProjectPluginId }[]).map(row => row.plugin_id);
   }
 
-  addProjectPlugin(projectId: string, pluginId: ProjectPluginId, at: string): boolean {
+  addProjectPlugin(projectId: string, pluginId: ProjectPluginId, at: string, actorId: string): boolean {
     const portableChanged = Number(this.db.prepare('INSERT INTO project_portable_plugins(project_id,plugin_id) VALUES(?,?) ON CONFLICT DO NOTHING').run(projectId,pluginId).changes)>0;
-    const activeChanged = Number(this.db.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")
-      .run(projectId, pluginId, at).changes) > 0;
+    const activeChanged = Number(this.db.prepare("INSERT INTO partition_plugins (partition_id, plugin_id, enabled_at, enabled_by) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING")
+      .run(projectId, pluginId, at, actorId).changes) > 0;
     return portableChanged || activeChanged;
   }
 
   removeProjectPlugin(projectId: string, pluginId: ProjectPluginId): boolean {
     const portableChanged = Number(this.db.prepare('DELETE FROM project_portable_plugins WHERE project_id=? AND plugin_id=?').run(projectId,pluginId).changes)>0;
-    const activeChanged = Number(this.db.prepare("DELETE FROM project_plugins WHERE project_id = ? AND plugin_id = ?")
+    const activeChanged = Number(this.db.prepare("DELETE FROM partition_plugins WHERE partition_id = ? AND plugin_id = ?")
       .run(projectId, pluginId).changes) > 0;
     return portableChanged || activeChanged;
   }
@@ -92,7 +100,7 @@ export class ProjectRecordsRepository {
         ORDER BY rowid DESC LIMIT 1
       ) AS value
       FROM projects WHERE project_id = ?1 AND project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1)
-      UNION ALL SELECT 'plugin', plugin_id FROM project_plugins WHERE project_id = ?1
+      UNION ALL SELECT 'plugin', plugin_id FROM partition_plugins WHERE partition_id = ?1
       UNION ALL SELECT 'hidden', plugin_id FROM project_plugin_exclusions WHERE project_id = ?1
       ORDER BY kind, value
     `).all(projectId) as { kind: "project" | "plugin" | "hidden"; value: string | null }[];

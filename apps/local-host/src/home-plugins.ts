@@ -1,3 +1,4 @@
+import { assembledPerPartition } from "./partition-plugin-assembly.js";
 import type { InstalledPackageRepair } from './installed-plugin-common.js';
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { renderHomePackageDocument } from "./installed-plugin-http.js";
@@ -355,7 +356,8 @@ async function startHomePlatformRuntime(input: {
     const loaded: ReturnType<typeof registeredNativePlugin> = registeredNativePlugin(entry, definition => identity.remember([{ ...binding, definition, localePacks: loaded.localePacks }]));
     return { ...loaded, ...binding };
   });
-  const entries = [...shipped, ...pluginFixtureEntries(options.fixtures ?? [])];
+  // A plugin with a library in each partition is the per-partition assembly's, never this Home Runtime's (V1: the two never run the same plugin).
+  const entries = [...shipped, ...pluginFixtureEntries(options.fixtures ?? [])].filter(entry => !assembledPerPartition(entry.definition.manifest));
   const ids = new Set<string>();
   for (const entry of entries) {
     if (ids.has(entry.definition.manifest.plugin_id)) throw new Error("Home 插件标识重复");

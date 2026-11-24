@@ -6,6 +6,7 @@ import { readRollbackPoint } from "./installer/home-rollback.js";
 import { readUpgradeLedger, readUpgradeNotice, removeUpgradeNotice, type UpgradeNotice } from "./home-upgrade-ledger.js";
 import { homeUpgradeDescriptors, type UpgradeBlock } from "./home-upgrade-stores.js";
 import { hostLog } from "./host-log.js";
+import { matchesPartitionPattern, partitionOfRelativePath } from "@molis-ai/molis-work-module-projects";
 
 /** Why a part of the product cannot be used after an upgrade (U3 design §2.4). Each has its own sentence and its own ways out. */
 export type UnavailableReason = "upgrade_failed" | "upgrade_activation_failed" | "store_too_new" | "upgrade_no_space" | "snapshot_invalid";
@@ -43,13 +44,9 @@ export function diagnosticId(runId: string, relativePath: string): string {
   return `D-${createHash("sha256").update(`${runId}\n${relativePath}`).digest("hex").slice(0, 8).toUpperCase()}`;
 }
 
-/** A pattern's `*` stands for one directory name, as in the descriptors; nothing else in it is special. */
-function matches(pattern: string, path: string): boolean {
-  const source = pattern.split("*").map(part => part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("[^/]+");
-  return new RegExp(`^${source}$`, "u").test(path);
-}
-
-const projectOf = (path: string): string | null => /^projects\/([^/]+)\//u.exec(path)?.[1] ?? null;
+/** A pattern's `*` stands for one directory name and its `<partition>` for any partition's root, as in the descriptors. */
+const matches = matchesPartitionPattern;
+const projectOf = partitionOfRelativePath;
 
 /**
  * Only asked when an open has refused a store (§2.2), so a Home that works pays nothing for it. It reads the upgrade record once, a small file,

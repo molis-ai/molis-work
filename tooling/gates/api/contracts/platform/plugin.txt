@@ -4887,6 +4887,7 @@ export interface PluginManifest {
 export interface PluginManifestDatabases {
     readonly project?: PluginDatabaseDeclaration;
     readonly home?: HomePluginDatabaseDeclaration;
+    readonly partition?: PluginDatabaseDeclaration;
 }
 
 export type PluginMaterialDocumentsRequest = MaterialDocumentOptions;

@@ -39,7 +39,7 @@ import type {
   ProjectPluginMembership,
   ProjectPluginRegistry,
   RemoveProjectPluginInput,
-  VersionedProjectPluginMembership,
+  VersionedPartitionPluginMembership, VersionedProjectPluginMembership,
   AddWorkspaceProjectInput,
   ChangeDirectoriesInput,
   DeleteProjectInput,
@@ -179,6 +179,7 @@ export class MolisWorkProjectCatalog {
   readonly projectDeletion: ManagedProjectDeletion;
   readonly recycle: ProjectsModule['recycle'];
   readonly setProjectPlugin: ProjectsModule["commands"]["setProjectPlugin"];
+  readonly setPartitionPlugins: ProjectsModule["commands"]["setPartitionPlugins"];
   private readonly demoProjects: DemoProjectLifecycle;
   private readonly projects: ProjectsModule;
   private readonly runtimeContexts: ReturnType<typeof createRuntimeContextModule>;
@@ -226,6 +227,7 @@ export class MolisWorkProjectCatalog {
     this.personalProjects = new PersonalProjectProvisioner(homeDirectory, this.projectFiles, this.projects);
     this.recycle=this.projects.recycle;this.wasProjectPluginRemoved=this.projects.query.wasProjectPluginRemoved;
     this.setProjectPlugin = (projectId, actorId, input) => bumpAnd(this, () => this.projects.commands.setProjectPlugin(projectId, actorId, input));
+    this.setPartitionPlugins = (partitionId, actorId, input) => bumpAnd(this, () => this.projects.commands.setPartitionPlugins(partitionId, actorId, input));
     this.ensureSyncedProject = this.personalProjects.ensureSyncedProject.bind(this.personalProjects);
     this.stageHiddenProject = this.personalProjects.stageHiddenProject.bind(this.personalProjects);
     this.prepareSyncedProjectRestore = this.personalProjects.prepareSyncedProjectRestore.bind(this.personalProjects);
@@ -272,6 +274,13 @@ export class MolisWorkProjectCatalog {
       }
     };
     opened.checkOwner = () => { assertStorageOwner(root, owner); assertNoPendingHomeRestore(root); };
+    // The personal space is part of every Home from its first open (specs/unified-partition-plugins §4.1), not made on first use.
+    try {
+      await opened.ensurePersonalPartition();
+    } catch (error) {
+      opened.close();
+      throw error;
+    }
     return opened;
   }
 
@@ -346,8 +355,14 @@ export class MolisWorkProjectCatalog {
     if (stamp !== null && this.catalogDataStamp() === stamp) this.lastSchemaStamp = stamp;
   }
 
+  /** The person's projects, without the personal space. */
   listProjects(): MolisWorkProjectRecord[] {
     return this.projects.query.listProjects();
+  }
+
+  /** Every live partition, the personal space first: what platform loops walk. */
+  listPartitions(): MolisWorkProjectRecord[] {
+    return this.projects.query.listPartitions();
   }
 
   projectPluginMembership(projectId: string): ProjectPluginMembership {
@@ -355,6 +370,9 @@ export class MolisWorkProjectCatalog {
   }
   projectPluginMembershipWithRevision(projectId: string): VersionedProjectPluginMembership {
     return this.projects.query.projectPluginMembershipWithRevision(projectId);
+  }
+  partitionPluginMembership(partitionId: string): VersionedPartitionPluginMembership {
+    return this.projects.query.partitionPluginMembership(partitionId);
   }
 
   listProjectPlugins(projectId: string): ProjectPluginId[] {
@@ -441,8 +459,14 @@ export class MolisWorkProjectCatalog {
     return notifyAfter(this.homeDirectory, this.projects.commands.changeDirectories(input));
   }
   async createProject(input: CreateMolisWorkProjectInput, beforeEffect?: () => void): Promise<MolisWorkProjectRecord> { return notifyAfterAsync(this.homeDirectory, this.projectFiles.createProject(input, false, beforeEffect)); }
-  /** The personal space exists once it is first used; creating it again returns the same one. */
-  async ensurePersonalSpace(actorId = LOCAL_PERSON_ACTOR_ID): Promise<MolisWorkProjectRecord> { return notifyAfterAsync(this.homeDirectory, this.personalProjects.ensurePersonalSpace(actorId)); }
+  /** The personal space, which every Home has from the catalog's first open: the same record each time. */
+  async ensurePersonalSpace(actorId = LOCAL_PERSON_ACTOR_ID): Promise<MolisWorkProjectRecord> {
+    const existing = this.projects.query.listPartitions().find(row => row.project_id === PERSONAL_SPACE_PROJECT_ID);
+    return existing ?? notifyAfterAsync(this.homeDirectory, this.personalProjects.ensurePersonalSpace(actorId));
+  }
+
+  /** Home initialization: makes the personal partition once, idempotently; a Home that has it changes nothing. */
+  private async ensurePersonalPartition(): Promise<void> { await this.ensurePersonalSpace(LOCAL_PERSON_ACTOR_ID); }
   async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return notifyAfterAsync(this.homeDirectory, this.demoProjects.ensureDemoProject(input)); }
   async resetDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return notifyAfterAsync(this.homeDirectory, this.demoProjects.resetDemoProject(input)); }
   async removeDemoProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> { return notifyAfterAsync(this.homeDirectory, this.demoProjects.removeDemoProject(input)); }

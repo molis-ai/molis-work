@@ -480,7 +480,7 @@ export function createHostSessionsPorts(
         return runner({ homeDirectory }, catalog =>
           operation({
             directories: catalog.listWorkspaceDirectory(),
-            projects: catalog.listProjects().map(project => ({ project_id: project.project_id, display_name: project.display_name })),
+            projects: catalog.listPartitions().map(project => ({ project_id: project.project_id, display_name: project.display_name })),
             bindings: catalog.listRuntimeContextBindings(),
           }),
         );

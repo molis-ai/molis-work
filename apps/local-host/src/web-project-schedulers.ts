@@ -41,7 +41,7 @@ export function startWebProjectSchedulers(options: {
     if (scanning) return scanning;
     const run = runWithMolisWorkHome(homeDirectory, async () => {
       const projects = fixture ? [{ database_path: fixture.databasePath, project_id: fixture.projectId }]
-        : await withCatalog({ homeDirectory }, catalog => catalog.listProjects());
+        : await withCatalog({ homeDirectory }, catalog => catalog.listPartitions());
       const now = new Date().toISOString(), listed = new Set(projects.map(project => project.database_path));
       for (const path of dueClocks.keys()) if (!listed.has(path)) dueClocks.delete(path);
       for (const project of projects) {

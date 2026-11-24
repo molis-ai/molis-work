@@ -53,12 +53,20 @@ export const projectSnapshot: HomeStoreSnapshotPolicy = {
       if (owner !== CATALOG_OWNER || version !== CATALOG_SCHEMA_VERSION) throw homeSnapshotErrors.invalid("目录库不是本版本的现行 owner/schema，未生成快照");
       return { owner, schema_version: version };
     } };
-    if (/^[^/]+\/molis-work\.db$/u.test(file)) return { requireSpace: true, baseline: PROJECT_DATABASE_BASELINE, additionalTables: true,
-      inspect: db => Object.fromEntries(listPluginProjectDatabases(db).flatMap(entry => [
-        ["plugin:" + entry.plugin_id, entry.version], ["store:" + entry.plugin_id, entry.store_name], ["publisher:" + entry.plugin_id, entry.publisher_signature],
-      ])) };
+    if (/^[^/]+\/molis-work\.db$/u.test(file)) return partitionDatabaseSnapshot;
     return undefined;
   },
+};
+
+/** A partition's main database, whichever partition (`partitionRoot`): the project baseline and the plugins' tables recorded in it. */
+const partitionDatabaseSnapshot: SqliteSnapshotOptions = { requireSpace: true, baseline: PROJECT_DATABASE_BASELINE, additionalTables: true,
+  inspect: db => Object.fromEntries(listPluginProjectDatabases(db).flatMap(entry => [
+    ["plugin:" + entry.plugin_id, entry.version], ["store:" + entry.plugin_id, entry.store_name], ["publisher:" + entry.plugin_id, entry.publisher_signature],
+  ])) };
+
+/** The personal space's partition root, `personal-space/` (specs/unified-partition-plugins §4.1): its main database is at the store's top. */
+export const personalSpaceSnapshot: HomeStoreSnapshotPolicy = {
+  database: file => file === "molis-work.db" ? partitionDatabaseSnapshot : undefined,
 };
 
 /** Current SDK paths, not SDK decryption: unknown leftovers cannot accidentally export a renamed original key. */

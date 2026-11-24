@@ -27,6 +27,7 @@ import { handleAuthorizationManagementHttp } from "./authorization-management-ht
 /** A request outside any project: the chooser, the global settings, and what the Home shows there. */
 interface CatalogIndexContext extends WebRequestContext {
   readonly projects: WebProjectNavigation[];
+  readonly projectCount: number;
   readonly assistant: (AssistantHttpPorts & { projectRef?: LocalHostProjectReference }) | null;
 }
 
@@ -51,8 +52,8 @@ export const CATALOG_INDEX_ROUTES: readonly WebRoute<CatalogIndexContext>[] = [
   { id: "agent-reviews", handle: ({ request, response, url, agentHost, localHost, agentReady }) => handleUnscopedAgentReviews(request, response, url,
     { host: localHost, agentHost, actorId: LOCAL_PERSON_ACTOR_ID, computerHolder: () => computerHolderFor(localHost)?.() ?? null, ready: agentReady }) },
   { id: "catalog", handle: async context => {
-    const { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, projects, composition, ptyHost, projectSchedules, webViewCache, agentReady, agentHost } = context;
-    await handleLocalCatalogWebRequest(request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, projects, composition,
+    const { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, projects, projectCount, composition, ptyHost, projectSchedules, webViewCache, agentReady, agentHost } = context;
+    await handleLocalCatalogWebRequest(request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, projects, projectCount, composition,
       webProjectDeletionPorts({ isPanelAlive: panelId => ptyHost.alive(panelId), projectSchedules, webViewCache, localHost }),
       async () => { await agentReady(); return agentHost.descriptors(); });
     return true;

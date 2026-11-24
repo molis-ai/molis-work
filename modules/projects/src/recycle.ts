@@ -1,4 +1,5 @@
 import { projectDatabasePath } from './project-paths.js';
+import { assertOrdinaryPartition } from "./reserved-partition.js";
 import { createHash, randomUUID } from 'node:crypto';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { ProjectsSqliteDatabase } from './sqlite.js';
@@ -43,7 +44,7 @@ export class ProjectRecycle {
     if (!project || project.data_class !== 'user') throw errors.recycle_missing('找不到可回收的项目');
     const lifecycle = this.db.prepare('SELECT recycled,generation FROM project_recycle WHERE project_id=?').get(projectId) as { recycled: number; generation: number } | undefined;
     const facts = [project, lifecycle ?? null,
-      this.db.prepare('SELECT * FROM project_plugins WHERE project_id=? ORDER BY plugin_id').all(projectId),
+      this.db.prepare('SELECT * FROM partition_plugins WHERE partition_id=? ORDER BY plugin_id').all(projectId),
       this.db.prepare('SELECT * FROM project_portable_plugins WHERE project_id=? ORDER BY plugin_id').all(projectId),
       this.db.prepare('SELECT * FROM project_plugin_exclusions WHERE project_id=? ORDER BY plugin_id').all(projectId),
       this.db.prepare('SELECT * FROM workspace_project_memberships WHERE project_id=? ORDER BY membership_id').all(projectId)];
@@ -65,6 +66,7 @@ export class ProjectRecycle {
 
   /** Mark a newly staged project hidden inside its creation transaction so incomplete copies never surface. */
   stageHidden(projectId: string): void {
+    assertOrdinaryPartition(projectId, "不能作为复制暂存的项目");
     this.db.prepare(`INSERT INTO project_recycle(project_id,recycled,generation,observed_at) VALUES(?,1,1,?)
       ON CONFLICT(project_id) DO UPDATE SET recycled=1,observed_at=excluded.observed_at`).run(projectId, this.now());
   }
@@ -86,6 +88,7 @@ export class ProjectRecycle {
       || typeof input.expected_state !== 'string' || !/^[a-f0-9]{64}$/.test(input.expected_state)) {
       throw errors.recycle_invalid('请确认所查看的项目版本和回收操作');
     }
+    assertOrdinaryPartition(input.project_id, "不能回收或恢复");
     const receipt = this.db.prepare('SELECT fingerprint,result_json FROM project_recycle_receipts WHERE actor_id=? AND operation_id=?')
       .get(input.actor_id, input.operation_id) as { fingerprint: string; result_json: string } | undefined;
     if (receipt) {

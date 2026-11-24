@@ -52,10 +52,10 @@ export async function resolveWebRequest(
   if (fixture) return { kind: "board", pathname, options: fixture };
 
   return withMolisWorkProjectCatalog({ homeDirectory: serverOptions.homeDirectory }, (catalog) => {
-    const records = catalog.listProjects();
+    const records = catalog.listPartitions();
     const projects = records.map(projectNavigation);
     if (isCatalogIndexPath(pathname)) {
-      return { kind: "catalog_index", projects };
+      return { kind: "catalog_index", projects, projectCount: catalog.listProjects().length };
     }
     const match = pathname.match(/^\/projects\/([^/]+)(\/.*)?$/);
     if (!match) return { kind: "project_not_found" };

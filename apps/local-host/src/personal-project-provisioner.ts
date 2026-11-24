@@ -5,6 +5,7 @@ import { ensureStorageSpace } from '@molis-ai/molis-work-storage';
 import type { ManagedProjectFiles } from './managed-project-files.js';
 import type { CreateMolisWorkProjectInput } from './project-catalog-contract.js';
 import { PERSONAL_SPACE_PROJECT_ID, PERSONAL_SPACE_TITLE } from './personal-space.js';
+import { catalogErrors } from './project-catalog-contract.js';
 
 /** Provisions managed partitions; account ownership and remote paths never come from a sync payload. */
 export class PersonalProjectProvisioner {
@@ -12,10 +13,10 @@ export class PersonalProjectProvisioner {
 
   async ensurePersonalSpace(actorId = LOCAL_PERSON_ACTOR_ID, beforeEffect: () => void = () => {}): Promise<ProjectRecord> {
     beforeEffect();
-    const existing = this.projects.query.listProjects().find(row => row.project_id === PERSONAL_SPACE_PROJECT_ID);
+    const existing = this.projects.query.listPartitions().find(row => row.project_id === PERSONAL_SPACE_PROJECT_ID);
     if (existing) return existing;
     try {
-      const record = await this.files.provisionCreatedProject({ displayName: PERSONAL_SPACE_TITLE, actorId, projectId: PERSONAL_SPACE_PROJECT_ID }, record => {
+      const record = await this.files.provisionCreatedProject({ displayName: PERSONAL_SPACE_TITLE, actorId, projectId: PERSONAL_SPACE_PROJECT_ID, reserved: true }, record => {
         beforeEffect();
         this.projects.lifecycle.register(record, 'project.created', actorId);
         return record;
@@ -24,7 +25,7 @@ export class PersonalProjectProvisioner {
       return record;
     } catch (error) {
       beforeEffect();
-      const made = this.projects.query.listProjects().find(row => row.project_id === PERSONAL_SPACE_PROJECT_ID);
+      const made = this.projects.query.listPartitions().find(row => row.project_id === PERSONAL_SPACE_PROJECT_ID);
       if (made) return made;
       throw error;
     }
@@ -44,7 +45,8 @@ export class PersonalProjectProvisioner {
     beforeEffect();
     if (ensureStorageSpace(this.home).kind !== 'personal') throw new Error('SYNC_PERSONAL_SPACE_REQUIRED');
     if (this.projects.recycle.isRecycled(input.project_id ?? '') || this.projects.query.listProjectDeletions().some(row => row.project_id === input.project_id)) throw new Error('已删除的项目不会通过同步自动恢复');
-    if (input.project_id === PERSONAL_SPACE_PROJECT_ID) return this.ensurePersonalSpace(input.actor_id, beforeEffect);
+    // Sync never makes or takes the personal space (S-personal-partition-reserved): Home initialization already made it.
+    if (input.project_id === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space('个人空间是保留的，不能由同步接收建立');
     return this.files.createProject(input, true, beforeEffect);
   }
 
@@ -72,13 +74,13 @@ export class PersonalProjectProvisioner {
       { displayName: input.display_name, actorId: input.actor_id, projectId },
       record => this.projects.lifecycle.transaction(() => {
         beforeEffect();
-        const visible = this.projects.query.listProjects().find(item => item.project_id === record.project_id);
+        const visible = this.projects.query.listPartitions().find(item => item.project_id === record.project_id);
         if (visible) return visible;
         if (!this.projects.recycle.isRecycled(record.project_id)) {
           this.projects.lifecycle.register(record, 'project.copy_staged', input.actor_id);
           this.projects.recycle.stageHidden(record.project_id);
         }
-        this.projects.lifecycle.syncStagedPlugins(record.project_id, input.plugins);
+        this.projects.lifecycle.syncStagedPlugins(record.project_id, input.plugins, input.actor_id);
         return record;
       }),
       beforeEffect,

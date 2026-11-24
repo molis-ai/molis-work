@@ -90,11 +90,12 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
     );
     CREATE INDEX IF NOT EXISTS projects_display_name_idx
       ON projects(display_name COLLATE NOCASE, project_id);
-    CREATE TABLE IF NOT EXISTS project_plugins (
-      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+    CREATE TABLE IF NOT EXISTS partition_plugins (
+      partition_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
       plugin_id TEXT NOT NULL,
-      added_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, plugin_id)
+      enabled_at TEXT NOT NULL,
+      enabled_by TEXT NOT NULL,
+      PRIMARY KEY (partition_id, plugin_id)
     );
     CREATE TABLE IF NOT EXISTS project_portable_plugins (
       project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,

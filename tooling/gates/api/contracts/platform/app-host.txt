@@ -127,6 +127,7 @@ export interface RuntimePanelCatalogProvider {
 export interface RuntimeProjectApplicationApi {
     resolveRuntimeContext(context: RuntimeWorkContext, clues?: readonly RuntimeProjectSuggestionClue[]): MolisWorkRuntimeContextResolution;
     listProjects(): ProjectRecord[];
+    listPartitions(): ProjectRecord[];
     bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution;
     unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult;
     rejectRuntimeContextSuggestion(input: RejectRuntimeContextSuggestionInput): MolisWorkRuntimeContextSuggestionRejectionResult;

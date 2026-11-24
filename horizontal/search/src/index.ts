@@ -677,7 +677,8 @@ function searchStatuses(options: SearchServiceOptions, sources: readonly SourceV
   return sources.map(source => {
     const record = options.index.source(source.key);
     const base = { plugin_id: source.view.provider.plugin_id ?? source.reference.provider_id, title: source.view.provider.title,
-      scope: source.project_id ? "project" as const : "personal" as const, indexed_at: record?.synced_at ? new Date(record.synced_at).toISOString() : null,
+      // What is in the personal space is the person's own, though it is a partition like a project (UPP-01).
+      scope: source.project_id && source.project_id !== options.personalSpace ? "project" as const : "personal" as const, indexed_at: record?.synced_at ? new Date(record.synced_at).toISOString() : null,
       entries: record ? options.index.count(source.key) : 0 };
     const availability = source.view.availability;
     if (!availability.available) return { ...base, state: availability.code === "actions.plugin_disabled" ? "disabled" as const : "unavailable" as const, reason: availability.reason, entries: 0 };

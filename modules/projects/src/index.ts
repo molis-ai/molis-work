@@ -73,7 +73,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     ): ReturnType<ProjectService["touch"]>;
     appendEvent(projectId: string, type: string, actorId: string, payload: Record<string, unknown>): void;
     removeFacts(projectId: string): number;
-    syncStagedPlugins(projectId: string, desiredPlugins: readonly string[]): void;
+    syncStagedPlugins(projectId: string, desiredPlugins: readonly string[], actorId: string): void;
     removeWorkspaceMembershipsForProject(projectId: string): number;
     findDeletion(actorId: string, idempotencyKey: string): StoredProjectDeletion | null;
     insertDeletion(record: StoredProjectDeletion): void;
@@ -118,9 +118,11 @@ export class ProjectsModule implements ProjectsApplicationApi {
       },
       projectPluginMembership: (projectId) => this.records.pluginMembership(projectId),
       projectPluginMembershipWithRevision: (projectId) => membership.get(projectId),
+      partitionPluginMembership: (partitionId) => membership.getPartition(partitionId),
       listProjectPlugins: (projectId) => this.records.listPlugins(projectId),
       listHiddenPlugins: (projectId) => this.records.listHidden(projectId),
       listProjects: () => this.records.list(),
+      listPartitions: () => this.records.partitions(),
       getProject: (projectId) => this.records.get(projectId),
       selections: () => this.records.selections(),
       listWorkspaceMemberships: () => this.workspaces.listMemberships(),
@@ -139,6 +141,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
       addProjectPlugin: (input) => this.records.addPlugin(input),
       removeProjectPlugin: (input) => this.records.removePlugin(input),
       setProjectPlugin: (projectId, actorId, input) => membership.set(projectId, actorId, input),
+      setPartitionPlugins: (partitionId, actorId, input) => membership.setMany(partitionId, actorId, input),
       renameProject: (projectId, displayName, actorId, expectedDisplayName) => this.records.rename(projectId, displayName, actorId, expectedDisplayName),
       addWorkspaceProject: (input) => this.workspaces.add(input),
       changeDirectories: (input) => this.workspaces.change(input),
@@ -153,7 +156,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
       appendEvent: (projectId, type, actorId, payload) =>
         this.records.appendEvent(projectId, type, actorId, payload),
       removeFacts: (projectId) => this.records.removeFacts(projectId),
-      syncStagedPlugins: (projectId, desiredPlugins) => this.records.syncStagedPlugins(projectId, desiredPlugins),
+      syncStagedPlugins: (projectId, desiredPlugins, actorId) => this.records.syncStagedPlugins(projectId, desiredPlugins, actorId),
       removeWorkspaceMembershipsForProject: (projectId) =>
         repository.workspaces.removeWorkspaceMembershipsForProject(projectId),
       findDeletion: (actorId, idempotencyKey) => this.records.findDeletion(actorId, idempotencyKey),
@@ -205,7 +208,7 @@ export type {PortableProject,ProjectReplicationOptions} from './portable-project
 
 export { ProjectRecycle } from "./recycle.js";
 export type { ProjectRecycleInput, ProjectRecycleObservation } from "./recycle.js";
-export { projectDatabasePath, projectDirectoryPath, recordedStagedProjectDirectoryPath, stagedProjectDirectoryPath } from "./project-paths.js";
+export { matchesPartitionPattern, PARTITION_PATTERN, partitionOfRelativePath, PERSONAL_SPACE_DIRECTORY, PROJECTS_DIRECTORY, partitionDatabasePath, partitionOfDatabasePath, partitionRoot, partitionRootsOnDisk, projectDatabasePath, projectDirectoryPath, recordedStagedProjectDirectoryPath, stagedProjectDirectoryPath } from "./project-paths.js";
 export { PROJECT_ROOT_SCHEMA_SQL, SINGLE_PROJECT_ROOT_SQL, writeProjectRoot, listProjectRoots, type ProjectRootDatabase, type ProjectRootRow } from "./project-root.js";
 export {
   createProjectGuidance, projectGuidanceContentHash, projectGuidancePromptPrefix, PROJECT_GUIDANCE_EVENT_PREFIX, PROJECT_GUIDANCE_OBJECT_TYPE,

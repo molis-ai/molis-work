@@ -270,12 +270,13 @@ test("RAC-2457 deleting a project through the catalog removes the directory reco
     };
     // Each project also has its own default output directory, a row that stores no path (SSC-20).
     const named = () => directories().map(directory => directory.startsWith("project-output:") ? directory : basename(directory));
-    // Rows come back by path; the two project ids are random, so their output rows are compared as a set.
-    assert.deepEqual(named().sort(), ["alone", "shared", `project-output:${gone}`, `project-output:${kept}`].sort());
+    // Rows come back by path; the two project ids are random, so their output rows are compared as a set. The personal space is made at Home
+    // initialization with its own output row (UPP-01), and deleting a project never touches it.
+    assert.deepEqual(named().sort(), ["alone", "shared", "project-output:personal", `project-output:${gone}`, `project-output:${kept}`].sort());
 
     await catalog.deleteProject(deletion(gone));
 
-    assert.deepEqual(named(), ["shared", `project-output:${kept}`], "the directory only the deleted project was in is gone with its own output row, the shared one stays");
-    assert.deepEqual(catalog.listWorkspaceMemberships().map(membership => [membership.project_id, membership.roles.join()]).sort(), [[kept, "input"], [kept, "output"]]);
+    assert.deepEqual(named(), ["shared", "project-output:personal", `project-output:${kept}`], "the directory only the deleted project was in is gone with its own output row, the shared one stays");
+    assert.deepEqual(catalog.listWorkspaceMemberships().map(membership => [membership.project_id, membership.roles.join()]).sort(), [["personal", "output"], [kept, "input"], [kept, "output"]]);
   });
 });

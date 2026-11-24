@@ -22,7 +22,7 @@ export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record:
   if (!scope.home) return;
   reconcileSkillSettings(scope.home.directory, scope.project_id ?? "home", record.install_id, null);
   if (scope.project_id === null) new HomeConsentLedger(scope.home.directory).revokeProjectReach({ install_id: record.install_id }, new Date().toISOString());
-  forgetInstallationOriginalFiles(scope.home.directory, record.plugin_id, record.install_id, scope.project_id ?? "");
+  forgetInstallationOriginalFiles(scope.home.directory, record.plugin_id, record.install_id, scope.project_id ?? null);
   forgetInstallationConnections(scope.home.directory, record.install_id, scope.project_id ? { kind: "project", project_id: scope.project_id } : { kind: "home" });
   if (dataGoes) forgetInstallationRules(scope.home.directory, record, scope.project_id ?? null);
   // What the person brought into its conversations is its data: it goes only when the data goes.

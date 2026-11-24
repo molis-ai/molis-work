@@ -130,7 +130,8 @@ test("SCS-07 SCS-08 SCS-11 WBR-24: real Goals, Inbox, Coding and Feed supply one
 test("WBR-24 SCS-08: Feed reads the personal partition and discards the whole reply after display permission changes", { timeout: 60_000 }, async t => {
   const f = await serveHomeRuntime(t);
   const prefix = "/projects/personal";
-  assert.equal((await f.request(prefix + endpoint, { method: "POST", body: {} })).status, 404, "a cold composition does not create personal space");
+  // The personal space exists from Home initialization (UPP-01); a cold composition still does not start it.
+  assert.equal((await f.request(prefix + endpoint, { method: "POST", body: {} })).status, 503, "a cold composition does not start the personal space");
   assert.equal((await f.request(prefix + "/")).status, 200, "the real personal space entry opens the partition");
   const project = f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).read(catalog => catalog.getProject("personal"));
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: "personal" });

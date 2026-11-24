@@ -1,8 +1,8 @@
 import { projectReplicationTriggers } from "./project-replication-triggers.js";
 import { projectPluginPlatformExtension } from "./project-plugin-databases.js";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { PLATFORM_PLUGIN_REGISTRATIONS, BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
-import { ProjectsModule, projectDatabasePath, listProjectRoots } from "@molis-ai/molis-work-module-projects";
+import { ProjectsModule, listProjectRoots, matchesPartitionPattern, PARTITION_PATTERN, partitionDatabasePath, partitionOfRelativePath } from "@molis-ai/molis-work-module-projects";
 import { inspectPluginProjectDatabaseSet, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteSchema, listSqliteObjects, LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
@@ -36,18 +36,18 @@ export function inspectRestoreProjectDatabase(db: SqliteDatabase, file: string, 
 
 /** Catalog identities are absolute references to this original Home, never destinations chosen by manifest text. */
 export function inspectRestoreProjectReferences(db: SqliteDatabase, home: string, incomingPaths: ReadonlySet<string>): ReadonlySet<string> {
-  const projects = new ProjectsModule({ db, projects_directory: join(home, "projects"), outputs_directory: join(home, "outputs"), plugins: BUILTIN_PLUGIN_REGISTRY }).query.listProjects();
+  const projects = new ProjectsModule({ db, projects_directory: join(home, "projects"), outputs_directory: join(home, "outputs"), plugins: BUILTIN_PLUGIN_REGISTRY }).query.listPartitions();
   const ids = new Set<string>();
   for (const project of projects) {
     const id = project.project_id;
     if (typeof id !== "string" || !id.length || id.includes("/") || id.includes("\\") || id === "." || id === ".." || ids.has(id)) throw invalidRestore();
-    const file = "projects/" + id + "/molis-work.db";
-    if (projectDatabasePath(join(home, "projects"), id) !== join(home, file) || !incomingPaths.has(file)) throw invalidRestore();
+    const file = relative(home, partitionDatabasePath(home, id)).split(sep).join("/");
+    if (!incomingPaths.has(file)) throw invalidRestore();
     ids.add(id);
   }
   for (const file of incomingPaths) {
-    const match = /^projects\/([^/]+)\/molis-work\.db$/u.exec(file);
-    if (match && !ids.has(match[1]!)) throw invalidRestore();
+    const partition = matchesPartitionPattern(`${PARTITION_PATTERN}/molis-work.db`, file) ? partitionOfRelativePath(file) : null;
+    if (partition !== null && !ids.has(partition)) throw invalidRestore();
   }
   return ids;
 }

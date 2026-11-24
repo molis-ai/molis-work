@@ -2,11 +2,12 @@ import { lstatSync, mkdirSync, realpathSync, rmSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { pluginErrors, type PluginDefinition, type PluginOwnerFilesClient, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginOwnerFilesClient } from "@molis-ai/molis-work-plugin-runtime";
+import { partitionRoot } from "@molis-ai/molis-work-module-projects";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 
 // The declared files of a sandboxed plugin (`owner_files`, PG-017 P2c, S-64). A shipped plugin's root is a directory of the Home its store registry holds
 // for it. A sandboxed package is installed, not registered, so it has no registry entry and its root is one installation's: in a project,
-// <Home>/projects/<project>/plugin-files/<installation>/<store_name>/ (another project's activation of the same package has another root, and deleting the
+// <partition root>/plugin-files/<installation>/<store_name>/ (`partitionRoot`: personal-space/ or projects/<project>/; another project's activation of the same package has another root, and deleting the
 // project deletes the files with it); on the Home Runtime, <Home>/plugin-files/<installation>/<store_name>/ (a registered Home store, so a purge takes it).
 // Another installation has another root. The client is the same one the Host's own plugins get, over the same port; the sandbox's broker reduces it to
 // what a channel can carry. An uninstall that keeps no data removes the installation's folder (`removeSandboxOwnerFiles`, called from the executors'
@@ -28,7 +29,7 @@ const plain = (value: string, what: string) => {
 /** The directory that holds one installation's files; `store_name` (the Manifest's) is a directory inside it. */
 export function sandboxOwnerFilesBase(homeDirectory: string, projectId: string | null, installId: string): string {
   const home = realpathSync(homeDirectory), installation = plain(installId, "安装 ID");
-  return projectId === null ? join(home, "plugin-files", installation) : join(home, "projects", plain(projectId, "项目 ID"), "plugin-files", installation);
+  return projectId === null ? join(home, "plugin-files", installation) : join(partitionRoot(home, plain(projectId, "项目 ID")), "plugin-files", installation);
 }
 
 export function sandboxOwnerFilesFor(scope: SandboxOwnerFilesScope, definition: PluginDefinition,

@@ -26,6 +26,8 @@ import { commitInstalledVersion, installedDatabaseChange, validateUpgradeFor, re
 import type { PluginContributionSource } from "./lifecycle.js";
 
 export * from "./public-api.js";
+/** A plugin's installation id in a Home, derived from its Manifest: the per-partition assembly gives each instance this id's files. */
+export { installIdentity } from "./runtime-rules.js";
 export { holdsInstalledEdition, UNINSTALL_PENDING, type DeclarationOwner, type DeclarationOwners, type UninstallOptions } from "./install-rules.js";
 
 import type { PluginConsentGrant, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";

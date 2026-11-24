@@ -311,7 +311,7 @@
       "mode": 493
     },
     {
-      "path": "projects/personal",
+      "path": "personal-space",
       "mode": 493
     },
     {
@@ -495,7 +495,7 @@
       "mode": 493
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/personal",
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space",
       "mode": 493
     },
     {
@@ -1100,6 +1100,7 @@
         "context_edges": 0,
         "model_providers": 1,
         "molis_storage_space": 1,
+        "partition_plugins": 25,
         "plugin_terminal_panel_aliases": 0,
         "plugin_terminal_panels": 0,
         "project_catalog_replica_changes": 0,
@@ -1113,7 +1114,6 @@
         "project_events": 25,
         "project_instruction_settings": 0,
         "project_plugin_exclusions": 0,
-        "project_plugins": 25,
         "project_portable_plugins": 25,
         "project_recycle": 0,
         "project_recycle_receipts": 0,
@@ -1127,7 +1127,7 @@
         "workspace_source_links": 0,
         "workspaces": 4
       },
-      "sha256": "07510a7a6872dbcc7067a1e8e354be975035d626b994043246c1545650fd8f34"
+      "sha256": "0538f63b5b6674291740138c375e235f350b578c2e9bd42f3e76ba9c541db875"
     },
     {
       "path": "projects/goalboard-v1-demo/molis-work.db",
@@ -1556,10 +1556,10 @@
       "expanded_sha256": "014d2392914bc9e7451391585c972c55b680b7d2cd83e15f117c67e94ef1bd25"
     },
     {
-      "path": "projects/personal/molis-work.db",
+      "path": "personal-space/molis-work.db",
       "owner": "apps/local-host",
       "mode": 420,
-      "payload": "stores/projects/personal/molis-work.db.sql",
+      "payload": "stores/personal-space/molis-work.db.sql",
       "schema_version": 2,
       "plugin_tables": {
         "io.molis.work.coding": 1,
@@ -2528,6 +2528,7 @@
         "context_edges": 0,
         "model_providers": 0,
         "molis_storage_space": 1,
+        "partition_plugins": 10,
         "plugin_terminal_panel_aliases": 0,
         "plugin_terminal_panels": 0,
         "project_catalog_replica_changes": 9,
@@ -2541,7 +2542,6 @@
         "project_events": 10,
         "project_instruction_settings": 0,
         "project_plugin_exclusions": 0,
-        "project_plugins": 10,
         "project_portable_plugins": 10,
         "project_recycle": 0,
         "project_recycle_receipts": 0,
@@ -2555,13 +2555,13 @@
         "workspace_source_links": 0,
         "workspaces": 2
       },
-      "sha256": "ca082fdecc23bf7c2e4f18fde6832f1e5010c62c80945241d12e769c19142718"
+      "sha256": "8179ac1bdfc7ef180147296dccd7bf26d585840541208f19d1cc20b0235f4c5f"
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/personal/molis-work.db",
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/molis-work.db",
       "owner": "apps/local-host",
       "mode": 420,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/personal/molis-work.db.sql",
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/molis-work.db.sql",
       "schema_version": 2,
       "plugin_tables": {
         "io.molis.work.coding": 1,

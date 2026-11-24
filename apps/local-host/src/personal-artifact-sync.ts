@@ -123,7 +123,7 @@ function createVersionRegistration(home: string, spaceId: string, userId: string
       if (validated.identity.artifact_id !== decode(event.key)[2]) throw errors.version_sync_invalid('固定版本身份不匹配');
       if (!library) assertSystemMaterialsProducer(validated as PortableProcessItem);
       await withCatalog({ homeDirectory: home }, async catalog => {
-        check(); if (catalog.listProjects().some(project => project.project_id === id)) return;
+        check(); if (catalog.listPartitions().some(project => project.project_id === id)) return;
         await catalog.ensureSyncedProject({ project_id: id, display_name: value.project!.title as string, actor_id: userId }, check);
         check();
       }); check();

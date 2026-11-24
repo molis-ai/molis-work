@@ -13,6 +13,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import { projectDatabasePath } from "./project-paths.js";
+import { assertOrdinaryPartition } from "./reserved-partition.js";
 import { deletionRecord, type StoredProjectDeletion } from "./deletion-repository.js";
 import type { ProjectsRepository } from "./repository.js";
 
@@ -20,6 +21,8 @@ export interface ProjectRecordDraftInput {
   project_id?: string;
   display_name: string;
   data_class: ProjectRecord["data_class"];
+  /** Only Home initialization's provisioning of the personal space sets this; every other record refuses the reserved id. */
+  reserved_partition?: true;
 }
 
 export class ProjectService {
@@ -34,6 +37,10 @@ export class ProjectService {
 
   list(): ProjectRecord[] {
     return this.repository.projects.listProjects();
+  }
+
+  partitions(): ProjectRecord[] {
+    return this.repository.projects.listPartitions();
   }
 
   selections(): ProjectSelection[] {
@@ -51,6 +58,7 @@ export class ProjectService {
   }
 
   prepareRecord(input: ProjectRecordDraftInput): ProjectRecord {
+    if (!input.reserved_partition) assertOrdinaryPartition(input.project_id, "不能新建、导入、复制或同步出同名的项目");
     const projectId = input.project_id?.trim() || this.id("project");
     const displayName = this.requiredName(input.display_name);
     const at = this.now();
@@ -71,7 +79,7 @@ export class ProjectService {
       this.repository.projects.insertProject(record);
       for (const pluginId of new Set(this.plugins.initial?.() ?? [])) {
         if (!this.plugins.has(pluginId)) throw catalogErrors.plugin_not_found("新项目的默认插件未在目录登记");
-        this.repository.projects.addProjectPlugin(record.project_id, pluginId, record.created_at);
+        this.repository.projects.addProjectPlugin(record.project_id, pluginId, record.created_at, this.requiredActorId(actorId));
       }
       this.appendEvent(record.project_id, eventType, this.requiredActorId(actorId), { project_id: record.project_id });
       // Every way a project is made comes here, so every project has its output from the start (§3); the folder waits until first used.
@@ -136,7 +144,7 @@ export class ProjectService {
     return this.repository.transaction(() => {
       const at = this.now();
       for (const pluginId of [input.plugin_id, ...this.plugins.companions(input.plugin_id)]) {
-        if (this.repository.projects.addProjectPlugin(project.project_id, pluginId, at)) {
+        if (this.repository.projects.addProjectPlugin(project.project_id, pluginId, at, actor)) {
           this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: pluginId });
         }
       }
@@ -181,6 +189,7 @@ export class ProjectService {
   }
 
   rename(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): ProjectRecord {
+    assertOrdinaryPartition(projectId, "不能改名");
     const nextName = this.requiredName(displayName);
     const actor = this.requiredActorId(actorId);
     return this.repository.transaction(() => {
@@ -219,11 +228,12 @@ export class ProjectService {
   }
 
   removeFacts(projectId: string): number {
+    assertOrdinaryPartition(projectId, "不能删除");
     return this.repository.projects.removeProject(this.requiredProjectId(projectId));
   }
 
   /** Synchronize a staged (hidden) project's stored plugin membership to match its source project exactly. */
-  syncStagedPlugins(projectId: string, desiredPlugins: readonly ProjectPluginId[]): void {
+  syncStagedPlugins(projectId: string, desiredPlugins: readonly ProjectPluginId[], actorId: string): void {
     const id = this.requiredProjectId(projectId);
     const desired = new Set(desiredPlugins);
     this.repository.transaction(() => {
@@ -235,7 +245,7 @@ export class ProjectService {
       const at = this.now();
       for (const pluginId of desired) {
         if (this.plugins.isPersonal?.(pluginId) === true || !this.plugins.has(pluginId)) continue;
-        this.repository.projects.addProjectPlugin(id, pluginId, at);
+        this.repository.projects.addProjectPlugin(id, pluginId, at, this.requiredActorId(actorId));
       }
     });
   }
@@ -249,6 +259,7 @@ export class ProjectService {
   }
 
   insertDeletion(record: StoredProjectDeletion): void {
+    assertOrdinaryPartition(record.project_id, "不能删除");
     this.repository.deletions.insertDeletion(record);
   }
 

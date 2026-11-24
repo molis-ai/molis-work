@@ -73,8 +73,8 @@ for (const reserved of [false, true]) test('Host binding receives Pages in '+(re
   await b.run();assert.equal(b.status().error,null);
   assert.equal(f.withStore(1,s=>s.get(page.id).title),'完整正文');
   await runtimes[1]!.withCatalog({homeDirectory:f.homes[1]},catalog=>{
-    assert.equal(catalog.listProjects().find(p=>p.project_id===project.project_id)?.display_name,reserved?'个人空间':'跨设备项目');
-    assert.ok(catalog.listProjects().some(row=>row.project_id===project.project_id),'synchronization retains the explicit destination project');
+    assert.equal(catalog.listPartitions().find(p=>p.project_id===project.project_id)?.display_name,reserved?'个人空间':'跨设备项目');
+    assert.ok(catalog.listPartitions().some(row=>row.project_id===project.project_id),'synchronization retains the explicit destination project');
   });
   assert.deepEqual(b.status().unavailable,[],'the explicitly opened project retains its installed Pages owner');
   active=false;await b.run();assert.throws(()=>b.status(),/REVOKED/);

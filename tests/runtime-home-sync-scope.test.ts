@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { withMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { discoverRuntimeSyncCollections, molisWorkHostProjectReference, personalRuntimeSyncAuthority } from '@molis-ai/molis-work-app-local-host';
+import { partitionDatabasePath } from '@molis-ai/molis-work-module-projects';
 import { personalSyncFixture, pagesSyncSelection } from './fixtures/personal-sync-coordinator.js';
 import { runtimePersonalSync } from './fixtures/runtime-personal-sync.js';
 
@@ -15,6 +16,8 @@ test('one Home journal has stable scope across two project instances, stopping a
  const source=await runtimePersonalSync(f.homes[0],f.space),target=await runtimePersonalSync(f.homes[1],f.space);f.closeWith(()=>source.close());f.closeWith(()=>target.close());
  const pages=projects.map(project=>f.withStore(0,store=>store.create({project_id:project.project_id,title:project.display_name})));
  const discover=async()=>{const rows=await discoverRuntimeSyncCollections(f.homes[0],f.space.spaceId,source.host,source.withCatalog,()=>{});const pageRows=rows.filter(row=>row.selection.plugin_id===pagesSyncSelection.plugin_id);assert.equal(pageRows.length,1,'all active project instances expose one Home collection');return pageRows[0]!;};
+ // The personal space is opened with every partition (UPP-01); stopped here so the two project instances are the only ones holding this collection.
+ await source.host.closeProject(partitionDatabasePath(f.homes[0],'personal'));
  const original=await discover();assert.equal(original.available!(),true);
  await source.sync.save({...source.sync.policy(),selections:[pagesSyncSelection]});await source.sync.run();await target.sync.run();
  assert.equal(source.sync.status().error,null);assert.equal(target.sync.status().error,null);assert.equal(f.events.length,2);

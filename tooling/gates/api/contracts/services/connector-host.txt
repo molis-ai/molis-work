@@ -345,6 +345,7 @@ export type ConnectorConnectionView = Pick<ConnectorConnectionRecord, "connectio
         readonly title: string;
     };
     readonly mcp_endpoint?: string;
+    readonly mcp_authentication?: "oauth" | "bearer" | "none";
     readonly agent_available?: boolean;
 };
 

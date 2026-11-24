@@ -65,7 +65,7 @@ function checkable(connection: ConnectorSettingsConnection): boolean {
 
 function scopeAttrs(connection: ConnectorSettingsConnection, p: Primitives): string {
   const e = p.escapeHtml;
-  return `data-connection-scope="${e(connection.connection_id)}" data-connection-service="${e(connection.service_id)}" data-connection-auth="${e(connection.auth_method)}" data-connection-name="${e(connection.display_name)}" data-connection-revision="${e(connection.revision)}"${connection.mcp_endpoint ? ` data-connection-endpoint="${e(connection.mcp_endpoint)}"` : ""}`;
+  return `data-connection-scope="${e(connection.connection_id)}" data-connection-service="${e(connection.service_id)}" data-connection-auth="${e(connection.auth_method)}" data-connection-name="${e(connection.display_name)}" data-connection-revision="${e(connection.revision)}"${connection.mcp_authentication ? ` data-mcp-authentication="${e(connection.mcp_authentication)}"` : ""}${connection.mcp_endpoint ? ` data-connection-endpoint="${e(connection.mcp_endpoint)}"` : ""}`;
 }
 
 const accountName = (connection: ConnectorSettingsConnection) => connection.account_label || connection.display_name;

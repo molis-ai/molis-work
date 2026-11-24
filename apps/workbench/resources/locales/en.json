@@ -3804,7 +3804,6 @@
     "workbench.connectors-settings.client-operation-did-not-finish-check-its-prompt": "The client operation did not finish. Check its prompt and try again.",
     "workbench.connectors-settings.client-ready-can-sign": "The client is ready. You can sign in.",
     "workbench.connectors-settings.client-wasn-t-detected-install-following-official-instructions": "The client wasn’t detected. Install it following the official instructions, then retry.",
-    "workbench.connectors-settings.coding-s-mcp-settings-can-t-be-checked": "Coding’s MCP settings can’t be checked from here yet; if “{name}” is chosen there, choose this connection there instead.",
     "workbench.connectors-settings.confirm-removal": "Confirm removal",
     "workbench.connectors-settings.connected-carry-molis-work-window-can-close-page": "Connected. Carry on in your Molis Work window; you can close this page.",
     "workbench.connectors-settings.connected-count-tool-s-available": "Connected. {count} tool(s) available.",

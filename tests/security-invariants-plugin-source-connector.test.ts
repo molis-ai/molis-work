@@ -223,8 +223,10 @@ async function hostRig(t: TestContext, options: { home?: string; sync?: (binding
   const connect = (serviceId = "github") => withConnectorConnections(home, store => store.createToken({ serviceId, displayName: "Work", token: SECRET_VALUE }));
   const bind = (connectionId: string, scope = target, serviceId = "github") => withConnectorConnections(home, store => store.bind({
     scopeId: pluginBindingScope({ install_id: scope.install_id, project_id: scope.project_id, record_key: scope.record_key }), pluginId: scope.plugin_id, slotId: scope.slot_id, serviceId, connectionId }));
+  const switchAccount = (from: string, to: string) => withConnectorConnections(home, store => store.bind({
+    scopeId: pluginBindingScope(target), pluginId: target.plugin_id, slotId: target.slot_id, serviceId: "github", connectionId: to, expectedConnectionId: from }));
   const request = { integration_id: "github", cursor: null as unknown };
-  return { home, port, target, run, retained, connect, bind, request, bindings, syncs, registry: await registry };
+  return { home, port, target, run, retained, connect, bind, switchAccount, request, bindings, syncs, registry: await registry };
 }
 const needsAuth = (receipt: ConnectorPullReceipt) => !receipt.result.ok && receipt.result.failure === "needs_auth";
 
@@ -292,7 +294,7 @@ test("S-97 RAC-1022: an account changed in the middle of a pull is refused, and 
   let swap: (() => void) | undefined;
   const f = await hostRig(t, { sync: () => swap?.() }), first = f.connect(), second = f.connect();
   f.bind(first.connection_id);
-  swap = () => f.bind(second.connection_id);
+  swap = () => f.switchAccount(first.connection_id, second.connection_id);
   await assert.rejects(f.port.pull(f.target, f.request, f.run), /账号连接槽已改变/u);
   // A disconnect aborts the requests in flight on that account itself, before the platform's own recheck.
   swap = () => withConnectorConnections(f.home, store => store.disconnect(second.connection_id));
@@ -322,7 +324,7 @@ test("S-97 FI-C-01: binding changes during registry bind or the final authorizat
         await gate.reached;
         withConnectorConnections(f.home, store => {
           if (change === "unbind") store.unbind(pluginBindingScope(f.target), PLUGIN, "github");
-          else if (change === "swap") f.bind(other.connection_id);
+          else if (change === "swap") f.switchAccount(account.connection_id, other.connection_id);
           else if (change === "project") store.forgetProjectBindings(f.target.project_id);
           else if (change === "installation-project") store.forgetInstallationProjectBindings(INSTALL, f.target.project_id);
           else store.forgetInstallationBindings(INSTALL);
@@ -344,9 +346,13 @@ test("S-97 FI-C-01: ABA never revives an old pull and does not cancel another re
     const rejected = assert.rejects(old, /账号连接槽已改变/u);
     try {
       await gate.reached;
-      if (via === "unbind") withConnectorConnections(f.home, store => store.unbind(pluginBindingScope(f.target), PLUGIN, "github"));
-      else f.bind(b.connection_id);
-      f.bind(a.connection_id);
+      if (via === "unbind") {
+        withConnectorConnections(f.home, store => store.unbind(pluginBindingScope(f.target), PLUGIN, "github"));
+        f.bind(a.connection_id);
+      } else {
+        f.switchAccount(a.connection_id, b.connection_id);
+        f.switchAccount(b.connection_id, a.connection_id);
+      }
       assert.equal((await f.port.pull(other, f.request, f.run)).result.ok, true, "another slot on A remains authorized");
     } finally { gate.release(); }
     await rejected;

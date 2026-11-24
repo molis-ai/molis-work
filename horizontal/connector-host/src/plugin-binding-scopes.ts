@@ -13,7 +13,7 @@ import { isPluginConnectionRecordKey } from "@molis-ai/molis-work-contracts/plat
 // whole scope exactly; removing an installation's or a project's bindings (X4) matches the anchored prefix with `substr`, never `LIKE`.
 // The plugin gives only the record key; the installation and the project come from the trusted call.
 
-export const pluginBindingErrors = defineErrorCodes("connector.plugin_bindings", { record_key_invalid: "invalid", scope_invalid: "invalid" });
+export const pluginBindingErrors = defineErrorCodes("connector.plugin_bindings", { record_key_invalid: "invalid", scope_invalid: "invalid", account_bound: "conflict" });
 
 const INSTALLATION = "plugin-installation:", PROJECT = "/project:", RECORD = "/record:";
 const ID_MAX = 160;

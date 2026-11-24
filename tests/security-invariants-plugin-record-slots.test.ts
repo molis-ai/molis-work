@@ -92,6 +92,9 @@ test("S-71 RAC-2666 the record-slot path binds and reads a record's account as t
   assert.equal((await read(two.project_id)).connection, null);
   // A bound record is not moved to another account here: 409 and the binding as it was, until the person unbinds it.
   const other = withConnectorConnections(f.home, store => store.createToken({ serviceId: "github", displayName: "Other GitHub", token: `${BEARER_VALUE}-other` }));
+  // BL-921: a filled slot still validates the proposed account before classifying an overwrite.
+  for (const wrong of [{ connection_id: 42 }, { connection_id: "missing-account" }, { service_id: "gmail", connection_id: other.connection_id }])
+    assert.equal((await post(one.project_id, { ...body, ...wrong })).status, 400);
   assert.equal((await post(one.project_id, { ...body, connection_id: other.connection_id })).status, 409);
   assert.equal(stored(one.project_id), connection.connection_id);
   assert.equal((await post(one.project_id, body)).status, 200, "the same account again is no change");

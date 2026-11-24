@@ -255,7 +255,7 @@ test("RAC-197 the project's work and the sessions' standing are plugin-only acti
  * plugin-only actions on the calling plugin's own session. Who stops a subtask is the caller, never an input.
  */
 const CHILD_STOP = { kind: "stop", request_id: "stop-child", child_run: { session_id: "child-session", run_id: "child-run" } } as const;
-const SIX = [agent.controlRun, agent.readCommandOutput, agent.inspectRecovery, agent.recoverRun, agent.listCheckpoints, agent.commandSubagent];
+const SESSION_CONTROLS_AND_RECEIPTS = [agent.controlRun, agent.readCommandOutput, agent.readWriteChecks, agent.inspectRecovery, agent.recoverRun, agent.listCheckpoints, agent.commandSubagent];
 /** R8 batch 3, second part: reading a session, a round, its reviews and subtasks, and preparing a rewind. */
 const READS = [agent.readSession, agent.readRun, agent.readRunReviews, agent.listSubagents, agent.prepareRewind];
 const recovery = { session_id: "s1", blockers: [], runs: [{ run_id: "r1", version: 1, live: false, waiting: 0, can_close: true, blockers: [], operations: [] }] };
@@ -280,6 +280,7 @@ async function roundsSetup(t: TestContext, home = false, additionalConsumedIds: 
     observe(run: unknown, listener: (view: never) => void) { seen.push(["observe", [run]]); observers.add(listener); listener({ ...ROUND_VIEW, ref: run } as never); return () => { observers.delete(listener); }; },
     readSession: async (session: { runtime_id: string; session_id: string }) => ({ session, owner: owner.current, title: "Rounds", runs: [{ session_id: "s1", run_id: "r1" }], latest_run: { ...ROUND_VIEW } }) as never,
     control: answer("control", () => undefined),
+    readWriteChecks: answer("checks", () => []),
     readCommandOutput: answer("command", args => ({ ref: args[1], command: "node --test", exit_code: 0, stdout: "ok", stderr: "", truncated: false })),
     recovery: { inspect: answer("inspect", () => structuredClone(recovery)), close: answer("close", () => structuredClone(recovery)) },
     checkpoints: { list: answer("checkpoints", () => []), prepareRewind: answer("rewind", () => { throw new Error("A read-only plugin prepares no rewind"); }) },
@@ -287,7 +288,7 @@ async function roundsSetup(t: TestContext, home = false, additionalConsumedIds: 
   } as AgentRuntimeAdapter);
   const store = new LocalProjectDatabase(join(directory, "plugins.sqlite"));
   const consumer = withReaderRole(callerPlugin("rounds", "project", Object.fromEntries(optionalPermissions.map(permission => [permission, false])),
-    [...[...SIX, ...READS, agent.waitRun, agent.startRun].map(definition => definition.capability_id), ...additionalConsumedIds]));
+    [...[...SESSION_CONTROLS_AND_RECEIPTS, ...READS, agent.waitRun, agent.startRun].map(definition => definition.capability_id), ...additionalConsumedIds]));
   const bystander = callerPlugin("rounds-bystander", "project");
   const consumerRuntime = await startPlugin(localHost, reference, store, consumer, { actorId: "web-user", grants: optionalPermissions });
   await startPlugin(localHost, reference, store, bystander, { actorId: "web-user" });
@@ -350,7 +351,7 @@ test("current original-input Actions carry protected Coding words and same-sessi
 });
 
 test("RAC-199 a round's controls, receipts, recovery, checkpoints and subtasks are plugin-only actions on the caller's own session", async t => {
-  for (const definition of SIX as ActionDefinition[]) assert.deepEqual([definition.action.scope, definition.action.audiences, definition.action.permissions], ["project", ["plugin"], []], definition.capability_id);
+  for (const definition of SESSION_CONTROLS_AND_RECEIPTS as ActionDefinition[]) assert.deepEqual([definition.action.scope, definition.action.audiences, definition.action.permissions], ["project", ["plugin"], []], definition.capability_id);
   const { localHost, reference, seen, owner, consumer, bystander } = await roundsSetup(t), actions = consumer.actions(PROJECT);
   const session = { runtime_id: RUNTIME, session_id: "s1" }, run = { session_id: "s1", run_id: "r1" };
   const mine = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: "web-user" };
@@ -368,6 +369,8 @@ test("RAC-199 a round's controls, receipts, recovery, checkpoints and subtasks a
   assert.equal(seen.filter(([name]) => name === "child-command").length, childCommands, "unattested words never reach the child");
   await actions.invoke(agent.controlRun, [session, run, { kind: "pause" }]);
   assert.deepEqual(seen.at(-1), ["control", [run, { kind: "pause" }]]);
+  await actions.invoke(agent.readWriteChecks, [session, "r1", ["w1", "w2"]]);
+  assert.deepEqual(seen.at(-1), ["checks", [session, "r1", ["w1", "w2"]]]);
   assert.equal((await actions.invoke(agent.readCommandOutput, [session, { run_id: "r1", call_id: "c1" }])).stdout, "ok");
   assert.deepEqual((await actions.invoke(agent.inspectRecovery, [session])).runs.map(entry => entry.run_id), ["r1"]);
   await actions.invoke(agent.recoverRun, [session, run, 1]);
@@ -375,7 +378,7 @@ test("RAC-199 a round's controls, receipts, recovery, checkpoints and subtasks a
 
   const calls: Array<[ActionDefinition<never, unknown>, unknown[]]> = [
     [agent.commandSubagent, [session, run, "child", CHILD_STOP]], [agent.controlRun, [session, run, { kind: "stop" }]], [agent.readCommandOutput, [session, { run_id: "r1", call_id: "c1" }]],
-    [agent.inspectRecovery, [session]], [agent.recoverRun, [session, run, 1]], [agent.listCheckpoints, [session]],
+    [agent.readWriteChecks, [session, "r1", ["w1"]]], [agent.inspectRecovery, [session]], [agent.recoverRun, [session, run, 1]], [agent.listCheckpoints, [session]],
   ] as never;
   const before = seen.length;
   // Another plugin's session, another project's, another person's: refused as unknown, and the Runtime is asked nothing.
@@ -385,6 +388,7 @@ test("RAC-199 a round's controls, receipts, recovery, checkpoints and subtasks a
   }
   owner.current = mine;
   // A run of no round of this session is not this session's.
+  await assert.rejects(actions.invoke(agent.readWriteChecks, [session, "elsewhere", ["w1"]]), { code: "agent.run_unknown" });
   await assert.rejects(actions.invoke(agent.commandSubagent, [session, { session_id: "s1", run_id: "elsewhere" }, "child", CHILD_STOP]), { code: "agent.run_unknown" });
   await assert.rejects(actions.invoke(agent.controlRun, [session, { session_id: "s2", run_id: "r1" }, { kind: "stop" }]), { code: "agent.run_unknown" });
   // Nothing but a consuming plugin calls them, and the schemas refuse identity in the input and controls the Runtime has none of.
@@ -432,6 +436,7 @@ test("RAC-180 reading a session, its rounds, reviews and subtasks, and preparing
   }
   owner.current = mine;
   // A run of no round of this session is not this session's.
+  await assert.rejects(actions.invoke(agent.readWriteChecks, [session, "elsewhere", ["w1"]]), { code: "agent.run_unknown" });
   for (const definition of [agent.readRun, agent.readRunReviews, agent.listSubagents])
     await assert.rejects(actions.invoke(definition, [session, { session_id: "s1", run_id: "elsewhere" }] as never), { code: "agent.run_unknown" }, definition.capability_id);
   // Nothing but a consuming plugin calls them, and the schemas refuse identity in the input.

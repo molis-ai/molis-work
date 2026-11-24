@@ -10,12 +10,12 @@ import type {
 
 import type { SecretStore } from "./file-secret-store.js";
 
-const AEAD_PREFIX = /* @version type.molis-work-feed-aead "molis-work-feed-aead-v{version}" */ "molis-work-feed-aead-v1";
+const AEAD_PREFIX = /* @version type.molis-work-opaque-aead "molis-work-opaque-aead-v{version}" */ "molis-work-opaque-aead-v1";
 const SQLITE_NOW_MS = "CAST(unixepoch('now', 'subsec') * 1000 AS INTEGER)";
 
 type SqliteChanges = { changes?: number | bigint };
 
-const CURSOR_PREFIX = /* @version type.molis-work-feed-blob-cursor "molis-work-feed-blob-cursor-v{version}" */ "molis-work-feed-blob-cursor-v1";
+const CURSOR_PREFIX = /* @version type.molis-work-opaque-blob-cursor "molis-work-opaque-blob-cursor-v{version}" */ "molis-work-opaque-blob-cursor-v1";
 const utf8Fatal = new TextDecoder("utf-8", { fatal: true });
 
 type SecretBackend = Pick<SecretStore, "get" | "createIfAbsent" | "deleteIfPresent">;
@@ -35,19 +35,19 @@ export function createSearchOpaqueBlobStore(
 ): SearchOpaqueBlobStore {
   const readNowMs = db.prepare(`SELECT ${SQLITE_NOW_MS} AS now_ms`);
   const readRow = db.prepare(
-    "SELECT opaque, cas_token FROM feed_runtime_blobs WHERE namespace = ? AND key = ?",
+    "SELECT opaque, cas_token FROM opaque_blobs WHERE namespace = ? AND key = ?",
   );
   const insertIgnore = db.prepare(
-    "INSERT OR IGNORE INTO feed_runtime_blobs (namespace, key, opaque, cas_token) VALUES (?, ?, ?, ?)",
+    "INSERT OR IGNORE INTO opaque_blobs (namespace, key, opaque, cas_token) VALUES (?, ?, ?, ?)",
   );
   const updateCas = db.prepare(
-    "UPDATE feed_runtime_blobs SET opaque = ?, cas_token = ? WHERE namespace = ? AND key = ? AND cas_token = ?",
+    "UPDATE opaque_blobs SET opaque = ?, cas_token = ? WHERE namespace = ? AND key = ? AND cas_token = ?",
   );
   const deleteCas = db.prepare(
-    "DELETE FROM feed_runtime_blobs WHERE namespace = ? AND key = ? AND cas_token = ?",
+    "DELETE FROM opaque_blobs WHERE namespace = ? AND key = ? AND cas_token = ?",
   );
   const listKeys = db.prepare(
-    "SELECT key, cas_token FROM feed_runtime_blobs WHERE namespace = ?",
+    "SELECT key, cas_token FROM opaque_blobs WHERE namespace = ?",
   );
 
 
@@ -170,10 +170,10 @@ export function createSearchOpaqueBlobStore(
 
 function createBlobScanner(db: SqliteDatabase): SearchOpaqueBlobStore["scan"] {
   const scanPage = db.prepare(
-    "SELECT key, opaque, cas_token FROM feed_runtime_blobs WHERE namespace = ? AND key > ? ORDER BY key COLLATE BINARY LIMIT ?",
+    "SELECT key, opaque, cas_token FROM opaque_blobs WHERE namespace = ? AND key > ? ORDER BY key COLLATE BINARY LIMIT ?",
   );
   const scanFirst = db.prepare(
-    "SELECT key, opaque, cas_token FROM feed_runtime_blobs WHERE namespace = ? ORDER BY key COLLATE BINARY LIMIT ?",
+    "SELECT key, opaque, cas_token FROM opaque_blobs WHERE namespace = ? ORDER BY key COLLATE BINARY LIMIT ?",
   );
   return async (input) => {
     if (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 128) {
@@ -245,7 +245,7 @@ export function createSearchSecretStore(
 }
 
 function newCasToken(): string {
-  return `molis-work-feed-cas-v1.${randomBytes(18).toString("base64url")}`;
+  return `molis-work-opaque-cas-v1.${randomBytes(18).toString("base64url")}`;
 }
 
 function encodeScanCursor(namespace: string, lastKey: string): string {

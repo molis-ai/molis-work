@@ -960,3 +960,21 @@ test("PFG-22 口径 4 a saved side tab of another shape is not read", () => {
     assert.equal(isCurrentTabWorkspace(JSON.parse(JSON.stringify(state))), false);
   }
 });
+
+test("MLN-05 / PFG-22 system tabs (lightweight work-item First Page) round-trip through isCurrentTabWorkspace", () => {
+  const state = ops.create();
+  ops.syncSide(state, sideViews);
+  const pane = state.panes[0];
+  pane.tabs.push({ id: "system:wi-1", kind: "system", owner: "work-item", plugin: "", itemId: "wi-1", title: "轻量事项" });
+  pane.activeTabId = "system:wi-1";
+  ops.openPlugin(state, "todo");
+  assert.equal(isCurrentTabWorkspace(JSON.parse(JSON.stringify(state))), true);
+
+  // Invalid system tab shapes are still rejected.
+  const badOwner = JSON.parse(JSON.stringify(state));
+  badOwner.panes[0].tabs[0].owner = "";
+  assert.equal(isCurrentTabWorkspace(badOwner), false);
+  const badPlugin = JSON.parse(JSON.stringify(state));
+  badPlugin.panes[0].tabs[0].plugin = "todo";
+  assert.equal(isCurrentTabWorkspace(badPlugin), false);
+});

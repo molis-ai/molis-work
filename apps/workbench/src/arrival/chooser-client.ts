@@ -109,7 +109,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     const brief = detail.firstElementChild;
     if (animate) {
       arrival.arrive(brief, [{ opacity: 0.4, transform: 'translateY(7px)' }, { opacity: 1, transform: 'none' }], { duration: 420 });
-      $$('.mw-goal-track__bar', brief).forEach((bar, index) => arrival.arrive(bar, [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 420, delay: 120 + index * 45 }));
+      $$('.mw-progress-track__bar', brief).forEach((bar, index) => arrival.arrive(bar, [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 420, delay: 120 + index * 45 }));
       arrival.cascade($$('.mw-brief__list .mw-dir-row, .mw-brief__recent li', brief), { delay: 160, step: 40 });
     }
     refreshTimes();
@@ -128,7 +128,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     const headline = $('.mw-dir-row__headline', row);
     $('.mw-dir-row__count', headline)?.remove();
     $('.mw-dir-row__status', headline)?.remove();
-    if (summary.goals_total) { const count = document.createElement('span'); count.className = 'mw-dir-row__count'; count.textContent = summary.goals_done + '/' + summary.goals_total; count.title = globalThis.t.text("workbench.chooser-client.done-total-total-done", { done: summary.goals_done, total: summary.goals_total }); headline.append(count); }
+    if (summary.progress_total) { const count = document.createElement('span'); count.className = 'mw-dir-row__count'; count.textContent = summary.progress_done + '/' + summary.progress_total; count.title = globalThis.t.text("workbench.chooser-client.done-total-total-done", { done: summary.progress_done, total: summary.progress_total }); headline.append(count); }
     if (summary.waiting) {
       const status = document.createElement('span');
       status.className = 'mw-status mw-status--attention mw-status--plain mw-dir-row__status'; status.dataset.slot = 'status';
@@ -136,7 +136,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
       $('span', status).textContent = globalThis.t.text("workbench.chooser-client.n-waiting", { n: summary.waiting });
       headline.append(status);
     }
-    row.dataset.current = summary.current && summary.goals_done !== summary.goals_total ? summary.current : '';
+    row.dataset.current = summary.current && summary.progress_done !== summary.progress_total ? summary.current : '';
     refreshTimes();
   };
   const SETTLE_MS = 160;

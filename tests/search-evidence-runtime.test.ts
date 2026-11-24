@@ -95,7 +95,7 @@ test("shared search shutdown aborts in-flight work and waits for transport clean
     await new Promise<void>(resolve => setImmediate(resolve));
     assert.equal(closed, false, "storage owner cannot close until pending transport cleanup finishes");
     assert.equal(transportStopped, false);
-    assert.ok(f.storage.db.prepare("SELECT COUNT(*) AS count FROM feed_runtime_blobs").get());
+    assert.ok(f.storage.db.prepare("SELECT COUNT(*) AS count FROM opaque_blobs").get());
     await assert.rejects(runtime.intelligenceCollect.executeExact(request()), /Search service stopped/);
     assert.equal(requests, 1);
     release.resolve(); await closing; await rejected;
@@ -115,7 +115,7 @@ test("W5-01-ALC-LIFE-08: real SEL composition retries failed transport cleanup w
   const intelligenceClose = t.mock.method(runtime.intelligenceCollect, "shutdown");
   await assert.rejects(runtime.shutdown(), /transport close failed once/);
   assert.equal(attempts, 1);
-  assert.ok(f.storage.db.prepare("SELECT COUNT(*) FROM feed_runtime_blobs").get());
+  assert.ok(f.storage.db.prepare("SELECT COUNT(*) FROM opaque_blobs").get());
   await runtime.shutdown(); await runtime.shutdown();
   assert.equal(attempts, 2);
   assert.equal(intelligenceClose.mock.callCount(), 1);

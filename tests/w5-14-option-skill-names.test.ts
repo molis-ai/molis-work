@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import ts from "typescript";
 import * as functions from "@molis-ai/molis-work-contracts/modules/functions";
+import * as feedPlugin from "@molis-ai/molis-work-plugin-feed";
+import * as inboxPlugin from "@molis-ai/molis-work-plugin-inbox";
 import * as plugin from "@molis-ai/molis-work-contracts/platform/plugin";
 import * as pluginAgent from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
@@ -41,7 +43,8 @@ function typeErrors(source: string): string[] {
 const EXACT = "type Exact<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;";
 
 test("RAC-1755: the judgment-rule editor's options are Options: twelve *_OPTION_ID constants with the old values, and no *_BEHAVIOR_ID", () => {
-  const exported = functions as Record<string, unknown>;
+  // M9: Feed's and Inbox's options moved to the plugins that declare their scenes; the names and values are the same.
+  const exported = { ...feedPlugin, ...inboxPlugin, ...functions } as Record<string, unknown>;
   for (const [name, value] of Object.entries(OPTION_IDS)) assert.equal(exported[name], value, name);
   assert.deepEqual(Object.keys(functions).filter(name => name.endsWith("_BEHAVIOR_ID")), []);
   assert.deepEqual(typeErrors(`
@@ -86,7 +89,7 @@ test("BL-900: the editor catalog names options/option_id/option_ids, and the sto
     export const destination: Exact<JudgmentRuleAuthoringDestination["option_ids"], readonly string[]> = true;
     export const stored: Exact<JudgmentRuleInvokeResult["suggested_behavior_ids"], readonly string[] | undefined> = true;
   `), []);
-  const exported = functions as Record<string, unknown>;
+  const exported = { ...feedPlugin, ...inboxPlugin, ...functions } as Record<string, unknown>;
   for (const name of ["filterSuggestedOptionIds", "defaultInboxNextOptionIds", "defaultFeedCaptureOptionIds"]) assert.equal(typeof exported[name], "function", name);
   for (const name of ["filterSuggestedBehaviorIds", "defaultInboxNextBehaviorIds", "defaultFeedCaptureBehaviorIds"]) assert.equal(name in exported, false, name);
   const files = execFileSync("git", ["ls-files", "-z", "apps", "packages", "plugins", "horizontal", "modules"], { cwd: REPOSITORY, encoding: "utf8" })

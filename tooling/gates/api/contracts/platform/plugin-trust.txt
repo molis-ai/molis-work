@@ -20,7 +20,7 @@ export interface PluginConsentGrant {
 
 export type PluginConsentGranter = "user" | "host_build";
 
-export type PluginConsentKind = "always_on" | "default_wiring" | "default_group" | "local_directory" | "project_reach";
+export type PluginConsentKind = "default_wiring" | "default_group" | "local_directory" | "project_reach";
 
 export type PluginConsentRecord = PluginConsentRecordFields & ({
     readonly kind: "project_reach";

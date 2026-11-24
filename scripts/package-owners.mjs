@@ -51,7 +51,6 @@ const ALSO_REVIEWED_BY_CODING_REVIEWER = new Set([
   "horizontal/agent-host",
   "plugins/native/jelly",
   "modules/shelf",
-  "plugins/native/shelf",
   "plugins/native/diff",
 ]);
 

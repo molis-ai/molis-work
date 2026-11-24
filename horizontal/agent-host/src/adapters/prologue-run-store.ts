@@ -183,9 +183,26 @@ export class PrologueRunStore {
       if (isAwaitingApproval(event)) void this.#mirror(ref, event);
       this.publish(ref.run_id);
       if (event.type === "memory-context") void this.memoryUsage.record(record, this.requireSession(ref.session_id).owner).then(() => this.publish(ref.run_id));
+      releaseIfSettled();
     });
-    const unsubscribeControl = record.control.subscribe(() => this.publish(ref.run_id));
-    record.unsubscribe = () => { record.memory_binding?.close(); unsubscribeEvents(); unsubscribeControl(); this.#requests.delete(ref.run_id); };
+    const unsubscribeControl = record.control.subscribe(() => {
+      this.publish(ref.run_id);
+      releaseIfSettled();
+    });
+    let unsubscribed = false;
+    function releaseIfSettled(): void {
+      // Keep the control/reconciliation subscription alive while an ended run still waits on reconcile-required effects.
+      if (isEnded(record.state.phase) && isEnded(record.view.phase)) record.unsubscribe();
+    }
+    record.unsubscribe = () => {
+      if (unsubscribed) return;
+      unsubscribed = true;
+      record.memory_binding?.close();
+      unsubscribeEvents();
+      unsubscribeControl();
+      this.#requests.delete(ref.run_id);
+    };
+    releaseIfSettled();
   }
 
   /**
@@ -200,7 +217,8 @@ export class PrologueRunStore {
     const ledgerEnded = isEnded(record.state.phase);
     if (isEnded(controlPhase) || ledgerEnded) record.memory_binding?.close();
     const awaitingCommit = isEnded(controlPhase) && !ledgerEnded;
-    const phase = controlPhase === "running" || awaitingCommit ? record.state.phase : controlPhase;
+    // The SDK marks a tripped guard as failed on its control before publishing its stopped ledger event.
+    const phase = controlPhase === "running" || awaitingCommit || (record.state.phase === "stopped" && controlPhase === "failed") ? record.state.phase : controlPhase;
     const stoppedReason = (record.state.phase === "stopped" && record.state.stop_reason) || record.control.stopReason;
     let stopReason = awaitingCommit
       ? controlPhase === "stopped" || controlPhase === "cancelled"

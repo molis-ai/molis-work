@@ -82,7 +82,7 @@ flowchart LR
 
 ### 3.1 `44B`：特殊逻辑平民化关键约束
 1. **全局保留 `io.molis.work.` 前缀（`44B-0`）**：`host-plugin-ids.ts` 与 `install-identity.ts` 不再维护容易漏项的散点名单（先前漏了 `characters` 与 `assistant`），改为**全局禁止任何非宿主签名的第三方包申请 `io.molis.work.*` 命名空间**（新增安全不变量 `S-reserved-host-prefix`）；前提是先放开命名（V16）：外部插件用自己的反向域名（如 `com.acme.todo`），创作台生成的叫 `studio.<编号>`（从开始做就定下、发布后不变，作者靠签名证明，用户 11-23 定）；SDK `PLUGIN_ID` 放开为通用反向域名形式，`io.molis.work.` 只给宿主自己的包（V16）；并修复 `plugin-builder/agent-surface.ts:245` 与 `contracts/modules/characters.ts:133` 的 `^io\.molis\.work\.` 正则硬编码。
-2. **Shelf 纯平台收口**：`plugins/native/shelf` 删包，代码与存储收拢到现有 `modules/shelf`（`system.shelf`，`kind: "system"`，`/api/platform/shelf`，页面经 `HostSurfaceRegistration` 挂右栏第一格）。桌面端 `apps/desktop`（TS 与 Tauri Rust）仅切换路由到 `/api/platform/shelf`、移除 `io.molis.work.shelf` 插件名硬编码，**无需重写 ~3,150 行 Rust 为 M5 原生伴侣协议**。整套 `always_on` 机制与 `PLUGIN_MODULE_IMPORT_ALLOWLIST` 同步清零。
+2. **Shelf 纯平台收口**：`plugins/native/shelf` 删包，代码与存储收拢到现有 `modules/shelf`（`system.shelf`，`kind: "system"`，`/api/platform/shelf`，页面经 `HostSurfaceRegistration` 挂右栏第一格）。桌面端 `apps/desktop`（TS 与 Tauri Rust）仅切换路由到 `/api/platform/shelf`、移除 `system.shelf` 插件名硬编码，**无需重写 ~3,150 行 Rust 为 M5 原生伴侣协议**。整套 `always_on` 机制与 `PLUGIN_MODULE_IMPORT_ALLOWLIST` 同步清零。
 3. **统一 `provider_id`、工作台目录与设置登记**：
    - 将宿主 3 种分裂的 `provider_id` 派生逻辑收敛到 `packages/plugin-runtime/src/install-identity.ts` 的唯一函数 `resolveActionProviderId(record)`。
    - 工作台 10+ 处直读 `BUILTIN_PLUGIN_CATALOG` 的模块改读运行时合并目录 `RuntimePluginDirectory`（动态已装包与内置包同等排序/图标/名称）。

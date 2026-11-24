@@ -219,7 +219,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       const startedAt=new Date(record.started_at);
       const startedText=Number.isNaN(startedAt.getTime())?String(record.started_at):globalThis.format.date(startedAt.toISOString(),'datetime');
       const title=(record.goal?record.goal.slice(0,40):globalThis.t.text("workbench.side-panel-computer.computer-operation"))+globalThis.t.text("common.punctuation.in-parens", { value: startedText });
-      await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id)+'/shelf',{body:{title,text:lines.join('\n')},fallback:globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf")});
+      await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id)+'/receive',{body:{title,text:lines.join('\n')},fallback:globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf")});
       env.say(globalThis.t.text("workbench.side-panel-computer.added-shelf"));
     }catch(error){env.sayError(error,globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf"));}
   };

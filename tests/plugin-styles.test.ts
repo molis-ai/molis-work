@@ -67,8 +67,8 @@ const sources = new Map(tracked.map((file) => [file, readFileSync(`${root}${file
 // Style sources hold the rules, not the elements, so a class named there is not drawn there.
 const styleSource = (file: string) => /(^|\/)styles?(\/|\.ts$)|(^|\/)[^/]*-styles?\.ts$|(^|\/)styles?-[^/]*\.ts$/.test(file);
 const DRAWN = /class|querySelector|closest\(|matches\(|classList|\.add\(|\.toggle\(|\.remove\(|getElementsBy/;
-// The platform's own framed surface keeps its pack id in a platform package (the studio, 47-1 C): its own files are its own too.
-const SURFACE_PACKAGES: ReadonlyMap<string, string> = new Map([["horizontal/plugin-studio/", "plugin-builder"]]);
+// The platform's own framed surfaces keep their pack ids in platform packages (the studio, 47-1 C; Shelf, 44B): their own files are their own too.
+const SURFACE_PACKAGES: ReadonlyMap<string, string> = new Map([["horizontal/plugin-studio/", "plugin-builder"], ["modules/shelf/", "shelf"]]);
 const packageOf = (file: string) => /^plugins\/native\/([^/]+)\//.exec(file)?.[1]
   ?? [...SURFACE_PACKAGES].find(([prefix]) => file.startsWith(prefix))?.[1] ?? null;
 const ids = new Set(packs.filter((pack) => pack.clientFactory).map((pack) => pack.project_plugin_id));

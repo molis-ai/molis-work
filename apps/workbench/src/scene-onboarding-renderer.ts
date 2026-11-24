@@ -1,5 +1,5 @@
 import { renderRadioGroup, t } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.js";
 import { readEventStream } from "./browser/event-stream.js";
 import { sceneReviewPage, renderSceneReview } from "./browser/scene-review-view.js";
 import { sceneSettingValues } from "./browser/scene-setting-values.js";
@@ -10,7 +10,7 @@ import { CONTROL_CLIENT_SCRIPT } from "./scripts/control.js";
 
 /** The preview may switch settings without navigating. Only load the labels declared by each settings owner. */
 function sceneSettingText(packsFor: OnboardingRenderPrimitives["catalogTextPacks"]) {
-  return BUILTIN_PLUGIN_CATALOG.flatMap(({ manifest }) => {
+  return SHIPPED_WORKBENCH_PARTS.flatMap(({ manifest }) => {
     const entries = manifest.settings_entries?.entries;
     if (!entries?.length) return [];
     const keys = new Set(entries.flatMap(entry => [entry.title, entry.summary].flatMap(ref => ref && "key" in ref ? [ref.key] : [])));

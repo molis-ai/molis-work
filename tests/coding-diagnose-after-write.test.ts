@@ -46,6 +46,10 @@ test("PA-28 the written path is one whole argument: `-rf.js` becomes `./-rf.js`,
     await round.approve(card);
   }
   await round.ended(handle.ref);
+  // WC-1: the Node adapter reads the real SDK's persisted command resources by write id.
+  const checks = await round.adapter.readWriteChecks(round.session, handle.ref.run_id, ["w2", "missing", "w1"]);
+  assert.deepEqual(checks.map(check => [check.call_id, check.checker, check.version, check.exit_code]),
+    [["w2", NODE.display_name, 1, 0], ["w1", NODE.display_name, 1, 0]]);
   assert.deepEqual(argv, [["--check", "./-rf.js"], ["--check", "a b;c.js"]]);
   assert.match(round.result("w1") ?? "", /command: node --check \.\/-rf\.js\nexit 0/);
   assert.match(round.result("w2") ?? "", /command: node --check a b;c\.js\nexit 0/);

@@ -26,7 +26,7 @@ export const FEED_PERMISSIONS: PluginPermissionDeclaration[] = [
   { permission: "evidence:read", required: true, reason: "读取本地留存的消息原始正文", reason_text: { key: "feed.permission.evidence-read.reason" } },
   { permission: PLUGIN_EVIDENCE_COLLECT_PERMISSION, required: true, reason: "清理本机已没有任何项目引用的旧消息正文", reason_text: { key: "feed.permission.evidence-collect.reason" } },
   { permission: "plugins:read", required: true, reason: "核对哪些项目启用了 Feed，避免误删仍在使用的留存正文", reason_text: { key: "feed.permission.plugins-read.reason" } },
-  { permission: "sources:pull_feed", required: true, reason: "按公开订阅目录识别来源并拉取公开订阅源", reason_text: { key: "feed.permission.sources-pull-feed.reason" } },
+  { permission: "sources:pull_public_feed", required: true, reason: "按公开订阅目录识别来源并拉取公开订阅源", reason_text: { key: "feed.permission.sources-pull-feed.reason" } },
   { permission: "sources:pull_query", required: true, reason: "拉取你设定的网页查询来源", reason_text: { key: "feed.permission.sources-pull-query.reason" } },
   { permission: "sources:read_repository", required: true, reason: "读取 GitHub 研究库里发布的内容", reason_text: { key: "feed.permission.sources-read-repository.reason" } },
   { permission: "schedule:read", required: true, reason: "查看来源是否已设好定时拉取", reason_text: { key: "feed.permission.schedule-read.reason" } },

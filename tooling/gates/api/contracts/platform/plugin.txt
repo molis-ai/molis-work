@@ -3679,6 +3679,8 @@ export declare const PLACEMENT_RESULT_SCHEMA: {
     additionalProperties: boolean;
 };
 
+export declare const PLATFORM_ID_PREFIX = "system.";
+
 export declare const PLATFORM_SCENE_NAMES: readonly ["assistant", "common", "agent", "both"];
 
 export declare const PLUGIN_ATTENTION_READ_PERMISSION = "attention:read";
@@ -3905,6 +3907,7 @@ export interface PlacementRelationTarget {
     readonly kind: string;
     readonly noun: string;
     readonly noun_text?: TextRef;
+    readonly open_view?: string;
 }
 
 export interface PlacementRelationTargetInput {
@@ -3990,8 +3993,8 @@ export interface PluginArtifactWriter {
 export interface PluginAttentionClient {
     list(): PluginAttentionEntryRecord[];
     get(entryId: string): PluginAttentionEntryRecord;
-    listInbox(): AttentionEntryRecord[];
-    getInbox(entryId: string): AttentionEntryRecord;
+    listWaiting(): AttentionEntryRecord[];
+    getWaiting(entryId: string): AttentionEntryRecord;
     findActiveForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord | null;
     findForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord[];
     events(entryId?: string): PluginAttentionEvent[];
@@ -4000,7 +4003,7 @@ export interface PluginAttentionClient {
 
 export interface PluginAttentionDeclaration {
     readonly subjects: readonly PluginAttentionSubjectDeclaration[];
-    readonly inbox?: readonly AttentionSubjectType[];
+    readonly waiting?: readonly AttentionSubjectType[];
 }
 
 export interface PluginAttentionEntryInput extends PluginAttentionSubjectReference {
@@ -4793,7 +4796,6 @@ export interface PluginManifest {
         signature: string;
     };
     host_api_version: 1;
-    always_on?: boolean;
     summary?: string;
     summary_text?: TextRef;
     entrypoints: PluginEntrypointManifest[];
@@ -4822,6 +4824,7 @@ export interface PluginManifest {
                 capability_id: string;
                 version: number;
             };
+            searchable_fields?: readonly string[];
         }>;
         consumes: Array<{
             artifact_type_id: string;
@@ -5590,6 +5593,7 @@ export interface PluginSyncCollection {
     readonly tracking?: readonly SyncTrackedTable[];
     readonly sections?: import("platform/plugin-sync-sections").SyncSectionsDeclaration;
     readonly aggregates?: readonly SyncAggregateDeclaration[];
+    readonly approval_outcomes?: readonly SyncApprovalOutcomeDeclaration[];
 }
 
 export interface PluginSyncCollectionCopy {
@@ -7083,6 +7087,7 @@ export interface SearchSourceKind {
     kind: string;
     title: string;
     surface: string;
+    glyph?: string;
 }
 
 export type SkillAppliesTo = string;
@@ -7233,6 +7238,19 @@ export interface SyncAggregateRecords {
     children: Record<string, SyncPortableRow[]>;
 }
 
+export interface SyncApprovalOutcomeDeclaration {
+    readonly subject_kind: string;
+    readonly section: string;
+    readonly table: string;
+    readonly decision_column: string;
+    readonly subject_column: string;
+    readonly subjects: {
+        readonly section: string;
+        readonly table: string;
+        readonly column: string;
+    };
+}
+
 export type SyncFailureReason = "invalid" | "unsupported" | "scope" | "conflict" | "dependencies" | "busy" | "limit" | "unavailable";
 
 export type SyncKeyPart = {
@@ -7278,7 +7296,7 @@ export interface SyncSectionTable {
 export interface SyncSectionsDeclaration {
     readonly kind: string;
     readonly business: readonly SyncSectionDeclaration[];
-    readonly platform: readonly ('relation-edges' | 'attention')[];
+    readonly platform: readonly 'relation-edges'[];
     readonly journal: boolean;
     readonly journalIgnoredTypes?: readonly string[];
 }
@@ -8948,7 +8966,6 @@ export declare const pluginDataActions: {
 export declare function pluginDataSectionsFromManifest(manifest: Pick<PluginManifest, "plugin_id" | "name" | "databases" | "sync" | "owner_files" | "runtime">): PluginDataSectionDeclaration[];
 
 export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
-    readonly always_on: "invalid";
     readonly capability_denied: "invalid";
     readonly capability_refused: "invalid";
     readonly capability_unavailable: "invalid";
@@ -8997,6 +9014,8 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly upgrade_validation_failed: "invalid";
     readonly upgrade_validation_missing: "invalid";
 }>;
+
+export declare function pluginRouteBase(pluginId: string): string;
 
 export declare function portTypeKey(artifactTypeId: string, schemaVersion: number): string;
 

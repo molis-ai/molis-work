@@ -68,7 +68,6 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   inspectStateMachineDeclarations(manifest.state_machines, manifest.plugin_id);
   inspectUpgradeCompatibility(manifest);
   inspectPresentation(manifest);
-  if (manifest.always_on !== undefined && typeof manifest.always_on !== "boolean") invalid("always_on 必须为布尔值");
   if (manifest.memory_scene !== undefined && !isMemoryPluginScene(manifest.memory_scene)) {
     invalid('memory_scene 只能是 "common"，或这个插件自己的场景名：小写字母开头、只用小写字母、数字和连字符、至多 40 字，且不是 assistant、agent、both');
   }

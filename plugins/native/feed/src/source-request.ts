@@ -1,9 +1,21 @@
-import type { SourcePullRequest } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
+import type { PluginSourceVocabulary, PublicFeedAddressedDefinition, SourcePullRequest } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { feedErrors } from "./contract/feed.js";
 import type { FeedSourceRecord } from "./projection.js";
 import type { FeedSourceProviders, RegisterFeedSourceInput } from "./source-ports.js";
 import { sha256, bounded, normalizeQuery } from "./source-input.js";
 const WEB_QUERY_DEFINITION_ID = "anysearch";
+
+/** Feed's own source kinds whose pulls keep an HTTP cursor (a catalog feed and a custom address; a channel's feed keeps none). */
+export function isHttpFeedSourceKind(kind: string): boolean {
+  return kind === "rss" || kind === "custom_rss";
+}
+
+/** The public-feed integration's definition for an address of this kind (M10): Feed's custom address and channel sources are recorded under it. */
+export function addressedDefinition(vocabulary: Pick<PluginSourceVocabulary, "addressed">, address: PublicFeedAddressedDefinition["address"]): string {
+  const definition = vocabulary.addressed().find(entry => entry.address === address);
+  if (!definition) throw feedErrors.source_definition_unavailable("这种来源现在没有能读取它的集成");
+  return definition.definition_id;
+}
 export function normalizeRegistration(input: RegisterFeedSourceInput, providers: FeedSourceProviders): {
   kind: string;
   definitionId: string;
@@ -76,8 +88,8 @@ export function sourcePullRequestFor(source: FeedSourceRecord, operationId: stri
   const base = { operation_id: operationId, source_name: source.name };
   if (source.kind === "web_query") return { kind: "web_query", ...base, query: normalizeQuery(String(source.config.query ?? "")) };
   const cursor = { cursor: source.cursor };
-  if (source.kind === "youtube_channel") return { kind: "youtube_channel", ...base, channel_id: providers.youtube.normalizeChannel(String(source.config.channel_id ?? "")), ...cursor };
-  if (source.kind === "custom_rss") return { kind: "custom_rss", ...base, feed_url: providers.customRss.normalizeUrl(String(source.config.feed_url ?? "")), ...cursor };
+  if (source.kind === "youtube_channel") return { kind: "public_feed", ...base, definition_id: providers.youtube.definitionId, address: providers.youtube.normalizeChannel(String(source.config.channel_id ?? "")), ...cursor };
+  if (source.kind === "custom_rss") return { kind: "public_feed", ...base, definition_id: providers.customRss.definitionId, address: providers.customRss.normalizeUrl(String(source.config.feed_url ?? "")), ...cursor };
   if (!source.definition_id) throw feedErrors.source_definition_unavailable("RSS 目录来源不存在");
-  return { kind: "rss", ...base, definition_id: source.definition_id, ...cursor };
+  return { kind: "public_feed", ...base, definition_id: source.definition_id, ...cursor };
 }

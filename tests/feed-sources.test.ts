@@ -42,7 +42,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
           retained = "# Full retained article\n\nEvidence body.";
           return completedSourcePull(client, request, options, [{
             id: "material:molis-work-feed-source-test", candidate_id: "candidate:test-1", canonical_url: "https://example.com/article",
-            title: "公开材料", source_name: "Example", preview: "可核对摘要", content_ref: "molis-work-feed/sha256/" + "a".repeat(64),
+            title: "公开材料", source_name: "Example", preview: "可核对摘要", content_ref: "molis-work-evidence/sha256/" + "a".repeat(64),
             content_hash: `sha256:${"a".repeat(64)}`, content_type: "text/markdown", character_count: retained.length,
             captured_at: "2026-08-29T08:00:00.000Z", content_available: true,
             provenance: { operationId: request.operation_id, providerId: "rss", providerVersion: "1.0.0", bindingRevision: 1,
@@ -460,7 +460,7 @@ test("non-retryable scheduled source failures create one actionable Inbox refere
       }, () => now);
       const result = await scheduler.tick(now);
       assert.equal(result.failed, 1);
-      const fault = service.feed.snapshot(DEMO_PROJECT_ID).inbox_entries.find(
+      const fault = service.feed.snapshot(DEMO_PROJECT_ID).attention_entries.find(
         (entry) => entry.subject_type === "source_fault" && entry.subject_id === source.source_id,
       );
       assert.ok(fault);
@@ -526,7 +526,7 @@ test("source lifecycle keeps secrets out of configuration and honors explicit hi
       const snapshot = service.feed.snapshot(DEMO_PROJECT_ID);
       assert.equal(snapshot.feed_items.some((item) => item.source_id === replacement.source_id), false);
       assert.equal(snapshot.feed_items.some((item) => item.source_id === source.source_id), true, "retained history remains retained");
-      assert.equal(snapshot.inbox_entries.some((entry) => entry.subject_type === "feed_item" && disposableIds.has(entry.subject_id)), false);
+      assert.equal(snapshot.attention_entries.some((entry) => entry.subject_type === "feed_item" && disposableIds.has(entry.subject_id)), false);
       assert.equal(JSON.stringify(snapshot).includes("token"), false);
     } finally {
       store.close();

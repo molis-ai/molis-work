@@ -61,7 +61,7 @@ export interface FeedSnapshot {
   /** Canonical external facts. Every record is a FeedItem, including items with Inbox references. */
   feed_items: FeedItemRecord[];
   /** Canonical attention state; entries reference facts or internal objects and never copy message bodies. */
-  inbox_entries: InboxEntryRecord[];
+  attention_entries: InboxEntryRecord[];
   runs: FeedSourceRunRecord[];
   out_rules: FeedOutRuleRecord[];
 }

@@ -1,4 +1,3 @@
-import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -8,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, validateManagedProject } from "@molis-ai/molis-work-app-local-host";
+import { MCP_TOOLS, MolisWorkLocalHost, molisWorkHostProjectReference, validateManagedProject } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 
@@ -84,18 +83,13 @@ test("PG094-10 RAC-262 opening the project makes Goals' board once, as the creat
   assert.deepEqual(identity(databasePath).created, [LOCAL_PERSON_ACTOR_ID]);
 });
 
-test("PG094-10 RAC-262 a bare library stays without a board until the management entry initializes its root and first board", async t => {
+test("PG094-10 RAC-262 44B a bare library stays without a root or board, and no management entry makes them", async t => {
   const directory = await scratch(t), databasePath = join(directory, "bare.db"), projectId = "project/bare";
   await openProject(directory, projectId, databasePath);
   assert.deepEqual(identity(databasePath), { roots: [], boards: [], created: [] }, "opening the bare library makes neither a root nor a board");
-  // The management MCP's `initialize` (the CLI's `init` was removed with its Goals commands, PEQ-15).
-  const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
-  const management = new MolisWorkServer("management", null, null, host);
-  try {
-    const made = JSON.parse(await management.callTool("molis_work_v1_initialize", { database_path: databasePath, project_id: projectId, idempotency_key: "init" })) as { replayed: boolean };
-    assert.equal(made.replayed, false, "the first management call makes the root and board");
-  } finally { await management.close(); await host.close(); }
-  assert.deepEqual(identity(databasePath), { roots: [projectId], boards: [projectId], created: [LOCAL_PERSON_ACTOR_ID] });
+  // The CLI's `init` went with its Goals commands (PEQ-15), the management MCP's `initialize` with the plugins' management actions (44B):
+  // a project is made by the project directory, never by an entry over a bare file.
+  assert.equal(MCP_TOOLS.some(tool => tool.name === "molis_work_v1_initialize"), false);
 });
 
 test("PG094-10 RAC-263 when Goals' tables are refused the library check still passes and opening makes no board", async t => {

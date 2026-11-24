@@ -137,7 +137,7 @@ test("VUX-31: a Shelf action dragged to another place that could not be saved go
     slots[0].dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: data }));
     slots[slots.length - 1].dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data }));
     bar.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data })); })()`);
-  const failing = await failRequests(browser, ["*io.molis.work.shelf/preferences/write"]);
+  const failing = await failRequests(browser, ["*api/platform/shelf/preferences/write"]);
   try {
     await dragFirstOverLast();
     await waitFor("!document.querySelector('[data-shelf-bar-hint]').hidden && document.querySelector('[data-shelf-bar-hint]').textContent === " + JSON.stringify(MESSAGE), 10_000);

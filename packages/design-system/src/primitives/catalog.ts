@@ -5,7 +5,7 @@ import { baselineToken } from "../baseline.js";
 import { renderStateRingCatalog } from "./status-ring-catalog.js";
 import { renderProjectMonogram } from "../monogram.js";
 import { MW_ACTION_TONES, MW_CONTENT_MARKS, MW_CONTENT_SURFACES, MW_HUES, MW_STATUS_TONES, MW_SURFACES, MW_TYPE_TONES, type MwContentMarkId, type MwHueId } from "../palette.js";
-import { renderBarContext, renderBarStatus, renderBrief, renderBriefFocus, renderBriefRecent, renderBriefSection, renderBriefStatus, renderCaption, renderFileGroup, renderFileRow, renderGoalTrack, renderSteps, renderWordmark } from "./arrival.js";
+import { renderBarContext, renderBarStatus, renderBrief, renderBriefFocus, renderBriefRecent, renderBriefSection, renderBriefStatus, renderCaption, renderFileGroup, renderFileRow, renderProgressTrack, renderSteps, renderWordmark } from "./arrival.js";
 import { mark, resolveCatalogSay, section, specimen, type CatalogSay } from "./catalog-parts.js";
 import { CATALOG_CLIENT_SCRIPT } from "../page-clients.js";
 import { choiceSection, composeSection } from "./catalog-compose.js";
@@ -336,7 +336,7 @@ function arrivalSection(say: CatalogSay): string {
     [focusGoalTitle, "doing"],
     [say("workbench.catalog-board.ds.arrival-goal-6"), "todo"],
   ] as const;
-  const track = renderGoalTrack({ goals: goals.map(([title, state]) => ({ title, state })), label: say("workbench.catalog-board.ds.arrival-track-label") });
+  const track = renderProgressTrack({ items: goals.map(([title, state]) => ({ title, state })), label: say("workbench.catalog-board.ds.arrival-track-label") });
   const next = renderBriefSection({
     title: say("workbench.catalog-board.ds.arrival-next-title"),
     body: `<div class="mw-brief__list">${renderDirectoryRow({ title: say("workbench.catalog-board.ds.arrival-next-1-title"), caption: say("workbench.catalog-board.ds.arrival-next-1-caption"), density: "meta", status: say("workbench.assistant-delivery.progress"), statusTone: "progress", statusIcon: "status-progress" })}${renderDirectoryRow({ title: say("workbench.catalog-board.ds.arrival-next-2-title"), caption: say("workbench.catalog-board.ds.arrival-next-2-caption"), density: "meta", status: say("workbench.catalog-board.ds.arrival-status-confirm"), statusTone: "attention", statusIcon: "status-needs-you" })}</div>`,
@@ -385,7 +385,7 @@ function arrivalSection(say: CatalogSay): string {
       ${specimen(escapeHtml(say("workbench.catalog-board.ds.arrival-spec-enter-btn")), `${renderButton({ label: say("workbench.catalog-board.ds.arrival-continue"), variant: "primary", size: "lg", key: "↵" })}${renderButton({ label: say("workbench.catalog-board.ds.arrival-back-project"), variant: "ghost", size: "lg", icon: "back" })}`)}
       ${mark("bar-context", specimen(escapeHtml(say("workbench.catalog-board.ds.arrival-spec-bar-context")), `<div class="mw-arrival-bar-strip">${renderBarContext({ mark: monogram, title: "FlyLeaf-V0.1", caption: say("workbench.catalog-board.ds.arrival-preview-enter") })}</div>`))}
       ${mark("bar-status", specimen(escapeHtml(say("workbench.catalog-board.ds.arrival-spec-bar-status")), `<div class="mw-arrival-bar-strip">${renderBarStatus({ spin: true, title: say("workbench.catalog-board.ds.arrival-organizing-title"), caption: say("workbench.catalog-board.ds.arrival-organizing-caption") })}${renderBarStatus({ glyph: "shield", title: say("workbench.catalog-board.ds.arrival-selected-title"), caption: say("workbench.catalog-board.ds.arrival-selected-caption") })}</div>`))}
-      ${mark("goal-track", specimen(escapeHtml(say("workbench.catalog-board.ds.arrival-spec-goal-track")), `<div class="mw-arrival-wide">${track}</div>`))}
+      ${mark("progress-track", specimen(escapeHtml(say("workbench.catalog-board.ds.arrival-spec-goal-track")), `<div class="mw-arrival-wide">${track}</div>`))}
       ${mark("file-list", specimen(escapeHtml(say("workbench.catalog-board.ds.arrival-spec-file-list")), `<div class="mw-arrival-wide">${files}${added}</div>`))}
       ${mark("brief", specimen(escapeHtml(say("workbench.catalog-board.ds.arrival-spec-brief")), `<div class="mw-arrival-brief">${brief}</div>`))}
     </div>`);

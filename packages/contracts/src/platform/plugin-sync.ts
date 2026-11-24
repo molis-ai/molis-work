@@ -10,6 +10,29 @@ export interface PluginSyncCollection {
   readonly tracking?: readonly SyncTrackedTable[];
   readonly sections?: import("./plugin-sync-sections.js").SyncSectionsDeclaration;
   readonly aggregates?: readonly SyncAggregateDeclaration[];
+  /**
+   * Where a person's approved decision leaves its result in this collection's sections (44B). The platform reads these rows itself,
+   * freezes their digest on the decision record when the decision is applied, and checks synced rows against it; no plugin code runs.
+   */
+  readonly approval_outcomes?: readonly SyncApprovalOutcomeDeclaration[];
+}
+
+/**
+ * One kind of reviewed subject and the table its applied result is in. Every row of one decision names the same subject; the digest is
+ * the platform's over those rows' declared columns, without the section's sequence fields.
+ */
+export interface SyncApprovalOutcomeDeclaration {
+  /** The reviewed subject's kind (`review.target.subject.kind`). */
+  readonly subject_kind: string;
+  /** The business section and table of this collection that hold the applied rows; the table has a `project_id` column. */
+  readonly section: string;
+  readonly table: string;
+  /** The column holding the platform's decision id. */
+  readonly decision_column: string;
+  /** The column holding the subject's id. */
+  readonly subject_column: string;
+  /** Where subjects of this kind live: while one is there, a later snapshot keeps every decision applied to it. */
+  readonly subjects: { readonly section: string; readonly table: string; readonly column: string };
 }
 
 export interface PluginSyncDeclaration {

@@ -3,7 +3,7 @@ import { beginConnectorAuthorization, finishConnectorAuthorization } from "./con
 import { checkConnectorSetupSubmission } from "./connector-setup-submission.js";
 import { saveConnectorAuthorizationPresentation } from "./connector-authorization-presentation.js";
 import { assertMcpAuthorizationPending, commitMcpConnection } from "./connector-mcp-commit.js";
-import { CUSTOM_MCP_SERVICE, mcpAuthentication, mcpServerFor, requiresMcpDeclaration } from "./connector-mcp-endpoint.js";
+import { CUSTOM_MCP_SERVICE, localMcpServer, mcpAuthentication, mcpServerFor, requiresMcpDeclaration } from "./connector-mcp-endpoint.js";
 import { randomUUID } from "node:crypto";
 import { connectorProductAuth } from "./connector-product-auth.js";
 import { resolve } from "node:path";
@@ -18,7 +18,7 @@ import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport, type StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import { larkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
+import type { LocalMcpLaunch, LocalMcpLaunchInput } from "@molis-ai/molis-work-contracts/platform/integration-drivers";
 import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
@@ -35,6 +35,8 @@ export interface McpServerConfiguration {
   tokenScheme?: "Sentry-Bearer";
   endpointPattern?: RegExp;
   stdio?: boolean;
+  /** How a declared local stdio server is started (its driver's launch). */
+  launch?(input: LocalMcpLaunchInput): LocalMcpLaunch;
 }
 
 const CALLBACK = "/api/settings/connectors/methods/mcp/callback";
@@ -129,7 +131,7 @@ function bindStagedOAuthClient(secrets: ReturnType<typeof connectorProtocolSecre
 interface ConnectorMcpHostOptions {
   testServers?: Readonly<Record<string, McpServerConfiguration>>;
   now?: () => number;
-  /** Tests only: builds the transport for a local stdio server (Feishu/Lark), so a test sees exactly what the Host starts it with. */
+  /** Tests only: builds the transport for a local stdio server, so a test sees exactly what the Host starts it with. */
   stdioTransport?: (parameters: StdioServerParameters) => Transport;
 }
 
@@ -140,7 +142,7 @@ function guardConnectorMcpFetch(config: McpConfiguration, checkActive: () => voi
     checkActive();
     const url = new URL(input instanceof Request ? input.url : String(input));
     const configured = new URL(config.endpoint);
-    const permittedLocal = url.origin === configured.origin && (testEndpoints || config.serviceId === "figma" || config.serviceId === CUSTOM_MCP_SERVICE && isLoopbackHttpUrl(configured));
+    const permittedLocal = url.origin === configured.origin && (testEndpoints || isLoopbackHttpUrl(configured) && (config.serviceId === CUSTOM_MCP_SERVICE || localMcpServer(config.serviceId)?.loopback === true));
     if (url.username || url.password || (url.protocol !== "https:" && !(url.protocol === "http:" && permittedLocal))) throw connectorErrors["connector.mcp.configuration"]("MCP 授权服务返回了不安全的地址");
     await beforeDispatch?.();
     checkActive();
@@ -156,13 +158,12 @@ function guardConnectorMcpFetch(config: McpConfiguration, checkActive: () => voi
 }
 
 /**
- * Runs `run` against the Feishu/Lark MCP server, started as a child process for this use alone: the Host builds its launch
- * (pinned package, only the variables it needs, an empty working directory of its own), and closes the child and removes
+ * Runs `run` against a local stdio MCP server, started as a child process for this use alone: its driver builds the launch
+ * (pinned package, only the variables it needs, an empty working directory of its own), and the Host closes the child and removes
  * that directory when the use ends, however it ends.
  */
-async function runLarkMcpChild<T>(credentials: LarkMcpLaunchInput, use: Pick<ConnectorMcpHostOptions, "stdioTransport"> & McpRequestOptions & { checkActive?: () => void },
+async function runStdioMcpChild<T>(launch: LocalMcpLaunch, use: Pick<ConnectorMcpHostOptions, "stdioTransport"> & McpRequestOptions & { checkActive?: () => void },
   run: (client: Client) => Promise<T>): Promise<{ result: T }> {
-  const launch = larkMcpLaunch(credentials);
   const client = new Client({ name: "molis-work", version: PRODUCT_VERSION }, { capabilities: {} });
   // Aborting closes the connection; a connection that is already closed has nothing left to close.
   const abort = () => { void client.close().catch(() => {}); };
@@ -253,8 +254,9 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     signal?.throwIfAborted(); session.checkActive();
     if (authority.server.stdio) {
       const info = session.oauth.clientInformation() as OAuthClientInformationMixed | undefined;
-      if (!info?.client_id || !info.client_secret) throw connectorErrors["connector.mcp.configuration"]("飞书 / Lark MCP 需要 App ID 与 App Secret");
-      return runLarkMcpChild({ appId: info.client_id, appSecret: info.client_secret, domain: new URL(config.endpoint).origin, userAccessToken: session.secrets.get("access") },
+      if (!authority.server.launch) throw connectorErrors["connector.mcp.configuration"]("这个本机 MCP 没有声明启动方式");
+      if (!info?.client_id || !info.client_secret) throw connectorErrors["connector.mcp.configuration"]("这个本机 MCP 需要应用的 ID 与密钥");
+      return runStdioMcpChild(authority.server.launch({ client_id: info.client_id, client_secret: info.client_secret, origin: new URL(config.endpoint).origin, access_token: session.secrets.get("access") }),
         { ...control, stdioTransport: options.stdioTransport, checkActive: session.checkActive }, run);
     }
     const expires = Number(session.secrets.get("expires"));

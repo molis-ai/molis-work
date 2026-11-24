@@ -39,7 +39,7 @@ export interface CatalogConnectorSpec {
   readonly setup_links: readonly PluginConnectionLink[];
   readonly permission_host: string;
   readonly additional_permission_hosts?: readonly string[];
-  readonly feed_available?: boolean;
+  readonly source_available?: boolean;
   parseToken?(raw: string): CatalogAuthContext;
   prepare?(ctx: CatalogAuthContext, http: CatalogHttp): Promise<CatalogAuthContext>;
   /** The categories the service declares (§13.7): a skill's `connector_categories` resolve to it. */

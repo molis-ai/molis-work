@@ -43,7 +43,7 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
       const warn=tr("original-not-registered");
       if(warn)display=message.slice(0,-originalWarning.length)+warn;
     }
-    window.dispatchEvent(new CustomEvent("molis-shelf-notice",{detail:{message:notice?display:message}}));
+    window.dispatchEvent(new CustomEvent("molis:shelf-notice",{detail:{message:notice?display:message}}));
     const toast=document.querySelector("[data-settings-toast], [data-toast]");
     if(!toast||!globalThis.molisWorkRequest?.toast)return;
     globalThis.molisWorkRequest.toast(toast,null,display,{ms:5000});
@@ -51,7 +51,7 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
   };
   globalThis.molisWorkShelfRefresh=()=>{
     if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
-    window.dispatchEvent(new CustomEvent("molis-shelf-refresh"));
+    window.dispatchEvent(new CustomEvent("molis:shelf-refresh"));
   };
   let lastHostReconnect=0;
   globalThis.molisWorkHostReconnected=()=>{
@@ -104,7 +104,7 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
       const invoke=settings=>globalThis.__TAURI__.core.invoke("shelf_sync_device_preferences",{settings});
       if(document.body.hasAttribute("data-account-entry")){void invoke(null).catch(()=>{});return;}
       let revision, connection, retry, running, stopped=false;
-      const api="/api/plugins/io.molis.work.shelf";
+      const api="/api/platform/shelf";
       const stop=()=>{connection?.abort();clearTimeout(retry);};
       const watch=async()=>{
         stop();

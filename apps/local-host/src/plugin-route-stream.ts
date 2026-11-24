@@ -5,6 +5,7 @@ import { PLUGIN_ROUTE_STREAM_LIMITS } from "@molis-ai/molis-work-plugin-sdk";
 import { recordedCallIdField } from "./call-id-response.js";
 import { withPluginInteraction } from "./plugin-interaction-answer.js";
 import { localizeActionErrorResponse, localizeWebErrorBody, readErrorWord } from "./ui-error-words.js";
+import { markMutationResponseFailed } from "./web-http.js";
 
 /**
  * Answer a route that declares `stream: "ndjson"`. The plugin only hands progress events; this writes each as a `progress` line
@@ -36,14 +37,24 @@ export async function answerPluginRouteStream(response: ServerResponse,
   const overflowError = () => new ActionError("actions.output_invalid", readErrorWord("common.error.stream-overflow"));
   try {
     const result = await dispatch(emit);
-    if (overflow) write(errorLine(overflowError()));
-    else if (!result) write(errorLine(new ActionError("actions.missing", readErrorWord("common.error.endpoint-not-found"))));
-    else if (result.status >= 200 && result.status < 300) write({ type: "result", result: withPluginInteraction(result.body) });
-    else write(refusalLine(result));
+    if (overflow) {
+      markMutationResponseFailed(response);
+      write(errorLine(overflowError()));
+    } else if (!result) {
+      markMutationResponseFailed(response);
+      write(errorLine(new ActionError("actions.missing", readErrorWord("common.error.endpoint-not-found"))));
+    } else if (result.status >= 200 && result.status < 300) {
+      write({ type: "result", result: withPluginInteraction(result.body) });
+    } else {
+      markMutationResponseFailed(response);
+      write(refusalLine(result));
+    }
   } catch (error) {
+    markMutationResponseFailed(response);
     write(errorLine(overflow ? overflowError() : error));
   } finally {
-    if (!response.destroyed && !response.writableEnded) response.end();
+    // Always end the response (even if the client disconnected mid-stream) so 2xx commits settle their mutation key as complete while failed streams stay released via markMutationResponseFailed.
+    if (!response.writableEnded) response.end();
   }
   return true;
 }

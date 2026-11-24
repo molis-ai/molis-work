@@ -12,7 +12,7 @@ import { resolveManifestText } from "@molis-ai/molis-work-plugin-runtime";
 import { localeMessageArguments, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { currentInstalledPluginHost } from "./installed-plugin-host.js";
 import { manifestWordResolver, registeredBuiltinText, workbenchPlatformText } from "./ui-text-provider.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { shippedParts } from "./plugin-registry.js";
 import { activeLocale, currentLocale } from "./web-locale.js";
 
 /** Collect locale readers for installed project packages so sandboxed/pinned actions render in the active language alongside built-ins. */
@@ -62,7 +62,7 @@ export function resolveActionLibraryWords(
       } else if (kind === "plugin" && plugin_id) {
         // Host-built Runtime definitions use their Manifest ID as provider ID; installed packages read from project/Home release packs.
         const manifest = provider_id === plugin_id
-          ? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === plugin_id)?.manifest
+          ? shippedParts().find(entry => entry.manifest.plugin_id === plugin_id)?.manifest
           : undefined;
         reader = manifest
           ? registeredBuiltinText(manifest)

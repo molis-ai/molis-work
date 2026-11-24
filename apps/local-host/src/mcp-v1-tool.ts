@@ -5,11 +5,9 @@ import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./projec
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpErrorKind, mcpErrors } from "./mcp-errors.js";
-import { bindStandaloneManagementActions, catalogManagementProject, residentManagementActions, upgradeOlderCatalog } from "./management-action-client.js";
+import { bindStandaloneReviewActions, catalogManagementProject, residentManagementActions, upgradeOlderCatalog } from "./management-action-client.js";
 import { ensureHomeStorageOwner } from "./home-storage-lifetime.js";
 import { preflightMemoryHome } from "./memory/memory-initialization.js";
-import { ensureStandaloneProjectRoot } from "./managed-project-database.js";
-import { MANAGEMENT_MCP_TOOLS, managementToolOpensNewDatabase } from "./mcp-platform-tools.js";
 import path from "node:path";
 
 export const createPresentationError: McpPresentationErrorFactory = (code, message, details) => {
@@ -47,9 +45,9 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
     return dispatchMcpProjectTool(residentManagementActions({ home: caller.resident.home, origin: caller.resident.origin, controlToken:caller.resident.controlToken, signal: caller.resident.signal,
       ensureResident: caller.resident.ensureResident, databasePath: path.resolve(location),
       projectId: String(arguments_.project_id), fallback: () => { throw new ActionError("actions.service_unavailable", "生产 MCP 不在本地执行管理操作"); } }),
-      name, arguments_, { audience, createError: createPresentationError, declared: MANAGEMENT_MCP_TOOLS });
+      name, arguments_, { audience, createError: createPresentationError });
   }
-  const storage = prepareLocalProjectStorage(location, managementToolOpensNewDatabase(name) ? "create" : "existing");
+  const storage = prepareLocalProjectStorage(location, "existing");
   const { databasePath } = storage;
   if (storage.status === "missing") {
     throw mcpErrors.not_found(`Molis Work 数据库不存在: ${databasePath}`);
@@ -63,14 +61,13 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
     databasePath,
     projectId,
   });
-  const fallback = () => bindStandaloneManagementActions(caller.localHost, reference, caller.resident?.signal);
+  const fallback = () => bindStandaloneReviewActions(caller.localHost, reference, caller.resident?.signal);
   // No resident starter on this path, so nothing else can upgrade the catalog: the same as the CLI (upgrade-chain-design §4.3).
   const home = caller.resident?.home;
   if (audience === "management" && home !== undefined) upgradeOlderCatalog(home, () => { ensureHomeStorageOwner(caller.localHost, home, preflightMemoryHome); });
   const owned = audience === "management" && caller.resident ? catalogManagementProject(caller.resident.home, databasePath) : undefined;
   if (owned && owned.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "管理请求与 Home 登记的项目不匹配");
   if (owned) reference = molisWorkHostProjectReference({ databasePath: owned.database_path, projectId: owned.project_id });
-  if (!owned && managementToolOpensNewDatabase(name) && audience === "management") await ensureStandaloneProjectRoot(caller.localHost, reference);
   if (!owned) await caller.localHost.client(reference).withScope(() => undefined);
   const actions = audience !== "management" ? null : owned && caller.resident ? residentManagementActions({
     home: caller.resident.home, origin: caller.resident.origin, controlToken:caller.resident.controlToken, signal: caller.resident.signal,
@@ -79,6 +76,5 @@ export async function callMcpV1Tool(caller: McpV1ToolCaller, name: string, argum
   return dispatchMcpProjectTool(actions, name, arguments_, {
     audience,
     createError: createPresentationError,
-    declared: MANAGEMENT_MCP_TOOLS,
   });
 }

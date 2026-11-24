@@ -1,18 +1,11 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
-import { githubCliDistribution, nativeTarget } from "./connector-native-release.js";
+import { nativeTarget } from "./connector-native-release.js";
 import { checkedNativeRelease } from "./connector-native-install.js";
 import { managedToolDirectory } from "./connector-tool-download.js";
 import { matchingToolRuntime } from "./connector-tool-runtime.js";
 import { runToolInstallProcess, toolInstallErrors, type ToolInstallControl } from "./connector-tool-process.js";
-import { exactToolVersion, type NativeToolSource, type PowerShellToolSource } from "./connector-tool-source.js";
-
-export interface PowerShellCliDistribution { kind: "powershell"; resolve(version: string, runtimeVersion: string, signal?: AbortSignal): Promise<PowerShellToolSource> }
-export const graphCliDistribution: PowerShellCliDistribution = { kind: "powershell", resolve: async (version, runtimeVersion, signal) => {
-  if (!exactToolVersion(runtimeVersion)) throw toolInstallErrors.invalid("请为 Microsoft Graph 选择固定的 PowerShell 版本");
-  const runtime = await githubCliDistribution("PowerShell/PowerShell", "pwsh", (v, p, a) => `powershell-${v}-${p === "darwin" ? "osx" : p}-${a}.tar.gz`, () => "pwsh").resolve(runtimeVersion, signal);
-  return { kind: "powershell", package: "Microsoft.Graph.Authentication", version, bin: "pwsh", runtime };
-} };
+import type { NativeToolSource, PowerShellToolSource } from "./connector-tool-source.js";
 
 export const powerShellEnvironment = (directory: string, executable: string) => ({
   PSModulePath: [join(directory, "modules"), join(dirname(executable), "Modules")].join(delimiter),

@@ -329,7 +329,7 @@ test("ONB-22/29/30: adopting a Shelf device preference from a project and contin
   const client = bindActionClient(running.host.actionClient(project.reference), () => caller);
   const homeCaller = await running.host.localPersonContext();
   const local = bindActionClient(running.host.homeActionClient(), () => homeCaller);
-  const { shelfActions, shelfManifest } = await import("@molis-ai/molis-work-plugin-shelf");
+  const { shelfActions, shelfManifest } = await import("@molis-ai/molis-work-module-shelf/surface");
   const key = "shelf.drop_wheel";
   const proposal = {kind:"setting" as const, key, value:false};
   const {draft} = await client.invoke(a.draftSave, {expected_revision:null, blueprint:{

@@ -10,7 +10,7 @@ use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Shelf's routes on its Home instance, outside any project.
-const SHELF_API: &str = "/api/plugins/io.molis.work.shelf";
+const SHELF_API: &str = "/api/platform/shelf";
 /// The header that tells the Host the person chose this file here; the Host reads it, page script cannot send it.
 const ORIGINAL_PATH_HEADER: &str = "sec-molis-work-original-path";
 const FOLDER_MAX_BYTES: u64 = 32 * 1024 * 1024;

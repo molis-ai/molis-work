@@ -20,14 +20,8 @@ import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-wo
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { renderMolisWorkSettings, renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { renderSettingsDirectorySection } from "../apps/workbench/dist/settings-directory.js";
-import {
-  INBOX_DISMISS_OPTION_ID,
-  INBOX_DONE_OPTION_ID,
-  INBOX_NEXT_SCENE_ID,
-  choiceCriteriaFollowContext,
-  type JudgmentRuleAuthoringCatalog,
-  type TypeSafeEvaluateResult,
-} from "@molis-ai/molis-work-contracts/modules/functions";
+import { choiceCriteriaFollowContext, type JudgmentRuleAuthoringCatalog, type TypeSafeEvaluateResult } from "@molis-ai/molis-work-contracts/modules/functions";
+import { INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-plugin-inbox";
 import {
   functionsErrors,
   createFunctionsService,

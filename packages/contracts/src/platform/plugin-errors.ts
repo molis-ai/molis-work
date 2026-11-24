@@ -2,7 +2,6 @@ import { defineErrorCodes } from "./action-errors.js";
 
 /** Current Runtime and authoring refusals; the transport classification remains the prior default 400. */
 export const pluginErrors = defineErrorCodes("plugin", {
-  always_on: "invalid",
   capability_denied: "invalid",
   /** A capability the package did not declare or was not granted (47-1: the platform's, formerly the studio's `plugin_builder.` code). */
   capability_refused: "invalid",

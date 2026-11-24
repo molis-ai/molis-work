@@ -14,7 +14,7 @@ import {
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { registration as coding } from "@molis-ai/molis-work-plugin-coding/registration";
-import { registration as shelf } from "@molis-ai/molis-work-plugin-shelf/registration";
+import { shelfSurface as shelf } from "@molis-ai/molis-work-module-shelf/surface";
 import {
   NativePluginExecutor,
   PluginRuntime,

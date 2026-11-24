@@ -51,8 +51,8 @@ test('RAC-635 a built-in contribution is registered under the plugin its Manifes
   const ui = createWorkbenchUiHost().list();
   // The platform's own framed surface (the studio, 47-1 C) is composed the same way, under its Manifest's owner.
   const owners = new Map([...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES].flatMap(entry => (entry.workbench?.contributions ?? []).map(item => [item.descriptor.contribution_id, entry.manifest.plugin_id] as const)));
-  owners.set("io.molis.work.native.artifacts.browser.v1", "io.molis.work.artifacts");
-  owners.set("io.molis.work.native.artifacts.reference.v1", "io.molis.work.artifacts");
+  owners.set("io.molis.work.native.artifacts.browser.v1", "system.artifacts");
+  owners.set("io.molis.work.native.artifacts.reference.v1", "system.artifacts");
   assert.ok(ui.length > 20, 'the catalog registers its contributions');
   for (const descriptor of ui) assert.equal(descriptor.plugin_id, owners.get(descriptor.contribution_id), descriptor.contribution_id);
   assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.goals.proposal')?.plugin_id, 'io.molis.work.goals');

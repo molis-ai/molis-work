@@ -73,6 +73,10 @@ export async function handleHomeMaintenanceHttp(
         signal: controller.signal,
       });
     if (!response.destroyed) sendJson(response, 200, { result });
+    else if (!response.writableEnded) {
+      response.statusCode = 200;
+      response.end();
+    }
   } catch (error) {
     const refused = actionErrorResponse(error);
     if (!response.destroyed) sendJson(response, refused.status, refused.body);

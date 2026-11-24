@@ -410,7 +410,7 @@ const CATALOG_PLUGIN = OFFICIAL_PLUGINS + "catalog/";
 const WORKBENCH_SUBPACKS = ["scene", "catalog"];
 
 function addContentPackOwners(snapshot, owners, problems) {
-  for (const file of snapshot.files.filter(file => /^plugins\/content\/[^/]+\/pack-content\.json$/u.test(file))) {
+  for (const file of snapshot.files.filter(file => /^(?:plugins\/content|packages\/system-skills)\/[^/]+\/pack-content\.json$/u.test(file))) {
     const manifest = readJson(snapshot, file, problems);
     if (!manifest?.locales) continue;
     const directory = path.posix.dirname(file) + "/locales";
@@ -505,8 +505,8 @@ function declaredOwners(snapshot, problems) {
     }
   }
   // A built-in plugin's Manifest, and a platform package's framed surface that declares one (the plugin studio, 47-1 C; user
-  // 2026-11-22): each names its words' owner and the locale files beside its src/.
-  for (const file of snapshot.files.filter(file => /^(?:plugins\/native|horizontal)\/[^/]+\/src\/manifest\.ts$/u.test(file))) {
+  // 2026-11-22; Shelf's surface in its Module, 44B): each names its words' owner and the locale files beside its src/.
+  for (const file of snapshot.files.filter(file => /^(?:(?:plugins\/native|horizontal)\/[^/]+\/src|modules\/[^/]+\/src\/surface)\/manifest\.ts$/u.test(file))) {
     const owner = file.split("/")[file.startsWith("plugins/") ? 2 : 1], src = sourceOf(file, snapshot.read(file) ?? "");
     let words = null, plugin = null;
     const visit = node => {
@@ -526,7 +526,8 @@ function declaredOwners(snapshot, problems) {
     const languages = list.elements.map(literalText);
     if (!languages.includes(def) || new Set(languages).size !== languages.length || languages.some(tag => !tag)) { problems.push(`${file}: invalid ui.locales languages`); continue; }
     if (!plugin) { problems.push(`${file}: cannot read the locale owner from its Manifest plugin_id`); continue; }
-    owners.set(owner, { owner: plugin, directory: `${path.posix.dirname(path.posix.dirname(file))}/locales`, languages, default: def });
+    const root = file.startsWith("modules/") ? file.split("/").slice(0, 2).join("/") : path.posix.dirname(path.posix.dirname(file));
+    owners.set(owner, { owner: plugin, directory: `${root}/locales`, languages, default: def });
   }
   addOfficialConnectorOwners(snapshot, owners, problems);
   addContentPackOwners(snapshot, owners, problems);
@@ -566,7 +567,7 @@ function inspectPacks(snapshot, problems) {
       all.set(key, { prefix: definition.prefix ?? prefix });
     }
   }
-  for (const file of snapshot.files) if (/^(?:plugins\/native\/[^/]+|plugins\/content\/[^/]+|horizontal\/[^/]+|plugins\/official-integrations\/[^/]+(?:\/providers\/[^/]+)?|apps\/workbench\/resources)\/locales\/(?:[^/]+\/)*[^/]+\.json$/u.test(file)
+  for (const file of snapshot.files) if (/^(?:plugins\/native\/[^/]+|plugins\/content\/[^/]+|packages\/system-skills\/[^/]+|horizontal\/[^/]+|modules\/[^/]+|plugins\/official-integrations\/[^/]+(?:\/providers\/[^/]+)?|apps\/workbench\/resources)\/locales\/(?:[^/]+\/)*[^/]+\.json$/u.test(file)
     && !files.has(file)) problems.push(`${file}: no locale declaration reaches this file`);
   return { all, files };
 }

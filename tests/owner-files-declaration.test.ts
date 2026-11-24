@@ -6,7 +6,7 @@ import test from "node:test";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { IMAGES_OWNER_FILES, imagesActions, imagesManifest } from "@molis-ai/molis-work-plugin-images";
-import { SHELF_OWNER_FILES, createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_OWNER_FILES, shelfSurface } from "@molis-ai/molis-work-module-shelf/surface";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -47,14 +47,15 @@ test("RAC-309 the Manifest's owner_files declare a store name, top-level entries
   ] as const) assert.throws(() => parsePluginManifest(manifest(declared, permissions as string[] | undefined)), mentions, JSON.stringify(declared));
 });
 
-test("RAC-310 Shelf's and Images' files are their Manifests' owner_files: their registrations name none, and they are the only shipped plugins that declare any", () => {
-  const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === "io.molis.work.shelf")!;
+test("RAC-310 Shelf's and Images' files are their Manifests' owner_files: their registrations name none, and Images is the only catalog plugin that declares any", () => {
+  // Shelf is a platform part the runtime hosts (44B), not in the plugin catalog; its Manifest still declares its files.
+  const shelf = shelfSurface;
   assert.equal(shelf.manifest.owner_files, SHELF_OWNER_FILES);
   assert.equal("owner_files" in (shelf.runtime ?? {}), false, "the registration carries no files of its own");
   const images = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === "io.molis.work.images")!;
   assert.equal(images.manifest.owner_files, IMAGES_OWNER_FILES);
   assert.equal("files" in (images.runtime ?? {}), false, "and no start entry of its own either");
-  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.owner_files).map(entry => entry.manifest.plugin_id).sort(), ["io.molis.work.images", "io.molis.work.shelf"]);
+  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.owner_files).map(entry => entry.manifest.plugin_id).sort(), ["io.molis.work.images"]);
   assert.equal(readFileSync(new URL("../apps/local-host/src/plugin-owner-files-entries.ts", import.meta.url), "utf8").includes("readonly owner_files?"), false,
     "the start entry type does not either");
 });
@@ -70,7 +71,7 @@ test("RAC-308 a definition that declares owner_files and is not on the Host's st
   assert.equal(existsSync(`${home}/${beside.owner_files.store_name}`), false);
 });
 
-test("RAC-322 a project's platform with no Home does not refuse the shipped Shelf's project half, which shares the Manifest's owner_files and is given none; a project plugin that is not a dual-instance half and declares them is refused", async () => {
+test("RAC-322 on a project's platform with no Home, a project plugin that is not a dual-instance half and declares owner_files is refused", async () => {
   const directory = mkdtempSync(join(tmpdir(), "owner-files-no-home-"));
   const file = join(directory, "board.db");
   seedDemoBoard(file);
@@ -80,12 +81,6 @@ test("RAC-322 a project's platform with no Home does not refuse the shipped Shel
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }), home: null });
   try {
-    const shelf = createShelfPlugin();
-    assert.deepEqual(shelf.manifest.owner_files, SHELF_OWNER_FILES, "the project half carries the declaration the Home half does");
-    // The bare platform here has no Host capabilities, so Shelf's actions are not redeemed and it does not run; the list check is
-    // what this is about: it is not refused as a project plugin that declares files.
-    const report = await platformWithoutHome().start([{ definition: shelf, trust: { level: "host" } }]);
-    assert.deepEqual(report.failed.filter(entry => entry.code === "plugin.declaration_invalid"), []);
     const imposter = ownerFilesProbe("noHomeOwner");
     await assert.rejects(platformWithoutHome().start([{ definition: imposter.definition }]), /不能声明.*主人文件服务/u);
     assert.equal(imposter.contexts.length, 0, "it never ran");
@@ -96,10 +91,10 @@ test("RAC-327 there is no host start hook for initial files: Shelf puts its samp
   const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
   for (const file of ["apps/local-host/src/plugin-owner-files-entries.ts", "apps/local-host/src/plugin-platform.ts", "apps/local-host/src/home-plugins.ts",
     "apps/local-host/src/home-plugin-executor.ts", "packages/contracts/src/platform/plugin-registration.ts", "packages/plugin-runtime/src/owner-files-service.ts",
-    "plugins/native/shelf/src/registration.ts"]) {
+    "modules/shelf/src/surface/surface.ts"]) {
     assert.doesNotMatch(source(file), /initialize_owner_files|initializeTrusted/u, file);
   }
-  assert.match(source("plugins/native/shelf/src/home-plugin.ts"), /await store\(\)\.initialize\(\)/u, "Shelf's own start initializes its owner store");
+  assert.match(source("modules/shelf/src/surface/home-plugin.ts"), /await store\(\)\.initialize\(\)/u, "Shelf's own start initializes its owner store");
   assert.match(source("modules/shelf/src/store.ts"), /this\.access\.files\.write\(writer => initializeShelfFiles\(writer, this\.access\.from\(writer\)\)\)/u, "sample writes and catalog changes use the same authorized owner store");
   // The sample appears on the first start and not again after the person removed it: tests/shelf-owner-files.test.ts, "the first start writes the sample".
 });

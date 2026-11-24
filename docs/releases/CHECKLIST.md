@@ -40,7 +40,7 @@
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
 | 安装与发行清单 | `config/installation.json、releases/molis-work-<version>/release.json` | 1 | `schema_version` | `apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION` | 低版本由安装器升级；高版本在修改前拒绝，保留文件 |
-| 项目库 | `projects/<project_id>/molis-work.db` | 2 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 低版本升级，高版本拒绝 |
+| 项目库 | `projects/<project_id>/molis-work.db` | 3 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 低版本升级，高版本拒绝（1 → 2 加呈现组合同步流水，2 → 3 加「等你」同步流水，第 44B 批） |
 | 场景草稿与采用记录 | `blueprints/blueprints.db` | 2 | `user_version` | `horizontal/blueprints/src/schema.ts#BLUEPRINTS_BASELINE` | 首次使用时建库；已有低版本由升级过程升级，高版本拒绝打开 |
 | 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Coding） |
 | 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 1 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 低版本升级，高版本拒绝（只停 Feed） |
@@ -59,7 +59,7 @@
 | 对话附件 | `conversation-attachments/conversation-attachments.db` | 1 | `user_version` | `apps/local-host/src/material-attachments.ts#ATTACHMENTS_BASELINE` | 低版本升级，高版本拒绝（第 35 批新建，从版本 1 起） |
 | Issue | `issues/issues.db` | 1 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 低版本升级，高版本拒绝 |
 | Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 低版本升级，高版本拒绝 |
-| 记忆 | `memory/memory.db` | 1 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 低版本升级，高版本拒绝；新 Home 创建完整 reviewed 偏好，不重设已有设置 |
+| 记忆 | `memory/memory.db` | 2 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 低版本升级（1 → 2 补齐 `b3429bd1cc` 之前内置 Coding 会话清理计划的精确 `plugin_id`／`provider_id`），高版本拒绝；新 Home 创建完整 reviewed 偏好，不重设已有设置 |
 | 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 低版本升级，高版本拒绝 |
 | 工作记录 | `observation/observation.db` | 1 | `user_version` | `horizontal/observation/src/schema.ts#OBSERVATION_BASELINE` | 低版本升级，高版本拒绝 |
 | 端到端评测 | `evaluation/evaluation.db` | 1 | `user_version` | `horizontal/evaluation/src/schema.ts#EVALUATION_BASELINE` | 低版本升级，高版本拒绝（只停工作记录／评测设置面，不挡 Home） |

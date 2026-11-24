@@ -15,7 +15,6 @@
 // Reads text only (one manifest, one document, one list): no install, no build. What it cannot see: whether a covered library holds a row, and whether a reader finds
 // what is in a file. The replay answers those.
 import { GOLDEN_HOMES_DIRECTORY, versionsNewestLast } from "../golden/versions.mjs";
-import { withCurrentLayout } from "../golden/layout-moves.mjs";
 
 export const GOLDEN_BYTES_LIMIT = 50 * 1024 * 1024;
 const DATA = "docs/system/HOME-DATA.md", COVERAGE = "tooling/gates/golden-coverage.json", WRITES = "tests/golden-writes/";
@@ -56,7 +55,7 @@ function heldPaths(manifest) {
   const accounts = (manifest.homes ?? []).map(home => home.path).filter(Boolean);
   return [...manifest.stores ?? [], ...manifest.files ?? [], ...manifest.directories ?? []].flatMap(({ path }) => {
     const home = accounts.find(prefix => path.startsWith(`${prefix}/`));
-    return (home ? [path, path.slice(home.length + 1)] : [path]).flatMap(withCurrentLayout);
+    return home ? [path, path.slice(home.length + 1)] : [path];
   });
 }
 

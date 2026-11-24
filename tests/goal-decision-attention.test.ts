@@ -69,7 +69,7 @@ function decide(app: GoalProjectApplication, proposalId: string, key: string) {
 
 /** The Goal's decision entries as the Inbox lists them: every explicitly owned entry, here Goals' own. */
 function goalDecisionEntries(store: LocalProjectDatabase) {
-  return store.db.prepare("SELECT entry_id, status, reason, revision, subject_id, owner_plugin_id FROM inbox_entries WHERE project_id = ? AND subject_type = 'goal_decision' AND subject_id = 'root'")
+  return store.db.prepare("SELECT entry_id, status, reason, revision, subject_id, owner_plugin_id FROM attention_entries WHERE project_id = ? AND subject_type = 'goal_decision' AND subject_id = 'root'")
     .all(BOARD) as Array<{ entry_id: string; status: string; reason: string; revision: number; subject_id: string; owner_plugin_id: string | null }>;
 }
 
@@ -140,7 +140,7 @@ test("reconcile does not reopen a dismissed Goal decision; a new submit does", (
     propose(data.app, "child-dismiss", "propose-dismiss");
     const open = goalDecisionEntries(data.store)[0];
     assert.ok(open);
-    data.store.db.prepare("UPDATE inbox_entries SET status = 'dismissed', revision = revision + 1 WHERE entry_id = ?").run(open.entry_id);
+    data.store.db.prepare("UPDATE attention_entries SET status = 'dismissed', revision = revision + 1 WHERE entry_id = ?").run(open.entry_id);
     data.app.goalDecisionAttention.reconcile(BOARD);
     assert.equal(goalDecisionEntries(data.store)[0]?.status, "dismissed");
     propose(data.app, "child-after-dismiss", "propose-after-dismiss");
@@ -189,10 +189,10 @@ test("RAC-806 the Inbox lists the decision reminder Goals keeps under its own id
     const attention = new AttentionModule(data.store.db, { exists: () => true }, { eventSink: () => undefined });
     const other = attention.commands.create({ project_id: BOARD, owner_plugin_id: "io.molis.work.other", subject_type: "goal_decision", subject_id: "root", reason: "goal_decision" }).entry;
     // The Inbox is the platform's projection (RAC-808): Goals' Manifest declares the kind, the other plugin declared nothing.
-    const declared = new Map([[GOALS_PLUGIN_ID, new Set(goalsManifest.attention?.inbox ?? [])]]);
-    assert.deepEqual(attention.query.listInbox(BOARD, declared).filter(entry => entry.subject_type === "goal_decision").map(entry => entry.entry_id), [mine[0]!.entry_id]);
-    assert.throws(() => attention.query.getInbox(BOARD, other.entry_id, declared), { code: "attention.entry_not_found" });
-    assert.equal(attention.query.getInbox(BOARD, mine[0]!.entry_id, declared).entry_id, mine[0]!.entry_id);
+    const declared = new Map([[GOALS_PLUGIN_ID, new Set(goalsManifest.attention?.waiting ?? [])]]);
+    assert.deepEqual(attention.query.listWaiting(BOARD, declared).filter(entry => entry.subject_type === "goal_decision").map(entry => entry.entry_id), [mine[0]!.entry_id]);
+    assert.throws(() => attention.query.getWaiting(BOARD, other.entry_id, declared), { code: "attention.entry_not_found" });
+    assert.equal(attention.query.getWaiting(BOARD, mine[0]!.entry_id, declared).entry_id, mine[0]!.entry_id);
   } finally {
     data.store.close();
     rmSync(data.directory, { recursive: true, force: true });
@@ -204,7 +204,7 @@ test("reconcile restores Attention for a historical pending Goal that has no row
   try {
     propose(data.app, "child-history", "propose-history");
     assert.equal(goalDecisionEntries(data.store).length, 1);
-    data.store.db.prepare("DELETE FROM inbox_entries WHERE project_id = ? AND subject_type = 'goal_decision'").run(BOARD);
+    data.store.db.prepare("DELETE FROM attention_entries WHERE project_id = ? AND subject_type = 'goal_decision'").run(BOARD);
     assert.equal(goalDecisionEntries(data.store).length, 0);
     data.app.goalDecisionAttention.reconcile(BOARD);
     const restored = goalDecisionEntries(data.store);
@@ -221,8 +221,8 @@ test("W2-18-ATTENTION-TX-01 independent Goal reconcile refuses a failing journal
   const data = fixture();
   try {
     const proposal = propose(data.app, "child-atomic", "propose-atomic");
-    data.store.db.prepare("DELETE FROM inbox_entries WHERE project_id = ? AND subject_type = 'goal_decision'").run(BOARD);
-    const snapshot = () => ({ entries: data.store.db.prepare("SELECT * FROM inbox_entries ORDER BY entry_id").all(),
+    data.store.db.prepare("DELETE FROM attention_entries WHERE project_id = ? AND subject_type = 'goal_decision'").run(BOARD);
+    const snapshot = () => ({ entries: data.store.db.prepare("SELECT * FROM attention_entries ORDER BY entry_id").all(),
       attention: data.store.db.prepare("SELECT * FROM attention_events ORDER BY event_id").all(),
       journal: data.store.db.prepare("SELECT * FROM events ORDER BY seq").all() });
     const before = snapshot();

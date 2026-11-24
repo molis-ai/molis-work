@@ -70,11 +70,11 @@ fi
     await waitFor(`document.querySelector(${JSON.stringify(row(id))})?.classList.contains('is-on')`);
   };
   const refresh = async () => {
-    await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))");
+    await evaluate("window.dispatchEvent(new CustomEvent('molis:shelf-refresh'))");
   };
   const admit = async (filename: string, text: string, mime = "text/markdown") => {
     const item = await evaluate<{ item_id: string; relative_path: string }>(`(async () => {
-      const response = await fetch(document.body.dataset.routePrefix+'/api/plugins/io.molis.work.shelf/items', { method: 'POST', headers: molisWorkControlHeaders(),
+      const response = await fetch(document.body.dataset.routePrefix+'/api/platform/shelf/items', { method: 'POST', headers: molisWorkControlHeaders(),
         body: JSON.stringify({ filename: ${JSON.stringify(filename)}, bytes_base64: ${JSON.stringify(Buffer.from(text).toString("base64"))}, mime: ${JSON.stringify(mime)} }) });
       const body = await response.json(); if (!response.ok) throw new Error(JSON.stringify(body)); return body.item;
     })()`);
@@ -137,7 +137,7 @@ fi
     await waitFor("document.querySelector('[data-shelf-bar-hint]')?.textContent.includes('无法读取这份副本') && !document.querySelector('[data-shelf-edit]').disabled");
     assert.equal(await evaluate("document.querySelector('[data-shelf-editor]')"), null);
     assert.equal(await evaluate("document.querySelector('[data-shelf-edit]').textContent"), "编辑副本");
-    const failedRead = await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.shelf/items/${broken.item_id}/file`);
+    const failedRead = await fetch(`${origin}/projects/${projectId}/api/platform/shelf/items/${broken.item_id}/file`);
     assert.equal(failedRead.status, 400);
     await failedRead.text();
   });
@@ -199,7 +199,7 @@ fi
     await evaluate(`(() => { const form=document.querySelector('[data-shelf-create-action]');
       form.elements.name.value='抽取待办'; form.elements.prompt.value='把材料里的待办整理成列表。'; })()`);
     // ONB-22/29: another settings writer saves after the editor opens. The first submit must keep both its row and the local draft.
-    const preferences = "/api/plugins/io.molis.work.shelf/preferences/";
+    const preferences = "/api/platform/shelf/preferences/";
     const key = "shelf.action_bar";
     const { values: [before] } = await browser.web.post<{values: {revision: string; value: {shortcuts: unknown[]; action_order: string[]; hidden_actions: string[]}}[]}>(preferences + "read", { keys: [key] });
     assert.ok(before);
@@ -238,7 +238,7 @@ fi
     // This records the client/native invocation contract, not the macOS pasteboard.
     await browser.evaluate(`window.parityNativeCalls=[]; window.__TAURI__={core:{invoke:async (name,payload)=>{
       if(name!=='files_copy') return;
-      const response=await fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/io.molis.work.shelf/items/${first.item_id}/file`)},{cache:'no-store'});
+      const response=await fetch(${JSON.stringify(`/projects/${projectId}/api/platform/shelf/items/${first.item_id}/file`)},{cache:'no-store'});
       window.parityNativeCalls.push({name,payload,saved:await response.text()});
     }}}`);
     await select(first.item_id);
@@ -282,7 +282,7 @@ fi
       send:text=>window.parityTerminalCalls.push({kind:'send',text})};
       document.querySelector('[data-shelf-stage]').classList.add('is-talk')`);
     for (const text of ["继续第一轮", "退出后第二轮 https://example.com/中文"]) {
-      await evaluate(`window.dispatchEvent(new CustomEvent('molis-shelf-send-tui',{detail:{item_ids:[${JSON.stringify(first.item_id)}],text:${JSON.stringify(text)}}}))`);
+      await evaluate(`window.dispatchEvent(new CustomEvent('molis:shelf-send-tui',{detail:{item_ids:[${JSON.stringify(first.item_id)}],text:${JSON.stringify(text)}}}))`);
       await waitFor(`window.parityTerminalCalls.filter(call=>call.kind==='send').some(call=>call.text===${JSON.stringify(text)})`);
     }
     const calls = await evaluate<Array<{ kind: string; options?: unknown; text?: string }>>("window.parityTerminalCalls");
@@ -297,7 +297,7 @@ fi
       field.value='桥接尚未就绪时的输入'; field.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));`);
     assert.equal(await evaluate("document.querySelector('[data-shelf-tty-input]').value"), "桥接尚未就绪时的输入");
     assert.match(await evaluate<string>("document.querySelector('[data-shelf-bar-hint]').textContent"), /终端尚未连接，输入已保留/);
-    await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-tui-unsent',{detail:{texts:['失败后恢复的输入'],message:'fixture spawn failed'}}))");
+    await evaluate("window.dispatchEvent(new CustomEvent('molis:shelf-tui-unsent',{detail:{texts:['失败后恢复的输入'],message:'fixture spawn failed'}}))");
     assert.equal(await evaluate("document.querySelector('[data-shelf-tty-input]').value"), "失败后恢复的输入 桥接尚未就绪时的输入");
   });
 });

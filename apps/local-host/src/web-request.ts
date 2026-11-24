@@ -1,6 +1,5 @@
 import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http.js";
 import { handleKitSettingsHttp } from "./kit-settings-http.js";
-import { withReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
 import { handleTaskGrantsSettingsHttp } from "./task-grants-settings-http.js";
 import { resolveConfiguredHome } from "./product-home.js";
@@ -15,6 +14,7 @@ import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-artifacts";
 import { readArtifactDisplayFor } from "./artifact-display-words.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { sqliteErrorName } from "@molis-ai/molis-work-storage";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -43,6 +43,7 @@ import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { handleAutomationRecommendationsHttp } from "./automation-recommendations-http.js";
 import { isCatalogIndexPath, redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { catalogErrors } from "./project-catalog-contract.js";
+import { projectOrNull } from "./catalog-lookup.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
 import { pagePluginDirectory } from "./plugin-directory.js";
 import { dispatchWebRoutes, type WebRequestContext, type WebRoute } from "./web-route-table.js";
@@ -80,7 +81,6 @@ export async function handleMolisWorkWebRequest(
   agentHost: AgentHost,
   agentReady: () => Promise<void>,
 ): Promise<void> {
-  const readonly = request.method === "GET";
   const handle = async () => {
     const context: WebRequestContext = { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, webViewCache, projectSchedules,
       ptyHost, webUrl, localHost, composition, agentHost, agentReady };
@@ -103,17 +103,29 @@ export async function handleMolisWorkWebRequest(
       return;
     }
     if (resolved.kind === "project_not_found") {
-      // Only a project the catalog said it does not hold carries the catalog's code: an open tab stops reading on it, not on an address
-      // that names no project at all (BL-attention-404-by-code).
-      const missing = catalogErrors.project_not_found(uiText.text("workbench.request.that-molis-work-project-was-not-found"));
-      sendJson(response, 404, resolved.gone ? { error: missing.message, code: missing.code } : { error: missing.message });
+      sendProjectNotFound(response, resolved.gone === true);
       return;
     }
     url.pathname = resolved.pathname;
     await withOwnerUnavailablePage(context, resolved.options.project?.project_id ?? null,
       () => dispatchWebRoutes(PROJECT_ROUTES, projectRequestContext(context, resolved.options)));
   };
-  return readonly ? withReadOnlyPluginDirectory(serverOptions.homeDirectory, handle) : handle();
+  return handle();
+}
+
+function sendProjectNotFound(response: ServerResponse, gone: boolean): void {
+  // An open tab stops only when the catalog confirms its project is gone (BL-attention-404-by-code).
+  const missing = catalogErrors.project_not_found(uiText.text("workbench.request.that-molis-work-project-was-not-found"));
+  sendJson(response, 404, gone ? { error: missing.message, code: missing.code } : { error: missing.message });
+}
+
+async function respondIfProjectDeleted({ request, response, options, composition }: ProjectRequestContext): Promise<boolean> {
+  if (request.method !== "GET" || !options.project || response.headersSent) return false;
+  // Deletion commits the catalog first. A request that already resolved the original path can arrive after the directory moves.
+  const project = await composition.withCatalog({ homeDirectory: options.homeDirectory }, catalog => projectOrNull(catalog, options.projectId));
+  if (project) return false;
+  sendProjectNotFound(response, true);
+  return true;
 }
 
 /**
@@ -151,8 +163,10 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
   { id: "settings-arrival", handle: ({ request, response, url, options, serverOptions, composition }) => arriveAtProjectPage(request, response, url,
     options.project ? { project_id: options.project.project_id, routePrefix: options.routePrefix ?? "" } : null,
     serverOptions.homeDirectory, composition.isDesktopShellRequest(request, url)) },
-  { id: "database-missing", handle: ({ response, url, options }) => {
+  { id: "database-missing", handle: async context => {
+    const { response, url, options } = context;
     if (fs.existsSync(options.databasePath)) return false;
+    if (await respondIfProjectDeleted(context)) return true;
     if (url.pathname.startsWith("/api/")) {
       sendJson(response, 404, { error: "Molis Work 数据库不存在，请先初始化" });
     } else {
@@ -175,8 +189,12 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
     if (preview && !context.localHost.projects().some(project => project.storage_key === context.hostReference.storage_key && project.state === "ready")) {
       sendJson(context.response, 409, { error: t.text("workbench.language.project-closed") }); return true;
     }
-    await context.localHost.withProject(context.hostReference, runtime =>
-      dispatchWebRoutes(PROJECT_RUNTIME_ROUTES, projectRuntimeContext(context, runtime)));
+    try {
+      await context.localHost.withProject(context.hostReference, runtime =>
+        dispatchWebRoutes(PROJECT_RUNTIME_ROUTES, projectRuntimeContext(context, runtime)));
+    } catch (error) {
+      if (sqliteErrorName(error) !== "SQLITE_CANTOPEN" || fs.existsSync(context.options.databasePath) || !await respondIfProjectDeleted(context)) throw error;
+    }
     return true;
   } },
 ];
@@ -195,7 +213,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the shell view and the stages of the plugins this project shows (PEQ-01, PEQ-03). */
-function projectWebView({ options, webViewCache, localHost, hostReference, serverOptions, shownPluginSelection, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">,
+function projectWebView({ options, webViewCache, localHost, hostReference, shownPluginSelection, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">,
   { scope = "shell", withMembershipRevision = false }: { scope?: "shell" | "page"; withMembershipRevision?: boolean } = {}) {
   return async (): Promise<MolisWorkWebView> => {
     let view = await cachedMolisWorkWebView(webViewCache, options);
@@ -217,12 +235,12 @@ function projectWebView({ options, webViewCache, localHost, hostReference, serve
       (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: ownerRead(owner) }), stage_request);
     view = { ...view, stage_data: prepared.data, plugin_stage_views: prepared.views };
     // A fragment consumes its matched owner's data, not the other stages or the Home shell.
-    if (scope === "page") return setStageErrors({ ...view, plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory) }, prepared.errors);
+    if (scope === "page") return setStageErrors({ ...view, plugin_directory: await pagePluginDirectory(localHost.homePlugins) }, prepared.errors);
     const homeStages = await renderHomePluginStages(localHost.homePlugins, { project_id: hostReference.project_id, shown: view.shown_plugins, views: prepared?.views, page_owner: view.page_owner,
       model: id => composition.workbenchRenderer.declaredStageModel(id, view) });
     return setStageErrors({ ...view, plugin_stages: homeStages.html, plugin_panels: homeStages.panels, plugin_overlays: homeStages.overlays,
       plugin_stage_surfaces: homeStages.surfaces, ...(homeStages.page ? { page_stage: homeStages.page } : {}), unavailable_plugin_stages: homeStages.unavailable,
-      plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory) }, prepared.errors);
+      plugin_directory: await pagePluginDirectory(localHost.homePlugins) }, prepared.errors);
   };
 }
 
@@ -285,7 +303,7 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   projectWriteCheckersRoute,
   installedPluginsRoute,
   pluginStudioRoute,
-  // Characters is the Host's own surface (CHR-1) under its old plugin prefix, so it answers before the Runtime's plugin routes.
+  // Characters is the Host's own surface (CHR-1), under the platform prefix since 44B (`/api/platform/characters`).
   { id: "characters", handle: ({ request, response, url, localHost, hostReference }) => handleCharactersHttp(request, response, url, hostCharactersInvoke(localHost, hostReference)) },
   runtimePluginsRoute,
   workspaceMembershipRoute,

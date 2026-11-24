@@ -13,7 +13,7 @@ import { createLocalFeedSourceService, listTestFeedSourceCatalog } from "./fixtu
 import { homeStorageTree } from "./fixtures/home-storage-files.js";
 import { createTestSourcePull } from "./fixtures/source-pull.js";
 
-const KEY_REF = "system:feed:evidence-content-key:v1";
+const KEY_REF = "system:evidence:content-key:v1";
 const KEY_MISSING = { code: "storage.evidence_content.key_unavailable" };
 
 function isolatedHome(t: TestContext) {

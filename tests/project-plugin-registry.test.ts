@@ -7,12 +7,10 @@ import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import type { ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ProjectsModule, createProjectsSchema } from "@molis-ai/molis-work-module-projects";
 
-/** What Projects is told exists: five plugins, Inbox enabled with Feed, and Goals 常开 (the Host derives the real one from its catalog,
- * the install records and the consent ledger, ac-trust T3). */
+/** What Projects is told exists: five plugins, and Inbox enabled with Feed (the Host derives the real registry from its catalog). */
 const shipped: ProjectPluginRegistry = {
   has: (pluginId) => ["goals", "todo", "inbox", "feed", "artifacts"].includes(pluginId),
   companions: (pluginId) => pluginId === "feed" ? ["inbox"] : [],
-  alwaysOn: () => ["goals"],
 };
 
 function openProjects(directory: string, plugins: ProjectPluginRegistry = shipped) {
@@ -43,7 +41,6 @@ test("a Plugin the registry knows can be enabled without touching the schema", (
     const registry: ProjectPluginRegistry = {
       has: (pluginId) => shipped.has(pluginId) || pluginId === "coding",
       companions: (pluginId) => shipped.companions(pluginId),
-      alwaysOn: shipped.alwaysOn,
     };
     const { db, projects } = openProjects(directory, registry);
     const project = createProject(projects, directory, "编码项目");
@@ -54,7 +51,7 @@ test("a Plugin the registry knows can be enabled without touching the schema", (
       actor_id: "tester",
     });
     assert.ok(enabled.includes("coding"), "注册表认识的插件应该能启用");
-    assert.deepEqual(projects.query.listProjectPlugins(project.project_id).sort(), ["coding", "goals"]);
+    assert.deepEqual(projects.query.listProjectPlugins(project.project_id).sort(), ["coding"]);
     db.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -74,7 +71,7 @@ test("a Plugin the registry does not know is still refused", () => {
       }),
       (error: unknown) => (error as { code?: string }).code === "catalog.plugin_not_found",
     );
-    assert.deepEqual(projects.query.listProjectPlugins(project.project_id), ["goals"]);
+    assert.deepEqual(projects.query.listProjectPlugins(project.project_id), []);
     db.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -91,7 +88,7 @@ test("enabling a Plugin still pulls in the companions it cannot appear without",
       plugin_id: "feed",
       actor_id: "tester",
     });
-    assert.deepEqual(enabled.sort(), ["feed", "goals", "inbox"]);
+    assert.deepEqual(enabled.sort(), ["feed", "inbox"]);
     db.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });

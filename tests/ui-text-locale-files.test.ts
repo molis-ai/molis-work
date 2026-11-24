@@ -329,11 +329,12 @@ test("FSS-53 FSS-60 a real signed installation binds words to its authorized pag
 });
 
 test("FSS-53 built-in registrations use the same declared language files as a plugin project", () => {
-  // The platform's framed surface (the studio, 47-1 C) declares its files the same way, in its own package.
+  // The platform's framed surfaces (the studio, 47-1 C; Shelf, 44B) declare their files the same way, each in its own package.
+  const SURFACE_PACKAGES: Record<string, string> = { "plugin-builder": "horizontal/plugin-studio", shelf: "modules/shelf" };
   const entries = [...BUILTIN_PLUGIN_CATALOG.map(entry => ({ entry, directory: path.join("plugins/native", entry.project_plugin_id) })),
-    ...HOST_FRAMED_SURFACES.map(entry => ({ entry, directory: "horizontal/plugin-studio" }))];
+    ...HOST_FRAMED_SURFACES.map(entry => ({ entry, directory: SURFACE_PACKAGES[entry.project_plugin_id]! }))];
   assert.ok(entries.length > 1);
-  assert.equal(HOST_FRAMED_SURFACES.length, 1, "a second platform surface names its package here");
+  assert.deepEqual(HOST_FRAMED_SURFACES.map(entry => entry.project_plugin_id).sort(), Object.keys(SURFACE_PACKAGES).sort(), "a new platform surface names its package here");
   for (const { entry, directory } of entries) {
     assert.ok(entry.manifest.ui.locales, entry.manifest.plugin_id);
     const available = new Set(entry.manifest.ui.locales.available);

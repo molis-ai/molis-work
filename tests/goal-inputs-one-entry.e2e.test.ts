@@ -24,10 +24,10 @@ test("「加输入…」 on a Goal takes a document either following the origina
     await navigate(() => command("Page.navigate", { url: origin + goal }, sessionId));
     await waitFor("Boolean(document.querySelector('[data-goal-view=\"V1\"] [data-goal-materials-entry]'))", 15_000);
     await click('[data-goal-view="V1"] [data-goal-materials-entry]');
-    await waitFor("[...document.querySelectorAll('[data-goal-inputs] [data-goal-input-add]')].some(button => button.getClientRects().length)", 10_000);
+    await waitFor("[...document.querySelectorAll('[data-goal-inputs] [data-placement-input-add]')].some(button => button.getClientRects().length)", 10_000);
   };
   const add = async (title: string, mode: "live" | "fixed") => {
-    await evaluate("[...document.querySelectorAll('[data-goal-inputs] [data-goal-input-add]')].find(button => button.getClientRects().length).click()");
+    await evaluate("[...document.querySelectorAll('[data-goal-inputs] [data-placement-input-add]')].find(button => button.getClientRects().length).click()");
     await waitFor("document.querySelector('dialog.placement-dialog')?.open === true", 15_000);
     // The project's own items are offered, the documents among them.
     await evaluate(`(() => { const row = [...document.querySelectorAll('dialog.placement-dialog .placement-choice')].find(label => label.querySelector('strong')?.textContent === ${JSON.stringify(title)});
@@ -47,14 +47,14 @@ test("「加输入…」 on a Goal takes a document either following the origina
   await waitFor(`(document.querySelector('[data-goal-inputs]')?.innerText || '').includes('访谈纪要') && (document.querySelector('[data-goal-inputs]')?.innerText || '').includes('竞品清单')`, 15_000);
   const list = await evaluate<string>("document.querySelector('[data-goal-inputs] .bound-list').innerText");
   assert.match(list, /访谈纪要[\s\S]*固定的第 1 版|固定的第 1 版[\s\S]*访谈纪要/);
-  assert.equal(await evaluate(`Boolean(document.querySelector('[data-goal-inputs] [data-placement-material][data-placement-id="${followed.id}"] [data-goal-input-mode="live"]'))`), true);
-  assert.equal(await evaluate("document.querySelectorAll('[data-goal-inputs] [data-goal-input-fixed]').length"), 1);
+  assert.equal(await evaluate(`Boolean(document.querySelector('[data-goal-inputs] [data-placement-material][data-placement-id="${followed.id}"] [data-placement-input-mode="live"]'))`), true);
+  assert.equal(await evaluate("document.querySelectorAll('[data-goal-inputs] [data-placement-input-fixed]').length"), 1);
   assert.equal(await evaluate(`Boolean(document.querySelector('[data-goal-inputs] [data-placement-material][data-placement-id="${fixed.id}"]'))`), false, "the fixed document is a version, not a followed object");
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
 
   // A fixed input can be taken off the Goal from the same list; the version stays in the 成果库.
-  await click("[data-goal-inputs] [data-goal-input-fixed] [data-goal-input-remove]");
-  await waitFor("!document.querySelector('[data-goal-inputs] [data-goal-input-fixed]')", 10_000);
+  await click("[data-goal-inputs] [data-placement-input-fixed] [data-placement-input-remove]");
+  await waitFor("!document.querySelector('[data-goal-inputs] [data-placement-input-fixed]')", 10_000);
   const left = await evaluate<{ inputs: unknown[] }>(`fetch('/projects/${projectId}/api/plugins/io.molis.work.goals/goals/V1/artifact-inputs').then(r => r.json())`);
   assert.deepEqual(left.inputs, []);
 });
@@ -79,31 +79,31 @@ test("a proposed input on a Goal reads 待确认 and is accepted or removed from
     await click('[data-goal-view="V1"] [data-goal-materials-entry]');
   };
   await openInputs();
-  const row = (item: string) => `[data-goal-inputs] [data-goal-input-binding="binding-${item}"]`;
-  await waitFor(`Boolean(document.querySelector('${row("item-accept")} [data-goal-input-accept]')?.getClientRects().length)`, 10_000);
+  const row = (item: string) => `[data-goal-inputs] [data-placement-input-binding="binding-${item}"]`;
+  await waitFor(`Boolean(document.querySelector('${row("item-accept")} [data-placement-input-accept]')?.getClientRects().length)`, 10_000);
 
   // Pending, in words, with the two controls; never the raw state.
-  assert.equal(await evaluate(`document.querySelector('${row("item-accept")} [data-goal-input-state]').textContent`), "待确认");
-  assert.equal(await evaluate(`document.querySelector('${row("item-accept")} [data-goal-input-accept]').textContent`), "认可这条输入");
-  assert.equal(await evaluate(`document.querySelector('${row("item-accept")} [data-goal-input-release]').textContent`), "移除");
+  assert.equal(await evaluate(`document.querySelector('${row("item-accept")} [data-placement-input-state]').textContent`), "待确认");
+  assert.equal(await evaluate(`document.querySelector('${row("item-accept")} [data-placement-input-accept]').textContent`), "认可这条输入");
+  assert.equal(await evaluate(`document.querySelector('${row("item-accept")} [data-placement-input-release]').textContent`), "移除");
   assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-goal-inputs]').innerText"), /proposed|confirmed/);
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
 
   // Accepting reads 已确认 in place and takes the controls away.
-  await click(`${row("item-accept")} [data-goal-input-accept]`);
-  await waitFor(`document.querySelector('${row("item-accept")} [data-goal-input-state]')?.textContent === '已确认'`, 10_000);
-  assert.equal(await evaluate(`Boolean(document.querySelector('${row("item-accept")} [data-goal-input-accept], ${row("item-accept")} [data-goal-input-release]'))`), false);
-  assert.equal(await evaluate(`document.querySelector('${row("item-remove")} [data-goal-input-state]').textContent`), "待确认", "the other proposal is untouched");
+  await click(`${row("item-accept")} [data-placement-input-accept]`);
+  await waitFor(`document.querySelector('${row("item-accept")} [data-placement-input-state]')?.textContent === '已确认'`, 10_000);
+  assert.equal(await evaluate(`Boolean(document.querySelector('${row("item-accept")} [data-placement-input-accept], ${row("item-accept")} [data-placement-input-release]'))`), false);
+  assert.equal(await evaluate(`document.querySelector('${row("item-remove")} [data-placement-input-state]').textContent`), "待确认", "the other proposal is untouched");
 
   // Reopen the list and verify the accepted state came back from storage before removing the other proposal.
   await openInputs();
-  await waitFor(`Boolean(document.querySelector('${row("item-accept")} [data-goal-input-state="confirmed"]'))`, 10_000);
-  await click(`${row("item-remove")} [data-goal-input-release]`);
+  await waitFor(`Boolean(document.querySelector('${row("item-accept")} [data-placement-input-state="confirmed"]'))`, 10_000);
+  await click(`${row("item-remove")} [data-placement-input-release]`);
   await waitFor(`!document.querySelector('${row("item-remove")}')`, 10_000);
 
   // The Goal's own record agrees after it is read again.
   const html = await evaluate<string>(`fetch('/projects/${projectId}/api/goals/V1/document').then(r => r.text())`);
-  assert.match(html, /binding-item-accept"[\s\S]*?data-goal-input-state="confirmed">已确认</);
+  assert.match(html, /binding-item-accept"[\s\S]*?data-placement-input-state="confirmed">已确认</);
   assert.doesNotMatch(html, /binding-item-remove/);
 });
 
@@ -132,10 +132,10 @@ test("BSH-08 SSC-28 a Goal follows a project-folder file with what was read, and
     if (!await evaluate(shown(entry))) await click(info);
     await waitFor(shown(entry));
     await click(entry);
-    await waitFor("[...document.querySelectorAll('[data-goal-inputs] [data-goal-input-add]')].some(button => button.getClientRects().length)", 10_000);
+    await waitFor("[...document.querySelectorAll('[data-goal-inputs] [data-placement-input-add]')].some(button => button.getClientRects().length)", 10_000);
   };
   const add = async (title: string, mode: "live" | "fixed") => {
-    await evaluate("[...document.querySelectorAll('[data-goal-inputs] [data-goal-input-add]')].find(button => button.getClientRects().length).click()");
+    await evaluate("[...document.querySelectorAll('[data-goal-inputs] [data-placement-input-add]')].find(button => button.getClientRects().length).click()");
     await waitFor(`[...document.querySelectorAll('dialog.placement-dialog .placement-choice strong')].some(item => item.textContent === ${JSON.stringify(title)})`, 15_000);
     await evaluate(`(() => { const row = [...document.querySelectorAll('dialog.placement-dialog .placement-choice')].find(label => label.querySelector('strong')?.textContent === ${JSON.stringify(title)});
       row.querySelector('input').checked = true;
@@ -150,8 +150,8 @@ test("BSH-08 SSC-28 a Goal follows a project-folder file with what was read, and
   await add("定稿.txt", "fixed");
   const goalPage = async () => evaluate<string>(`fetch('/projects/${projectId}/api/goals/V1/document').then(r => r.text())`);
   // What was read is kept as the digest of the file's content; the fixed version is kept by its version alone, with no path on the page.
-  assert.match(await goalPage(), /data-goal-input-digest="sha256:[0-9a-f]{64}"/);
-  assert.match(await goalPage(), /data-goal-material-snapshot="\[&quot;[^&]+&quot;,1\]"[\s\S]*?<strong>定稿\.txt<\/strong><span class="goal-input-mode" data-goal-input-mode="fixed">固定的这一版/);
+  assert.match(await goalPage(), /data-placement-input-digest="sha256:[0-9a-f]{64}"/);
+  assert.match(await goalPage(), /data-placement-snapshot="\[&quot;[^&]+&quot;,1\]"[\s\S]*?<strong>定稿\.txt<\/strong><span class="goal-input-mode" data-placement-input-mode="fixed">固定的这一版/);
   assert.doesNotMatch(await goalPage(), /goal-folder/, "no folder path reaches the Goal's page");
 
   // The followed file changes: the Goal says so and still reads it; the fixed version is untouched and readable.
@@ -159,22 +159,22 @@ test("BSH-08 SSC-28 a Goal follows a project-folder file with what was read, and
   await writeFile(join(directory, "定稿.txt"), "后来又改了\n");
   await open();
   await waitFor("(document.querySelector('[data-goal-inputs] [data-placement-material][data-placement-kind=\"workspace_file\"] [data-placement-material-state]')?.textContent ?? '').includes('原文已改动')", 15_000);
-  await waitFor("document.querySelector('[data-goal-inputs] [data-goal-material-snapshot]')?.dataset.placementFilled === '1'", 10_000);
-  await waitFor("!document.querySelector('[data-goal-inputs] [data-goal-material-snapshot]').classList.contains('is-gone')", 10_000);
-  assert.equal(await evaluate("document.querySelector('[data-goal-inputs] [data-goal-material-snapshot] [data-goal-material-snapshot-state]').textContent"), "");
+  await waitFor("document.querySelector('[data-goal-inputs] [data-placement-snapshot]')?.dataset.placementFilled === '1'", 10_000);
+  await waitFor("!document.querySelector('[data-goal-inputs] [data-placement-snapshot]').classList.contains('is-gone')", 10_000);
+  assert.equal(await evaluate("document.querySelector('[data-goal-inputs] [data-placement-snapshot] [data-placement-snapshot-state]').textContent"), "");
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
 
   // Taken off from the same list; the Goal no longer lists it after it is read again.
-  await click("[data-goal-inputs] [data-goal-material-snapshot] [data-goal-input-release]");
-  await waitFor("!document.querySelector('[data-goal-inputs] [data-goal-material-snapshot]')", 10_000);
-  assert.doesNotMatch(await goalPage(), /data-goal-material-snapshot=/);
+  await click("[data-goal-inputs] [data-placement-snapshot] [data-placement-input-release]");
+  await waitFor("!document.querySelector('[data-goal-inputs] [data-placement-snapshot]')", 10_000);
+  assert.doesNotMatch(await goalPage(), /data-placement-snapshot=/);
 
   // AC-T4-01: the workbench marks the change, opens the real file, and accepts the reviewed version via the keyboard.
-  const review = '[data-goal-view="V1"] [data-event-reader-root]:not([hidden]) [data-source-review-pending="1"] [data-goal-source-review]:not([hidden] *)';
+  const review = '[data-goal-view="V1"] [data-event-reader-root]:not([hidden]) [data-source-review-pending="1"] [data-placement-source-review]:not([hidden] *)';
   const reviewShown = shown(review);
   await waitFor(reviewShown);
   await click(review);
-  await click("dialog.placement-dialog [data-goal-source-open]");
+  await click("dialog.placement-dialog [data-placement-source-open]");
   await waitFor("document.querySelector('[data-side-materials-window]')?.textContent === " + JSON.stringify("第二版\n"), 15_000);
   await open();
   await waitFor(reviewShown);

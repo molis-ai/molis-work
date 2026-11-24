@@ -21,8 +21,8 @@ const keyMissing = () => errors.key_unavailable(
   "保存正文的钥匙找不到了。已有的正文原样保留；找回原钥匙之前，新的正文不会保存。请找回原来的钥匙后重启 Molis Work。",
 );
 
-const CONTENT_KEY_REF = "system:feed:evidence-content-key:v1";
-const CONTENT_REF = /^molis-work-feed\/sha256\/([0-9a-f]{64})$/u;
+const CONTENT_KEY_REF = "system:evidence:content-key:v1";
+const CONTENT_REF = /^molis-work-evidence\/sha256\/([0-9a-f]{64})$/u;
 const MAX_CONTENT_BYTES = 1024 * 1024;
 const ALG = "aes-256-gcm" as const;
 
@@ -36,7 +36,7 @@ interface SealedEvidenceBlob {
 
 /** The reference `write` gives a body, known before it is written: content-addressed, so a caller can record that it holds a body before the body exists. */
 export function evidenceContentRef(markdown: string): string {
-  return `molis-work-feed/sha256/${createHash("sha256").update(markdown).digest("hex")}`;
+  return `molis-work-evidence/sha256/${createHash("sha256").update(markdown).digest("hex")}`;
 }
 
 /**

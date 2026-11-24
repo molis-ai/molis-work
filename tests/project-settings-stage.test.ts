@@ -166,7 +166,7 @@ test("workbench project gear opens a directory of categories and an exclusive se
     feed: {
       sources: [],
       feed_items: [],
-      inbox_entries: [],
+      attention_entries: [],
       runs: [],
       out_rules: [],
     },
@@ -259,7 +259,7 @@ test("project guidance keeps runtime notes on the title hint instead of the page
     feed: {
       sources: [],
       feed_items: [],
-      inbox_entries: [],
+      attention_entries: [],
       runs: [],
       out_rules: [],
     },
@@ -310,7 +310,7 @@ test("91-0b settings navigation ships scope switch, project settings filter, mol
     input_bindings: [],
     policy_bindings: [],
     events: [],
-    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
+    feed: { sources: [], feed_items: [], attention_entries: [], runs: [], out_rules: [] },
   } as MolisWorkWebView, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" });
   assert.match(projectHtml, /class="mw-toggle-group settings-scope-switch"/);
   assert.match(projectHtml, /href="\/settings\/appearance\?project=project-1"[^>]*>全局</);

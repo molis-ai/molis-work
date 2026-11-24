@@ -1,12 +1,12 @@
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
 /**
- * Default plugins when a page has no project selection: derived from the built-in catalog's `default_enabled` and `always_on`
- * entries rather than a hardcoded plugin list (H9, PEQ-12).
+ * Default plugins when a page has no project selection: derived from the built-in catalog's `default_enabled` entries rather
+ * than a hardcoded plugin list (H9, PEQ-12).
  */
 export function defaultPagePlugins(): string[] {
   return BUILTIN_PLUGIN_CATALOG
-    .filter(entry => entry.default_enabled === true || entry.manifest.always_on === true)
+    .filter(entry => entry.default_enabled === true)
     .map(entry => entry.project_plugin_id);
 }
 

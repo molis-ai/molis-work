@@ -1,6 +1,5 @@
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { graphCliDistribution, type PowerShellCliDistribution } from "./connector-powershell.js";
-import { githubCliDistribution, gitlabCliDistribution, atlassianCliDistribution, type NativeCliDistribution } from "./connector-native-release.js";
+import { builtinCliDrivers, type CliDriver } from "./builtin-drivers.js";
 import { managedCliLaunch, type ManagedCliLaunch } from "./connector-cli-launch.js";
 import { activateConnectorConnection, type ConnectorActivation } from "./connector-activation.js";
 import type { submitConnectorActivation } from "./connector-authorization-commit.js";
@@ -14,34 +13,14 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 
 const execute = promisify(execFile);
-interface CliDefinition { binary: string; login: readonly string[]; setup?: readonly string[]; login_environment?: readonly { name: string; label: string; secret: boolean }[]; identity: readonly string[]; read?: readonly string[]; install: string; version?: readonly string[]; distribution?: { kind: "npm" | "python"; package: string; entrypoint?: string } | NativeCliDistribution | PowerShellCliDistribution; note?: string }
-const graph = (scope: string, resource: string): CliDefinition => ({ binary: "pwsh", distribution: graphCliDistribution, version: ["-NoProfile", "-NonInteractive", "-Command", "Import-Module Microsoft.Graph.Authentication -ErrorAction Stop; (Get-Module Microsoft.Graph.Authentication).Version.ToString()"], install: "https://learn.microsoft.com/powershell/microsoftgraph/installation",
-  login: ["-NoProfile", "-Command", `Import-Module Microsoft.Graph.Authentication; Connect-MgGraph -Scopes 'User.Read','${scope}' -UseDeviceCode -ContextScope CurrentUser -NoWelcome`],
-  identity: ["-NoProfile", "-Command", "Import-Module Microsoft.Graph.Authentication; Connect-MgGraph -ContextScope CurrentUser -NoWelcome; Invoke-MgGraphRequest -Method GET -Uri 'https://graph.microsoft.com/v1.0/me' | ConvertTo-Json -Depth 8"],
-  read: ["-NoProfile", "-Command", `Import-Module Microsoft.Graph.Authentication; Connect-MgGraph -ContextScope CurrentUser -NoWelcome; Invoke-MgGraphRequest -Method GET -Uri 'https://graph.microsoft.com/v1.0/${resource}' | ConvertTo-Json -Depth 12`],
-  note: "workbench.connector-cli.powershell" });
-export const CONNECTOR_CLIS: Readonly<Record<string, CliDefinition>> = {
-  github: { distribution: githubCliDistribution("cli/cli", "gh", (v, p, a) => `gh_${v}_${p === "darwin" ? "macOS" : p}_${a === "x64" ? "amd64" : a}.${p === "darwin" ? "zip" : "tar.gz"}`, (v, p, a) => `gh_${v}_${p === "darwin" ? "macOS" : p}_${a === "x64" ? "amd64" : a}/bin/gh`), binary: "gh", login: ["auth", "login", "--web", "--hostname", "github.com", "--git-protocol", "https", "--skip-ssh-key", "--scopes", "notifications,read:user"], identity: ["api", "user"], read: ["api", "notifications"], install: "https://cli.github.com/" },
-  gitlab: { distribution: gitlabCliDistribution, binary: "glab", login: ["auth", "login", "--hostname", "gitlab.com", "--web"], identity: ["api", "user"], read: ["api", "events?per_page=20"], install: "https://docs.gitlab.com/cli/" },
-  notion: { distribution: { kind: "npm", package: "ntn", entrypoint: `dist/ntn-${process.platform}-${process.arch}/ntn` }, binary: "ntn", login: ["login"], identity: ["api", "v1/users/me", "-X", "GET"], read: ["api", "v1/users", "-X", "GET"], install: "https://developers.notion.com/cli/get-started/overview" },
-  box: { login_environment: [{ name: "CLIENT_ID", label: "workbench.connector-cli.app-client-id", secret: false }, { name: "CLIENT_SECRET", label: "workbench.connector-cli.app-client-secret", secret: true }], distribution: { kind: "npm", package: "@box/cli" }, binary: "box", login: ["login", "--default-box-app"], identity: ["users:get", "me", "--json"], read: ["folders:items", "0", "--json"], install: "https://developer.box.com/guides/cli/" },
-  outlook: graph("Mail.Read", "me/messages?$top=20"), onedrive: graph("Files.Read.All", "me/drive/root/children?$top=20"), sharepoint: graph("Sites.Read.All", "sites?search=*"), teams: graph("Chat.Read", "me/chats?$top=20"),
-  feishu: { setup: ["config", "init", "--brand", "feishu"], distribution: githubCliDistribution("larksuite/cli", "lark-cli", (v, p, a) => `lark-cli-${v}-${p}-${a === "x64" ? "amd64" : a}.tar.gz`, () => "lark-cli"), binary: "lark-cli", login: ["auth", "login", "--scope", "contact:user.base:readonly calendar:calendar:readonly calendar:calendar.event:read docx:document:readonly wiki:wiki:readonly im:chat:readonly offline_access"], identity: ["auth", "status", "--json", "--verify"], read: ["calendar", "+agenda", "--as", "user"], install: "https://github.com/larksuite/cli", note: "workbench.connector-cli.feishu" },
-  lark: { setup: ["config", "init", "--brand", "lark"], distribution: githubCliDistribution("larksuite/cli", "lark-cli", (v, p, a) => `lark-cli-${v}-${p}-${a === "x64" ? "amd64" : a}.tar.gz`, () => "lark-cli"), binary: "lark-cli", login: ["auth", "login", "--scope", "contact:user.base:readonly calendar:calendar:readonly calendar:calendar.event:read docx:document:readonly wiki:wiki:readonly im:chat:readonly offline_access"], identity: ["auth", "status", "--json", "--verify"], read: ["calendar", "+agenda", "--as", "user"], install: "https://github.com/larksuite/cli", note: "workbench.connector-cli.lark" },
-  vercel: { distribution: { kind: "npm", package: "vercel" }, binary: "vercel", login: ["login"], identity: ["whoami"], read: ["project", "ls", "--format=json"], install: "https://vercel.com/docs/cli" },
-  cloudflare: { distribution: { kind: "npm", package: "wrangler" }, binary: "wrangler", login: ["login", "--scopes", "account:read", "user:read", "zone:read"], identity: ["whoami", "--json"], install: "https://developers.cloudflare.com/workers/wrangler/install-and-update/" },
-  huggingface: { version: ["version"], distribution: { kind: "python", package: "huggingface_hub" }, binary: "hf", login: ["auth", "login"], identity: ["auth", "whoami"], install: "https://huggingface.co/docs/huggingface_hub/guides/cli" },
-  sentry: { distribution: { kind: "npm", package: "sentry" }, binary: "sentry", login: ["auth", "login", "--read-only", "--url", "https://sentry.io"], identity: ["auth", "whoami", "--json", "--fresh"], install: "https://cli.sentry.dev/", note: "workbench.connector-cli.sentry" },
-  supabase: { distribution: { kind: "npm", package: "supabase" }, binary: "supabase", login: ["login"], identity: ["whoami", "--output-format", "json"], read: ["projects", "list", "--output", "json"], install: "https://supabase.com/docs/guides/local-development/cli/getting-started", note: "workbench.connector-cli.supabase" },
-  salesforce: { distribution: { kind: "npm", package: "@salesforce/cli" }, binary: "sf", login: ["org", "login", "web", "--set-default"], identity: ["api", "request", "rest", "/services/oauth2/userinfo", "--method", "GET", "--json"], read: ["data", "query", "--query", "SELECT Id,Subject,LastModifiedDate FROM Task ORDER BY LastModifiedDate DESC LIMIT 20", "--json"], install: "https://developer.salesforce.com/tools/salesforcecli" },
-  stripe: { distribution: githubCliDistribution("stripe/stripe-cli", "stripe", (v, p, a) => `stripe_${v}_${p === "darwin" ? "mac-os" : p}_${a === "x64" ? "x86_64" : a}.tar.gz`, () => "stripe"), binary: "stripe", login: ["login"], identity: ["get", "/v1/account"], read: ["get", "/v1/events", "-d", "limit=20"], install: "https://docs.stripe.com/stripe-cli", note: "workbench.connector-cli.stripe" },
-  jira: { distribution: atlassianCliDistribution, binary: "acli", login: ["jira", "auth", "login", "--web"], identity: ["jira", "auth", "status"], read: ["jira", "workitem", "search", "--jql", "assignee=currentUser() ORDER BY updated DESC", "--limit", "20", "--json"], install: "https://developer.atlassian.com/cloud/acli/guides/introduction/" },
-  hubspot: { binary: "hubspot", login: ["auth", "login"], identity: ["whoami"], read: ["objects", "list", "--type", "contacts", "--format", "json"], install: "https://developers.hubspot.com/docs/developer-tooling/local-development/agent-cli/guide", note: "workbench.connector-cli.hubspot" },
-  x: { login_environment: [{ name: "CLIENT_ID", label: "workbench.connector-cli.app-client-id", secret: false }, { name: "CLIENT_SECRET", label: "workbench.connector-cli.app-client-secret", secret: true }], distribution: githubCliDistribution("xdevplatform/xurl", "xurl", (_, p, a) => `xurl_${p === "darwin" ? "Darwin" : "Linux"}_${a === "x64" ? "x86_64" : a}.tar.gz`, () => "xurl"), binary: "xurl", login: ["auth", "oauth2"], identity: ["--auth", "oauth2", "/2/users/me"], read: ["--auth", "oauth2", "/2/users/me"], install: "https://github.com/xdevplatform/xurl", note: "workbench.connector-cli.x" },
-};
+/**
+ * The official CLIs a connection may sign in through: the drivers the built-in integrations register (D3 A, M11). Each driver gives
+ * its fixed commands, where its client comes from and how its account is read; this file runs only those commands and names no service.
+ */
+export const CONNECTOR_CLIS: Readonly<Record<string, CliDriver>> = builtinCliDrivers();
 interface CliConfiguration extends ConnectorProtocolConfiguration { protocol: "cli"; fingerprint: string; binary: string; installation_id?: string }
 export class ConnectorCliError extends Error {}
-function definition(service: string): CliDefinition {
+function definition(service: string): CliDriver {
   const value = Object.hasOwn(CONNECTOR_CLIS, service) ? CONNECTOR_CLIS[service] : undefined;
   if (!value) throw new ConnectorCliError("此服务没有已配置的官方 CLI");
   return value;
@@ -62,7 +41,7 @@ function safeValue(value: unknown): unknown {
 }
 function parse(raw: string): unknown { try { return safeValue(JSON.parse(raw)); } catch { return clean(raw); } }
 function cliEnvironment(service: string, launch?: ManagedCliLaunch): NodeJS.ProcessEnv {
-  return { ...(launch?.environment ?? process.env), NO_COLOR: "1", ...(service === "sentry" ? { SENTRY_HOST: "https://sentry.io", SENTRY_URL: "https://sentry.io" } : {}) };
+  return { ...(launch?.environment ?? process.env), NO_COLOR: "1", ...definition(service).environment };
 }
 async function run(service: string, args: readonly string[], signal?: AbortSignal, launch?: ManagedCliLaunch): Promise<unknown> {
   const spec = definition(service), binary = launch?.executable ?? cliExecutable(spec.binary);
@@ -72,42 +51,45 @@ async function run(service: string, args: readonly string[], signal?: AbortSigna
     return parse(result.stdout);
   } catch { signal?.throwIfAborted(); throw new ConnectorCliError(`${spec.binary} 读取失败，请完成登录并检查当前账号权限`); }
 }
+/**
+ * The service's HTTP API read through its official client (the driver's `api`): only its declared read-only paths, and the
+ * user's token never leaves the client. `launch` is a managed installation's; otherwise the client on `PATH`.
+ */
+export function cliApiFetch(service: string, launch?: ManagedCliLaunch): typeof fetch {
+  const spec = definition(service), api = spec.api;
+  if (!api) throw new ConnectorCliError("此 CLI 连接请通过连接设置中的只读操作使用");
+  return async (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.origin !== api.origin || !api.paths.some(path => path.test(url.pathname)) || (init?.method && init.method !== "GET")) throw new ConnectorCliError(`${spec.binary} 只允许当前连接的只读接口`);
+    let output: unknown;
+    try {
+      const binary = launch?.executable ?? cliExecutable(spec.binary);
+      if (binary) output = JSON.parse((await execute(binary, api.args(url), { timeout: 30_000, signal: init?.signal ?? undefined, maxBuffer: 3 * 1024 * 1024, cwd: launch?.cwd, env: cliEnvironment(service, launch) })).stdout);
+    } catch { init?.signal?.throwIfAborted(); }
+    const { status, body } = api.response(output);
+    return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  };
+}
+
+/** A CLI connection's API reads: the client's account is checked to still be this connection's before and after each one. */
+export function cliConnectionApi(home: string, id: string, service: string): { token: string; fetchImpl: typeof fetch } {
+  const config = withConnectorProtocols(home, store => store.get<CliConfiguration>(id), true);
+  const read = cliApiFetch(service, config?.installation_id ? managedCliLaunch(home, config.installation_id) : undefined);
+  return { token: definition(service).binary, fetchImpl: async (input, init) => {
+    await inspectCliConnection(home, id);
+    const result = await read(input, init);
+    await inspectCliConnection(home, id);
+    return result;
+  } };
+}
 function record(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+const refuse = (message: string): never => { throw new ConnectorCliError(message); };
 function identity(service: string, value: unknown): { label: string; fingerprint: string } {
-  const obj = record(value), data = record(obj.data ?? obj);
+  const obj = record(value), data = record(obj.data ?? obj), driver = definition(service);
   let label: unknown, stable: unknown;
-  if (["feishu", "lark"].includes(service)) {
-    const user = record(record(obj.identities).user);
-    if (obj.brand !== service || user.available !== true || user.verified !== true || !user.openId || !obj.appId) throw new ConnectorCliError("CLI 当前应用地区或用户身份不匹配；请配置对应地区应用并完成用户授权");
-    label = user.userName || user.openId; stable = [obj.brand, obj.appId, user.openId];
-  } else if (service === "jira" && typeof value === "string") {
-    const site = /^\s*Site:\s*(\S+)\s*$/mu.exec(value)?.[1];
-    const email = /^\s*Email:\s*(\S+)\s*$/mu.exec(value)?.[1];
-    label = email;
-    stable = site && email ? [new URL(site.startsWith("https:") ? site : `https://${site}`).origin, email.toLowerCase()] : undefined;
-  } else if (service === "hubspot" && typeof value === "string") {
-    const user = /^\s*User:\s*(.+)$/mu.exec(value)?.[1]?.trim();
-    const portal = /^\s*Portal:\s*(\d+)\s*$/mu.exec(value)?.[1];
-    label = user === "(HUBSPOT_ACCESS_TOKEN)" ? `HubSpot · ${portal}` : user;
-    stable = portal && user ? [portal, user === "(HUBSPOT_ACCESS_TOKEN)" ? "service-key" : user.toLowerCase()] : undefined;
-  } else if (service === "sentry") {
-    const host = "https://sentry.io";
-    if (obj.type === "org-auth-token") {
-      label = obj.organization; stable = obj.organization_id ? [host, obj.organization_id] : undefined;
-    } else { label = obj.email || obj.username || obj.name; stable = obj.id ? [host, obj.id] : undefined; }
-  } else if (service === "salesforce") {
-    const result = record(record(obj.result).body);
-    label = result.preferred_username || result.email || result.user_id; stable = result.user_id && result.organization_id ? [result.organization_id, result.user_id] : undefined;
-  } else if (service === "cloudflare") {
-    if (obj.loggedIn !== true) throw new ConnectorCliError("请先登录 Wrangler");
-    const accounts = Array.isArray(obj.accounts) ? obj.accounts.map(record) : [];
-    label = obj.email || accounts[0]?.name;
-    stable = typeof obj.email === "string" ? obj.email.toLowerCase() : (obj.authType === "Account API Token" && accounts.length === 1 ? accounts[0]?.id : undefined);
-  } else if (service === "notion") {
-    const bot = record(data.bot);
-    label = bot.workspace_name || data.name || data.id;
-    stable = data.id ? [bot.workspace_id || "", data.id] : undefined;
-  } else if (typeof value === "string") {
+  // The driver reads its own client's account; otherwise the common shapes: one line naming the user, or the usual fields.
+  if (driver.account) ({ label, stable } = driver.account(value, refuse));
+  else if (typeof value === "string") {
     const lines = clean(value).split(/\r?\n/u).map(line => line.trim()).filter(Boolean);
     const userLine = lines.find(line => /^(?:username|user|email|logged in as)\s*:/iu.test(line));
     const candidate = userLine ? userLine.replace(/^(?:username|user|email|logged in as)\s*:\s*/iu, "") : lines.length === 1 ? lines[0] : "";
@@ -120,14 +102,8 @@ function identity(service: string, value: unknown): { label: string; fingerprint
   return { label: String(label).slice(0, 120), fingerprint: createHash("sha256").update(JSON.stringify([service, stable])).digest("hex") };
 }
 async function readIdentity(service: string, signal?: AbortSignal, launch?: ManagedCliLaunch) {
-  const result = await run(service, definition(service).identity, signal, launch);
-  const obj = record(result);
-  if (service === "sentry" && obj.type === "org-auth-token") {
-    const organizations = await run(service, ["org", "list", "--json", "--fresh"], signal, launch);
-    const found = Array.isArray(organizations) ? organizations.map(record).find(row => row.slug === obj.organization) : undefined;
-    if (!found?.id) throw new ConnectorCliError("Sentry 未确认组织权限，请检查凭据");
-    obj.organization_id = found.id;
-  }
+  const driver = definition(service), result = await run(service, driver.identity, signal, launch);
+  await driver.complete?.(record(result), args => run(service, args, signal, launch), refuse);
   return result;
 }
 export async function connectCli(home: string, input: { serviceId: string; displayName: string; installationId?: string }, signal?: AbortSignal, beforeCommit?: () => void | Promise<void>,
@@ -138,7 +114,7 @@ export async function connectCli(home: string, input: { serviceId: string; displ
   const result = await readIdentity(input.serviceId, signal, launch);
   await beforeCommit?.();
   // Status-only CLIs must also complete a genuine read before registration.
-  if (["feishu", "lark", "jira"].includes(input.serviceId)) await run(input.serviceId, spec.read!, signal, launch);
+  if (spec.verify_read && spec.read) await run(input.serviceId, spec.read, signal, launch);
   signal?.throwIfAborted();
   await beforeCommit?.();
   const account = identity(input.serviceId, result);

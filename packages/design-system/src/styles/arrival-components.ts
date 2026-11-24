@@ -41,16 +41,16 @@ const ARRIVAL_COMPONENT_HEAD = `
   .mw-btn__key { margin-left: 6px; font: inherit; font-size: 15px; line-height: 1; opacity: .62; }
 
   /* ───────── Goal track ───────── */
-  .mw-goal-track { display: flex; gap: 4px; margin: 26px 0 0; padding: 0; list-style: none; }
-  .mw-goal-track > li { flex: 1 1 0; min-width: 0; display: grid; gap: 8px; }
-  .mw-goal-track__bar { display: block; height: 6px; border-radius: 3px; background: var(--line-strong); transform-origin: 0 50%; transition: background-color var(--dur-move, 250ms) var(--ease-quint); }
-  .mw-goal-track > li[data-s="done"] .mw-goal-track__bar { background: var(--ink-soft); }
-  .mw-goal-track > li[data-s="doing"] .mw-goal-track__bar { background: var(--accent); }
-  .mw-goal-track__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); font-size: 12px; line-height: 16px; }
-  .mw-goal-track > li[data-s="done"] .mw-goal-track__name { color: var(--muted); }
-  .mw-goal-track > li[data-s="doing"] .mw-goal-track__name { color: var(--ink); font-weight: var(--weight-control, 500); }
+  .mw-progress-track { display: flex; gap: 4px; margin: 26px 0 0; padding: 0; list-style: none; }
+  .mw-progress-track > li { flex: 1 1 0; min-width: 0; display: grid; gap: 8px; }
+  .mw-progress-track__bar { display: block; height: 6px; border-radius: 3px; background: var(--line-strong); transform-origin: 0 50%; transition: background-color var(--dur-move, 250ms) var(--ease-quint); }
+  .mw-progress-track > li[data-s="done"] .mw-progress-track__bar { background: var(--ink-soft); }
+  .mw-progress-track > li[data-s="doing"] .mw-progress-track__bar { background: var(--accent); }
+  .mw-progress-track__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); font-size: 12px; line-height: 16px; }
+  .mw-progress-track > li[data-s="done"] .mw-progress-track__name { color: var(--muted); }
+  .mw-progress-track > li[data-s="doing"] .mw-progress-track__name { color: var(--ink); font-weight: var(--weight-control, 500); }
   /* A crowded track names nothing: the card above it already names the goal in play. */
-  .mw-goal-track.is-dense .mw-goal-track__name { display: none; }
+  .mw-progress-track.is-dense .mw-progress-track__name { display: none; }
 
   /* ───────── File list ───────── */
 `;

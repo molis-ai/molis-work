@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import { setImmediate } from "node:timers/promises";
 
 import { startWebProjectSchedulers } from "@molis-ai/molis-work-app-local-host";
 
@@ -81,6 +82,70 @@ test("LOGIC-01 stopping the host finishes while an open is still failing", async
   await stopping;
   // The failed open is skipped, not reported (onError throws above), and the stopped round ends without running.
   await started;
+});
+
+test("B103-01 a pending wakeup does not hold ready clocks or another due project", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "schedulers-pending-wake-"));
+  const pending = join(home, "pending.db");
+  const due = join(home, "due.db");
+  const ready = join(home, "ready.db");
+  await Promise.all([writeFile(pending, ""), writeFile(due, "")]);
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const opened: string[] = [];
+  const ticks: string[] = [];
+  let run: (() => Promise<void>) | undefined;
+  const clock = (projectId: string) => ({ schedule: {
+    async tick() {
+      ticks.push(projectId);
+      return { invoked: true };
+    },
+  } });
+  const schedulers = startWebProjectSchedulers({
+    localHost: {
+      projects: () => [],
+      async inspectActions(_caller: unknown, reference: { project_id: string; storage_key: string }) {
+        const id = reference.project_id;
+        opened.push(id);
+        if (id === "pending") {
+          entered.resolve();
+          await release.promise;
+        }
+        schedulers.runtimes.set(reference.storage_key, clock(id) as never);
+      },
+    } as never,
+    homeDirectory: home,
+    withCatalog: async (_options, operation) => operation({ listProjects: () => [
+      { database_path: pending, project_id: "pending" },
+      { database_path: due, project_id: "due" },
+    ] } as never),
+    fixture: null,
+    periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
+    changed() {},
+    onError(error) { throw error; },
+  });
+  t.after(async () => {
+    release.resolve();
+    await schedulers.stop();
+    await rm(home, { recursive: true, force: true });
+  });
+  schedulers.runtimes.set(ready, clock("ready") as never);
+
+  const first = run!();
+  await entered.promise;
+  await setImmediate();
+  assert.deepEqual(ticks, ["ready", "due"], "the ready clock and first tick in another due project both run");
+  await first;
+  assert.equal(schedulers.activeCount(), 1, "a pending project wake remains active after the round returns");
+  await run!();
+  assert.deepEqual(ticks, ["ready", "due", "ready", "due"], "the next round still ticks both clocks");
+  assert.deepEqual(opened, ["pending", "due"], "a pending project is only opened once");
+
+  const stopping = schedulers.stop();
+  release.resolve();
+  await stopping;
+  assert.equal(ticks.includes("pending"), false, "an open that finishes after stop does not tick");
+  assert.equal(schedulers.activeCount(), 0);
 });
 
 test("101-2: stop() awaits in-flight schedule ticks before resolving and suppresses post-stop changed callbacks", async (t) => {

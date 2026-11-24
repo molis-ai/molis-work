@@ -738,7 +738,7 @@ const CATALOG: CatalogConnectorDraft[] = [
   }),
   spec("loom", "Loom", "work", { key: "loom.connection.summary" }, { key: "loom.connection.inbound" }, {
     token_label: "", token_placeholder: "", auth_help: { key: "loom.connection.auth-help" },
-    permission_host: "mcp.atlassian.com", feed_available: false,
+    permission_host: "mcp.atlassian.com", source_available: false,
     identity: { request() { throw new CatalogLiveError("configuration", undefined, "请通过官方 Rovo MCP 连接 Loom"); }, read() { return ""; } },
     feed: { async collect() { return []; } },
   }),
@@ -751,7 +751,7 @@ const CATALOG: CatalogConnectorDraft[] = [
       request: (ctx) => get("https://api.figma.com/v1/me", ctx.extra.auth_method === "oauth" ? bearer(ctx) : { "X-Figma-Token": ctx.accessToken, "User-Agent": USER_AGENT }),
       read: (json) => text(asRecord(json)?.handle, asRecord(json)?.email),
     },
-    feed_available: false,
+    source_available: false,
     feed: { async collect() { return []; } },
   }),
   spec("canva", "Canva", "design", { key: "canva.connection.summary" }, { key: "canva.connection.inbound" }, {
@@ -783,7 +783,7 @@ const CATALOG: CatalogConnectorDraft[] = [
       request: (ctx) => get(adobeUserinfoUrl(ctx), bearer(ctx, adobeApiKey(ctx))),
       read: (json) => text(asRecord(json)?.email, asRecord(json)?.name, asRecord(json)?.sub),
     },
-    feed_available: false,
+    source_available: false,
     feed: { async collect() { return []; } },
   }),
   spec("salesforce", "Salesforce", "crm", { key: "salesforce.connection.summary" }, { key: "salesforce.connection.inbound" }, {
@@ -899,7 +899,7 @@ const CATALOG: CatalogConnectorDraft[] = [
       request: (ctx) => get("https://api.linkedin.com/v2/userinfo", bearer(ctx)),
       read: (json) => text(asRecord(json)?.name, asRecord(json)?.email, asRecord(json)?.sub),
     },
-    feed_available: false,
+    source_available: false,
     feed: { async collect() { return []; } },
   }),
   webSearchSpec("brave-search"), webSearchSpec("deepseek-search"), webSearchSpec("tavily"), // §13.7: written in web-search.ts

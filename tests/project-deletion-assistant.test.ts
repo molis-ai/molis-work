@@ -108,7 +108,7 @@ test("a running Assistant cancels the timed rounds the runtime queued for a dele
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-purge-live-"));
   t.mock.method(globalThis, "fetch", async () => reply("好的。"));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-purge-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-purge-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);

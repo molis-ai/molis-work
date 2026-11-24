@@ -20,7 +20,6 @@ import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_PLUGIN_ID, createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { GIT_PLUGIN_ID, createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { SNAPSHOT_READER, snapshotReaderPlugin } from "./fixtures/snapshot-reader-plugin.js";
-import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { SYSTEM_MATERIALS_SOURCE } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -102,7 +101,6 @@ test("Coding fixed output reaches Diff through the production default binding wi
     // As the Host's start list gives them: default wiring applies only between plugins that ship with the Host (W4-03).
     await platform.start([
       { definition: capturing(createCodingPlugin(), context => { coding = context; }), trust: { level: "host" } },
-      { definition: createShelfPlugin(), trust: { level: "host" } },
       { definition: createGitPlugin(), trust: { level: "host" } },
       { definition: createDiffPlugin(), trust: { level: "host" } },
     ]);
@@ -129,29 +127,30 @@ test("the default wiring leaves a 成果 version the person gave an input in pla
   const { store, platform, artifacts } = project(directory);
   try {
     await platform.start([
-      { definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createShelfPlugin(), trust: { level: "host" } },
+      { definition: createCodingPlugin(), trust: { level: "host" } },
       { definition: createGitPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } },
     ]);
-    const shelfReport = () => platform.wiring.view().plugins.find(plugin => plugin.plugin_id === "io.molis.work.shelf")!.ports.find(port => port.port === "coding-report")!;
+    const diffPort = (name: string) => platform.wiring.view().plugins.find(plugin => plugin.plugin_id === DIFF_PLUGIN_ID)!.ports.find(port => port.port === name)!;
+    const changeset = () => diffPort("changeset");
     bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
-    assert.equal(shelfReport().source?.source_plugin_id, "io.molis.work.coding", "an input that reads nothing follows the default source");
-    artifacts.commands.registerVersion({ ...pinnedArtifact("固定的执行报告"), project_id: DEMO_PROJECT_ID, actor_id: "tester", artifact_id: "report-1", version: 2,
-      artifact_type_id: "coding.report.v1", schema_version: 1, producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.50.0", binding_signature: "official-coding-binding" },
-      content: { kind: "inline", payload: { title: "固定的执行报告", run_id: "run", source: { session_id: "session" }, body_markdown: "## 报告" } } });
-    platform.wiring.bindArtifact({ target_plugin_id: "io.molis.work.shelf", target_port: "coding-report", artifact_id: "report-1", version: 2, actor_id: "tester" });
-    const pinned = { artifact_id: "report-1", version: 2 };
-    assert.deepEqual(shelfReport().artifact, pinned);
+    assert.equal(changeset().source?.source_plugin_id, "io.molis.work.coding", "an input that reads nothing follows the default source");
+    artifacts.commands.registerVersion({ ...pinnedArtifact("固定的修改"), project_id: DEMO_PROJECT_ID, actor_id: "tester", artifact_id: "changes-1", version: 2,
+      artifact_type_id: "coding.changeset.v1", schema_version: 1, producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.50.0", binding_signature: "official-coding-binding" },
+      content: { kind: "inline", payload: { scope: "run-frozen", run_id: "run", applied: true, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [{ path: "a.ts", kind: "modified", diff: "", added_lines: 1, removed_lines: 1,
+        review: { review_id: "review", before_text: "original\r\n", after_text: "fixed\n", decision: "approved", execution: "applied" } }] } } });
+    platform.wiring.bindArtifact({ target_plugin_id: DIFF_PLUGIN_ID, target_port: "changeset", artifact_id: "changes-1", version: 2, actor_id: "tester" });
+    const pinned = { artifact_id: "changes-1", version: 2 };
+    assert.deepEqual(changeset().artifact, pinned);
 
     bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");                       // the project is opened again
-    assert.deepEqual(shelfReport().artifact, pinned, "opening the project does not replace the given version");
-    assert.equal(shelfReport().source, undefined);
-    assert.equal(shelfReport().origin, "user");
+    assert.deepEqual(changeset().artifact, pinned, "opening the project does not replace the given version");
+    assert.equal(changeset().source, undefined);
+    assert.equal(changeset().origin, "user");
 
-    platform.wiring.unbind("io.molis.work.shelf", "coding-changeset");                   // another port is put back to its default
+    platform.wiring.unbind(DIFF_PLUGIN_ID, "git-changeset");                         // another port is put back to its default
     bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
-    assert.deepEqual(shelfReport().artifact, pinned, "putting back another port does not replace the given version");
-    assert.equal(platform.wiring.view().plugins.find(plugin => plugin.plugin_id === "io.molis.work.shelf")!.ports.find(port => port.port === "coding-changeset")!.source?.source_plugin_id,
-      "io.molis.work.coding", "the port that was put back follows its default source again");
+    assert.deepEqual(changeset().artifact, pinned, "putting back another port does not replace the given version");
+    assert.equal(diffPort("git-changeset").source?.source_plugin_id, "io.molis.work.git", "the port that was put back follows its default source again");
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -160,7 +159,6 @@ test("端口声明里的类型两两对得上，连线才可能是合法的", ()
   const outputs = new Map<string, { type: string; version: number }>(SYSTEM_MATERIALS_SOURCE.outputs.map(port =>
     [`${SYSTEM_MATERIALS_SOURCE.plugin_id}:${port.port}`, { type: port.artifact_type_id, version: port.schema_version }]));
   const manifests = [
-    createShelfPlugin().manifest,
     createDiffPlugin().manifest,
     createGitPlugin().manifest,
     createCodingPlugin().manifest,

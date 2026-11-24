@@ -26,7 +26,7 @@ test("SYS-15 integration preserves the CHR-1 Host terminal output, keyboard inpu
   // Plan C: the imported role is a member of this project; its native runs show in the member's drawer under 项目设置 › 角色.
   const member = characters.service.roles.addMember(browser.projectId, draft.character_id).current.member_id;
   characters.close();
-  const api = `/projects/${browser.projectId}/api/plugins/io.molis.work.characters`;
+  const api = `/projects/${browser.projectId}/api/platform/characters`;
   const published = await browser.web.post<{ reference: { artifact_id: string; version: number } }>(api + `/drafts/${draft.character_id}/publish`, { expected_revision: draft.revision });
   const prepared = await browser.web.post<{ executable: string }>(api + "/execution", { reference: published.reference });
   assert.equal(prepared.executable, await realpath(join(bin, "codex")), "the native process must use this test fixture");
@@ -105,7 +105,7 @@ test("SYS-15-F2/F3 Shelf isolated page copies owned files through the shell and 
   t.after(() => { if (priorPath === undefined) delete process.env.MOLIS_WORK_LOCAL_TOOLS_PATH; else process.env.MOLIS_WORK_LOCAL_TOOLS_PATH = priorPath; });
   // Only the final desktop IPC is captured. Real page authorization, owner-file resolution and trusted mouse activation run.
   await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: "if(parent===window){globalThis.nativeCalls=[];globalThis.__TAURI__={core:{invoke:async(name,input)=>{nativeCalls.push({name,input})}}}}" }, browser.sessionId);
-  const api = `/projects/${browser.projectId}/api/plugins/io.molis.work.shelf`;
+  const api = `/projects/${browser.projectId}/api/platform/shelf`;
   const added = await browser.web.post<{ item: { item_id: string; relative_path: string } }>(api + "/items", { filename: "frame-copy.txt", bytes_base64: Buffer.from("owned file handed off through the shell").toString("base64") });
   const open = async () => {
     await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/side/shelf/side` }, browser.sessionId));

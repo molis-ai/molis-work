@@ -55,7 +55,7 @@ export function activateConnectorConnection(home: string, completion: ConnectorA
   }
   const row = withConnectorConnections(home, store => {
     const saved = save(store);
-    if (tenantOrigin) store.assertTarget(saved.connection_id, saved.service_id as "salesforce" | "jira" | "confluence", tenantOrigin);
+    if (tenantOrigin) store.assertTarget(saved.connection_id, saved.service_id, tenantOrigin);
     return saved;
   });
   function save(store: ConnectorConnectionStore) {

@@ -102,7 +102,7 @@ test("PWA-144 PWA-145 PWA-146 S-assistant-delivery-own-object: a sub-task handed
 
   // What the platform kept, read as the person: one delivered version made in the sub-task's own round, a check per reported item.
   const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_DECIDE_PERMISSION] };
-  const subject = { provider_id: "io.molis.work.assistant.rules", subject: { kind: "assistant_work", id: pricing.work_id } };
+  const subject = { provider_id: "system.assistant.rules", subject: { kind: "assistant_work", id: pricing.work_id } };
   const asPerson = <T = AcceptanceView>(action: { capability_id: string; version: number }, input: unknown) => local.actionClient(project).invoke(person, { capability_id: action.capability_id, version: action.version, provider_id: ACCEPTANCE_PROVIDER_ID }, input) as Promise<T>;
   const readOf = async (one: typeof subject) => (await asPerson<AcceptanceReadResult>(acceptanceActions.read, { subjects: [one] })).views[0]!;
   const read = () => readOf(subject);

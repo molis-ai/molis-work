@@ -1,4 +1,4 @@
-import type { AgentCommandOutput, AgentCommandOutputRef, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentWriteCheckResult, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /**
  * What the person's after-write check of one write came to, as the timeline shows it on that write's row
@@ -9,7 +9,7 @@ import type { AgentCommandOutput, AgentCommandOutputRef, AgentRunView } from "@m
  * that exists but cannot be read is said to be unreadable, never passed off as "not checked".
  */
 export type CodingWriteCheck =
-  | { call_id: string; checker: string | null; version: number | null; exit_code: number | null; timed_out: boolean; cancelled: boolean }
+  | AgentWriteCheckResult
   | { call_id: string; unreadable: true };
 
 const RECEIPT = ":diagnostics";
@@ -17,31 +17,37 @@ const RECEIPT = ":diagnostics";
 /** How long a receipt that could not be read is left alone before it is asked for again. */
 const RETRY_UNREADABLE_MS = 30_000;
 
-/**
- * A receipt never changes once it exists, so each is read once for as long as the plugin runs. One that could not be read is
- * asked for again only after a while: a read replays the round it belongs to, and the timeline's long poll comes back every
- * few seconds (BL-coding-write-check-batch-read is the one read per round this should become).
- */
+type Load = (runId: string, writeIds: string[]) => Promise<AgentWriteCheckResult[]>;
+
+/** Immutable successes and short-lived misses, scoped to the original session, round and write. */
 export function writeCheckCache(now: () => number = Date.now) {
-  const settled = new Map<string, CodingWriteCheck>(), failed = new Map<string, number>();
-  const one = async (session: string, ref: AgentCommandOutputRef, load: (ref: AgentCommandOutputRef) => Promise<AgentCommandOutput>): Promise<CodingWriteCheck> => {
-    const key = `${session}:${ref.run_id}:${ref.call_id}`, known = settled.get(key), call_id = ref.call_id.slice(0, -RECEIPT.length);
-    if (known) return known;
-    if (now() - (failed.get(key) ?? -Infinity) < RETRY_UNREADABLE_MS) return { call_id, unreadable: true };
-    try {
-      const receipt = await load(ref);
-      const check: CodingWriteCheck = { call_id, checker: receipt.after_write_check?.display_name ?? null, version: receipt.after_write_check?.version ?? null,
-        exit_code: receipt.exit_code, timed_out: receipt.timed_out === true || receipt.stop_reason === "timed-out", cancelled: receipt.cancelled === true || receipt.stop_reason === "cancelled" };
-      settled.set(key, check); failed.delete(key);
-      return check;
-    } catch { failed.set(key, now()); return { call_id, unreadable: true }; }
-  };
+  const settled = new Map<string, AgentWriteCheckResult>();
+  const loading = new Map<string, Promise<void>>();
+  const retryAt = new Map<string, number>();
   return {
-    /** The rounds with their writes' checks beside them: one receipt read per check, none for a round without any. */
-    async attach<Run extends Pick<AgentRunView, "command_outputs">>(session: string, runs: readonly Run[], load: (ref: AgentCommandOutputRef) => Promise<AgentCommandOutput>): Promise<Array<Run & { write_checks: CodingWriteCheck[] }>> {
-      return Promise.all(runs.map(async run => Object.assign({ ...run }, {
-        write_checks: await Promise.all((run.command_outputs ?? []).filter(ref => ref.call_id.endsWith(RECEIPT) && ref.call_id.length > RECEIPT.length).map(ref => one(session, ref, load))),
-      })));
+    async attach<Run extends Pick<AgentRunView, "ref" | "command_outputs">>(session: string, runs: readonly Run[], load: Load) {
+      return Promise.all(runs.map(async run => {
+        const runId = run.ref.run_id;
+        const ids = [...new Set((run.command_outputs ?? []).filter(ref => ref.run_id === runId && ref.call_id.endsWith(RECEIPT))
+          .map(ref => ref.call_id.slice(0, -RECEIPT.length)).filter(Boolean))];
+        const key = (id: string) => JSON.stringify([session, runId, id]);
+        const due = ids.filter(id => !loading.has(key(id)) && !settled.has(key(id)) && now() >= (retryAt.get(key(id)) ?? -Infinity));
+        if (due.length) {
+          const batch = Promise.resolve().then(() => load(runId, due)).catch(() => []).then(rows => {
+            const results = new Map(rows.map(result => [result.call_id, result]));
+            for (const id of due) {
+              const result = results.get(id);
+              if (result) { settled.set(key(id), result); retryAt.delete(key(id)); }
+              else retryAt.set(key(id), now() + RETRY_UNREADABLE_MS);
+              loading.delete(key(id));
+            }
+          });
+          for (const id of due) loading.set(key(id), batch);
+        }
+        await Promise.all(new Set(ids.map(id => loading.get(key(id)))));
+        const write_checks: CodingWriteCheck[] = ids.map(id => settled.get(key(id)) ?? { call_id: id, unreadable: true });
+        return { ...run, write_checks };
+      }));
     },
   };
 }

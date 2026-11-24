@@ -10,7 +10,7 @@ import { installCatalogTextScope, workbenchPlatformText, type MolisWorkSettingsV
 import { pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, type DirectoryWordResolver, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { hostLog } from "./host-log.js";
 import { activeLocale, runWithRegisteredText, textScope, webLanguage, DEFAULT_WEB_LOCALE } from "./web-locale.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS, shippedPartByManifestId } from "./plugin-registry.js";
 import { HOST_SURFACE_REGISTRATIONS } from "./host-surfaces.js";
 import { registeredPackageDirectory, registeredPluginLocaleFiles } from "./registered-plugin-files.js";
 
@@ -119,7 +119,7 @@ export function registeredBuiltinText(manifest: PluginManifest): PluginLocaleRea
 /** The installed declaration must match the build before its words can come from the registration. */
 export function registeredInstallationText(record: PluginInstanceRecord): PluginLocaleReader | null {
   if (record.publisher_trust !== "host") return null;
-  const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === record.plugin_id)?.manifest;
+  const manifest = shippedPartByManifestId(record.plugin_id)?.manifest;
   return manifest && pluginManifestDigest(manifest) === record.manifest_digest ? registeredBuiltinText(manifest) : null;
 }
 

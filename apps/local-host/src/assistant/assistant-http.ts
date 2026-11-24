@@ -546,8 +546,8 @@ function handleAssistantActions(request: IncomingMessage, response: ServerRespon
       if (method === "GET" && parts.length === 1 && parts[0] === "notices") return { status: 200, body: { notices: await assistantNotices(ports, url.searchParams.get("surface") || null) } };
       // Methods Plugins offer that this scope can use (for “/”).
       if (method === "GET" && parts.length === 1 && parts[0] === "methods") return { status: 200, body: { methods: await service.reads.methods(null, ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
-      // Which object kind each surface's tab items are, from the plugins' search source declarations.
-      if (method === "GET" && parts.length === 1 && parts[0] === "surface-kinds") return { status: 200, body: { kinds: await service.reads.surfaceKinds(ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
+      // Which object kind each surface's tab items are, and each kind's icon, from the plugins' search source declarations.
+      if (method === "GET" && parts.length === 1 && parts[0] === "surface-kinds") return { status: 200, body: await service.reads.surfaceKinds(ports.projectRef ? { project_ref: ports.projectRef } : {}) };
       // What the Assistant's own rounds used today, and the person's daily cap.
       if (method === "GET" && parts.length === 1 && parts[0] === "usage") return { status: 200, body: await service.budget.usage() };
       if (method === "POST" && parts.length === 1 && parts[0] === "budget") { policyControl.assertCurrent(); throw assistantErrors.setting_invalid("请从 /api/assistant/preferences 读取每日用量上限，再带上所见版本和请求号保存"); }

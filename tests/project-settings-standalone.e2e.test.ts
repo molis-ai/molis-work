@@ -452,12 +452,12 @@ for (const mode of ["A", "B"] as const) test(`RAC-2848 RAC-2849 FSS-35 ${mode}: 
   await surface.waitFor("document.querySelector('[data-mcp-servers]')?.textContent.includes('PG070 saved server')");
   assert.equal(await surface.evaluate("document.querySelector('[data-coding-settings]').querySelectorAll(':scope > style').length"), 1);
   const defaults = defaultShelfHotKeys().toggle;
-  const prefs = "/api/plugins/io.molis.work.shelf/preferences/", key = "shelf.hotkeys";
+  const prefs = "/api/platform/shelf/preferences/", key = "shelf.hotkeys";
   const { values: [initial] } = await b.web.post<{ values: {revision: string; value: ReturnType<typeof defaultShelfHotKeys>}[] }>(prefs + "read", { keys: [key] });
   await b.web.post(prefs + "write", { key, layer: "personal", expected_revision: initial!.revision, request_id: "seed-shortcuts",
     change: { set: { ...initial!.value, toggle: { ...defaults, key_code: defaults.key_code === 122 ? 120 : 122 } } } });
   surface = await settingsSurface(b, "/settings/shelf?project=" + b.projectId, mode === "B");
-  const shelfApi = await surface.evaluate<string>("(document.body.dataset.routePrefix || '') + '/api/plugins/io.molis.work.shelf/settings'");
+  const shelfApi = await surface.evaluate<string>("(document.body.dataset.routePrefix || '') + '/api/platform/shelf/settings'");
   assert.equal(await surface.evaluate("typeof globalThis.__TAURI__?.core?.invoke"), "undefined", "the fixture cannot change desktop hotkeys");
   const reset = '[data-shelf-hotkey-slot="toggle"] [data-shelf-hotkey-reset]';
   await surface.waitFor(`document.querySelector(${JSON.stringify(reset)})?.hidden===false`);
@@ -502,5 +502,5 @@ for (const mode of ["B", "C"] as const) test(`RAC-2849 ${mode}: platform project
   assert.equal(traffic.requests.filter(item => item.method === "POST" && /\/api\/plugins\/io\.molis\.work\.(coding|shelf)\//u.test(item.url)).length, 0);
   assert.deepEqual(traffic.errors, []);
   await settingsShot(b, mode + "-goals-rules");
-  await writeFile(join(REVIEW_EVIDENCE, "pg070-current", mode + "-rules-traffic.json"), JSON.stringify({ requests: traffic.requests, existingShelfGets: traffic.requests.filter(item => item.method === "GET" && item.url.endsWith("/io.molis.work.shelf/settings")) }, null, 2));
+  await writeFile(join(REVIEW_EVIDENCE, "pg070-current", mode + "-rules-traffic.json"), JSON.stringify({ requests: traffic.requests, existingShelfGets: traffic.requests.filter(item => item.method === "GET" && item.url.endsWith("/system.shelf/settings")) }, null, 2));
 });

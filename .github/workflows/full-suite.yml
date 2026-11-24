@@ -197,6 +197,8 @@ jobs:
       - name: Run this shard
         shell: bash
         env:
+          # The test runner prepares Rust only if this shard's final file list includes the WASM gate self-tests.
+          MOLIS_WORK_FULL_NATIVE_TOOLCHAIN: 1.96.0
           BAIL: ${{ !(github.event_name == 'schedule' || startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) && '--bail' || '' }}
           # PR full-suite skips gate-meta self-tests (covered by ci.yml) and full-screen VUX crawls (covered by visual-audit.yml);
           # nightly schedule, integration branches and manual runs still run every file.

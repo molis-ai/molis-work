@@ -93,7 +93,7 @@ export function normalizeSceneId(value: string | null, primitive: JudgmentRulePr
     throw functionsErrors.invalid("这个用法不在可选范围里");
   }
   if (primitive === "score" && value !== AGENT_MCP_DESTINATION_ID) {
-    throw functionsErrors.invalid("Score 不能绑 Inbox、首页、Feed。");
+    throw functionsErrors.invalid("Score 只能给 Agent 用，不能绑到页面上的用途。");
   }
   return value;
 }

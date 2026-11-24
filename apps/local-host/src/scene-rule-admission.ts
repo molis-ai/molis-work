@@ -2,7 +2,7 @@ import { functionsErrors } from "@molis-ai/molis-work-module-judgment-rules";
 import type { ActionProvider, ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { admitSceneRules, ruleDeclarer } from "./judgment-rules-host.js";
 import { HOME_PROVIDER_ID, homeDockScene } from "./home-actions.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { shippedParts } from "./plugin-registry.js";
 
 let owners: ReadonlyMap<string, string> | undefined;
 
@@ -13,7 +13,7 @@ let owners: ReadonlyMap<string, string> | undefined;
  */
 export function hostRuleKeyOwners(): ReadonlyMap<string, string> {
   owners ??= new Map([
-    ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap(({ manifest }) => (manifest.action_scenes ?? []).flatMap(scene => scene.default_rule ? [[scene.default_rule.function_key, manifest.plugin_id] as const] : [])),
+    ...shippedParts().flatMap(({ manifest }) => (manifest.action_scenes ?? []).flatMap(scene => scene.default_rule ? [[scene.default_rule.function_key, manifest.plugin_id] as const] : [])),
     ...(homeDockScene.default_rule ? [[homeDockScene.default_rule.function_key, HOME_PROVIDER_ID] as const] : []),
   ]);
   return owners;

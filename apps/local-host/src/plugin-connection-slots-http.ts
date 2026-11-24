@@ -61,15 +61,14 @@ export async function pageConnectionSlot(context: WebRequestContext, reference: 
   const { install_id, plugin_id, slot } = page.connectionSlot(body.slot_id);
   await page.beforeEffect();
   const client = await pageOwnerClient(context, project, page), record = { install_id, plugin_id, slot_id: slot.slot_id, record_key: body.record_key };
-  const current = await client.invoke(connectorPluginSlotActions.readRecord, record);
-  await page.beforeEffect();
   if (body.mode === "bind") {
-    if (typeof body.connection_id !== "string" || !body.connection_id || current.connection && current.connection.connection_id !== body.connection_id)
-      throw new ActionError("actions.conflict", "这条记录已经选好账号；要换账号，先断开");
+    if (typeof body.connection_id !== "string") throw new ActionError("actions.input_invalid", "请选择账号");
     const result = await client.invoke(connectorPluginSlotActions.bindRecord, { ...record, service_id: slot.service_id, connection_id: body.connection_id });
     await page.beforeEffect();
     return { service_id: slot.service_id, connection: connectionChoice(result.connection) };
   }
+  const current = await client.invoke(connectorPluginSlotActions.readRecord, record);
+  await page.beforeEffect();
   return { service_id: slot.service_id, connection: connectionChoice(current.connection) };
 }
 
@@ -166,12 +165,6 @@ async function handleRecordSlotHttp(request: IncomingMessage, response: ServerRe
     const install_id = await recordSlotInstallation(host, reference, String(input.plugin_id));
     if (typeof install_id !== "string") return refuse(install_id);
     const record = { install_id, plugin_id: input.plugin_id, slot_id: input.slot_id, record_key: input.record_key };
-    // A record bound to one account is not moved to another here: what the plugin kept for that account (a source's cursor, say) is
-    // the plugin's to clear when the person disconnects it. Unbinding first (`connection_id: null`) is that step.
-    if (input.connection_id !== null) {
-      const { connection } = await actions.invoke(connectorPluginSlotActions.readRecord, record);
-      if (connection && connection.connection_id !== input.connection_id) return refuse({ status: 409, error: "这条记录已经选好账号；要换账号，先断开" });
-    }
     sendJson(response, 200, await actions.invoke(connectorPluginSlotActions.bindRecord, { ...record, service_id: input.service_id, connection_id: input.connection_id }));
   } catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
   return true;

@@ -29,7 +29,8 @@ import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "./proje
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import { resolveWebControlToken, sendWebHealth } from "./web-control-token.js";
-import { sendUnhandledWebError, authorizeLocalWebRequest, isTopLevelNavigation, refuseForeignRequest, type LocalMutationState } from "./web-http.js";
+import { sendUnhandledWebError, authorizeLocalWebRequest, finalizeLocalMutation, isTopLevelNavigation, refuseForeignRequest, sendLocalWebJson, type LocalMutationState } from "./web-http.js";
+import { platformPartUrl } from "./platform-part-routes.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
 import { startDemoSeed } from "./demo-seed.js";
 import { activePtyCount, attachMolisWorkPtySocket } from "./pty-socket.js";
@@ -169,10 +170,19 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
       return activePtyCount(pty.host) + inFlight + agents.activeRunCount() + activeScheduleCount() + localHost.activeWorkCount();
     };
     const server = trackHostListener(http.createServer((request, response) => withWebSessionRequest(request, () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
-      const url = new URL(request.url ?? "/", "http://localhost");
+      const requested = new URL(request.url ?? "/", "http://localhost");
+      // A platform part's address (`/api/platform/shelf/…`) is routed as its id inside; the inner spelling from outside is no address (null).
+      const routed = platformPartUrl(requested);
+      const url = routed ?? requested;
       try { await demoSeeding;
         // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
         if (refuseForeignRequest(request, response)) return;
+        if (routed === null) {
+          sendLocalWebJson(response, 404, { error: "没有这个入口" });
+          return;
+        }
+        // Whatever reads the request itself further in (a POST's own path, the idempotency key's scope) sees the same inner address.
+        if (routed !== requested) request.url = routed.pathname + routed.search;
         sessions.bind(request, controlToken, response);
         const preview = languagePreview(request, response, url, controlToken); if (preview === false) return;
         if (request.method === "GET" && url.pathname === "/locale") { switchLocale(request, response, url, appearance.locale.remember); return; }
@@ -226,6 +236,8 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
           render: () => composition.workbenchRenderer.renderServiceUnavailablePage(platform.isDesktopShellRequest(request, url)),
           csp: composition.PAGE_CSP,
         } : undefined));
+      } finally {
+        finalizeLocalMutation(response, mutationKeys);
       }
     })))));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit

@@ -96,7 +96,7 @@ async function platform(t: TestContext, scenePermissions: Record<string, readonl
   assert.deepEqual(started.running.toSorted(), Object.values(probes).map(item => item.id).toSorted(), JSON.stringify(started));
   actions.registry.registerProvider({ provider: { provider_id: "system-judgments", title: "判断", kind: "system" }, definitions: [judgment],
     handlers: [{ ...judgment, handle: () => ({ follow_up: true }) }] });
-  const entry = (name: string) => store.db.prepare("SELECT project_id, reason FROM inbox_entries WHERE subject_id = ?").get(name);
+  const entry = (name: string) => store.db.prepare("SELECT project_id, reason FROM attention_entries WHERE subject_id = ?").get(name);
   const edge = (name: string) => store.db.prepare("SELECT actor_id FROM context_edges WHERE edge_key LIKE ?").get(`%:edge-${name}`);
   const noted = (short: string, name: string) => store.db.prepare(`SELECT 1 FROM ${short}_notes WHERE text = ?`).get(name) !== undefined;
   return { store, client: actions.client, probes, entry, edge, noted };

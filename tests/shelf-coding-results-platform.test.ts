@@ -4,7 +4,7 @@ import test from "node:test";
 import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
 import { codingResultDocument } from "@molis-ai/molis-work-plugin-coding/contract";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfManifest } from "@molis-ai/molis-work-module-shelf/surface";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import type { PluginActionClient, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pinnedArtifact } from "./fixtures/artifacts.js";

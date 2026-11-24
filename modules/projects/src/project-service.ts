@@ -92,47 +92,42 @@ export class ProjectService {
    * The members a project stored, and its 常开 plugins, which are members of every project without a stored row (ac-trust T3). A
    * personal plugin is not a stored member whatever it is (it is on unless hidden), so a 常开 one adds nothing here.
    */
-  listPlugins(projectId: string, alwaysOn: readonly ProjectPluginId[] = this.plugins.alwaysOn?.() ?? []): ProjectPluginId[] {
-    return withAlwaysOnMembers(this.repository.projects.listProjectPlugins(this.get(projectId).project_id), alwaysOn, this.plugins);
+  listPlugins(projectId: string): ProjectPluginId[] {
+    return this.repository.projects.listProjectPlugins(this.get(projectId).project_id);
   }
 
   /** One synchronous reach judgement uses the same current registry answer for both membership and hidden marks. */
-  pluginMembership(projectId: string, alwaysOn: readonly ProjectPluginId[] = this.plugins.alwaysOn?.() ?? []): ProjectPluginMembership {
-    const hidden = this.listHidden(projectId, alwaysOn);
-    return { plugins: this.listPlugins(projectId, alwaysOn), hidden };
+  pluginMembership(projectId: string): ProjectPluginMembership {
+    const hidden = this.listHidden(projectId);
+    return { plugins: this.listPlugins(projectId), hidden };
   }
 
   /**
    * `pluginMembership` and the project's latest member add or remove from one read of the owner's rows, for a versioned read. The
    * lists follow the same rules as `listPlugins` and `listHidden`.
    */
-  pluginMembershipWithLatestEvent(
-    projectId: string,
-    alwaysOn: readonly ProjectPluginId[] = this.plugins.alwaysOn?.() ?? [],
-  ): { membership: ProjectPluginMembership; latest_event_id: string | null } {
+  pluginMembershipWithLatestEvent(projectId: string): { membership: ProjectPluginMembership; latest_event_id: string | null } {
     const normalized = this.requiredProjectId(projectId);
     const facts = this.repository.projects.pluginMembershipFacts(normalized);
     if (!facts) throw catalogErrors.project_not_found(`找不到 Molis Work 项目: ${normalized}`);
-    const membership = { plugins: withAlwaysOnMembers(facts.plugins, alwaysOn, this.plugins), hidden: withoutAlwaysOn(facts.hidden, alwaysOn) };
+    const membership = { plugins: facts.plugins, hidden: facts.hidden };
     return { membership, latest_event_id: facts.latest_event_id };
   }
 
-  /** What the project hid. A hidden mark on a 常开 plugin (one made before it was) changes nothing, so it is not listed. */
-  listHidden(projectId: string, alwaysOn: readonly ProjectPluginId[] = this.plugins.alwaysOn?.() ?? []): ProjectPluginId[] {
-    return withoutAlwaysOn(this.repository.projects.listHiddenPlugins(this.get(projectId).project_id), alwaysOn);
+  /** What the project hid. */
+  listHidden(projectId: string): ProjectPluginId[] {
+    return this.repository.projects.listHiddenPlugins(this.get(projectId).project_id);
   }
 
-  addPlugin(input: AddProjectPluginInput, observedAlwaysOn?: readonly ProjectPluginId[]): ProjectPluginId[] {
+  addPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
-    // Preserve any stored preference while the registry keeps this plugin on.
-    if (observedAlwaysOn?.includes(input.plugin_id)) return this.listPlugins(project.project_id, observedAlwaysOn);
     if (this.plugins.isPersonal?.(input.plugin_id) === true) {
       return this.repository.transaction(() => {
         if (this.repository.projects.showProjectPlugin(project.project_id, input.plugin_id)) {
           this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: input.plugin_id });
         }
-        return this.listPlugins(project.project_id, observedAlwaysOn);
+        return this.listPlugins(project.project_id);
       });
     }
     if (!this.plugins.has(input.plugin_id)) {
@@ -145,21 +140,19 @@ export class ProjectService {
           this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: pluginId });
         }
       }
-      return this.listPlugins(project.project_id, observedAlwaysOn);
+      return this.listPlugins(project.project_id);
     });
   }
 
-  removePlugin(input: RemoveProjectPluginInput, observedAlwaysOn?: readonly ProjectPluginId[]): ProjectPluginMembership {
+  removePlugin(input: RemoveProjectPluginInput): ProjectPluginMembership {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
-    const alwaysOn = observedAlwaysOn ?? this.plugins.alwaysOn?.() ?? [];
-    if (alwaysOn.includes(input.plugin_id)) throw catalogErrors.plugin_always_on("常开插件不能从项目里移除");
     const personal = this.plugins.isPersonal?.(input.plugin_id) === true;
     if (!personal && !this.plugins.has(input.plugin_id)) {
       throw catalogErrors.plugin_not_found("找不到这个插件");
     }
     return this.repository.transaction(() => {
-      const stored = this.listPlugins(project.project_id, alwaysOn);
+      const stored = this.listPlugins(project.project_id);
       const removing = new Set<ProjectPluginId>([input.plugin_id]);
       let changed = true;
       while (changed) {
@@ -172,8 +165,6 @@ export class ProjectService {
           }
         }
       }
-      // A 常开 plugin that needs the one going would go with it, and it cannot.
-      if (alwaysOn.some(id => removing.has(id))) throw catalogErrors.plugin_always_on("常开插件依赖它，不能一起移除");
       for (const id of removing) {
         const deleted = this.repository.projects.removeProjectPlugin(project.project_id, id);
         const hidden = personal && id === input.plugin_id
@@ -183,7 +174,7 @@ export class ProjectService {
         }
       }
       return {
-        plugins: this.listPlugins(project.project_id, alwaysOn),
+        plugins: this.listPlugins(project.project_id),
         hidden: this.repository.projects.listHiddenPlugins(project.project_id),
       };
     });
@@ -234,11 +225,10 @@ export class ProjectService {
   /** Synchronize a staged (hidden) project's stored plugin membership to match its source project exactly. */
   syncStagedPlugins(projectId: string, desiredPlugins: readonly ProjectPluginId[]): void {
     const id = this.requiredProjectId(projectId);
-    const alwaysOn = new Set(this.plugins.alwaysOn?.() ?? []);
     const desired = new Set(desiredPlugins);
     this.repository.transaction(() => {
       for (const existing of this.repository.projects.listProjectPlugins(id)) {
-        if (!desired.has(existing) && !alwaysOn.has(existing)) {
+        if (!desired.has(existing)) {
           this.repository.projects.removeProjectPlugin(id, existing);
         }
       }
@@ -295,17 +285,4 @@ export class ProjectService {
     if (!actorId) throw catalogErrors.user_confirmation_required("项目操作必须记录执行者");
     return actorId;
   }
-}
-
-function withAlwaysOnMembers(
-  stored: ProjectPluginId[],
-  alwaysOn: readonly ProjectPluginId[],
-  registry: ProjectPluginRegistry,
-): ProjectPluginId[] {
-  const derived = alwaysOn.filter(id => registry.isPersonal?.(id) !== true && !stored.includes(id));
-  return derived.length === 0 ? stored : [...stored, ...derived].sort();
-}
-
-function withoutAlwaysOn(hidden: ProjectPluginId[], alwaysOn: readonly ProjectPluginId[]): ProjectPluginId[] {
-  return hidden.filter(id => !alwaysOn.includes(id));
 }

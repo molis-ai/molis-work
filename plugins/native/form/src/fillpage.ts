@@ -1,4 +1,4 @@
-import { escapeHtml as esc, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { NO_FAVICON_LINK, escapeHtml as esc, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormRecord, FormSubmissionRecord } from "./contract.js";
 
 function localized(key: string, fallback: string): string {
@@ -41,6 +41,7 @@ export function formFillPageHtml(form: FormRecord, locale?: string): string {
   const initialLang = resolveFillHtmlLang(locale);
   return `<!doctype html>
 <html${initialLang ? ` lang="${esc(initialLang)}"` : ""}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+${NO_FAVICON_LINK}
 <title>${esc(form.title)}</title>
 <style>
 :root{color-scheme:light dark;--ink:#222326;--muted:#6b6f76;--line:#d9dce1;--paper:#fff;--page:#f3f4f5;--accent:#5e6ad2}

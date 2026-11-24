@@ -227,7 +227,7 @@ function projectView(enabled: readonly string[]): MolisWorkWebView {
     route_prefix: `/projects/${PROJECT}`,
     demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {},
     input_bindings: [], policy_bindings: [], events: [],
-    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
+    feed: { sources: [], feed_items: [], attention_entries: [], runs: [], out_rules: [] },
     enabled_plugins: [...enabled],
   } as MolisWorkWebView;
 }
@@ -262,11 +262,11 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
     }
   }
   // The declarations keep the groups the shell used to list by name. Within a group the views go by their `order`, then by plugin
-  // id (UiViewRegistry): Workflows (25) before Schedule (35), and Artifacts before Images at 60 — as main drew them, since the old
-  // table's ids only chose the members.
+  // id (UiViewRegistry): Workflows (25) before Schedule (35), and Images before the platform's Artifacts at 60 (`io.molis.work.images`
+  // sorts before `system.artifacts`, 44B), since the old table's ids only chose the members.
   const members = (sections: typeof bare, heading: string) => sections.find(section => section.heading === heading)!.tiles.filter(id => !BACKBONE.has(id));
   assert.deepEqual(members(bare, "推进"), ["workflows", "schedule"]);
-  assert.deepEqual(members(bare, "写与做"), ["pages", "form", "dataset", "ppt", "artifacts", "images"]);
+  assert.deepEqual(members(bare, "写与做"), ["pages", "form", "dataset", "ppt", "images", "artifacts"]);
   assert.equal(bare.some(section => section.heading === "研究"), false, "the 研究 group left with the old Alchemist (44B): no view names it");
   assert.deepEqual(members(bare, "编码"), ["coding"]);
   for (const id of ["lingguang", "todo", "jelly", "cognia"]) assert.ok(members(bare, "更多").includes(id), `${id} names 个人 and is not marked the person's own: under 更多`);

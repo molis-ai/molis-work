@@ -74,7 +74,7 @@ test("N30 N36: a clean Home reopens one evidence key and directory without rewri
       assert.deepEqual(reopened.write(markdown), written);
       assert.deepEqual(homeStorageTree(join(home, "security")), before);
       const vault = JSON.parse(readFileSync(join(home, "security", "secrets.json"), "utf8"));
-      assert.deepEqual(Object.keys(vault.entries), ["system:feed:evidence-content-key:v1"]);
+      assert.deepEqual(Object.keys(vault.entries), ["system:evidence:content-key:v1"]);
       assert.deepEqual(readdirSync(join(home, "security")).filter(name => name.startsWith("evidence")), ["evidence"]);
     });
   } finally {
@@ -129,10 +129,10 @@ test("Storage reads deployed Feed ciphertext and two stores over one home keep t
     withFeedHome(directory, () => {
       const secrets = createFileSecretStore();
       const key = Buffer.alloc(32, 19), iv = Buffer.alloc(12, 7);
-      secrets.put("system:feed:evidence-content-key:v1", key.toString("base64"));
+      secrets.put("system:evidence:content-key:v1", key.toString("base64"));
       const markdown = "# Historical evidence\n\nKept before the Storage extraction.";
       const digest = createHash("sha256").update(markdown).digest("hex");
-      const ref = `molis-work-feed/sha256/${digest}`;
+      const ref = `molis-work-evidence/sha256/${digest}`;
       // Construct the deployed format independently of either store's writer.
       const cipher = createCipheriv("aes-256-gcm", key, iv);
       cipher.setAAD(Buffer.from(ref));
@@ -150,7 +150,7 @@ test("Storage reads deployed Feed ciphertext and two stores over one home keep t
       assert.equal(readFileSync(filename, "utf8"), ciphertext, "existing ciphertext is not rewritten");
       assert.equal(second.read(current.write("New shared evidence").contentRef), "New shared evidence");
       assert.equal(current.read(second.write("Second caller's evidence").contentRef), "Second caller's evidence");
-      assert.throws(() => current.read("molis-work-feed/sha256/../../outside"), /reference rejected/);
+      assert.throws(() => current.read("molis-work-evidence/sha256/../../outside"), /reference rejected/);
       assert.throws(() => current.write("x".repeat(1_048_577)), /retention limit/);
     });
   } finally { rmSync(directory, { recursive: true, force: true }); }

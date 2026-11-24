@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ShelfArtifactSource } from "@molis-ai/molis-work-module-shelf/contract";
-import { SHELF_ACTION_PERMISSIONS, shelfActions as a, shelfStorePorts } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_ACTION_PERMISSIONS, shelfActions as a, shelfStorePorts } from "@molis-ai/molis-work-module-shelf/surface";
 import { createPluginProjectsClient } from "@molis-ai/molis-work-plugin-runtime";
-import { shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfManifest } from "@molis-ai/molis-work-module-shelf/surface";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
 

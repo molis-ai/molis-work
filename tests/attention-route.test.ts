@@ -9,7 +9,7 @@ import { setTimeout as pause } from "node:timers/promises";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { attentionChanged, DEMO_PROJECT_ID, handleAttentionHttp, LocalProjectDatabase, onAttentionChange, openPluginProjectLibrary, seedDemoBoard, type AttentionSources } from "@molis-ai/molis-work-app-local-host";
+import { attentionChanged, captureHostLog, DEMO_PROJECT_ID, handleAttentionHttp, LocalProjectDatabase, onAttentionChange, openPluginProjectLibrary, seedDemoBoard, type AttentionSources, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { CODING_FILE_CHANGED_EVENT, CodingSessionStore, codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { LOCAL_JOURNAL_SCHEMA_SQL, LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { SqlitePluginEventsRepository, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -155,6 +155,8 @@ test("W4-10-01 QA-022 a reader that fails nulls only its own part of the attenti
   // N42: the task panel's table is the one the line was placed with; one read of the line answers both.
   assert.equal(lineReads, 1, "the line is read once for the line and the task panel");
   assert.deepEqual((await read()).notices, told(null), "no surface asked about is the Home's notices");
+  const logs: HostLogEntry[] = [];
+  t.after(captureHostLog(logs));
   for (const part of (Object.keys(exact) as Array<keyof Attention>).filter(name => name !== "tasks")) {
     for (const rejects of part === "board_cursor" ? [false] : [false, true]) {
       failing.current = part; failing.rejects = rejects;
@@ -162,6 +164,8 @@ test("W4-10-01 QA-022 a reader that fails nulls only its own part of the attenti
       assert.deepEqual(await read("/api/attention?surface=todo"), { ...exact, [part]: null, ...(part === "line" ? { tasks: null } : {}) }, `${part} ${rejects ? "rejected" : "threw"}: only it is null`);
     }
   }
+  const partLogs = logs.filter(entry => entry.area === "attention" && entry.event === "part_failed");
+  assert.deepEqual(partLogs.map(entry => entry.fields?.part).sort(), ["background_tasks", "board_cursor", "line", "notices", "plugin_events_pending"], "each failing attention reader logs once until it recovers");
   failing.current = null;
   assert.deepEqual(await read("/api/attention?surface=todo"), exact, "a reader that answers again is read again");
 });
@@ -278,4 +282,23 @@ test("56-1 BL-attention-404-by-code a deleted or unknown project answers its att
   }
   // The Home's own read is not a project's, and still answers.
   assert.ok(Array.isArray((await home.web.get<Attention>("/api/attention")).notices));
+});
+
+test("S-home-page-authority generated home-page session header is refused with 403 on GET /api/attention/events", async t => {
+  const server = createServer((request, response) => {
+    void handleAttentionHttp(request, response, new URL(request.url ?? "/", "http://127.0.0.1"), {
+      notices: async () => [],
+      changes: () => () => {},
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const res = await fetch(`http://127.0.0.1:${address.port}/api/attention/events`, {
+    headers: { "x-molis-home-page": "hp-session-forbidden" },
+  });
+  assert.equal(res.status, 403, "GET /api/attention/events with x-molis-home-page must be refused with 403");
+  const body = (await res.json()) as { error?: string };
+  assert.equal(body.error, "forbidden");
 });

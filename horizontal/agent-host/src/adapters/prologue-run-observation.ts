@@ -119,8 +119,12 @@ export function observeRun(recorder: ObservationRecorder, ref: AgentRunRef, froz
           detail: { injected: injected.length, omitted: ((e.omitted ?? []) as unknown[]).length, unavailable: ((e.unavailable ?? []) as unknown[]).length, ...(retrieval ? { retrieval: retrieval.outcome } : {}) } });
         return;
       }
-      case "tripped": record("agent.guard", e.failed ? "failed" : "refused", { stage: String(e.stage), detail: { rail: String(e.rail), why: String(e.why) } }); return;
-      case "circuit-tripped": record("agent.guard", "refused", { stage: "circuit", detail: { ...(e.reason ? { reason: String(e.reason) } : {}), ...(e.count === undefined ? {} : { count: Number(e.count) }) } }); return;
+      case "tripped":
+        record("agent.guard", e.railFailed ? "failed" : "refused", { stage: String(e.stage), detail: { rail: String(e.rail), why: String(e.why) } });
+        end("cancelled", { reason: event.type }); return;
+      case "circuit-tripped":
+        record("agent.guard", "refused", { stage: "circuit", detail: { ...(e.reason ? { reason: String(e.reason) } : {}), ...(e.count === undefined ? {} : { count: Number(e.count) }) } });
+        end("cancelled", { reason: event.type }); return;
       case "awaiting-approval": flushReply(); record("agent.waiting", "waiting", { stage: "approval", detail: { why: String(e.why) } }); return;
       case "awaiting-input": flushReply(); record("agent.waiting", "waiting", { stage: "input", detail: { kind: String(e.kind), why: String(e.why) } }); return;
       case "retry-waiting": record("agent.retry", "waiting", { detail: { reason: String(e.reason), attempt: Number(e.attempt), wait_ms: Number(e.waitMs) } }); return;

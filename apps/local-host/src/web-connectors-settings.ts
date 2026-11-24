@@ -1,8 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { listConnectorSettingsCards } from "./connector-directory.js";
-import { feishuCliStatus, startFeishuCliLogin, startFeishuCliSetup } from "./feishu-cli.js";
 
 export async function handleLocalConnectorsSettingsHttp(
   request: IncomingMessage,
@@ -14,20 +12,6 @@ export async function handleLocalConnectorsSettingsHttp(
   const method = request.method ?? "";
   if (method === "GET" && url.pathname === "/api/settings/connectors") {
     sendJson(response, 200, { connectors: await listConnectorSettingsCards(homeDirectory) });
-    return true;
-  }
-  if (method === "GET" && url.pathname === "/api/settings/connectors/feishu/cli/status") {
-    sendJson(response, 200, feishuCliStatus({ fresh: true }));
-    return true;
-  }
-  if (method === "POST" && url.pathname === "/api/settings/connectors/feishu/cli/setup") {
-    try { sendJson(response, 200, { authorizationUrl: await startFeishuCliSetup() }); }
-    catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : uiText.text("workbench.connectors-settings.could-not-configure-feishu-cli") }); }
-    return true;
-  }
-  if (method === "POST" && url.pathname === "/api/settings/connectors/feishu/cli/login") {
-    try { sendJson(response, 200, { authorizationUrl: await startFeishuCliLogin() }); }
-    catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : uiText.text("workbench.connectors-settings.could-not-start-feishu-authorization") }); }
     return true;
   }
   return false;

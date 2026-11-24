@@ -2,11 +2,11 @@ import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/ac
 import { LocalActionGatewayClient } from "./action-gateway.js";
 import { continuityActionsFrom, memberClientId } from "@molis-ai/molis-work-server";
 import type { ActionFactory } from "@molis-ai/molis-work-server";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { shippedParts } from "./plugin-registry.js";
 
 /** Continuity actions discovered from registered plugins implementing `WORK_PROGRESS_CONTINUITY_PROTOCOL`, plus base platform actions. */
 export function hostContinuityActions(): readonly ActionReference[] {
-  return continuityActionsFrom(PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({
+  return continuityActionsFrom(shippedParts().map(entry => ({
     plugin_id: entry.manifest.plugin_id,
     actions: entry.manifest.actions,
   })));

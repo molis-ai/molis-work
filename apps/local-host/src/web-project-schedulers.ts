@@ -28,13 +28,9 @@ export function startWebProjectSchedulers(options: {
   const { localHost, homeDirectory, withCatalog, fixture, changed } = options;
   const runtimes = new Map<string, ProjectScheduleRuntime>();
   const unbind = bindProjectSchedulers(localHost, { home: homeDirectory, runtimes, changed });
-  let stopped = false, stopping: Promise<void> | undefined, opening: Promise<void> | undefined, sleeping: Promise<void> | undefined;
-  // A project is opened for its schedules only when something in it is due: when the Host started, every project with a
-  // database was opened before the first round and stayed open. What is due is read from the project's own clock table, read only and
-  // without opening the project (`nextDueAt`), so the fact keeps one owner; a project already open is ticked as before.
-  // A project that will not open is skipped: the ones after it still open and the round runs, and the next interval tries it
-  // again. Its failure is reported when it starts failing and again only once it has opened since, so a broken store is not reported
-  // every 30 seconds. A catalog that cannot be read fails the whole open, tried again too.
+  let stopped = false, stopping: Promise<void> | undefined, scanning: Promise<void> | undefined, sleeping: Promise<void> | undefined;
+  // Each due project opens independently. Its next attempt starts on a later round, and a continuing failure is reported once.
+  const opening = new Map<string, Promise<void>>();
   const failingOpens = new Set<string>();
   const dueClocks = new Map<string, { identity: string; next: string | null }>();
   const isDue = (databasePath: string, now: string) => {
@@ -42,7 +38,7 @@ export function startWebProjectSchedulers(options: {
     return read === "unreadable" || (read !== null && read <= now);
   };
   const openDue = () => {
-    if (opening) return opening;
+    if (scanning) return scanning;
     const run = runWithMolisWorkHome(homeDirectory, async () => {
       const projects = fixture ? [{ database_path: fixture.databasePath, project_id: fixture.projectId }]
         : await withCatalog({ homeDirectory }, catalog => catalog.listProjects());
@@ -51,27 +47,37 @@ export function startWebProjectSchedulers(options: {
       for (const project of projects) {
         if (stopped) break;
         const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-        if (runtimes.has(reference.storage_key) || !fs.existsSync(project.database_path) || !isDue(project.database_path, now)) continue;
-        try {
-          await localHost.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: [] }, reference);
-          failingOpens.delete(project.database_path);
-        } catch (error) {
-          if (stopped || failingOpens.has(project.database_path)) continue;
-          failingOpens.add(project.database_path);
-          options.onError(error);
-        }
+        if (runtimes.has(reference.storage_key) || opening.has(reference.storage_key) || !fs.existsSync(project.database_path) || !isDue(project.database_path, now)) continue;
+        wakeProject(reference);
       }
-    }).finally(() => { if (opening === run) opening = undefined; }).catch((error: unknown) => {
+    }).finally(() => { if (scanning === run) scanning = undefined; }).catch((error: unknown) => {
       if (!stopped) options.onError(error);
       throw error;
     });
-    opening = run;
+    scanning = run;
     return run;
   };
   // A round that throws throws again every 30 seconds: written when it starts failing, and again once it has run since.
   const rounds = repeatingFailure("schedule", "round_failed");
   const ran = (key: string) => rounds.worked(key);
   const failed = (key: string, schedule: "tasks") => (error: unknown) => rounds.failed(key, error, { schedule });
+  function wakeProject(reference: ReturnType<typeof molisWorkHostProjectReference>): void {
+    const key = reference.storage_key;
+    const wake = (async () => {
+      try {
+        await localHost.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference.project_id, audience: "user", permissions: [] }, reference);
+      } catch (error) {
+        if (stopped || failingOpens.has(key)) return;
+        failingOpens.add(key);
+        options.onError(error);
+        return;
+      }
+      failingOpens.delete(key);
+      const runtime = runtimes.get(key);
+      if (!stopped && runtime) tickProject(key, runtime);
+    })().catch(failed(`wake:${key}`, "tasks")).finally(() => opening.delete(key));
+    opening.set(key, wake);
+  }
   // A round starts every project's tick and returns at once: one project's long wakeup (a model call, an outside service) must not
   // hold the next round, so the others keep running every 30 seconds (the scheduler's claim keeps a job from running twice). Only
   // stop() waits for the ticks still in flight.
@@ -83,7 +89,7 @@ export function startWebProjectSchedulers(options: {
   // A round does not wait for its ticks, so a project whose tick is still running is offered when its last tick settles, not before.
   type OpenProject = ReturnType<typeof localHost.projects>[number];
   const offerSleep = async (project: OpenProject) => {
-    if (fixture || stopped || project.state !== "ready" || ticking.has(project.storage_key)) return;
+    if (fixture || stopped || project.state !== "ready" || ticking.has(project.storage_key) || opening.has(project.storage_key)) return;
     const idleMs = options.idleMs ?? PROJECT_IDLE_MS;
     const rest = localHost.projectRest?.(project.storage_key);
     if (rest && (rest.state !== "open" || rest.usedAt === undefined || Date.now() - rest.usedAt < idleMs)) return;
@@ -102,16 +108,16 @@ export function startWebProjectSchedulers(options: {
     sleeping = run;
     return run;
   };
-  const round = () => runWithMolisWorkHome(homeDirectory, () => {
-    for (const [databasePath, runtime] of runtimes) {
-      ticking.set(databasePath, (ticking.get(databasePath) ?? 0) + 1);
-      const tracked = withCallId(newCallId(), () => runtime.schedule.tick())
-        .then(result => {
-          ran(`tasks:${databasePath}`);
-          if (!stopped && result.invoked) changed(databasePath);
-        })
-        .catch(failed(`tasks:${databasePath}`, "tasks"))
-        .finally(async () => {
+  function tickProject(databasePath: string, runtime: ProjectScheduleRuntime): void {
+    ticking.set(databasePath, (ticking.get(databasePath) ?? 0) + 1);
+    const tracked = withCallId(newCallId(), () => runtime.schedule.tick())
+      .then(result => {
+        ran(`tasks:${databasePath}`);
+        if (!stopped && result.invoked) changed(databasePath);
+      })
+      .catch(failed(`tasks:${databasePath}`, "tasks"))
+      .finally(async () => {
+        try {
           const left = (ticking.get(databasePath) ?? 1) - 1;
           if (left > 0) ticking.set(databasePath, left);
           else {
@@ -119,17 +125,29 @@ export function startWebProjectSchedulers(options: {
             const project = fixture ? undefined : localHost.projects().find(open => open.storage_key === databasePath);
             if (project) await offerSleep(project);
           }
+        } finally {
           inFlight.delete(tracked);
-        });
-      inFlight.add(tracked);
+        }
+      });
+    inFlight.add(tracked);
+  }
+  const round = () => runWithMolisWorkHome(homeDirectory, () => {
+    for (const [databasePath, runtime] of runtimes) {
+      if (!opening.has(databasePath)) tickProject(databasePath, runtime);
     }
   });
   const cancel = options.periodic.every({ id: "projects.schedules", title: "项目里的定时任务", owner: "local-host", intervalMs: ROUND_MS,
-    run: () => openDue().then(() => { if (!stopped) return round(); }).then(() => { if (!stopped) return sleepIdle(); }) });
-  return { runtimes, activeCount: () => inFlight.size, stop: () => stopping ??= (async () => {
+    run() {
+      if (stopped) return;
+      round();
+      return openDue().then(() => { if (!stopped) return sleepIdle(); });
+    },
+  });
+  return { runtimes, activeCount: () => opening.size + inFlight.size, stop: () => stopping ??= (async () => {
     stopped = true;
     cancel();
-    await opening?.catch(() => undefined);
+    await scanning?.catch(() => undefined);
+    await Promise.all(opening.values());
     await sleeping?.catch(() => undefined);
     await unbind();
     await Promise.all([...inFlight]);

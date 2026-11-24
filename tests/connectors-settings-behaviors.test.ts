@@ -619,7 +619,7 @@ test("SCAF-06 Connector next steps follow the active connection method and Feed 
   const p = { L: (value: string) => value, escapeHtml: (value: unknown) => String(value ?? ""), icon: () => "" };
   // Next steps are shown once there is an account to use; before that the row says what the service can do.
   const render = (connections: NonNullable<Parameters<typeof renderConnectorsSettings>[0]["connector_connections"]>, hasFeedSlot = true) =>
-    renderConnectorsSettings({ connectors: [{ ...entry, feed_available: true, uses: hasFeedSlot ? ["feed_source"] : [] }], connector_connections: connections }, p)
+    renderConnectorsSettings({ connectors: [{ ...entry, source_available: true, uses: hasFeedSlot ? ["source_pull"] : [] }], connector_connections: connections }, p)
       .split('data-connector-next>')[1]?.split('</section>')[0] ?? "";
   assert.doesNotMatch(render([]), /data-connector-next-link/);
   assert.match(render([row]), /settings\/coding-settings/);

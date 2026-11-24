@@ -58,7 +58,7 @@ test("RAC-770 RAC-771 RAC-2342 raw deletion descriptions and action titles keep 
       assert.match(html, /Authorize/u, "the platform’s authorization control still follows the request");
       assert.doesNotMatch(html, /Tidy notes|Another tidy-up/u);
     }
-    assert.match(rows({ ...base, provider_id: "io.molis.work.artifacts", title: "复制引用" }), /<strong>复制引用<\/strong>/u);
+    assert.match(rows({ ...base, provider_id: "system.artifacts", title: "复制引用" }), /<strong>复制引用<\/strong>/u);
   });
 }));
 

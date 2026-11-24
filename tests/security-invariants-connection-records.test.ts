@@ -6,7 +6,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { ActionError, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ProjectDeletionService, connectorPluginSlotActions, createPluginConnectionsPort, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -260,6 +260,36 @@ test("S-71 RAC-348 only the person binds a record's account, in the project they
     { install_id: install.install_id, plugin_id: records.id, slot_id: "github", record_key: "src-1" }) as Promise<{ connection: { connection_id: string } | null }>;
   assert.equal((await readIn(one.reference, one.project_id)).connection?.connection_id, connection.connection_id);
   assert.equal((await readIn(two.reference, two.project_id)).connection, null);
+  // BL-921: competing action calls must agree with the persisted winner. A stale switch cannot restore a released binding.
+  const other = withConnectorConnections(f.home, store => store.createToken({ serviceId: "github", displayName: "Personal", token: BEARER_VALUE }));
+  const personActions = bindActionClient(client, () => inOne);
+  const spaced = await personActions.invoke(connectorPluginSlotActions.bindRecord, { ...input, record_key: "src-1 ", connection_id: other.connection_id });
+  assert.equal(spaced.connection?.connection_id, other.connection_id);
+  assert.equal(stored(one.project_id), connection.connection_id);
+  const bind = (connection_id: string, expected_connection_id?: string) => personActions.invoke(connectorPluginSlotActions.bindRecord,
+    { ...input, record_key: "race", connection_id, ...(expected_connection_id ? { expected_connection_id } : {}) });
+  const raced = await Promise.allSettled([bind(connection.connection_id), bind(other.connection_id)]);
+  const winners = raced.flatMap(result => result.status === "fulfilled" ? [result.value.connection?.connection_id] : []);
+  assert.equal(winners.length, 1);
+  for (const result of raced) if (result.status === "rejected") assert.equal(result.reason.code, "connector.plugin_bindings.account_bound");
+  const winner = winners[0]!, loser = winner === connection.connection_id ? other.connection_id : connection.connection_id;
+  assert.equal((await bind(winner)).connection?.connection_id, winner);
+  await assert.rejects(bind(loser), code("connector.plugin_bindings.account_bound"));
+  await assert.rejects(bind(loser, loser), code("connector.plugin_bindings.account_bound"));
+  const raceRead = () => personActions.invoke(connectorPluginSlotActions.readRecord, { install_id: install.install_id, plugin_id: records.id, slot_id: "github", record_key: "race" });
+  const unsuitable = withConnectorConnections(f.home, store => {
+    const pinned = store.createToken({ serviceId: "github", displayName: "Pinned", token: BEARER_VALUE });
+    store.declarers.pin(pinned.connection_id, { install_id: "another-install", plugin_id: "com.example.other", plugin_title: "Other" });
+    const reauth = store.createToken({ serviceId: "github", displayName: "Pending login", token: BEARER_VALUE, authMethod: "oauth" });
+    return { pinned, reauth };
+  });
+  await assert.rejects(bind(unsuitable.pinned.connection_id, winner), code("connector.plugin_slots.connection_pinned"));
+  await assert.rejects(bind(unsuitable.reauth.connection_id, winner), code("connector.switch.target_unavailable"));
+  assert.equal((await raceRead()).connection?.connection_id, winner);
+  await client.invoke(inOne, connectorPluginSlotActions.bindRecord, { ...input, record_key: "race", connection_id: null });
+  await assert.rejects(bind(loser, winner), code("connector.plugin_bindings.account_bound"));
+  assert.equal((await raceRead()).connection, null);
+  assert.equal((await bind(loser)).connection?.connection_id, loser);
   // Unbinding takes it away.
   assert.equal((await client.invoke(inOne, connectorPluginSlotActions.bindRecord, { ...input, connection_id: null }) as { connection: unknown }).connection, null);
   assert.equal(stored(one.project_id), null);

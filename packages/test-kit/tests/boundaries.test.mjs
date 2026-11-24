@@ -411,13 +411,6 @@ test("allows Host composition, storage adapters, Contract subpaths, and colocate
     [contracts.name],
   );
   const pages = boundaryPackage("@molis-ai/molis-work-plugin-pages", "plugins/native/pages", "native-plugin");
-  const shelfModule = boundaryPackage("@molis-ai/molis-work-module-shelf", "modules/shelf", "module");
-  const shelfPlugin = boundaryPackage(
-    "@molis-ai/molis-work-plugin-shelf",
-    "plugins/native/shelf",
-    "native-plugin",
-    [shelfModule.name],
-  );
   const localHostApp = boundaryPackage("@molis-ai/molis-work-app-local-host", "apps/local-host", "app", [
     "@molis-ai/molis-work-app-workbench",
   ]);
@@ -517,13 +510,7 @@ test("allows Host composition, storage adapters, Contract subpaths, and colocate
       specifier: "better-sqlite3",
       sourceFile: "modules/goals/src/planning/personal-methods.ts",
     },
-    // The two listed layer exceptions (APP_IMPORT_ALLOWLIST, PLUGIN_MODULE_IMPORT_ALLOWLIST): debts that exist today.
-    {
-      importer: shelfPlugin,
-      target: shelfModule,
-      specifier: shelfModule.name,
-      sourceFile: "plugins/native/shelf/src/recipes.ts",
-    },
+    // A listed layer exception (APP_IMPORT_ALLOWLIST): a debt that exists today.
     {
       importer: localHostApp,
       target: workbenchApp,
@@ -625,11 +612,10 @@ test("rejects a Plugin importing an App, a Horizontal Service or a Module, excep
     specifier: modulePackage.name,
     sourceFile: "plugins/native/goals/package.json",
   }).has("plugin-upward-dependency"));
-  // Listed: Shelf's Module. Any other Module, and the Shelf plugin importing a different Module, stay rejected.
+  // Nothing is listed since Shelf became a platform part (44B): a plugin importing the Shelf Module is rejected like any other.
   const shelfModule = boundaryPackage("@molis-ai/molis-work-module-shelf", "modules/shelf", "module");
-  const shelfPlugin = boundaryPackage("@molis-ai/molis-work-plugin-shelf", "plugins/native/shelf", "native-plugin", [shelfModule.name, modulePackage.name]);
-  assert.deepEqual(violationCodes({ importer: shelfPlugin, target: shelfModule, specifier: shelfModule.name, sourceFile: "plugins/native/shelf/src/index.ts" }), new Set());
-  assert.ok(violationCodes({ importer: shelfPlugin, target: modulePackage, specifier: modulePackage.name, sourceFile: "plugins/native/shelf/src/index.ts" }).has("plugin-upward-dependency"));
+  const imagesPlugin = boundaryPackage("@molis-ai/molis-work-plugin-images", "plugins/native/images", "native-plugin", [shelfModule.name]);
+  assert.ok(violationCodes({ importer: imagesPlugin, target: shelfModule, specifier: shelfModule.name, sourceFile: "plugins/native/images/src/index.ts" }).has("plugin-upward-dependency"));
 });
 
 test("rejects an App importing another App unless the edge is listed", () => {
@@ -661,9 +647,7 @@ test("rejects an App importing another App unless the edge is listed", () => {
 
 test("the layer exceptions are exactly the edges that exist today", () => {
   // A change here is a decision that shows up in review: the lists only shrink as the debts are paid. Keyed by package path.
-  assert.deepEqual([...PLUGIN_MODULE_IMPORT_ALLOWLIST], [
-    "plugins/native/shelf -> modules/shelf",
-  ]);
+  assert.deepEqual([...PLUGIN_MODULE_IMPORT_ALLOWLIST], []);
   assert.deepEqual([...APP_IMPORT_ALLOWLIST], [
     ". -> apps/desktop",
     ". -> apps/local-host",

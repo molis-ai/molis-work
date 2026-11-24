@@ -752,11 +752,11 @@ test("CHO-34, CHO-35: Coding plan confirmation, TaskBoard Fibonacci amendments, 
 test("C12, C13, C14: Coding round materials structured failure recovery, mid-round revision pinning, and >30 on-demand overflow", { timeout: 60_000 }, async t => {
   const { host, project, workspaceId, call, ended } = await codingProductHost(t, () => cogniaModelResponse("已按本轮材料处理。", 8));
   const admitMaterial = async (filename: string, body: string): Promise<ArtifactReference> => {
-    const admitted = await call<{ item: { item_id: string } }>(project.project_id, "/api/plugins/io.molis.work.shelf/items", {
+    const admitted = await call<{ item: { item_id: string } }>(project.project_id, "/api/platform/shelf/items", {
       filename, bytes_base64: Buffer.from(body).toString("base64"),
     });
     assert.equal(admitted.status, 200);
-    const path = `/api/plugins/io.molis.work.shelf/items/${admitted.body.item.item_id}/project-material`;
+    const path = `/api/platform/shelf/items/${admitted.body.item.item_id}/project-material`;
     const preview = await call<{ fingerprint: string }>(project.project_id, path);
     const pinned = await call<{ reference: ArtifactReference }>(project.project_id, path, { expected_fingerprint: preview.body.fingerprint });
     assert.equal(pinned.status, 200);

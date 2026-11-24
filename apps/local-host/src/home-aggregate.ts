@@ -13,6 +13,7 @@ import {
   unreadableFileIdentity,
   writeProjectRestingSnapshots,
 } from "./resting-readings-store.js";
+import { activeLocale, DEFAULT_WEB_LOCALE, runBackgroundWork } from "./web-locale.js";
 
 /**
  * What the Home gathers across projects (PG-043, S-49): the queries plugins declare `home_aggregate`, asked by their `output_type`,
@@ -47,12 +48,14 @@ export interface HomeAggregateOptions<Output> {
   readonly projectOutput?: (output: Output) => Output;
   /** Whether a reading of this output type may be persisted across restarts (transient issues are always excluded). */
   readonly persistable?: (result: HomeAggregateResult<Output>) => boolean;
-  /** Whether a cached resting reading still holds right now (e.g. no upcoming run has become due, no under-way task). */
-  readonly stillValid?: (result: HomeAggregateResult<Output>) => boolean;
+  /** Whether a cached resting reading still holds right now (e.g. no upcoming run has become due, no under-way or restart-invalidated task). */
+  readonly stillValid?: (result: HomeAggregateResult<Output>, meta?: { readonly restarted: boolean; readonly now: number }) => boolean;
 }
 
 /** Optional persistence and live-fingerprint validation port for resting readings across Host restarts. */
 export interface RestingReadingsPersistence {
+  /** Identity of the running Host instance, distinguishing same-process sleep snapshots from pre-restart disk snapshots. */
+  readonly hostInstanceId?: string;
   /** Whether persistence is currently active for this Host (requires Home directory and catalog). */
   active?(): boolean;
   /** Waits for any in-flight sleep persistence on these projects to complete before checking their fingerprints. */
@@ -145,7 +148,8 @@ export async function collectHomeAggregate<Output>(
     const projects = await Promise.all(ports.openProjects().map(reference => resting.quietly(() => read(reference, ports.whileOpen, signal))));
     return { answers: projects.flatMap(result => result.answers), issues: projects.flatMap(result => result.issues) };
   }
-  const kind = restingKind(outputType, input);
+  const locale = activeLocale() ?? DEFAULT_WEB_LOCALE;
+  const kind = restingKind(outputType, input, locale);
   const canPersist = (result: HomeAggregateResult<unknown>): boolean =>
     isPersistableReading(result) && (options?.persistable ? options.persistable(result as HomeAggregateResult<Output>) : true);
   // What of the input each answer of the reading depended on (`HomeAggregateInputEach.keyOf`), by its source.
@@ -167,6 +171,7 @@ export async function collectHomeAggregate<Output>(
     kept.set(kind, {
       usedAt,
       ...(fingerprint !== undefined ? { fingerprint } : {}),
+      ...(resting.persistence?.hostInstanceId !== undefined ? { hostInstanceId: resting.persistence.hostInstanceId } : {}),
       persistable,
       result,
       keys: keysOf(reference.project_id, result),
@@ -241,6 +246,7 @@ export async function collectHomeAggregate<Output>(
               projectMap.set(entryKind, {
                 usedAt: undefined,
                 fingerprint: entry.fingerprint,
+                ...(entry.host_instance_id !== undefined ? { hostInstanceId: entry.host_instance_id } : {}),
                 persistable: true,
                 result: {
                   answers: entry.result.answers.map(answer => ({ ...answer })),
@@ -264,7 +270,8 @@ export async function collectHomeAggregate<Output>(
     const sameKeys = reading !== undefined
       && (Object.keys(reading.keys).length === 0 || Boolean(each?.keyOf))
       && Object.entries(reading.keys).every(([source, key]) => each?.keyOf?.(reference.project_id, JSON.parse(source)) === key);
-    const validNow = reading !== undefined && (!options?.stillValid || options.stillValid(reading.result as HomeAggregateResult<Output>));
+    const restarted = Boolean(persistence?.hostInstanceId && reading?.hostInstanceId !== persistence.hostInstanceId);
+    const validNow = reading !== undefined && (!options?.stillValid || options.stillValid(reading.result as HomeAggregateResult<Output>, { restarted, now: Date.now() }));
     if (reading && reading.usedAt === usedAt && sameFp && sameKeys && validNow) {
       kept.push({
         answers: (reading.result as HomeAggregateResult<Output>).answers.map(answer => ({ ...answer, resting: true as const })),
@@ -275,7 +282,7 @@ export async function collectHomeAggregate<Output>(
     }
   }
   if (unread.length) {
-    readInBackground(resting, persistence, unread, kind, remember, reference => read(reference, resting.wake));
+    readInBackground(resting, persistence, unread, kind, remember, reference => runBackgroundWork(locale, () => read(reference, resting.wake)));
   }
   const projects = [...open, ...kept];
   return { answers: projects.flatMap(result => result.answers), issues: projects.flatMap(result => result.issues) };
@@ -287,6 +294,7 @@ const VALID_FINGERPRINT = /^[0-9a-f]{64}$/u;
 export interface RestingReading {
   usedAt: number | undefined;
   fingerprint?: string;
+  hostInstanceId?: string;
   persistable?: boolean;
   result: HomeAggregateResult<unknown>;
   keys: Record<string, string>;
@@ -301,9 +309,12 @@ export interface RestingReadings {
   readonly pendingSleeps?: Map<string, Set<Promise<void>>>;
 }
 
-function restingKind(outputType: string, input: unknown): string {
+function restingKind(outputType: string, input: unknown, locale: string): string {
   const each = input instanceof HomeAggregateInputEach ? input : undefined;
-  return JSON.stringify([outputType, each ? "each" : input ?? null]);
+  const base = each ? "each" : input ?? null;
+  return locale === DEFAULT_WEB_LOCALE
+    ? JSON.stringify([outputType, base])
+    : JSON.stringify([outputType, base, locale]);
 }
 
 function isPersistableReading(result: HomeAggregateResult<unknown>): boolean {
@@ -326,8 +337,10 @@ export function rememberRestingReading(
     kept = new Map();
     resting.readings.projects.set(reference.storage_key, kept);
   }
-  kept.set(restingKind(outputType, input), {
+  const locale = activeLocale() ?? DEFAULT_WEB_LOCALE;
+  kept.set(restingKind(outputType, input, locale), {
     usedAt,
+    ...(resting.persistence?.hostInstanceId !== undefined ? { hostInstanceId: resting.persistence.hostInstanceId } : {}),
     persistable: persistable && isPersistableReading(result),
     result,
     keys: {},
@@ -461,6 +474,7 @@ export function homeAggregatePorts(host: MolisWorkLocalHost): HomeAggregatePorts
       running: () => host.lifecycle() === "running",
       readings: readingsOf(host),
       persistence: {
+        hostInstanceId: host.instanceId,
         active: () => host.restingHomeDirectory() !== undefined,
         awaitPending: async (closed, signal) => {
           const pendingSleeps = readingsOf(host).pendingSleeps;
@@ -558,7 +572,7 @@ export async function persistProjectRestingReadings(
   const projectMap = readings.get(host)?.projects.get(reference.storage_key);
   if (projectMap) {
     for (const [kind, entry] of projectMap) {
-      if (entry.usedAt !== expectedUsedAt) projectMap.delete(kind);
+      if (entry.usedAt !== expectedUsedAt && !(expectedUsedAt === 0 && entry.usedAt === undefined)) projectMap.delete(kind);
     }
   }
   const home = host.restingHomeDirectory();
@@ -577,10 +591,23 @@ export async function persistProjectRestingReadings(
   }
   const toPersist = new Map<string, RestingReadingSnapshot>();
   for (const [kind, entry] of projectMap) {
-    if (entry.usedAt !== expectedUsedAt) continue;
+    if (entry.usedAt === undefined && expectedUsedAt === 0) {
+      if (entry.fingerprint !== fingerprint) {
+        projectMap.delete(kind);
+        continue;
+      }
+      entry.usedAt = 0;
+    } else if (entry.usedAt !== expectedUsedAt) {
+      continue;
+    }
     entry.fingerprint = fingerprint;
     if (entry.persistable !== false) {
-      toPersist.set(kind, { fingerprint, keys: entry.keys, result: entry.result });
+      toPersist.set(kind, {
+        fingerprint,
+        host_instance_id: entry.hostInstanceId ?? host.instanceId,
+        keys: entry.keys,
+        result: entry.result,
+      });
     }
   }
   writeProjectRestingSnapshots(home, reference, toPersist);
@@ -632,7 +659,12 @@ export async function persistShutdownRestingReadings(
     }
     const toPersist = new Map<string, RestingReadingSnapshot>();
     for (const [kind, entry] of item.entries) {
-      toPersist.set(kind, { fingerprint, keys: entry.keys, result: entry.result });
+      toPersist.set(kind, {
+        fingerprint,
+        host_instance_id: entry.hostInstanceId ?? host.instanceId,
+        keys: entry.keys,
+        result: entry.result,
+      });
     }
     writeProjectRestingSnapshots(home, item.reference, toPersist);
   }

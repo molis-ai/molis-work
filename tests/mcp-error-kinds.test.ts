@@ -6,7 +6,7 @@ import test from "node:test";
 import { dispatchMcpProjectTool, formatMcpToolError, isRuntimeContextMcpTool } from "@molis-ai/molis-work-app-mcp";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorKind, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { MANAGEMENT_MCP_TOOLS, isListedPlatformMcpTool as isPlatformMcpTool, RuntimeProjectConnection, assertMcpStartInput, assertMcpToolAllowed, createPresentationError, mcpErrorKind, mcpErrors, requireMcpRuntimeContextHost, runtimeConnectionIdentity, type McpErrorReason } from "@molis-ai/molis-work-app-local-host";
+import { isListedPlatformMcpTool as isPlatformMcpTool, RuntimeProjectConnection, assertMcpStartInput, assertMcpToolAllowed, createPresentationError, mcpErrorKind, mcpErrors, requireMcpRuntimeContextHost, runtimeConnectionIdentity, type McpErrorReason } from "@molis-ai/molis-work-app-local-host";
 import type { RuntimeWorkContext } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 
 // T-340 (RAC-2713, RAC-2714): every `mcp.*` code is declared once with its kind, every throw site raises through that
@@ -77,21 +77,21 @@ test("RAC-2713 every declared mcp code raises with its declared kind, and no thr
 });
 
 test("RAC-2714 authority_denied and tool_unknown carry one kind from the preflight, the authority check and the tool dispatch", async () => {
-  const preflightAuthorityDenied = kindOf(() => assertMcpStartInput("runtime", "molis_work_v1_initialize", {}));
-  const authorityDenied = kindOf(() => assertMcpToolAllowed(RUNTIME_STATE as never, "molis_work_v1_initialize", CALL_CONTEXT, EMPTY_CATALOG as never));
-  const dispatchedAuthorityDenied = await dispatchMcpProjectTool(null, "molis_work_v1_initialize", {}, { audience: "runtime", createError: createPresentationError, declared: MANAGEMENT_MCP_TOOLS })
+  const preflightAuthorityDenied = kindOf(() => assertMcpStartInput("runtime", "molis_work_v1_review_decide", {}));
+  const authorityDenied = kindOf(() => assertMcpToolAllowed(RUNTIME_STATE as never, "molis_work_v1_review_decide", CALL_CONTEXT, EMPTY_CATALOG as never));
+  const dispatchedAuthorityDenied = await dispatchMcpProjectTool(null, "molis_work_v1_review_decide", {}, { audience: "runtime", createError: createPresentationError })
     .then(() => "no error", (error: { kind?: unknown }) => error.kind);
   assert.deepEqual([preflightAuthorityDenied, authorityDenied, dispatchedAuthorityDenied], ["forbidden", "forbidden", "forbidden"]);
 
   const preflightToolUnknown = kindOf(() => assertMcpStartInput("runtime", "molis_work_v1_no_such_tool", {}));
   const authorityToolUnknown = kindOf(() => assertMcpToolAllowed(RUNTIME_STATE as never, "molis_work_v1_no_such_tool", CALL_CONTEXT, EMPTY_CATALOG as never));
-  const dispatchedToolUnknown = await dispatchMcpProjectTool(null, "molis_work_v1_no_such_tool", {}, { audience: "runtime", createError: createPresentationError, declared: MANAGEMENT_MCP_TOOLS })
+  const dispatchedToolUnknown = await dispatchMcpProjectTool(null, "molis_work_v1_no_such_tool", {}, { audience: "runtime", createError: createPresentationError })
     .then(() => "no error", (error: { kind?: unknown }) => error.kind);
   assert.deepEqual([preflightToolUnknown, authorityToolUnknown, dispatchedToolUnknown], ["not_found", "not_found", "not_found"]);
 });
 
 test("RAC-2761 RAC-2762 runtime is denied a platform management tool without a catalog, while management is allowed", () => {
-  const name = "molis_work_v1_initialize";
+  const name = "molis_work_v1_review_decide";
   assert.equal(isPlatformMcpTool(name), true);
   assert.equal(isRuntimeContextMcpTool(name), false);
   const state = { audience: "runtime" as const, connectionState: new RuntimeProjectConnection(), runtimeConnection: null, runtimeContextHost: null };
@@ -111,7 +111,7 @@ test("RAC-2713 the statuses the HTTP edges derive from these kinds are the ones 
   assert.equal(actionHttpStatus(kindOfError(() => requireMcpRuntimeContextHost({ runtimeContextHost: null }))), 400);
   assert.equal(actionHttpStatus(kindOfError(() => runtimeConnectionIdentity(null, CALL_CONTEXT))), 400);
   // The preflight and startup codes that already had kinds keep them.
-  assert.equal(actionHttpStatus(kindOfError(() => assertMcpStartInput("runtime", "molis_work_v1_initialize", {}))), 403);
+  assert.equal(actionHttpStatus(kindOfError(() => assertMcpStartInput("runtime", "molis_work_v1_review_decide", {}))), 403);
   assert.equal(actionHttpStatus(kindOfError(() => assertMcpStartInput("runtime", "molis_work_v1_no_such_tool", {}))), 404);
   assert.equal(actionHttpStatus(mcpErrors.startup_failed("message")), 503);
 });

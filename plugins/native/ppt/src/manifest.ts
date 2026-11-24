@@ -52,7 +52,7 @@ export const pptManifest: PluginManifest = {
   ].map(localizePermission),
   capabilities: { provides: [], consumes: [] },
   artifacts: {
-    produces: [{ artifact_type_id: PPT_ARTIFACT_TYPE_ID, schema_version: PPT_ARTIFACT_SCHEMA_VERSION, title: "演示稿", title_text: { key: "ppt.artifacts.type-title" },
+    produces: [{ artifact_type_id: PPT_ARTIFACT_TYPE_ID, schema_version: PPT_ARTIFACT_SCHEMA_VERSION, title: "演示稿", title_text: { key: "ppt.artifacts.type-title" }, searchable_fields: ["bullets"],
       preview: { capability_id: "ppt.artifacts.preview", version: /* @version action.ppt.artifacts.preview */ 1 }, pin: { capability_id: "ppt.artifacts.pin", version: /* @version action.ppt.artifacts.pin */ 1 },
       compare: { capability_id: "ppt.artifacts.compare", version: /* @version action.ppt.artifacts.compare */ 1 } }],
     consumes: [],

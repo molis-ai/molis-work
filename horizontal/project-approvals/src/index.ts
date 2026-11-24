@@ -3,3 +3,4 @@ export { approvalRequiresPerson, projectApprovalRules } from "./rules.js";
 export { decisionOwnerMatches, projectReviewDecisions, readProjectReviewDecision } from "./decisions.js";
 export { projectApprovalReplica } from "./replication.js";
 export { projectReviewPresentation, reviewRequirementCoverage } from "./coverage.js";
+export { approvalOutcomeCollection, approvalOutcomesFromFacts, assertApprovalOutcomeHistory, readApprovalOutcome, type ApprovalOutcome } from "./outcomes.js";

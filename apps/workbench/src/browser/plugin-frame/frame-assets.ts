@@ -26,7 +26,7 @@ function project(html: string, source: HTMLElement): FrameAsset[] {
   return [...template.content.querySelectorAll<HTMLElement>("[data-frame-asset][data-frame-subject-kind]")].flatMap(row => {
     const d = row.dataset, ref = { kind: d.frameSubjectKind ?? "", id: d.frameAssetId ?? "" };
     const kind = d.frameAsset ?? "";
-    if (!reference(ref) || !FRAME_ASSET_KIND.test(kind) || kind === "goal") return [];
+    if (!reference(ref) || !FRAME_ASSET_KIND.test(kind)) return [];
     const readingSurface = FRAME_ASSET_KIND.test(d.frameReadingSurface ?? "") ? d.frameReadingSurface! : "";
     const readingObject = FRAME_READING_ID.test(d.frameReadingObject ?? "") ? d.frameReadingObject! : "";
     return [{ kind, id: d.frameAssetId!, title: d.frameAssetTitle || row.querySelector("strong")?.textContent || "", caption: d.frameAssetCaption || "",

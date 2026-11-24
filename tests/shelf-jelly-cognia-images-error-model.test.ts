@@ -13,8 +13,8 @@ import * as cogniaPlugin from "@molis-ai/molis-work-plugin-cognia";
 import * as imagesPlugin from "@molis-ai/molis-work-plugin-images";
 import * as jellyPlugin from "@molis-ai/molis-work-plugin-jelly";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import * as shelfPlugin from "@molis-ai/molis-work-plugin-shelf";
-import type { ShelfActionPorts } from "@molis-ai/molis-work-plugin-shelf";
+import * as shelfPlugin from "@molis-ai/molis-work-module-shelf/surface";
+import type { ShelfActionPorts } from "@molis-ai/molis-work-module-shelf/surface";
 
 // specs/archive/repository-anti-corruption W3-02-F: Shelf, Jelly, Cognia and Images lose their route-error mappers and their error classes, and so do the Host's
 // material errors (Jelly's source and material readers, the text extractor). Their failures are ActionErrors whose codes the owners declare
@@ -102,7 +102,7 @@ async function failingShelfRuntime(t: TestContext) {
     t.mock.method(shelfModule.ShelfStore.prototype, "runJob", async () => { throw failure; })];
   const f = await serveHomeRuntime(t);
   // A route of the plugin whose handler calls one action first, so the failure comes out of the action and goes through the edge.
-  const root = "/api/plugins/io.molis.work.shelf/sample";
+  const root = "/api/platform/shelf/sample";
   const send = async (verb: string, path: string, payload?: string): Promise<Answer> => {
     const response = await f.request(path, { method: verb, raw: payload });
     const text = await response.text();
@@ -271,7 +271,7 @@ test("a failed Shelf job comes back with the shelf beside the error, and the sta
     ];
     for (const [error, status, code] of cases) {
       edge.setFailure(error);
-      const answer = await edge.send("POST", "/api/plugins/io.molis.work.shelf/jobs", JSON.stringify({ recipe: "extract_text", item_id: "item-1" }));
+      const answer = await edge.send("POST", "/api/platform/shelf/jobs", JSON.stringify({ recipe: "extract_text", item_id: "item-1" }));
       // The shelf comes back as it is (the first-run sample on it), beside the error.
       assert.deepEqual([answer.status, answer.body.code, Array.isArray((answer.body.snapshot as { materials?: unknown } | undefined)?.materials)], [status, code, true], code);
       assert.equal(typeof answer.body.error, "string");
@@ -339,15 +339,17 @@ const read = (path: string): string => readFileSync(join(REPOSITORY, path), "utf
 function ownerSources(): string[] {
   const hostFiles = readdirSync(join(REPOSITORY, "apps/local-host/src")).filter(name => /^(?:shelf|jelly|cognia|images|material)-.*\.ts$/u.test(name))
     .map(name => `apps/local-host/src/${name}`);
-  return [...["plugins/native/shelf/src", "modules/shelf/src", "plugins/native/jelly/src", "plugins/native/cognia/src", "plugins/native/images/src"]
-    .flatMap(directory => sourceFiles(join(REPOSITORY, directory)).map(path => relative(REPOSITORY, path))).filter(path => !/client/u.test(path.split("/").at(-1)!) && !/^plugins\/native\/[^/]+\/src\/browser\//u.test(path)), ...hostFiles];
+  return [...["modules/shelf/src", "plugins/native/jelly/src", "plugins/native/cognia/src", "plugins/native/images/src"]
+    .flatMap(directory => sourceFiles(join(REPOSITORY, directory)).map(path => relative(REPOSITORY, path))).filter(path => !/client/u.test(path.split("/").at(-1)!) && !/^(?:plugins\/native\/[^/]+\/src|modules\/shelf\/src\/surface)\/browser\//u.test(path)), ...hostFiles];
 }
 
 // RAC-143: only standalone plugin browser programs can be omitted from the server error-model checks.
 test("RAC-143 excluded plugin browser files stay outside the actual server TypeScript program, including transitive imports and exports", () => {
   for (const owner of OWNERS) {
-    const root = join(REPOSITORY, "plugins/native", owner);
-    const browserFiles = sourceFiles(join(root, "src")).filter(path => relative(root, path).startsWith("src/browser/"));
+    // Shelf's page code sits in its Module since 44B (src/surface/browser/); the plugins keep theirs in src/browser/.
+    const root = owner === "shelf" ? join(REPOSITORY, "modules/shelf") : join(REPOSITORY, "plugins/native", owner);
+    const browser = owner === "shelf" ? "src/surface/browser/" : "src/browser/";
+    const browserFiles = sourceFiles(join(root, "src")).filter(path => relative(root, path).startsWith(browser));
     if (!browserFiles.length) continue;
     const configPath = join(root, "tsconfig.json");
     const config = ts.readConfigFile(configPath, ts.sys.readFile);
@@ -370,7 +372,7 @@ test("no error class, no route-error mapper, no mapError and no readBody is left
     const text = read(path);
     for (const name of removed) assert.ok(!new RegExp(`\\b${name}\\b`, "u").test(text), `${path} still mentions ${name}`);
   }
-  for (const path of ["plugins/native/shelf/src/route-handlers.ts", "plugins/native/jelly/src/plugin-routes.ts", "plugins/native/images/src/routes.ts"]) {
+  for (const path of ["modules/shelf/src/surface/route-handlers.ts", "plugins/native/jelly/src/plugin-routes.ts", "plugins/native/images/src/routes.ts"]) {
     const text = read(path);
     assert.ok(!/\bmapError\b/u.test(text), `${path} passes no mapError: the dispatcher answers through the SDK`);
     assert.ok(!/\breadBody\b/u.test(text), `${path} reads its body with the shared reader`);
@@ -389,7 +391,7 @@ test("a caller's mistake in the owners' server sources has a code: the bare new 
   // Wiring and lookup mistakes of the code itself (a surface or a recipe that does not exist, a route without its binding, a plugin started without its output service,
   // a runner identity) stay uncoded and are 500.
   const kept = [
-    "plugins/native/shelf/src/plugin.ts", "plugins/native/shelf/src/routes.ts", "plugins/native/shelf/src/settings-ui.ts", "plugins/native/shelf/src/ui.ts", "plugins/native/shelf/src/prompts.ts",
+    "modules/shelf/src/surface/plugin.ts", "modules/shelf/src/surface/routes.ts", "modules/shelf/src/surface/settings-ui.ts", "modules/shelf/src/surface/ui.ts", "modules/shelf/src/surface/prompts.ts",
     "modules/shelf/src/recipes.ts", "plugins/native/jelly/src/ui.ts", "plugins/native/images/src/ui.ts", "plugins/native/images/src/store.ts",
     "apps/local-host/src/material-source-reader.ts",
   ];

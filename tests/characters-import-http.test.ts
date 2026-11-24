@@ -13,7 +13,7 @@ test("HTTP import previews lazily, rejects forged input and preserves old publis
   mkdirSync(skill,{recursive:true});writeFileSync(join(config,"AGENTS.md"),"RULE");writeFileSync(join(skill,"SKILL.md"),"---\nname: Guide\ndescription: Fixture\n---\nRead guide.txt");writeFileSync(join(skill,"guide.txt"),"OLD_ATTACHMENT");
   const project=await catalog.createProject({display_name:"Import",actor_id:"web-user"});catalog.close();
   const token="character-http-fixture-control-123456789",server=createMolisWorkWebServer({homeDirectory:home,controlToken:token});
-  await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));const address=server.address() as {port:number},origin=`http://127.0.0.1:${address.port}`,prefix=`/projects/${project.project_id}/api/plugins/io.molis.work.characters`;
+  await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));const address=server.address() as {port:number},origin=`http://127.0.0.1:${address.port}`,prefix=`/projects/${project.project_id}/api/platform/characters`;
   t.after(async()=>{await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(home,{recursive:true,force:true});});
   const request=async(path:string,body?:unknown,authorized=true)=>{const response=await fetch(origin+prefix+path,{method:body===undefined?"GET":"POST",headers:{origin,"content-type":"application/json","x-molis-work-idempotency-key":randomUUID(),...(authorized?{"x-molis-work-control-token":token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});return {status:response.status,body:await response.json()};};
   assert.equal((await request("/imports/discover",{runtime_id:"codex",config_root:config},false)).status,403);

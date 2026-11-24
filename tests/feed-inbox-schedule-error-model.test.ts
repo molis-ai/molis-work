@@ -249,7 +249,7 @@ const HOST = join(REPOSITORY, "apps", "local-host", "src");
 const hostFiles = (...patterns: RegExp[]) => readdirSync(HOST).filter(name => patterns.some(pattern => pattern.test(name))).map(name => join(HOST, name));
 const FILES = {
   feed: () => [...sourceFiles(join(REPOSITORY, "plugins", "native", "feed", "src")), ...hostFiles(/^feed-.*\.ts$/u, /^research-library-source\.ts$/u, /^content-action-providers\.ts$/u),
-    ...sourceFiles(join(REPOSITORY, "plugins", "official-integrations", "rss", "src")), ...sourceFiles(join(REPOSITORY, "plugins", "official-integrations", "youtube", "src"))],
+    ...sourceFiles(join(REPOSITORY, "plugins", "official-integrations", "rss", "src"))],
   inbox: () => [...sourceFiles(join(REPOSITORY, "plugins", "native", "inbox", "src")), ...hostFiles(/^inbox-.*\.ts$/u)],
   schedule: () => [...sourceFiles(join(REPOSITORY, "plugins", "native", "schedule", "src")), ...hostFiles(/^schedule-.*\.ts$/u)],
 };

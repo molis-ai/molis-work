@@ -15,7 +15,7 @@ import { activeLocale } from './web-locale.js';
  */
 import { randomUUID } from 'node:crypto';
 import { ActionError, requireSynchronous, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
-import { HOST_PLUGIN_ID_PREFIX, pluginErrors, type PluginManifest, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { HOST_PLUGIN_ID_PREFIX, PLATFORM_ID_PREFIX, pluginErrors, type PluginManifest, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SurfaceInstallationRef } from '@molis-ai/molis-work-contracts/services/surface-composition';
 import type { SkillInstallPreview, SkillSceneChoice } from '@molis-ai/molis-work-contracts/services/skills';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -228,6 +228,8 @@ const assertNotHostId = (pluginId: string, fromRelease: boolean): void => {
   const reserved = [...HOST_PLUGIN_IDS].find(id => id === pluginId || nested(id, pluginId));
   if (reserved) throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 与随宿主发布的 ${reserved} 冲突`);
   // S-reserved-host-prefix: the Host's prefix is taken only by what the release itself carries, and only from its own bundled folder.
+  if (pluginId.startsWith(PLATFORM_ID_PREFIX))
+    throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 用了平台自己的前缀 ${PLATFORM_ID_PREFIX}，请换成你自己的名字`);
   if (pluginId.startsWith(HOST_PLUGIN_ID_PREFIX) && !(fromRelease && RELEASE_PACKAGE_IDS.has(pluginId)))
     throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 用了只给随宿主发布的插件的前缀 ${HOST_PLUGIN_ID_PREFIX}，请换成你自己的名字`);
 };

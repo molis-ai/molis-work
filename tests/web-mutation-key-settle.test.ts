@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import test from "node:test";
 
-import { authorizeLocalWebRequest, installHostUiText, runWithLocale, sendLocalWebJson, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
+import { authorizeLocalWebRequest, finalizeLocalMutation, installHostUiText, markMutationResponseFailed, runWithLocale, sendLocalWebJson, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
 
 test.before(installHostUiText);
 
@@ -125,4 +125,100 @@ test("RAC-1805 a key that has been served is refused with 409 at the old Goals a
     }
     assert.equal(web.executions(), oldAddresses.length, "no replay reached a handler");
   } finally { await web.close(); }
+});
+
+test("an abandoned handler that exits without ending the response releases its in_flight key via finalizeLocalMutation", async () => {
+  const keys = new Map<string, LocalMutationState>();
+  let releaseHandler = () => {};
+  const held = new Promise<void>(resolve => { releaseHandler = resolve; });
+  let executions = 0;
+  const server: Server = createServer(async (request, response) => {
+    const url = new URL(request.url!, "http://127.0.0.1");
+    try {
+      if (!runWithLocale("zh", () => authorizeLocalWebRequest(request, response, url, token, keys))) return;
+      executions += 1;
+      if (executions === 1) {
+        await held;
+        // Simulates sendUnhandledWebError returning early on ECONNRESET without calling response.end().
+        return;
+      }
+      sendLocalWebJson(response, 200, { ok: true });
+    } finally {
+      finalizeLocalMutation(response, keys);
+    }
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  const send = (key: string, signal?: AbortSignal) => fetch(origin + "/api/example/items", {
+    method: "POST", signal,
+    headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": key },
+    body: "{}",
+  });
+  try {
+    const page = new AbortController();
+    const first = send("leak-guard-key-1", page.signal).then(() => assert.fail("expected abort"), () => undefined);
+    await until(() => executions === 1, "first attempt enters handler");
+    page.abort();
+    await first;
+    assert.equal(keys.get("leak-guard-key-1"), "in_flight", "still in flight until handler exits");
+    releaseHandler();
+    await until(() => !keys.has("leak-guard-key-1"), "finalizeLocalMutation clears abandoned in_flight key");
+    const retry = await send("leak-guard-key-1");
+    assert.equal(retry.status, 200, "retry with the same key succeeds after abandoned exit");
+    assert.equal(keys.get("leak-guard-key-1"), "complete");
+  } finally {
+    releaseHandler();
+    await new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); });
+  }
+});
+
+test("mutationKeys FIFO eviction preserves active in_flight keys and NDJSON failed streams release their key", async () => {
+  const keys = new Map<string, LocalMutationState>();
+  // Seed an active in_flight entry at the front, followed by 4096 completed entries.
+  keys.set("slow-in-flight-key", "in_flight");
+  for (let i = 0; i < 4096; i += 1) keys.set(`done-key-${i}`, "complete");
+  let failStream = true;
+  const server: Server = createServer((request, response) => {
+    const url = new URL(request.url!, "http://127.0.0.1");
+    try {
+      if (!runWithLocale("zh", () => authorizeLocalWebRequest(request, response, url, token, keys))) return;
+      if (url.pathname === "/api/stream") {
+        response.writeHead(200, { "content-type": "application/x-ndjson; charset=utf-8" });
+        if (failStream) {
+          markMutationResponseFailed(response);
+          response.end('{"type":"error","status":500,"code":"actions.execution_failed","error":"failed"}\n');
+        } else {
+          response.end('{"type":"result","result":{"ok":true}}\n');
+        }
+        return;
+      }
+      sendLocalWebJson(response, 200, { ok: true });
+    } finally {
+      finalizeLocalMutation(response, keys);
+    }
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  const post = (path: string, key: string) => fetch(origin + path, {
+    method: "POST",
+    headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": key },
+    body: "{}",
+  });
+  try {
+    assert.equal((await post("/api/example/items", "overflow-key-1")).status, 200);
+    assert.equal(keys.get("slow-in-flight-key"), "in_flight", "active in_flight key must never be evicted by FIFO cap");
+    assert.equal(keys.has("done-key-0"), false, "oldest complete key is evicted instead");
+    // NDJSON stream that writes HTTP 200 headers then an error line must free its key for retry.
+    const failed = await post("/api/stream", "stream-key-1");
+    assert.equal(failed.status, 200);
+    await failed.text();
+    await until(() => !keys.has("stream-key-1"), "failed NDJSON stream releases key");
+    failStream = false;
+    const retry = await post("/api/stream", "stream-key-1");
+    assert.equal(retry.status, 200);
+    await retry.text();
+    await until(() => keys.get("stream-key-1") === "complete", "succeeded NDJSON stream marks key complete");
+  } finally {
+    await new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); });
+  }
 });

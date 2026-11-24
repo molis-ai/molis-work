@@ -15,7 +15,7 @@ import { agentWriteCheckerActions, hostsAgentSessions, resolveProjectRuntime, ty
 import { builtinPluginByManifestId } from "./plugin-registry.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
-import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { NO_FAVICON_LINK, t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
@@ -86,7 +86,7 @@ export const sideViewRoute: WebRoute<ProjectRequestContext> = { id: "side-view",
   if (!html) {
     // Shown inside the panel's frame: a sentence in the panel's colours, not a JSON body.
     response.writeHead(404, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
-    response.end(`<!doctype html><html lang="${htmlLang()}"><meta charset="utf-8"><meta name="color-scheme" content="light dark"><body style="margin:16px;font:13px/1.6 system-ui,sans-serif;color:GrayText;background:Canvas">${escapeHtml(uiText.text("workbench.project-platform-routes.side-panel-content-gone-plugin-may-have-been"))}</body></html>`);
+    response.end(`<!doctype html><html lang="${htmlLang()}"><head><meta charset="utf-8"><meta name="color-scheme" content="light dark">${NO_FAVICON_LINK}</head><body style="margin:16px;font:13px/1.6 system-ui,sans-serif;color:GrayText;background:Canvas">${escapeHtml(uiText.text("workbench.project-platform-routes.side-panel-content-gone-plugin-may-have-been"))}</body></html>`);
     return true;
   }
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });

@@ -31,7 +31,7 @@ test("S-12 RAC-104-B2b-05: a Home payload moved into the vault cannot be read as
   const changed = f.vault(); changed.entries.credential = payload.ciphertext;
   writeFileSync(f.vaultPath, JSON.stringify(changed)); resetSecretStoreCache();
   const before = readFileSync(f.vaultPath), originalKey = readFileSync(f.keyPath);
-  assert.equal(f.get(), null, "the ordinary credential reader must not expose the Home envelope");
+  assert.throws(f.get, { code: "storage.secret_entry_decryption_failed" }, "the ordinary credential reader must refuse the Home envelope");
   assert.throws(() => readExistingSecret(f.home, "credential"), { code: "storage.secrets_snapshot.integrity_failed" });
   assert.deepEqual(readFileSync(f.vaultPath), before); assert.deepEqual(readFileSync(f.keyPath), originalKey);
 });

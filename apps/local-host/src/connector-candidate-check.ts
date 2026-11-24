@@ -1,14 +1,12 @@
 import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
-import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { connectorReadFailure } from "./connector-access.js";
 import { connectionTenantOrigin, serviceTenant } from "./connector-request-credentials.js";
 import { rememberConnectorCheck } from "./connector-observations.js";
-import { createGithubConnector } from "./github-connector.js";
-import { createGmailConnector } from "./gmail-connector.js";
+import { accountProviderWithToken, accountReader } from "./account-providers.js";
 
 /**
  * A key checked before it is saved (§13.6 ④d, BL-1058): the key the person typed is asked of its service as it is, and nothing is written
@@ -25,7 +23,7 @@ export interface CandidateCheck { checked_at: string; account?: { login: string;
 
 /** Keys this check can ask about: the services whose account a key alone can read (§13.2); others are checked where they are used. */
 export function candidateCheckable(serviceId: string): boolean {
-  return isCatalogConnectorId(serviceId) || serviceId === "github" || serviceId === "gmail";
+  return isCatalogConnectorId(serviceId) || accountReader(serviceId) !== undefined;
 }
 
 /**
@@ -71,8 +69,8 @@ export async function checkCandidateKey(home: string, input: { serviceId: string
     if (!result.ok) throw connectorReadFailure(result);
     return { checked_at: checked_at(), account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) } };
   }
-  const provider = runWithMolisWorkHome(home, () => serviceId === "github"
-    ? createGithubConnector({ token, fetchImpl, allowFixture: false }) : createGmailConnector({ accessToken: token, fetchImpl, allowFixture: false }));
+  const provider = accountProviderWithToken(home, serviceId, { token, fetchImpl });
+  if (!provider) throw connectorErrors["connector.connection.invalid"]("这个服务的密钥要在使用它的地方检查");
   const health = await provider.health(control);
   current();
   if (!health.ok) throw connectorReadFailure(health);

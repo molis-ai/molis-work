@@ -17,14 +17,7 @@ import type {
   UiRenderRequest,
   StagePageModel,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import {
-  FEED_ARCHIVE_OPTION_ID,
-  FEED_CAPTURE_DISPOSITION_IDS,
-  FEED_PROMOTE_OPTION_ID,
-  FEED_SAVE_OPTION_ID,
-  INBOX_ADMIT_OPTION_ID,
-  visibleFeedDispositionIds,
-} from "@molis-ai/molis-work-contracts/modules/functions";
+import { FEED_ARCHIVE_OPTION_ID, FEED_CAPTURE_DISPOSITION_IDS, FEED_PROMOTE_OPTION_ID, FEED_SAVE_OPTION_ID, INBOX_ADMIT_OPTION_ID, visibleFeedDispositionIds } from "./scene-options.js";
 
 export const FEED_UI_CONTRIBUTION_ID = "io.molis.work.native.feed.ui.v1";
 

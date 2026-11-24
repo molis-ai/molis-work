@@ -104,7 +104,7 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     if (!btnEl || !sel || sel.status === "published" || btnEl.disabled) return;
     const dst = btnEl.dataset.functionsDestination || "";
     if (prim(sel) === "score" && dst && dst !== "agent.mcp") {
-      showNote(globalThis.t.text("workbench.client-events.score-cannot-bind-inbox-home-feed"), true);
+      showNote(globalThis.t.text("workbench.client-events.score-only-for-agent"), true);
       return;
     }
     const ref = destRef(btnEl);

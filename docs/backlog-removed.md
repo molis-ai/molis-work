@@ -6,11 +6,21 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-coding-write-check-batch-read | 已完成并删除 | Coding 时间线按轮读取写后检查，逐写入匹配回执，并保留成功缓存与 30 秒重试。[请求与回放次数](../specs/archive/coding-checks-and-run-endings/spec.md#bl-coding-write-check-batch-read) |
+| BL-run-terminal-cleanup | 已完成并删除 | 五种终态覆盖资源释放、页面、等待中调用、观测及重启后的工作步骤；补齐记忆历史分页验证。[终态对照与验收](../specs/archive/coding-checks-and-run-endings/spec.md#bl-run-terminal-cleanup) |
+| BL-921 | 已完成并删除 | 记录槽在存储层拒绝普通换绑，明确换用核对原账号。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
+| BL-1050 | 已完成并删除 | 连接页经项目 MCP 目录汇总 Coding 配置的用途，自动换用另属 BL-1045。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
+| BL-1051 | 已完成并删除 | 自定义 MCP 重登预填认证方式，令牌和客户端密钥框留空。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
 | BL-1000 | 已完成并删除 | 2026-11-23：修复模型和 HTTP 替身的逐块 UTF-8 转换，真实 HTTP 分别切开中文和 emoji，逐字核对收到的正文。[验收记录](../specs/archive/test-fixture-utf8-linux-head/spec.md#bl-1000) |
 | BL-linux-repro-source-head | 已完成并删除 | 2026-11-23：Linux 回归取源、检出失败即停，在构建和测试前核对并记录实际提交。[验收记录](../specs/archive/test-fixture-utf8-linux-head/spec.md#验收记录) |
+| BL-989 | 已修复并删除 | 2026-11-24。项目设置读取与永久删除交错时，目录库确认项目已不存在后，设置请求返回 404（`catalog.project_not_found`）。目录库仍有项目时保留数据库打开失败的诊断。回归核对目录库记录、项目文件和同一删除请求的回执。 [#2283](https://github.com/molis-ai/molis-work/pull/2283) |
+| BL-secret-entry-storage-code | 已修复并删除 | 2026-11-24。本机凭据条目格式错误和解密失败分别返回 `storage.secret_entry_invalid` 和 `storage.secret_entry_decryption_failed`。MCP 调用保留对应的错误码和恢复提示。凭据快照沿用其完整性错误码。 [#2283](https://github.com/molis-ai/molis-work/pull/2283) |
 | BL-1040 | 已完成并删除 | 第 27 批 [#2010](https://github.com/molis-ai/molis-work/pull/2010) 已在没有远端时隐藏「建 PR…」，三种 Git 状态提示均为普通文字。2026-11-23 在隔离 Home 复验并补上无远端时中英文无障碍树都没有 PR 入口、已有暂存文件仍可本地提交的断言（`tests/git-source-controls.e2e.test.ts`）。 |
 | BL-1037 | 已完成并删除 | 2026-11-23 在主干 `8192cc7b10` 的 Goals 调用链打开空项目的 Goals 与画布，没有新增 `goals.stage.read` 输入不合法的「未执行」记录。`tests/goals-momentum.e2e.test.ts` 直接读取隔离 Home 的调用记录并断言这一点。 |
 | BL-coding-change-reader-narrow-toolbar | 已完成并删除 | 2026-11-23 Coding 固定变更阅读器的工具条随可用宽度换行，选中的长路径在行内省略，底色收在清单框内。`tests/code-diff-reader.e2e.test.ts` 在中英文、明暗色下检查横向边界，并在 390 px 验证「设为变更输出」可用 Tab 到达且点击会发出请求。 |
+| BL-1032 | 已完成并删除 | 2026-11-24。设备接续演示的固定文档从运行中的 Pages 声明取成果格式、来源对象类型、版本和签名。启动器回归读到第 2 版文档并完成交接、同请求重试与重启回读。隔离 Home 另从 Inbox 选材料并提交一次，直接打开可编辑的 Pages 草稿，原事项保留待确认。 |
+| BL-1047 | 已完成并删除 | 2026-11-24。组件板、问卷导出的填写页和宿主侧栏错误页共用内联图标声明。`tests/page-reads-quiet.e2e.test.ts` 在独立 Chrome 核对三个响应分别为 200、200、404，`/favicon.ico` 请求数均为 0。 |
+| BL-1068 | 已完成并删除 | 2026-11-24。[插件同步手册](../skills/molis-plugin-dev/sync.md) 说明旧 Work 会话和交接同步已移除，并写明外部 AI 会话的本机索引、读取许可和原文按需读取边界。以 Host 同步目录和外部会话服务的实际接线为准。 |
 | BL-golden-generation-nondeterministic | 已完成并删除 | 2026-11-23。生成时暂停 Prologue 队列未来任务的唤醒，保留待执行记录。常速和模拟慢机两条字节比较通过，签名金样 `0.1.1-dev.8` 重生成一致。 [#2273](https://github.com/molis-ai/molis-work/pull/2273) · [验证结果](../specs/archive/golden-determinism-computer/spec.md#验证结果) |
 | BL-golden-computer-settings | 已完成并删除 | 2026-11-23。`0.1.1-dev.8` 经助手设置保存 `computer/settings.json`，macOS 设置入口读回。模拟 Linux 结果明确为 `not-run`。三份金样回放及覆盖门禁通过。 [#2273](https://github.com/molis-ai/molis-work/pull/2273) · [验证结果](../specs/archive/golden-determinism-computer/spec.md#验证结果) |
 | BL-feed-precise-wakeup | 已完成并删除 | 2026-11-23，[#2257](https://github.com/molis-ai/molis-work/pull/2257)（`404b0842f7`）：Feed 运行时唤醒改按所有启用自动拉取来源的最早下次到期时刻精确登记，无自动拉取来源时清除唤醒作业，覆盖启动/恢复、来源增删改/启停/暂停恢复、拉取完成/失败/退避与错过决定重算，并清理历史 30 秒周期唤醒作业，恢复 Feed 项目空闲休眠；见 [103.md](../specs/post-anticorruption-roadmap/reference/batches/103.md) |
@@ -25,6 +35,7 @@
 | BL-637 | 已由平台通用工作终端替代并删除 | 2026-11-22 第 44 批复核结清：第 44 批 44-4（PEQ-17）已删除 `startGoalTerminalClient`，改为平台通用对象工作终端 `startWorkTerminalClient()`（`apps/workbench/src/terminal-client.ts`，任何声明 `work_terminals` 的插件共用）；`/desktop/pty-client.js` 按需加载仍由 [BL-first-screen-pty-client](../specs/backlog/BL-first-screen-pty-client.md) 跟踪 |
 | BL-178 | 已完成并删除 | 2026-11-22 第 44 批复核结清：第 44 批 44-5（PEQ-09）已将平台材料模型缓存迁至独立平台目录 `{home}/materials/models`（`MATERIALS_HOME_STORE`，`apps/local-host/src/material-home.ts`），不再使用 `lingguang/models` |
 | BL-1015 | 已修复并删除 | 2026-11-22 第 44 批复核结清：`plugins/native/goals/src/browser/momentum.ts`（原 `momentum-client.ts`）在未选中 Goal 时不再拼接空 `goal_id=`；`document-routes.ts:30` 与 `stage-action.ts:98` 对空 `goal_id` 亦安全归为空串而非返回 400 |
+| <a id="bl-risk-sync"></a>BL-risk-sync | 已完成并删除 | 2026-11-22，M1-B1 随 [#2223](https://github.com/molis-ai/molis-work/pull/2223) 将项目风险接入个人空间同步。Risk 拥有 `risks` 集合及其版本 1 的便携格式，传递项目内风险、业务状态、历史和带类型的引用。项目目录负责项目的身份和删除。Schedule 管理复查任务和执行状态，接收风险只写风险记录、引用和历史。[AC-M1-01](../specs/personal-cloud-sync/plugin-replication.md#verification) 在两个隔离的个人 Home 上验证了首次接收、增量更新、并发冲突、显式解决和删除标记，以及收到无效字段、重复历史事件或跨项目标识时保留原记录和历史。[Risk 回归用例](../tests/risk-plugin.test.ts#L13)。2026-11-23 用户确认结项。 |
 | BL-586 | 已完成并删除 | 2026-11-22：第 47 批 47-1（子分支 `47/one-platform`）。用户定范围为「Home 一份＋项目一份」：另一位发布者用同一插件编号签的包是另一个插件，范围按「插件编号＋发布者」记（S-80），项目页的舞台、目录、语言文件与「隐藏」各按自己的安装；验收用例 `tests/home-installed-plugins.test.ts`「BL-586 …」。同一范围里两家并存另记 BL-same-id-same-range |
 | BL-1064 | 已完成并删除 | 2026-11-23 随 [#2275](https://github.com/molis-ai/molis-work/pull/2275) 合入 `ae014586f4`。macOS 插件沙箱按 dyld 实际加载的文件逐个授权。缺失或越界的 Node 动态库在启动插件前拒绝，安装入口提示换用官方 Node。已在临时 Homebrew 24.22.2 安装上通过 CLI 签名插件安装和 Seatbelt 回归。路径与验证见 [BL-1064 规格书](../specs/archive/bl-1064-node-sandbox/spec.md)。 |
 | BL-generated-plugin-prompt-binding-baseline | 同因，随 BL-1064 结清 | 2026-11-23：同一干净基线 `5bfd52b87b` 上，官方 Node 24.15.0 通过，Homebrew 24.22.2 在首次安装时失败；修复后两份 Node 均通过提示词绑定回归。macOS 用例排程继续由 [BL-seatbelt-tests-unrun](../specs/backlog/BL-seatbelt-tests-unrun.md) 跟踪。 |

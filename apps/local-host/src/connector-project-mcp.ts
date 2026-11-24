@@ -1,4 +1,6 @@
-import { defineErrorCodes, type ActionHandlerBinding, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineConnectorUsagesAction } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { withConnectorConnections } from "./connector-connection-store.js";
+import { ActionError, bindActionHandler, defineErrorCodes, type ActionHandlerBinding, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMcpLibrary, AgentSkillOwner, AgentMcpServerView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { describeProjectMcpStatus, projectMcpRevision } from "./connector-project-status.js";
 import { withConnectorObservations } from "./connector-observations.js";
@@ -19,6 +21,25 @@ const view = (owner: AgentSkillOwner, server: AgentMcpServerView) => ({
 /** Whose project MCP a caller manages: a caller in a project only that project's; a Home-level caller outside any project (the person, a Home Agent or MCP client alike) every project's. */
 const managedCatalog = async (library: AgentMcpLibrary | undefined, caller: Pick<ActionCallContext, "project_id">) =>
   (await library?.catalog?.() ?? []).filter(({ owner }) => !caller.project_id || owner.project_id === caller.project_id);
+/** Coding saves the selected account on the MCP configuration. Report those same records, including disabled ones. */
+export const projectMcpUsages = defineConnectorUsagesAction("connectors.project_mcp.usages", /* @version action.connectors.project_mcp.usages */ 1,
+  "项目外部工具使用的连接", ["connectors:management:read"], "home");
+
+export function projectMcpUsagesHandler(home: string, port: ProjectMcpManagementPort,
+  projectNames?: () => Promise<ReadonlyMap<string, string>>): ActionHandlerBinding {
+  return bindActionHandler(projectMcpUsages, async ({ connection_id: id }, caller) => {
+    const connection = withConnectorConnections(home, store => store.get(id), true);
+    if (!connection || connection.auth_method !== "mcp" && connection.service_id !== "mcp-bearer") return { usages: [] };
+    const library = await port.library();
+    if (!library?.catalog) throw new ActionError("actions.unavailable", "暂时无法读取项目外部工具配置");
+    const matches = (await managedCatalog(library, caller)).filter(({ server }) => server.auth_connection_id === id);
+    if (!matches.length) return { usages: [] };
+    const names = await projectNames?.();
+    return { usages: matches.map(({ server, owner }) => ({ usage_id: server.id,
+      title: `${names?.get(owner.project_id) ?? owner.project_id} · ${server.label}`, enabled: server.enabled, actions: [] })) };
+  });
+}
+
 export async function listProjectMcpConnections(home: string, port: ProjectMcpManagementPort, actions: readonly ActionView[], caller: ActionCallContext) {
   return (await managedCatalog(await port.library(), caller)).map(({ owner, server }) => ({ ...view(owner, server), status: describeProjectMcpStatus(home, owner, server, actions, caller) }));
 }

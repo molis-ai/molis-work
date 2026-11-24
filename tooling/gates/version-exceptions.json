@@ -362,14 +362,8 @@
   {
     "file": "server/tooling/continuity-demo.mts",
     "name": "version",
-    "values": { "2": 2 },
+    "values": { "2": 1 },
     "reason": "跨设备接续演示脚本里示例成果的修订号，只在本机演示时写入。"
-  },
-  {
-    "file": "server/tooling/continuity-demo.mts",
-    "name": "plugin_version",
-    "values": { "1.0.0": 1 },
-    "reason": "跨设备接续演示脚本里示例成果的生产者版本，只在本机演示时写入。"
   },
   {
     "file": "tooling/plugin-cli/src/create.ts",
@@ -732,13 +726,13 @@
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
-    "file": "plugins/native/shelf/src/settings-ui.ts",
+    "file": "modules/shelf/src/surface/settings-ui.ts",
     "name": "io.molis.work.native.shelf.settings.v1",
     "values": { "io.molis.work.native.shelf.settings.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
   },
   {
-    "file": "plugins/native/shelf/src/ui.ts",
+    "file": "modules/shelf/src/surface/ui.ts",
     "name": "io.molis.work.native.shelf.ui.v1",
     "values": { "io.molis.work.native.shelf.ui.v1": 1 },
     "reason": "UI 贡献 id 是固定身份：读者只按整串匹配，不按其中的号比较或拒绝，改它不代表版本升级。"
@@ -805,8 +799,8 @@
   },
   {
     "file": "apps/local-host/src/search-intelligence-client.ts",
-    "name": "feed-intent-v1",
-    "values": { "feed-intent-v1": 1 },
+    "name": "search-store-v1",
+    "values": { "search-store-v1": 1 },
     "reason": "搜索 SDK 的键命名空间，写进存储的键里，改它就找不到已有记录，不是当前版本号。"
   },
   {
@@ -865,8 +859,8 @@
   },
   {
     "file": "packages/storage/src/adapters/search-storage.ts",
-    "name": "molis-work-feed-cas-v1.X",
-    "values": { "molis-work-feed-cas-v1.X": 1 },
+    "name": "molis-work-opaque-cas-v1.X",
+    "values": { "molis-work-opaque-cas-v1.X": 1 },
     "reason": "乐观并发令牌的固定前缀，后面是随机数；令牌只按整串相等比较，不解析版本。"
   },
   {

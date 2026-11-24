@@ -424,6 +424,7 @@ html body.immersive-workbench[data-acceptance-open=true] [data-plugin-stage]{mar
 .work-decision-note{width:100%;min-height:44px;margin-top:8px;box-sizing:border-box;padding:6px 8px;border:1px solid var(--line-strong);border-radius:var(--r-control,6px);background:var(--paper);color:var(--ink);font:inherit;font-size:13px;resize:vertical}
 .work-decision-note[aria-invalid="true"]{border-color:var(--red)}
 .work-place-menu{position:static;display:flex;flex-direction:column;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:var(--r-row,8px);box-shadow:none}
+.work-receive-menu{width:max-content;max-width:100%;min-width:180px;margin-top:6px}
 /* The page the platform draws for an event whose owner has none (POLISH-68; scheme B, user 2026-11-21): its name, then two
    columns — what the owner gave and what is asked, then who registered it, how it stands, where it is kept and the tasks done
    for it. One column where its pane is narrow, the owner's part first. */

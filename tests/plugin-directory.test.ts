@@ -59,7 +59,7 @@ function view(directory?: readonly PluginDirectoryEntry[]): MolisWorkWebView {
     route_prefix: `/projects/${PROJECT}`,
     demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {},
     input_bindings: [], policy_bindings: [], events: [],
-    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
+    feed: { sources: [], feed_items: [], attention_entries: [], runs: [], out_rules: [] },
     enabled_plugins: [...EVERYTHING],
     ...(directory ? { plugin_directory: directory } : {}),
   } as MolisWorkWebView;
@@ -177,7 +177,7 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refus
     assert.deepEqual(report.blocked, []); assert.deepEqual(report.running, []);
     const running = runningPluginDirectory(platform.supervisor);
     assert.deepEqual(running.map(entry => [entry.id, entry.plugin_id, entry.chosen]), [[pluginId, pluginId, false]], "the real Host directory does not grant the built-in key or trust to a different publisher");
-    assert.equal(running[0]!.personal, undefined); assert.equal(running[0]!.always_on, undefined);
+    assert.equal(running[0]!.personal, undefined);
     const directory = pluginDirectoryFor(running), market = builtinPluginDirectory().find(entry => entry.id === "pages")!;
     assert.deepEqual(directory.find(entry => entry.id === "pages"), market, "a different Runtime key does not remove the not-running built-in market entry");
     const rail = railEntries(["pages"], directory);
@@ -214,7 +214,8 @@ test("RAC-605-KEY-02 equal Manifest ids retain each entry's slots, chosen state,
   assert.deepEqual(railEntries([], directory).map(item => item.id), ["other", "alpha", "artifacts", "sessions", "stage-runtime"], "only chosen entries need membership; the platform and other running entries still open their own stage");
   assert.deepEqual(islandEntries(["beta"], directory).map(item => [item.id, item.label]), [["beta", "beta island"], ["alpha", "alpha island"]]);
   assert.deepEqual(settingsEntries(["beta"], directory).map(item => [item.plugin_title, item.plugin_id, item.view_id, item.contribution_id]),
-    [["beta", pluginId, "preferences", `${pluginId}.preferences`], ["alpha", pluginId, "preferences", `${pluginId}.preferences`]], "shell keys do not rewrite Manifest or contribution identity");
+    [["beta", pluginId, "preferences", `${pluginId}.preferences`], ["alpha", pluginId, "preferences", `${pluginId}.preferences`],
+      ["Shelf", "system.shelf", "settings", "io.molis.work.native.shelf.settings.v1"]], "shell keys do not rewrite Manifest or contribution identity; the platform's Shelf follows");
   const tie = pluginDirectoryFor([entry("z-first", false, 1), entry("a-second", false, 1)]);
   assert.deepEqual(railEntries([], tie).map(item => item.id), ["z-first", "a-second", "artifacts", "sessions"], "equal order, Manifest id and view id retain declaration order, rather than sorting by shell key");
   const copied: PluginDirectoryEntry = { ...entry("copied-runtime", false, 1), name: "Same name", ui: { views: [{ view_id: "main", slot: "navigator", title: "Same title", order: 1 }] } };
@@ -242,7 +243,7 @@ test("RAC-619 the Host's marks (personal, home, always_on, companions) are kept 
     marked("many", true, { companions: Array.from({ length: 50 }, (_, index) => `p${index}`) }),
     marked("loose-home", false, { personal: "yes", home: 1 }),
   ]) as PluginDirectoryEntry[];
-  assert.deepEqual([kept!.personal, kept!.always_on, kept!.companions], [true, true, ["inbox", "feed"]], "a plain key is kept once; a repeated one, a key outside the pattern and a non-string are dropped");
+  assert.deepEqual([kept!.personal, kept!.companions], [true, ["inbox", "feed"]], "a plain key is kept once; a repeated one, a key outside the pattern and a non-string are dropped");
   // 07-1 S4b (口径 9): an entry the project does not choose is a Home one, and a package installed in the Home is the person's own as a
   // built-in Home plugin is, so it keeps the Host's two Home marks (`personal`, `home`; `isPersonalPlugin` reads both). It still carries
   // none of the project's marks. Before S4b such an entry carried no mark at all; that expectation changed with the rule, not loosened.

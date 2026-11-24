@@ -19,7 +19,7 @@ for (const [method, file, action, capabilityId] of [
   const typed = read("apps/local-host/src/project-capabilities.ts");
   assert.equal(typed.includes(`goalsActions.${action}`), false, "no typed bridge is registered for the action");
   assert.equal(typed.includes(`coordinator.${method}(`), false, "typed transport cannot bypass action policy");
-  assert.equal(registration.includes(`"${capabilityId}"`), action !== "treeDecide", "only non-decision actions stay in management_actions; treeDecide uses the generic trusted review door");
+  assert.equal(registration.includes(`"${capabilityId}"`), false, "Goals' registration names no action for a management entry (44B); a decision uses the generic trusted review door");
   assert.ok(read("plugins/native/goals/src/tree-actions.ts").includes(`goalsTreeActions.${action}`), "and the Goals owner registers it");
 });
 

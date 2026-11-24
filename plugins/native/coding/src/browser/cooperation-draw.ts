@@ -224,16 +224,18 @@ export function drawBanner(coop: Coop, incoming: Delegation | null) {
 function mailItem(coop: Coop, message: Mail, word: ReturnType<typeof words>) {
   const item = el("li"), head = el("div", "", "coding-coop-head"), line = el("p", "", "coding-coop-line");
   item.dataset.state = message.state;
-  const failed = message.state === "cancelled" && (message.history || []).some(entry => entry.event === "failed");
-  const chip = el("span", failed ? uiText.text("coding.coop.mail.failed") : (word.mailState[message.state] || message.state), "mw-status mw-status--plain");
+  const ending = message.state === "cancelled" ? message.history?.find(entry => entry.event === "failed" || entry.event === "stopped") : undefined;
+  const failed = ending?.event === "failed", stopped = ending?.event === "stopped";
+  const chip = el("span", failed ? uiText.text("coding.coop.mail.failed") : stopped ? uiText.text("coding.phase.stopped") : (word.mailState[message.state] || message.state), "mw-status mw-status--plain");
   chip.dataset.tone = failed ? "blocked" : (MAIL_TONE[message.state] || "idle");
-  chip.dataset.mwState = failed ? "failed" : MAIL_RING[message.state] || "verify";
+  chip.dataset.mwState = failed ? "failed" : stopped ? "stopped" : MAIL_RING[message.state] || "verify";
   const kind = word.mailKind[message.kind] || message.kind;
-  head.append(el("strong", (message.outgoing ? uiText.text("coding.coop.mail.sent", { kind }) : uiText.text("coding.coop.mail.received", { kind })) + (message.await_reply ? uiText.text("coding.coop.mail.awaiting") : "")), chip);
+  head.append(el("strong", (message.outgoing ? uiText.text("coding.coop.mail.sent", { kind }) : uiText.text("coding.coop.mail.received", { kind })) + (message.await_reply && ["queued", "delivered", "accepted"].includes(message.state) ? uiText.text("coding.coop.mail.awaiting") : "")), chip);
   line.append(document.createTextNode(message.outgoing ? uiText.text("coding.coop.mail.to") : uiText.text("coding.coop.mail.from")), message.peer ? sessionLink(coop, message.peer) : el("span", uiText.text("coding.coop.quoted", { title: (message.outgoing ? message.to_title : message.from_title) ?? "" })), el("time", time(message.sent_at_ms)));
   const body = el("details", "", "coding-coop-task");
   body.append(el("summary", message.body.split("\n")[0]?.slice(0, 80) ?? ""), el("p", message.body));
   item.append(head, line, body);
+  if (stopped && ending.note) item.append(el("p", ending.note, "coding-coop-note"));
   if (message.outgoing && ["queued", "delivered", "accepted"].includes(message.state)) item.append(button(coop, uiText.text("coding.coop.withdraw"), "ghost", () => post(coop, "/messages/" + encodeURIComponent(message.message_id) + "/cancel", uiText.text("coding.coop.withdrawn"))));
   return item;
 }

@@ -113,7 +113,7 @@ test("S-upgrade-too-new-untouched: `security/secrets.json` one version ahead, un
   const vaults = [
     ["storage.store_too_new", (vault: Record<string, unknown>) => ({ ...vault, version: versionAt(relative) + 1 }), { code: "storage.store_too_new" }],
     ["storage.schema_version_mismatch", () => "{", { code: "storage.schema_version_mismatch" }],
-    ["an entry that is not sealed", (vault: Record<string, unknown>) => ({ ...vault, entries: { ...vault.entries as object, "another-owner:entry": "not-sealed" } }), /not AES-GCM sealed/u],
+    ["an entry that is not sealed", (vault: Record<string, unknown>) => ({ ...vault, entries: { ...vault.entries as object, "another-owner:entry": "not-sealed" } }), { code: "storage.secret_entry_invalid" }],
   ] as const;
   for (const [label, turn, refused] of vaults) {
     const { home } = upgradeTestHome(t), sent: string[] = [];

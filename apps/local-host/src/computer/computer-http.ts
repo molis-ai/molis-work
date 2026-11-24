@@ -113,9 +113,9 @@ export async function handleComputerHttp(request: IncomingMessage, response: Ser
     if (request.method === "GET") { const record = ports.records.get(id); record ? json(200, { record }) : json(404, { error: "找不到这份记录" }); return true; }
     if (request.method === "DELETE") { json(200, { removed: ports.records.remove(id) }); return true; }
   }
-  // The round's record on the Shelf (specs/computer-use §5): the words the panel wrote, then the latest screenshot as a png.
-  // Shelf is reached through its public actions; if the screenshot cannot follow, the text copy is taken back.
-  const shelfMatch = /^\/api\/computer\/records\/([a-z0-9-]{8,80})\/shelf$/u.exec(url.pathname);
+  // 「放到…」 for the round's record (specs/computer-use §5, M4): the words the panel wrote, then the latest screenshot as a png, to the
+  // platform's receiver (the Shelf, reached through its public actions); if the screenshot cannot follow, the text copy is taken back.
+  const shelfMatch = /^\/api\/computer\/records\/([a-z0-9-]{8,80})\/receive$/u.exec(url.pathname);
   if (shelfMatch && request.method === "POST") {
     const record = ports.records.get(shelfMatch[1]!);
     if (!record) { json(404, { error: "找不到这份记录" }); return true; }

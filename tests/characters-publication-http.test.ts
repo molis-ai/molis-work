@@ -27,7 +27,7 @@ test("ROLE-01 ROLE-04 ROLE-07 ROLE-08 roles are saved, added to a project, froze
   let origin = await start();
   t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); rmSync(home, { recursive: true, force: true }); });
   const request = async (project: string, method: string, path: string, body?: unknown, authorized = true) => {
-    const response = await fetch(`${origin}/projects/${project}/api/plugins/io.molis.work.characters${path}`, {
+    const response = await fetch(`${origin}/projects/${project}/api/platform/characters${path}`, {
       method, headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), ...(authorized ? { "x-molis-work-control-token": token } : {}) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
@@ -81,7 +81,7 @@ test("ROLE-01 ROLE-04 ROLE-07 ROLE-08 roles are saved, added to a project, froze
   assert.equal(published.status, 200, JSON.stringify(published.body));
   assert.equal(published.body.publication.payload.instructions, "新的做事方式");
   assert.equal(published.body.publication.owner_actor_id, "web-user");
-  assert.equal(published.body.publication.producer_plugin_id, "io.molis.work.characters");
+  assert.equal(published.body.publication.producer_plugin_id, "system.characters");
   // RAC-72: the Host writes the publication as the person, with the product version as producer version (CHR-1 D4).
   assert.equal(published.body.publication.producer_plugin_version, JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version);
   const repeat = await a("POST", path + "/publish", { expected_revision: edited.body.draft.revision });

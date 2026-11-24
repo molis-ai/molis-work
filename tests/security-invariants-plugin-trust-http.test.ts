@@ -111,7 +111,7 @@ test("RAC-409 taking an agreement back through the settings door writes revoked_
   const preview = await env.send("/api/plugin-trust/install/preview", { body: { bundle: signedPackage(publisher) } });
   await env.send("/api/plugin-trust/install/confirm", { body: { preview_id: (preview.body as { preview_id: string }).preview_id, consent: true, pin_label: "Example" } });
   const ledger = new HomeConsentLedger(env.home);
-  const [given] = ledger.record({ plugin_id: PACKAGE_PLUGIN_ID, publisher_signature: publisher.identity, manifest_digest: "digest", granted_by: "user", grants: [{ kind: "always_on", subject: "plugin" }], at: "2026-10-25T00:00:00.000Z" });
+  const [given] = ledger.record({ plugin_id: PACKAGE_PLUGIN_ID, publisher_signature: publisher.identity, manifest_digest: "digest", granted_by: "user", grants: [{ kind: "default_group", subject: "group" }], at: "2026-10-25T00:00:00.000Z" });
   const listed = (await env.overview()).plugins.find(item => item.plugin_id === PACKAGE_PLUGIN_ID)!;
   assert.deepEqual(listed.consents.map(item => [item.consent_id, item.revoked_at]), [[given!.consent_id, null]]);
   // The page takes an agreement back through the Host's settings door, the only one `plugins.consents.revoke@1` accepts (S-77).

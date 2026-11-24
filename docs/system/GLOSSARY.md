@@ -43,7 +43,7 @@
 | 能力包（kit） | 做一类事要用的东西放在一起看：技能、MCP、工具，以及搭配的角色和角色的提示词。是现算的聚合视图，不存：一个插件的安装就是一个包，另有「Molis Work 自带」和「你的角色」两个；条目由各自的事实主人上报，`horizontal/kit` 只汇总、拼包（`kit.catalog.list@1`）。定义见 2.3 | 能力包（设置 › 能力包；英文 AI kits） | 技能包（那是只带技能的内容插件）、套件、方法库；`kit` 只用在代码、路由和键里 |
 | 提示词改写文件 | 本人对提示词的改写导出成的文件（`format: "molis.prompt-overrides"`），导回时逐条看过、版本对得上才套用；是用户自己的数据，不是包，从不安装，也不随内容包走 | 能力包「导入文件」里的「提示词改写」 | 把它算进内容包；「提示词包」 |
 | Skill 目录 | 一个范围（某个项目，或个人空间）里装着的全部 Skill，每项带精确引用 `SkillRef`、在这个范围的状态（关、自动、仅手动）和能不能用；归宿主的 Agent 定义登记，由 `system.skills` 的 `skills.catalog.list@1` 等动作读写（`packages/contracts/src/services/skills.ts`，`specs/skill-packs/contract-design.md` 第 8 节）。助理和 Coding 读同一份，不各存名单 | 设置里「技能」一节 | 共同目录（指它时；共同目录是动作目录的旧称，不指 Skill）、方法目录、平台方法目录 |
-| 规划方法 | 技能目录里随系统自带的技能包（`plugins/content/planning-methods`，37 个）；和 Goals 没有关系 | 规划方法、规划与拆解 | Goals 的方法库、方法包（method pack） |
+| 规划方法 | 技能目录里随系统自带的技能包（`packages/system-skills/planning-methods`，37 个）；和 Goals 没有关系 | 规划方法、规划与拆解 | Goals 的方法库、方法包（method pack） |
 | 我的技能 | 本人在能力包页新建／修改、用这台电脑的发布身份签名的一个内容包（项目与个人空间各一个）；与从本机导入的同类 | 能力包页的「我的技能」 | 个人方法库、自建方法 |
 | 连接方式 | 一个服务的授权途径（OAuth、命令行、令牌、MCP） | 连接方式 | method（代码里的 `ConnectorMethod*`） |
 | Agent | 多轮、带工具、按角色运行并受审查的 AI 工作者；外部的叫外部 Agent，是在外部 Runtime 里运行的工作者 | 日常界面写 AI 或助理；与外部工具对比时写内置 AI（见 U6、4.1） | 把 Claude Code、Codex 这类产品叫 Agent（它们是 Runtime） |
@@ -65,7 +65,7 @@
 | 当前约定（Goal 的） | 一条 Goal 现在要遵守的约定与要求，是 Goals 记下的、带版本的事实，每次修改是一条事件；Runtime 放宽或替换已有约定要引用本人授权；Goal 按它收尾 | 当前约定 | 把助理侧栏 AI 自称采纳的约束也叫它（那是「AI 记下的约定」） |
 | AI 记下的约定 | 助理侧栏列出的、AI 在处理说明里自称采纳为约束、目标或完成条件的补充；只是 AI 的自称，Molis 没有核对，不可编辑，要改就从那条补充发更正（`specs/ai-input-receipts/spec.md` §9.2、D41） | AI 记下的约定（英文 What the AI noted as agreed；2026-10-19 起，此前叫「当前约定」） | 当前约定（指它时）、已生效的约定 |
 | 处理说明（acknowledge） | AI 对一条补充、笔记、要求或本人的决定说「我读到了，我这样处理」；是 AI 的自称，不证明已经照做，Molis 没有核对。落点分两处：`acknowledge-inputs` 是运行时的系统工具，说明落在运行账里，说的是对话里的补充；`goals.events.acknowledge` 是 Goals 的动作，说明落在 Goal 时间线上，说的是 `gevt-` 记录（笔记、要求、本人的决定），只给 MCP 与助理、Agent 调用（`specs/ai-input-receipts/spec.md` §8.4、RCPT-376～383） | 处理说明（时间线上的类型名同；英文 How it will be handled） | 回执（读到状态才叫读到回执）、确认 |
-| 常开插件 | Manifest 声明 `always_on: true`、同意账本里有一行有效同意、且已装并开着的插件：每个项目都开着，不进插件列表、市场、Dock 的选择和项目插件管理，服务端拒绝把它从项目移除、停用或卸载；撤回同意后它就是普通插件（`docs/system/SECURITY-INVARIANTS.md` S-34，ac-trust T3）。随宿主发布的插件由宿主代为同意。现在只有 Shelf（Shelf 是右栏的第一格；Goals 第 44 批 PEQ-12 起不再声明 `always_on`，新项目不默认安装且可移除）。`openPlugin=shelf` 一类的链接说的是插件，按声明打开它的侧栏格（`docs/system/EXTENSION-POINTS.md` §3.7） | 无（界面上它就是右栏的一格） | 平台自带（指 Shelf 时）、常驻插件 |
+| 常开插件 | 已删除（第 44B 批，决定 66）：没有哪项声明能让插件每个项目都有、删不掉。原来唯一的常开插件 Shelf 现在是 Runtime 托管的平台部件（`system.shelf`），不进插件列表与项目成员；`openPlugin=shelf` 一类的链接按声明打开它的侧栏格（`docs/system/EXTENSION-POINTS.md` §3.7；`docs/system/SECURITY-INVARIANTS.md` S-34） | 无（界面上它就是右栏的一格） | 平台自带（指 Shelf 时）、常驻插件 |
 | 双实例插件 | 同一个 `plugin_id`、同一份 Manifest，既作 Home 实例由 Home 监督器装配，又作项目实例由项目监督器在每个项目里装配；两半的 `install_id` 与提供方相同，动作、路由各归一半，记录各在自己的库里。内置插件由目录条目或 Manifest `runtime.dual_instance: true` 声明，第 44 批（PEQ-06）起对签名第三方插件开放同等声明，沿用相同的安装信任、授权与沙箱边界（`docs/system/SECURITY-INVARIANTS.md` S-15，`docs/platform/PLUGIN-DEVELOPMENT.md`「双实例插件」）。Home 实例、项目实例分别指它的两半 | 无（用户看到的是一个插件） | 拆插件、两个插件（它不拆 id）；部分兑现、`partial`（那是 Runtime 对一次启动放宽的范围，`RedemptionScope`，不是这个标记） |
 | 随激活作业 | 插件这次激活保留、Manifest `background.jobs` 声明过的后台作业（`services.background.keep`）：属于安装，不属于登记它的调用，只有安装自己的授权；单次调用取消、撤权不停它，插件停止、项目关闭或删除、Home 关闭就停，不落盘、不重放（`docs/system/SECURITY-INVARIANTS.md` S-52，`docs/platform/PLUGIN-DEVELOPMENT.md`「随激活存活的后台作业」） | 无 | 后台作业（裸写，见 2.5）、activations 表（Coding 旧写法） |
 | 宿主事件 | 宿主自己发出、插件按 Manifest 声明订阅的事件（X-6），`host.` 前缀；投递方式由类型表固定：定向的只投给事件上记着的那个安装，广播的投给持有登记权限的每个订阅安装；即时、不落库、不重投，订阅不写来源插件（S-54） | 无（用户看不见） | 插件事件（指它时；插件事件由运行中的插件发、落项目库）、领域事件（X-6 的另一种来源，还没有订阅口） |
@@ -241,7 +241,7 @@
 
 - 定义：个人拥有的 AI 做事方式：标题、指令、可选的内置工具范围和动作范围（用来限制，不授予权限）、可附带导入的规则与 Skill 快照。原件、版本及项目成员归 `modules/characters`。任务存原件或成员的稳定引用，由 Agent Host 在运行开始时钉固定版本。项目成员的做事方式与能用什么默认各自跟随原件，项目改过的一节可恢复跟随。发布为成果 `character.definition.v1` 是独立操作。插件须在 Manifest 的 `characters.role_ids` 声明哪些 Agent role 接受个人角色。
 - 归属（2026-10-08 用户决定，`specs/archive/repository-anti-corruption/spec.md` §1「Characters 的代码身份」）：Characters 不是插件，是宿主设置里的一节，界面仍是「设置 › 角色」；代码并进宿主或一个 Module（2026-10-18 定为 `modules/characters`），它的安装记录与 Runtime 条目一起删。文档按「设置的一节」写；只有讲落地前的代码时才写「Characters 插件」。（CHR-1 已落地，2026-10-22；旧安装记录改走维护，见 `docs/releases/CHECKLIST.md`。）
-- 现行代码（CHR-1，2026-10-22 已落地；之前是 `plugins/native/characters`，一个经 Plugin Runtime 装配的插件）：Characters 没有自己的包、Manifest、`registration` 和监督器条目。动作声明、处理器与归属绑定在 `modules/characters`，宿主侧有 5 个文件：`apps/local-host/src/characters-host.ts`（为每个项目注册动作提供方）、`apps/local-host/src/characters-http.ts`（页面 14 个地址的门）、`apps/local-host/src/character-import-discovery.ts`、`apps/local-host/src/character-import-plugins.ts`、`apps/local-host/src/character-native-execution.ts`。动作提供方仍叫 `io.molis.work.characters`（`kind: "plugin"`，标题 Characters，D1），所以动作引用、MCP 工具名与已发布的生产者继续对得上；有了 Module 这一种之后叫什么，是 BL-378。已发布的版本里存着生产者身份（`CHARACTER_PLUGIN_ID`、`CHARACTER_PUBLISHER_SIGNATURE`，`packages/contracts/src/modules/characters.ts:14-15`），`modules/characters/src/publications.ts:26` 读取时核对，两个值保留；发布写入的 `producer_plugin_version` 是产品版本（D4）。这是代码身份，不属于术语改名。
+- 现行代码（CHR-1，2026-10-22 已落地；之前是 `plugins/native/characters`，一个经 Plugin Runtime 装配的插件）：Characters 没有自己的包、Manifest、`registration` 和监督器条目。动作声明、处理器与归属绑定在 `modules/characters`，宿主侧有 5 个文件：`apps/local-host/src/characters-host.ts`（为每个项目注册动作提供方）、`apps/local-host/src/characters-http.ts`（页面 14 个地址的门）、`apps/local-host/src/character-import-discovery.ts`、`apps/local-host/src/character-import-plugins.ts`、`apps/local-host/src/character-native-execution.ts`。动作提供方仍叫 `system.characters`（`kind: "plugin"`，标题 Characters，D1），所以动作引用、MCP 工具名与已发布的生产者继续对得上；有了 Module 这一种之后叫什么，是 BL-378。已发布的版本里存着生产者身份（`CHARACTER_PLUGIN_ID`、`CHARACTER_PUBLISHER_SIGNATURE`，`packages/contracts/src/modules/characters.ts:14-15`），`modules/characters/src/publications.ts:26` 读取时核对，两个值保留；发布写入的 `producer_plugin_version` 是产品版本（D4）。这是代码身份，不属于术语改名。
 - 代码：`CharacterDraft`、`CharacterContent`（`packages/contracts/src/modules/characters.ts`）。
 - 注意：设置的「角色」页同时列出 Character（「我的角色」）和 Agent role（「系统与插件带来的角色」）。界面把两者统称「角色」，文档分开写：个人的叫 Character，声明出来的叫 Agent role。裸写「角色」只用于引用这个界面标签。
 
@@ -265,7 +265,7 @@
 
 **其余三种「方法」（必须写全名）**
 
-- 规划方法（planning method）：拆解与规划用的方法，是技能目录里随系统自带的一包技能（`plugins/content/planning-methods`，37 个，给个人助理用，默认「自动」；用户 2026-11-14 定，第 41 批）。和 Goals 没有关系：助理用它拆解，结果要不要写进 Goals 由助理用 Goals 自己的动作决定。Goals 只留图检查与变更影响（`goals.planning.graph.check`、`goals.planning.impact`），不存、不采用方法。旧称：Goals 的方法库、个人方法、`PlanningMethodPack`（已删）。
+- 规划方法（planning method）：拆解与规划用的方法，是技能目录里随系统自带的一包技能（`packages/system-skills/planning-methods`，37 个，给个人助理用，默认「自动」；用户 2026-11-14 定，第 41 批）。和 Goals 没有关系：助理用它拆解，结果要不要写进 Goals 由助理用 Goals 自己的动作决定。Goals 只留图检查与变更影响（`goals.planning.graph.check`、`goals.planning.impact`），不存、不采用方法。旧称：Goals 的方法库、个人方法、`PlanningMethodPack`（已删）。
 - 连接方式（connection method）：一个服务可用的授权途径，`ConnectorMethodOption`（`kind` 为 `oauth`、`cli`、`token`、`mcp`，`packages/contracts/src/services/connector-host.ts`）。
 
 **写后检查器与等待检查器（必须写全名）**
@@ -495,7 +495,7 @@
 - 现状（角色）：「角色」页把「我的角色」（Character）和「系统与插件带来的角色」（Agent role）放在一页（`apps/workbench/src/characters/ui.ts:41,47`）；Coding 的提示同一句里写「已发布角色」和「左侧 Characters」（`plugins/native/coding/src/panels-messages.ts:467`）。
 - 现状（Agent 一词）：界面里指外部 AI 工具的地方写过「原生 Agent」「本地 Agent」「本机 Agent」「外部原生 Agent」「外部 Agent」「终端 Agent」「Agent CLI」，还有单写的「Agent」（导入对话框的下拉框标签，选项却是 Codex、Claude Code、Cursor 这样的产品；Shelf 的缺省运行工具名）；设置页「AI 与执行工具」写的是「Runtime」和「执行工具」（`apps/workbench/src/settings-renderer.ts:73-74`）。按 2.3 的判法逐条分，绝大多数是产品、导入来源或运行环境，只有几条在说工作者本身。
 - 范围：按字面搜过源码里带中文的「Agent」（不含测试、规格、文档和词典文件），指外部 AI 工具或其中工作者的都在下面两张表里。指内置 Agent、插件自己的 Agent（Coding、插件创作台的「代码 Agent」、Schedule 的项目 Agent）和 Agent 这个概念的，不在此列。下面是请你批准的完整字面清单，只换名词，不动别的字。
-- 词典：Characters 的这些字符串在词典里没有对应条目（按字面搜过各 `*en.ts`），只改源码。Shelf 的有：`plugins/native/shelf/src/en.ts` 里对应的键和英文值（如「未发现终端 Agent。」译作 No terminal agent found.）按 2.7 第 1 点同批改。
+- 词典：Characters 的这些字符串在词典里没有对应条目（按字面搜过各 `*en.ts`），只改源码。Shelf 的有：`modules/shelf/src/surface/en.ts` 里对应的键和英文值（如「未发现终端 Agent。」译作 No terminal agent found.）按 2.7 第 1 点同批改。
 
 A　指产品、导入来源或运行环境的（按 2.3 是 Runtime；已知是哪个产品时写产品名，`apps/workbench/src/browser/characters/import-client.ts:265` 已经写「本地 Claude Code」这样的名字，那一条不改）
 
@@ -522,10 +522,10 @@ A　指产品、导入来源或运行环境的（按 2.3 是 Runtime；已知是
 | `apps/workbench/src/browser/characters/terminal.ts:40` | 正在连接原生 Agent… | 正在连接本地 Runtime… |
 | `modules/characters/src/actions.ts:44,46,50,55,62` | 五个动作的标题与说明里的「用本机 Agent 运行」「查找可导入的 Agent」「本机 Agent 配置目录」「本机 Agent 设定」「启动本机 Agent 执行任务」（能力库和 Agent 看得到） | 同样只把「Agent」换成「Runtime」 |
 | `modules/shelf/src/runtimes.ts:182,186` | 未发现 Agent；未发现终端 Agent。 | 未发现 Runtime；未发现终端 Runtime。 |
-| `modules/shelf/src/runtimes.ts:195`、`plugins/native/shelf/src/browser/model.ts` | 还没有选定运行工具时的缺省名「Agent」 | 「Runtime」 |
-| `plugins/native/shelf/src/messages.ts` 里 `shelf.preview.*`、`shelf.bar.*` 的键 | 没有 Agent 也可以先提取 PDF 里的字；未发现终端 Agent。（及其后接「文件已留在架子上。」的两处） | 同样把「Agent」换成「Runtime」 |
-| `plugins/native/shelf/src/settings-ui.ts:209,213,224` | 本机文字提取不调用 Agent；不需要 Agent、授权或联网；未发现终端 Agent。暂存、预览、拖出和本机文字提取仍然可用。 | 同样把「Agent」换成「Runtime」 |
-| `plugins/native/shelf/src/messages.ts` 里 `shelf.tui.*` 的键（终端井搬进 `src/browser/terminal.ts` 后，这句话在这些键里） | 未发现终端 Agent。（及其后接「文件已留在架子上。」的一处） | 未发现终端 Runtime。 |
+| `modules/shelf/src/runtimes.ts:195`、`modules/shelf/src/surface/browser/model.ts` | 还没有选定运行工具时的缺省名「Agent」 | 「Runtime」 |
+| `modules/shelf/src/surface/messages.ts` 里 `shelf.preview.*`、`shelf.bar.*` 的键 | 没有 Agent 也可以先提取 PDF 里的字；未发现终端 Agent。（及其后接「文件已留在架子上。」的两处） | 同样把「Agent」换成「Runtime」 |
+| `modules/shelf/src/surface/settings-ui.ts:209,213,224` | 本机文字提取不调用 Agent；不需要 Agent、授权或联网；未发现终端 Agent。暂存、预览、拖出和本机文字提取仍然可用。 | 同样把「Agent」换成「Runtime」 |
+| `modules/shelf/src/surface/messages.ts` 里 `shelf.tui.*` 的键（终端井搬进 `src/browser/terminal.ts` 后，这句话在这些键里） | 未发现终端 Agent。（及其后接「文件已留在架子上。」的一处） | 未发现终端 Runtime。 |
 
 B　说工作者本身的（做事、用自己的权限、请求授权和提问；按 2.3 写「外部 Agent」）
 
@@ -539,8 +539,8 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 不在两张表里的几处：
 
 - 已经一致、不改：`apps/workbench/src/settings-assistant.ts:8` 的「不影响 Coding、外部 Agent 或你自己在页面里操作」（说使用动作的工作者，是 B 组的写法）；`apps/workbench/src/settings-renderer.ts:73-74` 的「AI 与执行工具」「没有可探测的 Runtime」（A 组的写法）；「Molis 内置引擎」（`apps/workbench/src/characters/import-ui.ts:15`、`apps/workbench/src/characters/ui.ts:66`）是内置 Runtime 的叫法，不是把产品叫成 Agent。
-- 提示词正文：`plugins/native/shelf/src/prompts.ts:58` 的「不要调用终端 Agent」是登记的提示词（`SHELF_INSTRUCTIONS`，`version: 1`）的一部分，不是界面文案；改它要升提示词版本，所以不随这一批改，另议。
-- 词典里没有使用处的键：`plugins/native/shelf/src/en.ts:132,137,200,283` 的四个含「Agent」「本机 Agent」的键，源码里没有对应的使用处（按字面搜过），翻译换成稳定键时作为无用键处理（2.7 第 5 点）。
+- 提示词正文：`modules/shelf/src/surface/prompts.ts:58` 的「不要调用终端 Agent」是登记的提示词（`SHELF_INSTRUCTIONS`，`version: 1`）的一部分，不是界面文案；改它要升提示词版本，所以不随这一批改，另议。
+- 词典里没有使用处的键：`modules/shelf/src/surface/en.ts:132,137,200,283` 的四个含「Agent」「本机 Agent」的键，源码里没有对应的使用处（按字面搜过），翻译换成稳定键时作为无用键处理（2.7 第 5 点）。
 
 - 决定（2026-11-17）：先区分环境（Runtime）与工作者（Agent），同日第二轮面向「零 AI 基础用户」再收敛界面用词：文档与代码继续严格写 `Runtime` / `Agent`，**日常界面不再向普通用户裸写 `Runtime` 与 `Agent`**——指电脑上装的外部产品统称 **「外部 AI 工具 / 电脑上的 AI 工具」**（已知具体软件名直接写 `Claude Code`、`Codex` 等），指系统自身执行能力写 **「AI」** 或 **「助理」**（需与外部对比时写 **「内置 AI」**）。设置页标题「AI 与执行工具」与「角色」统称保持不变；Coding 与助理里的「左侧 Characters / 在 Characters 里」统一改为「设置 › 角色」。
 - 关联：Characters 是设置的一节（2.3）。上面涉及它的文案随它并入宿主（CHR-1，2026-10-22）一起搬到了新位置，位置列已改成现行路径与行号。

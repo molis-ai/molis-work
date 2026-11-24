@@ -2,7 +2,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { sendLocalWebJson } from "./web-http.js";
 import { readErrorWord } from "./ui-error-words.js";
+import { homePageRequestBound } from "./home-page-authority.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
+import { repeatingFailure } from "./host-log.js";
+
+const attentionPartFailures = repeatingFailure("attention", "part_failed");
 
 /** Where each part of what waits on the person is read; every reader belongs to the part's owner. */
 export interface AttentionSources {
@@ -24,7 +28,7 @@ export interface AttentionSources {
    */
   mainline?: {
     line(item?: string | null): Promise<{ table: unknown }>;
-    summary?(): Promise<{ has_items: boolean; current: string | null }>;
+    summary?(): Promise<{ has_items: boolean; current: string | null; source_kinds?: string[] }>;
   } | null;
   /**
    * Hear that something this page shows may have changed (`attention-changes.ts`): the page's one stream (`GET /api/attention/events`)
@@ -43,17 +47,24 @@ export interface AttentionSources {
 export async function handleAttentionHttp(request: IncomingMessage, response: ServerResponse, url: URL, sources: AttentionSources): Promise<boolean> {
   if (request.method === "GET" && url.pathname === "/api/attention/events" && sources.changes) { attentionEvents(request, response, sources.changes); return true; }
   if (request.method !== "GET" || url.pathname !== "/api/attention") return false;
-  const part = async <T>(read: () => T | Promise<T>): Promise<T | null> => {
-    try { return await read(); } catch { return null; /* that part keeps its last answer on the page */ }
+  const part = async <T>(name: string, read: () => T | Promise<T>): Promise<T | null> => {
+    try {
+      const value = await read();
+      attentionPartFailures.worked(name);
+      return value;
+    } catch (error) {
+      attentionPartFailures.failed(name, error, { part: name });
+      return null; /* that part keeps its last answer on the page */
+    }
   };
   const surface = url.searchParams.get("surface") || null;
   const item = url.searchParams.get("item")?.trim() || null;
   const absent = Promise.resolve(null), mainline = sources.mainline;
   const [background_tasks, notices, plugin_events_pending, board_cursor, line, mainline_summary] = await Promise.all([
-    sources.backgroundTasks ? part(() => sources.backgroundTasks!()) : absent, part(() => sources.notices(surface)),
-    sources.pluginEventsPending ? part(() => sources.pluginEventsPending!()) : Promise.resolve(0), sources.boardCursor ? part(() => sources.boardCursor!()) : absent,
-    mainline ? part(() => mainline.line(item)) : absent,
-    mainline?.summary ? part(() => mainline.summary!()) : absent]);
+    sources.backgroundTasks ? part("background_tasks", () => sources.backgroundTasks!()) : absent, part("notices", () => sources.notices(surface)),
+    sources.pluginEventsPending ? part("plugin_events_pending", () => sources.pluginEventsPending!()) : Promise.resolve(0), sources.boardCursor ? part("board_cursor", () => sources.boardCursor!()) : absent,
+    mainline ? part("line", () => mainline.line(item)) : absent,
+    mainline?.summary ? part("mainline_summary", () => mainline.summary!()) : absent]);
   // The task panel's table is the one the line was placed with: read once, sent beside the line it came with.
   sendLocalWebJson(response, 200, { background_tasks, notices, plugin_events_pending, board_cursor, line, tasks: line ? line.table : null, ...(mainline_summary ? { mainline_summary } : {}) });
   return true;
@@ -66,7 +77,7 @@ export async function handleAttentionHttp(request: IncomingMessage, response: Se
  * the line and the tasks are not in its answer either.
  */
 function attentionEvents(request: IncomingMessage, response: ServerResponse, changes: NonNullable<AttentionSources["changes"]>): void {
-  if (pluginPageRequest(request)) { sendLocalWebJson(response, 403, { error: readErrorWord("common.error.forbidden"), code: "actions.forbidden" }); return; }
+  if (pluginPageRequest(request) || homePageRequestBound(request)) { sendLocalWebJson(response, 403, { error: readErrorWord("common.error.forbidden"), code: "actions.forbidden" }); return; }
   response.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", "x-accel-buffering": "no" });
   response.flushHeaders();
   const send = () => { if (!response.writableEnded) response.write("event: changed\ndata: {}\n\n"); };

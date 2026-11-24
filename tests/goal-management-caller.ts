@@ -16,8 +16,9 @@ export function managementCaller(projectId: string, key = "management", permissi
 
 /**
  * A client whose every call is made as the management caller; the message reference follows the call's idempotency key. As the Host
- * builds the real one (`bindManagementActions`), the caller holds the permissions of the one action it calls, so an action that
- * writes through a platform service (Attention, the Context Ledger) is reached with the permission it declares for that.
+ * built the real one, the caller holds the permissions of the one action it calls, so an action that
+ * writes through a platform service (Attention, the Context Ledger) is reached with the permission it declares for that. Since 44B the
+ * real entries serve only the platform's review operations; tests still act as this caller to set up and read Goals.
  */
 export function managementGoals(client: ActionClient, projectId: string): BoundActionClient {
   const keyOf = (input: unknown) => {

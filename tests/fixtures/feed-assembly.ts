@@ -7,7 +7,7 @@ import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactOperations, projectVersionStores } from "@molis-ai/molis-work-module-artifacts";
 import { GMAIL_DEFAULT_SCOPE, parseGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import { CUSTOM_RSS_DEFINITION_ID, isRssSourceKind, listRegisterableFeeds, normalizeCustomRssFeedUrl, readRssHttpState, withRssHttpFailure, withRssHttpSuccess } from "@molis-ai/molis-work-integration-rss";
-import { YOUTUBE_CHANNEL_DEFINITION_ID, normalizeYouTubeChannelId } from "@molis-ai/molis-work-integration-youtube";
+import { YOUTUBE_CHANNEL_DEFINITION_ID, normalizeYouTubeChannelId } from "@molis-ai/molis-work-integration-rss";
 import { LocalSqliteJournal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {
   FEED_PLUGIN_ID, FeedOutRuleStore, FeedSourceService, assembleFeedApplication, feedManifest, feedOwnedAttention,
@@ -82,7 +82,7 @@ export function createDemoFeedApplication(db: SqliteDatabase, options: DemoFeedA
     }, {
       eventSink: event => {
         appendEvent(event.project_id, "inbox_entry", event.entry_id, event.type, event.reason, event.payload, event.at);
-        if (event.type === "inbox_entry.created") inboxCreated({ project_id: event.project_id, entry_id: event.entry_id });
+        if (event.type === "attention_entry.created") inboxCreated({ project_id: event.project_id, entry_id: event.entry_id });
       },
     })),
     ledger: feedLedger(createContextLedger(db, { authorize: access => access.scope.kind === "personal" && access.actor_id === FEED_PLUGIN_ID })),

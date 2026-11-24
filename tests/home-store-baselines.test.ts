@@ -6,7 +6,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { describeSqliteSchema, readDatabaseSpace, ensureStorageSpace, releaseHeldHomeSqlite, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_STORE_BASELINE, openCharacters } from "@molis-ai/molis-work-module-characters";
-import { HomeConsentLedger, MolisWorkLocalHost, MolisWorkProjectCatalog, PLATFORM_PLUGIN_REGISTRATIONS, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, MolisWorkLocalHost, MolisWorkProjectCatalog, homeStores } from "@molis-ai/molis-work-app-local-host";
 
 /** Current schemas at the clean Home starting version: the memory ledger without its former facts table, the assistant without memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id) and judgments keyed by the installation that recorded them, Form answers that always keep their questions,
@@ -41,7 +41,7 @@ test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no
 // Changing a baseline means a new version and a new fixture, never a silent drift.
 const HOME_STORE_FIXTURE_VERSIONS = new Map([
   ["agent-definitions", 3], ["blueprints", 2], ["dataset", 2], ["external-sessions", 2],
-  ["functions", 2], ["sync", 2], ["work-brief", 2],
+  ["functions", 2], ["memory", 2], ["sync", 2], ["work-brief", 2],
 ]);
 for (const [name, baseline] of libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name) && name !== "plugin-runtime")) {
   test(`N41-PERSONAL-01 the ${name} store has its declared version and complete frozen schema`, () => {
@@ -83,7 +83,7 @@ test("RAC-2645 the prior Runtime consent shape falsely labeled as current is ref
     assert.ok(!old.includes("approved_capability_ids"));
     const db = new DatabaseSync(file);
     db.exec(old + " PRAGMA user_version=1;");
-    db.prepare("INSERT INTO plugin_consents VALUES (?,?,?,?,?,?,?,?,?)").run("kept", "com.example.old", "publisher", "always_on", "always_on", "old", "then", "user", null);
+    db.prepare("INSERT INTO plugin_consents VALUES (?,?,?,?,?,?,?,?,?)").run("kept", "com.example.old", "publisher", "default_wiring", "default_wiring", "old", "then", "user", null);
     db.close();
     const bytes = readFileSync(file), files = readdirSync(directory);
     assert.throws(() => new HomeConsentLedger(home).revokeProjectReach({ project_id: "A" }, "now"), /结构与当前基线不一致/u);
@@ -152,44 +152,14 @@ test("RAR-02 held RO plugin-runtime reads reuse their handle, see live writes, a
   const home = join(root, "home");
   const catalog = await MolisWorkProjectCatalog.open({ homeDirectory: home });
   t.after(() => { catalog.close(); releaseHeldHomeSqlite(home); rmSync(root, { recursive: true, force: true }); });
-  const project = await catalog.createProject({ display_name: "RO plugin runtime test", actor_id: "user" });
-  const target = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.always_on === true)!;
-  assert.ok(target, "the build ships at least one always-on plugin");
   const ledger = new HomeConsentLedger(home);
   assert.deepEqual(ledger.observedPublishers(), [], "missing plugin-runtime store stays absent");
-  assert.throws(() => catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: target.project_plugin_id, actor_id: "user" }), { code: "catalog.plugin_always_on" });
   // Initialize bound store through the writable ledger.
   assert.deepEqual(ledger.publishers(), []);
   assert.deepEqual(ledger.observedPublishers(), []);
-  assert.deepEqual(catalog.projectPluginMembership(project.project_id).hidden, []);
-  const execute = DatabaseSync.prototype.prepare;
-  let pluginRuntimeQueries = 0;
-  const spy = t.mock.method(DatabaseSync.prototype, "prepare", function (this: DatabaseSync, sql: string) {
-    if (sql.includes("plugin_consents") || sql.includes("plugin_runtime_installs")) pluginRuntimeQueries += 1;
-    return execute.call(this, sql);
-  });
-  // Repeated reads reuse the live-stamped always-on snapshot without re-querying plugin-runtime tables.
-  for (let i = 0; i < 5; i += 1) {
-    assert.deepEqual(catalog.projectPluginMembership(project.project_id).hidden, []);
-  }
-  assert.equal(pluginRuntimeQueries, 0, "warm always-on reads reuse their live-stamped snapshot");
-  spy.mock.restore();
   // Pin a publisher via RW ledger; held RO observedPublishers sees it immediately.
   ledger.pinPublisher({ key_id: "pub-1", public_key_spki_base64: "spki-1", label: "Publisher 1", pinned_at: "2026-11-22T00:00:00Z", pinned_by: "user" });
   assert.deepEqual(ledger.observedPublishers().map(pin => pin.key_id), ["pub-1"]);
-  // Revoke the always-on consent via RW ledger; catalog immediately sees it is no longer always-on and permits hiding it.
-  ledger.record({
-    plugin_id: target.manifest.plugin_id,
-    publisher_signature: target.manifest.publisher.signature,
-    manifest_digest: "digest-1",
-    granted_by: "host_build",
-    grants: [{ kind: "always_on", subject: "always_on" }],
-    at: "2026-11-22T00:00:00Z",
-  });
-  const consent = ledger.consents(target.manifest.plugin_id).find(row => row.kind === "always_on")!;
-  ledger.revoke(consent.consent_id, "2026-11-22T00:01:00Z");
-  const afterHide = catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: target.project_plugin_id, actor_id: "user" });
-  assert.equal(afterHide.hidden.includes(target.project_plugin_id), true, "revoking always-on consent immediately updates catalog always-on checks");
   // External tampering, dropped space binding, and removed storage-space.json are all rejected intact.
   const file = join(home, "plugin-runtime", "plugin-runtime.db");
   const directory = join(home, "plugin-runtime");
@@ -200,7 +170,6 @@ test("RAR-02 held RO plugin-runtime reads reuse their handle, see live writes, a
       mutate();
       const bytes = readFileSync(file), files = readdirSync(directory);
       assert.throws(() => ledger.observedPublishers(), expected);
-      assert.throws(() => catalog.projectPluginMembership(project.project_id), expected);
       assert.deepEqual(readFileSync(file), bytes);
       assert.deepEqual(readdirSync(directory), files);
     } finally {

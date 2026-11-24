@@ -33,13 +33,13 @@ test("S-12 N36: missing, invalid or wrong evidence keys and damaged ciphertext r
       const home = join(directory, "home"), secrets = createLazyFileSecretStore(home);
       const content = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(home, "security", "evidence") });
       const markdown = "# Original evidence\n\nA refusal must keep the original evidence.";
-      const written = content.write(markdown), originalKey = secrets.get("system:feed:evidence-content-key:v1")!;
+      const written = content.write(markdown), originalKey = secrets.get("system:evidence:content-key:v1")!;
       const digest = written.contentRef.split("/").at(-1)!;
       const file = join(home, "security", "evidence", "blobs", digest.slice(0, 2), digest + ".blob");
       const ciphertext = readFileSync(file);
-      if (fault === "missing-key") secrets.deleteIfPresent("system:feed:evidence-content-key:v1");
-      if (fault === "invalid-key") secrets.put("system:feed:evidence-content-key:v1", "invalid-content-key");
-      if (fault === "wrong-key") secrets.put("system:feed:evidence-content-key:v1", Buffer.alloc(32, 17).toString("base64"));
+      if (fault === "missing-key") secrets.deleteIfPresent("system:evidence:content-key:v1");
+      if (fault === "invalid-key") secrets.put("system:evidence:content-key:v1", "invalid-content-key");
+      if (fault === "wrong-key") secrets.put("system:evidence:content-key:v1", Buffer.alloc(32, 17).toString("base64"));
       if (fault === "damaged-ciphertext") writeFileSync(file, "damaged original ciphertext");
       const before = homeStorageTree(home);
       const reopened = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(home, "security", "evidence") });
@@ -50,7 +50,7 @@ test("S-12 N36: missing, invalid or wrong evidence keys and damaged ciphertext r
       assert.equal(reopened.has(written.contentRef), false);
       assert.deepEqual(reopened.inspect([written.contentRef]), { referenced: 1, available: 0, missing: 1, keyAvailable: fault === "wrong-key" || fault === "damaged-ciphertext" });
       assert.deepEqual(homeStorageTree(home), before, "the refused read and write change no directory, ciphertext or key");
-      secrets.put("system:feed:evidence-content-key:v1", originalKey);
+      secrets.put("system:evidence:content-key:v1", originalKey);
       writeFileSync(file, ciphertext);
       assert.equal(reopened.read(written.contentRef), markdown, "only restoring the original key and ciphertext restores the body");
     } finally { rmSync(directory, { recursive: true, force: true }); }
@@ -79,7 +79,7 @@ test("S-12 N30: passphrase vaults use the current salt and refuse earlier-salt c
   writeFileSync(file, JSON.stringify({ version: 1, backend: "env-key+aes-gcm", entries: { [ref]: sealed } }));
   resetSecretStoreCache();
   const reopened = runWithMolisWorkHome(home, createFileSecretStore), before = homeStorageTree(home);
-  assert.equal(reopened.get(ref), null, "earlier-salt ciphertext cannot become plaintext through a second derivation");
+  assert.throws(() => reopened.get(ref), { code: "storage.secret_entry_decryption_failed" }, "earlier-salt ciphertext cannot become plaintext through a second derivation");
   assert.throws(() => inspectSealedSecretsSnapshot(home, readFileSync(file, "utf8")), { code: "storage.secrets_snapshot.integrity_failed" });
   assert.deepEqual(homeStorageTree(home), before);
 });
@@ -116,21 +116,21 @@ test("S-12 N37: one search intent namespace reopens and replays; its missing key
   const input = request(), original = await runtime.intelligenceCollect.executeExact(input);
   assert.equal(original.materials.length, 1);
   assert.equal(calls, 2);
-  const namespaces = () => (storage.db.prepare("SELECT DISTINCT namespace FROM feed_runtime_blobs ORDER BY namespace").all() as Array<{ namespace: string }>).map(row => row.namespace);
+  const namespaces = () => (storage.db.prepare("SELECT DISTINCT namespace FROM opaque_blobs ORDER BY namespace").all() as Array<{ namespace: string }>).map(row => row.namespace);
   const storedNamespaces = namespaces();
-  assert.ok(storedNamespaces.includes("search-evidence-layer/molis-work/feed-intent-v1/control/v1"));
-  assert.ok(storedNamespaces.includes("search-evidence-layer/molis-work/feed-intent-v1/data/operation/v1"));
-  assert.ok(storedNamespaces.every(namespace => namespace.startsWith("search-evidence-layer/molis-work/feed-intent-v1/")));
+  assert.ok(storedNamespaces.includes("search-evidence-layer/molis-work/search-store-v1/control/v1"));
+  assert.ok(storedNamespaces.includes("search-evidence-layer/molis-work/search-store-v1/data/operation/v1"));
+  assert.ok(storedNamespaces.every(namespace => namespace.startsWith("search-evidence-layer/molis-work/search-store-v1/")));
   await runtime.shutdown(); storage.close(); resetSecretStoreCache();
   storage = new LocalSqliteStorage(dbPath); runtime = open();
   assert.deepEqual((await runtime.intelligenceCollect.executeExact(input)).materials, original.materials);
   assert.equal(calls, 2, "a reopened intent returns the same stored evidence without provider I/O");
   await runtime.shutdown();
 
-  const controlRef = "search-evidence-layer/molis-work/feed-intent-v1/control-key/v1", key = secrets.get(controlRef);
+  const controlRef = "search-evidence-layer/molis-work/search-store-v1/control-key/v1", key = secrets.get(controlRef);
   assert.ok(key);
   assert.equal(secrets.deleteIfPresent(controlRef), true);
-  const rows = () => storage.db.prepare("SELECT * FROM feed_runtime_blobs ORDER BY namespace, key").all();
+  const rows = () => storage.db.prepare("SELECT * FROM opaque_blobs ORDER BY namespace, key").all();
   const beforeRows = rows(), beforeFiles = homeStorageTree(join(directory, "security"));
   runtime = open();
   await assert.rejects(runtime.intelligenceCollect.executeExact(input), { code: "persistence_failed" });
@@ -139,7 +139,7 @@ test("S-12 N37: one search intent namespace reopens and replays; its missing key
   assert.deepEqual(rows(), beforeRows);
   assert.deepEqual(homeStorageTree(join(directory, "security")), beforeFiles);
   const vault = JSON.parse(readFileSync(join(directory, "security", "secrets.json"), "utf8"));
-  assert.deepEqual(Object.keys(vault.entries), ["system:feed:evidence-content-key:v1"], "no alternate control key is generated");
+  assert.deepEqual(Object.keys(vault.entries), ["system:evidence:content-key:v1"], "no alternate control key is generated");
   secrets.put(controlRef, key);
   assert.deepEqual((await runtime.intelligenceCollect.executeExact(input)).materials, original.materials);
   assert.equal(calls, 2, "restoring the original key makes the existing ledger readable again");

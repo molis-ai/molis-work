@@ -446,7 +446,7 @@ test("W3-10-4-01 RAC-910: the computer tab hands the record's words to the Host,
         const url = new URL(input).pathname;
         calls.push({ url, method: init.method, ...(init.body ? { body: init.body } : {}) });
         const body = url.endsWith("/api/computer/records/rec-1") ? { record } : shelved.body;
-        return new Response(JSON.stringify(body), { status: url.endsWith("/shelf") ? shelved.status : 200, headers: { "content-type": "application/json" } });
+        return new Response(JSON.stringify(body), { status: url.endsWith("/receive") ? shelved.status : 200, headers: { "content-type": "application/json" } });
       },
     }, UI_HOST_CLIENT_CODES);
     await put({ request, routePrefix: "/projects/p1", say: (text) => { said.push(text); },
@@ -455,7 +455,7 @@ test("W3-10-4-01 RAC-910: the computer tab hands the record's words to the Host,
     return { calls, said };
   };
   const stored = await run({ ok: true, status: 200, body: { item_id: "shelf-1", shot: true } });
-  assert.deepEqual(stored.calls.map(call => [call.method, call.url]), [["GET", "/projects/p1/api/computer/records/rec-1"], ["POST", "/projects/p1/api/computer/records/rec-1/shelf"]]);
+  assert.deepEqual(stored.calls.map(call => [call.method, call.url]), [["GET", "/projects/p1/api/computer/records/rec-1"], ["POST", "/projects/p1/api/computer/records/rec-1/receive"]]);
   const posted = JSON.parse(stored.calls[1]!.body!) as { title: string; text: string };
   assert.match(posted.title, /^算一笔（/);
   assert.match(posted.text, /目标：算一笔/);
@@ -488,7 +488,7 @@ test("RAC-910 RAC-911: the Host puts a record on the Shelf only through Shelf's 
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const post = async (id: string, body: unknown) => {
-    const response = await fetch(`${base}/api/computer/records/${id}/shelf`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const response = await fetch(`${base}/api/computer/records/${id}/receive`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   };
   const reset = (next: typeof behave = {}) => { behave = next; admitted = []; removed = []; };

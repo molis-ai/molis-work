@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, checkGoalsCommandOwnership, checkStandaloneManagementPort, checkStandaloneReviewPort, ENTRY_SOURCE_FILE, hostSourceFiles, readEntrySources, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
+import { checkGoalReadOwnerSql, checkNoGoalTypedAdapters, checkGoalTransportCallers, checkGoalsCommandOwnership, checkStandaloneReviewPort, ENTRY_SOURCE_FILE, hostSourceFiles, readEntrySources, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
 
 test("Goal read guard covers actual root callers and rejects restored Policy and relation SQL", () => {
   for (const file of ["apps/desktop/launchers/web/server.ts", ...WEB_DISPATCH_FILES, "apps/desktop/launchers/mcp/server.ts", "apps/local-host/src/mcp-server.ts", "apps/mcp/src/tool-dispatch.ts", "apps/local-host/src/cli-project.ts", "apps/cli/src/command-dispatch.ts",
@@ -115,16 +115,14 @@ test("W3-07-4-01 / APR-17: MCP keeps registered Goals actions and uses the commo
     assert.match(changed("mcp", add(code)), /tool-dispatch\.ts.*Host client/, code);
   }
   assert.equal(changed("mcp", add('// No host.client(reference), withScope or coordinator.goals here.\nconst note = "LocalHostProjectClient";')), "");
-  // Batch 44 recheck: the transport names no plugin. Each invoke is the declared tool's own action, found by name, or a review action.
-  for (const action of ["declared.action", "trustedReviewActions.read", "trustedReviewActions.decide"]) {
+  // Batch 44 recheck, 44B: the transport names no plugin and no plugin declares management tools; each invoke is a review action.
+  for (const action of ["trustedReviewActions.read", "trustedReviewActions.decide"]) {
     const actual = `actions.invoke(${action},`;
     const source = transportSources().mcp.dispatcher;
     assert.ok(source.includes(actual), `${action} mutation reaches the production call`);
     assert.match(changed("mcp", text => text.replace(actual, "actions.invoke(MANAGEMENT_GOAL_ACTIONS.initialize,")
-      .concat(`\n// ${actual}\nconst note = ${JSON.stringify(actual)};`)), /invoke must name the declared tool's action/, action);
+      .concat(`\n// ${actual}\nconst note = ${JSON.stringify(actual)};`)), /invoke must name a platform review action/, action);
   }
-  assert.match(changed("mcp", text => text.replace("actions.invoke(declared.action,", "actions.invoke(typed,")), /invoke must name the declared tool's action/);
-  assert.match(changed("mcp", text => text.replace("ports.declared.find(tool => tool.name === name)", "ports.declared[0]")), /found by name in ports\.declared/);
   for (const [part, retired] of [["dispatcher", "goal-tree-decide"], ["mcp", "molis_work_v1_event_decide"], ["mcp", "molis_work_v1_goal_tree_decide"]]) {
     assert.match(changed(part, add(`const retired = ${JSON.stringify(retired)};`)), /retired Goals decision reference/);
   }
@@ -132,36 +130,18 @@ test("W3-07-4-01 / APR-17: MCP keeps registered Goals actions and uses the commo
   assert.match(changed("mcp", source => source.replace("bound(actions, project_id);", "bound(actions, otherProject);")), /trustedReviewActions\.(read|decide)/);
 });
 
-test("APR-17 the same standalone port pins the original action client, project, evidence and cancellation", () => {
-  const source = read("apps/local-host/src/management-action-client.ts");
-  assert.deepEqual(checkStandaloneManagementPort(source), []);
-  // The command line's review port has some of the same lines; each mutation edits the management MCP's port.
-  const at = source.indexOf("export function bindStandaloneManagementActions");
-  const within = (from, to) => source.slice(0, at) + source.slice(at).replace(from, to);
-  for (const [from, to] of [
-    ["host.actionClient(project)", "otherHost.actionClient(project)"],
-    ["host.actionClient(project)", "host.actionClient(otherProject)"],
-    ["host.actionClient(project)", "host.actionClient(project, true)"],
-    ["host.actionClient(project)", "host.actionClient(project, false)"],
-    ["host.actionClient(project)", "host.client(project)"],
-    ["currentCallId() ?? newCallId(), signal)", "currentCallId() ?? newCallId(), undefined)"],
-    ['if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");', "void evidence;"],
-  ]) {
-    assert.ok(source.slice(at).includes(from), from);
-    assert.match(checkStandaloneManagementPort(within(from, to)).join("\n"), /standalone management/);
-  }
-});
-
-test("PEQ-15 H6 the command line's port refuses everything but the review operations and binds no Goals port", () => {
+test("PEQ-15 H6 44B the command line's and management MCP's port refuses everything but the review operations and binds no Goals port", () => {
   const source = read("apps/local-host/src/management-action-client.ts");
   assert.deepEqual(checkStandaloneReviewPort(source), []);
+  const renamed = source.replace(/\bname\b/gu, "operation").replace(/\bevidence\b/gu, "sourceEvidence");
+  assert.deepEqual(checkStandaloneReviewPort(renamed), [], "parameter and local names can change while the same values reach the checks");
   for (const [from, to] of [
-    ['if (!name) throw new ActionError("actions.forbidden", "命令行只提供平台的审阅操作");', "void name;"],
+    ['if (!name) throw new ActionError("actions.forbidden", "管理入口只提供平台的审阅操作");', "void name;"],
     ['if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");\n  return name;', "return name;"],
     ["const name = requireReview(reference, evidence);", "const name = reviewOperation(reference)!;"],
-    ["return await invokeProjectReviewManagement(host, project, name, input, currentCallId() ?? newCallId(), signal) as Output;\n  } };\n}\n\n/** The previously",
-      "return await bindManagementActions(host.actionClient(project), project, { signal }).invoke<Output>(reference, input);\n  } };\n}\n\n/** The previously"],
-    ["currentCallId() ?? newCallId(), signal) as Output;\n  } };\n}\n\n/** The previously", "currentCallId() ?? newCallId(), undefined) as Output;\n  } };\n}\n\n/** The previously"],
+    ["return await invokeProjectReviewManagement(host, project, name, input, currentCallId() ?? newCallId(), signal) as Output;",
+      "return await host.actionClient(project).invoke({ project_id: project.project_id } as never, reference as never, input) as Output;"],
+    ["currentCallId() ?? newCallId(), signal) as Output;", "currentCallId() ?? newCallId(), undefined) as Output;"],
     ["    requireReview(reference, evidence);\n", ""],
     ["return await port.invoke<Output>(reference, input);", "return await port.invoke<Output>(reference, input, evidence);"],
   ]) {
@@ -171,19 +151,20 @@ test("PEQ-15 H6 the command line's port refuses everything but the review operat
 });
 
 test("W3-07-4-01 / W3-07-4-02: the MCP Host gate preserves the bound pre-open and gives only management its project action port", () => {
-  const bind = "bindStandaloneManagementActions(caller.localHost, reference, caller.resident?.signal)";
+  const bind = "bindStandaloneReviewActions(caller.localHost, reference, caller.resident?.signal)";
   const preopen = "await caller.localHost.client(reference).withScope(() => undefined);";
   const dispatch = "dispatchMcpProjectTool(actions, name, arguments_,";
   const source = transportSources().mcp.host;
   for (const actual of [bind, preopen, dispatch]) assert.ok(source.includes(actual), "mutation reaches the production call");
   for (const [mutation, edit] of [
-    ["wrong factory", text => text.replace("bindStandaloneManagementActions(", "anotherFactory(")],
+    ["wrong factory", text => text.replace("bindStandaloneReviewActions(", "anotherFactory(")],
     ["factory from elsewhere", text => text.replace('from "./management-action-client.js"', 'from "./elsewhere.js"')],
-    ["type-only factory", text => text.replace("{ bindStandaloneManagementActions,", "{ type bindStandaloneManagementActions,")],
+    ["type-only factory", text => text.replace("{ bindStandaloneReviewActions,", "{ type bindStandaloneReviewActions,")],
+    ["creates the database it names", text => text.replace('prepareLocalProjectStorage(location, "existing")', 'prepareLocalProjectStorage(location, "create")')],
     ["another Host", text => text.replace(bind, bind.replace("caller.localHost", "otherHost"))],
     ["another factory reference", text => text.replace(bind, bind.replace(", reference,", ", otherReference,"))],
     ["extra factory argument", text => text.replace(bind, `${bind.slice(0, -1)}, caller)`) ],
-    ["missing reference", text => text.replace(bind, "bindStandaloneManagementActions(caller.localHost)")],
+    ["missing reference", text => text.replace(bind, "bindStandaloneReviewActions(caller.localHost)")],
     ["missing fallback signal", text => text.replace(bind, bind.replace("caller.resident?.signal", "undefined"))],
     ["Runtime gets a port", text => text.replace('audience === "management"', 'audience === "runtime"')],
     ["every audience gets a port", text => text.replace('audience !== "management" ? null : ', "")],
@@ -265,7 +246,7 @@ test("the CLI boundary rule reads every way into the Goals package and into a Ho
     ["wrong factory import", source => source.replace('from "./management-action-client.js"', 'from "./elsewhere.js"')],
     ["type-only factory import", source => source.replace('{ bindStandaloneReviewActions,', '{ type bindStandaloneReviewActions,')],
     // H6 (batch 44): the command line gets the review operations only, from either side.
-    ["the Goals port as fallback", source => source.replace(bind, bind.replace("bindStandaloneReviewActions", "bindStandaloneManagementActions"))],
+    ["another port as fallback", source => source.replace(bind, bind.replace("bindStandaloneReviewActions", "bindStandaloneManagementActions"))],
     ["resident port not narrowed", source => source.replace("project ? reviewOnly(residentManagementActions(", "project ? (residentManagementActions(")],
     ["type-only narrowing import", source => source.replace(" reviewOnly, upgradeOlderCatalog }", " type reviewOnly, upgradeOlderCatalog }")],
     ["unused selected port", source => source.replace("dispatchCliProjectCommand(actions, args, input)", "dispatchCliProjectCommand(makeActions(), args, input)")],
@@ -308,19 +289,19 @@ test("RAC-1774: the CLI and MCP name no Goals contract in any file and call Goal
   // The old dispatchers: Goals' descriptors imported from the platform's contracts and called as `goalEntryActions.<name>`.
   const oldCli = source => source.replace(/const GOALS = \{[\s\S]*?\} as const;\n/u, "").replace(/\bGOALS\./gu, "goalEntryActions.")
     .replace("import { printCliJson", 'import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";\nimport { printCliJson');
-  const oldMcp = source => source.replace("actions.invoke(declared.action,", "actions.invoke(goalEntryActions.initialize,")
+  const oldMcp = source => source.replace("actions.invoke(trustedReviewActions.decide,", "actions.invoke(goalEntryActions.initialize,")
     .replace("import type { McpPresentationErrorFactory", 'import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";\nimport type { McpPresentationErrorFactory');
   assert.notEqual(oldCli(transportSources().cli.dispatcher), transportSources().cli.dispatcher);
   assert.notEqual(oldMcp(transportSources().mcp.dispatcher), transportSources().mcp.dispatcher);
   assert.match(changed("dispatcher", oldCli), /command-dispatch\.ts.*imports @molis-ai\/molis-work-contracts\/modules\/goal-actions/);
   assert.match(changed("mcp", oldMcp), /tool-dispatch\.ts.*imports @molis-ai\/molis-work-contracts\/modules\/goal-actions/);
-  assert.match(changed("mcp", oldMcp), /tool-dispatch\.ts.*invoke must name the declared tool's action/);
+  assert.match(changed("mcp", oldMcp), /tool-dispatch\.ts.*invoke must name a platform review action/);
   // The dispatchers' own module lists carry no Goals contract either.
   assert.match(changed("dispatcher", add('import { x } from "@molis-ai/molis-work-plugin-goals/contract";')), /command-dispatch\.ts.*imports @molis-ai\/molis-work-plugin-goals\/contract/);
   assert.match(changed("mcp", add('import { x } from "@molis-ai/molis-work-plugin-goals/contract";')), /tool-dispatch\.ts.*imports @molis-ai\/molis-work-plugin-goals\/contract/);
-  // A plugin's table of its own actions in the transport is refused: the management tools are the ones plugins declare.
-  assert.match(changed("mcp", source => source.replace("actions.invoke(declared.action,", "actions.invoke(MANAGEMENT_GOAL_ACTIONS.initialize,")
-    .concat('\nexport const MANAGEMENT_GOAL_ACTIONS = { initialize: { capability_id: "goals.board.initialize", version: 1 } } as const;\n')), /tool-dispatch\.ts.*invoke must name the declared tool's action/);
+  // A plugin's table of its own actions in the transport is refused: the management transport invokes only the platform's review actions.
+  assert.match(changed("mcp", source => source.replace("actions.invoke(trustedReviewActions.decide,", "actions.invoke(MANAGEMENT_GOAL_ACTIONS.initialize,")
+    .concat('\nexport const MANAGEMENT_GOAL_ACTIONS = { initialize: { capability_id: "goals.board.initialize", version: 1 } } as const;\n')), /tool-dispatch\.ts.*invoke must name a platform review action/);
 });
 
 // PG094-CLI-04 / T405-FULL-09: require product admission and retain every owner, mkdir, reference and signal mutation.

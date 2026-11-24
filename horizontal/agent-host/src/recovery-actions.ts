@@ -27,6 +27,13 @@ export function registerRecoveryActions<C extends Call>(register: Register<C>, p
       return ports.agentHost(context).adapter(session.runtime_id).readCommandOutput(session, ref);
     }),
 
+    register(agentHostCapabilities.readWriteChecks, async (context, [session, runId, writeIds]) => {
+      await requireRun(context, session, { session_id: session.session_id, run_id: runId });
+      const adapter = ports.agentHost(context).adapter(session.runtime_id);
+      if (!adapter.readWriteChecks) throw agentErrors.capability_unavailable("当前运行时未接通写后检查回执");
+      return adapter.readWriteChecks(session, runId, writeIds);
+    }),
+
     // Evidence another owner cites (a Goal's requirement report): only of the session the Host bound this caller's round to, so a
     // round can cite what its own session ran and nothing else. A plugin, a person or a workflow of its own has no such session.
     register(agentHostCapabilities.checkEvidence, async (context, input) => {

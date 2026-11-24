@@ -178,7 +178,7 @@ const ROUTES: RouteMaker[] = [
         const size = request.query?.window === undefined ? undefined : Number(request.query.window);
         if (size !== undefined && (!Number.isSafeInteger(size) || size < 1 || size > 50)) throw codingFailure("coding.server.page-size");
         const offset = size === undefined ? 0 : Math.max(0, snapshot.runs.length - size);
-        const runs = await a.writeChecks.attach(session.session_id, await runsWithCards(context, record, await Promise.all(snapshot.runs.slice(offset).map((run) => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, run]))), beforeWrite), ref => codingActions(a.context, beforeWrite).invoke(agent.readCommandOutput, [session, ref]));
+        const runs = await a.writeChecks.attach(session.session_id, await runsWithCards(context, record, await Promise.all(snapshot.runs.slice(offset).map((run) => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, run]))), beforeWrite), (runId, ids) => codingActions(a.context, beforeWrite).invoke(agent.readWriteChecks, [session, runId, ids]));
         // A round the page already holds unchanged travels as its fingerprint alone.
         const known = new Set(String(request.query?.known ?? "").split(",").filter(Boolean));
         const shown = size === undefined ? runs : runs.map(run => { const display = codingRunForDisplay(run); return known.has(display.fingerprint) ? { ref: display.ref, fingerprint: display.fingerprint, unchanged: true } : display; });
@@ -215,7 +215,7 @@ const ROUTES: RouteMaker[] = [
       const since = typeof request.query?.since === "string" && request.query.since ? request.query.since : null;
       const wait = Math.min(Math.max(Math.trunc(Number(request.query?.timeout ?? 20_000)) || 0, 0), 25_000);
       const result = await codingActions(a.context, beforeWrite).invoke(agent.waitRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "coding.field.run", 200) }, since, wait]);
-      return { version: result.version, runs: (await a.writeChecks.attach(session.session_id, await runsWithCards(a.context, record, [result.view], beforeWrite), ref => codingActions(a.context, beforeWrite).invoke(agent.readCommandOutput, [session, ref]))).map(codingRunForDisplay) };
+      return { version: result.version, runs: (await a.writeChecks.attach(session.session_id, await runsWithCards(a.context, record, [result.view], beforeWrite), (runId, ids) => codingActions(a.context, beforeWrite).invoke(agent.readWriteChecks, [session, runId, ids]))).map(codingRunForDisplay) };
     });
   },
   // Scrolling back reads earlier rounds a page at a time, with what the timeline shows beside them.
@@ -230,7 +230,7 @@ const ROUTES: RouteMaker[] = [
       const before = Number(request.query?.before ?? snapshot.runs.length), limit = Number(request.query?.limit ?? SESSION_PAGE);
       if (!Number.isSafeInteger(before) || before < 0 || before > snapshot.runs.length || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw codingFailure("coding.server.read-range");
       const offset = Math.max(0, before - limit);
-      const runs = await a.writeChecks.attach(session.session_id, await runsWithCards(context, record, await Promise.all(snapshot.runs.slice(offset, before).map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]))), beforeWrite), ref => codingActions(a.context, beforeWrite).invoke(agent.readCommandOutput, [session, ref]));
+      const runs = await a.writeChecks.attach(session.session_id, await runsWithCards(context, record, await Promise.all(snapshot.runs.slice(offset, before).map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]))), beforeWrite), (runId, ids) => codingActions(a.context, beforeWrite).invoke(agent.readWriteChecks, [session, runId, ids]));
       return { runs: runs.map(codingRunForDisplay), runs_offset: offset, run_count: snapshot.runs.length, subagents: await subagentGroups(a, beforeWrite, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs) };
     });
   },

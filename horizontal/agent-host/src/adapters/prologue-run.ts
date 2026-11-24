@@ -4,7 +4,7 @@ import { sessionOpeningReader, canonicalCallerOpening } from "./prologue-session
 import { recordOriginalInput } from "./prologue-original-inputs.js";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import type { ExactRef, PackTool, Runtime } from "@prologue/sdk";
+import { isTerminalEventType, type TerminalRunState, type ExactRef, type PackTool, type Runtime } from "@prologue/sdk";
 import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { BUSINESS_HOST_TOOLS, BUSINESS_SUBAGENT_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -61,15 +61,6 @@ const ROUND_DEFAULT_TURNS = 8;
 /** One model call's wait for its answer to start, and between its parts, when the round has no time budget. */
 const MODEL_CALL_TIMEOUT_MS = 180_000;
 
-/** The SDK's terminal run events, including a guardrail stop and a circuit break. */
-const TERMINAL_RUN_EVENT_TYPES = ["completed", "failed", "cancelled", "tripped", "circuit-tripped"] as const;
-type TerminalRunEventType = typeof TERMINAL_RUN_EVENT_TYPES[number];
-const isTerminalRunEvent = (type: string): type is TerminalRunEventType => (TERMINAL_RUN_EVENT_TYPES as readonly string[]).includes(type);
-/** A guardrail stop and a circuit break are terminal but are neither a normal finish nor a failure. */
-const cleanupEnd = (type: TerminalRunEventType): { graph: "completed" | "failed" | "cancelled"; surface: "completed" | "failed" | "stopped" } =>
-  type === "completed" ? { graph: "completed", surface: "completed" }
-    : type === "failed" ? { graph: "failed", surface: "failed" }
-      : { graph: "cancelled", surface: "stopped" };
 // Codes the runtime raises before it creates a run: nothing ran, so the attempt is a settled refusal. The session's
 // checks before any write (a run parked on a question, one being recovered or handed over, a parked set it could not
 // read back) are among them.
@@ -181,9 +172,10 @@ async function roundMaterials(deps: RunDeps, input: PrologueStartInput, index: S
   // What other sessions in the project are doing, and where it overlaps this round, as the round starts.
   const project = index.owner.project_id, workText = `${input.task}\n${(plan?.steps ?? []).map(step => `${step.title}\n${step.acceptance}`).join("\n")}`;
   const scopePaths = none ? [] : workPaths(workText);
-  if (!none && input.root_path && !index.parent_run) {
+  const projectDirectory = !none && !index.parent_run ? input.root_path : undefined;
+  if (projectDirectory) {
     try {
-      const seen = await projectWork.read(project, { session_id: session.ref.id, directory: input.root_path, paths: scopePaths });
+      const seen = await projectWork.read(project, { session_id: session.ref.id, directory: projectDirectory, paths: scopePaths });
       const note = projectWorkDigest(await projectWork.projectId(project), seen.items, session.ref.id, seen.overlaps, input.character.tools.includes("session-send"));
       if (note) textResources.push({ ref: await stageTextResource(runtime, note, "agent-project-work"), as: "original" });
     } catch { /* the project's list is a courtesy to the round; a failed read leaves it out rather than stopping the round */ }
@@ -197,7 +189,7 @@ async function roundMaterials(deps: RunDeps, input: PrologueStartInput, index: S
       ...handed.map(node => `- 任务图 ${board!.id}：${node.id}「${node.title.slice(0, 60)}」（${node.state}）`),
       "用 board-read / board-report（board 写上面的任务图编号）处理这些步骤；做完后在交接信上答复对方。"].join("\n"), "agent-handed-steps"), as: "original" });
   }
-  return { textResources, stepBoard, project, scopePaths };
+  return { textResources, stepBoard, project, scopePaths, projectDirectory };
 }
 
 /**
@@ -324,7 +316,7 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
       assertAuthority: () => { requireSynchronous(input.assertBeforeDispatch?.(), "最终授权检查必须同步完成"); },
       steer: async text => { await observed.control.steer({ text, source: "app" }); } });
     observed.run.subscribe(event => {
-      if (!isTerminalRunEvent(event.type)) return;
+      if (!isTerminalEventType(event.type)) return;
       state.activeRuns.delete(observed.run.ref.id);
       if (state.liveSessions.get(observed.childSession.ref.id) === observed.run.ref.id) state.liveSessions.delete(observed.childSession.ref.id);
     });
@@ -343,7 +335,7 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
       const guard = state.stopGuards.get(observed.childSession.ref.id);
       if (guard) guard.task = caller;
       watchRoundFacts(state, observed.run);
-      observed.run.subscribe(event => { if (isTerminalRunEvent(event.type)) { childController.abort(); state.actionControllers.delete(observed.run.ref.id); } });
+      observed.run.subscribe(event => { if (isTerminalEventType(event.type)) { childController.abort(); state.actionControllers.delete(observed.run.ref.id); } });
     }
     await deps.index.update(observed.parentSession.id, saved => {
       const attempt = saved.attempts[attemptIndex];
@@ -481,9 +473,9 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
 }
 
 /** After the SDK started the run: its root, its id in the index, its controls, and in a main round its project work. */
-async function afterStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, at: {
+export async function attachStartedRound(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, at: {
   readonly started: Started; readonly session: Session; readonly root: { ref: ExactRef<"authorized-root"> } | undefined; readonly attemptIndex: number;
-  readonly actionController: AbortController; readonly surface: SurfaceAttachment; readonly hasActions: boolean; readonly none: boolean; readonly project: string; readonly scopePaths: string[];
+  readonly actionController: AbortController; readonly surface: SurfaceAttachment; readonly hasActions: boolean; readonly projectDirectory?: string; readonly project: string; readonly scopePaths: string[];
   readonly plan: PrologueStartInput["provenance"]["frozen"]["execution_plan"]; readonly stepBoard: Awaited<ReturnType<typeof roundMaterials>>["stepBoard"]; readonly stopping: () => boolean;
   readonly work?: PrologueWorkDelegation; readonly appliedPolicies: Map<string, () => void>;
   readonly exactPermissions: Map<string, { ref: ExactRef<"effect">; control: ReviewDecisionControl }>; readonly mcp?: RoundMcp;
@@ -511,56 +503,61 @@ async function afterStart(deps: RunDeps, input: PrologueStartInput, index: Sessi
     steer: async text => { await started.control.steer({ text, source: "app" }); } });
   if (at.stepBoard) deps.stepBoards.follow(at.stepBoard, { session_id: session.ref.id, run_id: started.run.ref.id });
   // A main round is work under way in its project until it ends; a subtask's work is its parent's.
-  if (!at.none && input.root_path && !index.parent_run) {
+  if (at.projectDirectory) {
+    state.liveSessions.set(session.ref.id, started.run.ref.id);
     try {
       const workId = await deps.projectWork.begin(at.project, { session: session.ref, run_id: started.run.ref.id, title: input.session_title ?? index.title, task: input.task,
-        directory: input.root_path, paths: at.scopePaths, ...(input.queued_work_id ? { queued: input.queued_work_id } : {}) });
+        directory: at.projectDirectory, paths: at.scopePaths, ...(input.queued_work_id ? { queued: input.queued_work_id } : {}) });
+      state.runWork.set(started.run.ref.id, { project: at.project, id: workId, session: session.ref, directory: at.projectDirectory });
       if (workId === input.queued_work_id) await deps.waitsPort.queueTakenOver(session.ref.id, { board: await deps.projectWork.projectId(at.project), node: blockId(session.ref) });
-      state.runWork.set(started.run.ref.id, { project: at.project, id: workId, session: session.ref, directory: input.root_path });
-      state.liveSessions.set(session.ref.id, started.run.ref.id);
-    } catch { /* not listed as project work; the round itself is unaffected */ }
+    } catch { /* Project registration and queue handoff are best effort; an admitted round keeps its inbox. */ }
   }
 }
 
 /** When the round ends: its actions and step board let go, the page released, its project work ended and its messages settled. */
-function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard: { ref: { id: string } } | undefined, type: TerminalRunEventType, actionController: AbortController, surface: SurfaceAttachment, onAborted: () => void): void {
+function roundEnded(deps: RunDeps, at: RoundLifecycle, type: TerminalRunState): void {
+  const { started, session, stepBoard, actionController, surface, onAborted } = at;
   const { state } = deps;
   const surfaceHost = deps.surfaces();
-  const end = cleanupEnd(type);
+  const end = type === "completed" || type === "failed" ? type : "stopped";
   if (type === "cancelled" || type === "tripped" || type === "circuit-tripped") onAborted();
   actionController.abort(); state.actionControllers.delete(started.run.ref.id); state.dispatchChecks.delete(started.run.ref.id); state.activeRuns.delete(started.run.ref.id);
   deps.options.reviewQueue?.permissions.releaseRun(started.run.ref.id);
   state.childAdmissions.delete(started.run.ref.id);
   if (stepBoard) deps.stepBoards.unfollow(started.run.ref.id);
-  deps.workGraphs.ended(started.run.ref, session.ref, end.graph);
+  deps.workGraphs.ended(started.run.ref, session.ref, type);
   if (state.liveSessions.get(session.ref.id) === started.run.ref.id) state.liveSessions.delete(session.ref.id);
   // The side panel stops saying the Assistant is using the page the moment its round is over, and this run's app approvals are dropped.
-  void surface.release(end.surface).catch(() => undefined);
+  void surface.release(end).catch(() => undefined);
   surfaceHost?.releaseRun(started.run.ref); state.runRefs.delete(started.run.ref.id);
   const work = state.runWork.get(started.run.ref.id);
-  if (work) { state.runWork.delete(started.run.ref.id); void deps.projectWork.end(work.project, work.id, end.surface).catch(() => undefined); }
+  if (work) { state.runWork.delete(started.run.ref.id); void deps.projectWork.end(work.project, work.id, end).catch(() => undefined); }
   // A round that finished normally saw every message given to it; unanswered requests are settled.
-  if (work && type === "completed") void deps.messages.settle(session.ref.id).catch(() => undefined);
+  if (at.projectDirectory && type === "completed") void deps.messages.settle(session.ref.id).catch(() => undefined);
   // A failure or a guardrail/circuit stop will not answer the requests someone waits on; they are ended so the waiting session wakes.
   // A person's cancellation stays on its existing wait-cancellation path.
-  if (work && type !== "completed" && type !== "cancelled") void deps.messages.failed(session.ref.id).catch(() => undefined);
+  if (at.projectDirectory && type !== "completed" && type !== "cancelled") void deps.messages.endUnanswered(session.ref.id, type).catch(() => undefined);
 }
 
-/** Single internal lifecycle observer for one round: repair-limit stop, command receipts, and idempotent terminal cleanup. */
-function watchRoundLifecycle(deps: RunDeps, input: PrologueStartInput, at: {
+interface RoundLifecycle {
+  readonly projectDirectory?: string;
   readonly started: Started; readonly session: Session; readonly attemptIndex: number; readonly actionController: AbortController; readonly surface: SurfaceAttachment;
   readonly stepBoard: { ref: { id: string } } | undefined; readonly onAborted: () => void;
   readonly actionReviews: ReturnType<typeof roundGateway>["reviews"];
+  readonly codeIntelligence?: { close(): Promise<void> };
   readonly work?: PrologueWorkDelegation;
-}): { readonly hostStop: () => string | undefined; readonly markReady: () => void; readonly dispose: (type: TerminalRunEventType) => void } {
-  const { started, actionController } = at;
+}
+
+/** Single internal lifecycle observer for one round: repair-limit stop, command receipts, and idempotent terminal cleanup. */
+export function watchRoundLifecycle(deps: RunDeps, input: PrologueStartInput, at: RoundLifecycle): { readonly hostStop: () => string | undefined; readonly markReady: () => void; readonly dispose: (type: TerminalRunState) => void } {
+  const { started } = at;
   const control = started.control;
   // The Host stops a round itself (an interaction refused twice) before its next model call, then keeps why it did,
   // so the stop reads back with its reason live and after a restart; a failed save leaves only the live reason.
   let hostStop: string | undefined;
   let ready = false;
   let settled = false;
-  let pendingTerminal: TerminalRunEventType | undefined;
+  let pendingTerminal: TerminalRunState | undefined;
   let unsubscribe: (() => void) | undefined;
   const stopForHost = (reason: string) => {
     if (hostStop || ["completed", "failed", "stopped", "cancelled"].includes(control.state)) return;
@@ -570,15 +567,16 @@ function watchRoundLifecycle(deps: RunDeps, input: PrologueStartInput, at: {
     control.stop("stopped");
     void deps.index.update(input.session_id, index => { Object.assign(index.attempts[at.attemptIndex]!, { stop_intent: "stopped", stop_reason: reason }); }).catch(() => undefined);
   };
-  const settle = (type: TerminalRunEventType) => {
+  const settle = (type: TerminalRunState) => {
     if (settled) return;
     settled = true;
     queueMicrotask(() => { unsubscribe?.(); });
     if (at.actionReviews.releaseRun(started.run.ref.id) && deps.state.actionReviews.get(at.session.ref.id) === at.actionReviews) {
       deps.state.actionReviews.delete(at.session.ref.id);
     }
+    void at.codeIntelligence?.close().catch(() => undefined);
     at.work?.release();
-    roundEnded(deps, started, at.session, at.stepBoard, type, actionController, at.surface, at.onAborted);
+    roundEnded(deps, at, type);
   };
   unsubscribe = started.run.subscribe(withInteractionRepairLimit(stopForHost, (event) => {
     if (event.type === "command-receipt") {
@@ -586,7 +584,7 @@ function watchRoundLifecycle(deps: RunDeps, input: PrologueStartInput, at: {
       if (!events.some(saved => sameRef(saved.receiptRef, event.receiptRef))) events.push(event);
       deps.state.commandEvents.set(started.run.ref.id, events);
     }
-    if (isTerminalRunEvent(event.type)) {
+    if (isTerminalEventType(event.type)) {
       if (ready) settle(event.type);
       else pendingTerminal ??= event.type;
     }
@@ -794,11 +792,9 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
     });
     accepted = started;
     work?.accept(started.run);
-    lifecycle = watchRoundLifecycle(deps, input, { started, session, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, onAborted, actionReviews, work });
+    lifecycle = watchRoundLifecycle(deps, input, { started, session, projectDirectory: materials.projectDirectory, attemptIndex, actionController, surface, stepBoard: materials.stepBoard, onAborted, actionReviews, work, codeIntelligence });
     if (mcp) started.run.subscribe(event => { if (event.type === "tool-result") mcp.release((event as Extract<PrologueEvent, { type: "tool-result" }>).callId); });
-    watchRoundFacts(state, started.run);
-    // The language servers this round started belong to it: they go when it ends, however it ends.
-    if (codeIntelligence !== undefined) started.run.subscribe(event => { if (isTerminalRunEvent(event.type)) void codeIntelligence.close().catch(() => undefined); });
+    watchRoundFacts(state, started.run, true);
     // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
     state.dispatchChecks.set(started.run.ref.id, prepareDispatch);
     if (mode.business && childRoles.size) state.childAdmissions.set(started.run.ref.id, async request => {
@@ -811,8 +807,8 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
       });
     });
 
-    await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, surface, appliedPolicies, exactPermissions, work, mcp,
-      hasActions: Boolean(actionTools?.names.length), none: mode.none,
+    await attachStartedRound(deps, input, index, { started, session, root, attemptIndex, actionController, surface, appliedPolicies, exactPermissions, work, mcp,
+      hasActions: Boolean(actionTools?.names.length), projectDirectory: materials.projectDirectory,
       project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined || aborted });
     lifecycle.markReady();
     // Recorded once with the round, and reported only when the owner update succeeded: the files the SDK actually packed, and which languages it can understand (A4).

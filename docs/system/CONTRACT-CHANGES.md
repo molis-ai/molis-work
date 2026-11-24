@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-24。新增插件只读动作 `agent.write-checks.read@1`。输入是原会话、一轮执行和写调用编号列表，返回可核实的逐写检查摘要。调用方可对缺失项稍后再读。Runtime 通过可选的 `readWriteChecks` 提供该能力，原单条命令详情继续走 `agent.command-output@1`。
+
 2026-11-23 BL-921、BL-1050、BL-1051。记录槽普通绑定占用空槽或复用同一账号。明确换用可向原动作传 `expected_connection_id`，旧账号已变或已解绑时返回冲突。项目 MCP 配置经 `connectors.project_mcp.usages@1` 汇入现有用途查询。自定义远程 MCP 的公开连接视图增加可选 `mcp_authentication`，仅返回 OAuth、Bearer 或无需认证对应的枚举值。存储格式沿用现行版本。
 
 2026-11-23 第 37 批（37-2 事项切换与工作台状态，用户 2026-11-23 拍板，见[助理主对话合同设计稿](../../specs/work-mainline/assistant-main-contract-design.md)）。阶段一原位在 `packages/contracts/src/services/assistant.ts` 的 `AssistantWork` 与 `AssistantSendInput` 增加可选 `work_item_id?: string`（按每件事项隔离助理主对话，经 `system.mainline` 核验归属、拒绝跨项目／个人范围／伪造 id 及修改既有工作的 `work_item_id`，不动 `assistant.db` 表结构）；`packages/contracts/src/platform/dom-events.ts` 登记 `mainline-switcher` 页面状态主人及 `molis-work:work-item-changed`、`molis-work:work-item-switch`、`molis-work:work-item-hold-open` 三个跨模块事件；宿主 `/api/mainline/*` 补齐 `mainlineItemActions` 全部 16 个本人路由及视图投影 `items/view`、`items/contents/view`（拒绝插件页与生成首页，见 [S-work-line-person-doors](security-invariants/S-work-line-person-doors.md)），`/api/attention` 支持可选 `?item=` 参数按当前事项读线。公开 API 快照同步刷新；无持久库结构或兼容读取变化。

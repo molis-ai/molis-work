@@ -379,6 +379,13 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     } catch (error) { throw controlFailure(error); }
   }
 
+  async readWriteChecks(session: AgentSessionRef, runId: string, writeIds: string[]) {
+    const record = await this.#store.loadSession(session.session_id);
+    if (!record.runs.some(run => run.run_id === runId)) throw agentErrors.run_unknown("这轮执行不属于所选会话");
+    if (!this.#runtime.readWriteChecks) throw agentErrors.capability_unavailable("这个 Runtime 没有接通写后检查回执");
+    return this.#runtime.readWriteChecks(session.session_id, runId, writeIds);
+  }
+
   async readCommandOutput(
     session: AgentSessionRef,
     ref: AgentCommandOutputRef,

@@ -73,11 +73,6 @@
 数字来自[字体皮肤语言的首屏实测与资源预算方案](font-and-skin-system/resource-budget.md)。第一屏总字节门禁已随第 16 批 #2031 合入（`scripts/gates/first-screen.mjs`、`tooling/gates/first-screen.json`、CI 的 First-screen budgets）；后续改动在这项检查里看数字变化，排期由碰到这块的批次主会话定。
 
 
-### 写后检查
-
-随第 24、31 批处理检查回执、展示与证明。[BL-run-terminal-cleanup](backlog/BL-run-terminal-cleanup.md) 记终态清理的四个相邻消费者、失败措辞/运行视图一致性与 adapter 生命周期测试余项。
-
-
 ### Prologue 上游
 
 随第 31、62 批处理。换包另等实际窗口。

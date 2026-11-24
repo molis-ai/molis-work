@@ -6,6 +6,8 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-coding-write-check-batch-read | 已完成并删除 | Coding 时间线按轮读取写后检查，逐写入匹配回执，并保留成功缓存与 30 秒重试。[请求与回放次数](../specs/archive/coding-checks-and-run-endings/spec.md#bl-coding-write-check-batch-read) |
+| BL-run-terminal-cleanup | 已完成并删除 | 五种终态覆盖资源释放、页面、等待中调用、观测及重启后的工作步骤；补齐记忆历史分页验证。[终态对照与验收](../specs/archive/coding-checks-and-run-endings/spec.md#bl-run-terminal-cleanup) |
 | BL-921 | 已完成并删除 | 记录槽在存储层拒绝普通换绑，明确换用核对原账号。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
 | BL-1050 | 已完成并删除 | 连接页经项目 MCP 目录汇总 Coding 配置的用途，自动换用另属 BL-1045。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
 | BL-1051 | 已完成并删除 | 自定义 MCP 重登预填认证方式，令牌和客户端密钥框留空。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |

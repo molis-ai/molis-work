@@ -270,6 +270,26 @@ test("S-home-page-files S-home-page-authority S-home-page-approval SPC-10 SPC-11
   assert.equal(mountedLayout.generatedVisible, true, "generated page mounts in 36A body slot");
   assert.equal(mountedLayout.ledeAboveGenerated, true, "Work Brief lede sits above generated page body");
 
+  // P0 #2 regression: adopted generated home page stays centered in column 1 at 1440px (never shoved to right half).
+  const columnMetrics = await browser.evaluate<{ left: number; width: number }>(`(() => {
+    const col = document.querySelector('.immersive-home .mw-first-page__column');
+    const r = col?.getBoundingClientRect();
+    return { left: Math.round(r?.left ?? 9999), width: Math.round(r?.width ?? 0) };
+  })()`);
+  assert.ok(columnMetrics.left < 360 && columnMetrics.width >= 700, `adopted page column must be centered (got ${JSON.stringify(columnMetrics)})`);
+
+  // P0 #4 regression: at 390px, version popover MUST stay inside viewport bounds (never clip off left edge).
+  await browser.setViewport(390, 844, true);
+  await browser.evaluate(`document.querySelector('[data-hp-act="toggle-versions"]').click()`);
+  await browser.waitFor(`Boolean(document.querySelector('[data-hp-ver-popover]'))`, WAIT_MS);
+  const mobilePop = await browser.evaluate<{ left: number; right: number }>(`(() => {
+    const r = document.querySelector('[data-hp-ver-popover]').getBoundingClientRect();
+    return { left: Math.round(r.left), right: Math.round(r.right) };
+  })()`);
+  assert.ok(mobilePop.left >= 0 && mobilePop.right <= 390, `390px version popover must stay in viewport (got ${JSON.stringify(mobilePop)})`);
+  await browser.evaluate(`document.querySelector('[data-hp-act="toggle-versions"]').click()`);
+  await browser.setViewport(1440, 900, false);
+
   // 5. Switch back to default 36A First Page via version popover -> one-click restore notice appears, versions remain intact.
   await browser.evaluate(`document.querySelector('[data-hp-act="toggle-versions"]').click()`);
   await browser.waitFor(`Boolean(document.querySelector('[data-hp-ver-popover] [data-hp-act="select-basic"]'))`, WAIT_MS);
@@ -298,7 +318,14 @@ test("S-home-page-files S-home-page-authority S-home-page-approval SPC-10 SPC-11
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${projectId}/` }, browser.sessionId));
   await browser.waitFor(`Boolean(document.querySelector('[data-home-draft-banner] [data-hp-act="compare"]'))`, WAIT_MS);
   await browser.evaluate(`document.querySelector('[data-home-draft-banner] [data-hp-act="compare"]').click()`);
-  await browser.waitFor(`Boolean(document.querySelector('[data-hp-act="conflict-pick"]'))`, WAIT_MS);
+  await browser.waitFor(`Boolean(document.querySelector('[data-hp-act="conflict-pick"]') && document.querySelector('[data-hp-now-stage] iframe') && document.querySelector('[data-hp-draft-stage] iframe'))`, WAIT_MS);
+  // P0 #1 regression: left side ("In use") MUST mount its live iframe cleanly alongside the right-side draft preview.
+  const bothCompareFrames = await browser.evaluate<{ nowFrame: boolean; draftFrame: boolean }>(`({
+    nowFrame: Boolean(document.querySelector('[data-hp-now-stage] iframe.home-generated-frame')),
+    draftFrame: Boolean(document.querySelector('[data-hp-draft-stage] iframe.home-generated-frame')),
+  })`);
+  assert.equal(bothCompareFrames.nowFrame, true, "Plan B compare left pane (In use) MUST render live iframe");
+  assert.equal(bothCompareFrames.draftFrame, true, "Plan B compare right pane (Draft) MUST render preview iframe");
   const blockedBeforePick = await browser.evaluate<boolean>(`Boolean(document.querySelector('[data-hp-act="open-adopt"]')?.disabled)`);
   assert.equal(blockedBeforePick, true, "adopt button MUST be disabled while manual-edit conflict is unresolved");
   // Choosing "merge" keeps adopt blocked so an unmerged AI draft cannot overwrite manual edits.

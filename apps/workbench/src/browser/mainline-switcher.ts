@@ -211,7 +211,7 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
     }
   };
 
-  const switchTo = async (itemId: string | null, originEl?: Element | null) => {
+  const switchTo = async (itemId: string | null, originEl?: Element | null, openHomeOnNull = false) => {
     if (!hydrated && itemId !== null) await refresh(false);
     const prev = view.mainline.current;
     if (prev === itemId) {
@@ -234,6 +234,7 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
         paint();
         closeCorner();
         announce(next, prev, firstEntry);
+        if (itemId === null && openHomeOnNull) host.openHome();
       };
       if (originEl && craft?.carry) {
         craft.carry(originEl, applyVisual);
@@ -293,7 +294,9 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
     const target = event.target instanceof Element ? event.target : null;
     if (!target || !view) return;
     if (target.closest("[data-ml-pick-home]")) {
-      void switchTo(null, target.closest("[data-ml-pick-home]"));
+      // Stop bubble to top-corner.ts [data-corner-home] so host.open('home') never runs while currentWorkItemId is still set (would corrupt by-item PFG-22 layout).
+      event.stopPropagation();
+      void switchTo(null, target.closest("[data-ml-pick-home]"), true);
       return;
     }
     const pick = target.closest<HTMLElement>("[data-ml-pick]");
@@ -391,23 +394,35 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
     query = input.value;
     paint();
   });
+  let creating = false;
   slot.addEventListener("submit", (event) => {
     const form = (event.target as Element)?.closest<HTMLFormElement>("[data-ml-create-form]");
     if (!form) return;
     event.preventDefault();
+    if (creating) return;
     const input = form.querySelector<HTMLInputElement>("[data-mainline-create-input]");
+    const submitBtn = form.querySelector<HTMLButtonElement>("[data-ml-create-submit]");
     const name = input?.value.trim() ?? "";
     if (!name) {
       input?.focus();
       return;
     }
     const kind = selectedKind;
-    selectedKind = "";
-    if (input) input.value = "";
     const payload: Record<string, unknown> = kind
       ? { create_as: { kind, name }, request_id: crypto.randomUUID() }
       : { name };
-    void api<{ item?: { item_id: string } }>("/api/mainline/items/create", payload).then(async (res) => {
+    creating = true;
+    const createOnly = async () => {
+      try {
+        return await api<{ item?: { item_id: string } }>("/api/mainline/items/create", payload);
+      } finally {
+        creating = false;
+      }
+    };
+    const busy = (globalThis as typeof globalThis & { molisBusy?: <R>(el: HTMLElement, fn: () => Promise<R>) => Promise<R> }).molisBusy;
+    void (submitBtn && busy ? busy(submitBtn, createOnly) : createOnly()).then(async (res) => {
+      selectedKind = "";
+      if (input) input.value = "";
       host.showToast(uiText.text("workbench.mainline.created-toast", { name }));
       await refresh(false);
       if (res?.item?.item_id) await switchTo(res.item.item_id);

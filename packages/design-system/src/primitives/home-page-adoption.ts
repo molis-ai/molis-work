@@ -75,6 +75,14 @@ export const HOME_PAGE_ADOPTION_STYLES = `
   .mw-edit-conflict__side > small { color: var(--muted); font-size: 12px; line-height: 1.4; }
   .mw-edit-conflict__side > strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.45; overflow-wrap: anywhere; }
   .mw-edit-conflict__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+  .mw-edit-conflict__actions .mw-btn--secondary:not(:disabled) {
+    background: var(--control-fill);
+    border-color: var(--line);
+  }
+  .mw-edit-conflict__actions .mw-btn--secondary:hover:not(:disabled) {
+    background: var(--nav-hover);
+    border-color: var(--line-strong);
+  }
   .mw-edit-conflict__resolved {
     display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0;
     margin: 0; padding: 8px 12px; border-radius: var(--r-control, 8px); background: var(--surface-soft);

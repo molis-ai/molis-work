@@ -13,6 +13,7 @@ import { escapeHtml, renderAlert, t as uiText } from "@molis-ai/molis-work-plugi
 import { mountHomePageFrame, type MountedHomePageFrame } from "./plugin-frame/home-page-document.js";
 import {
   homePageRefKey,
+  localizeDesignIssueReason,
   renderApprovalDialogHtml,
   renderCompareChromeParts,
   renderCompareShellHtml,
@@ -33,6 +34,11 @@ interface HomePagesUiHost {
 
 const craft = () =>
   (globalThis as typeof globalThis & { molisCraft?: { land?: (node: Element) => void; turn?: (node: Element, back?: boolean) => void } }).molisCraft;
+
+function runBusy<T>(button: HTMLElement | null | undefined, work: () => Promise<T>): Promise<T> {
+  const busy = (globalThis as typeof globalThis & { molisBusy?: <R>(el: HTMLElement, fn: () => Promise<R>) => Promise<R> }).molisBusy;
+  return button && busy ? busy(button, work) : work();
+}
 
 /**
  * Mounts generated-page live runtime, Plan B side-by-side comparison, Check Summary, Edit Conflict, version popover,
@@ -101,12 +107,14 @@ export function mountHomePages(host: HomePagesUiHost) {
       noticeHost.replaceChildren();
       return;
     }
+    const yieldPrimary = Boolean(host.root.querySelector("[data-home-groups] .mw-btn--primary"));
     noticeHost.innerHTML = renderHomeNoticeHtml({
       overview,
       comparing: Boolean(comparingDraft),
       dismissedDraftKey,
       fallbackAlert,
       restoreNotice,
+      yieldPrimary,
     });
   };
 
@@ -165,7 +173,10 @@ export function mountHomePages(host: HomePagesUiHost) {
     compareView = "draft";
     versionMenuOpen = false;
 
-    const activeRef = overview.selection.kind === "page" ? overview.selection : null;
+    const activeRef: HomePageRef | null =
+      overview.selection.kind === "page"
+        ? { page_id: overview.selection.page_id, version: overview.selection.version }
+        : null;
     try {
       const [inspect, diff] = await Promise.all([
         host.api<InspectResponse>("/api/home-pages/inspect", "POST", ref),
@@ -206,8 +217,8 @@ export function mountHomePages(host: HomePagesUiHost) {
 
       if (!inspect.report.ok) {
         // Per Batch 37 design rule ("不过的页面不进预览"): never open a preview session or mount an iframe for a failed draft.
-        const firstReason = inspect.report.checks.find(c => c.severity === "error")?.issues[0]?.reason
-          ?? uiText.text("workbench.home-pages.preview-blocked-body");
+        const firstIssue = inspect.report.checks.find(c => c.severity === "error")?.issues[0];
+        const firstReason = firstIssue ? localizeDesignIssueReason(firstIssue) : uiText.text("workbench.home-pages.preview-blocked-body");
         draftStage.innerHTML = renderAlert({
           tone: "danger",
           title: uiText.text("workbench.home-pages.preview-blocked-title"),
@@ -311,8 +322,10 @@ export function mountHomePages(host: HomePagesUiHost) {
     if (!dialog.open) dialog.showModal();
   }
 
-  async function confirmDialog(): Promise<void> {
-    if (!dialogTarget || !overview || !dialog) return;
+  let mutating = false;
+
+  async function confirmDialog(triggerBtn?: HTMLElement | null): Promise<void> {
+    if (!dialogTarget || !overview || !dialog || mutating) return;
     const { operation, version, inspect } = dialogTarget;
     const approved: ExactActionReference[] = [];
     dialog.querySelectorAll<HTMLInputElement>("input[data-hp-grant]").forEach(box => {
@@ -321,33 +334,42 @@ export function mountHomePages(host: HomePagesUiHost) {
       if (item) approved.push({ capability_id: item.capability_id, version: item.version, provider_id: item.provider_id });
     });
     const endpoint = operation === "restore" ? "/api/home-pages/restore" : "/api/home-pages/adopt";
+    mutating = true;
     try {
-      await host.api<HomePageApprovalReceipt>(endpoint, "POST", {
-        page_id: version.page_id,
-        version: version.version,
-        approved_actions: approved,
-        request_id: `ui-${operation}-${crypto.randomUUID()}`,
-        expected_revision: overview.revision,
+      await runBusy(triggerBtn, async () => {
+        await host.api<HomePageApprovalReceipt>(endpoint, "POST", {
+          page_id: version.page_id,
+          version: version.version,
+          approved_actions: approved,
+          request_id: `ui-${operation}-${crypto.randomUUID()}`,
+          expected_revision: overview!.revision,
+        });
+        dialog.close();
+        dialogTarget = null;
+        restoreNotice = null;
+        fallbackAlert = null;
+        if (comparingDraft) exitCompare();
+        await sync();
+        craft()?.land?.(liveHost!);
+        host.receipt(
+          uiText.text(operation === "restore" ? "workbench.home-pages.restored-toast" : "workbench.home-pages.adopted-toast", {
+            v: version.version,
+          }),
+        );
       });
-      dialog.close();
-      dialogTarget = null;
-      restoreNotice = null;
-      fallbackAlert = null;
-      if (comparingDraft) exitCompare();
-      await sync();
-      craft()?.land?.(liveHost!);
-      host.receipt(
-        uiText.text(operation === "restore" ? "workbench.home-pages.restored-toast" : "workbench.home-pages.adopted-toast", {
-          v: version.version,
-        }),
-      );
     } catch (error) {
+      const code = (error as { code?: string } | null)?.code;
+      if (code === "home.revision_conflict") {
+        await sync();
+      }
       host.receipt(error instanceof Error ? error.message : uiText.text("workbench.home-pages.adopt-failed"));
+    } finally {
+      mutating = false;
     }
   }
 
-  async function selectBasic(): Promise<void> {
-    if (!overview) return;
+  async function selectBasic(triggerBtn?: HTMLElement | null): Promise<void> {
+    if (!overview || mutating) return;
     const prev =
       overview.selection.kind === "page"
         ? (() => {
@@ -355,21 +377,28 @@ export function mountHomePages(host: HomePagesUiHost) {
             return overview.versions.find(v => v.page_id === sel.page_id && v.version === sel.version);
           })()
         : null;
+    mutating = true;
     try {
-      await host.api<HomePageSelectResult>("/api/home-pages/select", "POST", {
-        kind: "basic",
-        request_id: `ui-basic-${crypto.randomUUID()}`,
-        expected_revision: overview.revision,
+      await runBusy(triggerBtn, async () => {
+        await host.api<HomePageSelectResult>("/api/home-pages/select", "POST", {
+          kind: "basic",
+          request_id: `ui-basic-${crypto.randomUUID()}`,
+          expected_revision: overview!.revision,
+        });
+        versionMenuOpen = false;
+        fallbackAlert = null;
+        if (comparingDraft) exitCompare();
+        restoreNotice = prev ? { page: { page_id: prev.page_id, version: prev.version }, title: prev.title } : null;
+        await sync();
+        craft()?.turn?.(host.root, true);
+        host.receipt(uiText.text("workbench.home-pages.switched-to-default"));
       });
-      versionMenuOpen = false;
-      fallbackAlert = null;
-      if (comparingDraft) exitCompare();
-      restoreNotice = prev ? { page: { page_id: prev.page_id, version: prev.version }, title: prev.title } : null;
-      await sync();
-      craft()?.turn?.(host.root, true);
-      host.receipt(uiText.text("workbench.home-pages.switched-to-default"));
     } catch (error) {
+      const code = (error as { code?: string } | null)?.code;
+      if (code === "home.revision_conflict") await sync();
       host.receipt(error instanceof Error ? error.message : uiText.text("workbench.home-pages.switch-failed"));
+    } finally {
+      mutating = false;
     }
   }
 
@@ -410,7 +439,7 @@ export function mountHomePages(host: HomePagesUiHost) {
         return;
       }
       if (act === "compare" && actEl.dataset.hpPage && actEl.dataset.hpVer) {
-        void enterCompare({ page_id: actEl.dataset.hpPage, version: Number(actEl.dataset.hpVer) });
+        void runBusy(actEl, () => enterCompare({ page_id: actEl.dataset.hpPage!, version: Number(actEl.dataset.hpVer) }));
         return;
       }
       if (act === "exit-compare") {
@@ -451,7 +480,7 @@ export function mountHomePages(host: HomePagesUiHost) {
         return;
       }
       if (act === "select-basic") {
-        void selectBasic();
+        void selectBasic(actEl);
         return;
       }
       if (act === "retry-load") {
@@ -466,7 +495,7 @@ export function mountHomePages(host: HomePagesUiHost) {
       }
       if (act === "dialog-confirm") {
         event.preventDefault();
-        void confirmDialog();
+        void confirmDialog(actEl);
         return;
       }
     }
@@ -492,8 +521,32 @@ export function mountHomePages(host: HomePagesUiHost) {
     }
   };
 
+  const onLanguageChanged = () => {
+    if (!overview) return;
+    renderChrome();
+    if (comparingDraft) {
+      // Re-label compare column headers & view toggle in place without tearing down live preview iframes.
+      const nowBtn = compareHost.querySelector<HTMLElement>('[data-hp-view="now"]');
+      const draftBtn = compareHost.querySelector<HTMLElement>('[data-hp-view="draft"]');
+      if (nowBtn) nowBtn.textContent = uiText.text("workbench.home-pages.side-now");
+      if (draftBtn) draftBtn.textContent = uiText.text("workbench.home-pages.side-draft");
+      const previewNote = compareHost.querySelector<HTMLElement>(".hp-preview-note");
+      if (previewNote) previewNote.textContent = uiText.text("workbench.home-pages.preview-readonly-note");
+      renderCompareChrome();
+    }
+    if (dialogTarget && dialog?.open) {
+      dialog.innerHTML = renderApprovalDialogHtml({
+        operation: dialogTarget.operation,
+        target: dialogTarget.version,
+        inspect: dialogTarget.inspect,
+        overview,
+      });
+    }
+  };
+
   host.root.addEventListener("click", onClick);
   document.addEventListener("keydown", onKeydown);
+  document.addEventListener("molis-work:language-changed", onLanguageChanged);
   return {
     sync,
     openCompare: (ref: HomePageRef) => enterCompare(ref),
@@ -501,6 +554,7 @@ export function mountHomePages(host: HomePagesUiHost) {
       syncAbort?.abort();
       host.root.removeEventListener("click", onClick);
       document.removeEventListener("keydown", onKeydown);
+      document.removeEventListener("molis-work:language-changed", onLanguageChanged);
       disposeLive();
       disposeCompareFrames();
     },

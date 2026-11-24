@@ -265,6 +265,19 @@ test("SPC-10 ONB-25 ONB-26 ONB-27 WBR-26: home page lifecycle — draft save, bl
   assert.ok(dirtyReport.issues.some(i => i.code === "literal_color"));
   assert.ok(dirtyReport.issues.some(i => i.code === "pill_radius"));
 
+  // Hex-like CSS ID selectors (#feed, #cafe, #fade) MUST NOT false-positive as literal_color, while CSS remote url()/@import MUST be caught.
+  const idSelectorReport = inspectHomePageDesign([
+    { path: "index.html", media_type: "text/html", text: `<main id="feed"><section id="cafe"></section></main>` },
+    { path: "styles.css", media_type: "text/css", text: `#feed, #cafe, #fade { background: var(--paper); color: var(--ink); }` },
+  ]);
+  assert.equal(idSelectorReport.ok, true, "hex-like CSS ID selectors must not fail literal_color check");
+  const cssExternalReport = inspectHomePageDesign([
+    { path: "index.html", media_type: "text/html", text: `<main></main>` },
+    { path: "styles.css", media_type: "text/css", text: `@import "https://evil.example/a.css"; .x { background-image: url(https://evil.example/b.png); }` },
+  ]);
+  assert.equal(cssExternalReport.ok, false, "CSS external @import/url must fail sandbox_isolation");
+  assert.ok(cssExternalReport.issues.some(i => i.code === "external_asset" && i.path === "styles.css"));
+
   // 9. Retention (>20 versions protects active + based_on + last approved & prunes oldest unpinned; >20 pages refuses).
   // Seed other project so we also prove project deletion does not affect it.
   await post(other.project_id, "/api/home-pages/drafts/save", { draft: sampleDraft("另一个项目页面") });

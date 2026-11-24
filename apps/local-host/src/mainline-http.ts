@@ -56,7 +56,7 @@ export function mainlineAttention(
   presentReviews = false,
 ): {
   line(item?: string | null): Promise<WorkLineReadResult>;
-  summary(): Promise<{ has_items: boolean; current: string | null }>;
+  summary(): Promise<{ has_items: boolean; current: string | null; source_kinds: string[] }>;
 } | null {
   if (pluginPageRequest(request) || homePageRequestBound(request)) return null;
   return {
@@ -74,7 +74,11 @@ export function mainlineAttention(
     },
     summary: async () => {
       const state = await bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS).invoke(mainlineItemActions.read, {});
-      return { has_items: state.mainline.items.length > 0, current: state.mainline.current };
+      return {
+        has_items: state.mainline.items.length > 0,
+        current: state.mainline.current,
+        source_kinds: state.sources.map(source => source.kind),
+      };
     },
   };
 }

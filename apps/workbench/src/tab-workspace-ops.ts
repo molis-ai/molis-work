@@ -780,12 +780,15 @@ export function isCurrentTabWorkspace(value) {
     if (pane.activeTabId !== null && typeof pane.activeTabId !== "string") return false;
     if (pane.viewPlugin !== null && (typeof pane.viewPlugin !== "string" || pane.viewPlugin === "")) return false;
     return pane.tabs.every(tab => tab && typeof tab.id === "string" && typeof tab.title === "string"
-      && typeof tab.plugin === "string" && tab.plugin !== ""
-      && (tab.kind === "item" && typeof tab.itemId === "string" || tab.kind === "plugin" && tab.plugin !== "home")
+      && typeof tab.plugin === "string"
+      && (tab.kind === "system" && tab.plugin === "" && typeof tab.owner === "string" && tab.owner !== "" && typeof tab.itemId === "string"
+        || tab.plugin !== "" && (tab.kind === "item" && typeof tab.itemId === "string" || tab.kind === "plugin" && tab.plugin !== "home"))
       && (tab.collapsed === undefined || tab.kind === "plugin" && tab.collapsed === true)
       && (tab.pinned === undefined || typeof tab.pinned === "boolean") && (tab.groupId === undefined || typeof tab.groupId === "string")
       && (tab.view === undefined || typeof tab.view === "string")
-      && Object.keys(tab).every(key => ["id", "plugin", "kind", "itemId", "title", "pinned", "groupId", "view", "collapsed"].includes(key)))
+      && Object.keys(tab).every(key => (tab.kind === "system"
+        ? ["id", "plugin", "kind", "owner", "itemId", "title", "pinned", "groupId"]
+        : ["id", "plugin", "kind", "itemId", "title", "pinned", "groupId", "view", "collapsed"]).includes(key)))
       && pane.groups.every(group => group && typeof group.id === "string" && typeof group.title === "string"
         && typeof group.color === "string" && typeof group.collapsed === "boolean"
         && Object.keys(group).every(key => ["id", "title", "color", "collapsed"].includes(key)));

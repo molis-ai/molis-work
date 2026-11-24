@@ -23,6 +23,10 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     const sources = event?.detail?.sources;
     if (Array.isArray(sources)) mainlineSourceKinds = new Set(sources.map((s) => s.kind));
   });
+  document.addEventListener("molis-work:attention", (event) => {
+    const kinds = event?.detail?.mainline_summary?.source_kinds;
+    if (Array.isArray(kinds) && !mainlineSourceKinds.size) mainlineSourceKinds = new Set(kinds);
+  });
   const loadSpaces = async () => { if (!spaces) spaces = (await api("spaces")).spaces || []; return spaces; };
   const cache = new Map();
   const keyOf = (object) => object.kind + ":" + object.id + ":" + (object.project_id || "");

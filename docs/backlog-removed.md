@@ -11,6 +11,9 @@
 | BL-1040 | 已完成并删除 | 第 27 批 [#2010](https://github.com/molis-ai/molis-work/pull/2010) 已在没有远端时隐藏「建 PR…」，三种 Git 状态提示均为普通文字。2026-11-23 在隔离 Home 复验并补上无远端时中英文无障碍树都没有 PR 入口、已有暂存文件仍可本地提交的断言（`tests/git-source-controls.e2e.test.ts`）。 |
 | BL-1037 | 已完成并删除 | 2026-11-23 在主干 `8192cc7b10` 的 Goals 调用链打开空项目的 Goals 与画布，没有新增 `goals.stage.read` 输入不合法的「未执行」记录。`tests/goals-momentum.e2e.test.ts` 直接读取隔离 Home 的调用记录并断言这一点。 |
 | BL-coding-change-reader-narrow-toolbar | 已完成并删除 | 2026-11-23 Coding 固定变更阅读器的工具条随可用宽度换行，选中的长路径在行内省略，底色收在清单框内。`tests/code-diff-reader.e2e.test.ts` 在中英文、明暗色下检查横向边界，并在 390 px 验证「设为变更输出」可用 Tab 到达且点击会发出请求。 |
+| BL-1032 | 已完成并删除 | 2026-11-24。设备接续演示的固定文档从运行中的 Pages 声明取成果格式、来源对象类型、版本和签名。启动器回归读到第 2 版文档并完成交接、同请求重试与重启回读。隔离 Home 另从 Inbox 选材料并提交一次，直接打开可编辑的 Pages 草稿，原事项保留待确认。 |
+| BL-1047 | 已完成并删除 | 2026-11-24。组件板、问卷导出的填写页和宿主侧栏错误页共用内联图标声明。`tests/page-reads-quiet.e2e.test.ts` 在独立 Chrome 核对三个响应分别为 200、200、404，`/favicon.ico` 请求数均为 0。 |
+| BL-1068 | 已完成并删除 | 2026-11-24。[插件同步手册](../skills/molis-plugin-dev/sync.md) 说明旧 Work 会话和交接同步已移除，并写明外部 AI 会话的本机索引、读取许可和原文按需读取边界。以 Host 同步目录和外部会话服务的实际接线为准。 |
 | BL-golden-generation-nondeterministic | 已完成并删除 | 2026-11-23。生成时暂停 Prologue 队列未来任务的唤醒，保留待执行记录。常速和模拟慢机两条字节比较通过，签名金样 `0.1.1-dev.8` 重生成一致。 [#2273](https://github.com/molis-ai/molis-work/pull/2273) · [验证结果](../specs/archive/golden-determinism-computer/spec.md#验证结果) |
 | BL-golden-computer-settings | 已完成并删除 | 2026-11-23。`0.1.1-dev.8` 经助手设置保存 `computer/settings.json`，macOS 设置入口读回。模拟 Linux 结果明确为 `not-run`。三份金样回放及覆盖门禁通过。 [#2273](https://github.com/molis-ai/molis-work/pull/2273) · [验证结果](../specs/archive/golden-determinism-computer/spec.md#验证结果) |
 | BL-feed-precise-wakeup | 已完成并删除 | 2026-11-23，[#2257](https://github.com/molis-ai/molis-work/pull/2257)（`404b0842f7`）：Feed 运行时唤醒改按所有启用自动拉取来源的最早下次到期时刻精确登记，无自动拉取来源时清除唤醒作业，覆盖启动/恢复、来源增删改/启停/暂停恢复、拉取完成/失败/退避与错过决定重算，并清理历史 30 秒周期唤醒作业，恢复 Feed 项目空闲休眠；见 [103.md](../specs/post-anticorruption-roadmap/reference/batches/103.md) |

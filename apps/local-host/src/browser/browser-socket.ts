@@ -5,6 +5,8 @@ import type { Duplex } from "node:stream";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { BROWSER_SOCKET_PATH, type BrowserClientMessage, type BrowserServerMessage } from "@molis-ai/molis-work-contracts/services/browser";
+import { localizeWebErrorMessage, readErrorWord } from "../ui-error-words.js";
+import { resolveWebLocale } from "../web-locale.js";
 import type { BrowserHost, BrowserListener, BrowserPage } from "./browser-host.js";
 
 /**
@@ -36,6 +38,7 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
   });
 
   wss.on("connection", (ws: WebSocket, request: IncomingMessage) => {
+    const socketLocale = resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
     let authed = false;
     let authority: ReturnType<typeof bindWebSocketAuthority>;
     const bindAuthority = (proof: unknown) => {
@@ -66,7 +69,7 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
     // navigate) right behind it: each message waits for the bindings sent before it, so none finds no page and is dropped.
     let bound: Promise<void> = Promise.resolve();
     const bind = async (message: Extract<BrowserClientMessage, { type: "watch" | "attach" }>) => {
-      if (typeof message.project_id !== "string" || !await options.projectExists(message.project_id)) { send(ws, { type: "error", message: "项目不存在" }); return; }
+      if (typeof message.project_id !== "string" || !await options.projectExists(message.project_id)) { send(ws, { type: "error", message: readErrorWord("common.error.not-found", socketLocale) }); return; }
       // The panel closed while the project was being checked: its close already released what it held, and a binding that
       // finishes now must not hang a listener on the page that nothing will ever release.
       if (closed) return;
@@ -88,7 +91,7 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
       try { message = JSON.parse(String(raw)) as BrowserClientMessage; } catch { return; }
       try {
         if (!authed) {
-          if (message.type !== "auth" || !bindAuthority(message.token)) { send(ws, { type: "error", message: "本地浏览器通道校验失败" }); ws.close(); return; }
+          if (message.type !== "auth" || !bindAuthority(message.token)) { send(ws, { type: "error", message: readErrorWord("common.error.browser-auth-failed", socketLocale) }); ws.close(); return; }
           authed = true; send(ws, { type: "ready" }); return;
         }
         if (message.type === "watch" || message.type === "attach") {
@@ -181,7 +184,7 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
             return;
         }
       } catch (error) {
-        send(ws, { type: "error", message: error instanceof Error ? error.message : String(error) });
+        send(ws, { type: "error", message: localizeWebErrorMessage(error, "common.error.internal", socketLocale) });
       }
     });
   });

@@ -15,6 +15,7 @@ import { projectPluginMembershipForPage } from "./web-owner-unavailable.js";
 import type { WebServerOptions } from "./web-types.js";
 import { captureWebSessionAuthority } from "./web-sessions.js";
 import { hostErrors } from "./host-errors.js";
+import { localizeActionErrorResponse, localizeWebErrorMessage, readErrorWord } from "./ui-error-words.js";
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
 export type SetProjectPluginFromWeb = (projectId: string, input: SetProjectPluginInput, signal: AbortSignal, sessionCurrent: () => void) => Promise<VersionedProjectPluginMembership>;
@@ -32,14 +33,14 @@ async function renameProjectFromHttp(request: IncomingMessage, response: ServerR
     return;
   }
   try {
-    if (typeof body.expected_display_name !== "string") throw projectCatalogErrors.project_name_conflict("The original project name is required. Reopen project settings before saving.");
+    if (typeof body.expected_display_name !== "string") throw projectCatalogErrors.project_name_conflict(readErrorWord("common.error.project-rename-stale"));
     const expectedName = body.expected_display_name;
     await withCatalog({ homeDirectory }, async catalog => {
       const project = await catalog.commit(() => catalog.renameProject(decodeURIComponent(projectId), displayName, LOCAL_PERSON_ACTOR_ID, expectedName));
       sendJson(response, 200, { project: settingsProject(project) });
     });
   } catch (error) {
-    const failure = actionErrorResponse(error);
+    const failure = localizeActionErrorResponse(error);
     sendJson(response, failure.status, failure.body);
   }
 }
@@ -74,7 +75,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
           });
         });
       } catch (error) {
-        sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
+        sendJson(response, 400, { error: localizeWebErrorMessage(error, "common.error.invalid") });
       }
       return true;
     }
@@ -113,7 +114,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
             : result.status === "existing" ? uiText.text("workbench.project-settings.demo-project-already-exists") : uiText.text("workbench.project-settings.demo-project-created"),
         });
       } catch (error) {
-        sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
+        sendJson(response, 400, { error: localizeWebErrorMessage(error, "common.error.invalid") });
       }
       return true;
     }
@@ -165,7 +166,7 @@ async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalog
     const membership = await setProjectPlugin(projectId, candidate, abort.signal, sessionCurrent);
     sendJson(response, 200, { project_id: projectId, ...membership });
   } catch (error) {
-    const failure = actionErrorResponse(error);
+    const failure = localizeActionErrorResponse(error);
     sendJson(response, failure.status, failure.body);
   } finally { response.off("close", disconnected); }
   return true;

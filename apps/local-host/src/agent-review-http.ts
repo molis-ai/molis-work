@@ -9,11 +9,12 @@ import { isDecidable, isReviewDocumentReadable, renderAgentReviewDocument, rende
 export { isReviewDocumentReadable, reviewSourceSummary };
 import { escapeHtml, format, icon, say, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import { actionErrorKind, actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 
 import { ActionError, requireSynchronous, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assertHumanReview, reviewProjectFor, type ComputerRoundHolder } from "./computer/computer-policy.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
+import { localizeActionErrorResponse, localizeWebErrorMessage, readErrorWord } from "./ui-error-words.js";
 import { responseAbortSignal, webEntryDoor, webEntryProvider } from "./web-entry-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { webEffectControl } from "./authorization-settings-control.js";
@@ -147,14 +148,14 @@ export function projectReviewForTask(row: AgentReviewRow): BackgroundTaskHeldRev
 
 const asPerson = (request: IncomingMessage, ports: AgentReviewHttpPorts, signal: AbortSignal) => ({ host: ports.host, request, entry: { ports, page: pluginPageRequest(request) }, signal });
 /** What went wrong, answered with the status its kind gives (gone 404, conflict 409, refused 403): it must not read as success. */
-const refuse = (response: ServerResponse, error: unknown) => { const refusal = actionErrorResponse(error); sendLocalWebJson(response, refusal.status, refusal.body); };
+const refuse = (response: ServerResponse, error: unknown) => { const refusal = localizeActionErrorResponse(error); sendLocalWebJson(response, refusal.status, refusal.body); };
 
 async function exactReviewPermission(ports: AgentReviewHttpPorts, id: string, version: string, lifetime: "work" | "ongoing") {
   const queue = ports.agentHost.reviews;
   const request = queue.get(id);
   if (!request?.run || request.project_id !== ports.projectId) throw missing(uiText.text("workbench.agent-review.review-missing"));
   try {
-    if (!(await queue.decisions(id)).approve.available) throw new ActionError("actions.conflict", "原操作已经不能决定");
+    if (!(await queue.decisions(id)).approve.available) throw new ActionError("actions.conflict", uiText.text("workbench.agent-review.cannot-decide"));
     const held = queue.exactPermission(id, version), store = ports.agentHost.workDelegations("prologue");
     if (!held || !store || held.subject.kind !== "work" || held.subject.actor_id !== ports.actorId
       || held.subject.project_id !== request.project_id || held.subject.executor.plugin_id !== request.plugin_id
@@ -184,10 +185,10 @@ export async function handleAgentReviewHttp(
     try {
       control.assertCurrent();
       const page = pluginPageRequest(request);
-      if (!webManagementAuthenticated(request) || request.headers["x-molis-plugin-page"] !== undefined) throw new ActionError("actions.forbidden", "只有本人可以管理工作权限");
+      if (!webManagementAuthenticated(request) || request.headers["x-molis-plugin-page"] !== undefined) throw new ActionError("actions.forbidden", readErrorWord("common.error.forbidden"));
       if (request.method === "GET") {
         const { review_id, version, lifetime } = Object.fromEntries(url.searchParams);
-        if (!review_id || !version || lifetime !== "work" && lifetime !== "ongoing") throw new ActionError("actions.input_invalid", "请按原操作查看权限");
+        if (!review_id || !version || lifetime !== "work" && lifetime !== "ongoing") throw new ActionError("actions.input_invalid", readErrorWord("common.error.invalid"));
         const held = await exactReviewPermission(ports, review_id, version, lifetime);
         let automatic = true;
         try { await held.beforeEffect(); held.assertCurrent(); } catch { automatic = false; }
@@ -230,7 +231,10 @@ export async function handleAgentReviewHttp(
     try {
       const view = await ports.agentHost.reviews.inspectRecovery(reviewId, ports.observeGitIndex);
       sendLocalWebJson(response, 200, { view, html: renderAgentReviewRecovery(view, escape) });
-    } catch (error) { sendLocalWebJson(response, 409, { error: error instanceof Error ? error.message : uiText.text("workbench.agent-review.check-failed") }); }
+    } catch (error) {
+      const message = error instanceof Error ? localizeWebErrorMessage(error, "common.error.conflict") : uiText.text("workbench.agent-review.check-failed");
+      sendLocalWebJson(response, 409, { error: message });
+    }
     return true;
   }
   if (request.method === "GET" && url.pathname === "/api/agent/reviews") {

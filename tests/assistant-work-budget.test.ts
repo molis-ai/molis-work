@@ -86,9 +86,34 @@ test("a cap the person puts on one work holds its rounds: what is left bounds th
     assert.match(stopText("This run already used 1200 of its 390 tokens; nothing was sent."), /本轮用量上限/);
     // A desktop task needs a look and an action per step; the round's limit leaves room for about twenty of them.
     assert.match(stopText("too many tool turns"), /步数上限（60 步）.*继续/);
-    // Seen with an unreachable model address: the person reads what happened and what to check, not a code.
-    assert.match(stopText("MODEL_NETWORK_FAILED: fetch failed"), /^无法连接模型服务.*设置 › 模型.*\nMODEL_NETWORK_FAILED: fetch failed$/);
-    assert.match(stopText("MODEL_AUTH_FAILED: 401 invalid api key"), /模型服务拒绝了请求/);
-    assert.match(stopText("MODEL_HTTP_ERROR: 529 overloaded"), /繁忙或限流/);
+    // Seen with an unreachable model address: the person reads what happened and what to check, never a raw code.
+    const network = stopText("MODEL_NETWORK_FAILED: fetch failed");
+    assert.match(network, /无法连接模型服务.*设置 › 模型/);
+    assert.doesNotMatch(network, /MODEL_NETWORK_FAILED|fetch failed/);
+    const auth = stopText("MODEL_AUTH_FAILED: 401 invalid api key");
+    assert.match(auth, /模型服务拒绝了请求|密钥无效/);
+    assert.doesNotMatch(auth, /MODEL_AUTH_FAILED|invalid api key/);
+    const rate = stopText("MODEL_HTTP_ERROR: 529 overloaded");
+    assert.match(rate, /繁忙|限流|忙/);
+    assert.doesNotMatch(rate, /MODEL_HTTP_ERROR|overloaded/);
+    // Major Prologue failure categories localize cleanly without leaking raw codes.
+    const unavailable = stopText("MODEL_HTTP_ERROR: 503 Service Unavailable");
+    assert.match(unavailable, /暂时连不上/);
+    assert.doesNotMatch(unavailable, /MODEL_HTTP_ERROR|Service Unavailable/);
+    const overflow = stopText("MODEL_CONTEXT_OVERFLOW: context length exceeded");
+    assert.match(overflow, /上下文上限/);
+    assert.doesNotMatch(overflow, /MODEL_CONTEXT_OVERFLOW/);
+    const enOverflow = inAssistantPage("en", () => stopInWords("MODEL_CONTEXT_OVERFLOW: context length exceeded"));
+    assert.match(enOverflow, /context limit/i);
+    assert.doesNotMatch(enOverflow, /MODEL_CONTEXT_OVERFLOW|\p{Script=Han}/u);
+    const jaOverflow = inAssistantPage("ja", () => stopInWords("MODEL_CONTEXT_OVERFLOW: context length exceeded"));
+    assert.match(jaOverflow, /コンテキスト上限/);
+    assert.doesNotMatch(jaOverflow, /MODEL_CONTEXT_OVERFLOW/);
+    assert.doesNotMatch(stopText("MODEL_REFUSED: safety"), /MODEL_REFUSED/);
+    assert.doesNotMatch(stopText("MODEL_OUTPUT_TRUNCATED"), /MODEL_OUTPUT_TRUNCATED/);
+    assert.doesNotMatch(stopText("RUN_INTERRUPTED"), /RUN_INTERRUPTED/);
+    assert.doesNotMatch(stopText("CONTEXT_COMPACTION_FAILED"), /CONTEXT_COMPACTION/);
+    assert.doesNotMatch(stopText("被护栏 safety 拦下：policy"), /safety|policy/);
+    assert.doesNotMatch(stopText("连续 3 次调用都没有成功，这一轮先停在这里"), /circuit/i);
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

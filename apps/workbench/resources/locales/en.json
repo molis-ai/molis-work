@@ -11133,7 +11133,7 @@
     "workbench.cli.home-one-of": "{command} requires exactly one of: {options}.",
     "workbench.cli.home-save-confirm": "--save-current can only be used with --confirm.",
     "workbench.cli.home-no-inspector": "This entry lacks catalog inspection; restore did not start.",
-    "workbench.cli.home-cancelled": "Home offline operation cancelled.",
+    "workbench.cli.home-cancelled": "Home offline operation canceled.",
     "workbench.cli.home-check-restore": "Can roll back to {version}; pre-upgrade data will be restored.",
     "workbench.cli.home-check-unchanged": "Can roll back to {version}; data stays unchanged.",
     "workbench.cli.home-check-no": "Cannot roll back right now ({reason}).",

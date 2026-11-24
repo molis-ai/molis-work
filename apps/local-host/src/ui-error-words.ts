@@ -273,9 +273,9 @@ const ERROR_FALLBACKS = {
     ja: "モデルサービスに接続できませんでした。入力内容はそのまま残っていますので、ネットワークと「設定 › モデル」のアドレスを確認してください。",
   },
   "common.error.model-context-overflow": {
-    zh: "这次对话内容超过了模型窗口上限，已有内容都保留着。可以新开一项工作，或精简材料后再试。",
-    en: "This conversation exceeds the model’s context limit. Your content is safe — start a new work or trim the materials and try again.",
-    ja: "会話の内容がモデルのコンテキスト上限を超えました。これまでの内容は残っていますので、新しいワークを開くか資料を絞ってからお試しください。",
+    zh: "这次对话内容超出了模型一次能读完的长度，已有内容都保留着。可以新开一项工作，或精简材料后再试。",
+    en: "This conversation exceeds the model’s length limit. Your content is safe — start a new work or trim the materials and try again.",
+    ja: "会話の内容がモデルの入力上限を超えました。これまでの内容は残っていますので、新しいワークを開くか資料を絞ってからお試しください。",
   },
   "common.error.model-refused": {
     zh: "模型拒绝处理这次请求，已有内容都保留着。可以调整表述后再试。",

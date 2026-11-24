@@ -933,7 +933,7 @@
     "coding.mcp-config.connected": "MCP connected; tools and resources reach the model only after you choose them for a turn in a session.",
     "coding.mcp-config.disabled": "Turned off",
     "coding.mcp-config.disconnect": "Disconnect",
-    "coding.mcp-config.doing.cancel": "Cancelling the connection…",
+    "coding.mcp-config.doing.cancel": "Canceling the connection…",
     "coding.mcp-config.doing.connect": "Connecting…",
     "coding.mcp-config.doing.disconnect": "Disconnecting…",
     "coding.mcp-config.doing.remove": "Removing the configuration…",

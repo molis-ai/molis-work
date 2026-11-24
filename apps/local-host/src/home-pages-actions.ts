@@ -5,6 +5,21 @@ import { heldHomeSqlite } from "@molis-ai/molis-work-storage";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
 
+/** Store-only port for `horizontal/home` service reads inside `apps/local-host` HTTP routes. */
+export function homePagesStorePort(
+  homeDirectory: string,
+  clock: () => Date = () => new Date(),
+): Pick<HomePagesPorts, "open"> {
+  return {
+    open: (projectId: string) =>
+      new HomePagesStore(
+        heldHomeSqlite(homeDirectory, HOME_PAGES_HOME_STORE.path, HOME_PAGES_BASELINE),
+        projectId,
+        () => clock().toISOString(),
+      ),
+  };
+}
+
 /**
  * Host wiring for `horizontal/home`: borrows the Home's held SQLite connection (`home-pages/home-pages.db`), inspects
  * explicit-plugin actions in the project's catalog, opens `home-page-preview` sessions in `PluginPageAuthority`,
@@ -15,12 +30,7 @@ export function homePagesPorts(
   inspectActions: (caller: ActionCallContext) => Promise<readonly ActionView[]>,
   clock: () => Date = () => new Date(),
 ): HomePagesPorts {
-  const open = (projectId: string) =>
-    new HomePagesStore(
-      heldHomeSqlite(homeDirectory, HOME_PAGES_HOME_STORE.path, HOME_PAGES_BASELINE),
-      projectId,
-      () => clock().toISOString(),
-    );
+  const { open } = homePagesStorePort(homeDirectory, clock);
   return {
     open,
     discover: async (caller: ActionCallContext, mode: "save" | "approve") => {

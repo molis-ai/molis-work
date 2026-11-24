@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { AgentHost, emptyCapabilityMatrix, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
+import { CODING_AUTO_SKILL_CATALOG, CODING_INSTRUCTIONS, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { homeAgentDefinitions, molisWorkHostProjectReference, pluginInstallActions, PLUGIN_INSTALL_PERMISSIONS, SkillCatalog, type CatalogSkill } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionSkillRound, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentManifest } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -166,10 +167,23 @@ test("SKP-10: Coding's round lists the automatic Skills for Coding and offers th
 
   from = mark();
   await startRound("Summarize the meeting", "en");
-  const english = JSON.stringify(roundRequests(from)[0]?.messages);
+  const englishRequest = roundRequests(from)[0];
+  const english = JSON.stringify(englishRequest?.messages);
   assert.match(english, /Skills available automatically/u);
   assert.match(english, /自动纪要/u, "a Skill author’s own name stays as authored");
-  assert.doesNotMatch(english, /可自动使用的技能/u);
+  assert.doesNotMatch(english, /可自动使用的技能|技能 · 读取 · 读取技能正文/u, "English catalog instructions carry no Chinese label leak");
+  assert.match(english, /\[system\.skills \/ skills\.body\.read@1\]/u, "English catalog references the stable action tag");
+  const englishTools = roundTools(englishRequest!);
+  const actionToolsOf = (list: Array<{ name: string; description: string }>) =>
+    list.filter(tool => tool.name.startsWith("molis-action-")).map(tool => [tool.name, tool.description]);
+  assert.ok(englishTools.some(tool => tool.description.includes("[system.skills / skills.body.read@1]")),
+    "action tool description carries the stable action reference tag");
+  assert.deepEqual(actionToolsOf(englishTools), actionToolsOf(firstTools),
+    "Decision 67 #5: Coding action tool names and descriptions stay identical across zh and en rounds so toolsFingerprint and KV-Cache hold");
+  assert.ok(CODING_INSTRUCTIONS.some(prompt => prompt.prompt_id === CODING_AUTO_SKILL_CATALOG.prompt_id), "coding.auto-skill-catalog is formally registered");
+  for (const id of ["coding-compaction", "coding-ending-review"]) {
+    assert.ok(codingPrompts.find(prompt => prompt.prompt_id === id)?.body_by_locale?.en, `${id} ships an English translation`);
+  }
 
   // d. With nothing set to 「自动」 there is no material and no Skill tool on the round.
   const revised = (await client.invoke(person, action(skillCatalogActions.list), {})) as { skills: SkillCatalogEntry[] };

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { agentQuestionHtml, hostQuestionTypes, hostReferenceKinds, questionErrors } from "@molis-ai/molis-work-app-local-host";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type ReferenceKindCandidate, type ReferenceKindsFor } from "@molis-ai/molis-work-service-agent-host";
+import { AgentHost, AgentReviewQueue, boundReferenceKinds, createPrologueNodeAdapter, type ReferenceKindCandidate, type ReferenceKindsFor } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import type { AgentPendingQuestion, AgentQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
@@ -122,6 +122,10 @@ test("BL-152: two rounds in one project see the same kinds in the same order, ho
   const { bodies } = await rounds(t, async () => (calls++ % 2 ? [...listed].reverse() : listed), () => cogniaModelResponse("好"), 2);
   assert.deepEqual(enumOf(bodies[0]), ["x_card", "x_board", "x_note", "goal"], "by plugin id and kind, built-in or not (PG-015)");
   assert.deepEqual(enumOf(bodies[1]), enumOf(bodies[0]), "the tool schema does not change between rounds, so the prompt cache holds");
+  // Even duplicate (plugin_id, installation, kind) entries with different titles resolve deterministically regardless of input order.
+  const a = boundReferenceKinds([external("x_note", "Z 笔记"), external("x_note", "A 笔记")]);
+  const b = boundReferenceKinds([external("x_note", "A 笔记"), external("x_note", "Z 笔记")]);
+  assert.deepEqual(a.kinds, b.kinds);
 });
 
 test("BL-152: without the Host's port, or with nothing from it, the round keeps the Runtime's built-in kinds", { timeout: 60_000 }, async t => {

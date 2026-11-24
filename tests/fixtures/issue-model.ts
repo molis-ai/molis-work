@@ -4,8 +4,9 @@ import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { withConnectorConnections, type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { ISSUE_ASK } from "@molis-ai/molis-work-plugin-issues";
 import { asideReply } from "./ending-review.js";
+
+const ISSUE_ASK = "你在哪个页面做了什么，出现了什么问题？也可以补充截图。";
 
 function reply(tool?: { name: string; input: unknown }, text = "已记录「切换页面后输入内容丢失」（Bug）。"): string {
   const events: string[] = [], emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);

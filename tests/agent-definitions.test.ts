@@ -249,7 +249,7 @@ test("a run starts with the person's version of a registered prompt, and its rec
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue, prompts: definitions });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.definitions-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
-    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture", prompt_cache: "best-effort" }),
     resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
@@ -283,7 +283,7 @@ test("the ending review runs with the person's version of its instructions, and 
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue, prompts: definitions });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.definitions-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
-    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture", prompt_cache: "best-effort" }),
     resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
@@ -296,10 +296,12 @@ test("the ending review runs with the person's version of its instructions, and 
     const reviews = requests.filter(request => JSON.stringify(request.system ?? "").includes("测试用的收尾核对"));
     assert.equal(reviews.length, 1, JSON.stringify(requests.map(request => request.system)));
     assert.equal(reviews[0].tools, undefined, "the review has no tools");
+    assert.match(JSON.stringify(reviews[0].system), /"cache_control":\{"type":"ephemeral"\}/u, "ending review forwards promptCache when enabled");
     assert.ok(!requests.some(request => JSON.stringify(request.system ?? "").includes("你读一段 AI 助理在这一轮结束时")), "the shipped text did not run");
     assert.doesNotMatch(JSON.stringify(requests[0].system), /测试用的收尾核对/, "it is never composed into the round's own role");
     const session = await host.adapter("prologue").readSession({ session_id: store.get("web-user", sent.work.work_id).session_id! });
-    assert.deepEqual(session.latest_run?.frozen.ending_review, { prompt_id: "assistant-ending-review", version: 2, user_revision: 1 });
+    assert.deepEqual(session.latest_run?.frozen.ending_review, { prompt_id: "assistant-ending-review", version: shipped.version, user_revision: 1 });
+    assert.match(shipped.body_by_locale?.en ?? "", /at the end of this round/u, "ending review ships with an English counterpart");
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 

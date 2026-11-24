@@ -33,7 +33,7 @@ const LIMITS: Record<ReferenceKindProblemReason, number> = {
  * not use goes to the others. What is left out is a problem for its plugin.
  */
 export function boundReferenceKinds(candidates: readonly ReferenceKindCandidate[]): { kinds: Array<{ kind: string; title: string }>; problems: ReferenceKindProblem[] } {
-  const ordered = [...candidates].sort((a, b) => compareCodeUnits(a.plugin_id, b.plugin_id) || compareCodeUnits(a.installation, b.installation) || compareCodeUnits(a.kind, b.kind));
+  const ordered = [...candidates].sort((a, b) => compareCodeUnits(a.plugin_id, b.plugin_id) || compareCodeUnits(a.installation, b.installation) || compareCodeUnits(a.kind, b.kind) || compareCodeUnits(a.title, b.title));
   const named = new Set<string>(), offered = new Map<string, ReferenceKindCandidate[]>();
   const problems = new Map<string, { plugin_id: string; reason: ReferenceKindProblemReason; limit: number; kinds: string[] }>();
   const note = (entry: ReferenceKindCandidate, reason: ReferenceKindProblemReason) => {

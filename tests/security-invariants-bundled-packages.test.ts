@@ -214,7 +214,7 @@ test("08-10 SKP-01 SKC-02 S-bundled-packages in a real Host the bundled design a
     assert.equal(installedReview?.pack.title, "Design and accessibility");
     assert.match(installedReview?.description ?? "", /^Review a page, component, design or piece of interface code/);
     assert.equal(installedReview?.argument_hint, "<要审查的页面、组件、截图或代码>");
-    assert.match(installedReview?.excerpt ?? "", /无障碍审查/);
+    assert.match(installedReview?.excerpt ?? "", /Accessibility review/);
 
     await b.tamper();
     const after = await client.invoke(person, ref(pluginInstallActions.bundled), {}) as BundledPluginList;

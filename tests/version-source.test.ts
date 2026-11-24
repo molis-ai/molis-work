@@ -104,7 +104,7 @@ test("N34-VS-02 a method carrier moves that method's frontmatter and leaves its 
   const { files, outputs } = move("method.planning-methods.domain-app-product", 3);
   const file = "plugins/content/planning-methods/skills/domain-app-product/SKILL.md";
   assert.deepEqual([...outputs.keys()], [file]);
-  assert.equal(outputs.get(file)!.replace(/^version: 3$/m, "version: 1"), files.get(file));
+  assert.equal(outputs.get(file)!.replace(/^version: 3$/m, "version: 2"), files.get(file));
 });
 
 test("N34-VS-02 a key stays with its own pattern: a string that carries a version follows it", () => {

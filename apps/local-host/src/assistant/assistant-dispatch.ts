@@ -3,7 +3,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { threadReplyMaterials } from "./assistant-thread-types.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
-import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
+import { withRoundSkillHandles, type AgentHost, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { isTerminalAgentPhase, type AgentActionReviewControl, type AgentRunRef, type AgentRunView, type AgentSessionRef, type AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { requireSynchronous, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
@@ -337,6 +337,15 @@ export class AssistantDispatch {
           const callerFence = await original?.();
           const sourceFence = await knowledge.beforeDispatch();
           return () => { requireSynchronous(callerFence?.(), "最终派发检查必须同步完成"); requireSynchronous(sourceFence(), "资料派发检查必须同步完成"); };
+        } };
+      }
+      if (ready.skillHandles?.size && authority.actions) {
+        const originalActions = authority.actions, handles = ready.skillHandles, parentSessionId = work.session_id;
+        authority = { ...authority, actions: async (runtimeId, validate, session, skillRound, memory) => {
+          const client = await originalActions(runtimeId, validate, session, skillRound, memory);
+          // Child subagent sessions never inherit the parent round's ephemeral skill handles (S-skill-delegation).
+          if (!session || session.session_id !== parentSessionId) return client;
+          return withRoundSkillHandles(client, handles);
         } };
       }
       handle = await this.link.delegations.startPlaced(work, adapter, inputEffect, async placed => {

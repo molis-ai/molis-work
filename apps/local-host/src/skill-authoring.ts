@@ -5,9 +5,9 @@
  * confirmation: a Skill written here is treated exactly as one imported from this machine. Saving one makes the package's next version
  * with every other Skill as it was; taking the last one away takes the package off. Only text: no resources, no scripts.
  */
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { ActionError, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
-import { instructed, composeInstructedPrompt, type InstructedPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
+import { fencedMaterials, instructed, composeInstructedPrompt, type InstructedPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import { CONTENT_PACKAGE_FILES, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
 import { SKILL_AUTHORED_PLUGIN_IDS, SKILL_DRAFT_INTENT_CHARS, skillErrors, type SkillAuthoredFields, type SkillAuthoredRemoveRequest, type SkillAuthoredRemoveResult,
@@ -209,7 +209,7 @@ export async function draftSkill(intent: string, complete: HostTextForCommit | u
   if (!asked || asked.length > SKILL_DRAFT_INTENT_CHARS) throw skillErrors.authored_invalid(`请用 1～${SKILL_DRAFT_INTENT_CHARS} 字说想让这个技能做什么`, { field: 'intent' });
   if (!complete) throw textModelRequired('起草技能');
   await authority?.beforeDispatch?.();
-  const answer = await complete(resolve(instructed(SKILL_DRAFT, `用户想要的技能：${asked}`)), authority);
+  const answer = await complete(resolve(instructed(SKILL_DRAFT, fencedMaterials({ intent: asked }, randomBytes(8).toString('hex')))), authority);
   await authority?.beforeDispatch?.();
   answer.validateResult();
   const unreadable = () => skillErrors.draft_unreadable('助理没有给出能用的初稿，请再试一次，或者自己写');

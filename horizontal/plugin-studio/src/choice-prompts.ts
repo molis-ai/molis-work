@@ -26,3 +26,13 @@ export const BUILDER_CHOOSE_COMPONENT = defineInstructionPrompt({
   ...promptBody("choose.component"),
 });
 export const BUILDER_CHOICE_INSTRUCTIONS = [BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT] as const;
+
+/** What the image service is asked to draw for a proposal: the product's screen, in the product's plain style. */
+export const BUILDER_MOCKUP = defineInstructionPrompt({
+  owner_id: BUILDER_PLUGIN_ID, prompt_id: 'mockup.generate', version: /* @version prompt.mockup.generate */ 1, title: '生成方案效果图',
+  purpose: '根据设计方案的标题、说明、页面部件与使用路径，为生图服务生成插件界面效果图的风格与构图要求',
+  used_by: ['插件创作台 · 设计'],
+  ...promptBody("mockup.generate"),
+});
+
+export const BUILDER_INSTRUCTIONS = [...BUILDER_CHOICE_INSTRUCTIONS, BUILDER_MOCKUP] as const;

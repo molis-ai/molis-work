@@ -17,6 +17,15 @@ export function agentBodyIn(body: LocalizedAgentBody, locale?: string): string {
   return locale && body.body_by_locale && Object.hasOwn(body.body_by_locale, locale) ? body.body_by_locale[locale] ?? body.body : body.body;
 }
 
+/**
+ * Whether a person may save an override on top of a registered prompt.
+ *
+ * Omitting it means `"editable"` (the normal default). `"protected"` keeps the prompt transparently visible in
+ * “Prompt 与 Character” while refusing user edits, resets, override imports, and personal config sync writes so
+ * safety-gating prompts cannot be relaxed through settings (zero DDL; Decision 67, S-protected-prompt-override).
+ */
+export type PromptOverridePolicy = "editable" | "protected";
+
 export interface InstructionPrompt extends LocalizedAgentBody {
   /** The Plugin id, or `system:<module>` for the Host's own. */
   readonly owner_id: string;
@@ -33,6 +42,8 @@ export interface InstructionPrompt extends LocalizedAgentBody {
    * (specs/capability-pack/contract-design.md §4.2).
    */
   readonly role_id?: string;
+  /** Absent means `"editable"`. `"protected"` refuses user edits, resets, imports and sync overrides. */
+  readonly override_policy?: PromptOverridePolicy;
 }
 
 const TOKEN = /^[a-z0-9][a-z0-9.-]*$/u;
@@ -40,8 +51,9 @@ const TOKEN = /^[a-z0-9][a-z0-9.-]*$/u;
 const ROLE_TOKEN = /^[a-z0-9][a-z0-9-]*$/u;
 
 export function defineInstructionPrompt(prompt: InstructionPrompt): InstructionPrompt {
+  const validPolicy = prompt.override_policy === undefined || prompt.override_policy === "editable" || prompt.override_policy === "protected";
   if (!prompt.owner_id.trim() || !TOKEN.test(prompt.prompt_id) || !Number.isSafeInteger(prompt.version) || prompt.version < 1
-    || (prompt.role_id !== undefined && !ROLE_TOKEN.test(prompt.role_id)) || !prompt.title.trim() || !prompt.body.trim()) {
+    || (prompt.role_id !== undefined && !ROLE_TOKEN.test(prompt.role_id)) || !validPolicy || !prompt.title.trim() || !prompt.body.trim()) {
     throw new Error(`指令 Prompt ${prompt.owner_id}/${prompt.prompt_id} 的声明不完整`);
   }
   return Object.freeze({ ...prompt, used_by: Object.freeze([...prompt.used_by]) });

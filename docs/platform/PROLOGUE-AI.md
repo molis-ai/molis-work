@@ -530,6 +530,29 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 **不要这样做。** 把这一次的具体值（某个客户名、某个日期）写进正文；每个判断点都加一道「请确认」；为这个 Skill 在宿主里加一条专属流水线。
 
+### 13.6 四类统一 Prompt 治理、双缓存域五层动态拼装与单次双通道（决定 67）
+
+所有送入模型的提示与指导文本按[决定 67](../../specs/post-anticorruption-roadmap/reference/decisions.md#decision-67)归入四类封闭治理模型，不再留游离硬编码或灰色旁路：
+
+| 类别 | 范围 | 登记、版本与 `override_policy` | 安全与同步边界 |
+| --- | --- | --- | --- |
+| **`editable`**（业务与角色提示词） | 插件 `PluginDefinition.instructions`/`agent_prompts`/`methods`、`BUILTIN_INSTRUCTIONS`（含 `system:*` 与平台创作台）、`packages/system-skills` | `AgentDefinitions` + `tooling/versions.json` + `.md`/`.en.md` 双语同步 + 适用项进 `WORDING_HISTORY`；`override_policy` 缺省 `"editable"` | `tests/prompt-registration.test.ts` 覆盖 `apps/local-host`、`plugins/native`、`modules`、`horizontal` 的逐调用点 AST 检查；`scripts/gates/content-versions.mjs` 同步守住三类目录与系统技能；停用插件保留 `body_by_locale`（`agent-declarations.ts` 零 DDL）；个人覆盖仅走 `home-store` 个人同步，**永不静默注入团队共享分区（`SRV-6`）** |
+| **`protected`**（安全门控与权威裁定提示词） | 直接决定或评估副作用放行权的提示词（如 `65-2` AI 低风险命令自动放行） | 零 DDL 声明 `override_policy: "protected"`，强制双语并进 `WORDING_HISTORY` SHA-256 锁 | 设置页只读透明可见；`AgentDefinitions.save`/`reset`、提示词导入导出（`prompt-overrides.ts`）与个人同步副本（`prompt-overrides-replica.ts`）一律以 `agent_definitions.prompt_override_protected` 拒绝覆盖，读/生效路径忽略磁盘篡改行（见 [S-protected-prompt-override](../system/security-invariants/S-protected-prompt-override.md)） |
+| **`platform-fixed`**（平台机制与安全边界文案） | `reply-language`、`UNTRUSTED_MATERIALS_NOTICE`（`fencedMaterials`）、`<MOLIS_WORK_PROJECT_GUIDANCE>` 包装壳、`SURFACE/DESKTOP_GUIDANCE`、`stepBoards`、`checkpoints`、`UNMARKED_IMAGES_NOTE`、`announce-guard` | 不进用户覆盖表（防止改坏安全边界或回复语言），但须全部双语化并纳入 `frozen.prompts` 与 `OBSERVATION_COVERAGE_PLAN` | 仅 `reply-language` 在 `AgentDefinitions.effective()` 有显式登记例外；`AgentDefinitions.effective()` 与 `resolveModelPrompt()` 对其他未登记或裸字符串调用一律拒绝 |
+| **`user-owned`**（用户业务内容） | `modules/characters`、项目长期指导正文、`modules/judgment-rules` 用户规则、`my-skills.{home,project}`、生成插件 `prompts` | 归各自业务主人管理与版本冻结（`S-character-role-scope`、`S-skill-authoring`），不重复入 `BUILTIN_INSTRUCTIONS` | `109` 按调用分区的已启用插件集过滤内置插件 `methods`/`roles`，防止跨分区泄漏 |
+
+**双缓存域 × 五层冷热动态拼装（严守决定 58 与 S-13）。** 跨轮续聊（`history: "session"`）仅 `tools[] + Static system` 能命中缓存；单轮多步循环（Turn 1→60）才可复用 `opening + turns`。动态拼装按变更频率严格分层、只追加不回改：
+
+1. **缓存域 A · 跨轮 + 轮内双命中堡垒**：
+   - **Zone 0（极冷静态工具面 `tools[]`）**：固定能力网关（经 MiniMax G1–G4 零回归门后再撤 `parameterBranches`）；Coding 动作工具去全集 `scope` 哈希改为稳定 `act__<cap>`（同步守住 `prologue-review-documents.ts` 等 7 处耦合与 `S-28`）；确定性排序 `systemTools → sorted(mcpTools) → sorted(actionTools) → surfaceTools` 与 `S-32` `askUserReferenceKinds`；静态化 `acknowledge-inputs` Schema；出网 JSON 采用确定性键序。**模型侧工具名、副作用标签与描述保持稳定语言（决定 67 ⑤ / `71-2` `FSS-40`），不随 UI 语言切换动态改写**，仅界面展示层本地化，保护 `toolsFingerprint` 与 KV-Cache。
+   - **Zone 1（冷静态指令区 · Two-Zone `system` Static，`trust: "instruction"`）**：依次为 SDK `runtime:clock`（`YYYY-MM-DD`，按决定 58 留 `developer` 层按天稳定）→ `base` → `role` → Character 冻结版本 → `project`（`<MOLIS_WORK_PROJECT_GUIDANCE>`）→ 会话/压缩点冻结的常驻记忆（`63A` P2-05）→ `reply_language`。Anthropic 断点 #1 锁在 Zone 1 尾端，其后严禁混入 UUID、毫秒时间戳、动态召回记忆或单语言硬编码块。
+2. **非缓存高信任桥 · Zone 2（温动态指令区 · Two-Zone `system` Dynamic）**：放按轮条件挂载且仍须保持 `trust: "instruction"` 信任级的宿主规则（去 UUID 的确定性子代理角色名册、条件挂载的 `## 服务接入`、激活时的浏览器/桌面指引与 `surface.note`、任务板 `boardId`/节点态、人工回退记录、`UNMARKED_IMAGES_NOTE`、SDK 子代理 `heldStepNote`）。**绝不降级为 `trust: "data"`（守 `S-13`）**，全部跟随 `reply_locale` 双语化，且不打 Anthropic 缓存断点。
+3. **缓存域 B · 轮内多步工具循环命中区（支持 `Cache-Safe Fork` 复用）**：
+   - **Zone 3（半静态开场数据区，`opening` 前部，`trust: "data"`）**：紧凑短句柄化全量技能目录（`s1..sN`，仅在轮级 Host/Gateway 边界还原 8 字段严格 `SkillRef` 守 `S-skill-catalog`）、能力目录与项目资料索引摘要；长开场可按预算设条件断点 #2。
+   - **Zone 4（热态实时上下文 & 追加式对话尾，`opening` 尾部 + `turns`）**：分钟级时间/时区 `situation`（排在半静态目录之后并锚定防 30 条裁切）、当前页面/选区/所有者重读对象、一次性增量事件卡、动态召回记忆（`memory-recaller`，严禁混入 Zone 1）、永久锚定于原始 `userTask` 的 `start.attachments`（修复首轮错挂与轮中跳动），以及阶梯分批微压缩（同步清理过期 `imageRef`）。Anthropic 滚动断点 #3/#4 仅在 `messages.length >= 2` 时启用，总断点数硬上限 **≤ 4** 且默认 `{ type: "ephemeral" }`（禁默认发 `ttl: "1h"`）；OpenAI 协议保持 `supportsPromptCache: false` 靠字节级前缀稳定与 opt-in `stream_options.include_usage` 回收缓存指标。
+
+**有界单次调用双通道规范（`104-1`）。** 单次推理统一拆成 `system`（`[optionalSystemInstruction, primaryInstruction, optionalReplyLanguage].filter(Boolean).join("\n\n")` 再经 `withUnmarkedImagesNote`）与 `user`（统一经 `fencedMaterials(data)` 封装；`data` 为空时提供安全非空占位）。指令显式声明 `reply_language_policy`（`"follow_locale"` 给用户可读正文 vs `"fixed_schema"` 给结构化 JSON/枚举抽取器，严禁向结构化抽取器盲灌回复语言）；有 Schema 的 JSON 指令优先使用 SDK `structured`（协议支持优先 `native`、否则显式 `local` + 领域校验），并按需启用 `prompt_cache: "best-effort"`；切换时同步更新 `S-13`/`S-66` 断言、`pnpm api:update` 与 `OBSERVATION_COVERAGE_PLAN`。
+
 ## 14. 基础实现索引
 
 以 main `7d1cc4bf`（2026-10-19）为准，表中路径与符号逐个用 `git grep` 核对过。证据等级：**源码**（读过当前代码）、**确定性**（仓库里的用例断言，模型是替身）、**真实 SDK**（真实 Prologue 加本机替身模型服务）、**回放**（离线回放真实模型的答卷）、**真实模型**（用户配置的模型跑过，有记录）。下表只有三行引了「真实模型」记录：助理的能力网关（手册需求书 §9.5 的 A2）、工具说明延后加载（`specs/prologue-adoption/spec.md` §6.0e，与需求书 §9.5 的 BL-145）和收尾核对（需求书 §9.5 的 D1②），各自只证明所记的那几组任务；其余各行的用例证明调用路径和边界，不证明 AI 理解了场景。

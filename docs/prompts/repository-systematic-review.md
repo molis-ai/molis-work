@@ -196,7 +196,13 @@
 
 检查供应商直连、旧执行器和绕过约束的 fallback；检查 Runtime 结束、权限撤销或配置变化后是否仍产生副作用。
 
-检查回复语言是否只由平台一处给（`AgentStartAuthority.reply_language`）；提示词、Skill、方法和插件里有没有写死回复语言或按语言分支。
+检查回复语言是否只由平台一处给（`AgentStartAuthority.reply_language`）；提示词、Skill、方法和插件里有没有写死回复语言或按语言分支；有界单次调用是否按显式 `reply_language_policy` 区分人看正文与结构化抽取，且 `user` 侧不可信材料统一经 `fencedMaterials` 隔离。
+
+检查 Prompt 统一登记、受保护策略与双缓存域 KV-Cache 稳定性（见 `docs/platform/PROLOGUE-AI.md` §13.6 与路线书决定 67）：
+
+- 新增或改动的指令、Agent 角色/基础/辅助提示词、判断服务题面与系统技能是否全部按四类治理（`editable`/`protected`/`platform-fixed`/`user-owned`）完成登记（`defineInstructionPrompt`、`BUILTIN_INSTRUCTIONS`、`SYSTEM_INSTRUCTION_SOURCES`、`PluginDefinition`），改默认正文同步升 `tooling/versions.json`、补中英双语并在适用时追加 `WORDING_HISTORY`；是否消除了 `modules/`、`horizontal/`、Host 中的未登记硬编码提示词、裸字符串直调与私有包装语；
+- 直接决定或评估副作用放行权的安全门控提示词是否零 DDL 声明 `override_policy: "protected"`，且保存、重置、导入与个人同步副本四路全量拒绝覆盖（`agent_definitions.prompt_override_protected`，配拒绝测试，不破坏 `tests/golden-writes/agent-definitions.ts`）；
+- 动态拼装是否严守双缓存域五层冷热分层：Zone 0 静态工具面无轮中 Schema 突变、无全集哈希抖动、确定性排序，且模型侧工具名/副作用标签/描述保持稳定语言（不随 UI 语言切换改写，保护 `toolsFingerprint`）；Zone 1 静态 `system`（`runtime:clock` 留 `developer` 层、`reply_language` 置尾、常驻记忆会话冻结）零 UUID/毫秒时间戳/易变状态污染；须守 `S-13` 的按轮动态宿主指令留在 Two-Zone `system` Dynamic（Zone 2，保持 `trust: "instruction"` 且双语化，绝不降级为 `data`）；热态使用态与动态召回记忆严格落 Zone 4，附件锚定在原始 `user` 任务消息且微压缩同步清理过期 `imageRef`；Anthropic 断点 ≤4（默认 `ephemeral`）；改动上下文拼装、Skill 生效或缓存遥测时是否同步更新 `OBSERVATION_COVERAGE_PLAN`。
 
 能力被注册成 MCP 或工具，还需验证 AI 能否理解和正确选择：
 

@@ -5,6 +5,7 @@ import { recordOriginalInput } from "./prologue-original-inputs.js";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { isTerminalEventType, type TerminalRunState, type ExactRef, type PackTool, type Runtime } from "@prologue/sdk";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { BUSINESS_HOST_TOOLS, BUSINESS_SUBAGENT_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentTextMaterialContent, type AgentFrozenStart } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -250,6 +251,7 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
     if (at < 0 || !adopted[at]) throw new Error("MCP 工具已变化，请重新选择");
     mcpTools.push(adopted[at]!);
   }
+  mcpTools.sort(compareCodeUnits);
   const symbolOverrides = parts.symbolToolName === undefined ? undefined : new Map([[FIND_SYMBOL_HOST_TOOL, parts.symbolToolName]]);
   const tools = [...systemTools(input, symbolOverrides), ...mcpTools, ...(parts.actionTools?.names ?? []), ...surface.tools];
   const runTools = [...new Set([...tools, ...[...childRoles.values()].flatMap(role => role.host_tools.map(prologueToolName))])];
@@ -764,8 +766,9 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
       ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) });
     // The stop check follows this round; its ending review, when the round's owner gave one, runs with the owner's
     // instructions on the round's own model, behind the same pre-dispatch check.
+    const reviewCache = input.model.prompt_cache === undefined || input.model.prompt_cache === "off" ? {} : { promptCache: input.model.prompt_cache };
     guardRound(state, input, mode.business, input.ending_review ? { instructions: input.ending_review.prompt, protocol: input.model.protocol, endpoint: input.model.endpoint,
-      model: input.model.model, credentialRef, dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
+      model: input.model.model, credentialRef, ...reviewCache, dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
     // A new Run owns its dispatch scope. A callback from a completed Run may have asked for this start.
     const started = await deps.memoryAuthority.forAttempt(input.session_id, attemptIndex, () =>
       deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {

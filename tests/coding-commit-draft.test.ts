@@ -113,7 +113,7 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
     await draftText({ ...options, homeDirectory: otherHome }, named, { pluginId });
     assert.ok(JSON.stringify(bodies.at(-1).system).includes(CODING_COMMIT_DRAFT.body.split("\n")[0]!));
     assert.doesNotMatch(JSON.stringify(bodies.at(-1).system), /User instructions/);
-    assert.equal(bodies.length, 5);
+    assert.equal(bodies.length, 3 + CODING_INSTRUCTIONS.length);
 
     // FSS-74: freeze the prompt and the same Home's language before the real authorization wait.
     const held = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(), fresh = homeAgentDefinitions(otherHome);
@@ -132,9 +132,9 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
 
     await draftText({ ...options, homeDirectory: otherHome }, { ...named, prompt: "coding.history-summary" }, { pluginId });
     const digest = JSON.stringify(bodies.at(-1).system);
-    assert.match(digest, /用和材料相同的语言/, "the digest's version-one content is still present");
+    assert.match(digest, /用和材料相同的语言/, "the digest's Chinese content is still present");
     assert.match(digest, /本轮回复语言：简体中文。给用户的回复/);
-    assert.equal(fresh.uses.list(`${pluginId}/coding.history-summary`)[0]!.version, 1);
+    assert.equal(fresh.uses.list(`${pluginId}/coding.history-summary`)[0]!.version, 2);
   } finally {
     await adapter.close(); server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve())); await rm(home, { recursive: true, force: true });

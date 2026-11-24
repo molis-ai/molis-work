@@ -11,6 +11,7 @@ import type { AgentMemoryCaller, AgentMemorySourceSnapshot, AgentMemorySourceReq
 import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
 import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { memoryExtractor, memoryRuntimePolicy, prologueMemoryBackend, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
+import { parseFencedMaterials } from "./fenced-materials.js";
 
 type Generation = NonNullable<ReturnType<NonNullable<Parameters<typeof memoryExtractor>[1]>>>;
 /** A bounded model response, passed through the production registered prompt, schema and extractor before the real SDK. */
@@ -21,10 +22,10 @@ export function scriptedMemoryExtraction() {
   let reply: { usage: Awaited<ReturnType<Generation>>["usage"]; blankTask: boolean; promptIncludesCache?: boolean } = { usage: [], blankTask: false };
   const generate: Generation = async (prompt, options) => {
     await options?.beforeDispatch?.();
-    const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as {
+    const data = parseFencedMaterials<{
       sources: Array<{ id: string; text: string }>; existing?: Array<{ id: string; text: string }>;
       destinations: Array<{ scope: string; replacement?: string; task?: string; slots: Record<string, string> }>;
-    };
+    }>(prompt);
     const drafts = proposals.map(proposal => {
       const scope = proposal.scope === "personal" ? "user" : proposal.scope;
       const targets = proposal.supersedes ? (data.existing ?? []).filter(entry => proposal.replaces_text === undefined || entry.text === proposal.replaces_text) : [];

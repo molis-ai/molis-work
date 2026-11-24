@@ -15,7 +15,7 @@ export const ANNOUNCE_HELD =
 
 /** What the model reads when it claims to have kept a memory with formation off. */
 const MEMORY_OFF_HELD =
-  "The person has switched off forming memories, so this round kept nothing. Say plainly that you did not keep it, that it still applies within this work, and that they can turn on “允许记住” under 设置 · 个人 · 记忆.";
+  "The person has switched off forming memories, so this round kept nothing. Say plainly that you did not keep it, that it still applies within this work, and that they can re-enable memory formation in their personal memory settings.";
 
 /** What the model reads when it claimed a memory change it did not make. */
 const MEMORY_CLAIM_HELD = {

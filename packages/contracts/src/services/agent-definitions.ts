@@ -1,7 +1,9 @@
-import type { LocalizedAgentBody } from "../platform/model-prompts.js";
+import type { LocalizedAgentBody, PromptOverridePolicy } from "../platform/model-prompts.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import { defineErrorCodes } from "../platform/actions.js";
 import type { AgentPromptLayer, AgentRoleExecution } from "../platform/plugin-agent.js";
+
+export type { PromptOverridePolicy } from "../platform/model-prompts.js";
 
 /**
  * The Host's register of every Agent definition that reaches a model: prompts (the parts of a role, and the
@@ -78,6 +80,8 @@ export interface AgentPromptRegistration extends LocalizedAgentBody {
   version: number;
   kind: AgentPromptKind;
   layer?: AgentPromptLayer;
+  /** Absent means `"editable"`. `"protected"` is read-only in settings and refuses overrides on every write path. */
+  override_policy?: PromptOverridePolicy;
   title: string;
   purpose: string;
   /** Which roles or features use it, as the person reads them. */
@@ -149,6 +153,8 @@ export interface AgentPromptView {
   prompt_id: string;
   kind: AgentPromptKind;
   layer?: AgentPromptLayer;
+  /** Absent means `"editable"`. `"protected"` is read-only in settings and refuses overrides on every write path. */
+  override_policy?: PromptOverridePolicy;
   title: string;
   purpose: string;
   used_by: string[];
@@ -236,4 +242,6 @@ export const agentDefinitionErrors = defineErrorCodes("agent_definitions", {
   overrides_row_not_applicable: "conflict",
   /** An instruction prompt's `role_id` is not a role its owner declares: the owner's registration is refused (`details`: owner, prompt, role). */
   instruction_role_unknown: "invalid",
+  /** A prompt declared `override_policy: "protected"` cannot be saved, reset, imported, or overwritten through sync. */
+  prompt_override_protected: "forbidden",
 });

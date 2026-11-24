@@ -1,5 +1,5 @@
-import { composeInstructedPrompt, modelPromptText, type InstructionPrompt, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { agentDefinitionsFor } from "./agent-definitions.js";
+import { composeInstructedPrompt, isInstructedPrompt, modelPromptText, type InstructionPrompt, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { agentDefinitionsErrors, agentDefinitionsFor } from "./agent-definitions.js";
 import { modelRoundLocale } from "../reply-language.js";
 import { builtinRegistrations } from "./builtin-agents.js";
 
@@ -17,18 +17,29 @@ export function prepareInstructionPrompt(home: string, owner: string, promptId: 
 
 /**
  * The text a model call sends: registered instructions as the person left them (their version, or the default),
- * then the call's data. A plain string passes through; the prompt-registration check keeps new ones from appearing.
+ * then the call's data. Plain strings and unregistered prompts are refused instead of passing through silently.
  */
 export function resolveModelPrompt(homeDirectory: string | undefined, prompt: ModelPromptInput, caller: string,
   options: { onDispatch?(record: () => void): void } = {}): string {
-  if (typeof prompt === "string" || !homeDirectory) return modelPromptText(prompt);
+  if (!isInstructedPrompt(prompt) || !prompt.instruction.owner_id.trim() || !prompt.instruction.prompt_id.trim()) {
+    throw agentDefinitionsErrors.invalid("模型调用必须使用已登记的指令 Prompt，不能直接传入裸字符串");
+  }
+  if (!homeDirectory) {
+    return modelPromptText(prompt);
+  }
   const definitions = agentDefinitionsFor(homeDirectory, builtinRegistrations);
   let used: (() => void) | undefined;
-  const read = definitions.instruction(prompt.instruction.owner_id, prompt.instruction.prompt_id, caller, modelRoundLocale(homeDirectory), record => { used = record; });
+  const read = definitions.instruction(prompt.instruction.owner_id, prompt.instruction.prompt_id, caller, modelRoundLocale(homeDirectory), record => {
+    used = record;
+  });
   // The hook that calls this may be asked more than once (a retried dispatch): one prompt use, not one per dispatch attempt.
   const record = () => used?.();
   // A caller that dispatches a model call itself records the use then; every other caller reads the prompt for immediate use.
-  if (options.onDispatch) options.onDispatch(record); else record();
+  if (options.onDispatch) {
+    options.onDispatch(record);
+  } else {
+    record();
+  }
   return composeInstructedPrompt(read.body, prompt.data);
 }
 

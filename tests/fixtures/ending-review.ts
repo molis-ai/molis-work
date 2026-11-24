@@ -13,7 +13,8 @@ export function reviewAnswer(claims: readonly string[]): string {
 export function endingReviewAnswer(body: { system?: unknown; messages?: unknown }, judge: (given: string) => string[]): string | undefined {
   // Anthropic-shaped requests carry the instructions in `system`, OpenAI-shaped ones in a system message.
   const system = body.system ?? (Array.isArray(body.messages) ? body.messages.filter(message => (message as { role?: unknown } | null)?.role === "system") : "");
-  if (!JSON.stringify(system).includes("在这一轮结束时对用户说的话")) return undefined;
+  const systemText = JSON.stringify(system);
+  if (!systemText.includes("在这一轮结束时对用户说的话") && !systemText.includes("at the end of this round")) return undefined;
   return reviewAnswer(judge(JSON.stringify(body.messages ?? [])));
 }
 

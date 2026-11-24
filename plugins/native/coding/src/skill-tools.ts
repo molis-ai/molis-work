@@ -5,11 +5,10 @@ import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { skillChoiceRow, skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { SKILLS_PROVIDER_ID, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
-import readNativeMarkdown from "./native-markdown.js";
+import { CODING_AUTO_SKILL_CATALOG } from "./prompts.js";
 
 const key = (ref: ExactActionReference) => JSON.stringify([ref.capability_id, ref.version, ref.provider_id]);
 const readBodies = skillCatalogActions.readBodies;
-const catalogInstructions = readNativeMarkdown("prompts", "coding.auto-skill-catalog", ["en"]);
 /** Below the 20,000-character material budget, so the instruction always fits beside the list. */
 const LISTED_MAX_CHARS = 18_000;
 
@@ -67,7 +66,11 @@ export function autoSkillMaterial(entries: readonly SkillCatalogEntry[], tools: 
     listed.push(row);
   }
   if (!listed.length) return null;
-  const markdown = agentBodyIn(catalogInstructions, locale).replace(/^---\nversion: \d+\n---\n\n/u, "");
-  const [title, ...instructions] = markdown.split("\n");
-  return { material_id: "coding-auto-skills", title: title!, text: [...instructions, "", JSON.stringify(listed)].join("\n").trimStart() };
+  const fallbackTitle = agentBodyIn(CODING_AUTO_SKILL_CATALOG, locale).split("\n")[0]?.trim() || CODING_AUTO_SKILL_CATALOG.title;
+  return {
+    material_id: "coding-auto-skills",
+    title: fallbackTitle,
+    text: JSON.stringify(listed),
+    instruction_prompt_id: CODING_AUTO_SKILL_CATALOG.prompt_id,
+  };
 }

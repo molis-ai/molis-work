@@ -76,19 +76,22 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     const query = String(search.value || "").trim().toLowerCase();
     return !query || [display("prompts", prompt, "title"), display("prompts", prompt, "purpose"), prompt.prompt_id, prompt.body, prompt.used_by.join(" ")].some((text) => String(text).toLowerCase().includes(query));
   };
+  const isProtected = (prompt) => prompt?.override_policy === "protected";
   const stateBadge = (prompt) => {
-    const badge = el("span", "prompt-state prompt-state--" + (prompt.default_updated ? "updated" : prompt.effective));
-    badge.textContent = prompt.default_updated ? globalThis.t.text("workbench.settings-prompts.version-default-updated") : prompt.effective === "user" ? globalThis.t.text("workbench.settings-prompts.version") : globalThis.t.text("workbench.settings-prompts.default");
+    const protectedPrompt = isProtected(prompt);
+    const badge = el("span", "prompt-state prompt-state--" + (protectedPrompt ? "protected" : prompt.default_updated ? "updated" : prompt.effective));
+    badge.textContent = protectedPrompt ? globalThis.t.text("workbench.settings-prompts.protected") : prompt.default_updated ? globalThis.t.text("workbench.settings-prompts.version-default-updated") : prompt.effective === "user" ? globalThis.t.text("workbench.settings-prompts.version") : globalThis.t.text("workbench.settings-prompts.default");
     return badge;
   };
   const editor = (prompt) => {
     const box = el("div", "prompt-editor");
+    let locked = isProtected(prompt);
     const label = el("label", "mw-field");
     label.append(el("span", "mw-field__label", globalThis.t.text("workbench.settings-prompts.guidance-label")));
     const area = el("textarea", "mw-textarea prompt-editor-text");
     area.value = prompt.body;
     area.rows = Math.min(20, Math.max(6, prompt.body.split("\n").length + 1));
-    area.setAttribute("aria-label", globalThis.t.text("workbench.settings-prompts.edit-prompt-title", { title: display("prompts", prompt, "title") }));
+    area.setAttribute("aria-label", globalThis.t.text(locked ? "workbench.settings-prompts.view-prompt-title" : "workbench.settings-prompts.edit-prompt-title", { title: display("prompts", prompt, "title") }));
     area.maxLength = 20000;
     area.dataset.agentDisplayField = "title";
     area.dataset.agentDisplayAttribute = "edit-label";
@@ -96,6 +99,9 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     area.readOnly = true;
     area.setAttribute("aria-busy", "true");
     label.append(area);
+    const protectedNote = el("p", "settings-muted prompt-editor-protected-note", globalThis.t.text("workbench.settings-prompts.protected-note"));
+    protectedNote.dataset.promptProtected = "true";
+    protectedNote.hidden = !locked;
     const lockSlot = el("div", "prompt-editor-lock-slot");
     const count = el("span", "settings-muted prompt-editor-count");
     const syncCount = () => { count.textContent = area.value.length + " / 20000"; };
@@ -113,7 +119,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     cancel.type = "button";
     const reset = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("workbench.settings-prompts.restore-default"));
     reset.type = "button";
-    reset.hidden = prompt.effective !== "user";
+    reset.hidden = locked || prompt.effective !== "user";
     const error = el("p", "settings-form-error");
     error.setAttribute("role", "alert");
     error.hidden = true;
@@ -135,6 +141,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
       }
     };
     save.addEventListener("click", () => {
+      if (locked) return;
       if (!area.value.trim()) {
         error.textContent = globalThis.t.text("workbench.settings-prompts.prompt-cannot-be-empty-use-restore-default-go");
         error.hidden = false;
@@ -145,17 +152,37 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
         : { body: area.value, expected_revision: prompt.user ? prompt.user.revision : null };
       run(save, () => api("/prompt?key=" + encodeURIComponent(prompt.key), payload));
     });
-    reset.addEventListener("click", () => run(reset, () => api("/prompt/reset?key=" + encodeURIComponent(prompt.key), { expected_revision: prompt.user ? prompt.user.revision : null })));
+    reset.addEventListener("click", () => { if (!locked) run(reset, () => api("/prompt/reset?key=" + encodeURIComponent(prompt.key), { expected_revision: prompt.user ? prompt.user.revision : null })); });
     cancel.addEventListener("click", () => { open = null; paint(); });
     actions.append(save, cancel, reset, count);
     const advSlot = el("div", "prompt-editor-advanced-slot");
-    box.append(label, lockSlot, actions, error, advSlot);
+    const applyProtected = () => {
+      locked = true;
+      area.readOnly = true;
+      area.removeAttribute("aria-busy");
+      area.setAttribute("aria-label", globalThis.t.text("workbench.settings-prompts.view-prompt-title", { title: display("prompts", prompt, "title") }));
+      protectedNote.hidden = false;
+      save.hidden = true;
+      save.disabled = true;
+      reset.hidden = true;
+      advSlot.replaceChildren();
+    };
+    if (locked) applyProtected();
+    box.append(label, protectedNote, lockSlot, actions, error, advSlot);
     void api("/prompt?key=" + encodeURIComponent(prompt.key)).then((detail) => {
       if (!box.isConnected) return;
+      cachedDetail = detail;
+      if (isProtected(detail?.prompt) || locked) {
+        if (detail?.prompt?.body !== undefined) {
+          area.value = detail.prompt.body;
+          syncCount();
+        }
+        applyProtected();
+        return;
+      }
       area.readOnly = false;
       area.removeAttribute("aria-busy");
       save.disabled = false;
-      cachedDetail = detail;
       if (!detail?.editor) return;
       editorInfo = detail.editor;
       if (!editorInfo.locked_format) return;
@@ -203,9 +230,11 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
       advSlot.replaceChildren(adv);
     }).catch((failure) => {
       if (!box.isConnected) return;
-      area.readOnly = false;
       area.removeAttribute("aria-busy");
-      save.disabled = false;
+      if (!locked) {
+        area.readOnly = false;
+        save.disabled = false;
+      }
       molisWorkRequest.show(error, failure);
       error.hidden = false;
     });
@@ -243,7 +272,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     const meta = el("div", "prompt-row-meta");
     meta.append(el("span", "prompt-tag", globalThis.t.text(prompt.kind === "agent" && prompt.layer ? LAYER[prompt.layer] || prompt.layer : KIND[prompt.kind] || prompt.kind)),
       el("span", "prompt-tag", globalThis.t.text("workbench.settings-prompts.version-2", { version: prompt.default_ref ? signedVersion(prompt.default_ref) : prompt.default_version })), stateBadge(prompt));
-    const edit = el("button", "mw-btn mw-btn--secondary mw-btn--sm", open === prompt.key ? globalThis.t.text("workbench.settings-prompts.collapse") : globalThis.t.text("workbench.settings-prompts.view-edit")); edit.type = "button";
+    const edit = el("button", "mw-btn mw-btn--secondary mw-btn--sm", open === prompt.key ? globalThis.t.text("workbench.settings-prompts.collapse") : globalThis.t.text(isProtected(prompt) ? "workbench.settings-prompts.view" : "workbench.settings-prompts.view-edit")); edit.type = "button";
     edit.setAttribute("aria-expanded", String(open === prompt.key));
     edit.addEventListener("click", () => { open = open === prompt.key ? null : prompt.key; paint(); });
     head.append(copy, meta, edit);

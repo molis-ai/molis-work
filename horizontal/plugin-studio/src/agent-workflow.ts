@@ -13,11 +13,11 @@ import { pluginComponentChoices, projectComponentMetadata, resolvePluginComponen
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuilderAgentRequest, BuilderAgentRecord, BuilderSkill } from '@molis-ai/molis-work-contracts/services/agent-host';
 import type { BuildManifest, BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
-import type { InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
+import { agentBodyIn, composeInstructedPrompt, type InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import { AgentBuilderStore } from './agent-store.js';
 import { reviseCheckedPresentation } from './checked-presentation.js';
 import { BUILDER_PROMPTS, type BuilderPromptName } from './agent-prompts.js';
-import { BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT } from './choice-prompts.js';
+import { BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_MOCKUP } from './choice-prompts.js';
 import { capabilityCandidates, focusCatalog, usedCapabilities, withinBudget, type CatalogEntry } from './agent-catalog.js';
 import { validateAgentDesign } from './agent-validation.js';
 import { parseModelJson } from './model-json.js';
@@ -81,8 +81,8 @@ export interface AgentBuilderPorts {
 }
 const snapshot = (build: AgentBuild): AgentBuildSnapshot => ({ design: build.design, nodes: build.nodes, connected: build.connected, ...(build.directory ? { directory: build.directory } : {}), ...(build.designSource ? { designSource: build.designSource } : {}), checks: build.checks, checksScope: build.checksScope, browserResult: build.browserResult, visualResult: build.visualResult });
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
-/** One of the two questions put to Jev as it runs now: the person's edit from the host, or the registered default. */
-const instructionText = (ports: AgentBuilderPorts, prompt: InstructionPrompt): string => ports.instruction?.(prompt) ?? prompt.body;
+/** A registered studio instruction as it runs now: the person's edit from the host, or the localized default. */
+const instructionText = (ports: AgentBuilderPorts, prompt: InstructionPrompt, locale?: string): string => ports.instruction?.(prompt) ?? agentBodyIn(prompt, locale);
 const PENDING_CASE = '前置用例失败，尚未执行';
 type ProposeOutcome = { kind: 'questions'; questions: string[]; summary: string } | { kind: 'proposals'; proposals: AgentProposal[]; summary: string; dropped: string[] };
 /** The whole build record is rewritten on every change, so its history must stay bounded. */
@@ -253,10 +253,12 @@ export class AgentBuilderWorkflow {
     if (!mockups || this.closed || !await mockups.available().catch(() => false)) return;
     const abort = new AbortController(); this.drawing.add(abort);
     const set = (candidateId: string, mockup: NonNullable<AgentProposal['mockup']>) => { if (!this.closed) this.change(id, build => { const item = build.candidates.find(candidate => candidate.id === candidateId); if (item) item.mockup = mockup; }); };
+    const locale = this.ports.designLanguages?.().current;
+    const instructions = instructionText(this.ports, BUILDER_MOCKUP, locale);
     try {
       await Promise.all(proposals.map(async proposal => {
         set(proposal.id, { status: 'drawing' });
-        const result = await mockups.draw({ key: id + ':' + proposal.id, prompt: mockupPrompt(proposal) }, abort.signal).catch(error => ({ reason: message(error) }));
+        const result = await mockups.draw({ key: id + ':' + proposal.id, prompt: mockupPrompt(proposal, instructions, locale) }, abort.signal).catch(error => ({ reason: message(error) }));
         set(proposal.id, 'jobId' in result ? { status: 'ready', jobId: result.jobId, imageId: result.imageId } : { status: 'failed', reason: result.reason });
       }));
     } finally { this.drawing.delete(abort); }
@@ -767,12 +769,30 @@ export class AgentBuilderWorkflow {
   async close() { this.closed = true; for (const abort of this.drawing) abort.abort(); for (const job of this.jobs.values()) job.abort.abort(failStudioBuild('build-interrupted', '', { guidance: 'build-continue-after-restart' })); await Promise.all([...this.jobs.values()].map(job => job.done)); await Promise.all(this.store.list().map(build => this.resetPreview(build.id))); this.listeners.clear(); }
 }
 
-/** What the image service is asked to draw for a proposal: the product's screen, in the product's plain style. */
-export function mockupPrompt(proposal: AgentProposal): string {
-  const parts = proposal.preview.parts.map(part => '- ' + part.purpose + '（' + ({ heading: '标题栏', description: '说明或数字', input: '表单', action: '按钮', collection: '列表', reading: '分节文字', schedule: '按日期的列表', conversation: '对话', evidence: '表格', feedback: '提示' } as Record<string, string>)[part.intent] + '）').join('\n');
-  return ['一张桌面应用里的插件界面效果图（UI mockup），正面平视，单页，不要设备外框、不要手和人物。',
-    '风格：简洁、浅色、中性灰白底、圆角卡片、细分隔线、一个蓝色主按钮，中文界面文字清晰可读，不要渐变和装饰插画。',
-    '插件：' + proposal.title + '。' + proposal.description, '页面从上到下：\n' + parts, '使用路径：' + proposal.journey.join(' → ')].join('\n');
+const MOCKUP_INTENT_LABELS: Readonly<Record<string, readonly [zh: string, en: string]>> = {
+  heading: ['标题栏', 'heading bar'],
+  description: ['说明或数字', 'summary or metrics'],
+  input: ['表单', 'input form'],
+  action: ['按钮', 'action button'],
+  collection: ['列表', 'item list'],
+  reading: ['分节文字', 'sectioned text'],
+  schedule: ['按日期的列表', 'dated list'],
+  conversation: ['对话', 'conversation'],
+  evidence: ['表格', 'data table'],
+  feedback: ['提示', 'status notice'],
+};
+
+/** What the image service is asked to draw for a proposal: registered mockup style instructions plus the proposal details. */
+export function mockupPrompt(proposal: AgentProposal, instructions?: string, locale?: string): string {
+  const english = locale?.toLowerCase().startsWith('en') ?? false;
+  const parts = proposal.preview.parts.map(part => {
+    const label = MOCKUP_INTENT_LABELS[part.intent]?.[english ? 1 : 0] ?? part.intent;
+    return english ? `- ${part.purpose} (${label})` : `- ${part.purpose}（${label}）`;
+  }).join('\n');
+  const details = english
+    ? [`Plugin: ${proposal.title}. ${proposal.description}`, `Page from top to bottom:\n${parts}`, `User journey: ${proposal.journey.join(' → ')}`].join('\n')
+    : [`插件：${proposal.title}。${proposal.description}`, `页面从上到下：\n${parts}`, `使用路径：${proposal.journey.join(' → ')}`].join('\n');
+  return composeInstructedPrompt(instructions ?? agentBodyIn(BUILDER_MOCKUP, english ? 'en' : undefined), details);
 }
 /** Network failures between the host and the model service, worth one more request. */
 const TRANSIENT = /fetch failed|^terminated$|other side closed|ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|ENOTFOUND|getaddrinfo|could not be resolved|socket hang up|network (?:error|timeout)|UND_ERR/i;

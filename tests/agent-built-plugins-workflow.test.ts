@@ -329,13 +329,13 @@ test('the designer runs the person’s edit from “Prompt 与 Character”, and
       assert.equal(build.phase, 'choosing', studioBuildDiagnostic(build.error) ?? '');
       const designer = h.requests.find(request => request.role === 'designer')!;
       assert.match(designer.instruction, /所有候选都用暖色。$/);
-      assert.equal(designer.promptVersion, 'designer/4+user.1');
-      assert.equal(build.runs.find(run => run.role === 'designer')?.promptVersion, 'designer/4+user.1', 'N31: the run persists the origin label and user revision that actually ran');
+      const shipped = BUILDER_PROMPTS.designer, read = builderPrompts(home);
+      assert.equal(designer.promptVersion, `${shipped.version}+user.1`);
+      assert.equal(build.runs.find(run => run.role === 'designer')?.promptVersion, `${shipped.version}+user.1`, 'N31: the run persists the origin label and user revision that actually ran');
       assert.equal(registry.uses.list('io.molis.work.plugin-builder/builder-designer')[0]?.user_revision, 1, 'the register records the use');
       registry.reset('io.molis.work.plugin-builder/builder-designer', 1, 'person');
-      const shipped = BUILDER_PROMPTS.designer, read = builderPrompts(home);
-      assert.deepEqual(runWithLocale('zh', () => read('designer', shipped)), { version: 'designer/4', text: shipped.text }, 'after reset the shipped Chinese text runs again');
-      assert.deepEqual(runWithLocale('en', () => read('designer', shipped)), { version: 'designer/4', text: shipped.body_by_locale.en }, 'the same reset restores the shipped English text');
+      assert.deepEqual(runWithLocale('zh', () => read('designer', shipped)), { version: shipped.version, text: shipped.text }, 'after reset the shipped Chinese text runs again');
+      assert.deepEqual(runWithLocale('en', () => read('designer', shipped)), { version: shipped.version, text: shipped.body_by_locale.en }, 'the same reset restores the shipped English text');
     } finally { await workflow.close(); }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
@@ -781,6 +781,35 @@ test('with an image service each proposal gets one picture (never a second try);
     await new Promise(resolve => setTimeout(resolve, 20));
     assert.equal(asked, 0); assert.ok(other.store.require(build.id).candidates.every(item => item.mockup === undefined), 'no image service: the proposals are as before');
   } finally { await other.close(); }
+
+  // Registered mockup.generate instruction flows through ports.instruction and honors English locale.
+  const enHarness = harness([PROPOSALS]);
+  const enDraws: string[] = [];
+  enHarness.ports.designLanguages = () => ({ current: 'en', available: [{ tag: 'en', name: 'English' }, { tag: 'zh', name: '中文' }] });
+  enHarness.ports.instruction = prompt => prompt.prompt_id === 'mockup.generate' ? 'CUSTOM EN UI mockup instructions.' : prompt.body;
+  enHarness.ports.mockups = { available: async () => true, async draw(request) { enDraws.push(request.prompt); return { jobId: 'j-en', imageId: 'img-en' }; } };
+  const enWorkflow = new AgentBuilderWorkflow(memoryStorage(), enHarness.ports);
+  try {
+    const created = enWorkflow.create('Build a note plugin');
+    await until(enWorkflow, created.id, value => value.phase === 'choosing' && value.candidates.every(item => item.mockup?.status === 'ready'));
+    assert.equal(enDraws.length, 2);
+    assert.match(enDraws[0]!, /^CUSTOM EN UI mockup instructions\./);
+    assert.match(enDraws[0]!, /Plugin: /);
+  } finally { await enWorkflow.close(); }
+
+  // Without ports.instruction override, English locale falls back to BUILDER_MOCKUP.body_by_locale.en.
+  const defaultEnHarness = harness([PROPOSALS]);
+  const defaultEnDraws: string[] = [];
+  defaultEnHarness.ports.designLanguages = () => ({ current: 'en', available: [{ tag: 'en', name: 'English' }, { tag: 'zh', name: '中文' }] });
+  defaultEnHarness.ports.mockups = { available: async () => true, async draw(request) { defaultEnDraws.push(request.prompt); return { jobId: 'j-en-2', imageId: 'img-en-2' }; } };
+  const defaultEnWorkflow = new AgentBuilderWorkflow(memoryStorage(), defaultEnHarness.ports);
+  try {
+    const created = defaultEnWorkflow.create('Build a note plugin');
+    await until(defaultEnWorkflow, created.id, value => value.phase === 'choosing' && value.candidates.every(item => item.mockup?.status === 'ready'));
+    assert.equal(defaultEnDraws.length, 2);
+    assert.match(defaultEnDraws[0]!, /desktop plugin UI mockup/i);
+    assert.match(defaultEnDraws[0]!, /Page from top to bottom:/);
+  } finally { await defaultEnWorkflow.close(); }
 });
 
 test('a fix for a failed acceptance case that breaks a check goes back for repair instead of ending the build', async () => {

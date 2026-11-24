@@ -35,6 +35,8 @@ export interface ContextualJudgmentPorts<Caller> {
    * it; the service checks it on every judgment and reads `text()` only when it really asks Jev. Absent means the kernel's default wording.
    */
   readonly wording?: { revision(): string; text(): JudgmentWording };
+  /** Active framing locale (`"zh"` / `"en"`). Absent keeps the default Chinese framing. */
+  locale?(): string | undefined;
   now?(): number;
   /** Upper bound for one judgment; the bar never waits on it (spec §8). */
   readonly timeoutMs?: number;
@@ -91,8 +93,9 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
         // A person's own space (Shelf and the like): what is in it never goes to the judgment, only its shape and kind.
         const personal = privateObjectKinds(views).has(request.focus.object.kind);
         if (!candidates.some(item => item.available)) return respond(request, candidates, null, { digest: null, screened: [], fallback: "no_candidates" });
-        // A judgment asked under other words is not this one's answer: the person may have edited the questions since.
-        const wording = ports.wording?.revision() ?? "";
+        // A judgment asked under other words or another locale is not this one's answer: the person may have edited the questions or switched language since.
+        const locale = ports.locale?.();
+        const wording = `${ports.wording?.revision() ?? ""}\u0000${locale ?? ""}`;
         const cached = cache.get(cacheKey(request));
         if (cached && cached.wording === wording && JSON.stringify(cached.candidates.map(item => [item.key, item.available])) === JSON.stringify(candidates.map(item => [item.key, item.available]))) {
           return respond(request, candidates, cached.judgment, { digest: cached.digest, screened: cached.screened });
@@ -112,7 +115,7 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
         }
         if (controller.signal.aborted) return respond(request, candidates, null, { digest: null, screened, fallback: "aborted" });
 
-        const state = judgmentState(request.focus, { recent: request.recent, memory, landing: request.landing, personal });
+        const state = judgmentState(request.focus, { recent: request.recent, memory, landing: request.landing, personal, ...(locale ? { locale } : {}) });
         screened.push(...state.clipped.map(label => `截断：${label}`));
         const cleaned = ports.screen ? ports.screen(state.text) : { text: state.text, notes: [] };
         screened.push(...cleaned.notes);
@@ -121,7 +124,7 @@ export function createContextualJudgmentService<Caller>(ports: ContextualJudgmen
         const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(ports.timeoutMs ?? 30_000)]);
         let evaluation: ContextualEvaluation;
         try {
-          evaluation = await ports.evaluate({ state: cleaned.text, questions: judgmentQuestions(candidates, request.focus, ports.wording?.text()), signal });
+          evaluation = await ports.evaluate({ state: cleaned.text, questions: judgmentQuestions(candidates, request.focus, ports.wording?.text(), locale), signal });
         } catch {
           const fallback: Fallback = controller.signal.aborted ? "aborted" : signal.aborted ? "timeout" : "failed";
           return respond(request, candidates, null, { digest, screened, fallback });

@@ -1,4 +1,5 @@
-import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { randomBytes } from "node:crypto";
+import { fencedMaterials, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { AgentMemoryExtractionDraft, AgentMemoryExtractionRequest, AgentMemoryExtractor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { reportedPromptTotal, reportedTokenTotal, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import { memoryErrors, sameText, sameWords } from "@molis-ai/molis-work-service-memory";
@@ -48,13 +49,13 @@ export function memoryExtractor(homeDirectory: string, generation: () => HostTex
       slots.set(id, [...slots.get(id) ?? [], slot]); destinations.set(key, group);
     }
     const existing = input.context?.existing ?? [], pending = input.context?.pending ?? [];
-    const data = JSON.stringify({ work_title: input.context?.work_title ?? null,
+    const data = fencedMaterials({ work_title: input.context?.work_title ?? null,
       sources: input.sources.map((source, index) => ({ id: `s${index}`, text: source.text })),
       ...(existing.length ? { existing: existing.map(({ memory_id, version: _version, ...entry }) => ({ id: memories.get(memory_id)!, ...entry })) } : {}),
       ...(pending.length ? { pending: pending.map(({ scope, kind, text, work_title }, index) =>
         ({ id: `p${index}`, scope, kind, text, ...(work_title === undefined ? {} : { work_title }) })) } : {}),
       destinations: [...destinations.values()],
-    });
+    }, randomBytes(8).toString("hex"));
     const outputSchema = schema(input, [...slots.keys()]);
     const result = await generate(resolveModelPrompt(homeDirectory, instructed(MEMORY_EXTRACT, data), "memory.extract"), {
       structured: { mode: "local", name: "memory_formation", schema: outputSchema }, signal: input.signal,

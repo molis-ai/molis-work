@@ -69,7 +69,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 改动后用 `node scripts/run-tests.mjs --jobs 1 tests/appearance-settings.e2e.test.ts` 核对真实页面。外观及动作边界见 [B/C 运行合同](../../specs/font-and-skin-system/bc-runtime-contract.md)。
 
-## 界面文字：稳定键、三语切换与翻译检查
+## 界面文字：稳定键和翻译检查
 
 界面短句在 SDK 的 `t`／`say` 中引用稳定键。HTML 插值用 `t`／`say`，节点的 `textContent` 或会自行转义的控件用 `t.text`／`say.text`。日期、数字与文档语言统一经 SDK `format` / `dateArg` / `numberArg` / `dateTimeLocale()` / `htmlLang()`，禁止写死区域串、中文顿号 `.join("、")` 或二元 `zh`/`en` 分支。用户原文作为参数，不能作为键，也不把译好的句子写进业务记录、闭包缓存或逻辑判断。
 

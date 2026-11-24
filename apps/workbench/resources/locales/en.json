@@ -9979,6 +9979,7 @@
     "workbench.work-line.open-as-tab": "Open",
     "workbench.work-line.put-in-target": "Put in {target}",
     "workbench.work-line.placed-in-target": "In {target}",
+    "workbench.work-line.put-elsewhere": "Put in…",
     "workbench.work-line.process": "How it was done",
     "workbench.work-line.at-hand": "At hand",
     "workbench.work-line.at-hand-hint": "Opens beside the work",

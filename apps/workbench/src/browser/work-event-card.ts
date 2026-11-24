@@ -61,13 +61,18 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
     const result = slot.querySelector<HTMLElement>("[data-card-result]")!, body = slot.querySelector<HTMLElement>("[data-card-body]")!;
     const rest = slot.querySelector<HTMLElement>("[data-card-body-home]"), own = slot.querySelector<HTMLElement>("[data-card-own]")!, nothing = slot.querySelector<HTMLElement>("[data-card-nothing]");
     const factOwner = slot.querySelector<HTMLElement>("[data-fact-owner]"), factState = slot.querySelector<HTMLElement>("[data-fact-state]");
-    let rows = "", named = "", asks = "", offered = "", owned = "", composed = !card.composed, shelf: "" | "busy" | "done" = "", placed = "";
+    let rows = "", named = "", asks = "", offered = "", owned = "", composed = !card.composed, shelf: "" | "busy" | "done" = "", placed = "", choosing = false;
     // 「打开」 is the event's own place, as a tab; 「放到…」 puts its name, its words and its address where the person picks, as the person (WLN-11, M4).
     slot.addEventListener("click", pressed => {
       const target = pressed.target instanceof Element ? pressed.target : null, event = line.event(card.subject);
       if (!event) return;
       if (target?.closest("[data-event-open]") && event.open) { if (event.open.kind === "surface" || !event.open.id) host.openSurface(event.open.surface); else host.openItem(event.open.surface, event.open.id, event.open.title); }
+      else if (target?.closest("[data-event-receive-more]") && !shelf) {
+        choosing = !choosing;
+        paint();
+      }
       else if (target?.closest("[data-event-receive]") && !shelf && request) {
+        choosing = false;
         const station = target.closest<HTMLElement>("[data-event-receive]")!.dataset.eventReceive ?? "";
         const to = event.open && event.open.kind !== "surface" && event.open.id ? { surface: event.open.surface, id: event.open.id, title: event.open.title } : event.subject;
         const address = location.origin + objectLink(document.body.dataset.projectId ?? "", to);
@@ -137,7 +142,7 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
       if (body.parentElement !== home) { if (owners) askBody.append(body); else if (rest) rest.prepend(body); else facts.after(body); }
       // Something done: what came of it, and what can be done with it; the owner's display, where it declared one, is the preview.
       const slim = composed && !body.querySelector(".mw-presentation:not(.mw-presentation--chip)");
-      const done = event?.wing === "done", offer = done ? renderCardResult({ id: line.keyOf(card.subject), preview: slim ? event.content.trim() : "", open: Boolean(event.open), shelf, placed, ...(receivers.targets ? { targets: receivers.targets } : {}) }) : "";
+      const done = event?.wing === "done", offer = done ? renderCardResult({ id: line.keyOf(card.subject), preview: slim ? event.content.trim() : "", open: Boolean(event.open), shelf, placed, choosing, ...(receivers.targets ? { targets: receivers.targets } : {}) }) : "";
       if (done && !receivers.asked && request) {
         receivers.asked = true;
         void request(host.route("/api/mainline/receive/targets"), { body: {} }).then(answer => {

@@ -9209,6 +9209,7 @@
     "workbench.work-line.open-as-tab": "打开",
     "workbench.work-line.put-in-target": "放到 {target}",
     "workbench.work-line.placed-in-target": "已放到 {target}",
+    "workbench.work-line.put-elsewhere": "放到…",
     "workbench.work-line.process": "过程",
     "workbench.work-line.at-hand": "手边",
     "workbench.work-line.at-hand-hint": "在侧边打开",

@@ -42,7 +42,14 @@ test("WLN-11: a done event's card shows what came of it in its owner's words, �
   await waitFor(`${ABOUT} === 'event:homebg_item:b1'`);
   const CARD = "document.querySelector('[data-assistant-event-card] [data-event-card=\"homebg_item:b1\"]')";
   await waitFor(`${CARD} && !${CARD}.querySelector('[data-card-result]').hidden && ${CARD}.querySelector('.work-card-preview')?.textContent === '三档预算与对比表，附常见问题。'`, 15_000);
-  assert.deepEqual(await evaluate(`Array.from(${CARD}.querySelectorAll('[data-card-result] .mw-btn')).map(button => [button.textContent.trim(), button.disabled])`), [["打开", false], ["放到 Shelf", false]]);
+  assert.deepEqual(await evaluate(`Array.from(${CARD}.querySelectorAll('[data-card-result] .mw-btn')).map(button => [button.textContent.trim(), button.disabled])`), [["打开", false], ["放到 Shelf", false], ["放到…", false]]);
+  // M4: the demo project's plugins that declare a receive station are one 「放到…」 menu under the row; Shelf is not in it again.
+  await click("[data-assistant-event-card] [data-event-receive-more]");
+  await waitFor(`${CARD}.querySelector('[data-event-receive-menu]') && ${CARD}.querySelector('[data-event-receive-more]').getAttribute('aria-expanded') === 'true'`, 5_000);
+  const menu = await evaluate<string[]>(`Array.from(${CARD}.querySelectorAll('[data-event-receive-menu] [data-event-receive]')).map(item => item.dataset.eventReceive)`);
+  assert.ok(menu.length > 0 && !menu.includes("shelf"), `the menu holds the plugins' stations: ${menu.join(", ")}`);
+  await click("[data-assistant-event-card] [data-event-receive-more]");
+  await waitFor(`!${CARD}.querySelector('[data-event-receive-menu]')`, 5_000);
   assert.equal(await evaluate(`${CARD}.querySelector('[data-card-tasks]').hidden`), true, "nothing was done for it, so there is no process to fold");
   await mkdir(shots, { recursive: true });
   await writeFile(new URL("event-card-done-1440.png", shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));

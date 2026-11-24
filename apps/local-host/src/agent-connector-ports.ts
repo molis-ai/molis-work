@@ -6,8 +6,7 @@ import { LOCAL_MCP_SERVERS, requiresMcpDeclaration } from "./connector-mcp-endpo
 import { subscribeConnectorChanges } from "./connector-lifecycle.js";
 import { oauthRefreshGuard } from "./connector-oauth-targets.js";
 
-export function agentMcpEndpoint(home: string, id: string): string | null {
-  const config = withConnectorProtocols(home, store => store.get<StoredMcpConfiguration>(id), true);
+export function agentMcpEndpoint(config: StoredMcpConfiguration | null | undefined): string | null {
   if (config?.protocol !== "mcp" || config.transport === "stdio" || !config.endpoint || config.transport === "sse" || (Object.hasOwn(LOCAL_MCP_SERVERS, config.serviceId) && LOCAL_MCP_SERVERS[config.serviceId]?.stdio) ||
     (config.mode === "bearer" && config.tokenScheme) || (requiresMcpDeclaration(config.serviceId, config.endpoint, config.transport) && !config.source)) return null;
   return config.endpoint;
@@ -29,7 +28,7 @@ export function createAgentConnectorPorts(home: string, resolveToken = resolveMc
       const row = withConnectorConnections(home, store => store.require(id), "required");
       if (!row.enabled || row.disconnected_at) throw new Error("所选 MCP 账号已断开，请重新连接");
       if (row.auth_method === "mcp") {
-        if (!agentMcpEndpoint(home, id)) throw new Error("此连接使用服务商的原生传输，请在连接设置中使用其工具操作");
+        if (!agentMcpEndpoint(withConnectorProtocols(home, store => store.get<StoredMcpConfiguration>(id), true))) throw new Error("此连接使用服务商的原生传输，请在连接设置中使用其工具操作");
         const { check, source } = await captureMcpOperationSource(home, id);
         const token = await resolveToken(home, id, endpoint);
         check();
@@ -48,9 +47,9 @@ export function createAgentConnectorPorts(home: string, resolveToken = resolveMc
     async resolveMcpCredential(ref: string): Promise<string | null> {
       const id = /^connector-mcp:([0-9a-f-]{36})$/u.exec(ref)?.[1];
       if (id) {
-        const config = withConnectorProtocols(home, store => store.get(id), true) as { protocol: string; endpoint?: string } | null;
-        if (config?.protocol !== "mcp" || !config.endpoint) return null;
-        if (!agentMcpEndpoint(home, id)) throw new Error("此连接使用服务商的原生传输，请在连接设置中使用其工具操作");
+        const config = withConnectorProtocols(home, store => store.get<StoredMcpConfiguration>(id), true);
+        if (config?.protocol !== "mcp" || config.transport === "stdio" || !config.endpoint) return null;
+        if (!agentMcpEndpoint(config)) throw new Error("此连接使用服务商的原生传输，请在连接设置中使用其工具操作");
         const { check } = await captureMcpOperationSource(home, id);
         const token = await resolveToken(home, id, config.endpoint);
         check(); return token;

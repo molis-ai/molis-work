@@ -15,7 +15,7 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { ListToolsRequestSchema, CallToolRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { createConnectorMcpHost, type McpConfiguration, type McpServerConfiguration } from "../apps/local-host/dist/connector-mcp.js";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { formatMcpToolError } from "@molis-ai/molis-work-app-mcp";
 import { captureHostLog, larkMcpLaunch, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { createAgentConnectorPorts } from "../apps/local-host/dist/agent-connector-ports.js";
@@ -1008,6 +1008,13 @@ test("ASC-05 ASC-08 ASC-09: protected prepared MCP requests preserve authenticat
         }
         const result = await local.host.homeActionClient().invoke(caller, connectorManagementActions.authorization, { authorization_id: prepared.authorization_id }) as { status: string; connection_id: string };
         assert.equal(result.status, "connected");
+        // BL-1051: the public view remembers the selected mode after authorization, without protocol secrets.
+        const { connections } = await bindActionClient(local.host.homeActionClient(), () => caller).invoke(connectorManagementActions.list, { service_id: "mcp-bearer" });
+        const view = connections.find(row => row.connection_id === result.connection_id);
+        assert.ok(view && view.source !== "project_mcp");
+        assert.equal(view.mcp_authentication, authentication);
+        assert.equal(view.mcp_endpoint, remote.endpoint);
+        assert.doesNotMatch(JSON.stringify(view), /fixture-private-mcp|credential_ref|refresh_ref|client_secret|access_token/);
         const reference = local.host.connectorMcp!.reference(result.connection_id, connectorMcpCapabilityId(result.connection_id, "echo"));
         assert.ok(reference);
         const called = await local.host.homeActionClient().invoke(caller, reference, { message: "Prepared and actually called" });

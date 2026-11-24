@@ -32,7 +32,9 @@ function settings(stage: Stage, oldName: string): MolisWorkSettingsView {
     row(NOTION_OAUTH, "notion", "Notion 账号", "oauth"), row(GITHUB, "github", "工作 GitHub", "token"),
   ];
   return {
-    section: "connectors", runtimes: [], projects: [], connectors: [mcpCard, tokenCard], connector_connections: rows, context_project: null,
+    section: "connectors", runtimes: [], projects: [], connectors: [mcpCard, tokenCard, { ...mcpCard, connector_id: "mcp-bearer", title: "Custom MCP" }],
+    connector_connections: [...rows, ...(["oauth", "bearer", "none"] as const).map((mcp_authentication, index) =>
+      ({ ...row(`custom-${index}`, "mcp-bearer", mcp_authentication, "mcp", ENDPOINT), mcp_authentication }))], context_project: null,
     web_service: { provider: "macos-launchagent", state: "absent", supported: true, owned: false, running: false, label: "Web", plist_path: "", command: [], stdout_log: "", stderr_log: "", message: "" },
     diagnostics: { home_directory: "/tmp", installation_state: "ready", version: "0.2.0", release_directory: "/tmp", project_count: 0, launchers: [] },
   };
@@ -142,7 +144,8 @@ async function returnWith(browser: NonNullable<Awaited<ReturnType<typeof openCon
   assert.equal(reads.slice(before).filter(id => id === OLD).length, 1, "the old connection's uses are read once, for its row and the offer alike");
   assert.match(await text(page, `document.querySelector('[data-connector-detail="notion"] [data-connector-feedback]')`), /下面可以把用到原来那条的地方换到新连接/);
   assert.equal(await page.evaluate(`document.activeElement === ${resultOf(NEW)}`), true, "the offer takes the focus, so it is seen and read");
-  assert.match(await text(page, resultOf(NEW)), /这条是替「旧 Notion」重新登录的。.*Coding 的 MCP 设置这里还查不到；如果那里选了「旧 Notion」，请到那里改选这条/s);
+  assert.doesNotMatch(await text(page, resultOf(NEW)), /Coding 的 MCP 设置这里还查不到/u);
+  assert.match(await text(page, resultOf(NEW)), /这条是替「旧 Notion」重新登录的。/u);
   assert.equal(await page.evaluate(`${resultOf(NEW)}.querySelector('a[href^="/settings/coding-settings"]')?.textContent`), "配置外部工具权限");
 }
 const buttonIn = (id: string, label: string) => `[...${resultOf(id)}.querySelectorAll('button')].find(button => button.textContent === ${JSON.stringify(label)})`;
@@ -156,12 +159,12 @@ test("ASC-59 logging in again to an MCP service makes a new connection, then mov
     { usage_id: "here", title: "模型 here", enabled: true, actions: [], source: source("system.connectors"), reporter: "模型" },
     { usage_id: "there", title: "模型 there", enabled: true, actions: [], source: source("system.connectors"), reporter: "模型" },
     // Reports its usages but declares no switch: it is left with the general advice (review S6).
-    { usage_id: "pic", title: "Images 生图", enabled: true, actions: [], source: source("plugin.images"), reporter: "Images" },
+    { usage_id: "pic", title: "Coding 工具", enabled: true, actions: [], source: source("system.connectors"), reporter: "服务连接" },
   ], issues: ["Notes：暂时无法读取使用位置"] });
   const move = `${resultOf(NEW)}?.querySelector('.mw-btn--primary')`;
   assert.equal(await text(page, move), "把用到「旧 Notion」的 3 个地方换到这条");
-  assert.match(await text(page, resultOf(NEW)), /能查的地方里有 3 处用它.*模型 here.*Images 生图.*没能查：Notes：暂时无法读取使用位置/s, "a reporter that could not be read is said, not taken as unused");
-  assert.deepEqual(await page.evaluate(`[...${resultOf(NEW)}.querySelectorAll('li')].map(item => item.textContent)`), ["模型 here", "模型 there", "Images 生图"], "what could not be read is not listed as a use (N3)");
+  assert.match(await text(page, resultOf(NEW)), /能查的地方里有 3 处用它.*模型 here.*Coding 工具.*没能查：Notes：暂时无法读取使用位置/s, "a reporter that could not be read is said, not taken as unused");
+  assert.deepEqual(await page.evaluate(`[...${resultOf(NEW)}.querySelectorAll('li')].map(item => item.textContent)`), ["模型 here", "模型 there", "Coding 工具"], "what could not be read is not listed as a use (N3)");
   assert.equal(await page.evaluate(`${resultOf(OLD)}.hidden`), true, "the old connection's own row is left as it was");
   // Two quick clicks send one switch: the button is busy from the first.
   await page.evaluate(`(() => { const button = ${move}; button.click(); button.click(); })()`);
@@ -171,7 +174,7 @@ test("ASC-59 logging in again to an MCP service makes a new connection, then mov
   await page.wait(`${resultOf(NEW)}.textContent.includes('换过去 1 处')`);
   // N1: the list follows the colon; what the page cannot see comes after it, a paragraph of its own.
   // What the read before could not check stays said after the switch (ASC-77): it is never "all moved" while a place was unchecked.
-  assert.match(await text(page, resultOf(NEW)), /换过去 1 处，2 处没换：模型 there：这里已经不用原来那条了Images 生图：还不能一步换，请到用它的地方改选这条没能查：Notes：暂时无法读取使用位置Coding 的 MCP 设置这里还查不到/);
+  assert.match(await text(page, resultOf(NEW)), /换过去 1 处，2 处没换：模型 there：这里已经不用原来那条了Coding 工具：还不能一步换，请到用它的地方改选这条没能查：Notes：暂时无法读取使用位置/);
   assert.notEqual(await page.evaluate(`${resultOf(NEW)}.dataset.tone`), "error", "some moved: a partial result is not shown as an error");
   assert.equal(await page.evaluate(`${move}?.textContent.includes('换到这条') ?? false`), false, "the switch is not offered again once it has run");
   assert.equal(await page.evaluate(`document.activeElement === ${resultOf(NEW)}`), true, "the removed button leaves the focus on the result");
@@ -209,7 +212,7 @@ test("ASC-59 when nothing counted uses the old connection, the page says what it
   await returnWith(browser, { usages: [], issues: ["Images：暂时无法读取使用位置"] });
   const shown = await text(page, resultOf(NEW));
   assert.match(shown, /能查的地方里，没有查到用它的。/);
-  assert.doesNotMatch(shown, /没有地方在用/, "what the page cannot see (Coding) is never said to be unused");
+  assert.doesNotMatch(shown, /没有地方在用/, "what the failed reporter could not check is never said to be unused");
   assert.match(shown, /没能查：Images：暂时无法读取使用位置/);
   assert.equal(await page.evaluate(`${resultOf(NEW)}.querySelector('li')`), null, "what could not be read is not listed as a use (N3)");
   assert.equal(await page.evaluate(`${resultOf(NEW)}.querySelector('.mw-btn--primary')`), null, "nothing to move: no switch is offered");
@@ -224,6 +227,24 @@ test("ASC-59 when nothing counted uses the old connection, the page says what it
   assert.equal(await page.evaluate(`document.activeElement === ${resultOf(NEW)}`), true, "the removed buttons leave the focus on the result");
   assert.deepEqual(seen.filter(request => /\/(switch|manage)$/.test(request.url)), [], "nothing is switched or removed");
   assert.equal(await page.evaluate(`!!document.querySelector('[data-connection-row="${OLD}"]')`), true);
+  assert.deepEqual(exceptions, []);
+});
+
+test("BL-1051 each custom MCP re-login selects its saved mode and clears the previous form secrets", { timeout: 60_000 }, async t => {
+  const browser = await openConnections(t); if (!browser) return;
+  const { page, origin, exceptions } = browser;
+  await page.command("Page.navigate", { url: origin + "/settings/connectors?connector=mcp-bearer" });
+  await page.wait("document.querySelector('[data-connectors-settings]')?.dataset.connectorsBound === '1' && document.querySelector('[data-connector-item=\"mcp-bearer\"]')?.dataset.open === 'true'");
+  const area = `document.querySelector('[data-connector-detail="mcp-bearer"] [data-protocol="mcp"]')`;
+  for (const [index, mode] of ["oauth", "bearer", "none"].entries()) {
+    await page.evaluate(`(() => {
+      ${area}.querySelector('[data-protocol-field="authentication"]').value = 'none';
+      for (const key of ['token', 'client_secret']) ${area}.querySelector('[data-protocol-field="' + key + '"]').value = 'previous-form-value';
+    })()`);
+    await page.click(`[data-connection-reauthorize="custom-${index}"]`);
+    assert.deepEqual(await page.evaluate(`['authentication', 'token', 'client_secret'].map(key => ${area}.querySelector('[data-protocol-field="' + key + '"]').value)`), [mode, "", ""]);
+    assert.equal(await page.evaluate(`${area}.dataset.connectionId ?? null`), null);
+  }
   assert.deepEqual(exceptions, []);
 });
 

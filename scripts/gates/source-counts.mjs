@@ -200,8 +200,10 @@ const measureSnapshot = (snapshot, { isSource }) => {
 
 // G1 (specs/plugin-specials-demotion/spec.md §5.1, 44B): the platform names no plugin. In the platform's sources (apps, packages,
 // horizontal, modules, server; the two generated plugin registries are not counted) each of these counts one: a plugin id as
-// `io.molis.work.<id>`, a plugin package `@molis-ai/molis-work-plugin-<id>`, a short id as a whole quoted string, a `.<id>-…` class
-// and a `data-<id>-…` attribute; a file named after a plugin (`<id>-….ts`, `<id>.ts`) counts one more. An official integration counts
+// `io.molis.work.<id>`, a plugin package `@molis-ai/molis-work-plugin-<id>`, a short id as a whole quoted string, a quoted string that
+// starts with the short id and `.` or `:` (a type `coding.report.v1`, an action `goals.create`, a permission `feed:read`, a prefix test
+// `startsWith("goals.")`; user 2026-11-24, 44B review P-08), a `.<id>-…` class and a `data-<id>-…` attribute; a file named after a plugin
+// (`<id>-….ts`, `<id>.ts`) counts one more. An official integration counts
 // by its package `@molis-ai/molis-work-integration-<id>` and `io.molis.work.<id>` (its short ids, such as `catalog`, are platform words
 // too). The ids are read from the plugin directories of the same snapshot (plugins/native, plugins/content and
 // plugins/official-integrations), never written here.
@@ -229,6 +231,7 @@ export const countPlatformPluginNames = (file, text, { plugins, integrations }) 
       new RegExp(`@molis-ai/molis-work-plugin-(?:${alternatives})(?![a-z0-9-])`, "g"),
       ...(integrations.length ? [new RegExp(`@molis-ai/molis-work-integration-(?:${either(integrations)})(?![a-z0-9-])`, "g")] : []),
       new RegExp(`(["'\`])(?:${alternatives})\\1`, "g"),
+      new RegExp(`(["'\`])(?:${alternatives})[.:][a-z]`, "g"),
       new RegExp(`(?<![\\w.-])\\.(?:${alternatives})-[a-z]`, "g"),
       new RegExp(`\\bdata-(?:${alternatives})-[a-z]`, "g"),
     ];

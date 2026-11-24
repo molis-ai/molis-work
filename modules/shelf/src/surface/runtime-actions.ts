@@ -17,10 +17,10 @@ function define<I, O>(name: string, version: number, title: string, description:
     scope, scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item", "artifact"], input_schema: input, output_schema: output }, version);
 }
 
-/** Coding results of the caller's project offered to Shelf: the Home instance reads them for the project each call is for (44B). */
+/** Results of the caller's project offered to Shelf (those their producers mark `copy_out`): read for the project each call is for (44B). */
 export const shelfRuntimeActions = {
   results: define<Record<string, never>, { results: { reference: ArtifactReference; title: string }[] }>("results.list", /* @version action.shelf.results.list */ 1, "可接收的项目成果",
-    "列出本项目可放进 Shelf 的 Coding 报告与变更", "query", object({}),
+    "列出本项目可放进 Shelf 的成果与过程项", "query", object({}),
     object({ results: { type: "array", items: object({ reference, title: text }) } }), ["artifact:read"]),
   preview: define<{ reference: ArtifactReference }, ShelfArtifactPreview>("results.preview", /* @version action.shelf.results.preview */ 1, "预览项目成果", "读取一份固定版本成果将放进 Shelf 的正文与指纹",
     "query", object({ reference }), preview, ["artifact:read"]),

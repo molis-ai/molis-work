@@ -191,6 +191,17 @@ export function artifactTypeDeclarations(sources: readonly ArtifactProducerSourc
   return declarations;
 }
 
+/**
+ * The 成果 and process item types their producers let a person copy out of the project as text (`copy_out`), as consumers name types.
+ * A platform part that takes text out of projects (Shelf) reads these instead of naming any plugin's types (44B review P-07).
+ */
+export function copyOutTypes(sources: readonly ArtifactProducerSource[] = artifactProducerSources()): Pick<PluginManifest, "artifacts" | "process_items"> {
+  const marked = (types: ReadonlyArray<{ artifact_type_id: string; schema_version: number; copy_out?: true }> | undefined) =>
+    (types ?? []).filter(type => type.copy_out === true).map(type => ({ artifact_type_id: type.artifact_type_id, schema_version: type.schema_version }));
+  return { artifacts: { produces: [], consumes: sources.flatMap(source => marked(source.artifacts.produces)) },
+    process_items: { produces: [], consumes: sources.flatMap(source => marked(source.process_items?.produces)) } };
+}
+
 /** Every 成果 type the producers declare, as consumers name types (id and schema version). */
 export function declaredArtifactTypes(sources: readonly ArtifactProducerSource[] = artifactProducerSources()): Array<{ artifact_type_id: string; schema_version: number }> {
   return sources.flatMap(source => source.artifacts.produces).map(type => ({ artifact_type_id: type.artifact_type_id, schema_version: type.schema_version }));

@@ -12,10 +12,11 @@ export type HomeProjectArtifactStores = (projectId: string) => Pick<PluginArtifa
  * resolved on each call, so the Home instance holds no project of its own. Only `read` and `listConsumable`, under the same rules as a
  * project instance (the Manifest's `artifacts.consumes` / `process_items.consumes`, `artifact:read`, the caller still current). A Home
  * instance pins nothing into a project: what it produces is its own Home store's. Undefined when the Manifest consumes nothing.
+ * A platform part that takes text out of projects (`copyOut`, Shelf) reads, on each call, the types their producers mark `copy_out`.
  */
-export function homePluginArtifactsFor(manifest: PluginManifest, context: PluginStartContext, stores: HomeProjectArtifactStores | undefined,
-  assertActive: () => void): PluginArtifactClient | undefined {
-  if (!stores || !manifest.artifacts.consumes.length && !manifest.process_items?.consumes.length) return undefined;
+export function homePluginArtifactsFor(declared: PluginManifest, context: PluginStartContext, stores: HomeProjectArtifactStores | undefined,
+  assertActive: () => void, copyOut?: () => Pick<PluginManifest, "artifacts" | "process_items">): PluginArtifactClient | undefined {
+  if (!stores || !copyOut && !declared.artifacts.consumes.length && !declared.process_items?.consumes.length) return undefined;
   const forCall = () => {
     assertActive();
     const scope = currentPluginInvocation();
@@ -24,6 +25,7 @@ export function homePluginArtifactsFor(manifest: PluginManifest, context: Plugin
     if (!projectId) throw new ActionError("actions.scope_mismatch", "读取项目成果需要调用方的项目");
     const open = stores(projectId);
     if (!open) throw new ActionError("actions.unavailable", "这个项目还没有打开");
+    const manifest: PluginManifest = copyOut ? { ...declared, ...copyOut() } : declared;
     return createPluginArtifactOperations({ ...open, manifest, project_id: projectId, actor_id: scope!.caller.actor_id, assertInput: assertActionInput,
       authorize: permission => context.requireGrant(permission), assertCallerCurrent: () => assertPluginActionCurrent(context) }).client;
   };

@@ -188,7 +188,7 @@ test("a call still waiting for approval when the round ends reads as not execute
 });
 
 test("BL-100: exact pending origins close every matching call and leave another unfinished dispatch unknown", () => {
-  for (const ending of ["cancelled", "failed", "tripped", "completed", "prefix", "run-recovered"] as const) {
+  for (const ending of ["cancelled", "failed", "tripped", "circuit-tripped", "completed", "prefix", "run-recovered"] as const) {
     const state = emptyPrologueStreamState();
     apply(state,
       { type: "tool-call", call: { id: "edit-1", name: "edit" } },
@@ -256,15 +256,18 @@ test("a guardrail stop is terminal but is not a failure", () => {
   assert.match(state.stop_reason ?? "", /被护栏 secret-scan 拦下/u);
 
   const railBroke = emptyPrologueStreamState();
-  apply(railBroke, { type: "tripped", stage: "input", rail: "pii", why: "", failed: true });
+  apply(railBroke, { type: "tripped", stage: "input", rail: "pii", why: "", railFailed: true });
   assert.match(railBroke.stop_reason ?? "", /自身出错/u);
 });
 
 test("the runtime's circuit breaker ends the round as stopped, in words, instead of leaving it waiting to close", () => {
   // Seen with MiniMax-M3: four malformed calls in a row tripped the breaker; the round then hung at “正在收尾”.
   const state = emptyPrologueStreamState();
+  apply(state, { type: "retry-waiting", model: "m", reason: "rate-limited", attempt: 1, waitMs: 100, retryAtMs: 100, why: "busy" });
+  assert.ok(state.retry_wait);
   apply(state, { type: "circuit-tripped", reason: "same-tool-failure", count: 4, why: "change-capability kept failing" } as never);
   assert.equal(state.phase, "stopped");
+  assert.equal(state.retry_wait, undefined);
   assert.match(state.stop_reason ?? "", /连续 4 次调用都没有成功.*已完成的保留/u);
   assert.equal(state.unknown_frames, 0);
   // The runtime's own reasons read in the person's words, not the runtime's English.

@@ -236,6 +236,15 @@ test("MEM-10 the public history page honors before_version and a tail limit", { 
   for (let version = 2; version <= 6; version++) {
     await service.change(caller(`edit-page-${version}`), { action: "update", memory_id: created.memory_id, expected_version: version - 1, text: `第 ${version} 版` });
   }
+  // RT-3: exact pagination boundaries at the public adapter, including invalid numeric inputs.
+  const history = (options: { limit?: number; before_version?: number }) => f.raw().history({ scope: "project", owner: "project-a", memory_id: created.memory_id, ...options });
+  assert.deepEqual((await history({ limit: 2 })).revisions.map(row => row.version), [5, 6]);
+  assert.deepEqual((await history({ before_version: 4 })).revisions.map(row => row.version), [1, 2, 3]);
+  for (const bad of [-1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    await assert.rejects(history({ limit: bad }), { code: "agent.history_invalid" });
+    await assert.rejects(history({ before_version: bad }), { code: "agent.history_invalid" });
+  }
+  await assert.rejects(history({ before_version: 0 }), { code: "agent.history_invalid" });
   const bounded = await f.raw().history({ scope: "project", owner: "project-a", memory_id: created.memory_id, before_version: 6, limit: 2 });
   assert.deepEqual(bounded.revisions.map(revision => revision.version), [4, 5]);
   const none = await f.raw().history({ scope: "project", owner: "project-a", memory_id: created.memory_id, limit: 0 });

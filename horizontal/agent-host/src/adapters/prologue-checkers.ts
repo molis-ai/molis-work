@@ -1,3 +1,4 @@
+import { isTerminalEventType } from "@prologue/sdk";
 import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
 import { lstat, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
@@ -332,7 +333,7 @@ export function createPrologueConditionCheckers(deps: { readonly runtime: () => 
       // A round that already ended replays its end while subscribing: `off` is read only after the microtask, once it is set.
       let off: () => void = () => undefined;
       off = events.subscribe(event => {
-        if (!["completed", "failed", "cancelled"].includes(event.type)) return;
+        if (!isTerminalEventType(event.type)) return;
         ended.add(runId); queueMicrotask(() => off()); prune();
       });
     },

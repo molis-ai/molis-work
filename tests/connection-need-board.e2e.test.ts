@@ -29,6 +29,20 @@ test("ASC-71 at 375 and 400 wide every stage of the connection card keeps its bu
   // settle in the same frame even after the test harness's still-mode override is removed.
   await command("Page.navigate", { url: `${origin}/__ui/catalog#service-connections` }, sessionId);
   await waitFor("document.readyState === 'complete' && document.querySelector('#board-conn-gmail')");
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
+  await evaluate("document.documentElement.removeAttribute('data-craft-still')");
+  assert.deepEqual(await evaluate(`(() => {
+    const item = document.querySelector('#board-conn-gmail'), fold = item.querySelector('.settings-connection-item__fold');
+    const toggle = item.querySelector('[data-connection-toggle]'), button = fold.querySelector('button');
+    // Ignore CSS interactivity so only the native HTML focus guard can keep a still-visible control out of the tab order.
+    fold.style.setProperty('interactivity', 'auto', 'important');
+    button.focus(); const startedInside = document.activeElement === button;
+    item.querySelector('.settings-connection-row strong').click();
+    const stillVisible = getComputedStyle(fold).visibility === 'visible' && fold.getBoundingClientRect().height > 0;
+    button.focus(); const rejected = document.activeElement === toggle;
+    toggle.click(); button.focus(); fold.style.removeProperty('interactivity');
+    return [startedInside, stillVisible, rejected, document.activeElement === button];
+  })()`), [true, true, true, true], "a closing row excludes its controls during the fade and restores them on reopening");
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await evaluate("document.documentElement.removeAttribute('data-craft-still')");
   const heights: number[] = [];

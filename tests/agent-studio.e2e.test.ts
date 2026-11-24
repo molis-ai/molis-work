@@ -1,3 +1,7 @@
+import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { pluginFrameBrowser } from './fixtures/plugin-frame-browser.js';
+import { LocalHostHttpClient } from '@molis-ai/molis-work-test-kit/local-host-http';
+import { withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
 import { newPublisher } from './fixtures/sandbox-package.js';
 import { packagedStudioRelease } from './fixtures/studio-package.js';
 import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from './fixtures/review-evidence.js';
@@ -80,7 +84,7 @@ async function resumeTargetStudio(store:LocalProjectDatabase,homeDirectory:strin
   }finally{await releaseAgentStudio(store,projectId);await releaseInstalledPlugins(store,projectId);server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 }
 
-test('FSS-74 a frozen English design reaches G7 in its own frame and publishes the same two language files', { timeout: 110_000, skip: process.platform !== 'darwin' }, async t => {
+test('FSS-74 BL-1049 BL-1057 a generated notebook publishes its words and icon, then connects in place after installation', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
   const browserExecutable = dedicatedBuilderBrowser();
   assert.ok(browserExecutable, 'use the separate Studio test browser');
   const home = await mkdtemp(join(tmpdir(), 'molis-studio-locale-g7-')), databasePath = join(home, 'project.db');
@@ -94,6 +98,23 @@ test('FSS-74 a frozen English design reaches G7 in its own frame and publishes t
       const answer = await runtime.run(request);
       if (request.role !== 'designer' || JSON.parse(request.task).mode !== 'detail') return answer;
       const wire = JSON.parse(answer.output), { design } = wire, page = design.pages[0];
+      const task = JSON.parse(request.task);
+      assert.ok(task.iconNames.includes('book'));
+      if (!task.repair) {
+        delete design.icon;
+        return { ...answer, output: JSON.stringify(wire) };
+      }
+      assert.match(task.repair.validationError, /iconNames/);
+      design.icon = 'book';
+      design.connections = { slots: [{ slot_id: 'source', service_id: 'github', reason: 'Save a note for the chosen account' }] };
+      design.operations.push({ id: 'notes.account', kind: 'command', description: 'Keep a note for the connected account', input: { memo: 'string' }, output: 'boolean',
+        effects: { storage: ['read', 'write'], connections: ['source'] }, examples: [{ input: { memo: 'Draft' }, output: false }] });
+      page.parts.push({ id: 'account', intent: 'input', purpose: 'Keep an account note', props: { submitLabel: 'Save account note' }, submit: 'notes.account', connectionNeed: { slot_id: 'source' } });
+      for (const locale of ['zh', 'en']) {
+        const pack = design.uiText.locales[locale];
+        pack['field/notes.account/memo/label'] = locale === 'zh' ? '备注' : 'Memo';
+        pack['part/account/submitLabel'] = locale === 'zh' ? '保存账号备注' : 'Save account note';
+      }
       page.title = { literal: literalStudioExcerpt };
       page.parts.find((part: { id: string }) => part.id === 'title').props.description = { literal: literalStudioExcerpt };
       page.parts.find((part: { id: string }) => part.id === 'notes').props.columns[0].label = { literal: '  原文栏目 <ref>  ' };
@@ -125,12 +146,13 @@ test('FSS-74 a frozen English design reaches G7 in its own frame and publishes t
   type Build = import('@molis-ai/molis-work-plugin-studio').AgentBuild;
   const model = (await options.models())[0]!;
   await send('/settings', { provider_id: model.provider_id, model_id: model.model_id });
-  const { build: created } = await send<{ build: Build }>('/builds', { brief: 'Build an excerpt notebook; save notes and find them later.' });
+  const { build: created } = await send<{ build: Build }>('/builds', { brief: 'Build a reading notebook; save notes, including a memo for a connected GitHub account, and find them later.' });
   const load = () => send<{ build: Build }>('/builds/' + created.id).then(value => value.build);
   const act = (action: string, build: Build, extra = {}) => send<unknown>('/builds/' + build.id + '/action', { action, revision: build.revision, ...extra });
   const stopped = async () => {
     let current = await load();
-    for (let i = 0; i < 450 && current.active; i++) { await new Promise(resolve => setTimeout(resolve, 100)); current = await load(); }
+    const deadline = Date.now() + 90_000;
+    while (current.active && Date.now() < deadline) { await new Promise(resolve => setTimeout(resolve, 100)); current = await load(); }
     assert.equal(current.active, null, studioBuildDiagnostic(current.error) ?? 'Studio did not stop'); return current;
   };
   const proposals = await stopped(); assert.equal(proposals.phase, 'choosing', studioBuildDiagnostic(proposals.error) ?? '');
@@ -151,6 +173,86 @@ test('FSS-74 a frozen English design reaches G7 in its own frame and publishes t
   assert.deepEqual(kept.contract.pages[0]?.regions[0]?.title, { literal: literalStudioExcerpt });
   const field = pluginTextSlotKey(kept.contract.pluginId, pluginTextSlot('field', 'notes.add', 'text', 'label'));
   assert.equal(kept.localePacks?.pack('en')?.messages[field], 'Note');
+  assert.equal(bundle.payload.manifest.ui.views?.find(view => view.slot === 'stage')?.icon, 'book');
+  assert.equal(kept.nodes.find(node => node.id === 'account')?.kind, 'connection-need');
+  await t.test('the installed page continues only the successful connection', async checked => {
+    const browser = await openGoalBrowser(checked, true, undefined, null);
+    assert.ok(browser);
+    await browser.setViewport(1440, 960);
+    const prefix = '/projects/' + browser.projectId, trust = prefix + '/api/plugin-trust/install';
+    const client = new LocalHostHttpClient({ origin: browser.origin, controlToken: browser.controlToken });
+    const preview = await client.post<{ preview_id: string }>(trust + '/preview', { bundle });
+    await client.post(trust + '/confirm', { preview_id: preview.preview_id, consent: true, pin_label: 'Studio test publisher', optional_permissions: ['connections:use'] });
+    const shots = shouldSaveReviewScreenshots() ? reviewEvidenceUrl('studio-account-note/') : null;
+    async function capture(name: string) {
+      if (!shots) return;
+      await mkdir(shots, { recursive: true });
+      const image = await browser!.command<{ data: string }>('Page.captureScreenshot', { format: 'png' }, browser!.sessionId);
+      await writeFile(new URL(name + '.png', shots), Buffer.from(image.data, 'base64'));
+    }
+    const account = withConnectorConnections(browser.homeDirectory, store => store.createToken({ serviceId: 'github', displayName: 'Reading account', token: 'test-only-studio-token' }));
+    const pluginId = bundle.payload.manifest.plugin_id;
+    await browser.navigate(() => browser.command('Page.navigate', { url: browser.origin + prefix + '/plugins/' + pluginId }, browser.sessionId));
+    const surface = await browser.evaluate<string>(`document.querySelector('[data-installed-plugin="${pluginId}"]').dataset.workSurface`);
+    const frame = await pluginFrameBrowser(checked, browser, surface);
+    await frame.waitFor('globalThis.__molisPluginReady === true');
+    for (const selector of [`.tab-item[data-plugin="${surface}"]`, `[data-plugin-tile="${surface}"]`, '[data-plugin-picker-current]']) {
+      await browser.waitFor(`document.querySelector(${JSON.stringify(selector)} + ' use[href="#icon-book"]')`);
+    }
+    const part = '[data-component-id="account"]', submit = part + ' [type=submit]', memo = part + ' [data-field="memo"]';
+    await frame.evaluate(`(() => { const input = document.querySelector('${memo}'); input.value = 'Reading draft'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    const card = '[data-connection-need-area]', control = (name: string) => card + ' [data-framed-control="' + name + '"]';
+    const press = async (name: string) => {
+      const selector = control(name);
+      await frame.waitFor(`document.querySelector('${part} [role="note"]')`);
+      await frame.evaluate(`document.querySelector('${part} [role="note"]').scrollIntoView({block:'center',behavior:'instant'})`);
+      await browser.waitFor(`document.querySelector('${selector}')`);
+      await browser.evaluate(`(async () => {
+        document.querySelector('${selector}').focus({preventScroll:true});
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      })()`);
+      await browser.waitFor(`document.activeElement?.matches('${selector}:not([aria-disabled])') && !document.querySelector('${card}').hasAttribute('data-unready')`);
+      for (const type of ['keyDown', 'keyUp']) await browser.command('Input.dispatchKeyEvent', {
+        type, key: ' ', code: 'Space', windowsVirtualKeyCode: 32, ...(type === 'keyDown' ? { text: ' ' } : {}),
+      }, browser.sessionId);
+    };
+    // Record only operation kinds. A simulated transport failure on bind exercises the real shell's retry path.
+    await browser.evaluate(`(() => { const send = window.fetch, post = MessagePort.prototype.postMessage;
+      window.connectionOutcomes = [];
+      MessagePort.prototype.postMessage = function(message, ...rest) {
+        if (message?.type === 'connection-need-done' && message.outcome) window.connectionOutcomes.push(message.outcome);
+        return post.call(this, message, ...rest);
+      };
+      window.submits = 0; window.rejectBind = true; window.fetch = function(url, options) {
+      const address = url instanceof Request ? url.url : String(url);
+      if (!/plugin-page-(?:actions|connection)$/.test(address)) return send.apply(this, arguments);
+      const body = typeof options?.body === 'string' ? JSON.parse(options.body) : {};
+      if (address.endsWith('/plugin-page-actions') && body.component_id === 'account') window.submits++;
+      if (address.endsWith('/plugin-page-connection') && body.operation === 'bind' && window.rejectBind) {
+        window.rejectBind = false; return Promise.resolve(Response.json({error:'test failure'}, {status:503}));
+      }
+      return send.apply(this, arguments);
+    }; })()`);
+    await frame.click(submit);
+    await press('cancel');
+    await frame.waitFor(`!document.querySelector('${submit}').disabled`);
+    assert.equal(await frame.evaluate(`document.querySelector('${memo}').value`), 'Reading draft');
+    assert.equal(await browser.evaluate('window.submits'), 0);
+    await frame.click(submit);
+    await press('retry');
+    await press('use:' + account.connection_id);
+    await browser.waitFor(`!window.rejectBind && document.querySelector('${card} [role="status"].is-error')?.textContent.trim()`);
+    assert.equal(await browser.evaluate('window.submits'), 0);
+    await capture('connection-failed');
+    await press('use:' + account.connection_id);
+    await frame.waitFor(`document.querySelector('[data-component-id="notes"]').innerText.includes('Reading draft / Reading account')`);
+    assert.equal(await browser.evaluate('window.submits'), 1);
+    await capture('note-saved');
+    assert.deepEqual(await browser.evaluate('window.connectionOutcomes'), [
+      { status: 'cancelled' }, { status: 'connected', account: { label: 'Reading account' } },
+    ]);
+    assert.equal(await frame.evaluate(`document.body.innerText.includes('test-only-studio-token') || !!document.querySelector('input[type=password]')`), false);
+  });
   const missing = structuredClone(bundle.payload);
   for (const file of missing.files.filter(file => file.path.startsWith('locales/'))) {
     const words = JSON.parse(Buffer.from(file.content_base64, 'base64').toString('utf8'));
@@ -319,8 +421,8 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     assert.equal(await page.evaluate(`Boolean(document.querySelector('.as-dialog,[data-as-install],[data-as-upgrade],[data-as-uninstall]'))`), false, 'the studio has no install controls of its own');
     await sheet.staged('review');
     assert.match(await sheet.text(), /笔记墙/, 'the sheet names the package the Host verified');
-    assert.equal(await outer.evaluate<boolean>(`(() => { const main = document.querySelector('[data-install-sheet] .install-sheet__main'); return !main || main.scrollHeight <= main.clientHeight + 0.5; })()`), true, 'one screen: nothing in the sheet scrolls');
     await sheet.ready();
+    await sheet.wait(`(() => { const main = document.querySelector('[data-install-sheet] .install-sheet__main'); return main && main.scrollHeight <= main.clientHeight + 0.5; })()`, 'one screen: nothing in the sheet scrolls');
     await sheet.shot('review');
     // Expanding a note calls the model through a platform capability, a switch that starts off (BL-701): the person turns it on here.
     await sheet.press('tile:capabilities:call');

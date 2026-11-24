@@ -47,6 +47,25 @@ test('SCS-11: opening a signed record refuses two matches in one component and o
   })()`);
   assert.deepEqual(result, { rows: 3, opened: false, focusStayed: true, selected: 0, extraReads: 0, writes: 0 });
 });
+test('BL-1057 a per-record connection must belong to the submitted command and use a bound string field', () => {
+  const perRecord = { slots: [{ slot_id: 'source', service_id: 'github', binding: 'per_record' as const, reason: 'Save the account note' }] };
+  const connected = structuredClone(contract);
+  connected.operations[0]!.effects.connections = ['source'];
+  const card = { ...plan, connectionNeed: { slot_id: 'source', recordField: 'text' } };
+  assert.deepEqual(validatePluginComponentPlans([card], connected, undefined, perRecord), [card]);
+  assert.throws(() => validatePluginComponentPlans([card], contract, undefined, perRecord), /连接槽/);
+  assert.throws(() => validatePluginComponentPlans([card], connected), /连接槽/);
+  const image = { ...plan, connectionNeed: { kind: 'image' as const, slot_id: 'drawing', base_url: 'https://images.example/v1' } };
+  connected.operations[0]!.effects = { imageGeneration: ['bind', 'generate'], networkDomains: ['images.example'] };
+  assert.deepEqual(validatePluginComponentPlans([image], connected), [image]);
+  assert.throws(() => validatePluginComponentPlans([{ ...image, connectionNeed: { ...image.connectionNeed, base_url: 'https://other.example/v1' } }], connected), /服务域名/);
+  assert.throws(() => validatePluginComponentPlans([image], contract), /图片连接权限/);
+  connected.operations[0]!.effects = { connections: ['source'] };
+  for (const recordField of [undefined, 'enabled', 'missing']) {
+    assert.throws(() => validatePluginComponentPlans([{ ...card, connectionNeed: { slot_id: 'source', recordField } }], connected, undefined, perRecord), /记录字段/);
+  }
+});
+
 test('component contracts reject unsupported bindings and resolve selected sources separately', () => {
   assert.equal(validatePluginComponentPlans([plan], contract).length, 1);
   assert.throws(() => validatePluginComponentPlans([{ ...plan, submit: { ...plan.submit, input: { ...plan.submit.input, text: { source: 'form', field: 'profile.name' } } } }], contract), /单层/);

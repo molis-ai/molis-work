@@ -3,7 +3,7 @@
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Ctl, Det, Kit, Out, Part, Qry, Rec, Rel, State, Sub } from './plugin-component-types.js';
 import type { SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { pluginFieldWords, pluginMessageNames } from './plugin-surface-text.js';
+import { isDestructivePluginPart, pluginFieldWords, pluginMessageNames } from './plugin-surface-text.js';
 import type { PluginComponentNode } from './plugin-components.js';
 import { buildPreActionFacts } from './plugin-component-help.js';
 
@@ -25,8 +25,49 @@ export function pcSubmit(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry) {
           // A model call can take tens of seconds; say so rather than "saving".
           const slow = operation(node.submit!.operationId)?.effects.capabilities?.includes('model.generate');
           part.busy = true; submit.disabled = true; submit.dataset.loading = ''; const spinner = make('span', undefined, 'mw-spinner'); spinner.dataset.slot = 'button-loading-indicator'; spinner.setAttribute('aria-hidden', 'true'); submit.prepend(spinner);
+          const payload = { form: values, selection: { ...c.selection } };
+          if (node.connectionNeed) {
+            if (!options.connectionNeed || !part.connectionPlace) {
+              report(part, 'error', t.text("common.component-connection-need.preview"));
+              return;
+            }
+            const need = node.connectionNeed, recordField = need.kind === 'image' ? undefined : need.recordField;
+            const source = recordField && node.submit!.input[recordField];
+            const key = source && (source.source === 'literal' ? source.value : source.source === 'form' ? values[source.field] : c.at(payload.selection[source.componentId], source.field));
+            if (recordField && typeof key !== 'string') {
+              report(part, 'error', t.text("common.generated.input-preserved"));
+              return;
+            }
+            const selectionChanged = () => Object.values(node.submit!.input).some(binding =>
+              binding.source === 'selection' && payload.selection[binding.componentId] !== c.selection[binding.componentId]);
+            const controller = part.connection = new AbortController();
+            try {
+              const target = need.kind === 'image' ? need : { kind: 'slot' as const, slot_id: need.slot_id, ...(recordField && typeof key === 'string' ? { record_key: key } : {}) };
+              const outcome = await options.connectionNeed(part.connectionPlace, target, { signal: controller.signal });
+              if (!live(part, generation) || controller.signal.aborted || c.currentPage !== node.pageId) return;
+              if (outcome.status !== 'connected' || part.draft !== submitted || selectionChanged()) {
+                report(part, '', '');
+                return;
+              }
+              if (part.confirm) {
+                const dialog = part.confirm;
+                const confirmed = new Promise<boolean>(resolve => dialog.addEventListener('close', () => resolve(dialog.returnValue === 'confirm'), { once: true }));
+                dialog.returnValue = '';
+                dialog.showModal();
+                controller.signal.addEventListener('abort', () => dialog.close(''), { once: true });
+                if (!await confirmed || controller.signal.aborted || !live(part, generation) || selectionChanged()) {
+                  report(part, '', '');
+                  return;
+                }
+              }
+            } catch (error) {
+              if (!controller.signal.aborted) throw error;
+              if (live(part, generation)) report(part, '', '');
+              return;
+            } finally { part.connection = undefined; }
+          }
           report(part, 'working', slow ? t.text("common.generated.model-working") : t.text("common.generated.saving"));
-          const result = await options.call(node.id, 'submit', { form: values, selection: c.selection });
+          const result = await options.call(node.id, 'submit', payload);
           if (!live(part, generation)) return;
           select(node.id, result);
           // Feedback describes the operation and the unsubmitted draft from state, not the language of the button.
@@ -82,6 +123,11 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
     bindWord(element, 'aria-label', () => visibleWord(part.node.props.title) || word(part.node.props.submitLabel) || part.node.purpose);
     bindWord(title, '', () => heading(part.node));
     bindWord(description, '', () => visibleWord(part.node.props.description));
+    if (node.connectionNeed) {
+      part.connectionPlace = make('div');
+      element.append(part.connectionPlace);
+      if (!options.connectionNeed) element.append(wordElement('p', () => t.text("common.component-connection-need.preview")));
+    }
     const derived = c.view!.deriveFieldWords || c.view!.authoringWords !== undefined;
     const filtered = node.read && Object.entries(node.read.input).filter(([, source]) => source.source === 'form');
     // The collection's toolbar: its filters, how many records show, and a way to take them out as a spreadsheet.
@@ -186,9 +232,31 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
           if (facts) panel.append(fields, facts, foot); else panel.append(fields, foot);
         }
         form.append(panel);
+        if (node.connectionNeed && isDestructivePluginPart(node)) {
+          const shell = overlay('confirm', t.text("common.generated.confirm", { action: rowLabel(node) }), t.text("common.generated.irreversible"), node.id);
+          const cancel = button(t.text("common.generated.cancel"), 'secondary', 'md'), yes = button(rowLabel(node), 'danger', 'md');
+          cancel.addEventListener('click', event => {
+            event.preventDefault();
+            shell.dialog.close('');
+          });
+          yes.addEventListener('click', event => {
+            event.preventDefault();
+            shell.dialog.close('confirm');
+          });
+          shell.footer.append(cancel, yes);
+          element.append(shell.dialog);
+          part.confirm = shell.dialog;
+        }
         if (composer(node)) form.classList.add('pc-composer');
       }
-      const edited = () => { part.draft++; if (part.feedback.dataset.pcInvalid !== undefined && form.checkValidity()) { report(part, '', ''); delete part.feedback.dataset.pcInvalid; } };
+      const edited = () => {
+        part.connection?.abort();
+        part.draft++;
+        if (part.feedback.dataset.pcInvalid !== undefined && form.checkValidity()) {
+          report(part, '', '');
+          delete part.feedback.dataset.pcInvalid;
+        }
+      };
       form.addEventListener('input', edited); form.addEventListener('change', edited);
       form.addEventListener('invalid', event => {
         const field = event.target;

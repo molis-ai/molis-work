@@ -94,13 +94,23 @@ export function testGitEditDrafts(surface: "git" | "coding") {
     assert.equal(await frame.evaluate("document.querySelector('[data-git-commit-message]').value"), "First directory commit");
     assert.equal(await frame.evaluate("document.querySelector('[data-git-branch-name]').value"), "first-topic");
     await select(other.workspace_id, otherRoot, "other-branch");
-    await browser.reloadPage();
     if (codingSession) {
-      await browser.waitFor(CODING_TAKEN);
+      // The saved session can arrive before its project's authorized directories.
+      const state = Promise.withResolvers<void>();
+      const handlers = browser.server.listeners("request");
+      browser.server.removeAllListeners("request");
+      browser.server.on("request", async (request, response) => {
+        if (request.url?.split("?")[0]?.endsWith("/api/plugins/io.molis.work.coding/state")) await state.promise;
+        for (const handler of handlers) handler.call(browser.server, request, response);
+      });
+      try {
+        await browser.reloadPage();
+        await browser.waitFor(CODING_TAKEN);
+      } finally { state.resolve(); }
       // Wait for the session's first read to restore its folder before opening the embedded Git pane.
       const restoredFolder = `document.querySelector('[data-coding-workspace-label]')?.title === ${JSON.stringify(other.canonical_path)}`;
       await frame.waitFor(`${currentSession} === ${JSON.stringify(codingSession)} && ${restoredFolder}`);
-    }
+    } else await browser.reloadPage();
     await ctx.show();
     await frame.waitFor("document.querySelector('[data-git-branch]').textContent === 'other-branch'");
     assert.equal(await frame.evaluate("document.querySelector('[data-git-commit-message]').value"), "Second directory commit");

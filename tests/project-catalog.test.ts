@@ -153,8 +153,8 @@ test("managed projects have immutable identities, duplicate names, and isolated 
       assert.notEqual(first.project_id, second.project_id);
       assert.notEqual(first.database_path, second.database_path);
       assert.equal(first.data_class, "user");
-      assert.deepEqual(new Set(catalog.listProjects().map(project => project.project_id)),
-        new Set([first.project_id, second.project_id]));
+      assert.deepEqual(catalog.listProjects().map(project => project.project_id).sort(),
+        [first.project_id, second.project_id].sort());
 
       const firstStore = new LocalProjectDatabase(first.database_path);
       try {

@@ -46,7 +46,6 @@
 
 - [unified-account](unified-account/spec.md)：WORK-01 至 WORK-09 的本地隔离实现与 V2 账号统一已完成，并随 [#2013](https://github.com/molis-ai/molis-work/pull/2013)、[#2021](https://github.com/molis-ai/molis-work/pull/2021)、[#2025](https://github.com/molis-ai/molis-work/pull/2025) 合入 main（2026-11-11；合入提交 `ef06fed603`、`93eb5590ac`、`4d025ff4c6`）；真实存量迁移、外部服务与最终全量回归仍待补验。
 
-- [测试集合审查与 CI 用时](test-suite-audit/spec.md)，负责人 Codex。
 - [ci-acceleration](ci-acceleration/spec.md)：CI P0/P1 提速，普通文档从 PR 到合并队列走轻量路径，增加单个 PR 分片并按耗时和浏览器容量平衡；2026-11-06 已获实施授权，负责人 Codex；本地实现与验证完成，待云端实测。
 
 - [team-memory](team-memory/spec.md)：独立团队记忆需求（BL-022）；像持续在线的 PMO 观察获准项目、沟通和工作，积累决策、风险、知识、偏好及协作模式，减少人与人／人与 AI／AI 与 AI 的上下文交接，支持主动协作、工作习惯与交付质量改善。成员个人发布仍需最终确认并告知不可撤回，管理员维护团队认知；形成、融合及使用策略待细化，尚未实现或验收。需求维护 Codex，实现待分配；不改变现有记忆 P0 边界。
@@ -168,6 +167,8 @@
 **现行规范** 不归档。规则变了就改原文；一份规范被新 spec 整体取代时，新 spec 成为现行规范，旧的按上面的规则归档。
 
 ## 梳理记录
+
+- 2026-11-23：[测试集合审查与 CI 用时](archive/test-suite-audit/spec.md)归档（已实现，负责人 Codex）。逐文件清单用 `node scripts/test-inventory.mjs` 生成，执行结果与已知失败见 [#2281](https://github.com/molis-ai/molis-work/pull/2281)。
 
 - 2026-11-23：[第 42 批 Skill 创作余项](archive/bl-b42-followups/spec.md)归档（已实现，负责人 Codex）。工程验证见 #2271，真实供应商和本人试用见 BL-b42-acceptance。
 - 2026-11-23：[D 轨界面收口](archive/d-track-ui-closeout/spec.md)归档（已实现，负责人 Codex）。390px 英文组件板、引导提示和首显阶梯随 [#2277](https://github.com/molis-ai/molis-work/pull/2277) 合入。

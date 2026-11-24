@@ -1,6 +1,7 @@
 import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
 import { DEFAULT_WEB_LOCALE, type WebLocale } from "./i18n.js";
 import { renderLanguageHead } from "./language-resource.js";
+import { NO_FAVICON_LINK } from "./document-shell.js";
 import { escapeHtml, icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
@@ -293,6 +294,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  ${NO_FAVICON_LINK}
   <title>${t("workbench.primitive-catalog.component-board")} · Molis Work</title>
   ${renderLanguageHead(lang)}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>

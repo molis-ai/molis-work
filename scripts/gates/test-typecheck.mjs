@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Batch 100-2 (Decision 58): incremental zeroing ratchet for `tests/` TypeScript diagnostics.
 // Runs `tsc --noEmit --pretty false -p tooling/types/tsconfig.tests.json`, counts errors per file,
-// and ensures no existing file gains errors, no new test file introduces errors, and the committed
-// baseline (`tooling/gates/test-typecheck-baseline.json`) only gets tighter against the merge-base.
+// and checks the committed baseline has the exact counts, including files where all errors were fixed.
+// The baseline only gets tighter against the merge-base.
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -65,10 +65,14 @@ export function baselineLooseningProblems(headBaseline, baseBaseline, renames = 
 
 export function testTypecheckProblems(measured, headBaseline, baseBaseline = null, renames = new Map()) {
   const errors = [...baselineLooseningProblems(headBaseline, baseBaseline, renames)];
-  for (const [file, count] of Object.entries(measured.files)) {
+  const files = new Set([...Object.keys(measured.files), ...Object.keys(headBaseline.files)]);
+  for (const file of files) {
+    const count = measured.files[file] ?? 0;
     const allowed = headBaseline.files[file] ?? 0;
     if (count > allowed) {
       errors.push(`${file}: TypeScript errors grew ${allowed} → ${count} (new test files start at 0; fix the type errors instead of growing the baseline)`);
+    } else if (count < allowed) {
+      errors.push(`${file}: TypeScript errors fell ${allowed} → ${count}; record the reduction with \`node scripts/gates/test-typecheck.mjs --update --base origin/main\``);
     }
   }
   return errors;
@@ -139,7 +143,7 @@ function main() {
 
   if (flags.has("--update")) {
     const next = {
-      note: "Per-file TypeScript diagnostic ceiling for tooling/types/tsconfig.tests.json (Batch 100-2). May only shrink; update with `node scripts/gates/test-typecheck.mjs --update --base origin/main`.",
+      note: "Recorded per-file TypeScript diagnostics for tooling/types/tsconfig.tests.json (Batch 100-2). May only shrink; update with `node scripts/gates/test-typecheck.mjs --update --base origin/main`.",
       total: measured.total,
       files: measured.files,
     };
@@ -164,9 +168,7 @@ function main() {
     process.exitCode = 1;
     return;
   }
-  const reduced = headBaseline.total - measured.total;
-  const note = reduced > 0 ? ` (${reduced} fewer than baseline; run \`node scripts/gates/test-typecheck.mjs --update\` to ratchet down)` : "";
-  console.log(`Test typecheck gate passed: ${measured.total} errors across ${Object.keys(measured.files).length} files (baseline ${headBaseline.total})${note}`);
+  console.log(`Test typecheck gate passed: ${measured.total} errors across ${Object.keys(measured.files).length} files (baseline ${headBaseline.total})`);
 }
 
 if (isMainScript(import.meta.url)) {

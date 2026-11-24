@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { once } from "node:events";
+import { createServer } from "node:http";
 import test from "node:test";
 import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser } from "./fixtures/board-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 // Roadmap batch 07-2a (docs/reviews/adversarial-review-2026-11-01.md N53, N54): a page asks nothing it knows will fail.
@@ -10,12 +13,12 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 // not have; an old tab whose project is gone stops reading what waits on the person after the first confirmed project-deleted 404 (MR19-09).
 
 /** Every request the page sends to this origin, by path with the project prefix removed. */
-function recorder(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>) {
+function recorder(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>, origins: readonly string[]) {
   const seen: Array<{ path: string; status?: number; id: string }> = [];
   const off = browser.on("Network.requestWillBeSent", params => {
     const { request, requestId } = params as { request: { url: string }; requestId: string };
     const url = new URL(request.url);
-    if (url.origin === browser.origin) seen.push({ path: url.pathname.replace(/^\/projects\/[^/]+/u, ""), id: requestId });
+    if (origins.includes(url.origin)) seen.push({ path: url.pathname.replace(/^\/projects\/[^/]+/u, ""), id: requestId });
   });
   const offStatus = browser.on("Network.responseReceived", params => {
     const { requestId, response } = params as { requestId: string; response: { status: number } };
@@ -24,12 +27,14 @@ function recorder(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser
   return { seen, off: () => { off(); offStatus(); }, count: (path: string) => seen.filter(entry => entry.path === path).length };
 }
 
-test("07-2a N53: the project chooser asks for no project's surfaces and no page asks for a favicon", { timeout: 120_000 }, async t => {
-  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+test("07-2a N53 BL-1047: the chooser asks for no project's surfaces and top-level pages ask for no favicon", { timeout: 120_000 }, async t => {
+  const browser = await openBoardBrowser(t, "seeded"); if (!browser) return;
   const { command, sessionId, navigate, waitFor, origin, projectId } = browser;
   await createProject(browser.web, "第二个项目");
   await command("Network.enable", {}, sessionId);
-  const reads = recorder(browser); t.after(reads.off);
+  await command("Network.setCacheDisabled", { cacheDisabled: true }, sessionId);
+  const origins = [origin];
+  const reads = recorder(browser, origins); t.after(reads.off);
 
   await navigate(() => command("Page.navigate", { url: `${origin}/` }, sessionId));
   await waitFor("Boolean(document.querySelector('.chooser'))", 20_000);
@@ -48,6 +53,40 @@ test("07-2a N53: the project chooser asks for no project's surfaces and no page 
   const failed = reads.seen.filter(one => one.path === "/api/contextual/surfaces" && (one.status ?? 200) >= 400);
   assert.deepEqual(failed, [], "a project page's surface reads succeed");
   t.diagnostic(`project home load: ${reads.seen.length} requests, ${reads.count("/api/contextual/surfaces")} surface reads`);
+
+  const project = `/projects/${projectId}`;
+  const forms = `${project}/api/plugins/io.molis.work.form/forms`;
+  const { form } = await browser.web.post<{ form: { id: string; version: number } }>(forms, { title: "公开问卷" });
+  await browser.web.post(`${forms}/${form.id}`, {
+    expected_version: form.version,
+    questions: [{ id: "feedback", type: "text", title: "你的建议" }],
+  });
+  const { content } = await browser.web.get<{ content: string }>(`${forms}/${form.id}/fill-page`);
+  // The exported HTML is shared as a standalone file. Serve it over HTTP so a missing icon can trigger a real fallback request.
+  const formServer = createServer((request, response) => {
+    if (request.url !== "/questionnaire") { response.writeHead(404).end(); return; }
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(content);
+  });
+  await once(formServer.listen(0, "127.0.0.1"), "listening");
+  t.after(() => new Promise<void>((resolve, reject) => formServer.close(error => error ? reject(error) : resolve())));
+  const address = formServer.address();
+  assert.ok(address && typeof address === "object");
+  const formOrigin = `http://127.0.0.1:${address.port}`;
+  origins.push(formOrigin);
+
+  for (const { base, path, status, ready } of [
+    { base: origin, path: "/__ui/catalog", status: 200, ready: "document.querySelector('.mw-catalog-page')" },
+    { base: formOrigin, path: "/questionnaire", status: 200, ready: "document.querySelector('form#f h1')?.textContent === '公开问卷'" },
+    { base: origin + project, path: "/side/lingguang/missing", status: 404, ready: "document.body.textContent.trim().length > 0" },
+  ]) {
+    reads.seen.length = 0;
+    await navigate(() => command("Page.navigate", { url: base + path }, sessionId));
+    await waitFor(`document.readyState === 'complete' && (${ready})`, 20_000);
+    assert.equal(reads.seen.find(request => request.path === path)?.status, status, path);
+    assert.equal(reads.count("/favicon.ico"), 0, `${path} asks for no favicon`);
+    assert.equal(await browser.evaluate("document.head.querySelector('link[rel=icon]')?.getAttribute('href')"), "data:,", `${path} answers its icon itself`);
+    t.diagnostic(`${path}: HTTP ${status}, zero favicon.ico requests`);
+  }
 });
 
 test("07-2a N54: after a 404 (the project is gone) the page stops reading what waits on the person", { timeout: 120_000 }, async t => {

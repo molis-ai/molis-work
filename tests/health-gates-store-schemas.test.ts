@@ -22,8 +22,9 @@ const CATALOG = (version = 1, structure = HASH, upgrades = "-") => `projects/cat
 const BASE = table(CATALOG(), MEMORY(), PLUGIN(), PROJECT());
 const golden = (stores: Array<{ path: string; schema_version: number; plugin_tables?: Record<string, number> }>) => JSON.stringify({ stores });
 type Tree = Record<string, string>;
-const problems = (head: Tree, base: string | null = BASE): string[] => storeSchemaProblems(
-  { files: Object.keys(head), read: (file: string) => head[file] ?? null }, base === undefined ? undefined : (file: string) => (file === SCHEMAS_FILE ? base : null));
+const tree = (texts: Tree) => ({ files: Object.keys(texts), read: (file: string) => texts[file] ?? null });
+const problems = (head: Tree, base: Tree | string | null = BASE): string[] => storeSchemaProblems(tree(head),
+  base === null ? undefined : tree(typeof base === "string" ? { [SCHEMAS_FILE]: base } : base));
 
 test("UPG-01 the file reads as one row per library, and a row in another shape is a problem, not a pass", () => {
   assert.equal(parseStoreSchemas(BASE).rows.get("memory/memory.db").version, 1);
@@ -105,6 +106,19 @@ test("UPG-01 a golden's path is matched as the library's, in the root Home or an
   assert.equal(project("other/projects/a/molis-work.db"), false);
   assert.equal(goldenPathMatcher("memory/memory.db")("memory/memoryXdb"), false, "a dot is a dot");
   assert.equal(goldenPathMatcher("projects/*/molis-work.db#io.molis.work.todo")("projects/a/molis-work.db"), true, "a plugin's tables are in the project library");
+});
+
+test("UPG-01 the last golden for a supported older store version survives fixture-only changes", () => {
+  const oldGolden = "tests/fixtures/golden-homes/0.1.0/manifest.json";
+  const newGolden = "tests/fixtures/golden-homes/0.1.0-dev.1/manifest.json";
+  const oldSample = golden([{ path: "spaces/space_1/memory/memory.db", schema_version: 1 }]);
+  const latestSample = golden([{ path: "memory/memory.db", schema_version: 2 }]);
+  const schema = { [SCHEMAS_FILE]: table(MEMORY(2, OTHER, "1")) };
+  const base = { ...schema, [oldGolden]: oldSample };
+  const updated = { ...schema, [oldGolden]: latestSample };
+  assert.match(problems(updated, base).join("\n"), /memory\/memory\.db: the last golden Home at 1 was removed/u);
+  assert.deepEqual(problems({ ...updated, [newGolden]: oldSample }, base), [], "an equivalent replay sample can move");
+  assert.deepEqual(problems({ ...updated, [SCHEMAS_FILE]: table(MEMORY(2, OTHER)) }, base), [], "a retired step no longer needs a sample");
 });
 
 // ---- wired into pnpm health:check against the merge-base -----------------------------------------------------------------

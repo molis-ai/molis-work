@@ -60,7 +60,8 @@ import { hostLineDetails, hostLineSummary, hostLinesWantText, reportHostLines } 
 import { hostEntryWidthSummary, measureHostEntryWidth } from "./gates/host-entry-exports.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
 import { storeVersionProblems } from "./gates/store-versions.mjs";
-import { storeSchemaProblems } from "./gates/store-schemas.mjs";
+import { SCHEMAS_FILE, storeSchemaProblems } from "./gates/store-schemas.mjs";
+import { isGoldenManifestPath } from "./golden/formats.mjs";
 import { registeredUpgradeChains, versionOriginProblems } from "./gates/initial-versions.mjs";
 import { measureSchemaExecs, measureSchemaPatches, schemaExecsWantText, schemaPatchesWantText } from "./gates/schema-patches.mjs";
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
@@ -162,7 +163,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => file === CALL_BUDGET_FILE || file.startsWith(CALL_BUDGET_ALLOWANCES) || file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || oldNamesWantsText(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file) || hostLinesWantText(file);
+const needsText = (file) => file === SCHEMAS_FILE || isGoldenManifestPath(file) || file === CALL_BUDGET_FILE || file.startsWith(CALL_BUDGET_ALLOWANCES) || file.startsWith(GIANT_REGISTRY) || isStructureSource(file) || oldNamesWantsText(file) || schemaPatchesWantText(file) || schemaExecsWantText(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file) || hostLinesWantText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -603,9 +604,8 @@ const storeVersions = () => {
     throw error;
   }
 };
-// A library whose creation statements changed under the same version, against the merge-base's tooling/gates/schemas/stores.tsv (UPG-01,
-// scripts/gates/store-schemas.mjs); that the file is what the product creates is checked in `pnpm test:contracts`, which builds.
-const storeSchemas = () => storeSchemaProblems(headSnapshot, mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) || null : undefined);
+// UPG-01 compares the store schemas and retained replay samples with the merge-base. `pnpm test:contracts` checks the schemas against the build.
+const storeSchemas = () => storeSchemaProblems(headSnapshot, baseSnapshot);
 // The half of the unified-origin check that needs no build (scripts/gates/initial-versions.mjs, user 2026-11-07): not a number, every version is 1 or has its chain.
 const versionOrigin = () => versionOriginProblems(headSnapshot, { chains: registeredUpgradeChains(headSnapshot), readBase: mergeBase ? (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) : undefined });
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "the local Git health baseline";

@@ -511,3 +511,31 @@ test("SCS-08 SCS-09 SCS-17 failed first row reads mark only their overview card 
     }
   }
 });
+
+test("SPC-11: a live page only composes individually approved public project overviews", async () => {
+  const visible = installation("public", 0), privateOwner = installation("private", 1), unapproved = installation("unapproved", 2);
+  const opened = (name: string, plugin: SurfacePlugin): ActionView => {
+    const view = overview(name, plugin);
+    return { ...view, action: { ...view.action, audiences: ["plugin"] } };
+  };
+  const publicView = opened("public", visible), privateView = overview("private", privateOwner), other = opened("unapproved", unapproved);
+  const caller = { ...person, audience: "plugin" as const, home_page: { kind: "home-page" as const, project_id: project, page_id: "page", version: 1 },
+    allowed_actions: [exact(publicView), exact(privateView), { ...exact(other), provider_id: "old-installation" }] };
+  const reads: string[] = [];
+  const options = { overview: async (view: ActionView) => {
+    reads.push(view.capability_id);
+    return { summary: { key: "public.home.summary" }, subjects: [], start: [] };
+  } };
+  const page = harness([visible, privateOwner, unapproved], [publicView, privateView, other], { caller }, options);
+  const report = await page.compose();
+  assert.deepEqual(reads, [publicView.capability_id]);
+  assert.deepEqual(report.groups, [{ kind: "plugin", owner_plugin_id: visible.plugin_id, state: "ok", items: [],
+    plugin_card: { summary: { owner: visible.plugin_id, key: "public.home.summary" } } }]);
+  assert.equal(page.counts.attention, 0);
+  assert.equal(page.counts.corrections, 0);
+  for (const home_page of [{ ...caller.home_page, kind: "home-page-preview" as const }, { ...caller.home_page, project_id: "another-project" }]) {
+    const denied = harness([visible], [publicView], { caller: { ...caller, home_page } }, options);
+    await assert.rejects(denied.compose(), { code: "actions.forbidden" });
+    assert.equal(denied.counts.catalog, 0);
+  }
+});

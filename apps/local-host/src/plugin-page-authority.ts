@@ -388,7 +388,8 @@ export class PluginPageAuthority {
     const workspaceChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-workspaces";
     const slotChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
-      && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && ["/api/host/plugin-page-slot", "/api/host/plugin-page-connection"].includes(pathname);
+      && Boolean(page.activation.install_id) && request.method === "POST"
+      && (pathname === "/api/host/plugin-page-connection" || (Boolean(page.project_id) && pathname === "/api/host/plugin-page-slot"));
     // The platform's reads area on a task (task-grants-platform-area.md §2.3): the same fence as the account picker.
     const taskGrantsChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-task-grants";

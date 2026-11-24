@@ -25,7 +25,12 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     if (close) { close.ariaLabel = globalThis.t.text("workbench.tab-workspace-strip.close-tab-group"); close.title = close.ariaLabel + "·" + label; }
   };
   const tabIcon = (plugin) => PLUGIN_TAB_ICON[plugin] || "frame";
-  const iconMarkup = (plugin) => '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + tabIcon(plugin) + '"></use></svg>';
+  const iconMarkup = (plugin) => {
+    // A status glyph is a state ring drawn by the SDK, with no symbol in the sprite.
+    const ring = document.querySelector('[data-plugin-tile="' + CSS.escape(plugin) + '"] button > .mw-state-ring')?.cloneNode(true);
+    if (ring) { ring.classList.add("tab-item-icon"); return ring.outerHTML; }
+    return '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + tabIcon(plugin) + '"></use></svg>';
+  };
   const appendTab = (parent, pane, tab) => {
     const selected = tab.id === pane.activeTabId || pluginGroups.shows(pane, tab), label = tabLabel(tab);
     const button = document.createElement("div");

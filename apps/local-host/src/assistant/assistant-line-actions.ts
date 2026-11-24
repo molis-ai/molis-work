@@ -181,7 +181,7 @@ export function assistantBackgroundTasks(works: ReadonlyArray<{ work: StoredWork
       waiting: assistantWaitsOnPerson(state) || waitingAcceptance,
       started_at: work.created_at, updated_at: work.updated_at,
       executor: work.executor.kind === "plugin" ? { kind: "plugin", label: work.executor.title } : work.character ? { kind: "character", label: work.character.title } : { kind: "assistant", label: uiText.text("workbench.assistant-line.assistant") },
-      serves: servesOf(work), scope: "project",
+      serves: [...servesOf(work), ...(work.work_item_id ? [{ kind: "work_item", id: work.work_item_id }] : [])], scope: "project",
       commands: state === "paused" || !assistantUnderWay(state) ? [] : [{ role: "stop", action: { capability_id: ASSISTANT_LINE_ACTIONS.stop.capability_id, version: ASSISTANT_LINE_ACTIONS.stop.version }, input: { work_id: work.work_id }, summary: uiText.text("workbench.assistant-line.stop-work", { title: nameOf(work) }) }],
       decisions: decisionsOf(work, reviews ?? [], acceptance), open: openOf(work),
     };

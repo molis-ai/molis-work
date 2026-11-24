@@ -1,6 +1,6 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePageFile, HomePageFilesResult } from "@molis-ai/molis-work-contracts/services/home";
-import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as escape } from "../mainline-ui.js";
 import { appearanceRef, type AppearanceProjection } from "../appearance-view.js";
 
 const encoder = new TextEncoder();
@@ -335,6 +335,7 @@ export async function mountHomePageFrame(options: {
   readonly routePrefix: string;
   readonly headers: () => Record<string, string>;
   readonly appearance?: AppearanceProjection;
+  readonly signal?: AbortSignal;
   readonly onCrash?: (reason: string) => void;
   readonly onReady?: () => void;
 }): Promise<MountedHomePageFrame> {
@@ -347,6 +348,7 @@ export async function mountHomePageFrame(options: {
     appearance: options.appearance,
   });
 
+  options.signal?.throwIfAborted();
   const iframe = document.createElement("iframe");
   iframe.className = "home-generated-frame";
   iframe.setAttribute("sandbox", "allow-scripts allow-forms");
@@ -381,14 +383,15 @@ export async function mountHomePageFrame(options: {
           msg.type === "actionAvailability"
             ? { mode: "availability", reference: msg.reference as ActionReference }
             : { reference: msg.reference as ActionReference, input: msg.input };
-        const res = await fetch(`${options.routePrefix}/api/home-pages/actions`, {
+        const res = await globalThis.molisWorkRequest<Response>(`${options.routePrefix}/api/home-pages/actions`, {
+          as: "response",
           method: "POST",
           headers: {
             "content-type": "application/json",
             ...options.headers(),
             "x-molis-home-page": options.pageSessionId,
           },
-          body: JSON.stringify(body),
+          body,
           signal: abort.signal,
         });
         const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -477,8 +480,8 @@ export async function mountHomePageFrame(options: {
       headObserver.disconnect();
       try { channel.port1.close(); } catch { /* ignore */ }
       iframe.remove();
-      void fetch(`${options.routePrefix}/api/home-pages/session/${encodeURIComponent(options.pageSessionId)}`, {
-        method: "DELETE",
+      void globalThis.molisWorkRequest(`${options.routePrefix}/api/home-pages/session/${encodeURIComponent(options.pageSessionId)}`, {
+        method: "DELETE", keepalive: true,
         headers: options.headers(),
       }).catch(() => undefined);
     },

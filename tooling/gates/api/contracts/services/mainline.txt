@@ -849,6 +849,10 @@ export interface MainlineContentsResult {
 }
 
 export interface MainlineCounts {
+    task_items?: Array<{
+        subject: ActionSubject;
+        item_id: string;
+    }>;
     items: Record<string, {
         waiting: number;
         running: number;

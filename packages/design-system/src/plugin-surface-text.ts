@@ -1,3 +1,4 @@
+import type { PluginComponentPlan } from './plugin-components.js';
 import type { SandboxDataOperation, SandboxPluginContract, SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { TextArgs, TextRef, UiLocalePack } from '@molis-ai/molis-work-contracts/platform/ui';
 import { ownedTextRef, say, textArgs, textKeyPrefix } from '@molis-ai/molis-work-plugin-sdk/ui';
@@ -52,6 +53,12 @@ export function sandboxUiTextRefs(contract: SandboxPluginContract, parts: readon
 /** A destructive command is identified by its frozen operation, regardless of the words on its button. */
 export function isDestructivePluginOperation(id?: string): boolean {
   return /(?:^|[._-])(?:delete|remove|clear|discard|undo|revoke|erase|purge)(?:$|[._-])/iu.test(id?.replace(/([a-z])([A-Z])/g, '$1-$2') ?? '');
+}
+
+/** The same confirmation rule applies when a submission first needs a connection. */
+export function isDestructivePluginPart(part: PluginComponentPlan): boolean {
+  return isDestructivePluginOperation(part.submit?.operationId)
+    || /删除|移除|清空|撤销|丢弃/u.test(literalPluginWord(part.props.submitLabel) + literalPluginWord(part.props.title) + part.purpose);
 }
 
 /** Exact operation output paths for parameter names. A collision with another schema field is refused too. */

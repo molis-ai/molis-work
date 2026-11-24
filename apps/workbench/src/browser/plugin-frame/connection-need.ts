@@ -1,3 +1,4 @@
+import { isPluginConnectionRecordKey } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { type UiConnectionNeedOutcome, type UiConnectionNeedTarget } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -24,13 +25,13 @@ interface Entry extends ConnectionNeedView { id: number; readonly key: string; r
   read: Read | null; auth?: Auth; other?: Choice }
 
 const closed = () => new DOMException("Card closed", "AbortError");
-const SLOT = /^[a-z][a-z0-9-]{0,63}$/u, RECORD = /^[A-Za-z0-9._:-]{1,200}$/u, KEY = "[data-connection-need-key]";
+const SLOT = /^[a-z][a-z0-9-]{0,63}$/u, KEY = "[data-connection-need-key]";
 /** A target exactly as `UiConnectionNeedTarget` has it; a name more, or a value of another shape, is no target. */
 export function needTarget(value: unknown): UiConnectionNeedTarget | null {
   const target = (value && typeof value === "object" && !Array.isArray(value) ? value : {}) as Record<string, unknown>;
   const names = Object.keys(target).sort().join(), { slot_id: slot, record_key: record, base_url: base } = target;
   if (typeof slot !== "string") return null;
-  if (target.kind === "slot" && SLOT.test(slot) && (names === "kind,slot_id" || names === "kind,record_key,slot_id" && typeof record === "string" && RECORD.test(record)))
+  if (target.kind === "slot" && SLOT.test(slot) && (names === "kind,slot_id" || names === "kind,record_key,slot_id" && isPluginConnectionRecordKey(record)))
     return { kind: "slot", slot_id: slot, ...(typeof record === "string" ? { record_key: record } : {}) };
   return target.kind === "image" && names === "base_url,kind,slot_id" && slot.trim() && slot.length <= 128 && typeof base === "string" && base.length <= 2048
     ? { kind: "image", slot_id: slot, base_url: base } : null;
@@ -134,13 +135,14 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
   const t: (text: string, values?: Record<string, string | number>) => string = sayNamed(translate);
   const wordsFor = (target: UiConnectionNeedTarget) => sayNamed(translate, target.kind === "image");
   const entries = new Map<string, Entry>(), refused = new Set<string>();
+  const opening = new Map<string, Extract<ConnectionNeedUp, { type: "connection-need-open" }>>();
   const send = (kind: string, id: number, more: object = {}) => { if (scope.alive) port.postMessage({ type: "connection-need-" + kind, id, ...more } as ConnectionNeedDown); };
   const ask = <T>(target: UiConnectionNeedTarget, body: Record<string, unknown>) => molisWorkRequest<T>(route("/api/host/plugin-page-connection"),
     { body: { target, ...body }, headers: { "x-molis-context-page": pageId }, scope });
   const byId = (id: number) => [...entries.values()].find(entry => entry.id === id);
   const live = (entry: Entry) => scope.alive && entries.get(entry.key) === entry;
   const close = (key: string) => { const entry = entries.get(key); if (!entry) return; clearTimeout(entry.auth?.timer); entry.area.close(); entries.delete(key); };
-  scope.own(() => { for (const key of [...entries.keys()]) close(key); });
+  scope.own(() => { opening.clear(); for (const key of [...entries.keys()]) close(key); });
   const draw = (entry: Entry) => {
     if (!live(entry)) return;
     const surface = entry.area.surface, typed = surface.querySelector<HTMLInputElement>(KEY)?.value ?? "";
@@ -237,14 +239,35 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
   const open = async (message: Extract<ConnectionNeedUp, { type: "connection-need-open" }>) => {
     const target = Object.keys(message).length === 3 ? needTarget(message.target) : null, key = JSON.stringify(target);
     const fail = () => send("done", message.id, { error: CONNECTION_NEED_UNAVAILABLE });
-    if (!target || byId(message.id) || !scope.visible) { fail(); return; }
+    if (!target || byId(message.id) || [...opening.values()].some(item => item.id === message.id) || !scope.visible) { fail(); return; }
     // One card a target on a page: asked again, the card already there answers the new request and its place is brought into view.
     const existing = entries.get(key);
-    if (existing && !existing.answered) { send("done", existing.id, { error: "AbortError" }); existing.id = message.id; send("reveal", message.id); return; }
+    if (existing && !existing.answered) {
+      send("done", existing.id, { error: "AbortError" });
+      existing.id = message.id;
+      existing.area.layout(null);
+      if (existing.area.height >= 0) send("size", message.id, { height: existing.area.height });
+      send("shown", message.id, { service: existing.read!.service_title });
+      send("reveal", message.id);
+      return;
+    }
     if (existing) close(key);
     let read: Read;
-    try { read = await ask<Read>(target, { operation: "read" }); } catch { fail(); return; }
-    if (!scope.alive) return;
+    const previous = opening.get(key);
+    if (previous) send("done", previous.id, { error: "AbortError" });
+    opening.set(key, message);
+    try {
+      read = await ask<Read>(target, { operation: "read" });
+    } catch {
+      if (opening.get(key) === message) {
+        opening.delete(key);
+        fail();
+      }
+      return;
+    }
+    if (opening.get(key) !== message) return;
+    opening.delete(key);
+    if (!scope.alive || !scope.visible) { fail(); return; }
     if (read.connection?.state === "connected") { send("done", message.id, { outcome: { status: "connected", account: { label: read.connection.label } } }); return; }
     const heights = { narrow: CONNECTION_NEED_HEIGHTS.narrow, wide: CONNECTION_NEED_HEIGHTS.wide } as { narrow: number; wide: number };
     const area = areas.open({ heights, onHeight: height => send("size", entries.get(key)?.id ?? message.id, { height }) });
@@ -263,6 +286,9 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
   return (message: ConnectionNeedUp) => {
     if (!message || !Number.isSafeInteger(message.id) || message.id < 1) return;
     if (message.type === "connection-need-open") { void open(message); return; }
+    if (message.type === "connection-need-close") {
+      for (const [key, pending] of opening) if (pending.id === message.id) opening.delete(key);
+    }
     const entry = byId(message.id); if (!entry) return;
     if (message.type === "connection-need-close") close(entry.key);
     else if (message.type === "connection-need-layout") entry.area.layout(message.box);
@@ -279,11 +305,12 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
   const made = childNeeds.get(port);
   if (made) return made;
   let sequence = 0;
-  type Waiting = { element: HTMLElement; image: boolean; settle?: { resolve(outcome: UiConnectionNeedOutcome): void; reject(error: Error): void }; stop?: () => void };
+  type Waiting = { element: HTMLElement; image: boolean; restoreLabel?: () => void; settle?: { resolve(outcome: UiConnectionNeedOutcome): void; reject(error: Error): void }; stop?: () => void };
   const entries = new Map<number, Waiting>(), up = (message: ConnectionNeedUp) => port.postMessage(message);
   const close = (id: number, error: Error = closed()) => {
     const entry = entries.get(id); if (!entry) return;
     entries.delete(id); places.untrack(id); entry.stop?.(); entry.settle?.reject(error);
+    entry.restoreLabel?.();
     entry.element.style.removeProperty("height"); up({ type: "connection-need-close", id });
   };
   const places = childPlaces(scope, (id, box) => up({ type: "connection-need-layout", id, box }), id => close(id));
@@ -296,7 +323,20 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
     if (kind === "size") element.style.height = Math.max(0, Number(said.height) || 0) + "px";
     else if (kind === "reveal") element.scrollIntoView({ block: "nearest" });
     // Shown: the place is reported again, since a report made while the shell was still reading the target had no card to go to.
-    else if (kind === "shown") { places.resend(message.id); element.setAttribute("role", "note"); element.setAttribute("aria-label", sayNamed(uiText.text, entry.image)("common.connection-need.name-needs-be-connected-here-connection-card-page", { name: String(said.service) })); }
+    else if (kind === "shown") {
+      places.resend(message.id);
+      if (!entry.restoreLabel) {
+        const original = ["role", "aria-label"].map(name => [name, element.getAttribute(name)] as const);
+        entry.restoreLabel = () => {
+          for (const [name, value] of original) {
+            if (value === null) element.removeAttribute(name);
+            else element.setAttribute(name, value);
+          }
+        };
+      }
+      element.setAttribute("role", "note");
+      element.setAttribute("aria-label", sayNamed(uiText.text, entry.image)("common.connection-need.name-needs-be-connected-here-connection-card-page", { name: String(said.service) }));
+    }
     else if (kind !== "done") return;
     else if (said.error) close(message.id, said.error === "AbortError" ? closed() : new Error(CONNECTION_NEED_UNAVAILABLE));
     else if (said.outcome) { const settle = entry.settle, outcome = said.outcome; entry.settle = undefined; entry.stop?.(); settle?.resolve(outcome.status === "connected" ? { status: "connected", account: { label: String(outcome.account.label) } } : { status: "cancelled" }); }

@@ -135,6 +135,10 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/browser/work-acceptance.ts"],
     state: "The requirement column beside the work surface: whose requirements it shows, read from the platform's acceptance, and what the person is writing in it.",
   },
+  "composer-draft": {
+    files: ["packages/design-system/src/browser/composer-drafts.ts"],
+    state: "The draft that the mounted input has finished restoring from its owner.",
+  },
   preferences: {
     files: ["packages/design-system/src/preferences.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
     state: "The person's display preferences on this device: theme, density and terminal theme (localStorage molis-work:theme, molis-work:density, molis-work:terminal-theme).",
@@ -251,6 +255,11 @@ export const DOM_EVENTS = [
     name: "molis-work:character-terminal-reset", kind: "request", owner: "character-terminal", on: "window",
     detail: "none",
     summary: "Detach and hide the Character terminal, because another Character is shown.",
+  },
+  {
+    name: "molis-work:composer-draft-restored", kind: "announcement", owner: "composer-draft", on: "element",
+    detail: "none",
+    summary: "The input has applied the restored text. Its enclosing workspace may now restore the selection and scroll.",
   },
   {
     name: "molis-work:item-unreadable", kind: "request", owner: "context-actions", on: "element", bubbles: true,

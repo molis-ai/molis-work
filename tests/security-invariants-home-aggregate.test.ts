@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { lstat, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { collectHomeAggregate, homeAggregatePorts, HomeAggregateInputEach, HomeConsentLedger, LocalHost, molisWorkHostProjectReference, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { activeLocale, collectHomeAggregate, homeAggregatePorts, homeBackgroundTasks, HomeAggregateInputEach, HomeConsentLedger, LocalHost, molisWorkHostProjectReference, MolisWorkLocalHost, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type BackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { inspectActionDeclarations, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
@@ -718,4 +718,163 @@ test("S-49 unopenable closed projects do not thrash background wakes until their
   assert.ok(afterRestart.answers.some(answer => answer.project_id === corrupt.project_id && answer.resting === true));
   await ports2.resting!.readings.pass;
   assert.deepEqual(opened2, [active.project_id], "only the project shut down with active work wakes quietly");
+});
+
+test("S-49 resting snapshots invalidate on Home aggregate DB writes, restart-bound waiting tasks, expired reported failures, and locale switch", { timeout: 60_000 }, async t => {
+  const home = await realpath(await mkdtemp(join(tmpdir(), "home-aggregate-semantics-")));
+  const hosts: MolisWorkLocalHost[] = [];
+  t.after(async () => {
+    for (const host of hosts.reverse()) {
+      try { await host.close(); } catch { /* already closed */ }
+    }
+    await rm(home, { recursive: true, force: true });
+  });
+  const projectRow = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "SemanticsProj", actor_id: "user" }));
+  const proj = molisWorkHostProjectReference({ projectId: projectRow.project_id, databasePath: projectRow.database_path });
+  const BG_PLUGIN_ID = "com.example.bgsemantics";
+  const bgAction: ActionDefinition<Record<string, never>, BackgroundTaskCollection> = {
+    capability_id: "bgsemantics.tasks", version: 1, operation: "query",
+    action: {
+      title: "后台任务探针", description: "测试休眠聚合语义", kind: "query", scope: "project", scheduling: "concurrent",
+      audiences: ["user"], subject_kinds: ["probe_task"], permissions: [READ], home_aggregate: true, output_type: BACKGROUND_TASKS_OUTPUT_TYPE,
+      input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "object" },
+    },
+  };
+  let mode: "approval" | "verify" | "expired-failed" | "clean" = "approval";
+  const makeBgPlugin = (): PluginDefinition => ({
+    manifest: {
+      schema_version: 1, host_api_version: 1, plugin_id: BG_PLUGIN_ID, version: "1.0.0", name: "bgsemantics", kind: "app",
+      publisher: { publisher_id: "example", signature: "bgsemantics" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+      permissions: [{ permission: READ, required: true, reason: "读后台任务" }],
+      capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+      actions: [bgAction],
+    },
+    async start() {
+      return {
+        kind: "app", views: [],
+        actions: [{
+          ...bgAction,
+          handle(): BackgroundTaskCollection {
+            const locale = activeLocale() ?? "zh";
+            const nowIso = new Date().toISOString();
+            const expiredIso = new Date(Date.now() - 15 * 60_000).toISOString();
+            if (mode === "clean") return { source: { surface: "bgsemantics", title: "Probe", icon: "code" }, tasks: [] };
+            if (mode === "expired-failed") {
+              return {
+                source: { surface: "bgsemantics", title: "Probe", icon: "code" },
+                tasks: [{
+                  subject: { kind: "probe_task", id: "failed-img" }, title: locale === "en" ? "Failed image" : "生图失败",
+                  state: "failed", waiting: false, updated_at: expiredIso, step: { text: locale === "en" ? "Failed" : "失败" },
+                  details: [], executor: { kind: "plugin", label: "Probe" }, serves: [], scope: "project", commands: [], decisions: [],
+                  open: { kind: "surface", surface: "bgsemantics", id: null, title: "Probe", label: "Open" }, reports_to: "assistant",
+                }],
+              };
+            }
+            const state = mode === "approval" ? "approval" : "verify";
+            return {
+              source: { surface: "bgsemantics", title: "Probe", icon: "code" },
+              tasks: [{
+                subject: { kind: "probe_task", id: "sess-1" }, title: locale === "en" ? "Review session" : "待审会话",
+                state, waiting: state === "approval", updated_at: nowIso,
+                step: { text: locale === "en" ? `step:${state}:en` : `step:${state}:zh` },
+                details: [], executor: { kind: "plugin", label: "Probe" }, serves: [], scope: "project", commands: [], decisions: [],
+                open: { kind: "surface", surface: "bgsemantics", id: null, title: "Probe", label: "Open" },
+              }],
+            };
+          },
+        }],
+      };
+    },
+  });
+  const startHost = (opened: string[]) => {
+    const host = new MolisWorkLocalHost({
+      homeDirectory: home, completeText: null, pluginFixtures: { project: [makeBgPlugin()] },
+      onRuntimeOpen: ref => { opened.push(ref.project_id); },
+    });
+    host.configurePersonalPlanning(home, withCatalog);
+    hosts.push(host);
+    return host;
+  };
+  const projects = [{ project_id: proj.project_id, display_name: "SemanticsProj" }];
+
+  // 1. Same-process sleep keeps waiting-approval resting summary, and switches cleanly across zh/en locales.
+  const opened1: string[] = [];
+  const host1 = startHost(opened1);
+  const ports1 = homeAggregatePorts(host1);
+  await runWithLocale("zh", async () => {
+    await homeBackgroundTasks(ports1, projects);
+    await ports1.resting!.readings.pass;
+  });
+  assert.equal(await host1.sleepIfIdle(proj, 0), true);
+  opened1.length = 0;
+  const zhResting = await runWithLocale("zh", () => homeBackgroundTasks(ports1, projects));
+  assert.equal(zhResting.tasks[0]?.state, "approval");
+  assert.equal(zhResting.tasks[0]?.step.text, "step:approval:zh");
+  assert.equal(zhResting.tasks[0]?.resting, true);
+  assert.deepEqual(opened1, [], "same-process zh resting hit opens zero projects");
+
+  // Switching to English must not serve the zh resting reading.
+  const enMiss = await runWithLocale("en", () => homeBackgroundTasks(ports1, projects));
+  assert.equal(enMiss.tasks.length, 0, "en read does not reuse zh cached strings");
+  await ports1.resting!.readings.pass;
+  assert.deepEqual(opened1, [proj.project_id], "en miss wakes quietly in en");
+  assert.equal(await host1.sleepIfIdle(proj, 0), true);
+  opened1.length = 0;
+  const enResting = await runWithLocale("en", () => homeBackgroundTasks(ports1, projects));
+  assert.equal(enResting.tasks[0]?.step.text, "step:approval:en");
+  assert.equal(enResting.tasks[0]?.resting, true);
+  assert.deepEqual(opened1, []);
+
+  // 2. Writing to a Home-level aggregate DB (images/images.db) invalidates the sleeping project immediately.
+  await mkdir(join(home, "images"), { recursive: true });
+  const imgDb = new DatabaseSync(join(home, "images", "images.db"));
+  try {
+    imgDb.exec("CREATE TABLE probe (id INTEGER PRIMARY KEY); INSERT INTO probe VALUES (1);");
+  } finally {
+    imgDb.close();
+  }
+  const afterImagesWrite = await runWithLocale("zh", () => homeBackgroundTasks(ports1, projects));
+  assert.equal(afterImagesWrite.tasks.length, 0, "creating/writing images.db invalidates sleeping project immediately");
+  await ports1.resting!.readings.pass;
+  assert.deepEqual(opened1, [proj.project_id]);
+  assert.equal(await host1.sleepIfIdle(proj, 0), true);
+  await host1.close();
+
+  // 3. Restarting Host must NOT replay a pre-restart waiting-approval task from disk; it must wake once and reconcile to verify.
+  mode = "verify";
+  const opened2: string[] = [];
+  const host2 = startHost(opened2);
+  const ports2 = homeAggregatePorts(host2);
+  const afterRestart = await runWithLocale("zh", () => homeBackgroundTasks(ports2, projects));
+  assert.equal(afterRestart.tasks.length, 0, "pre-restart approval task is not replayed blindly after restart");
+  await ports2.resting!.readings.pass;
+  assert.deepEqual(opened2, [proj.project_id], "project wakes quietly once to reconcile pre-restart approval state");
+  assert.equal(await host2.sleepIfIdle(proj, 0), true);
+  const reconciled = await runWithLocale("zh", () => homeBackgroundTasks(ports2, projects));
+  assert.equal(reconciled.tasks[0]?.state, "verify");
+  assert.equal(reconciled.tasks[0]?.resting, true);
+  await host2.close();
+
+  // 4. Restarting again with `verify` (non-process-bound) serves directly from disk with zero opens.
+  const opened3: string[] = [];
+  const host3 = startHost(opened3);
+  const ports3 = homeAggregatePorts(host3);
+  const verifyPersisted = await runWithLocale("zh", () => homeBackgroundTasks(ports3, projects));
+  assert.equal(verifyPersisted.tasks[0]?.state, "verify");
+  assert.equal(verifyPersisted.tasks[0]?.resting, true);
+  await ports3.resting!.readings.pass;
+  assert.deepEqual(opened3, [], "post-restart verify state persists across restarts with zero opens");
+
+  // 5. Time-expired `reports_to` failed task (>10 min old) fails `stillValid` and re-reads cleanly instead of freezing forever.
+  mode = "expired-failed";
+  await host3.withProject(proj, () => undefined);
+  await runWithLocale("zh", () => homeBackgroundTasks(ports3, projects));
+  assert.equal(await host3.sleepIfIdle(proj, 0), true);
+  mode = "clean";
+  opened3.length = 0;
+  const expiredRead = await runWithLocale("zh", () => homeBackgroundTasks(ports3, projects));
+  assert.equal(expiredRead.tasks.length, 0, "expired reported failure (>10m) is rejected by stillValid");
+  await ports3.resting!.readings.pass;
+  assert.deepEqual(opened3, [proj.project_id], "expired reported failure triggers quiet refresh");
+  await host3.close();
 });

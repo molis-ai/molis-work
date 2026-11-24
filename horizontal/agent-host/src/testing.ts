@@ -1,5 +1,5 @@
 /** Integration tests drive the Node adapter with controlled SDK events and receipts through this entry. */
-export { commandReceipts } from "./adapters/prologue-command-receipts.js";
+export { commandReceipts } from "./adapters/prologue-node-port.js";
 export { createRoundState } from "./adapters/prologue-node-kit.js";
 export { createSessionMessages } from "./adapters/prologue-messages.js";
 export { attachStartedRound, watchRoundLifecycle } from "./adapters/prologue-run.js";

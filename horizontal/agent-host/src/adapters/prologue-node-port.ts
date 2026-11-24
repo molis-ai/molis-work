@@ -1,4 +1,4 @@
-import { commandReceipts } from "./prologue-command-receipts.js";
+import { matchCommandReceipts, type CommandReceiptMatch } from "./prologue-command-receipts.js";
 import { personalContinuationOpenings } from "./prologue-session-opening.js";
 import { bindBusinessSubagent } from "./prologue-business-child.js";
 import { childRoleRestorer } from "./prologue-child-setup.js";
@@ -10,8 +10,8 @@ import { answerPending, readPendingQuestion, childQuestionScope } from "./prolog
 import { readOriginalInput, resolveOriginalInput, originalInputIdByKey, sessionNotifier } from "./prologue-original-inputs.js";
 import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
-import { isTerminalEventType, DEFAULT_CONTEXT_WINDOW_TOKENS, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type QueuedTask, type Runtime, type SessionOpeningReader, type StorageGuard, type SubagentHandle } from "@prologue/sdk";
-import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { WORKSPACE_COMMAND_RECEIPT_KIND, isTerminalEventType, DEFAULT_CONTEXT_WINDOW_TOKENS, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type QueuedTask, type Runtime, type SessionOpeningReader, type StorageGuard, type SubagentHandle } from "@prologue/sdk";
+import type { AgentCommandOutput, AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { createCollaborationHost, readyStep, sessionBlock, type ContinuationStarts, type DispatchChecks } from "./prologue-collaboration.js";
@@ -201,6 +201,48 @@ function projectWorkPort(deps: PortDeps): NonNullable<PrologueRuntimePort["proje
       return { ...item, wait_id: armed.waitId };
     },
     release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
+  };
+}
+
+/** A single read and a batch verify exactly the same resource, authorized root, command and effect. */
+async function readReceipt(runtime: Runtime, runId: string, { event, root, check }: CommandReceiptMatch): Promise<AgentCommandOutput> {
+  const record = await readResource(runtime, event.receiptRef);
+  const receipt = record.receipt;
+  if (record.kind !== WORKSPACE_COMMAND_RECEIPT_KIND || record.version !== 1 || !sameRef(record.rootRef, root)
+    || typeof record.executable !== "string" || !Array.isArray(record.argv) || !record.argv.every((arg: unknown) => typeof arg === "string")
+    || !receipt || receipt.commandId !== event.commandId || !sameRef(receipt.effectRef, event.effectRef)
+    || typeof receipt.stdout !== "string" || typeof receipt.stderr !== "string" || typeof receipt.truncated !== "boolean"
+    || typeof receipt.timedOut !== "boolean" || typeof receipt.cancelled !== "boolean"
+    || receipt.exitCode !== undefined && !Number.isInteger(receipt.exitCode)
+    || receipt.stopReason !== undefined && !["cancelled", "timed-out"].includes(receipt.stopReason)) throw new Error("命令回执与这轮执行不一致，不能展示为已确认结果");
+  return { ref: { run_id: runId, call_id: event.callId }, command: [record.executable, ...record.argv.map((arg: string) => JSON.stringify(arg))].join(" "),
+    exit_code: receipt.exitCode ?? null, stdout: receipt.stdout, stderr: receipt.stderr, truncated: receipt.truncated,
+    timed_out: receipt.timedOut, cancelled: receipt.cancelled, ...(receipt.stopReason ? { stop_reason: receipt.stopReason } : {}),
+    ...(check ? { after_write_check: { checker_id: check.checker_id, display_name: check.display_name, version: check.version } } : {}) };
+}
+
+export function commandReceipts(deps: Pick<RunDeps, "runtime" | "index" | "state">):
+  Required<Pick<PrologueRuntimePort, "readCommandOutput" | "readWriteChecks">> {
+  return {
+    async readCommandOutput(sessionId, ref) {
+      const match = (await matchCommandReceipts(deps, sessionId, ref.run_id, new Set([ref.call_id]))).get(ref.call_id);
+      if (!match) throw new Error(match === null ? "命令引用对应多次执行" : "没有这次命令的持久回执；结果未知，不能当作成功或自动重跑");
+      return readReceipt(deps.runtime, ref.run_id, match);
+    },
+    async readWriteChecks(sessionId, runId, writeIds) {
+      const found = await matchCommandReceipts(deps, sessionId, runId, new Set(writeIds.map(id => `${id}:diagnostics`)));
+      const results = [];
+      for (const call_id of writeIds) {
+        const match = found.get(`${call_id}:diagnostics`);
+        if (!match) continue;
+        const receipt = await readReceipt(deps.runtime, runId, match).catch(() => undefined);
+        if (receipt) results.push({ call_id, checker: receipt.after_write_check?.display_name ?? null,
+          version: receipt.after_write_check?.version ?? null, exit_code: receipt.exit_code,
+          timed_out: receipt.timed_out === true || receipt.stop_reason === "timed-out",
+          cancelled: receipt.cancelled === true || receipt.stop_reason === "cancelled" });
+      }
+      return results;
+    },
   };
 }
 

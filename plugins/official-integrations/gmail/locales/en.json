@@ -4,7 +4,7 @@
   "locale": "en",
   "messages": {
     "gmail.connection.inbound": "Feed reads mail without modifying it",
-    "gmail.connection.outbound": "Sending mail isn’t available. This connection only reads incoming mail.",
+    "gmail.connection.outbound": "Read-only for now — receives mail without sending.",
     "gmail.connection.send-mail": "Send mail",
     "gmail.connection.summary": "Connect your account on this computer. Feed reads mail without modifying it.",
     "gmail.guide.mcp-connected-note": "Access to the Google Workspace Developer Preview is required.",

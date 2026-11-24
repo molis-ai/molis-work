@@ -147,7 +147,7 @@ test("FSS-61 the board section changes its words, dates, numbers and attributes 
   assert.deepEqual(afterJa.same, ["user:保存", "word:保存"]);
   assert.equal(afterJa.save, "保存");
   assert.equal(afterJa.editable, "保存");
-  assert.deepEqual(afterJa.snapshot, ["true", "サーバとページの表示スナップショットが一致"]);
+  assert.deepEqual(afterJa.snapshot, ["true", "サーバーとページで算出した表示スナップショットが一致しています"]);
   assert.equal(afterJa.pressed, "true");
   assert.deepEqual(afterJa.watched, { removed: 0, html: 0, values: 0, loadedOnce: true });
 

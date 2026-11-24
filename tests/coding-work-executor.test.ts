@@ -119,7 +119,7 @@ test("W5-01-CODING-71..76 the roles open, read and set a Coding session the page
     await assert.rejects(invoke("session.update", { session_id: plain.session_id, mode: "collaborate" }), (error: { code?: string }) => error.code === "coding.executor_mode_unknown");
     assert.equal((await invoke<Session>("session.read", { session_id: plain.session_id })).mode, "review");
     await assert.rejects(invoke("session.read", { session_id: "missing" }), (error: { code?: string }) => error.code === "coding.session_unknown");
-    await assert.rejects(invoke("run.control", { session_id: plain.session_id, run_id: "run-1", kind: "stop" }), /这个会话尚未执行/);
+    await assert.rejects(invoke("run.control", { session_id: plain.session_id, run_id: "run-1", kind: "stop" }), /这个会话还没有执行过/);
   } finally {
     await host.close();
     await rm(home, { recursive: true, force: true });

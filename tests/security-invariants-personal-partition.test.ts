@@ -22,6 +22,8 @@ test("UPP-01 Home initialization makes the personal partition at personal-space/
     assert.equal(created.database_path, partitionDatabasePath(home, PERSONAL_SPACE_PROJECT_ID));
     assert.equal(created.database_path, join(home, "personal-space", "molis-work.db"));
     assert.equal(catalog.listProjects().some(row => row.project_id === PERSONAL_SPACE_PROJECT_ID), false, "the person's project list leaves it out");
+    // UPP-31 R21: looked up by id, as the discussion tab's room lookup does, it is a partition like any project.
+    assert.equal(catalog.getProject(PERSONAL_SPACE_PROJECT_ID).project_id, PERSONAL_SPACE_PROJECT_ID);
     return created;
   });
   assert.ok(existsSync(first.database_path), "its main database is under the partition root");

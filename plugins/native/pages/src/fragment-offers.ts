@@ -95,13 +95,22 @@ export function preparePagesFragmentOffers(input: FragmentOffersInput, kind: str
     }));
 }
 
+function formatTargetNames(targets: FragmentOffersInput["fragment"]["targets"], untitled: string): string {
+  const parts = targets.map(target => {
+    const title = target.ref?.title ?? untitled;
+    return localized("pages.offer.item-name", `「${title}」`, { title });
+  });
+  return parts.every(part => part.startsWith("「"))
+    ? parts.join("")
+    : parts.join(localized("common.list.separator", "、"));
+}
+
 function objectsSummary(offerId: string, targets: FragmentOffersInput["fragment"]["targets"]): string {
   const untitled = localized("pages.doc.untitled", "无标题");
-  const separator = localized("common.list.separator", "、");
-  const names = targets.map(target => target.ref?.title ?? untitled).join(separator);
+  const names = formatTargetNames(targets, untitled);
   const fallback = offerId === "synthesize"
-    ? `用 ${targets.length} 篇文档（${names}）合成一篇新文档，原文不变`
-    : `并排比较 ${targets.length} 篇文档（${names}）的相同点、不同点和冲突`;
+    ? `用 ${targets.length} 篇文档${names}合成一篇新文档，原文不变`
+    : `并排比较 ${targets.length} 篇文档${names}的相同点、不同点和冲突`;
   const text = offerId === "synthesize"
     ? localized("pages.offer.synthesize-summary", fallback, { count: targets.length, names })
     : localized("pages.offer.compare-summary", fallback, { count: targets.length, names });

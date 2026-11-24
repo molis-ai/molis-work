@@ -40,7 +40,7 @@ export function checkGoalsManagementWiring(source, mode) {
     && imports.has("@molis-ai/molis-work-app-cli:cliText")
     && text(declarations.get("homeDatabase")?.initializer) === "databaseInHome(home,databasePath)"
     && creates.length === 0
-    && text(body.statements[0]) === 'if(!allowLocalFallback&&homeDatabase)thrownewActionError("actions.service_unavailable",cliText("workbench.cli.v1-host-disconnected"));'
+    && text(body.statements[0]) === 'if(!allowLocalFallback&&homeDatabase)thrownewActionError("actions.service_unavailable",cliText("workbench.cli.protocol-host-disconnected"));'
     && text(body.statements[1]) === 'if(homeProject||homeDatabase)ensureHomeStorageOwner(localHost??=createMolisWorkLocalHost({homeDirectory:home}),home,preflightMemoryHome);'
     && ts.isReturnStatement(body.statements[2]) && body.statements[2].expression === call;
   const expectedHost = mcp ? "caller.localHost" : "localHost??=createMolisWorkLocalHost()";

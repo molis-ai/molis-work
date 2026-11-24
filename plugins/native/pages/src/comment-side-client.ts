@@ -137,13 +137,17 @@ export function mountComments(host: CommentSideHost): void {
       commands.delete(data.request_id);clearTimeout(waiting.timeout);data.error?waiting.reject(new Error(data.error)):waiting.resolve(data);
     }
   });
-  const languageAbort = new AbortController();
-  window.addEventListener('pagehide', () => languageAbort.abort(), { once: true });
-  document.addEventListener('molis-work:language-changed', () => {
+  const onLanguageChanged = () => {
     q('title').textContent = context?.object_ref.title || uiText.text('pages.comments.pick-doc');
     if (!context) return;
     paint();
     if (mode === 'notes') void notes();
-  }, { signal: languageAbort.signal });
+  };
+  if (typeof document.addEventListener === 'function') {
+    document.addEventListener('molis-work:language-changed', onLanguageChanged);
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('pagehide', () => document.removeEventListener?.('molis-work:language-changed', onLanguageChanged), { once: true });
+    }
+  }
   host.messages.send({type:'molis:side-ready'});
 }

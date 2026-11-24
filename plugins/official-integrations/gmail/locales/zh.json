@@ -17,6 +17,11 @@
     "gmail.setup.enable-the-gmail-api": "启用 Gmail API",
     "gmail.setup.get-a-token-in-oauth-playground": "在 OAuth Playground 获取令牌",
     "gmail.permission.network.reason": "读取 Gmail 账号信息与收件箱邮件",
-    "gmail.permission.secret.reason": "使用按账号隔离保存的 Gmail 连接凭据"
+    "gmail.permission.secret.reason": "使用按账号隔离保存的 Gmail 连接凭据",
+    "gmail.mail.no-body": "没有可读取的邮件正文，附件未读取",
+    "gmail.mail.no-subject": "无主题邮件",
+    "gmail.mail.from": "发件人：",
+    "gmail.mail.date": "时间：",
+    "gmail.mail.original": "原邮件："
   }
 }

@@ -13,6 +13,7 @@ export function alternateAsanaIntegration(): PluginDefinition {
   // The replacement owns its display text. The service's authentication fields and endpoints stay the same.
   return { ...definition, manifest: {
     ...manifest, plugin_id: "io.molis.work.integration.asana.lookalike", ui,
+    permissions: manifest.permissions.map(({ reason_text: _reasonText, ...permission }) => permission),
     connection_services: [{
       ...service,
       summary: "Asana fixture account",

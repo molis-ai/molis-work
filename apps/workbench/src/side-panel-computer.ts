@@ -217,7 +217,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       const lines=[record.goal?globalThis.t.text("workbench.side-panel-computer.goal-goal",{goal:record.goal}):'',globalThis.t.text("workbench.side-panel-computer.result-outcome",{outcome}),record.conclusion?record.conclusion:'',
         '',globalThis.t.text("workbench.side-panel-computer.steps-n",{n:record.steps.length}),...record.steps.slice(-40).map(step=>'- '+(step.app?('『'+step.app.name+'』'):'')+step.summary)].filter(Boolean);
       const startedAt=new Date(record.started_at);
-      const startedText=Number.isNaN(startedAt.getTime())?String(record.started_at):globalThis.format.date(startedAt.toISOString(),'datetime');
+      const startedText=Number.isNaN(startedAt.getTime())?String(record.started_at):(globalThis.format&&typeof globalThis.format.date==='function'?globalThis.format.date(startedAt.toISOString(),'datetime'):startedAt.toISOString().slice(0,16).replace('T',' '));
       const title=(record.goal?record.goal.slice(0,40):globalThis.t.text("workbench.side-panel-computer.computer-operation"))+globalThis.t.text("common.punctuation.in-parens", { value: startedText });
       await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id)+'/receive',{body:{title,text:lines.join('\n')},fallback:globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf")});
       env.say(globalThis.t.text("workbench.side-panel-computer.added-shelf"));

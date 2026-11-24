@@ -27,8 +27,10 @@ const SHARED: readonly ActionAudience[] = ["user", "workflow", "agent", "mcp"];
 
 function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[], audiences: readonly ActionAudience[], resultView?: ActionResultView): ActionDefinition<I, O> {
+  const keyBase = `shelf.action.${name.replaceAll(".", "-")}`;
   // The existing HTTP surface never serialized Shelf: recipes run for minutes while the panel keeps reading and cancelling.
   return createActionDefinition<I, O>(`shelf.${name}`, operation, { title, description,
+    title_text: { key: `${keyBase}.title` }, description_text: { key: `${keyBase}.description` },
     scope: "home", scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output, ...(resultView ? { result_view: resultView } : {}) }, version);
 }
 
@@ -57,7 +59,8 @@ export const shelfActions = {
     "读取置物架副本或文件夹内文件的原始字节", "query", object({ item_id: id, child: { type: "string", maxLength: 1000 } }, ["item_id"]),
     object({ name: text, mime: text, bytes_base64: text }), read, LOCAL),
   // Defined in the Shelf contract, so another plugin invokes this very definition.
-  admit: SHELF_ADMIT_ACTION,
+  admit: { ...SHELF_ADMIT_ACTION, action: { ...SHELF_ADMIT_ACTION.action,
+    title_text: { key: "shelf.action.items-admit.title" }, description_text: { key: "shelf.action.items-admit.description" } } },
   // Version 2 names no original folder: a folder has no 原件已变 check, and only the platform keeps a path (`original`).
   admitFolder: define<{ name: string; entries: { relative: string; bytes_base64: string; mime?: string }[] }, { item: ShelfItemRecord }>("items.admit-folder", /* @version action.shelf.items.admit-folder */ 1, "放进文件夹",
     "把本机界面选中的整个文件夹复制进置物架，最多 32 MB", "command",
@@ -194,7 +197,9 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
 export interface ShelfMaterialPreview { payload: import("../contract.js").ShelfTextMaterial; fingerprint: string }
 function defineProject<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[]): ActionDefinition<I, O> {
+  const keyBase = `shelf.action.${name.replaceAll(".", "-")}`;
   return createActionDefinition<I, O>(`shelf.${name}`, operation, { title, description,
+    title_text: { key: `${keyBase}.title` }, description_text: { key: `${keyBase}.description` },
     scheduling: "concurrent", audiences: LOCAL, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output }, version);
 }
 const material = object({ title: text, text, content_hash: text, source: { type: "object", required: ["item_id"] } });

@@ -729,6 +729,10 @@ export interface UiResolvedSkin {
     readonly terminal: Readonly<Record<TerminalAxis, UiTokenMap>>;
 }
 
+export declare function activeUiIntlLocale(): string | undefined;
+
+export declare function activeUiLocale(): string | null;
+
 export declare function assertPluginLocales(manifest: PluginLocaleManifest, read: PluginLocaleRead): readonly LocaleSetProblem[];
 
 export declare function calendarTitle(year: number, month: number): string;
@@ -1482,6 +1486,8 @@ export declare const textKeyPrefix: (owner: string) => string;
 export declare function textRefProblems(value: unknown, check?: TextRefCheck): readonly string[];
 
 export declare function tryOwnedTextRef(ref: unknown, owner: string): OwnedTextRef | null;
+
+export declare function tryUiText(key: string, args?: TextArgs): string | undefined;
 
 export declare function uiHelpDeclarationProblems(manifest: Pick<PluginManifest, "plugin_id" | "ui">): string[];
 

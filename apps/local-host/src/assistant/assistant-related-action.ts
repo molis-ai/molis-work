@@ -20,8 +20,8 @@ const text = (maxLength: number) => ({ type: "string", minLength: 1, maxLength }
 export const assistantRelatedAction: ActionDefinition<RelatedInput, { works: readonly RelatedWork[] }> = {
   capability_id: "assistant.works.related", provider_id: "system.assistant.rules", version: /* @version action.assistant.works.related */ 1, operation: "query",
   action: { title: "相关的助理工作", description: "列出与一个对象相关的助理工作：状态与结果链接，不含对话与材料",
-    title_text: { key: "workbench.capability-library.system-assistant-rules--assistant-works-related-v1.title" },
-    description_text: { key: "workbench.capability-library.system-assistant-rules--assistant-works-related-v1.description" },
+    title_text: { key: "workbench.capability-library.system-assistant-rules--assistant-works-related.title" },
+    description_text: { key: "workbench.capability-library.system-assistant-rules--assistant-works-related.description" },
     kind: "query", effect: "read",
     scope: "project", audiences: ["user", "plugin"], permissions: [], subject_kinds: [],
     input_schema: { type: "object", properties: { kind: text(120), id: text(256) }, required: ["kind", "id"], additionalProperties: false },

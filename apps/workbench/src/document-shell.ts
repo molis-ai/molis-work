@@ -1,4 +1,4 @@
-import { NO_FAVICON_LINK, escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { NO_FAVICON_LINK, activeUiLocale, escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderLanguageHead } from "./language-resource.js";
 import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
 import type { UiSlotDescriptor, WorkbenchDocumentRenderRequest } from '@molis-ai/molis-work-contracts/platform/ui';
@@ -20,8 +20,7 @@ function renderAttributes(attributes: WorkbenchDocumentRenderRequest['body_attri
 }
 
 function activeRefreshHtmlLang(): string | undefined {
-  const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null } | undefined;
-  const tag = provider?.locale?.();
+  const tag = activeUiLocale();
   if (!tag) return undefined;
   return WORKBENCH_LANGUAGES.languages.find(language => language.tag === tag)?.html_lang ?? tag;
 }

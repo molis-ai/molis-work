@@ -322,7 +322,7 @@
     "pages.offer.compare-summary": {
       "plural_arg": "count",
       "forms": {
-        "other": "{count} 件のドキュメント（{names}）を並べて共通点・相違点・矛盾を比較します"
+        "other": "{count} 件のドキュメント{names}を並べて共通点・相違点・矛盾を比較します"
       }
     },
     "pages.offer.concise": "より簡潔にする",
@@ -332,6 +332,7 @@
     "pages.offer.expand": "詳しく展開する",
     "pages.offer.explain": "説明する",
     "pages.offer.formal": "より丁寧にする",
+    "pages.offer.item-name": "「{title}」",
     "pages.offer.merge": "ひとまとまりに統合する",
     "pages.offer.outline": "アウトラインを作る",
     "pages.offer.proofread": "全文を校正する",
@@ -342,7 +343,7 @@
     "pages.offer.synthesize-summary": {
       "plural_arg": "count",
       "forms": {
-        "other": "{count} 件のドキュメント（{names}）から元の文書を変えずに新しいドキュメントをまとめます"
+        "other": "{count} 件のドキュメント{names}から元の文書を変えずに新しいドキュメントをまとめます"
       }
     },
     "pages.offer.synthesize-title": "統合：{titles}",

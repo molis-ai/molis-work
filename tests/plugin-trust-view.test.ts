@@ -196,7 +196,7 @@ test("install preview and installedPluginViews localize manifest name_text and p
     installInProject: async () => undefined,
     installInHome: async () => undefined,
     installed: async () => [],
-    control: async () => "disabled" as const,
+    control: async () => ({ state: "disabled" }),
   });
   const authority = (locale: "en" | "zh") => ({
     actor_id: LOCAL_PERSON_ACTOR_ID,

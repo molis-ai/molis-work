@@ -56,16 +56,16 @@ const listen = (page: FormPage) => {
     reloadList();
   });
   document.addEventListener("molis-work:model-ready", reloadList);
-  const languageAbort = new AbortController();
-  window.addEventListener("pagehide", () => languageAbort.abort(), { once: true });
-  document.addEventListener("molis-work:language-changed", () => {
+  const onLanguageChanged = () => {
     renderList(page);
     if (!page.sel) return;
     paintStatus(page, page.sel);
     retitleQuestions(page);
     if (page.tab === "results") void loadResults(page);
     else if (page.tab === "preview" && !page.dirty) renderPreview(page, page.sel);
-  }, { signal: languageAbort.signal });
+  };
+  document.addEventListener("molis-work:language-changed", onLanguageChanged);
+  window.addEventListener("pagehide", () => document.removeEventListener("molis-work:language-changed", onLanguageChanged), { once: true });
   window.addEventListener("beforeunload", (event) => {
     if (page.sel && hasUnsaved(page)) {
       event.preventDefault(); event.returnValue = "";

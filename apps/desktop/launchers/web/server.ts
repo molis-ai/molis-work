@@ -4,7 +4,7 @@ import path from "node:path";
 import type { Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
-import { finishMcpWebStartup, HOST_CANDIDATE_PORTS, hostLog, isLoopbackPortAvailable, planHomeUpgrade, reportMcpWebStartupFailure, reportSqliteVersion, resolveConfiguredHome, runUpgradeMaintenance, selectAvailableHostPort, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
+import { finishMcpWebStartup, HOST_CANDIDATE_PORTS, hostLog, isLoopbackPortAvailable, lastUsedLocale, planHomeUpgrade, reportMcpWebStartupFailure, reportSqliteVersion, resolveConfiguredHome, runUpgradeMaintenance, selectAvailableHostPort, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
 export type { WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 
@@ -28,12 +28,8 @@ type LauncherLocale = "zh" | "en" | "ja";
 
 function resolveLauncherLocale(home: string): LauncherLocale {
   try {
-    const raw = fs.readFileSync(path.join(home, "config", "ui-locale.json"), "utf8");
-    const parsed = JSON.parse(raw) as { schema_version?: unknown; locale?: unknown };
-    if (parsed.schema_version === 1 && typeof parsed.locale === "string") {
-      const primary = parsed.locale.trim().toLowerCase().split(/[-_]/)[0];
-      if (primary === "zh" || primary === "en" || primary === "ja") return primary;
-    }
+    const primary = lastUsedLocale(home).trim().toLowerCase().split(/[-_]/)[0];
+    if (primary === "zh" || primary === "en" || primary === "ja") return primary;
   } catch {
     // Missing or unreadable preference falls back to the platform default.
   }

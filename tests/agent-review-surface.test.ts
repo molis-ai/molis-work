@@ -198,7 +198,7 @@ test("review renders both file versions and exact command arguments, never only 
   assert.match(commandHtml, /src/); assert.match(commandHtml, /15000/);
   const unknownDelivery = row({ receipt: receipt({ delivery_error: "连接中断" }) });
   const deliveryHtml = renderAgentReviewSurface({ rows: [unknownDelivery], primitives: p });
-  assert.match(deliveryHtml, /执行方尚未确认收到/);
+  assert.match(deliveryHtml, /执行方还没确认收到/);
   assert.doesNotMatch(deliveryHtml, /尚未发生|执行未完成/);
 });
 

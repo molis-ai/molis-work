@@ -1,9 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-
-interface SafeUiTextProvider {
-  locale?(): string | null;
-  ownerOfPrefix?(prefix: string): string | null;
-}
+import { tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
  * Read a Pages or shared `common.*` UI word when a UI text context is mounted for that key's prefix,
@@ -11,12 +6,5 @@ interface SafeUiTextProvider {
  */
 export function readPagesText(key: string | undefined, fallback: string, args?: Record<string, string | number>): string {
   if (!key) return fallback;
-  const prefix = key.split(".")[0];
-  const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as SafeUiTextProvider | undefined;
-  if (!provider?.locale?.() || !prefix || !provider.ownerOfPrefix?.(prefix)) return fallback;
-  try {
-    return uiText.text(key, args);
-  } catch {
-    return fallback;
-  }
+  return tryUiText(key, args) ?? fallback;
 }

@@ -13,7 +13,9 @@ const preview = { type: "object", properties: { title: text, text, fingerprint: 
 const SHARED: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp"];
 function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
   permissions: readonly string[], audiences: readonly ActionAudience[] = SHARED, scope: "home" | "project" = "project"): ActionDefinition<I, O> {
+  const keyBase = `shelf.action.${name.replaceAll(".", "-")}`;
   return createActionDefinition<I, O>(`shelf.${name}`, operation, { title, description,
+    title_text: { key: `${keyBase}.title` }, description_text: { key: `${keyBase}.description` },
     scope, scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item", "artifact"], input_schema: input, output_schema: output }, version);
 }
 

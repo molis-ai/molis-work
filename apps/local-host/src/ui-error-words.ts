@@ -322,7 +322,7 @@ function isWrongLanguageForLocale(message: string, locale: string): boolean {
   const latinWords = core.match(/\b[A-Za-z][A-Za-z'’]{1,}\b/gu) ?? [];
   const hasLatinWord = latinWords.length > 0;
   const base = baseLanguageOf(locale);
-  if (base === "zh") return hasKana || (!hasHan && hasLatinWord);
+  if (base === "zh") return hasKana;
   if (base === "ja") return !hasKana && (hasHan || hasLatinWord);
   if (!hasHan && !hasKana) return false;
   const cjkCount = hanCount + kanaCount;

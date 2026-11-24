@@ -28,15 +28,19 @@ export function requestHeader(request: Pick<IncomingMessage, "headers">, name: s
   return undefined;
 }
 
-export function sendLocalWebJson(response: ServerResponse, status: number, value: unknown): void {
-  const sanitized = status >= 400 ? localizeWebErrorBody(status, value) : value;
-  const answer = withRecordedCallId(status, sanitized);
+export function sendLocalGatewayJson(response: ServerResponse, status: number, value: unknown): void {
+  const answer = withRecordedCallId(status, value);
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
     ...answer.headers,
   });
   response.end(JSON.stringify(answer.body));
+}
+
+export function sendLocalWebJson(response: ServerResponse, status: number, value: unknown): void {
+  const sanitized = status >= 400 ? localizeWebErrorBody(status, value) : value;
+  sendLocalGatewayJson(response, status, sanitized);
 }
 
 /**

@@ -17,6 +17,11 @@
     "gmail.setup.enable-the-gmail-api": "Enable the Gmail API",
     "gmail.setup.get-a-token-in-oauth-playground": "Get a token in OAuth Playground",
     "gmail.permission.network.reason": "Read your Gmail account info and inbox messages",
-    "gmail.permission.secret.reason": "Use your Gmail connection credentials stored separately per account"
+    "gmail.permission.secret.reason": "Use your Gmail connection credentials stored separately per account",
+    "gmail.mail.no-body": "No readable email body; attachments aren’t read.",
+    "gmail.mail.no-subject": "Untitled email",
+    "gmail.mail.from": "From: ",
+    "gmail.mail.date": "Date: ",
+    "gmail.mail.original": "Original email: "
   }
 }

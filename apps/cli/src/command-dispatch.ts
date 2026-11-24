@@ -20,7 +20,7 @@ export async function dispatchCliProjectCommand(
   const { project_id, ...payload } = input;
   // The payload must carry the project this command is bound to: it names the project, the action takes it from the call.
   const bound = (project: unknown) => {
-    if (project !== actions.project_id) throw new ActionError("actions.scope_mismatch", cliText("workbench.cli.v1-scope-mismatch"));
+    if (project !== actions.project_id) throw new ActionError("actions.scope_mismatch", cliText("workbench.cli.protocol-scope-mismatch"));
   };
   switch (operation) {
   case "review-request":
@@ -32,7 +32,7 @@ export async function dispatchCliProjectCommand(
     print(await actions.invoke(trustedReviewActions.decide, payload));
     break;
   default:
-    throw new Error(cliText("workbench.cli.v1-unknown-op", { operation: String(operation ?? "") }));
+    throw new Error(cliText("workbench.cli.protocol-unknown-op", { operation: String(operation ?? "") }));
   }
   return 0;
 }

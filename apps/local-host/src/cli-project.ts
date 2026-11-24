@@ -37,7 +37,7 @@ async function runV1CliScoped(args: string[], options: V1CliOptions): Promise<nu
   // A flag right after a valueless --db would be read as its value and name a database after the flag (`--json`).
   const flagValue = value(args, "--db");
   const location = flagValue?.startsWith("--") ? undefined : namedDatabasePath(flagValue);
-  if (!location) throw new Error(cliText("workbench.cli.v1-db-required"));
+  if (!location) throw new Error(cliText("workbench.cli.protocol-db-required"));
   let home = options.homeDirectory ?? resolveConfiguredHome();
   const origin=options.actionServiceUrl??readProductEnv("WEB_URL")??homeHostUrl(home);
   let connected:ResidentAccountConnection|undefined;
@@ -49,12 +49,12 @@ async function runV1CliScoped(args: string[], options: V1CliOptions): Promise<nu
     if(required||existsSync(path.join(home,NATIVE_SESSION_FILE))||existsSync(path.join(home,WEB_CONTROL_TOKEN_RELATIVE_PATH))){
       connected=await connectResidentAccount(home,origin,options.signal,required);home=connected.homeDirectory;
       if(connected.installation)allowLocalFallback=false;
-      if(!databaseInHome(home,databasePath))throw new ActionError("actions.scope_mismatch",cliText("workbench.cli.v1-account-mismatch"));
+      if(!databaseInHome(home,databasePath))throw new ActionError("actions.scope_mismatch",cliText("workbench.cli.protocol-account-mismatch"));
     }
   }
   const homeDatabase = databaseInHome(home, databasePath);
   if (storage.status === "missing") {
-    throw new Error(cliText("workbench.cli.v1-db-missing", { path: databasePath }));
+    throw new Error(cliText("workbench.cli.protocol-db-missing", { path: databasePath }));
   }
   const input = payload(args);
   let localHost = options.localHost;
@@ -65,7 +65,7 @@ async function runV1CliScoped(args: string[], options: V1CliOptions): Promise<nu
   });
   let homeProject = false;
   const fallback = () => {
-    if(!allowLocalFallback&&homeDatabase)throw new ActionError("actions.service_unavailable",cliText("workbench.cli.v1-host-disconnected"));
+    if(!allowLocalFallback&&homeDatabase)throw new ActionError("actions.service_unavailable",cliText("workbench.cli.protocol-host-disconnected"));
     if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);
     return bindStandaloneReviewActions(localHost ??= createMolisWorkLocalHost(), reference, options.signal);
   };
@@ -74,12 +74,12 @@ async function runV1CliScoped(args: string[], options: V1CliOptions): Promise<nu
       // Not left to `fallback`: it only takes the lock for a database inside the Home, and the catalog here may belong to a project outside it.
       if (!options.localHost || options.actionServiceUrl) upgradeOlderCatalog(home, () => {
         ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);
-        process.stderr.write(`${cliText("workbench.cli.v1-catalog-upgraded")}\n`);
+        process.stderr.write(`${cliText("workbench.cli.protocol-catalog-upgraded")}\n`);
       });
       const project = options.localHost && !options.actionServiceUrl ? undefined : catalogManagementProject(home, databasePath);
       homeProject = Boolean(project);
-      if(connected&&!project&&!allowLocalFallback)throw new ActionError("actions.scope_mismatch",cliText("workbench.cli.v1-unregistered"));
-      if (project && project.project_id !== reference.project_id) throw new ActionError("actions.scope_mismatch", cliText("workbench.cli.v1-project-mismatch"));
+      if(connected&&!project&&!allowLocalFallback)throw new ActionError("actions.scope_mismatch",cliText("workbench.cli.protocol-unregistered"));
+      if (project && project.project_id !== reference.project_id) throw new ActionError("actions.scope_mismatch", cliText("workbench.cli.protocol-project-mismatch"));
       if (project) reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       const actions = project ? reviewOnly(residentManagementActions({ home, databasePath: project.database_path, projectId: project.project_id,
         origin,controlToken:connected?.controlToken, signal: options.signal, fallback })) : fallback();

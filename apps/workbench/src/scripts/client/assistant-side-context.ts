@@ -54,7 +54,7 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el,
     const now = [...objects.filter(usedNow).map((o) => objectTile(o)), ...[...used.values()].filter((one) => one.now).map((one) => materialTile({ material: one.material }))];
     const before = [...objects.filter((o) => !usedNow(o)).map((o) => objectTile(o, roundOf(o))), ...[...used.values()].filter((one) => !one.now).map(materialTile)];
     const node = block();
-    const signature = JSON.stringify([document.documentElement.lang, work && work.work_id, sidePanelHere(), waiting.map((one) => one.kind + ":" + one.title),
+    const signature = JSON.stringify([typeof document !== "undefined" ? document.documentElement?.lang : "", work && work.work_id, sidePanelHere(), waiting.map((one) => one.kind + ":" + one.title),
       objects.map((o) => [o.subject.id, o.state, o.title, o.current_revision, o.recorded_at, roundOf(o)]), [...used.keys()], latest && latest.run_id]);
     if (!node || node.dataset.signature === signature) return;
     node.dataset.signature = signature;
@@ -76,7 +76,7 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el,
       paintBlock(node, globalThis.t.text("workbench.assistant-dock.context"), "paperclip", content, changed ? changed + " " + globalThis.t.text("workbench.assistant-side-context.changed") : waiting.length ? waiting.length + " " + globalThis.t.text("workbench.assistant-side-context.send-2") : now.length + before.length ? String(now.length + before.length) : "", changed > 0);
     });
   };
-  document.addEventListener("molis-work:language-changed", () => { if (block()?.isConnected) paint(); });
+  if (typeof document !== "undefined") document.addEventListener("molis-work:language-changed", () => { if (block()?.isConnected) paint(); });
   return { paint };
 }`;
 
@@ -100,7 +100,7 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ readText
   const paint = (work, read) => {
     const env = environmentBlock(), tools = toolsBlock();
     if (!env || !tools) return;
-    const signature = JSON.stringify([document.documentElement.lang, work && work.work_id, read]);
+    const signature = JSON.stringify([typeof document !== "undefined" ? document.documentElement?.lang : "", work && work.work_id, read]);
     if (env.dataset.signature === signature) return;
     env.dataset.signature = signature;
     if (!work || !read) { paintBlock(env, "", "", null); paintBlock(tools, "", "", null); return; }
@@ -145,8 +145,10 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ readText
     }
     paint(work, held && held.id === work.work_id ? held.read : null);
   };
-  document.addEventListener("focusin", (event) => { if (last && side()?.contains(event.target)) surround(last); });
-  document.addEventListener("molis-work:language-changed", () => { if (last && environmentBlock()?.isConnected) paint(last, held && held.id === last.work_id ? held.read : null); });
+  if (typeof document !== "undefined") {
+    document.addEventListener("focusin", (event) => { if (last && side()?.contains(event.target)) surround(last); });
+    document.addEventListener("molis-work:language-changed", () => { if (last && environmentBlock()?.isConnected) paint(last, held && held.id === last.work_id ? held.read : null); });
+  }
   return { paint: surround };
 }`;
 
@@ -173,7 +175,7 @@ export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ readText, el, p
     const node = box(), view = current();
     if (!node) return;
     const usage = work && view && view.usage ? view.usage : null, last = work && view ? view.rounds[view.rounds.length - 1] : null, round = last || null;
-    const signature = JSON.stringify([document.documentElement.lang, work && work.work_id, usage, round && [round.run_id, round.usage, round.model, round.ended_at]]);
+    const signature = JSON.stringify([typeof document !== "undefined" ? document.documentElement?.lang : "", work && work.work_id, usage, round && [round.run_id, round.usage, round.model, round.ended_at]]);
     if (node.dataset.signature === signature) return;
     const wasOpen = node.querySelector("details")?.open;
     node.dataset.signature = signature;
@@ -216,6 +218,6 @@ export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ readText, el, p
     }
     node.replaceChildren(details);
   };
-  document.addEventListener("molis-work:language-changed", () => { if (box()?.isConnected) paint(lastWork); });
+  if (typeof document !== "undefined") document.addEventListener("molis-work:language-changed", () => { if (box()?.isConnected) paint(lastWork); });
   return { paint };
 }`;

@@ -17,6 +17,11 @@
     "gmail.setup.enable-the-gmail-api": "Gmail API を有効化",
     "gmail.setup.get-a-token-in-oauth-playground": "OAuth Playground でトークンを取得",
     "gmail.permission.network.reason": "Gmail のアカウント情報と受信トレイのメールを読み取ります",
-    "gmail.permission.secret.reason": "アカウントごとに分離して保存された Gmail の接続資格情報を使用します"
+    "gmail.permission.secret.reason": "アカウントごとに分離して保存された Gmail の接続資格情報を使用します",
+    "gmail.mail.no-body": "読み取れるメール本文がありません（添付ファイルは読み取られません）",
+    "gmail.mail.no-subject": "件名なしのメール",
+    "gmail.mail.from": "差出人：",
+    "gmail.mail.date": "日時：",
+    "gmail.mail.original": "元のメール："
   }
 }

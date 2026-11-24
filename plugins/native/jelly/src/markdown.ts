@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { activeUiLocale } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { JellyBlock, JellyBlockKind, JellyNote } from "./contract.js";
 
 function parseInline(source: string, inherited: ("bold" | "italic" | "code")[] = [], link?: string): NonNullable<JellyBlock["inline_spans"]> {
@@ -93,10 +94,7 @@ export function jellyBlocksToHtml(blocks: readonly JellyBlock[]): string {
 }
 export function jellyNoteToMarkdown(note: JellyNote): string { return `# ${note.title}\n\n${jellyBlocksToMarkdown(note.blocks)}\n`; }
 function resolveJellyHtmlLang(language?: string): string {
-  const raw = language?.trim() || (() => {
-    const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null } | undefined;
-    return provider?.locale?.()?.trim() ?? "";
-  })();
+  const raw = language?.trim() || activeUiLocale()?.trim() || "";
   if (!raw) return "";
   const lower = raw.toLowerCase();
   if (lower === "zh") return "zh-CN";

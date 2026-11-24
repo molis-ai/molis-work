@@ -13,34 +13,34 @@ const CLI_CORE_TEXT: Readonly<Record<CliLocale, Readonly<Record<string, string>>
     "workbench.cli.help-commands": "Molis Work 命令：{commands}",
     "workbench.cli.unknown-command": "未知命令：{command}。可用：{commands}。",
     "workbench.cli.error-prefix": "错误: {message}",
-    "workbench.cli.v1-summary": "已注册插件的项目审批管理入口。",
-    "workbench.cli.v1-operations": "可用操作：",
-    "workbench.cli.v1-db-note": "复杂输入可用 --file payload.json 代替 --json。必须传入 --db PATH 指定已有项目库；没有默认路径，不传不打开。",
-    "workbench.cli.v1-install-hint": "安装 Molis Work 本体：{command}",
-    "workbench.cli.v1-scope-mismatch": "请求不属于当前项目",
-    "workbench.cli.v1-unknown-op": "未知 V1 operation: {operation}",
+    "workbench.cli.protocol-summary": "已注册插件的项目审批管理入口。",
+    "workbench.cli.protocol-operations": "可用操作：",
+    "workbench.cli.protocol-db-note": "复杂输入可用 --file payload.json 代替 --json。必须传入 --db PATH 指定已有项目库；没有默认路径，不传不打开。",
+    "workbench.cli.protocol-install-hint": "安装 Molis Work 本体：{command}",
+    "workbench.cli.protocol-scope-mismatch": "请求不属于当前项目",
+    "workbench.cli.protocol-unknown-op": "未知 V1 operation: {operation}",
   },
   en: {
     "workbench.cli.help-commands": "Molis Work commands: {commands}",
     "workbench.cli.unknown-command": "Unknown command: {command}. Available: {commands}.",
     "workbench.cli.error-prefix": "Error: {message}",
-    "workbench.cli.v1-summary": "Management entry for project approvals from registered plugins.",
-    "workbench.cli.v1-operations": "Operations:",
-    "workbench.cli.v1-db-note": "Use --file payload.json instead of --json for complex payloads. --db PATH is required for an existing project SQLite file; there is no default path.",
-    "workbench.cli.v1-install-hint": "Install Molis Work itself: {command}",
-    "workbench.cli.v1-scope-mismatch": "Request does not belong to the current project.",
-    "workbench.cli.v1-unknown-op": "Unknown V1 operation: {operation}",
+    "workbench.cli.protocol-summary": "Management entry for project approvals from registered plugins.",
+    "workbench.cli.protocol-operations": "Operations:",
+    "workbench.cli.protocol-db-note": "Use --file payload.json instead of --json for complex payloads. --db PATH is required for an existing project SQLite file; there is no default path.",
+    "workbench.cli.protocol-install-hint": "Install Molis Work itself: {command}",
+    "workbench.cli.protocol-scope-mismatch": "Request does not belong to the current project.",
+    "workbench.cli.protocol-unknown-op": "Unknown V1 operation: {operation}",
   },
   ja: {
     "workbench.cli.help-commands": "Molis Work コマンド：{commands}",
     "workbench.cli.unknown-command": "不明なコマンドです：{command}。利用可能：{commands}。",
     "workbench.cli.error-prefix": "エラー: {message}",
-    "workbench.cli.v1-summary": "登録済みプラグインのプロジェクト承認管理エントリーです。",
-    "workbench.cli.v1-operations": "利用可能な操作：",
-    "workbench.cli.v1-db-note": "複雑な入力は --json の代わりに --file payload.json を使えます。既存プロジェクト SQLite を示す --db PATH が必須で、既定パスはありません。",
-    "workbench.cli.v1-install-hint": "Molis Work 本体のインストール：{command}",
-    "workbench.cli.v1-scope-mismatch": "リクエストは現在のプロジェクトに属していません。",
-    "workbench.cli.v1-unknown-op": "不明な V1 操作です：{operation}",
+    "workbench.cli.protocol-summary": "登録済みプラグインのプロジェクト承認管理エントリーです。",
+    "workbench.cli.protocol-operations": "利用可能な操作：",
+    "workbench.cli.protocol-db-note": "複雑な入力は --json の代わりに --file payload.json を使えます。既存プロジェクト SQLite を示す --db PATH が必須で、既定パスはありません。",
+    "workbench.cli.protocol-install-hint": "Molis Work 本体のインストール：{command}",
+    "workbench.cli.protocol-scope-mismatch": "リクエストは現在のプロジェクトに属していません。",
+    "workbench.cli.protocol-unknown-op": "不明な V1 操作です：{operation}",
   },
 };
 
@@ -103,11 +103,11 @@ export function printCliLine(text: string): void {
 export function printV1Help(): void {
   console.log(`molis-work v1 <operation> --db PATH --json '{...}'
 
-${cliText("workbench.cli.v1-summary")}
+${cliText("workbench.cli.protocol-summary")}
 
-${cliText("workbench.cli.v1-operations")}
+${cliText("workbench.cli.protocol-operations")}
   review-request | review-decide
 
-${cliText("workbench.cli.v1-db-note")}`);
-  console.log(`\n${cliText("workbench.cli.v1-install-hint", { command: "molis-work install [--home PATH]" })}`);
+${cliText("workbench.cli.protocol-db-note")}`);
+  console.log(`\n${cliText("workbench.cli.protocol-install-hint", { command: "molis-work install [--home PATH]" })}`);
 }

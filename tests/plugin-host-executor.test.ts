@@ -26,6 +26,7 @@ function githubFixture(): PluginDefinition {
   }) });
   const service = base.manifest.connection_services![0]!;
   return { ...base, connectionText: undefined, manifest: { ...base.manifest, ui: { contributions: base.manifest.ui.contributions },
+    permissions: base.manifest.permissions.map(({ reason_text: _reasonText, ...permission }) => permission),
     connection_services: [{ ...service, summary: "Fixture GitHub connection",
       capabilities: [{ label: "Read notifications", fulfillment: "live" }, { label: "Read the current account", fulfillment: "live" }],
       outbound_note: "No GitHub writes", setup_links: service.setup_links?.map(({ url }) => ({ label: "GitHub setup", url })) }] } };

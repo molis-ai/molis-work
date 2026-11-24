@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BASELINE_REGISTRY, registerCatalogBoardText } from "@molis-ai/molis-work-design-system";
-import { createTextReader, inspectLocaleSet, matchLocale, parseLocalePack, parseUiLanguageCatalog, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { activeUiLocale, createTextReader, inspectLocaleSet, matchLocale, parseLocalePack, parseUiLanguageCatalog, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiFileResult, UiLanguageTag, UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
 
@@ -89,8 +89,6 @@ export function catalogInlinePageText(tag: UiLanguageTag): { readonly slot: stri
   return { slot: "catalog:workbench", producer: owner, packs: [pack.locale === matched ? pack : { ...pack, locale: matched }] };
 }
 
-const UI_TEXT_PROVIDER = Symbol.for("molis.work.ui-text.v1");
-
 const catalogOnlyReaders = new Map(
   WORKBENCH_LANGUAGES.languages.map(({ tag }) => {
     const selected = catalogPackFor(tag);
@@ -101,8 +99,7 @@ const catalogOnlyReaders = new Map(
 const catalogDefaultMessages = catalogPackFor(WORKBENCH_LANGUAGES.default).messages;
 
 function activeCatalogLocale(): UiLanguageTag {
-  const provider = Reflect.get(globalThis, UI_TEXT_PROVIDER) as { locale?(): string | null } | undefined;
-  const current = provider?.locale?.();
+  const current = activeUiLocale();
   if (typeof current === "string" && current) {
     return WORKBENCH_LANGUAGES.languages.find(row => row.tag === current || row.html_lang === current)?.tag
       ?? matchLocale(current, catalogLocales, WORKBENCH_LANGUAGES.default);

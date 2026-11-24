@@ -1,4 +1,4 @@
-import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { FormQuestionInput, FormQuestionType, FormRecord } from "./contract.js";
 import type { AgentQuestion, AgentQuestionProblem, InteractionRequest } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { questionAnswer, questionProblems, questionSetFlaw } from "@molis-ai/molis-work-plugin-sdk";
@@ -126,7 +126,7 @@ export function createFormDrafting(ports: FormDraftPorts) {
       if (!request || [...request].length > 500) throw formErrors.invalid("生成要求须为 1 到 500 个字");
       // The form's own questions stay on this computer: only the request and the answers go to the model.
       const data = { request, ...(prior ? { answers: heard(prior.row.questions, prior.answers) } : {}) };
-      const reply = parsed(await ports.completeText(instructed(FORM_DRAFT_QUESTIONS, JSON.stringify(data)), { signal: call.signal, beforeDispatch: call.beforeEffect }));
+      const reply = parsed(await ports.completeText(instructed(FORM_DRAFT_QUESTIONS, fencedMaterials(data, "FORM_" + crypto.randomUUID().replaceAll("-", ""))), { signal: call.signal, beforeDispatch: call.beforeEffect }));
       call.signal?.throwIfAborted();
       if (!reply) throw formErrors.invalid("模型没有返回有效题目，请调整提示后重试");
       if (reply.status === "needs_input") {

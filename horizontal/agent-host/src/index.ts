@@ -27,6 +27,7 @@ import type {
   AgentRuntimeDescriptor,
   AgentStartRequest,
   AgentSkillOwner,
+  AgentTextMaterial,
   AgentFrozenCharacter,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CharacterRoleVersionRef, PersonalCharacterRef, ProjectCharacterMemberRef } from "@molis-ai/molis-work-contracts/modules/characters";
@@ -266,6 +267,74 @@ export interface AgentStartAuthority {
  * directory must be one the Host authorized. An adapter reports facts and
  * executes approved work; it never widens its own authority.
  */
+const MAX_TEXT_MATERIAL_TITLE_CHARS = 2_000;
+const MAX_TEXT_MATERIAL_CONTENT_CHARS = 20_000;
+
+/**
+ * Fit a resolved instruction prompt + material payload within `agentTextMaterialContent`'s strict
+ * 2,000-char title and 20,000-char total budget so long user overrides in Settings never crash a round.
+ */
+function fitInstructionMaterialText(material: AgentTextMaterial, resolvedBody: string): { title: string; text: string } {
+  const trimmed = resolvedBody.trim();
+  const nl = trimmed.indexOf("\n");
+  const firstLine = nl > 0 ? trimmed.slice(0, nl).trim() : "";
+  const useFirstLineAsTitle = nl > 0 && firstLine.length > 0 && firstLine.length <= MAX_TEXT_MATERIAL_TITLE_CHARS;
+  const title = (useFirstLineAsTitle ? firstLine : material.title).slice(0, MAX_TEXT_MATERIAL_TITLE_CHARS);
+  let instructions = useFirstLineAsTitle ? trimmed.slice(nl + 1).trimStart() : trimmed;
+  const sourced = "source_artifact_id" in material || "source_version" in material;
+  const headerLength = JSON.stringify(
+    sourced
+      ? { title, artifact_id: material.source_artifact_id, version: material.source_version }
+      : { title, material_id: material.material_id },
+  ).length;
+  const maxText = Math.max(0, MAX_TEXT_MATERIAL_CONTENT_CHARS - headerLength - 2);
+  let payload = material.text;
+  const combinedLength = () => (instructions && payload ? instructions.length + 2 + payload.length : instructions.length + payload.length);
+  if (combinedLength() > maxText) {
+    // When payload is a JSON array (e.g. Coding's auto-skill catalog), drop trailing items cleanly before touching instructions.
+    if (payload.startsWith("[")) {
+      try {
+        const parsed: unknown = JSON.parse(payload);
+        if (Array.isArray(parsed)) {
+          const availableForPayload = maxText - instructions.length - (instructions ? 2 : 0);
+          if (availableForPayload >= 2) {
+            const kept: unknown[] = [];
+            for (const item of parsed) {
+              const candidate = JSON.stringify([...kept, item]);
+              if (candidate.length > availableForPayload) break;
+              kept.push(item);
+            }
+            payload = JSON.stringify(kept);
+          } else {
+            // Very long user override: keep at least the first catalog entry when it fits, trimming excess override tail.
+            const minimal = parsed.length > 0 ? JSON.stringify([parsed[0]]) : "[]";
+            if (minimal.length + 2 < maxText) {
+              instructions = instructions.slice(0, maxText - minimal.length - 2).trimEnd();
+              payload = minimal;
+            } else {
+              instructions = instructions.slice(0, maxText).trimEnd();
+              payload = "";
+            }
+          }
+        }
+      } catch {
+        // Non-JSON payload falls through to plain truncation below.
+      }
+    }
+    if (combinedLength() > maxText) {
+      if (instructions.length >= maxText) {
+        instructions = instructions.slice(0, maxText).trimEnd();
+        payload = "";
+      } else {
+        const remaining = maxText - instructions.length - (instructions ? 2 : 0);
+        payload = remaining > 0 ? payload.slice(0, remaining) : "";
+      }
+    }
+  }
+  const combined = [instructions, payload].filter(part => part.length > 0).join("\n\n");
+  return { title, text: combined };
+}
+
 /** Looks up the text a registered prompt runs with now. Returns the prompt unchanged when the person has not edited it. */
 export interface AgentPromptResolver {
   effective(ownerId: string, prompt: AgentPromptText, locale?: string): AgentPromptText;
@@ -393,7 +462,9 @@ export class AgentHost implements AgentHostApi {
     const resolvedTextMaterials = request.text_materials?.map(material => {
       if (!material.instruction_prompt_id) return material;
       const { instruction_prompt_id, ...rest } = material;
-      if (!resolve?.instruction) return rest;
+      if (!resolve?.instruction) {
+        throw agentErrors.capability_unavailable("当前运行时未提供提示词登记服务，无法解析材料指令");
+      }
       const resolved = resolve.instruction(
         request.plugin_id,
         instruction_prompt_id,
@@ -401,12 +472,8 @@ export class AgentHost implements AgentHostApi {
         locale,
         record => { recordMaterialInstructionUses.push(record); },
       );
-      const trimmed = resolved.body.trim();
-      const nl = trimmed.indexOf("\n");
-      const title = nl > 0 ? trimmed.slice(0, nl).trim() : rest.title;
-      const instructions = nl > 0 ? trimmed.slice(nl + 1).trimStart() : trimmed;
-      const combined = [instructions, rest.text].filter(part => part.length > 0).join("\n\n");
-      return { ...rest, title: title || rest.title, text: combined };
+      const fitted = fitInstructionMaterialText(material, resolved.body);
+      return { ...rest, title: fitted.title, text: fitted.text };
     });
     const promptAuthority = { manifest: authority.manifest, project_prompts: authority.project_prompts,
       reply_language: authority.reply_language, prompts: authority.prompts?.map(({ body_by_locale, ...prompt }) => {

@@ -15,6 +15,8 @@
     "coding.actions.saved": "Capability choice saved for the next turn only; a running task keeps its choice.",
     "coding.actions.session-changed": "The session changed; open the capability choice for the current session again.",
     "coding.actions.title": "Abilities for the next turn",
+    "coding.agent-prompt.coding-auto-skill-catalog.purpose": "Explain the automatic skill catalog and reading rules available to a Coding turn",
+    "coding.agent-prompt.coding-auto-skill-catalog.title": "Automatic skills catalog",
     "coding.agent-prompt.coding-background.title": "Builder",
     "coding.agent-prompt.coding-base.title": "Base constraints",
     "coding.agent-prompt.coding-builder.title": "coding-builder",

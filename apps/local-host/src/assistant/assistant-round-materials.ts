@@ -126,7 +126,7 @@ export class AssistantRoundMaterials {
   /** The round's situation and the person's materials, as marked data. Changing facts travel here, not in the role. */
   async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], unavailable: readonly ActionView[], previousWaitWithdrawn: boolean,
     /** False for 「这次不用技能」: the automatic Skills are not listed, as the catalog would refuse them. */
-    autoSkills = true): Promise<RoundMaterials> {
+    autoSkills = true, locale?: string): Promise<RoundMaterials> {
     const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const now = this.now();
     // Minute-level local time avoids per-second/ms cache churn across rounds within the same minute.
@@ -192,9 +192,13 @@ export class AssistantRoundMaterials {
       dynamic.push(...chunked({ title: "没有带上的记忆" }, "memory-left",
         `和这一轮相关的记忆里，${budget ? `有 ${budget} 条因为篇幅没有带上` : ""}${budget && conflicts ? "，" : ""}${conflicts ? `有 ${conflicts} 条和另一条互相矛盾、带上的是用户明确说过的那条` : ""}。`));
     }
-    // Forming memories switched off: the round is told, and where the person turns it on (the work layer says what follows).
-    if (!work.delegated_by && this.ports.memory?.() && !this.link.memoryTools(work)?.remember) dynamic.push(...chunked({ title: "记忆设置" }, "memory-off",
-      "用户关闭了“允许记住”（在 设置 · 个人 · 记忆 打开），这一轮不能保存长期记忆或留下建议。"));
+    // Forming memories switched off: the round is told without hardcoding a locale-specific Settings breadcrumb.
+    if (!work.delegated_by && this.ports.memory?.() && !this.link.memoryTools(work)?.remember) {
+      const en = locale?.startsWith("en");
+      dynamic.push(...chunked({ title: en ? "Memory setting" : "记忆设置" }, "memory-off",
+        en ? "The user turned off memory formation, so this round cannot save long-term memories or leave suggestions."
+          : "用户关闭了“允许记住”，这一轮不能保存长期记忆或留下建议。"));
+    }
     // Changes a stopped round left running, and how each ended (the base says not to submit an unsettled one again blindly).
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     if (unsettled.length) {

@@ -15,6 +15,8 @@
     "coding.actions.saved": "能力选择已保存，仅用于下一轮；在跑任务保持原选择。",
     "coding.actions.session-changed": "会话已切换，请重新打开当前会话的能力选择。",
     "coding.actions.title": "下一轮使用的能力",
+    "coding.agent-prompt.coding-auto-skill-catalog.purpose": "向 Coding 轮次说明可自动选用的技能目录及读取边界",
+    "coding.agent-prompt.coding-auto-skill-catalog.title": "可自动使用的技能说明",
     "coding.agent-prompt.coding-background.title": "构建者",
     "coding.agent-prompt.coding-base.title": "基础约束",
     "coding.agent-prompt.coding-builder.title": "coding-builder",

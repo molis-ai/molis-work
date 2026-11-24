@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginModelClient, PluginModelFailure, PluginModelImage } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { BoundedInferenceReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ShelfAiPorts, ShelfAiStatus, ShelfExecutionControl, ShelfMaterialPorts, ShelfModelSelection } from "../contract.js";
@@ -40,19 +41,21 @@ export function shelfAiPorts(model: PluginModelClient, materials: ShelfMaterialP
     if (!status(input.selection).available) throw unavailable();
     const { text, images, coverage } = await prepareSources(input, materials, control, check);
     await check();
-    const data = JSON.stringify({ recipe: input.recipe, option: input.option_id,
-      ...(input.shortcut_prompt ? { user_instruction: input.shortcut_prompt } : {}), materials: text, images: images.map(image => image.label), coverage });
+    const optionId = resolvedChoiceId(input.recipe, input.option_id);
+    const data = fencedMaterials({ recipe: input.recipe, option: optionId,
+      ...(input.shortcut_prompt ? { user_instruction: input.shortcut_prompt } : {}), materials: text, images: images.map(image => image.label), coverage },
+      "SHELF_" + randomUUID().replaceAll("-", ""));
     if (data.length > 180_000) throw shelfErrors.too_large("材料超过本次 AI 输入容量，请减少选择或先提取需要的部分");
-    const json = input.recipe === "extract_structure" && resolvedChoiceId(input.recipe, input.option_id) === "json";
+    const json = input.recipe === "extract_structure" && optionId === "json";
     let execution: BoundedInferenceReceipt | undefined;
     try {
-      const result = await model.complete(instructed(shelfInstruction(input.recipe, input.option_id), data), { selection: input.selection,
+      const result = await model.complete(instructed(shelfInstruction(input.recipe, optionId), data), { selection: input.selection,
         signal: control.signal, images, timeout_ms: 600_000, max_output_tokens: 12_000, output: json ? "json" : "text" });
       execution = result.execution;
       const validateResult = shelfBinding(result.validateResult);
       validateBinding = validateResult;
       await check();
-      const output = finalizeShelfRecipeResult(input.recipe, input.option_id, result.text, () => ({ ok: true, value: result.value }), coverage);
+      const output = finalizeShelfRecipeResult(input.recipe, optionId, result.text, () => ({ ok: true, value: result.value }), coverage);
       return { text: output, ...(execution ? { execution } : {}), coverage, validateResult };
     } catch (error) {
       if (error instanceof ActionError && error.code === "actions.configuration_changed") throw configurationChanged();

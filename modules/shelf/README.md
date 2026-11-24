@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-Host 把用户 Home 下的 `shelf/`（声明的条目是 `catalog.json`、`files/`、`jobs/`，见插件包的 `SHELF_OWNER_FILES`）以文件客户端（合同 `PluginOwnerFilesClient`）交给 `openShelfStore`；`admit` 经它写入材料副本，`runJob("extract_text")` 在 `jobs/<id>/input` 抽字并产出结果文件。读目录是同步的，改目录的方法都是异步的，调用方要 `await`。
+Host 把用户 Home 下的 `shelf/`（声明的条目是 `catalog.json`、`files/`、`jobs/`，见本包表面出口 `@molis-ai/molis-work-module-shelf/surface` 的 `SHELF_OWNER_FILES`）以文件客户端（合同 `PluginOwnerFilesClient`）交给 `openShelfStore`；`admit` 经它写入材料副本，`runJob("extract_text")` 在 `jobs/<id>/input` 抽字并产出结果文件。读目录是同步的，改目录的方法都是异步的，调用方要 `await`。第 44B 批起 Shelf 已收归纯平台模块（`system.shelf`，路由 `/api/platform/shelf/…`，由运行时作为平台部件托管，不再作为双实例插件）。
 
 ## 从哪里读代码
 
@@ -38,7 +38,7 @@ Host 把用户 Home 下的 `shelf/`（声明的条目是 `catalog.json`、`files
 
 PDF/OCR 使用同一端口的 `extract`，原生可用性由 `imageTextAvailable` 被动提供。`admitFile` 异步准备 PDF 预览、复查执行权后入库；底层 `admit` 保存已授权的副本和已准备预览（异步，一次文件客户端写入），供示例及 Coding 文字成果使用。无提取端口的纯 Module 不自行解析 PDF 或启动进程。文件上限保持 32 MiB；OCR 语言选择、逐行“待确认”和提取不完整说明由本模块组织。
 
-Host 明确接收固定成果时，可随 `admit` 提供 `artifact_source`；该来源保存在原 Shelf 目录记录中。相同项目、成果及版本再次接收返回已有副本，保留用户编辑；隐藏副本恢复显示，内容指纹冲突或副本文件缺失明确报错，不覆盖已有内容。来源本身不授予执行或项目写入权限。项目被删除后，来自它的副本留在架子里（用户 2026-10-26 弹窗决定，BL-680；删项目的路径不动，Shelf 不是它的一步）：读快照时由 Shelf 插件问平台服务 `services.projects.exist`，给每个带来源的副本补 `origin_project_deleted`（只在快照上，不入库；问不到就不标），页面把原成果链接换成“项目已删除”。
+Host 明确接收固定成果时，可随 `admit` 提供 `artifact_source`；该来源保存在原 Shelf 目录记录中。相同项目、成果及版本再次接收返回已有副本，保留用户编辑；隐藏副本恢复显示，内容指纹冲突或副本文件缺失明确报错，不覆盖已有内容。来源本身不授予执行或项目写入权限。项目被删除后，来自它的副本留在架子里（用户 2026-10-26 弹窗决定，BL-680；删项目的路径不动，Shelf 不是它的一步）：读快照时由平台部件 `system.shelf`（`modules/shelf/src/surface`）问平台服务 `services.projects.exist`，给每个带来源的副本补 `origin_project_deleted`（只在快照上，不入库；问不到就不标），页面把原成果链接换成“项目已删除”。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（执行生命周期、共同同步文档与内容工具）。文件互斥由可信 Host 通过公开 Storage 端口注入，不新增 Module 到 Storage 的依赖。
 
@@ -54,14 +54,14 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 
 - 负责：个人置物架：材料副本、副本任务、Hash、提取结果组织与剪贴板历史。
 - 不负责：项目 Goal 事实、Artifact 版本、桌面轮盘与热键。
-- 公开入口：`@molis-ai/molis-work-module-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同入口 `@molis-ai/molis-work-contracts/platform/package`（包描述；Shelf 自己的合同是本包的 `@molis-ai/molis-work-module-shelf/contract`，`src/contract.ts`，PG-111 起由本包拥有，contracts 包里没有 Shelf 子路径）。
+- 公开入口：`@molis-ai/molis-work-module-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）与平台部件表面出口 `@molis-ai/molis-work-module-shelf/surface`（`src/surface/index.ts`，承接 `system.shelf` 的动作、提示词与 `/api/platform/shelf` 界面，由 Host 与 Workbench 装配）；合同入口 `@molis-ai/molis-work-contracts/platform/package`（包描述；Shelf 自己的合同是本包的 `@molis-ai/molis-work-module-shelf/contract`，`src/contract.ts`，PG-111 起由本包拥有，contracts 包里没有 Shelf 子路径）。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖 contracts/modules、contracts/services 与 plugin-sdk（执行生命周期）；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 文字编辑必须携带所读完整字节的 SHA-256；`writeCopy` 在同步写入前核对，旧编辑拒绝，不能临保存时重取指纹替旧输入补前提。原导入 hash 不因编辑改变，不能当作当前版本。
   - 不写回原件；原路径只用于事后 Hash 校验，不进 Prompt 或 API。
   - 架子上的文件只经注入的文件客户端读写（没有 `node:fs` 的路径）；每个逻辑操作是一次 `files.write(run)`，`run` 同步完成、先读现行目录再改，所以同时开始的两个操作不会互相覆盖目录行。`events.jsonl` 按整文件替换追加一行。仍直接用 `node:fs` 的只有运行时探测（`runtimes.ts`）；原件 Hash 的核对经平台读原件（`copy-checks.ts` 的 `assertOriginsUntouched`），不碰路径；另外交给模型的冻结 `input/` 是一条真实目录路径（模型读它），Module 自己不用 fs 去碰它。
   - 不写项目数据库、不自动发布 Artifact；同项目、同成果、同版本再次接收返回已有副本并保留编辑。
-  - Shelf 插件的 Home 实例启动时、查询之前调 `initializeShelfFiles`（`src/shelve.ts`）：若 `seeded_sample` 为假且架子为空，放入一份「试用示例.pdf」（真实可抽字的 PDF，由 `src/pdf.ts` 生成，经 `shelveItem` 上架）；读快照不写。这是有意的首次使用引导，不是演示数据：任何材料入库或示例放入后 `seeded_sample` 为真，之后删除、隐藏都不会自动放回；用户可在设置的「使用指南」主动再放一份（动作 `shelf.sample.seed`，经 `seedSample`）；不写项目库。
+  - 平台部件 `system.shelf`（`modules/shelf/src/surface`）随 Home 运行时启动时、查询之前调 `initializeShelfFiles`（`src/shelve.ts`）：若 `seeded_sample` 为假且架子为空，放入一份「试用示例.pdf」（真实可抽字的 PDF，由 `src/pdf.ts` 生成，经 `shelveItem` 上架）；读快照不写。这是有意的首次使用引导，不是演示数据：任何材料入库或示例放入后 `seeded_sample` 为真，之后删除、隐藏都不会自动放回；用户可在设置的「使用指南」主动再放一份（动作 `shelf.sample.seed`，经 `seedSample`）；不写项目库。
   - 自动任务只通过注入的 ShelfAiPorts，冻结 input 副本只读；领域模块不启动模型或终端进程。
   - 不探测 CLI 能力：`ShelfStore.runtime()` 每次都经平台的本机工具服务重新找可执行文件（`detectShelfRuntime`，`src/runtimes.ts`），不启动 CLI、不缓存；找到的报 `capability_pending: true`，执行能力在执行时才检查。
   - 任务使用 SDK 的执行生命周期；在途执行按 Home/root/job 隔离。异步等待后复查原 Action、任务和原件/副本 hash，再写输出、成果或失败记录。已取消/撤权的执行不补写失败；终止或重启后的旧 running 记录不自动重跑，也不继续阻塞材料。显式取消可以关闭原记录。
@@ -80,9 +80,9 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 
 ## 被动发现与真实执行
 
-`runtime()` / `snapshot()` 和 Agent 目录只问平台的本机工具服务（`services.localTools`，PG-112：九个引擎和额外目录写在插件的 Manifest `local_tools` 里），不读环境变量、不启动 CLI，也不再问 `--help`。人工终端与自动模型选择独立，`runJob()` 不探测或启动 CLI。没有这项服务（项目里的那一半）就是找不到。AI 可用性由 Host 的模型目录提供；未注入 AI 端口时明确不可用，本机提取仍可执行。
+`runtime()` / `snapshot()` 和 Agent 目录只问平台的本机工具服务（`services.localTools`，PG-112：九个引擎和额外目录写在平台部件 `system.shelf` 的 Manifest `local_tools`（`modules/shelf/src/surface/local-tools.ts`）里），不读环境变量、不启动 CLI，也不再问 `--help`。人工终端与自动模型选择独立，`runJob()` 不探测或启动 CLI。未提供这项服务时即报找不到（第 44B 批后不再存在项目侧双实例）。AI 可用性由 Host 的模型目录提供；未注入 AI 端口时明确不可用，本机提取仍可执行。
 
-自动生成合同是 `ShelfAiPorts`，由插件的 Home 实例经 `services.model` 与 `services.materials` 实现（`modules/shelf/src/surface/ai.ts`），冻结副本经 Shelf 自己的 owner files 读；Module 拥有任务、输入 hash、结果和回执保存。模型端口返回后仍须通过原 Action 的 beforeEffect 并复查来源。AI 改动另跑 `tests/shelf-ai-host.test.ts` 与 `tests/shelf-job-runner.test.ts`。
+自动生成合同是 `ShelfAiPorts`，由平台部件 `system.shelf` 经 `services.model` 与 `services.materials` 实现（`modules/shelf/src/surface/ai.ts`），冻结副本经 Shelf 自己的 owner files 读；Module 拥有任务、输入 hash、结果和回执保存。模型端口返回后仍须通过原 Action 的 beforeEffect 并复查来源。AI 改动另跑 `tests/shelf-ai-host.test.ts` 与 `tests/shelf-job-runner.test.ts`。
 
 项目回收检查：本 owner 的个人 Home 内容跨项目独立保存，不因某项目被回收而删除。同步适配器明确返回无该项目所属的未结算内容；材料或成果来源引用不改变所有权。检查仍执行账号与格式校验。
 

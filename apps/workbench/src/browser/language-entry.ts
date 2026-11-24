@@ -116,6 +116,7 @@ function prepareAgentDisplayModels(preparedPage: ParentNode, regions: readonly {
           const value = row[field.dataset.agentDisplayField ?? ""];
           if (typeof value !== "string") continue;
           if (field.dataset.agentDisplayAttribute === "edit-label") field.setAttribute("aria-label", t.text("workbench.settings-prompts.edit-prompt-title", { title: value }));
+          else if (field.dataset.agentDisplayAttribute === "view-label") field.setAttribute("aria-label", t.text("workbench.settings-prompts.view-prompt-title", { title: value }));
           else field.textContent = value;
         }
       }

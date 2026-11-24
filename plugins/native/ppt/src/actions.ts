@@ -1,8 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, retainActionAuthority, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
-import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { slidesFromMarkdown } from "./content-actions.js";
 import { PPT_DRAFT_OUTLINE } from "./prompts.js";
 import { PPT_ARTIFACT_TYPE_ID, PPT_ARTIFACT_SCHEMA_VERSION, PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput, PPT_SUBJECT_KIND } from "./contract.js";
@@ -174,7 +175,7 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
       const source = await outlineSource(input, caller);
       caller.signal?.throwIfAborted();
       if (!ports.complete) throw new ActionError("actions.connection_required", t.text("ppt.actions.configure-model-first"));
-      const result = await ports.complete(instructed(PPT_DRAFT_OUTLINE, JSON.stringify({ text: source })), { signal: caller.signal, beforeDispatch: caller.beforeEffect });
+      const result = await ports.complete(instructed(PPT_DRAFT_OUTLINE, fencedMaterials({ text: source }, "PPT_" + randomUUID().replaceAll("-", ""))), { signal: caller.signal, beforeDispatch: caller.beforeEffect });
       caller.signal?.throwIfAborted();
       const markdown = result.text.trim();
       if (!markdown) throw pptErrors.invalid("模型没有返回大纲，请调整文字后重试");

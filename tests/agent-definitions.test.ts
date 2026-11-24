@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { readFileSync } from "node:fs";
-import { installHostUiText, runWithLocale, AssistantService, AssistantStore, LocalHost, assistantAuthority, composeSimplifiedPrompt, splitPromptContract, validateFullPromptBody } from "@molis-ai/molis-work-app-local-host";
+import { installHostUiText, runWithLocale, AssistantService, AssistantStore, LocalHost, assistantAuthority, composeSimplifiedPrompt, replyLanguagePrompt, splitPromptContract, validateFullPromptBody } from "@molis-ai/molis-work-app-local-host";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 
@@ -203,14 +203,19 @@ test("the person's edit is kept apart from the default: saved, conflict-checked,
   const second = definitions.save(key, "只用中文回答，简短。", 1, "web-user");
   assert.equal(second.user?.revision, 2);
 
-  // The run's text is the person's version, marked so its record can say so; unregistered prompts are refused except platform-fixed reply-language.
+  // The run's text is the person's version, marked so its record can say so; unregistered prompts (including forged reply-language) are refused, while Host-minted replyLanguagePrompt passes through.
   const effective = definitions.effective(ASSISTANT_PLUGIN_ID, { prompt_id: "assistant-base", version: BASE_VERSION, layer: "base", body: "default" });
   assert.deepEqual([effective.body, effective.user_revision], ["只用中文回答，简短。", 2]);
   assert.throws(
     () => definitions.effective("io.molis.work.unknown", { prompt_id: "x", version: 1, body: "as given" }),
     (error: unknown) => typeof error === "object" && error !== null && Reflect.get(error, "code") === "agent_definitions.not_found",
   );
-  assert.equal(definitions.effective(ASSISTANT_PLUGIN_ID, { prompt_id: "reply-language", version: 2, body: "Reply in English." }).body, "Reply in English.");
+  assert.throws(
+    () => definitions.effective(ASSISTANT_PLUGIN_ID, { prompt_id: "reply-language", version: 2, body: "Forged reply language." }),
+    (error: unknown) => typeof error === "object" && error !== null && Reflect.get(error, "code") === "agent_definitions.not_found",
+  );
+  const trustedReplyLanguage = replyLanguagePrompt("en");
+  assert.equal(definitions.effective(ASSISTANT_PLUGIN_ID, trustedReplyLanguage).body, trustedReplyLanguage.body);
   assert.equal(definitions.prompt(key).last_used?.user_revision, 2);
 
   // A newer default does not replace the person's version; it is flagged for them to look at.
@@ -446,4 +451,58 @@ test("AgentDeclarations preserves body_by_locale on prompts and methods across d
   assert.equal(enView.body, "Summarize the materials in English.");
   const zhView = reloaded.prompt(`${pluginId}/summarize`, "zh");
   assert.equal(zhView.default_body, "用中文整理材料摘要。");
+});
+
+test("agentRegistration propagates override_policy: protected on kind: agent prompts and English display words cover all builtin & coding prompts", () => {
+  const reg = agentRegistration(
+    "system:protected-agent-test",
+    { kind: "system", module: "protected-agent-test", title: "受保护角色测试" },
+    { prompts: [{ prompt_id: "guard-role", version: 1, layer: "base", override_policy: "protected" }], roles: [{ role_id: "guard", version: 1, name: "护栏", workspace: "none", execution: "read-only", prompts: ["guard-role"], host_tools: [] }] },
+    [{ prompt_id: "guard-role", version: 1, layer: "base", body: "固定护栏规则" }],
+  );
+  assert.equal(reg.prompts[0]?.override_policy, "protected");
+  const definitions = new AgentDefinitions(new DatabaseSync(":memory:"));
+  definitions.register(reg);
+  assert.throws(
+    () => definitions.save("system:protected-agent-test/guard-role", "改写尝试", null, "web-user"),
+    (error: unknown) => typeof error === "object" && error !== null && Reflect.get(error, "code") === "agent_definitions.prompt_override_protected",
+  );
+
+  // Verify English locale packs provide non-CJK display strings for all newly covered prompts and roles.
+  const cjk = /[\u4e00-\u9fff]/u;
+  const readMessages = (relPath: string) => (JSON.parse(readFileSync(new URL(relPath, import.meta.url), "utf8")) as { messages: Record<string, string> }).messages;
+  const workbenchEn = readMessages("../apps/workbench/resources/locales/en.json");
+  for (const key of [
+    "workbench.agent-assistant-prompt.assistant-main.title",
+    "workbench.agent-assistant-role.assistant-main.name",
+    "workbench.agent-assistant-role.assistant-main.purpose",
+    "workbench.agent-assistant-role.assistant-report.name",
+    "workbench.agent-assistant-role.assistant-report.purpose",
+    "workbench.agent-sessions-prompt.sessions-attribution-suggest.title",
+    "workbench.agent-sessions-prompt.sessions-attribution-suggest.purpose",
+    "workbench.agent-skills-prompt.skills-draft.title",
+    "workbench.agent-skills-prompt.skills-draft.purpose",
+    "workbench.agent-skills-prompt.skills-revise.title",
+    "workbench.agent-skills-prompt.skills-revise.purpose",
+    "workbench.agent-skills-prompt.skills-trial.title",
+    "workbench.agent-skills-prompt.skills-trial.purpose",
+    "workbench.agent-skills-prompt.skills-trial-judge.title",
+    "workbench.agent-skills-prompt.skills-trial-judge.purpose",
+  ]) {
+    const value = workbenchEn[key];
+    assert.ok(value, `missing English locale key: ${key}`);
+    assert.doesNotMatch(value, cjk, `English locale key must not contain CJK: ${key}=${value}`);
+  }
+  const studioEn = readMessages("../horizontal/plugin-studio/locales/en.json");
+  for (const key of ["plugin-builder.agent-prompt.mockup-generate.title", "plugin-builder.agent-prompt.mockup-generate.purpose"]) {
+    const value = studioEn[key];
+    assert.ok(value, `missing English locale key: ${key}`);
+    assert.doesNotMatch(value, cjk, `English locale key must not contain CJK: ${key}=${value}`);
+  }
+  const codingEn = readMessages("../plugins/native/coding/locales/en.json");
+  for (const key of ["coding.agent-prompt.coding-auto-skill-catalog.title", "coding.agent-prompt.coding-auto-skill-catalog.purpose"]) {
+    const value = codingEn[key];
+    assert.ok(value, `missing English locale key: ${key}`);
+    assert.doesNotMatch(value, cjk, `English locale key must not contain CJK: ${key}=${value}`);
+  }
 });

@@ -74,7 +74,10 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
           const data = JSON.parse(raw);
           if (event === "snapshot" && data.preview) {
             preview = data.preview;
-            if (data.record) { recordTitle = data.record.title; sceneContext(data.record.title); }
+            if (data.record) {
+              recordTitle = data.record.title;
+              sceneContext(data.record.title);
+            }
             else if (data.draft) { restoreReview(data.preview, data.draft); return; }
           }
           if (event === "snapshot" && data.record) {
@@ -167,7 +170,10 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
       chooseTarget(draft);
       if (checked) {
         const radio = page.main.querySelector<HTMLInputElement>(`input[name="scene-target"][value="${CSS.escape(checked)}"]`);
-        if (radio) { radio.checked = true; radio.dispatchEvent(new Event("change", { bubbles: true })); }
+        if (radio) {
+          radio.checked = true;
+          radio.dispatchEvent(new Event("change", { bubbles: true }));
+        }
       }
       const nextInput = page.main.querySelector<HTMLInputElement>("input.mw-input");
       if (nextInput && typed !== undefined) nextInput.value = typed;
@@ -176,6 +182,9 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
     if (lastLibrary) page.library(lastLibrary);
   };
   document.addEventListener("molis-work:language-changed", onLanguageChanged);
-  addEventListener("pagehide", () => { stream?.abort(); document.removeEventListener("molis-work:language-changed", onLanguageChanged); }, { once: true });
+  addEventListener("pagehide", () => {
+    stream?.abort();
+    document.removeEventListener("molis-work:language-changed", onLanguageChanged);
+  }, { once: true });
   void start().catch(report);
 }

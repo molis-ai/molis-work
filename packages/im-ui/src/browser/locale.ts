@@ -2,6 +2,7 @@ import { createProducedLog } from "@molis-ai/molis-work-design-system/produced-t
 import { createTextReader, installUiText, isFrameUiLanguage, matchLocale, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiFrameLanguage } from "@molis-ai/molis-work-contracts/platform/ui";
 import { IM_DEFAULT_LOCALE, IM_PACK_ID, IM_TEXT_OWNER, imIntlLocale, type ImLanguageProjection } from "../locale-owner.js";
+import { imSameOriginRequest } from "./transport.js";
 
 const sameLanguage = (left: UiFrameLanguage, right: UiFrameLanguage): boolean =>
   left.tag === right.tag && left.html_lang === right.html_lang && left.intl === right.intl && left.direction === right.direction;
@@ -122,7 +123,7 @@ export function installImLanguage() {
     const syncStandalone = () => {
       pending?.abort();
       const controller = pending = new AbortController();
-      void fetch(location.pathname + location.search, { cache: "no-store", headers: { accept: "text/html" }, signal: controller.signal })
+      void imSameOriginRequest(location.pathname + location.search, { cache: "no-store", headers: { accept: "text/html" }, signal: controller.signal })
         .then(async response => {
           if (controller.signal.aborted || !response.ok || !response.headers.get("content-type")?.startsWith("text/html")) return;
           const nextDoc = new DOMParser().parseFromString(await response.text(), "text/html");
@@ -134,7 +135,11 @@ export function installImLanguage() {
         .catch(() => undefined);
     };
     channel.addEventListener("message", syncStandalone);
-    addEventListener("pagehide", event => { if (!event.persisted) { pending?.abort(); channel.close(); } });
+    addEventListener("pagehide", event => {
+      if (event.persisted) return;
+      pending?.abort();
+      channel.close();
+    });
   }
   return {
     tag: () => projection.language.tag,

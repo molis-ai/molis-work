@@ -1,6 +1,11 @@
 import type { ApiError, BrowserStorage } from './types.js';
 const localFailure = (word: string): ApiError => Object.assign(new Error(word), { word });
 
+/** Same-origin HTTP transport shared by IM API calls and standalone language refreshes. */
+export function imSameOriginRequest(path: string, init: RequestInit): Promise<Response> {
+  return fetch(path, { credentials: 'same-origin', ...init });
+}
+
 /** HTTP, local-host bridge and connection lifecycle have no conversation state. */
 export function createTransport(onUnauthorized: () => void) {
   const storage: BrowserStorage = {
@@ -31,7 +36,7 @@ export function createTransport(onUnauthorized: () => void) {
     }
     let response: Response;
     try {
-      response = await fetch('/im/api' + path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15000) });
+      response = await imSameOriginRequest('/im/api' + path, { method: body === undefined ? 'GET' : 'POST', headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15000) });
     }
     catch {
       const error: ApiError = localFailure("im-ui.transport.unconfirmed");

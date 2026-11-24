@@ -3,7 +3,7 @@ import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 // Shared builders for the catalog board: a titled section, an addressable mark and a labelled specimen.
 
 export type CatalogSay = (key: string, values?: Readonly<Record<string, string | number>>) => string;
-type CatalogBoardLookup = (key: string, values: Readonly<Record<string, string | number>> | undefined, probe: () => string) => string | null;
+type CatalogBoardLookup = (key: string, values?: Readonly<Record<string, string | number>>) => string | null;
 
 let boardLookup: CatalogBoardLookup | null = null;
 
@@ -12,15 +12,15 @@ export function registerCatalogBoardText(lookup: CatalogBoardLookup): void {
   boardLookup = lookup;
 }
 
-/** Resolves `workbench.catalog-board.*` through an explicit translator, the active provider, or the registered catalog sub-pack. */
+/** Resolves catalog board keys through an explicit translator, the registered catalog sub-pack, or the active plain-text provider. */
 export function resolveCatalogSay(explicit?: CatalogSay): CatalogSay {
   if (explicit) return explicit;
   return (key, values) => {
-    if (boardLookup && key.startsWith("workbench.catalog-board.")) {
-      const found = boardLookup(key, values, () => t.text("workbench.env.title"));
+    if (boardLookup) {
+      const found = boardLookup(key, values);
       if (found !== null) return found;
     }
-    return t(key, values);
+    return t.text(key, values);
   };
 }
 

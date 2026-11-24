@@ -126,12 +126,14 @@ export function bindImport(page: PagesPage) {
     void openDialog().catch((error) => noteFailure(page, error, uiText.text("pages.error.save")));
   }));
   source.addEventListener("change", help);
+  const languageAbort = new AbortController();
+  window.addEventListener?.("pagehide", () => languageAbort.abort(), { once: true });
   document.addEventListener?.("molis-work:language-changed", () => {
     if (!dialog.open) return;
     if (folder.options[0]?.value === "") folder.options[0].textContent = uiText.text("pages.folder.unfiled");
     help();
     sync();
-  });
+  }, { signal: languageAbort.signal });
   filesInput.addEventListener("change", () => { void prepare([...(filesInput.files ?? [])]); });
   all.addEventListener("change", () => { checks().forEach((input) => { input.checked = all.checked; }); sync(); });
   documents.addEventListener("change", sync);

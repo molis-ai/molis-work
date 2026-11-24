@@ -107,10 +107,12 @@ export function installGlobalEvents(page: JellyPage): void {
     if (typeof id === "string" && id) { event.preventDefault(); void run(page, () => showItem(page, id, Boolean(detail?.quiet))); }
   });
   window.addEventListener("beforeunload", (event) => { if (page.dirty) { event.preventDefault(); event.returnValue = ""; } });
+  const languageAbort = new AbortController();
+  window.addEventListener("pagehide", () => languageAbort.abort(), { once: true });
   document.addEventListener("molis-work:language-changed", () => {
     periodTitle(page);
     if (page.state) void renderView(page);
-  });
+  }, { signal: languageAbort.signal });
   root.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); void run(page, () => flushEditor(page)); }
   });

@@ -165,8 +165,8 @@ export async function prepareAppearance({ snapshot, stylesheet }: AppearanceProj
     page.body.append(scope);
   }
   const sample = (() => {
-    try { return uiText.text("workbench.appearance-view.font-sample"); }
-    catch { return snapshot.locale.tag === "zh" ? "本周工作 Aa 123" : snapshot.locale.tag === "ja" ? "今週の作業 Aa 123" : "Work Aa 123"; }
+    try { return uiText.text("common.appearance.font-sample"); }
+    catch { return "Aa 123"; }
   })();
   try { await checkFonts(scope, sample); }
   finally { if (!canvas) scope.remove(); }

@@ -134,6 +134,8 @@ export function listen(page: TodoPage): void {
       } catch { await page.closeDetail(); }
     }).catch(() => undefined);
   });
+  const languageAbort = new AbortController();
+  window.addEventListener("pagehide", () => languageAbort.abort(), { once: true });
   document.addEventListener("molis-work:language-changed", () => {
     const batchProject = el.bench.querySelector<HTMLElement>('[data-todo-batch-placement="project"]');
     if (batchProject) batchProject.textContent = page.hereName();
@@ -147,7 +149,7 @@ export function listen(page: TodoPage): void {
       page.paintSave();
     }
     page.publishContext();
-  });
+  }, { signal: languageAbort.signal });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !state.dirtyKeys.size) void page.load().catch(() => undefined); });
   window.setInterval(() => { if (!document.hidden && !el.bench.hidden) void page.loadReminders().catch(() => undefined); }, 60000);
   window.addEventListener("beforeunload", (event) => { if (state.dirtyKeys.size || state.saving) { event.preventDefault(); event.returnValue = ""; } });

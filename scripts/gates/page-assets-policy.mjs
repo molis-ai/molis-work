@@ -5,7 +5,6 @@ import { LOCALES } from "../first-screen/host.mjs";
 
 export const VISITS = ["cold", "warm"];
 export const BUDGETS_FILE = "tooling/gates/page-asset-budgets.json";
-export const RETIRED_ALLOWANCES_DIR = "tooling/gates/page-asset-allowances/";
 
 const ASSET_PATH = /^\/(?:assets|desktop)\/[^\s?#]+$/;
 

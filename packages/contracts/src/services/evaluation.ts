@@ -3,12 +3,11 @@ import { inputSchemaFor } from "../platform/action-input.js";
 import { closedObjectSchema } from "../platform/closed-object-schema.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import {
-  OBSERVATION_ENTRIES,
   OBSERVATION_LIMITS,
   OBSERVATION_OUTCOMES,
-  OBSERVATION_RECORD_KINDS,
+  OBSERVATION_QUERY_FIELDS,
   OBSERVATION_SOURCE_CLASSES,
-} from "./observation.js";
+} from "./observation-types.js";
 import {
   EVALUATION_EXECUTION_KINDS,
   EVALUATION_OPPORTUNITY_POSTURES,
@@ -53,31 +52,7 @@ const nullableToken = { type: ["string", "null"], maxLength: OBSERVATION_LIMITS.
 const shortText = { type: "string", minLength: 1, maxLength: 2048 } as const;
 const versionValue = { type: ["string", "integer"], maxLength: OBSERVATION_LIMITS.ref_text } as const;
 
-const QUERY_FILTER_SCHEMA = closedObjectSchema({
-  project_id: nullableToken,
-  all_projects: { type: "boolean" },
-  work_ref: token,
-  call_id: token,
-  invocation_id: token,
-  runtime_session_id: token,
-  run_id: token,
-  subject: closedObjectSchema({ kind: token, id: token, version: versionValue }, ["kind"]),
-  fact: { type: "string", minLength: 1, maxLength: OBSERVATION_LIMITS.fact_name },
-  owner_kind: { enum: ["plugin", "service", "shell"] },
-  owner_id: token,
-  entry: { enum: OBSERVATION_ENTRIES },
-  actor_id: token,
-  outcomes: { type: "array", items: { enum: OBSERVATION_OUTCOMES } },
-  source_classes: { type: "array", items: { enum: OBSERVATION_SOURCE_CLASSES } },
-  include_simulated: { type: "boolean" },
-  kinds: { type: "array", items: { enum: OBSERVATION_RECORD_KINDS } },
-  since: { type: "string" },
-  until: { type: "string" },
-  platform_version: token,
-  after_seq: { type: "integer", minimum: 0 },
-  limit: { type: "integer", minimum: 1, maximum: 500 },
-  resolve_subjects: { type: "boolean" },
-}, []);
+const QUERY_FILTER_SCHEMA = closedObjectSchema(OBSERVATION_QUERY_FIELDS, []);
 
 const DETERMINISTIC_RULE_SCHEMA = closedObjectSchema({
   check: {

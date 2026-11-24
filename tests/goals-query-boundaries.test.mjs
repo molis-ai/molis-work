@@ -135,6 +135,7 @@ test("W3-07-4-01 / APR-17: MCP keeps registered Goals actions and uses the commo
 test("APR-17 the same standalone port pins the original action client, project, evidence and cancellation", () => {
   const source = read("apps/local-host/src/management-action-client.ts");
   assert.deepEqual(checkStandaloneManagementPort(source), []);
+  assert.deepEqual(checkStandaloneManagementPort(source.replace(/\bname\b/gu, "operation")), [], "a local operation binding can be renamed");
   // The command line's review port has some of the same lines; each mutation edits the management MCP's port.
   const at = source.indexOf("export function bindStandaloneManagementActions");
   const within = (from, to) => source.slice(0, at) + source.slice(at).replace(from, to);
@@ -155,6 +156,8 @@ test("APR-17 the same standalone port pins the original action client, project, 
 test("PEQ-15 H6 the command line's port refuses everything but the review operations and binds no Goals port", () => {
   const source = read("apps/local-host/src/management-action-client.ts");
   assert.deepEqual(checkStandaloneReviewPort(source), []);
+  const renamed = source.replace(/\bname\b/gu, "operation").replace(/\bevidence\b/gu, "sourceEvidence");
+  assert.deepEqual(checkStandaloneReviewPort(renamed), [], "parameter and local names can change while the same values reach the checks");
   for (const [from, to] of [
     ['if (!name) throw new ActionError("actions.forbidden", "命令行只提供平台的审阅操作");', "void name;"],
     ['if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");\n  return name;', "return name;"],

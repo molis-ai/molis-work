@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
-import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { backgroundPlugin } from "./fixtures/home-background-plugin.js";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
+import { CODING_BOX, CODING_OPEN } from "./fixtures/coding-composer.js";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl, shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 
@@ -175,6 +177,32 @@ test("MLN-06 WLN-20: returning to an item's event restores its conversation, dra
   await browser.reloadPage();
   await waitFor(aboutTask);
   await waitFor(`${INPUT}.value === '再确认落款日期' && ${INPUT}.selectionDirection === 'backward'`);
+
+  // A page with its own receiver saves words with their business owner. The workspace restores the editor over that same tab.
+  const db = new LocalProjectDatabase(browser.databasePath);
+  const sessionId = "item-contract-coding";
+  try {
+    await codingSessions(db).create(noEffect, { project_id: projectId, session_id: sessionId, title: "合同代码", runtime_id: "prologue", at: new Date().toISOString() });
+  } finally { db.close(); }
+  await web.post(api + "holds/bind", { subject: { kind: "coding_session", id: sessionId }, target: { kind: "work_item", id: first } });
+  const url = browser.origin + "/projects/" + projectId + "/?openObject=coding_session&openItem=" + sessionId;
+  await browser.navigate(() => browser.command("Page.navigate", { url }, browser.sessionId));
+  const coding = `${CODING_OPEN} && globalThis.molisBarReceivers.front()?.options.receiver()?.label === '合同代码'`;
+  await waitFor(coding);
+  await click(CODING_BOX);
+  await browser.command("Input.insertText", { text: "先核对这两行代码" }, browser.sessionId);
+  await evaluate(`${INPUT}.setSelectionRange(1, 4, 'backward')`);
+  await selectItem(second, "另一件事");
+  await waitFor(`${INPUT}.value === '' && !(${coding})`);
+  await selectItem(first, "合同事项");
+  const restored = async () => {
+    await waitFor(coding);
+    await waitFor(`${INPUT}.value === '先核对这两行代码'`);
+    await waitFor(`${INPUT}.selectionStart === 1 && ${INPUT}.selectionEnd === 4 && ${INPUT}.selectionDirection === 'backward'`);
+  };
+  await restored();
+  await browser.reloadPage();
+  await restored();
 });
 
 test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13 POLISH-66: a press on an event turns the conversation to it (its line, the placeholder, the row marked) and opens its page at the top, with its composed card in the information column, its own draft, and words sent for it", { timeout: 150_000 }, async t => {
@@ -559,6 +587,13 @@ test("WLN-09 WLN-14: an event's card lists the tasks done for it; parked in the 
   await evaluate(press(PRESS));
   const CARD = `document.querySelector('[data-assistant-event-card] [data-event-card=${JSON.stringify(KEY)}]')`;
   await waitFor(`${CARD}?.querySelector('[data-card-body]')?.textContent.includes('给王总回电话')`, 15_000);
+  // A duplicate title chip is hidden in this card. Refresh the owner's actual presentation while the card stays open.
+  const owner = openTodoStore(homeDirectory);
+  try {
+    owner.update(item.id, { title: "给王总回电话（已确认）" }, item.revision, { projectId, projectIds: [], actor: "user", actorId: "test" });
+  } finally { owner.close(); }
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:plugins-changed'))");
+  await waitFor(`${CARD}?.querySelector('[data-card-body]')?.textContent.includes('给王总回电话（已确认）')`, 15_000);
   // Who registered it, then how it stands; no task yet, so nothing handed out is listed.
   assert.match(String(await evaluate(`${CARD}.querySelector('.work-card-facts').textContent`)), /^待办/u);
   assert.equal(await evaluate(`${CARD}.querySelector('[data-card-tasks]').hidden`), true);
@@ -578,7 +613,7 @@ test("WLN-09 WLN-14: an event's card lists the tasks done for it; parked in the 
   const SIDE = `document.querySelector('[data-side-body="conversation"] [data-event-card=${JSON.stringify(KEY)}]')`;
   await waitFor(`${SIDE} && !document.querySelector('[data-side-body="conversation"]').hidden && document.querySelector('[data-assistant-panel]').hidden`, 15_000);
   assert.equal(await evaluate("document.querySelector('[data-side-tab=\"conversation\"]').hidden"), false, "the page is offered while a card is parked");
-  await waitFor(`${SIDE}.querySelector('[data-card-name] strong')?.textContent === '给王总回电话' && ${SIDE}.querySelector('[data-card-body]')?.textContent.includes('给王总回电话') && ${SIDE}.querySelector('[data-card-tasks] .work-task-row-title')?.textContent === '先问预算'`, 15_000);
+  await waitFor(`${SIDE}.querySelector('[data-card-name] strong')?.textContent === '给王总回电话（已确认）' && ${SIDE}.querySelector('[data-card-body]')?.textContent.includes('给王总回电话') && ${SIDE}.querySelector('[data-card-tasks] .work-task-row-title')?.textContent === '先问预算'`, 15_000);
   assert.equal(await evaluate(`(() => { const box = ${SIDE}.getBoundingClientRect(), side = document.querySelector('[data-side-panel]').getBoundingClientRect(); return box.left >= side.left && box.right <= side.right + 1 && ${SIDE}.scrollWidth <= ${SIDE}.clientWidth + 1; })()`), true, "the card fits the side panel");
   await writeFile(new URL("event-card-parked-1440.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   // A row pressed there opens that task's card in the background-task panel, as in the dialog.
@@ -590,11 +625,11 @@ test("WLN-09 WLN-14: an event's card lists the tasks done for it; parked in the 
   // name comes back only from the line.
   assert.doesNotMatch(String(await evaluate(`Object.keys(localStorage).filter(key => key.startsWith('molis.work-line.parked:')).map(key => localStorage.getItem(key)).join('')`)), /给王总回电话/u);
   await navigate(() => command("Page.reload", {}, sessionId));
-  await waitFor(`${SIDE}?.querySelector('[data-card-name] strong')?.textContent === '给王总回电话' && ${SIDE}.querySelector('[data-card-tasks] .work-task-row-title')?.textContent === '先问预算'`, 25_000);
+  await waitFor(`${SIDE}?.querySelector('[data-card-name] strong')?.textContent === '给王总回电话（已确认）' && ${SIDE}.querySelector('[data-card-tasks] .work-task-row-title')?.textContent === '先问预算'`, 25_000);
 
   // Back in the conversation: about the event again, and nothing left parked.
   await evaluate(`${SIDE}.querySelector('[data-event-unpark]').click()`);
-  await waitFor(`${ABOUT} === '给王总回电话' && !document.querySelector('[data-assistant-panel]').hidden && !${SIDE}`);
+  await waitFor(`${ABOUT} === '给王总回电话（已确认）' && !document.querySelector('[data-assistant-panel]').hidden && !${SIDE}`);
   await waitFor(`${CARD}?.querySelector('[data-card-tasks] .work-task-row-title')?.textContent === '先问预算'`, 15_000);
   assert.equal(await evaluate("document.querySelector('[data-side-parked]').dataset.empty"), "true");
   assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "no sideways scroll");

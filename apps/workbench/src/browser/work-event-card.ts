@@ -53,7 +53,14 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
     const facts = slot.querySelector<HTMLElement>(".work-card-facts")!, tasks = slot.querySelector<HTMLElement>("[data-card-tasks]")!, decisions = slot.querySelector<HTMLElement>("[data-card-decisions]")!;
     const askTitle = slot.querySelector<HTMLElement>("[data-card-ask-title]");
     const ask = slot.querySelector<HTMLElement>("[data-card-ask]")!, askBody = slot.querySelector<HTMLElement>("[data-card-ask-body]")!, now = slot.querySelector<HTMLElement>(".work-card-now")!;
-    const objects = card.composed ? host.positions?.()?.mount(slot.querySelector<HTMLElement>("[data-card-body]")!, ((body, signal) => host.positionRead!("/api/mainline/event/surfaces", body, signal)) as Parameters<PositionViews["mount"]>[1], { source: () => ({ subject: card.subject }) }) : undefined;
+    const objects = card.composed ? host.positions?.()?.mount(slot.querySelector<HTMLElement>("[data-card-body]")!, ((body, signal) => host.positionRead!("/api/mainline/event/surfaces", body, signal)) as Parameters<PositionViews["mount"]>[1], {
+      source: () => ({ subject: card.subject }), visibilityRoot: slot,
+      // A title-only chip is hidden when the card already names the event. Its next owner read can supply a fuller display.
+      onPaint: () => {
+        composed = true;
+        paint();
+      },
+    }) : undefined;
     const name = slot.querySelector<HTMLElement>("[data-card-name]"), gone = new AbortController();
     const accepting = line.acceptance(slot.querySelector<HTMLElement>("[data-card-acceptance]")!, card.subject);
     const result = slot.querySelector<HTMLElement>("[data-card-result]")!, body = slot.querySelector<HTMLElement>("[data-card-body]")!;

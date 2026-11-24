@@ -285,7 +285,11 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const shown = () => json([receiverNow().label, Boolean(getWork()), deliveryNow(), controlsNow().map((one) => [one.id, one.label, one.value, one.options])]);
   const assistantInputName = () => attr(input, "aria-label", words.input);
   let refreshComposerWords = assistantInputName;
+  // A framed composer can remount in the same object tab. Keep the tab identity only for restoring its editor.
+  let mountedEditor = null;
   const mountPage = (target) => {
+    const tab = target.itemTabId();
+    mountedEditor = tab ? "tab:" + tab : null;
     mountedFor = target.key; boundPage = target; draftHere = null; painted = "";
     island.dataset.receiver = "page"; drawHead(); input.readOnly = false; input.placeholder = target.placeholder;
     // The page's own words, with the bar's where it gave none; its options are read live (getters kept), only the words are filled.
@@ -346,14 +350,24 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   });
   pillObserver.observe(compose, { childList: true, subtree: true });
   // The draft text already belongs to its receiver. Keep only the local editor position and an unsent choice of recipient.
-  let returningEditor = null;
+  function savedItemEditor() {
+    try { return currentWorkItem ? JSON.parse(store.get(scoped("item-editor"))) : null; } catch { return null; }
+  }
+  function restoreItemEditor() {
+    const editor = savedItemEditor();
+    if (editor && editor.mount === mountedEditor) {
+      input.setSelectionRange(editor.start, editor.end, editor.direction);
+      input.scrollTop = editor.top;
+    }
+  }
+  input.addEventListener("molis-work:composer-draft-restored", restoreItemEditor);
   function rememberItemEditor() {
-    if (!currentWorkItem || !mountedFor || boundPage) return;
-    store.set(scoped("item-editor"), JSON.stringify({ mount: mountedFor, start: input.selectionStart, end: input.selectionEnd,
-      direction: input.selectionDirection, top: input.scrollTop, recipient: !curId && talkDraft ? nextChar : undefined }));
+    if (!currentWorkItem || !mountedEditor) return;
+    store.set(scoped("item-editor"), JSON.stringify({ mount: mountedEditor, start: input.selectionStart, end: input.selectionEnd,
+      direction: input.selectionDirection, top: input.scrollTop, recipient: !boundPage && !curId && talkDraft ? nextChar : undefined }));
   }
   // A window can close without pagehide. Keep the person's last selection while this input owns it.
-  const rememberFocusedEditor = () => { if (document.activeElement === input && !returningEditor) rememberItemEditor(); };
+  const rememberFocusedEditor = () => { if (document.activeElement === input) rememberItemEditor(); };
   input.addEventListener("select", rememberFocusedEditor);
   input.addEventListener("scroll", rememberFocusedEditor);
   window.addEventListener("pagehide", rememberItemEditor);
@@ -364,8 +378,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     if (changed) rememberItemEditor();
     currentWorkItem = next;
     if (changed) {
-      try { returningEditor = next ? JSON.parse(store.get(scoped("item-editor"))) : null; } catch { returningEditor = null; }
-      nextChar = returningEditor?.recipient;
+      nextChar = savedItemEditor()?.recipient;
       talkDraft = roleKey(nextChar?.ref);
       itemScopeDismissed = false;
       fresh = false;
@@ -380,6 +393,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   document.addEventListener("molis-work:language-changed", paintItemPill);
   function disposeWorkItemPill() {
     document.removeEventListener("molis-work:work-item-changed", onWorkItemChanged);
+    input.removeEventListener("molis-work:composer-draft-restored", restoreItemEditor);
     input.removeEventListener("select", rememberFocusedEditor);
     input.removeEventListener("scroll", rememberFocusedEditor);
     window.removeEventListener("pagehide", rememberItemEditor);
@@ -389,7 +403,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const mountComposer = () => {
     island.removeAttribute("data-receiver"); drawHead(); paintAim(false);
     refreshComposerWords = assistantInputName; refreshComposerWords();
-    mountedFor = curId || newDraftKey(); draftHere = draftFor(curId); painted = shown();
+    mountedEditor = mountedFor = curId || newDraftKey(); draftHere = draftFor(curId); painted = shown();
     composer = window.molisComposer(compose, { kind: "ai", entry: "assistant", labels: words, draft: { adapter: draftHere },
       receiver: receiverNow, delivery: deliveryNow, get controls() { return controlsNow(); }, get commands() { return commands(); },
       attachments: { accept: upload.accept, upload: (file) => upload.upload(file) }, onMaterials: () => paintMats(),
@@ -399,16 +413,8 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       submit: sendNow });
     const work = getWork(); composer.setRunning(Boolean(work && isLive(work.state)));
     paintItemPill();
-    const editor = returningEditor, mounted = composer;
-    void composer.ready?.().then(() => {
-      if (mounted !== composer) return;
-      if (editor && editor === returningEditor && editor.mount === mountedFor) {
-        returningEditor = null;
-        input.setSelectionRange(editor.start, editor.end, editor.direction);
-        input.scrollTop = editor.top;
-      }
-      paintItemPill();
-    }, () => {});
+    const mounted = composer;
+    void mounted.ready?.().then(() => { if (mounted === composer) paintItemPill(); }, () => {});
   };
   /** Keeps the composer on the receiver in front; redrawn only when what it shows changed, so a poll never closes its menu. */
   function syncComposer() {
@@ -416,7 +422,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     const page = pageInFront();
     // The person opened another receiver: the composer moves now, even with a Send on its way (its outcome is the Host's and the
     // thread's). A new work's first Send moving it to that work waits until the composer has settled the Send.
-    if (mountedFor !== (page ? page.key : curId || newDraftKey()) && !(sending && handedOver && !page)) {
+    if ((page ? boundPage !== page : mountedFor !== (curId || newDraftKey())) && !(sending && handedOver && !page)) {
       // Destroy flushes captured edits, including typing before the shared script arrived.
       composer?.destroy(); boundPage?.bind(null); boundPage = null;
       handedOver = false; closeSendTo(false);

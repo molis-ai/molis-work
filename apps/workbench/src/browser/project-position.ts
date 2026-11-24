@@ -11,7 +11,7 @@ export type PositionView = {
   paint(data: SurfaceHomeDisplay, index?: number): void; clear(): void; destroy(): void; expanded(): boolean; suspend(): void;
   recovery(): ReturnType<ReturnType<typeof createPositionCorrections>["recovery"]>; update(): Promise<void>;
 };
-type PositionOptions = { source(): Record<string, unknown>; group?: number; batched?: boolean; defaults?: boolean; headerOnly?: boolean; onNavigate?(): void };
+type PositionOptions = { source(): Record<string, unknown>; group?: number; batched?: boolean; defaults?: boolean; headerOnly?: boolean; visibilityRoot?: HTMLElement; onPaint?(): void; onNavigate?(): void };
 export type ReadPosition = <Result>(body: Record<string, unknown>, signal: AbortSignal) => Promise<Result>;
 export type PositionMount = (root: HTMLElement, read: ReadPosition, options: PositionOptions) => PositionView;
 export interface PositionHost {
@@ -27,6 +27,7 @@ export function createPositionViews(host: PositionHost) {
   let discussionObjects: ReturnType<typeof mountDiscussionObjects> | undefined;
   function mount(root: HTMLElement, read: ReadPosition, options: PositionOptions) {
     const { source, group = 0 } = options, doc = root.ownerDocument;
+    const onShow = () => root.isConnected && visible(options.visibilityRoot ?? root);
     const markup = new WeakMap<Element, string>(), controls = new Map<string, HomeControl>();
     let reading: AbortController | undefined, clicking: AbortController | undefined, data: SurfaceHomeDisplay | undefined;
     let expanded = false, dirty = true, destroyed = false;
@@ -41,6 +42,7 @@ export function createPositionViews(host: PositionHost) {
       const { html, overflow } = renderPositionGroup(value, index, controls, undefined, corrections.rendering(value));
       reconcileSurfaceRows(root, html + (overflow ? homeButton("expand", uiText.text("workbench.position.more", { count: overflow })) : ""), markup);
       corrections.afterPaint();
+      options.onPaint?.();
       void peek.refresh();
     };
     const clear = () => {
@@ -48,13 +50,13 @@ export function createPositionViews(host: PositionHost) {
       controls.clear(); data = undefined; corrections.clear(); root.replaceChildren(); dirty = true; peek.close();
     };
     const update = async (force = true) => {
-      if (destroyed || !visible(root) || (!force && (!dirty || reading))) return;
+      if (destroyed || !onShow() || (!force && (!dirty || reading))) return;
       reading?.abort(); peek.scrub();
       const task = reading = new AbortController();
       try {
         const recovery = corrections.recovery();
         const value = await read<SurfaceHomeDisplay>({ ...source(), ...(expanded ? { expanded: true } : {}), ...(recovery ? { recovery } : {}) }, task.signal);
-        if (task.signal.aborted || reading !== task || !visible(root)) return;
+        if (task.signal.aborted || reading !== task || !onShow()) return;
         const expand = root.querySelector<HTMLElement>('[data-home-control="expand"]');
         const following = expand === doc.activeElement ? root.querySelectorAll("[data-home-row]").length : -1;
         paint(value); dirty = false;
@@ -96,7 +98,7 @@ export function createPositionViews(host: PositionHost) {
       }
     };
     root.addEventListener("click", onClick); root.addEventListener("keydown", keydown);
-    const entry = { paint, update, clear, recovery: corrections.recovery, expanded: () => expanded, suspend, invalidate() { dirty = true; if (visible(root)) void update(); else clear(); },
+    const entry = { paint, update, clear, recovery: corrections.recovery, expanded: () => expanded, suspend, invalidate() { dirty = true; if (onShow()) void update(); else clear(); },
       destroy() { destroyed = true; clear(); peek.destroy(); root.removeEventListener("click", onClick); root.removeEventListener("keydown", keydown); mounts.delete(entry); } };
     if (!options.batched) mounts.add(entry);
     return entry;

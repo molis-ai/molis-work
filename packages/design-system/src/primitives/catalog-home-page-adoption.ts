@@ -37,7 +37,7 @@ export const HOME_PAGE_ADOPTION_BOARD_STYLES = HOME_PAGE_ADOPTION_STYLES + `
 function sampleChecks(say: Say, kind: "passed" | "failed" | "conflict" | "dep-off"): CheckSummaryItem[] {
   const c = (key: string) => say(`workbench.catalog-home-adoption.${key}`);
   const items: CheckSummaryItem[] = [
-    { state: kind === "failed" ? "blocked" : "done", text: c(kind === "failed" ? "check-public-failed" : "check-public-ok") },
+    { state: kind === "failed" ? "failed" : "done", text: c(kind === "failed" ? "check-public-failed" : "check-public-ok") },
     { state: "done", text: c("check-sandbox-ok") },
     { state: "done", text: c("check-scope-ok") },
     { state: "done", text: c("check-layout-ok") },
@@ -59,7 +59,7 @@ function compareAdoptBarSection(say: Say): string {
     primary: renderButton({ label: c("adopt-ellipsis"), variant: "primary", size: "sm", key: "↵" }),
   }));
   const failed = frame(renderCompareAdoptBar({
-    summary: renderCheckSummary({ id: "board-cmp-failed", label: c("status-failed"), tone: "blocked", state: "blocked", items: sampleChecks(say, "failed") }),
+    summary: renderCheckSummary({ id: "board-cmp-failed", label: c("status-failed"), tone: "blocked", state: "failed", items: sampleChecks(say, "failed") }),
     actions: discard,
     primary: renderButton({ label: c("adopt-ellipsis"), variant: "primary", size: "sm", key: "↵", disabled: true, attrs: { title: c("adopt-disabled-check") } }),
   }));
@@ -80,7 +80,7 @@ function checkSummarySection(say: Say): string {
   const c = (key: string) => say(`workbench.catalog-home-adoption.${key}`);
   const statesRow = `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">${[
     renderCheckSummary({ id: "board-chk-passed", label: c("status-passed"), tone: "done", state: "done", placement: "down", items: sampleChecks(say, "passed") }),
-    renderCheckSummary({ id: "board-chk-failed", label: c("status-failed"), tone: "blocked", state: "blocked", placement: "down", items: sampleChecks(say, "failed") }),
+    renderCheckSummary({ id: "board-chk-failed", label: c("status-failed"), tone: "blocked", state: "failed", placement: "down", items: sampleChecks(say, "failed") }),
     renderCheckSummary({ id: "board-chk-conflict", label: c("status-conflict"), tone: "attention", state: "conflict", placement: "down", items: sampleChecks(say, "conflict") }),
     renderCheckSummary({ id: "board-chk-dep", label: c("status-dep-off"), tone: "hold", state: "waiting", placement: "down", items: sampleChecks(say, "dep-off") }),
   ].join("")}</div>`;
@@ -110,7 +110,7 @@ function editConflictSection(say: Say): string {
     nextLabel: c("conflict-next-label"),
     nextValue: c("conflict-next-value"),
     choices: [
-      { label: c("conflict-keep-mine"), variant: "primary" },
+      { label: c("conflict-keep-mine"), variant: "secondary" },
       { label: c("conflict-use-new"), variant: "secondary" },
       { label: c("conflict-merge-edit"), variant: "ghost" },
     ],

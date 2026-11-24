@@ -15,7 +15,7 @@ import { restrictTaskGrant, taskGrantHostPorts, taskGrantSubjects } from "./task
 import { assistantActionPolicyView, writeAssistantActionPolicy } from "./assistant/assistant-action-policy.js";
 import type { AssistantStore } from "./assistant/assistant-store.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { shippedParts } from "./plugin-registry.js";
 import { directoryWordResolver, drawRegisteredText, registeredInstallationText } from "./ui-text-provider.js";
 
 type McpGrant = McpToolPreference["action_grants"][number];
@@ -88,7 +88,7 @@ export async function authorizationOwnerTitles(host: MolisWorkLocalHost, project
   for (const { provider } of host.inspectActionMetadata({ actor_id: actor, project_id: project?.project_id ?? null, audience: "user", permissions: [] }, project)) {
     for (const id of [provider.provider_id, provider.plugin_id, provider.plugin_install_id]) if (id && provider.title) names.set(id, provider.title);
   }
-  for (const { manifest } of PLATFORM_PLUGIN_REGISTRATIONS) {
+  for (const { manifest } of shippedParts()) {
     names.set(manifest.plugin_id, drawRegisteredText(manifest, resolve => projectDirectoryWords({ ...manifest, ui: {} }, resolve).name));
   }
   const home = host.homePlugins;

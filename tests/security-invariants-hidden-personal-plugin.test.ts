@@ -29,6 +29,8 @@ const view = (projectPluginId: string): Pick<ActionView, "provider"> => {
   const pluginId = entry(projectPluginId).manifest.plugin_id;
   return { provider: { provider_id: pluginId, plugin_id: pluginId, title: projectPluginId, kind: "plugin" } };
 };
+// Shelf is a platform part (44B): no catalog entry, the same id in every project.
+const SHELF_VIEW: Pick<ActionView, "provider"> = { provider: { provider_id: "system.shelf", plugin_id: "system.shelf", title: "shelf", kind: "plugin" } };
 const callerIn = (projectId: string | null): ActionCallContext => ({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: [] });
 const projectPlugins = (projectId: string) => `/api/settings/projects/${encodeURIComponent(projectId)}/plugins`;
 const hide = async (home: TestHome, project: TestProject, plugin: string) => home.web.delete(projectPlugins(project.project_id), { plugin_id: plugin, expected_revision: await projectPluginRevision(home.web, project.project_id) });
@@ -61,19 +63,19 @@ test("RAC-580 S-72 a personal plugin the project hides is not reached through a 
   assert.deepEqual([...availableProjectPluginIds(["embedding"], [embeddedProjectPlugin, goals])].sort(), ["embedding", "goals"]);
 });
 
-test("RAC-580 S-72 an always-on plugin stays in reach because the project's catalog never lists it as hidden (the Home's agreement); the reach list holds no name of it", async t => {
+test("RAC-580 S-72 Shelf, a platform part, stays in reach whatever the project hid; the reach list holds no name of it", async t => {
   const home = await openTestHome(t, { catalogPolicy: false });
-  const project = await home.createProject("Always on", ["goals"]);
+  const project = await home.createProject("Platform part", ["goals"]);
   await hide(home, project, "pages");
   const listed = await home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog)({ homeDirectory: home.home }, catalog => {
     const { plugins, hidden } = catalog.projectPluginMembership(project.project_id);
     return { enabled: plugins, hidden };
   });
-  assert.deepEqual(listed.hidden, ["pages"], "what the person hid is listed, and a 常开 plugin is never among it");
+  assert.deepEqual(listed.hidden, ["pages"], "what the person hid is listed");
   const shown = shownProjectPlugins(listed.enabled, listed.hidden);
-  assert.ok(shown.includes("shelf") && !shown.includes("pages"));
+  assert.ok(!shown.includes("shelf") && !shown.includes("pages"), "Shelf is no project plugin, so the list never names it");
   const availability = projectActionAvailability(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), home.home);
-  assert.deepEqual(await availability(callerIn(project.project_id), view("shelf")), { available: true });
+  assert.deepEqual(await availability(callerIn(project.project_id), SHELF_VIEW), { available: true });
   assert.equal((await availability(callerIn(project.project_id), view("pages"))).available, false);
 });
 
@@ -89,9 +91,11 @@ test("RAC-580 S-72 the availability both the action directory and discovery use 
   };
   assert.deepEqual(await states(callerIn(hiding.project_id), "pages"), { live: refused, snapshot: refused });
   assert.deepEqual(await states(callerIn(showing.project_id), "pages"), { live: { available: true }, snapshot: { available: true } });
-  // Shelf is shown in every project whatever was hidden, and the person cannot hide it.
-  await assert.rejects(hide(home, hiding, "shelf"), { status: 400, code: "catalog.plugin_always_on" });
-  assert.deepEqual(await states(callerIn(hiding.project_id), "shelf"), { live: { available: true }, snapshot: { available: true } });
+  // Shelf is a platform part: there is no project plugin of that name to hide, and it is reached whatever was hidden.
+  await assert.rejects(hide(home, hiding, "shelf"), { status: 400, code: "catalog.plugin_not_found" });
+  const shelfDiscovery = await availability.snapshotForDiscovery(callerIn(hiding.project_id));
+  assert.deepEqual({ live: await availability(callerIn(hiding.project_id), SHELF_VIEW), snapshot: shelfDiscovery(callerIn(hiding.project_id), SHELF_VIEW) },
+    { live: { available: true }, snapshot: { available: true } });
   // A plugin the catalog does not know (a runtime-installed one) is not this list's to decide.
   const unknown = { provider: { provider_id: "io.example.unknown", plugin_id: "io.example.unknown", title: "Unknown", kind: "plugin" as const } };
   assert.deepEqual(await availability(callerIn(hiding.project_id), unknown), { available: true });

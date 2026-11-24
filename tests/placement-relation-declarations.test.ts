@@ -24,7 +24,7 @@ test("RAC-634 CD-02 Goals' five 「挂到…」 parts declare the Goal relation,
   const parts = goalsRelation.map(definition => definition.action.placement_relation);
   assert.deepEqual(parts.map(part => part?.role), [...PLACEMENT_RELATION_ROLES]);
   assert.ok(parts.every(part => part?.relation === "goal"));
-  assert.deepEqual(parts[0]?.target, { kind: "goal", noun: "Goal", noun_text: { key: "goals.attach.noun" } }, "the list part names the other end, with its language key");
+  assert.deepEqual(parts[0]?.target, { kind: "goal", noun: "Goal", noun_text: { key: "goals.attach.noun" }, open_view: "work" }, "the list part names the other end, with its language key and the view it opens in (M3)");
   assert.ok(goalsRelation.every((definition, index) => isPlacementRelationPart(definition.action, PLACEMENT_RELATION_ROLES[index]!)), "each in the shape placement calls");
   assert.ok(goalsRelation.every(definition => definition.action.subject_kinds.length === 0 && definition.action.audiences.join() === "user"),
     "any object the person can read may be attached, by the person; agents use Goals' own actions");

@@ -543,7 +543,7 @@ test("RAC-194 an owner the platform registers itself is refused instructions fro
   withDirectory(async directory => {
     // A second source for such an owner would blend into the platform's row in the register: the assistant's Agent, Plugin Builder's
     // Agents and questions (PG-051 Q2).
-    for (const owner of ["io.molis.work.assistant", "io.molis.work.plugin-builder"]) {
+    for (const owner of ["system.assistant", "io.molis.work.plugin-builder"]) {
       const item = platformIn(directory), shadow = probe({ pluginId: owner });
       try {
         const refused = await item.platform.start([{ definition: shadow.definition, ...GRANTED }]);

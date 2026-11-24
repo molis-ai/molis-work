@@ -44,8 +44,8 @@ test('VG-21 both sealed formats keep the prefix they always had, and what they s
   assert.equal(Buffer.from(local.open(Buffer.from(storedBy(prefix, localKey, localAad, '存量正文')), binding)).toString('utf8'), '存量正文');
 
   const search = createSearchAead(), key = randomBytes(32), aad = Buffer.from('search-entry');
-  assert.ok((await search.seal({ key, aad, plaintext: Buffer.from('搜索') })).startsWith('molis-work-feed-aead-v1.'));
-  assert.equal(Buffer.from(await search.open({ key, aad, encrypted: storedBy('molis-work-feed-aead-v1', key, aad, '存量搜索') })).toString('utf8'), '存量搜索');
+  assert.ok((await search.seal({ key, aad, plaintext: Buffer.from('搜索') })).startsWith('molis-work-opaque-aead-v1.'));
+  assert.equal(Buffer.from(await search.open({ key, aad, encrypted: storedBy('molis-work-opaque-aead-v1', key, aad, '存量搜索') })).toString('utf8'), '存量搜索');
 });
 
 test('S-109 PCSYNC-23 protected outbox, conflicts and recovery bodies round-trip without persisting plaintext', t => {

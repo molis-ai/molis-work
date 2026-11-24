@@ -9,7 +9,7 @@ import { isDeepStrictEqual } from "node:util";
 import { judgmentRecommendationKeys, subjectOfferCompatibilityReason } from "@molis-ai/molis-work-kernel";
 import { ActionError, exactActionView, requireSynchronous, ACTION_SUBJECT_SCHEMA, resolveActionSubject, type ActionSubject, retainActionAuthority, type ActionExecutionContext, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference,
   type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { HOME_DOCK_SCENE_ID, INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { HOME_DOCK_SCENE_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { homePageActions } from "@molis-ai/molis-work-contracts/services/home";
 import { homePageActionHandlers, type HomePagesPorts } from "@molis-ai/molis-work-service-home";
 import { publishedFunctionAction, publishedFunctionKey, type FunctionsActionPorts } from "@molis-ai/molis-work-module-judgment-rules";
@@ -42,7 +42,9 @@ export const homeDockScene: ActionSceneDefinition = {
   input_schema: { type: "object", properties: { content: { type: "string", minLength: 1, maxLength: 8000 } }, required: ["content"], additionalProperties: false },
   result_type: /* @version type.molis.behavior-recommendation "molis.behavior-recommendation.v{version}" */ "molis.behavior-recommendation.v1", recommendation_source: "subject-offers",
   default_rule: { function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY, name: "首页事项处理建议", instructions: "根据事项原文，在当前可用动作中推荐完成或忽略，由用户决定是否执行。",
-    subject_kinds: ["inbox_entry"], options: [{ key: INBOX_DONE_OPTION_ID, description: "做完了" }, { key: INBOX_DISMISS_OPTION_ID, description: "忽略" }] },
+    // The out-of-the-box Home rule judges the waiting items a plugin offers "done" and "dismiss" on; which plugin contributes the rule
+    // instead of the Home naming its option ids is BL-b44-home-dock-default-rule.
+    subject_kinds: ["inbox_entry"], options: [{ key: "inbox.done", description: "做完了" }, { key: "inbox.dismiss", description: "忽略" }] },
   // The shared scene service checks the rule's complete finite set against the
   // current declared choices. The consumer checks actual object inputs as well.
   result_schema: { type: "object", properties: { status: { enum: ["ok", "needs_review"] },

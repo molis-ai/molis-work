@@ -597,7 +597,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     for (const plugin of ["goals", "inbox", "feed", "artifacts"]) {
       assert.match(pluginStrip, new RegExp(`data-plugin-id="${plugin}"`));
     }
-    assert.doesNotMatch(pluginStrip, /data-plugin-id="shelf"/, "Shelf is a 常开插件, a tab of the side panel, not an entry of the switcher");
+    assert.doesNotMatch(pluginStrip, /data-plugin-id="shelf"/, "Shelf is a platform part, a tab of the side panel, not an entry of the switcher");
     assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"/);
     // No rail (WLN-16, 第 32 批): the top strip carries the Dock, the open tabs and the ＋ that opens the start page (search,
     // the two buttons that get more plugins, every plugin with its own Dock button), then the person's own tray, the side's

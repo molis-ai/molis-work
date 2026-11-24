@@ -4,9 +4,9 @@ import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 import { withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import {
-  INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, SYSTEM_INBOX_ADMIT_FUNCTION_KEY, SYSTEM_INBOX_NEXT_FUNCTION_KEY,
-} from "@molis-ai/molis-work-contracts/modules/functions";
+import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
+import { SYSTEM_INBOX_ADMIT_FUNCTION_KEY } from "@molis-ai/molis-work-plugin-feed";
+import { INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, SYSTEM_INBOX_NEXT_FUNCTION_KEY } from "@molis-ai/molis-work-plugin-inbox";
 import type { ActionSceneDefaultRule, ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";

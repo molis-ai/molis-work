@@ -27,7 +27,7 @@ test("every catalog connector has a valid Integration Manifest and identity URL"
     const parsed = parsePluginManifest(definition.manifest);
     const text = connectorText(definition);
     assert.equal(parsed.kind, "integration");
-    if (spec.id === "loom") assert.equal(spec.feed_available, false);
+    if (spec.id === "loom") assert.equal(spec.source_available, false);
     else assert.ok(text(spec.token_label).trim().length > 0, spec.id);
     assert.ok(text(spec.inbound).trim().length > 0, spec.id);
     assert.ok(spec.setup_links.length > 0, spec.id);

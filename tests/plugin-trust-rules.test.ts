@@ -64,30 +64,26 @@ test("RAC-385 the Host agrees for its own build and a person for every other ins
 
 test("RAC-384 the declarations that ask for consent are written one way, and a changed declaration is another subject", () => {
   const value = manifest({
-    always_on: true,
     ports: { inputs: [{ port: "docs", artifact_type_id: "doc", schema_version: 1, default_source: { plugin_id: "io.molis.work.pages", port: "doc" } }],
       input_groups: [{ group_id: "ask", title: "问一问", ports: ["docs"], default: true }, { group_id: "other", title: "别的", ports: ["docs"] }], outputs: [] },
   } as Partial<PluginManifest>);
   const signatureOf = (pluginId: string) => pluginId === "io.molis.work.pages" ? "pages-signature" : undefined;
   assert.deepEqual(declarationsNeedingConsent(value, signatureOf).map(({ kind, subject }) => [kind, subject]), [
-    ["always_on", "always_on"],
     ["default_wiring", "docs<-io.molis.work.pages:doc@pages-signature"],
     ["default_group", "ask"],
   ]);
   assert.equal(consentSubject.defaultWiring("docs", { plugin_id: "io.molis.work.pages", port: "doc" }, "pages-signature"), "docs<-io.molis.work.pages:doc@pages-signature");
-  assert.deepEqual(declarationsNeedingConsent(value, () => undefined).map(item => item.kind), ["always_on", "default_group"], "a wiring whose source cannot be named cannot be agreed to");
+  assert.deepEqual(declarationsNeedingConsent(value, () => undefined).map(item => item.kind), ["default_group"], "a wiring whose source cannot be named cannot be agreed to");
   assert.deepEqual(declarationsNeedingConsent(manifest(), signatureOf), []);
-  assert.deepEqual(hostBuildConsents(value, signatureOf).map(item => item.subject), ["always_on", "docs<-io.molis.work.pages:doc@pages-signature", "ask"]);
+  assert.deepEqual(hostBuildConsents(value, signatureOf).map(item => item.subject), ["docs<-io.molis.work.pages:doc@pages-signature", "ask"]);
 });
 
 test("RAC-384 a consent is accepted only for a declaration of this Manifest, exactly as written", () => {
-  const value = manifest({ always_on: true });
-  assertConsentsDeclared(value, [{ kind: "always_on", subject: "always_on" }]);
-  for (const grant of [{ kind: "always_on", subject: "always_on!" }, { kind: "default_group", subject: "always_on" }, { kind: "default_wiring", subject: "docs<-x:y@z" },
+  const value = manifest();
+  for (const grant of [{ kind: "always_on", subject: "always_on" }, { kind: "default_group", subject: "always_on" }, { kind: "default_wiring", subject: "docs<-x:y@z" },
     { kind: "local_directory", subject: "always_on" }]) {
     assert.throws(() => assertConsentsDeclared(value, [grant as never]), code("plugin.declaration_invalid"), JSON.stringify(grant));
   }
-  assert.throws(() => assertConsentsDeclared(manifest(), [{ kind: "always_on", subject: "always_on" }]), code("plugin.declaration_invalid"));
 });
 
 for (const storage of ["memory", "sqlite"] as const) test(`RAC-2645 RAC-2648 RAC-2649 ${storage} project approvals preserve independent history, copy arrays and replace atomically`, () => {
@@ -133,7 +129,7 @@ for (const storage of ["memory", "sqlite"] as const) test(`RAC-2645 RAC-2648 RAC
     (revoked.approved_capability_ids as string[]).push("mutated.after.revoke");
     assert.equal(ledger.consent(b.consent_id)!.revoked_at, "five");
     assert.deepEqual(ledger.consent(b.consent_id)!.approved_capability_ids, ids);
-    const ordinary = ledger.record({ plugin_id: entry.plugin_id, publisher_signature: KEY_ID, manifest_digest: "plain", granted_by: "host_build", at: "six", grants: [{ kind: "always_on", subject: "always_on" }] });
+    const ordinary = ledger.record({ plugin_id: entry.plugin_id, publisher_signature: KEY_ID, manifest_digest: "plain", granted_by: "host_build", at: "six", grants: [{ kind: "default_group", subject: "group" }] });
     assert.equal(ordinary[0]!.approved_capability_ids, null);
     assert.throws(() => ledger.record({ ...entry, granted_by: "host_build", grants: [{ kind: "project_reach", subject: first.subject }] } as never), code("plugin.state_invalid"));
   } finally { db.close(); }

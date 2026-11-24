@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_PROJECT_ACTIONS, SHELF_RUNTIME_ACTIONS, shelfActions as a } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_PROJECT_ACTIONS, SHELF_RUNTIME_ACTIONS, shelfActions as a } from "@molis-ai/molis-work-module-shelf/surface";
 import { createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, seedDemoHomeSamples, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
@@ -17,7 +17,7 @@ test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and
   const user: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS };
   const client = host.homeActionClient(), bound = bindActionClient(client, () => user);
   try {
-    const directory = (await client.discover(user)).filter(row => row.provider.plugin_id === "io.molis.work.shelf" && row.action.scope === "home");
+    const directory = (await client.discover(user)).filter(row => row.provider.plugin_id === "system.shelf" && row.action.scope === "home");
     const panel = directory.filter(row => !row.capability_id.startsWith("shelf.preferences."));
     assert.deepEqual(panel.map(row => row.capability_id).sort(), SHELF_ACTIONS.map(row => row.capability_id).sort());
     assert.ok(panel.every(row => row.action.scheduling === "concurrent"));
@@ -78,18 +78,19 @@ test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and
     await bound.invoke(a.hide, { item_id: item.item_id });
     assert.ok(!(await bound.invoke(a.list, {})).materials.some(row => row.item_id === item.item_id));
 
-    // In a project, the Runtime instance's project half redeems its own declared actions, the save-as-material pair among them.
+    // In a project, the one Home instance (Shelf is a platform part, 44B) serves its project actions for the project each call is for:
+    // the save-as-material pair and the Coding results it reads through the platform's Home artifact service.
     const database = join(home, "project.sqlite");
     seedDemoBoard(database);
     const project = molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID });
     const owner: ActionCallContext = { actor_id: "web-user", project_id: DEMO_PROJECT_ID, audience: "user", permissions: [...SHELF_ACTION_PERMISSIONS, "artifact:read", "artifacts:read", "artifacts:write", "storage:private", "actions:invoke"] };
-    const scoped = (await host.actionClient(project).discover(owner)).filter(row => row.provider.plugin_id === "io.molis.work.shelf" && row.action.scope === "project");
-    assert.ok(scoped.every(row => row.provider.plugin_install_id), "both halves are real Runtime installations");
-    const homeInstall = (await host.homePlugins!.ready()).runtime.list().find(row => row.plugin_id === "io.molis.work.shelf")!;
-    assert.deepEqual(scoped.filter(row => row.provider.plugin_install_id === homeInstall.install_id && !row.provider.project_id).map(row => row.capability_id).sort(), SHELF_PROJECT_ACTIONS.map(row => row.capability_id).sort());
-    const runtime = scoped.filter(row => row.provider.project_id === DEMO_PROJECT_ID);
-    assert.deepEqual(runtime.map(row => row.capability_id).sort(), SHELF_RUNTIME_ACTIONS.map(row => row.capability_id).sort());
-    assert.ok(runtime.every(row => row.availability.available));
+    const scoped = (await host.actionClient(project).discover(owner)).filter(row => row.provider.plugin_id === "system.shelf" && row.action.scope === "project");
+    assert.ok(scoped.every(row => row.provider.plugin_install_id), "a real Runtime installation");
+    const homeInstall = (await host.homePlugins!.ready()).runtime.list().find(row => row.plugin_id === "system.shelf")!;
+    assert.deepEqual(scoped.filter(row => row.provider.plugin_install_id === homeInstall.install_id && !row.provider.project_id).map(row => row.capability_id).sort(),
+      [...SHELF_PROJECT_ACTIONS, ...SHELF_RUNTIME_ACTIONS].map(row => row.capability_id).sort());
+    assert.deepEqual(scoped.filter(row => row.provider.project_id), [], "no project half: there is one Shelf");
+    assert.ok(scoped.every(row => row.availability.available));
     // Owner-bound: another identity cannot read results into this person's Shelf.
     const other = await host.actionClient(project).discover({ ...owner, actor_id: "runtime:other", audience: "mcp" });
     assert.ok(other.filter(row => row.capability_id === "shelf.results.list").every(row => !row.availability.available));

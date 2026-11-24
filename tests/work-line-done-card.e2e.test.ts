@@ -29,7 +29,7 @@ test("WLN-11: a done event's card shows what came of it in its owner's words, �
   plugin.state.events = () => ({ source: { surface: "example", title: "示例", icon: "list" }, events: [done] });
   // What 「放到 Shelf」 posts, as the page posted it.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.__shelved = []; (() => { const real = window.fetch; window.fetch = function (input, init) {
-    try { const url = typeof input === 'string' ? input : input.url; if (/\\/api\\/mainline\\/shelve$/.test(new URL(url, location.href).pathname) && init && typeof init.body === 'string') window.__shelved.push(JSON.parse(init.body)); } catch {}
+    try { const url = typeof input === 'string' ? input : input.url; if (/\\/api\\/mainline\\/receive$/.test(new URL(url, location.href).pathname) && init && typeof init.body === 'string') window.__shelved.push(JSON.parse(init.body)); } catch {}
     return real.apply(this, arguments); }; })();` }, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -42,15 +42,25 @@ test("WLN-11: a done event's card shows what came of it in its owner's words, �
   await waitFor(`${ABOUT} === 'event:homebg_item:b1'`);
   const CARD = "document.querySelector('[data-assistant-event-card] [data-event-card=\"homebg_item:b1\"]')";
   await waitFor(`${CARD} && !${CARD}.querySelector('[data-card-result]').hidden && ${CARD}.querySelector('.work-card-preview')?.textContent === '三档预算与对比表，附常见问题。'`, 15_000);
-  assert.deepEqual(await evaluate(`Array.from(${CARD}.querySelectorAll('[data-card-result] .mw-btn')).map(button => [button.textContent.trim(), button.disabled])`), [["打开", false], ["放到 Shelf", false]]);
+  assert.deepEqual(await evaluate(`Array.from(${CARD}.querySelectorAll('[data-card-result] .mw-btn')).map(button => [button.textContent.trim(), button.disabled])`), [["打开", false], ["放到 Shelf", false], ["放到…", false]]);
+  // M4: the demo project's plugins that declare a receive station are one 「放到…」 menu under the row; Shelf is not in it again.
+  await click("[data-assistant-event-card] [data-event-receive-more]");
+  await waitFor(`${CARD}.querySelector('[data-event-receive-menu]') && ${CARD}.querySelector('[data-event-receive-more]').getAttribute('aria-expanded') === 'true'`, 5_000);
+  const menu = await evaluate<string[]>(`Array.from(${CARD}.querySelectorAll('[data-event-receive-menu] [data-event-receive]')).map(item => item.dataset.eventReceive)`);
+  assert.ok(menu.length > 0 && !menu.includes("shelf"), `the menu holds the plugins' stations: ${menu.join(", ")}`);
+  await click("[data-assistant-event-card] [data-event-receive-more]");
+  await waitFor(`!${CARD}.querySelector('[data-event-receive-menu]')`, 5_000);
   assert.equal(await evaluate(`${CARD}.querySelector('[data-card-tasks]').hidden`), true, "nothing was done for it, so there is no process to fold");
   await mkdir(shots, { recursive: true });
   await writeFile(new URL("event-card-done-1440.png", shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
 
   // 放到 Shelf: Shelf's own action, as the person; what lands is the name, the words and the address that opens it again.
-  await click("[data-assistant-event-card] [data-event-shelve]");
-  await waitFor(`${CARD}.querySelector('[data-event-shelve]').textContent.trim() === '已放到 Shelf' && ${CARD}.querySelector('[data-event-shelve]').disabled`, 15_000);
-  const [shelved] = await evaluate<Array<{ title: string; text: string }>>("window.__shelved");
+  // M4: 「放到…」 lists the platform's Shelf first; the card names the object it came from, so a plugin's station records it.
+  await click("[data-assistant-event-card] [data-event-receive='shelf']");
+  await waitFor(`${CARD}.querySelector('[data-event-receive]').textContent.trim() === '已放到 Shelf' && ${CARD}.querySelector('[data-event-receive]').disabled`, 15_000);
+  const [{ station, source, ...shelved }] = await evaluate<Array<{ station: string; source: { kind: string; id: string }; title: string; text: string }>>("window.__shelved");
+  assert.equal(station, "shelf");
+  assert.ok(source.kind && source.id, "the card names its object");
   assert.deepEqual(shelved, { title: "季度预算已整理",
     text: `季度预算已整理\n三档预算与对比表，附常见问题。\n${origin}/projects/${encodeURIComponent(projectId ?? "")}/?openPlugin=todo&openItem=${encodeURIComponent(item.id)}&openTitle=${encodeURIComponent("季度预算")}` });
 

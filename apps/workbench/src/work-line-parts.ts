@@ -483,13 +483,26 @@ export function renderCardOwn(own: { readonly words: string; readonly facts: rea
 
 /**
  * What the card of something done offers (WLN-11): the result in its owner's own words where the owner declared no display, the
- * way to open it as a tab, and the way to put it on the Shelf (said as done once it is there).
+ * way to open it as a tab, and 「放到…」 the places that receive it (M4: the platform's Shelf first, as its own button; each receive
+ * station a plugin of the project declares is an item of one 「放到…」 menu that opens under the row), said as done where it went.
  */
-export function renderCardResult(result: { readonly id: string; readonly preview: string; readonly open: boolean; readonly shelf: "" | "busy" | "done" }): string {
+export function renderCardResult(result: { readonly id: string; readonly preview: string; readonly open: boolean; readonly shelf: "" | "busy" | "done";
+  readonly targets?: readonly { readonly station: string; readonly title: string; readonly icon: string }[]; readonly placed?: string; readonly choosing?: boolean }): string {
   const say = (key: string) => uiText.text(`workbench.work-line.${key}`), id = escapeHtml(result.id);
+  const [first, ...rest] = result.targets?.length ? result.targets : [{ station: "shelf", title: "Shelf", icon: "bookmark" }];
+  const busy = result.shelf ? { disabled: "" } : {};
+  const placedIn = result.shelf === "done" ? [first!, ...rest].find(target => target.station === result.placed) : undefined;
+  const elsewhere = placedIn && placedIn !== first ? placedIn : undefined;
   return `${result.preview ? `<div class="work-card-quote work-card-preview">${escapeHtml(result.preview)}</div>` : ""}<div class="work-card-actions">`
     + (result.open ? renderButton({ variant: "secondary", size: "sm", icon: "external", label: say("open-as-tab"), attrs: { "data-event-open": id } }) : "")
-    + renderButton({ variant: "secondary", size: "sm", icon: result.shelf === "done" ? "check" : "bookmark", label: say(result.shelf === "done" ? "on-shelf" : "put-on-shelf"), attrs: { "data-event-shelve": id, ...(result.shelf ? { disabled: "" } : {}) } }) + "</div>";
+    + renderButton({ variant: "secondary", size: "sm", icon: placedIn === first ? "check" : first!.icon as never,
+      label: uiText.text(placedIn === first ? "workbench.work-line.placed-in-target" : "workbench.work-line.put-in-target", { target: first!.title }), attrs: { "data-event-receive": first!.station, ...busy } })
+    + (rest.length ? renderButton({ variant: "secondary", size: "sm", icon: elsewhere ? "check" : "chevron-down",
+      label: elsewhere ? uiText.text("workbench.work-line.placed-in-target", { target: elsewhere.title }) : say("put-elsewhere"),
+      attrs: { "data-event-receive-more": id, "aria-haspopup": "menu", "aria-expanded": String(Boolean(result.choosing) && !result.shelf), ...busy } }) : "")
+    + "</div>"
+    + (rest.length && result.choosing && !result.shelf ? renderMenu({ className: "work-place-menu work-receive-menu", attrs: { "data-event-receive-menu": id, "aria-label": say("put-elsewhere") },
+      items: rest.map(target => renderMenuItem({ label: target.title, iconName: target.icon as never, attrs: { "data-event-receive": target.station } })).join("") }) : "");
 }
 
 /** How it was done, under what was done: the rows of the tasks behind a finished event, folded until asked for (WLN-11). */

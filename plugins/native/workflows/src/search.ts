@@ -7,7 +7,7 @@ const subjectReader = defineSubjectContextAction("workflows.subject.read", /* @v
 
 /** Workflows' part in the system search: a flow's title, its steps and the rules written on each handoff. Runs are not indexed. */
 export const workflowsSearchActions = {
-  entries: defineSearchEntriesAction("workflows.search.entries", /* @version action.workflows.search.entries */ 1, [{ kind: "workflow", title: "工作流程", surface: WORKFLOWS_PROJECT_PLUGIN_ID }], "工作流程", ["workflows:read"]),
+  entries: defineSearchEntriesAction("workflows.search.entries", /* @version action.workflows.search.entries */ 1, [{ kind: "workflow", title: "工作流程", surface: WORKFLOWS_PROJECT_PLUGIN_ID, glyph: "workflow" }], "工作流程", ["workflows:read"]),
   subject: { ...subjectReader, action: { ...subjectReader.action, execution: { cost: "none" as const } } },
 };
 

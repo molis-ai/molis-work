@@ -9,20 +9,6 @@ export interface ChoiceCriterion {
     readonly description: string;
 }
 
-export declare const FEED_ARCHIVE_OPTION_ID = "feed.archive";
-
-export declare const FEED_CAPTURE_DISPOSITION_IDS: readonly string[];
-
-export declare const FEED_CAPTURE_SCENE_ID = "feed.capture";
-
-export declare const FEED_OPEN_OPTION_ID = "feed.open";
-
-export declare const FEED_PROMOTE_OPTION_ID = "feed.promote";
-
-export declare const FEED_REAUTH_OPTION_ID = "feed.reauth";
-
-export declare const FEED_SAVE_OPTION_ID = "feed.save";
-
 export declare const FUNCTIONS_DEFAULT_MODEL = "jev-latest";
 
 export declare const FUNCTIONS_MAX_SAMPLES = 8;
@@ -34,18 +20,6 @@ export declare const HOME_ASK_OPTION_ID = "home.ask";
 export declare const HOME_CONTINUE_OPTION_ID = "home.continue";
 
 export declare const HOME_DOCK_SCENE_ID = "home.dock";
-
-export declare const INBOX_ADMIT_OPTION_ID = "inbox.admit";
-
-export declare const INBOX_COMPOSE_OPTION_ID = "inbox.compose";
-
-export declare const INBOX_DISMISS_OPTION_ID = "inbox.dismiss";
-
-export declare const INBOX_DONE_OPTION_ID = "inbox.done";
-
-export declare const INBOX_NEXT_SCENE_ID = "inbox.next";
-
-export declare const INBOX_VERIFY_OPTION_ID = "inbox.verify";
 
 export declare const JUDGMENT_RULE_AUTHORING_SUBJECTS: readonly JudgmentRuleAuthoringSubject[];
 
@@ -242,10 +216,6 @@ export declare const PUBLISHED_FUNCTION_PREFIX = "functions.published.";
 
 export declare const SYSTEM_HOME_DOCK_FUNCTION_KEY = "system_pick_home_dock";
 
-export declare const SYSTEM_INBOX_ADMIT_FUNCTION_KEY = "system_admit_inbox";
-
-export declare const SYSTEM_INBOX_NEXT_FUNCTION_KEY = "system_pick_inbox_next";
-
 export type ScoreCriteria = readonly string[];
 
 export interface TypeSafeEvaluateResult {
@@ -264,10 +234,6 @@ export interface TypeSafeProvider {
 }
 
 export declare function choiceCriteriaFollowContext(keys: readonly string[], catalogOptionIds: readonly string[]): boolean;
-
-export declare function defaultFeedCaptureOptionIds(canAdmit: boolean): string[];
-
-export declare function defaultInboxNextOptionIds(active: boolean): string[];
 
 export declare function filterSuggestedOptionIds(offered: readonly string[], allowed: readonly string[], choice: string | null | undefined): string[];
 
@@ -299,8 +265,6 @@ export declare function publishedFunctionKey(reference: {
     readonly provider_id?: string;
     readonly capability_id: string;
 }): string | null;
-
-export declare function visibleFeedDispositionIds(suggested: readonly string[] | null | undefined, canAdmit: boolean): string[];
 
 // Declarations the exports above refer to, which no entry exports itself:
 

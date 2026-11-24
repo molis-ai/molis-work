@@ -6,6 +6,7 @@ import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import type { ContextJourney, ContextSource, ContextSourceKind, ImportFile, ContextFileMetadata } from "./context-onboarding-store.js";
 import { isStagedDigest } from "./context-onboarding-staging.js";
+import { builtinMailboxDriver } from "./builtin-drivers.js";
 
 const CONTEXT_DIRECTORY_KINDS = ["downloads", "documents", "desktop", "custom"] as const;
 const KINDS: ContextSourceKind[] = ["files", "directory", ...CONTEXT_DIRECTORY_KINDS, "browser", "gmail", "chat", "sessions"];
@@ -132,7 +133,7 @@ export async function readContextSource(home: string, source: ContextSource): Pr
     if (!source.text?.trim()) throw new Error("请粘贴要整理的网页正文");
     return { name: "浏览器内容", locator: "upload", files: [{ path: "网页内容.md", bytes: Buffer.from(`# 网页内容\n\n${source.url ? `原网址：${source.url}\n\n` : ""}${source.text}`) }] };
   }
-  if (source.kind === "gmail") return readOnboardingGmail(home, source);
+  if (source.kind === "gmail") return readOnboardingMail(home, source);
   // Read through the round's project, as its AI: the service passes the reader its own client (context-onboarding-sessions.ts).
   if (source.kind === "sessions") throw new Error("这里读不了外部会话");
   const derivedFiles = !source.files?.length && source.staged_digests && source.metadata
@@ -143,34 +144,26 @@ export async function readContextSource(home: string, source: ContextSource): Pr
   return { name: source.kind === "chat" ? "聊天记录导出" : "本地文件", locator: "upload", files };
 }
 
-interface GmailPart { mimeType?: string; filename?: string; body?: { data?: string }; parts?: GmailPart[]; headers?: { name: string; value: string }[] }
-function messageText(part: GmailPart, depth = 0): string {
-  if (depth > 12 || part.filename) return "";
-  if (part.parts?.length) {
-    const text = part.parts.map(p => messageText(p, depth + 1)).filter(Boolean);
-    return part.mimeType === "multipart/alternative" ? text[0] ?? "" : text.join("\n\n");
-  }
-  if (!part.body?.data || !["text/plain", "text/html"].includes(part.mimeType ?? "")) return "";
-  const decoded = Buffer.from(part.body.data, "base64url").toString("utf8");
-  return part.mimeType === "text/html" ? decoded.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/giu, "").replace(/<[^>]+>/gu, " ").replace(/&nbsp;/gu, " ").replace(/&amp;/gu, "&").replace(/&lt;/gu, "<").replace(/&gt;/gu, ">") : decoded;
-}
-export async function readOnboardingGmail(home: string, source: ContextSource, fetcher: typeof fetch = fetch): Promise<{ name: string; locator: string; files: ImportFile[] }> {
-  if (!source.connection_id) throw new Error("请先连接 Google，或跳过 Gmail");
+/** Recent mail through the mailbox driver: the Host holds the connection, refreshes its token once and checks it is unchanged around every request. */
+export async function readOnboardingMail(home: string, source: ContextSource, fetcher: typeof fetch = fetch): Promise<{ name: string; locator: string; files: ImportFile[] }> {
+  const driver = builtinMailboxDriver();
+  if (!source.connection_id) throw new Error(`请先连接 ${driver.account_title}，或跳过 ${driver.title}`);
   const id = source.connection_id;
   return withConnectorRequest(home, id, undefined, async signal => {
     const control = connectorAccountControl(home, id, { signal });
-    let access = await resolveApiConnection(home, id, control, "gmail");
+    let access = await resolveApiConnection(home, id, control, driver.service);
     const connection = access.connection;
     const assertConnection = () => {
       signal.throwIfAborted();
-      const latest = withConnectorConnections(home, store => store.require(id, "gmail"), "required");
-      if (!latest.enabled || latest.disconnected_at || latest.updated_at !== connection.updated_at) throw new Error("Gmail 连接已改变，请重新执行");
+      const latest = withConnectorConnections(home, store => store.require(id, driver.service), "required");
+      if (!latest.enabled || latest.disconnected_at || latest.updated_at !== connection.updated_at) throw new Error(`${driver.title} 连接已改变，请重新执行`);
     };
     let refreshed = false;
-    const get = async (suffix: string): Promise<Record<string, unknown>> => {
+    const get = async (url: string): Promise<Record<string, unknown>> => {
+      if (!url.startsWith(driver.origin)) throw new Error(`${driver.title} 只能读取它声明的地址`);
       const dispatch = async () => {
         assertConnection();
-        const response = await fetcher("https://gmail.googleapis.com/gmail/v1/users/me/" + suffix, {
+        const response = await fetcher(url, {
           headers: { Authorization: `Bearer ${access.token}` }, signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]), redirect: "error" });
         assertConnection();
         return response;
@@ -178,30 +171,17 @@ export async function readOnboardingGmail(home: string, source: ContextSource, f
       let response = await dispatch();
       if (response.status === 401 && connection.auth_method === "oauth" && !refreshed) {
         refreshed = true; assertConnection();
-        access = await resolveApiConnection(home, id, control, "gmail", true);
+        access = await resolveApiConnection(home, id, control, driver.service, true);
         assertConnection(); response = await dispatch();
       }
-      if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? "Gmail 无读取权限，请重新连接 Google" : `Gmail 暂时无法读取（${response.status}），请重试`);
+      if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? `${driver.title} 无读取权限，请重新连接 ${driver.account_title}` : `${driver.title} 暂时无法读取（${response.status}），请重试`);
       const text = await response.text(); assertConnection();
       if (text.length > 4_000_000) throw new Error("邮件内容过大，请缩小范围");
       return JSON.parse(text) as Record<string, unknown>;
     };
-    const query = `newer_than:${source.days === 7 ? 7 : 30}d -in:spam -in:trash`;
-    const listed = await get(`messages?maxResults=20&q=${encodeURIComponent(query)}`);
-    const messages = Array.isArray(listed.messages) ? listed.messages.slice(0, 20) : [];
-    const files: ImportFile[] = [];
-    for (const item of messages) {
-      if (!item || typeof item.id !== "string" || !/^[a-zA-Z0-9_-]{1,128}$/u.test(item.id)) continue;
-      const mail = await get(`messages/${encodeURIComponent(item.id)}?format=full`);
-      const payload = mail.payload as GmailPart | undefined;
-      if (!payload) continue;
-      const header = (name: string) => payload.headers?.find(h => h.name.toLowerCase() === name)?.value ?? "";
-      const body = messageText(payload).trim();
-      if (!body) { files.push({ path: `${item.id}.md`, reason: "没有可读取的邮件正文，附件未读取" }); continue; }
-      const origin = `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(connection.account_label ?? "")}#all/${item.id}`;
-      files.push({ path: `${item.id}.md`, bytes: Buffer.from(`# ${header("subject") || "无主题邮件"}\n\n发件人：${header("from")}\n时间：${header("date")}\n原邮件：${origin}\n\n${body}`) });
-    }
+    const read = await driver.readRecent(get, { days: source.days === 7 ? 7 : 30, account: connection.account_label ?? "" });
+    const files: ImportFile[] = read.map(file => file.text === undefined ? { path: file.path, reason: file.reason ?? "" } : { path: file.path, bytes: Buffer.from(file.text) });
     assertConnection();
-    return { name: `Gmail · ${connection.account_label ?? connection.display_name}`, locator: "upload", files };
+    return { name: `${driver.title} · ${connection.account_label ?? connection.display_name}`, locator: "upload", files };
   });
 }

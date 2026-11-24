@@ -21,7 +21,7 @@ const MATERIAL = {
   title: "公开材料",
   source_name: "Example",
   preview: "可核对摘要",
-  content_ref: "molis-work-feed/sha256/" + "a".repeat(64),
+  content_ref: "molis-work-evidence/sha256/" + "a".repeat(64),
   content_hash: `sha256:${"a".repeat(64)}`,
   content_type: "text/markdown",
   character_count: 5,

@@ -11,9 +11,9 @@ import {
 
   SHELF_SETTINGS_CLIENT_SCRIPT,
   renderShelfWorkbench,
-} from "@molis-ai/molis-work-plugin-shelf";
+} from "@molis-ai/molis-work-module-shelf/surface";
 
-const SRC = "plugins/native/shelf/src";
+const SRC = "modules/shelf/src/surface";
 const BROWSER = join(SRC, "browser");
 const sourcesIn = (dir: string): string[] => readdirSync(dir).flatMap(name => {
   const path = join(dir, name);
@@ -55,7 +55,7 @@ test("RAC-164 every word the Shelf page's client and drawn list say has a stable
 });
 
 test("RAC-1320 the Shelf package no longer declares the xterm packages it does not import", () => {
-  const manifest = JSON.parse(readFileSync("plugins/native/shelf/package.json", "utf8")) as {
+  const manifest = JSON.parse(readFileSync("modules/shelf/package.json", "utf8")) as {
     dependencies?: Record<string, string>;
     "molis-work"?: { extraDependencies?: Record<string, string> };
   };
@@ -74,16 +74,16 @@ test("RAC-165 the Shelf page's client is typed browser code bundled by esbuild, 
     assert.doesNotMatch(source, /io\.molis\.work\.|molisWorkControlHeaders/u, `${file} writes a plugin id or builds the control headers`);
   }
   assert.match(readFileSync(join(BROWSER, "request.ts"), "utf8"), /molisWorkRequest/);
-  const pkg = JSON.parse(readFileSync("plugins/native/shelf/package.json", "utf8")) as { scripts: Record<string, string>; devDependencies?: Record<string, string> };
+  const pkg = JSON.parse(readFileSync("modules/shelf/package.json", "utf8")) as { scripts: Record<string, string>; devDependencies?: Record<string, string> };
   assert.match(pkg.scripts.build, /tsc -p tsconfig\.browser\.json/, "the build type-checks the browser code");
-  assert.match(pkg.scripts.build, /esbuild src\/browser\/factory\.ts --bundle/, "and bundles the page's client");
-  assert.match(pkg.scripts.build, /esbuild src\/browser\/settings\/factory\.ts --bundle/, "and the settings page's");
+  assert.match(pkg.scripts.build, /esbuild src\/surface\/browser\/factory\.ts --bundle/, "and bundles the page's client");
+  assert.match(pkg.scripts.build, /esbuild src\/surface\/browser\/settings\/factory\.ts --bundle/, "and the settings page's");
   assert.match(pkg.scripts.typecheck, /tsc -p tsconfig\.browser\.json/, "and so does the type check");
   const root = JSON.parse(readFileSync("package.json", "utf8")) as { devDependencies: Record<string, string> };
   assert.equal(pkg.devDependencies?.esbuild, root.devDependencies.esbuild, "esbuild is the package's own dev dependency, at the root's version");
   assert.doesNotThrow(() => new Function(`return ${SHELF_CLIENT_FACTORY_SCRIPT}`), "the bundle is a function expression");
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /^\(host\) => \{/u);
-  for (const mark of ["data-assistant-context", "application/x-molis-shelf", "data-shelf-act-rule", "molis-shelf-refresh", "molis-shelf-send-tui", "molis:placement-request", "shelf.request.shelf-request-failed"]) {
+  for (const mark of ["data-assistant-context", "application/x-molis-shelf", "data-shelf-act-rule", "molis:shelf-refresh", "molis:shelf-send-tui", "molis:placement-request", "shelf.request.shelf-request-failed"]) {
     assert.ok(SHELF_CLIENT_FACTORY_SCRIPT.includes(mark), `the bundle carries ${mark}`);
   }
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /molisWorkControlHeaders|io\.molis\.work\./u, "requests go through molisWorkRequest and the plugin id comes from the host");
@@ -92,7 +92,7 @@ test("RAC-165 the Shelf page's client is typed browser code bundled by esbuild, 
 test("RAC-166 the Shelf settings page's client is bundled the same way, with the chord tables and the route put in front of it", () => {
   assert.doesNotThrow(() => new Function(SHELF_SETTINGS_CLIENT_SCRIPT), "the settings client is a script");
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /^\(\(\) => \{\nconst SHELF_HOTKEY_TABLES = \{"codes":\{/u);
-  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /const SHELF_SETTINGS_API = "\/api\/plugins\/io\.molis\.work\.shelf";/u);
+  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /const SHELF_SETTINGS_API = "\/api\/platform\/shelf";/u);
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /molisWorkRefreshShelfPreferences/u);
   assert.doesNotMatch(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf_apply_hotkeys|shelf_sync_device_preferences/u);
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf\.settings\.hotkey-recording/u);

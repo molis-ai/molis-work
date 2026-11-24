@@ -12,7 +12,6 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 - `publisher.signature` 变了 = 新身份，旧 grant 不继承。
 - `entrypoints[]`：`deployment: "local" | "server"` + `entrypoint` 路径。一等插件常用 `./index.js`。
 - `kind`：`native` | `app` | `integration`。选贡献形态，不是信任等级。
-- `always_on`：常开插件，每个项目都开着、不进插件列表与市场，服务端拒绝把它从项目移除、停用、卸载。它生不生效看同意账本里有没有一行有效同意（见下文「装的时候用户会被问哪些声明」），不看插件从哪来：随宿主发布的插件由宿主代为同意，其他插件要本人同意，本人撤回后它就是普通插件。声明本身不会被安装拒绝，写了没人同意就不生效，所以别让插件的基本功能依赖「一定常开」。外部装的常开插件现在只有卸载拒绝，进项目成员列表随安装服务（ac-trust T2）。
 
 ## 版本升级
 
@@ -48,18 +47,17 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 
 ## 装的时候用户会被问哪些声明
 
-Manifest 里有三类声明会改变插件在别处的效果，安装预览把它们单列，用户逐项同意或拒绝：
+Manifest 里有两类声明会改变插件在别处的效果，安装预览把它们单列，用户逐项同意或拒绝：
 
 | 声明 | 用户同意的是 | 拒绝后 |
 | --- | --- | --- |
-| `always_on: true` | 每个项目都开、删不掉 | 它是普通插件 |
 | `ports.inputs[].default_source` | 「端口 X 默认读取某插件的某输出口」，每条一项，带来源插件当时的发布者签名 | 不绑，输入口等人自己连 |
 | `ports.input_groups[].default` | 默认用这一组输入 | 不默认 |
 
 写的时候记住：
 
 - 随宿主发布的插件（监督器条目 `trust: HOST_BUILD_TRUST`）由宿主代为同意，不弹窗；其他等级（发布者已固定的包、没有发布者的创作台产物）必须显式同意，没有「全部允许」。
-- 拒绝一项不阻止安装，所以被拒时插件仍要能用：别把核心流程建立在默认连线或常开上，输入口要能手动连。
+- 拒绝一项不阻止安装，所以被拒时插件仍要能用：别把核心流程建立在默认连线上，输入口要能手动连。
 - 同意是账本里的一行，带同意时的 Manifest 摘要和发布者签名。新版本多一条默认连线就是新的一项，要新的同意；`publisher.signature` 变了是新身份，旧同意不继承；来源插件换了发布者，默认连线的同意对不上，不绑。
 - 本人随时可以撤回，各等级一样（包括 `host` 等级的），撤回立即生效，之后宿主也不再为随它发布的插件代为同意。同意与撤回只有本人能做：agent、MCP、工作流、别的插件都调不到。
 - 预览显示的是声明本身（端口名、来源插件名），不是你另写的说明，所以端口名和插件 `name` 要让人看得懂。
@@ -118,7 +116,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 ## Artifacts / ports
 
-- 成果库是平台界面与动作服务，不是可启停插件，也不能登记 `artifacts` 项目键或平台成果界面 id。提供方 `io.molis.work.artifacts` 及既有能力引用不变；插件用同一套 SDK 动作读写成果，不依赖成果 UI 实现。
+- 成果库是平台界面与动作服务，不是可启停插件，也不能登记 `artifacts` 项目键或平台成果界面 id。提供方 `system.artifacts` 及既有能力引用不变；插件用同一套 SDK 动作读写成果，不依赖成果 UI 实现。
 同步工作中草稿与只发布 Artifact 是不同需求。可选 `sync` 集合声明和本地快照适配见 [sync.md](sync.md)；它不自动开启上传或注册 Runtime 同步处理器。
 
 - `artifacts.produces/consumes`：成果，人要留存、引用的固定版本，进成果库。`artifact_type_id` + `schema_version`。消费方按类型匹配，不指定生产者插件。

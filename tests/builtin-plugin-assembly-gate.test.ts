@@ -160,8 +160,8 @@ test("the lists name exactly what exists: no id, route file or Runtime plugin is
  * the Host's Settings.
  * Shelf left with S4: its actions, model calls and routes are the plugin's Runtime instances (S2, S3), and the demo puts its sample
  * back through `shelf.sample.seed` instead of opening Shelf's files in the Host.
- * Goals left with batch 44 audit fixes: `goal-callers.ts` was removed, management actions come from plugin registrations (`management_actions`),
- * and the Host carries zero Goals-specific callers or hybrid assembly files.
+ * Goals left with batch 44 audit fixes: `goal-callers.ts` was removed, and since 44B no plugin declares management actions (the management
+ * entries serve only the platform's review operations); the Host carries zero Goals-specific callers or hybrid assembly files.
  */
 const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>();
 

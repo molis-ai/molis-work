@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {goalsManifest} from '@molis-ai/molis-work-plugin-goals';
-import {inboxManifest} from '@molis-ai/molis-work-plugin-inbox';
 import {personalStorageSpace} from '@molis-ai/molis-work-storage';
 import {projectPluginSyncFixture} from './fixtures/project-plugin-sync.js';
 
+// The waiting list ("等你") is the platform's own collection since 44B (`system.attention`), no plugin's section, so only Goals is here.
 for (const [manifest, collectionId, permissions] of [
   [goalsManifest,'project_goals',['journal:project','context-ledger:read','context-ledger:write']],
-  [inboxManifest,'attention',['attention:read','attention:write']],
 ] as const) {
   test(`${manifest.plugin_id} retained sync adapters recheck every platform grant`, async t=>{
     let denied:string|undefined;

@@ -34,22 +34,22 @@ const declaring = BUILTIN_PLUGIN_CATALOG.filter(entry => (entry.manifest.runtime
 const opened = shape([PROJECT_DATABASE_BASELINE.schema, ...declaring.map(manifest => pluginSyncDatabaseDeclaration(manifest, manifest.databases!.project!).schema)].join("\n"));
 /** The tables of the baseline and the plugins (other than Goals' board) whose rows belong to the project (PLIB-09); since batch 44 the project's guidance and acceptance subjects too. */
 const ROOTED = ["acceptance_subjects", "coding_sessions", "events", "feed_items", "feed_materials", "feed_out_rules", "feed_source_runs", "feed_sources", "guidance_entries", "guidance_revisions",
-  "idempotency_records", "inbox_entries", "library_artifacts", "process_items", "project_approval_rules", "project_review_decisions"];
+  "idempotency_records", "attention_entries", "library_artifacts", "process_items", "project_approval_rules", "project_review_decisions"];
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
-test("RAC-2360 APR-19 the project database baseline is version 2 and includes approvals, runtime settings, guidance and acceptance", () => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 2);
+test("RAC-2360 APR-19 the project database baseline is version 3 and includes approvals, runtime settings, guidance and acceptance", () => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 3);
   assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(fixture("project-database-schema.sql") + fixture("project-approval-schema.sql")
     + fixture("project-runtime-settings-schema.sql") + fixture("project-guidance-schema.sql") + fixture("project-acceptance-schema.sql")));
 });
 
-test("RAC-2360 an existing empty file initializes the complete current library at 2", () => {
+test("RAC-2360 an existing empty file initializes the complete current library at 3", () => {
   const directory = mkdtempSync(join(tmpdir(), "project-empty-file-")), file = join(directory, "project.db");
   try {
     writeFileSync(file, "");
     const current = new LocalProjectDatabase(file);
-    try { assert.equal(current.db.pragma("user_version", { simple: true }), 2); } finally { current.close(); }
+    try { assert.equal(current.db.pragma("user_version", { simple: true }), 3); } finally { current.close(); }
     assert.deepEqual(shapeOf(file), opened);
     assert.deepEqual(ledgerOf(file).map(row => [row.plugin_id, row.version]), declaring.map(manifest => [manifest.plugin_id, manifest.databases!.project!.version]).sort());
   } finally { rmSync(directory, { recursive: true, force: true }); }
@@ -69,12 +69,16 @@ test('M1-B2 replays the checked-in v1 project golden and preserves old project a
       VALUES (?,?,?,?,?,?,?,?,?)`).run('owner', '["home",null,null]', 'goal', 'kept', 'pin', null, 2, 1, '2026-11-21T00:00:00.000Z');
     const before = db.prepare('SELECT * FROM surface_corrections').all();
     assert.throws(() => new LocalProjectDatabase(file), { code: 'storage.upgrade_pending' });
-    assert.deepEqual(runSqliteUpgrade(db, file, PROJECT_DATABASE_BASELINE), { from: 1, to: 2 });
+    const waiting = db.prepare('SELECT count(DISTINCT project_id) AS total FROM attention_entries').get()!.total;
+    assert.deepEqual(runSqliteUpgrade(db, file, PROJECT_DATABASE_BASELINE), { from: 1, to: 3 });
     assert.deepEqual(db.prepare('SELECT * FROM project_root').all(), root);
     assert.deepEqual(db.prepare('SELECT * FROM plugin_project_databases ORDER BY plugin_id').all(), plugins);
     assert.deepEqual(db.prepare('SELECT * FROM surface_corrections').all(), before);
     assert.equal(db.prepare('SELECT count(*) AS total FROM surface_corrections_replica_changes').get()!.total, 1);
-    assert.deepEqual(runSqliteUpgrade(db, file, PROJECT_DATABASE_BASELINE), { from: 2, to: 2 });
+    // 44B: 2 → 3 gives the waiting list ("等你", `system.attention`) the platform's own journal, whichever plugin shows it, and queues
+    // each project that already has entries once.
+    assert.equal(db.prepare('SELECT count(DISTINCT key) AS total FROM attention_replica_changes').get()!.total, waiting);
+    assert.deepEqual(runSqliteUpgrade(db, file, PROJECT_DATABASE_BASELINE), { from: 3, to: 3 });
     assert.equal(db.prepare('SELECT count(*) AS total FROM surface_corrections_replica_changes').get()!.total, 1);
   } finally { db.close(); }
   const reopened = new LocalProjectDatabase(file, { existingOnly: true });
@@ -88,9 +92,9 @@ test("RAC-2361 ATTN-OWNER-07 a noncurrent project with legal namespace-shaped id
     const ahead = PROJECT_DATABASE_BASELINE.version + 1;
     old.exec(`PRAGMA user_version = ${ahead}`);
     old.prepare("INSERT INTO project_root (project_id, created_at) VALUES (?, ?)").run("p", "2026-10-24");
-    old.prepare("INSERT INTO inbox_entries (project_id, entry_id, subject_type, subject_id, reason, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    old.prepare("INSERT INTO attention_entries (project_id, entry_id, subject_type, subject_id, reason, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run("p", "io.molis.work.example:entry", "goal_decision", "io.molis.work.example:goal", "goal_decision", "open", "2026-10-24", "2026-10-24");
-    const before = { schema: describeSqliteSchema(old), rows: old.prepare("SELECT * FROM inbox_entries").all() };
+    const before = { schema: describeSqliteSchema(old), rows: old.prepare("SELECT * FROM attention_entries").all() };
     old.close();
     const bytes = readFileSync(file);
     assert.throws(() => new LocalProjectDatabase(file), error => isSqliteVersionRefusal(error) && error.code === "storage.store_too_new" && error.details?.found === ahead && error.details?.expected === PROJECT_DATABASE_BASELINE.version);
@@ -99,7 +103,7 @@ test("RAC-2361 ATTN-OWNER-07 a noncurrent project with legal namespace-shaped id
     try {
       assert.equal(after.prepare("PRAGMA user_version").get()!.user_version, ahead);
       assert.deepEqual(describeSqliteSchema(after), before.schema);
-      assert.deepEqual(after.prepare("SELECT * FROM inbox_entries").all(), before.rows);
+      assert.deepEqual(after.prepare("SELECT * FROM attention_entries").all(), before.rows);
     } finally { after.close(); }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
@@ -171,7 +175,7 @@ test("a new project database is made at the baseline, its plugins' tables made a
   t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const origin = `http://127.0.0.1:${address.port}/projects/${project.project_id}`;
-  for (const path of ["/", "/api/plugins/io.molis.work.shelf/project-results", "/feed", "/schedule", "/coding"]) await (await fetch(origin + path)).arrayBuffer();
+  for (const path of ["/", "/api/platform/shelf/project-results", "/feed", "/schedule", "/coding"]) await (await fetch(origin + path)).arrayBuffer();
   assert.deepEqual(shapeOf(project.database_path), opened);
   assert.deepEqual(ledgerOf(project.database_path), ledger, "and records nothing new");
 });

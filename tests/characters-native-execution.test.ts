@@ -147,7 +147,7 @@ for (const invalidation of ["cancel", "revoke", "publication", "provider"] as co
   const server = createServer((request, response) => { void handleCharactersHttp(request, response, new URL(request.url!, "http://localhost"), invoke)
     .then(handled => { if (!handled) { response.writeHead(404); response.end("{}"); } }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve)); const address = server.address(); assert.ok(address && typeof address === "object");
-  const call = async (path: string, input: unknown, signal?: AbortSignal) => { const response = await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.characters` + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input), signal }); return { status: response.status, body: await response.json() }; };
+  const call = async (path: string, input: unknown, signal?: AbortSignal) => { const response = await fetch(`http://127.0.0.1:${address.port}/api/platform/characters` + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input), signal }); return { status: response.status, body: await response.json() }; };
   t.after(async () => { release.resolve(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); withdraw(); opened.close(); store.close(); rmSync(home, { recursive: true, force: true }); });
   const published = await call(`/drafts/${imported.character_id}/publish`, { expected_revision: imported.revision }); assert.equal(published.status, 200, JSON.stringify(published.body));
   const leaving = new AbortController();

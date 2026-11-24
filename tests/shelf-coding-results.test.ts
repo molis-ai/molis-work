@@ -5,7 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { codingResultDocument } from "@molis-ai/molis-work-plugin-coding/contract";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
-import { shelfManifest, shelfRuntimeActions } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfManifest, shelfRuntimeActions } from "@molis-ai/molis-work-module-shelf/surface";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
   CHANGESET_REFERENCE, CHANGE_SET_MARKDOWN, PROJECT_ID, PROJECT_PATH, REPORT_BODY, REPORT_REFERENCE,
@@ -66,25 +66,23 @@ test("W5-01-CODING-09 Audit #10 Coding declares the artifact-document role and S
   assert.deepEqual(shelfRuntimeActions.preview.action.audiences, ["user", "agent", "workflow", "mcp"], "Shelf's own actions are not changed");
 });
 
-test("SCC-03 W5-01-CODING-10 Shelf uses the platform's consumable list and its connected ports, and skips candidates with no usable text", async () => {
+test("SCC-03 W5-01-CODING-10 Shelf uses the platform's consumable list for the caller's project, and skips candidates with no usable text", async () => {
   const second = reportOf("session-b", "run-2");
   const foreign = reportOf("session-d", "run-4", { producer_plugin_id: "io.molis.work.other" });
   const archived = reportOf("session-c", "run-3", { lifecycle_state: "archived" });
   const plan = changeSetRecord({ artifact_id: "coding-plan:session-a:run-1", artifact_type_id: "coding.plan.v1" });
   const platform = fakePlatform({ artifacts: [reportRecord(), second, foreign, archived], processItems: [changeSetRecord(), plan] }, CONSUMED);
-  const ports = shelfManifest.ports?.inputs.map(row => row.port);
-  assert.deepEqual(ports, ["coding-report", "coding-changeset"], "the ports the list reads connected versions from are the Manifest's");
-  const { handlers, asked } = await startShelf(platform, { connected: { "coding-report": REPORT_REFERENCE, "coding-changeset": CHANGESET_REFERENCE } });
+  assert.equal(shelfManifest.ports, undefined, "Shelf wires no ports: it lists what the caller's project holds");
+  const { handlers, asked } = await startShelf(platform);
   const listed = await handlerOf(handlers, shelfRuntimeActions.results).handle(owner, {});
+  // The project's 成果库 versions first, then its process items, each in the order the platform lists them.
   assert.deepEqual(listed, { results: [
-    { reference: REPORT_REFERENCE, title: "已固定的原报告", connected: true },
-    { reference: CHANGESET_REFERENCE, title: "这一轮的固定变更", connected: true },
-    { reference: { artifact_id: second.artifact_id, version: second.version }, title: "报告 run-2", connected: false },
+    { reference: REPORT_REFERENCE, title: "已固定的原报告" },
+    { reference: { artifact_id: second.artifact_id, version: second.version }, title: "报告 run-2" },
+    { reference: CHANGESET_REFERENCE, title: "这一轮的固定变更" },
   ] });
   // A candidate is asked about once; the plan type is not one Shelf consumes, an archived version is not listed, and a foreign producer with no registered role provider is skipped without asking Coding.
-  assert.deepEqual(asked, Array(3).fill("coding.results.document@1"), "report, change set, and the second report, each once");
-  const unconnected = await handlerOf((await startShelf(platform)).handlers, shelfRuntimeActions.results).handle(owner, {}) as { results: { connected: boolean }[] };
-  assert.deepEqual(unconnected.results.map(row => row.connected), [false, false, false]);
+  assert.deepEqual(asked, Array(3).fill("coding.results.document@1"), "report, the second report, and change set, each once");
 });
 
 test("W5-01-CODING-11 a refusal of the platform or of Coding reaches the person in its own code, and a missing version is Shelf's own", async () => {
@@ -105,7 +103,7 @@ test("W5-01-CODING-12 the host no longer composes the boundary: no file, no Shel
   for (const name of ["codingShelfMaterial", "coding-shelf-material", "reportReferences", "changeSetReferences", "planReferences"]) {
     assert.ok(!assembly.includes(name), `project-plugins.ts still mentions ${name}`);
   }
-  const ports = readFileSync(join(REPOSITORY, "plugins/native/shelf/src/runtime-actions.ts"), "utf8");
+  const ports = readFileSync(join(REPOSITORY, "modules/shelf/src/surface/runtime-actions.ts"), "utf8");
   assert.doesNotMatch(ports, /ShelfResultPorts|projectPath\(/, "the plugin needs no host-composed ports");
-  assert.match(ports, /services\.actions\.dependencies\.invoke/, "the project instance delivers through the public action service");
+  assert.match(ports, /services\?\.actions\?\.dependencies;[\s\S]*dependencies\.invoke\(/, "the Home instance delivers through the public action service");
 });

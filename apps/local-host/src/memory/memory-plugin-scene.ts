@@ -8,7 +8,7 @@ import type { SkillSceneChoice } from "@molis-ai/molis-work-contracts/services/s
 import { matchLocale } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { projectDirectoryWords, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
-import { builtinPluginByManifestId, PLATFORM_PLUGIN_REGISTRATIONS } from "../plugin-registry.js";
+import { builtinPluginByManifestId, shippedParts } from "../plugin-registry.js";
 import { BUNDLE_FILE } from "../sandbox-package-store.js";
 import { directoryWordResolver, hasHostUiText, registeredBuiltinText } from "../ui-text-provider.js";
 import { activeLocale, DEFAULT_WEB_LOCALE } from "../web-locale.js";
@@ -100,7 +100,7 @@ function keptPackageScenes(home: string): Array<{ scene: string; name: string }>
 
 /** The scene list from built-in plugins alone: what a policy built without a Home uses (its tests and tools). */
 export function builtinMemoryScenes(): readonly string[] {
-  return sceneList(PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest.memory_scene));
+  return sceneList(shippedParts().map(entry => entry.manifest.memory_scene));
 }
 
 const sceneList = (declared: readonly unknown[]): readonly string[] =>
@@ -118,7 +118,7 @@ const taxonomies = new Map<string, readonly string[]>();
 export function memorySceneTaxonomy(home: string): readonly string[] {
   const known = taxonomies.get(home);
   if (known) return known;
-  const list = sceneList([...PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest.memory_scene), ...keptPackageScenes(home).map(kept => kept.scene)]);
+  const list = sceneList([...shippedParts().map(entry => entry.manifest.memory_scene), ...keptPackageScenes(home).map(kept => kept.scene)]);
   taxonomies.set(home, list);
   return list;
 }
@@ -132,7 +132,7 @@ export const sceneAfterRestart = (home: string, scene: unknown): boolean => isPl
  */
 export function builtinScenePlugins(): ReadonlyMap<string, { name: string; summary: string }> {
   const scenes = new Map<string, { name: string; summary: string }>();
-  for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
+  for (const entry of shippedParts()) {
     const scene = entry.manifest.memory_scene;
     if (isPluginSceneName(scene) && !scenes.has(scene)) scenes.set(scene, { name: entry.manifest.name, summary: entry.manifest.summary ?? "" });
   }
@@ -189,7 +189,7 @@ export function activeSkillScenePlugins(
     const words = projectDirectoryWords({ ...manifest, ui: {} }, directoryWordResolver(reader, matched));
     return { name: words.name, summary: words.summary ?? manifest.summary ?? "" };
   };
-  for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
+  for (const entry of shippedParts()) {
     const scene = entry.manifest.memory_scene;
     if (!isPluginSceneName(scene) || scenes.has(scene)) continue;
     const live = installations.find(item => item.record.publisher_trust === "host" && item.record.plugin_id === entry.manifest.plugin_id

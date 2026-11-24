@@ -35,7 +35,7 @@ async function open(t: TestContext, sessionMode = true) {
       cursor: 0, goals: [], relations: [], goal_tree_proposals: [] },
     project, projects: [project], route_prefix: "/projects/project", demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [],
     counts: { waiting_for_human: 0, executing: 0, execution_blocked: 0, execution_pending: 0, satisfied: 0, invalidated: 0, trashed: 0, archived: 0 },
-    input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
+    input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], attention_entries: [], runs: [], out_rules: [] },
   };
   const html = renderMolisWorkProjectSettingsHub(view, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, "", false, "memory");
   const server = createServer(async (request, response) => {

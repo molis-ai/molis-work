@@ -28,7 +28,7 @@ test("QEA-114 returning to a Goal reads artifact and input owners even after its
   await b.web.post(prefix + "/api/plugins/io.molis.work.goals/goals/V1/artifact-inputs", { reference: { artifact_id: "projection-brief", version: 1 }, used: true });
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/goals/V1?desktop=1" }, b.sessionId));
   await openDocument();
-  await b.waitFor("document.querySelector('[data-goal-input-fixed]')?.textContent.includes('Projection brief')");
+  await b.waitFor("document.querySelector('[data-placement-input-fixed]')?.textContent.includes('Projection brief')");
   await b.click('[data-corner-home]');
   await b.waitFor("document.body.dataset.desktopSurface === 'home'");
   await b.evaluate("globalThis.__retainedGoalDocument = document.querySelector('[data-goal-event-document]')");
@@ -43,6 +43,6 @@ test("QEA-114 returning to a Goal reads artifact and input owners even after its
   const after = boardSnapshot(b.store, DEMO_PROJECT_ID);
   await b.click('.tab-item[data-item-id="V1"] .tab-item-trigger');
   await openDocument();
-  await b.waitFor("document.querySelector('[data-goal-input-fixed]')?.textContent.includes('归档') && document.querySelector('[data-goal-event-document]')?.textContent.includes('Input confirmed while hidden')", 12_000);
+  await b.waitFor("document.querySelector('[data-placement-input-fixed]')?.textContent.includes('归档') && document.querySelector('[data-goal-event-document]')?.textContent.includes('Input confirmed while hidden')", 12_000);
   assert.deepEqual(boardSnapshot(b.store, DEMO_PROJECT_ID), after, "returning does not write a new receipt or Goal event");
 });

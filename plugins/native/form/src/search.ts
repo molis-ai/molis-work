@@ -10,7 +10,7 @@ const subjectReader = defineSubjectContextAction("form.subject.read", /* @versio
  * Answers belong to the people who filled them in and stay in Form's results.
  */
 export const formSearchActions = {
-  entries: defineSearchEntriesAction("form.search.entries", /* @version action.form.search.entries */ 1, [{ kind: "form", title: "问卷", surface: FORM_PROJECT_PLUGIN_ID }], "问卷", ["form:read"]),
+  entries: defineSearchEntriesAction("form.search.entries", /* @version action.form.search.entries */ 1, [{ kind: "form", title: "问卷", surface: FORM_PROJECT_PLUGIN_ID, glyph: "note" }], "问卷", ["form:read"]),
   subject: { ...subjectReader, action: { ...subjectReader.action, execution: { cost: "none" as const } } },
 };
 

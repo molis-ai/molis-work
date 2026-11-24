@@ -8,7 +8,7 @@ import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-
 test("project pages prefix their local links but not data-*-href places outside the project", () => {
   const view = {
     snapshot: { board: { project_id: "links-render-test", title: "链接", active_goal_id: null, created_at: "2026-09-23T00:00:00.000Z", updated_at: "2026-09-23T00:00:00.000Z" }, cursor: 0, goals: [], relations: [], goal_tree_proposals: [] },
-    project: { project_id: "links-render-test", display_name: "链接", data_class: "user" }, projects: [{ project_id: "links-render-test", display_name: "链接" }], route_prefix: "/projects/links-render-test", demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {}, coverage: [], input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
+    project: { project_id: "links-render-test", display_name: "链接", data_class: "user" }, projects: [{ project_id: "links-render-test", display_name: "链接" }], route_prefix: "/projects/links-render-test", demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {}, coverage: [], input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], attention_entries: [], runs: [], out_rules: [] },
   } as MolisWorkWebView;
   const html = renderMolisWorkWeb(view);
   assert.match(html, /data-project-directory-href="\/"/);

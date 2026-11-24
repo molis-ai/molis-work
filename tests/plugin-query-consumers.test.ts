@@ -53,7 +53,7 @@ test("Feed reads and warm Web projections use each owner's current authority, re
     // RAC-2507/2511/2512: real Runtime owners compose stage data through their declared public reads.
     const feedStage = await actions.invoke(feedQueryActions.stage, {});
     assert.equal(feedStage.snapshot.feed_items.find(row => row.item_id === item.item_id)?.body, null);
-    assert.equal(feedStage.inbox_entries.some(row => row.subject_id === item.item_id), true);
+    assert.equal(feedStage.attention_entries.some(row => row.subject_id === item.item_id), true);
     const inboxStage = await actions.invoke(inboxActions.stage, {});
     const ownedEntry = inboxStage.entries.find(row => row.subject_id === item.item_id);
     assert.ok(ownedEntry);
@@ -64,7 +64,7 @@ test("Feed reads and warm Web projections use each owner's current authority, re
     disabled.add("io.molis.work.goals");
     assert.equal((await actions.invoke(feedQueryActions.reader, { object_id: item.item_id })).promote_available, false);
     disabled.delete("io.molis.work.goals");
-    assert.equal("inbox_entries" in await actions.invoke(feedQueryActions.snapshot, {}), false, "Feed cannot grant Inbox access");
+    assert.equal("attention_entries" in await actions.invoke(feedQueryActions.snapshot, {}), false, "Feed cannot grant Inbox access");
     await assert.rejects(host.actionClient(reference).invoke({ ...caller, permissions: [] }, feedQueryActions.item, { item_id: item.item_id }), { code: "actions.forbidden" });
     await assert.rejects(host.actionClient(reference).invoke({ ...caller, project_id: "foreign" }, feedQueryActions.item, { item_id: item.item_id }), { code: "actions.scope_mismatch" });
     const address = server.address(); assert.ok(address && typeof address === "object");

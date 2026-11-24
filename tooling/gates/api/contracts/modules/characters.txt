@@ -107,13 +107,14 @@ export type BlueprintSource = {
 };
 
 export declare const CHARACTER_ARTIFACT_PRODUCER: {
-    readonly plugin_id: "io.molis.work.characters";
+    readonly plugin_id: "system.characters";
     readonly name: "Characters";
     readonly binding_signature: "official-characters-binding";
     readonly produces: readonly [{
         readonly artifact_type_id: "character.definition.v1";
         readonly schema_version: 1;
         readonly title: "角色";
+        readonly searchable_fields: readonly ["instructions"];
         readonly preview: {
             readonly capability_id: string;
             readonly version: number;
@@ -138,7 +139,7 @@ export declare const CHARACTER_IMPORT_LIMITS: {
 
 export declare const CHARACTER_IMPORT_RUNTIMES: readonly ("cursor" | "codex" | "claude-code" | "opencode" | "grok-build")[];
 
-export declare const CHARACTER_PLUGIN_ID = "io.molis.work.characters";
+export declare const CHARACTER_PLUGIN_ID = "system.characters";
 
 export declare const CHARACTER_PUBLISHER_SIGNATURE = "official-characters-binding";
 

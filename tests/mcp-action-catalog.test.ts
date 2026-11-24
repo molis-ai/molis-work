@@ -8,7 +8,6 @@ import { formActions, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { datasetManifest } from "@molis-ai/molis-work-plugin-dataset";
 import { pptManifest } from "@molis-ai/molis-work-plugin-ppt";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { TRUSTED_REVIEW_COMMAND_SCHEMA, TRUSTED_REVIEW_READ_SCHEMA } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -69,11 +68,10 @@ test("the management decision tool names no actor: the host decides as the perso
   for (const field of schema.required) assert.ok(Object.hasOwn(schema.properties, field), `${field} is described by the schema`);
 });
 
-// RAC-345: the management Goals tools describe the very actions Goals registers: the same words and every business input field.
-test("RAC-345 management initialization uses the Goals contract and review uses the common platform contract", () => {
-  const initialize = MCP_TOOLS.find(item => item.name === "molis_work_v1_initialize")!;
-  assert.equal(initialize.description, goalsActions.initialize.action.description);
-  assert.deepEqual((initialize.inputSchema.properties as Record<string, unknown>).idempotency_key, goalsActions.initialize.action.input_schema.properties?.idempotency_key);
+// RAC-345, 44B: no management tool describes a plugin's action (Goals' `initialize` went with the plugins' management actions); review uses
+// the common platform contract.
+test("RAC-345 44B management lists no plugin's action and review uses the common platform contract", () => {
+  assert.equal(MCP_TOOLS.some(item => item.name === "molis_work_v1_initialize"), false);
   for (const [name, schema] of [["molis_work_v1_review_request", TRUSTED_REVIEW_READ_SCHEMA],
     ["molis_work_v1_review_decide", TRUSTED_REVIEW_COMMAND_SCHEMA]] as const) {
     const wire = MCP_TOOLS.find(item => item.name === name)!.inputSchema;

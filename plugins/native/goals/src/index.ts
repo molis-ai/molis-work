@@ -70,6 +70,5 @@ export { goalsRoutes } from "./http/index.js";
 export type { GoalsRoutePorts } from "./http/types.js";
 export { GOALS_PLUGIN_ID, GOALS_PROJECT_PLUGIN_ID, goalsManifest } from "./manifest.js";
 export { GOALS_PROJECT_DATABASE } from "./project-database.js";
-export { assertGoalApprovalHistory, goalApprovalOutcomes, readGoalApprovalOutcome } from "./approval-outcomes.js";
 export { PluginSqlite, type PluginSqliteDatabase } from "./plugin-sqlite.js";
 

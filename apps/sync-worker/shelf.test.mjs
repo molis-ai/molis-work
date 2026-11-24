@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ensureStorageSpace,personalStorageSpace } from '@molis-ai/molis-work-storage';
 import { bindActionClient } from '@molis-ai/molis-work-contracts/platform/actions';
-import { shelfActions,SHELF_ACTION_PERMISSIONS,shelfManifest } from '@molis-ai/molis-work-plugin-shelf';
+import { shelfActions,SHELF_ACTION_PERMISSIONS,shelfManifest } from '@molis-ai/molis-work-module-shelf/surface';
 import { hashBytes } from '@molis-ai/molis-work-module-shelf';
 import { createPersonalSync,MolisWorkLocalHost,bindPersonalSpaceAuthority } from '@molis-ai/molis-work-app-local-host';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';

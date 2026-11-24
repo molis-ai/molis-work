@@ -36,7 +36,7 @@ export declare const PLUGIN_EVIDENCE_READ_PERMISSION = "evidence:read";
 
 export declare const PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION = "sources:pull_connector";
 
-export declare const PLUGIN_SOURCE_PULL_FEED_PERMISSION = "sources:pull_feed";
+export declare const PLUGIN_SOURCE_PULL_PUBLIC_FEED_PERMISSION = "sources:pull_public_feed";
 
 export declare const PLUGIN_SOURCE_PULL_QUERY_PERMISSION = "sources:pull_query";
 
@@ -96,21 +96,20 @@ export interface PluginSourcePullClient {
 
 export interface PluginSourceVocabulary {
     presentation(id: string, input: import("@molis-ai/molis-work-contracts/platform/plugin-integrations").SourcePresentationInput): Promise<import("@molis-ai/molis-work-contracts/platform/plugin-integrations").SourcePresentation>;
-    readonly custom_rss_definition_id: string;
-    readonly youtube_definition_id: string;
-    readonly youtube_feed_host: string;
     catalog(): readonly SourceCatalogEntry[];
-    normalizeCustomRssUrl(value: string): string;
-    customRssHost(feed_url: string): string;
-    normalizeYouTubeChannel(value: string): string;
-    youTubeChannelFeedUrl(channel_id: string): string;
-    isRssSourceKind(kind: string): boolean;
-    rssFailureCount(cursor: unknown): number;
-    rssCursorAfterFailure(cursor: unknown): {
+    addressed(): readonly PublicFeedAddressedDefinition[];
+    normalizeAddress(definition_id: string, value: string): string;
+    feedFailureCount(cursor: unknown): number;
+    feedCursorAfterFailure(cursor: unknown): {
         readonly cursor: unknown;
         readonly failures: number;
     };
-    rssCursorAfterSuccess(cursor: unknown, receipt: RssFetchReceipt | null, completed_at: string): unknown;
+    feedCursorAfterSuccess(cursor: unknown, receipt: RssFetchReceipt | null, completed_at: string): unknown;
+}
+
+export interface PublicFeedAddressedDefinition {
+    readonly definition_id: string;
+    readonly address: "feed_url" | "channel_id";
 }
 
 export interface RawEventAdapter {
@@ -193,16 +192,9 @@ export interface SourcePullOptions {
 }
 
 export type SourcePullRequest = (SourcePullBase & {
-    readonly kind: "rss";
+    readonly kind: "public_feed";
     readonly definition_id: string;
-    readonly cursor?: unknown;
-}) | (SourcePullBase & {
-    readonly kind: "custom_rss";
-    readonly feed_url: string;
-    readonly cursor?: unknown;
-}) | (SourcePullBase & {
-    readonly kind: "youtube_channel";
-    readonly channel_id: string;
+    readonly address?: string;
     readonly cursor?: unknown;
 }) | (SourcePullBase & {
     readonly kind: "web_query";

@@ -82,7 +82,7 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 工作区依赖：`@molis-ai/molis-work-contracts` 与 `@molis-ai/molis-work-plugin-sdk`。后者提供凭据封套读取时的对象判断和同步回执比较用的规范化 JSON。其他运行依赖见 [package.json](package.json)。
 
-`createEvidenceContentStore` 为 Feed 保存受限大小的加密正文，Host 显式选择目录并固定 Home。`createSearchOpaqueBlobStore`、`createSearchAead`、`createSearchSecretStore` 为 SEL 提供持久化。Feed 正文只使用 `security/evidence/`；共用 `system:feed:evidence-content-key:v1` 一把密钥。缺钥、错钥或损坏密文拒绝读取和同内容写入，不生成恢复副本或替代密钥。`molis-work-feed/sha256/...` 引用、现行密文格式及 `feed_runtime_blobs` 表名保持不变；旧的 `createFeedSearch*` 三个导出名已删，只剩 `createSearch*` 一套，不保留第二份存储。来源游标、研究策略和条目处置归消费者。正文按内容寻址、整个 Home 共用，本包看不到谁在引用：`EvidenceContentStore.delete` 删一份正文，`collect({ candidates, isReferenced })` 只删调用方数过引用、确认无人持有的候选；`createSearchOpaqueBlobStore` 返回的 `collect({ namespace, discard })` 按键删 SEL 操作记录（值保持密封、不被读取）。数引用的一方（Feed 删除来源）负责数全。
+`createEvidenceContentStore` 为 Feed 保存受限大小的加密正文，Host 显式选择目录并固定 Home。`createSearchOpaqueBlobStore`、`createSearchAead`、`createSearchSecretStore` 为 SEL 提供持久化。Feed 正文只使用 `security/evidence/`；共用 `system:evidence:content-key:v1` 一把密钥。缺钥、错钥或损坏密文拒绝读取和同内容写入，不生成恢复副本或替代密钥。`molis-work-evidence/sha256/...` 引用、现行密文格式及 `opaque_blobs` 表名保持不变；旧的 `createFeedSearch*` 三个导出名已删，只剩 `createSearch*` 一套，不保留第二份存储。来源游标、研究策略和条目处置归消费者。正文按内容寻址、整个 Home 共用，本包看不到谁在引用：`EvidenceContentStore.delete` 删一份正文，`collect({ candidates, isReferenced })` 只删调用方数过引用、确认无人持有的候选；`createSearchOpaqueBlobStore` 返回的 `collect({ namespace, discard })` 按键删 SEL 操作记录（值保持密封、不被读取）。数引用的一方（Feed 删除来源）负责数全。
 
 ## 本地开发
 

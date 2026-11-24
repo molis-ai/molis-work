@@ -5,19 +5,19 @@ import {
   renderBriefRecent,
   renderBriefSection,
   renderBriefStatus,
-  renderGoalTrack,
-  type MwGoalTrackState,
+  renderProgressTrack,
+  type MwProgressTrackState,
 } from "@molis-ai/molis-work-design-system";
 
 /**
  * The project brief: what a project is, in one reading, for the chooser's right-hand sheet. Read through the same public
- * readers Home uses (the Goals directory, the Home events), so a number here is the number there. What no reader gives
+ * readers Home uses (the progress a plugin publishes, the Home events), so a number here is the number there. What no reader gives
  * is not shown: the brief never fills a gap with a guess.
  */
 
-/** A goal as the Goals directory lists it. */
-export interface BriefGoal {
-  goal_id: string;
+/** One item of the progress a plugin publishes in its resume summary (`progress`, M2), whichever plugin that is. */
+export interface BriefProgressItem {
+  item_id: string;
   title: string;
   work_status: "open" | "completed" | "cancelled";
   next_hint: string;
@@ -46,23 +46,23 @@ export interface ProjectBriefInput {
   /** When the person last opened it from this Home. */
   opened_at: string | null;
   description: string | null;
-  /** Null when the Goals directory could not be read (distinct from a project with no goals). */
-  goals: readonly BriefGoal[] | null;
+  /** Null when no plugin publishes progress, or it could not be read (distinct from published progress with no items). */
+  progress: readonly BriefProgressItem[] | null;
   /** Null when Home's events could not be read. */
   events: readonly BriefEvent[] | null;
-  /** One line on where the goal in play stands (its recorded progress, or why it exists), read for that goal alone. */
+  /** One line on where the item in play stands (its recorded progress, or why it exists), read for that item alone. */
   current_detail?: string | null;
   workspace_path: string | null;
   now: string;
 }
 
-interface BriefTrackGoal { title: string; state: MwGoalTrackState }
+interface BriefTrackItem { title: string; state: MwProgressTrackState }
 interface BriefNextItem { title: string; caption: string; attention: boolean; open: BriefEvent["open"] }
 interface BriefRecentItem { at: string; title: string }
 
 /** What the brief says, decided. The chooser's rows read the summary; the sheet renders the rest. */
-export interface ProjectBriefModel extends Omit<ProjectBriefInput, "goals" | "events"> {
-  goals: null | { total: number; done: number; current: BriefGoal | null; track: BriefTrackGoal[] };
+export interface ProjectBriefModel extends Omit<ProjectBriefInput, "progress" | "events"> {
+  progress: null | { total: number; done: number; current: BriefProgressItem | null; track: BriefTrackItem[] };
   next: BriefNextItem[];
   recent: BriefRecentItem[];
   issues: string[];
@@ -71,16 +71,16 @@ export interface ProjectBriefModel extends Omit<ProjectBriefInput, "goals" | "ev
 /** The part of the brief a directory row shows: how far along, what is current, what waits on the person. */
 export interface ProjectBriefSummary {
   project_id: string;
-  goals_done: number | null;
-  goals_total: number | null;
+  progress_done: number | null;
+  progress_total: number | null;
   current: string | null;
   waiting: number;
   opened_at: string | null;
 }
 
-/** The goal being worked: of the open ones, the one touched last. The same rule decides what the brief reads further about. */
-export function currentBriefGoal(goals: readonly BriefGoal[]): BriefGoal | null {
-  return goals.filter(goal => goal.work_status === "open").sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0] ?? null;
+/** The item being worked: of the open ones, the one touched last. The same rule decides what the brief reads further about. */
+export function currentBriefItem(progress: readonly BriefProgressItem[]): BriefProgressItem | null {
+  return progress.filter(item => item.work_status === "open").sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0] ?? null;
 }
 
 const TRACK_LIMIT = 12;
@@ -90,24 +90,24 @@ const RECENT_LIMIT = 3;
 /** Decide what the brief says from what the readers returned. Pure. */
 export function composeProjectBrief(input: ProjectBriefInput): ProjectBriefModel {
   const issues: string[] = [];
-  let goals: ProjectBriefModel["goals"] = null;
-  if (input.goals) {
-    const live = input.goals.filter(goal => goal.work_status !== "cancelled");
-    const done = live.filter(goal => goal.work_status === "completed").sort((a, b) => a.updated_at.localeCompare(b.updated_at));
-    const open = live.filter(goal => goal.work_status === "open").sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  let progress: ProjectBriefModel["progress"] = null;
+  if (input.progress) {
+    const live = input.progress.filter(item => item.work_status !== "cancelled");
+    const done = live.filter(item => item.work_status === "completed").sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+    const open = live.filter(item => item.work_status === "open").sort((a, b) => b.updated_at.localeCompare(a.updated_at));
     const current = open[0] ?? null;
-    const track: BriefTrackGoal[] = [
-      ...done.map(goal => ({ title: goal.title, state: "done" as const })),
-      ...open.map((goal, index) => ({ title: goal.title, state: index === 0 ? "doing" as const : "todo" as const })),
+    const track: BriefTrackItem[] = [
+      ...done.map(item => ({ title: item.title, state: "done" as const })),
+      ...open.map((item, index) => ({ title: item.title, state: index === 0 ? "doing" as const : "todo" as const })),
     ];
-    // A long history keeps its newest finished goals beside the open ones; the count still says how many in all.
+    // A long history keeps its newest finished items beside the open ones; the count still says how many in all.
     let shown = track;
     if (track.length > TRACK_LIMIT) {
       const keepOpen = Math.min(open.length, TRACK_LIMIT);
       shown = [...track.slice(Math.max(0, done.length - (TRACK_LIMIT - keepOpen)), done.length), ...track.slice(done.length, done.length + keepOpen)];
     }
-    goals = { total: live.length, done: done.length, current, track: shown };
-  } else issues.push("goals");
+    progress = { total: live.length, done: done.length, current, track: shown };
+  } else issues.push("progress");
   const events = input.events ?? [];
   if (!input.events) issues.push("events");
   const byNewest = (a: BriefEvent, b: BriefEvent) => b.occurred_at.localeCompare(a.occurred_at);
@@ -118,13 +118,13 @@ export function composeProjectBrief(input: ProjectBriefInput): ProjectBriefModel
   const next = ahead.map(event => ({ title: event.title, caption: event.summary || event.source_title, attention: event.needs_attention, open: event.open }));
   const recent = events.filter(event => !aheadIds.has(event.event_id) && event.placement === "occurred").sort(byNewest).slice(0, RECENT_LIMIT)
     .map(event => ({ at: event.occurred_at, title: event.title }));
-  return { ...input, goals, next, recent, issues };
+  return { ...input, progress, next, recent, issues };
 }
 
-/** What a directory row reads from the brief. When goals are unreadable the counts stay null rather than zero. */
-export function summarizeProjectBrief(model: ProjectBriefModel, events: readonly BriefEvent[] | null, goals: readonly BriefGoal[] | null): ProjectBriefSummary {
-  const waiting = events ? events.filter(event => event.needs_attention).length : (goals ?? []).filter(goal => goal.work_status === "open").reduce((sum, goal) => sum + goal.pending_decision_count, 0);
-  return { project_id: model.project_id, goals_done: model.goals?.done ?? null, goals_total: model.goals?.total ?? null, current: model.goals?.current?.title ?? null, waiting, opened_at: model.opened_at };
+/** What a directory row reads from the brief. When no progress was read the counts stay null rather than zero. */
+export function summarizeProjectBrief(model: ProjectBriefModel, events: readonly BriefEvent[] | null, progress: readonly BriefProgressItem[] | null): ProjectBriefSummary {
+  const waiting = events ? events.filter(event => event.needs_attention).length : (progress ?? []).filter(item => item.work_status === "open").reduce((sum, item) => sum + item.pending_decision_count, 0);
+  return { project_id: model.project_id, progress_done: model.progress?.done ?? null, progress_total: model.progress?.total ?? null, current: model.progress?.current?.title ?? null, waiting, opened_at: model.opened_at };
 }
 
 interface ProjectBriefPrimitives {
@@ -181,14 +181,14 @@ export function createWorkbenchProjectBriefRenderer(primitives: ProjectBriefPrim
   function renderProjectBrief(model: ProjectBriefModel): string {
     const time = createBriefTime(primitives, model.now);
     const name = model.personal ? uiText.text("workbench.project-brief.personal-space") : model.name;
-    const goals = model.goals;
-    // The badge speaks only for the Goals plugin's own count; a project with no Goals (or none read) claims no state, since its
-    // work may well be in other plugins.
+    const progress = model.progress;
+    // The badge speaks only for the published progress; a project with none (or none read) claims no state, since its work may well
+    // be in plugins that publish none.
     const state = model.personal
       ? { label: uiText.text("workbench.project-brief.only-can-see"), tone: "quiet" as const, glyph: "user" as PluginIconName }
-      : !goals || !goals.total ? null
-      : goals.done === goals.total ? { label: uiText.text("workbench.project-brief.goals-done"), tone: "done" as const, glyph: "status-done" as PluginIconName }
-      : { label: uiText.text("workbench.project-brief.goals-progress"), tone: "progress" as const, glyph: "status-progress" as PluginIconName };
+      : !progress || !progress.total ? null
+      : progress.done === progress.total ? { label: uiText.text("workbench.project-brief.progress-done"), tone: "done" as const, glyph: "status-done" as PluginIconName }
+      : { label: uiText.text("workbench.project-brief.progress-ongoing"), tone: "progress" as const, glyph: "status-progress" as PluginIconName };
     const opened = model.opened_at ? `<span>${uiText("workbench.project-brief.last-opened")} <time datetime="${escapeHtml(model.opened_at)}" data-relative>${escapeHtml(time.ago(model.opened_at))}</time></span>` : "";
     const kicker = `${state ? renderBriefStatus(state) : ""}${opened}${model.demo ? `<span>${uiText("workbench.project-brief.demo-data-can-be-rebuilt-any-time")}</span>` : ""}`;
 
@@ -196,22 +196,17 @@ export function createWorkbenchProjectBriefRenderer(primitives: ProjectBriefPrim
     const missing = model.personal || model.description ? undefined : uiText.text("workbench.project-brief.no-description-yet-open-project-add-line-its");
 
     let focus = "";
-    if (!model.personal && goals) {
-      if (!goals.total) {
-        focus = renderBriefFocus({ label: "", title: uiText.text("workbench.project-brief.no-goals-yet"), body: uiText.text("workbench.project-brief.write-first-goal-once-open-project-ask-assistant"), empty: {
-          action: renderButton({ variant: "secondary", size: "md", icon: "sparkles", label: uiText.text("workbench.project-brief.draft-assistant"), attrs: { "data-act": "prefill", "data-text": uiText.text("workbench.project-brief.help-me-draft-few-goals-project") } }),
-        } });
-      } else {
-        const allDone = goals.done === goals.total;
-        const track = renderGoalTrack({ goals: goals.track, label: uiText.text("workbench.project-brief.done-total-total-done", { done: goals.done, total: goals.total }) });
-        focus = renderBriefFocus({
-          label: allDone ? uiText.text("workbench.project-brief.all-goals-done") : uiText.text("workbench.project-brief.focused-goal"),
-          count: `<b>${goals.done}</b> / ${goals.total} ${uiText("common.control.done")}`,
-          title: allDone ? uiText.text("workbench.project-brief.all-n-n-done", { n: goals.total }) : goals.current?.title ?? "",
-          body: allDone ? uiText.text("workbench.project-brief.can-wrap-up-set-new-goals-project") : model.current_detail || goals.current?.next_hint || undefined,
-          track,
-        });
-      }
+    // Progress with nothing in it yet draws nothing: what to start with is the publishing plugin's to say, on its own page.
+    if (!model.personal && progress?.total) {
+      const allDone = progress.done === progress.total;
+      const track = renderProgressTrack({ items: progress.track, label: uiText.text("workbench.project-brief.done-total-total-done", { done: progress.done, total: progress.total }) });
+      focus = renderBriefFocus({
+        label: allDone ? uiText.text("workbench.project-brief.all-done") : uiText.text("workbench.project-brief.focused-item"),
+        count: `<b>${progress.done}</b> / ${progress.total} ${uiText("common.control.done")}`,
+        title: allDone ? uiText.text("workbench.project-brief.all-n-n-done", { n: progress.total }) : progress.current?.title ?? "",
+        body: allDone ? uiText.text("workbench.project-brief.can-wrap-up") : model.current_detail || progress.current?.next_hint || undefined,
+        track,
+      });
     }
 
     const nextBody = model.next.length
@@ -220,7 +215,7 @@ export function createWorkbenchProjectBriefRenderer(primitives: ProjectBriefPrim
           ...(item.attention ? { status: uiText.text("workbench.project-brief.needs-approval"), statusTone: "attention" as const, statusIcon: "status-needs-you" as PluginIconName } : {}),
           attrs: { "data-act": "enter-item" },
         })).join("")}</div>`
-      : `<p class="mw-brief__quiet">${model.issues.includes("events") ? uiText("workbench.project-brief.can-t-read-items-right-now-open-project") : goals?.total ? uiText("workbench.project-brief.nothing-waiting-move-forward") : uiText("workbench.project-brief.when-plugin-has-something-move-confirm-will-show")}</p>`;
+      : `<p class="mw-brief__quiet">${model.issues.includes("events") ? uiText("workbench.project-brief.can-t-read-items-right-now-open-project") : progress?.total ? uiText("workbench.project-brief.nothing-waiting-move-forward") : uiText("workbench.project-brief.when-plugin-has-something-move-confirm-will-show")}</p>`;
     const recentBody = model.recent.length
       ? renderBriefRecent(model.recent.map(item => ({ when: time.when(item.at), text: item.title })))
       : `<p class="mw-brief__quiet">${model.issues.includes("events") ? uiText("workbench.project-brief.can-t-read-recent-activity-right-now") : uiText("workbench.project-brief.nothing-yet")}</p>`;

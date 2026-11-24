@@ -110,8 +110,8 @@ export function pluginAttentionFor(manifest: PluginManifest, context: PluginStar
   return Object.freeze<PluginAttentionClient>({
     list: () => { reading(); return attentionModule.query.list(projectId).filter(hasAttentionOwner); },
     get: entryId => { reading(); return assignedEntry(attentionModule.query.get(projectId, entryId)); },
-    listInbox: () => { reading(); return attentionModule.query.listInbox(projectId, inboxDeclarationsOf(inboxLibrary)); },
-    getInbox: entryId => { reading(); return attentionModule.query.getInbox(projectId, entryId, inboxDeclarationsOf(inboxLibrary)); },
+    listWaiting: () => { reading(); return attentionModule.query.listWaiting(projectId, inboxDeclarationsOf(inboxLibrary)); },
+    getWaiting: entryId => { reading(); return attentionModule.query.getWaiting(projectId, entryId, inboxDeclarationsOf(inboxLibrary)); },
     findActiveForSubject: subject => {
       reading(); const entry = attentionModule.query.findActiveForSubject(projectId, subject.subject_type, subject.subject_id, subject.owner_plugin_id);
       return entry && hasAttentionOwner(entry) ? entry : null;

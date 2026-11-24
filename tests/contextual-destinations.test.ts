@@ -9,7 +9,7 @@ import { createContextualJudgmentService } from "@molis-ai/molis-work-app-local-
 
 /** W1-5 (context-program §18): destinations are candidates derived from declarations, and only ever take a recommended slot. */
 const provider = (id: string, title: string, plugin_id = id) => ({ provider_id: id, title, plugin_id }) as ActionView["provider"];
-const todo = provider("io.molis.work.todo", "Todo"), pages = provider("io.molis.work.pages", "Pages"), shelf = provider("io.molis.work.shelf", "Shelf");
+const todo = provider("io.molis.work.todo", "Todo"), pages = provider("io.molis.work.pages", "Pages"), shelf = provider("system.shelf", "Shelf");
 const view = (p: ActionView["provider"], capability_id: string, action: Partial<ActionView["action"]> = {}, operation: ActionView["operation"] = "command", available = true): ActionView => ({
   capability_id, version: 1, provider_id: p.provider_id, operation, provider: p,
   availability: available ? { available: true } : { available: false, code: "actions.disabled", reason: `${p.title} 已停用` },

@@ -36,11 +36,10 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
     removed.delete("selection");
     paintMats();
   });
-  /** Official surfaces whose tab item is an object with a shared context reader; a plugin that declares its own context wins. */
-  const TAB_KINDS = { pages: "pages_document", coding: "coding_session", inbox: "inbox_entry", feed: "feed_item", goals: "goal", artifacts: "artifact" };
-  // What plugins declare for their searchable objects (kind and the surface it opens in) extends and corrects the list.
+  // Which object a surface's tab item is, and each kind's icon, as plugins declare their searchable objects (kind, the surface it
+  // opens in, glyph; M8): the shell keeps no list of its own.
   const declaredKinds = {};
-  api("/surface-kinds").then((res) => Object.assign(declaredKinds, res.kinds || {})).catch(() => undefined);
+  api("/surface-kinds").then((res) => { Object.assign(declaredKinds, res.kinds || {}); Object.assign(kindGlyphs, res.glyphs || {}); }).catch(() => undefined);
   // The last background a plugin page sent (purpose "background"), used while that plugin is the one on show.
   let background = null;
   const pageCtx = () => {
@@ -55,7 +54,7 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
     // No declaration: the open tab still says which object the person is on.
     const tab = document.querySelector(".tab-item[aria-current='page'][data-item-id]");
     if (!tab) return null;
-    const kind = declaredKinds[tab.dataset.plugin] || TAB_KINDS[tab.dataset.plugin];
+    const kind = declaredKinds[tab.dataset.plugin];
     const title = tab.getAttribute("title") || "";
     return { plugin_id: tab.dataset.plugin, surface_title: title, ...(kind ? { object: { kind, id: tab.dataset.itemId, title } } : {}) };
   };

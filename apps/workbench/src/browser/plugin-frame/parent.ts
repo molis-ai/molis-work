@@ -1,3 +1,4 @@
+import { pluginRouteBase } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pageTaskFloat, type TaskFrame, type TaskFrameContext } from "./task-parent.js";
 import { collapsePage } from "./view.js";
@@ -227,7 +228,7 @@ function observeFrameRevision(scope: FrameScope, route: (path: string) => string
     const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
     const read = async () => {
       try {
-        const value = await molisWorkRequest<{ revision: string }>(route("/api/plugins/" + pluginId + "/view-revision"), { scope, signal: controller.signal, headers: { "x-molis-plugin-page": pageId } });
+        const value = await molisWorkRequest<{ revision: string }>(route(pluginRouteBase(pluginId) + "/view-revision"), { scope, signal: controller.signal, headers: { "x-molis-plugin-page": pageId } });
         scope.assertCurrent(); if (controller.signal.aborted) return;
         if (revision !== undefined && revision !== value.revision) invalidate();
         revision = value.revision;

@@ -42,6 +42,7 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
       linkKinds: artifactLinkKinds(),
       linkSubjects: artifactLinkSubjectsPort(client),
       typeTitle: typeId => artifactTypeDeclarations().get(typeId)?.title ?? null,
+      searchableFields: typeId => artifactTypeDeclarations().get(typeId)?.searchable_fields,
       // The owner's preview, with the caller's own authority; a version the caller may not read through it has no text here.
       previewText: async (artifact, caller) => {
         const preview = artifactTypeDeclarations().get(artifact.artifact_type_id)?.preview;

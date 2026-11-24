@@ -56,7 +56,7 @@ test("a round that finishes while the person is elsewhere raises one notice; the
   const gate = new Promise<void>(resolve => { release = resolve; });
   t.mock.method(globalThis, "fetch", async () => { await gate; return reply(); });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-attention-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-attention-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
@@ -95,7 +95,7 @@ test("a new work whose round fails at once, before anything looked, still raises
   // The model cannot be reached: the round fails straight away (seen with an unreachable model address).
   t.mock.method(globalThis, "fetch", async () => { throw new TypeError("fetch failed"); });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-attention-fail-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-attention-fail-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
@@ -121,7 +121,7 @@ test("the person's rules are the Assistant's own actions: found by agents, addin
     const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { pages: async () => ["home", "pages"], host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
     registerAssistantRuleActions(actions, () => service, home);
     const caller = { actor_id: "web-user", actor_kind: "runtime" as const, project_id: null, audience: "agent" as const, permissions: [] };
-    const found = actions.discover(caller).filter(view => view.provider.provider_id === "io.molis.work.assistant.rules" && view.capability_id.startsWith("assistant.rules."));
+    const found = actions.discover(caller).filter(view => view.provider.provider_id === "system.assistant.rules" && view.capability_id.startsWith("assistant.rules."));
     assert.deepEqual(found.map(view => [view.capability_id, view.operation]).sort(), [["assistant.rules.add", "command"], ["assistant.rules.list", "query"], ["assistant.rules.remove", "command"]]);
     const added = await actions.invoke(caller, ASSISTANT_RULE_ACTIONS.add, { kind: "quiet", surfaces: ["pages"], except: ["failed"], label: "写文档时不要提醒，失败除外" }) as { rules: AssistantRule[] };
     assert.deepEqual(added.rules.map(item => [item.kind, item.surfaces, item.except, item.label]), [["quiet", ["pages"], ["failed"], "写文档时不要提醒，失败除外"]]);

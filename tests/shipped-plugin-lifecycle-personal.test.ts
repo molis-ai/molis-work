@@ -18,13 +18,9 @@ const PERSONAL: Record<string, Shipped> = {
   images: { key: "images", plugin_id: "io.molis.work.images", scope: "home",
     write: (web, routes, name) => web.post(`${routes}/connections`, { name, api_format: "openai-images", base_url: "http://127.0.0.1:9/v1", model: "fixture" }),
     titles: async (web, routes) => (await web.get<{ connections: Array<{ name: string }> }>(`${routes}/connections`)).connections.map(connection => connection.name) },
-  shelf: { key: "shelf", plugin_id: "io.molis.work.shelf", scope: "home", always_on: true, dual: true, kept: ["first-lifecycle.md"],
-    write: (web, routes, title) => web.post(`${routes}/items`, { filename: `${title}-lifecycle.md`, bytes_base64: Buffer.from("第一稿").toString("base64") }),
-    titles: async (web, routes) => (await web.get<{ materials: Array<{ name: string }> }>(`${routes}/`)).materials.map(item => item.name).filter(name => name.endsWith("-lifecycle.md")) },
 };
 
 const walked = "added, removed and added back in a project, revoked, upgraded and uninstalled";
 test(`RAC-1095 W6-02 问题 (Issues) on the Home supervisor: ${walked}`, { timeout: 180_000 }, () => walk(PERSONAL.issues!));
 test(`RAC-1096 W6-02 知识库 (Cognia) on the Home supervisor: ${walked}`, { timeout: 180_000 }, () => walk(PERSONAL.cognia!));
 test(`RAC-1097 W6-02 图片 (Images) on the Home supervisor: ${walked}`, { timeout: 180_000 }, () => walk(PERSONAL.images!));
-test(`RAC-1098 W6-02 置物架 (Shelf) on the Home supervisor: ${walked}`, { timeout: 180_000 }, () => walk(PERSONAL.shelf!));

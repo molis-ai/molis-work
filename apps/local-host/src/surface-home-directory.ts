@@ -8,7 +8,6 @@ import { presentationOwnerHue } from "@molis-ai/molis-work-design-system";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import type { SurfaceHomePlugin, SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
 import { currentReadCheckGeneration, currentTurn } from "@molis-ai/molis-work-plugin-runtime";
-import { readOnlyAlwaysOnProjectPlugins, withFreshReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { currentHomeStageHalves } from "./home-plugin-http.js";
 import type { HomePluginHost } from "./home-plugins.js";
 import { currentInstalledPluginHost } from "./installed-plugin-host.js";
@@ -66,17 +65,17 @@ const MEMBERSHIP_ENABLE = { capability_id: projectPluginActions.set.capability_i
   provider_id: PROJECT_WORKSPACE_PROVIDER_ID } as const;
 
 function homeMembership(ports: DirectoryPorts) {
-  const { homeDirectory, reference: { project_id, storage_key } } = ports;
-  const membership = withFreshReadOnlyPluginDirectory(homeDirectory, () => ports.readCatalog(catalog => {
+  const { reference: { project_id, storage_key } } = ports;
+  const membership = ports.readCatalog(catalog => {
     if (resolve(catalog.getProject(project_id).database_path) !== storage_key || catalog.recycle.isRecycled(project_id))
       throw new ActionError("actions.scope_mismatch", "原项目已关闭或变化");
-    const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(project_id, () => readOnlyAlwaysOnProjectPlugins(homeDirectory));
+    const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(project_id);
     const shown = shownProjectPlugins(plugins, hidden).filter(key => !hidden.includes(key));
     const reach = availableProjectPluginIds(shown);
     const removed = new Set(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !reach.has(entry.project_plugin_id)
       && !hidden.includes(entry.project_plugin_id) && catalog.wasProjectPluginRemoved(project_id, entry.project_plugin_id)).map(entry => entry.project_plugin_id));
     return { shown: new Set(shown), hidden: new Set(hidden), removed, revision };
-  }));
+  });
   if (!membership) throw new ActionError("actions.unavailable", "项目目录尚未打开");
   return membership;
 }

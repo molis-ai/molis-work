@@ -9,10 +9,10 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { ShelfStore } from "../modules/shelf/dist/store.js";
 import { hashBytes } from "@molis-ai/molis-work-module-shelf";
-import { SHELF_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
-import { createShelfRouteHandlers } from "@molis-ai/molis-work-plugin-shelf";
-import { SHELF_STYLES } from "@molis-ai/molis-work-plugin-shelf";
-import { renderShelfWorkbench } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-module-shelf/surface";
+import { createShelfRouteHandlers } from "@molis-ai/molis-work-module-shelf/surface";
+import { SHELF_STYLES } from "@molis-ai/molis-work-module-shelf/surface";
+import { renderShelfWorkbench } from "@molis-ai/molis-work-module-shelf/surface";
 import { pageText, pageTextScript, withPageText } from "./fixtures/page-text.js";
 import { directShelfActions, ShelfPluginRouteTable, openTestShelfFiles } from "./shelf-direct-actions.js";
 
@@ -60,7 +60,7 @@ async function openShelfBrowser(t: TestContext) {
     ${pageTextScript("zh", "shelf")}
     ${UI_REQUEST_CLIENT_SCRIPT}
     window.mountShelf=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
-    window.bootShelf=()=>(${SHELF_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mountShelf,pluginId:'io.molis.work.shelf',pluginRoute:path=>'/api/plugins/io.molis.work.shelf'+path,loadMedia:async()=>null,copyText:text=>navigator.clipboard.writeText(text),translate:globalThis.t.text});bootShelf();`;
+    window.bootShelf=()=>(${SHELF_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mountShelf,pluginId:'system.shelf',pluginRoute:path=>'/api/platform/shelf'+path,loadMedia:async()=>null,copyText:text=>navigator.clipboard.writeText(text),translate:globalThis.t.text});bootShelf();`;
   const server = createServer(async (request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
     requests.push(`${request.method} ${url.pathname}`);
@@ -72,7 +72,7 @@ async function openShelfBrowser(t: TestContext) {
       const bytes = Buffer.concat(chunks);
       const result = await routes.handle({ method: request.method === "POST" ? "POST" : "GET", pathname: url.pathname, query: url.searchParams, body: bytes.length ? JSON.parse(bytes.toString("utf8")) : {} });
       if (!result) { response.writeHead(404); response.end(); return; }
-      if (request.method === "GET" && url.pathname === "/api/plugins/io.molis.work.shelf/" && delayNextRead) { const wait = delayNextRead; delayNextRead = undefined; await wait(); }
+      if (request.method === "GET" && url.pathname === "/api/platform/shelf/" && delayNextRead) { const wait = delayNextRead; delayNextRead = undefined; await wait(); }
       if (request.method === "GET" && url.pathname.endsWith("/file") && delayNextFile) { const wait = delayNextFile; delayNextFile = undefined; await wait(); }
       const file = result.bytes === undefined ? undefined : Buffer.from(result.bytes);
       // Match the Host transport: the bytes in this response determine the editor's ETag.
@@ -137,26 +137,26 @@ test("Shelf isolated client boundaries use production UI and real file HTTP", { 
     const document = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
     const input = await command<{ nodeId: number }>("DOM.querySelector", { nodeId: document.root.nodeId, selector: "[data-shelf-file]" }, sessionId);
     assert.ok(input.nodeId);
-    const before = requests.filter(value => value === "POST /api/plugins/io.molis.work.shelf/items").length;
+    const before = requests.filter(value => value === "POST /api/platform/shelf/items").length;
     await command("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [file] }, sessionId);
     await waitFor("document.querySelector('[data-shelf-preview]')?.textContent.includes('PICKER_END_SENTINEL') && document.querySelector('[data-shelf-file]').value === ''");
-    assert.equal(requests.filter(value => value === "POST /api/plugins/io.molis.work.shelf/items").length, before + 1);
+    assert.equal(requests.filter(value => value === "POST /api/platform/shelf/items").length, before + 1);
     const item = (await shelf.snapshot()).materials.find(item => item.name === filename);
     assert.ok(item); itemId = item.item_id;
     assert.equal(shelf.readFile(item.item_id).bytes.toString("utf8"), text);
-    assert.ok(requests.includes(`GET /api/plugins/io.molis.work.shelf/items/${itemId}/file`), "full preview must read the real copy endpoint");
+    assert.ok(requests.includes(`GET /api/platform/shelf/items/${itemId}/file`), "full preview must read the real copy endpoint");
   });
 
   await t.test("unsent input is restored, missing bridge preserves the draft, and wheel handoff quotes apostrophes", async () => {
     await evaluate(`(() => {delete window.molisWorkShelfTui;const field=document.querySelector('[data-shelf-tty-input]');
-      field.value='已有草稿';window.dispatchEvent(new CustomEvent('molis-shelf-tui-unsent',{detail:{texts:['失败文本','https://example.com/中文'],message:'fixture spawn failed'}}));})()`);
+      field.value='已有草稿';window.dispatchEvent(new CustomEvent('molis:shelf-tui-unsent',{detail:{texts:['失败文本','https://example.com/中文'],message:'fixture spawn failed'}}));})()`);
     const restored = "失败文本 https://example.com/中文 已有草稿";
     assert.equal(await evaluate("document.querySelector('[data-shelf-tty-input]').value"), restored);
     await evaluate("document.querySelector('[data-shelf-tty-input]').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))");
     assert.equal(await evaluate("document.querySelector('[data-shelf-tty-input]').value"), restored);
     assert.match(await evaluate<string>("document.querySelector('[data-shelf-bar-hint]').textContent"), /终端尚未连接，输入已保留/);
     await evaluate(`window.terminalCalls=[];window.molisWorkShelfTui={open:()=>window.terminalCalls.push({kind:'open'}),send:text=>{window.terminalCalls.push({kind:'send',text});return true}};
-      window.dispatchEvent(new CustomEvent('molis-shelf-send-tui',{detail:{item_ids:[${JSON.stringify(itemId)}]}}));`);
+      window.dispatchEvent(new CustomEvent('molis:shelf-send-tui',{detail:{item_ids:[${JSON.stringify(itemId)}]}}));`);
     await waitFor("window.terminalCalls.some(call=>call.kind==='send')");
     const item = shelf.readFile(itemId).item, filePath = join(shelf.root, item.relative_path);
     assert.ok(filePath.endsWith(filename));
@@ -208,12 +208,12 @@ test("W2-18-SHELF-CACHE-01: owner edits invalidate same-ID text and an earlier f
   const browser = await openShelfBrowser(t); if (!browser) return;
   const { shelf, evaluate, waitFor, delayFile } = browser;
   const item = await shelf.admit({ filename: "editable.md", bytes: Buffer.from("# Original\n" + "a".repeat(25_000) + "\nORIGINAL_END"), mime: "text/markdown" });
-  await evaluate(`window.dispatchEvent(new CustomEvent('molis-shelf-refresh',{detail:{item_ids:[${JSON.stringify(item.item_id)}]}}))`);
+  await evaluate(`window.dispatchEvent(new CustomEvent('molis:shelf-refresh',{detail:{item_ids:[${JSON.stringify(item.item_id)}]}}))`);
   await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('ORIGINAL_END')");
   const delayed = delayFile(); t.after(() => delayed.release());
-  await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))"); await delayed.started;
+  await evaluate("window.dispatchEvent(new CustomEvent('molis:shelf-refresh'))"); await delayed.started;
   await shelf.writeCopy(item.item_id, "# Current\n" + "b".repeat(25_000) + "\nCURRENT_END", hashBytes(shelf.readFile(item.item_id).bytes));
-  await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))");
+  await evaluate("window.dispatchEvent(new CustomEvent('molis:shelf-refresh'))");
   await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('CURRENT_END')");
   delayed.release(); await new Promise(resolve => setTimeout(resolve, 100));
   const text = await evaluate<string>("document.querySelector('[data-shelf-preview]').textContent");
@@ -230,7 +230,7 @@ test("PCSYNC-15: Shelf stale browser draft is retained and cannot overwrite the 
   const { shelf, evaluate, waitFor } = browser;
   const original = "# Same prefix\n" + "a".repeat(25_000) + "OLD_TAIL";
   const item = await shelf.admit({ filename: "concurrent.md", bytes: Buffer.from(original), mime: "text/markdown" });
-  await evaluate(`window.dispatchEvent(new CustomEvent('molis-shelf-refresh',{detail:{item_ids:[${JSON.stringify(item.item_id)}]}}))`);
+  await evaluate(`window.dispatchEvent(new CustomEvent('molis:shelf-refresh',{detail:{item_ids:[${JSON.stringify(item.item_id)}]}}))`);
   await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('OLD_TAIL')");
   await evaluate("document.querySelector('[data-shelf-edit]').click()");
   await waitFor("Boolean(document.querySelector('[data-shelf-editor]'))");
@@ -251,11 +251,11 @@ test("PCSYNC-15: Shelf stale browser draft is retained and cannot overwrite the 
 test("W2-18-SHELF-LIFETIME-01: a window event belongs to one live mount; a detached mount answers nothing", { timeout: 35_000 }, async t => {
   const browser = await openShelfBrowser(t); if (!browser) return;
   const { requests, evaluate } = browser;
-  const reads = () => requests.filter(request => request === "GET /api/plugins/io.molis.work.shelf/").length;
+  const reads = () => requests.filter(request => request === "GET /api/platform/shelf/").length;
   const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   await evaluate("window.shelfRoot=document.querySelector('[data-shelf=workbench]');window.shelfParent=shelfRoot.parentElement;shelfRoot.remove()");
   await pause(50);
-  const refresh = "window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))";
+  const refresh = "window.dispatchEvent(new CustomEvent('molis:shelf-refresh'))";
   const detached = reads(); await evaluate(refresh); await pause(150);
   assert.equal(reads(), detached, "a detached mount reads nothing");
   await evaluate("shelfParent.append(shelfRoot);bootShelf();bootShelf()");
@@ -269,11 +269,11 @@ test("Shelf keeps the latest snapshot and releases global handlers across hide, 
   const browser = await openShelfBrowser(t); if (!browser) return;
   const { shelf, requests, evaluate, waitFor, delaySnapshot } = browser;
   const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-  const reads = () => requests.filter(request => request === "GET /api/plugins/io.molis.work.shelf/").length;
+  const reads = () => requests.filter(request => request === "GET /api/platform/shelf/").length;
   const delayed = delaySnapshot();
-  await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))"); await delayed.started;
+  await evaluate("window.dispatchEvent(new CustomEvent('molis:shelf-refresh'))"); await delayed.started;
   await shelf.admit({ filename: "更新后的材料.md", bytes: Buffer.from("# 最新内容"), mime: "text/markdown" });
-  await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))");
+  await evaluate("window.dispatchEvent(new CustomEvent('molis:shelf-refresh'))");
   await waitFor("document.querySelector('[data-shelf-list=materials]').textContent.includes('更新后的材料')");
   delayed.release(); await pause(100);
   assert.equal(await evaluate("document.querySelector('[data-shelf-list=materials]').textContent.includes('更新后的材料')"), true, "late earlier snapshot cannot erase a later read");
@@ -284,13 +284,13 @@ test("Shelf keeps the latest snapshot and releases global handlers across hide, 
   assert.equal(reads(), hiddenReads + 1, "returning reads authoritative data once");
   await pause(100); await evaluate("shelfRoot.remove()"); await pause(50);
   const detachedReads = reads();
-  await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))"); await pause(100);
+  await evaluate("window.dispatchEvent(new CustomEvent('molis:shelf-refresh'))"); await pause(100);
   assert.equal(reads(), detachedReads, "detached Shelf no longer listens to global refresh events");
   await evaluate("shelfParent.append(shelfRoot);bootShelf();bootShelf()");
   for (let n = 0; n < 100 && reads() === detachedReads; n++) await pause(20);
   assert.equal(reads(), detachedReads + 1);
   await pause(100); const mountedReads = reads();
-  await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))");
+  await evaluate("window.dispatchEvent(new CustomEvent('molis:shelf-refresh'))");
   for (let n = 0; n < 100 && reads() === mountedReads; n++) await pause(20);
   await pause(100); assert.equal(reads(), mountedReads + 1, "one current handler serves one refresh after remount");
 });
@@ -306,7 +306,7 @@ test("VUX-19: a clip's copy is said on the bar, a refused clipboard included, an
   await waitFor(`${row} && document.querySelector('[data-shelf-bar]')?.textContent.length > 0`);
   await evaluate(`(() => { window.allowCopy = false; window.copied = []; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
     writeText: (text) => window.allowCopy ? (window.copied.push(text), Promise.resolve()) : Promise.reject(new Error('denied')) } }); })()`);
-  const promoted = () => requests.filter(line => line === "POST /api/plugins/io.molis.work.shelf/clipboard").length;
+  const promoted = () => requests.filter(line => line === "POST /api/platform/shelf/clipboard").length;
   const before = promoted();
   await evaluate(`${row}.querySelector('[data-shelf-row-action=copy]').click()`);
   await waitFor(`document.querySelector('[data-shelf-bar-hint]')?.textContent.includes('复制失败')`);

@@ -13,8 +13,8 @@ export declare const PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:wr
 export interface PluginAttentionClient {
     list(): PluginAttentionEntryRecord[];
     get(entryId: string): PluginAttentionEntryRecord;
-    listInbox(): AttentionEntryRecord[];
-    getInbox(entryId: string): AttentionEntryRecord;
+    listWaiting(): AttentionEntryRecord[];
+    getWaiting(entryId: string): AttentionEntryRecord;
     findActiveForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord | null;
     findForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord[];
     events(entryId?: string): PluginAttentionEvent[];
@@ -23,7 +23,7 @@ export interface PluginAttentionClient {
 
 export interface PluginAttentionDeclaration {
     readonly subjects: readonly PluginAttentionSubjectDeclaration[];
-    readonly inbox?: readonly AttentionSubjectType[];
+    readonly waiting?: readonly AttentionSubjectType[];
 }
 
 export interface PluginAttentionEntryInput extends PluginAttentionSubjectReference {

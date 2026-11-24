@@ -27,7 +27,7 @@ test("Todo is a personal plugin on the rail after Goals, listed in the market, w
   assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(TODO_PROJECT_PLUGIN_ID), false);
   assert.deepEqual(railEntries(["goals", "todo", "inbox"]).map(entry => [entry.id, entry.label, entry.glyph]),
     [["goals", "Goals", "target"], ["todo", "待办", "list"], ["inbox", "Inbox", "inbox"], ["artifacts", "成果", "package"], ["sessions", "外部会话", "history"]]);
-  const card = pluginMarketCards({}, builtinMarketDirectory()).find(entry => entry.id === "todo");
+  const card = pluginMarketCards(builtinMarketDirectory()).find(entry => entry.id === "todo");
   assert.equal(card?.personal, true);
   assert.equal(homeStores().get("todo")?.owner, todoManifest.plugin_id, "卸载 --purge 要能删掉待办库");
 }));

@@ -26,7 +26,7 @@ export async function connectorSettingsView(host: MolisWorkLocalHost, home: stri
   const connectors = cards.map(card => {
     const live = accounts.filter(row => row.service_id === card.connector_id && row.enabled && row.state === "connected");
     const ready = {
-      feed_source: live.some(supportsAccountSource),
+      source_pull: live.some(supportsAccountSource),
       document_import: documents.some(entry => entry.service === card.connector_id && live.some(row => entry.methods.includes(row.auth_method))),
       assistant_read: live.some(supportsConnectorRecords),
       web_search: live.some(row => row.auth_method === "token" || row.auth_method === "oauth"),

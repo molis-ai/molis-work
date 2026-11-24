@@ -9,7 +9,7 @@ import { openTestHome } from "./fixtures/test-home.js";
  * every service the directory lists has its row, and the row's uses and skill categories are the ones its declarations give. A service
  * added or a declaration changed without the matrix makes this fail.
  */
-const USE_COLUMNS = ["feed_source", "document_import", "assistant_read", "web_search"] as const;
+const USE_COLUMNS = ["source_pull", "document_import", "assistant_read", "web_search"] as const;
 
 test("ASC-38 ASC-54 BL-917: the service matrix lists every directory service with its declared uses and categories", { timeout: 60_000 }, async t => {
   const fixture = await openTestHome(t);

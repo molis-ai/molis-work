@@ -41,10 +41,10 @@ test("RAC-1310 a market card says what it brings and what it takes, from the dir
   const marked = (marks: Readonly<Record<string, { companions?: readonly string[] }>>) =>
     builtinPluginDirectory().map(entry => ({ ...entry, ...marks[entry.id] }));
   const card = (html: string, id: string) => html.match(new RegExp(`<article[^>]*data-market-plugin="${id}"[^>]*>`))?.[0] ?? "";
-  const related = renderPluginMarket({ L: value => value, escapeHtml: String, icon }, {}, marked({ feed: { companions: ["inbox"] } }));
+  const related = renderPluginMarket({ L: value => value, escapeHtml: String, icon }, marked({ feed: { companions: ["inbox"] } }));
   assert.match(card(related, "feed"), /data-market-needs="inbox"/, "adding Feed brings Inbox");
   assert.match(card(related, "inbox"), /data-market-needed-by="feed"/, "removing Inbox takes Feed with it");
-  const plain = renderPluginMarket({ L: value => value, escapeHtml: String, icon }, {}, marked({}));
+  const plain = renderPluginMarket({ L: value => value, escapeHtml: String, icon }, marked({}));
   assert.doesNotMatch(plain, /data-market-needs|data-market-needed-by/, "no companions, no attributes");
 });
 

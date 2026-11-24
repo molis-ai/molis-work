@@ -4,7 +4,7 @@ import { SqlitePluginRuntimeReleaseArtifactRepository, SqlitePluginRuntimeReposi
 /**
  * The rows a Runtime start leaves in a project's library for one installation: the build in the release archive and the installation's
  * record. A test that composes a plugin's pieces over a library it opened itself (no Runtime start) uses this to have the platform see the
- * plugin installed, because what the platform reads of a plugin's Manifest (its `attention.inbox`, say) comes from these rows.
+ * plugin installed, because what the platform reads of a plugin's Manifest (its `attention.waiting`, say) comes from these rows.
  */
 export function recordInstallation(db: PluginRuntimeDatabase & PluginRuntimeReleaseArtifactDatabase, manifest: PluginManifest, state: PluginLifecycleState = "running", options: { archived?: boolean } = {}): void {
   const artifact = createPluginRuntimeReleaseArtifact(manifest, "export default {};");

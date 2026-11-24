@@ -265,7 +265,7 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   const { store, library, get, surface } = await fixture(t);
   const documentPath = "/goals/V1";
   const empty = await (await get(documentPath)).text();
-  assert.doesNotMatch(empty, /artifact-embed|data-goal-input-fixed|<h3>交付物<\/h3>/);
+  assert.doesNotMatch(empty, /artifact-embed|data-placement-input-fixed|<h3>交付物<\/h3>/);
   const first = library.artifacts.commands.registerVersion(registration()).artifact;
   library.artifacts.commands.registerVersion(registration({ version: 2,
     content: { kind: "inline", payload: { title: "Later report" } } }));
@@ -291,8 +291,8 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   assert.match(page, /<h3>交付物<\/h3>/);
   assert.match(page, /v2 · 交付物</);
   assert.doesNotMatch(page, /v1 · 输入</);
-  assert.ok(page.includes(`data-goal-input-fixed><div><a href="#" data-workbench-item-plugin="artifacts" data-workbench-item-id="${exactPath(1)}"`), "the fixed input opens its version");
-  assert.match(page, /<strong>Original report<\/strong><\/a><span class="goal-input-mode" data-goal-input-mode="fixed">固定的第 1 版<\/span>/);
+  assert.ok(page.includes(`data-placement-input-fixed><div><a href="#" data-workbench-item-plugin="artifacts" data-workbench-item-id="${exactPath(1)}"`), "the fixed input opens its version");
+  assert.match(page, /<strong>Original report<\/strong><\/a><span class="goal-input-mode" data-placement-input-mode="fixed">固定的第 1 版<\/span>/);
   assert.ok(page.includes(`href="${exactPath(2)}"`));
   assert.match(page, /v99/);
   assert.match(page, /关联的版本不可用或不存在/);
@@ -318,7 +318,7 @@ test("Goal context embeds explicit exact Artifact relations and refreshes owner 
   assert.match(changed, /这个版本已归档/);
   ledger.commands.remove(access, "input", "Owner removed the input association");
   const removed = await (await get(documentPath)).text();
-  assert.doesNotMatch(removed, /data-goal-input-fixed|Source disconnected/);
+  assert.doesNotMatch(removed, /data-placement-input-fixed|Source disconnected/);
   assert.match(removed, /v2 · 交付物</);
   const unknown = await get("/goals/missing");
   assert.equal(unknown.status, 404);

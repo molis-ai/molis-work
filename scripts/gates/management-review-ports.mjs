@@ -78,29 +78,6 @@ function invocation(fn, preludeLength) {
 const reportsProject = (node, owner) => node && ts.isPropertyAssignment(node) && property(node.name, "project_id")
   && member(owner, "project_id")(node.initializer);
 
-export function checkStandaloneManagementPort(source) {
-  const fn = declaration(parse(source), "bindStandaloneManagementActions");
-  const [host, project, signal] = parameterNames(fn, 3);
-  const signalOptions = node => {
-    if (!node || !ts.isObjectLiteralExpression(node) || node.properties.length !== 1) return false;
-    const [option] = node.properties;
-    return ts.isShorthandPropertyAssignment(option) ? signal === "signal" && identifier(option.name, signal) && !option.objectAssignmentInitializer
-      : ts.isPropertyAssignment(option) && property(option.name, "signal") && identifier(option.initializer, signal);
-  };
-  const port = localConst(fn?.body?.statements[0], node => call(node, "bindManagementActions", client => call(client, member(host, "actionClient"), project), project, signalOptions));
-  const invoke = invocation(fn, 1);
-  const [reference, input, evidence] = invoke?.parameters ?? [];
-  const [readOperation, fallback, refuseEvidence, run] = invoke?.body ?? [];
-  const operation = localConst(readOperation, node => call(node, "reviewOperation", reference));
-  const spread = invoke?.member;
-  const valid = distinctLocals(host, project, signal, port, reference, input, evidence, operation)
-    && invoke?.body.length === 4 && invoke.memberFirst && spread && ts.isSpreadAssignment(spread) && identifier(spread.expression, port)
-    && call(returned(guarded(fallback, missing(operation))), member(port, "invoke"), reference, input, evidence)
-    && rejects(refuseEvidence, hasEvidence(evidence), "actions.input_invalid")
-    && invokeReview(run, host, project, operation, input, signal);
-  return valid ? [] : [`${FILE}: standalone management must keep the same project, original signal, protected review entry and source checks`];
-}
-
 function verifiesReview(declare) {
   const [reference, evidence] = parameterNames(declare, 2);
   const [lookup, refuseUnknown, refuseEvidence, result] = declare?.body?.statements ?? [];

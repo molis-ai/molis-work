@@ -21,12 +21,12 @@ test("ONB-22/29 Desktop receives adopted wheel and hotkeys from the active Shelf
   await navigate(() => command("Page.navigate", {url:origin + "/projects/" + projectId + "/?desktop=1"}, sessionId));
   const bridge = "window.__invokes?.filter(event=>event.command==='shelf_sync_device_preferences').at(-1)?.args.settings";
   await waitFor(bridge + "?.drop_wheel_enabled === true");
-  const idle = "performance.getEntriesByType('resource').filter(row=>new URL(row.name).pathname.endsWith('/view-revision') && new URL(row.name).pathname.includes('io.molis.work.shelf')).length";
+  const idle = "performance.getEntriesByType('resource').filter(row=>new URL(row.name).pathname.endsWith('/view-revision') && new URL(row.name).pathname.includes('system.shelf')).length";
   const reads = await evaluate<number>(idle);
   await new Promise(resolve => setTimeout(resolve, 3250));
   assert.equal(await evaluate<number>(idle), reads, "an idle desktop waits for invalidation without polling Shelf");
   await evaluate(`(async()=>{
-    const base="/api/plugins/io.molis.work.shelf/preferences/";
+    const base="/api/platform/shelf/preferences/";
     const keys=["shelf.drop_wheel","shelf.hotkeys"];
     const {values}=await molisWorkRequest(base+"read",{method:"POST",body:{keys}});
     for(const {key,revision,value} of values){
@@ -41,7 +41,7 @@ test("ONB-22: a late Shelf settings reply cannot rebind an older desktop shortcu
   const b = await openGoalBrowser(t, "seeded");
   if (!b) return;
   const { web, command, sessionId, navigate, origin, projectId, evaluate, waitFor, click } = b;
-  const api = "/api/plugins/io.molis.work.shelf", key = "shelf.hotkeys";
+  const api = "/api/platform/shelf", key = "shelf.hotkeys";
   type Chord = { key_code: number; carbon_modifiers: number };
   type Keys = Record<"toggle" | "capture" | "files", Chord>;
   const hotkeys = (await web.get<{ hotkeys: Keys }>(api + "/settings")).hotkeys;
@@ -136,7 +136,7 @@ for (const locale of ["zh", "en"] as const) test(`PG-026-S1-S3-5 PG-026-S1-S3-7 
   const state = `({open:document.body.dataset.sideOpen,
     tab:document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab ?? null,
     focus:document.activeElement === document.querySelector('[data-plugin-picker-toggle]')})`;
-  await evaluate("window.__shelfNotices=[];window.addEventListener('molis-shelf-notice',event=>window.__shelfNotices.push(event.detail.message))");
+  await evaluate("window.__shelfNotices=[];window.addEventListener('molis:shelf-notice',event=>window.__shelfNotices.push(event.detail.message))");
   for (const opened of [false, true]) {
     if (opened) {
       await evaluate("globalThis.molisWorkOpenShelf()");

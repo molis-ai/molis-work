@@ -155,8 +155,10 @@ test("UPG1-13: `demo` from cli-project-maintenance upgrades and finishes", async
   assert.equal(catalogVersionOf(f.catalog), REAL_CATALOG_VERSION + 1);
 });
 
-const mcpCall = (database_path: string, project_id: string) => ({ id: 1, method: "tools/call", params: { name: "molis_work_v1_initialize",
-  arguments: { database_path, project_id, idempotency_key: `project-catalog-create-${project_id}` } } });
+// The management MCP serves only the platform's review tools (44B); reading a review that does not exist reaches the project once the
+// catalog is current, and is refused by the review service, not by storage.
+const mcpCall = (database_path: string, project_id: string) => ({ id: 1, method: "tools/call", params: { name: "molis_work_v1_review_request",
+  arguments: { database_path, project_id, action: { capability_id: "goals.tree.decide", version: 1 }, request_id: "upgrade-entries-missing" } } });
 
 /**
  * The Host starts unbound, as this path's does, so nothing but the entry under test can take the lock. The Home is an installed one whose
@@ -178,8 +180,8 @@ async function withMcp<T>(home: string, use: (mcp: LocalMcpServer) => Promise<T>
 test("UPG1-13: the management MCP with nothing to start upgrades through its own Host and answers", async t => {
   const f = await catalogHome(t);
   raiseCatalogBaseline(t);
-  const reply = await withMcp(f.home, mcp => mcp.handleMessage(mcpCall(f.project.database_path, f.project.project_id))) as { result: { isError?: boolean } };
-  assert.notEqual(reply.result.isError, true, JSON.stringify(reply.result));
+  const reply = await withMcp(f.home, mcp => mcp.handleMessage(mcpCall(f.project.database_path, f.project.project_id)));
+  assert.doesNotMatch(JSON.stringify(reply), /storage\./u, "the entry answered past the upgrade");
   assert.equal(catalogVersionOf(f.catalog), REAL_CATALOG_VERSION + 1);
   assert.equal(present(stampFile(f.home)), true);
 });

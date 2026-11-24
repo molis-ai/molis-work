@@ -6,7 +6,7 @@ import { NATIVE_SESSION_FILE } from "./personal-native-session.js";
 import { APPEARANCE_STATE_PATH, UI_LOCALE_RELATIVE_PATH } from "@molis-ai/molis-work-service-appearance";
 import { pluginSyncDatabaseDeclaration } from './plugin-sync-database.js';
 import { ARTIFACTS_HOME_STORE } from "@molis-ai/molis-work-module-artifacts";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { shippedParts } from "./plugin-registry.js";
 import { CHARACTERS_HOME_STORE } from "@molis-ai/molis-work-module-characters";
 import { MAINLINE_HOME_STORE } from "@molis-ai/molis-work-service-mainline";
 import { HOME_PAGES_HOME_STORE } from "@molis-ai/molis-work-service-home";
@@ -64,7 +64,7 @@ import {SYNC_HOME_STORE} from '@molis-ai/molis-work-module-sync-replication';
  * library is registered here as its own. Built on first use: the stores are declared in modules that may import this one.
  */
 /** Where the plugins this build ships keep their model choice (`model_configuration.preference`), for the upgrade process. */
-export const platformModelPreferences = (): readonly { readonly owner: string; readonly path: string }[] => PLATFORM_PLUGIN_REGISTRATIONS.flatMap(({ manifest }) => {
+export const platformModelPreferences = (): readonly { readonly owner: string; readonly path: string }[] => shippedParts().flatMap(({ manifest }) => {
   const preference = manifest.settings_entries?.model_configuration?.preference;
   return preference ? [{ owner: manifest.plugin_id, path: join(preference.store_name, preference.file_name) }] : [];
 });
@@ -96,7 +96,7 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
       { ...TEXT_SEARCH_HOME_STORE, snapshot: omittedSnapshot("Rebuildable full-text index", "reset") },
       KNOWLEDGE_CARDS_HOME_STORE, { path: HOME_SECURITY_DIRNAME, snapshot: securitySnapshot }),
     ...owned("server", DISCUSSION_HOME_STORE),
-    ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {
+    ...shippedParts().flatMap(entry => {
       const declared = entry.manifest.databases?.home;
       const library = declared && pluginSyncDatabaseDeclaration(entry.manifest, declared);
       const snapshot = snapshotPolicyFromExclusions([...(entry.home_store?.snapshot_exclusions ?? []), ...(declared?.snapshot_exclusions ?? [])]);

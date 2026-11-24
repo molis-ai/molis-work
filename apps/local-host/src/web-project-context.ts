@@ -1,4 +1,3 @@
-import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { requireSynchronous, type ActionCallContext, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -18,6 +17,7 @@ import type { WebRequestContext } from "./web-route-table.js";
 import type { HomeRouteProjectPlugins } from "./home-plugin-http.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
+import { isHostedPlatformPart } from "./platform-part-routes.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
 import { matchingActions } from "./local-host-types.js";
 import type { ReadArtifactDisplay } from "./artifact-display-words.js";
@@ -60,7 +60,6 @@ type ProjectPluginServices = Pick<ProjectPluginSurfacePorts, "dependencyCheck" |
 export function projectRequestContext(context: WebRequestContext, options: ResolvedWebBoardOptions): ProjectRequestContext {
   const { localHost, composition, serverOptions } = context;
   const homeDirectory = serverOptions.homeDirectory;
-  const directory = homeDirectory ? () => readOnlyAlwaysOnProjectPlugins(homeDirectory) : undefined;
   const hostReference = molisWorkHostProjectReference({ databasePath: options.databasePath, projectId: options.projectId });
   const userActions = (permissions: readonly string[], entry: LocalWebEntry = {}) => bindLocalWebActions(localHost, hostReference, permissions, entry);
   const selection = async (projectId: string, versioned: boolean, fresh = false): Promise<{ shown: string[]; revision?: string }> => {
@@ -76,13 +75,13 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
     if (!options.project) return { shown: withExternal(PROJECT_SCOPED_PLUGIN_IDS, []) };
     // A versioned read needs the revision of exactly the membership it shows, so it reads on its own; the others share one reading (N44).
     if (versioned) return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
-      const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(projectId, directory);
+      const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(projectId);
       return { shown: withExternal(plugins, hidden), revision };
     });
     // The protected page projection asks for the live membership even when a display read was cached inside the short window.
     const { plugins, hidden } = fresh
-      ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.projectPluginMembership(projectId, directory))
-      : await observeProjectPluginMembership(composition, homeDirectory, projectId, directory);
+      ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.projectPluginMembership(projectId))
+      : await observeProjectPluginMembership(composition, homeDirectory, projectId);
     return { shown: withExternal(plugins, hidden) };
   };
   return { ...context, options, hostReference, userActions,
@@ -103,8 +102,7 @@ const MEMBERSHIP_CACHE_MS = 1_000;
  * The project's plugin membership for a page: the Goals branch and the shown list (N44). Reads that queue before one starts share it; the
  * entry is dropped as that read begins, so a later request reads afresh and nothing finished is kept. Execution and routes read on their own.
  */
-function observeProjectPluginMembership(composition: WebRequestContext["composition"], home: string | undefined, projectId: string,
-  directory: (() => readonly string[]) | undefined): Promise<ProjectPluginMembership> {
+function observeProjectPluginMembership(composition: WebRequestContext["composition"], home: string | undefined, projectId: string): Promise<ProjectPluginMembership> {
   let queued = queuedMembership.get(composition);
   if (!queued) queuedMembership.set(composition, queued = new Map());
   const key = JSON.stringify([home ?? null, projectId]);
@@ -118,7 +116,7 @@ function observeProjectPluginMembership(composition: WebRequestContext["composit
     if (!cache) membershipCache.set(catalog, cache = new Map());
     const cached = cache.get(key);
     if (cached && cached.epoch === projectPluginEpoch(catalog) && Date.now() - cached.at < MEMBERSHIP_CACHE_MS) return cached.membership;
-    const membership = catalog.projectPluginMembership(projectId, directory);
+    const membership = catalog.projectPluginMembership(projectId);
     cache.set(key, { epoch: projectPluginEpoch(catalog), at: Date.now(), membership });
     while (cache.size > 64) cache.delete(cache.keys().next().value!);
     return membership;
@@ -138,6 +136,7 @@ export function homeRouteProjectPlugins({ composition, serverOptions }: WebReque
     try { const project = catalog.getProject(projectId); databasePath = project.database_path; displayName = project.display_name; } catch { return null; /* No such project: the route refuses, saying so. */ }
     const reachable = projectReachablePlugins(catalog, projectId, homePluginsOutsideBuild(home));
     return { database_path: databasePath, display_name: displayName, reaches: (pluginId: string) => {
+      if (isHostedPlatformPart(pluginId)) return true;
       const entry = reachEntry(home, pluginId);
       return entry !== undefined && pluginReachable(entry, reachable);
     } };

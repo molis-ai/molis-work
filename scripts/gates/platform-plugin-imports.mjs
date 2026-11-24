@@ -16,11 +16,7 @@ export const GENERATED_PLUGIN_REGISTRIES = new Set([
  * it is the platform's `horizontal/plugin-studio`, not a plugin),
  * locked to their existing platform entry files so no accidental new platform imports grow.
  */
-export const SPEC_SECTION3_WHITELIST = {
-  "@molis-ai/molis-work-plugin-shelf": new Set([
-    "apps/local-host/src/demo-plugin-seed.ts",
-  ]),
-};
+export const SPEC_SECTION3_WHITELIST = {};
 
 /**
  * Separate migration-only exception list (PEQ-03). Every entry carries its removal condition

@@ -73,7 +73,7 @@ test("VUX-55 VUX-56: the component board renders the 4 Batch 03 on-demand help s
 test("VUX-55 VUX-58: every native built-in plugin manifest declares valid bilingual ui.help with all zh/en keys", () => {
   const wbZh = JSON.parse(readFileSync(new URL("../apps/workbench/resources/locales/zh.json", import.meta.url), "utf8")).messages as Record<string, unknown>;
   const wbEn = JSON.parse(readFileSync(new URL("../apps/workbench/resources/locales/en.json", import.meta.url), "utf8")).messages as Record<string, unknown>;
-  // The platform's own framed surface (the studio, 47-1 C) declares its help the same way.
+  // The platform's own framed surfaces (the studio, 47-1 C; Shelf, 44B) declare their help the same way.
   const declared = [...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES];
   assert.ok(declared.length >= 22, `expected at least 22 built-in plugins and platform surfaces, got ${declared.length}`);
   const readKey = (ref: unknown): string[] => (ref && typeof ref === "object" && "key" in ref && typeof (ref as { key?: unknown }).key === "string") ? [(ref as { key: string }).key] : [];
@@ -81,7 +81,8 @@ test("VUX-55 VUX-58: every native built-in plugin manifest declares valid biling
     const help = entry.manifest.ui.help;
     assert.ok(help && help.topics.length > 0, `${entry.project_plugin_id}: manifest.ui.help must be declared`);
     assert.deepEqual(uiHelpDeclarationProblems(entry.manifest), [], `${entry.project_plugin_id}: ui.help must pass SDK validation`);
-    const locales = HOST_FRAMED_SURFACES.includes(entry as typeof HOST_FRAMED_SURFACES[number]) ? "../horizontal/plugin-studio/locales" : `../plugins/native/${entry.project_plugin_id}/locales`;
+    const surfacePackage = ({ "plugin-builder": "horizontal/plugin-studio", shelf: "modules/shelf" } as Record<string, string>)[entry.project_plugin_id];
+    const locales = HOST_FRAMED_SURFACES.includes(entry as typeof HOST_FRAMED_SURFACES[number]) ? `../${surfacePackage}/locales` : `../plugins/native/${entry.project_plugin_id}/locales`;
     const zhPath = new URL(`${locales}/zh.json`, import.meta.url);
     const enPath = new URL(`${locales}/en.json`, import.meta.url);
     const zh = JSON.parse(readFileSync(zhPath, "utf8")).messages as Record<string, unknown>;

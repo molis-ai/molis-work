@@ -15,17 +15,17 @@ import { createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
 import { createRiskPlugin } from "@molis-ai/molis-work-plugin-risk";
 import { createHomeWorkBriefPlugin, createWorkBriefPlugin } from "@molis-ai/molis-work-plugin-work-brief";
 import { createSchedulePlugin } from "@molis-ai/molis-work-plugin-schedule";
-import { createHomeShelfPlugin, createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
+import { createHomeShelfPlugin } from "@molis-ai/molis-work-module-shelf/surface";
 import { createTodoPlugin } from "@molis-ai/molis-work-plugin-todo";
 import { createWorkflowsPlugin } from "@molis-ai/molis-work-plugin-workflows";
 
 /**
- * Every built-in plugin's runtime definition (both of Shelf's halves). Since PG-051 a definition carries its own instructions, Agent
+ * Every built-in plugin's runtime definition, and the platform part Shelf's. Since PG-051 a definition carries its own instructions, Agent
  * prompts and methods, which the Host registers while it runs; tests that check those texts read them here, one list for all of them.
  */
 export const BUILTIN_DEFINITIONS: readonly PluginDefinition[] = [createCogniaPlugin(), createCodingPlugin(), createDatasetPlugin(), createDiffPlugin(), createFeedPlugin(),
   createFormPlugin(), createGitPlugin(), createImagesPlugin(), createIssuesPlugin(), createJellyPlugin(), createLingguangPlugin(),
-  createPagesPlugin(), createPptPlugin(), createRiskPlugin(), createSchedulePlugin(), createShelfPlugin(), createHomeShelfPlugin(), createTodoPlugin(), createWorkBriefPlugin(), createHomeWorkBriefPlugin(),
+  createPagesPlugin(), createPptPlugin(), createRiskPlugin(), createSchedulePlugin(), createHomeShelfPlugin(), createTodoPlugin(), createWorkBriefPlugin(), createHomeWorkBriefPlugin(),
   createWorkflowsPlugin()];
 
 /** Catalog plugins with no runtime definition to carry Agent texts, and why; with BUILTIN_DEFINITIONS they are the whole catalog. */

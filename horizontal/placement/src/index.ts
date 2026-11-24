@@ -536,6 +536,8 @@ interface AttachRelation {
   plugin_id: string;
   noun: string;
   target_kind: string;
+  /** The owner's view that lists what is attached to a target (`open_view`), when it declares one. */
+  open_view?: string;
   /** Whether it relates objects of this kind (its `list` part's subject kinds; none: any object). */
   relates(kind: string): boolean;
   list: ActionReference | null;
@@ -582,7 +584,7 @@ async function attachRelationsOf(ports: PlacementPorts, scope: PlacementScope): 
     // Without its list part a relation says neither what it ends on nor what an object is attached to: there is nothing to offer.
     if (!list || !target) continue;
     const kinds = list.action.subject_kinds;
-    all.push({ relation: name, plugin_id: list.provider.plugin_id ?? list.provider.provider_id, noun: target.noun, target_kind: target.kind,
+    all.push({ relation: name, plugin_id: list.provider.plugin_id ?? list.provider.provider_id, noun: target.noun, target_kind: target.kind, ...(target.open_view ? { open_view: target.open_view } : {}),
       relates: kind => kinds.length === 0 || kinds.includes(kind),
       list: play("list"), bind: play("bind"), release: play("release"), candidates: play("candidates"), create: play("create") });
   }
@@ -630,7 +632,7 @@ async function placementAttachTargets(ports: PlacementPorts, access: PlacementIn
     const result = await scope.client.invoke(scope.caller, relation.candidates, { subject: { kind: object.kind, id: object.id } }) as PlacementRelationCandidates;
     const offered = result.targets.filter(target => target.subject.kind === relation.target_kind);
     const titles = await Promise.all(offered.map(target => access.targetTitle(projectId, target.subject.kind, target.subject.id)));
-    kinds.push({ kind: relation.target_kind, noun: relation.noun, targets: offered.map((target, index) => ({ id: target.subject.id, title: titles[index] ?? "", current: target.current })) });
+    kinds.push({ kind: relation.target_kind, noun: relation.noun, ...(relation.open_view ? { open_view: relation.open_view } : {}), targets: offered.map((target, index) => ({ id: target.subject.id, title: titles[index] ?? "", current: target.current })) });
   }
   return kinds;
 }

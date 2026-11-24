@@ -16,7 +16,7 @@ import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 const at = "2026-11-18T09:00:00.000Z";
 const NO_EVIDENCE = { artifactReadable: async () => false, checkRun: async () => "none" as const, stopped: () => false };
-const WORK: AcceptanceSubject = { provider_id: "io.molis.work.assistant.rules", subject: { kind: "assistant_work", id: "work-1" } };
+const WORK: AcceptanceSubject = { provider_id: "system.assistant.rules", subject: { kind: "assistant_work", id: "work-1" } };
 const GOAL: AcceptanceSubject = { provider_id: "io.molis.work.goals", subject: { kind: "goal", id: "G1" } };
 
 function library(t: TestContext) {

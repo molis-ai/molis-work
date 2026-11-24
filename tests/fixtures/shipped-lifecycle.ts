@@ -27,9 +27,6 @@ export interface Shipped {
   readonly scope: "home" | "project";
   /** A project does not start with it (it is neither personal nor on by default): the person adds it when making the project. */
   readonly joins?: true;
-  /** It cannot be taken out of a project (常开): the walk shows the refusal where the others are removed and added back. Its
-   * installation carries the Host's own 常开 agreement, which the walk takes back before uninstalling (S-34). */
-  readonly always_on?: true;
   /**
    * A dual-instance plugin: by default the Home half holds what the person writes and is the one the walk follows (its
    * `home`-scope actions); each project's own half is a second installation that the Home half's uninstall does not touch.
@@ -126,22 +123,15 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
     assert.deepEqual({ state: first.state, version: first.version, trust: first.trust }, { state: "running", version: build, trust: "host" });
 
     // Taken out of the project: its routes and actions there are refused; a personal plugin's installation keeps running, a project plugin's stops.
-    if (plugin.always_on) {
-      // 常开: the project cannot take it out, and nothing of it changes.
-      assert.equal(await answer(served.web.delete(settings, { plugin_id: plugin.key, expected_revision: await projectPluginRevision(served.web, project.project_id) })), "400 catalog.plugin_always_on", `${plugin.key}: not removable`);
-      assert.deepEqual(await plugin.titles(served.web, at.routes), kept, `${plugin.key}: still there`);
-      assert.deepEqual(await at.callable(), callable);
-    } else {
-      assert.equal(await answer(served.web.delete(settings, { plugin_id: plugin.removed_by ?? plugin.key, expected_revision: await projectPluginRevision(served.web, project.project_id) })), 200);
-      assert.equal(await answer(plugin.titles(served.web, at.routes)), "403 actions.plugin_disabled", `${plugin.key}: removed from the project`);
-      assert.deepEqual(await at.callable(), [], `${plugin.key}: nothing of it to call in the project`);
-      assert.equal((await at.installation())?.state, plugin.stops_when_removed ? "disabled" : "running", `${plugin.key}: its installation after removal`);
-      // Added back: what was written is there, in the same installation.
-      assert.equal(await answer(served.web.post(settings, { plugin_id: plugin.key, expected_revision: await projectPluginRevision(served.web, project.project_id) })), 200);
-      assert.deepEqual(await plugin.titles(served.web, at.routes), kept, `${plugin.key}: added back, with its data`);
-      assert.deepEqual(await at.callable(), callable);
-      assert.deepEqual(await at.installation(), first, `${plugin.key}: the same installation, running`);
-    }
+    assert.equal(await answer(served.web.delete(settings, { plugin_id: plugin.removed_by ?? plugin.key, expected_revision: await projectPluginRevision(served.web, project.project_id) })), 200);
+    assert.equal(await answer(plugin.titles(served.web, at.routes)), "403 actions.plugin_disabled", `${plugin.key}: removed from the project`);
+    assert.deepEqual(await at.callable(), [], `${plugin.key}: nothing of it to call in the project`);
+    assert.equal((await at.installation())?.state, plugin.stops_when_removed ? "disabled" : "running", `${plugin.key}: its installation after removal`);
+    // Added back: what was written is there, in the same installation.
+    assert.equal(await answer(served.web.post(settings, { plugin_id: plugin.key, expected_revision: await projectPluginRevision(served.web, project.project_id) })), 200);
+    assert.deepEqual(await plugin.titles(served.web, at.routes), kept, `${plugin.key}: added back, with its data`);
+    assert.deepEqual(await at.callable(), callable);
+    assert.deepEqual(await at.installation(), first, `${plugin.key}: the same installation, running`);
 
     // A permission it requires taken back: it does not start, and nothing of it is called; given back, it runs with its data.
     const running = await at.platform();
@@ -169,26 +159,12 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
     assert.deepEqual(await at.installation(), { ...first, state: "running", version: build }, `${plugin.key}: the same installation, at this build`);
     assert.deepEqual(await at.callable(), callable);
 
-    // Uninstalled: no route, no action, the record says so. A 常开 plugin cannot be uninstalled while its agreement stands (S-34):
-    // the walk shows that refusal, takes the agreement back, and only then uninstalls; the agreement stays revoked across a restart.
+    // Uninstalled: no route, no action, the record says so.
     const upgraded = await at.platform();
-    if (plugin.always_on) {
-      await assert.rejects(upgraded.runtime.uninstall(first.install_id, { retain_private_data: false }), { code: "plugin.always_on" }, `${plugin.key}: 常开, cannot be uninstalled`);
-      assert.equal((await at.installation())?.state, "running", `${plugin.key}: the refusal changes nothing`);
-      assert.deepEqual(await plugin.titles(served.web, at.routes), kept, `${plugin.key}: the refusal keeps its data`);
-      // The person takes the agreement back through the Host's own settings route (S-77), the way the settings page does.
-      const listed = await served.web.post<{ consents: Array<{ consent_id: string; kind: string; revoked_at: string | null }> }>("/api/settings/plugin-consents/list", { plugin_id: plugin.plugin_id });
-      const agreement = listed.consents.find(row => row.kind === "always_on" && row.revoked_at === null);
-      assert.ok(agreement, `${plugin.key}: its installation carries the Host's 常开 agreement`);
-      const { consent } = await served.web.post<{ consent: { revoked_at: string | null } }>("/api/settings/plugin-consents/revoke", { consent_id: agreement.consent_id });
-      assert.notEqual(consent.revoked_at, null, `${plugin.key}: the agreement is taken back`);
-    }
     await upgraded.runtime.stop(first.install_id);
     await upgraded.runtime.uninstall(first.install_id, { retain_private_data: false });
     assert.equal((await at.installation())?.state, "uninstalled");
-    // A 常开 plugin the project runs itself stays in the project's expected list; the project refused it, so its route says
-    // disabled rather than missing. A 常开 Home plugin (Shelf) is expected only by the Home: its project route is missing.
-    const uninstalledRoute = plugin.always_on && plugin.scope === "project" ? "403 actions.plugin_disabled" : "404 actions.missing";
+    const uninstalledRoute = "404 actions.missing";
     assert.equal(await answer(plugin.titles(served.web, at.routes)), uninstalledRoute, `${plugin.key}: uninstalled, its route says so`);
     assert.deepEqual(await at.callable(), []);
 
@@ -200,11 +176,6 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
     // The directory asks the project's platform for the plugin it expects; that also starts the platform a fresh start has not opened yet.
     assert.deepEqual(await at.callable(), []);
     assert.equal((await at.installation())?.state, "uninstalled", `${plugin.key}: still uninstalled after a restart`);
-    if (plugin.always_on) {
-      const listed = await served.web.post<{ consents: Array<{ kind: string; revoked_at: string | null }> }>("/api/settings/plugin-consents/list", { plugin_id: plugin.plugin_id });
-      const rows = listed.consents.filter(row => row.kind === "always_on");
-      assert.ok(rows.length > 0 && rows.every(row => row.revoked_at !== null), `${plugin.key}: the agreement stays revoked, the Host does not agree again`);
-    }
     if (plugin.dual) assert.ok((await at.callable("project")).length > 0, `${plugin.key}: the project's own half is another installation, still there`);
   } catch (error) {
     walkFailure = { error };

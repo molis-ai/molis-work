@@ -1,11 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { trustedReviewActions } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { withCallId } from "@molis-ai/molis-work-kernel";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { actionGatewayHomeId, isGatewayCallId } from "./action-gateway.js";
 import { MANAGEMENT_ACTION_PATH, catalogManagementProject } from "./management-action-client.js";
-import { bindManagementActions, managementActionDefinition } from "./management-actions.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { recordedCallIdField } from "./call-id-response.js";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
@@ -30,19 +29,17 @@ export async function handleManagementActionHttp(request: IncomingMessage, respo
     if (!capability || typeof capability !== "object" || Array.isArray(capability) || Object.keys(capability).some(key => !["capability_id", "version"].includes(key))
       || !("capability_id" in capability) || typeof capability.capability_id !== "string"
       || !("version" in capability) || typeof capability.version !== "number" || !Number.isSafeInteger(capability.version)) throw new ActionError("actions.input_invalid", "管理能力引用无效");
-    const definition: ActionDefinition | undefined = managementActionDefinition({ capability_id: capability.capability_id, version: capability.version });
+    // Only the platform's protected review operations (44B: no plugin declares management actions).
     const review = (Object.keys(trustedReviewActions) as Array<keyof typeof trustedReviewActions>).find(name =>
       trustedReviewActions[name].capability_id === capability.capability_id && trustedReviewActions[name].version === capability.version);
-    if (!definition && !review) throw new ActionError("actions.dependency_missing", "这个管理动作或版本不可用");
+    if (!review) throw new ActionError("actions.missing", "这个管理动作或版本不可用");
     const project = catalogManagementProject(home, body.database_path);
     if (!project || project.project_id !== body.project_id) throw new ActionError("actions.scope_mismatch", "管理调用的项目数据库不属于当前 Home");
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    const actions = bindManagementActions(host.actionClient(reference), reference, { signal: controller.signal });
     await withCallId(body.call_id, async () => {
       try {
-        if (review && body.evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");
-        const result = review ? await invokeProjectReviewManagement(host, reference, review, body.input, String(body.call_id), controller.signal, accountCurrent)
-          : await actions.invoke(definition!, body.input as object, body.evidence);
+        if (body.evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");
+        const result = await invokeProjectReviewManagement(host, reference, review, body.input, String(body.call_id), controller.signal, accountCurrent);
         if (!response.destroyed) sendJson(response, 200, { result, ...recordedCallIdField() });
         else if (!response.writableEnded) {
           response.statusCode = 200;

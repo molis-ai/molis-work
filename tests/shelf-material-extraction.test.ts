@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createExtractablePdf, hashBytes } from "@molis-ai/molis-work-module-shelf";
-import { shelfActions as a, SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfActions as a, SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-shelf/surface";
 import { shelfStoreProvider, openTestShelfStore } from "./shelf-direct-actions.js";
 import { extractMaterial } from "../apps/local-host/src/material-extraction.js";
 import { materialImageTextAvailable } from "../apps/local-host/src/material-native.js";

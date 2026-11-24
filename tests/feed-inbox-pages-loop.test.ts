@@ -117,7 +117,7 @@ test("explicit auto admission separates positive, negative and review outcomes a
     await feed.evaluateItems(DEMO_PROJECT_ID, ids);
     assert.equal(feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => ids.includes(entry.subject_id) && entry.reason === "source_rule").length, 2);
     const snapshot = feed.snapshot(DEMO_PROJECT_ID), context = feedInformationPlanContext({ sources: snapshot.sources, items: snapshot.feed_items,
-      inbox_entries: snapshot.inbox_entries, titleOf: () => undefined }, DEMO_PROJECT_ID, { prompt: "整理" });
+      attention_entries: snapshot.attention_entries, titleOf: () => undefined }, DEMO_PROJECT_ID, { prompt: "整理" });
     assert.throws(() => checkedFeedInformationPlan({ message: "ok", action: { kind: "draft_pages", entry_ids: ["other-project"], title: "t", instructions: "i" } }, context), { code: "feed.plan_reply_invalid" });
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
@@ -254,7 +254,7 @@ test("RAC-2409: the information planner cuts feed titles and source names to 200
   const title = "😀".repeat(250), sourceName = "😀".repeat(250);
   const context = feedInformationPlanContext({ sources: [{ source_id: "s1", name: sourceName, enabled: true }],
     items: [{ item_id: "i1", source_id: "s1", title, summary: "摘要" }],
-    inbox_entries: [{ entry_id: "e1", subject_type: "feed_item", subject_id: "i1", status: "open" }], titleOf: () => undefined }, "project-a", { prompt: "整理" });
+    attention_entries: [{ entry_id: "e1", subject_type: "feed_item", subject_id: "i1", status: "open" }], titleOf: () => undefined }, "project-a", { prompt: "整理" });
   const shown = feedInformationPlanData(context, "整理");
   const start = shown.indexOf("当前范围：") + "当前范围：".length, end = shown.indexOf("\n\n用户请求：");
   const data = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[]; items: { title: string }[]; inbox: { title: string }[] };
@@ -267,7 +267,7 @@ test("INFORMATION-PLANNER-SOURCES-LIMIT: the plan describes at most 20 sources i
   // A Home can have many enabled sources; with no count bound the context could outgrow the port's data position. The items and inbox
   // entries are already capped at 20, and the source list is capped the same way, in the snapshot's own order.
   const sources = Array.from({ length: 25 }, (_, index) => ({ source_id: `s${index}`, name: `来源 ${index}`, enabled: true }));
-  const context = feedInformationPlanContext({ sources, items: [], inbox_entries: [], titleOf: () => undefined }, "project-a", { prompt: "整理" });
+  const context = feedInformationPlanContext({ sources, items: [], attention_entries: [], titleOf: () => undefined }, "project-a", { prompt: "整理" });
   assert.equal(context.sources.length, 20, "at most 20 sources are described, like items and inbox entries");
   assert.deepEqual(context.sources.map(source => source.name), Array.from({ length: 20 }, (_, index) => `来源 ${index}`), "the first 20 enabled sources, in the snapshot's order");
 });
@@ -275,7 +275,7 @@ test("INFORMATION-PLANNER-SOURCES-LIMIT: the plan describes at most 20 sources i
 test("BL-b44-information-plan-to-feed: an open Inbox entry older than the recent items still gets its own item's title, and a plan is held to this project", t => {
   feedText(t);
   const context = feedInformationPlanContext({ sources: [{ source_id: "s1", name: "来源", enabled: true }], items: [{ item_id: "new", source_id: "s1", title: "新消息" }],
-    inbox_entries: [{ entry_id: "e-old", subject_type: "feed_item", subject_id: "old", status: "in_progress" }, { entry_id: "e-done", subject_type: "feed_item", subject_id: "new", status: "done" }],
+    attention_entries: [{ entry_id: "e-old", subject_type: "feed_item", subject_id: "old", status: "in_progress" }, { entry_id: "e-done", subject_type: "feed_item", subject_id: "new", status: "done" }],
     titleOf: id => id === "old" ? "旧消息" : undefined }, "project-a", { prompt: "整理" });
   assert.deepEqual(context.inbox, [{ entry_id: "e-old", item_id: "old", title: "旧消息" }], "only open entries, titled by their own item");
   assert.equal(checkedFeedInformationPlan({ message: "m", action: { kind: "draft_pages", entry_ids: ["e-old"], title: "t", instructions: "i" } }, context).action?.kind, "draft_pages");

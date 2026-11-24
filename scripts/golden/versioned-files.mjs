@@ -34,7 +34,8 @@ const READERS = new Map([
   // The receipt names a user home no machine has, so preparing its removal can only answer that the configuration changed since; a receipt the
   // owner could not read is refused instead, and with no receipt the answer is that nothing is managed.
   ["runtime-integrations/codex.json", [({ http }) => http("/api/settings/runtimes/codex/plan", { body: { action: "remove" } }), "接入后相关配置已被改动"]],
-  ["shelf/catalog.json", [({ call }) => call("shelf.snapshot"), "金样"]],
+  // Shelf is a platform part since 44B: no project offers its actions; it is read through its platform route.
+  ["shelf/catalog.json", [({ http, projectId }) => http(`/projects/${encodeURIComponent(projectId)}/api/platform/shelf/`, GET), "金样"]],
 ]);
 const RUNTIME_RECORDS = "agent-runtime/";
 

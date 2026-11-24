@@ -11060,7 +11060,7 @@
     "workbench.home-pages.receipt-target-changed": "This receipt belongs to another version. Reopen the first page.",
     "workbench.home-pages.recovered-grants": "Your previous decision was saved. Actions allowed then: {actions}.",
     "workbench.home-pages.no-granted-actions": "none",
-    "workbench.home-pages.decision-history": "Your earlier decision was saved. The current first page has changed.",
+    "workbench.home-pages.decision-history": "Your earlier decision was saved. Reopen the first page to see the current version.",
     "workbench.home-pages.adopt-failed": "Could not adopt or restore page",
     "workbench.home-pages.switched-to-default": "Switched back to the default first page",
     "workbench.home-pages.switch-failed": "Could not switch back to the default first page",

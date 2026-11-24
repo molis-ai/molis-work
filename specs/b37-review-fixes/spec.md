@@ -1,5 +1,5 @@
 # 第 37 批独立复核修复
-状态：修复中。以 #2288 的合入提交 0dc996734a 为问题基线，复用 #2295 中的修复。需求依据为[第 37 批定样和验收](../post-anticorruption-roadmap/reference/batches/37.md)、[生成页公共合同](../scene-and-page-contract/spec.md)、[工作主线](../work-mainline/spec.md)。
+状态：已提交[修复 PR #2298](https://github.com/molis-ai/molis-work/pull/2298)。本人场景生成、整日使用和真实窗口走查沿用[验收记录](../backlog/BL-b37-generated-home-mainline-acceptance.md)。以 #2288 的合入提交 0dc996734a 为问题基线，复用 #2295 中的修复。需求依据为[第 37 批定样和验收](../post-anticorruption-roadmap/reference/batches/37.md)、[生成页公共合同](../scene-and-page-contract/spec.md)、[工作主线](../work-mainline/spec.md)。
 
 - B37R-1 场景首页内容交给声明的首页主人保存可审核的草稿；只有本人可批准。人工冲突的三条选择可完成，差异未知不能覆盖，重试保持原请求，重放取回原回执，独立版本可恢复。
 - B37R-2 对照中显示当前首页与草稿，检查失败阻断预览。文件和授权由首页主人和宿主核对，换版、撤下、离开、并发装载均释放原会话。清理重复文件读取和无消费者导出。

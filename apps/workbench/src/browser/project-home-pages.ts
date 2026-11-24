@@ -426,8 +426,8 @@ export function mountHomePages(host: HomePagesUiHost) {
         restoreNotice = null;
         fallbackAlert = null;
         if (comparingDraft) exitCompare();
-        await sync();
-        if (overview?.revision !== receipt.revision) {
+        const verifiedRevision = await sync();
+        if (verifiedRevision !== receipt.revision) {
           host.receipt(uiText.text("workbench.home-pages.decision-history"));
           return;
         }
@@ -478,8 +478,8 @@ export function mountHomePages(host: HomePagesUiHost) {
         fallbackAlert = null;
         if (comparingDraft) exitCompare();
         restoreNotice = prev ? { page: { page_id: prev.page_id, version: prev.version }, title: prev.title } : null;
-        await sync();
-        if (overview?.revision !== receipt.revision) {
+        const verifiedRevision = await sync();
+        if (verifiedRevision !== receipt.revision) {
           restoreNotice = null;
           renderNotice();
           host.receipt(uiText.text("workbench.home-pages.decision-history"));
@@ -498,7 +498,7 @@ export function mountHomePages(host: HomePagesUiHost) {
     }
   }
 
-  async function sync(): Promise<void> {
+  async function sync(): Promise<string | undefined> {
     syncAbort?.abort();
     const controller = (syncAbort = new AbortController());
     try {
@@ -512,6 +512,7 @@ export function mountHomePages(host: HomePagesUiHost) {
         sceneOpened = true;
         await enterCompare({ page_id: sceneRef.page_id, version: sceneRef.version });
       } else await ensureLiveMounted();
+      return controller.signal.aborted ? undefined : next.revision;
     } catch {
       if (!controller.signal.aborted) host.onModeChange(false);
     }

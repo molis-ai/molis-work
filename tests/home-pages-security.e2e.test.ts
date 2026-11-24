@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
+import { appendFileSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePageDraft, HomePageOverview, HomePageVersion } from "@molis-ai/molis-work-contracts/services/home";
 import { HOME_PAGES_BASELINE, HOME_PAGES_HOME_STORE } from "@molis-ai/molis-work-service-home";
 import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
-import { LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { createProject, LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const QUERY_ACTION: ExactActionReference = {
@@ -451,4 +453,88 @@ test("B37R-1 ONB-27: editing a merge starts with the person's text and approves 
   const read = (version: number) => web.post<{ files: Array<{ text: string }> }>(api + "files/read", { page_id: first.page_id, version });
   assert.equal((await read(3)).files[0]?.text, "<main>My notes and proposed notes</main>");
   assert.equal((await read(1)).files[0]?.text, "<main>My notes</main>");
+});
+
+test("SPC-11 ONB-26: a pending approved write cannot outlive its page version or project", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  assert.ok(browser?.localHost && browser.projectId);
+  const { localHost, projectId, web } = browser;
+  const root = `/projects/${projectId}`;
+  const otherProject = await createProject(web, "另一个项目");
+  const ledger = join(browser.homeDirectory, "saved-notes.txt");
+  appendFileSync(ledger, "");
+  const schema = { type: "object" as const, properties: {}, additionalProperties: false };
+  const capabilityId = "fixture.review.notes.save";
+  let started = Promise.withResolvers<void>();
+  let release = Promise.withResolvers<void>();
+  let finished = Promise.withResolvers<void>();
+  const unregister = localHost.registerAction({
+    capability_id: capabilityId, version: 1, operation: "command",
+    action: {
+      title: "保存条目", description: "等待工作结束后保存条目", kind: "operation",
+      effect: "write", scope: "project", scheduling: "concurrent", audiences: ["user", "plugin"],
+      permissions: [], subject_kinds: [], input_schema: schema, output_schema: schema,
+    },
+  }, async (_runtime, _input, caller) => {
+    started.resolve();
+    try {
+      await release.promise;
+      await caller.beforeEffect();
+      appendFileSync(ledger, "saved\n");
+      return {};
+    } finally {
+      finished.resolve();
+    }
+  });
+  t.after(() => { release.resolve(); unregister(); });
+  const project = molisWorkHostProjectReference({ projectId, databasePath: browser.databasePath });
+  const directory = await localHost.inspectActions(await localHost.localPersonContext(project), project);
+  const descriptor = directory.find(entry => entry.capability_id === capabilityId);
+  assert.ok(descriptor);
+  const action: ExactActionReference = { capability_id: capabilityId, version: 1, provider_id: descriptor.provider.provider_id };
+  const post = <T,>(path: string, body: Record<string, unknown> = {}) => web.post<T>(`${root}/api/home-pages/${path}`, body);
+  const save = async (draft: HomePageDraft, previous?: HomePageVersion) => (await post<{ version: HomePageVersion }>("drafts/save", {
+    draft, ...(previous ? { page_id: previous.page_id, expected_version: previous.version } : {}),
+  })).version;
+  const currentRevision = async () => (await post<HomePageOverview>("read")).revision;
+  const visit = (path: string) => browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + path }, browser.sessionId));
+  const slowPage = await save({
+    title: "等待保存", entry: "index.html", actions: [action], files: [
+      { path: "index.html", media_type: "text/html", text: '<main>核对本条记录</main><script src="work.js"></script>' },
+      { path: "work.js", media_type: "text/javascript", text: `if (window.molisHomePage.mode === "live") window.molisHomePage.invokeAction(${JSON.stringify(action)}, {}).catch(() => {});` },
+    ],
+  });
+  const nextPage = await save({
+    title: "下一版", entry: "index.html", actions: [],
+    files: [{ path: "index.html", media_type: "text/html", text: "<main>下一版</main>" }],
+  }, slowPage);
+  assert.equal(nextPage.page_id, slowPage.page_id);
+  assert.equal(nextPage.version, slowPage.version + 1);
+  for (const change of ["replace", "withdraw", "switch"]) {
+    started = Promise.withResolvers<void>();
+    release = Promise.withResolvers<void>();
+    finished = Promise.withResolvers<void>();
+    await visit(`/projects/${otherProject.project_id}/`);
+    await post(change === "replace" ? "adopt" : "restore", {
+      page_id: slowPage.page_id, version: slowPage.version, approved_actions: [action],
+      expected_revision: await currentRevision(), request_id: `start-${change}`,
+    });
+    await visit(`${root}/`);
+    await started.promise;
+    if (change === "replace") {
+      await post("adopt", { page_id: nextPage.page_id, version: nextPage.version, approved_actions: [], expected_revision: await currentRevision(), request_id: "replace" });
+    } else if (change === "withdraw") {
+      await post("select", { kind: "basic", expected_revision: await currentRevision(), request_id: "withdraw" });
+    } else {
+      await browser.click("[data-top-corner-toggle]");
+      const row = `[data-corner-project='${otherProject.project_id}']`;
+      await browser.waitFor(`Boolean(document.querySelector(${JSON.stringify(row)}))`);
+      await browser.click(row);
+      await browser.navigate(() => browser.click(`[data-corner-pages='${otherProject.project_id}'] a.top-corner-page`));
+      await browser.waitFor("Boolean(document.querySelector('[data-top-corner-toggle]'))");
+    }
+    release.resolve();
+    await finished.promise;
+    assert.equal(readFileSync(ledger, "utf8"), "", change);
+  }
 });

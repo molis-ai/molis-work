@@ -10219,7 +10219,7 @@
     "workbench.home-pages.receipt-target-changed": "这份回执属于另一个版本，请重新打开首页。",
     "workbench.home-pages.recovered-grants": "已找回上次确认的结果。上次允许的操作为{actions}。",
     "workbench.home-pages.no-granted-actions": "无",
-    "workbench.home-pages.decision-history": "上次的决定已保存。当前首页已更新。",
+    "workbench.home-pages.decision-history": "上次的决定已保存。重新打开首页可查看当前版本。",
     "workbench.home-pages.adopt-failed": "采用或恢复页面未成功",
     "workbench.home-pages.switched-to-default": "已退回默认第一页",
     "workbench.home-pages.switch-failed": "退回默认第一页未成功",

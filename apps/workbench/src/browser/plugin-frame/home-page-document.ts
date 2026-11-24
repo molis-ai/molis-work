@@ -1,6 +1,6 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePageFile, HomePageFilesResult } from "@molis-ai/molis-work-contracts/services/home";
-import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as escape } from "../mainline-ui.js";
 import { appearanceRef, type AppearanceProjection } from "../appearance-view.js";
 
 const encoder = new TextEncoder();

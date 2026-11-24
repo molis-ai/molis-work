@@ -36,10 +36,13 @@ test("Batch 100-2 parseTscDiagnostics counts diagnostics per normalized relative
   });
 });
 
-test("Batch 100-2 testTypecheckProblems refuses new errors, growth, and baseline laundering while allowing shrink and renames", () => {
+test("Batch 100-2 testTypecheckProblems requires both errors and reductions to match the baseline", () => {
   const base = parseBaseline(JSON.stringify({ files: { "tests/old.test.ts": 2 } }));
   assert.deepEqual(testTypecheckProblems({ total: 2, files: { "tests/old.test.ts": 2 } }, base, base), []);
-  assert.deepEqual(testTypecheckProblems({ total: 1, files: { "tests/old.test.ts": 1 } }, base, base), []);
+  const one = { total: 1, files: { "tests/old.test.ts": 1 } };
+  assert.match(testTypecheckProblems(one, base, base).join("\n"), /tests\/old\.test\.ts: TypeScript errors fell 2 → 1/);
+  assert.match(testTypecheckProblems({ total: 0, files: {} }, base, base).join("\n"), /tests\/old\.test\.ts: TypeScript errors fell 2 → 0/);
+  assert.deepEqual(testTypecheckProblems(one, parseBaseline(JSON.stringify(one)), base), []);
   assert.match(testTypecheckProblems({ total: 3, files: { "tests/old.test.ts": 3 } }, base, base).join("\n"), /tests\/old\.test\.ts: TypeScript errors grew 2 → 3/);
   assert.match(testTypecheckProblems({ total: 3, files: { "tests/old.test.ts": 2, "tests/new.test.ts": 1 } }, base, base).join("\n"), /tests\/new\.test\.ts: TypeScript errors grew 0 → 1/);
 
@@ -86,6 +89,9 @@ test("Batch 100-2 test-typecheck CLI end-to-end catches added TS error and rejec
   // Fixing existing.test.ts shrinks errors and --update --base main succeeds.
   put(dir, "tests/clean.test.ts", "export const ok: number = 1;\n");
   put(dir, "tests/existing.test.ts", "export const fixed: number = 42;\n");
+  const stale = runGate(dir, "--base", "main");
+  assert.equal(stale.code, 1, stale.out);
+  assert.match(stale.out, /tests\/existing\.test\.ts: TypeScript errors fell 1 → 0/);
   const shrunk = runGate(dir, "--update", "--base", "main");
   assert.equal(shrunk.code, 0, shrunk.out);
   assert.equal(runGate(dir, "--base", "main").code, 0);

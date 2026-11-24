@@ -8,7 +8,7 @@ import { drawWelcomePrep, refreshRunPrep } from "./prep-fold.js";
 import { api, status } from "./request.js";
 import { surfaceChanged } from "./select.js";
 import type { StateRead } from "./shapes.js";
-import { showWorkspace } from "./workspace.js";
+import { followWorkspace, showWorkspace } from "./workspace.js";
 
 /** Puts the session's remembered start (intent, model, directory, effort) back on the composer. */
 export function applyConfiguration(page: Page) {
@@ -102,7 +102,11 @@ function drawWorkspaces(page: Page, result: StateRead) {
     choice.value = s.workspaceId;
   }
   if (!q<HTMLDialogElement>("[data-coding-workspace-dialog]").open) choice.value = s.workspaceId;
-  if (workspacesChanged || prevWorking !== s.workspaceId) page.refs.filesFace?.follow(s.workspaceId);
+  if (workspacesChanged || prevWorking !== s.workspaceId) {
+    // The session may have restored its folder before this first list of authorized directories arrived.
+    if (selected?.realpath_verified && config?.workspace_id === selected.workspace_id && s.workspaceId === selected.workspace_id) void followWorkspace(page);
+    else page.refs.filesFace?.follow(s.workspaceId);
+  }
 }
 
 /** The environment as it was just read: on the welcome of a session with no round yet, or in the newest round's fold. */

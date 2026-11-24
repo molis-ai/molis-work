@@ -29,11 +29,12 @@ export function runtimeSyncRegistration(home: string, spaceId: string, owners: r
   const scope = (key: string) => { const parsed = runtimeSyncKey(key), current = owner(JSON.stringify(parsed.projectId)); return { ...parsed, binding: current.binding, spaceId }; };
   return {
     selection, title: identity.collection.title,
-    hasReference(projectId,assetId,version){
+    // The sync service uses this port to restore reference owners before collections that read their facts.
+    ...(owners.some(({ binding }) => binding.hasReference) ? { hasReference(projectId: string, assetId: string, version?: number) {
       authorize();const scope=byScope.get(JSON.stringify(projectId))??byScope.get('null');
       if(!scope||!scope.binding.available()||!scope.binding.hasReference)return false;
       const found=scope.binding.hasReference(projectId,assetId,version);authorize();return found;
-    },
+    }} : {}),
     dependencies: [...identity.dependencies.map(collection => ({ ...selection, collection_id: collection.id, schema_version: collection.schema_version })),
       ...(isPluginApprovalCollection(selection) ? [projectApprovalSyncSelection] : [])],
     available: () => owners.some(row => row.binding.available()), refresh: async () => authorize(),

@@ -5,8 +5,7 @@ import { tmpdir } from "node:os";
 import { parseArgs } from "node:util";
 import { openServerDatabase, Identity, ServerEvents, ContinuityService, startServer, memberClientId, createImDomain, type ActionFactory } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
-// The QA project's one document is saved as Pages itself would save it: the ids Pages declares in its Manifest (`artifacts.produces`).
-const PAGES_PLUGIN_ID = "io.molis.work.pages", PAGES_ARTIFACT_TYPE_ID = "io.molis.work.pages.document", PAGES_ARTIFACT_SCHEMA_VERSION = /* @version artifact.io.molis.work.pages.document */ 1;
+const PAGES_PLUGIN_ID = "io.molis.work.pages", PAGES_ARTIFACT_TYPE_ID = "io.molis.work.pages.document";
 
 const { values, positionals } = parseArgs({ options: { port: { type: "string", default: "4189" } }, allowPositionals: true });
 if (positionals.length !== 1) throw Error("Pass one explicit isolated QA directory and optionally --port 0");
@@ -34,27 +33,39 @@ await mkdir(directory, { recursive: true, mode: 0o700 });
 process.env.MOLIS_WORK_HOME = directory;
 process.env.MOLIS_WORK_SECRET_BACKEND = "file";
 delete process.env.MOLIS_WORK_ENCRYPTION_KEY;
-const { MolisWorkLocalHost, molisWorkHostProjectReference, LocalProjectDatabase, seedDemoBoard, openProjectVersionStores, hostContinuityActions } = await import("@molis-ai/molis-work-app-local-host");
+const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, runningProjectPlatform, hostContinuityActions } = await import("@molis-ai/molis-work-app-local-host");
 
 const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
 const databasePath = join(directory, "project.sqlite"), projectId = "continuity-qa", goalId = "mobile-handoff";
 // The project's library starts with the platform's root row; Goals makes its board when the Host first opens the project, and the goal below is its own action's.
 seedDemoBoard(databasePath, projectId);
-const db = new LocalProjectDatabase(databasePath), library = openProjectVersionStores(db);
-try {
-  library.artifacts.commands.registerVersion({
-    project_id: projectId, artifact_id: "handoff-guide", version: 2, actor_id: "desktop", artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION,
-    origin: { kind: "pinned", subject: { kind: "document", id: "handoff-guide" }, revision: "2" }, title: "跨设备接续 · 操作说明", media_type: "text/markdown",
-    // A saved version needs a producer the Host knows (A3): the QA project's document is the one Pages, which ships with the Host, writes.
-    producer: { plugin_id: PAGES_PLUGIN_ID, plugin_version: "1.0.0", binding_signature: "qa-writer" },
-    content: { kind: "inline", payload: "跨设备接续操作说明\n\n桌面整理固定成果 → 手机核对并留下下一步 → 桌面继续。\n\n这是隔离项目中的真实保存，不读取私人账号。" },
-    metadata: { title: "跨设备接续 · 操作说明" }, scope: "team_project", team_share_authorized: true,
-  });
-} finally { db.close(); }
 const ref = molisWorkHostProjectReference({ projectId, databasePath });
 await host.actionClient(ref).invoke({ actor_id: "desktop", actor_kind: "user", audience: "user", project_id: projectId, permissions: ["goals:read", "goals:write"] },
   { capability_id: "goals.create", version: /* @version action.goals.create */ 1 },
   { goal_id: goalId, title: "让工作在手机上继续", outcome: "查看桌面成果，记录下一步，再回桌面接续。", idempotency_key: "goal" });
+const guide = { artifact_id: "handoff-guide", version: 2 };
+await host.withProject(ref, async ({ store, artifacts }) => {
+  // Reopening the QA Home keeps the version already shared with its devices.
+  if (artifacts.query.getArtifactVersion(projectId, guide)) return;
+  const platform = await runningProjectPlatform(store, projectId);
+  const pages = platform?.supervisor.manifest(PAGES_PLUGIN_ID);
+  const declaration = pages?.artifacts.produces.find(type => type.artifact_type_id === PAGES_ARTIFACT_TYPE_ID);
+  if (!pages || !declaration?.pin) throw Error("The demo needs Pages' declared document artifact");
+  const { pin } = declaration;
+  const pinAction = pages.actions?.find(action => action.capability_id === pin.capability_id && action.version === pin.version);
+  const subjectKind = pinAction?.action.subject_kinds[0];
+  if (!subjectKind) throw Error("The demo needs Pages' document pin subject");
+  const title = "跨设备接续 · 操作说明";
+  artifacts.commands.registerVersion({
+    ...guide, project_id: projectId, actor_id: "desktop",
+    artifact_type_id: declaration.artifact_type_id, schema_version: declaration.schema_version,
+    origin: { kind: "pinned", subject: { kind: subjectKind, id: guide.artifact_id }, revision: "2" },
+    title, media_type: "text/markdown",
+    producer: { plugin_id: pages.plugin_id, plugin_version: pages.version, binding_signature: pages.publisher.signature },
+    content: { kind: "inline", payload: "跨设备接续操作说明\n\n桌面整理固定成果 → 手机核对并留下下一步 → 桌面继续。\n\n这是隔离项目中的真实保存，不读取私人账号。" },
+    metadata: { title }, scope: "team_project", team_share_authorized: true,
+  });
+});
 const factory: ActionFactory = ({ memberId, projectId, validate, signal }) => {
   const client = host.actionClient(ref);
   return {
@@ -80,7 +91,7 @@ const factory: ActionFactory = ({ memberId, projectId, validate, signal }) => {
 const storage = openServerDatabase(join(directory, "server")), identity = new Identity(storage.db), events = new ServerEvents(storage.db);
 const continuity = new ContinuityService(storage.db, identity, events, factory);
 const owner = continuity.projectOwner(projectId) ?? identity.createMember("一骏 · 隔离实操");
-continuity.registerProject({ id: projectId, title: "设备接续 · 隔离实操", goal_ids: [goalId], artifacts: [{ artifact_id: "handoff-guide", version: 2 }] }, owner.id);
+continuity.registerProject({ id: projectId, title: "设备接续 · 隔离实操", goal_ids: [goalId], artifacts: [guide] }, owner.id);
 await writeFile(join(directory, "connect.json"), JSON.stringify(identity.code("bootstrap", owner.id)), { mode: 0o600 });
 let running: Awaited<ReturnType<typeof startServer>> | undefined;
 let closing: Promise<void> | undefined;

@@ -35,8 +35,11 @@ export async function createPersonalSync(home:string,space:StorageSpace,lease:Pe
       &&typeof row.hasReference==='function');
     const result=owner?.hasReference?.(projectId,reference.assetId,reference.version)??false;check();return result;
   };
-  const {artifacts,registrations:versions}=createPersonalFixedVersionBindings(home,space.spaceId,lease.userId,check,withCatalog,hasPluginReference);
-  const plugins=createPersonalPluginRegistrations(home,space.spaceId,lease.userId,check,withCatalog,(projectId,id,version)=>artifacts.hasReference(projectId,{owner:'artifacts',assetId:id,version}),(projectId,reference)=>artifacts.hasReference(projectId,reference));
+  const {artifacts,registrations:versions}=createPersonalFixedVersionBindings(home,space.spaceId,lease.userId,check,withCatalog);
+  const hasArtifact=(projectId:string,id:string,version?:number)=>artifacts.hasReference(projectId,{owner:'artifacts',assetId:id,version});
+  const hasReference=(projectId:string,reference:Parameters<typeof hasPluginReference>[1])=>reference.owner==='artifacts'
+    ? hasArtifact(projectId,reference.assetId,reference.version) : hasPluginReference(projectId,reference);
+  const plugins=createPersonalPluginRegistrations(home,space.spaceId,lease.userId,check,withCatalog,hasArtifact,hasReference);
   plugins.push(createPersonalCharacterRegistration(home,space.spaceId,lease.userId,check));
   for(const plugin of plugins)await plugin.refresh();
   const catalog=createPersonalCatalogRegistration(home,space.spaceId,lease.userId,check,withCatalog,'molis',lifecycleService?{service:lifecycleService,refreshChildren:async()=>{for(const child of [...children,...discovered]){await child.refresh();check();}},assertChildrenSettled:projectId=>assertProjectSyncChildren([...children,...discovered],projectId,check)}:undefined);await catalog.refresh();
@@ -56,7 +59,7 @@ export async function createPersonalSync(home:string,space:StorageSpace,lease:Pe
     .filter(row => row.owner === 'surfaces' || row.owner === 'attention').map(row => syncNamespace(row.selection)));
   children = [approvals, guidance, acceptance, ...projectPlugins, ...versions, ...plugins,
     ...configuration.filter(row => projectConfiguration.has(syncNamespace(row.selection)))];
-  const runtimeAuthority=personalRuntimeSyncAuthority({home,spaceId:space.spaceId,authorize:check,policy:()=>service.policy(),withCatalog,readCatalog,hasArtifact:(projectId,id,version)=>artifacts.hasReference(projectId,{owner:'artifacts',assetId:id,version}),hasReference:(projectId,reference)=>artifacts.hasReference(projectId,reference)});
+  const runtimeAuthority=personalRuntimeSyncAuthority({home,spaceId:space.spaceId,authorize:check,policy:()=>service.policy(),withCatalog,readCatalog,hasArtifact,hasReference});
   const tagGroup = (registration: SyncRegistration): SyncRegistration => ({
     ...registration,
     group: isPlatformSyncSelection(registration.selection) ? 'platform' : 'plugin',

@@ -94,13 +94,29 @@ export function testGitEditDrafts(surface: "git" | "coding") {
     assert.equal(await frame.evaluate("document.querySelector('[data-git-commit-message]').value"), "First directory commit");
     assert.equal(await frame.evaluate("document.querySelector('[data-git-branch-name]').value"), "first-topic");
     await select(other.workspace_id, otherRoot, "other-branch");
-    await browser.reloadPage();
     if (codingSession) {
+      // The saved session can arrive before its project's authorized directories.
+      const state = Promise.withResolvers<void>();
+      let stateRequested = false;
+      const handlers = browser.server.listeners("request");
+      browser.server.removeAllListeners("request");
+      browser.server.on("request", async (request, response) => {
+        if (request.url?.split("?")[0]?.endsWith("/api/plugins/io.molis.work.coding/state")) {
+          stateRequested = true;
+          await state.promise;
+        }
+        for (const handler of handlers) handler.call(browser.server, request, response);
+      });
+      try {
+        await browser.reloadPage();
+        await frame.waitFor(`JSON.parse(document.querySelector('[data-coding-workbench]')?.dataset.assistantContext || '{}').object?.id === ${JSON.stringify(codingSession)}`);
+      } finally { state.resolve(); }
       await browser.waitFor(CODING_TAKEN);
       // Wait for the session's first read to restore its folder before opening the embedded Git pane.
       const restoredFolder = `document.querySelector('[data-coding-workspace-label]')?.title === ${JSON.stringify(other.canonical_path)}`;
       await frame.waitFor(`${currentSession} === ${JSON.stringify(codingSession)} && ${restoredFolder}`);
-    }
+      assert.ok(stateRequested, "the project directories came through the controlled read");
+    } else await browser.reloadPage();
     await ctx.show();
     await frame.waitFor("document.querySelector('[data-git-branch]').textContent === 'other-branch'");
     assert.equal(await frame.evaluate("document.querySelector('[data-git-commit-message]').value"), "Second directory commit");

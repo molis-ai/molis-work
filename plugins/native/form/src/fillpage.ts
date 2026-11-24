@@ -1,4 +1,4 @@
-import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { NO_FAVICON_LINK, escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormRecord, FormSubmissionRecord } from "./contract.js";
 
 /** What an exported fill page writes and `form.answers.import` reads back. */
@@ -17,6 +17,7 @@ export function formFillPageHtml(form: FormRecord): string {
   const data = { format: FORM_ANSWER_FORMAT, form_id: form.id, form_version: form.version, title: form.title, description: form.description, questions: form.questions };
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+${NO_FAVICON_LINK}
 <title>${esc(form.title)}</title>
 <style>
 :root{color-scheme:light dark;--ink:#222326;--muted:#6b6f76;--line:#d9dce1;--paper:#fff;--page:#f3f4f5;--accent:#5e6ad2}

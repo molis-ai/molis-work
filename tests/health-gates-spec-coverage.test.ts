@@ -356,6 +356,22 @@ test("what counts as an id, as written", () => {
 });
 
 // ---- the command ------------------------------------------------------------------------------------------------------------
+test("QEV-04: piped output delivers every finding in a large report before exit", () => {
+  const ids = Array.from({ length: 800 }, (_, index) => `QXOUT-${100 + index}`);
+  const dir = scratch({ "specs/large/spec.md": criteria("Large", ...ids.map(id => `- ${id} covers one requirement`)) });
+
+  const json = check(dir, "--json");
+  assert.equal(json.code, 0);
+  const report = JSON.parse(json.out);
+  assert.deepEqual(report.specs[0].criteria.map((row: { id: string }) => row.id), ids);
+  assert.deepEqual(report.problems.map((row: { message: string }) => row.message.split(" ")[0]).sort(), ids);
+
+  const strict = check(dir, "--strict");
+  assert.equal(strict.code, 1);
+  const findings = Array.from(strict.out.matchAll(/^- uncovered: [^\n]+?: (QXOUT-\d+) is cited by no test/gm), match => match[1]);
+  assert.deepEqual(findings.sort(), ids);
+});
+
 test("--json prints the same findings; unusable invocations exit 2", () => {
   const dir = scratch(base((files) => { files["specs/beta/spec.md"] = BETA_UNNUMBERED; }));
   const json = check(dir, "--json");

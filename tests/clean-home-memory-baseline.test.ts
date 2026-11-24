@@ -91,7 +91,7 @@ test("memory ledger v1 -> v2 upgrade disambiguates pre-b3429bd1cc Coding session
           scope: "project", owner: "proj-1", memories: [{ memory_id: `mem-${opId}`, version: 1 }], candidates: [], source_event_ids: [],
         });
       }
-      const service = new MemoryService({ ledger, backend: { withCaller: () => { throw new Error("unused"); } } });
+      const service = new MemoryService({ ledger, backend: { withCaller: () => { throw new Error("unused"); } } as never });
       const page = service.listOperations({ actor_id: "local-person", project_id: "proj-1", consumer: "ui", person: true, current_scene: "common", purpose: "management" }, { scope: "project" });
       assert.deepEqual(page.items.map(item => [item.operation_id, item.cleanup]), [["grp-unknown-scene", "needs-reconcile"]]);
     } finally { ledger.close(); owner.release(); }

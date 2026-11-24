@@ -92,8 +92,16 @@ export async function stopOriginalRun(adapter: AgentRuntimeAdapter, run: AgentRu
     let fail!: (error: Error) => void;
     let done = false;
     const settled = new Promise<void>((resolve, reject) => {
-      settle = () => { if (!done) { done = true; resolve(); } };
-      fail = (error: Error) => { if (!done) { done = true; reject(error); } };
+      settle = () => {
+        if (done) return;
+        done = true;
+        resolve();
+      };
+      fail = (error: Error) => {
+        if (done) return;
+        done = true;
+        reject(error);
+      };
       unsubscribe = adapter.observe(run, view => { if (ended(view)) settle(); });
     });
     await inAssistantWorkEffect(adapter, control, () => adapter.control(run, { kind: "stop" }));

@@ -607,7 +607,10 @@ export function putBackUpgradeRound(home: string, owner: StorageOwner): readonly
     if (unit.kind === "plugin_tables" && (!stores.has(target) || stores.get(target)!.unlisted)) {
       throw upgradeFailedRefusal("这个 Home", "snapshot_invalid", "要放回的库有不在这一版登记里的，什么都没有动");
     }
-    if (!seen.has(target)) { seen.add(target); targets.push(target); }
+    if (!seen.has(target)) {
+      seen.add(target);
+      targets.push(target);
+    }
   }
   const lock = { owner, lockDirectory, home: root };
   for (const relativePath of targets) verifyUpgradeSnapshot({ ...lock, runId: ledger.run_id, relativePath });

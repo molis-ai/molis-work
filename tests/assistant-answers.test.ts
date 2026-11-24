@@ -12,11 +12,8 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-a
 import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_PERSONAL_OWNER } from "@molis-ai/molis-work-contracts/services/assistant";
-import { installHostUiText, LocalHost } from "@molis-ai/molis-work-app-local-host";
-import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { assistantAuthority, AssistantStore, installHostUiText, LocalHost, stopOriginalRun } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
-import { stopOriginalRun } from "../apps/local-host/dist/assistant/assistant-work-permissions.js";
-import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -152,7 +149,7 @@ test("AssistantOutcomes.decide surfaces delivery_error instead of returning 200 
     read: async () => ({ ref: run, phase: "awaiting-review", turns: [], activity: [], awaiting_input: [], command_outputs: [], usage: { tokens: { input: 0, output: 0, cached_input: 0, cache_creation: 0 } }, frozen: { title: "t", role_id: "assistant", directory: null }, started_at: new Date().toISOString(), ended_at: null }),
     observe: () => () => {},
     control: async () => {},
-    inputs: { send: async (_ref, input) => { steers.push(input.text); return { input_id: "i-1", accepted_at: new Date().toISOString() }; } },
+    inputs: { send: async (_ref: unknown, input: { text: string }) => { steers.push(input.text); return { input_id: "i-1", accepted_at: new Date().toISOString() }; } },
     close: async () => {},
   } as never);
   const store = new AssistantStore(new DatabaseSync(":memory:"));

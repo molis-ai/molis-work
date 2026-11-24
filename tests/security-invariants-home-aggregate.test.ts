@@ -809,7 +809,7 @@ test("S-49 resting snapshots invalidate on Home aggregate DB writes, restart-bou
   opened1.length = 0;
   const zhResting = await runWithLocale("zh", () => homeBackgroundTasks(ports1, projects));
   assert.equal(zhResting.tasks[0]?.state, "approval");
-  assert.equal(zhResting.tasks[0]?.step.text, "step:approval:zh");
+  assert.equal(zhResting.tasks[0]?.step?.text, "step:approval:zh");
   assert.equal(zhResting.tasks[0]?.resting, true);
   assert.deepEqual(opened1, [], "same-process zh resting hit opens zero projects");
 
@@ -821,7 +821,7 @@ test("S-49 resting snapshots invalidate on Home aggregate DB writes, restart-bou
   assert.equal(await host1.sleepIfIdle(proj, 0), true);
   opened1.length = 0;
   const enResting = await runWithLocale("en", () => homeBackgroundTasks(ports1, projects));
-  assert.equal(enResting.tasks[0]?.step.text, "step:approval:en");
+  assert.equal(enResting.tasks[0]?.step?.text, "step:approval:en");
   assert.equal(enResting.tasks[0]?.resting, true);
   assert.deepEqual(opened1, []);
 

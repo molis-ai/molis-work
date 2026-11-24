@@ -36,10 +36,18 @@ export async function answerPluginRouteStream(response: ServerResponse,
   const overflowError = () => new ActionError("actions.output_invalid", "进度超出了流式回复的上限");
   try {
     const result = await dispatch(emit);
-    if (overflow) { markMutationResponseFailed(response); write(errorLine(overflowError())); }
-    else if (!result) { markMutationResponseFailed(response); write(errorLine(new ActionError("actions.missing", "插件没有这个入口"))); }
-    else if (result.status >= 200 && result.status < 300) write({ type: "result", result: withPluginInteraction(result.body) });
-    else { markMutationResponseFailed(response); write(refusalLine(result)); }
+    if (overflow) {
+      markMutationResponseFailed(response);
+      write(errorLine(overflowError()));
+    } else if (!result) {
+      markMutationResponseFailed(response);
+      write(errorLine(new ActionError("actions.missing", "插件没有这个入口")));
+    } else if (result.status >= 200 && result.status < 300) {
+      write({ type: "result", result: withPluginInteraction(result.body) });
+    } else {
+      markMutationResponseFailed(response);
+      write(refusalLine(result));
+    }
   } catch (error) {
     markMutationResponseFailed(response);
     write(errorLine(overflow ? overflowError() : error));

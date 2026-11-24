@@ -333,6 +333,7 @@ export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "
 export { raiseConnectionNotice } from "./assistant/assistant-connection-notices.js";
 export { assistantConnectionCard } from "./assistant/assistant-connection-card.js";
 export { AssistantService } from "./assistant/assistant-service.js";
+export { stopOriginalRun } from "./assistant/assistant-work-permissions.js";
 export { AssistantReportRounds, AssistantTaskReports, reportOnlyAuthority, type TaskReport } from "./assistant/assistant-task-reports.js";
 export { reportTurn } from "./assistant/assistant-dispatch.js";
 export { ASSISTANT_AGENT, ASSISTANT_REPORT_ROLE_ID } from "./assistant/assistant-agent.js";

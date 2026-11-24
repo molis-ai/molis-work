@@ -26,7 +26,7 @@ async function openSection(browser: Browser) {
   await waitFor("document.readyState === 'complete' && document.querySelector('#environment')?.dataset.boardEnvShown === 'zh' && document.querySelector('[data-board-env-snapshot]')?.dataset.same === 'true'", 20_000);
 }
 
-async function switchTo(browser: Browser, locale: "zh" | "en") {
+async function switchTo(browser: Browser, locale: "zh" | "en" | "ja") {
   await browser.evaluate(`document.querySelector('[data-board-env-lang=${locale}]').click()`);
   await browser.waitFor(`document.querySelector('#environment').dataset.boardEnvShown === '${locale}'`);
 }
@@ -101,7 +101,57 @@ test("FSS-61 the board section changes its words, dates, numbers and attributes 
   assert.equal(after.checks, true, "the file checks are what the parser said, in no language");
   assert.equal(after.pressed, "true");
   assert.deepEqual(after.watched, { removed: 0, html: 0, values: 0, loadedOnce: true }, "no node taken out, no HTML written, no field value written, no reload");
-  // And back: the same section in Chinese again, with the person's state still there.
+
+  // Switch en → ja in place: Japanese words, ja-JP dates/numbers, fallback sample owner, and all user state stays intact.
+  await switchTo(browser, "ja");
+  const afterJa = await evaluate<Record<string, unknown>>(`(() => {
+    const input = document.querySelector('[data-board-env-search]'), facts = [...document.querySelectorAll('.mw-board-env__facts dd')];
+    return {
+      title: document.querySelector('#board-env h2').textContent,
+      skin: facts[0].textContent, font: facts[1].textContent, owners: facts[2].textContent,
+      when: document.querySelector('.mw-board-env__facts time').textContent, count: facts[4].textContent,
+      rename: document.querySelector('.mw-board-env__actions .mw-btn [data-slot=button-label]')?.textContent ?? document.querySelector('.mw-board-env__actions .mw-btn').textContent.trim(),
+      clear: document.querySelector('.mw-board-env__actions input[type=button]').value,
+      placeholder: input.placeholder, label: input.getAttribute('aria-label'), scrollLabel: document.querySelector('[data-board-env-scroll]').getAttribute('aria-label'),
+      value: input.value, selection: [input.selectionStart, input.selectionEnd], focused: document.activeElement === input, sameNode: input.__mark,
+      open: document.querySelector('[data-board-env-more]').open, scroll: document.querySelector('[data-board-env-scroll]').scrollTop,
+      changedByPage: document.querySelector('[data-board-env-scroll] p').textContent, secondLine: document.querySelectorAll('[data-board-env-scroll] p')[1].textContent,
+      rows: [...document.querySelectorAll('[data-board-env-rows] li')].map((li) => li.textContent),
+      same: ${SAME_ROW},
+      save: document.querySelector('[data-board-env-save]').textContent, editable: document.querySelector('[data-board-env-editable]').textContent,
+      snapshot: [document.querySelector('[data-board-env-snapshot]').dataset.same, document.querySelector('[data-board-env-snapshot]').textContent],
+      pressed: document.querySelector('[data-board-env-lang=ja]').getAttribute('aria-pressed'),
+      watched: window.__boardEnv,
+    };
+  })()`);
+  assert.equal(afterJa.title, "言語とテキスト");
+  assert.equal(afterJa.skin, "Soft Workbench");
+  assert.equal(afterJa.font, "システムサンセリフ");
+  assert.equal(afterJa.owners, "ワークベンチの語句 · サンプルプラグイン独自の文言");
+  assert.notEqual(afterJa.when, after.when, "the date is drawn in Japanese");
+  assert.match(String(afterJa.count), /^1件のメモを保存しました · 3件のメモを保存しました · 1\.2万$/u);
+  assert.equal(afterJa.rename, "「Tom's R&D notes」の名前を変更");
+  assert.equal(afterJa.clear, "クリア");
+  assert.equal(afterJa.placeholder, "探したい言葉を入力");
+  assert.equal(afterJa.label, "メモを検索");
+  assert.equal(afterJa.scrollLabel, "スクロール可能なテキスト");
+  assert.equal(afterJa.value, "我的查询词");
+  assert.deepEqual(afterJa.selection, [1, 3]);
+  assert.equal(afterJa.focused, true);
+  assert.equal(afterJa.sameNode, "same node");
+  assert.equal(afterJa.open, true);
+  assert.equal(afterJa.scroll, 40);
+  assert.equal(afterJa.changedByPage, "页面自己改过的字");
+  assert.equal(afterJa.secondLine, "2行目");
+  assert.deepEqual(afterJa.rows, ["リスト1行目", "リスト2行目", "保存"]);
+  assert.deepEqual(afterJa.same, ["user:保存", "word:保存"]);
+  assert.equal(afterJa.save, "保存");
+  assert.equal(afterJa.editable, "保存");
+  assert.deepEqual(afterJa.snapshot, ["true", "サーバとページの表示スナップショットが一致"]);
+  assert.equal(afterJa.pressed, "true");
+  assert.deepEqual(afterJa.watched, { removed: 0, html: 0, values: 0, loadedOnce: true });
+
+  // And back: ja → zh in place, with the person's state still there.
   await switchTo(browser, "zh");
   assert.deepEqual(await evaluate(`[document.querySelector('#board-env h2').textContent, document.querySelector('[data-board-env-search]').value, [...document.querySelectorAll('[data-board-env-rows] li')].map((li) => li.textContent), window.__boardEnv]`),
     ["语言与文字", "我的查询词", ["列表第 1 行", "列表第 2 行", "保存"], { removed: 0, html: 0, values: 0, loadedOnce: true }]);
@@ -189,4 +239,92 @@ test("FSS-61 same words next to each other: the interface word never stays in th
     await switchTo(browser, "en");
     assert.deepEqual(await evaluate(SAME_ROW), same, name);
   }
+});
+
+test("FSS-61 /__ui/catalog live switches across zh | en | ja with zero leftover Chinese in en and ja", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { navigate, command, sessionId, origin, waitFor, evaluate } = browser;
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog?lang=zh` }, sessionId));
+  await waitFor("document.readyState === 'complete' && document.querySelector('[data-board-lang=ja]') && document.querySelector('#environment')?.dataset.boardEnvShown === 'zh'", 25_000);
+  await evaluate("window.__catalogBody = document.body; window.__catalogHeading = document.querySelector('h1');");
+
+  // Collect visible text outside explicit non-translated/language-autonym/typography-proof slots
+  // and the 6 SDK-default primitive labels (packages/plugin-sdk/src/ui/{field,calendar,number-field}.ts).
+  const scanLeftover = (mode: "en" | "ja", rootSelectors?: readonly string[]) => evaluate<string[]>(`(() => {
+    const IGNORED = '[translate="no"], script, style, template, svg, textarea, [data-board-lang], [data-board-env-lang], [data-cond-value=zh], [data-cond-value=ja], [data-board-env-user], [data-board-env-editable], .mw-board-env__checks';
+    const ALLOWED_TEXT = /中\\u2060?文\\s+mixed\\s+with\\s+English|简体中文|日本語|繁體中文|Aa\\s+123|Aa\\s+你好\\s+12|文字\\s+Aa|中英文混排|“保存”|「保存」/gu;
+    const SDK_SR_DEFAULTS = /^(?:减少|增加|上个月|下个月|打开日历)$/u;
+    const EN_CJK = /[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}]/u;
+    const JA_SC = /[请这吗吧们还给让个无页读删设击错误败经过时间话说关闭开结获验证权记录检查确认编辑创执发连账码钥夹项题链试图网络务应统环输异态进详筛销导评论历级启继续您哪么什为从对你咱呢啊哦啦呗]/u;
+    const re = ${mode === "en" ? "EN_CJK" : "JA_SC"};
+    const selectors = ${JSON.stringify(rootSelectors ?? null)};
+    const roots = selectors ? selectors.flatMap(sel => [...document.querySelectorAll(sel)]) : [document.body];
+    const hits = [];
+    for (const root of roots) {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const parent = node.parentElement;
+        if (!parent || parent.closest(IGNORED)) continue;
+        if (parent.closest('[hidden]')) continue;
+        const text = (node.data || '').trim();
+        if (!text) continue;
+        if (parent.matches('span.mw-sr-only') && SDK_SR_DEFAULTS.test(text)) continue;
+        if (parent.matches('small') && text === '必填') continue;
+        const cleaned = text.replace(ALLOWED_TEXT, '');
+        if (re.test(cleaned)) {
+          const section = parent.closest('section[id]')?.id || parent.tagName.toLowerCase();
+          hits.push(section + ': ' + text.slice(0, 80));
+          if (hits.length >= 25) return hits;
+        }
+      }
+    }
+    return hits;
+  })()`);
+
+  const LIVE_ROOTS = [
+    ".mw-catalog-top",
+    "[data-catalog-index]",
+    "#typeface",
+    "#language",
+    "#zones",
+    "#palette",
+    "#buttons",
+    "#platform-area",
+    "#conditions",
+    "#assistant",
+    "#plugin-rows",
+  ] as const;
+
+  const switchTop = async (tag: "zh" | "en" | "ja", htmlLangExpected: string) => {
+    await evaluate(`document.querySelector('[data-board-lang=${tag}]').click()`);
+    await waitFor(`document.documentElement.lang === '${htmlLangExpected}' && document.querySelector('[data-board-lang=${tag}]')?.getAttribute('aria-pressed') === 'true'`, 25_000);
+    assert.deepEqual(
+      await evaluate("[window.__catalogBody === document.body, window.__catalogHeading === document.querySelector('h1')]"),
+      [true, true],
+      `in-place switch to ${tag}`,
+    );
+  };
+
+  // Part A: Live in-place switching zh → en → ja → zh without reloading.
+  await switchTop("en", "en");
+  assert.equal(await evaluate("document.querySelector('h1').textContent.trim()"), "Molis Work Component catalog");
+  assert.equal(await evaluate("document.querySelector('#typeface h2').textContent.trim()"), "Font");
+  assert.deepEqual(await scanLeftover("en", LIVE_ROOTS), [], "no leftover Chinese after live switch to en");
+
+  await switchTop("ja", "ja");
+  assert.notEqual(await evaluate("document.querySelector('h1').textContent.trim()"), "Molis Work Component catalog");
+  assert.equal(await evaluate("document.querySelector('#typeface h2').textContent.trim()"), "フォント");
+  assert.deepEqual(await scanLeftover("ja", LIVE_ROOTS), [], "no leftover Simplified-Chinese leaks after live switch to ja");
+
+  await switchTop("zh", "zh-CN");
+  assert.equal(await evaluate("document.querySelector('#typeface h2').textContent.trim()"), "字体");
+
+  // Part B: Full-page /__ui/catalog?lang=en and ?lang=ja across every section on the board.
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog?lang=en` }, sessionId));
+  await waitFor("document.readyState === 'complete' && document.documentElement.lang === 'en'", 25_000);
+  assert.deepEqual(await scanLeftover("en"), [], "zero leftover Chinese across entire /__ui/catalog?lang=en");
+
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog?lang=ja` }, sessionId));
+  await waitFor("document.readyState === 'complete' && document.documentElement.lang === 'ja'", 25_000);
+  assert.deepEqual(await scanLeftover("ja"), [], "zero leftover Simplified-Chinese leaks across entire /__ui/catalog?lang=ja");
 });

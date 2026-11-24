@@ -12,6 +12,7 @@ import type {
 import { escapeHtml, renderAlert, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { mountMergeEditor } from "./home-page-merge.js";
 import type { mountHomePageFrame, MountedHomePageFrame } from "./plugin-frame/home-page-document.js";
+import { runBusy } from "./busy.js";
 import {
   homePageRefKey,
   localizeDesignIssueReason,
@@ -36,11 +37,6 @@ interface HomePagesUiHost {
 
 const craft = () =>
   (globalThis as typeof globalThis & { molisCraft?: { land?: (node: Element) => void; turn?: (node: Element, back?: boolean) => void } }).molisCraft;
-
-function runBusy<T>(button: HTMLElement | null | undefined, work: () => Promise<T>): Promise<T> {
-  const busy = (globalThis as typeof globalThis & { molisBusy?: <R>(el: HTMLElement, fn: () => Promise<R>) => Promise<R> }).molisBusy;
-  return button && busy ? busy(button, work) : work();
-}
 
 /**
  * Mounts generated-page live runtime, Plan B side-by-side comparison, Check Summary, Edit Conflict, version popover,
@@ -167,7 +163,10 @@ export function mountHomePages(host: HomePagesUiHost) {
       noticeHost.replaceChildren();
       return;
     }
-    const yieldPrimary = Boolean(host.root.querySelector("[data-home-groups] .mw-btn--primary"));
+    const yieldPrimary = Boolean(
+      host.root.querySelector("[data-home-groups] .mw-btn--primary")
+      || document.querySelector("[data-assistant-panel]:not([hidden])"),
+    );
     noticeHost.innerHTML = renderHomeNoticeHtml({
       overview,
       comparing: Boolean(comparingDraft),
@@ -266,7 +265,7 @@ export function mountHomePages(host: HomePagesUiHost) {
         try {
           compareNowFrame = await mountVersion(activeRef, nowStage, true, signal);
         } catch {
-          nowStage.innerHTML = `<p class="hp-quiet-note">${escapeHtml(uiText.text("workbench.home-pages.now-unavailable-in-compare"))}</p>`;
+          nowStage.innerHTML = `<p class="hp-quiet-note" data-hp-now-note="unavailable">${escapeHtml(uiText.text("workbench.home-pages.now-unavailable-in-compare"))}</p>`;
         }
       } else {
         const current = host.root.querySelector("[data-home-groups]");
@@ -600,11 +599,35 @@ export function mountHomePages(host: HomePagesUiHost) {
     if (!overview) return;
     renderChrome();
     if (comparingDraft) {
-      // Re-label compare column headers & view toggle in place without tearing down live preview iframes.
+      // Re-label compare column headers, badges, ARIA labels, quiet notes & view toggle in place without tearing down live preview iframes.
+      const sideNow = uiText.text("workbench.home-pages.side-now");
+      const sideDraft = uiText.text("workbench.home-pages.side-draft");
+      const group = compareHost.querySelector<HTMLElement>("[data-hp-compare-group]");
+      if (group) group.setAttribute("aria-label", uiText.text("workbench.home-pages.compare-which"));
       const nowBtn = compareHost.querySelector<HTMLElement>('[data-hp-view="now"]');
       const draftBtn = compareHost.querySelector<HTMLElement>('[data-hp-view="draft"]');
-      if (nowBtn) nowBtn.textContent = uiText.text("workbench.home-pages.side-now");
-      if (draftBtn) draftBtn.textContent = uiText.text("workbench.home-pages.side-draft");
+      if (nowBtn) nowBtn.textContent = sideNow;
+      if (draftBtn) draftBtn.textContent = sideDraft;
+      const nowCol = compareHost.querySelector<HTMLElement>('[data-col="now"]');
+      const draftCol = compareHost.querySelector<HTMLElement>('[data-col="draft"]');
+      if (nowCol) nowCol.setAttribute("aria-label", sideNow);
+      if (draftCol) draftCol.setAttribute("aria-label", sideDraft);
+      const nowBadge = compareHost.querySelector<HTMLElement>("[data-hp-now-badge]");
+      if (nowBadge) nowBadge.innerHTML = renderBadge({ label: uiText.text("workbench.home-pages.in-use"), tone: "success" });
+      const draftBadge = compareHost.querySelector<HTMLElement>("[data-hp-draft-badge]");
+      if (draftBadge) draftBadge.innerHTML = renderBadge({ label: uiText.text("workbench.home-pages.draft"), tone: "info" });
+      const nowTitle = compareHost.querySelector<HTMLElement>("[data-hp-now-title]");
+      if (nowTitle) {
+        nowTitle.textContent = overview.selection.kind === "page"
+          ? uiText.text("workbench.home-pages.now-version", { v: overview.selection.version })
+          : uiText.text("workbench.home-pages.default-first-page");
+      }
+      const nowNote = compareHost.querySelector<HTMLElement>("[data-hp-now-note]");
+      if (nowNote) {
+        nowNote.textContent = nowNote.dataset.hpNowNote === "unavailable"
+          ? uiText.text("workbench.home-pages.now-unavailable-in-compare")
+          : uiText.text("workbench.home-pages.now-is-default");
+      }
       const previewNote = compareHost.querySelector<HTMLElement>(".hp-preview-note");
       if (previewNote) previewNote.textContent = uiText.text("workbench.home-pages.preview-readonly-note");
       renderCompareChrome();

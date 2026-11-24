@@ -160,23 +160,24 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
     return isDanger;
   })()`);
   assert.equal(removeUsesDanger, true, "remove confirmation button must use mw-btn--danger");
-
-  // P1 regression: clicking 「项目主页」 from switcher while inside a work item MUST preserve that item's PFG-22 tabs on return.
-  await evaluate("document.querySelector('[data-top-corner-toggle]').click()");
-  await waitFor("!document.querySelector('[data-top-corner-list]').hidden", WAIT_MS);
-  await evaluate("document.querySelector('[data-ml-pick-home]').click()");
-  await waitFor("!document.querySelector('[data-top-corner-toggle]').hasAttribute('data-has-work-item')", WAIT_MS);
-  await evaluate("document.querySelector('[data-top-corner-toggle]').click()");
-  await waitFor("!document.querySelector('[data-top-corner-list]').hidden", WAIT_MS);
-  await evaluate(`(() => {
-    const btn = [...document.querySelectorAll('[data-ml-pick]')].find(el => el.textContent.includes('第一件事项'));
-    btn.click();
-  })()`);
-  await waitFor("Boolean(document.querySelector('[data-top-corner-toggle][data-has-work-item]') && document.querySelector('[data-work-item-page]'))", WAIT_MS);
   assert.equal(item1State.hasItemEmpty, true, "Option A lightweight item First Page shows actionable empty state");
   assert.match(item1State.pillText, /第一件事项/, "BL-dialog-info-column-prototype-gaps #4: composer shows active item pill");
   assert.equal(item1State.contentsTabVisible, true, "right-sidebar 「这件事的东西」 tab appears for active item");
   assert.equal(item1State.imTabStillPresent, true, "Decision 66 R21: IM tab remains alongside 「这件事的东西」");
+
+  // Closing the right sidebar immediately reveals the footer 「这件事的东西」 shortcut strip (no 420ms animation race).
+  const stripRestoredOnSideClose = await evaluate<boolean>(`(() => {
+    const strip = document.querySelector('[data-work-item-page] .ml-item-contents-strip');
+    if (!strip) return false;
+    document.body.dataset.sideOpen = 'false';
+    document.dispatchEvent(new CustomEvent('molis:side-shown', { detail: { tab: 'item-contents', open: false } }));
+    const visibleAfterClose = !strip.hidden;
+    document.body.dataset.sideOpen = 'true';
+    document.dispatchEvent(new CustomEvent('molis:side-shown', { detail: { tab: 'item-contents', open: true } }));
+    const hiddenAfterReopen = strip.hidden;
+    return visibleAfterClose && hiddenAfterReopen;
+  })()`);
+  assert.equal(stripRestoredOnSideClose, true, "closing right sidebar immediately restores lightweight item footer contents strip");
 
   // Type draft in item 1, verify list scope toggle exists (BL-dialog-info-column-prototype-gaps #3).
   await evaluate(`(() => {

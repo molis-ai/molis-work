@@ -781,7 +781,7 @@ export function isCurrentTabWorkspace(value) {
     if (pane.viewPlugin !== null && (typeof pane.viewPlugin !== "string" || pane.viewPlugin === "")) return false;
     return pane.tabs.every(tab => tab && typeof tab.id === "string" && typeof tab.title === "string"
       && typeof tab.plugin === "string"
-      && (tab.kind === "system" && tab.plugin === "" && typeof tab.owner === "string" && tab.owner !== "" && typeof tab.itemId === "string"
+      && (tab.kind === "system" && tab.plugin === "" && typeof tab.owner === "string" && tab.owner !== "" && typeof tab.itemId === "string" && tab.itemId !== ""
         || tab.plugin !== "" && (tab.kind === "item" && typeof tab.itemId === "string" || tab.kind === "plugin" && tab.plugin !== "home"))
       && (tab.collapsed === undefined || tab.kind === "plugin" && tab.collapsed === true)
       && (tab.pinned === undefined || typeof tab.pinned === "boolean") && (tab.groupId === undefined || typeof tab.groupId === "string")

@@ -1,5 +1,6 @@
 import type { MainlineGroup } from "@molis-ai/molis-work-contracts/services/mainline";
 import { escapeHtml as e, icon, renderButton, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { runBusy } from "./busy.js";
 import { groupDisplayName, itemDisplayTitle, type MainlineViewResponse } from "./mainline-types.js";
 
 export interface OrganizePorts {
@@ -73,11 +74,6 @@ export function createMainlineOrganizeDialog(ports: OrganizePorts) {
       + `</div><div class="ml-organize-cols" data-org-cols>${cols}</div></div>`;
   };
 
-  const runBusy = <T>(btn: HTMLElement | null | undefined, work: () => Promise<T>): Promise<T> => {
-    const busy = (globalThis as typeof globalThis & { molisBusy?: <R>(el: HTMLElement, fn: () => Promise<R>) => Promise<R> }).molisBusy;
-    return btn && busy ? busy(btn, work) : work();
-  };
-
   const syncBatchBar = () => {
     if (!dialog) return;
     const bar = dialog.querySelector<HTMLElement>("[data-org-batch]");
@@ -86,12 +82,19 @@ export function createMainlineOrganizeDialog(ports: OrganizePorts) {
     if (label) label.textContent = uiText.text("workbench.mainline.move-selected-to", { n: selected.size });
   };
 
-  const runEdit = async (path: string, body: Record<string, unknown>, toastMsg?: string, triggerBtn?: HTMLElement | null): Promise<boolean> => {
+  const runEdit = async (
+    path: string,
+    body: Record<string, unknown>,
+    toastMsg?: string,
+    triggerBtn?: HTMLElement | null,
+    beforePaint?: () => void,
+  ): Promise<boolean> => {
     try {
       await runBusy(triggerBtn, async () => {
         await ports.call(path, body);
         await ports.notifyChanged();
       });
+      beforePaint?.();
       paint();
       if (toastMsg) ports.toast(toastMsg);
       return true;
@@ -221,13 +224,14 @@ export function createMainlineOrganizeDialog(ports: OrganizePorts) {
           paint();
           return;
         }
-        void runEdit("/api/mainline/groups/edit", { expected_revision: view.mainline.revision, op: "rename", group_id: groupId, name }, undefined, submitBtn).then((ok) => {
-          if (ok) {
-            renamingGroupId = null;
-            paint();
-          } else {
-            input?.focus();
-          }
+        void runEdit(
+          "/api/mainline/groups/edit",
+          { expected_revision: view.mainline.revision, op: "rename", group_id: groupId, name },
+          undefined,
+          submitBtn,
+          () => { renamingGroupId = null; },
+        ).then((ok) => {
+          if (!ok) dialog?.querySelector<HTMLInputElement>("[data-org-rename-input]")?.focus();
         });
       }
     });

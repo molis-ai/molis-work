@@ -1,6 +1,7 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkLineEvent, WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { escapeHtml as e, icon, renderButton, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { runBusy } from "./busy.js";
 import type { MainlineSourceView, WorkItemChangedDetail, WorkItemSummary } from "./mainline-types.js";
 
 function plainLine(value: string): string {
@@ -73,10 +74,8 @@ export function mountWorkItemPage(host: WorkItemPageHost) {
   const api = <T = unknown>(path: string, body: Record<string, unknown>): Promise<T> =>
     request<T>(host.route(path), { method: "POST", body });
 
-  const runBusy = <T>(btn: HTMLElement | null | undefined, work: () => Promise<T>): Promise<T> => {
-    const busy = (globalThis as typeof globalThis & { molisBusy?: <R>(el: HTMLElement, fn: () => Promise<R>) => Promise<R> }).molisBusy;
-    return btn && busy ? busy(btn, work) : work();
-  };
+  const isContentsPaneOpen = (): boolean =>
+    document.body.dataset.sideOpen === "true" && Boolean(document.querySelector('[data-side-body="item-contents"]:not([hidden])'));
 
   const renderBodyHtml = (itemId: string): string => {
     const isCurrent = itemId === currentItemId;
@@ -128,7 +127,7 @@ export function mountWorkItemPage(host: WorkItemPageHost) {
         + (item.light ? renderButton({ variant: "ghost", size: "sm", icon: "edit", label: uiText.text("workbench.mainline.rename-item"), attrs: { "data-item-page-rename": itemId } }) : "");
 
     const bodyHtml = renderBodyHtml(itemId);
-    const contentsPaneOpen = Boolean(document.querySelector('[data-side-panel]:not([hidden]) [data-side-body="item-contents"]:not([hidden])'));
+    const contentsPaneOpen = isContentsPaneOpen();
 
     root.innerHTML = `<article class="ml-item-page" data-work-item-page="${e(itemId)}">`
       + `<header class="ml-item-page-head">`
@@ -332,8 +331,11 @@ export function mountWorkItemPage(host: WorkItemPageHost) {
     repaintAll();
   });
 
-  document.addEventListener("molis:side-shown", () => {
-    const contentsPaneOpen = Boolean(document.querySelector('[data-side-panel]:not([hidden]) [data-side-body="item-contents"]:not([hidden])'));
+  document.addEventListener("molis:side-shown", (event) => {
+    const detail = (event as CustomEvent<{ tab?: string | null; open?: boolean }>).detail;
+    const contentsPaneOpen = detail && typeof detail.open === "boolean"
+      ? detail.open && detail.tab === "item-contents"
+      : isContentsPaneOpen();
     for (const { root } of openTabs.values()) {
       const strip = root.querySelector<HTMLElement>(".ml-item-contents-strip");
       if (strip) strip.hidden = contentsPaneOpen;

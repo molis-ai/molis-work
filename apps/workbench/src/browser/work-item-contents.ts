@@ -1,6 +1,7 @@
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { escapeHtml as e, icon, renderButton, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { runBusy } from "./busy.js";
 import type { MainlineContentEntryView, WorkItemChangedDetail, WorkItemSummary } from "./mainline-types.js";
 
 export interface WorkItemContentsHost {
@@ -150,8 +151,7 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
         const name = input?.value.trim() ?? "";
         if (!name) return;
         creatingHold = true;
-        const busy = (globalThis as typeof globalThis & { molisBusy?: <R>(el: HTMLElement, fn: () => Promise<R>) => Promise<R> }).molisBusy;
-        const work = async () => {
+        void runBusy(submitBtn, async () => {
           try {
             await api("/api/mainline/holds/create", { subject, name });
             dlg.close();
@@ -162,8 +162,7 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
           } finally {
             creatingHold = false;
           }
-        };
-        void (submitBtn && busy ? busy(submitBtn, work) : work());
+        });
       });
       dlg.showModal();
     } catch (error) {
@@ -182,7 +181,8 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
           page?: { entries?: Array<{ title: string; subject?: ActionSubject }>; next_cursor?: string | null };
         }>;
       }>(host.route("/api/side/files/sources?first_pages=1"), { method: "GET" });
-      const existingKeys = new Set(entries.map((entry) => `${entry.subject.kind}|${entry.subject.id}`));
+      const heldEntries = itemId === currentItemId ? entries : [];
+      const existingKeys = new Set(heldEntries.map((entry) => `${entry.subject.kind}|${entry.subject.id}`));
       const objects: Array<{ title: string; group: string; subject: ActionSubject }> = [];
       for (const source of sourcesRes.sources ?? []) {
         if (source.state !== "ready") continue;
@@ -259,14 +259,12 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
         if (!btn?.dataset.pickObj) return;
         const chosen = objects[Number(btn.dataset.pickObj)];
         if (!chosen) return;
-        const busy = (globalThis as typeof globalThis & { molisBusy?: <R>(el: HTMLElement, fn: () => Promise<R>) => Promise<R> }).molisBusy;
-        const work = async () => {
+        void runBusy(btn, async () => {
           await api("/api/mainline/holds/bind", { subject: chosen.subject, target: { kind: "work_item", id: itemId } });
           dlg.close();
           host.showToast(uiText.text("workbench.mainline.put-in-toast"));
           await host.refreshMainline();
-        };
-        void (busy ? busy(btn, work) : work()).catch((err) => host.showToast(err, true));
+        }).catch((err) => host.showToast(err, true));
       });
       dlg.showModal();
     } catch (error) {

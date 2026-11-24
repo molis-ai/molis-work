@@ -254,7 +254,7 @@ function buildCheckItems(inspect: InspectResponse): CheckSummaryItem[] {
 export function renderCompareShellHtml(activeLabel: string, draft: HomePageVersionSummary): string {
   return `
     <div class="hp-compare-switch">
-      <div class="mw-toggle-group" role="group" aria-label="${escapeHtml(uiText.text("workbench.home-pages.compare-which"))}">
+      <div class="mw-toggle-group" role="group" data-hp-compare-group aria-label="${escapeHtml(uiText.text("workbench.home-pages.compare-which"))}">
         <button type="button" class="mw-toggle" data-hp-view="now" aria-pressed="false">${escapeHtml(uiText.text("workbench.home-pages.side-now"))}</button>
         <button type="button" class="mw-toggle is-current" data-hp-view="draft" aria-pressed="true">${escapeHtml(uiText.text("workbench.home-pages.side-draft"))}</button>
       </div>
@@ -262,11 +262,11 @@ export function renderCompareShellHtml(activeLabel: string, draft: HomePageVersi
     <div class="hp-compare-issues" data-hp-compare-issues></div>
     <div class="hp-compare-grid" data-hp-compare-grid data-view="draft">
       <section class="hp-compare-col" data-col="now" aria-label="${escapeHtml(uiText.text("workbench.home-pages.side-now"))}">
-        <header class="hp-compare-col__head">${renderBadge({ label: uiText.text("workbench.home-pages.in-use"), tone: "success" })}<strong>${escapeHtml(activeLabel)}</strong></header>
+        <header class="hp-compare-col__head"><span data-hp-now-badge>${renderBadge({ label: uiText.text("workbench.home-pages.in-use"), tone: "success" })}</span><strong data-hp-now-title>${escapeHtml(activeLabel)}</strong></header>
         <div class="hp-compare-col__body" data-hp-now-stage></div>
       </section>
       <section class="hp-compare-col hp-compare-col--draft" data-col="draft" aria-label="${escapeHtml(uiText.text("workbench.home-pages.side-draft"))}">
-        <header class="hp-compare-col__head">${renderBadge({ label: uiText.text("workbench.home-pages.draft"), tone: "info" })}<strong>${escapeHtml(draft.title)} · v${draft.version}</strong><span class="hp-preview-note">${escapeHtml(uiText.text("workbench.home-pages.preview-readonly-note"))}</span></header>
+        <header class="hp-compare-col__head"><span data-hp-draft-badge>${renderBadge({ label: uiText.text("workbench.home-pages.draft"), tone: "info" })}</span><strong>${escapeHtml(draft.title)} · v${draft.version}</strong><span class="hp-preview-note">${escapeHtml(uiText.text("workbench.home-pages.preview-readonly-note"))}</span></header>
         <div class="hp-compare-col__body" data-hp-draft-stage></div>
       </section>
     </div>

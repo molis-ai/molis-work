@@ -25,7 +25,7 @@ import { homeSqlitePath } from "../home-sqlite.js";
 import { isDeepStrictEqual } from "node:util";
 import { createMemoryLedgerRetention } from "./memory-ledger-retention.js";
 import type { HomeStoreDeclaration } from "../home-stores.js";
-import { openBaselineHomeSqlite, type SqliteBaseline } from "../sqlite-baseline.js";
+import { openBaselineHomeSqlite, type SqliteBaseline, type SqliteBaselineDatabase } from "../sqlite-baseline.js";
 
 /**
  * The Host's memory ledger (specs/archive/memory-system §5.1): what the platform knows around Prologue memory entries —
@@ -35,8 +35,43 @@ import { openBaselineHomeSqlite, type SqliteBaseline } from "../sqlite-baseline.
  */
 export const MEMORY_LEDGER_STORE = "memory";
 
+/** Built-in plugin memory scenes that existed before provider disambiguation (`b3429bd1cc`). */
+const PRE_PROVIDER_SESSION_SCENES: Readonly<Record<string, { readonly plugin_id: string; readonly provider_id: string }>> = {
+  coding: { plugin_id: "io.molis.work.coding", provider_id: "io.molis.work.coding" },
+};
+
+/**
+ * One-time v1 → v2 upgrade step for `memory_markers` session-clear plans persisted before `b3429bd1cc` required exact
+ * `plugin_id` / `provider_id` on non-assistant targets. Only exact 3-field `{ kind, id, project_id }` records whose scene
+ * belonged to a unique built-in pre-provider owner are upgraded; assistant, already-disambiguated, unknown-scene, or
+ * malformed markers are left untouched so unknown ownership is never guessed.
+ */
+function upgradeV1SessionClearMarkers(db: SqliteBaselineDatabase): void {
+  const rows = db.prepare("SELECT actor_id, key, body FROM memory_markers WHERE key LIKE 'memory-session-clear:%'").all() as Array<{ actor_id: string; key: string; body: string }>;
+  const update = db.prepare("UPDATE memory_markers SET body = ? WHERE actor_id = ? AND key = ?");
+  for (const row of rows) {
+    let parsed: unknown;
+    try { parsed = JSON.parse(row.body); } catch { continue; }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+    const plan = parsed as { binding?: { target?: Record<string, unknown> } };
+    const target = plan.binding?.target;
+    if (!target || typeof target !== "object" || Array.isArray(target)) continue;
+    if (typeof target.kind !== "string" || target.kind === "assistant") continue;
+    if (typeof target.plugin_id === "string" && typeof target.provider_id === "string") continue;
+    const owner = PRE_PROVIDER_SESSION_SCENES[target.kind];
+    if (!owner) continue;
+    const keys = Object.keys(target);
+    if (keys.length !== 3 || !("kind" in target) || !("id" in target) || !("project_id" in target)) continue;
+    if (typeof target.id !== "string" || !target.id.trim() || target.id.length > 200) continue;
+    if (typeof target.project_id !== "string" || !target.project_id.trim() || target.project_id.length > 200) continue;
+    target.plugin_id = owner.plugin_id;
+    target.provider_id = owner.provider_id;
+    update.run(JSON.stringify(plan), row.actor_id, row.key);
+  }
+}
+
 /** The memory ledger's one current schema (repository-anti-corruption §4.1). */
-export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: /* @version database.memory_ledger_baseline */ 1, schema: `
+export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: /* @version database.memory_ledger_baseline */ 2, schema: `
 CREATE TABLE memory_revisions (
   memory_id TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (memory_id, version)
 );
@@ -71,7 +106,7 @@ CREATE TABLE memory_pairs (
 CREATE TABLE memory_markers (
   actor_id TEXT NOT NULL, key TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (actor_id, key)
 );
-`, upgrades: [] };
+`, upgrades: [{ from: 1, run: upgradeV1SessionClearMarkers }] };
 
 const parse = <T>(row: Record<string, unknown> | undefined): T | null => row ? JSON.parse(String(row.body)) as T : null;
 

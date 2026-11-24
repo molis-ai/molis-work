@@ -148,6 +148,7 @@
 | 插件升级声明（`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`）、同版本重装与发行物留存 | 插件版本之间的升级是现行产品功能，不是读取旧业务数据；内置插件为过去版本写的旧声明不因此保留 | Manifest 合同与 plugin SDK，使用规则见 [插件开发手册](../platform/PLUGIN-DEVELOPMENT.md)；随该现行升级功能或相应发行物生命周期处理，不作为永久历史读取许可 |
 | pdfjs 的 `legacy/build` 路径 | 第三方包给 Node 的构建名，不是本产品的旧格式读取分支 | 引用 pdfjs 的现行功能及该依赖；上游构建入口改变或功能移除时随之修改 |
 | 产品文案中的「回填」说明 | 给人看的现行文字，不是数据转换逻辑 | 各文案的功能 owner；随文案修改或功能移除，不据词面保留旧读取代码 |
+| 记忆账本 1 → 2（2026-11-24 用户确认补齐 `b3429bd1cc` 升级段） | `memory/memory.db` 经 Home 升级链 1 → 2 将 `memory_markers` 中 `b3429bd1cc` 之前仅含 `{ kind: "coding", id, project_id }` 的内置 Coding 会话清理计划补齐精确 `plugin_id` 与 `provider_id`；助理计划、已有提供方字段、未知场景或损坏计划均保持原样不猜测。普通打开只认 v2，无读时兜底 | `packages/storage`（`MEMORY_LEDGER_BASELINE`）；不再支持从 v1 金样升级时移除该段 |
 | Dataset 库 1 → 2（2026-11-20 用户确认，AC-T2） | 仅由 Home 升级链新增空的问卷来源绑定表，原数据表、快照与回执均保留。Dataset 的普通打开只认 v2；历史无绑定的表不按标题猜测归属 | Dataset owner；不再支持从 v1 升级时移除本段升级。 |
 | Risk 项目表和 Work Brief Home 库 1 → 2（用户批准，M1-B1） | 版本化升级事务创建同步日志和编辑版本表，按归属播种已有个人空间记录。已存在的日志保留，普通打开只认 v2，并由设备和集合授权控制上传。 | 两个插件负责业务数据和版本段，Local Host 负责平台日志。停止支持 v1 金样时移除各自升级段。 |
 | 各库的版本号与基线 | 一份当前 schema 加版本，版本不符就拒绝；可由权威事实重建的派生库按自身既有合同重建，不算兼容 | 各库 owner 及 [Home 数据表](HOME-DATA.md)；库移除时移除，不留已移除库的读取路径 |
@@ -175,6 +176,7 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `memory/memory.db` | 1 → 2 | 2026-11-24 架构审查修复（用户确认补齐 `b3429bd1cc` 显式升级段）：将 `memory_markers` 中 `b3429bd1cc` 之前内置 Coding 会话清理计划补齐精确 `plugin_id` 与 `provider_id`，避免旧已完成记录永久误报 `needs-reconcile`，普通打开只认 v2 | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#1→2` |
 | `agent-definitions/agent-definitions.db` | 2 → 3 | 个人同步 M1-B2，用户 2026-11-22 批准。创建提示词改写同步流水，将已有改写按现行键登记为待同步。保留 #2209 的 1 → 2，两条升级路径均在隔离 Home 回放 | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#2→3` |
 | `blueprints/blueprints.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `horizontal/blueprints/src/schema.ts#BLUEPRINTS_BASELINE#1→2` |

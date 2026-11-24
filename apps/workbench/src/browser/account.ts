@@ -144,13 +144,19 @@ interface AuthReply { verificationId: string; handle: string; nextStep: string; 
       ['signup', 'workbench.account.sign-up-with-email', () => readText('workbench.account.sign-up-with-email')],
       ['phone', 'workbench.account.sign-in-with-phone-code', () => readText('workbench.account.sign-in-with-phone-code')],
     ] as const) {
-      const modeButton=button(key,()=>switchMode(next),modes);modeButton.className='mw-toggle';buttons.push([modeButton,next,label]);modeButton.hidden=true;
+      const modeButton = button(key, () => switchMode(next), modes);
+      modeButton.className = 'mw-toggle';
+      buttons.push([modeButton, next, label]);
+      modeButton.hidden = true;
     }
     for (const [provider, key, label] of [
       ['GOOGLE', 'workbench.account.sign-in-with-google', () => readText('workbench.account.sign-in-with-google')],
       ['GITHUB', 'workbench.account.sign-in-with-github', () => readText('workbench.account.sign-in-with-github')],
     ] as const) {
-      const b=button(key,()=>startProvider(provider),social);b.dataset.method=provider;b.hidden=true;socialButtons.push([b,label]);
+      const b = button(key, () => startProvider(provider), social);
+      b.dataset.method = provider;
+      b.hidden = true;
+      socialButtons.push([b, label]);
     }
     const onLanguageChanged = () => {
       if (!dialog.open) return;
@@ -162,7 +168,10 @@ interface AuthReply { verificationId: string; handle: string; nextStep: string; 
       helpLines[2]!.textContent = readText('workbench.account.molis-does-not-currently-offer-manual-account-recovery');
       for (const [b, , label] of buttons) b.textContent = label();
       for (const [b, label] of socialButtons) b.textContent = label();
-      if (shownAccount) { if (!disposeManagement) showAccount(shownAccount); return; }
+      if (shownAccount) {
+        if (!disposeManagement) showAccount(shownAccount);
+        return;
+      }
       if (!methods) return;
       const saved = new Map([...form.querySelectorAll<HTMLInputElement>('input[name]')].map(input => [input.name, input.value]));
       const consentChecked = form.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked;
@@ -175,9 +184,12 @@ interface AuthReply { verificationId: string; handle: string; nextStep: string; 
       if (nextCheck && consentChecked) nextCheck.checked = true;
     };
     document.addEventListener('molis-work:language-changed', onLanguageChanged);
-    dialog.addEventListener('close',()=>{document.removeEventListener('molis-work:language-changed', onLanguageChanged);disposeManagement?.();cancel();clearInterval(timer);form.reset();dialog.remove();opened=null;const back=trigger.closest('details:not([open])')?.querySelector<HTMLElement>(':scope > summary') || trigger;
+    dialog.addEventListener('close', () => {
+      document.removeEventListener('molis-work:language-changed', onLanguageChanged);
+      disposeManagement?.();cancel();clearInterval(timer);form.reset();dialog.remove();opened=null;const back=trigger.closest('details:not([open])')?.querySelector<HTMLElement>(':scope > summary') || trigger;
       // Opened from the account menu, which has closed: the focus goes back to the avatar that opened that menu.
-      (back.checkVisibility() ? back : [...document.querySelectorAll<HTMLElement>('[data-account-link]')].find(link => link.checkVisibility()) ?? back).focus();});
+      (back.checkVisibility() ? back : [...document.querySelectorAll<HTMLElement>('[data-account-link]')].find(link => link.checkVisibility()) ?? back).focus();
+    });
     draw();void perform(async()=>{const account=await request<AccountView>('/session');if(!dialog.open)return;if(account.state==='AUTHENTICATED'||account.state==='OFFLINE_CACHED'){showAccount(account);if(!loginNonce&&account.state==='AUTHENTICATED'&&document.visibilityState==='visible')await request('/activity',{eventId:crypto.randomUUID(),kind:'OPEN'});}else {methods=(await request<LoginCapabilities>('/auth/capabilities')).methods;if(!dialog.open)return;buttons.forEach(([b,m])=>b.hidden=!(methods as readonly string[]).includes(({login:'ACCOUNT_PASSWORD',signup:'EMAIL_CODE',phone:'PHONE_OTP'} as Record<string,string>)[m]!));social.querySelectorAll<HTMLElement>('[data-method]').forEach(b=>b.hidden=!(methods as readonly string[]).includes(b.dataset.method!));draw();if(account.state==='EXPIRED')message.textContent=readText('workbench.account.session-expired-please-sign-again');}});
   });
   if(loginNonce)document.querySelector<HTMLElement>('[data-unified-account-link]')?.click();

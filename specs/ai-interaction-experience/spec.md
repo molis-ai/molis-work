@@ -279,7 +279,7 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 - [助理 Prompt](../../apps/local-host/src/assistant/assistant-agent.ts)、[助理服务](../../apps/local-host/src/assistant/assistant-service.ts)、[能力工具网关](../../horizontal/agent-host/src/adapters/prologue-action-gateway.ts)。
 - [Agent Host 适配器](../../horizontal/agent-host/src/adapters)、[Host 情境服务](../../apps/local-host/src/contextual)。
 - [设计系统](../../packages/design-system/src)、[项目讨论 UI](../../packages/im-ui/src)。
-- [Coding](../../plugins/native/coding/src)、[插件创作台](../../horizontal/plugin-studio/src)、[灵光](../../plugins/native/lingguang/src)、[Alchemist](../../plugins/native/alchemist/src)、[Cognia](../../plugins/native/cognia/src)、[Pages](../../plugins/native/pages/src)。其余按插件清单继续核对。
+- [Coding](../../plugins/native/coding/src)、[插件创作台](../../horizontal/plugin-studio/src)、[灵光](../../plugins/native/lingguang/src)、`Alchemist`、[Cognia](../../plugins/native/cognia/src)、[Pages](../../plugins/native/pages/src)。其余按插件清单继续核对。
 
 ### Prologue 仓库内入口
 

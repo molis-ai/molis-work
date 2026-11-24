@@ -1,4 +1,5 @@
 // The person's after-write checkers (specs/prologue-adoption §6.0p.2): PA-25, and the saving half of PA-26 and PA-28.
+// WLHR-04: the public Agent Host contract is the first value import from contracts.
 // Running them, the "未检查：工作区授权已撤回" observation and the `./` prefix belong to the executor (A2-2).
 import assert from "node:assert/strict";
 import test from "node:test";

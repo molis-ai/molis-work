@@ -89,7 +89,6 @@
 | `packages/plugin-runtime/src/wiring.ts#PluginInputGraph` | 455 行 / 26 方法 | 内聚单元 |
 | `packages/plugin-sandbox/src/runner.ts#createSandboxRunner` | 173 行 | 内聚单元 |
 | `packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex` | 151 行 | 内聚单元 |
-| `plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime` | 203 行 | 内聚单元 |
 | `plugins/native/coding/src/timeline.ts#createCodingTimeline` | 224 行 | 内聚单元 |
 | `plugins/native/coding/src/ui.ts#renderCodingWorkbench` | 209 行 | 内聚单元 |
 | `plugins/native/cognia/src/store.ts#CogniaStore` | 120 行 / 27 方法 | 内聚单元 |
@@ -153,7 +152,6 @@
 | 26 | `plugins/native/coding` | 1 | 1 | 2 |  |
 | 27 | `plugins/native/cognia` | 1 | 1 | 2 |  |
 | 28 | `packages/im-ui` | 2 | 3 | 1 | 决定 #4：IM 继续迭代，所以拆 |
-| 29 | `plugins/native/alchemist` | 1 | 1 | 1 | 两个仓储已拆完（Pulse 四个类、Research 三个类，原类名留作组合体）；上面的总数没有随之重算 |
 | 30 | `packages/plugin-sandbox` | 1 | 1 | 1 |  |
 
 合并数是窗口 `f955605c..4d59cd4d` 里改动过该批次任一文件的 first-parent 提交数（一个提交算一次）。窗口固定在这两个提交之间，共 223 个提交，全部是 PR 合并：起点是 PR #90 的合并 `f955605c`（不含），它是 main 上 2026-09-28T00:00:00-07:00 之前的最后一个提交；终点 `4d59cd4d` 就是本快照。不用 `--since=2026-09-28`：裸日期会补上运行那一刻的钟点，同一个终点上早晚跑出来的数差好几个。命令：
@@ -203,7 +201,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | W5-07 | `handleMolisWorkWebRequest` 改成注册表 | 2 | 已拆完：按顺序尝试的路由表（`web-route-table.ts`），表写在宿主里、`*-http` 模块不动（统筹 10-17 定，理由见防腐 spec §4.5 一行） |
 | W5-09 | `contracts` 的 `services/agent-host.ts` 按领域拆，纯搬移，由 API 快照守着 | 1 | `agent-host.ts` 合同；已拆完：入口留描述符、错误码、`AgentHostApi` 与 `agentHostCapabilities`，其余按领域放进旁边的 `agent-host-*.ts`（运行时、启动、会话、运行视图、审查、端口、创作台），子路径与 API 快照不变 |
 | W5-10 | 其余巨大单元拆分（范围见上） | 117 | 117 个，含助理协作者、Pages 编辑器与命令 |
-| W5-11 | 宿主瘦身：每插件 AI 绑定改 `services.model`（已做，只剩 Alchemist 登记的例外）；连接器提供方设置与 OAuth 移进官方连接器插件（Codex C4，回调路径留在平台），飞书 CLI 与 Lark MCP 留作登记的例外 | 0 | `web-connectors-settings.ts` 已不是巨大单元（2026-10-26 核：文件 135 行，函数约 115 行） |
+| W5-11 | 宿主瘦身：每插件 AI 绑定改 `services.model`（已做；最后的 Alchemist 例外第 44B 批随插件删除）；连接器提供方设置与 OAuth 移进官方连接器插件（Codex C4，回调路径留在平台），飞书 CLI 与 Lark MCP 留作登记的例外 | 0 | `web-connectors-settings.ts` 已不是巨大单元（2026-10-26 核：文件 135 行，函数约 115 行） |
 | W2-08、W3-07 | 删 Goals 无生产调用方的类型化桥；管理入口改走动作并删剩余桥（工作区读取只留一个 id 已由 W2-09 做完，函数仍 270 行：删了两处登记，补了整份文件只给宿主运行的插件的判断） | 1 | `project-capabilities.ts` |
 | W2-06 | 删四处跨主人 SQL（含 `demo-seed.ts` 一处） | — | 只删几行，不改判定 |
 
@@ -368,7 +366,6 @@ R-38 第 2 片的 Store 状态归属整理（PR #1273 FIRST 第 3 项，2026-10-
 
 | 包 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | --- | ---: |
-| `alchemist` | `src/studio/server/bootstrap/local-runtime.ts` | `createLocalRuntime` 函数 243 行 | 拆 · W5-10 | `createLocalRuntime` 50 条语句：`dependencies`（34）、返回（31）、`handlers`（18）、`pulseSources`（12）、`calibrationMemory`（12）、`createResearchPlan`（11）、`runPending`（10）各成 `create…` 函数。 | 1 |
 | `coding` | `src/client.ts` | 文件 1,656 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（1,631/1,656 行）。 | 8 |
 | `coding` | `src/timeline.ts` | `createCodingTimeline` 函数 263 行 | 拆 · W5-04 | 对话时间线：`toString()` 注入浏览器，必须自包含（263 行，`renderFooter` 65、`renderGroup` 27、`KIND` 26、`FAILURES` 21）。W5-04 打包 Coding 的浏览器代码时，各块成模块并拆到阈值以下。（对 W5-04 范围的解释同 `tab-workspace-ops.ts`。） | 1 |
 | `coding` | `src/ui.ts` | `renderCodingWorkbench` 函数 214 行 | 拆 · W5-10 | `renderCodingWorkbench` 的返回里有一段 205 行的 HTML 模板。文件里已有 `renderCodingDirectory`、`renderCodingSettings`、`renderPendingQuestionCard`、`renderCodingIdentity` 这样的区块函数，工作台主体的其余区块照此各成函数。 | 2 |

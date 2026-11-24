@@ -19,7 +19,8 @@ async function fixture(t: TestContext, answer?: (turn: number) => Promise<Respon
   t.after(() => { if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); });
   const requests: unknown[] = [];
   const model = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    let raw = "";
+    for await (const chunk of request.setEncoding("utf8")) raw += chunk;
     const aside = asideReply(raw);
     if (!aside) requests.push(JSON.parse(raw));
     const result = !aside && answer ? await answer(requests.length) : cogniaModelResponse(aside || "已阅读本次材料。");

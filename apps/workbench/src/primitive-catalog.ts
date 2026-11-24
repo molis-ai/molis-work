@@ -46,7 +46,7 @@ import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.
  * built-in catalog's directory; a project page is drawn from the one the Host supplies (`plugin_directory`, `shown_plugins`).
  */
 const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "images", "jelly", "shelf", "lingguang", "todo",
-  "pages", "form", "dataset", "ppt", "alchemist", "workflows"];
+  "pages", "form", "dataset", "ppt", "workflows"];
 
 /** The workbench's own surfaces that draw a glyph without being a plugin: they are not in any Manifest, so the board names them here. */
 const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [

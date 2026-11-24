@@ -125,6 +125,7 @@ export const MATERIALS_RECOVERY_PARTS_STYLES = `
 .mw-mr-why.is-err{color:var(--red)}
 .mw-mr-why>span{flex:1 1 12em;min-width:0;overflow-wrap:anywhere}
 .mw-mr-why__acts{display:inline-flex;flex-wrap:wrap;gap:8px}
+.mw-mr-why__acts > .mw-btn{white-space:normal;overflow-wrap:anywhere;text-align:start}
 .mw-mr-delta{display:grid;gap:6px;padding:10px 12px;border-radius:var(--r-card,12px);background:var(--surface-soft);box-shadow:inset 0 0 0 1px var(--line);min-width:0}
 .mw-mr-delta__head{justify-content:space-between;font-weight:var(--weight-title,600);color:var(--ink)}
 .mw-mr-delta__head>small,.mw-mr-delta__copy>small{font-size:11px;color:var(--muted)}

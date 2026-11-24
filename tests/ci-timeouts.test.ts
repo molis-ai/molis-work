@@ -4,7 +4,7 @@
 // gets less than 1.8 times its longest successful run, measured on the completed runs from 2026-10-28 13:06Z to 2026-10-29 (the table).
 import assert from "node:assert/strict";
 import test from "node:test";
-import { blockingJobs, jobBlock, setupWorkAction, workflow } from "./fixtures/ci-workflow.js";
+import { blockingJobs, fullSuiteWorkflow, jobBlock, setupWorkAction, workflow } from "./fixtures/ci-workflow.js";
 
 /** The least a blocking job may be given, in minutes. */
 const BLOCKING_FLOOR = 30;
@@ -16,8 +16,9 @@ const JOBS: Record<string, { limit: number; longest: number; blocking: boolean }
   build: { limit: 30, longest: 200, blocking: true },
   // New combined Auth WASM + Work browser fixture; bounded conservatively pending CI measurement.
   "account-login": { limit: 60, longest: 0, blocking: true },
-  // Consolidated gate job (Batch 100-2: gates + health-gate-rules + architecture-boundaries + action-contracts).
+  // Gate slices retain the generous limit of the original combined job.
   gates: { limit: 45, longest: 1400, blocking: true },
+  "gates-built": { limit: 45, longest: 1400, blocking: true },
   "gate-rules": { limit: 45, longest: 0, blocking: true },
   "security-invariants": { limit: 40, longest: 1315, blocking: true },
   // Measured on the same window when it joined the table (2026-10-31): 939 s at the longest of 422 successful jobs.
@@ -100,7 +101,7 @@ test("RAC-1906 ci.yml: every setup-work step (including Install pnpm and pnpm in
       assert.ok(SETUP_WORK.limit * 60 >= 1.8 * SETUP_WORK.longest, "above 1.8 times the longest it took");
     }
   }
-  assert.equal(seen, 8, "the eight blocking jobs that install pnpm and dependencies through setup-work");
+  assert.equal(seen, 9, "the nine blocking job definitions that install pnpm and dependencies through setup-work");
   for (const name of Object.keys(JOBS)) assert.equal(setupWorkSteps(jobBlock(name)).length, 1, `${name} runs setup-work once`);
 });
 
@@ -129,4 +130,21 @@ test("RAC-2425 a job or step limit with a trailing comment is read, and an unrea
   // Only blocking jobs with a job-level limit are checked: one without a limit is skipped, not counted as checked.
   const mixed = "  limited:\n    timeout-minutes: 30\n  unlimited:\n    runs-on: ubuntu-latest\n  verify:\n    needs: [limited, unlimited]\n";
   assert.deepEqual(limitedBlockingJobs(mixed), ["limited"], "a blocking job without a limit is skipped by the limit check, not silently counted");
+});
+
+test("TSA-05 Full can finish when its timing cache stalls, and a failed test still fails the shard", () => {
+  const steps = jobBlock("shard", fullSuiteWorkflow).split("\n      - ");
+  for (const action of ["restore", "save"]) {
+    const step = steps.find(text => text.includes("uses: actions/cache/" + action + "@") && text.includes("node_modules/.cache/molis-work-tests"));
+    assert.ok(step, action + " is a separate workflow step with its own timeout");
+    assert.equal(stepTimeoutIn(step), "1");
+    assert.match(step, /^        continue-on-error: true$/m);
+  }
+  const restore = steps.find(text => text.includes("id: durations"))!;
+  assert.ok(restore.includes("if: ${{ github.event_name == 'workflow_dispatch' && inputs.only_files != '' }}"));
+  const save = steps.find(text => text.startsWith("name: Save test durations"))!;
+  assert.ok(save.includes("steps.durations.outcome == 'success'"), "a full shard whose restore was skipped cannot save this cache");
+  const run = steps.find(text => text.includes("node scripts/run-tests.mjs"));
+  assert.ok(run);
+  assert.doesNotMatch(run, /continue-on-error/);
 });

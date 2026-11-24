@@ -5,7 +5,7 @@
 // packages whose SQL text has a `CREATE [VIRTUAL] TABLE <name>`. Any other package whose SQL text reads or writes that table
 // (SELECT … FROM, JOIN, INSERT INTO, REPLACE INTO, UPDATE, DELETE FROM, ALTER TABLE, DROP TABLE) fails, with no baseline: the
 // rule starts at zero. The fix is the owner's own API, never a number in a baseline. Two packages that each create a table of
-// the same name (`workspaces` in projects and alchemist, `jobs` in alchemist and images: different databases, spec §9.5 item 9)
+// the same name (in different databases, spec §9.5 item 9; none today)
 // are both owners of it, but only when tooling/gates/table-owners.json says so: a second package that adds its own
 // `CREATE TABLE <a table another package creates>` is not a way to become its co-owner.
 //

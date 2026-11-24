@@ -7,7 +7,6 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/judgment-rules/client.js";
-import { ALCHEMIST_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-alchemist";
 import {
   SCHEDULE_CLIENT_FACTORY_SCRIPT,
 } from "@molis-ai/molis-work-plugin-schedule";
@@ -89,9 +88,6 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
   assert.match(pptSource("commands.ts"), /always\("\[data-ppt-back\]", \(page\) => record\.backToList\(page\)\)/, "ppt 的返回按钮走 backToList");
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(lingguangCommands, /data-lingguang-back\]"\)\) \{ await back\(\)/, "灵光 的返回按钮走 back()");
-  // Alchemist Studio is not a list-and-editor plugin; its content re-render keeps the reader's scroll position.
-  // (Its main pane is mainEl and the redraws are paintStudy / paintDir.)
-  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /const scroll=mainEl\.scrollTop;paint\w+\([^)]*\);mainEl\.scrollTop=scroll;/);
 });
 
 test("Functions 静默刷新当前草稿时不重挂编辑器，保存失败保留表单", () => {

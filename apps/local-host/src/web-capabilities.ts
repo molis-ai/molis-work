@@ -18,7 +18,7 @@ function libraryTitles(actions: readonly ActionView[]): ReadonlyMap<ActionView, 
   for (const view of actions) {
     const { kind, provider_id, plugin_id } = view.provider, identity = JSON.stringify([kind, provider_id, plugin_id]);
     if (!readers.has(identity)) {
-      // Only Host-built Runtime definitions and the existing Alchemist assembly use their Manifest ID as provider ID.
+      // Only Host-built Runtime definitions use their Manifest ID as provider ID.
       const manifest = kind === "plugin" && provider_id === plugin_id
         ? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === plugin_id)?.manifest : undefined;
       readers.set(identity, kind === "system" ? workbenchPlatformText : manifest ? registeredBuiltinText(manifest) : null);

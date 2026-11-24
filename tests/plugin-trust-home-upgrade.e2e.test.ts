@@ -1,3 +1,4 @@
+import { shouldSaveReviewScreenshots } from './fixtures/review-evidence.js';
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { requiredHeadlessTestBrowser } from "./fixtures/dedicated-headless-browser.js";
@@ -21,7 +22,8 @@ test("RAC-2619 real signed File previews show exact origins for initial installa
   browser = await ChromeHarness.start(directory, { executable });
   const page = await browser.page();
   await page.command("Runtime.enable");
-  await page.command("Page.navigate", { url: f.origin + `/projects/${project.project_id}/settings/plugins` });
+  await page.command("Page.enable");
+  await Promise.all([browser.event("Page.domContentEventFired"), page.command("Page.navigate", { url: f.origin + `/projects/${project.project_id}/settings/plugins` })]);
   await page.wait("!!document.querySelector('[data-plugin-trust-pick]')");
   const publisher = newPublisher(), first = integrationPackage(publisher), pluginId = first.payload.manifest.plugin_id;
   const next = integrationPackage(publisher, { version: "1.1.0", title: "New feed <b>plain</b>", origins: ["https://new.example.com", "https://second.example.com"],
@@ -59,9 +61,9 @@ test("RAC-2619 real signed File previews show exact origins for initial installa
   for (const value of ["New feed <b>plain</b>", "example-feed", "https://new.example.com", "https://second.example.com"]) assert.ok(shown.includes(value), value);
   assert.equal(await page.evaluate("document.querySelectorAll('[data-plugin-trust-preview] b').length"), 0, "service titles are text, never markup");
   await cancel(); assert.deepEqual(await written(), installed);
-  const screenshots = join(process.cwd(), ".impeccable/qa/review/t141"); await mkdir(screenshots, { recursive: true });
+  const screenshots = join(process.cwd(), ".impeccable/qa/review/t141"); if (shouldSaveReviewScreenshots()) await mkdir(screenshots, { recursive: true });
   for (const locale of ["zh", "en"] as const) {
-    await page.command("Page.navigate", { url: f.origin + "/locale?lang=" + locale + "&next=" + encodeURIComponent(`/projects/${project.project_id}/settings/plugins`) });
+    await Promise.all([browser.event("Page.domContentEventFired"), page.command("Page.navigate", { url: f.origin + "/locale?lang=" + locale + "&next=" + encodeURIComponent(`/projects/${project.project_id}/settings/plugins`) })]);
     await page.wait("document.querySelector('[data-plugin-trust-home]')?.innerText.includes('1.0.0')");
     await select(next, "upgrade-" + locale);
     assert.ok((await text()).includes(locale === "zh" ? "可访问的服务地址" : "Service addresses it may access"));
@@ -72,7 +74,7 @@ test("RAC-2619 real signed File previews show exact origins for initial installa
         assert.equal(await page.evaluate("document.querySelector('[data-plugin-trust-preview]').getBoundingClientRect().width > 0"), true);
         assert.equal(await page.evaluate("document.documentElement.scrollWidth <= innerWidth"), true, "preview does not cause horizontal overflow");
         assert.equal(await page.evaluate("(() => { const panel = document.querySelector('[data-plugin-trust-preview]').getBoundingClientRect(); return [...document.querySelectorAll('[data-plugin-trust-preview] button')].every(button => { const box = button.getBoundingClientRect(); return box.left >= panel.left && box.right <= panel.right; }); })()"), true, "both confirmation controls fit inside the visible preview");
-        await page.screenshot(join(screenshots, `${locale}-${width}-${theme}.png`));
+        if (shouldSaveReviewScreenshots()) await page.screenshot(join(screenshots, `${locale}-${width}-${theme}.png`));
       }
     }
     await cancel(); assert.deepEqual(await written(), installed);
@@ -86,14 +88,14 @@ test("RAC-2619 real signed File previews show exact origins for initial installa
   const bound = await registry.bind("example-feed", "source", { source_id: "browser-source", connection_id: null, credential_ref: null, config: {} });
   const pulled = await bound.connector_driver.poll({ cursor: null }, connectorControl());
   assert.equal(pulled.ok, true); if (pulled.ok) assert.equal(pulled.events[0]!.payload.summary, "v2");
-  await page.command("Page.reload");
+  await Promise.all([browser.event("Page.domContentEventFired"), page.command("Page.reload")]);
   await page.wait("document.querySelector('[data-plugin-trust-home]')?.innerText.includes('1.1.0')");
   // The same real picker continues to compare project packages against the project's list.
   const projectPublisher = newPublisher(), projectBundle = signedPackage(projectPublisher);
   const client = f.host.actionClient(project.reference);
   const preview = await client.invoke(person(project.project_id), ref(pluginInstallActions.preview), { bundle: projectBundle }) as { preview_id: string };
   await client.invoke(person(project.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Project publisher" });
-  await page.command("Page.reload");
+  await Promise.all([browser.event("Page.domContentEventFired"), page.command("Page.reload")]);
   await page.wait("document.querySelector('[data-plugin-trust-list]')?.innerText.includes('1.0.0')");
   await select(signedPackage(projectPublisher, (_files, manifest) => { manifest.upgrade_compatibility = { compatible_from_versions: ["1.0.0"] }; }, { version: "1.1.0" }), "project-upgrade");
   assert.match(await text(), /1\.0\.0/); assert.match(await text(), /1\.1\.0/);

@@ -20,11 +20,11 @@
 当前 Todo 库基线保留已删除待办的最后项目归属；不恢复正文、不上传该技术记录。项目未结算检查还通过 Storage 的受保护只读端口检查冻结上传和保留冲突，旧项目上传未确认而当前项已移动/删除时，两边均受保护；确认旧上传后不继续误阻塞旧项目。个人待办不归属某个项目。旧冻结结构只用于拒绝测试，不自动升级真实 Home。相关回归：`tests/personal-sync.test.ts`、`tests/home-store-baselines.test.ts`。
 
 - 负责：待办的记录、状态、三种日期（截止、计划处理、提醒）、归属（个人、项目、暂未归类）、来源与形成原因、关联、修改记录与撤销、视图、搜索与对象读取、批量处理；提醒的到期判断与首页事项；整理结果（候选、依据、与已有待办的关系、忽略与已处理的记忆）及其审阅与采用；整理方法（登记的指令 `todo.organize.basic`）。
-- 不负责：AI 整理与推进（系统 Assistant 经 Prologue 负责，Todo 只提供动作与对象读取）、Goal 与业务结果、提醒的送达渠道、材料正文（只存引用）。
+- 不负责：助理对话与任务推进（Assistant 可发起整理，Todo 在 [organize-actions.ts](src/organize-actions.ts) 组装提示、经宿主模型端口提取并校验候选，在 [organize.ts](src/organize.ts) 保存整理批次及采用结果）、Goal 与业务结果、提醒的送达渠道、材料正文（只存引用）。
 - 公开入口：`@molis-ai/molis-work-plugin-todo`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；插件协议 `@molis-ai/molis-work-contracts/platform/plugin`，数据合同 `@molis-ai/molis-work-plugin-todo/contract`（`src/contract.ts`）；别的使用方按动作 id 调用，就地声明自己用到的字段，不 import 它。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `todo.<原因>`，状态由错误种类决定，Todo 不自带状态表）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 修改带读取时的 `expected_revision`，别处改过时拒绝，不覆盖。
+  - 公开更新动作接受可选的 `expected_revision`。传入时若修订已变则拒绝，省略时按当前事项应用改动。
   - 每次修改记一条历史；用户本人改过的字段记入 `edited_fields`，之后的自动更新据此保护。
   - 撤销按历史进行，之后又被改过就拒绝；删除不可撤销，执行前确认。
   - 个人同步不按来源设备限制撤销。接收时历史修订与待办修订一同平移，保持可撤销关系及版本间隙；历史按修订排序，不依赖设备时钟。旧页面、后续编辑和跨项目权限仍按原规则拒绝。回归：`tests/todo-replication.test.ts`。

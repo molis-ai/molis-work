@@ -40,7 +40,6 @@ overrides:
 
 # Allow esbuild postinstall (required by tsx for pnpm molis-work / tests).
 allowBuilds:
-  better-sqlite3: true
   esbuild: true
   node-pty: true
   # Dependencies of @larksuiteoapi/lark-mcp (the Feishu/Lark MCP connector's child process). Its `mcp` mode takes the

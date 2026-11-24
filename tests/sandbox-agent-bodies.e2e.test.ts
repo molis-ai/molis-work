@@ -1,3 +1,4 @@
+import { shouldSaveReviewScreenshots } from './fixtures/review-evidence.js';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { existsSync } from "node:fs";
@@ -58,21 +59,25 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   assert.equal(homeAgentDefinitions(browser.homeDirectory).methods().some(item => item.owner_id === PACKAGE_PLUGIN_ID), false);
   await select(bundle, "install"); await confirm();
   await browser.waitFor("document.querySelector('[data-plugin-trust-list]').innerText.includes('1.1.0')");
-  const next = signedAgentPackage(publisher, { version: "1.2.0", compatibleFrom: ["1.1.0"], roles, methods: [methods[0]!, packageMethod("new-method", "新增方法", "新增")], bodies: Object.fromEntries(roles.map(entry => [entry.body, prefix + "新尾部"])) });
-  const evidence = join(process.cwd(), ".impeccable/qa/review/t144"); await mkdir(evidence, { recursive: true });
+  const next = signedAgentPackage(publisher, { version: "1.2.0", compatibleFrom: ["1.1.0"], roles, methods: [methods[0]!, packageMethod("new-method", "新增方法", "核对资料")], bodies: Object.fromEntries(roles.map(entry => [entry.body, prefix + "新尾部"])) });
+  const evidence = join(process.cwd(), ".impeccable/qa/review/t144"); if (shouldSaveReviewScreenshots()) await mkdir(evidence, { recursive: true });
   for (const locale of ["zh", "en"] as const) {
     await go("/locale?lang=" + locale + "&next=" + encodeURIComponent(settings)); await browser.waitFor("!!document.querySelector('[data-plugin-trust-pick]')");
     await select(next, "upgrade-" + locale);
     const text = await shown(); assert.ok(text.includes(locale === "zh" ? "正文已变化" : "Body changed"));
     // The added and removed methods are Skill changes, shown in the package's Skill list.
-    assert.ok(text.includes(locale === "zh" ? "新加入" : "New")); assert.ok(text.includes(locale === "zh" ? "会移除" : "Will be removed"));
+    const changes = await browser.evaluate<Array<{name: string; labels: string[]}>>(`[...document.querySelectorAll('[data-plugin-trust-preview] li')].map(row => ({name: row.querySelector('strong,del')?.textContent, labels: [...row.querySelectorAll('small')].map(label => label.textContent)}))`);
+    assert.ok(changes.find(row => row.name === "新增方法")?.labels.includes(locale === "zh" ? "新增" : "Add"));
+    assert.ok(changes.find(row => row.name === "旧方法")?.labels.includes(locale === "zh" ? "会移除" : "Will be removed"));
     for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
       await browser.setViewport(width, 1000);
       await browser.evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)};document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)}`);
       assert.equal(await browser.evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
       assert.equal(await browser.evaluate("(() => {const panel=document.querySelector('[data-plugin-trust-preview]').getBoundingClientRect();return [...document.querySelectorAll('[data-plugin-trust-preview] button')].every(node=>{const box=node.getBoundingClientRect();return box.left>=panel.left&&box.right<=panel.right;});})()"), true);
-      const screenshot = await browser.command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: true }, browser.sessionId);
-      await writeFile(join(evidence, `${locale}-${width}-${theme}.png`), Buffer.from(screenshot.data, "base64"));
+      if (shouldSaveReviewScreenshots()) {
+        const screenshot = await browser.command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: true }, browser.sessionId);
+        await writeFile(join(evidence, `${locale}-${width}-${theme}.png`), Buffer.from(screenshot.data, "base64"));
+      }
     }
     await cancel();
   }
@@ -93,7 +98,8 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   const slash = "(() => {const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.focus();input.value='/';input.setSelectionRange(1,1);input.dispatchEvent(new InputEvent('input',{bubbles:true,data:'/',inputType:'insertText'}));})()";
   const commands = "[...document.querySelectorAll('[data-assistant-composer] [data-compose-menu] [data-composer-command]')]";
   // The first role shares its name with a Skill; each role is picked as role material.
-  const role = (name: string) => `${commands}.find(node=>node.textContent.startsWith('/角色资料 ')&&node.textContent.includes(${JSON.stringify(name)}))`;
+  const commandFor = (shortcut: string, label: string) => `${commands}.find(node => node.querySelector('.mw-menu__shortcut')?.textContent === ${JSON.stringify(shortcut)} && node.querySelector('[id$="-label"]')?.textContent === ${JSON.stringify(label)})`;
+  const role = (name: string) => commandFor('/角色资料', name + ' · ' + own.find(row => row.name === name)!.plugin_title);
   for (const name of names.slice(0, 3)) {
     await browser.evaluate(slash);
     await browser.waitFor(`!!${role(name)}`);
@@ -101,8 +107,11 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
     assert.ok(label.includes(name));
   }
   await browser.evaluate(slash);
-  await browser.waitFor(`${commands}.some(node=>node.textContent.startsWith('/方法 ')&&node.textContent.includes(${JSON.stringify(names[0])}))`);
-  await browser.evaluate(`${commands}.find(node=>node.textContent.startsWith('/方法 ')&&node.textContent.includes(${JSON.stringify(names[0])})).click()`);
+  const skill = list.methods.find(item => item.kind === "skill" && item.skill.ref.install_id === sameName.install_id && item.skill.ref.skill_id === sameName.skill_id);
+  assert.ok(skill?.kind === "skill");
+  const selectedSkill = commandFor('/技能', skill.skill.name + ' · ' + skill.skill.pack.title);
+  await browser.waitFor(`!!${selectedSkill}`);
+  await browser.evaluate(`${selectedSkill}.click()`);
   await browser.evaluate("(() => {const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.value='用所选资料审稿';input.dispatchEvent(new Event('input',{bubbles:true}));})()");
   await browser.click("[data-assistant-composer] [data-composer-send]");
   await browser.waitFor(`!!${CURRENT_WORK}`);

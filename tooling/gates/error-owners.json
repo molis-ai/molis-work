@@ -68,12 +68,6 @@
       ],
       "reason": "The Host's registry of Agent definitions, its HTTP edge, and its contract, where the refusals callers outside the Host see are declared (specs/capability-pack/contract-design.md §4.11): its codes already start with agent_definitions."
     },
-    "alchemist": {
-      "paths": [
-        "apps/local-host/src/alchemist-*"
-      ],
-      "reason": "The Alchemist plugin and the Host files that serve it; its UPPER_CASE codes become alchemist.* (spec W3-02 J5)."
-    },
     "artifacts": {
       "paths": [
         "modules/artifacts/",
@@ -251,6 +245,16 @@
         "packages/contracts/src/modules/acceptance.ts"
       ],
       "reason": "Requirements, evidence and acceptance (specs/proactive-assistant §7.3.1, modules/acceptance): the contract of its system actions, the module and its Host wiring; its codes are acceptance.*."
+    },
+    "home": {
+      "paths": [
+        "apps/local-host/src/home-page-authority.ts",
+        "apps/local-host/src/home-pages-actions.ts",
+        "apps/local-host/src/home-pages-http.ts",
+        "horizontal/home/",
+        "packages/contracts/src/services/home.ts"
+      ],
+      "reason": "The homepage service (specs/scene-and-page-contract §6): generated page versions, SHA-256 blobs, approval receipts, preview sessions and their Host wiring; its codes are home.*."
     },
     "mainline": {
       "paths": [

@@ -29,7 +29,7 @@ function tooLarge(): SearchError {
 }
 
 /**
- * The one way Molis Work reaches AnySearch (Feed's web search and Alchemist's research both use it): a public SEL Host
+ * The one way Molis Work reaches AnySearch (Feed's web search uses it): a public SEL Host
  * port restricted to one anonymous HTTPS endpoint. The host name is resolved by `resolveModelHostname`, so a fake-IP
  * proxy setup (system answer in 198.18.0.0/15 with a proxy variable set) is verified over public DNS; every address is
  * still checked to be public and the socket's peer must be the pinned address.

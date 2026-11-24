@@ -61,7 +61,7 @@ function checkedFields(input: SkillAuthoredFields): SkillAuthoredFields {
   return { name, description, applies_to: input.applies_to, body, ...(whenNot ? { when_not_to_use: whenNot } : {}), ...(hint ? { argument_hint: hint } : {}) };
 }
 
-/** A new Skill's id: the name's own letters and digits when it has some, else a made one; never one the package already has. */
+/** Use the name's letters and digits when free. A deleted Skill's id still belongs to its drafts and usage history. */
 function newSkillId(name: string, taken: ReadonlySet<string>): string {
   const slug = name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/gu, '-').replace(/^-+|-+$/gu, '').slice(0, 40).replace(/-+$/u, '');
   if (slug && /^[a-z0-9]/u.test(slug) && !taken.has(slug)) return slug;
@@ -96,8 +96,8 @@ export class SkillAuthoringService {
   }
 
   /** The package holding `skills` at the scope's next version, as it would be signed. */
-  private draftOf(skills: readonly FolderSkill[], scope: SkillScope, installed: Packaged | undefined) {
-    const retained = this.ports.retainedOf(SKILL_AUTHORED_PLUGIN_IDS[scope]);
+  private draftOf(skills: readonly FolderSkill[], scope: SkillScope, installed: Packaged | undefined,
+    retained = this.ports.retainedOf(SKILL_AUTHORED_PLUGIN_IDS[scope])) {
     return contentPackageDraft({ plugin_id: SKILL_AUTHORED_PLUGIN_IDS[scope], name: PACKAGE_NAME, scope, ...(installed ? { compatible_from: [installed.manifest.version] } : {}),
       version: nextVersion(installed ? [...retained, installed] : retained), skills });
   }
@@ -115,8 +115,7 @@ export class SkillAuthoringService {
   }
 
   /** Signs the package holding `skills` at its next version and installs it over the installed one. */
-  private async publish(skills: readonly FolderSkill[], scope: SkillScope, installed: Packaged | undefined, who: Who, caller: ActionExecutionContext, complete?: () => void) {
-    const draft = this.draftOf(skills, scope, installed);
+  private async publish(draft: ReturnType<typeof contentPackageDraft>, scope: SkillScope, installed: Packaged | undefined, who: Who, caller: ActionExecutionContext, complete?: () => void) {
     await this.assertOwn(installed, scope, who, draft, caller);
     const { preview_id } = await this.ports.sign(draft, caller);
     const preview = this.ports.install.readPreview(preview_id, who);
@@ -135,18 +134,19 @@ export class SkillAuthoringService {
       throw skillErrors.authored_invalid('「给谁用」所选的场景当前不可用，请改选其他对象', { field: 'applies_to' });
     }
     const installed = await this.ports.installed(SKILL_AUTHORED_PLUGIN_IDS[input.scope], input.scope, who.project_id), held = this.held(installed);
+    const current = held.find(skill => skill.declaration.skill_id === input.skill_id)?.declaration;
+    if (input.skill_id !== undefined && !current) throw skillErrors.authored_unknown('这个范围里没有你写的这个技能');
     const others = held.filter(skill => skill.declaration.skill_id !== input.skill_id);
     if (others.some(skill => skill.declaration.name.trim() === fields.name)) throw skillErrors.authored_name_taken(`你已经有一个叫「${fields.name}」的技能，换个名称`, { field: 'name' });
-    let declaration: PluginMethodDeclaration;
-    if (input.skill_id === undefined) {
-      if (held.length >= SKILL_LIMITS.skillsPerPackage) throw skillErrors.authored_full(`这个范围里自己写的技能已有 ${SKILL_LIMITS.skillsPerPackage} 个，先删掉不用的`);
-      declaration = declarationOf(newSkillId(fields.name, new Set(held.map(skill => skill.declaration.skill_id))), 1, fields);
-    } else {
-      const current = held.find(skill => skill.declaration.skill_id === input.skill_id)?.declaration;
-      if (!current) throw skillErrors.authored_unknown('这个范围里没有你写的这个技能');
-      declaration = declarationOf(current.skill_id, current.version + 1, fields);
-    }
-    const result = await this.publish([...others, folderSkill(declaration, fields.body)], input.scope, installed, who, caller,
+    if (!current && held.length >= SKILL_LIMITS.skillsPerPackage) throw skillErrors.authored_full(`这个范围里自己写的技能已有 ${SKILL_LIMITS.skillsPerPackage} 个，先删掉不用的`);
+    const retained = this.ports.retainedOf(SKILL_AUTHORED_PLUGIN_IDS[input.scope]);
+    const declaration = current ? declarationOf(current.skill_id, current.version + 1, fields)
+      : declarationOf(newSkillId(fields.name, new Set([
+        ...held.map(skill => skill.declaration.skill_id),
+        ...retained.flatMap(pkg => (pkg.manifest.methods ?? []).map(method => method.skill_id)),
+      ])), 1, fields);
+    const draft = this.draftOf([...others, folderSkill(declaration, fields.body)], input.scope, installed, retained);
+    const result = await this.publish(draft, input.scope, installed, who, caller,
       complete && (() => complete(declaration.skill_id)));
     return { ...result, skill_id: declaration.skill_id, skill_version: declaration.version };
   }
@@ -158,7 +158,7 @@ export class SkillAuthoringService {
     if (!current) throw skillErrors.authored_unknown('这个范围里没有你写的这个技能');
     if (current.version !== input.expected_version) throw skillErrors.authored_conflict('这个技能已经有更新的版本，请重新打开再删', { version: current.version });
     const rest = held.filter(skill => skill.declaration.skill_id !== input.skill_id);
-    if (rest.length) await this.publish(rest, input.scope, installed, who, caller);
+    if (rest.length) await this.publish(this.draftOf(rest, input.scope, installed), input.scope, installed, who, caller);
     else { await this.assertOwn(installed, input.scope, who, this.draftOf(held, input.scope, installed), caller); await this.ports.uninstall(input.scope, who, caller); }
     return { skill_id: input.skill_id, remaining: rest.length };
   }

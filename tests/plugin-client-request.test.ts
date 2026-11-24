@@ -5,13 +5,13 @@ import test from "node:test";
 import ts from "typescript";
 
 // PG-056: a plugin's page code asks the Host only through the shared request helper (`molisWorkRequest`), which adds the
-// control token, the one-time key, no-store and the error shape. These two plugins are bypassed, not migrated (BL-376/377).
+// control token, the one-time key, no-store and the error shape. The plugin studio is bypassed: it is a platform package.
 // RAC-556/557 statically scan .ts/.mts/.tsx (not .d.ts) under plugins/native/*/src (and the bypassed horizontal/plugin-studio/src), including template/string literals.
 // They recognize the named direct/property transport calls and literal text shapes below. This scan does not cover
 // .js/.mjs, plugins/official-integrations, fetch aliases (const f = fetch; f(url)), WebSocket or dynamic import().
 // It is a regression check for those shapes, not a security boundary for all network paths.
 // 47-1 C: the plugin studio is a platform package now (horizontal/plugin-studio) and keeps its own event stream there.
-const BYPASSED = ["plugins/native/alchemist", "horizontal/plugin-studio"];
+const BYPASSED = ["horizontal/plugin-studio"];
 const TRANSPORT_IN_TEXT = /(?<![\w$.])fetch\(|\.fetch\(|XMLHttpRequest|EventSource|sendBeacon/u;
 
 const sources = (dir: string): string[] => readdirSync(dir).flatMap(name => {

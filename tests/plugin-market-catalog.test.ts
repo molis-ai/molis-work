@@ -84,7 +84,7 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
         if (ts.isPropertyAssignment(property) && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
           && ts.isStringLiteral(property.initializer)) fields[property.name.text] = property.initializer.text;
       }
-      if (fields.feed && fields.inbox && fields.alchemist) tabIcons = fields;
+      if (fields.feed && fields.inbox && fields.jelly) tabIcons = fields;
     }
     ts.forEachChild(node, visit);
   };
@@ -93,7 +93,6 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   assert.equal(tabIcons.feed, "rss");
   assert.equal(tabIcons.inbox, "inbox");
   // No plugin borrows the AI mark: every plugin has its own glyph (spec → 第三轮 · 图标).
-  assert.equal(tabIcons.alchemist, "zap");
   // Soft Workbench: Feed sorts one timeline inside its row list (the per-source folds became a source menu).
   const feed = feedRegistration.workbench!.clientFactory!;
   const timeline = readFileSync(new URL("../plugins/native/feed/src/browser/stage.ts", import.meta.url), "utf8");

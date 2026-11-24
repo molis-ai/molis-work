@@ -5,7 +5,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // specs/visual-ui-experience VUX-12 「失效、读取失败反馈准确可恢复」: an item the workbench opens in a plugin (a tab from a
 // result, a notice, a link) that its owner no longer has is said to be gone in the plugin's own words. Workflows said
-// 「页面或接口不存在」 (the Host's words for any missing address) and Alchemist said nothing at all. A reopen the person did
+// 「页面或接口不存在」 (the Host's words for any missing address). A reopen the person did
 // not ask for (molis-work:select-item with quiet, after a reload or on Back) still forgets such an item without a word.
 // User decisions of 2026-10-21: ④ the words stay on the page where the item would have been (Issues and Workflows used a
 // toast that went away), and ③ the plugin tells the workbench (molis-work:item-unreadable), which then neither names the
@@ -13,7 +13,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 const missing = "missing-item-1";
 const title = "不在了的条目";
 
-test("VUX-12: Issues, Workflows and Alchemist say on the page that an item they were asked to open is gone, and stay quiet on a quiet reopen", { timeout: 180_000 }, async (t) => {
+test("VUX-12: Issues and Workflows say on the page that an item they were asked to open is gone, and stay quiet on a quiet reopen", { timeout: 180_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, navigate, waitFor, origin, projectId } = browser;
@@ -21,7 +21,6 @@ test("VUX-12: Issues, Workflows and Alchemist say on the page that an item they 
   const cases = [
     { plugin: "issues", said: "[data-issue-gone]", toast: "[data-issue-toast]", words: "这条问题不存在或已删除" },
     { plugin: "workflows", said: "[data-wf-gone]", toast: "[data-wf-toast]", words: "这条流程不存在或已删除" },
-    { plugin: "alchemist", said: "[data-alc-notice]", toast: "", words: "这一项已不存在或已删除" },
   ];
   for (const { plugin, said, toast, words } of cases) {
     const child=await pluginFrameBrowser(t,browser,plugin);
@@ -73,7 +72,6 @@ const disabled = { code: "actions.plugin_disabled", error: "此项目未启用�
 const permissionCases = [
   { plugin: "issues", said: "[data-issue-gone]", path: "/io.molis.work.issues/", toast: "[data-issue-toast]" },
   { plugin: "workflows", said: "[data-wf-gone]", path: "/io.molis.work.native.workflows/", toast: "[data-wf-toast]" },
-  { plugin: "alchemist", said: "[data-alc-notice]", path: "/api/alchemist/", toast: "" },
   { plugin: "pages", said: "[data-pages-note]", path: "/io.molis.work.pages/", toast: "" },
   { plugin: "todo", said: "[data-todo-note-text]", path: "/io.molis.work.todo/", toast: "" },
   { plugin: "jelly", said: "[data-jelly-notice]", path: "/io.molis.work.jelly/", toast: "" },

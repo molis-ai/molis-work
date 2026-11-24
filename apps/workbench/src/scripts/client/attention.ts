@@ -109,6 +109,14 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     if (next !== key || commandChanged) { key = next; background = value; render(); }
   };
   const surface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
+  let currentWorkItemId = null;
+  document.addEventListener("molis-work:work-item-changed", (event) => {
+    const next = event?.detail?.item_id || null;
+    if (next === currentWorkItemId) return;
+    currentWorkItemId = next;
+    if (document.body.dataset.workLineScope) delete document.body.dataset.workLineScope;
+    void read(true);
+  });
   const gone = new Set(), GONE = "catalog.project_not_found";
   const LONGEST = 120000;
   // A stream that spoke and was lost connects again at once; one the Host never answered waits 30 s, then twice as long each time (N54).
@@ -118,7 +126,10 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   // Where a browser has neither, each window listens itself.
   const shared = typeof BroadcastChannel === "function" && Boolean(navigator.locks);
   let lease = null, ear = null;
-  const readAddress = () => route("/api/attention?surface=" + encodeURIComponent(surface()));
+  const readAddress = () => {
+    const scopedItem = currentWorkItemId && document.body.dataset.workLineScope !== "project" ? "&item=" + encodeURIComponent(currentWorkItemId) : "";
+    return route("/api/attention?surface=" + encodeURIComponent(surface()) + scopedItem);
+  };
   const discardRead = () => {
     const previous = reading; reading = null; previous?.controller.abort();
     clearTimeout(scheduled?.timer); scheduled = null; again = false;

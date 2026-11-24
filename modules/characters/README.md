@@ -25,7 +25,7 @@
   - 不依赖插件、App、Agent Runtime 或其他 Module 的实现；仓库实现不从公开入口导出。
   - 空的版本 0 库初始化为现行结构 2；版本 1 的库经升级段 `1 → 2` 只建角色的六张新表、不改既有行（宿主升级轮执行，直接打开得 `storage.upgrade_pending`）；已有表的无版本库与更高版本都拒绝，保留结构、数据、版本及文件权限。没有版本的原件在目录里标「还没保存过」，保存一次即成第 1 版，不做数据迁移。
   - 一个角色只按调用上下文的人与项目解析：别人的、别的项目的成员、停用或删除的不能新选；成员与原件对不上、没存过或已移出删除的版本读不到（`S-character-role-scope`）。
-- 改动后必跑：`node scripts/run-tests.mjs tests/characters-module.test.ts tests/characters-actions.test.ts tests/characters-action-handlers.test.ts tests/characters-import.test.ts tests/characters-schema.test.ts tests/characters-project-deletion.test.ts tests/security-invariants-character-role-scope.test.ts`；动了声明、绑定或处理器再跑 `tests/characters-native-execution.test.ts tests/characters-publication-http.test.ts tests/security-invariants-plugin-original-caller.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/characters-module.test.ts tests/characters-replication.test.ts tests/characters-actions.test.ts tests/characters-action-handlers.test.ts tests/characters-import.test.ts tests/characters-schema.test.ts tests/characters-project-deletion.test.ts tests/security-invariants-character-role-scope.test.ts`；动了声明、绑定或处理器再跑 `tests/characters-native-execution.test.ts tests/characters-publication-http.test.ts tests/security-invariants-plugin-original-caller.test.ts`
 - 相关手册：[docs/system/PACKAGE-BOUNDARIES.md](../../docs/system/PACKAGE-BOUNDARIES.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 项目回收检查：本 owner 的个人 Home 内容跨项目独立保存，不因某项目被回收而删除。同步适配器明确返回无该项目所属的未结算内容；材料或成果来源引用不改变所有权。检查仍执行账号与格式校验。

@@ -3,7 +3,6 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 import { listPluginProjectDatabases } from "@molis-ai/molis-work-plugin-runtime";
 import { verifyPrologueNodeStorageContents } from "@molis-ai/molis-work-service-agent-host";
 import { HOME_SECURITY_DIRNAME, inspectSealedSecretsSnapshot, LocalCatalogMetadata, readSnapshotFile, type HomeStore, type HomeStoreRegistry, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
-import { assertStudioProjectIdentity, ALCHEMIST_SEARCH_BASELINE, ALCHEMIST_STUDIO_BASELINE } from "./alchemist-search.js";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "./project-catalog-contract.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { captureConnectorPrivateState, type ConnectorPrivateStateSnapshot } from "./connector-private-state.js";
@@ -60,16 +59,6 @@ export const projectSnapshot: HomeStoreSnapshotPolicy = {
       ])) };
     return undefined;
   },
-};
-
-export const alchemistSnapshot: HomeStoreSnapshotPolicy = {
-  database: file => /^projects\/[^/]+\/studio\.sqlite$/u.test(file) ? { requireSpace: true, baseline: ALCHEMIST_STUDIO_BASELINE, inspect: db => {
-      const encoded = file.split("/")[1]!, id = decodeURIComponent(encoded);
-      if (!id || encodeURIComponent(id).replaceAll(".", "%2E") !== encoded) throw homeSnapshotErrors.invalid("研究库的项目目录无效");
-      assertStudioProjectIdentity(db, id);
-      return { project_id: id };
-    } }
-    : /^projects\/[^/]+\/search\.sqlite$/u.test(file) ? { baseline: ALCHEMIST_SEARCH_BASELINE } : undefined,
 };
 
 /** Current SDK paths, not SDK decryption: unknown leftovers cannot accidentally export a renamed original key. */

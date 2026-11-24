@@ -65,7 +65,8 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
     }
     if (path.endsWith("/history")) { response.end(JSON.stringify({ revisions: [{ version: 2, text: "旧版", kind: "preference", applies: {},
       classification: { scenes: ["common"], lifecycle: "long-term" }, expires_at: null, snapshot_available: true, at: "2026-10-22T00:00:00Z" }] })); return; }
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    let raw = "";
+    for await (const chunk of request.setEncoding("utf8")) raw += chunk;
     const call = { path, body: JSON.parse(raw || "{}"), key: String(request.headers["x-molis-work-idempotency-key"] || "") }; calls.push(call);
     const result = await answer(call); response.statusCode = result.status ?? 200; response.end(JSON.stringify(result.body));
   });

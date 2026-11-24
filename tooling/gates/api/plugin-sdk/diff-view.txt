@@ -105,6 +105,12 @@ export interface UnifiedPatchFile {
 
 export declare function compareChange<Group extends string>(group: Group | null, sides: DiffSides, change: DiffTextChange): DiffView<Group>;
 
+export declare function compareCodingChangeSet(change: CodingChangeSet, source: Pick<DiffSide, "source_plugin_id" | "content_version">, selection: number | string, messages: {
+    empty: string;
+    missing: string;
+    recovery: string;
+}): DiffView<"change-set">;
+
 export declare function compareHunks<Group extends string>(group: Group | null, sides: DiffSides, diff: string, change?: {
     created?: boolean;
     removed?: boolean;

@@ -142,11 +142,10 @@ function createAccountSyncLibrary(home) {
 
 /**
  * Libraries a golden cannot put a row in, each for the reason in the manifest's `imports`, whose owner's current structure still has to be there for
- * an upgrade to walk. Home-level ones from the registry, Alchemist's per project from its owner, which opens one the moment it is asked to search.
+ * an upgrade to walk, from the registry.
  */
-async function createEmptyLibraries(home, projects) {
+function createEmptyLibraries(home) {
   for (const store of EMPTY_HOME_LIBRARIES) openBaselineHomeSqlite(home, store, local.homeStores().get(store).library.baseline).close();
-  await local.createAlchemistSearchPort({ homeDirectory: home, projectId: projects.primary.project_id }).shutdown();
 }
 
 /**
@@ -208,7 +207,7 @@ export async function populateHome(home, { step, label, withThirdParty, account 
     await named("settle");
     await session.close();
     await cardsInOneOrder(home, account, projects, named, seed);
-    await createEmptyLibraries(home, projects);
+    createEmptyLibraries(home);
     if (account) createAccountSyncLibrary(home);
     else writeRuntimeReceiptSample(home);
     return Object.fromEntries(Object.entries(projects).map(([role, project]) => [role, { project_id: project.project_id, database: path.relative(session.home, project.database_path) }]));

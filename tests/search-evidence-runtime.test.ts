@@ -8,7 +8,7 @@ import {
   createEvidenceContentStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SecretStore,
 } from "@molis-ai/molis-work-storage";
 import { createSearchEvidenceRuntime } from "../apps/local-host/dist/search-evidence-runtime.js";
-import { createAlchemistSearchPort, type IntelligenceCollectRequest } from "@molis-ai/molis-work-app-local-host";
+import { type IntelligenceCollectRequest } from "@molis-ai/molis-work-app-local-host";
 
 function fixture(t: test.TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "shared-search-"));
@@ -120,25 +120,4 @@ test("W5-01-ALC-LIFE-08: real SEL composition retries failed transport cleanup w
   assert.equal(attempts, 2);
   assert.equal(intelligenceClose.mock.callCount(), 1);
   await assert.rejects(runtime.intelligenceCollect.executeExact(request()), /Search service stopped/);
-});
-
-
-test("W5-01-ALC-LIFE-08: the actual Alchemist search port retains a failed SQLite close for retry", async t => {
-  const f = fixture(t), close = LocalSqliteStorage.prototype.close;
-  const path = join(f.directory, "alchemist/projects/retry/search.sqlite");
-  let attempts = 0, retained: LocalSqliteStorage | undefined;
-  t.mock.method(LocalSqliteStorage.prototype, "close", function (this: LocalSqliteStorage) {
-    if (this.path === path) {
-      retained = this;
-      if (++attempts === 1) throw new Error("search database close failed once");
-    }
-    return close.call(this);
-  });
-  const port = createAlchemistSearchPort({ homeDirectory: f.directory, projectId: "retry", secretStore: f.secrets });
-  await assert.rejects(port.shutdown(), /search database close failed once/);
-  assert.equal(retained?.db.open, true);
-  await assert.rejects(port.search({ query: "must stay stopped" }), /search_closed/);
-  await port.shutdown(); await port.shutdown();
-  assert.equal(attempts, 2);
-  assert.equal(retained?.db.open, false);
 });

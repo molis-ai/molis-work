@@ -18,6 +18,11 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   ${SIDE_FILE_SOURCES_CLIENT_SCRIPT}
   const api=(path,body,page)=>molisWorkRequest(route("/api/placement/"+path),{body,...(page?{headers:{"x-molis-context-page":page}}:{}),fallback:readText("workbench.placement.couldn-t-do-that-right-now-try-again")});
   let spaces = null;
+  let mainlineSourceKinds = new Set();
+  document.addEventListener("molis-work:work-item-changed", (event) => {
+    const sources = event?.detail?.sources;
+    if (Array.isArray(sources)) mainlineSourceKinds = new Set(sources.map((s) => s.kind));
+  });
   const loadSpaces = async () => { if (!spaces) spaces = (await api("spaces")).spaces || []; return spaces; };
   const cache = new Map();
   const keyOf = (object) => object.kind + ":" + object.id + ":" + (object.project_id || "");
@@ -320,6 +325,16 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       action("move", readText("workbench.placement.move"), () => moveOrCopy(view, "move"), view.can.move, view.object.project_id === null ? readText("workbench.placement.kind-item-only-lives-personal-space") : readText("workbench.placement.items-plugin-can-t-be-moved-yet"));
       action("copy", readText("workbench.placement.copy"), () => moveOrCopy(view, "copy"), view.can.copy, view.object.project_id === null ? readText("workbench.placement.kind-item-only-lives-personal-space") : readText("workbench.placement.items-plugin-can-t-be-copied-elsewhere-yet"));
       action("attach", readText("workbench.placement.attach-to"), () => bindToGoal(view), Boolean(view.object.project_id || here()), readText("workbench.placement.open-project-personal-space-first"));
+      if (here() && here() !== "personal") {
+        action("put-in-item", readText("workbench.placement.put-in-item"), () => {
+          document.dispatchEvent(new CustomEvent("molis-work:work-item-hold-open", { detail: { subject: { kind: view.object.kind, id: view.object.id }, title: view.title, mode: "hold" } }));
+        }, true, "");
+        if (mainlineSourceKinds.has(view.object.kind)) {
+          action("make-work-item", readText("workbench.placement.make-work-item"), () => {
+            document.dispatchEvent(new CustomEvent("molis-work:work-item-hold-open", { detail: { subject: { kind: view.object.kind, id: view.object.id }, title: view.title, mode: "as-item" } }));
+          }, true, "");
+        }
+      }
     }
     panel.append(actions);
     document.body.append(panel);

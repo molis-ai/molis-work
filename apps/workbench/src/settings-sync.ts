@@ -34,11 +34,35 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
     const namespace=(s)=>JSON.stringify([s.plugin_id,s.publisher_id,s.publisher_signature,s.collection_id,s.schema_version]);
     const request=(path,body,method,base='/api/sync')=>molisWorkRequest(base+path,{method:method||'GET',headers:state?.policy?.spaceId?{'x-molis-sync-space':state.policy.spaceId}:{},...(body===undefined?{}:{body}),fallback:readText("workbench.settings-sync.sync-temporarily-unavailable")});
     const button=(label,run)=>{const el=node('button','mw-btn mw-btn--secondary',readText(label));el.type='button';el.addEventListener('click',()=>{if(!root.isConnected)return;try{Promise.resolve(run()).catch(failure=>{if(root.isConnected){error.hidden=false;error.textContent=failure.message;}});}catch(failure){error.hidden=false;error.textContent=failure.message;}});return el;};
-    const sheet=(title,body,actions)=>{
+    const sheet=(title,body,actions,progress)=>{
       const spaceId=state?.policy?.spaceId;
       const dialog=node('dialog','mw-dialog mw-dialog--form'),shell=node('div','mw-form mw-dialog__shell'),header=node('header','mw-form__header');dialog.dataset.syncDialog='';
-      header.append(node('h2','',readText(title)));const main=node('div','mw-form__body');main.append(body);const footer=node('footer','mw-form__footer'),problem=node('p','settings-form-error');problem.setAttribute('role','alert');problem.hidden=true;main.append(problem);
-      for(const [label,run] of actions)footer.append(button(label,async()=>{footer.querySelectorAll('button').forEach(el=>el.disabled=true);try{if(state?.policy?.spaceId!==spaceId)throw new Error(readText("workbench.settings-sync.account-has-changed-please-reopen-view"));if((await run())!==false)dialog.close();}catch(error){problem.textContent=error.message;problem.hidden=false;}finally{footer.querySelectorAll('button').forEach(el=>el.disabled=false);}}));
+      const heading=node('h2','',readText(title));
+      if(progress){
+        const group=node('div','');
+        group.append(heading,progress);
+        header.append(group);
+      }else header.append(heading);
+      const main=node('div','mw-form__body');main.append(body);const footer=node('footer','mw-form__footer'),problem=node('p','settings-form-error');problem.setAttribute('role','alert');problem.hidden=true;main.append(problem);
+      for(const [label,run] of actions){
+        const action=button(label,async()=>{
+          const otherButtons=[...footer.querySelectorAll('button')].filter(el=>el!==action);
+          otherButtons.forEach(el=>el.disabled=true);
+          problem.hidden=true;
+          try{
+            await globalThis.molisBusy(action,async()=>{
+              if(state?.policy?.spaceId!==spaceId)throw new Error(readText("workbench.settings-sync.account-has-changed-please-reopen-view"));
+              if((await run())!==false)dialog.close();
+            });
+          }catch(error){
+            problem.textContent=error.message;
+            problem.hidden=false;
+          }finally{
+            otherButtons.forEach(el=>el.disabled=false);
+          }
+        });
+        footer.append(action);
+      }
       const cancel=node('button','mw-btn mw-btn--secondary',readText("common.control.cancel"));cancel.type='button';cancel.addEventListener('click',()=>dialog.close());footer.append(cancel);shell.append(header,main,footer);dialog.append(shell);document.body.append(dialog);
       const observer=new MutationObserver(()=>{if(!root.isConnected)dialog.close();});
       for(let ancestor=root.parentElement;ancestor&&ancestor!==document.body;ancestor=ancestor.parentElement){observer.observe(ancestor,{childList:true});if(ancestor.matches('[data-settings-stage-body],main'))break;}
@@ -51,13 +75,60 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       dialog.addEventListener('close',()=>resolve(confirmed),{once:true});
     });
     ${SYNC_COMPARISON_SCRIPT}
+    const withConflictProgress=async(progress,spaceId,work)=>{
+      const control=new AbortController(),dialog=progress.closest('dialog');
+      let timer;
+      const stop=()=>{
+        control.abort();
+        clearTimeout(timer);
+        progress.hidden=true;
+        progress.textContent='';
+      };
+      const poll=async()=>{
+        if(control.signal.aborted)return;
+        try{
+          if(document.hidden)return;
+          const syncing=readText("workbench.settings-sync.syncing");
+          if(progress.hidden){
+            progress.textContent=syncing;
+            progress.hidden=false;
+          }
+          const value=await molisWorkRequest('/api/sync?view=indicator',{headers:{'x-molis-sync-space':spaceId},signal:control.signal});
+          const transfer=value?.transfer;
+          if(control.signal.aborted||state?.policy?.spaceId!==spaceId||!value?.running||!(transfer?.total>0))return;
+          const fraction=Math.floor(100*transfer.done/transfer.total)/100;
+          const text=syncing+' '+readText("common.generated.formatted",{value:{kind:"number",number:fraction,style:"percent"}});
+          if(progress.textContent!==text)progress.textContent=text;
+        }catch{
+          // The confirmation request reports its own outcome.
+        }finally{
+          if(!control.signal.aborted)timer=setTimeout(poll,1000);
+        }
+      };
+      dialog.addEventListener('close',stop,{once:true});
+      timer=setTimeout(poll,250);
+      try{return await work();}
+      finally{
+        dialog.removeEventListener('close',stop);
+        stop();
+      }
+    };
     const compare=async(collection,item,recovery=false)=>{
       try{
         const ns=namespace(collection.selection),spaceId=state?.policy?.spaceId,path=recovery?'/recovery?id='+encodeURIComponent(item.id):'/conflict?key='+encodeURIComponent(item.key);
         const view=await request(path+'&namespace='+encodeURIComponent(ns));if(!root.isConnected||!view||state?.policy?.spaceId!==spaceId)return;
         const body=comparison(view,collection);
-        const choose=choice=>()=>act(()=>request(recovery?'/restore-recovery':'/resolve',{namespace:ns,key:item.key,id:item.id,choice,revision:view.revision,state:view.state},'POST'),false,true);
-        sheet(recovery?"workbench.settings-sync.restore-retained-version":"workbench.settings-sync.compare-conflicting-versions",body,[["workbench.settings-sync.keep-local-version",choose('local')],["workbench.settings-sync.use-cloud-version",choose('remote')]]);
+        const progress=recovery?null:node('p','');
+        if(progress){
+          progress.hidden=true;
+          progress.setAttribute('role','status');
+          progress.dataset.syncConflictProgress='';
+        }
+        const choose=choice=>()=>act(()=>{
+          const work=()=>request(recovery?'/restore-recovery':'/resolve',{namespace:ns,key:item.key,id:item.id,choice,revision:view.revision,state:view.state},'POST');
+          return progress&&choice==='remote'?withConflictProgress(progress,spaceId,work):work();
+        },false,true);
+        sheet(recovery?"workbench.settings-sync.restore-retained-version":"workbench.settings-sync.compare-conflicting-versions",body,[["workbench.settings-sync.keep-local-version",choose('local')],["workbench.settings-sync.use-cloud-version",choose('remote')]],progress);
       }catch(failure){error.hidden=false;error.textContent=failure.message;}
     };
     ${SYNC_CLOUD_HISTORY_SCRIPT}

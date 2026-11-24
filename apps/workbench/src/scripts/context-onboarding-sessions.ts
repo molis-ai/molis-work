@@ -26,7 +26,7 @@ export const CONTEXT_ONBOARDING_SESSIONS_PART = String.raw`
     if (!existing()) return '<div class="ob-cfg-block"><div class="ob-picks" role="group">' + choice({label:readText("workbench.context-onboarding.sessions-choose-later"), selected:Boolean(s?.selected), attrs:{'data-sessions-pick':'1'}}) + '</div></div>' + note(readText("workbench.context-onboarding.sessions-new-note"), 'info');
     const off = sessionsState && !sessionsState.error && !sessionsState.allowed;
     const more = sessionsState?.allowed ? [sessionsState.reported ? globalThis.t.text("workbench.context-onboarding.sessions-reported", {n:sessionsState.reported}) : '', sessionsState.blocked ? globalThis.t.text("workbench.context-onboarding.sessions-blocked", {n:sessionsState.blocked}) : ''].filter(Boolean) : [];
-    return note(sessionsWhy(), off ? 'alert' : sessionsState?.allowed && sessionsState.readable ? 'check' : 'info', off ? 'is-warn' : '')
+    return note(sessionsWhy(), off ? 'circle-alert' : sessionsState?.allowed && sessionsState.readable ? 'check' : 'info', off ? 'warning' : undefined)
       + (off ? '<div class="ob-cfg-actions">' + permitButton() + '</div>' + note(readText("workbench.context-onboarding.sessions-permit-note"), 'shield') : '')
       + more.map(text => note(text, 'info')).join('')
       + (ready(s) ? '<div class="ob-cfg-block"><div class="ob-picks" role="group">' + choice({label:readText("workbench.context-onboarding.sessions-use"), note:globalThis.t.text("workbench.context-onboarding.sessions-n", {n:sessionsState.readable}), selected:Boolean(s?.selected), attrs:{'data-sessions-pick':'1'}}) + '</div></div>' : '');

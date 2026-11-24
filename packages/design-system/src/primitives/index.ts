@@ -134,3 +134,14 @@ export {
   type MwCheckFact,
   type MwCommandChipOptions,
 } from "./coding-basics.js";
+export {
+  HOME_PAGE_ADOPTION_STYLES,
+  renderCheckSummary,
+  renderCompareAdoptBar,
+  renderEditConflict,
+  type CheckSummaryItem,
+} from "./home-page-adoption.js";
+export {
+  HOME_PAGE_ADOPTION_BOARD_STYLES,
+  homePageAdoptionSections,
+} from "./catalog-home-page-adoption.js";

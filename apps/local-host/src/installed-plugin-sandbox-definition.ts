@@ -26,6 +26,14 @@ import { assertOperationGranted, grantedEffects, projectInstalledPermissions } f
 export const GONE = new Set(['sandbox.process_exit', 'sandbox.stopped', 'sandbox.cancelled', 'sandbox.start_failed', 'sandbox.start_timeout', 'sandbox.operation_timeout', 'sandbox.memory_limit', 'sandbox.cpu_limit', 'sandbox.channel_limit', 'sandbox.channel_error', 'sandbox.protocol_error']);
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
+/** Only the Host's Node preflight may surface its recovery instructions through Plugin Runtime. */
+export function rethrowInstalledSandboxStartup(error: unknown): never {
+  if (error instanceof SandboxError && error.code === 'sandbox.node_runtime_unavailable') {
+    throw pluginErrors.executor_failed(error.message);
+  }
+  throw error;
+}
+
 /** The Runtime bridge reaches the runner from the original exposed action. HTTP route control alone carries no such authority. */
 function installedOperation(release: InstalledRelease, context: PluginStartContext, operation: unknown) {
   const scope = currentPluginAction(), called = scope?.caller.current_action;
@@ -166,7 +174,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
         return created;
       };
       // A bundle that cannot start fails the installation, not the person's first click.
-      await open('quick');
+      await open('quick').catch(rethrowInstalledSandboxStartup);
       const contribution: PluginAppContribution = { kind: 'app',
         routes: [sandboxedPluginCall({ release, context, host, identity, lanes, open, upgradeOperation, liveGrants })],
         views: [{ descriptor, render: () => installedStageFrame({ pluginId: release.pluginId, label: manifest.name,

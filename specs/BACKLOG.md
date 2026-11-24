@@ -98,5 +98,3 @@ Memory P0 已随 [#2020](https://github.com/molis-ai/molis-work/pull/2020) 合�
 工程验证与排期由碰到它的批次主会话接续。产品体验仍由各自的主人验收。
 
 [BL-installed-plugin-mac-fixtures](backlog/BL-installed-plugin-mac-fixtures.md) 记 macOS 安装插件用例的动作网关与重启调度夹具问题。
-
-[BL-linux-repro-source-head](backlog/BL-linux-repro-source-head.md) 记 Linux 定向回归对实际检出提交的核对。

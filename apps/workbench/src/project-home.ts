@@ -14,10 +14,13 @@ export function renderProjectHome(name: string, { escapeHtml: e }: ImmersiveShel
   return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-work-surface-label="${uiText("workbench.project-home.project-home")}" aria-label="${e(name)} · ${uiText("workbench.project-home.project-home")}" hidden>
     <div class="home-scroll mw-first-page" data-home-scroll><div class="mw-first-page__grid">
       <div class="mw-first-page__column">
-        <div class="mw-first-page__meta"><span>${uiText("workbench.project-home.project-home")}</span><span class="mw-first-page__grow"></span><span data-home-version></span>${renderButton({ label: uiText.text("workbench.home.refresh"), variant: "ghost", size: "sm", icon: "refresh", iconOnly: true, attrs: { "data-home-control": "refresh" } })}${renderHelpButton({ topic: "workbench-home", label: uiText.text("common.help.title"), size: "sm" })}</div>
+        <div class="mw-first-page__meta"><span>${uiText("workbench.project-home.project-home")}</span><span class="mw-first-page__grow"></span><span data-home-page-version></span><span data-home-version></span>${renderButton({ label: uiText.text("workbench.home.refresh"), variant: "ghost", size: "sm", icon: "refresh", iconOnly: true, attrs: { "data-home-control": "refresh" } })}${renderHelpButton({ topic: "workbench-home", label: uiText.text("common.help.title"), size: "sm" })}</div>
         <h1>${e(name)}</h1>
         <div class="home-read-state" data-home-status aria-live="polite"></div>
+        <div class="home-generated-notice" data-home-generated-notice aria-live="polite"></div>
         <div class="home-groups" data-home-groups></div>
+        <div class="home-generated-body" data-home-generated-body hidden></div>
+        <div class="home-compare" data-home-compare hidden></div>
         <section class="placement-related" data-placement-related aria-label="${uiText("workbench.project-home.linked-materials")}" hidden></section>
       </div>
       <div class="home-margin" data-home-margin></div>
@@ -27,6 +30,7 @@ export function renderProjectHome(name: string, { escapeHtml: e }: ImmersiveShel
       <div data-home-peek-content></div>
       <div data-home-offers></div>
     </dialog>
+    <dialog class="mw-dialog mw-dialog--form home-adopt-dialog" data-home-adopt-dialog></dialog>
     ${renderHelpDeclarationScript(workbenchSurfaceHelpDeclaration("home"))}
   </section>`;
 }

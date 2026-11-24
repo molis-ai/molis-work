@@ -196,8 +196,9 @@ async function cli(t: TestContext, f: Awaited<ReturnType<typeof fixture>>, kind?
   return { code: await closed, stdout, stderr, injected };
 }
 
-test("RAC-109-S-07: actual CLI JSON distinguishes invalid files/SQL/metadata from changed captures", { timeout: 120_000 }, async t => {
-  for (const changing of [false, true]) for (const kind of changing ? changedCases : staticCases) await t.test(`${changing ? "changed" : "invalid"} ${kind}`, async t => {
+// Each scenario starts a real CLI process and uses an independent fixture.
+for (const changing of [false, true]) for (const kind of changing ? changedCases : staticCases) {
+  test(`RAC-109-S-07: actual CLI JSON distinguishes invalid files/SQL/metadata from changed captures (${changing ? "changed" : "invalid"} ${kind})`, { timeout: 30_000 }, async t => {
     const f = await fixture(t, kind, changing), expected = await snapshotBusinessFingerprint(f.home);
     const result = await cli(t, f, changing ? kind : undefined);
     assert.equal(result.code, 1, result.stderr);
@@ -214,4 +215,4 @@ test("RAC-109-S-07: actual CLI JSON distinguishes invalid files/SQL/metadata fro
     assert.deepEqual(await snapshotBusinessFingerprint(f.home), expected);
     await assertNoOutput(f);
   });
-});
+}

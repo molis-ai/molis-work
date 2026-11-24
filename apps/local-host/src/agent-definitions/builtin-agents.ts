@@ -15,7 +15,7 @@ export function builtinAgents(): BuiltinAgent[] {
   return [{ owner_id: ASSISTANT_PLUGIN_ID, source: { kind: "system", module: "assistant", title: "个人工作助理" }, manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS }];
 }
 
-/** Where an owner the Host registers comes from: the platform itself, or Alchemist, which the Host serves (until it runs as a definition). */
+/** Where an owner the Host registers comes from: the platform itself, or the shipped plugin whose id it keeps (Plugin Builder, PG-051 Q2). */
 function sourceOf(ownerId: string): AgentDefinitionSource {
   const system = SYSTEM_INSTRUCTION_SOURCES[ownerId];
   if (system) return { kind: "system", ...system };

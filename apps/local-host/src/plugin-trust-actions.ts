@@ -24,7 +24,9 @@ import { studioPublisherIdentity, localPublisherKeyId, readSealedLocalPublisherK
 import { SkillImportService, localSkillScan, type SkillImportPorts } from "./skill-import.js";
 import { SkillAuthoringService, draftSkill } from "./skill-authoring.js";
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
+import { SKILL_DRAFT } from "./agent-definitions/system-prompts.js";
 import { hostTextForCommit, textModelAvailability, type HostCompleteText } from "./host-complete-text.js";
+import { observeHostTextUsage } from "./host-text-observation.js";
 import type { SkillAuthoring } from "./plugin-install-actions.js";
 import { bundledPackagesDirectory } from "./bundled-packages.js";
 
@@ -129,7 +131,8 @@ export function skillAuthoringFor(home: string, source: ProjectPluginHost, insta
     drafts: homeAgentDefinitions(home).skillDrafts,
     draft: async (intent, caller) => {
       const scenes = await activeScopeSkillScenes(home, source, caller.project_id, caller.locale);
-      return draftSkill(intent, model(), { signal: caller.signal, beforeDispatch: caller.beforeEffect }, prompt => resolveModelPrompt(home, prompt, "system.skills"), appliesTo => skillAudienceActive(appliesTo, scenes));
+      return draftSkill(intent, model(), { signal: caller.signal, beforeDispatch: caller.beforeEffect, onReceipt: observeHostTextUsage(home, caller, SKILL_DRAFT.prompt_id) },
+        prompt => resolveModelPrompt(home, prompt, "system.skills"), appliesTo => skillAudienceActive(appliesTo, scenes));
     },
     draftAvailability: () => textModelAvailability(model, "起草技能"),
   };

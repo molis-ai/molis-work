@@ -443,6 +443,7 @@ export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSou
     };
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
+    readonly home_page?: HomePageSubject;
     readonly original_file?: HostOfferedOriginalFile;
     readonly original_input?: HostOfferedOriginalInput;
     readonly query_only?: true;
@@ -549,6 +550,7 @@ export interface ActionExecutionContext extends ActionCallContext, ActionPersonE
     readonly provideSubjectState?: (current: () => import("platform/action-subjects").ActionSubjectCurrentState) => void;
     readonly beforeEffect: () => Promise<void>;
     readonly current_action?: ExactActionReference;
+    readonly parent_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
         readonly audience?: "workflow";
     }) => RetainedActionAuthority;
@@ -1383,6 +1385,28 @@ export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
                             additionalProperties: boolean;
                         };
                     };
+                    held_reviews: {
+                        type: string;
+                        properties: {
+                            session_id: {
+                                maxLength: number;
+                                minLength: number;
+                                type: string;
+                            };
+                            ids: {
+                                type: string;
+                                minItems: number;
+                                maxItems: number;
+                                items: {
+                                    minLength: number;
+                                    maxLength: number;
+                                    type: string;
+                                };
+                            };
+                        };
+                        required: string[];
+                        additionalProperties: boolean;
+                    };
                     open: {
                         anyOf: ({
                             readonly type: "object";
@@ -1640,6 +1664,8 @@ export declare const BACKGROUND_TASK_DECISION_SCHEMA: {
 };
 
 export declare const BACKGROUND_TASK_DONE_STATES: ReadonlySet<StateRingState>;
+
+export declare const BACKGROUND_TASK_MAX_HELD_REVIEWS = 10;
 
 export declare const BACKGROUND_TASK_SCHEMA: {
     type: string;
@@ -1981,6 +2007,28 @@ export declare const BACKGROUND_TASK_SCHEMA: {
                 additionalProperties: boolean;
             };
         };
+        held_reviews: {
+            type: string;
+            properties: {
+                session_id: {
+                    maxLength: number;
+                    minLength: number;
+                    type: string;
+                };
+                ids: {
+                    type: string;
+                    minItems: number;
+                    maxItems: number;
+                    items: {
+                        minLength: number;
+                        maxLength: number;
+                        type: string;
+                    };
+                };
+            };
+            required: string[];
+            additionalProperties: boolean;
+        };
         open: {
             anyOf: ({
                 readonly type: "object";
@@ -2054,6 +2102,10 @@ export interface BackgroundTask {
     scope: "project" | "personal";
     commands: BackgroundTaskCommand[];
     decisions: BackgroundTaskDecision[];
+    held_reviews?: {
+        session_id: string;
+        ids: string[];
+    };
     open: OpenTarget | null;
     reports_to?: "assistant";
 }

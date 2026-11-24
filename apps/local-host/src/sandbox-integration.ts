@@ -16,7 +16,7 @@ import { createCallConnectionsClient, type CallConnectionsPort } from '@molis-ai
 import { createSandboxRunner, sandboxServicesFor, type SandboxCallControl, type SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import { checkedSourcePresentation, checkedSourcePresentationInput, pollingIntegrationBinding } from '@molis-ai/molis-work-plugin-sdk';
 import type { InstalledRelease } from './installed-release.js';
-import { GONE } from './installed-plugin-sandbox-definition.js';
+import { GONE, rethrowInstalledSandboxStartup } from './installed-plugin-sandbox-definition.js';
 import { staleInstallation } from './installed-plugin-host.js';
 import { lastUsedLocale } from './ui-locale-memory.js';
 import { sandboxTextPacks } from './ui-text-provider.js';
@@ -132,7 +132,7 @@ export function sandboxedIntegrationDefinition(release: InstalledRelease, approv
         return created;
       };
       // Code that cannot start fails the installation, not the first pull.
-      await open();
+      await open().catch(rethrowInstalledSandboxStartup);
       return sandboxIntegrationContribution({ manifest, operations: contract.operations.map(item => item.id),
         async call(operationId, input, control) {
           live();

@@ -1,7 +1,7 @@
 import { accountCachePrefix } from '../account-cache-key.js';
 /** Browser copies owned by the account UI; device preferences and unrelated origins' data are not account state. */
 const prefixes = [
-  'molis.assistant.', 'molis-work:alchemist:', 'molis.characters.drafts:', 'molis-plugin-page:', 'molis-review-feedback:', 'molis-connectors-', 'molis.home-action:',
+  'molis.assistant.', 'molis.characters.drafts:', 'molis-plugin-page:', 'molis-review-feedback:', 'molis-connectors-', 'molis.home-action:',
   'molis-work-plugin-records:', 'molis-work-tab-history:', 'molis-work-tab-workspace:',
   'molis-work-frame-container:', 'molis-work-goal-work-modes:', 'molis-work-ui:',
   'molis-work-goal-move-receipt:', 'molis-work-guidance-receipt:', 'molis-work-studio-build:',
@@ -78,7 +78,7 @@ export function installAccountCache(scope: string): {clear(): Promise<void>; has
       if (!physicalKey.startsWith(prefix)) continue;
       const key = physicalKey.slice(prefix.length);
       if ((key.startsWith('molis-review-feedback:') || key.startsWith('molis.characters.drafts:')
-        || key.startsWith('molis-connectors-draft:') || key.startsWith('molis-work:alchemist:') && key.includes(':reuse:'))
+        || key.startsWith('molis-connectors-draft:'))
         && nonempty(get.call(area, physicalKey))) return true;
     }
     if (globalThis.caches) for (const name of await caches.keys()) {

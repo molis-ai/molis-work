@@ -139,6 +139,44 @@ async function toMain(evaluate: <T>(expression: string) => Promise<T>, waitFor: 
 const INPUT = "document.querySelector('[data-assistant-composer] .mw-composer__input')";
 const type = (words: string) => `(() => { const input = ${INPUT}; input.focus(); input.value = ${JSON.stringify(words)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`;
 
+test("MLN-06 WLN-20: returning to an item's event restores its conversation, draft and selection", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser?.projectId) return;
+  const { projectId, web, evaluate, waitFor, click } = browser;
+  const store = openTodoStore(browser.homeDirectory);
+  const task = store.create({ title: "核对合同", placement: "project", planned_date: today() },
+    { projectId, projectIds: [], actor: "user", actorId: "test" }).item;
+  store.close();
+  const api = `/projects/${projectId}/api/mainline/`;
+  const create = async (name: string) => (await web.post<{ item: { item_id: string } }>(api + "items/create", { name })).item.item_id;
+  const first = await create("合同事项"), second = await create("另一件事");
+  await web.post(api + "holds/bind", { subject: { kind: "todo_item", id: task.id }, target: { kind: "work_item", id: first } });
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/" + projectId + "/" }, browser.sessionId));
+  const selectItem = async (id: string, name: string) => {
+    await click("[data-top-corner-toggle]");
+    await waitFor("!!document.querySelector('[data-mainline-search]')");
+    await evaluate(`{ const box = document.querySelector('[data-mainline-search]'); box.value = ${JSON.stringify(name)}; box.dispatchEvent(new Event('input', { bubbles: true })); }`);
+    await click(`[data-ml-pick="${id}"]`);
+    await waitFor(`document.querySelector('.top-corner-page-name')?.textContent.trim() === ${JSON.stringify(name)}`);
+  };
+  await selectItem(first, "合同事项");
+  const row = `[data-work-line] [data-work-event*="todo-planned:${task.id}"]`;
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(row)}))`);
+  await evaluate(press(row));
+  const aboutTask = `${INPUT}?.placeholder.includes('核对合同')`;
+  await waitFor(aboutTask);
+  await evaluate(type("再确认落款日期"));
+  await evaluate(`${INPUT}.setSelectionRange(1, 4, 'backward')`);
+  await selectItem(second, "另一件事");
+  await waitFor(`${INPUT}?.value === '' && !(${aboutTask})`);
+  await selectItem(first, "合同事项");
+  await waitFor(aboutTask);
+  await waitFor(`${INPUT}.value === '再确认落款日期' && ${INPUT}.selectionStart === 1 && ${INPUT}.selectionEnd === 4`);
+  await browser.reloadPage();
+  await waitFor(aboutTask);
+  await waitFor(`${INPUT}.value === '再确认落款日期' && ${INPUT}.selectionDirection === 'backward'`);
+});
+
 test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13 POLISH-66: a press on an event turns the conversation to it (its line, the placeholder, the row marked) and opens its page at the top, with its composed card in the information column, its own draft, and words sent for it", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;

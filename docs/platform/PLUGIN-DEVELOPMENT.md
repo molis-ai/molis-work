@@ -106,7 +106,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 **原地切换与存盘引用。** 浏览器客户端动态渲染的文本必须响应 `molis-work:language-changed` 事件重绘；禁止在闭包里缓存初次渲染的译文字符串，也禁止裸拼接半句（如 `t("prefix") + kind` 须改为带 `{kind}` 的整句键）或写死中文顿号 `.join("、")`、固定区域 `Intl.DateTimeFormat("zh-CN")` / `.toLocaleString("en-US")` 与 `<html lang="zh-CN">`。存下来稍后显示的通知、状态或错误记录使用 `OwnedTextRef`（键 + 参数），不在业务表或逻辑中存储/比较译文。
 
-**清单展示字段本地化。** 现行合同支持 `name_text`、`summary_text`、视图 `title_text`、成果 `title_text`、创建入口与连接服务 `TextRef`；第二波公共合同将同口径扩展可选 `permissions[].reason_text`、`read_groups[].title_text/description_text` 与 `actions[].action.title_text/description_text`（内置、创作台与第三方插件同等开放）。
+**清单展示字段本地化。** 现行合同统一支持 `name_text`、`summary_text`、视图 `title_text`、成果 `title_text`、创建入口与连接服务 `TextRef`，以及可选的 `permissions[].reason_text`、`read_groups[].title_text/description_text` 与 `actions[].action.title_text/description_text`（内置、创作台与第三方插件同等开放；静态无参短句与字数上限由 `packages/plugin-sdk` 统一校验）。
 
 **开发和安装。** `molis-work plugin dev --locale <语言>` 选择预览语言；不传用 Manifest 的 `default`。请求的语言不在 `available`，或插件未声明 `ui.locales`，会报 `actions.input_invalid`。开发预览只在渲染时提供文字上下文。正式的内置、签名安装和沙箱插件沿同一声明路径；打包自动带上声明的全部语言文件，签名覆盖这些文件。安装会拒绝不一致、缺文件或夹带未声明语言文件的包。
 
@@ -558,7 +558,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 创作台首次发布前可选择项目或个人空间。切换范围会作废旧范围的通过结果，并按新范围重新检查已有源码和界面；不会为重验调用模型。首份发布固定该草稿的范围。发布在原五文件旁保存独立签名分发包，下载后在插件设置中导入，查看指纹、范围和权限，再由本人命名固定并确认；本机生成不等于已经信任。已有 agent-built 项目安装沿用原身份和数据，签名包不自动替换它。每个 Home 的签名私钥归现有 SecretStore，公开身份记录在 `config/plugin-publisher.json`；删除项目和普通卸载保留，显式 Home purge 才移除。身份缺失、不匹配或已撤销时拒绝发布，不能自动换钥绕过。
 
-包就是一个 `PluginPackageBundle`（`payload` + `signature` + `publisher_key`，签名方式同上），`payload.files` 包含下面五个文件，以及 Manifest `ui.locales` 声明的 `locales/<语言>.json`（支持 `zh`/`en`/`ja` 及 N 语种同包签名；缺词回退默认语言）、`agent` 逐项引用的 `agent/` 资源、`methods` 每项声明的正文 `skills/<skill_id>/SKILL.md` 与资源；缺文件、重复路径或未声明的额外文件均拒绝（第二波公开合同将同步在 `SandboxPluginContract` 中扩展权限与动作的 `*_text` 声明，内置、创作台与第三方沙箱包同等待遇）：
+包就是一个 `PluginPackageBundle`（`payload` + `signature` + `publisher_key`，签名方式同上），`payload.files` 包含下面五个文件，以及 Manifest `ui.locales` 声明的 `locales/<语言>.json`（支持 `zh`/`en`/`ja` 及 N 语种同包签名；缺词回退默认语言）、`agent` 逐项引用的 `agent/` 资源、`methods` 每项声明的正文 `skills/<skill_id>/SKILL.md` 与资源；缺文件、重复路径或未声明的额外文件均拒绝（现行公开合同已在 `SandboxPluginContract` 中支持 `permission_reasons`、`read_groups[].title_text/description_text` 与 `operations[].title_text/description_text`，由 SDK 投影为 Manifest 的权限、读取分组与动作 `*_text` 声明，内置、创作台与第三方沙箱包同等待遇）：
 
 | 文件 | 内容 |
 | --- | --- |

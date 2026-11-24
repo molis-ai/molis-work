@@ -42,6 +42,9 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.equal(readFileSync(join(project, "index.mjs"), "utf8"), original);
     const validated = JSON.parse(execFileSync(process.execPath, [cli, "validate", join(project, "manifest.json")], { encoding: "utf8" }));
     assert.equal(validated.plugin_id, "com.example.notes");
+    const createdManifest = JSON.parse(readFileSync(join(project, "manifest.json"), "utf8")) as { permissions: Array<{ reason_text?: { key?: string } }> };
+    assert.equal(createdManifest.permissions.every(permission => permission.reason_text?.key?.startsWith("notes.permission.")), true,
+      "CLI scaffold generates localized permissions[].reason_text keys");
     // SMP-04: the CLI generates and validates the same declaration the isolated sample uses.
     const sampleManifest = JSON.parse(readFileSync(join(root, "examples/plugin-sample/manifest.json"), "utf8"));
     assert.deepEqual(validated.state_machines, sampleManifest.state_machines);
@@ -293,7 +296,9 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.match(differingArgs.stderr, /locales\/zh\.json notes\.main\.source/);
     assert.match(differingArgs.stderr, /locales\/en\.json/);
     assert.equal(existsSync(join(directory, "state-zh-args")), false, "a broken language file makes no state directory");
-    writeFileSync(zhPath, zhSource.replace(/\n\s*"notes\.main\.title": "[^"]*"/u, "").replace(/,(\s*\})/u, "$1"));
+    const zhWithoutTitle = JSON.parse(zhSource) as { messages: Record<string, unknown> };
+    delete zhWithoutTitle.messages["notes.main.title"];
+    writeFileSync(zhPath, JSON.stringify(zhWithoutTitle, null, 2) + "\n");
     const shortOfOne = devIn("zh", "state-zh-short");
     assert.equal(shortOfOne.status, 0, shortOfOne.stderr);
     assert.match(JSON.parse(shortOfOne.stdout).rendered_ui[0].html as string, /Local Plugin Sample/);
@@ -311,6 +316,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     delete unlocalized.ui.locales;
     delete unlocalized.name_text;
     delete unlocalized.summary_text;
+    for (const permission of unlocalized.permissions ?? []) delete permission.reason_text;
     writeFileSync(manifestPath, JSON.stringify(unlocalized));
     const noLanguages = devIn("en", "state-unlocalized");
     assert.equal(noLanguages.status, 1, noLanguages.stderr);

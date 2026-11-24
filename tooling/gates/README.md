@@ -195,15 +195,16 @@
 
 只读审计，单跑 `node scripts/audit-ui-copy.mjs --strict`（发现任一违规即以退出码 1 结束）。扫描仓库全部受跟踪的 `*/locales/**/*.json`（含所有 `ja.json` 以及 `apps/workbench/resources/locales/scene/*.json`、`catalog/*.json`，不含 `examples/`、`tests/`、`fixtures/`）与生产源码。
 
-- **中文文案规则：** 除既有架构黑话、退役术语、日常界面（Tier-A）门槛术语、套话/空状态/弯引号/箭头路径规则外，同步拦截 `落盘`、`游标`、`门禁 G1`、`父子 Contract`、`Runtime payload`、`能力板`、单数 `Character`、Tier-A 的 `提供方`、`packages/im-ui/` 中文词包中的 `Thread`、以及生硬官腔措辞（`未能完成操作`、`已被拒绝`、`予以`）。
-- **跨语言泄漏规则：**
+- **中文文案规则：** 除既有架构黑话、退役术语、日常界面（Tier-A）门槛术语、套话/空状态/弯引号/箭头路径规则外，同步拦截 `落盘`、`游标`、`门禁 G1`、`父子 Contract`、`Runtime payload`、`出站动作未兑现`、`能力板`、单数 `Character`、Tier-A 的 `提供方`、`packages/im-ui/` 中文词包中的 `Thread`，以及生硬官腔措辞（`未能完成操作`、`已被拒绝`、`予以`、`该操作`、`尚未`、非空状态 `暂无`；仅狭义豁免未迁移红线插件 `plugins/native/shelf/locales/zh.json` 的历史单键）。
+- **跨语言泄漏与日语质量规则：**
   - `en.json`（`en.cjk-leak`）：禁止出现中日韩字符（仅狭义豁免真实语言自称如 `日本語` / `简体中文` / `繁體中文` 及排版混排验证样例）。
-  - `ja.json`（`ja.simplified-chinese-leak`、`ja.raw-markup`、`ja.bent-quotes`）：禁止简体中文专有字形及明确中文语境的 `没` / `的` 泄漏、原始 `<>&"'` 与弯引号 `“”`。
-- **生产源码多语言卫生规则：** 扫描 `apps/`、`horizontal/`、`modules/`、`packages/`、`plugins/`、`server/src/` 下的 `.ts`/`.mts`/`.tsx`/`.js`/`.mjs`/`.rs`/`.swift`（剥离注释，排除测试、夹具、`examples/`、`scripts/`、`tooling/`，不误伤 OCR `["zh-Hans","en-US"]` 与 ISO `en-CA` 等算法）：
+  - `ja.json`（`ja.simplified-chinese-leak`、`ja.raw-markup`、`ja.bent-quotes`、`ja.chinese-semicolon`、`ja.telegraphic-ending`、`ja.dropped-particle`）：禁止简体中文专有字形及明确中文语境的 `没` / `的` 泄漏、原始 `<>&"'`、弯引号 `“”`、中文全角分号 `；`、电报式压缩结尾（`不可。`、`未保存。`、`未確認。`、`（…保持）。`、`残存）。`、`なし。`）以及省去助词的病句（`この操作する`、`この変更する`、`確認し再試行`、`調整し続行`）。
+- **生产源码多语言卫生规则：** 扫描 `apps/`、`horizontal/`、`modules/`、`packages/`、`plugins/`、`server/src/` 下的 `.ts`/`.mts`/`.tsx`/`.js`/`.mjs`/`.rs`/`.swift`/`.html`（剥离注释，排除测试、夹具、`examples/`、`scripts/`、`tooling/`，不误伤 OCR `["zh-Hans","en-US"]` 与 ISO `en-CA` 等算法）：
   - `src.binary-locale-flag`：原生代码中二元英文开关（如 `ENGLISH: AtomicBool`、`isEnglish`）。
-  - `src.binary-locale-switch`：未处理三语及以上分支的二元 `zh`/`en` 条件切换（如 `locale === "en" ?`、`startsWith("en") ?`、`const en = ...lang === "en"`）。
+  - `src.binary-locale-switch`：未处理三语及以上分支的二元 `zh`/`en` 三元或 `if` 条件切换与布尔标志（含 `currentLocale() === "en"` / `!== "en"` / `=== "zh"`、`if (... === "en")`、`startsWith("en") ?`、`const en = ...lang === "en"`；仅对少数已证明支持全语种的底层辅助行设精确单行豁免）。
   - `src.hardcoded-intl-zh`：生产源码中写死的 `Intl.DateTimeFormat("zh-CN")` 等格式器。
-  - `src.hardcoded-html-lang-zh`：生产界面源码中写死的 `<html lang="zh-CN">`。
+  - `src.hardcoded-html-lang-zh`：生产界面源码与 `.html` 文件（如 `apps/desktop/webview-placeholder/index.html`）中写死的 `<html lang="zh-CN">`。
+  - `src.bare-to-locale-string`：`apps/workbench/src/`、`packages/` 与 `plugins/` 生产界面代码中未传活动语言的裸 `.toLocaleString()` / `.toLocaleDateString()` / `.toLocaleTimeString()`（含传 `[]` 使用系统默认区域的写法）。
 
 ## 插件样式预算（`scripts/gates/plugin-styles.mjs`，PG-070、RAC-769）
 

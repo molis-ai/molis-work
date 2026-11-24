@@ -16,11 +16,16 @@ const CATALOG_SUBPACK_FILE = /\/locales\/catalog\/[^/]+\.json$/u;
 const TIER_B_FILE = /^(?:plugins\/native\/(?:coding|git|diff)\/|plugins\/official-integrations\/|plugins\/content\/)/u;
 const TIER_B_KEY = /^(?:common\.connector\.|workbench\.(?:mcp-access|settings-agent-diagnostics|settings-call-diagnostics|settings-work-records|settings-connector|connector-|connection-service|call-row|agent-[a-z-]+-prompt|settings-prompts)\.)/u;
 
+// Untouched red-line plugin legacy key exempted narrowly until `plugins/native/shelf/` enters trilingual migration.
+const LEGACY_UNTOUCHED_RULE_EXEMPTIONS = new Map([
+  ["zh.bureaucratic-tone", new Set(["plugins/native/shelf/locales/zh.json#shelf.tui.the-terminal-is-not-connected"])],
+]);
+
 const ZH_RULES = [
   {
     id: "zh.arch-jargon",
     label: "内部架构黑话外露",
-    pattern: /宿主|权威(?:状态|记录|事件|存储)|视图投影|幂等运行|游标|落盘|终端通道|对象挂载位|异步上下文|门禁\s*G1|父子\s*Contract|Runtime\s+payload/iu,
+    pattern: /宿主|权威(?:状态|记录|事件|存储)|视图投影|幂等运行|游标|落盘|终端通道|对象挂载位|异步上下文|门禁\s*G1|父子\s*Contract|Runtime\s+payload|出站动作未兑现/iu,
   },
   {
     id: "zh.retired-term",
@@ -42,7 +47,7 @@ const ZH_RULES = [
   {
     id: "zh.bureaucratic-tone",
     label: "官腔或生硬行政措辞（应改用自然、温和的人话）",
-    pattern: /未能完成操作|已被拒绝|予以/u,
+    pattern: /未能完成操作|已被拒绝|予以|该操作|尚未|暂无(?!$|(?:数据|内容|记录)?。?$)/u,
   },
   {
     id: "zh.colloquial-or-filler",
@@ -90,21 +95,75 @@ const JA_RULES = [
   { id: "ja.raw-markup", label: "Japanese copy contains raw HTML/quote markup (<>&\"')", pattern: /[<>&"']/u },
   { id: "ja.simplified-chinese-leak", label: "Japanese copy contains Simplified-Chinese character or phrasing leak", pattern: JA_SC_LEAK },
   { id: "ja.bent-quotes", label: "Japanese copy uses curly quotes instead of 「…」", pattern: /(?<!\\|\[)[“”](?!\])/u },
+  { id: "ja.chinese-semicolon", label: "Japanese copy uses Chinese fullwidth semicolon ； (use 、 or ／)", pattern: /；/u },
+  {
+    id: "ja.telegraphic-ending",
+    label: "Japanese copy uses clipped telegraphic compression ending instead of polite です・ます",
+    pattern: /(?:不可|未保存|未確認|なし)。|（[^（）]*保持）。|残存）。/u,
+  },
+  {
+    id: "ja.dropped-particle",
+    label: "Japanese copy drops grammatical particles (e.g. この操作する / 確認し再試行 / 調整し続行)",
+    pattern: /この(?:操作|変更)する|確認し再試行|調整し続行/u,
+  },
 ];
 
 const PROD_SOURCE_ROOT = /^(?:apps|horizontal|modules|packages|plugins|server\/src)\//u;
+const UI_LOCALE_FORMAT_ROOT = /^(?:apps\/workbench\/src|packages|plugins)\//u;
 const PROD_JS_TS_EXT = /\.(?:ts|mts|tsx|js|mjs)$/u;
 const PROD_NATIVE_EXT = /\.(?:rs|swift)$/u;
+const PROD_HTML_EXT = /\.html?$/iu;
 const EXCLUDED_SOURCE_PATH = /(?:^|\/)(?:tests?|dist|node_modules|fixtures)\/|\.test\.(?:ts|mts|js|mjs)$|\.d\.ts$/u;
-const SOURCE_PREFILTER = /(?:AtomicBool|ENGLISH|isEnglish|Intl\.|zh-CN|startsWith\s*\(\s*["'](?:en|zh)|(?:===|!==|==|!=)\s*["'](?:en|zh))/u;
+const SOURCE_PREFILTER = /(?:AtomicBool|ENGLISH|isEnglish|Intl\.|zh(?:-CN|-Hans)?|toLocale(?:Date|Time)?String\s*\(|startsWith\s*\(\s*["'](?:en|zh)|(?:===|!==|==|!=)\s*["'](?:en|zh))/iu;
 
 const NATIVE_BINARY_LOCALE_FLAG = /\b(?:IS_)?ENGLISH\s*:\s*AtomicBool\b|\bstatic\s+(?:mut\s+)?(?:IS_)?ENGLISH\b|\b(?:var|let)\s+isEnglish\s*(?::\s*Bool)?\s*=/u;
-const BINARY_LOCALE_TERNARY = /\b(?:locale|lang|language|uiLocale|webLocale|activeLang)\s*(?:===|!==|==|!=)\s*["']en(?:-[A-Za-z]+)?["']\s*\?/u;
+const LOCALE_EXPR = String.raw`(?:\b(?:currentLocale|activeLocale|pageLocale|baseLanguageOf|getLocale|resolveLocale)\s*\([^)\n]*\)|\b(?:locale|lang|language|uiLocale|webLocale|activeLang|tag|base)\b)`;
+const BINARY_LOCALE_TERNARY_LINE = new RegExp(
+  `${LOCALE_EXPR}\\s*(?:===|!==|==|!=)\\s*["'](?:en|zh)(?:-[A-Za-z]+)?["']\\s*\\?`,
+  "u",
+);
+const BINARY_LOCALE_TERNARY_HEAD = new RegExp(
+  `${LOCALE_EXPR}\\s*(?:===|!==|==|!=)\\s*["'](?:en|zh)(?:-[A-Za-z]+)?["']\\s*$`,
+  "u",
+);
+const BINARY_LOCALE_CONDITIONAL = new RegExp(
+  `\\bif\\s*\\([^)\\n]*${LOCALE_EXPR}\\s*(?:===|!==|==|!=)\\s*["'](?:en|zh)(?:-[A-Za-z]+)?["']`,
+  "u",
+);
 const BINARY_STARTSWITH_TERNARY = /\b(?:locale|lang|language|uiLocale|webLocale|activeLang|tag)\b[^;\n]{0,40}\.startsWith\(\s*["'](?:en|zh)["']\s*\)\s*\?/u;
 const BINARY_LOCALE_VAR = /\b(?:const|let|var)\s+(?:en|isEn|english|isEnglish|zh|isZh|chinese)\s*=\s*[^;\n]*(?:lang|locale|language)[^;\n]*(?:===|!==|\.startsWith)\s*\(?["'](?:en|zh)["']/u;
 const THREE_WAY_JA_CHECK = /["']ja(?:-[A-Za-z]+)?["']/u;
 const HARDCODED_INTL_ZH = /\bIntl\.(?:DateTimeFormat|NumberFormat|Collator|RelativeTimeFormat|ListFormat)\(\s*["']zh(?:-CN|-Hans)?["']/u;
-const HARDCODED_HTML_LANG_ZH = /<html\b[^>]*\blang\s*=\s*["']zh-CN["']/iu;
+const HARDCODED_HTML_LANG_ZH = /<html\b[^>]*\blang\s*=\s*["']zh(?:-CN|-Hans)?["']/iu;
+const BARE_TO_LOCALE_STRING = /\.toLocale(?:Date|Time)?String\(\s*(?:\)|\[\s*\]\s*[,)])/u;
+
+// Narrow, explicitly documented exemptions ONLY for legitimate multi-locale helpers (never masking real binary UI bugs).
+const BINARY_LOCALE_EXEMPTIONS = [
+  {
+    file: "apps/local-host/src/material-source-providers.ts",
+    pattern: /if\s*\(\s*base\s*===\s*["']en["']\s*\)\s*return\s*`\$\{intl\},en;q=0\.9`/u,
+  },
+  {
+    file: "apps/workbench/src/settings-renderer.ts",
+    pattern: /NETWORK_DOC_HREF\[currentLocale\(\)\s*===\s*["']zh["']\s*\?\s*["']zh["']\s*:\s*["']en["']\]/u,
+  },
+  {
+    file: "apps/local-host/src/agent-definitions/skill-catalog.ts",
+    pattern: /const fallback = lang === ["']zh["'] \? `第 \$\{version\} 版` : `v\$\{version\}`/u,
+  },
+  {
+    file: "apps/local-host/src/assistant/assistant-present.ts",
+    pattern: /baseLanguageOf\(locale\)\s*===\s*["']zh["']\s*\?\s*["']；["']\s*:\s*["'];\s*["']/u,
+  },
+];
+
+function isExemptBinaryLocaleLine(file, line) {
+  return BINARY_LOCALE_EXEMPTIONS.some((entry) => entry.file === file && entry.pattern.test(line));
+}
+
+function stripHtmlComments(source) {
+  return source.replace(/<!--[\s\S]*?-->/gu, (match) => maskPreservingNewlines(match));
+}
 
 function isTitleCaseButton(key, text) {
   if (!/\.(?:btn|button|cta|submit|create|open|add|save|delete|remove)(?:$|-)/u.test(key)) return false;
@@ -185,6 +244,7 @@ export function auditLocaleText({ file, locale, key, text, categoryFilter = null
     if (rule.tierAOnly && isTierB) continue;
     if (rule.filePattern && !rule.filePattern.test(file)) continue;
     if (categoryFilter && rule.id !== categoryFilter) continue;
+    if (LEGACY_UNTOUCHED_RULE_EXEMPTIONS.get(rule.id)?.has(`${file}#${key}`)) continue;
     if (rule.pattern.test(text)) findings.push({ file, key, rule: rule.id, label: rule.label, text });
   }
   if (base === "en") {
@@ -203,9 +263,11 @@ export function auditSourceText(file, source, options = {}) {
   if (!SOURCE_PREFILTER.test(source)) return [];
   const isNative = PROD_NATIVE_EXT.test(file);
   const isJsTs = PROD_JS_TS_EXT.test(file);
-  if (!isNative && !isJsTs) return [];
-  const stripped = isNative ? stripNativeComments(source) : stripTsJsComments(source, file);
+  const isHtml = PROD_HTML_EXT.test(file);
+  if (!isNative && !isJsTs && !isHtml) return [];
+  const stripped = isNative ? stripNativeComments(source) : isHtml ? stripHtmlComments(source) : stripTsJsComments(source, file);
   const lines = stripped.split("\n");
+  const checkBareToLocale = isJsTs && UI_LOCALE_FORMAT_ROOT.test(file);
   const findings = [];
   const emit = (lineIndex, rule, label, rawLine) => {
     if (categoryFilter && rule !== categoryFilter) return;
@@ -214,16 +276,27 @@ export function auditSourceText(file, source, options = {}) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (!line.trim()) continue;
+    if (isHtml) {
+      if (HARDCODED_HTML_LANG_ZH.test(line)) {
+        emit(i, "src.hardcoded-html-lang-zh", "Hardcoded <html lang=\"zh-CN\"> in production HTML (use active htmlLang())", line);
+      }
+      continue;
+    }
     if (isNative) {
       if (NATIVE_BINARY_LOCALE_FLAG.test(line)) {
         emit(i, "src.binary-locale-flag", "Binary English-only flag in native source (must support 3+ locales)", line);
       }
       continue;
     }
-    const windowText = lines.slice(i, i + 3).join("\n");
-    if ((BINARY_LOCALE_TERNARY.test(line) || BINARY_STARTSWITH_TERNARY.test(line)) && !THREE_WAY_JA_CHECK.test(windowText)) {
+    const windowText = lines.slice(Math.max(0, i - 2), i + 5).join("\n");
+    const nextTrimmed = (lines[i + 1] ?? "").trimStart();
+    const isBinaryTernary = BINARY_LOCALE_TERNARY_LINE.test(line)
+      || (BINARY_LOCALE_TERNARY_HEAD.test(line) && nextTrimmed.startsWith("?"))
+      || BINARY_STARTSWITH_TERNARY.test(line);
+    const isBinaryConditional = BINARY_LOCALE_CONDITIONAL.test(line);
+    if ((isBinaryTernary || isBinaryConditional) && !THREE_WAY_JA_CHECK.test(windowText) && !isExemptBinaryLocaleLine(file, line)) {
       emit(i, "src.binary-locale-switch", "Binary zh/en locale switch in production source (must handle 3+ locales)", line);
-    } else if (BINARY_LOCALE_VAR.test(line)) {
+    } else if (BINARY_LOCALE_VAR.test(line) && !isExemptBinaryLocaleLine(file, line)) {
       emit(i, "src.binary-locale-switch", "Binary zh/en locale flag in production source (must handle 3+ locales)", line);
     }
     if (HARDCODED_INTL_ZH.test(line)) {
@@ -231,6 +304,9 @@ export function auditSourceText(file, source, options = {}) {
     }
     if (HARDCODED_HTML_LANG_ZH.test(line)) {
       emit(i, "src.hardcoded-html-lang-zh", "Hardcoded <html lang=\"zh-CN\"> in production UI source (use active htmlLang())", line);
+    }
+    if (checkBareToLocale && BARE_TO_LOCALE_STRING.test(line)) {
+      emit(i, "src.bare-to-locale-string", "Bare UI .toLocaleString() ignores active Molis Work locale (pass active locale or use SDK format)", line);
     }
   }
   return findings;
@@ -266,7 +342,7 @@ export function auditRepositoryCopy(root, options = {}) {
   }
 
   const sourceFiles = tracked
-    .filter((f) => PROD_SOURCE_ROOT.test(f) && (PROD_JS_TS_EXT.test(f) || PROD_NATIVE_EXT.test(f)) && !EXCLUDED_SOURCE_PATH.test(f));
+    .filter((f) => PROD_SOURCE_ROOT.test(f) && (PROD_JS_TS_EXT.test(f) || PROD_NATIVE_EXT.test(f) || PROD_HTML_EXT.test(f)) && !EXCLUDED_SOURCE_PATH.test(f));
   for (const file of sourceFiles.sort()) {
     if (ownerFilter && !file.includes(ownerFilter)) continue;
     const source = fs.readFileSync(path.join(root, file), "utf8");

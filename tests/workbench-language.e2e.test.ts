@@ -1609,7 +1609,7 @@ test("FSS-20 FSS-27 FSS-35 FSS-36 discussion retitles the open conversation and 
   const error = setup + ".querySelector('[data-form-error]')";
   await b.waitFor(`${error}?.textContent === 'Check the required fields and length limits, then try again.'`);
   assert.deepEqual(await b.evaluate("discussionInvalidThread"), { status: 400,
-    body: { code: "im.invalid_input", error: "Thread 标题不能为空，且不能超过 120 字" } });
+    body: { code: "im.invalid_input", error: "话题标题不能为空，且不能超过 120 字" } });
   await b.evaluate(`void (window.discussionDraftError = ${error})`);
   watchWrites = true;
   await choose("zh");
@@ -1826,46 +1826,63 @@ test("FSS-20 FSS-34 FSS-35 FSS-36 full live zh → en → ja → zh switching ac
   assert.ok(b?.projectId);
   const { command, sessionId, origin, waitFor, evaluate } = b;
 
-  // 1. Settings › Appearance: verify 3-language switcher zero overflow/wrap at 1440, 1024, and 390 widths,
+  // 1. Settings › Appearance: verify 3-language switcher fits without horizontal overflow at 1440, 1024, and 390 widths
+  // across en (Follow system), ja (システムに合わせる), and zh (跟随系统),
   // plus error status on failed ja load, retry recovery, and full zh → en → ja → zh in place with draft + focus preserved.
-  await b.navigate(() => command("Page.navigate", { url: origin + "/locale?lang=zh&next=%2Fsettings%2Fappearance" }, sessionId));
-  await waitFor("typeof t === 'function' && !!document.querySelector('[data-ui-language-options] a[data-ui-language=ja]')", 20_000);
-  for (const width of [1440, 1024, 390] as const) {
-    await b.setViewport(width, 900);
-    const layout = await evaluate<{
-      tags: string[];
-      visible: boolean;
-      groupOverflow: boolean;
-      viewportOverflow: boolean;
-      singleRow: boolean;
-      itemWrapped: boolean;
-    }>(`(() => {
-      const group = document.querySelector('[data-ui-language-options]');
-      const links = [...group.querySelectorAll('a[data-ui-language]')];
-      const groupRect = group.getBoundingClientRect();
-      const rects = links.map(link => ({
-        tag: link.dataset.uiLanguage,
-        rect: link.getBoundingClientRect(),
-        scrollW: link.scrollWidth,
-        clientW: link.clientWidth,
-        lineHeight: parseFloat(getComputedStyle(link).lineHeight) || 20,
-      }));
-      const tops = rects.map(item => item.rect.top);
-      return {
-        tags: rects.map(item => item.tag),
-        visible: rects.every(item => item.rect.width > 0 && item.rect.height > 0),
-        groupOverflow: group.scrollWidth > group.clientWidth + 1 || rects.some(item => item.scrollW > item.clientW + 1),
-        viewportOverflow: groupRect.right > window.innerWidth + 1,
-        singleRow: Math.max(...tops) - Math.min(...tops) <= 2,
-        itemWrapped: rects.some(item => item.rect.height > Math.max(48, item.lineHeight * 2.2)),
-      };
-    })()`);
-    assert.deepEqual(layout.tags, ["system", "zh", "en", "ja"], `all 3 languages + system shown at ${width}px`);
-    assert.deepEqual(
-      [layout.visible, layout.groupOverflow, layout.viewportOverflow, layout.singleRow, layout.itemWrapped],
-      [true, false, false, true, false],
-      `3-language switcher fits without overflow or wrap at ${width}px`,
-    );
+  const switcherCases = [
+    ["en", "en", "Follow system"],
+    ["ja", "ja", "システムに合わせる"],
+    ["zh", "zh-CN", "跟随系统"],
+  ] as const;
+  for (const [lang, htmlLang, systemLabel] of switcherCases) {
+    await b.navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${lang}&next=%2Fsettings%2Fappearance` }, sessionId));
+    await waitFor(`typeof t === 'function' && document.documentElement.lang === '${htmlLang}' && !!document.querySelector('[data-ui-language-options] a[data-ui-language=ja]')`, 20_000);
+    for (const width of [1440, 1024, 390] as const) {
+      await b.setViewport(width, 900);
+      const layout = await evaluate<{
+        tags: string[];
+        systemText: string;
+        visible: boolean;
+        groupOverflow: boolean;
+        viewportOverflow: boolean;
+        buttonOverflow: boolean;
+        singleRow: boolean;
+        itemWrapped: boolean;
+      }>(`(() => {
+        const group = document.querySelector('[data-ui-language-options]');
+        const links = [...group.querySelectorAll('a[data-ui-language]')];
+        const groupRect = group.getBoundingClientRect();
+        const rects = links.map(link => ({
+          tag: link.dataset.uiLanguage,
+          text: link.textContent.trim(),
+          rect: link.getBoundingClientRect(),
+          scrollW: link.scrollWidth,
+          clientW: link.clientWidth,
+          lineHeight: parseFloat(getComputedStyle(link).lineHeight) || 20,
+        }));
+        const tops = rects.map(item => item.rect.top);
+        return {
+          tags: rects.map(item => item.tag),
+          systemText: rects.find(item => item.tag === 'system')?.text ?? '',
+          visible: rects.every(item => item.rect.width > 0 && item.rect.height > 0),
+          groupOverflow: group.scrollWidth > group.clientWidth + 1 || rects.some(item => item.scrollW > item.clientW + 1),
+          viewportOverflow: groupRect.right > window.innerWidth + 1,
+          buttonOverflow: rects.some(item => item.rect.left < groupRect.left - 1 || item.rect.right > groupRect.right + 1 || item.rect.right > window.innerWidth + 1),
+          singleRow: Math.max(...tops) - Math.min(...tops) <= 2,
+          itemWrapped: rects.some(item => item.rect.height > Math.max(48, item.lineHeight * 2.2)),
+        };
+      })()`);
+      assert.deepEqual(layout.tags, ["system", "zh", "en", "ja"], `all 3 languages + system shown in ${lang} at ${width}px`);
+      assert.equal(layout.systemText, systemLabel, `system option label in ${lang} at ${width}px`);
+      assert.deepEqual(
+        [layout.visible, layout.groupOverflow, layout.viewportOverflow, layout.buttonOverflow, layout.itemWrapped],
+        [true, false, false, false, false],
+        `3-language switcher fits without horizontal overflow in ${lang} (${systemLabel}) at ${width}px`,
+      );
+      if (width >= 1024) {
+        assert.equal(layout.singleRow, true, `3-language switcher stays single-row in ${lang} at ${width}px`);
+      }
+    }
   }
   await b.setViewport(1440, 900);
 

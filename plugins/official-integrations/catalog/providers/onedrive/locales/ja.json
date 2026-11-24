@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.onedrive",
+  "locale": "ja",
+  "messages": {
+    "onedrive.connection.auth-help": "Files.Read 権限を持つ Microsoft Graph トークンを入力してください。",
+    "onedrive.connection.inbound": "プロジェクト資料から OneDrive ファイルを読み取り",
+    "onedrive.connection.summary": "個人ファイルと共有ファイル。",
+    "onedrive.connection.token-label": "Microsoft Graph アクセストークン（Files.Read）",
+    "onedrive.guide.cli-link": "Microsoft Graph PowerShell を見る",
+    "onedrive.guide.cli-note": "Connect-MgGraph でログインして Graph を呼び出せますが、Molis Work は PowerShell セッションを読み取りません。",
+    "onedrive.guide.mcp-link": "Microsoft Work IQ MCP",
+    "onedrive.guide.mcp-note": "テナント管理者が Work IQ プレビュー、Copilot ライセンス、Entra アプリ権限を有効にする必要があります。",
+    "onedrive.guide.oauth-link": "Microsoft Entra アプリを登録",
+    "onedrive.guide.token-note": "テスト用のユーザートークンは Graph Explorer で取得できます。継続利用する場合はご自身のアプリを登録してください。",
+    "onedrive.oauth.tenant": "テナント ID（個人アカウントやマルチテナントアプリでは空欄可）",
+    "onedrive.setup.get-a-token-in-graph-explorer": "Graph Explorer でトークンを取得",
+    "onedrive.setup.register-azure-app": "Azure アプリを登録"
+  }
+}

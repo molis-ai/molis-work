@@ -25,7 +25,7 @@ function factsOf(page: Page, run: RunView): { values: Fact[]; unused: string[] }
   else unused.push(uiText.text("coding.facts.mcp-source-kind"));
   if (f.character) values.push([uiText.text("coding.facts.character"), f.character.title + " · " + (f.character.version.kind === "personal" ? uiText.text("coding.facts.role-version", { version: f.character.version.version })
     : uiText.text("coding.facts.member-version", { version: f.character.version.member_version, original: f.character.version.original.version }))], [uiText.text("coding.facts.host-tools"), f.host_tools?.join(joiner) || uiText.text("coding.facts.no-host-tools")]);
-  else unused.push("Character");
+  else unused.push(uiText.text("coding.attach.character"));
   // Each piece with the version this round read; a round from before that was kept says so rather than guessing from the file now.
   if (f.text_materials.length) values.push([uiText.text("coding.facts.materials"), f.text_materials.map(material => {
     const name = material.title || material.material_id;
@@ -35,7 +35,7 @@ function factsOf(page: Page, run: RunView): { values: Fact[]; unused: string[] }
   }).join(joiner)]);
   else unused.push(uiText.text("coding.attach.material"));
   if (f.compaction) values.push([uiText.text("coding.facts.compaction"), uiText.text("coding.facts.compaction-value", { tokens: f.compaction.above_tokens, version: f.compaction.version })]);
-  if (!run.usage.compaction && run.activity.some(item => item.name === "上下文整理")) values.push([uiText.text("coding.facts.usage-scope"), uiText.text("coding.facts.usage-scope-value")]);
+  if (!run.usage.compaction && run.activity.some(item => item.call_id.startsWith("context-compaction-") || item.name === "上下文整理")) values.push([uiText.text("coding.facts.usage-scope"), uiText.text("coding.facts.usage-scope-value")]);
   return { values, unused };
 }
 

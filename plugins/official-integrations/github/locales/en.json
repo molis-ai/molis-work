@@ -3,8 +3,8 @@
   "owner": "io.molis.work.integration.github",
   "locale": "en",
   "messages": {
-    "github.connection.inbound": "Feed retrieves unread notifications",
-    "github.connection.outbound": "Check the current GitHub account in Connections. The capability catalog shows what agents can use.",
+    "github.connection.inbound": "Feed reads unread notifications",
+    "github.connection.outbound": "Check the current GitHub account in Connections. The capability catalog shows what AI can use.",
     "github.connection.summary": "Connect your account on this computer. Feed reads unread notifications, and you can check the account in Connections.",
     "github.guide.cli-link": "View GitHub CLI sign-in",
     "github.guide.mcp-link": "View the official GitHub MCP",

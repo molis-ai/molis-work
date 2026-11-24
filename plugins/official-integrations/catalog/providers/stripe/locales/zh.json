@@ -7,6 +7,7 @@
     "stripe.connection.inbound": "Feed 读取支付事件",
     "stripe.connection.summary": "支付与客户。",
     "stripe.connection.token-label": "Stripe Secret Key",
+    "stripe.connection.token-placeholder": "sk_live_… 或 sk_test_…",
     "stripe.guide.cli-link": "查看 Stripe CLI",
     "stripe.guide.mcp-link": "查看 Stripe 官方 MCP",
     "stripe.guide.oauth-link": "查看 Stripe Connect OAuth",

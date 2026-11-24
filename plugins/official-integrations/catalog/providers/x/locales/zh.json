@@ -10,7 +10,7 @@
     "x.guide.cli-link": "X xurl",
     "x.guide.mcp-link": "X 官方 MCP",
     "x.guide.oauth-link": "查看 X OAuth 2.0 PKCE",
-    "x.guide.oauth-note": "需用户上下文与 tweet.read、users.read；Molis Work 尚未接入授权回调。",
+    "x.guide.oauth-note": "需用户上下文与 tweet.read、users.read；Molis Work 暂未接入授权回调。",
     "x.guide.token-note": "需要 OAuth 用户访问令牌；App-only Bearer 不适用于当前身份接口。",
     "x.setup.open-x-developer-portal": "打开 X Developer Portal"
   }

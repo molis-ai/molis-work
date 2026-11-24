@@ -9,7 +9,7 @@
     "slack.connection.token-label": "Slack Bot Token",
     "slack.guide.mcp-connected-note": "The Slack app and workspace must meet the requirements.",
     "slack.guide.mcp-link": "View the official Slack MCP",
-    "slack.guide.mcp-note": "The Slack app and workspace must meet the requirements. Molis Work has not integrated this service.",
+    "slack.guide.mcp-note": "The Slack app and workspace must meet the requirements. Molis Work hasn’t integrated this service yet.",
     "slack.guide.oauth-link": "Create a Slack app and install it in the workspace",
     "slack.guide.token-note": "Install the app in the workspace to get the corresponding bot or user token.",
     "slack.oauth.note": "Use the bot authorization of an installed app. Reading chats still depends on workspace and channel membership.",

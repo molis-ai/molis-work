@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { DEFAULT_SESSION_TITLE } from "./session-title.js";
 import { CODING_SETTINGS_STYLES } from "./settings-styles.js";
 import { codingUsageSummary } from "./usage.js";
@@ -92,7 +92,7 @@ export const codingUiContribution: UiContribution<CodingUiModel> = {
       case "workbench":
         return renderCodingWorkbench(request.model);
       default:
-        throw new Error(`Coding UI surface ${(request as UiRenderRequest).surface} 不存在`);
+        throw new Error(`Unknown Coding UI surface: ${(request as UiRenderRequest).surface}`);
     }
   },
 };
@@ -107,7 +107,7 @@ export interface CodingUiHostModel extends UiNestedContentModel {
 }
 
 const codingIcon = (name: string): string => icon(name as Parameters<typeof icon>[0]);
-const codingDate = (value: string): string => value.slice(0, 10);
+const codingDate = (value: string): string => format.date(value, "date");
 
 /**
  * Coding's page as one started plugin gives it: the session directory is read from the plugin's own store (`directory`) each time
@@ -466,7 +466,7 @@ function toolLabel(page: CodingToolAvailability["page"], _p: CodingUiPrimitives)
   if (page === "result") return uiText.text("coding.tool.result");
   if (page === "browser") return uiText.text("coding.tool.browser");
   if (page === "terminal") return uiText.text("coding.tool.terminal");
-  return "Canvas";
+  return uiText.text("coding.tool.canvas");
 }
 
 export interface CodingSettingsModel {

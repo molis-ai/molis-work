@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.feishu",
+  "locale": "ja",
+  "messages": {
+    "feishu.connection.auth-help": "組織のカスタムアプリ認証情報を app_id:app_secret 形式で入力してください。本文の取り込みにはドキュメントの読み取り権限とアプリへの共有が必要です。Wiki リンクには Wiki 読み取り権限、Feed のチャット取得には im 権限も必要です。",
+    "feishu.connection.inbound": "Feed でチャット取得・成果物へドキュメント取込",
+    "feishu.connection.summary": "メッセージ、ドキュメント、カレンダー。",
+    "feishu.connection.title": "Feishu（飛書）",
+    "feishu.connection.token-label": "Feishu アプリ認証情報",
+    "feishu.guide.cli-link": "Feishu 公式 CLI をインストール・設定",
+    "feishu.guide.cli-note": "アプリ内から公式 CLI のログインを開始し、承認済みの読み取り専用権限を使えます。",
+    "feishu.guide.mcp-link": "Feishu 公式 MCP を見る",
+    "feishu.guide.oauth-link": "Feishu ユーザー認証を見る",
+    "feishu.guide.oauth-note": "公式ではユーザー OAuth に対応していますが、現在の Molis Work では Feishu CLI でユーザー認証を行います。",
+    "feishu.guide.token-note": "カスタムアプリは app_id:app_secret 形式で入力し、テナントアプリとして認証します。",
+    "feishu.setup.install-and-configure-the-official-feishu-cli": "Feishu 公式 CLI をインストール・設定",
+    "feishu.setup.open-feishu-open-platform": "Feishu オープンプラットフォームを開く"
+  }
+}

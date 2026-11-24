@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.airtable",
+  "locale": "ja",
+  "messages": {
+    "airtable.connection.auth-help": "schema.bases:read 権限を持つ Airtable PAT を入力してください。",
+    "airtable.connection.inbound": "Feed でテーブルとレコードを取得",
+    "airtable.connection.summary": "テーブルとレコード。",
+    "airtable.connection.token-label": "Airtable Personal Access Token",
+    "airtable.guide.mcp-link": "Airtable 公式 MCP を見る",
+    "airtable.guide.oauth-link": "Airtable OAuth を見る",
+    "airtable.setup.create-airtable-personal-access-token": "Airtable Personal Access Token を作成"
+  }
+}

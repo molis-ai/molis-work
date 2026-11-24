@@ -1,0 +1,24 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.content.design-accessibility",
+  "locale": "ja",
+  "messages": {
+    "design-accessibility.directory.name": "デザインとアクセシビリティ",
+    "design-accessibility.directory.summary": "デザインレビュー、アクセシビリティ監査（WCAG 2.1 AA）、デザインハンドオフ、デザインシステム、UI 文言の 5 つのスキルを収録しています。パーソナルアシスタント、Coding の UI タスク、Pages で利用できます。",
+    "design-accessibility.skill.accessibility-review.description": "ページ、コンポーネント、デザイン案、または UI コードを WCAG 2.1 AA に照らして監査し、該当箇所、該当する達成基準、影響を受ける人、具体的な修正方法を項目ごとに整理します。アクセシビリティ監査やキーボード・スクリーンリーダー対応の確認、リリース前チェック、UI 変更後の問題確認に利用します。",
+    "design-accessibility.skill.accessibility-review.when-to-use": "確認できる具体的な対象（ページ、スクリーンショット、デザイン案、コンポーネントコード、開ける URL）があり、WCAG 2.1 AA に向けた不足点と優先的に直すべき箇所を知りたいとき。",
+    "design-accessibility.skill.accessibility-review.when-not-to-use": "全体のデザイン品質の意見を聞きたいだけのとき（design-critique を使用）。UI 文言の作成や改善をしたいとき（ux-copy を使用）。法的な助言や公式な適合認証が必要なとき（このレビューでは代替できません）。",
+    "design-accessibility.skill.design-critique.description": "UI、操作フロー、デザイン案を構造化してレビューします。まず誰のどんな目的を支えるかを整理し、タスク完了のしやすさ、視覚的階層、一貫性、状態とフィードバック、情報密度の観点から課題を洗い出します。各項目に根拠・影響・具体的な改善案を添え、必須修正と検討事項に分けて提示します。",
+    "design-accessibility.skill.design-critique.when-to-use": "見られる対象（スクリーンショット、デザイン案、プロトタイプ、開けるページ、UI コード）があり、迷いやすい点や見づらい点、最初に直すべき箇所を知りたいとき。",
+    "design-accessibility.skill.design-critique.when-not-to-use": "WCAG 基準に沿ったアクセシビリティ監査だけを行いたいとき（accessibility-review を使用）。文言だけ直したいとき（ux-copy を使用）。実装向け仕様書をまとめたいとき（design-handoff を使用）。まだスケッチがなく構想段階のとき。",
+    "design-accessibility.skill.design-handoff.description": "確定したデザインを、開発者が推測せずに実装できるハンドオフ仕様にまとめます。対象範囲、各画面の全状態、使用するコンポーネントとデザイントークン、操作とモーション、実文言、アクセシビリティ要件、データと境界条件、幅ごとの変化、未決事項を整理します。着手前の抜け漏れ確認にも使えます。",
+    "design-accessibility.skill.design-handoff.when-to-use": "デザインが概ね固まり、開発者（または Coding）へ引き継ぎたいとき。あるいは手元のデザイン案や仕様書で着手前に決めておくべき点を確認したいとき。",
+    "design-accessibility.skill.design-handoff.when-not-to-use": "まだデザインを探索中でレビューが先のとき（design-critique を使用）。アクセシビリティ確認だけのとき（accessibility-review を使用）。文言修正だけのとき（ux-copy を使用）。コンポーネントとトークン体系全体の保守を行うとき（design-system を使用）。",
+    "design-accessibility.skill.design-system.description": "コードベース上でデザインシステムを活用・拡張・点検します。UI コードを書く前に既存のトークンとコンポーネントを確認し、新設時は階層に沿った命名、状態・テーマ・アクセシビリティの網羅、コンポーネントボードへの標本追加まで整えます。ハードコードされた色やサイズ、一回限りの部品、OS 既定コントロールの逸脱を洗い出し、移行順を示します。",
+    "design-accessibility.skill.design-system.when-to-use": "デザインシステム（デザイントークン、コンポーネント集、コンポーネントボード、設計ガイド）があるプロジェクトで UI を実装するとき、再利用と新設を判断したいとき、UI のばらつきを棚卸ししたいとき。",
+    "design-accessibility.skill.design-system.when-not-to-use": "画面の使いやすさを評価したいとき（design-critique を使用）。アクセシビリティを監査したいとき（accessibility-review を使用）。開発者向け引き継ぎ資料を作るとき（design-handoff を使用）。デザインシステムのない一回限りのプロトタイプを作るとき。",
+    "design-accessibility.skill.ux-copy.description": "ボタン、見出し、空状態、エラー、確認ダイアログ、通知、読み込み、権限要求、オンボーディングなどの UI 文言を作成・推敲します。「何が起きて、次に何ができるか」をわかりやすく伝え、用語を統一し、各言語の自然な表現を守り、文の継ぎ接ぎや不自然な数量埋め込みを避けます。",
+    "design-accessibility.skill.ux-copy.when-to-use": "作成・見直し・点検したい具体的な画面や文言があるとき。一連のフローの用語統一や多言語の自然な対訳づくりを含みます。",
+    "design-accessibility.skill.ux-copy.when-not-to-use": "マーケティング記事、長文ヘルプ、告知文を書くとき。全体デザインを評価したいとき（design-critique を使用）。アクセシビリティ監査を行うとき（accessibility-review でも名称やエラー文言の問題を併せて指摘します）。"
+  }
+}

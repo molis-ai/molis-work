@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.deepseek-search",
+  "locale": "ja",
+  "messages": {
+    "deepseek-search.connection.auth-help": "DeepSeek プラットフォームの API Key（モデル用と共通）を入力してください。成功した検索リクエストごとに残高から課金され、残高不足時は検索できません。接続時はキー確認のため残高照会のみ行い、課金されません。",
+    "deepseek-search.connection.inbound": "Web 検索（既定に設定した場合に使用）",
+    "deepseek-search.connection.summary": "ドキュメント検索にも対応する DeepSeek の Web 検索です。成功リクエストごとに課金されます。",
+    "deepseek-search.connection.token-label": "DeepSeek API Key",
+    "deepseek-search.setup.open-deepseek-api-keys": "DeepSeek API キーを開く"
+  }
+}

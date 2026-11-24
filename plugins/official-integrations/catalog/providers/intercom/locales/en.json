@@ -9,7 +9,7 @@
     "intercom.connection.token-label": "Intercom Access Token",
     "intercom.guide.mcp-connected-note": "The official MCP service currently supports US-hosted workspaces only.",
     "intercom.guide.mcp-link": "View the official Intercom MCP",
-    "intercom.guide.mcp-note": "The official MCP service currently supports US-hosted workspaces only. Molis Work has not integrated it.",
+    "intercom.guide.mcp-note": "The official MCP service currently supports US-hosted workspaces only. Molis Work hasn’t integrated it yet.",
     "intercom.guide.oauth-link": "View Intercom OAuth",
     "intercom.guide.token-note": "Connect only your own private app. For a public app, follow the official OAuth requirements.",
     "intercom.oauth.note": "The Intercom app requires a registered HTTPS callback. Enter it below and paste the authorization return address.",

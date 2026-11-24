@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.gitlab",
+  "locale": "ja",
+  "messages": {
+    "gitlab.connection.auth-help": "read_api または read_user 権限を持つ GitLab PAT を入力してください。既定のホストは gitlab.com です。",
+    "gitlab.connection.inbound": "Feed で Issue と MR を取得",
+    "gitlab.connection.summary": "リポジトリ、Issue、MR。",
+    "gitlab.connection.token-label": "GitLab Personal Access Token",
+    "gitlab.guide.cli-link": "GitLab CLI のログインを見る",
+    "gitlab.guide.mcp-connected-note": "GitLab 公式 MCP はベータ版です。",
+    "gitlab.guide.mcp-link": "GitLab 公式 MCP を見る",
+    "gitlab.guide.mcp-note": "GitLab 公式 MCP はベータ版です。Molis Work ではまだ接続していません。",
+    "gitlab.guide.oauth-link": "GitLab OAuth アプリを見る",
+    "gitlab.guide.token-note": "read_api または read_user 権限を持つ PAT を作成してください。",
+    "gitlab.setup.create-gitlab-personal-access-token": "GitLab Personal Access Token を作成"
+  }
+}

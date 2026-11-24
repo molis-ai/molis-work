@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.confluence",
+  "locale": "ja",
+  "messages": {
+    "confluence.connection.auth-help": "Jira と同じ Atlassian API token を サイト|メールアドレス|token の形式で入力してください。",
+    "confluence.connection.inbound": "Feed で Wiki ページを取得",
+    "confluence.connection.summary": "Wiki とページ。",
+    "confluence.connection.token-label": "Confluence サイト・メールアドレス・API token",
+    "confluence.guide.mcp-link": "Atlassian Rovo MCP を見る",
+    "confluence.guide.oauth-link": "Atlassian OAuth 2.0 を見る",
+    "confluence.oauth.site-url": "Atlassian サイト",
+    "confluence.setup.create-atlassian-api-token": "Atlassian API Token を作成",
+    "confluence.setup.view-confluence-authentication-guide": "Confluence 認証ガイドを見る"
+  }
+}

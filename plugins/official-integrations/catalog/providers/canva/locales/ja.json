@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.canva",
+  "locale": "ja",
+  "messages": {
+    "canva.connection.auth-help": "Canva には PAT がありません。上の OAuth からご自身の Connect App で認証するか、取得済みのアクセストークンを貼り付けてください（期限切れ後は再取得が必要です）。",
+    "canva.connection.inbound": "Feed でデザイン一覧を取得",
+    "canva.connection.summary": "デザインとエクスポート。",
+    "canva.connection.token-label": "Canva アクセストークン",
+    "canva.guide.mcp-link": "Canva 公式 MCP を見る",
+    "canva.guide.oauth-link": "Canva Connect OAuth を見る",
+    "canva.guide.token-note": "Canva には PAT がありません。ご自身の OAuth アプリで取得したアクセストークンを貼り付けてください。期限切れ後は再取得が必要です。",
+    "canva.setup.open-canva-developer-platform": "Canva 開発者プラットフォームを開く"
+  }
+}

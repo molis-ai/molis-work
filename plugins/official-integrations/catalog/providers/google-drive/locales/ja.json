@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.google-drive",
+  "locale": "ja",
+  "messages": {
+    "google-drive.connection.auth-help": "ファイル一覧の取得には drive.metadata.readonly を使えます。Google Docs 本文の取り込みには drive.readonly または drive.file が必要です。",
+    "google-drive.connection.inbound": "プロジェクト資料から Drive ファイルを読み取り",
+    "google-drive.connection.summary": "Drive、Docs、Sheets、Slides。",
+    "google-drive.connection.token-label": "Google アクセストークン（drive.readonly）",
+    "google-drive.guide.mcp-connected-note": "Google Workspace 開発者プレビューへの参加資格が必要です。",
+    "google-drive.guide.mcp-link": "Drive 公式 MCP を見る（開発者プレビュー）",
+    "google-drive.guide.mcp-note": "Google Workspace 開発者プレビューへの参加資格が必要です。Molis Work ではまだ接続していません。",
+    "google-drive.guide.oauth-link": "Google OAuth クライアントを作成",
+    "google-drive.guide.token-note": "OAuth Playground で Drive アクセストークンを取得して貼り付けてください。期限切れ後は再取得が必要です。",
+    "google-drive.setup.create-oauth-client": "OAuth クライアントを作成",
+    "google-drive.setup.enable-drive-api": "Drive API を有効化",
+    "google-drive.setup.get-a-token-in-oauth-playground": "OAuth Playground でトークンを取得"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.stripe",
+  "locale": "ja",
+  "messages": {
+    "stripe.connection.auth-help": "Stripe secret key を入力してください。アカウント情報とイベントのみを読み取り専用で取得します。キーは Git にコミットしないでください。",
+    "stripe.connection.inbound": "Feed で決済イベントを取得",
+    "stripe.connection.summary": "決済と顧客。",
+    "stripe.connection.token-label": "Stripe Secret Key",
+    "stripe.connection.token-placeholder": "sk_live_… または sk_test_…",
+    "stripe.guide.cli-link": "Stripe CLI を見る",
+    "stripe.guide.mcp-link": "Stripe 公式 MCP を見る",
+    "stripe.guide.oauth-link": "Stripe Connect OAuth を見る",
+    "stripe.guide.token-note": "権限を絞った制限付き API Key を作成してください。Publishable Key は貼り付けないでください。",
+    "stripe.oauth.note": "Client Secret にはプラットフォームの Secret Key を入力してください。通常 Connect の read_write は書き込み権限を付与しますが、Molis Work の API プレビューは読み取り専用のままです。",
+    "stripe.oauth.stripe-scope": "アプリ権限範囲：Extension は read_only、通常 Connect は read_write",
+    "stripe.setup.open-stripe-api-keys": "Stripe API キーを開く"
+  }
+}

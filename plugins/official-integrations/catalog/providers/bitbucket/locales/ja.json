@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.bitbucket",
+  "locale": "ja",
+  "messages": {
+    "bitbucket.connection.auth-help": "Bitbucket App Password は廃止されました。API Token を使う場合は Atlassian メールアドレス:api-token の形式で入力してください。OAuth ユーザーアクセストークンはそのまま貼り付けられます。",
+    "bitbucket.connection.inbound": "Feed でリポジトリと PR を取得",
+    "bitbucket.connection.summary": "リポジトリと PR。",
+    "bitbucket.connection.token-label": "Bitbucket トークン",
+    "bitbucket.connection.token-placeholder": "email:api-token または OAuth アクセストークン",
+    "bitbucket.guide.mcp-connected-note": "Bitbucket ワークスペースは Atlassian 組織に紐づいている必要があります。",
+    "bitbucket.guide.mcp-link": "Atlassian Rovo MCP を見る",
+    "bitbucket.guide.mcp-note": "Bitbucket ワークスペースは Atlassian 組織に紐づいている必要があります。Molis Work ではまだ接続していません。",
+    "bitbucket.guide.oauth-link": "Bitbucket OAuth 2.0 を見る",
+    "bitbucket.guide.token-note": "Bitbucket App Password は廃止されました。API Token または OAuth ユーザーアクセストークンを使ってください。",
+    "bitbucket.oauth.note": "Consumer で account・repository・pullrequest の読み取り権限を設定してください。",
+    "bitbucket.setup.create-atlassian-api-token": "Atlassian API Token を作成"
+  }
+}

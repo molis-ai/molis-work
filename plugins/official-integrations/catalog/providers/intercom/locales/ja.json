@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.intercom",
+  "locale": "ja",
+  "messages": {
+    "intercom.connection.auth-help": "Intercom アクセストークンを入力してください。me と会話一覧のみを読み取り専用で取得します。",
+    "intercom.connection.inbound": "Feed で顧客との会話を取得",
+    "intercom.connection.summary": "顧客との会話。",
+    "intercom.connection.token-label": "Intercom Access Token",
+    "intercom.guide.mcp-connected-note": "公式 MCP は現在、米国リージョンでホストされたワークスペースのみ対応しています。",
+    "intercom.guide.mcp-link": "Intercom 公式 MCP を見る",
+    "intercom.guide.mcp-note": "公式 MCP は現在、米国リージョンでホストされたワークスペースのみ対応しています。Molis Work ではまだ接続していません。",
+    "intercom.guide.oauth-link": "Intercom OAuth を見る",
+    "intercom.guide.token-note": "ご自身の Private App のみ接続してください。公開アプリの場合は公式の OAuth 手順に従ってください。",
+    "intercom.oauth.note": "Intercom アプリには登録済みの HTTPS コールバックが必要です。下にコールバックを入力し、認証後のリダイレクト先 URL を貼り付けてください。",
+    "intercom.setup.open-intercom-developer-hub": "Intercom Developer Hub を開く"
+  }
+}

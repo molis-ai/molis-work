@@ -249,7 +249,7 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.card-run", method: "POST", path: "/sessions/:sessionId/cards/:cardId/run" },
     { route_id: "coding.card-dismiss", method: "POST", path: "/sessions/:sessionId/cards/:cardId/dismiss" },
   ],
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

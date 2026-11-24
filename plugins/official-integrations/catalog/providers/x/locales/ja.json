@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.x",
+  "locale": "ja",
+  "messages": {
+    "x.connection.auth-help": "開発者ダッシュボードの App-Only Bearer は貼り付けないでください（/users/me が 403 になります）。tweet.read と users.read 権限を持つ OAuth 2.0 User Access Token（PKCE）またはユーザーコンテキストのトークンを使ってください。API はプラン別の従量課金となり、対応する開発者プランが必要です。",
+    "x.connection.inbound": "Feed でポストとアカウントを取得",
+    "x.connection.summary": "ポストとアカウント。",
+    "x.connection.token-label": "X Bearer / ユーザートークン",
+    "x.guide.cli-link": "X xurl",
+    "x.guide.mcp-link": "X 公式 MCP",
+    "x.guide.oauth-link": "X OAuth 2.0 PKCE を見る",
+    "x.guide.oauth-note": "ユーザーコンテキストと tweet.read・users.read 権限が必要です。Molis Work ではまだ認証コールバックに対応していません。",
+    "x.guide.token-note": "OAuth ユーザーアクセストークンを使ってください。App-only Bearer トークンでは現在のアカウント確認エンドポイントにアクセスできません。",
+    "x.setup.open-x-developer-portal": "X Developer Portal を開く"
+  }
+}

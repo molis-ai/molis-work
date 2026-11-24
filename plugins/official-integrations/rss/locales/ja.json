@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.rss",
+  "locale": "ja",
+  "messages": {
+    "rss.directory.name": "RSS",
+    "rss.directory.summary": "購読している公開 RSS・Atom フィードの更新を読み込みます。"
+  }
+}

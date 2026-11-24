@@ -8,7 +8,7 @@
     "onedrive.connection.summary": "Personal and shared files.",
     "onedrive.connection.token-label": "Microsoft Graph access token (Files.Read)",
     "onedrive.guide.cli-link": "View Microsoft Graph PowerShell",
-    "onedrive.guide.cli-note": "Use Connect-MgGraph to sign in and call Graph. Molis Work does not read the PowerShell session.",
+    "onedrive.guide.cli-note": "Use Connect-MgGraph to sign in and call Graph. Molis Work doesn’t read the PowerShell session.",
     "onedrive.guide.mcp-link": "Microsoft Work IQ MCP",
     "onedrive.guide.mcp-note": "A tenant administrator must enable the Work IQ preview, a Copilot license and Entra app permissions.",
     "onedrive.guide.oauth-link": "Register Microsoft Entra app",

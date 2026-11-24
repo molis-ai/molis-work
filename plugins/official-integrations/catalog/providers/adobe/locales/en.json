@@ -7,6 +7,7 @@
     "adobe.connection.inbound": "API checks Adobe IMS identity",
     "adobe.connection.summary": "Creative tools.",
     "adobe.connection.token-label": "Adobe IMS access token",
+    "adobe.connection.token-placeholder": "api-key|access-token or access-token",
     "adobe.guide.oauth-link": "View Adobe user authorization",
     "adobe.guide.token-note": "Use an Adobe IMS user access token. In most cases you also need a Client ID.",
     "adobe.oauth.note": "Enable User Authentication in Adobe Console. Product API permissions depend on the approved scope of the app.",

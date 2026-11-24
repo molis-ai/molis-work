@@ -30,7 +30,7 @@ async function nudge(page: Page, target: HTMLButtonElement) {
   s.sending = true;
   controls(page);
   try {
-    await startRound(page, id, "上一轮你说「" + said + "」之后就结束了，没有调用任何工具，所以还什么都没做。请直接调用工具执行下一步，完成原任务：\n" + asked, intent, modelValue, currentSelection(page, id), { continued_from: run.ref });
+    await startRound(page, id, uiText.text("coding.round.nudge-prompt", { said, task: asked }), intent, modelValue, currentSelection(page, id), { continued_from: run.ref });
     status(page, uiText.text("coding.run.nudged"));
     s.follow.resume();
     await refreshState(page);

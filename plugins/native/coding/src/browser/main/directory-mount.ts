@@ -77,6 +77,7 @@ export function mountCodingDirectory(host: CodingWorkbenchHost): void {
     void action().catch(fail);
   });
   const search = root.querySelector("[data-coding-search]"); if (search) lifetime.listen(search, "input", render);
+  lifetime.listen(document, "molis-work:language-changed", render);
   lifetime.watchRevision(signal => request("/view-revision", "GET", undefined, signal), async signal => { await read(false, signal); });
   lifetime.whenVisible(signal => { void read(false, signal).catch(fail); });
 }

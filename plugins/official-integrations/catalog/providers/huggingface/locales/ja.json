@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.huggingface",
+  "locale": "ja",
+  "messages": {
+    "huggingface.connection.auth-help": "Hugging Face アクセストークンを入力してください。whoami でアカウントを確認した後、モデル一覧を取得します。",
+    "huggingface.connection.inbound": "Feed でアカウントのモデル一覧を取得",
+    "huggingface.connection.summary": "モデル、データセット、Spaces。",
+    "huggingface.connection.token-label": "Hugging Face Access Token",
+    "huggingface.guide.cli-link": "Hugging Face CLI を見る",
+    "huggingface.guide.mcp-link": "Hugging Face 公式 MCP を見る",
+    "huggingface.guide.oauth-link": "Hugging Face OAuth を見る",
+    "huggingface.setup.create-hugging-face-access-token": "Hugging Face Access Token を作成"
+  }
+}

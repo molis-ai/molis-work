@@ -8,7 +8,7 @@
     "outlook.connection.summary": "Mail and calendars.",
     "outlook.connection.token-label": "Microsoft Graph access token (Mail.Read)",
     "outlook.guide.cli-link": "View Microsoft Graph PowerShell",
-    "outlook.guide.cli-note": "Use Connect-MgGraph to sign in and call Graph. Molis Work does not read the PowerShell session.",
+    "outlook.guide.cli-note": "Use Connect-MgGraph to sign in and call Graph. Molis Work doesn’t read the PowerShell session.",
     "outlook.guide.mcp-link": "Microsoft Work IQ MCP",
     "outlook.guide.mcp-note": "A tenant administrator must enable the Work IQ preview, a Copilot license and Entra app permissions.",
     "outlook.guide.oauth-link": "Register Microsoft Entra app",

@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.lark",
+  "locale": "ja",
+  "messages": {
+    "lark.connection.auth-help": "国際版 Lark のカスタムアプリ認証情報を app_id:app_secret 形式で入力してください（Feishu の認証情報とは別々に保存されます）。本文の取り込みにはドキュメントの読み取り権限とアプリへの共有が必要です。Wiki リンクには Wiki 読み取り権限、Feed のチャット取得には im 権限も必要です。",
+    "lark.connection.inbound": "Feed でチャット取得・成果物へドキュメント取込",
+    "lark.connection.summary": "国際版 Lark のメッセージとドキュメント。",
+    "lark.connection.token-label": "Lark アプリ認証情報",
+    "lark.guide.cli-link": "Lark 公式 CLI を見る",
+    "lark.guide.cli-note": "同じ公式 CLI で Lark 環境に対応していますが、Molis Work の Lark 接続ではまだログインを再利用していません。",
+    "lark.guide.mcp-link": "Lark 公式 MCP を見る",
+    "lark.guide.oauth-link": "Lark ユーザー認証を見る",
+    "lark.guide.token-note": "国際版 Lark のカスタムアプリは app_id:app_secret 形式で入力してください。",
+    "lark.setup.open-lark-open-platform": "Lark オープンプラットフォームを開く"
+  }
+}

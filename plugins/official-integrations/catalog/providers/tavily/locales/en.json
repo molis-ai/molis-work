@@ -3,7 +3,7 @@
   "owner": "io.molis.work.integration.tavily",
   "locale": "en",
   "messages": {
-    "tavily.connection.auth-help": "Copy the API key (starting with tvly-) from the Tavily dashboard. Connecting only reads usage to check the key and does not count as a query.",
+    "tavily.connection.auth-help": "Copy the API key (starting with tvly-) from the Tavily dashboard. Connecting only reads usage to check the key and doesn’t count as a query.",
     "tavily.connection.inbound": "Web search (when it is the default)",
     "tavily.connection.summary": "Web search built for AI, with a free monthly allowance.",
     "tavily.connection.token-label": "Tavily API key",

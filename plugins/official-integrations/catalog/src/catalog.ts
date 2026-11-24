@@ -5,6 +5,7 @@ import { asList, asRecord, bearer, CatalogLiveError, nestedText, splitParts, tex
 import { setupLinksFor } from "./setup-links.js";
 import { atlassianBase, catalogCloudOrigin } from "./targets.js";
 import type { CatalogAuthContext, CatalogConnectorSpec, CatalogHttpRequest } from "./types.js";
+import { catalogFallback } from "./fallback-text.js";
 import { SERVICE_TRAITS, webSearchSpec } from "./service-traits.js";
 
 type CatalogConnectorDraft = Omit<CatalogConnectorSpec, "setup_links">;
@@ -81,9 +82,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=20&singleEvents=true&orderBy=updated", googleBearer(ctx)),
-      read: (json) => mapList(json, "google-calendar", (row) => item({
+      read: (json, ctx) => mapList(json, "google-calendar", (row) => item({
         externalId: `gcal-${text(row.id)}`,
-        title: text(row.summary) || "无标题日程",
+        title: text(row.summary) || catalogFallback("catalog.fallback.untitled-event", undefined, ctx.locale),
         summary: text(nestedText(asRecord(row.start), ["dateTime"]), nestedText(asRecord(row.start), ["date"])),
         url: text(row.htmlLink) || undefined,
         occurredAt: text(row.updated, nestedText(asRecord(row.start), ["dateTime"])),
@@ -103,9 +104,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me/messages?$top=20&$select=id,subject,from,receivedDateTime,webLink,bodyPreview", graphHeaders(ctx)),
-      read: (json) => mapList(json, "outlook", (row) => item({
+      read: (json, ctx) => mapList(json, "outlook", (row) => item({
         externalId: `outlook-${text(row.id)}`,
-        title: text(row.subject) || "无主题邮件",
+        title: text(row.subject) || catalogFallback("catalog.fallback.no-subject", undefined, ctx.locale),
         summary: text(row.bodyPreview),
         url: text(row.webLink) || undefined,
         occurredAt: text(row.receivedDateTime),
@@ -125,9 +126,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get(`https://www.googleapis.com/drive/v3/files?pageSize=20&orderBy=${encodeURIComponent("modifiedTime desc")}&fields=files(id,name,modifiedTime,webViewLink,owners)`, googleBearer(ctx)),
-      read: (json) => mapList(json, "google-drive", (row) => item({
+      read: (json, ctx) => mapList(json, "google-drive", (row) => item({
         externalId: `gdrive-${text(row.id)}`,
-        title: text(row.name) || "未命名文件",
+        title: text(row.name) || catalogFallback("catalog.fallback.untitled-file", undefined, ctx.locale),
         summary: text(row.modifiedTime),
         url: text(row.webViewLink) || undefined,
         occurredAt: text(row.modifiedTime),
@@ -146,9 +147,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me/drive/recent", graphHeaders(ctx)),
-      read: (json) => mapList(json, "onedrive", (row) => item({
+      read: (json, ctx) => mapList(json, "onedrive", (row) => item({
         externalId: `onedrive-${text(row.id)}`,
-        title: text(row.name) || "未命名文件",
+        title: text(row.name) || catalogFallback("catalog.fallback.untitled-file", undefined, ctx.locale),
         url: nestedText(asRecord(row), ["webUrl"]) || undefined,
         occurredAt: text(row.lastModifiedDateTime),
         author: nestedText(asRecord(row.lastModifiedBy), ["user", "displayName"]),
@@ -166,9 +167,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me/followedSites?$top=20", graphHeaders(ctx)),
-      read: (json) => mapList(json, "sharepoint", (row) => item({
+      read: (json, ctx) => mapList(json, "sharepoint", (row) => item({
         externalId: `sharepoint-${text(row.id)}`,
-        title: text(row.displayName, row.name) || "SharePoint 站点",
+        title: text(row.displayName, row.name) || catalogFallback("catalog.fallback.sharepoint-site", undefined, ctx.locale),
         url: text(row.webUrl) || undefined,
       })),
     },
@@ -184,9 +185,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => post("https://api.dropboxapi.com/2/files/list_folder", bearer(ctx), { path: "", limit: 20 }),
-      read: (json) => mapList(asRecord(json)?.entries, "dropbox", (row) => item({
+      read: (json, ctx) => mapList(asRecord(json)?.entries, "dropbox", (row) => item({
         externalId: `dropbox-${text(row.id, row.path_lower)}`,
-        title: text(row.name, row.path_display) || "Dropbox 文件",
+        title: text(row.name, row.path_display) || catalogFallback("catalog.fallback.dropbox-file", undefined, ctx.locale),
         summary: text(row[".tag"]),
         occurredAt: text(row.server_modified, row.client_modified),
       })),
@@ -203,9 +204,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://api.box.com/2.0/folders/0/items?limit=20", bearer(ctx)),
-      read: (json) => mapList(asRecord(json)?.entries, "box", (row) => item({
+      read: (json, ctx) => mapList(asRecord(json)?.entries, "box", (row) => item({
         externalId: `box-${text(row.id)}`,
-        title: text(row.name) || "Box 文件",
+        title: text(row.name) || catalogFallback("catalog.fallback.box-file", undefined, ctx.locale),
         summary: text(row.type),
         url: nestedText(asRecord(row), ["shared_link", "url"]) || undefined,
         occurredAt: text(row.modified_at),
@@ -214,7 +215,7 @@ const CATALOG: CatalogConnectorDraft[] = [
   }),
   spec("notion", "Notion", "files", { key: "notion.connection.summary" }, { key: "notion.connection.inbound" }, {
     token_label: { key: "notion.connection.token-label" },
-    token_placeholder: "ntn_… 或 secret_…",
+    token_placeholder: { key: "notion.connection.token-placeholder" },
     auth_help: { key: "notion.connection.auth-help" },
     permission_host: "api.notion.com",
     identity: {
@@ -230,13 +231,13 @@ const CATALOG: CatalogConnectorDraft[] = [
         page_size: 20,
         sort: { direction: "descending", timestamp: "last_edited_time" },
       }),
-      read: (json) => mapList(json, "notion", (row) => {
+      read: (json, ctx) => mapList(json, "notion", (row) => {
         const properties = asRecord(row.properties);
         const titleProp = properties ? Object.values(properties).map((value) => asRecord(value)).find((value) => value?.type === "title") : null;
         const titleText = nestedText(asRecord(asList(titleProp?.title)[0]), ["plain_text"]);
         return item({
           externalId: `notion-${text(row.id)}`,
-          title: titleText || "无标题页面",
+          title: titleText || catalogFallback("catalog.fallback.untitled-page", undefined, ctx.locale),
           url: nestedText(asRecord(row), ["url"]) || undefined,
           occurredAt: text(row.last_edited_time),
         });
@@ -273,9 +274,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me/chats?$top=20", graphHeaders(ctx)),
-      read: (json) => mapList(json, "teams", (row) => item({
+      read: (json, ctx) => mapList(json, "teams", (row) => item({
         externalId: `teams-${text(row.id)}`,
-        title: text(row.topic, row.chatType) || "Teams 聊天",
+        title: text(row.topic, row.chatType) || catalogFallback("catalog.fallback.teams-chat", undefined, ctx.locale),
         url: text(row.webUrl) || undefined,
         occurredAt: text(row.lastUpdatedDateTime),
         kind: "message",
@@ -293,9 +294,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://discord.com/api/v10/users/@me/guilds", discordHeaders(ctx)),
-      read: (json) => mapList(json, "discord", (row) => item({
+      read: (json, ctx) => mapList(json, "discord", (row) => item({
         externalId: `discord-${text(row.id)}`,
-        title: text(row.name) || "Discord 服务器",
+        title: text(row.name) || catalogFallback("catalog.fallback.discord-server", undefined, ctx.locale),
         kind: "message",
       })),
     },
@@ -329,9 +330,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://open.feishu.cn/open-apis/im/v1/chats?page_size=20", bearer(ctx)),
-      read: (json) => mapList(nestedTextList(asRecord(json), ["data", "items"]), "feishu", (row) => item({
+      read: (json, ctx) => mapList(nestedTextList(asRecord(json), ["data", "items"]), "feishu", (row) => item({
         externalId: `feishu-${text(row.chat_id)}`,
-        title: text(row.name) || "飞书会话",
+        title: text(row.name) || catalogFallback("catalog.fallback.feishu-chat", undefined, ctx.locale),
         kind: "message",
       })),
     },
@@ -364,9 +365,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://open.larksuite.com/open-apis/im/v1/chats?page_size=20", bearer(ctx)),
-      read: (json) => mapList(nestedTextList(asRecord(json), ["data", "items"]), "lark", (row) => item({
+      read: (json, ctx) => mapList(nestedTextList(asRecord(json), ["data", "items"]), "lark", (row) => item({
         externalId: `lark-${text(row.chat_id)}`,
-        title: text(row.name) || "Lark 会话",
+        title: text(row.name) || catalogFallback("catalog.fallback.lark-chat", undefined, ctx.locale),
         kind: "message",
       })),
     },
@@ -392,9 +393,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get(`https://qyapi.weixin.qq.com/cgi-bin/department/list?access_token=${encodeURIComponent(ctx.accessToken)}`, { "User-Agent": USER_AGENT }),
-      read: (json) => mapList(asRecord(json)?.department, "wechat", (row) => item({
+      read: (json, ctx) => mapList(asRecord(json)?.department, "wechat", (row) => item({
         externalId: `wecom-dept-${text(row.id)}`,
-        title: text(row.name) || `部门 ${text(row.id)}`,
+        title: text(row.name) || catalogFallback("catalog.fallback.wechat-department", { id: text(row.id) }, ctx.locale),
         kind: "update",
       })),
     },
@@ -410,9 +411,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://api.zoom.us/v2/users/me/meetings?page_size=20", bearer(ctx)),
-      read: (json) => mapList(asRecord(json)?.meetings, "zoom", (row) => item({
+      read: (json, ctx) => mapList(asRecord(json)?.meetings, "zoom", (row) => item({
         externalId: `zoom-${text(row.id)}`,
-        title: text(row.topic) || "Zoom 会议",
+        title: text(row.topic) || catalogFallback("catalog.fallback.zoom-meeting", undefined, ctx.locale),
         url: text(row.join_url) || undefined,
         occurredAt: text(row.start_time),
       })),
@@ -429,9 +430,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://gitlab.com/api/v4/events?per_page=20", ctx.extra.auth_method === "oauth" ? bearer(ctx) : { "PRIVATE-TOKEN": ctx.accessToken, Accept: "application/json", "User-Agent": USER_AGENT }),
-      read: (json) => mapList(json, "gitlab", (row) => item({
+      read: (json, ctx) => mapList(json, "gitlab", (row) => item({
         externalId: `gitlab-${text(row.id)}`,
-        title: text(row.action_name, nestedText(asRecord(row.target_title ? { t: row.target_title } : row), ["t"])) || "GitLab 动态",
+        title: text(row.action_name, nestedText(asRecord(row.target_title ? { t: row.target_title } : row), ["t"])) || catalogFallback("catalog.fallback.gitlab-activity", undefined, ctx.locale),
         summary: text(nestedText(asRecord(row.project), ["path_with_namespace"]), row.target_type),
         occurredAt: text(row.created_at),
         author: nestedText(asRecord(row.author), ["username"]),
@@ -441,7 +442,7 @@ const CATALOG: CatalogConnectorDraft[] = [
   }),
   spec("bitbucket", "Bitbucket", "code", { key: "bitbucket.connection.summary" }, { key: "bitbucket.connection.inbound" }, {
     token_label: { key: "bitbucket.connection.token-label" },
-    token_placeholder: "email:api-token 或 OAuth 访问令牌",
+    token_placeholder: { key: "bitbucket.connection.token-placeholder" },
     auth_help: { key: "bitbucket.connection.auth-help" },
     permission_host: "api.bitbucket.org",
     parseToken: parseBitbucketToken,
@@ -451,9 +452,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://api.bitbucket.org/2.0/repositories?role=member&pagelen=20", bitbucketHeaders(ctx)),
-      read: (json) => mapList(asRecord(json)?.values, "bitbucket", (row) => item({
+      read: (json, ctx) => mapList(asRecord(json)?.values, "bitbucket", (row) => item({
         externalId: `bitbucket-${text(row.uuid, row.full_name)}`,
-        title: text(row.full_name, row.name) || "Bitbucket 仓库",
+        title: text(row.full_name, row.name) || catalogFallback("catalog.fallback.bitbucket-repo", undefined, ctx.locale),
         url: nestedText(asRecord(row.links), ["html", "href"]) || undefined,
         occurredAt: text(row.updated_on),
       })),
@@ -470,9 +471,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get(vercelUrl("/v6/deployments?limit=20", ctx), bearer(ctx)),
-      read: (json) => mapList(asRecord(json)?.deployments, "vercel", (row) => item({
+      read: (json, ctx) => mapList(asRecord(json)?.deployments, "vercel", (row) => item({
         externalId: `vercel-${text(row.uid, row.id)}`,
-        title: text(row.name, row.url) || "Vercel 部署",
+        title: text(row.name, row.url) || catalogFallback("catalog.fallback.vercel-deployment", undefined, ctx.locale),
         summary: text(row.state, row.readyState),
         url: text(row.url) ? `https://${text(row.url)}` : undefined,
         occurredAt: typeof row.created === "number" ? new Date(row.created).toISOString() : text(row.createdAt),
@@ -517,9 +518,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get(`https://huggingface.co/api/models?author=${encodeURIComponent(ctx.extra.name || "")}&limit=20`, bearer(ctx)),
-      read: (json) => mapList(json, "huggingface", (row) => item({
+      read: (json, ctx) => mapList(json, "huggingface", (row) => item({
         externalId: `hf-${text(row.id, row.modelId)}`,
-        title: text(row.id, row.modelId) || "Hugging Face 模型",
+        title: text(row.id, row.modelId) || catalogFallback("catalog.fallback.huggingface-model", undefined, ctx.locale),
         url: text(row.id) ? `https://huggingface.co/${text(row.id)}` : undefined,
         occurredAt: text(row.lastModified),
       })),
@@ -565,9 +566,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://api.supabase.com/v1/projects", bearer(ctx)),
-      read: (json) => mapList(json, "supabase", (row) => item({
+      read: (json, ctx) => mapList(json, "supabase", (row) => item({
         externalId: `supabase-${text(row.id, row.ref)}`,
-        title: text(row.name) || "Supabase 项目",
+        title: text(row.name) || catalogFallback("catalog.fallback.supabase-project", undefined, ctx.locale),
         summary: text(row.region, row.status),
         occurredAt: text(row.created_at),
       })),
@@ -636,7 +637,7 @@ const CATALOG: CatalogConnectorDraft[] = [
         const path = nestedText(asRecord(row._links), ["webui"]);
         return item({
           externalId: `confluence-${text(row.id)}`,
-          title: text(row.title) || "Confluence 页面",
+          title: text(row.title) || catalogFallback("catalog.fallback.confluence-page", undefined, ctx.locale),
           url: path ? `https://${jiraHost(ctx)}/wiki${path.startsWith("/") ? path : `/${path}`}` : undefined,
           occurredAt: nestedText(asRecord(row.version), ["when"]),
         });
@@ -663,7 +664,7 @@ const CATALOG: CatalogConnectorDraft[] = [
         ));
         return mapList(asRecord(tasks.json)?.data, "asana", (row) => item({
           externalId: `asana-${text(row.gid, row.id)}`,
-          title: text(row.name) || "Asana 任务",
+          title: text(row.name) || catalogFallback("catalog.fallback.asana-task", undefined, ctx.locale),
           url: text(row.permalink_url) || undefined,
           occurredAt: text(row.modified_at),
           author: nestedText(asRecord(row.assignee), ["name"]),
@@ -689,7 +690,7 @@ const CATALOG: CatalogConnectorDraft[] = [
         const tasks = await http.json(get(`https://api.clickup.com/api/v2/team/${encodeURIComponent(teamId)}/task?page=0`, clickupHeaders(ctx)));
         return mapList(asRecord(tasks.json)?.tasks, "clickup", (row) => item({
           externalId: `clickup-${text(row.id)}`,
-          title: text(row.name) || "ClickUp 任务",
+          title: text(row.name) || catalogFallback("catalog.fallback.clickup-task", undefined, ctx.locale),
           url: text(row.url) || undefined,
           occurredAt: typeof row.date_updated === "string" || typeof row.date_updated === "number"
             ? new Date(Number(row.date_updated)).toISOString()
@@ -709,9 +710,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => post("https://api.monday.com/v2", mondayHeaders(ctx), { query: "{ boards(limit: 20) { id name url updated_at } }" }),
-      read: (json) => mapList(nestedTextList(asRecord(json), ["data", "boards"]), "monday", (row) => item({
+      read: (json, ctx) => mapList(nestedTextList(asRecord(json), ["data", "boards"]), "monday", (row) => item({
         externalId: `monday-${text(row.id)}`,
-        title: text(row.name) || "monday 看板",
+        title: text(row.name) || catalogFallback("catalog.fallback.monday-board", undefined, ctx.locale),
         url: text(row.url) || undefined,
         occurredAt: text(row.updated_at),
       })),
@@ -743,7 +744,7 @@ const CATALOG: CatalogConnectorDraft[] = [
   }),
   spec("figma", "Figma", "design", { key: "figma.connection.summary" }, { key: "figma.connection.inbound" }, {
     token_label: { key: "figma.connection.token-label" },
-    token_placeholder: "figu_… 或 figd_…",
+    token_placeholder: { key: "figma.connection.token-placeholder" },
     auth_help: { key: "figma.connection.auth-help" },
     permission_host: "api.figma.com",
     identity: {
@@ -764,9 +765,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://api.canva.com/rest/v1/designs?limit=20", bearer(ctx)),
-      read: (json) => mapList(asRecord(json)?.items ?? asRecord(json)?.designs, "canva", (row) => item({
+      read: (json, ctx) => mapList(asRecord(json)?.items ?? asRecord(json)?.designs, "canva", (row) => item({
         externalId: `canva-${text(row.id)}`,
-        title: text(row.title) || "Canva 设计",
+        title: text(row.title) || catalogFallback("catalog.fallback.canva-design", undefined, ctx.locale),
         url: nestedText(asRecord(row.urls), ["edit_url"]) || undefined,
         occurredAt: text(row.updated_at),
       })),
@@ -774,7 +775,7 @@ const CATALOG: CatalogConnectorDraft[] = [
   }),
   spec("adobe", "Adobe", "design", { key: "adobe.connection.summary" }, { key: "adobe.connection.inbound" }, {
     token_label: { key: "adobe.connection.token-label" },
-    token_placeholder: "api-key|access-token 或 access-token",
+    token_placeholder: { key: "adobe.connection.token-placeholder" },
     auth_help: { key: "adobe.connection.auth-help" },
     permission_host: "adobelogin.com",
     parseToken: parseAdobeToken,
@@ -797,16 +798,16 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get(`${salesforceInstance(ctx)}/services/data/v60.0/query?q=${encodeURIComponent("SELECT Id,Subject,LastModifiedDate FROM Task ORDER BY LastModifiedDate DESC LIMIT 20")}`, bearer(ctx)),
-      read: (json) => mapList(asRecord(json)?.records, "salesforce", (row) => item({
+      read: (json, ctx) => mapList(asRecord(json)?.records, "salesforce", (row) => item({
         externalId: `sfdc-${text(row.Id)}`,
-        title: text(row.Subject, row.Id) || "Salesforce 记录",
+        title: text(row.Subject, row.Id) || catalogFallback("catalog.fallback.salesforce-record", undefined, ctx.locale),
         occurredAt: text(row.LastModifiedDate),
       })),
     },
   }),
   spec("hubspot", "HubSpot", "crm", { key: "hubspot.connection.summary" }, { key: "hubspot.connection.inbound" }, {
     token_label: { key: "hubspot.connection.token-label" },
-    token_placeholder: "Service Key 或 pat-na1-…",
+    token_placeholder: { key: "hubspot.connection.token-placeholder" },
     auth_help: { key: "hubspot.connection.auth-help" },
     permission_host: "api.hubapi.com",
     identity: {
@@ -815,12 +816,12 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://api.hubapi.com/crm/v3/objects/contacts?limit=20&properties=email,firstname,lastname,lastmodifieddate", bearer(ctx)),
-      read: (json) => mapList(asRecord(json)?.results, "hubspot", (row) => {
+      read: (json, ctx) => mapList(asRecord(json)?.results, "hubspot", (row) => {
         const properties = asRecord(row.properties);
         const name = [text(properties?.firstname), text(properties?.lastname)].filter(Boolean).join(" ");
         return item({
           externalId: `hubspot-${text(row.id)}`,
-          title: name || text(properties?.email) || "HubSpot 联系人",
+          title: name || text(properties?.email) || catalogFallback("catalog.fallback.hubspot-contact", undefined, ctx.locale),
           summary: text(properties?.email),
           occurredAt: text(properties?.lastmodifieddate, row.updatedAt),
         });
@@ -838,9 +839,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://api.intercom.io/conversations?per_page=20", bearer(ctx, { Accept: "application/json", "Intercom-Version": "2.13" })),
-      read: (json) => mapList(asRecord(json)?.conversations, "intercom", (row) => item({
+      read: (json, ctx) => mapList(asRecord(json)?.conversations, "intercom", (row) => item({
         externalId: `intercom-${text(row.id)}`,
-        title: text(nestedText(asRecord(row.source), ["subject"]), nestedText(asRecord(row.source), ["body"])) || "Intercom 对话",
+        title: text(nestedText(asRecord(row.source), ["subject"]), nestedText(asRecord(row.source), ["body"])) || catalogFallback("catalog.fallback.intercom-conversation", undefined, ctx.locale),
         occurredAt: typeof row.updated_at === "number" ? new Date(row.updated_at * 1000).toISOString() : text(row.updated_at),
         kind: "message",
       })),
@@ -848,7 +849,7 @@ const CATALOG: CatalogConnectorDraft[] = [
   }),
   spec("stripe", "Stripe", "crm", { key: "stripe.connection.summary" }, { key: "stripe.connection.inbound" }, {
     token_label: { key: "stripe.connection.token-label" },
-    token_placeholder: "sk_live_… 或 sk_test_…",
+    token_placeholder: { key: "stripe.connection.token-placeholder" },
     auth_help: { key: "stripe.connection.auth-help" },
     permission_host: "api.stripe.com",
     identity: {
@@ -857,9 +858,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get("https://api.stripe.com/v1/events?limit=20", bearer(ctx)),
-      read: (json) => mapList(asRecord(json)?.data, "stripe", (row) => item({
+      read: (json, ctx) => mapList(asRecord(json)?.data, "stripe", (row) => item({
         externalId: `stripe-${text(row.id)}`,
-        title: text(row.type) || "Stripe 事件",
+        title: text(row.type) || catalogFallback("catalog.fallback.stripe-event", undefined, ctx.locale),
         occurredAt: typeof row.created === "number" ? new Date(row.created * 1000).toISOString() : undefined,
       })),
     },
@@ -880,9 +881,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
     feed: {
       request: (ctx) => get(`https://api.x.com/2/users/${encodeURIComponent(ctx.extra.user_id || "me")}/tweets?max_results=20&tweet.fields=created_at`, bearer(ctx)),
-      read: (json) => mapList(asRecord(json)?.data, "x", (row) => item({
+      read: (json, ctx) => mapList(asRecord(json)?.data, "x", (row) => item({
         externalId: `x-${text(row.id)}`,
-        title: text(row.text)?.slice(0, 80) || "X 帖子",
+        title: text(row.text)?.slice(0, 80) || catalogFallback("catalog.fallback.x-post", undefined, ctx.locale),
         url: text(row.id) ? `https://x.com/i/web/status/${text(row.id)}` : undefined,
         occurredAt: text(row.created_at),
         kind: "message",

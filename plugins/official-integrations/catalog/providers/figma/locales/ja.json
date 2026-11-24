@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.figma",
+  "locale": "ja",
+  "messages": {
+    "figma.connection.auth-help": "Figma Personal Access Token でアカウントを確認します。デザイン内容を読み取るには公式 MCP を接続してください。",
+    "figma.connection.inbound": "API でアカウント確認・MCP でデザイン読み取り",
+    "figma.connection.summary": "デザインと注釈。",
+    "figma.connection.token-label": "Figma Personal Access Token",
+    "figma.connection.token-placeholder": "figu_… または figd_…",
+    "figma.guide.mcp-link": "Figma 公式 MCP を見る",
+    "figma.guide.mcp-note": "デスクトップ MCP は Figma 側で有効にする必要があります。クラウド MCP は承認済みクライアント限定です。",
+    "figma.guide.oauth-link": "Figma OAuth アプリを見る",
+    "figma.setup.open-figma-account-settings": "Figma アカウント設定を開く"
+  }
+}

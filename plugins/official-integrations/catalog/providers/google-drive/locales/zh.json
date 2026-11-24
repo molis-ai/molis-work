@@ -7,13 +7,13 @@
     "google-drive.connection.inbound": "项目资料可读 Drive 文件",
     "google-drive.connection.summary": "Drive、Docs、Sheets、Slides。",
     "google-drive.connection.token-label": "Google 访问令牌（drive.readonly）",
-    "google-drive.guide.mcp-connected-note": "Google Workspace 开发者预览资格必需。",
+    "google-drive.guide.mcp-connected-note": "需要 Google Workspace 开发者预览资格。",
     "google-drive.guide.mcp-link": "查看 Drive 官方 MCP（开发者预览）",
-    "google-drive.guide.mcp-note": "Google Workspace 开发者预览资格必需；Molis Work 尚未接入。",
+    "google-drive.guide.mcp-note": "需要 Google Workspace 开发者预览资格；Molis Work 暂未接入。",
     "google-drive.guide.oauth-link": "创建 Google OAuth 客户端",
-    "google-drive.guide.token-note": "在 OAuth Playground 获取 Drive 用户访问令牌后可粘贴；到期后需更新。",
+    "google-drive.guide.token-note": "在 OAuth Playground 获取 Drive 访问令牌后粘贴到这里；到期后需要更新。",
     "google-drive.setup.create-oauth-client": "创建 OAuth 客户端",
     "google-drive.setup.enable-drive-api": "启用 Drive API",
-    "google-drive.setup.get-a-token-in-oauth-playground": "在 OAuth Playground 拿令牌"
+    "google-drive.setup.get-a-token-in-oauth-playground": "在 OAuth Playground 获取令牌"
   }
 }

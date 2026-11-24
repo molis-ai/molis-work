@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.wechat",
+  "locale": "ja",
+  "messages": {
+    "wechat.connection.auth-help": "個人の WeChat アカウントには安定した公式 API がありません。ここでは企業版 WeChat（WeCom）のカスタムアプリを corpid:corpsecret 形式で接続します。",
+    "wechat.connection.inbound": "Feed で WeCom の連絡先一覧を取得",
+    "wechat.connection.summary": "WeCom メッセージ。",
+    "wechat.connection.title": "WeCom（企業微信）",
+    "wechat.connection.token-label": "WeCom CorpID・Secret",
+    "wechat.directory.name": "WeChat",
+    "wechat.guide.token-note": "WeCom カスタムアプリの CorpID と Secret を入力してください。個人の WeChat アカウントにはこの公式 API はありません。",
+    "wechat.setup.open-the-wecom-admin-console": "WeCom 管理画面を開く",
+    "wechat.setup.view-wecom-developer-documentation": "WeCom 開発者ドキュメントを見る"
+  }
+}

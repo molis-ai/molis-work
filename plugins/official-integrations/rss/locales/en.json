@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.rss",
+  "locale": "en",
+  "messages": {
+    "rss.directory.name": "RSS",
+    "rss.directory.summary": "Read updates from public RSS and Atom feeds you subscribe to."
+  }
+}

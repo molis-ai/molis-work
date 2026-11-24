@@ -29,7 +29,7 @@ function createMomentumRenderer(primitives: GoalsMomentumUiPrimitives) {
   const { escapeHtml, icon, renderVisibleGoalStatus } = primitives;
   function renderGoalMomentum(view: GoalsMomentumBoardView, selectedGoalId: string, items: readonly GoalsMomentumItem[]): string {
     const byId = new Map(items.map((item) => [item.goal.goal_id, item]));
-    const momentum = buildGoalMomentumView(items.map(goalMomentumInput), view.snapshot.relations, selectedGoalId);
+    const momentum = buildGoalMomentumView(items.map(goalMomentumInput), view.snapshot.relations, selectedGoalId, new Date(), uiText.text("goals.momentum-view.standalone-group"));
     const preferred = sortGoalTreeItems([...items]).find(item => item.display_status === "continue" && (item.goal.decomposition_state !== "closed_compound" || item.event_work))
       || items.find(item => item.display_status === "in_progress") || byId.get(selectedGoalId) || items[0];
     const edges = momentum.edges.map((edge) => `<g data-graph-edge data-edge-from="${escapeHtml(edge.provider_goal_id)}" data-edge-to="${escapeHtml(edge.consumer_goal_id)}"><path marker-end="url(#momentum-arrow)"></path><title>${escapeHtml(`${byId.get(edge.provider_goal_id)?.goal.title} → ${byId.get(edge.consumer_goal_id)?.goal.title} · ${edge.reason}`)}</title></g>`).join("");

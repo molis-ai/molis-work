@@ -63,13 +63,17 @@ export const inboxUiContribution: UiContribution<InboxUiModel | StagePageModel<I
       case "workbench":
         return renderInboxWorkbench(model);
       default:
-        throw new Error(`Inbox UI surface ${(request as UiRenderRequest).surface} 不存在`);
+        throw new Error(`Unknown Inbox UI surface: ${String((request as UiRenderRequest).surface)}`);
     }
   },
 };
 
+const msg = (key: string, fallback: string) => {
+  try { return uiText.text(key); } catch { return fallback; }
+};
+
 function inboxStageModel(model: StagePageModel<InboxStageData>): InboxUiModel {
-  if (!model.data) throw new ActionError("actions.dependency_missing", "Inbox 舞台数据不可用");
+  if (!model.data) throw new ActionError("actions.dependency_missing", msg("inbox.ui.stage-data-unavailable", "Inbox 舞台数据不可用"));
   const { entries, subjects, judgments, judgment } = model.data, p = model.primitives;
   const byEntry = new Map(judgments.map(record => [record.subject.id, record]));
   const names = new Map(subjects.map(subject => [subject.entry_id, subject]));

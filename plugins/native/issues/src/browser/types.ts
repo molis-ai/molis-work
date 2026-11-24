@@ -131,7 +131,7 @@ export interface IssuesPage {
   ready(): void;
   fill(data: FillData): void;
   mode(): void;
-  show(issue: Issue): void;
+  show(issue: Issue, keepFocus?: boolean): void;
   open(id: string): Promise<void>;
   back(): Promise<void>;
   render(): void;

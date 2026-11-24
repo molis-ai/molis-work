@@ -1,5 +1,6 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ISSUES_ACTIONS } from "./actions.js";
+import { localizeManifestActions } from "./manifest-action-text.js";
 import { issuesSkills } from "./skills.js";
 import { ISSUES_DATABASE } from "./database.js";
 import { issuesSync } from './replication.js';
@@ -10,12 +11,12 @@ export const issuesManifest: PluginManifest = {
   schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: ISSUES_PLUGIN_ID, version: /* @version product.release */ "0.1.0", name: "Issue", summary: "记录、查看和整理自己的问题。", summary_text: { key: "issues.directory.summary" }, kind: "app",
   publisher: { publisher_id: "molis", signature: "official-issues-binding" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
-    { permission: "issues:read", required: true, reason: "查看个人问题记录" },
-    { permission: "issues:write", required: true, reason: "记录、编辑和删除个人问题" },
-    { permission: "storage:private", required: true, reason: "在个人 Home 保存问题" },
-    { permission: "model:invoke", required: false, reason: "给录入和重新整理的问题起标题、判类型（显式调用）" },
+    { permission: "issues:read", required: true, reason: "查看你的个人问题记录", reason_text: { key: "issues.permission.issues-read.reason" } },
+    { permission: "issues:write", required: true, reason: "记录、编辑和删除你的个人问题", reason_text: { key: "issues.permission.issues-write.reason" } },
+    { permission: "storage:private", required: true, reason: "在本机个人空间里保存你的问题记录", reason_text: { key: "issues.permission.storage-private.reason" } },
+    { permission: "model:invoke", required: false, reason: "在你触发时，帮录入或整理的问题起标题并判断类型", reason_text: { key: "issues.permission.model-invoke.reason" } },
   ],
-  capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: ISSUES_ACTIONS,
+  capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: localizeManifestActions(ISSUES_ACTIONS),
   methods: issuesSkills.map(({ body: _body, body_by_locale: _localized, ...method }) => ({ ...method, tools: [...method.tools] })),
   runtime: { scope: "home" },
   databases: { home: ISSUES_DATABASE },
@@ -33,7 +34,7 @@ export const issuesManifest: PluginManifest = {
     { route_id: "issues.update", method: "POST", path: "/update", permission: "issues:write" },
     { route_id: "issues.delete", method: "POST", path: "/delete", permission: "issues:write" },
   ],
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

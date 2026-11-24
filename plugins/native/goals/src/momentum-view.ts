@@ -8,6 +8,7 @@ export function buildGoalMomentumView(
   relations: readonly GoalMomentumRelationInput[],
   selectedGoalId?: string,
   now = new Date(),
+  standaloneTitle = "",
 ): GoalMomentumView {
   const orderedGoals = [...goals].sort(compareGoal);
   const byId = new Map(orderedGoals.map((goal) => [goal.goal_id, goal]));
@@ -155,7 +156,7 @@ export function buildGoalMomentumView(
     const memberLevels = members.map((member) => levels.get(member.goal_id) ?? 0);
     groups.push({
       group_id: groupId,
-      title: groupId === "__standalone__" ? "项目级独立事项" : byId.get(groupId)?.title ?? groupId,
+      title: groupId === "__standalone__" ? standaloneTitle : byId.get(groupId)?.title ?? groupId,
       root_goal_id: groupId === "__standalone__" ? null : groupId,
       goal_count: members.length,
       level_start: memberLevels.length ? Math.min(...memberLevels) : 0,

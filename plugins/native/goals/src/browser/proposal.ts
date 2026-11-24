@@ -47,11 +47,7 @@ export function proposalClient(host: ProposalHost) {
     return true;
   };
 
-  const humanDecisionError = (message: string | undefined, fallback: string) => String(message || fallback)
-    .replace(/Contract(?: Proposal)?/g, "目标说明")
-    .replaceAll("Goal Spine", "Goal Tree")
-    .replaceAll("Policy", "工作规则")
-    .replaceAll("Runtime", "执行工具");
+  const humanDecisionError = (message: string | undefined, fallback: string) => String(message || fallback);
 
   const submitMatchedProposal = async (goalTreeDecisionForm: HTMLFormElement, event: SubmitEvent) => {
     event.preventDefault();

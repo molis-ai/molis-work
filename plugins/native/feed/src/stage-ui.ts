@@ -11,13 +11,17 @@ import { feedRunHttpStatus } from "./run-failure.js";
 type FeedText = { readText: FeedUiPrimitives["text"] };
 type FeedStageView = { route_prefix: string; data: FeedStageData };
 
+const msg = (key: string, fallback: string) => {
+  try { return uiText.text(key); } catch { return fallback; }
+};
+
 /** The owner converts its stage read into the same source, message and reader UI models. */
 export function buildFeedStageUiModel(model: StagePageModel<FeedStageData>): FeedUiModel {
-  if (!model.data) throw new ActionError("actions.plugin_unavailable", "Feed 舞台数据不可用");
+  if (!model.data) throw new ActionError("actions.plugin_unavailable", msg("feed.stage-ui.stage-data-unavailable", "Feed 舞台数据不可用"));
   return buildFeedModel({ readText: model.primitives.text }, feedStagePrimitives(model), { route_prefix: model.route_prefix, data: model.data }, "feed");
 }
 export function buildFeedReaderUiModel(model: StagePageModel<FeedReaderData>): PersistedFeedDetailModel {
-  if (!model.data || !model.object) throw new ActionError("actions.plugin_unavailable", "Feed 对象数据不可用");
+  if (!model.data || !model.object) throw new ActionError("actions.plugin_unavailable", msg("feed.stage-ui.item-data-unavailable", "Feed 对象数据不可用"));
   return { route_prefix: model.route_prefix, entry_id: model.object.id, item: itemModel(model.data.item), inbox_entry: null,
     material_offset: model.data.material_offset, material_next_offset: model.data.material_next_offset,
     inbox_active: model.data.inbox_active, promote_available: model.data.promote_available, primitives: feedStagePrimitives(model) };
@@ -128,7 +132,7 @@ function sourceModel(source: FeedSourceRecord, view: FeedStageView, readText: Fe
   const runs = view.data.snapshot.runs.filter((run) => run.source_id === source.source_id);
   const uiKind = feedSourceUiKind(source);
   const presentation = view.data.source_presentations[source.source_id];
-  if ((uiKind === "rss" || uiKind === "gmail") && !presentation) throw new ActionError("actions.plugin_unavailable", "来源展示尚未由原集成提供");
+  if ((uiKind === "rss" || uiKind === "gmail") && !presentation) throw new ActionError("actions.plugin_unavailable", msg("feed.stage-ui.source-presentation-unavailable", "来源展示尚未由原集成提供"));
   const running = runs.some((run) => run.phase === "running");
   const attention = source.status === "error" || source.status === "disconnected";
   const statusKind = running ? "syncing" : attention ? "attention" : source.status === "paused" ? "paused" : "active";

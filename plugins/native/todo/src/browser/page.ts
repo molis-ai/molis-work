@@ -60,10 +60,10 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
     return title ? uiText.text("todo.place.project-named", { name: title }) : uiText.text("todo.place.this-project");
   };
   const placeName = (value: string) => (value === "project" ? hereName() : value === "personal" ? uiText.text("todo.place.personal") : uiText.text("todo.place.unassigned"));
-  const statusNames: Record<string, string> = {
-    open: uiText.text("todo.status.open"), doing: uiText.text("todo.status.doing"), waiting: uiText.text("todo.status.waiting"), done: uiText.text("todo.status.done"), cancelled: uiText.text("todo.status.cancelled"),
+  const STATUS_KEYS: Record<string, string> = {
+    open: "todo.status.open", doing: "todo.status.doing", waiting: "todo.status.waiting", done: "todo.status.done", cancelled: "todo.status.cancelled",
   };
-  const weekdays = [uiText.text("todo.week.sun"), uiText.text("todo.week.mon"), uiText.text("todo.week.tue"), uiText.text("todo.week.wed"), uiText.text("todo.week.thu"), uiText.text("todo.week.fri"), uiText.text("todo.week.sat")];
+  const WEEKDAY_KEYS = ["todo.week.sun", "todo.week.mon", "todo.week.tue", "todo.week.wed", "todo.week.thu", "todo.week.fri", "todo.week.sat"] as const;
   const dayDiff = (date: string) => Math.round((new Date(`${date}T00:00:00`).getTime() - new Date(`${state.today || isoDay(new Date())}T00:00:00`).getTime()) / DAY_MS);
   const dayLabel = (date: string) => {
     if (!date) return "";
@@ -73,7 +73,7 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
     if (diff === -1) return uiText.text("todo.date.yesterday");
     const at = new Date(`${date}T00:00:00`);
     const written = uiText.text(at.getFullYear() === new Date().getFullYear() ? "todo.date.month-day" : "todo.date.year-month-day", { y: at.getFullYear(), m: at.getMonth() + 1, d: at.getDate() });
-    return `${written} ${weekdays[at.getDay()]}`;
+    return `${written} ${uiText.text(WEEKDAY_KEYS[at.getDay()]!)}`;
   };
   const timeLabel = (iso: string) => {
     const at = new Date(iso);
@@ -150,7 +150,7 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
 
   const page = {
     host, readText, el, state, request, $, projectId, hereName, placeName, dayDiff, dayLabel, timeLabel, showNote, detailHint, ask, paintPlaces,
-    tellAssistant, publishContext, post, candidateOf, statusName: (status: string) => statusNames[status] ?? status,
+    tellAssistant, publishContext, post, candidateOf, statusName: (status: string) => STATUS_KEYS[status] ? uiText.text(STATUS_KEYS[status]!) : status,
     field: (name: string) => $<HTMLInputElement | HTMLTextAreaElement>(`[data-todo-field="${name}"]`),
   } as TodoPage;
   return page;

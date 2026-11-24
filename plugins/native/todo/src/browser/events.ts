@@ -134,6 +134,20 @@ export function listen(page: TodoPage): void {
       } catch { await page.closeDetail(); }
     }).catch(() => undefined);
   });
+  document.addEventListener("molis-work:language-changed", () => {
+    const batchProject = el.bench.querySelector<HTMLElement>('[data-todo-batch-placement="project"]');
+    if (batchProject) batchProject.textContent = page.hereName();
+    page.paintPlaces(el.quickPlacement, page.quickDefaultPlacement(), "data-todo-quick-placement-choice");
+    page.renderQuick();
+    page.renderReminders();
+    if (state.view === "review") page.renderReview();
+    else page.renderList();
+    if (state.selected) {
+      page.paintDraft();
+      page.paintSave();
+    }
+    page.publishContext();
+  });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !state.dirtyKeys.size) void page.load().catch(() => undefined); });
   window.setInterval(() => { if (!document.hidden && !el.bench.hidden) void page.loadReminders().catch(() => undefined); }, 60000);
   window.addEventListener("beforeunload", (event) => { if (state.dirtyKeys.size || state.saving) { event.preventDefault(); event.returnValue = ""; } });

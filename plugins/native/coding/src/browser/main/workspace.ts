@@ -25,7 +25,8 @@ export async function useProjectWorkspace(page: Page, id: string) {
 export async function followWorkspace(page: Page) {
   const { s } = page;
   const target = s.state.workspaces?.find(item => item.workspace_id === s.workspaceId && item.realpath_verified);
-  if (!target || target.workspace_id === s.state.workspace?.workspace_id) return;
+  // A state read can already describe this directory while the embedded Git still shows the output folder.
+  if (!target) return;
   try {
     await useProjectWorkspace(page, target.workspace_id);
     s.state.workspace = target;

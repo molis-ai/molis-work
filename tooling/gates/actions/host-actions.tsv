@@ -122,6 +122,7 @@ agent.task_grants.clear	1	system.task-grants	command	operation	project	write	-	p
 agent.task_grants.list	1	system.task-grants	query	query	project	read	-	plugin,user	-	-	-	-	90f264064219	e5f995eece15	-
 agent.task_grants.set	1	system.task-grants	command	operation	project	write	-	user	projects:settings	project	-	-	65c4dcc42cc6	84610c1025f6	-
 agent.tools.kit.report	1	system.agent-tools	query	query	home	read	concurrent	user	kit:read	-	molis.kit-report.input.v1	molis.kit-report.output.v1	d746974fa9af	4aad19deeef8	-
+agent.write-checks.read	1	platform	query	query	project	read	-	plugin	-	-	-	-	9847fe575350	b3b83129e4d0	-
 agent.write_checkers.list	1	platform	query	query	project	read	-	user	-	project	-	-	99334726611c	26cb7ff8df01	-
 agent.write_checkers.save	1	platform	command	operation	project	write	-	user	projects:settings	project	-	-	498e1a9ea182	20465c4fd1d3	-
 appearance.selection.apply	1	system.appearance	command	operation	home	write	-	user	appearance:write	-	-	-	483da920ab6f	57b94ef149dc	a4dfb41b6e2a
@@ -299,9 +300,9 @@ home.pages.adopt	1	system.home	command	operation	project	write	-	user	home:write
 home.pages.diff	1	system.home	query	query	project	read	-	user	home:read	-	-	-	68accb374655	8a8c40f94aa0	-
 home.pages.drafts.save	1	system.home	command	operation	project	write	-	agent,user	home:write	-	-	-	a6b0ed6495f2	9ac46ac4a58b	5e0374458cf9
 home.pages.files.read	1	system.home	query	query	project	read	-	user	home:read	-	-	-	4ad159333bd6	7517fef855f8	-
-home.pages.preview	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	4ad159333bd6	c68cdd5488a9	-
+home.pages.preview	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	dac0689841e8	5fb22eefb968	-
 home.pages.restore	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	eb2d997c5b17	5db3a309907b	-
-home.read	1	system.home	query	query	project	read	-	agent,plugin,user	home:read	-	-	-	4f8336b9fd7e	f6dc1ed9a438	-
+home.read	1	system.home	query	query	project	read	-	agent,plugin,user	home:read	-	-	-	8528a440423e	3d17b4afa469	-
 home.recommendations.read	1	system.home	query	query	project	read	-	agent,mcp,user,workflow	home:read	-	-	-	99334726611c	1849cb2ba26c	-
 home.select	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	9176d5f05ac2	e1d9a802e7f3	-
 kit.catalog.list	1	system.kit	query	query	home	read	concurrent	user	kit:read	-	-	-	d746974fa9af	62d0a2a7bd41	-
@@ -332,7 +333,7 @@ mainline.items.remove	1	system.mainline	command	operation	project	write	concurre
 mainline.items.rename	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:arrange	-	-	-	5d3d5bdd8f5e	93d87603519b	-
 mainline.line.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	b52cab3beee0	b31da0b313db	-
 mainline.place	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:place	-	-	-	ba18f726ac6a	aef3a8191520	-
-mainline.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	6fa80a88b0fe	2364515194bb	-
+mainline.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	6fa80a88b0fe	c7c221441192	-
 mainline.subject.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	mainline:read	work_item	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	3c18e4478c29	-
 mainline.switch	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:arrange	-	-	-	2d7fb5085ddc	93d87603519b	-
 materials.capture	1	system.materials	command	operation	project	write	concurrent	plugin,user	artifact:read,artifact:write,storage:private,workspace:read	file,workspace	-	-	b382d3d61ebf	d010bc81b325	1cc35ff17bf8

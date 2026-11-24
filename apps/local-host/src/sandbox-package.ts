@@ -119,7 +119,7 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   if (!plain(shape) || Object.keys(shape).some(key => !['parts', 'nodes', 'presentation', 'acceptance', 'ui'].includes(key))) return refuse('interface.json 只能有 parts、nodes、presentation、acceptance、ui');
   const surface: { parts?: unknown; nodes?: unknown; presentation?: unknown; acceptance?: unknown; ui?: unknown } = shape;
   const ui = validated('interface.json 的 ui', () => parseSandboxUi(surface.ui));
-  const parts = validated('interface.json 的 parts', () => validatePluginComponentPlans(surface.parts, contract, ui));
+  const parts = validated('interface.json 的 parts', () => validatePluginComponentPlans(surface.parts, contract, ui, manifest.connections));
   const nodes = validated('interface.json 的 nodes', () => {
     if (!Array.isArray(surface.nodes)) throw new Error('nodes 要是数组');
     const assembled: PluginComponentNode[] = surface.nodes;

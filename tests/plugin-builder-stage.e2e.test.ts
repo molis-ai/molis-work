@@ -47,7 +47,7 @@ test("B47-F4 B12 an expired Studio page keeps the message for the same paused bu
   const browser = await openGoalBrowser(t, "user", (path, id) => {
     database = path;
     projectId = id!;
-    seedDemoGoals(database, projectId);
+    return seedDemoGoals(database, projectId);
   }, null, undefined, undefined, { async prepareHome(home) {
     const fixture = readyPublication(home, projectId, "project"), store = new LocalProjectDatabase(database);
     try {

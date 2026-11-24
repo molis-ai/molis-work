@@ -222,6 +222,15 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       read: () => later.has(id) ? Promise.resolve(later.get(id)) : going.has(id) ? Promise.resolve("")
         : worksIn.then(() => writing.get(id)?.text ?? (works.find((work) => work.work_id === id) || {}).draft ?? ""),
       // Sending reuses the saved generation; every real edit below creates a new one, including retyping the same words.
+      async settle(revision) {
+        const { work: saved } = await api("", "POST", { draft: "", expected_draft_revision: revision }, route);
+        const cached = works.find(row => row.work_id === id);
+        if (cached && !writing.has(id) && cached.draft_revision <= saved.draft_revision) {
+          cached.draft = saved.draft;
+          cached.draft_revision = saved.draft_revision;
+          cached.revision = Math.max(cached.revision, saved.revision);
+        }
+      },
       prepare(text) {
         const pending = writing.get(id), work = works.find(row => row.work_id === id);
         return pending?.text === text ? pending.promise : !pending && work?.draft === text && !unsaved
@@ -244,11 +253,25 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   };
   /** One Send from the composer: the work it is for is the one in front now, whatever the person opens while it is on its way. */
   const sendNow = async (sent) => {
-    const id = curId, mine = { text: sent.text, mount: mountedFor };
+    const id = curId, projectOnce = itemScopeDismissed && currentWorkItem, mine = { text: sent.text, mount: mountedFor };
     const before = id ? draftFor(id).prepare(sent.text) : undefined;
     sending += 1; inFlight = mine; if (id) going.set(id, mine);
     try {
-      const outcome = await submit(sent, before);
+      const outcome = await submit(sent, before, projectOnce);
+      const settleProjectSend = async () => {
+        if (!projectOnce) return;
+        if (currentWorkItem?.id === projectOnce.id) {
+          itemScopeDismissed = false;
+          paintItemPill();
+        }
+        if (id && before) await draftFor(id).settle(await before);
+      };
+      if (outcome.state === "sent") await settleProjectSend();
+      if (projectOnce && outcome.state === "unknown") return { ...outcome, check: async () => {
+        const state = await outcome.check();
+        if (state === "sent") await settleProjectSend();
+        return state;
+      } };
       return outcome;
     } finally {
       sending -= 1; if (inFlight === mine) inFlight = null;
@@ -262,7 +285,11 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const shown = () => json([receiverNow().label, Boolean(getWork()), deliveryNow(), controlsNow().map((one) => [one.id, one.label, one.value, one.options])]);
   const assistantInputName = () => attr(input, "aria-label", words.input);
   let refreshComposerWords = assistantInputName;
+  // A framed composer can remount in the same object tab. Keep the tab identity only for restoring its editor.
+  let mountedEditor = null;
   const mountPage = (target) => {
+    const tab = target.itemTabId();
+    mountedEditor = tab ? "tab:" + tab : null;
     mountedFor = target.key; boundPage = target; draftHere = null; painted = "";
     island.dataset.receiver = "page"; drawHead(); input.readOnly = false; input.placeholder = target.placeholder;
     // The page's own words, with the bar's where it gave none; its options are read live (getters kept), only the words are filled.
@@ -282,7 +309,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   /* 「在：事项名 ×」 pill in the composer's bottom row (MLN-16, BL-dialog-info-column-prototype-gaps #4):
      shows the active work item; pressing × clears it so the next Send goes to the whole project instead. */
   var currentWorkItem = null, itemScopeDismissed = false;
-  function activeWorkItem() { return !itemScopeDismissed && currentWorkItem ? currentWorkItem : null; }
+  function activeWorkItem() { return currentWorkItem || null; }
   const pillXSvg = ${JSON.stringify(icon("x"))};
   const pill = document.createElement("span");
   pill.className = "work-item-pill";
@@ -298,19 +325,12 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   pillClear.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    const carried = String(input.value || "");
     itemScopeDismissed = true;
-    fresh = false;
     paintItemPill();
-    void switchTo(null).then(() => {
-      syncComposer();
-      drawHead();
-      if (carried && !String(input.value || "").trim()) setWords(carried);
-      input.focus();
-    });
+    input.focus();
   });
   function paintItemPill() {
-    const wi = !boundPage && project ? activeWorkItem() : null;
+    const wi = !boundPage && project && !itemScopeDismissed ? activeWorkItem() : null;
     const clearText = readText("workbench.assistant-composer.clear-work-item");
     pillClear.setAttribute("aria-label", clearText);
     pillClear.title = clearText;
@@ -329,12 +349,37 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     if (!pill.hidden && !pill.isConnected) paintItemPill();
   });
   pillObserver.observe(compose, { childList: true, subtree: true });
+  // The draft text already belongs to its receiver. Keep only the local editor position and an unsent choice of recipient.
+  function savedItemEditor() {
+    try { return currentWorkItem ? JSON.parse(store.get(scoped("item-editor"))) : null; } catch { return null; }
+  }
+  function restoreItemEditor() {
+    const editor = savedItemEditor();
+    if (editor && editor.mount === mountedEditor) {
+      input.setSelectionRange(editor.start, editor.end, editor.direction);
+      input.scrollTop = editor.top;
+    }
+  }
+  input.addEventListener("molis-work:composer-draft-restored", restoreItemEditor);
+  function rememberItemEditor() {
+    if (!currentWorkItem || !mountedEditor) return;
+    store.set(scoped("item-editor"), JSON.stringify({ mount: mountedEditor, start: input.selectionStart, end: input.selectionEnd,
+      direction: input.selectionDirection, top: input.scrollTop, recipient: !boundPage && !curId && talkDraft ? nextChar : undefined }));
+  }
+  // A window can close without pagehide. Keep the person's last selection while this input owns it.
+  const rememberFocusedEditor = () => { if (document.activeElement === input) rememberItemEditor(); };
+  input.addEventListener("select", rememberFocusedEditor);
+  input.addEventListener("scroll", rememberFocusedEditor);
+  window.addEventListener("pagehide", rememberItemEditor);
   function onWorkItemChanged(event) {
     const detail = event?.detail || {};
     const next = detail.item_id ? { id: detail.item_id, name: detail.item_name || detail.item_id } : null;
     const changed = (next?.id || null) !== (currentWorkItem?.id || null);
+    if (changed) rememberItemEditor();
     currentWorkItem = next;
     if (changed) {
+      nextChar = savedItemEditor()?.recipient;
+      talkDraft = roleKey(nextChar?.ref);
       itemScopeDismissed = false;
       fresh = false;
       const remembered = store.get(scoped("current"));
@@ -348,13 +393,17 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   document.addEventListener("molis-work:language-changed", paintItemPill);
   function disposeWorkItemPill() {
     document.removeEventListener("molis-work:work-item-changed", onWorkItemChanged);
+    input.removeEventListener("molis-work:composer-draft-restored", restoreItemEditor);
+    input.removeEventListener("select", rememberFocusedEditor);
+    input.removeEventListener("scroll", rememberFocusedEditor);
+    window.removeEventListener("pagehide", rememberItemEditor);
     document.removeEventListener("molis-work:language-changed", paintItemPill);
     pillObserver.disconnect();
   }
   const mountComposer = () => {
     island.removeAttribute("data-receiver"); drawHead(); paintAim(false);
     refreshComposerWords = assistantInputName; refreshComposerWords();
-    mountedFor = curId || newDraftKey(); draftHere = draftFor(curId); painted = shown();
+    mountedEditor = mountedFor = curId || newDraftKey(); draftHere = draftFor(curId); painted = shown();
     composer = window.molisComposer(compose, { kind: "ai", entry: "assistant", labels: words, draft: { adapter: draftHere },
       receiver: receiverNow, delivery: deliveryNow, get controls() { return controlsNow(); }, get commands() { return commands(); },
       attachments: { accept: upload.accept, upload: (file) => upload.upload(file) }, onMaterials: () => paintMats(),
@@ -364,7 +413,8 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       submit: sendNow });
     const work = getWork(); composer.setRunning(Boolean(work && isLive(work.state)));
     paintItemPill();
-    void composer.ready?.().then(() => paintItemPill(), () => {});
+    const mounted = composer;
+    void mounted.ready?.().then(() => { if (mounted === composer) paintItemPill(); }, () => {});
   };
   /** Keeps the composer on the receiver in front; redrawn only when what it shows changed, so a poll never closes its menu. */
   function syncComposer() {
@@ -372,7 +422,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     const page = pageInFront();
     // The person opened another receiver: the composer moves now, even with a Send on its way (its outcome is the Host's and the
     // thread's). A new work's first Send moving it to that work waits until the composer has settled the Send.
-    if (mountedFor !== (page ? page.key : curId || newDraftKey()) && !(sending && handedOver && !page)) {
+    if ((page ? boundPage !== page : mountedFor !== (curId || newDraftKey())) && !(sending && handedOver && !page)) {
       // Destroy flushes captured edits, including typing before the shared script arrived.
       composer?.destroy(); boundPage?.bind(null); boundPage = null;
       handedOver = false; closeSendTo(false);
@@ -386,13 +436,13 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     paintItemPill();
   }
   const asOutcome = (res, id) => res.consumed === false ? { state: "failed", message: readText("workbench.assistant-composer.the-original-send-is-confirmed-the-draft-here") } : ({ state: "sent", ...(res.elsewhere ? { elsewhere: true } : {}),...(res.outcome === "repeated" || res.outcome === "queued" ? { receipt: { input_id: "send." + id, replayed: res.outcome === "repeated", delivered: res.outcome === "queued" ? "queued" : "run" } } : {}) });
-  async function submit(sent, before) {
-    const text = sent.text.trim(), into = curId && receipts.into(), fill = into && fills.get(into.pending_id);
+  async function submit(sent, before, projectOnce) {
+    const text = sent.text.trim(), into = !projectOnce && curId && receipts.into(), fill = into && fills.get(into.pending_id);
     if (fill && sent.materials.length) return { state: "failed", message: readText("workbench.assistant-composer.this-questionnaire-field-accepts-text-only-remove-the") };
     if (fill) return Promise.resolve(before).then(revision => fill(into.draft_from_composer, text, revision)).then(() => { host.showToast?.(readText("workbench.assistant-send.written-into-form-goes-back-only-when-press")); return { state: "sent" }; }, (error) => ({ state: "failed", message: error.message }));
     const { materials, over, positions } = upload.take(sent.materials);
     if (over.length) return { state: "failed", message: over[0].reason, unreadable: over };
-    const asked = { request_id: sent.request_id, delivery: sent.delivery, materials, ...(before ? { before } : {}) };
+    const asked = { projectOnce, request_id: sent.request_id, delivery: sent.delivery, materials, ...(before ? { before } : {}) };
     const outcome = (error) => ["ui_host.outcome_unknown", "assistant.pending_request"].includes(error.code) ? { state: "unknown", check: () => { sending += 1;
       return error.checkSend().finally(() => { sending -= 1; setTimeout(syncComposer, 0); }); } }
       : { state: "failed", message: error.message, unreadable: (error.body?.details?.unreadable || []).flatMap(one => positions.has(one.material_id) ? [{ index: positions.get(one.material_id), reason: one.reason }] : []) };

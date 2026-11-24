@@ -4,6 +4,8 @@ import { freezeStudioUi, studioUiAnswer, type StudioDesignLanguages } from "./ag
 import { inDesignOrder, type AgentPublicationControl, type AgentRelease as PublishedAgentRelease } from './agent-model.js';
 import { recheckAgentBuild } from './agent-recheck.js';
 import { publishAgentBuild, buildScope, releaseScope } from './agent-publication.js';
+import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { PLUGIN_ICON_NAMES } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import { randomUUID } from 'node:crypto';
 import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
@@ -252,7 +254,10 @@ export class AgentBuilderWorkflow {
     design.contract.state_machines = versionedStateMachines(design.contract.state_machines ?? [], released?.design.contract.state_machines);
     const valid = validateAgentDesign(design, capabilities.map(item => item.id), resources, this.ports.validateContract);
     const source = value && typeof value === 'object' && !Array.isArray(value) && 'design' in value ? (value as { design: unknown }).design : value;
-    if (language) freezeStudioUi(valid, source && typeof source === 'object' && 'uiText' in source ? source.uiText : undefined, language, this.store.require(id).design?.contract.ui?.locales);
+    if (language) {
+      if (!valid.icon) throw new Error('请按插件用途，从任务的 iconNames 中选择一个图标并写入 design.icon');
+      freezeStudioUi(valid, source && typeof source === 'object' && 'uiText' in source ? source.uiText : undefined, language, this.store.require(id).design?.contract.ui?.locales);
+    }
     // A change inside an operation that its contract cannot show (e.g. what the model is asked) still reaches the code.
     const rework = readStudioRework(value, valid.contract.operations);
     // A build keeps the catalog it began with, so code already written against it keeps working; new builds use the current one.
@@ -279,7 +284,7 @@ export class AgentBuilderWorkflow {
     const stepId = 'detail:' + token, { all, catalog, more, resources } = await this.designContext(id, [initial.brief, proposal.title, proposal.description, ...proposal.journey,
       ...proposal.preview.contract.operations.map(operation => operation.description)].join('\n'), picked);
     this.step(id, { id: stepId, agent: 'design', action: 'design', ...studioProposalStep(proposal.title), status: 'active' });
-    const result = await this.designer(id, token, signal, stepId, { mode: 'detail', brief: initial.brief, messages: initial.messages, proposal: sketch, experience, capabilities: catalog, moreCapabilities: more, resources,
+    const result = await this.designer(id, token, signal, stepId, { mode: 'detail', iconNames: PLUGIN_ICON_NAMES, connectionServices: Object.keys(CONNECTOR_REQUEST_SERVICES), brief: initial.brief, messages: initial.messages, proposal: sketch, experience, capabilities: catalog, moreCapabilities: more, resources,
       ...(this.ports.designLanguages ? { uiText: studioUiAnswer(this.ports.designLanguages()) } : {}) },
       output => this.acceptDesign(id, output, proposal, all, resources));
     if (experience) result.design.experience = experience;
@@ -329,7 +334,7 @@ export class AgentBuilderWorkflow {
     const request = hostRequest ?? [...initial.messages].reverse().find(item => item.role === 'user')?.text ?? '';
     const stepId = 'revise:' + token + (hostRequest ? ':' + randomUUID().slice(0, 8) : ''), { all, catalog, more, resources } = await this.designContext(id, [initial.brief, request, design.title].join('\n'), usedCapabilities(design.contract.operations));
     this.step(id, { id: stepId, agent: 'design', action: 'design', label: studioStep(hostRequest ? 'revising-display' : 'revising-design'), status: 'active', detail: request.slice(0, 300) });
-    const result = await this.designer(id, token, signal, stepId, { mode: 'revise', brief: initial.brief, request, messages: initial.messages, experience: design.experience,
+    const result = await this.designer(id, token, signal, stepId, { mode: 'revise', iconNames: PLUGIN_ICON_NAMES, connectionServices: Object.keys(CONNECTOR_REQUEST_SERVICES), brief: initial.brief, request, messages: initial.messages, experience: design.experience,
       current: initial.designSource ? JSON.parse(initial.designSource) : { title: design.title, operations: design.contract.operations, parts: design.parts, acceptance: design.acceptance },
       capabilities: catalog, moreCapabilities: more, resources, ...(this.ports.designLanguages ? { uiText: studioUiAnswer(this.ports.designLanguages(), design.contract.ui?.locales) } : {}) }, output => this.acceptDesign(id, output, design, all, resources));
     const revision = studioRevisionStep(design, result.design, Object.keys(result.rework), Boolean(hostRequest));

@@ -3,10 +3,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { homeErrors, homePageActions, type HomePageFilesResult, type HomePageRef } from "@molis-ai/molis-work-contracts/services/home";
-import { HOME_PAGES_BASELINE, HOME_PAGES_HOME_STORE, HomePagesStore, inspectHomePageDesign } from "@molis-ai/molis-work-service-home";
+import { inspectHomePageDesign } from "@molis-ai/molis-work-service-home";
 import { actionErrorResponse, isRecord } from "@molis-ai/molis-work-plugin-sdk";
-import { heldHomeSqlite } from "@molis-ai/molis-work-storage";
 import { homePageRequestBound } from "./home-page-authority.js";
+import { homePagePalettes, homePageReads } from "./home-pages-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { withProtectedHostAction } from "./plugin-consent-settings-entry.js";
@@ -88,17 +88,16 @@ export async function handleHomePagesHttp(
     // 3. Open a live `home-page` session for the project's currently adopted version (trusted outer shell only).
     if (suffix === "session" && method === "POST") {
       refuseIfFramedPage(request, "生成页面不能直接开启新的首页会话");
-      const store = new HomePagesStore(heldHomeSqlite(homeDirectory, HOME_PAGES_HOME_STORE.path, HOME_PAGES_BASELINE), project.project_id);
-      const state = store.selectionState();
-      if (state.selection.kind !== "page") {
-        throw homeErrors.page_not_found("当前项目使用的是基础首页，没有已采用的生成首页");
-      }
-      const ref = { page_id: state.selection.page_id, version: state.selection.version };
-      const verified = store.readFilesVerified(ref);
-      const detail = store.readVersion(ref);
-      const approved = detail?.approval?.approved_actions ?? [];
-      const { page_session_id } = pages.openLive(project.project_id, LOCAL_PERSON_ACTOR_ID, verified.version, approved);
-      sendLocalWebJson(response, 200, { page: ref, page_session_id, approved_actions: approved });
+      const action = Object.freeze({ source: "web" as const, conversation_ref: `web:${project.project_id}`, message_ref: `web:${randomUUID()}` });
+      const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS, { signal: controller.signal, user_action: () => action });
+      const result = await homePageReads(homeDirectory, project.project_id).open(
+        ref => withProtectedHostAction(action, () => client.invoke<HomePageRef, HomePageFilesResult>(homePageActions.readFiles, ref)),
+        (target, loaded) => {
+          controller.signal.throwIfAborted();
+          const { page_session_id } = pages.openLive(project.project_id, LOCAL_PERSON_ACTOR_ID, target.version, target.approved_actions);
+          return { page: target.ref, page_session_id, loaded, approved_actions: target.approved_actions };
+        });
+      sendLocalWebJson(response, 200, result);
       return true;
     }
 
@@ -128,6 +127,13 @@ export async function handleHomePagesHttp(
         );
         const pluginExplicit = Boolean(view?.action.audiences.includes("plugin"));
         const audienceDenied = Boolean(view && !pluginExplicit);
+        const unavailableCode = !view
+          ? "missing"
+          : audienceDenied
+            ? "audience_denied"
+            : view.availability.available
+              ? null
+              : "disabled";
         return {
           ...ref,
           title: view?.action.title ?? ref.capability_id,
@@ -139,6 +145,7 @@ export async function handleHomePagesHttp(
           metered: view?.action.execution?.cost === "metered",
           available: Boolean(pluginExplicit && view?.availability.available),
           audience_denied: audienceDenied,
+          unavailable_code: unavailableCode,
           unavailable_reason: !view
             ? "找不到这项动作，对应插件可能未安装"
             : audienceDenied
@@ -148,10 +155,11 @@ export async function handleHomePagesHttp(
                 : (view.availability.reason ?? "对应插件当前已停用或不可用"),
         };
       });
-      const store = new HomePagesStore(heldHomeSqlite(homeDirectory, HOME_PAGES_HOME_STORE.path, HOME_PAGES_BASELINE), project.project_id);
-      const pruned = store.prunedVersions(body.page_id);
+      const pruned = homePageReads(homeDirectory, project.project_id).pruned(pageId);
       const forbiddenAction = actions.find(item => item.audience_denied);
       const report = inspectHomePageDesign(loaded.files, {
+        entry: loaded.version.entry,
+        palettes: homePagePalettes,
         actionsValid: !forbiddenAction,
         actionIssueReason: forbiddenAction?.unavailable_reason ?? undefined,
       });

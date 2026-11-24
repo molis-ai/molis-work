@@ -9,8 +9,8 @@ import {
   renderCheckSummary,
   renderCompareAdoptBar,
   renderEditConflict,
-  type CheckSummaryItem,
-} from "@molis-ai/molis-work-design-system/home-page-adoption";
+} from "./mainline-ui.js";
+import type { CheckSummaryItem } from "@molis-ai/molis-work-design-system/home-page-adoption";
 import {
   escapeHtml,
   icon,
@@ -20,7 +20,7 @@ import {
   renderPopover,
   renderStatusMark,
   t as uiText,
-} from "@molis-ai/molis-work-plugin-sdk/ui";
+} from "./mainline-ui.js";
 
 export interface InspectedAction extends ExactActionReference {
   readonly title: string;
@@ -31,6 +31,7 @@ export interface InspectedAction extends ExactActionReference {
   readonly external: boolean;
   readonly metered: boolean;
   readonly available: boolean;
+  readonly unavailable_code?: "missing" | "audience_denied" | "disabled" | null;
   readonly unavailable_reason: string | null;
 }
 
@@ -38,7 +39,33 @@ export interface InspectReportItem {
   readonly id: "public_actions" | "sandbox_isolation" | "project_scope" | "design_tokens";
   readonly ok: boolean;
   readonly severity: "ok" | "error" | "warning";
-  readonly issues: ReadonlyArray<{ readonly path: string; readonly reason: string }>;
+  readonly issues: ReadonlyArray<{ readonly code?: string; readonly path: string; readonly reason: string }>;
+}
+
+const DESIGN_ISSUE_KEYS: Readonly<Record<string, string>> = {
+  inline_style_attr: "workbench.home-pages.issue-inline-style",
+  inline_event_handler: "workbench.home-pages.issue-inline-handler",
+  external_asset: "workbench.home-pages.issue-external-asset",
+  cross_project_path: "workbench.home-pages.issue-cross-project",
+  action_not_public: "workbench.home-pages.issue-action-not-public",
+  dynamic_eval: "workbench.home-pages.issue-dynamic-eval",
+  nested_embed: "workbench.home-pages.issue-nested-embed",
+  low_contrast: "workbench.home-pages.issue-low-contrast",
+  amber_usage: "workbench.home-pages.issue-amber",
+  literal_color: "workbench.home-pages.issue-literal-color",
+  pill_radius: "workbench.home-pages.issue-pill-radius",
+};
+
+export function localizeDesignIssueReason(issue: { readonly code?: string; readonly reason: string }): string {
+  const key = issue.code ? DESIGN_ISSUE_KEYS[issue.code] : undefined;
+  return key ? uiText.text(key) : issue.reason;
+}
+
+export function localizeUnavailableReason(action: Pick<InspectedAction, "unavailable_code" | "unavailable_reason">): string | null {
+  if (action.unavailable_code === "missing") return uiText.text("workbench.home-pages.unavailable-missing");
+  if (action.unavailable_code === "audience_denied") return uiText.text("workbench.home-pages.unavailable-audience-denied");
+  if (action.unavailable_code === "disabled") return uiText.text("workbench.home-pages.unavailable-disabled");
+  return action.unavailable_reason;
 }
 
 export interface InspectResponse {
@@ -139,6 +166,7 @@ export function renderHomeNoticeHtml(options: {
   readonly dismissedDraftKey: string | null;
   readonly fallbackAlert: { title: string; body: string; retryRef?: HomePageRef } | null;
   readonly restoreNotice: { page: HomePageRef; title: string } | null;
+  readonly yieldPrimary?: boolean;
 }): string {
   const parts: string[] = [];
   if (options.fallbackAlert) {
@@ -191,7 +219,7 @@ export function renderHomeNoticeHtml(options: {
         attrs: { "data-hp-act": "dismiss-draft", "data-hp-key": homePageRefKey(draft) },
       })}${renderButton({
         label: uiText.text("workbench.home-pages.view-draft"),
-        variant: "primary",
+        variant: options.yieldPrimary ? "secondary" : "primary",
         size: "sm",
         attrs: { "data-hp-act": "compare", "data-hp-page": draft.page_id, "data-hp-ver": String(draft.version) },
       })}</div></div>`,
@@ -208,9 +236,9 @@ function buildCheckItems(inspect: InspectResponse): CheckSummaryItem[] {
     design_tokens: uiText.text("workbench.home-pages.check-design"),
   };
   const items: CheckSummaryItem[] = inspect.report.checks.map(check => ({
-    state: check.severity === "error" ? "blocked" : check.severity === "warning" ? "waiting" : "done",
+    state: check.severity === "error" ? "failed" : check.severity === "warning" ? "waiting" : "done",
     text: check.issues.length
-      ? uiText.text("workbench.home-pages.check-item-issue", { label: labels[check.id], reason: check.issues[0]!.reason })
+      ? uiText.text("workbench.home-pages.check-item-issue", { label: labels[check.id], reason: localizeDesignIssueReason(check.issues[0]!) })
       : labels[check.id],
   }));
   const missingDep = inspect.actions.filter(action => !action.available);
@@ -226,7 +254,7 @@ function buildCheckItems(inspect: InspectResponse): CheckSummaryItem[] {
 export function renderCompareShellHtml(activeLabel: string, draft: HomePageVersionSummary): string {
   return `
     <div class="hp-compare-switch">
-      <div class="mw-toggle-group" role="group" aria-label="${escapeHtml(uiText.text("workbench.home-pages.compare-which"))}">
+      <div class="mw-toggle-group" role="group" data-hp-compare-group aria-label="${escapeHtml(uiText.text("workbench.home-pages.compare-which"))}">
         <button type="button" class="mw-toggle" data-hp-view="now" aria-pressed="false">${escapeHtml(uiText.text("workbench.home-pages.side-now"))}</button>
         <button type="button" class="mw-toggle is-current" data-hp-view="draft" aria-pressed="true">${escapeHtml(uiText.text("workbench.home-pages.side-draft"))}</button>
       </div>
@@ -234,11 +262,11 @@ export function renderCompareShellHtml(activeLabel: string, draft: HomePageVersi
     <div class="hp-compare-issues" data-hp-compare-issues></div>
     <div class="hp-compare-grid" data-hp-compare-grid data-view="draft">
       <section class="hp-compare-col" data-col="now" aria-label="${escapeHtml(uiText.text("workbench.home-pages.side-now"))}">
-        <header class="hp-compare-col__head">${renderBadge({ label: uiText.text("workbench.home-pages.in-use"), tone: "success" })}<strong>${escapeHtml(activeLabel)}</strong></header>
+        <header class="hp-compare-col__head"><span data-hp-now-badge>${renderBadge({ label: uiText.text("workbench.home-pages.in-use"), tone: "success" })}</span><strong data-hp-now-title>${escapeHtml(activeLabel)}</strong></header>
         <div class="hp-compare-col__body" data-hp-now-stage></div>
       </section>
       <section class="hp-compare-col hp-compare-col--draft" data-col="draft" aria-label="${escapeHtml(uiText.text("workbench.home-pages.side-draft"))}">
-        <header class="hp-compare-col__head">${renderBadge({ label: uiText.text("workbench.home-pages.draft"), tone: "info" })}<strong>${escapeHtml(draft.title)} · v${draft.version}</strong><span class="hp-preview-note">${escapeHtml(uiText.text("workbench.home-pages.preview-readonly-note"))}</span></header>
+        <header class="hp-compare-col__head"><span data-hp-draft-badge>${renderBadge({ label: uiText.text("workbench.home-pages.draft"), tone: "info" })}</span><strong>${escapeHtml(draft.title)} · v${draft.version}</strong><span class="hp-preview-note">${escapeHtml(uiText.text("workbench.home-pages.preview-readonly-note"))}</span></header>
         <div class="hp-compare-col__body" data-hp-draft-stage></div>
       </section>
     </div>
@@ -267,7 +295,7 @@ export function renderCompareChromeParts(options: {
           ? uiText.text("workbench.home-pages.summary-dep-off")
           : uiText.text("workbench.home-pages.summary-passed");
   const summaryTone = blocker === "check" ? "blocked" : blocker === "conflict" ? "attention" : hasMissingDep ? "hold" : "done";
-  const summaryState = blocker === "check" ? "blocked" : blocker === "conflict" ? "conflict" : hasMissingDep ? "waiting" : "done";
+  const summaryState = blocker === "check" ? "failed" : blocker === "conflict" ? "conflict" : hasMissingDep ? "waiting" : "done";
 
   const conflictHtml =
     hasManualConflict && diff
@@ -279,7 +307,7 @@ export function renderCompareChromeParts(options: {
           nextLabel: uiText.text("workbench.home-pages.conflict-next", { v: draft.version }),
           nextValue: uiText.text("workbench.home-pages.conflict-next-summary", { title: draft.title, n: diff.files.length }),
           choices: [
-            { label: uiText.text("workbench.home-pages.conflict-keep"), variant: "primary", attrs: { "data-hp-act": "conflict-pick", "data-hp-pick": "mine" } },
+            { label: uiText.text("workbench.home-pages.conflict-keep"), variant: "secondary", attrs: { "data-hp-act": "conflict-pick", "data-hp-pick": "mine" } },
             { label: uiText.text("workbench.home-pages.conflict-use-new"), variant: "secondary", attrs: { "data-hp-act": "conflict-pick", "data-hp-pick": "new" } },
             { label: uiText.text("workbench.home-pages.conflict-merge"), variant: "ghost", attrs: { "data-hp-act": "conflict-pick", "data-hp-pick": "merge" } },
           ],
@@ -300,12 +328,13 @@ export function renderCompareChromeParts(options: {
         })
       : "";
 
+  const failedIssue = inspect.report.checks.find(c => c.severity === "error")?.issues[0];
   const failedCheckAlert =
     blocker === "check"
       ? renderAlert({
           tone: "danger",
           title: uiText.text("workbench.home-pages.check-failed-title"),
-          body: inspect.report.checks.find(c => c.severity === "error")?.issues[0]?.reason ?? uiText.text("workbench.home-pages.check-failed-body"),
+          body: failedIssue ? localizeDesignIssueReason(failedIssue) : uiText.text("workbench.home-pages.check-failed-body"),
         })
       : "";
 
@@ -387,7 +416,8 @@ export function renderApprovalDialogHtml(options: {
             : carried
               ? renderBadge({ label: uiText.text("workbench.home-pages.carried-permission"), tone: "neutral" })
               : renderBadge({ label: uiText.text("workbench.home-pages.new-permission"), tone: "warning" });
-          return `<li class="hp-grant-row"><label class="mw-check-row"><input type="checkbox" class="mw-check" data-hp-grant="${index}"${action.available ? " checked" : " disabled"}><span><strong>${escapeHtml(action.title)}</strong><small>${escapeHtml(extra)}${action.unavailable_reason ? ` · ${escapeHtml(action.unavailable_reason)}` : ""}</small></span></label>${badge}</li>`;
+          const unavailableReason = localizeUnavailableReason(action);
+          return `<li class="hp-grant-row"><label class="mw-check-row"><input type="checkbox" class="mw-check" data-hp-grant="${index}"${action.available ? " checked" : " disabled"}><span><strong>${escapeHtml(action.title)}</strong><small>${escapeHtml(extra)}${unavailableReason ? ` · ${escapeHtml(unavailableReason)}` : ""}</small></span></label>${badge}</li>`;
         })
         .join("")
     : `<li class="hp-grant-empty">${escapeHtml(uiText.text("workbench.home-pages.no-actions-needed"))}</li>`;
@@ -411,4 +441,92 @@ export function renderApprovalDialogHtml(options: {
       ${renderButton({ label: uiText.text(operation === "restore" ? "workbench.home-pages.confirm-restore" : "workbench.home-pages.confirm-adopt"), variant: "primary", key: "↵", attrs: { "data-hp-act": "dialog-confirm" } })}
     </footer>
   </form>`;
+}
+
+export function relabelComparison(compareHost: HTMLElement, overview: HomePageOverview): void {
+  // Re-label compare column headers, badges, ARIA labels, quiet notes & view toggle in place without tearing down live preview iframes.
+  const sideNow = uiText.text("workbench.home-pages.side-now");
+  const sideDraft = uiText.text("workbench.home-pages.side-draft");
+  const group = compareHost.querySelector<HTMLElement>("[data-hp-compare-group]");
+  if (group) group.setAttribute("aria-label", uiText.text("workbench.home-pages.compare-which"));
+  const nowBtn = compareHost.querySelector<HTMLElement>('[data-hp-view="now"]');
+  const draftBtn = compareHost.querySelector<HTMLElement>('[data-hp-view="draft"]');
+  if (nowBtn) nowBtn.textContent = sideNow;
+  if (draftBtn) draftBtn.textContent = sideDraft;
+  const nowCol = compareHost.querySelector<HTMLElement>('[data-col="now"]');
+  const draftCol = compareHost.querySelector<HTMLElement>('[data-col="draft"]');
+  if (nowCol) nowCol.setAttribute("aria-label", sideNow);
+  if (draftCol) draftCol.setAttribute("aria-label", sideDraft);
+  const nowBadge = compareHost.querySelector<HTMLElement>("[data-hp-now-badge]");
+  if (nowBadge) nowBadge.innerHTML = renderBadge({ label: uiText.text("workbench.home-pages.in-use"), tone: "success" });
+  const draftBadge = compareHost.querySelector<HTMLElement>("[data-hp-draft-badge]");
+  if (draftBadge) draftBadge.innerHTML = renderBadge({ label: uiText.text("workbench.home-pages.draft"), tone: "info" });
+  const nowTitle = compareHost.querySelector<HTMLElement>("[data-hp-now-title]");
+  if (nowTitle) {
+    nowTitle.textContent = overview.selection.kind === "page"
+      ? uiText.text("workbench.home-pages.now-version", { v: overview.selection.version })
+      : uiText.text("workbench.home-pages.default-first-page");
+  }
+  const nowNote = compareHost.querySelector<HTMLElement>("[data-hp-now-note]");
+  if (nowNote) {
+    nowNote.textContent = nowNote.dataset.hpNowNote === "unavailable"
+      ? uiText.text("workbench.home-pages.now-unavailable-in-compare")
+      : uiText.text("workbench.home-pages.now-is-default");
+  }
+  const previewNote = compareHost.querySelector<HTMLElement>(".hp-preview-note");
+  if (previewNote) previewNote.textContent = uiText.text("workbench.home-pages.preview-readonly-note");
+}
+
+export function updateComparison(compareHost: HTMLElement, compareView: "now" | "draft", issuesHtml: string, barHtml: string): void {
+  const issuesSlot = compareHost.querySelector<HTMLElement>("[data-hp-compare-issues]");
+  const barSlot = compareHost.querySelector<HTMLElement>("[data-hp-compare-bar]");
+  const grid = compareHost.querySelector<HTMLElement>("[data-hp-compare-grid]");
+  if (issuesSlot) issuesSlot.innerHTML = issuesHtml;
+  if (barSlot) barSlot.innerHTML = barHtml;
+  if (grid) grid.dataset.view = compareView;
+  compareHost.querySelectorAll<HTMLButtonElement>("[data-hp-view]").forEach(btn => {
+    const on = btn.dataset.hpView === compareView;
+    btn.classList.toggle("is-current", on);
+    btn.setAttribute("aria-pressed", String(on));
+  });
+}
+
+export function mirrorBasicPage(root: HTMLElement, nowStage: HTMLElement, signal: AbortSignal): MutationObserver | null {
+  const current = root.querySelector("[data-home-groups]");
+  nowStage.inert = true;
+  if (current) {
+    const mirror = () => {
+      if (signal.aborted) return;
+      nowStage.replaceChildren(...Array.from(current.children, section => section.cloneNode(true)));
+      for (const node of nowStage.querySelectorAll("[id]")) node.removeAttribute("id");
+    };
+    mirror();
+    const observer = new MutationObserver(mirror);
+    observer.observe(current, { subtree: true, childList: true, characterData: true, attributes: true });
+    return observer;
+  }
+  return null;
+}
+
+export function relabelApprovalDialog(dialog: HTMLDialogElement, dialogTarget: { operation: "adopt" | "restore"; version: HomePageVersionSummary; inspect: InspectResponse }, overview: HomePageOverview): void {
+  const grants = new Map(Array.from(dialog.querySelectorAll<HTMLInputElement>("input[data-hp-grant]"), box => [box.dataset.hpGrant, box.checked]));
+  dialog.innerHTML = renderApprovalDialogHtml({
+    operation: dialogTarget.operation,
+    target: dialogTarget.version,
+    inspect: dialogTarget.inspect,
+    overview,
+  });
+  for (const box of dialog.querySelectorAll<HTMLInputElement>("input[data-hp-grant]")) {
+    box.checked = !box.disabled && grants.get(box.dataset.hpGrant) === true;
+  }
+}
+
+export function checkedGrants(dialog: HTMLDialogElement, inspect: InspectResponse): ExactActionReference[] {
+  const approved: ExactActionReference[] = [];
+  dialog.querySelectorAll<HTMLInputElement>("input[data-hp-grant]").forEach(box => {
+    if (!box.checked || box.disabled) return;
+    const item = inspect.actions[Number(box.dataset.hpGrant)];
+    if (item) approved.push({ capability_id: item.capability_id, version: item.version, provider_id: item.provider_id });
+  });
+  return approved;
 }

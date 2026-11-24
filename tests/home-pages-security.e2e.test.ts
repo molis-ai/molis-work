@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
+import { appendFileSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePageDraft, HomePageOverview, HomePageVersion } from "@molis-ai/molis-work-contracts/services/home";
+import type { SurfaceGroup } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import { HOME_PAGES_BASELINE, HOME_PAGES_HOME_STORE } from "@molis-ai/molis-work-service-home";
 import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
-import { LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { createProject, LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const QUERY_ACTION: ExactActionReference = {
@@ -234,6 +239,8 @@ test("S-home-page-files S-home-page-authority S-home-page-approval SPC-10 SPC-11
   await browser.evaluate(`(() => {
     const cmdBox = document.querySelector('[data-home-adopt-dialog] input[data-hp-grant="0"]');
     if (cmdBox && cmdBox.checked) cmdBox.click();
+    document.dispatchEvent(new CustomEvent("molis-work:language-changed"));
+    if (document.querySelector('[data-home-adopt-dialog] input[data-hp-grant="0"]').checked) throw Error("Language refresh granted an unchecked action");
     document.querySelector('[data-home-adopt-dialog] [data-hp-act="dialog-confirm"]').click();
   })()`);
 
@@ -270,6 +277,26 @@ test("S-home-page-files S-home-page-authority S-home-page-approval SPC-10 SPC-11
   assert.equal(mountedLayout.generatedVisible, true, "generated page mounts in 36A body slot");
   assert.equal(mountedLayout.ledeAboveGenerated, true, "Work Brief lede sits above generated page body");
 
+  // P0 #2 regression: adopted generated home page stays centered in column 1 at 1440px (never shoved to right half).
+  const columnMetrics = await browser.evaluate<{ left: number; width: number }>(`(() => {
+    const col = document.querySelector('.immersive-home .mw-first-page__column');
+    const r = col?.getBoundingClientRect();
+    return { left: Math.round(r?.left ?? 9999), width: Math.round(r?.width ?? 0) };
+  })()`);
+  assert.ok(columnMetrics.left < 360 && columnMetrics.width >= 700, `adopted page column must be centered (got ${JSON.stringify(columnMetrics)})`);
+
+  // P0 #4 regression: at 390px, version popover MUST stay inside viewport bounds (never clip off left edge).
+  await browser.setViewport(390, 844, true);
+  await browser.evaluate(`document.querySelector('[data-hp-act="toggle-versions"]').click()`);
+  await browser.waitFor(`Boolean(document.querySelector('[data-hp-ver-popover]'))`, WAIT_MS);
+  const mobilePop = await browser.evaluate<{ left: number; right: number }>(`(() => {
+    const r = document.querySelector('[data-hp-ver-popover]').getBoundingClientRect();
+    return { left: Math.round(r.left), right: Math.round(r.right) };
+  })()`);
+  assert.ok(mobilePop.left >= 0 && mobilePop.right <= 390, `390px version popover must stay in viewport (got ${JSON.stringify(mobilePop)})`);
+  await browser.evaluate(`document.querySelector('[data-hp-act="toggle-versions"]').click()`);
+  await browser.setViewport(1440, 900, false);
+
   // 5. Switch back to default 36A First Page via version popover -> one-click restore notice appears, versions remain intact.
   await browser.evaluate(`document.querySelector('[data-hp-act="toggle-versions"]').click()`);
   await browser.waitFor(`Boolean(document.querySelector('[data-hp-ver-popover] [data-hp-act="select-basic"]'))`, WAIT_MS);
@@ -298,7 +325,14 @@ test("S-home-page-files S-home-page-authority S-home-page-approval SPC-10 SPC-11
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${projectId}/` }, browser.sessionId));
   await browser.waitFor(`Boolean(document.querySelector('[data-home-draft-banner] [data-hp-act="compare"]'))`, WAIT_MS);
   await browser.evaluate(`document.querySelector('[data-home-draft-banner] [data-hp-act="compare"]').click()`);
-  await browser.waitFor(`Boolean(document.querySelector('[data-hp-act="conflict-pick"]'))`, WAIT_MS);
+  await browser.waitFor(`Boolean(document.querySelector('[data-hp-act="conflict-pick"]') && document.querySelector('[data-hp-now-stage] iframe') && document.querySelector('[data-hp-draft-stage] iframe'))`, WAIT_MS);
+  // P0 #1 regression: left side ("In use") MUST mount its live iframe cleanly alongside the right-side draft preview.
+  const bothCompareFrames = await browser.evaluate<{ nowFrame: boolean; draftFrame: boolean }>(`({
+    nowFrame: Boolean(document.querySelector('[data-hp-now-stage] iframe.home-generated-frame')),
+    draftFrame: Boolean(document.querySelector('[data-hp-draft-stage] iframe.home-generated-frame')),
+  })`);
+  assert.equal(bothCompareFrames.nowFrame, true, "Plan B compare left pane (In use) MUST render live iframe");
+  assert.equal(bothCompareFrames.draftFrame, true, "Plan B compare right pane (Draft) MUST render preview iframe");
   const blockedBeforePick = await browser.evaluate<boolean>(`Boolean(document.querySelector('[data-hp-act="open-adopt"]')?.disabled)`);
   assert.equal(blockedBeforePick, true, "adopt button MUST be disabled while manual-edit conflict is unresolved");
   // Choosing "merge" keeps adopt blocked so an unmerged AI draft cannot overwrite manual edits.
@@ -373,4 +407,202 @@ test("S-home-page-files S-home-page-authority S-home-page-approval SPC-10 SPC-11
   assert.equal(afterTamper.liveHidden, true, "tampered generated page MUST NOT remain mounted");
   assert.equal(afterTamper.tamperedRan, false, "tampered script MUST NEVER execute");
   assert.equal(afterTamper.defaultStillVisible, true, "shell falls back cleanly to default 36A First Page");
+});
+
+test("B37R-1 ONB-27: editing a merge starts with the person's text and approves only the saved new version", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  assert.ok(browser);
+  const project = browser.projectId;
+  assert.ok(project);
+  const route = "/projects/" + project;
+  const web = new LocalHostHttpClient({ origin: browser.origin, controlToken: browser.controlToken });
+  const api = route + "/api/home-pages/";
+  const draft = (text: string): HomePageDraft => ({
+    title: "Review", entry: "index.html", actions: [],
+    files: [{ path: "index.html", media_type: "text/html", text: "<main>" + text + "</main>" }],
+  });
+  const { version: first } = await web.post<{ version: HomePageVersion }>(api + "drafts/save", { draft: draft("My notes") });
+  const overview = () => web.post<HomePageOverview>(api + "read", {});
+  await web.post(api + "adopt", { page_id: first.page_id, version: 1, approved_actions: [], request_id: "original", expected_revision: (await overview()).revision });
+  const reference = molisWorkHostProjectReference({ projectId: project, databasePath: browser.databasePath });
+  assert.ok(browser.localHost);
+  await browser.localHost.actionClient(reference).invoke({ actor_id: "editor", audience: "agent", project_id: project, permissions: ["home:write", "home:read"] },
+    { capability_id: "home.pages.drafts.save", version: 1 }, { draft: draft("Proposed notes"), page_id: first.page_id, expected_version: 1, based_on: 1 });
+  const visit = () => browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + route + "/" }, browser.sessionId));
+  const compare = async () => {
+    const banner = '[data-home-draft-banner] [data-hp-act="compare"]';
+    await browser.waitFor("!!document.querySelector(" + JSON.stringify(banner) + ")");
+    await browser.click(banner);
+    await browser.waitFor("!!document.querySelector('[data-hp-pick=mine]')");
+  };
+  await visit();
+  await compare();
+  await browser.click("[data-hp-pick=mine]");
+  await browser.click("[data-hp-act=open-adopt]");
+  assert.deepEqual((await overview()).selection, { kind: "page", page_id: first.page_id, version: 1 });
+  await visit();
+  await compare();
+  await browser.click("[data-hp-pick=merge]");
+  await browser.waitFor("document.querySelector('[data-hp-merge] textarea')?.value === '<main>My notes</main>'");
+  await browser.evaluate("document.querySelector('[data-hp-merge] textarea').value = '<main>My notes and proposed notes</main>'");
+  await browser.click("[data-hp-merge-save]");
+  await browser.waitFor("!!document.querySelector('[data-hp-act=open-adopt]:enabled') && !document.querySelector('[data-hp-merge]')");
+  assert.deepEqual((await overview()).selection, { kind: "page", page_id: first.page_id, version: 1 });
+  await browser.click("[data-hp-act=open-adopt]");
+  await browser.click("[data-hp-act=dialog-confirm]");
+  await browser.waitFor("!!document.querySelector('[data-home-generated-body] iframe')");
+  assert.deepEqual((await overview()).selection, { kind: "page", page_id: first.page_id, version: 3 });
+  const read = (version: number) => web.post<{ files: Array<{ text: string }> }>(api + "files/read", { page_id: first.page_id, version });
+  assert.equal((await read(3)).files[0]?.text, "<main>My notes and proposed notes</main>");
+  assert.equal((await read(1)).files[0]?.text, "<main>My notes</main>");
+});
+
+test("SPC-11 ONB-26: a pending approved write cannot outlive its page version or project", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  assert.ok(browser?.localHost && browser.projectId);
+  const { localHost, projectId, web } = browser;
+  const root = `/projects/${projectId}`;
+  const otherProject = await createProject(web, "另一个项目");
+  const ledger = join(browser.homeDirectory, "saved-notes.txt");
+  appendFileSync(ledger, "");
+  const schema = { type: "object" as const, properties: {}, additionalProperties: false };
+  const capabilityId = "fixture.review.notes.save";
+  let started = Promise.withResolvers<void>();
+  let release = Promise.withResolvers<void>();
+  let finished = Promise.withResolvers<void>();
+  const unregister = localHost.registerAction({
+    capability_id: capabilityId, version: 1, operation: "command",
+    action: {
+      title: "保存条目", description: "等待工作结束后保存条目", kind: "operation",
+      effect: "write", scope: "project", scheduling: "concurrent", audiences: ["user", "plugin"],
+      permissions: [], subject_kinds: [], input_schema: schema, output_schema: schema,
+    },
+  }, async (_runtime, _input, caller) => {
+    started.resolve();
+    try {
+      await release.promise;
+      await caller.beforeEffect();
+      appendFileSync(ledger, "saved\n");
+      return {};
+    } finally {
+      finished.resolve();
+    }
+  });
+  t.after(() => { release.resolve(); unregister(); });
+  const project = molisWorkHostProjectReference({ projectId, databasePath: browser.databasePath });
+  const directory = await localHost.inspectActions(await localHost.localPersonContext(project), project);
+  const descriptor = directory.find(entry => entry.capability_id === capabilityId);
+  assert.ok(descriptor);
+  const action: ExactActionReference = { capability_id: capabilityId, version: 1, provider_id: descriptor.provider.provider_id };
+  const post = <T,>(path: string, body: Record<string, unknown> = {}) => web.post<T>(`${root}/api/home-pages/${path}`, body);
+  const save = async (draft: HomePageDraft, previous?: HomePageVersion) => (await post<{ version: HomePageVersion }>("drafts/save", {
+    draft, ...(previous ? { page_id: previous.page_id, expected_version: previous.version } : {}),
+  })).version;
+  const currentRevision = async () => (await post<HomePageOverview>("read")).revision;
+  const visit = (path: string) => browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + path }, browser.sessionId));
+  const slowPage = await save({
+    title: "等待保存", entry: "index.html", actions: [action], files: [
+      { path: "index.html", media_type: "text/html", text: '<main>核对本条记录</main><script src="work.js"></script>' },
+      { path: "work.js", media_type: "text/javascript", text: `if (window.molisHomePage.mode === "live") window.molisHomePage.invokeAction(${JSON.stringify(action)}, {}).catch(() => {});` },
+    ],
+  });
+  const nextPage = await save({
+    title: "下一版", entry: "index.html", actions: [],
+    files: [{ path: "index.html", media_type: "text/html", text: "<main>下一版</main>" }],
+  }, slowPage);
+  assert.equal(nextPage.page_id, slowPage.page_id);
+  assert.equal(nextPage.version, slowPage.version + 1);
+  for (const change of ["replace", "withdraw", "switch"]) {
+    started = Promise.withResolvers<void>();
+    release = Promise.withResolvers<void>();
+    finished = Promise.withResolvers<void>();
+    await visit(`/projects/${otherProject.project_id}/`);
+    await post(change === "replace" ? "adopt" : "restore", {
+      page_id: slowPage.page_id, version: slowPage.version, approved_actions: [action],
+      expected_revision: await currentRevision(), request_id: `start-${change}`,
+    });
+    await visit(`${root}/`);
+    await started.promise;
+    if (change === "replace") {
+      await post("adopt", { page_id: nextPage.page_id, version: nextPage.version, approved_actions: [], expected_revision: await currentRevision(), request_id: "replace" });
+    } else if (change === "withdraw") {
+      await post("select", { kind: "basic", expected_revision: await currentRevision(), request_id: "withdraw" });
+    } else {
+      await browser.click("[data-top-corner-toggle]");
+      const row = `[data-corner-project='${otherProject.project_id}']`;
+      await browser.waitFor(`Boolean(document.querySelector(${JSON.stringify(row)}))`);
+      await browser.click(row);
+      await browser.navigate(() => browser.click(`[data-corner-pages='${otherProject.project_id}'] a.top-corner-page`));
+      await browser.waitFor("Boolean(document.querySelector('[data-top-corner-toggle]'))");
+    }
+    release.resolve();
+    await finished.promise;
+    assert.equal(readFileSync(ledger, "utf8"), "", change);
+  }
+});
+
+test("SPC-11: the basic and generated home share the owner's presentation only after its separate approval", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  assert.ok(browser?.projectId && browser.localHost);
+  const { projectId, web } = browser;
+  const root = `/projects/${projectId}`;
+  const visit = () => browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + root + "/" }, browser.sessionId));
+  const title = "核对两种首页的字段";
+  const created = await web.post<{ goal: { goal_id: string } }>(root + "/api/plugins/io.molis.work.goals/goals", {
+    title, outcome: "读取同一份呈现声明", idempotency_key: "compare-presentation",
+  });
+  const subject = { kind: "goal", id: created.goal.goal_id };
+  const basic = await web.post<SurfaceHomeDisplay>(root + "/api/host/surface-home", {});
+  const expected = basic.groups.flatMap(group => group.items).find(item => item.subject.id === subject.id && item.subject.kind === subject.kind);
+  assert.ok(expected && expected.fields.some(field => field.role === "title"));
+  const project = molisWorkHostProjectReference({ projectId, databasePath: browser.databasePath });
+  const directory = await browser.localHost.inspectActions(await browser.localHost.localPersonContext(project), project);
+  const reference = (id: string): ExactActionReference => {
+    const action = directory.find(view => view.capability_id === id);
+    assert.ok(action);
+    return { capability_id: id, version: action.version, provider_id: action.provider.provider_id };
+  };
+  const compose = reference("surfaces.compose"), values = reference("goals.presentation.values");
+  const script = `const compose = ${JSON.stringify(compose)}, values = ${JSON.stringify(values)}, subject = ${JSON.stringify(subject)};
+    (async () => {
+      const { groups } = await window.molisHomePage.invokeAction(compose, { slot: { kind: "home" }, subjects: [subject] });
+      let title;
+      if (groups.length) {
+        const item = groups.flatMap(group => group.items)[0];
+        const result = await window.molisHomePage.invokeAction(values, { subjects: [subject], fields: item.fields.map(field => field.key) });
+        title = result.items[0].values.title;
+        document.querySelector("h2").textContent = title;
+      }
+      window.parent.postMessage({ type: "owner-presentation", groups, title }, "*");
+    })().catch(error => window.parent.postMessage({ type: "owner-presentation", error: error.message }, "*"));`;
+  const draft: HomePageDraft = {
+    title: "项目条目", entry: "index.html", actions: [compose, values], files: [
+      { path: "index.html", media_type: "text/html", text: '<main><h2>项目条目</h2><script src="card.js"></script></main>' },
+      { path: "card.js", media_type: "text/javascript", text: script },
+    ],
+  };
+  await browser.command("Page.addScriptToEvaluateOnNewDocument", {
+    source: 'window.addEventListener("message", event => { if (event.data?.type === "owner-presentation") window.ownerPresentation = event.data; });',
+  }, browser.sessionId);
+  const pages = root + "/api/home-pages/";
+  for (const withValues of [false, true]) {
+    const { version } = await web.post<{ version: HomePageVersion }>(pages + "drafts/save", { draft });
+    await web.post(pages + "adopt", { page_id: version.page_id, version: version.version, approved_actions: withValues ? [compose, values] : [compose],
+      expected_revision: (await web.post<HomePageOverview>(pages + "read", {})).revision, request_id: "present-" + withValues });
+    await visit();
+    await browser.waitFor("Boolean(window.ownerPresentation)");
+    const seen: { groups: SurfaceGroup[]; title?: string; error?: string } = await browser.evaluate("window.ownerPresentation");
+    assert.equal(seen.error, undefined);
+    if (!withValues) {
+      assert.deepEqual(seen.groups, []);
+      continue;
+    }
+    assert.deepEqual(seen.groups.map(group => group.owner_plugin_id), [expected.owner_plugin_id]);
+    const [group] = seen.groups;
+    assert.ok(group);
+    assert.equal(group.plugin_card?.summary, undefined, "the owner's private overview remains private");
+    assert.deepEqual(group.items[0]?.fields, expected.fields);
+    assert.equal(group.items[0]?.form, expected.form);
+    assert.equal(seen.title, title);
+  }
 });

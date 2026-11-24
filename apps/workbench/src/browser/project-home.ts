@@ -1,10 +1,18 @@
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, renderAlert, renderBadge, renderButton, renderPopover, renderStatusMark, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import { homeButton, homeReadAt, homeWord, isPlacementControl, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
 import { createPositionCorrections } from "./project-position-corrections.js";
 import { positionMenuKey } from "./project-position-menu.js";
 import { createPositionPeek } from "./project-position-peek.js";
 import type { mountHomePages } from "./project-home-pages.js";
+
+import { renderCheckSummary, renderCompareAdoptBar, renderEditConflict } from "@molis-ai/molis-work-design-system/home-page-adoption";
+import type { installRenderers } from "./mainline-ui.js";
+
+(globalThis as { molisWorkMainline?: { installRenderers: typeof installRenderers } }).molisWorkMainline?.installRenderers({
+  escapeHtml, icon, renderAlert, renderBadge, renderButton, renderPopover, renderStatusMark, t,
+  renderCheckSummary, renderCompareAdoptBar, renderEditConflict,
+});
 
 interface HomeHost {
   root?: HTMLElement;
@@ -399,6 +407,8 @@ export function mountHome(host: HomeHost) {
 
   /** The visit ends: when it ended is kept for 「自你上次来」, and the page is taken off. */
   const leave = () => {
+    homePages?.suspend();
+    needsRead = true;
     visit.end();
     showAll = false;
     cancel(true);
@@ -444,7 +454,6 @@ export function mountHome(host: HomeHost) {
   });
   return {
     sync: syncAll,
-    openCompare: (ref: { page_id: string; version: number }) => homePages?.openCompare(ref),
     dispose() {
       unwatch();
       primary.stop();

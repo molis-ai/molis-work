@@ -1,6 +1,6 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePageFile, HomePageFilesResult } from "@molis-ai/molis-work-contracts/services/home";
-import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as escape } from "../mainline-ui.js";
 import { appearanceRef, type AppearanceProjection } from "../appearance-view.js";
 
 const encoder = new TextEncoder();
@@ -103,6 +103,23 @@ function buildBridgeScript(challenge: string, page: { page_id: string; version: 
         }
       } else if (msg.type === "theme" && msg.dataset) {
         Object.assign(document.documentElement.dataset, msg.dataset);
+      } else if (msg.type === "appearanceSheet") {
+        const priors = [...document.querySelectorAll('link[data-ui-appearance-sheet]')];
+        if (typeof msg.href === "string" && msg.href) {
+          if (priors.length === 1 && priors[0].getAttribute("href") === msg.href) return;
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.setAttribute("data-ui-appearance-sheet", "");
+          link.href = msg.href;
+          document.head.appendChild(link);
+          const dropPriors = () => { for (const p of priors) p.remove(); };
+          if (priors.length) {
+            link.addEventListener("load", dropPriors, { once: true });
+            link.addEventListener("error", dropPriors, { once: true });
+          }
+        } else {
+          for (const p of priors) p.remove();
+        }
       }
     };
     port.start();
@@ -228,8 +245,18 @@ export async function buildHomePageSrcdoc(options: {
   const styleHashes = await Promise.all(normalizedStyles.map(sha256CspHash));
 
   const baseCssUrl = `${options.origin}/assets/molis-work-plugin-base.css`;
-  const appearanceCssUrl = options.appearance?.stylesheet ? new URL(options.appearance.stylesheet, options.origin).href : null;
-  const styleSources = [baseCssUrl, ...(appearanceCssUrl ? [appearanceCssUrl] : []), ...styleHashes];
+  const shellSheetHref =
+    options.appearance?.stylesheet ??
+    document.querySelector<HTMLLinkElement>("link[data-ui-appearance-sheet]")?.getAttribute("href") ??
+    null;
+  const appearanceCssUrl = shellSheetHref ? new URL(shellSheetHref, options.origin).href : null;
+  const uiSkinOrigin = `${options.origin}/assets/ui-skin/`;
+  const styleSources = [
+    baseCssUrl,
+    uiSkinOrigin,
+    ...(appearanceCssUrl && !appearanceCssUrl.startsWith(uiSkinOrigin) ? [appearanceCssUrl] : []),
+    ...styleHashes,
+  ];
   const csp = [
     "default-src 'none'",
     `script-src ${scriptHashes.join(" ")}`,
@@ -258,7 +285,11 @@ export async function buildHomePageSrcdoc(options: {
         ["ui-font", appearanceRef(snapshot.font.scheme)],
         ["ui-mono", appearanceRef(snapshot.font.mono)],
       ]
-    : [];
+    : [
+        ["ui-skin", dataset.uiSkin],
+        ["ui-font", dataset.uiFont],
+        ["ui-mono", dataset.uiMono],
+      ];
   const htmlAttrs = [...deviceAttrs, ...appearanceAttrs]
     .filter(([, value]) => Boolean(value))
     .map(([name, value]) => ` data-${name}="${escape(value!)}"`)
@@ -304,6 +335,7 @@ export async function mountHomePageFrame(options: {
   readonly routePrefix: string;
   readonly headers: () => Record<string, string>;
   readonly appearance?: AppearanceProjection;
+  readonly signal?: AbortSignal;
   readonly onCrash?: (reason: string) => void;
   readonly onReady?: () => void;
 }): Promise<MountedHomePageFrame> {
@@ -316,6 +348,7 @@ export async function mountHomePageFrame(options: {
     appearance: options.appearance,
   });
 
+  options.signal?.throwIfAborted();
   const iframe = document.createElement("iframe");
   iframe.className = "home-generated-frame";
   iframe.setAttribute("sandbox", "allow-scripts allow-forms");
@@ -350,14 +383,15 @@ export async function mountHomePageFrame(options: {
           msg.type === "actionAvailability"
             ? { mode: "availability", reference: msg.reference as ActionReference }
             : { reference: msg.reference as ActionReference, input: msg.input };
-        const res = await fetch(`${options.routePrefix}/api/home-pages/actions`, {
+        const res = await globalThis.molisWorkRequest<Response>(`${options.routePrefix}/api/home-pages/actions`, {
+          as: "response",
           method: "POST",
           headers: {
             "content-type": "application/json",
             ...options.headers(),
             "x-molis-home-page": options.pageSessionId,
           },
-          body: JSON.stringify(body),
+          body,
           signal: abort.signal,
         });
         const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -387,6 +421,18 @@ export async function mountHomePageFrame(options: {
   };
   channel.port1.start();
 
+  let lastAppearanceHref =
+    document.querySelector<HTMLLinkElement>("link[data-ui-appearance-sheet]")?.getAttribute("href") ?? null;
+  const syncAppearanceSheet = () => {
+    if (disposed) return;
+    const raw = document.querySelector<HTMLLinkElement>("link[data-ui-appearance-sheet]")?.getAttribute("href") ?? null;
+    if (raw === lastAppearanceHref) return;
+    lastAppearanceHref = raw;
+    channel.port1.postMessage({
+      type: "appearanceSheet",
+      href: raw ? new URL(raw, location.origin).href : null,
+    });
+  };
   const themeObserver = new MutationObserver(() => {
     if (disposed) return;
     const ds = document.documentElement.dataset;
@@ -398,13 +444,17 @@ export async function mountHomePageFrame(options: {
         density: ds.density ?? "",
         uiSkin: ds.uiSkin ?? "",
         uiFont: ds.uiFont ?? "",
+        uiMono: ds.uiMono ?? "",
       },
     });
+    syncAppearanceSheet();
   });
   themeObserver.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-ui-skin", "data-ui-font"],
+    attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-ui-skin", "data-ui-font", "data-ui-mono"],
   });
+  const headObserver = new MutationObserver(syncAppearanceSheet);
+  if (document.head) headObserver.observe(document.head, { childList: true, attributes: true, subtree: true, attributeFilter: ["href"] });
 
   // Assign srcdoc BEFORE attaching to DOM so an initial about:blank load cannot consume the { once: true } handshake!
   iframe.srcdoc = built.html;
@@ -427,10 +477,11 @@ export async function mountHomePageFrame(options: {
       disposed = true;
       abort.abort();
       themeObserver.disconnect();
+      headObserver.disconnect();
       try { channel.port1.close(); } catch { /* ignore */ }
       iframe.remove();
-      void fetch(`${options.routePrefix}/api/home-pages/session/${encodeURIComponent(options.pageSessionId)}`, {
-        method: "DELETE",
+      void globalThis.molisWorkRequest(`${options.routePrefix}/api/home-pages/session/${encodeURIComponent(options.pageSessionId)}`, {
+        method: "DELETE", keepalive: true,
         headers: options.headers(),
       }).catch(() => undefined);
     },

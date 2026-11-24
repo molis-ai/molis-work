@@ -27,6 +27,8 @@ export interface BrowserAcceptance {
   >;
 }
 export interface AgentDesign {
+  connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
+  icon?: import("@molis-ai/molis-work-plugin-sdk/ui").PluginIconName;
   /** The capability catalog version the design was made against (see the host). */
   catalog?: string;
   id: string;

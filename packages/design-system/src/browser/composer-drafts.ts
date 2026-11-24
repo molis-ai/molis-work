@@ -23,6 +23,7 @@ export function composerDrafts(c: Composer, retained: ComposerRetained): Compose
     window.molisFit?.(field);
     c.restored = at ? formatMessage("{time}", [{ name: "time", kind: "date", at, style: "relative" }], c.lang) : "";
     c.paint();
+    field.dispatchEvent(new CustomEvent("molis-work:composer-draft-restored"));
   };
   const refused = (now: boolean) => { if (!signal.aborted && c.unsaved !== now) { c.unsaved = now; c.paint(); } };
   // Capture the edit before the owner changes the field for another conversation. Leaving the page or mount flushes it too.

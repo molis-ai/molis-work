@@ -1,6 +1,14 @@
 # 合同变更流程
 
+2026-11-24 BL-1049、BL-1057。创作台将设计者选择的图标写入现有 stage 视图的 `icon`。生成插件可在提交部件上声明 `connectionNeed`，由外壳按现行原处连接卡合同处理。SDK 导出 `parseConnectionSlots`，供创作台用清单的规则核对连接声明与操作请求的槽。详见[需求与验收](../../specs/studio-icon-connection/spec.md)。
+
+2026-11-24。新增插件只读动作 `agent.write-checks.read@1`。输入是原会话、一轮执行和写调用编号列表，返回可核实的逐写检查摘要。调用方可对缺失项稍后再读。Runtime 通过可选的 `readWriteChecks` 提供该能力，原单条命令详情继续走 `agent.command-output@1`。
+
 2026-11-23 BL-921、BL-1050、BL-1051。记录槽普通绑定占用空槽或复用同一账号。明确换用可向原动作传 `expected_connection_id`，旧账号已变或已解绑时返回冲突。项目 MCP 配置经 `connectors.project_mcp.usages@1` 汇入现有用途查询。自定义远程 MCP 的公开连接视图增加可选 `mcp_authentication`，仅返回 OAuth、Bearer 或无需认证对应的枚举值。存储格式沿用现行版本。
+
+第 37 批复核修复。系统动作提供方登记可声明 `adopts`。申请计数时，`mainline.read@1` 的 `counts.task_items` 可选输出可唯一确定归属的任务引用和事项 ID，原计数字段及输入保持原语义。首页会话成功响应附上该次核验的文件，供受信任工作台独立核对后挂载。统一输入框将主人读回的正文填入后，在该输入框上发出无正文、无冒泡的 `molis-work:composer-draft-restored`。工作台据此为原事项的原收件人恢复选区与滚动。
+
+2026-11-23，第 37 批复核修复。已有首页预览动作支持可选 `include_files`，由首页主人一次返回已检查的固定版文件，供外壳复核并挂载。本人入口用同一请求编号读采用、恢复或退回默认页的回执；场景只读取首页主人确认过的选择修订号。项目主线摘要携带来源类型及按事项汇总的件数，呈现字段仍由对象主人按调用方权限提供。以上变更不改首页库版本。
 
 2026-11-23 第 37 批（37-2 事项切换与工作台状态，用户 2026-11-23 拍板，见[助理主对话合同设计稿](../../specs/work-mainline/assistant-main-contract-design.md)）。阶段一原位在 `packages/contracts/src/services/assistant.ts` 的 `AssistantWork` 与 `AssistantSendInput` 增加可选 `work_item_id?: string`（按每件事项隔离助理主对话，经 `system.mainline` 核验归属、拒绝跨项目／个人范围／伪造 id 及修改既有工作的 `work_item_id`，不动 `assistant.db` 表结构）；`packages/contracts/src/platform/dom-events.ts` 登记 `mainline-switcher` 页面状态主人及 `molis-work:work-item-changed`、`molis-work:work-item-switch`、`molis-work:work-item-hold-open` 三个跨模块事件；宿主 `/api/mainline/*` 补齐 `mainlineItemActions` 全部 16 个本人路由及视图投影 `items/view`、`items/contents/view`（拒绝插件页与生成首页，见 [S-work-line-person-doors](security-invariants/S-work-line-person-doors.md)），`/api/attention` 支持可选 `?item=` 参数按当前事项读线。公开 API 快照同步刷新；无持久库结构或兼容读取变化。
 

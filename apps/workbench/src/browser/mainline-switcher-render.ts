@@ -1,5 +1,5 @@
 import type { MainlineGroup } from "@molis-ai/molis-work-contracts/services/mainline";
-import { escapeHtml as e, icon, renderButton, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as e, icon, renderButton, t as uiText } from "./mainline-ui.js";
 import { groupDisplayName, itemDisplayTitle, type MainlineResolvedItem, type MainlineViewResponse } from "./mainline-types.js";
 
 export interface SwitcherRenderState {
@@ -14,6 +14,7 @@ export interface SwitcherRenderState {
 
 function itemDot(resolved: MainlineResolvedItem | undefined, waiting: number): string {
   const state = resolved?.state ?? "ok";
+  if (resolved?.presentation?.done) return icon("check");
   return `<span class="top-corner-item-dot" data-waiting="${waiting > 0}" data-state="${state}" aria-hidden="true"></span>`;
 }
 
@@ -50,10 +51,11 @@ function renderItemRow(
     }
     const pinLabel = uiText.text(pinned ? "workbench.mainline.unpin" : "workbench.mainline.pin");
     acts.push(`<button class="ml-icon-btn" type="button" data-ml-pin="${e(itemId)}" data-ml-group="${e(groupId)}" data-ml-pinned="${pinned}" aria-label="${e(pinLabel)}" title="${e(pinLabel)}">${icon("pin")}</button>`);
-    acts.push(`<button class="ml-icon-btn" type="button" data-ml-done="${e(itemId)}" aria-label="${e(uiText.text("workbench.mainline.mark-done"))}" title="${e(uiText.text("workbench.mainline.mark-done"))}">${icon("check")}</button>`);
+    const completionLabel = uiText.text(res?.presentation?.done ? "workbench.mainline.archive-done" : "workbench.mainline.mark-done");
+    acts.push(`<button class="ml-icon-btn" type="button" data-ml-done="${e(itemId)}" aria-label="${e(completionLabel)}" title="${e(completionLabel)}">${icon("check")}</button>`);
   }
   return `<div class="ml-item-row" data-ml-row="${e(itemId)}" data-current="${current}" data-state="${state}">`
-    + `<button class="ml-item-pick" type="button" data-ml-pick="${e(itemId)}" data-state="${state}"${current ? ' aria-current="page"' : ""}>${itemDot(res, count.waiting)}<span class="ml-item-title">${e(title)}</span>${pinGlyph}${sub}${badge}</button>`
+    + `<button class="ml-item-pick" type="button" data-ml-pick="${e(itemId)}" data-state="${state}"${current ? ' aria-current="page"' : ""}>${itemDot(res, count.waiting)}<span class="ml-item-title">${res?.presentation?.markup || e(title)}</span>${pinGlyph}${sub}${badge}</button>`
     + `<span class="ml-item-acts">${acts.join("")}</span></div>`;
 }
 
@@ -67,7 +69,7 @@ function renderEmptyState(dismissed: boolean): string {
   return `<div class="ml-empty" data-mainline-empty>`
     + `<strong>${e(uiText.text("workbench.mainline.empty-title"))}</strong>`
     + `<p>${e(uiText.text("workbench.mainline.empty-body"))}</p>`
-    + `<div class="ml-empty-actions">${renderButton({ variant: "primary", size: "sm", label: uiText.text("workbench.mainline.new-item"), attrs: { "data-ml-focus-create": "" } })}</div>`
+    + `<div class="ml-empty-actions">${renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.mainline.new-item"), attrs: { "data-ml-focus-create": "" } })}</div>`
     + `${example}</div>`;
 }
 
@@ -138,12 +140,12 @@ export function renderMainlineSwitcherBody(state: SwitcherRenderState): string {
 /** Permanent switcher frame mounted once per locale so search, 「项目主页」, create input, and 「项目设置」 never shift or detach on refresh. */
 export function renderMainlineSwitcherShell(state: SwitcherRenderState): string {
   const isHome = state.view.mainline.current === null;
-  const search = `<div class="ml-search-wrap">${icon("search")}<input class="ml-search-input" type="search" data-mainline-search value="${e(state.query)}" placeholder="${e(uiText.text("workbench.mainline.search-placeholder"))}" aria-label="${e(uiText.text("workbench.mainline.search-placeholder"))}" autocomplete="off"></div>`;
+  const search = `<div class="ml-search-wrap">${icon("search")}<input class="mw-input ml-search-input" type="search" data-mainline-search value="${e(state.query)}" placeholder="${e(uiText.text("workbench.mainline.search-placeholder"))}" aria-label="${e(uiText.text("workbench.mainline.search-placeholder"))}" autocomplete="off"></div>`;
   const homeRow = `<button class="top-corner-page" type="button" data-corner-home data-ml-pick-home${isHome ? ' aria-current="page"' : ""}>${icon("home")}<span>${e(uiText.text("workbench.settings-navigation.project-home"))}</span></button>`;
   const chips = renderMainlineSourceChips(state);
   const createBox = `<div class="ml-create-box" data-ml-create-box>`
     + `<form class="ml-create-form" data-ml-create-form>`
-    + `<input class="ml-create-input" type="text" data-mainline-create-input maxlength="200" placeholder="${e(uiText.text("workbench.mainline.new-item-placeholder"))}" aria-label="${e(uiText.text("workbench.mainline.new-item"))}" autocomplete="off">`
+    + `<input class="mw-input ml-create-input" type="text" data-mainline-create-input maxlength="200" placeholder="${e(uiText.text("workbench.mainline.new-item-placeholder"))}" aria-label="${e(uiText.text("workbench.mainline.new-item"))}" autocomplete="off">`
     + renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.mainline.create"), attrs: { type: "submit", "data-ml-create-submit": "" } })
     + `</form><div class="ml-source-chips" data-ml-source-chips${chips ? "" : " hidden"}>${chips}</div></div>`;
   const foot = `<div class="ml-foot-links">`

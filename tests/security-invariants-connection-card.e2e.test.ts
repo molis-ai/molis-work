@@ -110,15 +110,34 @@ test("S-plugin-connection-card ASC-68 C3-2 C3-5 C3-10 ASC-65 ASC-66 made-up mess
     port.postMessage({ type: "connection-need-open", id: 90, target: { ...${JSON.stringify(p.target)}, base_url: "https://example.test" } });
     port.postMessage({ type: "connection-need-open", id: 91, target: ${JSON.stringify(p.target)}, installation_id: "other" });
     port.postMessage({ type: "connection-need-open", id: 92, target: { kind: "account", slot_id: "github" } });
+    port.postMessage({ type: "connection-need-open", id: 93, target: { kind: "slot", slot_id: "github", record_key: "wrong:key" } });
     port.postMessage({ type: "connection-need-open", id: -1, target: ${JSON.stringify(p.target)} });
     port.postMessage({ type: "connection-need-open", id: 0.5, target: ${JSON.stringify(p.target)} });
   })()`);
-  await browser.waitFor(`window.cnDown.filter(message => message.type === "connection-need-done").length >= 3`);
+  await browser.waitFor(`window.cnDown.filter(message => message.type === "connection-need-done").length >= 4`);
   await p.settle(300);
   const refusals = (await p.down()).filter(message => message.type === "connection-need-done");
-  assert.deepEqual(refusals.map(message => [message.id, message.error]).sort(), [[90, "Unavailable"], [91, "Unavailable"], [92, "Unavailable"]], "C3-2 every made-up open gets the one fixed answer");
+  assert.deepEqual(refusals.map(message => [message.id, message.error]).sort(), [[90, "Unavailable"], [91, "Unavailable"], [92, "Unavailable"], [93, "Unavailable"]], "C3-2 every made-up open gets the one fixed answer");
   assert.deepEqual(await p.sent(), [], "C3-2 a made-up open reaches no route");
   assert.equal(await browser.evaluate(`document.querySelectorAll(${JSON.stringify(CARD)}).length`), 0, "C3-2 no card is drawn");
+
+  // BL-1057. Closing a legal Unicode record target during its initial host read must release its place.
+  await browser.evaluate(`(() => {
+    const send = window.fetch;
+    window.fetch = async function(input, init) {
+      const response = await send.apply(this, arguments);
+      if ((input instanceof Request ? input.url : String(input)).includes('/api/host/plugin-page-connection') && typeof init?.body === 'string' && init.body.includes('笔记 一')) {
+        window.fetch = send;
+        await new Promise(resolve => { window.cnReleaseRead = resolve; });
+      }
+      return response;
+    };
+  })()`);
+  await child.evaluate(`cnPort.postMessage({type:'connection-need-open', id:94, target:{kind:'slot',slot_id:'github',record_key:'笔记 一'}})`);
+  await browser.waitFor("typeof window.cnReleaseRead === 'function'");
+  await child.evaluate(`cnPort.postMessage({type:'connection-need-close',id:94}); cnPort.postMessage({type:'connection-need-open',id:95,target:{kind:'invalid'}})`);
+  await browser.waitFor('window.cnDown.some(message => message.id === 95)');
+  await browser.evaluate('window.cnReleaseRead()');
 
   // C3-5: the same width is told the same height with no account, one, or five to choose from.
   const heights: number[] = [];
@@ -128,6 +147,7 @@ test("S-plugin-connection-card ASC-68 C3-2 C3-5 C3-10 ASC-65 ASC-66 made-up mess
     await browser.evaluate("window.cnDown = []");
     await p.ask("card", "left:24px;top:24px;width:560px");
     await p.shown("cancel");
+    assert.equal(await browser.evaluate(`document.querySelectorAll(${JSON.stringify(CARD)}).length`), 1, "an abandoned read allocated no card");
     await browser.waitFor(`window.cnDown.some(message => message.type === "connection-need-size")`);
     heights.push(...(await p.down()).filter(message => message.type === "connection-need-size").map(message => Number(message.height)));
     assert.equal(await p.stage(), count ? "choose" : "ask", `with ${count} accounts the card starts where it should`);
@@ -138,6 +158,13 @@ test("S-plugin-connection-card ASC-68 C3-2 C3-5 C3-10 ASC-65 ASC-66 made-up mess
   const accounts = await browser.evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(CARD + " [data-framed-control^='use:']")})].map(button => button.textContent)`);
   assert.equal(accounts.length, 5, "the five accounts are offered");
 
+  // A second form using the same slot takes over the visible card at the same width.
+  await p.ask("next-form", "left:24px;top:84px;width:560px");
+  assert.match(await p.answer("card"), /^refused:/u);
+  await child.waitFor(`document.getElementById('next-form').getBoundingClientRect().height === ${WIDE} && document.getElementById('next-form').getAttribute('role') === 'note' && document.getElementById('next-form').getAttribute('aria-label')`);
+  assert.equal(await child.evaluate("document.getElementById('card').style.height"), "");
+  assert.deepEqual(await child.evaluate("['role', 'aria-label'].map(name => document.getElementById('card').getAttribute(name))"), [null, null]);
+  assert.equal(await browser.evaluate(`document.querySelectorAll(${JSON.stringify(CARD)}).length`), 1);
   // C3-10: a script in the outer document clicks an account outright: nothing it dispatches is trusted, nothing is written.
   await p.ready();
   const first = await browser.evaluate<string>(`document.querySelector(${JSON.stringify(CARD + " [data-framed-control^='use:']")}).dataset.framedControl`);
@@ -147,15 +174,15 @@ test("S-plugin-connection-card ASC-68 C3-2 C3-5 C3-10 ASC-65 ASC-66 made-up mess
   // The person's own press, three times at once: one bind, the page hears connected with the display name only.
   const point = await p.centre(p.control(first));
   await Promise.all([p.press("", point), p.press("", point), p.press("", point)]);
-  assert.match(await p.answer("card"), /^connected: /u);
+  assert.match(await p.answer("next-form"), /^connected: /u);
   const binds = await p.writes();
   assert.equal(binds.length, 1, "C3-10 one write for the person's presses: " + JSON.stringify(binds));
   assert.equal(binds[0]!.body?.operation, "bind");
   assert.equal((await p.bound())?.connection_id, first.slice(4), "the chosen account is on the source");
   await browser.waitFor(`document.querySelector(${JSON.stringify(CARD)})?.dataset.stage === "line"`);
   // The card is drawn in the outer document first; the page's element gets its height from the size message after it, over the port.
-  await child.waitFor(`document.getElementById('card').getBoundingClientRect().height === ${LINE}`).catch(() => undefined);
-  assert.equal(await child.evaluate("document.getElementById('card').getBoundingClientRect().height"), LINE, "ASC-66 the card folds into one line");
+  await child.waitFor(`document.getElementById('next-form').getBoundingClientRect().height === ${LINE}`).catch(() => undefined);
+  assert.equal(await child.evaluate("document.getElementById('next-form').getBoundingClientRect().height"), LINE, "ASC-66 the card folds into one line");
 
   // C3-5: what the frame heard: heights, that the card shows, and one answer; no account id, label of another account, or key.
   const heard = await p.down();

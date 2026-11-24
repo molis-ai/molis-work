@@ -43,7 +43,9 @@ SQLite 冲突确认由可信组合根把 SDK 的 `createSyncConflictState` 通�
 
 ## 一套标准：官方插件与生成插件
 
-`skills/molis-plugin-dev` 是做插件的唯一标准：手写插件按它交付，插件创作台也在运行时经 Prologue 挂载其中的章节。各阶段实际挂载的章节与顺序以 [`skill.ts` 的 `CHAPTERS`](../../apps/local-host/src/plugin-builder/skill.ts) 为准，版本取挂载正文的摘要并写入每次运行的 promptVersion。这里不再维护第二份章节清单；改挂载内容仍按[创作台 Skill 回放与冒烟](STUDIO-SKILL-REPLAY.md)验证。 分批推出的新合同在首次可用时同步作者章节及 SDK 用例。设计中的分区、总览、依赖和推送能力按[统一分区的交付分工](../../specs/unified-partition-plugins/spec.md#author-delivery)逐批接入。
+创作台细化时从任务的 `iconNames` 选择 `design.icon`，发布到签名清单的 stage 视图。生成插件的提交部件通过 `connectionNeed` 请求第 13 批的原处连接卡，声明与试用方式见 [生成设计](../../skills/molis-plugin-dev/generated-design.md)。
+
+`skills/molis-plugin-dev` 是做插件的唯一标准：手写插件按它交付，插件创作台也在运行时经 Prologue 挂载其中的章节。各阶段实际挂载的章节与顺序以 [`skill.ts` 的 `CHAPTERS`](../../apps/local-host/src/plugin-builder/skill.ts) 为准，版本取挂载正文的摘要并写入每次运行的 promptVersion。这里不再维护第二份章节清单；改挂载内容仍按[创作台 Skill 回放与冒烟](STUDIO-SKILL-REPLAY.md)验证。分批推出的新合同在首次可用时同步作者章节及 SDK 用例。设计中的分区、总览、依赖和推送能力按[统一分区的交付分工](../../specs/unified-partition-plugins/spec.md#author-delivery)逐批接入。
 
 - 交付流程与每步做完的标准：`process.md`（按模型能力伸缩：能出图就给效果图，能读图就加截图走查）。
 - 质量线（所有插件）：`ui.md#质量线所有插件`——只用 UI 目录组件、三态、一处主操作、token 配色、不重复插件名大标题。视觉统一按 [DESIGN.md](../../DESIGN.md) 的 Soft Workbench：插件共用连续的工作面，不画自己的外框卡片、不带身份色；主操作用 `--action`，焦点与链接用 `--accent`，随皮肤切换。默认柔雾皮肤的主操作为墨蓝色，焦点与链接为雾蓝色；字重 400/500/600；全局入口在底栏（Dock 与插件切换器），`navigator` Slot id 保留，没有全局侧栏。

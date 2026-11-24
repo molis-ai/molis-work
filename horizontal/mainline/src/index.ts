@@ -7,7 +7,7 @@ import { STATE_RING_FAMILIES, type ReviewOwner, type ReviewReference, type State
 import { MAINLINE_ARRANGE_PERMISSION, mainlineErrors, type BackgroundTaskCommandRequest, type BackgroundTaskCommandResult, type BackgroundTaskDecideRequest, type BackgroundTaskDecideResult, type BackgroundTaskHeldReview, type BackgroundTaskRow, type BackgroundTasksReadResult, type MainlineIssue, type ObjectOpenRequest, type ObjectOpenResult, type TaskPlaceRequest, type TaskPlaceResult,
   type WaitingItem, type WaitingReadResult, type WorkLineEvent, type WorkLineReadRequest, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { PRESENTATION_VALUES_INPUT_TYPE, PRESENTATION_VALUES_OUTPUT_TYPE, type OwnedPresentationObject, type PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
-import { checkItemPlacement, itemLineScope, placeInItem, type ItemLineScope, type MainlineItemPorts } from "./items.js";
+import { checkItemPlacement, itemLineScope, placeInItem, taskBelongsToItem, type ItemLineScope, type MainlineItemPorts } from "./items.js";
 import { createExecutionLifetime, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
 import { MISSED_RUN_KIND, isRunDecisionOf, isRunsSource, missedRunTasks, missedRunsWindow } from "./missed-runs.js";
 
@@ -296,7 +296,7 @@ export async function readWorkLine(caller: ActionCallContext, client: ActionClie
   if (itemId !== undefined && !items) throw mainlineErrors.source_unavailable("这里读不到主线的事项");
   const scope = itemId !== undefined ? await itemLineScope(caller, client, items!, itemId, directory) : undefined;
   const [answers, wholeTable] = await Promise.all([gatherWorkEvents(reader, client, window, directory.filter(isWorkEventSource)), readBackgroundTasks(caller, client, directory, reviews)]);
-  const table = scope ? { ...wholeTable, tasks: wholeTable.tasks.filter(task => inScope(scope, task.subject) || task.serves.some(served => inScope(scope, served))) } : wholeTable;
+  const table = scope ? { ...wholeTable, tasks: wholeTable.tasks.filter(task => taskBelongsToItem(task, scope.item.item_id, scope.subjects)) } : wholeTable;
   const behind = new Map<string, BackgroundTaskRow[]>();
   for (const task of table.tasks) for (const served of task.serves) behind.set(subjectKey(served), [...behind.get(subjectKey(served)) ?? [], task]);
   const issues: MainlineIssue[] = answers.flatMap(answer => !answer.failure || answer.failure.code === "actions.plugin_disabled" ? [] : [{ source: answer.source, title: answer.view.action.title, code: answer.failure.code }]);

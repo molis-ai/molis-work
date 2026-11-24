@@ -45,6 +45,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "none";
     readonly summary: "Detach and hide the Character terminal, because another Character is shown.";
 }, {
+    readonly name: "molis-work:composer-draft-restored";
+    readonly kind: "announcement";
+    readonly owner: "composer-draft";
+    readonly on: "element";
+    readonly detail: "none";
+    readonly summary: "The input has applied the restored text. Its enclosing workspace may now restore the selection and scroll.";
+}, {
     readonly name: "molis-work:item-unreadable";
     readonly kind: "request";
     readonly owner: "context-actions";
@@ -660,6 +667,10 @@ export declare const PAGE_STATE_OWNERS: {
     readonly "acceptance-column": {
         readonly files: readonly ["apps/workbench/src/browser/work-acceptance.ts"];
         readonly state: "The requirement column beside the work surface: whose requirements it shows, read from the platform's acceptance, and what the person is writing in it.";
+    };
+    readonly "composer-draft": {
+        readonly files: readonly ["packages/design-system/src/browser/composer-drafts.ts"];
+        readonly state: "The draft that the mounted input has finished restoring from its owner.";
     };
     readonly preferences: {
         readonly files: readonly ["packages/design-system/src/preferences.ts", "apps/workbench/src/browser/plugin-frame/child.ts"];

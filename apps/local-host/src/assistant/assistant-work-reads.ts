@@ -217,19 +217,23 @@ export class AssistantWorkReads {
     return whenThere(() => this.store.get(this.actorId, workId));
   }
 
-  /** Which object kind each surface's tab items are, as plugins declare their search sources (kind and surface). */
-  async surfaceKinds(caller: AssistantCaller): Promise<Record<string, string>> {
+  /**
+   * Which object kind each surface's tab items are, and the icon each kind declares, as plugins declare their search sources (kind,
+   * surface, glyph; M8). The shell names no kind or plugin of its own.
+   */
+  async surfaceKinds(caller: AssistantCaller): Promise<{ kinds: Record<string, string>; glyphs: Record<string, string> }> {
     let actions: PersonActions | null = null;
-    try { actions = await this.ports.scopeActions?.({ project_ref: caller.project_ref ?? undefined } as StoredWork) ?? null; } catch { return {}; }
-    if (!actions) return {};
-    const seen = new Map<string, Set<string>>();
+    try { actions = await this.ports.scopeActions?.({ project_ref: caller.project_ref ?? undefined } as StoredWork) ?? null; } catch { return { kinds: {}, glyphs: {} }; }
+    if (!actions) return { kinds: {}, glyphs: {} };
+    const seen = new Map<string, Set<string>>(), glyphs: Record<string, string> = {};
     for (const view of await actions.discover().catch(() => [] as ActionView[])) {
       for (const item of view.action.search_source?.kinds ?? []) {
         if (item.surface) seen.set(item.surface, (seen.get(item.surface) ?? new Set<string>()).add(item.kind));
+        if (item.glyph && !Object.hasOwn(glyphs, item.kind)) glyphs[item.kind] = item.glyph;
       }
     }
     // A surface that lists more than one kind cannot say which one its open tab is.
-    return Object.fromEntries([...seen].filter(([, kinds]) => kinds.size === 1).map(([surface, kinds]) => [surface, [...kinds][0]!]));
+    return { kinds: Object.fromEntries([...seen].filter(([, kinds]) => kinds.size === 1).map(([surface, kinds]) => [surface, [...kinds][0]!])), glyphs };
   }
 
   /** The works that relate to an object in a project (or in the person's own scope), for that object's page. */

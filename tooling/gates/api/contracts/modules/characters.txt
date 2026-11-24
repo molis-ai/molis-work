@@ -114,6 +114,7 @@ export declare const CHARACTER_ARTIFACT_PRODUCER: {
         readonly artifact_type_id: "character.definition.v1";
         readonly schema_version: 1;
         readonly title: "角色";
+        readonly searchable_fields: readonly ["instructions"];
         readonly preview: {
             readonly capability_id: string;
             readonly version: number;

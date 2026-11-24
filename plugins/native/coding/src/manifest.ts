@@ -126,7 +126,7 @@ export const codingManifest: PluginManifest = {
   },
   // The run report is the version people keep; plans, goal context, change sets and diagrams are exchange data.
   artifacts: {
-    produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: /* @version type.coding.report */ 1, title: "Coding 执行报告", title_text: { key: "coding.artifacts.type-title" }, preview: { capability_id: "coding.artifacts.preview", version: /* @version action.coding.artifacts.preview */ 1 } }],
+    produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: /* @version type.coding.report */ 1, title: "Coding 执行报告", title_text: { key: "coding.artifacts.type-title" }, searchable_fields: ["task", "model_answer", "body_markdown"], preview: { capability_id: "coding.artifacts.preview", version: /* @version action.coding.artifacts.preview */ 1 } }],
     consumes: [CODING_REPORT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),
   },
   process_items: {

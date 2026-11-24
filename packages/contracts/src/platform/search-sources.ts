@@ -13,7 +13,11 @@ export const SEARCH_ENTRIES_PAGE_LIMIT = 500;
 /** Where the person opens an object: the Workbench plugin surface and the object's id inside it. */
 export interface SearchOpenTarget { surface: string; id: string }
 /** Static declaration read from the directory: which object kinds a source lists, and where each opens. */
-export interface SearchSourceKind { kind: string; title: string; surface: string }
+export interface SearchSourceKind {
+  kind: string; title: string; surface: string;
+  /** The icon an object of this kind shows wherever the shell draws one (the SDK's `PLUGIN_ICON_NAMES`); none is a plain file (M8). */
+  glyph?: string;
+}
 export interface SearchSourceDeclaration { readonly kinds: readonly SearchSourceKind[] }
 
 export interface SearchEntriesInput { cursor: string | null; limit: number }

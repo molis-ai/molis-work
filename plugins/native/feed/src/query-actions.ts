@@ -55,7 +55,7 @@ export const feedQueryActions = {
     { type: "object", properties: { snapshot: snapshotSchema, source_catalog: rows(["id", "name", "feed_url", "category", "category_label", "limitations"]),
       source_messages: { type: "object", additionalProperties: { type: "array", items: { type: "string" } } }, connector_auth: connectionsSchema, attention_entries: rows(["entry_id", "subject_type", "subject_id", "status"]), source_presentations: { type: "object" } },
       required: ["snapshot", "source_messages", "source_catalog", "connector_auth", "attention_entries", "source_presentations"], additionalProperties: false },
-    ["feed:read", "inbox:read", "evidence:read", "sources:pull_feed", "sources:pull_connector"]),
+    ["feed:read", "inbox:read", "evidence:read", "sources:pull_public_feed", "sources:pull_connector"]),
   reader: define<{ object_id: string; material_offset?: string }, FeedReaderData>("feed.items.reader", /* @version action.feed.items.reader */ 1, "读取 Feed 阅读器", "读取一条消息的正文、有效捕捉建议及当前可用的处置",
     { ...empty, properties: { material_offset: { type: "string", pattern: "^(0|[1-9][0-9]*)$" }, object_id: { type: "string", minLength: 1, maxLength: 200 } }, required: ["object_id"] },
     { type: "object", properties: { material_offset: { type: "integer" }, material_next_offset: { type: ["integer", "null"] }, item, inbox_active: { type: "boolean" }, promote_available: { type: "boolean" } },

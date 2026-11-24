@@ -20,8 +20,8 @@ export interface ConnectorDirectoryEntryWithSource extends ConnectorDirectoryEnt
   readonly declared_by: ConnectorDeclaredBy | null;
 }
 
-/** The card for one declared service. A plugin's `feed_available` reports its source declaration. */
-function directoryEntry(declaration: PluginConnectionServiceDeclaration, word: ConnectorWordReader, feedAvailable: boolean | undefined): ConnectorDirectoryEntry {
+/** The card for one declared service. A plugin's `source_available` reports its source declaration. */
+function directoryEntry(declaration: PluginConnectionServiceDeclaration, word: ConnectorWordReader, sourceAvailable: boolean | undefined): ConnectorDirectoryEntry {
   const token = declaration.auth.methods.find(method => method.kind === "token");
   return {
     connector_id: declaration.service_id,
@@ -36,7 +36,7 @@ function directoryEntry(declaration: PluginConnectionServiceDeclaration, word: C
     } : {}),
     ...(declaration.auth_help === undefined ? {} : { auth_help: word(declaration.auth_help) }),
     ...(declaration.setup_links === undefined ? {} : { setup_links: connectorLinks(declaration.setup_links, word) }),
-    ...(feedAvailable === undefined ? {} : { feed_available: feedAvailable }),
+    ...(sourceAvailable === undefined ? {} : { source_available: sourceAvailable }),
     capabilities: declaration.capabilities.map(item => ({ ...item, label: word(item.label) })),
     ...(declaration.outbound_note === undefined ? {} : { outbound_note: word(declaration.outbound_note) }),
   };
@@ -45,7 +45,7 @@ function directoryEntry(declaration: PluginConnectionServiceDeclaration, word: C
 /** What the service's accounts can be used for, read from what is declared, in `CONNECTOR_USES` order (§13.7). */
 function connectorUses(kinds: ReadonlySet<IntegrationKind> | undefined, declaration: PluginConnectionServiceDeclaration): Pick<ConnectorDirectoryEntry, "uses" | "categories"> {
   const has: Record<ConnectorUse, boolean> = {
-    feed_source: kinds?.has("source") === true && Object.hasOwn(CONNECTOR_REQUEST_SERVICES, declaration.service_id),
+    source_pull: kinds?.has("source") === true && Object.hasOwn(CONNECTOR_REQUEST_SERVICES, declaration.service_id),
     document_import: kinds?.has("document_import") === true,
     assistant_read: serviceHasRecordReader(declaration.service_id),
     web_search: kinds?.has("web_search") === true,

@@ -1,7 +1,7 @@
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION, PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION,
+  PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION, PLUGIN_SOURCE_PULL_PUBLIC_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION,
   type PluginSourcePullClient, type SourcePullResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { createPluginSourcePullClient, type PluginSourcePullPort } from "@molis-ai/molis-work-plugin-runtime";
@@ -9,11 +9,12 @@ import { createEvidenceContentStore, createLazyFileSecretStore, runWithMolisWork
 import { resolveConfiguredHome } from "./product-home.js";
 import { createSourcePullRuntime, type SourcePullRuntime } from "./source-pull-runtime.js";
 import type { PluginDatabaseConnection } from "./plugin-database-client.js";
-import { readResearchRepository, type ResearchGit } from "./research-repository-read.js";
+import { builtinRepositoryReader, type ResearchGit } from "./builtin-drivers.js";
 import { forgetIntelligenceOperations, type IntelligenceCollectResult } from "./search-intelligence-client.js";
 import { buildSourcePullIntent, sourcePullFingerprint } from "./source-pull-intent.js";
 import { createSourceVocabulary } from "./source-vocabulary.js";
 import { createConnectorSourcePort } from "./connector-source-pull.js";
+import { builtinPublicFeedDriver } from "./builtin-drivers.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { homeConnectorDirectory } from "./connector-directory.js";
 import type { IntegrationRegistry } from "./integration-registry.js";
@@ -24,7 +25,7 @@ type FetchPort = (input: string | URL, init?: RequestInit) => Promise<Response>;
 const sourcePullErrors = defineErrorCodes("host.source_pull", { evidence_key_missing: "unavailable" });
 
 /** The Manifest permissions that make the Host build `services.sourcePull` (`HOST_SERVICE_PERMISSIONS`). */
-export const SOURCE_PULL_PERMISSIONS: readonly string[] = [PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION, PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION];
+export const SOURCE_PULL_PERMISSIONS: readonly string[] = [PLUGIN_SOURCE_PULL_PUBLIC_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION, PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION];
 
 export interface SourcePullPortOptions {
   /** The project's library: where the platform keeps the search records of a pull. */
@@ -60,7 +61,7 @@ export function createSourcePullPort(options: SourcePullPortOptions): PluginSour
   const secretStore = options.secretStore ?? createLazyFileSecretStore(home);
   const content = options.content ?? runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore }));
   return {
-    vocabulary: createSourceVocabulary(options.integrations ?? (() => homeIntegrationRegistry(home))),
+    vocabulary: createSourceVocabulary(builtinPublicFeedDriver(), options.integrations ?? (() => homeIntegrationRegistry(home))),
     connector: createConnectorSourcePort({ home, registry: options.integrations ?? (() => homeIntegrationRegistry(home)),
       titles: async () => new Map((await homeConnectorDirectory(home)).map(entry => [entry.connector_id, entry.title])) }),
     plan: request => ({ intent_fingerprint: sourcePullFingerprint(request) }),
@@ -154,7 +155,7 @@ export function createSourcePullPort(options: SourcePullPortOptions): PluginSour
     forget: operationIds => forgetIntelligenceOperations(options.db, operationIds),
     async readRepository(request, run) {
       run.current();
-      const result = await readResearchRepository(home, request, { signal: run.signal, ...(options.git ? { git: options.git } : {}) });
+      const result = await builtinRepositoryReader()(home, request, { signal: run.signal, ...(options.git ? { git: options.git } : {}) });
       run.current();
       return result;
     },

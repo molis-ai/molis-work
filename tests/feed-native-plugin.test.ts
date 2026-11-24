@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { installHostUiText, LocalProjectDatabase, registeredBuiltinText, runWithLocale, runWithRegisteredText, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
-import { FEED_SAVE_OPTION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
+import { FEED_SAVE_OPTION_ID } from "@molis-ai/molis-work-plugin-feed";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
 import { pageText } from "./fixtures/page-text.js";

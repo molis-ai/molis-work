@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./drivers": {
+      "types": "./dist/drivers.d.ts",
+      "import": "./dist/drivers.js"
     }
   },
   "files": [

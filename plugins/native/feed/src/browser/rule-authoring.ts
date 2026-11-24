@@ -1,6 +1,6 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { FEED_CAPTURE_SCENE_ID, FEED_OPEN_OPTION_ID, INBOX_ADMIT_OPTION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
+import { FEED_CAPTURE_SCENE_ID, FEED_OPEN_OPTION_ID, INBOX_ADMIT_OPTION_ID } from "../scene-options.js";
 import type { FeedPage } from "./factory.js";
 import { feedRuleKeep } from "./rule-keep.js";
 

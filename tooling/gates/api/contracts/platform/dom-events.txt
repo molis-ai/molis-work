@@ -25,11 +25,11 @@ export declare const DOM_EVENTS: readonly [{
     readonly summary: "The page's read of what waits on the person did not get through (not a gone project): the work line and the task panel keep what they showed and say it is being checked (WLN-05, WLN-29).";
 }, {
     readonly name: "molis-work:character-run-open";
-    readonly kind: "request";
-    readonly owner: "character-handoff";
+    readonly kind: "announcement";
+    readonly owner: "character-run";
     readonly on: "window";
     readonly detail: "{ reference, title, task, workspace_id, skill_ids }";
-    readonly summary: "Open a new workspace session prepared from a Character run (the fixed role package and the task). Sent by the Characters page.";
+    readonly summary: "The person asked the Characters page to open a Character run (the fixed role package and the task) in a workspace; a plugin surface that offers workspaces (data-character-run-target) opens a new session prepared from it.";
 }, {
     readonly name: "molis-work:character-terminal";
     readonly kind: "request";
@@ -673,9 +673,9 @@ export declare const PAGE_STATE_OWNERS: {
         readonly files: readonly ["modules/shelf/src/surface/browser/document.ts", "modules/shelf/src/surface/browser/tui.ts", "modules/shelf/src/surface/browser/terminal.ts", "modules/shelf/src/surface/browser/settings/reload.ts"];
         readonly state: "The Shelf surface: its list and selection, the notice line and the input to the terminal Agent.";
     };
-    readonly "character-handoff": {
-        readonly files: readonly ["plugins/native/coding/src/browser/main/mount-events.ts"];
-        readonly state: "A workspace surface opened from a Character run.";
+    readonly "character-run": {
+        readonly files: readonly ["apps/workbench/src/browser/characters/import-client.ts"];
+        readonly state: "The Character run the person asked to open in a workspace (its fixed role package, task, workspace and Skills); a plugin whose surface carries data-character-run-target opens it (M6).";
     };
     readonly "character-terminal": {
         readonly files: readonly ["apps/workbench/src/browser/characters/terminal.ts"];
@@ -686,8 +686,8 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "The object work terminal pane: which plugin object it is bound to, whether that object is read-only for terminal work, and its panels.";
     };
     readonly "surface-landing": {
-        readonly files: readonly ["plugins/native/pages/src/landing-editor.ts"];
-        readonly state: "Where something in hand would land in an open document surface, the preview there, and the brief flash that shows the place.";
+        readonly files: readonly ["apps/workbench/src/browser/plugin-frame/context.ts"];
+        readonly state: "The flash that shows where something in hand would land in an open document surface: asked of the surface that reported the landing, which any plugin surface may answer, and relayed out of a plugin frame by its adapter (M6).";
     };
     readonly "knowledge-picker": {
         readonly files: readonly ["apps/workbench/src/browser/knowledge/picker.ts", "apps/workbench/src/browser/plugin-frame/materials-picker.ts"];

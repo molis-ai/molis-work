@@ -303,7 +303,7 @@ interface SessionParts {
   readonly materials: ReturnType<typeof pluginMaterialsFor>;
   /** Requests through the accounts the person bound to the Manifest's slots, only when it declares `connections:use` (`pluginConnectionsFor`). */
   readonly connections: ReturnType<typeof pluginConnectionsFor>;
-  /** Pulling public sources and reading evidence bodies and research libraries, only when the Manifest declares `sources:pull_feed`, `sources:pull_query`, `evidence:read` or `sources:read_repository` (`pluginSourcePullFor`). */
+  /** Pulling public sources and reading evidence bodies and research libraries, only when the Manifest declares `sources:pull_public_feed`, `sources:pull_query`, `evidence:read` or `sources:read_repository` (`pluginSourcePullFor`). */
   readonly sourcePull: ReturnType<typeof pluginSourcePullFor>;
   readonly background: import("@molis-ai/molis-work-contracts/platform/plugin").PluginBackgroundClient | undefined;
   /** The person-authorized directory reader, only when the Manifest declares `directory:read`. */

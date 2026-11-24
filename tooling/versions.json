@@ -140,7 +140,7 @@
     "action.artifacts.documents.preview": 1,
     "action.artifacts.export": 1,
     "action.artifacts.files.entries": 1,
-    "action.artifacts.goals.embeds": 1,
+    "action.artifacts.subject.embeds": 1,
     "action.artifacts.import.external": 1,
     "action.artifacts.import.file": 1,
     "action.artifacts.import.sources": 1,

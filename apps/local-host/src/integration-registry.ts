@@ -1,4 +1,5 @@
 import type { PluginContribution, PluginDefinition, PluginIntegrationContribution, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PublicFeedDriver } from "./public-feed-driver.js";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding, IntegrationKind, OAuthGrant, PluginAuthMethodDeclaration, PluginConnectionServiceDeclaration, PluginMcpMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
@@ -9,7 +10,7 @@ import { IntegrationDeclarations, type RegisteredConnectionService, type Registe
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 import { assertConnectorText, builtinConnectorText, type BuiltinConnectorText, type ConnectorWordReader } from "./connector-words.js";
 
-export type BuiltinIntegrationDefinition = PluginDefinition & { readonly connectionText?: BuiltinConnectorText };
+export type BuiltinIntegrationDefinition = PluginDefinition & { readonly connectionText?: BuiltinConnectorText; readonly publicFeed?: PublicFeedDriver };
 
 export interface OAuthServiceOwner {
   readonly plugin_id: string;

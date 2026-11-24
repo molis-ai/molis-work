@@ -8,7 +8,7 @@ export const inboxContentActions = defineWorkflowContentActions({ id: "inbox", t
 
 export const inboxSubjectAction = defineSubjectContextAction("inbox.subject.read", /* @version action.inbox.subject.read */ 1, "inbox_entry", "Inbox 事项", ["inbox:read"]);
 /** System search: open entries by title, reason and source. The related material's body stays with its owner (Feed keeps it encrypted). */
-export const inboxSearchEntriesAction = defineSearchEntriesAction("inbox.search.entries", /* @version action.inbox.search.entries */ 1, [{ kind: "inbox_entry", title: "Inbox 事项", surface: "inbox" }], "Inbox 事项", ["inbox:read"]);
+export const inboxSearchEntriesAction = defineSearchEntriesAction("inbox.search.entries", /* @version action.inbox.search.entries */ 1, [{ kind: "inbox_entry", title: "Inbox 事项", surface: "inbox", glyph: "inbox" }], "Inbox 事项", ["inbox:read"]);
 const REASON_TEXT: Readonly<Record<string, string>> = { manual: "手动加入", source_rule: "来源规则加入", goal_decision: "目标待决定", source_fault: "来源故障", artifact_out_failed: "成果发出失败" };
 
 type ContentEntry = Omit<AttentionEntryRecord, "project_id">;

@@ -139,8 +139,10 @@ test("an object picked with “@” is checked with its owner and read by it bef
     assert.equal(requests.length, afterQuote, "a file changed since it was shown stops the send before any model call");
 
     // Which kind an open tab is, from what plugins declare for their searchable objects.
-    const kinds = await service.reads.surfaceKinds({ project_ref: reference });
+    // M8: the kind of a surface's tab item and the kind's icon both come from what the plugin declares, never a list in the shell.
+    const { kinds, glyphs } = await service.reads.surfaceKinds({ project_ref: reference });
     assert.equal(kinds.lingguang, "lingguang_spark");
+    assert.equal(glyphs.lingguang_spark, "idea");
     assert.equal(kinds[found.open?.surface ?? ""], found.subject.kind);
   } finally {
     service.continuations.close(); await adapter.close();

@@ -16,14 +16,14 @@ for (const width of [1440, 390]) {
       content: { kind: "inline", payload: { title: "需求说明", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "范围与验收" }] }] } } },
       ...pinnedArtifact("需求说明", { kind: "pages_document", id: "brief" }, "1") });
     await navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/artifacts/pages-brief/versions/1` }, sessionId));
-    await waitFor("document.body.dataset.desktopSurface === 'artifacts' && Boolean(document.querySelector('[data-artifact-goal-input] summary'))", 15_000);
+    await waitFor("document.body.dataset.desktopSurface === 'artifacts' && Boolean(document.querySelector('[data-artifact-attach-target] summary'))", 15_000);
     assert.match(await evaluate<string>("document.querySelector('[data-artifact-links]').innerText"), /还没有引用这一版的对象/);
 
-    await click("[data-artifact-goal-input] summary");
+    await click("[data-artifact-attach-target] summary");
     const target = JSON.stringify({ kind: "goal", id: "V1" });
-    await waitFor(`[...document.querySelectorAll('[data-artifact-goal-input] select option')].some(option => option.value === ${JSON.stringify(target)})`, 10_000);
-    await evaluate(`(() => { const select = document.querySelector('[data-artifact-goal-input] select'); select.value = ${JSON.stringify(target)}; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
-    await click("[data-artifact-goal-input-form] button[type=submit]");
+    await waitFor(`[...document.querySelectorAll('[data-artifact-attach-target] select option')].some(option => option.value === ${JSON.stringify(target)})`, 10_000);
+    await evaluate(`(() => { const select = document.querySelector('[data-artifact-attach-target] select'); select.value = ${JSON.stringify(target)}; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await click("[data-artifact-attach-target-form] button[type=submit]");
     // The detail reloads and 「被谁引用」 names the Goal under Goals, as an input, opening it as a workbench item (RAC-2085).
     await waitFor("Boolean(document.querySelector('[data-artifact-links] [data-artifact-linked-plugin] a[data-workbench-item-plugin=\"goals\"][data-workbench-item-id=\"V1\"]'))", 15_000);
     assert.match(await evaluate<string>("document.querySelector('[data-artifact-links] li').innerText"), /输入/);

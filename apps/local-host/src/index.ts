@@ -199,14 +199,14 @@ export { connectorAccountActionProvider, readConnectorAccount } from "./connecto
 export { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 export { oauthAccount, oauthAccountRequest, oauthAuthorizationContext, oauthAuthorizationUrl, oauthClientAuth, oauthContextValue, oauthDeviceRequest, oauthEndpoint, oauthEndpointFingerprint, oauthExpiry, oauthKept, oauthMethodOption, oauthPinnedTenant, oauthScope, oauthSecretRequired, oauthTenantOrigin, oauthTokenRequest, resolveOAuthSettings } from "./connector-oauth-declarations.js";
 export { listConnectorConnectionViews } from "./connector-connection-views.js";
-export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 export { startDeviceOAuth, pollDeviceOAuth, registerConnectorDevicePolling } from "./connector-device-oauth.js";
 export { createPeriodicTasks } from "./periodic-tasks.js";
 
 
+export { createCatalogConnector } from "./catalog-connector.js";
+export { stdioMcpLaunch } from "./stdio-mcp-launch.js";
 export { createGithubConnector } from "./github-connector.js";
 export { createGmailConnector } from "./gmail-connector.js";
-export { createCatalogConnector } from "./catalog-connector.js";
 export { IntegrationRegistry, type OAuthServiceOwner } from "./integration-registry.js";
 export { homeIntegrationRegistry } from "./builtin-integrations.js";
 export { connectorDirectory, connectorLoginReady, homeConnectorDirectory } from "./connector-directory.js";

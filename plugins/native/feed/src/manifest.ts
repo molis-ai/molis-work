@@ -40,7 +40,7 @@ export const feedManifest: PluginManifest = {
   presentation: feedPresentation,
   actions: FEED_ACTIONS,
   demo_seed: { capability_id: feedDemoSeedAction.capability_id, version: feedDemoSeedAction.version },
-  artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息", title_text: { key: "feed.artifacts.type-title" },
+  artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息", title_text: { key: "feed.artifacts.type-title" }, searchable_fields: ["source_label", "tags"],
     preview: { capability_id: "feed.artifacts.preview", version: /* @version action.feed.artifacts.preview */ 1 } }], consumes: [] },
   requires: [],
   sync: feedSync,

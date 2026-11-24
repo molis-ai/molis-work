@@ -29,7 +29,7 @@ test("WLN-11: a done event's card shows what came of it in its owner's words, �
   plugin.state.events = () => ({ source: { surface: "example", title: "示例", icon: "list" }, events: [done] });
   // What 「放到 Shelf」 posts, as the page posted it.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.__shelved = []; (() => { const real = window.fetch; window.fetch = function (input, init) {
-    try { const url = typeof input === 'string' ? input : input.url; if (/\\/api\\/mainline\\/shelve$/.test(new URL(url, location.href).pathname) && init && typeof init.body === 'string') window.__shelved.push(JSON.parse(init.body)); } catch {}
+    try { const url = typeof input === 'string' ? input : input.url; if (/\\/api\\/mainline\\/receive$/.test(new URL(url, location.href).pathname) && init && typeof init.body === 'string') window.__shelved.push(JSON.parse(init.body)); } catch {}
     return real.apply(this, arguments); }; })();` }, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -48,9 +48,12 @@ test("WLN-11: a done event's card shows what came of it in its owner's words, �
   await writeFile(new URL("event-card-done-1440.png", shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
 
   // 放到 Shelf: Shelf's own action, as the person; what lands is the name, the words and the address that opens it again.
-  await click("[data-assistant-event-card] [data-event-shelve]");
-  await waitFor(`${CARD}.querySelector('[data-event-shelve]').textContent.trim() === '已放到 Shelf' && ${CARD}.querySelector('[data-event-shelve]').disabled`, 15_000);
-  const [shelved] = await evaluate<Array<{ title: string; text: string }>>("window.__shelved");
+  // M4: 「放到…」 lists the platform's Shelf first; the card names the object it came from, so a plugin's station records it.
+  await click("[data-assistant-event-card] [data-event-receive='shelf']");
+  await waitFor(`${CARD}.querySelector('[data-event-receive]').textContent.trim() === '已放到 Shelf' && ${CARD}.querySelector('[data-event-receive]').disabled`, 15_000);
+  const [{ station, source, ...shelved }] = await evaluate<Array<{ station: string; source: { kind: string; id: string }; title: string; text: string }>>("window.__shelved");
+  assert.equal(station, "shelf");
+  assert.ok(source.kind && source.id, "the card names its object");
   assert.deepEqual(shelved, { title: "季度预算已整理",
     text: `季度预算已整理\n三档预算与对比表，附常见问题。\n${origin}/projects/${encodeURIComponent(projectId ?? "")}/?openPlugin=todo&openItem=${encodeURIComponent(item.id)}&openTitle=${encodeURIComponent("季度预算")}` });
 

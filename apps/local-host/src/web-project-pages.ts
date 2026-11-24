@@ -107,7 +107,7 @@ async function readSubjectArtifactContext(subjectId: string, actions: BoundActio
   let html: string | undefined, outputs = 0;
   let inputs: Array<{ artifact_id: string; version: number; title: string; state: "available" | "unavailable" | "archived" | "missing"; reason: string | null }> = [];
   try {
-    const { embeds } = await lookingForArea(() => actions.invoke(artifactsActions.goalEmbeds, { goal_id: subjectId, supported_types: declaredArtifactTypes() }));
+    const { embeds } = await lookingForArea(() => actions.invoke(artifactsActions.subjectEmbeds, { subject_id: subjectId, supported_types: declaredArtifactTypes() }));
     const delivered = embeds.filter(embed => embed.relationship === "output");
     html = await renderProjectArtifactContext(delivered, readArtifactDisplay);
     outputs = delivered.length;

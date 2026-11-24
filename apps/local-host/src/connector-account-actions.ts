@@ -9,7 +9,7 @@ import { connectorPluginSlotActions, connectorPluginSlotHandlers, connectorPlugi
 import { connectorUsagesSwitchAction, connectorUsagesSwitchHandler } from "./connector-usage-switch.js";
 import { modelProviderSwitch, modelProviderSwitchHandler } from "./model-provider-switch.js";
 import { ActionError, defineErrorCodes, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { githubWhoami } from "@molis-ai/molis-work-integration-github";
+import { accountReader } from "./account-providers.js";
 import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 
 import { resolveApiConnection } from "./connector-access.js";
@@ -86,10 +86,11 @@ export async function readConnectorAccount(home: string, connectionId: string, c
       throw error instanceof ApiOAuthError && error.refused ? accountErrors.needs_auth(error.message) : accountErrors.unavailable(error instanceof Error ? error.message : "无法读取账号");
     }
   }
-  if (service === "github") {
-    const result = await githubWhoami({ token: access.token, fetchImpl: controlledConnectorFetch(globalThis.fetch, control) });
+  const whoami = accountReader(service)?.whoami;
+  if (whoami) {
+    const result = await whoami({ token: access.token, fetchImpl: controlledConnectorFetch(globalThis.fetch, control) });
     await control.beforeEffect(); control.current();
-    if (!result.ok) throw failed(result.failure, result.failure === "needs_auth" ? "GitHub 需要重新授权" : result.message, "无法读取 GitHub 账号");
+    if (!result.ok) throw failed(result.failure, result.failure === "needs_auth" ? "这个账号需要重新授权" : result.message, "无法读取这个账号");
     return { ...identity, login: result.login, scopes: [...result.scopes], ...(result.account_id ? { account_id: result.account_id } : {}) };
   }
   if (!isCatalogConnectorId(service)) throw accountErrors.unknown("这条连接的服务不提供账号读取");

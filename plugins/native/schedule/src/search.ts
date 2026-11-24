@@ -6,7 +6,7 @@ const subjectReader = defineSubjectContextAction("schedule.subject.read", /* @ve
 
 /** Schedule's part in the system search: the person's conversation tasks, their instructions and what each run reported. */
 export const scheduleSearchActions = {
-  entries: defineSearchEntriesAction("schedule.search.entries", /* @version action.schedule.search.entries */ 1, [{ kind: "schedule_task", title: "定时任务", surface: "schedule" }], "定时任务", ["schedule:read"]),
+  entries: defineSearchEntriesAction("schedule.search.entries", /* @version action.schedule.search.entries */ 1, [{ kind: "schedule_task", title: "定时任务", surface: "schedule", glyph: "workflow" }], "定时任务", ["schedule:read"]),
   subject: { ...subjectReader, action: { ...subjectReader.action, execution: { cost: "none" as const } } },
 };
 const revisionOf = (task: ScheduleConversationTaskView) => searchRevisionOf([task.updated_at, String(task.turns.length), task.turns.at(-1)?.turn_id ?? ""]);

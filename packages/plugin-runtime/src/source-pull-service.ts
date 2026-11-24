@@ -1,7 +1,7 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION, PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION,
+  PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION, PLUGIN_SOURCE_PULL_PUBLIC_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION,
   type PluginSourcePullClient, type PluginSourceVocabulary, type RepositoryReadRequest, type RepositoryReadResult, type SourcePullKind, type SourcePullOptions, type SourcePullRequest, type SourcePullResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { createPluginConnectorSourceClient, type PluginConnectorPort } from "./source-pull-connector.js";
@@ -22,16 +22,14 @@ const OPERATION_ID = /^[A-Za-z0-9._:-]{1,200}$/u;
 const EVIDENCE_REF = /^molis-work-evidence\/sha256\/[0-9a-f]{64}$/u;
 /** The fields each kind of request may carry, and no others: where a pull goes is the platform's to decide, never an argument. */
 const REQUEST_FIELDS: Readonly<Record<SourcePullKind, readonly string[]>> = Object.freeze({
-  rss: ["kind", "operation_id", "source_name", "definition_id", "cursor"],
-  custom_rss: ["kind", "operation_id", "source_name", "feed_url", "cursor"],
-  youtube_channel: ["kind", "operation_id", "source_name", "channel_id", "cursor"],
+  public_feed: ["kind", "operation_id", "source_name", "definition_id", "address", "cursor"],
   web_query: ["kind", "operation_id", "source_name", "query"],
 });
 const TEXT_FIELD: Readonly<Record<SourcePullKind, { readonly name: string; readonly max: number }>> = Object.freeze({
-  rss: { name: "definition_id", max: 200 }, custom_rss: { name: "feed_url", max: 2_048 }, youtube_channel: { name: "channel_id", max: 200 }, web_query: { name: "query", max: 2_000 },
+  public_feed: { name: "definition_id", max: 200 }, web_query: { name: "query", max: 2_000 },
 });
-const permissionFor = (kind: SourcePullKind) => kind === "web_query" ? PLUGIN_SOURCE_PULL_QUERY_PERMISSION : PLUGIN_SOURCE_PULL_FEED_PERMISSION;
-const PULL_PERMISSIONS = [PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION] as const;
+const permissionFor = (kind: SourcePullKind) => kind === "web_query" ? PLUGIN_SOURCE_PULL_QUERY_PERMISSION : PLUGIN_SOURCE_PULL_PUBLIC_FEED_PERMISSION;
+const PULL_PERMISSIONS = [PLUGIN_SOURCE_PULL_PUBLIC_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION] as const;
 /** `owner/name` as GitHub names them: each part starts with a letter or digit, so nothing here can read as a Git option or climb a path. */
 const REPOSITORY = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/u;
 const REPOSITORY_SOURCE = /^[A-Za-z0-9_-]{1,100}$/u;
@@ -130,11 +128,11 @@ export function createPluginSourcePullClient(manifest: PluginManifest, port: Plu
       return { records_deleted: port.forget([...new Set(operation_ids)]) };
     };
   }
-  if (declared(PLUGIN_SOURCE_PULL_FEED_PERMISSION)) {
+  if (declared(PLUGIN_SOURCE_PULL_PUBLIC_FEED_PERMISSION)) {
     // Pure and read-only, so any call of this installation that holds the permission may ask; each answer is a copy of plain data.
     const vocabulary = port.vocabulary;
     const answer = <T>(use: () => T): T => {
-      const { scope, permission } = enter([PLUGIN_SOURCE_PULL_FEED_PERMISSION], false, false);
+      const { scope, permission } = enter([PLUGIN_SOURCE_PULL_PUBLIC_FEED_PERMISSION], false, false);
       currentFor(scope, permission, scope.caller.signal)();
       return structuredClone(use());
     };
@@ -148,23 +146,19 @@ export function createPluginSourcePullClient(manifest: PluginManifest, port: Plu
     client.vocabulary = Object.freeze<PluginSourceVocabulary>({
       presentation: async (id, input) => {
         const checked = checkedSourcePresentationInput(input), name = word(id, 64);
-        const { scope, permission } = enter([PLUGIN_SOURCE_PULL_FEED_PERMISSION], false, false);
+        const { scope, permission } = enter([PLUGIN_SOURCE_PULL_PUBLIC_FEED_PERMISSION], false, false);
         const current = currentFor(scope, permission, scope.caller.signal);
         current();
         const result = await vocabulary.presentation(name, checked);
         current();
         return checkedSourcePresentation(result);
       },
-      custom_rss_definition_id: vocabulary.custom_rss_definition_id, youtube_definition_id: vocabulary.youtube_definition_id, youtube_feed_host: vocabulary.youtube_feed_host,
       catalog: () => answer(() => vocabulary.catalog()),
-      normalizeCustomRssUrl: value => answer(() => vocabulary.normalizeCustomRssUrl(word(value))),
-      customRssHost: url => answer(() => vocabulary.customRssHost(word(url))),
-      normalizeYouTubeChannel: value => answer(() => vocabulary.normalizeYouTubeChannel(word(value))),
-      youTubeChannelFeedUrl: channel => answer(() => vocabulary.youTubeChannelFeedUrl(word(channel, 200))),
-      isRssSourceKind: kind => answer(() => vocabulary.isRssSourceKind(word(kind, 200))),
-      rssFailureCount: cursor => answer(() => vocabulary.rssFailureCount(plain(cursor))),
-      rssCursorAfterFailure: cursor => answer(() => vocabulary.rssCursorAfterFailure(plain(cursor))),
-      rssCursorAfterSuccess: (cursor, receipt, completedAt) => answer(() => vocabulary.rssCursorAfterSuccess(plain(cursor), receipt === null ? null : plain(receipt) as never, word(completedAt, 64))),
+      addressed: () => answer(() => vocabulary.addressed()),
+      normalizeAddress: (definitionId, value) => answer(() => vocabulary.normalizeAddress(word(definitionId, 200), word(value))),
+      feedFailureCount: cursor => answer(() => vocabulary.feedFailureCount(plain(cursor))),
+      feedCursorAfterFailure: cursor => answer(() => vocabulary.feedCursorAfterFailure(plain(cursor))),
+      feedCursorAfterSuccess: (cursor, receipt, completedAt) => answer(() => vocabulary.feedCursorAfterSuccess(plain(cursor), receipt === null ? null : plain(receipt) as never, word(completedAt, 64))),
     });
   }
   if (declared(PLUGIN_EVIDENCE_READ_PERMISSION)) {
@@ -220,9 +214,9 @@ function checkedRequest(request: unknown): SourcePullRequest {
   const field = TEXT_FIELD[kind as SourcePullKind], text = value[field.name];
   if (typeof text !== "string" || text.length === 0 || text.length > field.max) throw errors.source_pull_request_invalid(`${field.name} 必须是 1 到 ${field.max} 个字符`);
   const base = { operation_id: value.operation_id, source_name: value.source_name };
-  const cursor = value.cursor === undefined ? {} : { cursor: structuredClone(value.cursor) };
   if (kind === "web_query") return { kind, ...base, query: text };
-  if (kind === "custom_rss") return { kind, ...base, feed_url: text, ...cursor };
-  if (kind === "youtube_channel") return { kind, ...base, channel_id: text, ...cursor };
-  return { kind: "rss", ...base, definition_id: text, ...cursor };
+  const address = value.address;
+  if (address !== undefined && (typeof address !== "string" || address.length === 0 || address.length > 2_048)) throw errors.source_pull_request_invalid("address 必须是 1 到 2048 个字符");
+  const cursor = value.cursor === undefined ? {} : { cursor: structuredClone(value.cursor) };
+  return { kind: "public_feed", ...base, definition_id: text, ...(address === undefined ? {} : { address }), ...cursor };
 }

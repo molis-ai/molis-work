@@ -1,5 +1,5 @@
 export { artifactVersionPath } from "@molis-ai/molis-work-module-artifacts";
-export type { ArtifactBrowserView, GoalArtifactEmbed } from "@molis-ai/molis-work-module-artifacts";
+export type { ArtifactBrowserView, SubjectArtifactEmbed } from "@molis-ai/molis-work-module-artifacts";
 
 /**
  * A plugin input port that takes this version's type (artifact-positioning, 2026-10-04), and what it reads now: this very

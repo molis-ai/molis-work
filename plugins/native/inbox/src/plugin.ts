@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ActionError, DOCUMENT_GENERATION_ROLES, WORKFLOW_CONTENT_VERSIONS, documentGenerationRoleOf, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type DocumentGenerationRole, type WorkflowItemRef, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionEntryRecord, AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { inboxErrors } from "./errors.js";
-import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
+import { INBOX_NEXT_SCENE_ID } from "./scene-options.js";
 import type { InboxPagesGeneration, InboxPagesInputSnapshot, InboxPagesDocument } from "./pages-shapes.js";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createInboxActionHandlers, readInboxStageSubjects, type InboxActionEntry } from "./actions.js";

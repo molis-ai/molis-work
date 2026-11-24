@@ -26,7 +26,7 @@ import { runModelParams } from "./prologue-run-params.js";
 import type { createPrologueSchedule } from "./prologue-schedule.js";
 import { createPrologueSubagents, exactCharacterKey, runLineage, SUBAGENT_DEFAULT_MAX_ATTEMPTS, type PrologueSubagentHooks } from "./prologue-subagents.js";
 import { surfaceRules, type PrologueSurfaces } from "./prologue-surfaces.js";
-import { codingExecutionRules } from "./prologue-taskboard.js";
+import { agentExecutionRules } from "./prologue-taskboard.js";
 import type { PrologueRuntimePort } from "./prologue.js";
 import { PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 import { agentErrors } from "../errors.js";
@@ -80,7 +80,7 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
       ? { sandbox: "workspace-write", approval: "untrusted" }
       : { sandbox: "read-only", approval: "on-request" },
     // A step's wait only says what the step waits for and ends the run; what it rests on is checked when it is registered (prologue-checkers.ts).
-    ...(options.reviewQueue ? { permissionMode: { mode: "auto-allow" as const, allow: [{ what: "tool" as const, name: "board-report" }, { what: "tool" as const, name: "board-wait" }, { what: "tool" as const, name: "session-send" }] }, rules: [...codingExecutionRules,
+    ...(options.reviewQueue ? { permissionMode: { mode: "auto-allow" as const, allow: [{ what: "tool" as const, name: "board-report" }, { what: "tool" as const, name: "board-wait" }, { what: "tool" as const, name: "session-send" }] }, rules: [...agentExecutionRules,
       // A change through the business gateway always stops for the person's review of its exact input; its reads do not.
       { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.change } },
       // A reversible change the person lets run without asking: the gateway itself refuses any other change on this tool.

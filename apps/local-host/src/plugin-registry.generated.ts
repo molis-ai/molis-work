@@ -21,6 +21,11 @@ import { registration as scheduleRegistration } from "@molis-ai/molis-work-plugi
 import { registration as todoRegistration } from "@molis-ai/molis-work-plugin-todo/registration";
 import { registration as workBriefRegistration } from "@molis-ai/molis-work-plugin-work-brief/registration";
 import { registration as workflowsRegistration } from "@molis-ai/molis-work-plugin-workflows/registration";
+import type { IntegrationDrivers } from "@molis-ai/molis-work-contracts/platform/integration-drivers";
+import { drivers as catalogDrivers } from "@molis-ai/molis-work-integration-catalog/drivers";
+import { drivers as githubDrivers } from "@molis-ai/molis-work-integration-github/drivers";
+import { drivers as gmailDrivers } from "@molis-ai/molis-work-integration-gmail/drivers";
+import { drivers as rssDrivers } from "@molis-ai/molis-work-integration-rss/drivers";
 
 /** Every plugin this build ships, in catalog order, as the platform reads them (apps/local-host/src/plugin-registry.ts). */
 export const PLATFORM_PLUGIN_REGISTRATIONS: readonly (PluginRegistration & { readonly package_name: string })[] = [
@@ -44,4 +49,12 @@ export const PLATFORM_PLUGIN_REGISTRATIONS: readonly (PluginRegistration & { rea
   { ...diffRegistration, package_name: "@molis-ai/molis-work-plugin-diff" },
   { ...riskRegistration, package_name: "@molis-ai/molis-work-plugin-risk" },
   { ...workBriefRegistration, package_name: "@molis-ai/molis-work-plugin-work-brief" },
+];
+
+/** The connector drivers the built-in integrations declare (apps/local-host/src/builtin-drivers.ts reads them). */
+export const INTEGRATION_DRIVERS: readonly IntegrationDrivers[] = [
+  catalogDrivers,
+  githubDrivers,
+  gmailDrivers,
+  rssDrivers,
 ];

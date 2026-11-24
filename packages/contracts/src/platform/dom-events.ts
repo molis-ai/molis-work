@@ -147,9 +147,9 @@ export const PAGE_STATE_OWNERS = {
     files: ["modules/shelf/src/surface/browser/document.ts", "modules/shelf/src/surface/browser/tui.ts", "modules/shelf/src/surface/browser/terminal.ts", "modules/shelf/src/surface/browser/settings/reload.ts"],
     state: "The Shelf surface: its list and selection, the notice line and the input to the terminal Agent.",
   },
-  "character-handoff": {
-    files: ["plugins/native/coding/src/browser/main/mount-events.ts"],
-    state: "A workspace surface opened from a Character run.",
+  "character-run": {
+    files: ["apps/workbench/src/browser/characters/import-client.ts"],
+    state: "The Character run the person asked to open in a workspace (its fixed role package, task, workspace and Skills); a plugin whose surface carries data-character-run-target opens it (M6).",
   },
   "character-terminal": {
     files: ["apps/workbench/src/browser/characters/terminal.ts"],
@@ -160,8 +160,8 @@ export const PAGE_STATE_OWNERS = {
     state: "The object work terminal pane: which plugin object it is bound to, whether that object is read-only for terminal work, and its panels.",
   },
   "surface-landing": {
-    files: ["plugins/native/pages/src/landing-editor.ts"],
-    state: "Where something in hand would land in an open document surface, the preview there, and the brief flash that shows the place.",
+    files: ["apps/workbench/src/browser/plugin-frame/context.ts"],
+    state: "The flash that shows where something in hand would land in an open document surface: asked of the surface that reported the landing, which any plugin surface may answer, and relayed out of a plugin frame by its adapter (M6).",
   },
   "knowledge-picker": {
     files: ["apps/workbench/src/browser/knowledge/picker.ts", "apps/workbench/src/browser/plugin-frame/materials-picker.ts"],
@@ -238,9 +238,9 @@ export const DOM_EVENTS = [
     summary: "The page's read of what waits on the person did not get through (not a gone project): the work line and the task panel keep what they showed and say it is being checked (WLN-05, WLN-29).",
   },
   {
-    name: "molis-work:character-run-open", kind: "request", owner: "character-handoff", on: "window",
+    name: "molis-work:character-run-open", kind: "announcement", owner: "character-run", on: "window",
     detail: "{ reference, title, task, workspace_id, skill_ids }",
-    summary: "Open a new workspace session prepared from a Character run (the fixed role package and the task). Sent by the Characters page.",
+    summary: "The person asked the Characters page to open a Character run (the fixed role package and the task) in a workspace; a plugin surface that offers workspaces (data-character-run-target) opens a new session prepared from it.",
   },
   {
     name: "molis-work:character-terminal", kind: "request", owner: "character-terminal", on: "window",

@@ -8,7 +8,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { larkMcpLaunch } from "@molis-ai/molis-work-app-local-host";
+import { CATALOG_LOCAL_MCP_SERVERS } from "@molis-ai/molis-work-integration-catalog";
+import { stdioMcpLaunch } from "@molis-ai/molis-work-app-local-host";
+
+/** The Feishu/Lark server as its driver declares it, launched as the Host launches it. */
+const larkMcpLaunch = (input: { appId: string; appSecret: string; domain: string; userAccessToken?: string | null }) =>
+  stdioMcpLaunch(CATALOG_LOCAL_MCP_SERVERS.feishu!.stdio!, { client_id: input.appId, client_secret: input.appSecret, origin: input.domain, access_token: input.userAccessToken });
 
 // W2-18 decision 11: the Feishu/Lark MCP connector runs a pinned package that pnpm-lock.yaml manages, not `npx -y`, and
 // its child process gets only the environment variables it needs.

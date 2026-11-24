@@ -483,13 +483,19 @@ export function renderCardOwn(own: { readonly words: string; readonly facts: rea
 
 /**
  * What the card of something done offers (WLN-11): the result in its owner's own words where the owner declared no display, the
- * way to open it as a tab, and the way to put it on the Shelf (said as done once it is there).
+ * way to open it as a tab, and 「放到…」 each place that receives it (M4: the platform's Shelf first, then each receive station a plugin of
+ * the project declares), said as done where it went.
  */
-export function renderCardResult(result: { readonly id: string; readonly preview: string; readonly open: boolean; readonly shelf: "" | "busy" | "done" }): string {
+export function renderCardResult(result: { readonly id: string; readonly preview: string; readonly open: boolean; readonly shelf: "" | "busy" | "done";
+  readonly targets?: readonly { readonly station: string; readonly title: string; readonly icon: string }[]; readonly placed?: string }): string {
   const say = (key: string) => uiText.text(`workbench.work-line.${key}`), id = escapeHtml(result.id);
   return `${result.preview ? `<div class="work-card-quote work-card-preview">${escapeHtml(result.preview)}</div>` : ""}<div class="work-card-actions">`
     + (result.open ? renderButton({ variant: "secondary", size: "sm", icon: "external", label: say("open-as-tab"), attrs: { "data-event-open": id } }) : "")
-    + renderButton({ variant: "secondary", size: "sm", icon: result.shelf === "done" ? "check" : "bookmark", label: say(result.shelf === "done" ? "on-shelf" : "put-on-shelf"), attrs: { "data-event-shelve": id, ...(result.shelf ? { disabled: "" } : {}) } }) + "</div>";
+    + (result.targets ?? [{ station: "shelf", title: "Shelf", icon: "bookmark" }]).map(target => {
+      const placed = result.shelf === "done" && result.placed === target.station;
+      return renderButton({ variant: "secondary", size: "sm", icon: placed ? "check" : target.icon as never, label: uiText.text(placed ? "workbench.work-line.placed-in-target" : "workbench.work-line.put-in-target", { target: target.title }),
+        attrs: { "data-event-receive": target.station, ...(result.shelf ? { disabled: "" } : {}) } });
+    }).join("") + "</div>";
 }
 
 /** How it was done, under what was done: the rows of the tasks behind a finished event, folded until asked for (WLN-11). */

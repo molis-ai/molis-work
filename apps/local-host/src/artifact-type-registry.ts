@@ -22,6 +22,8 @@ export interface ArtifactTypeDeclaration {
   readonly pin: ActionDefinition | null;
   /** The owner's action that says whether a version still matches its work object (A4b). */
   readonly compare: ActionDefinition | null;
+  /** Payload keys the owner declares as reading text, for system search (M12). */
+  readonly searchable_fields?: readonly string[];
 }
 
 /** A plugin that can start new work from a 成果 type (「从这一版继续」, A4b), whether it owns the type or only reads it. */
@@ -183,7 +185,8 @@ export function artifactTypeDeclarations(sources: readonly ArtifactProducerSourc
     if (!type.title) continue;
     const action = (declared?: { capability_id: string; version: number }) => declared ? source.actions.find(item => item.capability_id === declared.capability_id && item.version === declared.version) ?? null : null;
     declarations.set(type.artifact_type_id, { title: type.title, plugin_id: source.plugin_id, plugin_title: source.name,
-      surface: source.surface, preview: action(type.preview), pin: action(type.pin), compare: action(type.compare) });
+      surface: source.surface, preview: action(type.preview), pin: action(type.pin), compare: action(type.compare),
+      ...(type.searchable_fields ? { searchable_fields: type.searchable_fields } : {}) });
   }
   return declarations;
 }

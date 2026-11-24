@@ -703,7 +703,6 @@
  "tests/feed-sync-concurrency.test.ts": 19,
  "tests/feed-whole-units.test.ts": 16,
  "tests/feed.test.ts": 26,
- "tests/feishu-cli-status.test.ts": 1,
  "tests/field-fit.e2e.test.ts": 60,
  "tests/fill-message.test.ts": 3,
  "tests/first-screen-budget.test.mjs": 11,

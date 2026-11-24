@@ -294,8 +294,8 @@ test("RAC-506 a Runtime Feed changes a source's schedule and pause state in one 
 });
 
 // RAC-506 (4e-2a, 4c-3)
-// A call that describes a source with the platform's vocabulary holds sources:pull_feed, as the action declares.
-const DESCRIBE = [...WRITE, "sources:pull_feed"];
+// A call that describes a source with the platform's vocabulary holds sources:pull_public_feed, as the action declares.
+const DESCRIBE = [...WRITE, "sources:pull_public_feed"];
 test("RAC-506 a Runtime Feed registers a source from the platform's vocabulary, once, under the original caller", async t => {
   const { client, count } = await platform(t);
   const sources = () => count("SELECT count(*) AS n FROM feed_sources");
@@ -319,7 +319,7 @@ test("RAC-506 a Runtime Feed registers a source from the platform's vocabulary, 
 // 4c-4: an account source is pulled with the person's bound account, so a sync also holds connections:use and sources:pull_connector,
 // and records a source that needs the person in the Inbox.
 const CONNECTOR = ["connections:use", "sources:pull_connector"];
-const SYNC = [...WRITE, "sources:pull_feed", "sources:pull_query", "sources:read_repository", ...CONNECTOR, "attention:write", "artifact:write"];
+const SYNC = [...WRITE, "sources:pull_public_feed", "sources:pull_query", "sources:read_repository", ...CONNECTOR, "attention:write", "artifact:write"];
 /** Deleting a source also removes its items' Inbox entries and links to Goals, so the call holds what those ledgers ask. */
 const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write", "connections:use"];
 const feedXml = (entries: Array<{ id: string; title: string }>) => `<?xml version="1.0"?><rss version="2.0"><channel><title>Runtime feed</title><link>https://example.com/</link>${entries.map(entry => `
@@ -995,7 +995,7 @@ test("RAC-2665 BL-917 SCAF-06 a Runtime Feed adds a declared, pullable account s
 test("RAC-2664 feed.sources.update@1 changes a source's own fields only: an account is not one of them, and retired @2 is gone", async t => {
   const f = await connecting(t), account = f.connect();
   f.bind(account.connection_id);
-  const who = caller([...WRITE, "sources:pull_feed"]), update = (input: unknown) => f.client.invoke(who.context, feedSourceActions.update, input);
+  const who = caller([...WRITE, "sources:pull_public_feed"]), update = (input: unknown) => f.client.invoke(who.context, feedSourceActions.update, input);
   assert.equal(feedSourceActions.update.version, 1);
   await assert.rejects(update({ source_id: f.sourceId, connection_id: account.connection_id }), { code: "actions.input_invalid" });
   await assert.rejects(f.client.invoke(who.context, { ...feedSourceActions.update, version: 2 }, { source_id: f.sourceId, name: "Renamed" }), ActionError);

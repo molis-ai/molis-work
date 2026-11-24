@@ -40,7 +40,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   };
   const retitle = () => {
     const surface = getSurface(), titles = readTitles(document), label = Object.hasOwn(titles, surface) ? titles[surface] : undefined;
-    const labels = { sources: "Feed", home: document.body.dataset.projectId === "personal" ? globalThis.t.text("workbench.immersive-navigation.personal-home") : globalThis.t.text("workbench.immersive-navigation.project-home"),
+    const labels = { home: document.body.dataset.projectId === "personal" ? globalThis.t.text("workbench.immersive-navigation.personal-home") : globalThis.t.text("workbench.immersive-navigation.project-home"),
       market: globalThis.t.text("workbench.immersive-navigation.plugin-market"), "project-settings": globalThis.t.text("workbench.immersive-navigation.project-settings") };
     const title = document.querySelector("[data-immersive-plugin-title]");
     if (title) { title.hidden = true; title.textContent = label || labels[surface] || surface; }
@@ -96,7 +96,8 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   document.querySelector("[data-directory-show]")?.addEventListener("click", showDirectory);
   scrim?.addEventListener("click", hideDirectory);
   document.addEventListener("click", event => {
-    if (event.target.closest("[data-inbox-row]")) {
+    // Choosing a listed object (any plugin's row that offers itself as a frame asset) shows its reading on a narrow screen.
+    if (event.target.closest("[data-frame-asset][data-frame-asset-id]")) {
       if (narrow()) setMobileView("document");
       sync();
     }

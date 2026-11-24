@@ -20,7 +20,7 @@ import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
 // and forgets search records. RAC-1016 (hold before write), RAC-1017 (what it refuses), RAC-1018 (evidence), RAC-1019 (forget, and the research
 // library read of step 4c-2).
 
-const FEED = "sources:pull_feed", QUERY = "sources:pull_query", EVIDENCE = "evidence:read", REPOSITORY = "sources:read_repository";
+const FEED = "sources:pull_public_feed", QUERY = "sources:pull_query", EVIDENCE = "evidence:read", REPOSITORY = "sources:read_repository";
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 const rss = (title: string, entries: Array<{ id: string; title: string; text: string }>) => `<?xml version="1.0"?><rss version="2.0"><channel>
@@ -99,7 +99,7 @@ test("S-97 RAC-1016: every body's reference is told to the plugin, and the write
   const f = await fixture(t);
   const entry = f.catalog[0]!, probe = await f.start("pullorder", [FEED, EVIDENCE]);
   f.feeds.set(entry.feed_url, rss("Order feed", [{ id: "order-1", title: "Order one", text: "First body of the order test." }, { id: "order-2", title: "Order two", text: "Second body of the order test." }]));
-  const request: SourcePullRequest = { kind: "rss", operation_id: "pull-order-1", source_name: entry.name, definition_id: entry.id };
+  const request: SourcePullRequest = { kind: "public_feed", operation_id: "pull-order-1", source_name: entry.name, definition_id: entry.id };
   const told: string[] = [], existedWhenTold: boolean[] = [];
   const result = await probe.in(services => services.sourcePull!.pull!(request, {
     async hold(refs) { for (const ref of refs) { told.push(ref); existedWhenTold.push(evidence().has(ref)); } },
@@ -117,7 +117,7 @@ test("S-97 RAC-1016: a plugin that cannot hold a body stops the pull before the 
   const entry = f.catalog[0]!, probe = await f.start("pullhold", [FEED]);
   f.feeds.set(entry.feed_url, rss("Hold feed", [{ id: "hold-1", title: "Hold one", text: "A body that is never written because nobody could hold it." }]));
   const told: string[] = [];
-  await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "rss", operation_id: "pull-hold-1", source_name: entry.name, definition_id: entry.id }, {
+  await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "public_feed", operation_id: "pull-hold-1", source_name: entry.name, definition_id: entry.id }, {
     async hold(refs) { told.push(...refs); throw new Error("ledger unavailable"); },
   })), /ledger unavailable/u, "the plugin's own failure is the pull's failure, not a partial result");
   assert.equal(told.length > 0, true, "the plugin was asked");
@@ -125,14 +125,14 @@ test("S-97 RAC-1016: a plugin that cannot hold a body stops the pull before the 
   // A call cancelled while the plugin holds a body does not write it, nor any body after it.
   f.feeds.set(entry.feed_url, rss("Cancel feed", [{ id: "cancel-1", title: "Cancel one", text: "A body whose pull is cancelled while it is held." }, { id: "cancel-2", title: "Cancel two", text: "A second body that must not follow." }]));
   const controller = new AbortController(), cancelled: string[] = [];
-  await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "rss", operation_id: "pull-hold-cancel", source_name: entry.name, definition_id: entry.id }, {
+  await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "public_feed", operation_id: "pull-hold-cancel", source_name: entry.name, definition_id: entry.id }, {
     signal: controller.signal, async hold(refs) { cancelled.push(...refs); controller.abort(); },
   })));
   assert.equal(cancelled.length, 1, "the pull stopped after the first body");
   for (const ref of cancelled) assert.equal(evidence().has(ref), false);
   // A call that is already cancelled never reaches the transport.
   const before = f.fetched.length, aborted = AbortSignal.abort();
-  await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "rss", operation_id: "pull-hold-2", source_name: entry.name, definition_id: entry.id }, { hold: async () => {}, signal: aborted })));
+  await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "public_feed", operation_id: "pull-hold-2", source_name: entry.name, definition_id: entry.id }, { hold: async () => {}, signal: aborted })));
   assert.equal(f.fetched.length, before);
 });
 
@@ -145,7 +145,7 @@ test("S-97 RAC-1016: a call that loses its authority once a body is held writes 
     .map(row => [`${row.namespace}\0${row.key}`, row.cas_token]));
   let revoked = false, recordsWhenRevoked = new Map<string, string>();
   const told: string[] = [];
-  await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "rss", operation_id: "pull-revoke-1", source_name: entry.name, definition_id: entry.id }, {
+  await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "public_feed", operation_id: "pull-revoke-1", source_name: entry.name, definition_id: entry.id }, {
     async hold(refs) { told.push(...refs); if (!revoked) { revoked = true; recordsWhenRevoked = records(); } },
   }), probe.run, [FEED], { assert_authority_current: () => { if (revoked) throw new ActionError("actions.forbidden", "the caller was revoked"); } }), { code: "actions.forbidden" });
   assert.equal(told.length, 1, "the pull stopped at the body that was held when the caller lost its authority");
@@ -166,10 +166,10 @@ test("S-97 RAC-1016: the platform's fingerprint of a pull is the one the Feed re
     async fetch(input) { return new Response(f.feeds.get(String(input)) ?? "", { status: 200, headers: { "content-type": "application/rss+xml" } }); } }));
   const source = service.register({ kind: "rss", definition_id: entry.id }).source;
   const synced = await service.sync(source.source_id, { idempotencyKey: "plan-parity" });
-  const planned = await probe.in(services => services.sourcePull!.plan!({ kind: "rss", operation_id: synced.run.operation_id, source_name: source.name, definition_id: entry.id })) as { intent_fingerprint: string };
+  const planned = await probe.in(services => services.sourcePull!.plan!({ kind: "public_feed", operation_id: synced.run.operation_id, source_name: source.name, definition_id: entry.id })) as { intent_fingerprint: string };
   assert.equal(planned.intent_fingerprint, synced.run.receipt?.intent_fingerprint, "the same source and key make the same intent through either door");
   // RAC-1753: a catalog entry the platform does not list is refused in the platform's name.
-  await assert.rejects(probe.in(services => services.sourcePull!.plan!({ kind: "rss", operation_id: "pull-plan-unknown", source_name: "n", definition_id: "no-such-feed" })), code("actions.input_invalid"));
+  await assert.rejects(probe.in(services => services.sourcePull!.plan!({ kind: "public_feed", operation_id: "pull-plan-unknown", source_name: "n", definition_id: "no-such-feed" })), code("actions.input_invalid"));
   assert.equal(f.fetched.length, 0, "planning fetches nothing");
 });
 
@@ -179,7 +179,7 @@ test("S-97 RAC-1017: the service exists only for what the Manifest declares, and
   assert.equal(none.services().sourcePull, undefined);
   assert.deepEqual(Object.keys(feedOnly.services().sourcePull!).sort(), ["forget", "plan", "pull", "vocabulary"]);
   assert.deepEqual(Object.keys(readOnly.services().sourcePull!), ["evidence"]);
-  const request: SourcePullRequest = { kind: "rss", operation_id: "pull-gate-1", source_name: entry.name, definition_id: entry.id };
+  const request: SourcePullRequest = { kind: "public_feed", operation_id: "pull-gate-1", source_name: entry.name, definition_id: entry.id };
   const options = { hold: async () => {} };
   // Outside every call: `start`, a timer.
   await assert.rejects(feedOnly.services().sourcePull!.pull!(request, options), code("plugin.source_pull_call_required"));
@@ -198,7 +198,7 @@ test("S-97 RAC-1017: the service exists only for what the Manifest declares, and
   assert.deepEqual(f.fetched, [], "none of these reached the transport");
 });
 
-test("S-97 RAC-1017: the source vocabulary is pure data, needs sources:pull_feed, and reaches nothing", { timeout: 120_000 }, async t => {
+test("S-97 RAC-1017: the source vocabulary is pure data, needs sources:pull_public_feed, and reaches nothing", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   const probe = await f.start("vocab", [FEED]), queryOnly = await f.start("vocabquery", [QUERY]), none = await f.start("vocabnone", ["storage:private"]);
   assert.equal(queryOnly.services().sourcePull!.vocabulary, undefined, "another permission does not bring it");
@@ -218,25 +218,25 @@ test("S-97 RAC-1017: the source vocabulary is pure data, needs sources:pull_feed
     assert.equal(scope.scope_options?.length, 4);
     const first = v.catalog(), again = v.catalog();
     first[0]!.limitations.push?.("tampered");
-    return { first: v.catalog(), again, custom: v.normalizeCustomRssUrl("https://Example.com/feed.xml#top"), channel: v.normalizeYouTubeChannel("UCabcdefghijklmnopqrstuv"),
-      feedUrl: v.youTubeChannelFeedUrl("UCabcdefghijklmnopqrstuv"), kinds: [v.isRssSourceKind("rss"), v.isRssSourceKind("research_library")],
-      failure: v.rssCursorAfterFailure({}), success: v.rssCursorAfterSuccess({}, { status: 200, etag: "\"a\"" } as never, "2026-10-26T00:00:00.000Z"), failures: v.rssFailureCount(v.rssCursorAfterFailure({}).cursor) };
-  }) as { first: Array<{ source_id: string; limitations: string[] }>; again: unknown[]; custom: string; channel: string; feedUrl: string; kinds: boolean[]; failure: { failures: number }; success: { rss_http: { etag?: string } }; failures: number };
+    // M10: the addressed definitions and their normal forms are the integration's declarations, not names the platform keeps.
+    return { first: v.catalog(), again, addressed: v.addressed(), custom: v.normalizeAddress("custom-rss", "https://Example.com/feed.xml#top"), channel: v.normalizeAddress("youtube-channel", "UCabcdefghijklmnopqrstuv"),
+      failure: v.feedCursorAfterFailure({}), success: v.feedCursorAfterSuccess({}, { status: 200, etag: "\"a\"" } as never, "2026-10-26T00:00:00.000Z"), failures: v.feedFailureCount(v.feedCursorAfterFailure({}).cursor) };
+  }) as { first: Array<{ source_id: string; limitations: string[] }>; again: unknown[]; addressed: Array<{ definition_id: string; address: string }>; custom: string; channel: string; failure: { failures: number }; success: { rss_http: { etag?: string } }; failures: number };
   assert.deepEqual(answers.first, answers.again, "the same call, the same catalog");
   assert.ok(answers.first.length > 0 && answers.first.every(entry => !entry.limitations.includes("tampered")), "an answer is a copy");
-  assert.deepEqual(answers.kinds, [true, false]);
+  assert.deepEqual(answers.addressed, [{ definition_id: "custom-rss", address: "feed_url" }, { definition_id: "youtube-channel", address: "channel_id" }]);
+  assert.equal(answers.channel, "UCabcdefghijklmnopqrstuv");
   assert.equal(answers.failure.failures, 1);
   assert.equal(answers.failures, 1);
   assert.equal(answers.success.rss_http.etag, "\"a\"");
-  assert.match(answers.feedUrl, /^https:\/\/www\.youtube\.com\//u);
   const readOnly = await probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.catalog().length), probe.query);
   assert.equal(readOnly, answers.first.length, "a read-only call may ask");
   // Arguments are bounded text or plain data; what the integration refuses is refused.
-  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeCustomRssUrl("x".repeat(3_000)))), code("plugin.source_pull_request_invalid"));
-  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeCustomRssUrl(42 as never))), code("plugin.source_pull_request_invalid"));
-  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.rssFailureCount((() => 1) as never))), code("plugin.source_pull_request_invalid"));
-  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeCustomRssUrl("http://127.0.0.1/feed.xml"))), code("rss.custom_url_invalid"));
-  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeYouTubeChannel("not a channel"))), code("youtube.channel_invalid"));
+  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeAddress("custom-rss", "x".repeat(3_000)))), code("plugin.source_pull_request_invalid"));
+  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeAddress("custom-rss", 42 as never))), code("plugin.source_pull_request_invalid"));
+  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.feedFailureCount((() => 1) as never))), code("plugin.source_pull_request_invalid"));
+  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeAddress("custom-rss", "http://127.0.0.1/feed.xml"))), code("rss.custom_url_invalid"));
+  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeAddress("youtube-channel", "not a channel"))), code("youtube.channel_invalid"));
   await assert.rejects(probe.in(services => services.sourcePull!.vocabulary!.presentation("not-declared", {})), code("plugin.integration_unavailable"));
   await assert.rejects(probe.in(services => services.sourcePull!.vocabulary!.presentation("rss-http", { cursor: new Date() })), code("plugin.declaration_invalid"));
   await assert.rejects(probe.in(services => services.sourcePull!.vocabulary!.presentation("rss-http", {}), probe.plain, []), code("plugin.source_pull_permission_undeclared"));
@@ -251,19 +251,19 @@ test("S-97 RAC-1017: a request is the kind's own fields and nothing else, and a 
   const options = { hold: async () => {} };
   const refused = async (request: unknown, expected: string) => assert.rejects(probe.in(services => services.sourcePull!.pull!(request as SourcePullRequest, options)), code(expected), JSON.stringify(request));
   for (const extra of [{ headers: { Authorization: "Bearer x" } }, { method: "POST" }, { redirect: "follow" }, { proxy: "http://127.0.0.1:8080" }, { url: "https://example.com/feed.xml" }, { provider: "anysearch" }, { budget: { maxBytes: 1e9 } }]) {
-    await refused({ kind: "rss", ...base, definition_id: entry.id, ...extra }, "plugin.source_pull_request_invalid");
+    await refused({ kind: "public_feed", ...base, definition_id: entry.id, ...extra }, "plugin.source_pull_request_invalid");
   }
-  await refused({ kind: "rss", ...base }, "plugin.source_pull_request_invalid");
-  await refused({ kind: "rss", ...base, definition_id: "" }, "plugin.source_pull_request_invalid");
+  await refused({ kind: "public_feed", ...base }, "plugin.source_pull_request_invalid");
+  await refused({ kind: "public_feed", ...base, definition_id: "" }, "plugin.source_pull_request_invalid");
   await refused({ kind: "ftp", ...base, definition_id: entry.id }, "plugin.source_pull_request_invalid");
-  await refused({ kind: "rss", operation_id: "has space", source_name: "n", definition_id: entry.id }, "plugin.source_pull_request_invalid");
+  await refused({ kind: "public_feed", operation_id: "has space", source_name: "n", definition_id: entry.id }, "plugin.source_pull_request_invalid");
   await refused({ kind: "web_query", ...base, query: "weather" }, "plugin.source_pull_permission_undeclared");
-  await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "rss", ...base, definition_id: entry.id }, {} as never)), code("plugin.source_pull_hold_invalid"));
+  await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "public_feed", ...base, definition_id: entry.id }, {} as never)), code("plugin.source_pull_hold_invalid"));
   // Addresses the platform will not fetch are refused before anything leaves (S-10), and a catalog entry that does not exist is not a source.
   for (const feed_url of ["https://127.0.0.1/feed.xml", "http://example.com/feed.xml", "https://10.0.0.5/feed.xml", "https://user:pw@example.com/feed.xml"]) {
-    await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "custom_rss", ...base, feed_url }, options)), feed_url);
+    await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "public_feed", ...base, definition_id: "custom-rss", address: feed_url }, options)), feed_url);
   }
-  await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "rss", ...base, definition_id: "no-such-source" }, options)));
+  await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "public_feed", ...base, definition_id: "no-such-source" }, options)));
   assert.deepEqual(f.fetched, [], "no refused request reached the transport");
 });
 
@@ -286,7 +286,7 @@ test("S-97 RAC-1019: forgetting search records takes the pull's own, in this pro
   const entry = f.catalog[0]!, probe = await f.start("pullforget", [FEED]);
   f.feeds.set(entry.feed_url, rss("Forget feed", [{ id: "forget-1", title: "Forget one", text: "A body whose search record is forgotten." }]));
   const records = () => (f.runtime.store.db.prepare("SELECT key FROM opaque_blobs WHERE namespace LIKE '%/data/operation/v1'").all() as Array<{ key: string }>).length;
-  const result = await probe.in(services => services.sourcePull!.pull!({ kind: "rss", operation_id: "pull-forget-1", source_name: entry.name, definition_id: entry.id }, { hold: async () => {} })) as { operation_id: string };
+  const result = await probe.in(services => services.sourcePull!.pull!({ kind: "public_feed", operation_id: "pull-forget-1", source_name: entry.name, definition_id: entry.id }, { hold: async () => {} })) as { operation_id: string };
   assert.equal(records(), 1, "the pull left one search record in the project's library");
   assert.deepEqual(await probe.in(services => services.sourcePull!.forget!(["some-other-pull"])), { records_deleted: 0 });
   assert.equal(records(), 1);
@@ -306,7 +306,7 @@ test("S-97 RAC-1016: a web query is planned without leaving, and a query that is
   assert.match(planned.intent_fingerprint, /^sha256:/u);
   assert.equal(planned.intent_fingerprint, again.intent_fingerprint, "the query is normalized the way the Feed normalizes it");
   await assert.rejects(probe.in(services => services.sourcePull!.plan!({ ...request, query: "x" })), code("actions.input_invalid"));
-  await assert.rejects(probe.in(services => services.sourcePull!.plan!({ kind: "rss", operation_id: "pull-query-2", source_name: "n", definition_id: f.catalog[0]!.id })), code("plugin.source_pull_permission_undeclared"));
+  await assert.rejects(probe.in(services => services.sourcePull!.plan!({ kind: "public_feed", operation_id: "pull-query-2", source_name: "n", definition_id: f.catalog[0]!.id })), code("plugin.source_pull_permission_undeclared"));
   assert.deepEqual(f.fetched, []);
 });
 

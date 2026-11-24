@@ -75,7 +75,7 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
   "coding.subject": { definition: defineSubjectContextAction("coding.subject.read", /* @version action.coding.subject.read */ 1, "coding_session", "编码会话", ["artifact:read"]) as unknown as ActionDefinition<Record<string, unknown>, unknown>,
     toInput: request => ({ subject_id: request.params.sessionId }), toRequest: input => ({ method: "GET", params: { sessionId: String(input.subject_id ?? "") }, query: {}, body: {} }) },
   // System search: every session of the project by version; its text is read back through `coding.subject`.
-  "coding.search-entries": { definition: defineSearchEntriesAction("coding.search.entries", /* @version action.coding.search.entries */ 1, [{ kind: "coding_session", title: "编码会话", surface: "coding" }], "编码会话", ["artifact:read"]) as unknown as ActionDefinition<Record<string, unknown>, unknown>,
+  "coding.search-entries": { definition: defineSearchEntriesAction("coding.search.entries", /* @version action.coding.search.entries */ 1, [{ kind: "coding_session", title: "编码会话", surface: "coding", glyph: "code" }], "编码会话", ["artifact:read"]) as unknown as ActionDefinition<Record<string, unknown>, unknown>,
     toInput: request => ({ cursor: typeof request.query.cursor === "string" && request.query.cursor ? request.query.cursor : null, limit: Number(request.query.limit ?? 500) }),
     toRequest: input => ({ method: "GET", params: {}, query: { ...(typeof input.cursor === "string" ? { cursor: input.cursor } : {}), limit: String(input.limit ?? 500) }, body: {} }) },
   "coding.list-sessions": { definition: { ...listSessions, action: { ...listSessions.action,

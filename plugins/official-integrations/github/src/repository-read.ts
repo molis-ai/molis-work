@@ -3,8 +3,9 @@ import { createHash } from "node:crypto";
 import { access, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { readResearchLibrary } from "@molis-ai/molis-work-integration-github";
+import { readResearchLibrary } from "./index.js";
 import type { RepositoryReadRequest, RepositoryReadResult } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
+import type { RepositoryGit } from "@molis-ai/molis-work-contracts/platform/integration-drivers";
 
 const execGit = promisify(execFile);
 const repositoryReads = new Map<string, Promise<ResearchRepositorySnapshot>>();
@@ -12,7 +13,7 @@ const hash = (text: string) => createHash("sha256").update(text).digest("hex");
 
 export interface ResearchRepositorySnapshot { revision: string; files: Map<string, string> }
 /** `git` as the snapshot runs it: the arguments after `-C <directory>`. Tests pass their own. */
-export type ResearchGit = (directory: string, args: readonly string[]) => Promise<string>;
+export type ResearchGit = RepositoryGit;
 
 const runGit: ResearchGit = async (directory, args) => (await execGit("git", ["-C", directory, ...args], {
   timeout: 120_000, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
@@ -49,7 +50,7 @@ export async function researchRepositorySnapshot(home: string, repository: strin
 }
 
 /**
- * `services.sourcePull.repository.read`'s Host side: the entries of one source of a research library, at the revision the snapshot pinned.
+ * The repository driver behind `services.sourcePull.repository.read` (D3 A): the Host asks it and never names the service. the entries of one source of a research library, at the revision the snapshot pinned.
  * Reads of one repository share a snapshot, so a call's cancellation is checked around it rather than handed to the shared `git` run.
  */
 export async function readResearchRepository(home: string, request: RepositoryReadRequest,

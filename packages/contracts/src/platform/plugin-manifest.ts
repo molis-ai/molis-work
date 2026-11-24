@@ -215,7 +215,9 @@ export interface PluginManifest {
    * `[{ kind: "artifact", artifact_types, file? }]` on the plugin's `defineArtifactContinueAction` (contract-design §2.3).
    */
   artifacts: {
-    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; title_text?: { key: string }; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number } }>;
+    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; title_text?: { key: string }; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number };
+      /** Payload keys whose text a person reads, beyond the platform's own (title, text, body…): system search indexes them for this type (M12). */
+      searchable_fields?: readonly string[] }>;
     consumes: Array<{ artifact_type_id: string; schema_version: number }>;
     /** The kinds of link this Plugin writes between its own objects and exact 成果 versions; one Plugin owns a kind. */
     links?: ArtifactLinkDeclaration[];

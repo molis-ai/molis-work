@@ -134,7 +134,7 @@ export interface PluginHostServices {
   readonly materials?: PluginMaterialsClient;
   /** Requests through the accounts the person bound to the Manifest's connection slots, when it declares `connections:use` (S-57). */
   readonly connections?: import("./plugin-connections.js").PluginConnectionsClient;
-  /** Pulling public sources and reading evidence bodies through the platform, when the Manifest declares `sources:pull_feed`, `sources:pull_query` or `evidence:read` (S-97, provisional). */
+  /** Pulling public sources and reading evidence bodies through the platform, when the Manifest declares `sources:pull_public_feed`, `sources:pull_query` or `evidence:read` (S-97, provisional). */
   readonly sourcePull?: import("./plugin-source-pull.js").PluginSourcePullClient;
   /** Deleting evidence bodies nothing refers to, only for a Home activation whose Manifest declares `evidence:collect` (S-98, provisional). */
   readonly evidenceCollector?: import("./plugin-source-pull.js").PluginEvidenceCollectorClient;

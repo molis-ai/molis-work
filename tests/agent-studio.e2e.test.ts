@@ -273,7 +273,7 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     const tick = placing.findIndex(([, state]) => /ticked:[^ ]*model\.generate/.test(state));
     assert.ok(take >= 0 && carry > take && tick > carry, 'capability wiring is shown in order: ' + JSON.stringify(placing.filter(([, state]) => /code:|wiring|ticked/.test(state)).slice(0, 12)));
     const summary = await page.evaluate<string>(`[...document.querySelectorAll('.as-card')].map(c=>c.innerText).find(t=>t.startsWith('可以试用了'))`);
-    assert.match(summary, /4 项功能全部接通 · 门禁 G1–G6 通过 · 界面验收 4\/4 通过/);
+    assert.match(summary, /4 项功能已就绪 · 自动检查通过 · 界面检查 4\/4/);
     assert.match(await page.evaluate<string>(`document.querySelector('[data-as-builds]').selectedOptions[0].textContent`), /可以试用/, 'the build selector follows live updates');
     const record = await page.evaluate<string>(`document.querySelector('[data-as-feed]').textContent` /* includes the folded collaboration record */);
     assert.match(record, /Jev · 4 选 1/, 'the collection part was chosen by Jev from the catalog\'s four legal components (directory, card, table, accordion)');

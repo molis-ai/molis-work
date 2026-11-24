@@ -165,7 +165,7 @@ test("FSS-33 FSS-35 the first Settings HTML marks the actual language preference
   await assertFirstPaint(project, "zh", "explicit", "zh");
   await b.click(`${options} a[data-ui-language=system]`);
   await b.waitFor(`document.documentElement.lang === 'en' && document.querySelector('${options} a[data-ui-language=system]')?.getAttribute('aria-current') === 'true'`);
-  await useBrowserLanguages("fr-FR,ja-JP");
+  await useBrowserLanguages("fr-FR,de-DE");
   await go(projectAppearance);
   await assertFirstPaint(project, "zh", "default", "system");
   assert.equal(writes, 2);
@@ -617,7 +617,11 @@ test("FSS-35 FSS-36 the open Diff wait state changes language without replacing 
   const message = `${empty}?.querySelector('strong').textContent`;
   const zh = "先在侧栏「资料」阅读器里分别固定「对比前」和「对比后」，这里就会显示两者的差异", en = "Pin a “Before” and “After” version in the Materials reader first to view their differences here";
   await child.waitFor(`${message} === ${JSON.stringify(zh)}`);
-  await child.evaluate(`void (()=>{ window.diffOriginal = ${empty}; ${refresh}.focus(); })()`);
+  await child.frameCommand("Runtime.evaluate", {
+    expression: `void (()=>{ window.diffOriginal = ${empty}; ${refresh}.focus(); })()`,
+    returnByValue: true,
+    userGesture: true,
+  });
   const select = await chooseEnglishInSettings(t, b);
   for (const [locale, text] of [["en", en], ["zh-CN", zh]]) {
     if (locale === "zh-CN") await select("zh");
@@ -839,7 +843,11 @@ test("FSS-36 the Studio retitles the same refused request through both language 
     studioDraft.dispatchEvent(new Event("input",{bubbles:true}));studioDraft.form.requestSubmit();`);
   const notice = `document.querySelector(".as-error p")`;
   await child.waitFor(`${notice}?.textContent==="Choose the model used for building first"`);
-  await child.evaluate(`window.studioNotice=${notice};studioDraft.focus();studioDraft.setSelectionRange(1,6,"backward");`);
+  await child.frameCommand("Runtime.evaluate", {
+    expression: `window.studioNotice=${notice};studioDraft.focus();studioDraft.setSelectionRange(1,6,"backward");`,
+    returnByValue: true,
+    userGesture: true,
+  });
   const chooseLanguage = await chooseEnglishInSettings(t, b, "zh");
   await child.waitFor(`${notice}?.textContent==="请先选择构建使用的模型"`);
   const preserved = `[studioNotice===${notice},studioDraft===document.querySelector('[data-as-input]'),document.activeElement===studioDraft,
@@ -877,14 +885,18 @@ test("FSS-35 a Pages editor retitles its controls in place without rewriting the
     !!calendar.textContent.match(/年/u), document.activeElement===editor, getSelection().anchorNode===originalText,
     getSelection().anchorOffset, getSelection().focusOffset, originalText.data, scrollHost.scrollTop === scrollOffset,
     document.querySelector('[data-pages-title]').value]`;
-  await child.evaluate(`(() => { window.originalBody=document.body; window.editor=document.querySelector('[data-pages-editor] .ProseMirror');
+  await child.frameCommand("Runtime.evaluate", {
+    expression: `(() => { window.originalBody=document.body; window.editor=document.querySelector('[data-pages-editor] .ProseMirror');
     window.codeCopy=editor.querySelector('.pages-code-copy'); window.contents=editor.querySelector('[data-pages-toc]');
     window.calendar=editor.querySelector('.pages-calendar header'); window.originalText=editor.querySelector(':scope > p').firstChild;
     window.scrollHost=[editor.closest('.pages-workspace'),editor.closest('[data-pages-stage-workspace]')].find(node=>node.scrollHeight>node.clientHeight);
     editor.focus(); getSelection().setBaseAndExtent(originalText,6,originalText,1); document.dispatchEvent(new Event('selectionchange'));
     scrollHost.scrollTop=140; window.scrollOffset=scrollHost.scrollTop;
     if (!scrollOffset) throw new Error('Fixture did not scroll');
-  })()`);
+  })()`,
+    returnByValue: true,
+    userGesture: true,
+  });
   const expected = (en: boolean) => [true, true, true, true, true, en ? "Document body" : "文档正文", en ? "Copy code" : "复制代码",
     en ? "Table of contents" : "目录", "目录（用户正文）", !en, true, true, 6, 1, original, true, title];
   assert.deepEqual(await child.evaluate(snapshot), expected(false));
@@ -985,11 +997,15 @@ test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized
   const child = await pluginFrameBrowser(t, b, "issues");
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=%2Fplugins%2Fissues" }, b.sessionId));
   await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
-  await child.evaluate(`(() => {
+  await child.frameCommand("Runtime.evaluate", {
+    expression: `(() => {
     window.issuedDraft = document.querySelector('[data-issue-composer] textarea');
     issuedDraft.value = 'Issue draft 原文'; issuedDraft.focus(); issuedDraft.setSelectionRange(1, 5, 'backward');
     issuedDraft.dispatchEvent(new Event('input', {bubbles:true}));
-  })()`);
+  })()`,
+    returnByValue: true,
+    userGesture: true,
+  });
   assert.match(await child.evaluate<string>("issuedDraft.placeholder"), /遇到什么问题/u);
   // A trusted fixture uses HTML en and German Intl conventions. The current frame grant and the rest of the words are real.
   await b.evaluate(`(() => {
@@ -1582,13 +1598,13 @@ test("FSS-20 FSS-27 FSS-35 FSS-36 discussion retitles the open conversation and 
     form.requestSubmit();
   })()`);
   const error = setup + ".querySelector('[data-form-error]')";
-  await b.waitFor(`${error}?.textContent === 'Check the required fields and their length, then try again.'`);
+  await b.waitFor(`${error}?.textContent === 'Check the required fields and length limits, then try again.'`);
   assert.deepEqual(await b.evaluate("discussionInvalidThread"), { status: 400,
     body: { code: "im.invalid_input", error: "Thread 标题不能为空，且不能超过 120 字" } });
   await b.evaluate(`void (window.discussionDraftError = ${error})`);
   watchWrites = true;
   await choose("zh");
-  await b.waitFor(`${error} === discussionDraftError && ${error}.textContent === '请检查必填内容及其长度，再试一次。'`);
+  await b.waitFor(`${error} === discussionDraftError && ${error}.textContent === '请检查必填内容和字数限制，再试一次。'`);
   assert.equal(await b.evaluate(`${setup}.querySelector('[name=body]').value`), "未提交原文");
   assert.equal(await b.evaluate(`${im}.querySelectorAll('.im-thread-strip [data-action=select-thread]').length`), 0);
   assert.deepEqual(writes, [], "retitling the existing failure did not submit a second time");

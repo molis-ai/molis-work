@@ -687,7 +687,7 @@ C 轨代码前合审补充两条实施边界：Host 重试必须同时有已核�
 
 [Full 第 10 片首败](https://github.com/molis-ai/molis-work/actions/runs/44208478681/job/134480452235) 由 PA-11 的脚本模型解析旧步骤提示导致。已采用的 Prologue 把原任务板和步骤标识放在系统内容的独立 JSON 引用中，用户消息保留原任务。用例读取 SDK 的现行引用，仍实际执行子步骤回报、父任务等待结算，以及跨项目、跨会话和终态回报拒绝。任务板和原子对话的本机定向回归 8/8；任务板 Linux 复测 2/2。
 
-[安全分片的 Git 审批走查](https://github.com/molis-ai/molis-work/actions/runs/44208117643/job/134479652774) 在从覆盖页回到 Git 后等待可见审批槽超时。同一生产树的[前一普通 CI 安全分片](https://github.com/molis-ai/molis-work/actions/runs/44205816632/job/134471711092) 中该文件 2/2。首次尝试 Linux 基线时，容器取提交失败并继续跑了缓存检出，撤回该次基线结论。用同一镜像与三倍 CPU 节流重新检出并核对实际提交，干净主线 `dbcf562a67` 与候选 `270739c0eb` 各通过 2/2，候选 macOS 的节流复测也是 2/2。原负向审批断言、两个布局时序和 CI 首败均保留。[BL-linux-repro-source-head](../backlog/BL-linux-repro-source-head.md) 记录容器工具的检出核对缺口。
+[安全分片的 Git 审批走查](https://github.com/molis-ai/molis-work/actions/runs/44208117643/job/134479652774) 在从覆盖页回到 Git 后等待可见审批槽超时。同一生产树的[前一普通 CI 安全分片](https://github.com/molis-ai/molis-work/actions/runs/44205816632/job/134471711092) 中该文件 2/2。首次尝试 Linux 基线时，容器取提交失败并继续跑了缓存检出，撤回该次基线结论。用同一镜像与三倍 CPU 节流重新检出并核对实际提交，干净主线 `dbcf562a67` 与候选 `270739c0eb` 各通过 2/2，候选 macOS 的节流复测也是 2/2。原负向审批断言、两个布局时序和 CI 首败均保留。容器工具的后续修复和验证见 [BL-linux-repro-source-head](../archive/test-fixture-utf8-linux-head/spec.md#bl-linux-repro-source-head)。
 
 ### 12.25 原入口与组件板的 Full 回归
 

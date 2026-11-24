@@ -706,11 +706,6 @@
       "sources"
     ]
   },
-  "GET <project>/api/alchemist": {
-    "status": 404,
-    "type": "application/json",
-    "error": "没有这个炼金术士页面。"
-  },
   "GET <project>/api/shelf": {
     "status": 404,
     "type": "application/json",
@@ -790,6 +785,7 @@
       "background_tasks",
       "board_cursor",
       "line",
+      "mainline_summary",
       "notices",
       "plugin_events_pending",
       "tasks"

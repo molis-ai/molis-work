@@ -341,13 +341,6 @@ tests/prologue-taskboard.test.ts
 tests/session-project-binding-router.test.ts
 
 # Other areas
-tests/alchemist-actions.test.ts
-tests/alchemist-host.test.ts
-tests/alchemist-plugin.test.ts
-tests/alchemist-pulse-cancel.test.ts
-tests/alchemist-pulse-close.test.ts
-tests/alchemist-runtime.test.ts
-tests/alchemist-structured-output.test.ts
 tests/announce-guard.test.ts
 tests/arrival-components.test.ts
 tests/artifacts-module.test.ts
@@ -457,6 +450,8 @@ tests/uninstall-receipt.test.ts
 tests/upgrade-chain.test.ts
 tests/v1.test.ts
 tests/visual-foundation.test.ts
+tests/design-system-giants.test.ts
+tests/ui-audit-2026-09-22.test.ts
 tests/web-mutation-key-settle.test.ts
 tests/web-route-table.test.ts
 tests/web-service-settings-client.test.ts
@@ -485,6 +480,8 @@ tests/knowledge-cards.test.ts
 tests/knowledge-reads.test.ts
 tests/canonical-json-value.test.ts
 tests/feed-rule-replication.test.ts
+tests/characters-replication.test.ts
+tests/schedule-replication.test.ts
 tests/issues-replication.test.ts
 
 tests/memory-unknown-facts.test.ts
@@ -522,3 +519,4 @@ tests/goal-events-state.test.ts
 tests/desktop-account-entry.test.ts
 tests/project-guidance-actions.test.ts
 tests/goals-terminal.test.ts
+tests/anysearch-single-owner.test.ts

@@ -23,7 +23,8 @@ test("QEA-35: Coding hands a delayed model draft to Git without overwriting typi
   let gate = entered(), foreground = 0, draftCalls = 0;
   t.after(() => gate.release.resolve());
   const model = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    let raw = "";
+    for await (const chunk of request.setEncoding("utf8")) raw += chunk;
     const aside = asideReply(raw);
     let result: Response;
     if (aside) result = cogniaModelResponse(aside);

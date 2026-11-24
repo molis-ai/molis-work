@@ -80,7 +80,6 @@ async function generate(version, out) {
         { path: "plugin-directories/plugin-directories.db", reason: "授权目录的行记本机的真实路径、设备号和 inode，只有桌面选择器能写；用主人的现行结构建空库" },
         { path: "plugin-originals/plugin-originals.db", reason: "原始文件的行记本机的真实路径，只有桌面入口带来的路径能写；用主人的现行结构建空库" },
         { path: withThirdParty ? `spaces/${account_space.spaceId}/plugin-libraries/plugin-libraries.db` : "plugin-libraries/plugin-libraries.db", reason: "台账的行要一个声明 Home 库的已签名沙箱包，这个 Home 没装；用主人的现行结构建空库" },
-        { path: "alchemist/projects/<project>/search.sqlite", reason: "行来自联网搜索，金样不联网；由主人的搜索入口建空库" },
         { path: "runtime-integrations/codex.json", reason: "接入收据只有装过的 Home 才有（接入要用安装的启动器），收据记本机的用户目录和对含 Home 路径的配置条目的指纹，两次生成不会一样；按这份代码的版本写一份固定值的样本，不含真实路径" },
         { path: "observation/observation.db", reason: "工作记录按并发调用结束的先后编号、取编号，先后由机器决定；生成时不写记录，库由主人按现行结构建出；两个 Home 都如此" }],
       ...tree,

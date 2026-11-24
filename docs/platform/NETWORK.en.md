@@ -18,7 +18,7 @@ Commands you run in the terminal panel, commands the host runs after you approve
 | 3 | Web search (AnySearch) | `api.anysearch.com` | The search words and the page addresses to extract |
 | 4 | Pages and links you name | The addresses you give | Ordinary read requests, without your credentials |
 | 5 | Plugins made in the plugin studio | The sites the plugin declared and you approved | The plugin's own requests |
-| 7 | Alchemist market pulse | Toolify, Watcha (观猹), GitHub | Public pages and search requests; GitHub carries a token only when you have picked one of the GitHub accounts in Service connections for it |
+| 7 | (no longer used) the former Alchemist market pulse | — | Removed with the old Alchemist; the number is kept and not reused |
 | 8 | On this machine | Loopback addresses | Never leaves your computer |
 | 9 | Plugin studio build check | `registry.npmjs.org` | **Dependency package names and versions** |
 | 10 | Public DNS fallback for host names | `dns.google`, `dns.alidns.com` | **Site names** (only where a proxy hands out placeholder addresses) |
@@ -32,7 +32,7 @@ Only classes 9 and 10 send a **name** (a package name, a site name) to a third p
 ## The three cases that tell a third party a name
 
 1. **Plugin studio build check (class 9).** If a generated plugin declares runtime dependencies, the "packaging" step of the build check sends the dependencies' **package names and versions** to the npm registry (`registry.npmjs.org`) to download them. With no declared dependencies nothing goes online. The studio says this in its interface.
-2. **Proxy placeholder addresses (class 10, 10a).** If your computer runs proxy software that answers every host name lookup with a placeholder address first (`198.18.0.0` through `198.19.255.255`), Molis Work sends the **site name** it needs to reach to Google (`dns.google`) and Alibaba Cloud (`dns.alidns.com`) public DNS services to ask for the real address. The site names concerned are the model, image and judgement services you configured, and AnySearch (`api.anysearch.com`, used by both the Feed web search and the Alchemist research). This only happens when a proxy environment variable is set (one of `https_proxy`, `HTTPS_PROXY`, `all_proxy`, `ALL_PROXY`) and the system answer is a placeholder address; an ordinary network never does it.
+2. **Proxy placeholder addresses (class 10, 10a).** If your computer runs proxy software that answers every host name lookup with a placeholder address first (`198.18.0.0` through `198.19.255.255`), Molis Work sends the **site name** it needs to reach to Google (`dns.google`) and Alibaba Cloud (`dns.alidns.com`) public DNS services to ask for the real address. The site names concerned are the model, image and judgement services you configured, and AnySearch (`api.anysearch.com`, used by the Feed web search). This only happens when a proxy environment variable is set (one of `https_proxy`, `HTTPS_PROXY`, `all_proxy`, `ALL_PROXY`) and the system answer is a placeholder address; an ordinary network never does it.
 3. **Jelly page import behind placeholder addresses (class 10, 10b).** When every address the system returns is a placeholder (the proxy variables are not consulted), Jelly sends the **site name of the page being read** to Google's public DNS service. This is closer to "which sites you read", so it is listed on its own.
 
 All three exist so that the product still works in unusual environments. Only a name is sent, never credentials or content, and the proxy software can already see those names.
@@ -64,9 +64,9 @@ All three exist so that the product still works in unusual environments. Only a 
 
 ### 3. Web search (AnySearch)
 
-- **When:** a Feed web-search source is pulled, manually or on a schedule; the Alchemist research stage searches.
+- **When:** a Feed web-search source is pulled, manually or on a schedule.
 - **Where to:** only `api.anysearch.com:443/mcp`, anonymous, without credentials.
-- **Limits:** there is **one implementation** of the outbound path to AnySearch (`apps/local-host/src/anysearch-transport.ts`), shared by Feed and Alchemist: a fixed host; the resolved address must be public and is pinned, the certificate is verified and the connected peer address is checked; redirects are not followed; requests up to 64 KiB, responses up to 1 MiB. See class 10 for placeholder-address environments; Feed web search now works there like Alchemist research.
+- **Limits:** there is **one implementation** of the outbound path to AnySearch (`apps/local-host/src/anysearch-transport.ts`): a fixed host; the resolved address must be public and is pinned, the certificate is verified and the connected peer address is checked; redirects are not followed; requests up to 64 KiB, responses up to 1 MiB. See class 10 for placeholder-address environments; Feed web search works there.
 - **What is sent:** the search words and the page addresses to extract.
 
 ### 4. Pages and links you name
@@ -81,12 +81,9 @@ All three exist so that the product still works in unusual environments. Only a 
 - **Where to:** the hosts that plugin declared and you approved.
 - **Limits:** https only, default port, no credentials in the address; every address actually connected to must be public (the placeholder address range is accepted like an ordinary network, an established development-machine decision); redirects are not followed; 15 seconds, 1 MiB response, 256 KiB request. Checks and acceptance run offline, and manual trials are read-only (GET, HEAD).
 
-### 7. Alchemist market pulse
+### 7. (No longer used)
 
-- **When:** you press "Collect market signals" in Alchemist, or the assistant, an MCP client or a workflow starts the same action (`alchemist.pulse.start` is offered to all of them). A pulse started by any of them contacts the same three sites and carries the token of the GitHub account you picked. The interface states that this contacts the three sites.
-- **Where to:** `www.toolify.ai`, `watcha.cn` (观猹), `api.github.com`.
-- **GitHub token:** only the GitHub account you **explicitly pick** in Alchemist's "Source settings" (a token or OAuth account in Settings › Service connections; a command-line login stores no token and cannot be picked). With none picked the pulse searches anonymously, with a lower rate limit; a GitHub account you connected for Coding or Feed is not used by the market pulse until you pick it here. The Host adds the token when a request goes to `api.github.com`, to that address only; Alchemist's code, its database and its action results never contain the token, and the plugin is never given its value. When an OAuth account's access token has expired, the Host first renews it with the refresh token (the same path every other reader of a service connection uses) and never sends the expired token to GitHub. If the picked account is disconnected, its token cannot be read or renewed, or it is gone, the pulse is anonymous too and does not fall back to another account. Renewing a token, disconnecting an account or picking another one takes effect on the next request. The choice is shared by the whole Home: change it in any project's "Source settings" and every project's next pulse uses the account you picked (the dialog says "Every project shares this choice"); only you can change it (agents and MCP cannot). That limit is on picking the account, not on starting a pulse: once you have picked one, every pulse started by anyone allowed to start one uses it. Environment variables are not read.
-- **Limits:** a fixed host list, re-checked on every redirect, 12 seconds, responses up to about 8 MB, public pages and search interfaces only, none of your content is sent.
+Class 7 was the Alchemist market pulse, removed with the old Alchemist in batch 44B; the number is kept and not given to another class.
 
 ### 8. On this machine
 
@@ -120,6 +117,6 @@ When the Feed "research library" source syncs, Molis Work starts a `git` child p
 
 ## To go online less
 
-- Do not connect services, add feed sources, or use web search and the market pulse, and the matching classes do not happen.
+- Do not connect services, add feed sources, or use web search, and the matching classes do not happen.
 - Model requests go only to the service you configured, never to another vendor.
 - Class 10 happens only where a proxy hands out placeholder addresses; without a proxy environment variable 10a is never triggered.

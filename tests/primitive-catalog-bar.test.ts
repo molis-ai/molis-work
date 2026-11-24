@@ -75,7 +75,7 @@ test("VUX-55 VUX-58: every native built-in plugin manifest declares valid biling
   const wbEn = JSON.parse(readFileSync(new URL("../apps/workbench/resources/locales/en.json", import.meta.url), "utf8")).messages as Record<string, unknown>;
   // The platform's own framed surface (the studio, 47-1 C) declares its help the same way.
   const declared = [...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES];
-  assert.ok(declared.length >= 23, `expected at least 23 built-in plugins and platform surfaces, got ${declared.length}`);
+  assert.ok(declared.length >= 22, `expected at least 22 built-in plugins and platform surfaces, got ${declared.length}`);
   const readKey = (ref: unknown): string[] => (ref && typeof ref === "object" && "key" in ref && typeof (ref as { key?: unknown }).key === "string") ? [(ref as { key: string }).key] : [];
   for (const entry of declared) {
     const help = entry.manifest.ui.help;

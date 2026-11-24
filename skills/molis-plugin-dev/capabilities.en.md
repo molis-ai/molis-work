@@ -44,7 +44,7 @@ Use the [Prologue AI Skill](../molis-prologue-ai/SKILL.md). Business code takes 
 
 A Host Capability call can narrow execution with `{ signal, before_effect }`. The SDK preserves the signal; the Host exposes it in the invocation and keeps checking the original identity. These options cannot override `plugin_caller`. After any external wait, still check the business revision and permission to commit. Progress is not a verified result. Unreported usage is not zero.
 
-For cancellation, deadlines and repeated ownership checks within one process, use SDK `createExecutionLifetime`. A synchronous error from `monitor.check()` cancels the operation. Pass its signal to the external wait, call `assertActive()` before the business transaction or compare-and-set, and dispose in `finally`. A lifetime grants no permission, does not replace `beforeEffect`, and owns neither durable state nor retry policy. Alchemist's lease renewal and Images' cancellation monitor are real examples. Cancellation, closure and lost leases do not become ordinary failures. Never replay a paid request whose outcome is unknown.
+For cancellation, deadlines and repeated ownership checks within one process, use SDK `createExecutionLifetime`. A synchronous error from `monitor.check()` cancels the operation. Pass its signal to the external wait, call `assertActive()` before the business transaction or compare-and-set, and dispose in `finally`. A lifetime grants no permission, does not replace `beforeEffect`, and owns neither durable state nor retry policy. Images' cancellation monitor is a real example. Cancellation, closure and lost leases do not become ordinary failures. Never replay a paid request whose outcome is unknown.
 
 ### Make action results readable
 

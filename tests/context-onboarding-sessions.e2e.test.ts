@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
+import { REVIEW_EVIDENCE, shouldSaveReviewScreenshots } from "./fixtures/review-evidence.js";
 
 // SRB-09 (batch 35 item 1): an existing project's round offers the person's AI tool sessions. The project's AI may not read them until
 // the person turns the permit on, here, on their own page; until then the row says why and nothing is organized from them.
-test("SRB-09 B35-R1 the existing project's Sessions page opens onboarding and the person can allow the project's AI", { timeout: 120_000 }, async t => {
+test("SRB-09 B35-R1 DTC-02: Sessions onboarding explains the permission with shared notes and the person can allow the project's AI", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
@@ -20,8 +20,9 @@ test("SRB-09 B35-R1 the existing project's Sessions page opens onboarding and th
   assert.equal(await scope(), false, "the permit starts off");
 
   const directory = `${REVIEW_EVIDENCE}/batch35-onboarding-sessions`;
-  await mkdir(directory, { recursive: true });
   const capture = async (state: string) => {
+    if (!shouldSaveReviewScreenshots()) return;
+    await mkdir(directory, { recursive: true });
     const { data } = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(`${directory}/${state}.png`, Buffer.from(data, "base64"));
   };
@@ -36,10 +37,14 @@ test("SRB-09 B35-R1 the existing project's Sessions page opens onboarding and th
   const panel = await evaluate<string>("document.querySelector('.ob-source[data-src=sessions] .ob-source__cfg').textContent");
   assert.match(panel, /这个项目的 AI 还不能读外部会话。没打开，这一步不整理会话。/);
   assert.match(panel, /只有你能打开/);
+  const noteMarks = `[...document.querySelectorAll('#cfgp-sessions .mw-note[data-slot=note]')]
+    .map(note => [note.classList.contains('is-warning'), note.querySelector('use')?.getAttribute('href')])`;
+  assert.deepEqual(await evaluate(noteMarks), [[true, "#icon-circle-alert"], [false, "#icon-shield"]]);
   await capture("permit-off");
 
   await click("[data-action=sessions-permit]");
   await waitFor("!document.querySelector('[data-action=sessions-permit]') && /还没有归到这个项目、AI 能读的会话/.test(document.querySelector('.ob-source[data-src=sessions] .ob-source__cfg')?.textContent || '')");
   assert.equal(await scope(), true, "the person's click turned the project's permit on");
+  assert.deepEqual(await evaluate(noteMarks), [[false, "#icon-info"]]);
   await capture("permit-on-none-filed");
 });

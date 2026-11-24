@@ -143,7 +143,7 @@ const FRAME_STYLE_FEATURES: Readonly<Record<PluginFrameStyleFeature, string>> = 
 /**
  * Full stylesheet served at `/assets/molis-work-plugins/<id>.css` for opaque plugin frames (102-1).
  * Framed plugins load the lightweight `molis-work-plugin-base.css` instead of `molis-work-workbench.css`,
- * so their served on-demand sheet includes their own `shared` split rules (e.g. `@keyframes`, `.pc-*`, `.alc-*`)
+ * so their served on-demand sheet includes their own `shared` split rules (e.g. `@keyframes`, `.pc-*`)
  * plus any specialized feature sheets declared in `workbench.frameStyleFeatures`. `pluginOnDemandStylesheet` stays unchanged.
  */
 export function pluginFrameServedStylesheet(id: string, packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string | null {

@@ -5,7 +5,7 @@ import {mkdtempSync,rmSync,mkdirSync,writeFileSync,readFileSync,existsSync} from
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
-import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
+import {LocalProjectDatabase,ProjectDeletionService} from '@molis-ai/molis-work-app-local-host';
 import {SqlitePluginPrivateStorage} from '@molis-ai/molis-work-plugin-runtime';
 import {AgentBuilderStore,builderManifest,builderPrivateValueReplicationOwner,BUILDER_CONTENT_REPLICA_ID} from '@molis-ai/molis-work-plugin-studio';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
@@ -17,15 +17,15 @@ test('S-119 PCSYNC-15/22/23 real authoring KV CAS crosses Host/Rust/D1/R2 per bu
  const previous=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));for(const [key,value] of Object.entries(env))if(value===undefined)delete process.env[key];else process.env[key]=value;
  t.after(()=>{for(const [key,value] of Object.entries(previous))if(value===undefined)delete process.env[key];else process.env[key]=value;});t.mock.method(globalThis,'fetch',cloud.transport);
  const space=personalStorageSpace('https://auth.example.test','work','alice'),homes=['a','b'].map(id=>join(root,id));homes.forEach(home=>ensureStorageSpace(home,space));
- const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},async catalog=>{const p=await catalog.createProject({display_name:'Real authoring',actor_id:'alice'});catalog.addProjectPlugin({project_id:p.project_id,plugin_id:'plugin-builder',actor_id:'alice'});return p;});
+ const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},catalog=>catalog.createProject({display_name:'Real authoring',actor_id:'alice'}));
  const open=(database)=>new SqlitePluginPrivateStorage(database.db).forPlugin({install_id:'agent-studio:'+project.project_id,plugin_id:builderManifest.plugin_id,version:builderManifest.version,deployment:'local',grants:['storage:private'],project_id:project.project_id,requireGrant(){}},builderManifest);
  const database=new LocalProjectDatabase(project.database_path);t.after(()=>database.close());const privateStore=open(database),source=new AgentBuilderStore(privateStore),created=source.create('完整创作草稿');
  const directory=join(homes[0],'plugin-builder',project.project_id,'builds',created.id,'saved');mkdirSync(join(directory,'src'),{recursive:true});mkdirSync(join(directory,'tests'),{recursive:true});
  const bytes=Buffer.from('export const authored="完整源码🙂";\n'.repeat(30000));writeFileSync(join(directory,'src','main.ts'),bytes);writeFileSync(join(directory,'tests','empty.ts'),'');
  source.update(created.id,created.revision,row=>{row.directory=directory;row.messages.push({role:'assistant',text:'Full saved answer'});});privateStore.set('plugin-builder:agent-studio:model','SOURCE_ONLY_MODEL');
  const check=()=>{},lease={userId:'alice',applicationId:'work',authOrigin:'https://auth.example.test',signal:new AbortController().signal,assertCurrent:check,accessToken:async()=>'alice'};
- await withMolisWorkProjectCatalog({homeDirectory:homes[1]},async catalog=>{await catalog.ensureSyncedProject({project_id:project.project_id,display_name:'Restored project',actor_id:'alice'},check);catalog.addProjectPlugin({project_id:project.project_id,plugin_id:'plugin-builder',actor_id:'alice'});});
- const clients=await Promise.all(homes.map(home=>createPersonalSync(home,space,lease,withMolisWorkProjectCatalog,check)));t.after(()=>clients.forEach(client=>client.close()));
+ await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.ensureSyncedProject({project_id:project.project_id,display_name:'Restored project',actor_id:'alice'},check));
+ const clients=await Promise.all(homes.map(home=>createPersonalSync(home,space,lease,withMolisWorkProjectCatalog,check)));t.after(async()=>{for(const client of clients)await client.close();});
  const collection=clients[0].status().collections.find(row=>row.selection.plugin_id===builderManifest.plugin_id&&row.selection.collection_id==='authoring');assert.ok(collection);assert.equal(clients[0].policy().selections.length,0);
  await clients[0].save({...clients[0].policy(),selections:[collection.selection]});await clients[0].run();await clients[1].run();clients.forEach(client=>assert.equal(client.status().error,null));
  const targetProject=await clients[1].withCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects().find(p=>p.project_id===project.project_id));assert.ok(targetProject);
@@ -37,15 +37,23 @@ test('S-119 PCSYNC-15/22/23 real authoring KV CAS crosses Host/Rust/D1/R2 per bu
  const objects=(await cloud.bucket.list()).objects;assert.ok(objects.length>1);let raw=false;for(const object of objects){const body=Buffer.from(await(await cloud.bucket.get(object.key)).arrayBuffer());if(body.equals(bytes))raw=true;assert.doesNotMatch(body.toString('utf8'),/SOURCE_ONLY_MODEL|\/a\/plugin-builder/);}assert.equal(raw,true,'R2 contains exact original bytes, not base64-expanded file data');
  const count=async()=>(await cloud.db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n,before=await count();await clients[0].run();await clients[1].run();assert.equal(await count(),before);
  const current=source.require(created.id);source.update(current.id,current.revision,row=>{row.title='Later original edit';});await clients[0].run();await clients[1].run();clients.forEach(client=>assert.equal(client.status().error,null));assert.equal(target.require(created.id).title,'Later original edit');assert.equal(target.require(created.id).revision,2);assert.equal(await count(),before+1);
- // A retained native coordinator loses project access immediately when the person's visibility choice changes.
- await clients[1].withCatalog({homeDirectory:homes[1]},catalog=>catalog.removeProjectPlugin({project_id:project.project_id,plugin_id:'plugin-builder',actor_id:'alice'}));
+ // TSA-06: Studio is present in every project. Recycling the destination suspends writes to it.
+ const destination=clients[1],deletion=new ProjectDeletionService(destination.withCatalog,{
+  isPanelAlive:()=>false,isProjectBusy:()=>false,async releaseProject(){}
+ });
+ async function setRecycled(recycled){
+  const observed=await destination.withCatalog({homeDirectory:homes[1]},catalog=>catalog.recycle.inspect(project.project_id));
+  await deletion.changeRecycled(homes[1],{project_id:project.project_id,recycled,confirmed:true,actor_id:'alice',
+   operation_id:recycled?'studio-recycle':'studio-restore',expected_state:observed.state},check);
+ }
+ await setRecycled(true);
  const hidden=source.require(created.id);source.update(hidden.id,hidden.revision,row=>{row.title='Hidden target must wait';});
  await clients[0].run();await clients[1].run();assert.notEqual(clients[1].status().error,null);
- assert.equal(target.require(created.id).title,'Later original edit','no cached enablement admits hidden-project writes');
- await clients[1].withCatalog({homeDirectory:homes[1]},catalog=>catalog.addProjectPlugin({project_id:project.project_id,plugin_id:'plugin-builder',actor_id:'alice'}));
+ assert.equal(target.require(created.id).title,'Later original edit','a recycled project cannot receive a later draft');
+ await setRecycled(false);
  clients[1].notifyLocalChange();
  await clients[1].run();assert.equal(clients[1].status().error,null);assert.equal(target.require(created.id).title,'Hidden target must wait');
- // The generic cloud legitimately stores opaque content; only the target owner may decide whether a design is valid.
+ // An inbound draft for an unknown project cannot create that project or change an existing draft.
  const rogueProject='project-invalid-design',key=JSON.stringify([rogueProject,BUILDER_CONTENT_REPLICA_ID,created.id]);
  const content=builderPrivateValueReplicationOwner({home:homes[0]}).project(JSON.parse(privateStore.get('plugin-builder:agent-built:v1')),project.project_id,created.id);
  content.files[created.id]=[];content.builds[0].nodes=[{id:'unbound-component',kind:'card'}];
@@ -53,9 +61,9 @@ test('S-119 PCSYNC-15/22/23 real authoring KV CAS crosses Host/Rust/D1/R2 per bu
  const accepted=await cloud.call('/v1/changes','alice',{namespace,policyRevision:1,mutation:{operationId:'invalid-authoring-design',key,base:0,value:incoming},attachments:[]});
  assert.equal(accepted.status,200,await accepted.clone().text());
  const kept=targetPrivate.get('plugin-builder:agent-built:v1');await clients[1].run();
- assert.notEqual(clients[1].status().error,null,'invalid authoring remains an explicit incomplete item');
+ assert.notEqual(clients[1].status().error,null,'the unknown project remains an explicit incomplete item');
  assert.equal(targetPrivate.get('plugin-builder:agent-built:v1'),kept,'existing authoring facts are untouched');
  const listed=await clients[1].withCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects());
- assert.equal(listed.some(row=>row.project_id===rogueProject),false,'full owner validation precedes catalog creation');
+ assert.equal(listed.some(row=>row.project_id===rogueProject),false,'an incoming draft cannot create its project');
  assert.equal(existsSync(join(homes[1],'plugin-builder',rogueProject)),false,'rejected design leaves no staged owner directory');
 });

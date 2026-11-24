@@ -10,13 +10,11 @@ import { builtinRegistrations } from "./agent-definitions/builtin-agents.js";
 import { modelRoundLocale } from "./reply-language.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { handleCharactersHttp, hostCharactersInvoke } from "./characters-http.js";
-import { pluginRouteControl } from "./plugin-route-control.js";
 import { bindLocalWebAction, bindLocalWebActions, bindWebEntryActions, localWebActionContext } from "./local-web-actions.js";
 import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-artifacts";
 import { readArtifactDisplayFor } from "./artifact-display-words.js";
-import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
-import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -41,7 +39,6 @@ import { handlePluginStageFragmentHttp } from "./plugin-stage-fragment-http.js";
 import { handleSubjectContextHttp } from "./subject-context-http.js";
 import { declaredStageRequests } from "./project-stage-data.js";
 import { matchPageRoute } from "./page-routes.js";
-import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { handleAutomationRecommendationsHttp } from "./automation-recommendations-http.js";
 import { isCatalogIndexPath, redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
@@ -301,20 +298,6 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
     handleProjectReviewHttp(request, response, url, localHost, hostReference, serverOptions.assertAccountCurrent) },
   boardRoute,
   ...directoryRoutes,
-  // Alchemist's Studio and its own HTTP under `/api/alchemist`, under the plugin's permissions. The old `personal`
-  // alias (`/api/plugins/<id>/` rewritten to `/api/<id>/`) is gone (W6-01); this is the plugin's own address.
-  // Its calls keep the hand-written client (the person under Alchemist's permissions): Alchemist is not migrated and will be deleted (BL-376).
-  { id: "alchemist", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost }) => Boolean(serverOptions.homeDirectory)
-    && await handleAlchemistNativePluginHttp(request, response, url, {
-      projectId: hostReference.project_id, routePrefix: options.routePrefix ?? "",
-      actions: { invoke: async (definition, input, signal) => {
-        if (!signal) throw new ActionError("actions.forbidden", "缺少请求生命周期");
-        const control = pluginRouteControl(signal, () => {
-          if (localHost.lifecycle() !== "running") throw new ActionError("actions.unavailable", "宿主已停止");
-        });
-        return bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user",
-          permissions: [...ALCHEMIST_ACTION_PERMISSIONS] })).invoke(definition, input, control);
-      } } }) },
   ...projectAssistantRoutes,
   ...pageOwnerRoutes,
   ...projectPagesAndArtifactRoutes,

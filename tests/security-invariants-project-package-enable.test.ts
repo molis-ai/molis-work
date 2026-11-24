@@ -241,9 +241,9 @@ test("S-84 SCS-08 a committed start still closes after caller withdrawal and can
         assert.equal(notifications, 0);
       } finally { gate.release.resolve(); }
     }
-    assert.equal(stop.mock.callCount(), 1, "the newer disable stopped only its own target");
+    assert.deepEqual(stop.mock.calls.map(call => call.arguments[1].install_id), [row.install_id], "the newer disable stopped only its own target");
     await h.close();
-    assert.equal(stop.mock.callCount(), 2, "closing the Host can still release the valid committed start");
+    assert.equal(stop.mock.calls.filter(call => call.arguments[1].install_id === row.install_id).length, 2, "closing the Host releases the remaining start of this installation");
   } finally { await h.close(); }
 });
 

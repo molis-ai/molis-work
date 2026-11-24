@@ -337,7 +337,7 @@ test("WUA-08 WUA-09 S-unified-account-session: forged attempts and malformed tok
   assert.equal(h.calls.length, 0); assert.equal(h.store.record, null); await h.manager.close();
 });
 
-test("WUA-08 WUA-09 S-unified-account-session: duplicate or superseded completion cannot revoke an already adopted login", async () => {
+test("WUA-08 WUA-09 WUA-34 S-unified-account-session: duplicate or superseded completion cannot revoke an already adopted login", async () => {
   const h = harness(), superseded = h.manager.beginLogin(control()), adopted = h.manager.beginLogin(control());
   await h.manager.completeLogin(adopted, h.tokens, control()); const saved = structuredClone(h.store.record);
   await assert.rejects(h.manager.completeLogin(adopted, h.tokens, control()), { code: "account.invalid_request" });

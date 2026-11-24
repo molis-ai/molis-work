@@ -90,6 +90,8 @@ Integration Manifest 用 `source_presentations` 声明纯展示；`definePolling
 
 `@molis-ai/molis-work-plugin-sdk/diff-view` 把一处改动画成页面上的比较视图，Diff、Coding 和第三方插件用同一份（PG-062）。输入是通用的改动：`compareChange(group, sides, { before, after, created?, removed? })` 比两份全文，`compareHunks(group, sides, diff, …)` 读一段 unified diff，`emptyDiffView` 给还没有内容可比时的空态；得到的 `DiffView` 交给 `renderDiff({ view, labels, primitives, line_feedback?, fold_context?, sides? })` 画成 html。`parseUnifiedDiff`、`hunkRows`、`countChangedLines`、`unifiedPatch`（把画出的行写回可复制的补丁）也从这里取。
 
+已解析的固定 Coding 变更用 `compareCodingChangeSet(change, source, selection, messages)`。传入生产插件、精确版本和条目索引或文件路径，得到该文件的比较行和整个清单。路径对应多次写入时显示第一条。没有可比内容时用调用方给的空态、缺项和恢复文案。
+
 - SDK 不带词。每个标签（两侧的标题、各条提示、行号上的评论按钮、行首符号的读屏文字、展开折叠的那一行）用调用方自己词表里的哪个键，由 `labels`（`DiffViewLabels`）给：`before`、`after` 填 `{path}`、`{version}`，`pinned` 填 `{workspace}`，两个评论标签填 `{number}`，`reveal` 填 `{count}`。头部的三个只在画头部时需要（`sides` 不为 false），不给就不画头部。
 - 转义、文字和图标都由调用方传进 `primitives`（`escape`、`text`、`icon`），SDK 自己不转义、不翻译、不画图标。插件一般传 SDK `/ui` 的 `escapeHtml`、`icon`，`text` 用 `diffViewText(messages, locale, templates)` 从自己的词表里取：带值的句子（包括 `parseUnifiedDiff` 拒绝时的三句）把键列进 `templates`，视图里写成中文的这类句子会先认出是哪一句，再按页面语言带着同样的值说出来。插件有自己的翻译函数时作为第四个参数 `say` 传入。词表照常在插件自己的 `messages` 里登记（翻译门禁要求每个键归它的主人）。
 - 这个子路径只加载 SDK 自己的文件和合同包，不需要任何第三方包；页面上的行号评论（`data-coding-line-side`、`data-coding-line`）、折叠（`data-diff-unfold`、`data-diff-folded`）与切换文件（`data-action="diff.show-file"`）这些属性的名字是合同的一部分，工作台的页面脚本按它们找元素。

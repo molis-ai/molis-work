@@ -47,11 +47,11 @@ the published surface (contracts, plugin-sdk) is the lowest layer
 - Module implementation 或 Store 导入另一个 Module implementation 或 Store。
 - Module 导入 Horizontal Service、App 或 Plugin（代码 import 与 `package.json` 依赖都查，`module-upward-dependency`）。
 - Plugin 导入另一个 Plugin implementation、Store 或未公开 UI 组件。
-- 项目库的同步连接只由 `packages/storage` 打开（底下是 `node:sqlite`）；测试使用 test-kit 的 `/sqlite` 子路径。Alchemist 的 `better-sqlite3` 是唯一例外，只开它自己的 `studio.sqlite`，这个例外登记在 `tooling/gates/sqlite-driver-owners.json`（带理由，BL-377 重做前保留）。`project-sqlite-driver` 检查所有放代码的目录（不按工作区包名单，所以没有 `package.json` 的 `apps/sync-worker` 也在内）里的字面量 import、require、`createRequire(...)(...)`，以及交给别的东西运行的程序文本（`node -e` 及同类参数、shell 命令、`eval`、`new Function`、`vm`、`new Worker(x,{eval:true})`）；动态拼出的模块名不在此检查内。
+- 项目库的同步连接只由 `packages/storage` 打开（底下是 `node:sqlite`）；测试使用 test-kit 的 `/sqlite` 子路径。没有例外：最后一个 `better-sqlite3` 用户（旧 Alchemist）随第 44B 批删除，例外名单 `sqlite-driver-owners.json` 一起删了。`project-sqlite-driver` 检查所有放代码的目录（不按工作区包名单，所以没有 `package.json` 的 `apps/sync-worker` 也在内）里的字面量 import、require、`createRequire(...)(...)`，以及交给别的东西运行的程序文本（`node -e` 及同类参数、shell 命令、`eval`、`new Function`、`vm`、`new Worker(x,{eval:true})`）；动态拼出的模块名不在此检查内。
 - Plugin 导入 App、Horizontal Service 或 Module implementation（`plugin-upward-dependency`）。在册的唯一例外：`plugins/native/shelf → modules/shelf`（Shelf 仍用 Shelf Module 的配方与设置解析，是待还的债，不是先例）。Goals 插件曾声明却从未导入 `modules/goals`，该依赖已删。
-- 生产源码导入任何插件的 `./testing` 出口，或插件自己的其他模块导入它的 `testing` 模块（`plugin-testing-entry-import`）。`./testing` 是测试在运行时之外开插件数据的入口（现在没有插件带这个出口：Pages 的 `openPagesStore` 已搬进测试夹具 `tests/fixtures/plugin-home-stores.ts`，PG-023；规则留着，不让它再长出来）；生产代码经 Plugin Runtime 取数据，不经它。同一条线上：插件包（Todo、Form、灵光、Dataset、PPT、Workflows、Jelly、Cognia、Pages）的 `package.json` 不依赖私有的 `@molis-ai/molis-work-storage`，不导出 `openXStore` 一类按路径开 Home 库文件的函数；运行中的插件用 Runtime 给的 `services.database`，测试要开库就用夹具 `tests/fixtures/plugin-home-stores.ts`（`tests/plugin-storage-dependency.test.ts` 钉住）。目前还依赖 storage 的只有 Images 与 Alchemist（Alchemist 随 BL-377 重做）。
+- 生产源码导入任何插件的 `./testing` 出口，或插件自己的其他模块导入它的 `testing` 模块（`plugin-testing-entry-import`）。`./testing` 是测试在运行时之外开插件数据的入口（现在没有插件带这个出口：Pages 的 `openPagesStore` 已搬进测试夹具 `tests/fixtures/plugin-home-stores.ts`，PG-023；规则留着，不让它再长出来）；生产代码经 Plugin Runtime 取数据，不经它。同一条线上：插件包（Todo、Form、灵光、Dataset、PPT、Workflows、Jelly、Cognia、Pages）的 `package.json` 不依赖私有的 `@molis-ai/molis-work-storage`，不导出 `openXStore` 一类按路径开 Home 库文件的函数；运行中的插件用 Runtime 给的 `services.database`，测试要开库就用夹具 `tests/fixtures/plugin-home-stores.ts`（`tests/plugin-storage-dependency.test.ts` 钉住）。目前还依赖 storage 的只有 Images。
 - Plugin SDK 导入或依赖 contracts 以外的任何工作区包（`public-sdk-private-dependency`，源码 import 与 `package.json` 依赖都查）。外部作者只装 contracts 与 SDK 两个包；SDK 依赖了私有包，打包后的示例就装不上（2026-09-30 出过一次）。所以作者和平台共用、会运行的工具放在 SDK 里，而不是私有的 kernel 或 plugin-runtime，平台各层从 SDK 取同一份。现在在 SDK 里的是执行生命周期（kernel、宿主、调度服务、Shelf 模块和沙箱从 SDK 取）、Manifest 解析与版本比较（`parsePluginManifest` 等，Plugin Runtime 与命令行从 SDK 取）动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，kernel 注册时用）和逐行文本比较（`compareTexts` 等，工作台审查界面、Coding 与 Diff 从 SDK 取；结果与行的类型留在合同包）以及动作的两个绑定函数（`bindPluginActionRoute`、`bindOwnerPluginAction`，失败按错误的 kind 答，合同包里的那张状态表随之删除）；W3-03 要从合同包搬出的三样会运行的东西都已在 SDK 里；W3-02-C 又把这两个绑定函数从合同包搬了进来。
-- Plugin 导入私有的界面包 `design-system`、`im-ui`、`ui-host`（`plugin-private-ui-dependency`，源码 import 与 `package.json` 依赖都查）。插件画界面用 SDK 公开的部件（`/ui` 的字符串部件、`/browser` 的 DOM 工具、`/page-globals` 的页面全局类型），外部作者装的也是这一套，内置插件不另走私有的路（2026-10-18「插件同等待遇」）。唯一在册的例外是 plugin-builder（创作台是平台能力，名单在 `packages/test-kit/src/boundaries.ts` 的 `PRIVATE_UI_EXEMPT_PLUGINS`，只许减少）。伙伴页面的舞台（Git、Diff）不是公开部件，两个插件各自用公开部件写。
+- Plugin 导入私有的界面包 `design-system`、`im-ui`、`ui-host`（`plugin-private-ui-dependency`，源码 import 与 `package.json` 依赖都查）。插件画界面用 SDK 公开的部件（`/ui` 的字符串部件、`/browser` 的 DOM 工具、`/page-globals` 的页面全局类型），外部作者装的也是这一套，内置插件不另走私有的路（2026-10-18「插件同等待遇」）。创作台是[由宿主装配的平台表面](../../apps/workbench/src/host-surfaces.ts)（第 47 批 #2239）。测试工具仍导出 `PRIVATE_UI_EXEMPT_PLUGINS`，其中的创作台路径属于平台包，当前规则只检查插件包。伙伴页面的舞台（Git、Diff）不是公开部件，两个插件各自用公开部件写。
 - App 导入另一个 App，列出的启动器边之外都拒绝（`app-dependency-not-allowed`）：产品根的启动器 → desktop / local-host / mcp / server，desktop → local-host，local-host → cli / mcp / workbench。2026-11-09 用户批准 server 组合入口迁至产品 CLI：移除 server 的两个反向边，只在组合根引入 server 公共端口；具体 App import 点逐文件计数，见 `docs/reviews/daily-quality/2026-11-08-medium-supplement.md`。
 - App Shell、CLI、MCP、Workbench 或 Desktop 直接写业务数据库。
 - Horizontal Service 或平台产品服务（记忆、放置、搜索、情境排序）拥有或决定 Goal、Signal、Action、Session 等插件或 Module 的业务事实。
@@ -266,6 +266,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `horizontal/automation-recommender` | 横向 | 5 | 413 | `scan.ts` 150 | 1 | 3 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/connector-host` | 横向 | 6 | 897 | `connection-store.ts` 452 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `horizontal/evaluation` | 横向 | 11 | 2,428 | `rules.ts` 553 | 1 | 3 | 1 | 在用 | 中 | 待审 |
+| `horizontal/home` | 横向 | 4 | 1,291 | `store.ts` 760 | 1 | 3 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/kit` | 横向 | 1 | 224 | `index.ts` 224 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/knowledge` | 横向 | 11 | 1,388 | `index.ts` 426 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/mainline` | 横向 | 1 | 269 | `index.ts` 269 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
@@ -299,7 +300,6 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `packages/storage` | 基础 | 54 | 6,450 | `adapters/file-secret-store.ts` 764 | 1 | 2 | 11 | 在用 | 中 | 已审 |
 | `packages/test-kit` | 基础 | 12 | 1,526 | `boundaries.ts` 609 | 4 | 2 | 0 | 非产品 | 中 | 已审 |
 | `packages/ui-host` | 基础 | 8 | 808 | `request-client.ts` 298 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
-| `plugins/native/alchemist` | 内置插件 | 106 | 10,872 | `studio/server/db/pulse-repository.ts` 563 | 2 | 3 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/coding` | 内置插件 | 219 | 23,733 | `styles.ts` 758 | 3 | 2 | 2 | Runtime | 深 | 已审 |
 | `plugins/native/cognia` | 内置插件 | 36 | 1,789 | `store.ts` 149 | 2 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/dataset` | 内置插件 | 33 | 2,535 | `store.ts` 423 | 3 | 2 | 2 | Runtime | 中 | 待审 |

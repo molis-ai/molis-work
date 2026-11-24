@@ -416,3 +416,39 @@ function wireCatalogOnDemandHelp(): void {
     sidePreview.hidden = false;
   });
 }
+
+// Batch 37-1 check-summary popover toggle on the catalog board.
+document.addEventListener("click", (event) => {
+  const trigger = (event.target as Element).closest<HTMLButtonElement>("[data-check-summary-toggle]");
+  if (trigger) {
+    const id = trigger.getAttribute("data-check-summary-toggle");
+    const pop = id ? document.getElementById(id) : null;
+    if (!pop) return;
+    const open = pop.hidden;
+    all<HTMLElement>("[data-check-summary-popover]").forEach((node) => {
+      if (node !== pop) {
+        node.hidden = true;
+        node.parentElement?.querySelector<HTMLElement>("[data-check-summary-toggle]")?.setAttribute("aria-expanded", "false");
+      }
+    });
+    pop.hidden = !open;
+    trigger.setAttribute("aria-expanded", String(open));
+    return;
+  }
+  if (!(event.target as Element).closest("[data-check-summary-popover]")) {
+    all<HTMLElement>("[data-check-summary-popover]").forEach((node) => {
+      if (node.closest("[data-check-open-stage]")) return;
+      node.hidden = true;
+      node.parentElement?.querySelector<HTMLElement>("[data-check-summary-toggle]")?.setAttribute("aria-expanded", "false");
+    });
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  const openPop = all<HTMLElement>("[data-check-summary-popover]").find((node) => !node.hidden && !node.closest("[data-check-open-stage]"));
+  if (!openPop) return;
+  openPop.hidden = true;
+  const trigger = openPop.parentElement?.querySelector<HTMLElement>("[data-check-summary-toggle]");
+  trigger?.setAttribute("aria-expanded", "false");
+  trigger?.focus();
+});

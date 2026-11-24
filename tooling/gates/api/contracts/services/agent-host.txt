@@ -2895,6 +2895,10 @@ export declare const agentHostCapabilities: {
     readonly recoverRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>;
     readonly listCheckpoints: ActionDefinition<[session: AgentSessionRef], AgentCheckpoint[]>;
     readonly prepareRewind: ActionDefinition<[session: AgentSessionRef, checkpointId: string, roleId: string], AgentReviewRequest>;
+    readonly listPendingReviewIds: ActionDefinition<[sessionIds: string[]], Array<{
+        session_id: string;
+        ids: string[];
+    }>>;
     readonly readRunReviews: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], Array<{
         request: AgentReviewRequest;
         receipt: AgentReviewReceipt | null;

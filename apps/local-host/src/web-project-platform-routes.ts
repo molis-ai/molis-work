@@ -42,6 +42,7 @@ import { homeAggregatePorts } from "./home-aggregate.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
+import { handleHomePagesHttp } from "./home-pages-http.js";
 import { handleSearchHttp } from "./search-http.js";
 import { handleSessionsHttp } from "./sessions-http.js";
 import { isProjectOutputWorkspaceId } from "@molis-ai/molis-work-module-projects";
@@ -309,6 +310,8 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   // The task panel (specs/work-line §6): the project's background tasks and the commands their rows offer, as the person.
   { id: "mainline-event-surfaces", handle: ({ request, response, url, localHost, hostReference }) => handleMainlineEventSurfacesHttp(request, response, url, localHost, hostReference) },
   { id: "mainline", handle: ({ request, response, url, localHost, hostReference }) => handleMainlineHttp(request, response, url, localHost, hostReference) },
+  { id: "home-pages", handle: ({ request, response, url, localHost, hostReference, serverOptions }) =>
+    handleHomePagesHttp(request, response, url, localHost, hostReference, serverOptions.homeDirectory) },
   // The requirement column (specs/proactive-assistant §7.3.1): what was asked of a piece of work, how each item was checked, and the person's accept or return.
   { id: "acceptance", handle: ({ request, response, url, localHost, hostReference }) => handleAcceptanceHttp(request, response, url, localHost, hostReference) },
   // Object work terminals (batch 44 item 4, PEQ-17): platform-managed terminals for any plugin declaring `work_terminals`.
@@ -358,7 +361,7 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
     return Boolean(assistant) && await handleAttentionHttp(request, response, url, {
       notices: surface => assistantNotices(assistant!, surface),
       ...(home ? { backgroundTasks: () => homeBackgroundTasks(homeAggregatePorts(localHost), options.projects) }
-        : { boardCursor: () => store.eventCursor(options.projectId), mainline: mainlineAttention(request, localHost, hostReference) }),
+        : { boardCursor: () => store.eventCursor(options.projectId), mainline: mainlineAttention(request, localHost, hostReference, true) }),
       changes: listener => onAttentionChange(options.projectId, listener),
       ...(options.project ? { pluginEventsPending: () => pluginEventsPending(pluginPorts) } : {}) });
   } },

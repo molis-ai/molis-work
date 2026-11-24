@@ -43,7 +43,8 @@ for (const readAction of [memoryActions.list, memoryActions.recall]) test(`produ
   let round = 0, host: MolisWorkLocalHost | undefined, served: Awaited<ReturnType<typeof serveTestHost>> | undefined;
   const provider = createServer(async (request, response) => {
     try {
-      let body = ""; for await (const chunk of request) body += chunk;
+      let body = "";
+      for await (const chunk of request.setEncoding("utf8")) body += chunk;
       const input = JSON.parse(body) as ProviderRequest;
       const aside = asideReply(body);
       let reply: Response;

@@ -11,7 +11,7 @@
 //
 // WHICH LIBRARIES. The project catalog and the project database; every Home library of the Host's store registry (`homeStores()`, which
 // already holds each built-in plugin's `databases.home`); each built-in plugin's project tables (`databases.project`), under the project
-// database's pattern with `#<plugin_id>`; and the old Alchemist's two stores, which stay at version 1 with their own refusal (BL-377).
+// database's pattern with `#<plugin_id>`.
 // An installed plugin's library is the publisher's, not this build's, so it is not here.
 //
 // THE HASH. sha256 (first 16 digits) of what SQLite itself reports after running the statements: `describeSqliteSchema` (tables, columns,
@@ -61,8 +61,6 @@ export async function productRows() {
   const rows = [
     row("projects/catalog.db", "apps/local-host", host.CATALOG_BASELINE),
     row("projects/*/molis-work.db", "apps/local-host", host.PROJECT_DATABASE_BASELINE),
-    row("alchemist/projects/*/studio.sqlite", "apps/local-host", host.ALCHEMIST_STUDIO_BASELINE),
-    row("alchemist/projects/*/search.sqlite", "apps/local-host", host.ALCHEMIST_SEARCH_BASELINE),
     ...host.homeStores().stores.filter(store => store.library).map(store => {
       const name = store.library.file ?? `${store.path}.db`;
       return row(store.library.partition ? `${store.path}/projects/*/${name}` : `${store.path}/${name}`, store.owner, store.library.baseline);

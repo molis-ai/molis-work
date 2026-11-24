@@ -6,70 +6,27 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID, createMolisWorkLocalHost, molisWorkHostProjectReference, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { alchemistActions as alchemist, ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
+import { createMolisWorkLocalHost, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";
 import { applySqliteBaseline, createFileSecretStore, homeSqlitePath, openHomeSqliteDatabase, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
 
 type Catalog = Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
 type Host = ReturnType<typeof createMolisWorkLocalHost>;
 
 /** A Home with a catalog and a running Host over it, the way the Web server has them. */
-async function withHost<T>(run: (env: { home: string; catalog: Catalog; host: Host; direction: (projectId: string, databasePath: string) => ReturnType<typeof bindActionClient> }) => Promise<T>): Promise<T> {
+async function withHost<T>(run: (env: { home: string; catalog: Catalog; host: Host }) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), "molis-project-deletion-studios-"));
   const home = join(directory, "home");
-  const { ai } = controlledAlchemistAi();
-  const host = createMolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai, pulseSourceMode: "fixture" }, completeText: null });
+  const host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   try {
-    return await withCatalog({ homeDirectory: home }, async catalog => {
-      const direction = (projectId: string, databasePath: string) => bindActionClient(host.actionClient(molisWorkHostProjectReference({ databasePath, projectId })),
-        () => ({ actor_id: "local-person", project_id: projectId, audience: "user" as const, permissions: ALCHEMIST_ACTION_PERMISSIONS }));
-      return await run({ home, catalog, host, direction });
-    });
+    return await withCatalog({ homeDirectory: home }, async catalog => await run({ home, catalog, host }));
   } finally {
     await host.close();
     await rm(directory, { recursive: true, force: true });
   }
 }
 const deletion = (id: string) => ({ project_id: id, actor_id: "test-user", delete_confirmed: true, idempotency_key: `delete-${id}` });
-const studioDirectory = (home: string, projectId: string) => join(home, "alchemist", "projects", encodeURIComponent(projectId).replaceAll(".", "%2E"));
-
-test("deleting a project closes its Alchemist studio and removes its directory, and the same id starts empty", async () => {
-  await withHost(async ({ home, catalog, host, direction }) => {
-    const project = await catalog.createProject({ display_name: "研究项目", actor_id: "test-user" });
-    const other = await catalog.createProject({ display_name: "另一个项目", actor_id: "test-user" });
-    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    const created = await direction(project.project_id, project.database_path).invoke(alchemist.directionCreate, { description: "被删除项目里的私密研究方向" });
-    await direction(other.project_id, other.database_path).invoke(alchemist.directionCreate, { description: "留下的项目里的研究方向" });
-    assert.equal(existsSync(join(studioDirectory(home, project.project_id), "studio.sqlite")), true);
-    assert.equal(host.status().projects.some(row => row.project_id === project.project_id), true, "the project's runtime is open");
-
-    const result = await catalog.deleteProject(deletion(project.project_id));
-
-    assert.equal(result.deletion.cleanup_state, "complete");
-    assert.deepEqual(result.deletion.owner_steps.filter(step => ["alchemist", "project-runtime"].includes(step.owner_id)).map(step => [step.owner_id, step.state]), [["project-runtime", "complete"], ["alchemist", "complete"]]);
-    assert.equal(existsSync(studioDirectory(home, project.project_id)), false, "the studio directory is gone");
-    assert.equal(host.status().projects.some(row => row.project_id === project.project_id), false, "the project's open runtime is closed");
-    assert.equal(existsSync(join(studioDirectory(home, other.project_id), "studio.sqlite")), true, "another project's studio is untouched");
-
-    // The same project id made again (the fixed-id demo can be): its studio must not be the old one still running.
-    await catalog.ensureDemoProject({ actor_id: "test-user", user_confirmed: true });
-    const demo = catalog.getProject(DEMO_PROJECT_ID);
-    await direction(DEMO_PROJECT_ID, demo.database_path).invoke(alchemist.directionCreate, { description: "示例项目里的方向" });
-    const before = (await direction(DEMO_PROJECT_ID, demo.database_path).invoke(alchemist.bootstrap, {})).directions.map((item: { id: string }) => item.id);
-    assert.equal(before.length, 1);
-    await catalog.removeDemoProject({ project_id: DEMO_PROJECT_ID, actor_id: "test-user", delete_confirmed: true, idempotency_key: "demo-remove" });
-    await catalog.ensureDemoProject({ actor_id: "test-user", user_confirmed: true });
-    const again = catalog.getProject(DEMO_PROJECT_ID);
-    const after = (await direction(DEMO_PROJECT_ID, again.database_path).invoke(alchemist.bootstrap, {})).directions;
-    assert.deepEqual(after, [], "the recreated demo sees none of the old directions");
-    assert.ok(created.direction.id);
-    assert.equal(ref.project_id, project.project_id);
-  });
-});
 
 test("deleting a project removes its Plugin Studio builds and releases and the secrets saved for its generated plugins", async () => {
   await withHost(async ({ home, catalog }) => {
@@ -121,9 +78,8 @@ test("a running Host's owners clear what only they can: pictures being made, the
     images.close();
 
     const owners = projectDeletedHooksFor(home).owners().map(owner => owner.id);
-    for (const id of ["project-runtime", "images", "alchemist", "search", "plugin-builder"]) assert.ok(owners.includes(id), `${id} is registered`);
+    for (const id of ["project-runtime", "images", "search", "plugin-builder"]) assert.ok(owners.includes(id), `${id} is registered`);
     for (const id of ["assistant", "memory"]) assert.ok(owners.includes(id), `${id} is registered`);
-    assert.ok(owners.indexOf("project-runtime") < owners.indexOf("alchemist"), "the runtime closes before the data it ran on goes");
     assert.ok(owners.indexOf("assistant") < owners.indexOf("memory"), "the Assistant's works stop before the memories they could still add to go");
 
     const result = await catalog.deleteProject(deletion(project.project_id));
@@ -145,6 +101,6 @@ test("owners of a Host that has been closed are dropped from the Home's registry
     await host.close();
     const after = projectDeletedHooksFor(home).owners().map(owner => owner.id);
     assert.deepEqual(after.filter(id => !before.includes(id)), [], "nothing of the closed Host stays registered");
-    assert.ok(after.includes("alchemist"), "the file-level owner of the same data is back");
+    assert.ok(after.includes("search"), "the file-level owner of the same data is back");
   } finally { await rm(directory, { recursive: true, force: true }); }
 });

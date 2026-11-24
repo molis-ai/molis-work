@@ -43,6 +43,8 @@ export interface HomeAggregateIssue {
 export interface HomeAggregateResult<Output> { readonly answers: HomeAggregateAnswer<Output>[]; readonly issues: HomeAggregateIssue[] }
 
 export interface HomeAggregateOptions<Output> {
+  /** Reduces provider output to the Home summary before it is returned or kept as a resting reading. */
+  readonly projectOutput?: (output: Output) => Output;
   /** Whether a reading of this output type may be persisted across restarts (transient issues are always excluded). */
   readonly persistable?: (result: HomeAggregateResult<Output>) => boolean;
   /** Whether a cached resting reading still holds right now (e.g. no upcoming run has become due, no under-way task). */
@@ -132,13 +134,15 @@ export async function collectHomeAggregate<Output>(
 ): Promise<HomeAggregateResult<Output>> {
   signal?.throwIfAborted();
   const resting = ports.resting;
+  const read = (reference: LocalHostProjectReference, enter: HomeAggregatePorts["whileOpen"], readSignal?: AbortSignal) =>
+    readProject<Output>(ports, reference, enter, outputType, input, readSignal, options?.projectOutput);
   if (!resting) {
-    const projects = await Promise.all(ports.openProjects().map(reference => readProject<Output>(ports, reference, ports.whileOpen, outputType, input, signal)));
+    const projects = await Promise.all(ports.openProjects().map(reference => read(reference, ports.whileOpen, signal)));
     return { answers: projects.flatMap(result => result.answers), issues: projects.flatMap(result => result.issues) };
   }
   const each = input instanceof HomeAggregateInputEach ? input : undefined;
   if (each && !each.keyOf) {
-    const projects = await Promise.all(ports.openProjects().map(reference => resting.quietly(() => readProject<Output>(ports, reference, ports.whileOpen, outputType, input, signal))));
+    const projects = await Promise.all(ports.openProjects().map(reference => resting.quietly(() => read(reference, ports.whileOpen, signal))));
     return { answers: projects.flatMap(result => result.answers), issues: projects.flatMap(result => result.issues) };
   }
   const kind = restingKind(outputType, input);
@@ -175,7 +179,7 @@ export async function collectHomeAggregate<Output>(
       entered = true;
       return work();
     });
-    const result = await resting.quietly(() => readProject<Output>(ports, reference, enter, outputType, input, signal));
+    const result = await resting.quietly(() => read(reference, enter, signal));
     // Kept only when it really read the project, and nobody used it meanwhile: what it says may already be older than the project.
     if (entered && resting.rest(reference).usedAt === usedAt) remember(reference, usedAt, result);
     return result;
@@ -271,7 +275,7 @@ export async function collectHomeAggregate<Output>(
     }
   }
   if (unread.length) {
-    readInBackground(resting, persistence, unread, kind, remember, reference => readProject<unknown>(ports, reference, resting.wake, outputType, input, undefined));
+    readInBackground(resting, persistence, unread, kind, remember, reference => read(reference, resting.wake));
   }
   const projects = [...open, ...kept];
   return { answers: projects.flatMap(result => result.answers), issues: projects.flatMap(result => result.issues) };
@@ -378,7 +382,7 @@ function readInBackground(
 
 /** One project's answers, read inside `enter` (only while open, or opened to be read). */
 async function readProject<Output>(ports: HomeAggregatePorts, reference: LocalHostProjectReference, enter: HomeAggregatePorts["whileOpen"],
-  outputType: string, input: unknown, signal: AbortSignal | undefined): Promise<HomeAggregateResult<Output>> {
+  outputType: string, input: unknown, signal: AbortSignal | undefined, projectOutput?: (output: Output) => Output): Promise<HomeAggregateResult<Output>> {
   const project_id = reference.project_id;
   let catalogIssue: HomeAggregateIssue | null = null;
   let reaches: (pluginId: string) => boolean | undefined = () => undefined;
@@ -419,7 +423,8 @@ async function readProject<Output>(ports: HomeAggregatePorts, reference: LocalHo
           }
           try {
             const output = await beforeDeadline(collection.signal, providerSignal => client.invoke({ ...caller, signal: providerSignal }, source, input instanceof HomeAggregateInputEach ? input.of(project_id, source) : input)) as Output;
-            return { answers: [{ project_id, source, plugin_id: view.provider.plugin_id ?? null, subject_kinds: view.action.subject_kinds ?? [], output }], issues: [] };
+            return { answers: [{ project_id, source, plugin_id: view.provider.plugin_id ?? null, subject_kinds: view.action.subject_kinds ?? [],
+              output: projectOutput ? projectOutput(output) : output }], issues: [] };
           } catch (error) {
             signal?.throwIfAborted();
             return { answers: [], issues: closing(error) ? [] : [{ project_id, source, code: codeOf(error) }] };

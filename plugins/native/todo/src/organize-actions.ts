@@ -161,9 +161,7 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
     })),
     bind(todoOrganizeActions.close, (input, caller) => writing(caller, value => ({ batch: value.close(input.id, ports.access(caller, "listed")) }))),
     { ...todoOrganizeActions.subject, handle: (caller, input) => reading(value => {
-      let found: TodoBatch;
-      try { found = value.get((input as { subject_id: string }).subject_id, ports.access(caller)); }
-      catch { throw todoErrors.not_found("这份整理结果不在当前范围内"); }
+      const found = value.get((input as { subject_id: string }).subject_id, ports.access(caller));
       return subjectContext({ subject: { kind: TODO_BATCH_SUBJECT_KIND, id: found.batch_id }, revision: String(found.revision), title: found.title, content: batchText(found),
         open: { surface: TODO_PROJECT_PLUGIN_ID, id: "batch:" + found.batch_id } });
     }) },

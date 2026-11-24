@@ -7,7 +7,7 @@ import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
+import { shouldSaveReviewScreenshots, specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
 function createAnswers(home: string, project: string): { formId: string; answerTimes: Record<string, string> } {
   const forms = openFormStore(home);
@@ -47,8 +47,9 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
 
   const text = JSON.stringify;
   const output = new URL(`../${specEvidenceDirectory("specs/archive/work-placement/verification")}/`, import.meta.url);
-  await mkdir(output, { recursive: true });
+  if (shouldSaveReviewScreenshots()) await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
+    if (!shouldSaveReviewScreenshots()) return;
     await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await writeFile(new URL(`placement-plugins-${name}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   };
@@ -63,7 +64,10 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   const visible = (selector: string, label?: string) => `[...document.querySelectorAll(${text(selector)})].find(node => node.getClientRects().length${label ? ` && node.textContent.trim() === ${text(label)}` : ""})`;
   // A list may repaint after marking its visible target. Only retry a target lost before any pointer event was sent.
   const press = async (selector: string, label?: string) => {
-    const { evaluate, waitFor, click } = viewFor(selector);
+    const view = viewFor(selector);
+    // A plugin frame can reopen a collapsed list and find this same record again after a repaint.
+    if (view !== browser && label === undefined) return view.click(selector);
+    const { evaluate, waitFor, click } = view;
     for (let attempt = 0; ; attempt++) {
       await waitFor(`Boolean(${visible(selector, label)})`, 15_000);
       await evaluate(`(() => { document.querySelectorAll('[data-e2e-target]').forEach(node => node.removeAttribute('data-e2e-target')); ${visible(selector, label)}.setAttribute('data-e2e-target', ''); })()`);
@@ -82,7 +86,10 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   const activeObject = `(() => {
     const node = [...document.querySelectorAll('[data-assistant-context]')].find(element => element.getClientRects().length && JSON.parse(element.getAttribute('data-assistant-context') || '{}').object);
     return node ? JSON.parse(node.getAttribute('data-assistant-context')).object : null; })()`;
-  const current = () => evaluate<{ kind: string; id: string; title: string } | null>(activeObject);
+  const current = async (kind: PlacedObject["kind"]) => {
+    await waitFor(`(${activeObject})?.kind === ${text(kind)}`, 15_000);
+    return evaluate<{ kind: string; id: string; title: string } | null>(activeObject);
+  };
   const describe = (object: PlacedObject) => evaluate<PlacementDescription>(`globalThis.molisPlacement.describe(${text(object)}, true)`);
   const post = (path: string, body: unknown = {}) => evaluate<Record<string, unknown>>(`fetch(${text(path)}, { method: 'POST', headers: molisWorkControlHeaders(), body: ${text(JSON.stringify(body))} })
     .then(async response => { const value = await response.json(); if (!response.ok) throw new Error(value.error || response.status); return value; })`);
@@ -129,7 +136,7 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   await cardButton("已转成《活动报名 · 答卷》", "打开");
   await waitFor("document.body.dataset.desktopSurface === 'dataset'", 15_000);
   await views.dataset.waitFor(`${visible("[data-dataset-title]")}?.value === '活动报名 · 答卷'`, 15_000);
-  const table = await current();
+  const table = await current("dataset");
   assert.equal(table?.kind, "dataset");
   assertAnswerDataset(homeDirectory, projectId!, formId, table!.id, answerTimes);
   const derived = await describe({ kind: "dataset", id: table!.id, project_id: projectId });
@@ -165,17 +172,23 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   await card("已新建");
   await typeInto("[data-lingguang-title]", "展台改成开放式");
   await views.lingguang.waitFor(`${visible("[data-lingguang-save-status]")}?.textContent === '已保存'`, 15_000);
-  const spark = await current();
+  const spark = await current("lingguang_spark");
   assert.equal(spark?.kind, "lingguang_spark");
   await press("[data-lingguang-to-doc]");
   await cardButton("已转成《展台改成开放式》", "打开");
   await waitFor("document.body.dataset.desktopSurface === 'pages'", 15_000);
   await views.pages.waitFor(`${visible("[data-pages-title]")}?.value === '展台改成开放式'`, 15_000);
-  const page = await current();
+  const page = await current("pages_document");
   const fromSpark = await describe({ kind: "pages_document", id: page!.id, project_id: projectId });
   assert.ok(fromSpark.associations.some(link => link.label.includes("来自《展台改成开放式》")), `document says where it came from: ${text(fromSpark.associations)}`);
   await openPlugin("lingguang", projectId!);
-  await press(`[data-lingguang-id="${spark!.id}"]`);
+  // A restored Lingguang tab can open directly in the editor.
+  const sparkRow = `[data-lingguang-id="${spark!.id}"]`;
+  const backToList = "[data-lingguang-back]";
+  const rowVisible = `Boolean(${visible(sparkRow)})`;
+  await views.lingguang.waitFor(`${rowVisible} || Boolean(${visible(backToList)})`, 15_000);
+  if (!await views.lingguang.evaluate(rowVisible)) await press(backToList);
+  await press(sparkRow);
   await press("[data-lingguang-to-goal]");
   await card("已建成 Goal《展台改成开放式》");
   const kept = await describe({ kind: "lingguang_spark", id: spark!.id, project_id: projectId });

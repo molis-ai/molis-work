@@ -1,7 +1,6 @@
 import { dirname, join, relative, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { HOME_SECURITY_DIRNAME, readStorageSpace, homeSqlitePartitionDirectory, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, readSnapshotFile } from "@molis-ai/molis-work-storage";
-import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import type { HomeRestoreArchive } from "./home-restore-archive.js";
 import type { HomeRestoreCatalogInspector, HomeRestoreControl, HomeRestoreInputs } from "./home-restore-contract.js";
 import { invalidRestore } from "./home-restore-input.js";
@@ -29,10 +28,7 @@ function inspectPartitionReferences(home: string, inputs: RestoreStoreInputs, pr
   for (const file of inputs.archiveFiles) {
     if (!file.database) continue;
     const store = file.store;
-    if (store.path === "alchemist") {
-      const allowed = new Set([...projectIds].map(id => relative(home, alchemistProjectDirectory(home, id)).split(sep).join("/")));
-      if (!allowed.has(dirname(file.entry.path))) throw invalidRestore();
-    } else if (store.library?.partition === "project") {
+    if (store.library?.partition === "project") {
       const allowed = new Set([...projectIds].map(id => relative(home, homeSqlitePartitionDirectory(home, store.path, id)).split(sep).join("/")));
       if (!allowed.has(dirname(file.entry.path))) throw invalidRestore();
     }

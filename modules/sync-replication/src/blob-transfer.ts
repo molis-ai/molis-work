@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {ActionError} from '@molis-ai/molis-work-contracts/platform/actions';
 import type {SyncBlobReference,SyncBlobSource,SyncLocalProtection} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import {withSyncDatabase} from './database.js';
 import {syncError} from './sync-errors.js';
@@ -31,6 +32,11 @@ export interface BlobChannel {
   binary(route:string,body?:Uint8Array):Promise<Uint8Array>;
   onProgress?(delta:{done:number;total:number}):void;
 }
+
+export function isBlobBudgetExhausted(error:unknown):boolean {
+  return error instanceof ActionError && error.code==='sync_replication.sync_busy' && error.details?.sync_resume===true;
+}
+
 /** One cycle has a bounded request budget; D1 receipts and local parts survive a process restart. */
 export function blobTransfer(home:string,channel:BlobChannel,budget:{remaining:number}={remaining:32}){
   const take=()=>{channel.assert();if(budget.remaining--<=0)throw syncError('busy','附件传输尚未完成，请继续同步',{sync_resume:true});};

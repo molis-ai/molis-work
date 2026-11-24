@@ -360,6 +360,8 @@ type CharacterTemplateAdoptionInput = { origin: BlueprintPartOrigin; request_id:
 
 三张表在 `tooling/gates/table-owners.json` 里记为 `horizontal/home` 独占，并写进项目库的 `PROJECT_DATABASE_BASELINE`（`apps/local-host/src/project-database.ts`）。个人一层的首页（个人汇总）以后要时同样写法放 Home 库，本稿不定。删项目时这些行随项目库一起没了；Home 快照照项目库的规矩带上。
 
+> **2026-11-23 用户拍板调整（第 37 批）**：为避免改动 `PROJECT_DATABASE_BASELINE` 版本与在途批次金样冲突，用户确认 `horizontal/home` 改用独立 Home 级 SQLite 库 `home-pages/home-pages.db`（`HOME_PAGES_HOME_STORE`，v1，所有表按 `project_id` 分区隔离，参考 `mainline/mainline.db`），登记在 `apps/local-host/src/home-stores.ts` 与 `project-deleted-owners.ts`（删项目时按 `project_id` 清理），Home 快照与升级链照 Home 库统一覆盖。同日用户确认 37-1 挂载到 36A「项目的第一页」正文位（Work Brief 开头在上、方案 B 并排预览、删旧细栏切换）并采纳第 37 批全部 5 条设计语言增强建议。
+
 不拥有：卡片的内容与值（归各插件，经 05② 的 `PresentationValues` 现读）、基础首页的组合规则（归第 15 批的组合服务）、页面里显示和写入的业务事实（归原插件）。
 
 ### 6.2 插件注册卡片

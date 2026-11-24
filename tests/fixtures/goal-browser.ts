@@ -23,7 +23,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"], chromeArgs?: readonly string[], profileTimeouts = false) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
-  const directory = await mkdtemp(join(tmpdir(), "molis-work-goals-browser-"));
+  // The Host keys its in-process registries by the real Home path. On macOS tmpdir() can contain a symlink.
+  const directory = await realpath(await mkdtemp(join(tmpdir(), "molis-work-goals-browser-")));
   let store: LocalProjectDatabase | undefined;
   let localHost: MolisWorkLocalHost | undefined;
   let harness: ChromeHarness | undefined;
@@ -96,9 +97,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   await prepareHome?.(directory);
   // The catalog fixture's observer must use the managed mode before it can hold a SQLite connection open.
   if (projectId) {
-    const home = await realpath(directory);
-    const owner = acquireUpgradedHomeOwner(home);
-    try { store = new LocalProjectDatabase(databasePath, { homeStorage: { home, owner } }); }
+    const owner = acquireUpgradedHomeOwner(directory);
+    try { store = new LocalProjectDatabase(databasePath, { homeStorage: { home: directory, owner } }); }
     finally { owner.release(); }
   } else store = new LocalProjectDatabase(databasePath);
   if (completion !== undefined || functions || workspaceFor || pluginFixtures) {

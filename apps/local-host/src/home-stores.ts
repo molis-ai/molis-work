@@ -9,12 +9,12 @@ import { ARTIFACTS_HOME_STORE } from "@molis-ai/molis-work-module-artifacts";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTERS_HOME_STORE } from "@molis-ai/molis-work-module-characters";
 import { MAINLINE_HOME_STORE } from "@molis-ai/molis-work-service-mainline";
+import { HOME_PAGES_HOME_STORE } from "@molis-ai/molis-work-service-home";
 import { FUNCTIONS_HOME_STORE } from "@molis-ai/molis-work-module-judgment-rules";
 import { KNOWLEDGE_CARDS_HOME_STORE, MEMORY_FORGETTING_HOME_STORE, MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE,
   homeStoreRegistry, inspectMemoryForgetting, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { AGENT_DEFINITIONS_HOME_STORE } from "./agent-definitions/agent-definitions.js";
 import { AGENT_DECLARATIONS_HOME_STORE } from "./agent-definitions/agent-declarations.js";
-import { ALCHEMIST_HOME_STORE } from "./alchemist-paths.js";
 import { RUN_HOME_STORE } from "./host-presence.js";
 import { UPGRADE_DIRECTORY } from "./home-upgrade-ledger.js";
 import { ASSISTANT_HOME_STORE } from "./assistant/assistant-store.js";
@@ -38,7 +38,7 @@ import type { HomeStoreSnapshotExclusion } from "@molis-ai/molis-work-contracts/
 import { DIRECTORY_GRANTS_HOME_STORE } from "./plugin-directory-store.js";
 import { DISCUSSION_HOME_STORE } from "./im-server.js";
 import { PLACEMENT_HOME_STORE } from "./placement-actions.js";
-import { ordinarySnapshot, omittedSnapshot, projectSnapshot, agentSnapshot, securitySnapshot, managedToolsSnapshot, alchemistSnapshot, builderSnapshot,
+import { ordinarySnapshot, omittedSnapshot, projectSnapshot, agentSnapshot, securitySnapshot, managedToolsSnapshot, builderSnapshot,
   browserSnapshot, directoryAccessSnapshot, runtimeBackupSnapshot, excluded, type HomeStoreSnapshotPolicy, type HomeSnapshotStore, type HomeSnapshotStoreRegistry } from "./home-store-snapshot.js";
 
 type Declaration = HomeStoreDeclaration & { readonly snapshot?: HomeStoreSnapshotPolicy };
@@ -87,7 +87,7 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("apps/local-host/src/installer", { path: "backups", snapshot: { emptyOnly: true } }),
     ...owned("apps/local-host", HOME_PLUGIN_RUNTIME_HOME_STORE, INSTALLED_LIBRARIES_HOME_STORE, ASSISTANT_HOME_STORE, PLACEMENT_HOME_STORE, AGENT_DEFINITIONS_HOME_STORE, AGENT_DECLARATIONS_HOME_STORE,
       CONNECTORS_HOME_STORE, WEB_SEARCH_HOME_STORE, { ...CONNECTOR_TOOLS_HOME_STORE, snapshot: managedToolsSnapshot }, CONTEXT_ONBOARDING_HOME_STORE,
-      { ...ALCHEMIST_HOME_STORE, snapshot: alchemistSnapshot }, ORIGINAL_FILES_HOME_STORE, CONVERSATION_ATTACHMENTS_HOME_STORE, MATERIALS_HOME_STORE, DIRECTORY_GRANTS_HOME_STORE),
+      ORIGINAL_FILES_HOME_STORE, CONVERSATION_ATTACHMENTS_HOME_STORE, MATERIALS_HOME_STORE, DIRECTORY_GRANTS_HOME_STORE),
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),
     ...owned("modules/artifacts", ARTIFACTS_HOME_STORE),
     ...owned("modules/characters", CHARACTERS_HOME_STORE),
@@ -118,6 +118,8 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("horizontal/observation", OBSERVATION_HOME_STORE),
     // Each person's work items of each project (specs/work-mainline §6): names, references and the arrangement only.
     ...owned("horizontal/mainline", MAINLINE_HOME_STORE),
+    // Generated project home pages, versions, verified SHA-256 blobs and approval receipts (Batch 37).
+    ...owned("horizontal/home", HOME_PAGES_HOME_STORE),
     ...owned("horizontal/blueprints", BLUEPRINTS_HOME_STORE),
     ...owned("horizontal/evaluation", EVALUATION_HOME_STORE),
     ...owned("horizontal/sessions", EXTERNAL_SESSIONS_HOME_STORE),

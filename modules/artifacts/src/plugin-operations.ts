@@ -1,9 +1,9 @@
 import { versionConsumptionCompatibility } from "./compatibility.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi, ProcessItemRecord, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactLineHeadOf, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginConsumableFilter, PluginProcessItemClient, PluginManifest, PluginProcessItemInput, PluginConsumableVersion } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginArtifactClient, PluginArtifactWriter, PluginConsumableFilter, PluginProcessItemClient, PluginManifest, PluginConsumableVersion } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginArtifactErrors } from "./plugin-errors.js";
-import { pluginArtifactContracts, referenceInput, processInput, artifactInput, filterInput, normalizeConsumableFilter } from "./plugin-action-contracts.js";
+import { pluginArtifactContracts, referenceInput, processInput, artifactInput, filterInput, normalizeConsumableFilter, type PluginArtifactActionInput } from "./plugin-action-contracts.js";
 
 export interface PluginArtifactOperationsInput {
   api: ArtifactsApplicationApi;
@@ -30,7 +30,11 @@ const UNCONSUMABLE_MESSAGE: Readonly<Record<string, string>> = {
  * call and again right before the version is written, in place of the client's grant and caller checks, and `author` is who the version
  * records as written by once `permit` passed.
  */
-export function createPluginArtifactOperations(input: PluginArtifactOperationsInput): { client: PluginArtifactClient; process: PluginProcessItemClient; writer(permit: () => void, author: () => string): PluginArtifactWriter } {
+export function createPluginArtifactOperations(input: PluginArtifactOperationsInput): {
+  client: Omit<PluginArtifactClient, "publish"> & { publish(value: PluginArtifactActionInput<"publish">): ReturnType<PluginArtifactClient["publish"]> };
+  process: Omit<PluginProcessItemClient, "record"> & { record(value: PluginArtifactActionInput<"record">): ReturnType<PluginProcessItemClient["record"]> };
+  writer(permit: () => void, author: () => string): PluginArtifactWriter;
+} {
   const { api, process, project_id, actor_id } = input;
   const access = { api, process, project_id, actor_id };
   const manifest = structuredClone(input.manifest);
@@ -42,12 +46,12 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
     input.assertInput(pluginArtifactContracts[operation].input, value);
     return value;
   };
-  const declares = (list: PluginManifest["artifacts"]["produces"] | undefined, value: PluginProcessItemInput) =>
+  const declares = (list: PluginManifest["artifacts"]["produces"] | undefined, value: Pick<PluginArtifactActionInput<"record">, "artifact_type_id" | "schema_version">) =>
     (list ?? []).some(type => type.artifact_type_id === value.artifact_type_id && type.schema_version === value.schema_version);
   const unused = (other: ArtifactsApplicationApi | ProcessItemsApplicationApi, artifactId: string, what: string) => {
     if (other.query.latestArtifactVersion(project_id, artifactId)) throw pluginArtifactErrors.plugin_incompatible(`这个 ID 已用于${what}`);
   };
-  const fixed = <T extends PluginProcessItemInput>(value: T, author = input.author?.() ?? actor_id) => ({ ...value, project_id, actor_id: author,
+  const fixed = <T extends PluginArtifactActionInput<"record">>(value: T, author = input.author?.() ?? actor_id) => ({ ...value, project_id, actor_id: author,
     producer: { plugin_id: manifest.plugin_id, plugin_version: manifest.version, binding_signature: manifest.publisher.signature },
     scope: "personal" as const });
   const ownProcess = (value: ProcessItemRecord | null) => {
@@ -56,7 +60,7 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
   };
   const issue = (value: ProcessItemRecord, kind: PluginConsumableVersion["kind"]) => consumptionIssue(access, manifest, value, kind);
   /** Pins a version once it is valid, declared and not a process item's id; `current` is asked right before the write. */
-  const publish = (value: PluginArtifactPublishInput, current: () => void, author?: () => string) => {
+  const publish = (value: PluginArtifactActionInput<"publish">, current: () => void, author?: () => string) => {
     const projected = checked("publish", artifactInput(value));
     if (!declares(manifest.artifacts.produces, projected)) throw pluginArtifactErrors.plugin_incompatible("Manifest 未声明生产此成果 type/schema");
     unused(process, projected.artifact_id, "过程项");

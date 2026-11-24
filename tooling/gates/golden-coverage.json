@@ -14,10 +14,6 @@
       "reason": "只有带检查点的长任务才写；脚本化模型那一轮对话没有产生，目录不在"
     },
     {
-      "path": "alchemist/projects/<id>/search-content/",
-      "reason": "正文来自联网搜索，金样不联网（UPG2-06）"
-    },
-    {
       "path": "artifacts/projects/<编码后的 project_id>/originals/<sha256>",
       "reason": "只有超过 6 MB 的原件才落文件（ARTIFACT_ORIGINAL_INLINE_MAX_BYTES）；放进金样就要入库一份 6 MB 以上的文件，artifacts.ts 写的小文件在项目库里"
     },
@@ -84,6 +80,10 @@
     {
       "path": "blueprints/blueprints.db",
       "reason": "第 38 批新增的场景草稿与采用记录 Home 库（按需首次保存草稿或采用预览时建库）；现有 0.1.0 金样未执行场景采用，建库、读写、撤销、离线快照与删项目由 tests/blueprint-adoption-service.test.ts、tests/home-store-baselines.test.ts 与库结构快照覆盖。"
+    },
+    {
+      "path": "home-pages/home-pages.db",
+      "reason": "第 37 批新增的项目生成首页 Home 库（按 project_id 分区，首次保存草稿或读写首页版本时按需建库）；现有 0.1.0 金样未保存生成首页，建库、SHA-256 核验、批准恢复、离线快照与删项目由 tests/home-pages-service.test.ts、tests/home-pages-security.e2e.test.ts、tests/home-store-baselines.test.ts 与库结构快照覆盖。"
     }
   ],
   "writes": {
@@ -234,6 +234,9 @@
     "blueprints/blueprints.db": {
       "none": "场景草稿与采用库只在调用 blueprints.*@1 保存草稿或采用预览时按需建库；现有金样未执行场景采用，读写、撤销与删项目由 tests/blueprint-adoption-service.test.ts 和 tests/home-snapshot-cli.test.ts 覆盖。"
     },
+    "home-pages/home-pages.db": {
+      "none": "项目生成首页库只在调用 home.*@1 保存或读写生成首页时按需建库；现有金样未保存生成首页，读写、SHA-256 核验、批准回执与删项目由 tests/home-pages-service.test.ts、tests/home-pages-security.e2e.test.ts 与 tests/home-store-baselines.test.ts 覆盖。"
+    },
     "observation/observation.db": {
       "none": "工作记录按并发调用结束的先后编号，金样生成时不写记录，由主人按现行结构建空库（清单 imports）；读写、清理与删项目由 tests/observation-layer.test.ts 和 tests/observation-management.test.ts 覆盖。"
     },
@@ -247,14 +250,6 @@
       "cases": [
         "discussion.ts"
       ]
-    },
-    "alchemist/projects/<编码后的 project_id>/studio.sqlite": {
-      "cases": [
-        "alchemist.ts"
-      ]
-    },
-    "alchemist/projects/<编码后的 project_id>/search.sqlite": {
-      "none": "行来自联网搜索，金样不联网，是空库（清单 imports）"
     },
     "conversation-attachments/conversation-attachments.db": {
       "cases": [

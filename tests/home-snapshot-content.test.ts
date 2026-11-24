@@ -7,7 +7,7 @@ import test from "node:test";
 import { createHomeSnapshot, homeStores, preflightConnectorPrivateStateRestore, readRuntimeConfigBackup, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
-import { createEvidenceContentStore, createLazyFileSecretStore, createSearchOpaqueBlobStore, LocalSqliteStorage, openExistingHomePayload, snapshotFileDigest } from "@molis-ai/molis-work-storage";
+import { createEvidenceContentStore, createLazyFileSecretStore, openExistingHomePayload, snapshotFileDigest } from "@molis-ai/molis-work-storage";
 import { assertSnapshotFact } from "./fixtures/home-snapshot-facts.js";
 import { populatedSnapshotHome, snapshotSdk, snapshotMemoryCaller } from "./fixtures/home-snapshot-fixture.js";
 import { snapshotWalWriter } from "./fixtures/home-snapshot-wal.js";
@@ -40,19 +40,6 @@ test("RAC-104-S-01/04 RAC-106-S-03: a populated Home keeps every actual owner, W
       assert.ok(entry && entry.kind === "file" && entry.sqlite, fact.file + " is backed up by SQLite, not copied raw");
       assertSnapshotFact(join(f.snapshot, entry.payload_path), fact);
       assert.equal(entry.sqlite.integrity_check, "ok"); assert.equal(entry.sqlite.foreign_key_check, "ok");
-    }
-    for (const [position, project] of f.projects.entries()) {
-      const prefix = "alchemist/projects/" + encodeURIComponent(project.project_id).replaceAll(".", "%2E");
-      const entries = manifest.stores.find(store => store.path === "alchemist")!.entries;
-      const studio = entries.find(entry => entry.kind === "file" && entry.path === prefix + "/studio.sqlite");
-      const search = entries.find(entry => entry.kind === "file" && entry.path === prefix + "/search.sqlite");
-      assert.ok(studio?.kind === "file" && studio.sqlite); assert.ok(search?.kind === "file" && search.sqlite);
-      const db = new DatabaseSync(join(f.snapshot, studio.payload_path), { readOnly: true });
-      try { assert.equal(db.prepare("SELECT title FROM directions WHERE id=?").get("direction")?.title, "Retained direction " + position); }
-      finally { db.close(); }
-      const storage = new LocalSqliteStorage(join(f.snapshot, search.payload_path), { readonly: true });
-      try { assert.equal((await createSearchOpaqueBlobStore(storage.db).read({ namespace: "snapshot", key: "operation" }))?.opaque, "Kept opaque operation " + position); }
-      finally { storage.close(); }
     }
     for (const [path, expected] of f.binary) assert.deepEqual(await readFile(join(f.snapshot, "data", path)), expected, path);
     const memoryStore = manifest.stores.find(store => store.path === "memory")!;

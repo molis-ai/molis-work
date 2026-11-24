@@ -2,15 +2,13 @@ import assert from "node:assert/strict";
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import type { TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createMolisWorkLocalHost, LocalProjectDatabase, molisWorkHostProjectReference, sealRuntimeConfigBackup, ALCHEMIST_SEARCH_BASELINE } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkLocalHost, LocalProjectDatabase, molisWorkHostProjectReference, sealRuntimeConfigBackup } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { ALCHEMIST_STUDIO_BASELINE } from "@molis-ai/molis-work-plugin-alchemist";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { bindDatabaseSpace, ensureStorageSpace, applySqliteBaseline, createEvidenceContentStore, createLazyFileSecretStore, createSearchOpaqueBlobStore, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { createEvidenceContentStore, createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
 import type { AgentMemoryCaller } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { currentMemoryOptions } from "./current-memory.js";
 import { managementGoals } from "../goal-management-caller.js";
@@ -18,7 +16,6 @@ import { connectedPrivateCli } from "./connector-private-state.js";
 import { pinnedArtifact } from "./artifacts.js";
 import { seedSnapshotLibraries } from "./home-snapshot-facts.js";
 
-const at = "2026-10-24T00:00:00.000Z";
 const app = { appId: "io.molis.snapshot-proof", appVersion: "1.0.0" };
 type SnapshotMemoryActor = "snapshot-person" | "snapshot-builder";
 export function snapshotMemoryCaller(actor_id: SnapshotMemoryActor): AgentMemoryCaller {
@@ -81,25 +78,6 @@ export async function populatedSnapshotHome(t: TestContext) {
     "browser/profile/private-state", "browser/downloads/private-state", "browser/uploads/private-state", "browser/fixture.pid"]) await file(path, "Excluded transient content", 0o600, false);
   const content = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(home, "security", "evidence") });
   const evidence = content.write("Retained evidence body").contentRef;
-  for (const [position, item] of projects.entries()) {
-    const directory = "alchemist/projects/" + encodeURIComponent(item.project_id).replaceAll(".", "%2E");
-    await mkdir(join(home, directory), { recursive: true, mode: 0o700 });
-    const studio = new DatabaseSync(join(home, directory, "studio.sqlite"));
-    try {
-      studio.exec(ALCHEMIST_STUDIO_BASELINE.schema); bindDatabaseSpace(studio, ensureStorageSpace(home)); studio.exec("PRAGMA user_version = " + ALCHEMIST_STUDIO_BASELINE.version);
-      studio.prepare("INSERT INTO studio_sync_identity VALUES (1,?)").run(item.project_id);
-      studio.prepare("INSERT INTO workspaces (id,name,created_at) VALUES (?,?,?)").run(item.project_id, "Studio " + position, at);
-      studio.prepare("INSERT INTO directions (id,workspace_id,title,description,source_kind,source_json,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)")
-        .run("direction", item.project_id, "Retained direction " + position, "Kept research context", "user_input", "{}", "active", at, at);
-    } finally { studio.close(); }
-    const search = new LocalSqliteStorage(join(home, directory, "search.sqlite"));
-    try {
-      applySqliteBaseline(search.db, search.path, ALCHEMIST_SEARCH_BASELINE);
-      await createSearchOpaqueBlobStore(search.db).createIfAbsent({ namespace: "snapshot", key: "operation", opaque: "Kept opaque operation " + position });
-    } finally { search.close(); }
-    const searchContent = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(home, directory, "search-content") });
-    searchContent.write("Retained studio evidence " + position);
-  }
   const sdkRoot = join(home, "agent-runtime"), creating = snapshotSdk(sdkRoot, "snapshot-person");
   let memoryId: string;
   try {

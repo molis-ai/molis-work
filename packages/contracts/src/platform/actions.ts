@@ -210,6 +210,8 @@ export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSou
   readonly plugin_install_id?: string;
   /** The Host-issued plugin caller this call is made for. Never accepted from business arguments or persisted. */
   readonly host_plugin?: import("./app-host.js").HostPluginCaller;
+  /** The Host-bound identity of a generated homepage or preview session; never accepted from business input. */
+  readonly home_page?: HomePageSubject;
   /**
    * The one original file the person handed the Host in this request (an import through the Host's own entry), set only on the control
    * the Host made for that request and only for the installation whose route received it. It names a path and grants nothing: what a
@@ -265,6 +267,8 @@ export interface ActionExecutionContext extends ActionCallContext, ActionPersonE
   readonly beforeEffect: () => Promise<void>;
   /** The action this handler runs, with the provider the dispatcher resolved: a plugin finds "its own action" here rather than naming itself (PG-030). */
   readonly current_action?: ExactActionReference;
+  /** Set by the dispatcher when this handler was invoked from another running action handler; never accepted from business input. */
+  readonly parent_action?: ExactActionReference;
   /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect.
    * `audience: "workflow"` admits each target as the workflow audience sees it instead of this caller's own audience, for the Host when it calls
    * the targets under that audience on this caller's behalf (the plugin action directory, S-43). Every other check is the same, and the guard still grants nothing. */

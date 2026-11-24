@@ -39,7 +39,8 @@ async function finished(adapter: Awaited<ReturnType<typeof createPrologueNodeAda
 for (const strategy of ["keyword", "vector-fallback"] as const) test(`${strategy}: trusted Run goal/object facts select only applicable memory through final HTTP Context and survive Session reopen`, { timeout: 40_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-run-context-")), requests: string[] = [];
   const server = createServer(async (request, response) => {
-    let body = ""; for await (const chunk of request) body += chunk;
+    let body = "";
+    for await (const chunk of request.setEncoding("utf8")) body += chunk;
     requests.push(body);
     response.writeHead(200, { "content-type": "text/event-stream" });
     response.end('data: {"model":"scripted","choices":[{"index":0,"delta":{"content":"Ready."},"finish_reason":null}]}\n\n'
@@ -181,7 +182,8 @@ async function runRig(options: { read?: (read: Record<string, unknown>) => Recor
   const readPolicy = options.read, ownHome = !options.home;
   const home = options.home ?? await mkdtemp(join(tmpdir(), "molis-memory-run-rig-")), requests: string[] = [];
   const server = createServer(async (request, response) => {
-    let body = ""; for await (const chunk of request) body += chunk;
+    let body = "";
+    for await (const chunk of request.setEncoding("utf8")) body += chunk;
     requests.push(body);
     response.writeHead(200, { "content-type": "text/event-stream" });
     response.end('data: {"model":"scripted","choices":[{"index":0,"delta":{"content":"Ready."},"finish_reason":null}]}\n\n'

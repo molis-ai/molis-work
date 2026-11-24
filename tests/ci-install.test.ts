@@ -40,7 +40,7 @@ const LOOSE_INSTALL = /(?<![\w./-])pnpm\b[^\n]*?\s(?:install|i)(?=\s|$|[;&|)])/g
 /** The direct `pnpm install` steps the real workflows are expected to have (shared installs live in setup-work). */
 const EXPECTED_INSTALLS: Record<string, number> = { "ci.yml": 0, "full-suite.yml": 0, "golden-replay-nightly.yml": 0, "visual-audit.yml": 0 };
 /** How many times each workflow invokes the shared `./.github/actions/setup-work` composite action. */
-const EXPECTED_SETUP_CALLERS: Record<string, number> = { "ci.yml": 8, "full-suite.yml": 2, "golden-replay-nightly.yml": 1, "visual-audit.yml": 3 };
+const EXPECTED_SETUP_CALLERS: Record<string, number> = { "ci.yml": 9, "full-suite.yml": 3, "golden-replay-nightly.yml": 1, "visual-audit.yml": 3 };
 /** release-macos.yml installs without a guard on purpose: T-019 任务书 明令不动, tracked separately. */
 const UNGUARDED_INSTALLS: Record<string, number> = { "release-macos.yml": 1 };
 

@@ -28,6 +28,7 @@ import { WORK_RECORDS_BOARD_STYLES, categoryBarSection, kindMarkSection } from "
 import { LANGUAGE_BOARD_STYLES, languageSection, motionGrammarSpecimens, pairingSection, zonesSection } from "./catalog-language.js";
 import { RECOVERY_BOARD_STYLES, recoverySections } from "./recovery-parts.js";
 import { CODING_BASICS_BOARD_STYLES, codingBasicsSection } from "./coding-basics.js";
+import { HOME_PAGE_ADOPTION_BOARD_STYLES, homePageAdoptionSections } from "./catalog-home-page-adoption.js";
 
 export const PRIMITIVE_CATALOG_IDS = PLUGIN_COMPONENTS.map(({ kind }) => kind);
 const catalogComponents = new Map(PLUGIN_COMPONENTS.map(component => [component.kind, component]));
@@ -217,7 +218,7 @@ function motionSection(say: Say): string {
       ${specimen("侧板滑入 · 420ms", `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("sheet", "打开侧板")}</div><dialog class="mw-dialog mw-sheet" data-motion-sheet><p>侧板从右缘滑入，关闭时滑回。</p><div class="mw-craft-row">${renderButton({ label: "关闭", variant: "primary", attrs: { "data-motion-close": "" } })}</div></dialog></div>`)}
       ${specimen("标签切换 · 250ms", `<div class="mw-motion-tabs" role="tablist"><button type="button" class="tab-item" aria-selected="true" data-motion-tab>概览</button><button type="button" class="tab-item" data-motion-tab>终端</button></div>`)}
       ${specimen("分段滑块 · 250ms", `<div class="mw-toggle-group" data-slot="toggle-group" data-seg-thumb role="group"><button class="mw-toggle is-current" type="button" aria-pressed="true">全部</button><button class="mw-toggle" type="button" aria-pressed="false">未读</button><button class="mw-toggle" type="button" aria-pressed="false">已保存</button></div>`)}
-      ${specimen("列表首次到达 · 420ms，逐行 ≤12", `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("arrive", "重放到达")}</div><ol class="mw-motion-list" data-motion-list><li>第一行</li><li>第二行</li><li>第三行</li><li>第四行</li><li>第五行</li></ol></div>`)}
+      ${specimen("列表首次到达 · 420ms", `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("arrive", "重放到达")}</div><ol class="mw-motion-list" data-motion-list><li>第一行</li><li>第二行</li><li>第三行</li><li>第四行</li><li>第五行</li></ol></div>`)}
       ${specimen("行展开收起 · 250ms", `<details class="mw-motion-row-detail mw-disclosure"><summary>展开这一行</summary><p>内容按自然高度展开、收起，和箭头同一个时钟；途中反向从当前高度接着走。</p></details>`)}
       ${specimen("页面 / 插件切换 · 130ms", `<div class="mw-motion-stack"><div class="mw-craft-row">${demo("switch", "切换页面")}</div><div class="mw-motion-pages"><section data-motion-page>Goals 页面</section><section data-motion-page hidden>Feed 页面</section></div></div>`)}
       ${specimen("Toast · 250ms", `<div class="mw-craft-row">${demo("toast", "显示提示")}</div>`)}
@@ -419,13 +420,14 @@ export function renderPrimitiveCatalog(options: {
     ${arrivalSection(say)}
     ${recoverySections(say)}
     ${codingBasicsSection(say)}
+    ${homePageAdoptionSections(say)}
     ${composeSection(say)}
     ${renderCatalogExamples(section)}
     ${options.presentationLocale ? presentationSection(options.presentationLocale, options.presentationPlugins) : ""}`;
   const extraSections = extraChapters.map((item) => item.sectionsHtml).join("\n");
   return `<div class="mw-catalog">
     ${catalogIndex(sections, say, extraChapters)}
-    <style>${CATALOG_EXTRA_STYLES}${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}${SKILL_SELECTION_BOARD_STYLES}${CAPABILITY_PACK_BOARD_STYLES}${WORK_RECORDS_BOARD_STYLES}${LANGUAGE_BOARD_STYLES}${RECOVERY_BOARD_STYLES}${CODING_BASICS_BOARD_STYLES}${options.presentationLocale ? PRESENTATION_FORM_STYLES + PRESENTATION_BOARD_STYLES : ""}</style>
+    <style>${CATALOG_EXTRA_STYLES}${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}${SKILL_SELECTION_BOARD_STYLES}${CAPABILITY_PACK_BOARD_STYLES}${WORK_RECORDS_BOARD_STYLES}${LANGUAGE_BOARD_STYLES}${RECOVERY_BOARD_STYLES}${CODING_BASICS_BOARD_STYLES}${HOME_PAGE_ADOPTION_BOARD_STYLES}${options.presentationLocale ? PRESENTATION_FORM_STYLES + PRESENTATION_BOARD_STYLES : ""}</style>
     ${sections}
     ${extraSections}
   </div>

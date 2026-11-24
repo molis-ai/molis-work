@@ -152,10 +152,9 @@ test("managed projects have immutable identities, duplicate names, and isolated 
       const second = await catalog.createProject({ display_name: "同名项目", actor_id: "user" });
       assert.notEqual(first.project_id, second.project_id);
       assert.notEqual(first.database_path, second.database_path);
-      assert.equal(first.project_id, first.project_id);
-      assert.equal(second.project_id, second.project_id);
       assert.equal(first.data_class, "user");
-      assert.equal(catalog.listProjects().length, 2);
+      assert.deepEqual(catalog.listProjects().map(project => project.project_id).sort(),
+        [first.project_id, second.project_id].sort());
 
       const firstStore = new LocalProjectDatabase(first.database_path);
       try {

@@ -124,6 +124,22 @@ after(() => {
 const entry = (name: string) => { const found = files.get(`tests/${name}`); assert.ok(found, `${name} is in the report`); return found; };
 const section = (title: string) => summary.split("### ").find((part) => part.startsWith(title)) ?? "";
 
+// TSA-05. Two tests reach the same cyclic fixture. A later scan must read its new contents.
+test("selection follows shared fixtures with a relative root and sees edits between scans", t => {
+  const project = mkdtempSync(path.join(tmpdir(), "molis-selection-"));
+  t.after(() => rmSync(project, { recursive: true, force: true }));
+  const dir = path.join(project, "tests");
+  mkdirSync(dir);
+  for (const name of ["a", "b"]) writeFileSync(path.join(dir, name + ".test.ts"), 'import "./shared.js";');
+  const shared = path.join(dir, "shared.ts");
+  writeFileSync(path.join(dir, "loop.ts"), 'import "./shared.js";');
+  writeFileSync(shared, 'import "./loop.js";');
+  const root = path.relative(process.cwd(), project);
+  assert.deepEqual(selectTests(root).map((item: { marks: string[] }) => item.marks), [[], []]);
+  writeFileSync(shared, 'import "./loop.js"; // ' + CHROME);
+  assert.deepEqual(selectTests(root).map((item: { marks: string[] }) => item.marks), [["browser"], ["browser"]]);
+});
+
 test("a probe with failing test files still finishes with exit 0 and says what it did", () => {
   assert.equal(run.code, 0, run.text);
   assert.match(run.text, /\d+ test files: \d+ to run, 5 excluded \(browser\)/);
@@ -430,6 +446,21 @@ test("a report is written under a temporary name and renamed: a write that fails
   writeReport(dir, { results: two, meta });
   assert.deepEqual(readdirSync(dir).sort(), ["pass.txt", "report.json", "summary.md"], "no temporary file is left behind");
   assert.equal(readFileSync(path.join(dir, "pass.txt"), "utf8"), "tests/a.test.ts\ntests/b.test.ts\n");
+});
+
+test("TSA-01 inventory includes every root runner input and distinguishes package and release tests", () => {
+  const repo = fileURLToPath(new URL("..", import.meta.url));
+  const listing = execFileSync(process.execPath, ["scripts/test-inventory.mjs"], { cwd: repo, encoding: "utf8" });
+  const rows = listing.trimEnd().split("\n").slice(1).map(line => line.split("\t"));
+  const rootFiles = rows.filter(([, entry]) => entry === "Linux Full" || entry === "macOS").map(([file]) => file);
+  assert.deepEqual(rootFiles, readdirSync(path.join(repo, "tests")).filter(file => /\.test\.(?:mjs|ts)$/.test(file)).sort().map(file => "tests/" + file));
+  const routes = new Map(rows.map(([file, entry]) => [file, entry]));
+  assert.equal(routes.size, rows.length);
+  const character = rows.find(([file]) => file === "tests/characters-replication.test.ts");
+  assert.ok(character?.[4].split(",").includes("modules/characters"));
+  assert.equal(routes.get("apps/sync-worker/test.mjs"), "Worker WASM + D1/R2");
+  assert.equal(routes.get("tests/npm-distribution-smoke.mjs"), "npm install");
+  assert.equal(routes.get("packages/test-kit/tests/boundaries.test.mjs"), "boundary:test");
 });
 
 test("on this repository: no browser file is run, known darwin and live files are marked, and this test is not left out", () => {

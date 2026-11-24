@@ -35,7 +35,8 @@ test("MEM-36: observation reads the existing ledger without triggering candidate
 test("MEM-36: continuous sequences use real formation, candidate promotion, emitted wrappers and per-event checkpoints", { timeout: 60_000 }, async () => {
   const limits: number[] = [];
   const server = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    let raw = "";
+    for await (const chunk of request.setEncoding("utf8")) raw += chunk;
     const body = JSON.parse(raw); limits.push(body.max_tokens);
     let text = "fixture task answer";
     if (body.max_tokens === 1500) {
@@ -125,7 +126,8 @@ test("MEM-36: a real completed original keeps the same source identity and time 
 test("MEM-36: partial SDK formation remains failed while preserving committed items and reported usage", { timeout: 20_000 }, async t => {
   let requests = 0;
   const server = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    let raw = "";
+    for await (const chunk of request.setEncoding("utf8")) raw += chunk;
     requests++;
     const body = JSON.parse(raw);
     const prompt = body.messages.flatMap((message: { content: string | { text?: string }[] }) => typeof message.content === "string"

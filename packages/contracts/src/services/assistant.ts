@@ -339,6 +339,8 @@ export interface AssistantWork {
   budget_tokens?: number;
   ask_each_step?: true; // 「每步先问我」 (PWA-156): before each step it would go on to by itself (a part handed back, a wait that ended), it asks the person first.
   main?: true; // The standing conversation of its scope with one counterpart (the Assistant, or `character`): what is said at 「现在」 goes here and its background tasks report back to it (specs/work-line §3.2).
+  /** When this work belongs to a project work item (specs/work-mainline §4.3, MLN-16); immutable once created, omitted for whole-project or personal work. */
+  work_item_id?: string;
   serves?: Array<{ kind: string; id: string }>; line_event?: true; // On a background task: the events on the work line it is done for (the `serves` relation), and whether it is an event in its own right.
 }
 
@@ -529,6 +531,8 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   /** Omitted starts a new work. */
   work_id?: string;
   main?: true; for_event?: { kind: string; id: string }; // `main`, without `work_id`: the main conversation of this scope with this counterpart (`character`, or the Assistant), opened on first use. `for_event`, for a new work said in an event's tab: the event on the person's work line it is done for (the Host reads the line as the person).
+  /** For a project-scoped send (`main: true` or a new work): the work item id on this project's mainline (verified via `system.mainline`). */
+  work_item_id?: string;
   /** For a new work: who carries it. An existing work keeps its executor. */
   executor?: AssistantExecutorChoice;
   /** For a new work carried by a plugin: the mode of its first round. Later rounds use the session's own setting. */

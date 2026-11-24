@@ -23,7 +23,7 @@
 // seen in review (docs/system/PACKAGE-BOUNDARIES.md, product subset job), not something this module blocks.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { classifyFile } from "../ci-linux-probe/select.mjs";
+import { createTestReader } from "../ci-linux-probe/select.mjs";
 
 export const LIST_FILE = "tests/ci-product-subset.txt";
 export const QUARANTINE_FILE = "tests/quarantine.json";
@@ -133,9 +133,10 @@ export function readPlan(root) {
 
   const listed = hasList ? parseList(readFileSync(listPath, "utf8")) : { entries: [], problems: [] };
   problems.push(...listed.problems);
+  const reader = createTestReader(root);
   const entries = listed.entries.map(({ file, line }) => {
     if (!existsSync(path.join(root, file))) { problems.push(`${LIST_FILE}:${line}: ${file} does not exist (renamed or deleted: change the line, or remove it)`); return { file, line, marks: [], browser: false, missing: true }; }
-    const { marks } = classifyFile(root, file);
+    const { marks } = reader.classify(file);
     const browser = marks.includes("browser");
     if (marks.includes("live")) problems.push(`${LIST_FILE}:${line}: ${file} is a live file (it reaches a real model or service when opted in); the subset runs without those opt-ins, so most of it would only skip`);
     if (!browser && marks.includes("darwin")) problems.push(`${LIST_FILE}:${line}: ${file} touches macOS-only paths or tools (marked darwin by the Linux probe's rules); the subset runs on Linux`);

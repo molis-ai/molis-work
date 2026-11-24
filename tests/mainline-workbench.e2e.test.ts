@@ -192,14 +192,18 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
   await waitFor("Boolean(" + editorOption + ")", WAIT_MS);
   await evaluate(editorOption + ".click()");
   await waitFor("document.querySelector(" + JSON.stringify(recipient) + ").textContent.includes('事项编辑')", WAIT_MS);
-  // Type draft in item 1, verify list scope toggle exists (BL-dialog-info-column-prototype-gaps #3).
+  // A draft long enough to scroll exercises restoration independently of the caret.
+  const itemDraft = Array.from({ length: 32 }, (_, line) => '事项一的未发草稿 ' + line).join('\n');
   await evaluate(`(() => {
     const input = document.querySelector('[data-assistant-composer] .mw-composer__input');
     input.focus();
-    input.value = '事项一的未发草稿';
+    input.value = ${JSON.stringify(itemDraft)};
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.setSelectionRange(1, 4, 'backward');
+    input.scrollTop = 32;
   })()`);
+  const draftField = "document.querySelector('[data-assistant-composer] .mw-composer__input')";
+  assert.equal(await evaluate(draftField + '.scrollTop'), 32);
   const hasScopeToggle = await evaluate<boolean>("Boolean(document.querySelector('[data-work-lists-scope]') && !document.querySelector('[data-work-lists-scope]').hidden)");
   assert.equal(hasScopeToggle, true, "BL-dialog-info-column-prototype-gaps #3: list header scope toggle visible for active item");
 
@@ -224,7 +228,8 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
   // Jump back to 「第一件事项」 via Alt+[ shortcut (with focus outside text input).
   await evaluate("document.activeElement?.blur?.(); document.dispatchEvent(new KeyboardEvent('keydown', { key: '[', code: 'BracketLeft', altKey: true, bubbles: true }))");
   await waitFor("document.querySelector('[data-top-corner-toggle] .top-corner-page-name')?.textContent?.trim() === '第一件事项'", WAIT_MS);
-  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input').value === '事项一的未发草稿'", WAIT_MS);
+  await waitFor(draftField + '.value === ' + JSON.stringify(itemDraft), WAIT_MS);
+  await waitFor(draftField + '.scrollTop === 32', WAIT_MS);
   await waitFor("(() => { const field = document.querySelector('[data-assistant-composer] .mw-composer__input'); return field.selectionStart === 1 && field.selectionEnd === 4 && field.selectionDirection === 'backward'; })()", WAIT_MS);
 
   await waitFor("document.querySelector(" + JSON.stringify(recipient) + ").textContent.includes('事项编辑')", WAIT_MS);

@@ -591,7 +591,7 @@ test("SPC-11: the basic and generated home share the owner's presentation only a
       expected_revision: (await web.post<HomePageOverview>(pages + "read", {})).revision, request_id: "present-" + withValues });
     await visit();
     await browser.waitFor("Boolean(window.ownerPresentation)");
-    const seen = await browser.evaluate<{ groups: SurfaceGroup[]; title?: string; error?: string }>("window.ownerPresentation");
+    const seen: { groups: SurfaceGroup[]; title?: string; error?: string } = await browser.evaluate("window.ownerPresentation");
     assert.equal(seen.error, undefined);
     if (!withValues) {
       assert.deepEqual(seen.groups, []);

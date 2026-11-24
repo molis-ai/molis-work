@@ -1,6 +1,7 @@
+import { waitForRunChange } from "@molis-ai/molis-work-service-agent-host/testing";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PrologueAgentAdapter, type PrologueControlPort, type PrologueEvent, type PrologueRunTiming, type PrologueRuntimePort } from "@molis-ai/molis-work-service-agent-host";
+import { PrologueAgentAdapter, runViewVersion, type PrologueControlPort, type PrologueEvent, type PrologueRunTiming, type PrologueRuntimePort } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const owner = { project_id: "timing-project", plugin_id: "io.molis.work.coding", install_id: "timing-install", actor_id: "user" };
@@ -36,15 +37,19 @@ for (const scenario of scenarios) for (const persistence of ["delayed", "failed"
     const first = await adapter.start(request), round = rounds[0]!;
     round.emit({ type: "text-delta", text: "First result." });
     // QEA-20: a terminal control intent is not the SDK's committed execution record.
-    round.control.state = scenario; round.changed();
+    round.control.state = scenario === "stopped" && persistence === "delayed" ? "failed" : scenario; round.changed();
     assert.equal((await adapter.read(first.ref)).phase, reconcile ? "reconcile-required" : "running");
     await assert.rejects(adapter.start({ ...request, task: "Too early" }), { code: "agent.session_busy" });
     assert.equal(writes.length, 0);
-    round.emit(phase === "stopped" ? { type: "circuit-tripped", reason: "repeated-calls", count: 3 } : { type: phase });
+    const waiting = reconcile ? undefined : waitForRunChange(adapter, first.ref, runViewVersion(await adapter.read(first.ref)), 25_000, AbortSignal.timeout(4_000));
+    round.emit(phase !== "stopped" ? { type: phase } : persistence === "delayed"
+      ? { type: "tripped", stage: "output", rail: "fixture", why: "保护内容" } : { type: "circuit-tripped", reason: "repeated-calls", count: 3 });
     await saving.promise;
     const ended = await adapter.read(first.ref);
     assert.equal(ended.phase, scenario, "SDK execution can end while its effect still needs reconciliation");
+    if (waiting) assert.equal((await waiting).view.phase, phase, "the in-flight timeline wait wakes on the committed ending");
     assert.ok(ended.ended_at);
+    if (phase === "stopped") { assert.equal(ended.stop_reason_code, "host"); assert.match(ended.stop_reason!, persistence === "delayed" ? /保护内容/ : /重复了 3 次/); }
     assert.doesNotMatch(ended.stop_reason ?? "", /正在保存显示时间/);
     if (reconcile) {
       await assert.rejects(adapter.start({ ...request, task: "Wait for original effect" }), { code: "agent.session_busy" });

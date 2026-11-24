@@ -302,6 +302,7 @@ export interface AgentMemoryCapability {
   /** Append maps operation_id to SDK idempotencyKey; it has no synthetic expected version. */
   write(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta; operation_id: string; signal?: AbortSignal }): Promise<AgentMemoryEntry>;
   update(input: AgentMemoryLocation & AgentMemoryMutation & { change: AgentMemoryChange }): Promise<AgentMemoryEntry>;
+  /** Oldest first, strictly before the positive version, with the last limit entries (zero gives an empty page). */
   history(input: AgentMemoryLocation & { limit?: number; before_version?: number; signal?: AbortSignal }): Promise<{
     memory_id: string;
     scope: AgentMemoryEntry["scope"];

@@ -18,7 +18,7 @@ import {
 
 /** The colour each built-in plugin's group had on the tab strip when the design system held the table; the Manifests now say the same. */
 const COLOURS: Readonly<Record<string, string>> = {
-  alchemist: "purple", coding: "cyan", cognia: "blue", dataset: "green", diff: "cyan", feed: "brown",
+  coding: "cyan", cognia: "blue", dataset: "green", diff: "cyan", feed: "brown",
   form: "orange", git: "orange", goals: "blue", images: "pink", inbox: "mint", jelly: "mint", lingguang: "yellow", pages: "cyan",
   "plugin-builder": "indigo", ppt: "red", risk: "orange", schedule: "yellow", shelf: "slate", todo: "green", "work-brief": "indigo", workflows: "orange",
 };

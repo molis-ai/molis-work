@@ -49,7 +49,7 @@ async function modelHome(t: TestContext) {
   const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [] };
   const install = async (pluginId = PACKAGE_PLUGIN_ID, scope: "home" | "project" = "home", capabilities?: string[], prompts?: Array<{ id: string; body: string }>) => {
     const preview = await client.invoke(person(project.project_id), ref(pluginInstallActions.preview), { bundle: askingPackage(pluginId, scope, capabilities, prompts) }) as { preview_id: string };
-    await client.invoke(person(project.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
+    await client.invoke(person(project.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, optional_permissions: ["capabilities:call"], pin_label: "Test publisher" });
     return scope === "home" ? home.host.homePlugins!.installation(pluginId)!.install_id : pluginId;
   };
   /** The package's own operation, as a person's page calls it: the package code asks the model by the name it always used. */

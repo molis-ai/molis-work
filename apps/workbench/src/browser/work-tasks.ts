@@ -36,6 +36,8 @@ export interface TaskPanelLine {
   acceptance(slot: HTMLElement, target: { provider_id: string; subject: ActionSubject }): { update(): void; destroy(): void };
   /** The steps given to sub-agents that this page knows of (the Assistant's works). */
   subtasks(): readonly SubtaskRef[];
+  /** Owning work item name for a task or the event it serves, shown neutrally in 「在办」 (Decision 48 ⑥). */
+  itemName?(subject: ActionSubject, serves: readonly ActionSubject[]): string | undefined;
 }
 
 /** Draw `root` again and keep the words being written into a decision's field, with the caret, when the field is still there. */
@@ -65,12 +67,14 @@ function installDecisionAnswers(host: WorkBarHost, request: TaskPanelLine["reque
     if (part.closest("[data-work-stack]") && part.closest("[data-work-line][data-checking]")) return;
     const task = ports.task(part.dataset.task), id = part.dataset.taskDecision ?? "";
     if (!task) return;
+    const reviewVersion = part.hasAttribute("data-task-held-review") ? part.dataset.reviewVersion : undefined;
     const key = asked(task, id), root = part.closest<HTMLElement>("[data-event-card],[data-work-task-float]") ?? document.body;
     const field = () => root.querySelector<HTMLTextAreaElement>(`[data-task-decision="${CSS.escape(id)}"][data-task="${CSS.escape(task.id)}"] [data-decision-note]`);
     const send = (role: string, note?: string) => {
       deciding.add(key);
       ports.repaint();
-      void request(host.route("/api/mainline/tasks/decide"), { body: { source: task.source, subject: task.subject, decision: id, role, ...(note ? { note } : {}) } })
+      void request(host.route("/api/mainline/tasks/decide"), { body: { source: task.source, subject: task.subject, decision: id, role,
+        ...(reviewVersion ? { review_version: reviewVersion } : {}), ...(note ? { note } : {}) } })
         .then(() => { if (revising === key) revising = ""; }).catch(ports.failed).finally(() => {
           deciding.delete(key);
           ports.repaint();
@@ -242,17 +246,22 @@ export function installTasks(host: WorkBarHost, line: TaskPanelLine): WorkTasks 
   /** The decisions of these tasks in order, the first carrying the primary button; `named`: say which task asks, where the card is not its own. */
   const decisionsOf = (list: readonly BackgroundTaskRow[], named: (task: BackgroundTaskRow) => boolean) => list.flatMap(task => task.decisions.map(decision => ({ task, decision })))
     .map(({ task, decision }, at) => renderTaskDecision({ task: task.id, id: decision.id, ...(decision.reference ? { reference: { id: decision.reference.id, version: decision.reference.version } } : {}), ask: decision.ask, ...(decision.why ? { why: decision.why } : {}), ...(named(task) ? { from: task.title } : {}),
-      changes: decision.changes, answers: decision.answers.map(answer => answer.role), lead: at === 0, revising: answers.revising(task, decision.id), busy: answers.busy(task, decision.id) })).join("");
+      changes: decision.changes, ...("review_html" in decision ? { reviewHtml: decision.review_html } : {}),
+      answers: decision.answers.map(answer => answer.role), lead: at === 0, revising: answers.revising(task, decision.id), busy: answers.busy(task, decision.id) })).join("");
   const asks = (task: BackgroundTaskRow) => task.waiting || ASKS.has(task.state);
   const weight = (task: BackgroundTaskRow) => asks(task) ? 0 : FAILED.has(task.state) ? 1 : 2;
   const ordered = (list: readonly BackgroundTaskRow[]) => [...list].sort((a, b) => weight(a) - weight(b) || b.updated_at.localeCompare(a.updated_at));
   const ended = (task: BackgroundTaskRow) => BACKGROUND_TASK_DONE_STATES.has(task.state);
   const servedBy = (task: BackgroundTaskRow) => task.serves.map(subject => events.values().find(one => keyOf(one.subject) === keyOf(subject))).find(Boolean);
   const serving = (subject: ActionSubject) => tasks.filter(task => task.serves.some(one => keyOf(one) === keyOf(subject)));
-  const row = (task: BackgroundTaskRow, level: 1 | 2 = 1): TaskRowView => ({ id: task.id, title: task.title, ring: task.state, step: [task.step?.text, task.executor.label].filter(Boolean).join(" · "), level,
-    ...(ended(task) ? { done: true } : {}),
-    ...(offlineSince !== null && !ended(task) ? { checking: true } : asks(task) && task.open && !task.decisions.length ? { control: "decide" as const }
-      : task.commands.some(command => command.role === "stop") ? { control: "stop" as const, busy: stops.busy(task) } : {}) });
+  const row = (task: BackgroundTaskRow, level: 1 | 2 = 1): TaskRowView => {
+    const item = line.itemName?.(task.subject, task.serves);
+    return { id: task.id, title: task.title, ring: task.state, step: [task.step?.text, task.executor.label].filter(Boolean).join(" · "), level,
+      ...(item ? { item } : {}),
+      ...(ended(task) ? { done: true } : {}),
+      ...(offlineSince !== null && !ended(task) ? { checking: true } : asks(task) && task.open && !task.decisions.length ? { control: "decide" as const }
+        : task.commands.some(command => command.role === "stop") ? { control: "stop" as const, busy: stops.busy(task) } : {}) };
+  };
   /** These tasks as rows: a step given to a sub-agent under its task — the same row, one level in, when the step is a task of the table too. */
   const tree = (list: readonly BackgroundTaskRow[]): string => {
     const all = ordered(list), subs = line.subtasks(), at = new Map(all.map(task => [keyOf(task.subject), task]));
@@ -417,7 +426,8 @@ export function installTasks(host: WorkBarHost, line: TaskPanelLine): WorkTasks 
     loose: () => ordered(tasks.filter(task => asks(task) && !ended(task) && !servedBy(task))),
     unreadable: () => unread,
     questions: of => ("subject" in of ? [of] : ordered(serving(of)).filter(asks))
-      .flatMap(task => task.decisions.map(decision => ({ task: task.id, id: decision.id, ask: decision.ask, answers: decision.answers.map(answer => answer.role), hasChanges: decision.changes.length > 0, busy: answers.busy(task, decision.id) }))),
+      .flatMap(task => task.decisions.map(decision => ({ task: task.id, id: decision.id, ask: decision.ask, answers: decision.answers.map(answer => answer.role),
+        hasChanges: decision.changes.length > 0 || "review_html" in decision, busy: answers.busy(task, decision.id) }))),
     subjects: subject => serving(subject).map(task => ({ provider_id: task.source.provider_id, subject: task.subject })),
     // A task that has ended is not in the table: nothing opens, and the reply's row says where it stood.
     place(subject) {

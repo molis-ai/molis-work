@@ -19,7 +19,7 @@ const rejected = (error: unknown) => error instanceof Error && /同意|授权|�
 const projected = (state: GoalEventWorkStateView) => ({ cursor: state.goal_event_cursor, summary: state.progress_summary?.summary ?? "", title: state.intent.title });
 
 async function setup(t: TestContext) {
-  const f = await serveHomeRuntime(t), a = await f.project("Reach A"), b = await f.project("Reach B"), publisher = newPublisher();
+  const f = await serveHomeRuntime(t), a = await f.project("Reach A", ["goals"]), b = await f.project("Reach B", ["goals"]), publisher = newPublisher();
   for (const project of [a, b]) {
     await initializeBoard(f.host, project.reference);
     await f.host.withProject(project.reference, runtime => goalApplicationOf(runtime).goalEvents.createIntent({ project_id: project.project_id,

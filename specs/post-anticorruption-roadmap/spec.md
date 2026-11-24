@@ -106,8 +106,8 @@
 |  | [设置页：一种写法](reference/batches/36a.md#batch-36a-item-5) |
 |  | [首页：项目的第一页](reference/batches/36a.md#batch-36a-item-6) |
 |  | [动效落地与曲线收口](reference/batches/36a.md#batch-36a-item-7) |
-| [37](reference/batches/37.md) | [生成页面运行、采用与恢复](reference/batches/37.md#batch-37-item-1) |
-|  | [事项切换与工作台状态](reference/batches/37.md#batch-37-item-2) |
+| [37](reference/batches/37.md) | [生成页面运行、采用与恢复](reference/batches/37.md#batch-37-item-1)（[#2288](https://github.com/molis-ai/molis-work/pull/2288)，SPC-10～11、ONB-25～28、WBR-26、S-home-page-*；本人验收 [BL-b37-generated-home-mainline-acceptance](../backlog/BL-b37-generated-home-mainline-acceptance.md)） |
+|  | [事项切换与工作台状态](reference/batches/37.md#batch-37-item-2)（[#2288](https://github.com/molis-ai/molis-work/pull/2288)，MLN-01～19／21～23、WLN-19／20／23／24、POLISH-62～64、决定 66；MLN-20 本人验收 [BL-b37-generated-home-mainline-acceptance](../backlog/BL-b37-generated-home-mainline-acceptance.md)） |
 | [38](reference/batches/38.md) | [插件配置采用](reference/batches/38.md#batch-38-item-1) |
 | [39](reference/batches/39.md) | [授权、人审与统一管理页](reference/batches/39.md#batch-39-item-1) |
 |  | [可信决定回平台](reference/batches/39.md#batch-39-item-2) |
@@ -173,7 +173,7 @@
 | [62](reference/batches/62.md) | [四策略、SDK 补缺与逐服务验收](reference/batches/62.md#batch-62-item-1) |
 |  | [项目模型限制与出站边界](reference/batches/62.md#batch-62-item-2) |
 |  | [组合候选目录与引用语义](reference/batches/62.md#batch-62-item-3) |
-| [63](reference/batches/63.md) | [全平台评测扩展](reference/batches/63.md#batch-63-item-1) |
+| [63](reference/batches/63.md) | [全平台评测扩展](reference/batches/63.md#batch-63-item-1)（含[Skill、Tool、Memory 的基线与分批验收顺序](reference/dependencies.md#recall-delivery-order)） |
 | [63A](reference/batches/63a.md) | [记忆形成质量（P2-01）](reference/batches/63a.md#batch-63a-item-1)（2026-11-18 从 64 拆出，[决定 52](reference/decisions.md#decision-52)） |
 |  | [记忆整理（Dreaming）、按需原文与用户控制](reference/batches/63a.md#batch-63a-item-2) |
 |  | [常驻层（P2-05）](reference/batches/63a.md#batch-63a-item-3) |

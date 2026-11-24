@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+// WLHR-04: load the mainline contract first, before any other import initializes the action schemas.
 import { MAINLINE_READ_PERMISSION, mainlineActions } from "@molis-ai/molis-work-contracts/services/mainline";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
 
 /*

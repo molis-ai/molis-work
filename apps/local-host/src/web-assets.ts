@@ -1,4 +1,4 @@
-import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginFrameServedStylesheet, renderMolisWorkPluginBaseStylesheet as defaultPluginBaseStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkSessionsClientScript, renderMolisWorkInstalledPluginClientScript, renderMolisWorkInstalledPluginStylesheet, renderMolisWorkKnowledgeClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkAssistantSubtasksClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginFrameServedStylesheet, renderMolisWorkPluginBaseStylesheet as defaultPluginBaseStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkSessionsClientScript, renderMolisWorkInstalledPluginClientScript, renderMolisWorkInstalledPluginStylesheet, renderMolisWorkKnowledgeClientScript, renderMolisWorkMainlineClientScript, renderMolisWorkKitClientScript, renderMolisWorkWorkRecordsClientScript, renderMolisWorkAssistantSubtasksClientScript, renderMolisWorkChooserSearchClientScript } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -147,6 +147,8 @@ export function createLocalWebAssets(ports: {
         ? { body: renderPluginFrameClientScript(), contentType: "text/javascript; charset=utf-8" }
       : pathname === "/assets/molis-work-workbench.js"
         ? { body: renderMolisWorkWorkbenchClientScript(), contentType: "text/javascript; charset=utf-8" }
+      : pathname === "/assets/molis-work-mainline.js"
+        ? { body: renderMolisWorkMainlineClientScript(), contentType: "text/javascript; charset=utf-8" }
         // The unified input's program: one file for the Workbench and every plugin frame, fetched on a document's first composer.
         : pathname === "/assets/molis-work-composer.js"
         ? { body: COMPOSER_CLIENT_SCRIPT, contentType: "text/javascript; charset=utf-8" }

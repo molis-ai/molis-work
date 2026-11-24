@@ -94,7 +94,7 @@ test("an entry does not list the plugin pages that listen to it: the report comp
   assert.deepEqual(listenersNamedInSummaries(tree), []);
   // The list `molis-work:model-ready` carried before it was cut: eight listening plugins written into the summary.
   const listed = withRegistry(/each page that showed \\"no model\\" reads its model state again \(listeners: `node scripts\/gates\/dom-events\.mjs --report`\)/,
-    'each page that showed \\"no model\\" (the Assistant\'s failed card, Cognia, Dataset, Form, PPT, Workflows, Alchemist, Jelly\'s model dialog, the plugin builder studio) reads it again');
+    'each page that showed \\"no model\\" (the Assistant\'s failed card, Cognia, Dataset, Form, PPT, Workflows, Jelly\'s model dialog, the plugin builder studio) reads it again');
   const found = listenersNamedInSummaries(listed);
   assert.equal(found.length, 1, found.join("\n"));
   assert.match(found[0], /^molis-work:model-ready names its listeners: .*cognia.*jelly/);

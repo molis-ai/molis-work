@@ -7,7 +7,7 @@ import { Server } from "node:http";
 import { MolisWorkLocalHost, LocalHost, HomePluginHost, ensureSystemAgentService, captureHostLog, hostLog, type HomeInitializationFailure } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebCore, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ALCHEMIST_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/alchemist";
+import { ACCOUNT_PROVIDER_ID } from "@molis-ai/molis-work-service-account";
 import { PrologueAgentAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { deferred, homeProbe } from "./fixtures/home-runtime.js";
 import { storageOwnerProcesses } from "./fixtures/home-storage-owner.js";
@@ -163,8 +163,8 @@ function failedConstruction(t: TestContext, options: { mode: "host" | "web"; pen
   if (mode === "host") LocalHost.prototype.actionRegistry = function (...args: Parameters<typeof originalRegistry>) {
     const registry = originalRegistry.apply(this, args);
     return { ...registry, registerProvider: (registration: Parameters<typeof registry.registerProvider>[0]) => {
-      // This real registration follows construction of the Kernel, Home plugins and Alchemist resource.
-      if (registration.provider.provider_id === ALCHEMIST_PLUGIN_ID && state.registrationFaults === 0) {
+      // This real registration (the first platform provider) follows construction of the Kernel and Home plugins.
+      if (registration.provider.provider_id === ACCOUNT_PROVIDER_ID && state.registrationFaults === 0) {
         state.registrationFaults++; throw reason;
       }
       return registry.registerProvider(registration);

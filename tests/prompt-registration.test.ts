@@ -121,8 +121,8 @@ test("RAC-194 a Plugin's instructions reach the register through its own definit
     assert.equal(prompt.owner_id, definition.manifest.plugin_id, `${key(prompt)} is carried by the definition of another plugin`);
     declared.add(key(prompt));
   }
-  // The Host lists its own modules', Plugin Builder's (the platform's, PG-051 Q2) and Alchemist's (served by the Host, not run as a definition).
-  const HOST_OWNERS = new Set(["io.molis.work.plugin-builder", "io.molis.work.alchemist"]);
+  // The Host lists its own modules' and Plugin Builder's (the platform's, PG-051 Q2).
+  const HOST_OWNERS = new Set(["io.molis.work.plugin-builder"]);
   assert.deepEqual(BUILTIN_INSTRUCTIONS.filter(prompt => !prompt.owner_id.startsWith("system:") && !HOST_OWNERS.has(prompt.owner_id)).map(key), [],
     "a plugin's instructions are carried by its definition (`PluginDefinition.instructions`), not named in the Host list");
   assert.deepEqual(BUILTIN_INSTRUCTIONS.filter(prompt => declared.has(key(prompt))).map(key), [], "not in both");

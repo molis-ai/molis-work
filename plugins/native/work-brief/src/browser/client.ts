@@ -28,11 +28,12 @@ function draw(page: BriefPage): void {
 }
 
 /** The current version, then what changed since the one before it. The page shows the first answer at once. */
-async function loadHead(page: BriefPage, options: { quiet?: boolean } = {}): Promise<void> {
+async function loadHead(page: BriefPage, options: { quiet?: boolean; finishWrite?: boolean } = {}): Promise<void> {
   const { state } = page;
   if (!options.quiet) { state.loading = true; page.render(); }
   try {
     const head = await page.call<BriefView>("work-brief.briefs.get", {});
+    if (options.finishWrite) state.busy = "";
     state.head = head;
     state.error = "";
     state.picks = Object.fromEntries(Object.entries(state.picks).filter(([id]) => head.proposal?.conflicts.some(conflict => conflict.claim_id === id)));
@@ -44,8 +45,9 @@ async function loadHead(page: BriefPage, options: { quiet?: boolean } = {}): Pro
     if (state.head === head && compared.version?.version === head.version?.version) { state.head = { ...head, changes: compared.changes ?? [] }; page.render(); }
   } catch (error) {
     state.loading = false;
-    // A failed background read leaves what is on show; only a first read with nothing to show says so in place.
-    if (state.head && options.quiet) return;
+    // A background read can keep the last view. A failed reread after a write must offer a retry before enabling the old controls.
+    if (state.head && options.quiet && !(options.finishWrite && state.busy)) return;
+    if (options.finishWrite) state.busy = "";
     state.error = error instanceof Error && error.message ? error.message : text("error.failed");
     page.render();
   }
@@ -66,9 +68,9 @@ async function write<O>(page: BriefPage, capability: string, input: Record<strin
   catch (error) {
     if (failureOf(error).code !== "work_brief.conflict") throw error;
     page.toast(text("conflict.reread"), true);
-    await loadHead(page, { quiet: true });
+    await loadHead(page, { quiet: true, finishWrite: true });
     return null;
-  } finally { page.state.busy = ""; }
+  }
 }
 
 const briefOf = (page: BriefPage) => page.state.head?.brief ?? null;
@@ -102,10 +104,10 @@ async function saveClaim(page: BriefPage, claimId: string, value: string | null)
   if (!brief) return;
   if (value !== null && !value.trim()) { page.toast(text("claim.empty"), true); return; }
   const answer = await write<BriefSaved>(page, "work-brief.briefs.edit", { brief_id: brief.brief_id, expected_revision: brief.revision, ...(claimId === "+" ? {} : { claim_id: claimId }), text: value === null ? null : value.trim() });
-  if (!answer) { page.render(); return; }
+  if (!answer) return;
   page.state.editing = "";
   page.state.delta = null;
-  await loadHead(page, { quiet: true });
+  await loadHead(page, { quiet: true, finishWrite: true });
 }
 
 async function resolve(page: BriefPage, discard: boolean): Promise<void> {
@@ -114,10 +116,10 @@ async function resolve(page: BriefPage, discard: boolean): Promise<void> {
   const choices = proposal.conflicts.map(conflict => ({ claim_id: conflict.claim_id, take: page.state.picks[conflict.claim_id] }));
   if (!discard && choices.some(choice => !choice.take)) { page.toast(text("proposal.pick-all"), true); return; }
   const answer = await write<BriefSaved>(page, "work-brief.proposals.resolve", { brief_id: brief.brief_id, proposal_id: proposal.proposal_id, expected_revision: brief.revision, ...(discard ? { discard: true } : { choices }) });
-  if (!answer) { page.render(); return; }
+  if (!answer) return;
   page.state.picks = {};
   page.toast(text(discard ? "proposal.dropped" : "proposal.done"));
-  await loadHead(page, { quiet: true });
+  await loadHead(page, { quiet: true, finishWrite: true });
 }
 
 async function fix(page: BriefPage, version: number): Promise<void> {
@@ -125,16 +127,17 @@ async function fix(page: BriefPage, version: number): Promise<void> {
   if (!brief) return;
   page.state.pop = "";
   const answer = await write(page, "work-brief.versions.fix", { brief_id: brief.brief_id, version, expected_revision: brief.revision });
-  if (!answer) { page.render(); return; }
+  if (!answer) return;
   page.toast(text("fixed.toast"));
-  await loadHead(page, { quiet: true });
+  await loadHead(page, { quiet: true, finishWrite: true });
   if (page.state.old) await openVersion(page, version);
 }
 
 /** A next step: run the prepared action as the person, set it aside, take that back, or hand it to the Assistant with the brief it is from. */
 async function nextStep(page: BriefPage, action: string, optionId: string): Promise<void> {
   const head = page.state.head, brief = head?.brief, option = head?.version?.next.find(entry => entry.option_id === optionId);
-  if (!brief || !option) return;
+  if (!brief) return;
+  if (!option && (action !== "undo-next" || !head.marks.some(mark => mark.option_id === optionId && mark.state === "unknown"))) return;
   const input = { brief_id: brief.brief_id, option_id: optionId };
   if (action === "run-next") {
     page.state.busy = "write";
@@ -142,10 +145,10 @@ async function nextStep(page: BriefPage, action: string, optionId: string): Prom
     try {
       const { mark } = await page.call<{ mark: NextMark }>("work-brief.next.run", input);
       page.toast(text(mark.state === "done" ? "next.done-toast" : mark.state === "unknown" ? "next.unknown-toast" : "next.failed-toast"), mark.state !== "done");
-    } finally { page.state.busy = ""; await loadHead(page, { quiet: true }); }
+    } finally { await loadHead(page, { quiet: true, finishWrite: true }); }
     return;
   }
-  if (action === "hand-next") {
+  if (action === "hand-next" && option) {
     const answer = await write(page, "work-brief.next.set", { ...input, state: "handed" });
     // A conflict means the brief moved under this page and the mark was not written; the shell must not delegate the old step.
     if (!answer) return;
@@ -154,10 +157,10 @@ async function nextStep(page: BriefPage, action: string, optionId: string): Prom
       object: { kind: "brief", id: brief.brief_id, title: brief.title || text("page.title"), version: head.version?.version ?? null }, text: `${option.text}\n${option.why}` } }));
     page.toast(text("next.handed-toast"));
   } else {
-    await write(page, "work-brief.next.set", { ...input, state: action === "skip-next" ? "later" : null });
+    if (!await write(page, "work-brief.next.set", { ...input, state: action === "skip-next" ? "later" : null })) return;
     if (action === "skip-next") page.toast(text("next.skipped-toast"));
   }
-  await loadHead(page, { quiet: true });
+  await loadHead(page, { quiet: true, finishWrite: true });
 }
 
 /** Opens the Assistant with the brief in hand; nothing is written for the person and nothing is sent. */
@@ -174,7 +177,7 @@ async function onAct(page: BriefPage, action: string, value: string): Promise<vo
     case "pop": state.pop = state.pop === value ? "" : value; page.render(); return;
     case "then-now": state.thenNow = value === "now" ? "now" : "then"; page.render(); return;
     case "back": state.old = null; state.pop = ""; page.render(); return;
-    case "reload": state.error = ""; await loadHead(page); return;
+    case "reload": if (!state.loading) await loadHead(page); return;
     case "reload-personal": state.personalError = ""; state.personal = null; page.render(); await loadPersonal(page); return;
     case "refresh": await refresh(page); return;
     case "refresh-personal": {

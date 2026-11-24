@@ -130,15 +130,25 @@ test('waiting linked assets offers retry, not destructive conflict choices',{tim
   await b.click('[data-sync-conflicts] button');await b.waitFor("document.querySelector('[data-sync-conflicts]').children.length===0");
 });
 
-test('PCSYNC-14/16/18 and PCSYNC-OPT-18 sync comparison, item retry, retained recovery and confirmed trash controls',{timeout:60000},async t=>{
+test('PCSYNC-14/16/18, PCSYNC-OPT-18 and SCKP-03 sync comparison, transfer progress, item retry, retained recovery and confirmed trash controls',{timeout:60000},async t=>{
   const b=await openGoalBrowser(t,'empty',seedBoard);if(!b)return;
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=fetch.bind(window),selection={plugin_id:'io.example.notes',publisher_id:'example',publisher_signature:'test',collection_id:'notes',schema_version:1};let conflict=true,failed=true,trash=true;
     const image=color=>{const canvas=document.createElement('canvas');canvas.width=1;canvas.height=1;const context=canvas.getContext('2d');context.fillStyle=color;context.fillRect(0,0,1,1);const data=canvas.toDataURL().split(',')[1];return{id:'image1',mime_type:'image/png',byte_length:atob(data).length,data_base64:data};};
     const state=()=>({available:true,device:{automatic:false},policy:{spaceId:'test-space',revision:1,selections:[selection]},quota:{usedBytes:1250000,limitBytes:100000000},running:false,error:null,lastSuccess:null,progress:{selected:1,pending:0,conflicts:conflict?1:0,waiting:0,failures:failed?1:0,unavailable:0,complete:false},collections:[{selection,title:'文档与文件夹',pending:0,conflicts:conflict?[{key:'asset',reason:'两台设备修改了同一项',waiting:false}]:[],failures:failed?[{key:'broken',direction:'upload',reason:'源内容需要修复',revision:0}]:[]}],unavailable:[]});
-    window.fetch=async(url,init={})=>{const path=new URL(String(url),location.href).pathname;if(!path.startsWith('/api/sync'))return original(url,init);
+    window.syncResolutionRequests=0;
+    window.fetch=async(input,init={})=>{const url=new URL(String(input),location.href),path=url.pathname;if(!path.startsWith('/api/sync'))return original(input,init);
       if(path==='/api/sync/conflict')return Response.json({key:'asset',revision:7,state:'a'.repeat(64),location:'/projects/source/?openPlugin=pages&openItem=asset',local:{title:'本机正文',markdown:'same\\nlocal only',images:[image('red')]},remote:{title:'云端正文',markdown:'same\\ncloud only',images:[image('blue')]}});
-      if(path==='/api/sync/resolve'){window.syncDecision=JSON.parse(init.body);window.syncSpaceHeader=init.headers['x-molis-sync-space'];conflict=false;}
+      if(path==='/api/sync/resolve'){
+        window.syncResolutionRequests++;
+        window.syncDecision=JSON.parse(init.body);
+        window.syncSpaceHeader=init.headers['x-molis-sync-space'];
+        window.syncConflictTransfer={done:3,total:10};
+        await new Promise(resolve=>window.finishSyncConflict=resolve);
+        window.syncConflictTransfer=null;
+        conflict=false;
+      }
+      if(url.searchParams.get('view')==='indicator')return Response.json({...state(),running:!!window.syncConflictTransfer,transfer:window.syncConflictTransfer});
       if(path==='/api/sync/retry-item')failed=false;
       if(path==='/api/sync/recoveries')return Response.json({items:[{id:'1',key:'asset',choice:'remote',revision:8}]});
       if(path==='/api/sync/recovery')return Response.json({id:'1',key:'asset',revision:8,local:{title:'保留的正文'},remote:{title:'采用的正文'}});
@@ -157,7 +167,18 @@ test('PCSYNC-14/16/18 and PCSYNC-OPT-18 sync comparison, item retry, retained re
   await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open] table img')].filter(img=>img.complete&&img.naturalWidth===1).length===2");
   await mkdir('.impeccable/qa/review',{recursive:true});
   for(const width of [1440,390]){await b.command('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false},b.sessionId);const shot=await b.command<{data:string}>('Page.captureScreenshot',{format:'png'},b.sessionId);await writeFile('.impeccable/qa/review/personal-sync-compare-'+width+'.png',Buffer.from(shot.data,'base64'));}
-  await b.evaluate("document.querySelector('[data-sync-dialog][open] footer button').click()");await b.waitFor('window.syncDecision?.revision===7');assert.equal(await b.evaluate('window.syncSpaceHeader'),'test-space');assert.equal(await b.evaluate('window.syncDecision.state'),'a'.repeat(64));
+  await b.click('[data-sync-dialog][open] footer button:nth-child(2)');
+  const progress="document.querySelector('[data-sync-dialog][open] [data-sync-conflict-progress]')";
+  await b.waitFor(progress+"?.textContent.includes('30%')");
+  assert.equal(await b.evaluate(progress+".hidden"),false);
+  assert.equal(await b.evaluate('window.syncDecision.choice'),'remote');
+  assert.equal(await b.evaluate('window.syncDecision.revision'),7);
+  assert.equal(await b.evaluate('window.syncDecision.state'),'a'.repeat(64));
+  assert.equal(await b.evaluate('window.syncSpaceHeader'),'test-space');
+  await b.evaluate('window.syncConflictTransfer.done=7');
+  await b.waitFor(progress+"?.textContent.includes('70%')");
+  assert.equal(await b.evaluate('window.syncResolutionRequests'),1);
+  await b.evaluate('window.finishSyncConflict()');
   await b.waitFor("!document.querySelector('[data-sync-dialog][open]')");await b.click('[data-sync-conflicts] button');await b.waitFor("!document.querySelector('[data-sync-conflicts]').children.length");
   await b.click('[data-sync-history] summary');await b.evaluate("[...document.querySelectorAll('[data-sync-history] button')].find(button=>button.textContent==='本机保留版本').click()");await b.waitFor("document.querySelector('[data-sync-dialog][open] .mw-form__body button')");
   await b.evaluate("document.querySelector('[data-sync-dialog][open] .mw-form__body button').click()");await b.waitFor("[...document.querySelectorAll('[data-sync-dialog][open] pre')].some(pre=>pre.textContent.includes('保留的正文'))");

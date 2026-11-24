@@ -93,7 +93,7 @@ export { sealExistingHomePayload, openExistingHomePayload, assertExistingHomeKey
 
 export * from "./adapters/search-storage.js";
 
-export { createEvidenceContentStore, evidenceContentRef, RESEARCH_EVIDENCE_DIRECTORY, type EvidenceContentKeyStatus, type EvidenceContentStore } from "./adapters/evidence-content.js";
+export { createEvidenceContentStore, evidenceContentRef, type EvidenceContentKeyStatus, type EvidenceContentStore } from "./adapters/evidence-content.js";
 export { createLocalPayloadProtection } from './adapters/local-payload-protection.js';
 export { replicaSerialization as createSyncBodySerialization } from './replica-serialization.js';
 export { installReplicaTrigger, replicaTriggerDefinitions, shareReplicaTriggerDefinitions } from './replica-triggers.js';

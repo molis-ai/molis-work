@@ -30,7 +30,14 @@ async function terminal(client:BoundActionClient,id:string):Promise<ImageJob>{
 
 test('Images actions use real provider bytes, original jobs, retry identity and shared Host lifetime',async t=>{
   const f=await fixture(t);let calls=0;const observed:unknown[]=[];
-  const server=createServer(async(req,res)=>{let raw='';for await(const chunk of req)raw+=chunk;calls++;observed.push(JSON.parse(raw));res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:[{b64_json:PNG}]}));});
+  const server = createServer(async (req, res) => {
+    let raw = "";
+    for await (const chunk of req.setEncoding("utf8")) raw += chunk;
+    calls++;
+    observed.push(JSON.parse(raw));
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ data: [{ b64_json: PNG }] }));
+  });
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise<void>(resolve=>server.close(()=>resolve())));
   const address=server.address();assert.ok(address&&typeof address==='object');
   const catalog=await f.client.discover();for(const action of Object.values(actions))assert.ok(catalog.some(item=>item.capability_id===action.capability_id));assert.equal(calls,0);

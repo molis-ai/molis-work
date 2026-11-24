@@ -79,10 +79,11 @@ export function createNextHandlers(ports: BriefPorts): ActionHandlerBinding[] {
     }),
     bindActionHandler(workBriefActions.setNext, ({ brief_id, option_id, state }, caller) => write(caller, store => {
       const brief = store.get(brief_id);
-      if (!store.version(brief)?.next.some(entry => entry.option_id === option_id)) throw workBriefErrors.option_stale("这条下一步已不在现行版里", { brief_id, option_id });
       const mark = settledMarks(ports, brief_id, store.marks(brief_id)).find(entry => entry.option_id === option_id);
+      const clearingUnknown = state === null && mark?.state === "unknown";
+      if (!clearingUnknown && !store.version(brief)?.next.some(entry => entry.option_id === option_id)) throw workBriefErrors.option_stale("这条下一步已不在现行版里", { brief_id, option_id });
       // An unconfirmed run can only be cleared, by the person, after they checked at the owner's: the option is then free again.
-      if (mark && mark.state !== "later" && mark.state !== "handed" && !(mark.state === "unknown" && state === null))
+      if (mark && mark.state !== "later" && mark.state !== "handed" && !clearingUnknown)
         throw workBriefErrors.conflict("这条下一步已经执行过，不能再改", { option_id, state: mark.state });
       store.mark(brief_id, state === null ? { option_id, state } : { option_id, state, actor_id: caller.actor_id, at: ports.now() });
       return { marks: settledMarks(ports, brief_id, store.marks(brief_id)) };

@@ -262,7 +262,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   const { PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } = await import("@molis-ai/molis-work-app-local-host");
 
   // "functions" may still be saved on older projects; rule authoring moved to Capabilities, so it has no rail entry.
-  const everything = ["jelly", "goals", "todo", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "alchemist", "artifacts"];
+  const everything = ["jelly", "goals", "todo", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "artifacts"];
   assert.deepEqual(
     railEntries(everything).map((entry) => [entry.id, entry.label, entry.glyph]),
     [
@@ -275,7 +275,6 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
       ["form", "Forms", "clipboard"],
       ["dataset", "Dataset", "database"],
       ["ppt", "PPT", "presentation"], // its own glyph; "image" belongs to 图片 (spec → 第三轮 · 图标)
-      ["alchemist", "炼金术士", "zap"],
       ["artifacts", "成果", "package"],
       ["sessions", "外部会话", "history"],
     ],
@@ -323,7 +322,6 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("ppt"), false, "个人插件不是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("lingguang"), false, "个人插件不是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("todo"), false, "个人插件不是项目可启用项");
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("alchemist"), false, "个人插件不是项目可启用项");
   assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("feed"), ["inbox"]);
 });
 

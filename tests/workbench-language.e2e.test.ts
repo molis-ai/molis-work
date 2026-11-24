@@ -1697,28 +1697,32 @@ test("FSS-35 catalog Agent display retains a real role and prompt draft through 
   await b.evaluate(`void (() => { window.catalogRole = document.querySelector(${JSON.stringify(link)}); window.catalogRawRole = document.querySelector(${JSON.stringify(raw)}); })()`);
   assert.equal(await b.evaluate("catalogRole.querySelector('strong').textContent"), "评论中的个人助理");
   assert.equal(await b.evaluate("catalogRawRole.querySelector('strong').textContent"), "评论中的个人助理");
-  const pending = Promise.withResolvers<{ requestId: string; responseStatusCode: number }>();
-  const stop = b.on("Fetch.requestPaused", (event, session) => {
-    if (session === b.sessionId) pending.resolve({ requestId: String(event.requestId), responseStatusCode: Number(event.responseStatusCode) });
-  });
-  await b.command("Fetch.enable", { patterns: [{ urlPattern: b.origin + "/api/agent-definitions/prompts", requestStage: "Response" }] }, b.sessionId);
-  let select: (target: "zh" | "en") => Promise<void>;
-  let originalBody: string;
-  try {
-    await b.click(link);
-    const held = await pending.promise; assert.equal(held.responseStatusCode, 200);
-    const old = await b.command<{ body: string; base64Encoded: boolean }>("Fetch.getResponseBody", { requestId: held.requestId }, b.sessionId);
-    const bytes = Buffer.from(old.body, old.base64Encoded ? "base64" : "utf8");
-    const payload = JSON.parse(bytes.toString("utf8")) as { prompts: Array<{ key: string; title: string; purpose: string; body: string }> };
-    const original = payload.prompts.find(item => item.key === promptKey);
-    assert.ok(original); assert.equal(original.title, "基础约束"); assert.equal(original.purpose, "组成角色：评论中的个人助理"); originalBody = original.body;
-    const before = reads.slice();
-    select = await chooseEnglishInSettings(t, b);
-    await b.waitFor("document.documentElement.lang === 'en'");
-    assert.deepEqual(reads, before, "the language preparation did not reread the held prompt list");
-    await b.command("Fetch.fulfillRequest", { requestId: held.requestId, responseCode: held.responseStatusCode,
-      responseHeaders: [{ name: "content-type", value: "application/json; charset=utf-8" }], body: bytes.toString("base64") }, b.sessionId);
-  } finally { stop(); await b.command("Fetch.disable", {}, b.sessionId).catch(() => undefined); }
+  // Hold the first real response at the browser fetch boundary. Other reads stay observable on the Host.
+  await b.evaluate(`(() => {
+    const original = window.fetch;
+    window.fetch = async (input, init) => {
+      if (new URL(input instanceof Request ? input.url : input, location.href).pathname !== '/api/agent-definitions/prompts') return original(input, init);
+      window.fetch = original;
+      const response = await original(input, init);
+      window.catalogPromptResponse = response;
+      await new Promise(resolve => { window.releaseCatalogPrompts = resolve; });
+      return response;
+    };
+  })()`);
+  await b.evaluate("catalogRole.click()");
+  await b.waitFor("typeof window.releaseCatalogPrompts === 'function'");
+  assert.equal(await b.evaluate("catalogPromptResponse.status"), 200);
+  const original = await b.evaluate<{ title: string; purpose: string; body: string } | null>(
+    `catalogPromptResponse.clone().json().then(reply => reply.prompts.find(item => item.key === ${JSON.stringify(promptKey)}) ?? null)`);
+  assert.ok(original);
+  assert.equal(original.title, "基础约束");
+  assert.equal(original.purpose, "组成角色：评论中的个人助理");
+  const originalBody = original.body;
+  const readsBeforeSwitch = reads.slice();
+  const select = await chooseEnglishInSettings(t, b);
+  await b.waitFor("document.documentElement.lang === 'en'");
+  assert.deepEqual(reads, readsBeforeSwitch, "the language preparation did not reread the held prompt list");
+  await b.evaluate("releaseCatalogPrompts()");
   await b.waitFor(`document.querySelector(${JSON.stringify(row + " textarea")})?.value.length > 0`);
   const words = `(() => { const row = document.querySelector(${JSON.stringify(row)}); return [catalogRole.querySelector('strong').textContent, catalogRawRole.querySelector('strong').textContent,
     document.querySelector('.prompt-role-focus-copy strong').textContent, row.querySelector('.prompt-row-copy strong').textContent, row.querySelector('.prompt-row-copy .settings-muted').textContent, row.querySelector('textarea').getAttribute('aria-label')]; })()`;
@@ -1771,7 +1775,6 @@ test("FSS-35 approved library titles and Assistant settings words preserve exact
   }
   const cases = [
     ["account.seat.assign", "system.account", "分配席位", "Assign seat"],
-    ["alchemist.memory.playbook.revise", "io.molis.work.alchemist", "修改研究方法", "Edit research method"],
     ["dataset.create", "io.molis.work.dataset", "新建数据表", "New table"],
     ["goals.list", "io.molis.work.goals", "目标目录", "Target directory"],
     ["todo.reminders.due", "io.molis.work.todo", "到了时间的提醒", "Reminders due"],
@@ -1789,6 +1792,6 @@ test("FSS-35 approved library titles and Assistant settings words preserve exact
   assert.deepEqual(await b.evaluate(titles), [...cases.map(row => row[3]), "New table"]);
   assert.ok(await b.evaluate("catalogLibrary.every(node => document.getElementById(node.id) === node)"));
   await go(library + "&q=" + encodeURIComponent("新建数据表"));
-  await b.waitFor(`!!document.getElementById(${JSON.stringify(ids[2])})`);
-  assert.equal(await b.evaluate(`document.getElementById(${JSON.stringify(ids[2])}).textContent`), "New table", "the library still searches the original declaration");
+  await b.waitFor(`!!document.getElementById(${JSON.stringify(ids[1])})`);
+  assert.equal(await b.evaluate(`document.getElementById(${JSON.stringify(ids[1])}).textContent`), "New table", "the library still searches the original declaration");
 });

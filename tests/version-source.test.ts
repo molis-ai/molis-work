@@ -245,7 +245,7 @@ test("N34-VS-03 a marker beside an id has to be that id's key", () => {
     '({ capability_id: "goals.create", version: /* @version action.goals.create */ 1 });',
     '({ capability_id: "items.list", version: /* @version action.todo.items.list */ 1 });', // a factory prefixes its plugin's name
     '({ capability_id: "read", version: /* @version action-family.sdk.artifacts.read */ 1 });',
-    '({ prompt_id: "copilot", version: /* @version prompt.alchemist.copilot */ 1 });',
+    '({ prompt_id: "assistant-main", version: /* @version prompt.assistant-main */ 1 });',
     '({ capability_id: dynamicId(), version: /* @version action-family.connector.mcp-resource */ 1 });',
     'define("items.list", /* @version action.todo.items.list */ 1, "列出待办");',
     'define("read", /* @version action-family.sdk.artifacts.read */ 1);',
@@ -705,8 +705,8 @@ test("VG-13 what each script scans is pinned, so sharing the walk did not narrow
   for (const pattern of workspace) assert.ok(SOURCE_ROOTS.some((directory: string) => pattern === directory || pattern.startsWith(`${directory}/`)), pattern);
 });
 
-test("VG-14 the complete CI gate job runs the version self-test", () => {
-  assert.ok(testRunsInJob(jobBlock("gate-rules")).some(args => args.includes("tests/version-source.test.ts")));
+test("VG-14 the complete source gate job runs the version self-test", () => {
+  assert.ok(testRunsInJob(jobBlock("gates")).some(args => args.includes("tests/version-source.test.ts")));
 });
 
 test("VG-15 an exception names the literals it lets through and how many, so a new one in that file is seen (BL-1067)", () => {
@@ -762,7 +762,6 @@ test("VG-20 what the exceptions used to hold moves with the table, and no except
     ...roles.flatMap((role): Array<[string, string, string]> => ["input", "output"].map(side => [`type.molis.work-executor.${role}.${side}`, executor, `/* @version type.molis.work-executor.${role}.${side} */ 2`])),
     ["type.connector.driver.catalog", catalog, "/* @version type.connector.driver.catalog */ 2"],
     ["type.signal.adapter.catalog", catalog, "/* @version type.signal.adapter.catalog */ 2"],
-    ["type.discovery.pulse", "plugins/native/alchemist/src/client-views.ts", '"discovery.pulse.v{version}" */ "discovery.pulse.v2"'],
     ["type.molis-work-local-payload", "packages/storage/src/adapters/local-payload-protection.ts", '"molis-work-local-payload-v{version}" */ "molis-work-local-payload-v2"'],
     ["type.molis-work-feed-aead", "packages/storage/src/adapters/search-storage.ts", '"molis-work-feed-aead-v{version}" */ "molis-work-feed-aead-v2"'],
   ];

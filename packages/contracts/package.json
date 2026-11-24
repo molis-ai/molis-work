@@ -42,10 +42,6 @@
       "types": "./dist/modules/functions.d.ts",
       "import": "./dist/modules/functions.js"
     },
-    "./modules/alchemist": {
-      "types": "./dist/modules/alchemist.d.ts",
-      "import": "./dist/modules/alchemist.js"
-    },
     "./modules/model-providers": {
       "types": "./dist/modules/model-providers.d.ts",
       "import": "./dist/modules/model-providers.js"

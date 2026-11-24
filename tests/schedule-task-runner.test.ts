@@ -31,7 +31,8 @@ async function scheduledAgent(t: TestContext, options: { hold?: boolean; workspa
   if (options.workspace === false) rmSync(gone, { recursive: true });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), disconnected = Promise.withResolvers<void>(), prompts: string[] = [];
   const model = createServer(async (request, response) => {
-    let body = ""; for await (const part of request) body += part;
+    let body = "";
+    for await (const part of request.setEncoding("utf8")) body += part;
     const aside = asideReply(body);
     if (!aside) { prompts.push(body); entered.resolve(); response.on("close", () => disconnected.resolve()); if (options.hold) await release.promise; }
     if (response.destroyed) return;

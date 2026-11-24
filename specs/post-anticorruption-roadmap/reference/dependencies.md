@@ -287,7 +287,7 @@ flowchart LR
 | 交付项 | 改成 | 原因 |
 | --- | --- | --- |
 | 31-2 | 「空常驻不发召回」由上游 molis-ai/molis-prologue#121 做掉，已随 [31-2](batches/31.md#batch-31-item-2) 换入公开 main `3825662d` 官方包生效（不改 Agent Host）并记下 `BL-1072` 方法下的零模型诊断值；P1 短合同已补 20 版计数历史撤销窗口与每条自动改动的 `policy` + `trigger_evidence` | 同在 P1 历史与换包 |
-| 62 | 加记忆与会话检索清单：上游第 1、3 项已做，第 2 项撤回（Host 侧归 64-9），第 4 项视 P2-01 合同 | 阶段 3 的换包窗口；64-9 消费 |
+| 62 | 加记忆与会话检索清单：上游第 1、3 项已做，第 2 项撤回（Host 侧归 64-9），第 4 项视 P2-01 合同 | 历史分工。现由 62 窗口 B 交第 2 项的 LRU／scope 列行，63A-2 消费，见[现行顺序](#recall-delivery-order) |
 | 63 | 加记忆样本与逐段定位 | 64-8、64-9 的效果到 76 验 |
 | 64-8（新） | 等 Memory P0（已合入）；上游关系输出若需要，等 62 | P2-01 的判断合同给 64-9 用 |
 | 64-9（新） | 等 64-8、62 的清单、32-2、44-2；候选公平要 Host 能按 scope 区间列行 | 整理的证据来自认可与返工，去处建议要项目指导 |
@@ -401,8 +401,8 @@ flowchart LR
 | 批次／项 | 现在的前置 | 文件 |
 | --- | --- | --- |
 | 36A（新） | #2103 合入；36（事项容器）；P0 由 #2110 单独修 | [36A](batches/36a.md) |
-| 37-1 | 加 36A-6（第一页与正文挂载位）；回退链改为「生成页面 → 默认第一页」 | [37](batches/37.md) |
-| 37-2 | 加 36A 的壳层（左上角「项目 › 事项」那一格，[决定 53](decisions.md#decision-53)；原写线头事项菜单）；没装 Goals 的验收先用夹具，真装卸等 44-6 | [37](batches/37.md) |
+| 37-1 | 加 36A-6（第一页与正文挂载位）；回退链改为「生成页面 → 默认第一页」；**PR [#2288](https://github.com/molis-ai/molis-work/pull/2288) 交付**（解锁 45-1 的生成首页运行消费） | [37](batches/37.md) |
+| 37-2 | 加 36A 的壳层（左上角「项目 › 事项」那一格，[决定 53](decisions.md#decision-53)；对齐[决定 66](decisions.md#decision-66) 个人空间置顶与 R21 右栏 IM）；没装 Goals 的验收先用夹具，真装卸等 44-6；**PR [#2288](https://github.com/molis-ai/molis-work/pull/2288) 交付**（满足 91A / 91-3 对 37-2 的前置） | [37](batches/37.md) |
 | 38-1 | 提供 `horizontal/blueprints` 的采用记录、继续与撤销，内置设置经原主人写入；45 接签名场景包及三方升级 | [38](batches/38.md) |
 | 40 | 加 38-1、#2120；40-2 缩为帮助入口、权限费用提示与状态词 | [40](batches/40.md) |
 | 43-1 | 前置均已合入（24、31-1、32、36、59），范围缩为 ONB-20 与助理团控制 | [43](batches/43.md) |
@@ -475,7 +475,7 @@ flowchart LR
 | 91（91A） | 91-2 获准随本批（或 91A 前单开小窗口）换入 Prologue P0 止血包（KV-Cache 失效指纹、Anthropic 多断点、`edit` 防 `$` 损坏与唯一性、流式落盘解耦、OpenAI `include_usage`、熔断与钩子/凭据技能修复），并同步落 Molis 侧 P0 热路径与缓存止血（去 `molis-child` 随机 UUID 且保留 Batch 59 `BUSINESS_SUBAGENT_HOST_TOOLS` 改幂等 `ensurePublishedChildRole`、技能短别名与取消 `.slice(0,20)`、`taskText` + `modelOrigin: "label"`、OpenAI `maxOutputTokens` 留 `undefined` 仅 Anthropic 按族夹逼、`prompt_cache` DB 留 `"off"` 仅已验证模板默认 `"best-effort"` 并放宽 `PA-24`、`runtime:clock` 保持 `developer` 层、`stop-guard` 预筛与用已有 `ActionService.discoverOne()` 禁盲整轮缓存、`ending-review` 保现状） | [91](batches/91.md) |
 | 62 | 承接 SDK 窗口二 Harness 升级：`openai-responses` 内置协议与 DeepSeek `reasoning_content` 回放；全面静态化工具面（过 MiniMax G1–G4 再停 `parameterBranches`、Anthropic 按需 `defer_loading`、Coding 可读命名空间短名保留 `act__` 守 `S-28`）；`apply_patch` + `read-resource`/`grep-resource` + 先修 `invokeAll` 漏传回调/信号且初期仅 `safe-read` 并行 + `code-mode` 结构化传递；`SKILL.md` Frontmatter + `FrozenCharacter.model` 子代理路由 + Cache-Safe Fork + 4 个未触发钩子；先落持久化跨轮压缩检查点再退 `history-digest.ts` + Amp 风格 Clean Handoff + Assistant Host 事实续接与附件卸载为虚拟知识件（保留 `attachments.forget()` 守 `S-conversation-attachments`）；`AuthenticatedEnvelopes` LRU + Host Scope 区间列行供 `63A` 消费 | [62](batches/62.md) |
 | 63 | 增设 Piece 0 硬前置修齐观测埋点断链（补接 7 类丢弃事件、TTFT/缓存口径与前缀哈希、`agent.tool`↔`action.call` 关联与守 `S-18` 的失败分类码、Assistant `agent.skill` 与 16 条材料截断修复、统一生产与评测漏斗词表）；随后落 Trace Bundle（收口 `BL-evaluation-read-cost`）、录制轨迹工具 Mock 回放、校准型混合裁判、三层 RRSI 门禁与 `evaluation.db` 的 `improvement_experiments`（SIM 账本，沿用 `use: "evaluation"`） | [63](batches/63.md) |
-| 63A | 叠加修 `sameText()` 符号误合并、去 `MEMORY_TIDY` 的 `0.3` 字面二次过滤、`AuthenticatedEnvelopes` 改 LRU + Host 按 Scope 区间列行（关 `BL-1072`）、真实半衰期衰减、情景记忆结构、常驻热层入静态前缀、Dreaming 改动记入 63 批 SIM 账本 | [63A](batches/63a.md) |
+| 63A | 叠加修 `sameText()` 符号误合并、去 `MEMORY_TIDY` 的 `0.3` 字面二次过滤、消费 62 窗口 B 的 LRU 与按 scope 区间列行并复测 `BL-1072`、真实半衰期衰减、情景记忆结构、常驻热层入静态前缀、Dreaming 改动记入 63 批 SIM 账本 | [63A](batches/63a.md) |
 | 64 | `horizontal/automation-recommender` 接入 `observation.db`（`use: "assistant"`）行为摩擦与返工检测，复用既有 `placeForPerson` + `automation.adoption.{adopt,undo}@1` 作为端侧本地 RSI 提案入口；主动与观察试用按 63 批统一漏斗词表落盘 | [64](batches/64.md) |
 | 65 | macOS Seatbelt（`sandbox-exec`）+ Linux Bubblewrap（`bwrap`）／`seccomp` + Host 本地出站域控代理同步作为本批交付（便于 Linux CI 同步跑真实沙箱拒绝测试，替换双 Host `sandbox: "absent"`），Windows Job Object 紧随补齐；Hooks 消费 62 批完整触发链 | [65](batches/65.md) |
 | 66 | 补充 LSP 增量错误诊断回传模型观察（写后即自修）、`environment-prep` 脚本摘要注入 Coding 初始上下文、简化与安全专科评审消费 62 批子代理模型路由 | [66](batches/66.md) |
@@ -610,3 +610,16 @@ flowchart LR
 | `109`（UPP-B3） | 等 `108`：主库插件删 `project_id`，Workspace Git+Writers 迁 `plugins/native/git`（D6=B，`S-git-plugin-command-scope`，保留 `#2244` 隔离），沙箱开放 `databases.partition`，彻底删 `dual_instance`、`scope:"home"`、`outsideBuild` 链、`project_rows`、`artifact_join` 与旧平行装配（G2/G3） | [109](batches/109.md) |
 | `110`（UPP-B4） | 等 `109`：放置/同步/搜索/MCP/记忆去双轨、V4 分区启用清单独立同步、零唤醒发现、G5 | [110](batches/110.md) |
 | `111`（UPP-C） | 等 `110`：星型推送（V2/V3/U6/U7/U8、>256 KiB 分片、CAS GC 保护）、先定样界面、焊死 G1～G5、清退复位白名单；作为 `91-2..4`/`91B`/`105`/`45`～`90`/`REL-4`～`5`/`SRV` 共同前置 | [111](batches/111.md) |
+
+<a id="recall-delivery-order"></a>
+
+### 11-23 Skill、Tool、Memory 的实施与验收顺序
+
+[共用周报样本与预期](../../proactive-assistant/spec.md#recall-workflow)可先准备。下表只排这条能力链的交接；各批已有的产品、合同、授权及 [111 分区前置](#deps-2026-11-22-demotion-upp)仍按本批文件执行。
+
+| 顺序 | 谁先做什么 | 给下一项什么 |
+| --- | --- | --- |
+| 留下改前结果 | [91-2](batches/91.md#batch-91-item-2) 在修助理目录前记录前后位 Skill 样本；[62-1](batches/62.md#batch-62-item-1) 在改两个工具入口前记录自然中文、相邻动作与结果。两批使用现有入口，版本、模型、权限和不可测项随结果保存 | [63](batches/63.md) 收样本与旧行为证据。91A 与 62 沿窗口 A → B 的顺序；两批各自开工不依赖 63 合入 |
+| 补齐观测 | 63 先登记输入、业务主人提供的预期和已有回执。Piece 0 按实际依赖接 62 的模型事件和 [104](batches/104.md) 的用量，再做正式分段比较 | [63A](batches/63a.md) 获得可恢复样本与 SIM 账本；[89-3](batches/89.md#batch-89-item-3) 获得可回放的工具记录 |
+| 实现与接入 | 63A-1 做形成；63A-2 消费 62 窗口 B 的 LRU／scope 列行和 63 样本，先接获准原文，再验 Dreaming；63A-3 叠常驻。[64](batches/64.md) 按子项接入：[52-2](batches/52.md#batch-52-item-2) 交可用方法，62-3 供智能组合，63A 供工作记忆／历史接续 | 从正常助理入口得到可核对的草稿、来源与发送状态，交 [76](batches/76.md) |
+| 扩大验证 | 76 跨报告周期观察；89-3 在 42、63 与适用真实样本就绪后扩到全目录，独立于 76 的观察周期。[67-2](batches/67.md#batch-67-item-2) 用 Coding 真任务验工具效果，[86](batches/86.md) 再按原前置比较逐次与程序化调用 | 各按真实产出、范围、返工和成本下结论；周报仅作首例，Coding 用自己的工作产物 |

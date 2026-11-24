@@ -380,7 +380,7 @@ test("RAC-607 the rail lists an installed plugin under the group its view names,
   // 07-1 S4b (口径 9): 个人 is no longer a group a view names; it holds the person's own plugins (`isPersonalPlugin`: the Host's personal
   // and home marks). This directory marks none (the built-ins it does not list come from the shell's own catalog, which carries no Host
   // mark), so there is no 个人 heading here; before S4b the built-ins whose view named 个人 drew it. The marks bring it back below.
-  const headings = ["推进", "写与做", "个人", "研究", "编码"].slice(0, UI_VIEW_GROUPS.length);
+  const headings = ["推进", "写与做", "个人", "编码"].slice(0, UI_VIEW_GROUPS.length);
   assert.deepEqual(sections.map(section => section.heading), [...headings.filter(heading => heading !== "个人"), "更多"]);
   assert.equal(headingOf(html, "makes"), "写与做");
   assert.equal(headingOf(html, "plain"), "更多");

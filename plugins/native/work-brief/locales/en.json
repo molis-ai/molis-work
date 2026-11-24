@@ -94,6 +94,8 @@
     "work-brief.next.state.stale": "No longer valid",
     "work-brief.next.state.unknown": "Result not confirmed",
     "work-brief.next.undo": "Undo",
+    "work-brief.next.old": "Previous step",
+    "work-brief.next.old-note": "This step was removed. Check the result where it ran, then clear this record.",
     "work-brief.next.unknown-note": "This run did not confirm a result. It may or may not have taken effect. Check where it acts first, then clear this record; after that it can run again.",
     "work-brief.next.unknown-toast": "Result not confirmed. Check where it acts.",
     "work-brief.old.back": "Back to current",

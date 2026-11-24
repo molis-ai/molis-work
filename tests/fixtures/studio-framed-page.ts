@@ -6,9 +6,9 @@ import { installHostUiText } from "@molis-ai/molis-work-app-local-host";
 import { pluginFrameBrowser } from "./plugin-frame-browser.js";
 export { studioFrameAsset, studioHarnessRequests } from "../../scripts/agent-studio-harness.mjs";
 
-export async function framedStudioPage(t: TestContext, browser: ChromeHarness, page: ChromePage) {
+export async function framedStudioPage(t: TestContext, browser: ChromeHarness, page: ChromePage, surface?: string) {
   const child = await pluginFrameBrowser(t, { command: browser.command.bind(browser), on: browser.on.bind(browser),
-    evaluate: page.evaluate.bind(page), sessionId: page.sessionId });
+    evaluate: page.evaluate.bind(page), sessionId: page.sessionId }, surface);
   return { command: page.command.bind(page), viewport: page.viewport.bind(page), evaluate: child.evaluate, click: child.click,
     wait: (expression: string, options?: WaitOptions) => child.waitFor(expression, options?.timeoutMs ?? 14000),
     async fill(selector: string, value: string) {

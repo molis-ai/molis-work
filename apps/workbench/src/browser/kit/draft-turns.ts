@@ -71,7 +71,7 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
   async function turnOffSource(w: Workshop, source: { install_id: string; skill_id: string } | undefined): Promise<{ off: boolean; failure?: string }> {
     if (!source || w.draft.target.kind !== "custom" || !w.turnOffSource) return { off: false };
     const entry = c.skills().find(item => item.skill.ref.install_id === source.install_id && item.skill.ref.skill_id === source.skill_id);
-    if (!entry) return { off: false };
+    if (!entry) return { off: false, failure: improve("original-missing") };
     return setState(project, entry.skill, "off", w.draft.scope).then(() => ({ off: true }), cause => ({ off: false, failure: messageOf(cause) }));
   }
   async function adopt(w: Workshop, anyway: boolean): Promise<void> {
@@ -89,7 +89,7 @@ export function draftTurns(c: WritingContext, edit: DraftEditing) {
       const entry = current ? c.showOwn(w.draft.scope, result.skill_id) : undefined;
       if (current) draw("detail");
       if (w.draft.target.kind === "own") say(improve("adopted-version", { n: name, v: result.skill_version }));
-      else if (turned.failure) say(`${improve("adopted-new", { n: name })} ${turned.failure}`, "danger");
+      else if (turned.failure) say(improve("adopted-copy-original-still-on", { n: name, m: turned.failure }), "danger");
       else if (entry) say(improve(turned.off ? "adopted-copy" : "adopted-new", { n: name }), "success", { label: written("turn-auto"), attrs: act("au-auto", entry.key) });
       return;
     } catch (cause) {

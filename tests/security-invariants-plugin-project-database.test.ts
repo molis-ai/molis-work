@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import childProcess, { execFileSync } from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -10,7 +10,6 @@ import type { PluginDatabase, PluginDatabaseDeclaration, PluginDefinition, Plugi
 import type { SandboxEffects, SandboxOperationContract, SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { pluginSyncDatabaseDeclaration, pluginSyncNamespace, createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, openPluginProjectLibrary, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { createAlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
 import { LocalSqliteStorage, sqliteErrorName } from "@molis-ai/molis-work-storage";
 import { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, runInPluginAction, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import { assertContract, createSandboxRunner, sandboxDatabase } from "@molis-ai/molis-work-plugin-sandbox";
@@ -370,18 +369,6 @@ test("PLIB-08 SQLD-05 one SQLite library per file: the reader is read-only and t
   });
   assert.equal(inside, true, "the write ran in a transaction on the Host's own connection");
   assert.throws(() => openPluginProjectLibrary({ db: store.db, path: ":memory:" }, mine.definition.manifest, () => {}, { install_id: "plib-08", installation_generation: "1" }), /不是文件/u);
-});
-
-test("SQLD-08 S-46 Alchemist's second SQLite opens only its own file: given the project's library, or any other name, it refuses and changes nothing", async t => {
-  const { file, count } = await platform(t);
-  const before = readFileSync(file);
-  const ai = {} as Parameters<typeof createAlchemistStudioRuntime>[0]["ai"];
-  for (const databasePath of [file, join(dirname(file), "catalog.db"), join(dirname(file), "studio.sqlite.bak"), ":memory:"]) {
-    assert.throws(() => createAlchemistStudioRuntime({ databasePath, ai, pulseSourceMode: "fixture" }), { code: "alchemist.sync_scope" }, databasePath);
-  }
-  assert.deepEqual(readFileSync(file), before);
-  assert.equal(count("libprobe_notes"), 0);
-  assert.equal(existsSync(join(dirname(file), "catalog.db")), false, "a refused name is not created");
 });
 
 /** One operation of the sandboxed stand-in: it takes its call as JSON text and answers with what it got back, or the code it was refused with. */

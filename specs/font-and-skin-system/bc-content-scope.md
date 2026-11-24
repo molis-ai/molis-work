@@ -28,7 +28,7 @@ Coding 的「代码调查」「独立评审」「独立实现」子角色按 [�
 
 | 精确版本键 | 当前载体 |
 | --- | --- |
-| `prompt.alchemist.copilot`、`prompt.alchemist.cross-check`、`prompt.alchemist.exploration`、`prompt.alchemist.format-correction`、`prompt.alchemist.reuse`、`prompt.alchemist.synthesis` | [plugins/native/alchemist/src/prompts.ts](../../plugins/native/alchemist/src/prompts.ts) |
+| `prompt.alchemist.copilot`、`prompt.alchemist.cross-check`、`prompt.alchemist.exploration`、`prompt.alchemist.format-correction`、`prompt.alchemist.reuse`、`prompt.alchemist.synthesis` | `plugins/native/alchemist/src/prompts.ts` |
 | `prompt.assistant-base`、`prompt.assistant-delegated`、`prompt.assistant-thread`、`prompt.assistant-work` | [apps/local-host/src/assistant/assistant-agent.ts](../../apps/local-host/src/assistant/assistant-agent.ts) |
 | `prompt.choose.capability`、`prompt.choose.component` | [horizontal/plugin-studio/src/choice-prompts.ts](../../horizontal/plugin-studio/src/choice-prompts.ts) |
 | `prompt.coding-background`、`prompt.coding-base`、`prompt.coding-builder`、`prompt.coding-coordinator`、`prompt.coding-planner`、`prompt.coding-reader`、`prompt.coding-reviewer`、`prompt.coding-writer`、`prompt.coding-writers` | [plugins/native/coding/src/roles.ts](../../plugins/native/coding/src/roles.ts) |

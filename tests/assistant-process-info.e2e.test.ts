@@ -288,7 +288,9 @@ test("Memory receipts in a real failed Work show a pending candidate and no chan
   const model = createServer(async (req, res) => {
     const receivedAt = Date.now();
     try {
-      let raw = ""; for await (const chunk of req) raw += chunk; requests++;
+      let raw = "";
+      for await (const chunk of req.setEncoding("utf8")) raw += chunk;
+      requests++;
       const withdrawn = atWithdrawal > 0 && !withdrawalClosed;
       let body: Record<string, unknown>;
       try { body = JSON.parse(raw) as Record<string, unknown>; } catch (error) {

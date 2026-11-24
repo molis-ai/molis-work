@@ -31,8 +31,8 @@ try {
   // Resolve from the payload, never the checkout's node_modules. No install scripts or network here.
   // Project libraries run on the bundled Node's own SQLite, and every plugin statement is refused unless it is the version the statement
   // list was reviewed against (S-46). So a payload whose Node brings another SQLite fails here, not on the user's machine. The version is
-  // read from the payload's plugin runtime, the same constant the Host compares at run time. The storage package must not bring a second
-  // SQLite back: only Alchemist keeps its own driver (specs/sqlite-driver-switch §6, §7).
+  // read from the payload's plugin runtime, the same constant the Host compares at run time. Nothing may bring a second SQLite back
+  // (specs/sqlite-driver-switch §6, §7).
   execFileSync(node, ["--input-type=module", "-e", `
     const { readFileSync } = await import('node:fs');
     const { openSqliteConnection } = await import('@molis-ai/molis-work-storage');

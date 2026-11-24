@@ -8,7 +8,7 @@ const job = (name, run_attempt, conclusion = "success", execution = run_attempt)
   const start = (execution * 60 + (name === "Build workspace" ? 0 : 20)) * 1000;
   return { name, run_id: 123, run_attempt, conclusion, started_at: new Date(start).toISOString(), completed_at: new Date(start + 8000).toISOString() };
 };
-const initial = [job("Build workspace", 1), job("Full suite (1/3)", 1), job("Full suite (2/3)", 1, "failure"), job("Full suite (3/3)", 1, "cancelled")];
+const initial = [job("Build workspace", 1), job("Sync Worker integration", 1), job("Full suite (1/3)", 1), job("Full suite (2/3)", 1, "failure"), job("Full suite (3/3)", 1, "cancelled")];
 const completed = [...initial, job("Full suite (2/3)", 2), job("Full suite (3/3)", 2)];
 
 test("CIP-15 GitHub copies a passed job into the next attempt with the original execution times and artifact", () => {
@@ -45,4 +45,11 @@ test("CIP-15 missing shards, a different plan and foreign run evidence cannot gi
     [...completed, { ...job("Full suite (1/3)", 3), run_id: 456 }], [...completed, job("Full suite (3/3)", 2)]]) {
     assert.throws(() => verifyFullRetry(bad, plan));
   }
+});
+
+test("TSA-06 a full retry needs Worker integration on the same build, a single-file dispatch needs only its shard", () => {
+  const withoutWorker = completed.filter(row => row.name !== "Sync Worker integration");
+  assert.throws(() => verifyFullRetry(withoutWorker, plan), /Sync Worker integration/);
+  assert.throws(() => verifyFullRetry([...completed, job("Sync Worker integration", 2, "failure")], plan), /Sync Worker integration/);
+  assert.doesNotThrow(() => verifyFullRetry([job("Build workspace", 1), job("Full suite (1/1)", 1)], {...plan, count: 1}));
 });

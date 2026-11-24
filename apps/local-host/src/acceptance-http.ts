@@ -11,6 +11,7 @@ import { ACCEPTANCE_DECIDE_ACTION } from "./acceptance-review.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
+import { homePageRequestBound } from "./home-page-authority.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { decideProjectReview, readProjectReview, type ProtectedReviewEntry } from "./project-review-commands.js";
 import { projectReviewPerson } from "./project-review-entry.js";
@@ -91,7 +92,7 @@ export async function handleAcceptanceHttp(request: IncomingMessage, response: S
       async handle({ method, pathname, body }) {
         const door = pathname.slice("/api/acceptance/".length);
         if (method !== "POST" || (door !== "read" && door !== "decide" && door !== "requirements")) return null;
-        if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", REFUSAL);
+        if (pluginPageRequest(request) || homePageRequestBound(request)) throw new ActionError("actions.forbidden", REFUSAL);
         const message = `web:${randomUUID()}`;
         const action = Object.freeze({ source: "web" as const, conversation_ref: `web:${project.project_id}`, message_ref: message });
         const assertCurrent = () => { controller.signal.throwIfAborted(); if (host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "宿主正在关闭"); };

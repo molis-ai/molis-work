@@ -95,10 +95,10 @@
 | 文件 | 行数 | 判定 |
 | --- | ---: | --- |
 | `server/src/auth.ts`（已于 PR #896 删除） | 4 | **死文件**：只是 `ImAuth`/`ImSession` 的兼容别名，没有任何包、测试或脚本导入，也没有从 `server/src/index.ts` 转出 |
-| [`plugins/native/alchemist/src/studio/shared/contracts/bootstrap.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/bootstrap.ts#L1) | 68 | **死文件**：5 个 DTO（`DirectionDto`、`IdeaCardDto`、`ExplorationDto`、`IdeaSummaryDto`、`BootstrapDto`）没有任何引用 |
-| [`plugins/native/alchemist/src/studio/shared/contracts/job.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/job.ts#L1) | 16 | **死文件**：两个 zod schema 与 `JobEventDto` 都没有引用 |
+| `plugins/native/alchemist/src/studio/shared/contracts/bootstrap.ts` | 68 | **死文件**：5 个 DTO（`DirectionDto`、`IdeaCardDto`、`ExplorationDto`、`IdeaSummaryDto`、`BootstrapDto`）没有任何引用 |
+| `plugins/native/alchemist/src/studio/shared/contracts/job.ts` | 16 | **死文件**：两个 zod schema 与 `JobEventDto` 都没有引用 |
 | [`packages/plugin-sandbox/src/worker.ts`](../../packages/plugin-sandbox/src/worker.ts#L1) | — | 保留：由 [`runner.ts`](../../packages/plugin-sandbox/src/runner.ts#L71) 按路径复制进沙箱，不是 import 入口 |
-| [`plugins/native/alchemist/vitest.config.ts`](../../plugins/native/alchemist/vitest.config.ts#L1) | — | 保留：CI 的 `pnpm --filter …alchemist test` 用它 |
+| `plugins/native/alchemist/vitest.config.ts` | — | 保留：CI 的 `pnpm --filter …alchemist test` 用它 |
 | [`server/tooling/continuity-demo.mts`](../../server/tooling/continuity-demo.mts#L1) | — | 保留：手工 QA 脚本，不属于产品入口 |
 
 另有一个“只被测试走得到”的入口：[`apps/local-host/cloudflare/worker.ts`](../../apps/local-host/cloudflare/worker.ts#L1) 是单独的 Cloudflare Worker 部署入口（有自己的 `wrangler.jsonc`），不是死代码。
@@ -170,7 +170,7 @@
 
 ### 4.3 具体的边界问题
 
-1. **Alchemist 的测试跨包拿源码。** [`plugins/native/alchemist/tests/work-reuse/fixture.ts`](../../plugins/native/alchemist/tests/work-reuse/fixture.ts#L9) 用相对路径直接 import `modules/artifacts/src/index.js`、`modules/context-ledger/src/index.js`，还 import 了根 `tests/fixtures/alchemist-output.js`；但 Alchemist 的 `package.json` 没有声明这两个 Module 的依赖。它现在能跑，是因为 vitest 从源码解析路径。改法：加 `devDependencies`，按包名从公开入口 import；或者把 fixture 移进共享测试工具。这是测试侧的边界债，生产代码没有同类问题。
+1. **Alchemist 的测试跨包拿源码。** `plugins/native/alchemist/tests/work-reuse/fixture.ts` 用相对路径直接 import `modules/artifacts/src/index.js`、`modules/context-ledger/src/index.js`，还 import 了根 `tests/fixtures/alchemist-output.js`；但 Alchemist 的 `package.json` 没有声明这两个 Module 的依赖。它现在能跑，是因为 vitest 从源码解析路径。改法：加 `devDependencies`，按包名从公开入口 import；或者把 fixture 移进共享测试工具。这是测试侧的边界债，生产代码没有同类问题。
 2. **`server/src/auth.ts` 是残留的兼容别名。** 没有调用方、没有从入口转出，删掉即可；它不影响公开合同。
 3. **`web-query` 整包非产品。** 见 §3.4。
 4. **依赖版本不一致。** `@types/better-sqlite3` 在根是 `^9.6.0`、在 Alchemist 是 `^7.6.13`（运行时 `better-sqlite3` 是 12.8.0）；`node-pty` 一处 `^1.1.0`、一处 `1.1.0`；`marked` 一处 `18.0.11`、一处 `^18.0.11`。前两项值得统一，后两项只是写法差异。
@@ -438,44 +438,44 @@ pnpm page-assets:check                              # 只有动宿主下发的�
 
 | 导出 | 文件 | 值/类型 |
 | --- | --- | --- |
-| `rejectActionProposal` | [`plugins/native/alchemist/src/studio/domain/calibration/calibration.ts`](../../plugins/native/alchemist/src/studio/domain/calibration/calibration.ts) | 值 |
-| `TargetRef` | [`plugins/native/alchemist/src/studio/domain/kernel/revision.ts`](../../plugins/native/alchemist/src/studio/domain/kernel/revision.ts) | 类型 |
-| `annotationParamsSchema` | [`plugins/native/alchemist/src/studio/shared/contracts/annotation.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/annotation.ts) | 值 |
-| `AnnotationDto` | [`plugins/native/alchemist/src/studio/shared/contracts/annotation.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/annotation.ts) | 类型 |
-| `BootstrapDto` | [`plugins/native/alchemist/src/studio/shared/contracts/bootstrap.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/bootstrap.ts) | 类型 |
-| `ConversationMessageDto` | [`plugins/native/alchemist/src/studio/shared/contracts/conversation.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/conversation.ts) | 类型 |
-| `decisionParamsSchema` | [`plugins/native/alchemist/src/studio/shared/contracts/decision.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/decision.ts) | 值 |
-| `DecisionsSurfaceDto` | [`plugins/native/alchemist/src/studio/shared/contracts/decision.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/decision.ts) | 类型 |
-| `directionIdParamsSchema` | [`plugins/native/alchemist/src/studio/shared/contracts/direction.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/direction.ts) | 值 |
-| `ExplorationGeneration` | [`plugins/native/alchemist/src/studio/shared/contracts/exploration.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/exploration.ts) | 类型 |
-| `IdeaCardDraft` | [`plugins/native/alchemist/src/studio/shared/contracts/exploration.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/exploration.ts) | 类型 |
-| `KeepIdeaResponse` | [`plugins/native/alchemist/src/studio/shared/contracts/idea.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/idea.ts) | 类型 |
-| `ideaCardParamsSchema` | [`plugins/native/alchemist/src/studio/shared/contracts/idea.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/idea.ts) | 值 |
-| `ideaVersionParamsSchema` | [`plugins/native/alchemist/src/studio/shared/contracts/idea.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/idea.ts) | 值 |
-| `jobEventsParamsSchema` | [`plugins/native/alchemist/src/studio/shared/contracts/job.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/job.ts) | 值 |
-| `jobEventsQuerySchema` | [`plugins/native/alchemist/src/studio/shared/contracts/job.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/job.ts) | 值 |
-| `JobEventDto` | [`plugins/native/alchemist/src/studio/shared/contracts/job.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/job.ts) | 类型 |
-| `memoryRuleParamsSchema` | [`plugins/native/alchemist/src/studio/shared/contracts/memory.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/memory.ts) | 值 |
-| `MemoryWorkspaceDto` | [`plugins/native/alchemist/src/studio/shared/contracts/memory.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/memory.ts) | 类型 |
-| `TasteRuleDto` | [`plugins/native/alchemist/src/studio/shared/contracts/memory.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/memory.ts) | 类型 |
-| `PlaybookRuleDto` | [`plugins/native/alchemist/src/studio/shared/contracts/memory.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/memory.ts) | 类型 |
-| `ActionProposalDto` | [`plugins/native/alchemist/src/studio/shared/contracts/memory.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/memory.ts) | 类型 |
-| `updatePulseSourceRequestSchema` | [`plugins/native/alchemist/src/studio/shared/contracts/pulse.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/pulse.ts) | 值 |
-| `opportunityParamsSchema` | [`plugins/native/alchemist/src/studio/shared/contracts/pulse.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/pulse.ts) | 值 |
-| `PulseWorkspaceDto` | [`plugins/native/alchemist/src/studio/shared/contracts/pulse.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/pulse.ts) | 类型 |
-| `PulseRunDto` | [`plugins/native/alchemist/src/studio/shared/contracts/pulse.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/pulse.ts) | 类型 |
-| `PulseReportDto` | [`plugins/native/alchemist/src/studio/shared/contracts/pulse.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/pulse.ts) | 类型 |
-| `OpportunityDto` | [`plugins/native/alchemist/src/studio/shared/contracts/pulse.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/pulse.ts) | 类型 |
-| `SupplySignalDto` | [`plugins/native/alchemist/src/studio/shared/contracts/pulse.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/pulse.ts) | 类型 |
-| `SourceSettingDto` | [`plugins/native/alchemist/src/studio/shared/contracts/pulse.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/pulse.ts) | 类型 |
-| `lensParamsSchema` | [`plugins/native/alchemist/src/studio/shared/contracts/research.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/research.ts) | 值 |
-| `startLensRunRequestSchema` | [`plugins/native/alchemist/src/studio/shared/contracts/research.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/research.ts) | 值 |
-| `ideaResearchParamsSchema` | [`plugins/native/alchemist/src/studio/shared/contracts/research.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/research.ts) | 值 |
-| `RuntimeModelDto` | [`plugins/native/alchemist/src/studio/shared/contracts/research.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/research.ts) | 类型 |
-| `ResearchPlanDto` | [`plugins/native/alchemist/src/studio/shared/contracts/research.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/research.ts) | 类型 |
-| `LensRunDto` | [`plugins/native/alchemist/src/studio/shared/contracts/research.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/research.ts) | 类型 |
-| `LensReportDto` | [`plugins/native/alchemist/src/studio/shared/contracts/research.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/research.ts) | 类型 |
-| `EvidenceDto` | [`plugins/native/alchemist/src/studio/shared/contracts/research.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/research.ts) | 类型 |
+| `rejectActionProposal` | `plugins/native/alchemist/src/studio/domain/calibration/calibration.ts` | 值 |
+| `TargetRef` | `plugins/native/alchemist/src/studio/domain/kernel/revision.ts` | 类型 |
+| `annotationParamsSchema` | `plugins/native/alchemist/src/studio/shared/contracts/annotation.ts` | 值 |
+| `AnnotationDto` | `plugins/native/alchemist/src/studio/shared/contracts/annotation.ts` | 类型 |
+| `BootstrapDto` | `plugins/native/alchemist/src/studio/shared/contracts/bootstrap.ts` | 类型 |
+| `ConversationMessageDto` | `plugins/native/alchemist/src/studio/shared/contracts/conversation.ts` | 类型 |
+| `decisionParamsSchema` | `plugins/native/alchemist/src/studio/shared/contracts/decision.ts` | 值 |
+| `DecisionsSurfaceDto` | `plugins/native/alchemist/src/studio/shared/contracts/decision.ts` | 类型 |
+| `directionIdParamsSchema` | `plugins/native/alchemist/src/studio/shared/contracts/direction.ts` | 值 |
+| `ExplorationGeneration` | `plugins/native/alchemist/src/studio/shared/contracts/exploration.ts` | 类型 |
+| `IdeaCardDraft` | `plugins/native/alchemist/src/studio/shared/contracts/exploration.ts` | 类型 |
+| `KeepIdeaResponse` | `plugins/native/alchemist/src/studio/shared/contracts/idea.ts` | 类型 |
+| `ideaCardParamsSchema` | `plugins/native/alchemist/src/studio/shared/contracts/idea.ts` | 值 |
+| `ideaVersionParamsSchema` | `plugins/native/alchemist/src/studio/shared/contracts/idea.ts` | 值 |
+| `jobEventsParamsSchema` | `plugins/native/alchemist/src/studio/shared/contracts/job.ts` | 值 |
+| `jobEventsQuerySchema` | `plugins/native/alchemist/src/studio/shared/contracts/job.ts` | 值 |
+| `JobEventDto` | `plugins/native/alchemist/src/studio/shared/contracts/job.ts` | 类型 |
+| `memoryRuleParamsSchema` | `plugins/native/alchemist/src/studio/shared/contracts/memory.ts` | 值 |
+| `MemoryWorkspaceDto` | `plugins/native/alchemist/src/studio/shared/contracts/memory.ts` | 类型 |
+| `TasteRuleDto` | `plugins/native/alchemist/src/studio/shared/contracts/memory.ts` | 类型 |
+| `PlaybookRuleDto` | `plugins/native/alchemist/src/studio/shared/contracts/memory.ts` | 类型 |
+| `ActionProposalDto` | `plugins/native/alchemist/src/studio/shared/contracts/memory.ts` | 类型 |
+| `updatePulseSourceRequestSchema` | `plugins/native/alchemist/src/studio/shared/contracts/pulse.ts` | 值 |
+| `opportunityParamsSchema` | `plugins/native/alchemist/src/studio/shared/contracts/pulse.ts` | 值 |
+| `PulseWorkspaceDto` | `plugins/native/alchemist/src/studio/shared/contracts/pulse.ts` | 类型 |
+| `PulseRunDto` | `plugins/native/alchemist/src/studio/shared/contracts/pulse.ts` | 类型 |
+| `PulseReportDto` | `plugins/native/alchemist/src/studio/shared/contracts/pulse.ts` | 类型 |
+| `OpportunityDto` | `plugins/native/alchemist/src/studio/shared/contracts/pulse.ts` | 类型 |
+| `SupplySignalDto` | `plugins/native/alchemist/src/studio/shared/contracts/pulse.ts` | 类型 |
+| `SourceSettingDto` | `plugins/native/alchemist/src/studio/shared/contracts/pulse.ts` | 类型 |
+| `lensParamsSchema` | `plugins/native/alchemist/src/studio/shared/contracts/research.ts` | 值 |
+| `startLensRunRequestSchema` | `plugins/native/alchemist/src/studio/shared/contracts/research.ts` | 值 |
+| `ideaResearchParamsSchema` | `plugins/native/alchemist/src/studio/shared/contracts/research.ts` | 值 |
+| `RuntimeModelDto` | `plugins/native/alchemist/src/studio/shared/contracts/research.ts` | 类型 |
+| `ResearchPlanDto` | `plugins/native/alchemist/src/studio/shared/contracts/research.ts` | 类型 |
+| `LensRunDto` | `plugins/native/alchemist/src/studio/shared/contracts/research.ts` | 类型 |
+| `LensReportDto` | `plugins/native/alchemist/src/studio/shared/contracts/research.ts` | 类型 |
+| `EvidenceDto` | `plugins/native/alchemist/src/studio/shared/contracts/research.ts` | 类型 |
 
 **apps/local-host**（6）
 

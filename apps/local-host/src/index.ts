@@ -189,7 +189,6 @@ export { connectorSetupAction } from "./connector-setup.js";
 export { connectorSetupExecuteAction } from "./connector-setup-execute.js";
 export { connectorSetupIntentAction } from "./connector-setup-intent.js";
 export { connectorAuthorizationStatus, holdConnectorAuthorizationsForSession } from "./connector-authorization-status.js";
-export { alchemistPulseGithub } from "./alchemist-pulse-github.js";
 export { startApiOAuth, completeApiOAuth, resolveApiOAuthToken, type OAuthOwners } from "./connector-api-oauth.js";
 export { resolveApiConnection } from "./connector-access.js";
 export { handleConnectorApiMethodsHttp } from "./web-connector-api-methods.js";
@@ -229,7 +228,7 @@ export { characterNativeExecution } from "./character-native-execution.js";
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
 export { declaredStageData, declaredStageRequests } from "./project-stage-data.js";
 export { developerMode } from "./developer-mode.js";
-export { hostCompleteText, hostTextGeneration, textModelAvailability, textModelMissing, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
+export { hostCompleteText, hostTextGeneration, textModelAvailability, textModelMissing, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextReceipt, type HostTextRequestOptions } from "./host-complete-text.js";
 // Context-driven interaction: the judgment service and the readers of what a page claims, for the tests that drive them (new tests import the entry).
 export { createContextualJudgmentService, type ContextualJudgmentPorts, type ContextualJudgmentService } from "./contextual/judgment-service.js";
 export { readJudgeRequest, readLanding } from "./contextual/contextual-request.js";
@@ -311,6 +310,7 @@ export { LocalActionGatewayClient } from "./action-gateway.js";
 export { changeMcpClientCredential, createMcpClientProof, hasMcpClientCredential, mcpClientCredentialPath } from "./mcp-client-credentials.js";
 
 export { createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./search-evidence-runtime.js";
+export { createAnySearchTransport } from "./anysearch-transport.js";
 // Home stores' one current schema each (repository-anti-corruption §4.1); compared with the stores' fixtures by tests/home-store-baselines.test.ts.
 export { CONNECTORS_BASELINE } from "./connectors-store.js";
 export { CONTEXT_ONBOARDING_BASELINE, withContextJourneys } from "./context-onboarding-store.js";
@@ -329,7 +329,6 @@ export { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.
 export { composeSimplifiedPrompt, splitPromptContract, validateFullPromptBody, type PromptEditorSections } from "./agent-definitions/prompt-sections.js";
 export { PLACEMENT_BASELINE } from "./placement-actions.js";
 export { placementCallPorts } from "./placement-call.js";
-export { ALCHEMIST_SEARCH_BASELINE, ALCHEMIST_STUDIO_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
 export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
 export { raiseConnectionNotice } from "./assistant/assistant-connection-notices.js";
 export { assistantConnectionCard } from "./assistant/assistant-connection-card.js";
@@ -484,3 +483,4 @@ export { offerProjectAutomation } from "./automation-proactive.js";
 // A project's installed signed packages as pages and calls (47-1: the platform's), and the trials the studio answers for its drafts.
 export { handleInstalledPluginHttp, installedPluginStages, type InstalledPluginHttpOptions } from "./installed-plugin-http.js";
 export { generatedPluginManifest, studioTrials } from "./plugin-builder/studio-preview.js";
+export { HOME_PAGE_SESSION_HEADER, HomePageSessionRegistry } from "./home-page-authority.js";

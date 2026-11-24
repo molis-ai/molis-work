@@ -21,10 +21,10 @@ test("UPG-01 the committed snapshot is what the built product creates; `pnpm sch
   assert.equal(committed(), renderStoreSchemas(rows));
 });
 
-test("UPG-01 the snapshot holds the catalog, the project database, every Home library, each built-in plugin's project tables and the old Alchemist's stores", () => {
+test("UPG-01 the snapshot holds the catalog, the project database, every Home library and each built-in plugin's project tables", () => {
   const stores = rows.map(row => row.store);
   for (const store of ["projects/catalog.db", "projects/*/molis-work.db", "blueprints/blueprints.db", "memory/memory.db", "sync/sync.db", "server/server.sqlite", "todo/todo.db",
-    "alchemist/projects/*/studio.sqlite", "alchemist/projects/*/search.sqlite", "projects/*/molis-work.db#io.molis.work.goals"]) assert.ok(stores.includes(store), store);
+    "projects/*/molis-work.db#io.molis.work.goals"]) assert.ok(stores.includes(store), store);
   assert.deepEqual(stores, [...stores].sort(), "sorted, so a new library lands in one place");
 });
 

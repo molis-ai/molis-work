@@ -3,13 +3,14 @@ import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-wor
 import { resolveConfiguredHome } from "./product-home.js";
 import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
-import { prologueProtocolFor, promptIncludesCache, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, UNMARKED_IMAGES_NOTE, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
+import { prologueProtocolFor, promptIncludesCache, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, UNMARKED_IMAGES_NOTE, type PrologueExecutionReceipt, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { MINIMAX_ANTHROPIC_BASE_URL } from "./model-provider-templates.js";
 import { configuredTextModelSnapshot, openConfiguredModels, selectConfiguredTextModel, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
 import { rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
+import { hostLog } from "./host-log.js";
 
 export interface HostTextRequestOptions {
   signal?: AbortSignal;
@@ -19,10 +20,13 @@ export interface HostTextRequestOptions {
   images?: readonly PrologueInputImage[];
   structured?: PrologueStructuredRequest;
   onProgress?(event: PrologueTextProgress): void;
+  /** The terminal Prologue receipt, when obtained. No prompt or reply crosses this callback. */
+  onReceipt?(receipt: HostTextReceipt): void;
   timeoutMs?: number;
   maxOutputTokens?: number;
 }
 export type HostCompleteText = (prompt: string, options?: HostTextRequestOptions) => Promise<string>;
+export type HostTextReceipt = Readonly<PrologueExecutionReceipt & { protocol: string; prompt_includes_cache: boolean }>;
 /** `prompt_includes_cache` says how this call's protocol reports input (see `promptIncludesCache`); absent where no Host call stands behind it. */
 export type HostTextGenerationResult = PrologueTextResult & { validateResult(): void; prompt_includes_cache?: boolean };
 export type HostTextGenerationFailure = Error & { execution?: PrologueInferenceError["execution"]; validateResult?: () => void };
@@ -210,6 +214,7 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
   home: string, request: HostTextRequestOptions = {}, resolveInference: typeof resolvePrologueInference = resolvePrologueInference,
   changed?: () => boolean): Promise<PrologueTextResult & { prompt_includes_cache: boolean }> {
   const { signal, beforeDispatch } = request;
+  const protocol = prologueProtocolFor(config.api_format), prompt_includes_cache = promptIncludesCache(protocol);
   const timeoutMs = request.timeoutMs ?? 120_000, maxOutputTokens = request.maxOutputTokens ?? 5000;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 2_147_483_647 || !Number.isSafeInteger(maxOutputTokens) || maxOutputTokens <= 0) throw new Error("模型调用限制无效");
   if (request.system !== undefined && request.system.length > 64_000) throw new Error("模型指令过长");
@@ -234,7 +239,7 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
       dispatched = true;
       const completed = await inference.completeTextResult({
         beforeDispatch: checkAuthority,
-        protocol: prologueProtocolFor(config.api_format), endpoint: modelRequestShape(config, "").url,
+        protocol, endpoint: modelRequestShape(config, "").url,
         model: config.model_id, credential_ref: credentialRef,
         resolveCredential: (ref: string) => { boundedSignal.throwIfAborted(); return ref === credentialRef ? credential() : null; },
         prompt, signal: boundedSignal, max_output_tokens: maxOutputTokens, timeout_ms: timeoutMs,
@@ -242,6 +247,7 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
         ...(request.images === undefined ? {} : { images: request.images }),
         ...(request.structured === undefined ? {} : { structured: request.structured }),
         ...(request.onProgress === undefined ? {} : { onProgress: request.onProgress }),
+        ...(request.onReceipt === undefined ? {} : { onReceipt: execution => reportTextReceipt(request.onReceipt, execution, protocol, prompt_includes_cache) }),
         ...(config.prompt_cache === undefined || config.prompt_cache === "off" ? {} : { prompt_cache: config.prompt_cache }),
       });
       boundedSignal.throwIfAborted();
@@ -266,7 +272,14 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
   }
   signal?.throwIfAborted();
   if (typeof result.value !== "string" || !result.value.trim()) throw Object.assign(new Error("模型没有返回正文，材料已保留，可重试"), { execution: { run_ref: result.run_ref, state: result.state, configuredModel: result.configuredModel, reportedModels: result.reportedModels, usage: result.usage } });
-  return { ...result, value: result.value.trim(), prompt_includes_cache: promptIncludesCache(prologueProtocolFor(config.api_format)) };
+  return { ...result, value: result.value.trim(), prompt_includes_cache };
+}
+
+function reportTextReceipt(notify: HostTextRequestOptions["onReceipt"], execution: PrologueExecutionReceipt, protocol: string, prompt_includes_cache: boolean): void {
+  if (!notify) return;
+  const { run_ref, state, configuredModel, reportedModels, usage } = execution;
+  try { notify({ run_ref, state, configuredModel, reportedModels, usage, protocol, prompt_includes_cache }); }
+  catch { hostLog.warn("observation", "host_text_receipt_unrecorded"); }
 }
 
 /** Cancellation also covers lazy Runtime startup; it never dispatches a model after an aborted wait. */

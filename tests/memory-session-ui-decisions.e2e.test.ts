@@ -58,7 +58,8 @@ async function open(t: TestContext, sessionMode = true) {
       const current = projections[scope];
       response.end(JSON.stringify(path.endsWith("/overview") ? { ...current, scenes: [{ scene: "coding", name: "Coding" }] } : { items: current.items, total: current.total, exhausted: true, cursor: null, scanned: "unknown", cost: {} })); return;
     }
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    let raw = "";
+    for await (const chunk of request.setEncoding("utf8")) raw += chunk;
     calls.push({ path, body: JSON.parse(raw || "{}") });
     response.statusCode = failWrites ? 409 : 200;
     response.end(JSON.stringify(failWrites ? { code: "memory.conflict", error: "保留原决定以供重试" } : {}));

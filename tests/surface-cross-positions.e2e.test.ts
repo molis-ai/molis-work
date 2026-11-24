@@ -581,8 +581,14 @@ test("IUI-07 IUI-08 IUI-10: an Attention peek clears old content on close and a 
     "the source response succeeded with the former object filtered out");
 
   await peek(1);
-  const choose = `[...document.querySelectorAll("[data-position-offer]")].find(button => button.textContent.trim() === "保存为资料")`;
-  await b.evaluate(`${choose}.setAttribute('data-tested-position-save', '')`);
+  // A refresh can clear the offers between opening the peek and choosing Save. Mark the current visible choice in the same turn.
+  await b.waitFor(`(() => {
+    const buttons = document.querySelectorAll(${quoted(dialog + "[open] [data-position-offer]")});
+    const save = [...buttons].find(button => button.textContent.trim() === "保存为资料" && button.checkVisibility() && !button.disabled);
+    if (!save) return false;
+    save.setAttribute("data-tested-position-save", "");
+    return true;
+  })()`);
   await b.click("[data-tested-position-save]");
   const { item, entry } = samples[1]!;
   assert.equal(feed.getFeedItem(projectId, item.item_id).revision, item.revision);

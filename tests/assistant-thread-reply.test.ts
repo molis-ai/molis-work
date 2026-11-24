@@ -22,7 +22,8 @@ test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : "PAS-10 S-18-102-03") 
   let current = true, armed = race === "reply-last-wait", intercepted = false, priorRounds = 0;
   const pending: ServerResponse[] = [];
   const model = createServer(async (req, res) => {
-    let raw = ""; for await (const chunk of req) raw += chunk;
+    let raw = "";
+    for await (const chunk of req.setEncoding("utf8")) raw += chunk;
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
     const review = asideReply(raw);
     if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(streamed(review)); return; }

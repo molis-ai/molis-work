@@ -110,15 +110,34 @@ test("S-plugin-connection-card ASC-68 C3-2 C3-5 C3-10 ASC-65 ASC-66 made-up mess
     port.postMessage({ type: "connection-need-open", id: 90, target: { ...${JSON.stringify(p.target)}, base_url: "https://example.test" } });
     port.postMessage({ type: "connection-need-open", id: 91, target: ${JSON.stringify(p.target)}, installation_id: "other" });
     port.postMessage({ type: "connection-need-open", id: 92, target: { kind: "account", slot_id: "github" } });
+    port.postMessage({ type: "connection-need-open", id: 93, target: { kind: "slot", slot_id: "github", record_key: "wrong:key" } });
     port.postMessage({ type: "connection-need-open", id: -1, target: ${JSON.stringify(p.target)} });
     port.postMessage({ type: "connection-need-open", id: 0.5, target: ${JSON.stringify(p.target)} });
   })()`);
-  await browser.waitFor(`window.cnDown.filter(message => message.type === "connection-need-done").length >= 3`);
+  await browser.waitFor(`window.cnDown.filter(message => message.type === "connection-need-done").length >= 4`);
   await p.settle(300);
   const refusals = (await p.down()).filter(message => message.type === "connection-need-done");
-  assert.deepEqual(refusals.map(message => [message.id, message.error]).sort(), [[90, "Unavailable"], [91, "Unavailable"], [92, "Unavailable"]], "C3-2 every made-up open gets the one fixed answer");
+  assert.deepEqual(refusals.map(message => [message.id, message.error]).sort(), [[90, "Unavailable"], [91, "Unavailable"], [92, "Unavailable"], [93, "Unavailable"]], "C3-2 every made-up open gets the one fixed answer");
   assert.deepEqual(await p.sent(), [], "C3-2 a made-up open reaches no route");
   assert.equal(await browser.evaluate(`document.querySelectorAll(${JSON.stringify(CARD)}).length`), 0, "C3-2 no card is drawn");
+
+  // BL-1057. Closing a legal Unicode record target during its initial host read must release its place.
+  await browser.evaluate(`(() => {
+    const send = window.fetch;
+    window.fetch = async function(input, init) {
+      const response = await send.apply(this, arguments);
+      if ((input instanceof Request ? input.url : String(input)).includes('/api/host/plugin-page-connection') && typeof init?.body === 'string' && init.body.includes('笔记 一')) {
+        window.fetch = send;
+        await new Promise(resolve => { window.cnReleaseRead = resolve; });
+      }
+      return response;
+    };
+  })()`);
+  await child.evaluate(`cnPort.postMessage({type:'connection-need-open', id:94, target:{kind:'slot',slot_id:'github',record_key:'笔记 一'}})`);
+  await browser.waitFor("typeof window.cnReleaseRead === 'function'");
+  await child.evaluate(`cnPort.postMessage({type:'connection-need-close',id:94}); cnPort.postMessage({type:'connection-need-open',id:95,target:{kind:'invalid'}})`);
+  await browser.waitFor('window.cnDown.some(message => message.id === 95)');
+  await browser.evaluate('window.cnReleaseRead()');
 
   // C3-5: the same width is told the same height with no account, one, or five to choose from.
   const heights: number[] = [];
@@ -128,6 +147,7 @@ test("S-plugin-connection-card ASC-68 C3-2 C3-5 C3-10 ASC-65 ASC-66 made-up mess
     await browser.evaluate("window.cnDown = []");
     await p.ask("card", "left:24px;top:24px;width:560px");
     await p.shown("cancel");
+    assert.equal(await browser.evaluate(`document.querySelectorAll(${JSON.stringify(CARD)}).length`), 1, "an abandoned read allocated no card");
     await browser.waitFor(`window.cnDown.some(message => message.type === "connection-need-size")`);
     heights.push(...(await p.down()).filter(message => message.type === "connection-need-size").map(message => Number(message.height)));
     assert.equal(await p.stage(), count ? "choose" : "ask", `with ${count} accounts the card starts where it should`);

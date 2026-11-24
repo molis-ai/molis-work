@@ -26,7 +26,7 @@ export const installedSignature = (buildId: string) => 'agent-built:' + buildId;
 
 /** What a studio trial of a build declares to the Host: the Manifest it would install with. */
 export function generatedPluginManifest(release: Pick<InstalledRelease, 'pluginId' | 'version' | 'buildId' | 'design'>): PluginManifest {
-  return sandboxPluginManifest({ pluginId: release.pluginId, version: releaseVersion(release.version), name: release.design.title,
+  return sandboxPluginManifest({ pluginId: release.pluginId, version: releaseVersion(release.version), name: release.design.title, icon: release.design.icon, connections: release.design.connections,
     textDeclarations: studioManifestWords(release.design),
     publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) }, presentation: !!release.design.presentation, effects: effectsFromContract(release.design.contract),
     contract: release.design.contract, actionIdentity: { buildId: release.buildId, version: release.version } });
@@ -94,7 +94,7 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
   const live = (identity: Readonly<SandboxIdentity>) => !!currentBuild(identity) && !accepting.has(identity.installationId.slice(STABLE_PREVIEW.length));
   const projectCapability = installed.capabilityFor(live);
   const homeCapability = options.homeActions && catalogCapabilities({ actions: options.homeActions, catalog: () => studio.catalog('home'), live,
-    declaration: identity => { const build = currentBuild(identity); return build ? { manifest: studioDraftManifest({ pluginId: identity.pluginId, name: build.title,
+    declaration: identity => { const build = currentBuild(identity); return build ? { manifest: studioDraftManifest({ pluginId: identity.pluginId, name: build.title, icon: build.design!.icon, connections: build.design!.connections,
       publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + build.id }, presentation: !!build.design!.presentation, effects: buildEffects(build), contract: build.design!.contract, runtime: { scope: 'home' } }) } : undefined; },
     granted: identity => { const build = currentBuild(identity); return build ? buildEffects(build).capabilities ?? [] : []; } });
   const standIns: NonNullable<SandboxServices['capability']> = { async call(context, id, input) {
@@ -105,10 +105,26 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
   // Home trials have no access to the author's project network-secret namespace.
   const homeNetwork = hostNetwork({ reach: () => 'read' });
   const networkFor = (build: AgentBuild) => build.runtimeScope === 'home' ? homeNetwork : installed.network;
+  // A draft has no installation to bind an account to. Examples can exercise the unbound path without a live credential.
+  const needsInstallation = async (): Promise<never> => { throw new Error('安装插件并连接账号后才能使用服务'); };
+  const draftAccountServices: Pick<SandboxServices, 'connections' | 'imageGeneration'> = {
+    connections: {
+      async describe() { return { bound: false }; },
+      request: needsInstallation,
+      release: needsInstallation,
+    },
+    imageGeneration: {
+      connections: () => [],
+      inspect: () => ({ connection_id: null, available: false, has_key: false, revision: 'unbound' }),
+      bind: needsInstallation,
+      unbind: needsInstallation,
+      generate: needsInstallation,
+    },
+  };
   const previewFor = (build: AgentBuild): SandboxServices => {
     const capability = build.runtimeScope === 'home' ? homeCapability : projectCapability;
     if (!capability) throw new Error('当前宿主没有提供个人空间的能力服务');
-    return { ...previewServices(storage), capability, network: networkFor(build) };
+    return { ...previewServices(storage), ...draftAccountServices, capability, network: networkFor(build) };
   };
   const clearPreview = (buildId: string) => { for (const home of [false, true]) storage.delete(previewStorageKey(STABLE_PREVIEW + buildId, home)); };
   const stopRunner = async (buildId: string) => {
@@ -192,7 +208,7 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
     }
     finally { trials.delete(key); try { await reset(); } finally { accepting.delete(trial.id); } }
   };
-  return { previewFor, standIns, networkFor, runnerFor, stopRunner, clearPreview, inTrial };
+  return { previewFor, standIns, draftAccountServices, networkFor, runnerFor, stopRunner, clearPreview, inTrial };
 }
 export type StudioPreview = ReturnType<typeof createStudioPreview>;
 

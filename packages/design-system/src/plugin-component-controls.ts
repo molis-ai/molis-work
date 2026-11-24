@@ -40,8 +40,22 @@ export function pcDetail(c: State & Kit & Rel) {
     detail.pane.append(heading, body, meta);
     if (focus) { detail.layout.setAttribute('data-detail-open', ''); heading.focus({ preventScroll: true }); }
   }
-  function select(id: string, value: unknown) { c.selection[id] = value; selectionVersions.set(id, (selectionVersions.get(id) ?? 0) + 1); const part = parts.get(id); if (part) showDetail(part, true); }
-  return { showDetail, select };
+  function replaceSelection(id: string, value: unknown) {
+    const previous = c.selection[id];
+    const idField = parts.get(id)?.node.props.idField;
+    for (const part of parts.values()) {
+      if (!part.connection) continue;
+      const changed = Object.values(part.node.submit?.input ?? {}).some(source => {
+        if (source.source !== 'selection' || source.componentId !== id) return false;
+        return (idField && at(previous, idField) !== at(value, idField))
+          || JSON.stringify(at(previous, source.field)) !== JSON.stringify(at(value, source.field));
+      });
+      if (changed) part.connection.abort();
+    }
+    c.selection[id] = value;
+  }
+  function select(id: string, value: unknown) { replaceSelection(id, value); selectionVersions.set(id, (selectionVersions.get(id) ?? 0) + 1); const part = parts.get(id); if (part) showDetail(part, true); }
+  return { showDetail, select, replaceSelection };
 }
 
 export function pcControls(c: State & Kit & Rel) {

@@ -75,7 +75,7 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
       if (control.versions().some(item => item.version === version)) throw studioProblem("plugin-builder.request.version-already-published", '发布版本已存在');
       const design = build.design!;
       assertContract(design.contract);
-      validatePluginComponentNodes(build.nodes, validatePluginComponentPlans(design.parts, design.contract, design.ui), design.contract);
+      validatePluginComponentNodes(build.nodes, validatePluginComponentPlans(design.parts, design.contract, design.ui, design.connections), design.contract);
       if (design.presentation) validatePluginPresentation(design.presentation, design.parts, design.contract);
       const code = await readBuildFile(build.directory!, relative(build.directory!, bundlePath), 8 * 1024 * 1024);
       control.assertCurrent();
@@ -89,7 +89,7 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
         'prompts.json': JSON.stringify(prompts),
       };
       const candidate = (identity: string, compatible: string[] = []) => {
-        const distributed = sandboxPluginManifest({ pluginId: design.contract.pluginId, name: design.title, version: releaseVersion(version),
+        const distributed = sandboxPluginManifest({ pluginId: design.contract.pluginId, name: design.title, icon: design.icon, connections: design.connections, version: releaseVersion(version),
           textDeclarations: studioManifestWords(design),
           publisher: { publisher_id: 'molis-studio', signature: identity }, presentation: design.presentation !== undefined,
           effects: manifest.effects, contract: design.contract, upgradesFrom: compatible, ...(scope === 'home' ? { runtime: { scope: 'home' } } : {}) });

@@ -1,5 +1,7 @@
 # 合同变更流程
 
+2026-11-24 BL-1049、BL-1057。创作台将设计者选择的图标写入现有 stage 视图的 `icon`。生成插件可在提交部件上声明 `connectionNeed`，由外壳按现行原处连接卡合同处理。SDK 导出 `parseConnectionSlots`，供创作台用清单的规则核对连接声明与操作请求的槽。详见[需求与验收](../../specs/studio-icon-connection/spec.md)。
+
 2026-11-24。新增插件只读动作 `agent.write-checks.read@1`。输入是原会话、一轮执行和写调用编号列表，返回可核实的逐写检查摘要。调用方可对缺失项稍后再读。Runtime 通过可选的 `readWriteChecks` 提供该能力，原单条命令详情继续走 `agent.command-output@1`。
 
 2026-11-23 BL-921、BL-1050、BL-1051。记录槽普通绑定占用空槽或复用同一账号。明确换用可向原动作传 `expected_connection_id`，旧账号已变或已解绑时返回冲突。项目 MCP 配置经 `connectors.project_mcp.usages@1` 汇入现有用途查询。自定义远程 MCP 的公开连接视图增加可选 `mcp_authentication`，仅返回 OAuth、Bearer 或无需认证对应的枚举值。存储格式沿用现行版本。

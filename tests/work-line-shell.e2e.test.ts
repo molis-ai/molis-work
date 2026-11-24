@@ -237,6 +237,14 @@ test("WLN-04 WLN-06 POLISH-34: the input takes the next request at once while th
   await waitFor("[...document.querySelectorAll('[data-work-lists] [data-work-list-rows=\"now\"] .work-task-row-main')].every(b => b.disabled && b.textContent.includes('正在核对'))", 10_000);
   await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
   await waitFor("!document.querySelector('[data-work-line]')?.hasAttribute('data-checking') && [...document.querySelectorAll('[data-work-lists] [data-work-list-rows=\"now\"] .work-task-row-main')].every(b => !b.disabled && !b.textContent.includes('正在核对'))", 15_000);
+
+  // B37R-3 / POLISH-34: a waiting event restored from the same scope was already waiting before this window opened.
+  waiting = true;
+  await evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
+  await waitFor(`(${CARD}?.textContent ?? '').includes('报价单')`, 15_000);
+  await navigate(() => command("Page.reload", {}, sessionId));
+  await waitFor(`(${CARD}?.textContent ?? '').includes('报价单') && !document.querySelector('[data-work-line]')?.hasAttribute('data-checking')`, 20_000);
+  assert.equal(await evaluate("window.__rings"), 0, "restoring the cached and live copies of the same waiting event stays quiet");
 });
 
 test("WLN-05 WLN-29: a line not heard from keeps what it showed, says it is being checked as of the last read; pressing that asks again, and heard again it goes; a reload shows the last line at once, being checked", { timeout: 150_000 }, async t => {

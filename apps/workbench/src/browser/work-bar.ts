@@ -819,9 +819,10 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   });
   function restoreScopeLine() {
     knownAt = null;
-    shown = "";
     tasks.take({ tasks: [], issues: [] }, 0);
     draw({ events: [], issues: [] });
+    // Clearing the previous scope is not a read. Only compare arrivals after this scope has shown its own line.
+    shown = "";
     checking("");
     try {
       const last = JSON.parse(sessionStorage.getItem(cacheKey()) ?? "null") as { at: string; line: WorkLineDisplay } | null;

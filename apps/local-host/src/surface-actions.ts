@@ -11,7 +11,6 @@ import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumptio
 import { attentionDeclarationsOf } from "./plugin-inbox-declarations.js";
 import { createSurfaceCorrections, SurfaceCompositionService, type SurfaceComposePorts, type SurfaceCorrectPorts, type SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
 import type { HomePluginHost } from "./home-plugins.js";
-import { approvedHomePageActions } from "./plugin-callers.js";
 import { hostLog } from "./host-log.js";
 import type { PlacementHost } from "./placement-actions.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
@@ -74,14 +73,12 @@ export function surfaceActionProvider(ports: SurfaceHostPorts): ActionProviderRe
       }
       requireSynchronous(caller.assert_authority_current?.(undefined, needsAttention ? [PLUGIN_ATTENTION_READ_PERMISSION] : undefined));
     };
-    const presentationCaller = slot === "home" && caller.home_page?.kind === "home-page"
-      ? { ...caller, allowed_actions: approvedHomePageActions(caller.home_page), query_only: true as const, read_only_effects: true as const } : caller;
-    const reader = bindActionClient(client, () => ({ ...presentationCaller, query_only: true, read_only_effects: true }));
+    const reader = bindActionClient(client, () => ({ ...caller, query_only: true, read_only_effects: true }));
     const read = <Input, Output>(view: ActionView, input: Input, signal: AbortSignal, assertCurrent: () => void) =>
       reader.invoke<Input, Output>({ ...view, ...exact(view) }, input, { ...caller, signal, assert_authority_current: assertCurrent });
     const home = ports.homeDirectory && slot === "home" ? homePorts(ports, ports.homeDirectory, sample, read) : undefined;
     return {
-      caller: presentationCaller, current, beforeEffect: caller.beforeEffect, signal: sample?.request?.signal ?? caller.signal,
+      caller, current, beforeEffect: caller.beforeEffect, signal: sample?.request?.signal ?? caller.signal,
       catalog: home?.catalog ?? (() => sample?.catalog.plugins ?? surfacePlugins(ports, current)),
       ...(sample && !home ? { deadline: sample.deadline, retainCatalog: (plugins: readonly SurfacePlugin[]) => retainCatalog(sample.catalog, plugins, sample) } : {}),
       ...(sample ? {
@@ -98,7 +95,7 @@ export function surfaceActionProvider(ports: SurfaceHostPorts): ActionProviderRe
       } : {}),
       ...(sample?.discussion ? { discussion: sample.discussion } : {}),
       ...(home ? { home: home.ports } : {}),
-      discover: async () => retainSurfaceDirectory(await client.discoverRetained(presentationCaller), sample),
+      discover: async () => retainSurfaceDirectory(await client.discoverRetained(caller), sample),
       values: read<PresentationValuesInput, PresentationValues>,
       subject: read<SubjectContextRequest, ActionSubjectContext>,
       corrections: createSurfaceCorrections(store.db, caller), now: () => ports.now().toISOString(),

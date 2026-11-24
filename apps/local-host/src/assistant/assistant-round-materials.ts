@@ -1,6 +1,7 @@
 import { choosableRoles, roleKey } from "./assistant-characters.js";
 import { format, say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { signedRoleData, SIGNED_MATERIAL_NOTICE, type MethodHandoff } from "./assistant-signed-materials.js";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
@@ -128,29 +129,34 @@ export class AssistantRoundMaterials {
     autoSkills = true): Promise<RoundMaterials> {
     const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const now = this.now();
-    const local = format.date(now.toISOString(), "datetime", { time_zone: zone });
+    // Minute-level local time avoids per-second/ms cache churn across rounds within the same minute.
+    const minute = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
+    const local = format.date(minute.toISOString(), "datetime", { time_zone: zone });
     const where = work.scope.kind === "personal" ? "个人工作（不属于任何项目，使用个人范围的能力）"
       : `项目「${(await this.ports.projectTitle?.(work.scope.project_id).catch(() => null)) ?? work.scope.project_id}」中的工作（只使用这个项目的能力与资料）`;
     // Pictures ride only on the round they came with; history keeps the words, so say what the model saw back then.
     const pictured = [...new Set(this.store.rounds(work.work_id).flatMap(round => round.materials.filter(item => item.kind === "image").map(item => item.title)))];
-    const situation = [`现在是 ${local}（时区 ${zone}，${now.toISOString()}）。`, `这项工作：「${promptTitle(work)}」，${where}。`,
+    const situation = [`现在是 ${local}（时区 ${zone}）。`, `这项工作：「${promptTitle(work)}」，${where}。`,
       work.origin ? `工作最初从「${work.origin.title ?? work.origin.surface}」页面发起。` : "",
       pictured.length ? `之前的轮次里用户附过图片（${pictured.slice(0, 5).map(title => `「${title}」`).join("、")}），你当时看到了图；图片只在附带的那一轮可见，现在看不到。` : "", knowledgeFact(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered)].filter(Boolean).join("\n");
-    const setup = this.ports.setupMaterial?.(work, offered, previousWaitWithdrawn), out: AgentTextMaterial[] = [{ material_id: "situation", title: "本轮情况", text: situation }, ...(setup ? [setup] : [])];
+    const situationMaterial: AgentTextMaterial = { material_id: "situation", title: "本轮情况", text: situation };
+    const semiStatic: AgentTextMaterial[] = [], dynamic: AgentTextMaterial[] = [], signed: AgentTextMaterial[] = [];
+    const setup = this.ports.setupMaterial?.(work, offered, previousWaitWithdrawn);
+    if (setup) dynamic.push(setup);
     if (work.work_item_id && work.scope.kind === "project" && this.ports.scopeActions) {
       const workItemBlock = await readWorkItemContextMaterial(work, this.ports.scopeActions);
-      if (workItemBlock) out.push(workItemBlock);
+      if (workItemBlock) dynamic.push(workItemBlock);
     }
     // What this round tells that is told only once: marked after the round has started, not before (a start that fails tells nothing).
     const told = { undos: [] as string[], unsettled: [] as string[] };
     // What the person did with earlier suggestions since the last round: the next round goes on from there.
     const since = this.store.rounds(work.work_id).at(-1)?.started_at ?? "";
     const handled = this.store.cards(work.work_id).filter(card => card.updated_at > since && ["done", "failed", "unknown", "dismissed", "stale"].includes(card.status));
-    if (handled.length) out.push(...chunked({ title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${cutHead(say.text(card.outcome), 300)}）` : ""}`).join("\n")));
+    if (handled.length) dynamic.push(...chunked({ title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${cutHead(say.text(card.outcome), 300)}）` : ""}`).join("\n")));
     // Changes the person took back since (the base says what follows from that).
     const undone = this.store.undos(this.actorId, work.work_id).filter(item => item.state === "undone" && !item.told);
     if (undone.length) {
-      out.push(...chunked({ title: "用户撤销的修改" }, "undone", ["下面这些你做过的修改，用户已经撤销：",
+      dynamic.push(...chunked({ title: "用户撤销的修改" }, "undone", ["下面这些你做过的修改，用户已经撤销：",
         ...undone.map(item => `- 「${item.title}」（${item.undone_at ?? ""}）`)].join("\n")));
       told.undos = undone.map(item => item.undo_id);
     }
@@ -161,24 +167,21 @@ export class AssistantRoundMaterials {
         const made = this.store.relations.forWork(identity(child)).filter(row => row.relation === "result").map(row => `${row.object.kind} ${row.object.id}`);
         return `- 「${child.title}」（验收标准：${cutHead(child.delegated_by!.acceptance, 300)}）${made.length ? `；它已产出：${made.slice(0, 5).join("、")}` : "；它还没有产出"}`;
       });
-      out.push(...chunked({ title: "用户收回的子任务" }, "taken-back", ["用户把下面的子任务收回到这项工作，它们已停下，已产出的成果保留：",
+      dynamic.push(...chunked({ title: "用户收回的子任务" }, "taken-back", ["用户把下面的子任务收回到这项工作，它们已停下，已产出的成果保留：",
         ...lines].join("\n")));
     }
     // Background work it started: those still running, and those that ended since its latest round began.
     const jobs = await this.link.jobs.material(work).catch(() => undefined);
-    if (jobs) out.push(...chunked({ title: "后台任务" }, "jobs", jobs));
+    if (jobs) dynamic.push(...chunked({ title: "后台任务" }, "jobs", jobs));
     // What its sub-tasks handed back that it has not had yet (marked with the rest once the round has started).
     const handed = await this.link.delegations.material(work);
-    if (handed) out.push(handed);
-    // Professional roles this work may hand a part to (choosable here now): delegation names one by its id.
-    if (!work.delegated_by && this.ports.characters && work.executor.kind !== "plugin") {
-      const catalog = await this.ports.characters(work.project_ref ?? null).catch(() => null), roles = catalog ? choosableRoles(catalog) : [];
-      if (roles.length) out.push(...chunked({ title: "可委托的专业角色" }, "roles",
-        roles.map(item => `- 「${item.title}」（id：${roleKey(item.ref)}）`).join("\n")));
-    }
+    if (handed) dynamic.push(handed);
+    // Professional roles this work may hand a part to (choosable here now): semi-static per scope, so it sits before `situation`.
+    const rolesText = !work.delegated_by && this.ports.characters && work.executor.kind !== "plugin"
+      ? (() => this.ports.characters!(work.project_ref ?? null).catch(() => null))() : Promise.resolve(null);
     // What the person selected on a page when it prepared a card here: kept for the rounds that follow.
     const selected = this.store.cards(work.work_id).filter(card => card.from && card.materials?.length).slice(-2);
-    if (selected.length) out.push(...chunked({ title: "用户在页面上选中的内容" }, "page-selection", selected.map(card =>
+    if (selected.length) dynamic.push(...chunked({ title: "用户在页面上选中的内容" }, "page-selection", selected.map(card =>
       [`「${card.from!.title ?? card.from!.surface}」页面为操作卡「${card.title}」带来的选中内容：`,
         ...card.materials!.map(item => `《${item.title}》\n${cutHead(item.text, 4000)}`)].join("\n")).join("\n\n")));
     // What the person asked to be remembered reaches the round as Prologue memory-recall data (memoryForRound), not here;
@@ -186,68 +189,113 @@ export class AssistantRoundMaterials {
     const left = this.chosenMemory.get(work.work_id)?.omitted ?? [];
     if (left.length) {
       const budget = left.filter(item => item.reason !== "conflict").length, conflicts = left.length - budget;
-      out.push(...chunked({ title: "没有带上的记忆" }, "memory-left",
+      dynamic.push(...chunked({ title: "没有带上的记忆" }, "memory-left",
         `和这一轮相关的记忆里，${budget ? `有 ${budget} 条因为篇幅没有带上` : ""}${budget && conflicts ? "，" : ""}${conflicts ? `有 ${conflicts} 条和另一条互相矛盾、带上的是用户明确说过的那条` : ""}。`));
     }
     // Forming memories switched off: the round is told, and where the person turns it on (the work layer says what follows).
-    if (!work.delegated_by && this.ports.memory?.() && !this.link.memoryTools(work)?.remember) out.push(...chunked({ title: "记忆设置" }, "memory-off",
+    if (!work.delegated_by && this.ports.memory?.() && !this.link.memoryTools(work)?.remember) dynamic.push(...chunked({ title: "记忆设置" }, "memory-off",
       "用户关闭了“允许记住”（在 设置 · 个人 · 记忆 打开），这一轮不能保存长期记忆或留下建议。"));
     // Changes a stopped round left running, and how each ended (the base says not to submit an unsettled one again blindly).
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     if (unsettled.length) {
       const words = { pending: "还没有结果", completed: "停止后已完成", failed: "停止后失败", "not-run": "停止时还没开始，没有执行" };
-      out.push(...chunked({ title: "上一轮停止时仍在执行的修改" }, "unsettled", unsettled.map(change => `- 「${change.title}」：${words[change.state]}${change.detail ? `（${change.detail}）` : ""}`).join("\n")));
+      dynamic.push(...chunked({ title: "上一轮停止时仍在执行的修改" }, "unsettled", unsettled.map(change => `- 「${change.title}」：${words[change.state]}${change.detail ? `（${change.detail}）` : ""}`).join("\n")));
       told.unsettled = unsettled.filter(change => change.state !== "pending").map(change => change.change_id);
     }
     const objects = await this.link.workObjects(work);
-    if (objects.length) out.push(...chunked({ title: "这项工作的对象" }, "objects", describeObjects(objects)));
+    if (objects.length) dynamic.push(...chunked({ title: "这项工作的对象" }, "objects", describeObjects(objects)));
     // Work a professional Agent did for this work comes back here: its session, as its owner reports it.
     for (const object of objects.filter(item => item.relation === "session" && item.state !== "missing")) {
       const progress = await this.objectBackground(work, { kind: object.subject.kind, id: object.subject.id });
-      if (progress) out.push(...chunked({ title: `专业会话的进展：${object.title}` }, `session-${object.subject.id}`, progress));
+      if (progress) dynamic.push(...chunked({ title: `专业会话的进展：${object.title}` }, `session-${object.subject.id}`, progress));
     }
     const directory = await knowledgeDirectory(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered, `${work.title}\n${this.starting.get(work.work_id) ?? ""}`);
     try {
-    for (const [title, id, text] of [["可用能力目录", "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))], ["项目资料目录", "knowledge", directory.text]] as const) if (text) out.push(...chunked({ title }, id, text));
-    // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
-    // A manual Skill nobody chose is not listed (the catalog refuses it unnamed); only an auto one is readable by this round.
-    const methods = work.executor.kind === "plugin" ? [] : await this.link.methods(work).catch(() => [] as AssistantMethod[]);
-    const chosen = new Set(materials.flatMap(item => item.kind === "method" && item.method ? [methodKey(item.method)] : []));
-    const listed: object[] = [];
-    for (const method of methods.filter(item => !chosen.has(methodKey(item)) && (item.kind !== "skill" || (autoSkills && item.skill.state === "auto"))).slice(0, 20)) {
-      const row = method.kind === "skill" ? { kind: "skill", ...skillChoiceRow(method.skill), plugin_title: method.skill.pack.title } : method;
-      if (JSON.stringify([...listed, row]).length > MATERIAL_PART_UNITS) break;
-      listed.push(row);
-    }
-    const skillRead = skillCatalogActions.readBodies;
-    if (listed.length) out.push({ material_id: "methods", title: "可用角色资料与方法", text:
-      `按需读取资料：方法（kind 为 skill）用 read-capability，capability_id 为 ${skillRead.capability_id}，version 为 ${skillRead.version}，provider_id 为 ${SKILLS_PROVIDER_ID}，input 是对象，例如 {"refs":[目录中的完整 ref]}。` +
-      `方法由你按这一轮的任务自己挑：对照 description、when_to_use 和 when_not_to_use，只读真正用得上的，一轮最多 ${SKILL_ROUND_AUTO_LIMIT} 个（再多会被拒绝为 over_limit）；都不合适就不读。用户点名的方法已经在这一轮里，优先按它做，不占这个名额。` +
-      `角色资料（kind 为 role）用 read-capability 的 capability_id 为 ${ASSISTANT_METHOD_ACTIONS.read.capability_id}，version 为 ${ASSISTANT_METHOD_ACTIONS.read.version}，provider_id 为 ${ASSISTANT_METHOD_ACTIONS.read.provider_id}。input 是对象，例如 {"method_id":"signed/role-id"}，必须附目录中的完整 default_ref 和 installation。\n` +
-      SIGNED_MATERIAL_NOTICE + "\n" + JSON.stringify(listed) });
-    // The object the person is on, as its owner has it: where it stands and what it belongs to. The page's claim is
-    // only a pointer; this is read again from the owner, so a work started in the plugin continues with its background.
-    if (context?.object) {
-      const background = await this.objectBackground(work, context.object);
-      if (background) out.push(...chunked({ title: "当前对象（所有者提供）" }, "object", background));
-    }
-    if (context) {
-      const page = formatPageContextLines(context);
-      out.push(...chunked({ title: page.title }, "page", page.text), ...await landingMaterials(this.ports, work.scope.kind === "personal" ? null : work.scope.project_id, context));
-    }
-    for (const material of materials) {
-      if (material.method?.kind === "role") {
-        if (!material.text || material.text.length > 20_000) throw assistantErrors.invalid("签名资料正文超过单份材料预算，请减少内容后重发");
-        out.push({ material_id: `signed-${material.material_id}`, title: material.title, text: material.text }); continue;
+      // Cold-to-hot ordering: semi-static catalogs (capabilities, knowledge, methods, roles) precede volatile `situation`
+      // so the prompt cache prefix stays stable across rounds while `situation` remains pinned under the 30-item cap.
+      for (const [title, id, text] of [["可用能力目录", "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))], ["项目资料目录", "knowledge", directory.text]] as const) {
+        if (text) semiStatic.push(...chunked({ title }, id, text));
       }
-      const formatted = formatSentMaterialBlock(material);
-      out.push(...chunked({ title: formatted.title }, `material-${material.material_id}`, formatted.text));
-    }
-    const signed = out.filter(item => item.material_id.startsWith("signed-"));
-    const assembled = [...out.filter(item => !item.material_id.startsWith("signed-")).slice(0, 30 - signed.length), ...signed];
-    const knowledgeDispatch = assembled.some(item => item.material_id === "knowledge" || item.material_id.startsWith("knowledge.")) ? directory.control : undefined;
-    if (!knowledgeDispatch) directory.control?.dispose();
-    return { materials: assembled, told, ...(knowledgeDispatch ? { knowledgeDispatch } : {}) };
+      // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
+      // A manual Skill nobody chose is not listed (the catalog refuses it unnamed); only an auto one is readable by this round.
+      // Compact per-round handles (`s1..sN`) replace verbose `ed25519:sha256:...` refs so all built-in methods stay visible without truncation;
+      // the Host/Gateway translates `sN` back to the exact frozen 8-field `SkillRef` inside the round boundary.
+      const methods = work.executor.kind === "plugin" ? [] : await this.link.methods(work).catch(() => [] as AssistantMethod[]);
+      const chosen = new Set(materials.flatMap(item => item.kind === "method" && item.method ? [methodKey(item.method)] : []));
+      const skillRead = skillCatalogActions.readBodies;
+      const resourceRead = skillCatalogActions.readResource;
+      const methodsHeader = [
+        `目录说明：kind=skill 用 read-capability 调用 ${SKILLS_PROVIDER_ID} / ${skillRead.capability_id}@${skillRead.version}（input {"refs":["sN"]}），资源用 ${resourceRead.capability_id}@${resourceRead.version}（input {"ref":"sN","path":"..."}），每轮最多 ${SKILL_ROUND_AUTO_LIMIT} 个；kind=role 用 ${ASSISTANT_METHOD_ACTIONS.read.provider_id} / ${ASSISTANT_METHOD_ACTIONS.read.capability_id}@${ASSISTANT_METHOD_ACTIONS.read.version}（附完整 default_ref 与 installation）。`,
+        SIGNED_MATERIAL_NOTICE,
+      ].join("\n");
+      const maxRowsUnits = Math.max(1000, MATERIAL_PART_UNITS - methodsHeader.length - 1);
+      const methodChunks: Array<{ rows: object[]; handles: Array<[string, SkillRef]> }> = [];
+      let currentRows: object[] = [], currentHandles: Array<[string, SkillRef]> = [], handleIndex = 0;
+      const flushMethods = () => {
+        if (!currentRows.length) return;
+        methodChunks.push({ rows: currentRows, handles: currentHandles });
+        currentRows = [];
+        currentHandles = [];
+      };
+      for (const method of methods.filter(item => !chosen.has(methodKey(item)) && (item.kind !== "skill" || (autoSkills && item.skill.state === "auto")))) {
+        let row: object;
+        let entryHandle: [string, SkillRef] | undefined;
+        if (method.kind === "skill") {
+          const { ref: _ref, ...choice } = skillChoiceRow(method.skill);
+          const handle = `s${++handleIndex}`;
+          entryHandle = [handle, structuredClone(method.skill.ref)];
+          row = { kind: "skill", handle, ...choice, plugin_title: method.skill.pack.title };
+        } else {
+          row = method;
+        }
+        if (currentRows.length && JSON.stringify([...currentRows, row]).length > maxRowsUnits) flushMethods();
+        if (JSON.stringify([...currentRows, row]).length <= maxRowsUnits) {
+          currentRows.push(row);
+          if (entryHandle) currentHandles.push(entryHandle);
+        }
+      }
+      flushMethods();
+      const methodHandleChunks = new Map<string, ReadonlyArray<[string, SkillRef]>>();
+      for (const [index, chunk] of methodChunks.entries()) {
+        const id = methodChunks.length === 1 ? "methods" : `methods.${index + 1}`;
+        const title = methodChunks.length === 1 ? "可用角色资料与方法" : `可用角色资料与方法（${index + 1}/${methodChunks.length}）`;
+        semiStatic.push({ material_id: id, title, text: `${methodsHeader}\n${JSON.stringify(chunk.rows)}` });
+        if (chunk.handles.length) methodHandleChunks.set(id, chunk.handles);
+      }
+      const rolesCatalog = await rolesText, choosable = rolesCatalog ? choosableRoles(rolesCatalog) : [];
+      if (choosable.length) semiStatic.push(...chunked({ title: "可委托的专业角色" }, "roles",
+        choosable.map(item => `- 「${item.title}」（id：${roleKey(item.ref)}）`).join("\n")));
+      // The object the person is on, as its owner has it: where it stands and what it belongs to. The page's claim is
+      // only a pointer; this is read again from the owner, so a work started in the plugin continues with its background.
+      if (context?.object) {
+        const background = await this.objectBackground(work, context.object);
+        if (background) dynamic.push(...chunked({ title: "当前对象（所有者提供）" }, "object", background));
+      }
+      if (context) {
+        const page = formatPageContextLines(context);
+        dynamic.push(...chunked({ title: page.title }, "page", page.text), ...await landingMaterials(this.ports, work.scope.kind === "personal" ? null : work.scope.project_id, context));
+      }
+      for (const material of materials) {
+        if (material.method?.kind === "role") {
+          if (!material.text || material.text.length > 20_000) throw assistantErrors.invalid("签名资料正文超过单份材料预算，请减少内容后重发");
+          signed.push({ material_id: `signed-${material.material_id}`, title: material.title, text: material.text }); continue;
+        }
+        const formatted = formatSentMaterialBlock(material);
+        dynamic.push(...chunked({ title: formatted.title }, `material-${material.material_id}`, formatted.text));
+      }
+      // Reserve 1 slot for pinned `situation` and all `signed-*` items so the 30-item cap never truncates either (Decision 58).
+      const budget = Math.max(0, 30 - signed.length - 1);
+      const keptSemiStatic = semiStatic.slice(0, budget);
+      const keptDynamic = dynamic.slice(0, Math.max(0, budget - keptSemiStatic.length));
+      const assembled = [...keptSemiStatic, situationMaterial, ...keptDynamic, ...signed];
+      const skillHandles = new Map<string, SkillRef>();
+      for (const item of assembled) {
+        const chunkHandles = methodHandleChunks.get(item.material_id);
+        if (chunkHandles) for (const [handle, ref] of chunkHandles) skillHandles.set(handle, ref);
+      }
+      const knowledgeDispatch = assembled.some(item => item.material_id === "knowledge" || item.material_id.startsWith("knowledge.")) ? directory.control : undefined;
+      if (!knowledgeDispatch) directory.control?.dispose();
+      return { materials: assembled, told, ...(knowledgeDispatch ? { knowledgeDispatch } : {}), ...(skillHandles.size ? { skillHandles } : {}) };
     } catch (error) { directory.control?.dispose(); throw error; }
   }
 

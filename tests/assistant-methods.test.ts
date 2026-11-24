@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, resolveSkillHandleInput, withRoundSkillHandles } from "@molis-ai/molis-work-service-agent-host";
+import { ActionError, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SKILLS_PERMISSIONS, SKILLS_PROVIDER_ID, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { AssistantService, AssistantStore, assistantAuthority, assistantServiceFor, homeAgentDefinitions, homeStores } from "@molis-ai/molis-work-app-local-host";
@@ -32,6 +33,27 @@ function reply(text = "好的。"): Response {
   emit("message_delta", { delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
   emit("message_stop", {});
   return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
+}
+
+/** Parse all listed method rows out of a raw Anthropic model request JSON body. */
+function methodsMaterial(raw: string): { text: string; rows: Array<Record<string, unknown>> } {
+  const parsed = JSON.parse(raw) as { messages?: Array<{ role?: string; content?: unknown }> };
+  const texts: string[] = [], rows: Array<Record<string, unknown>> = [];
+  for (const message of parsed.messages ?? []) {
+    const content = typeof message.content === "string" ? message.content
+      : Array.isArray(message.content) ? message.content.map(part => (part as { text?: string }).text ?? "").join("\n") : "";
+    if (!content.startsWith("Untrusted context data.")) continue;
+    const data = JSON.parse(content.slice(content.indexOf("{"))) as { text?: string };
+    const split = data.text?.indexOf("\n\n") ?? -1;
+    if (split < 0) continue;
+    const meta = JSON.parse(data.text!.slice(0, split)) as { title?: string };
+    if (!meta.title?.startsWith("可用角色资料与方法")) continue;
+    const body = data.text!.slice(split + 2);
+    texts.push(body);
+    const jsonLine = body.split("\n").at(-1) ?? "[]";
+    rows.push(...(JSON.parse(jsonLine) as Array<Record<string, unknown>>));
+  }
+  return { text: texts.join("\n"), rows };
 }
 
 const PAGES_ID = "io.molis.work.pages";
@@ -107,21 +129,25 @@ test("SKP-02 SKP-04 SKC-07 a round lists the catalog's Skills for the Assistant;
     const uses = homeAgentDefinitions(h.home).skills.uses(skill.ref.install_id, skill.ref.skill_id);
     assert.deepEqual(uses.map(use => [use.caller, use.ref]), [["assistant", skill.ref]]);
 
-    // The next round does not carry it; the Skill is listed, with exactly how to read one.
+    // The next round does not carry it; the Skill is listed with a compact per-round handle (sN) instead of its verbose SkillRef.
     await service.send({ text: "再补一条：李四负责预算", request_id: "method-send-2", work_id: sent.work.work_id }, {});
     await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed"; }, "second round");
     const second = requests.at(-1)!;
     assert.ok(!second.includes("用户为这一轮选定的方法"), "a chosen method is for its own round only");
-    assert.ok(second.includes(skill.ref.installation_generation), "the round sees the Skill's exact reference");
-    assert.ok(second.includes(`capability_id 为 ${skillCatalogActions.readBodies.capability_id}，version 为 ${skillCatalogActions.readBodies.version}，provider_id 为 ${SKILLS_PROVIDER_ID}`),
-      "and reads its body from the shared catalog");
+    const secondMethods = methodsMaterial(second);
+    const listedSkill = secondMethods.rows.find(row => row.kind === "skill" && row.name === skill.name);
+    assert.ok(listedSkill && typeof listedSkill.handle === "string" && /^s[1-9]\d*$/u.test(listedSkill.handle), `expected compact handle for ${skill.name}, got ${JSON.stringify(listedSkill)}`);
+    assert.equal("ref" in listedSkill, false, "verbose SkillRef is omitted from methods catalog rows");
+    assert.ok(!second.includes(skill.ref.installation_generation), "verbose SkillRef internals do not bloat the methods catalog");
+    assert.ok(secondMethods.text.includes(`${SKILLS_PROVIDER_ID} / ${skillCatalogActions.readBodies.capability_id}@${skillCatalogActions.readBodies.version}`),
+      "and points to the shared catalog read capability");
     assert.equal(homeAgentDefinitions(h.home).skills.uses(skill.ref.install_id, skill.ref.skill_id).length, 1, "a listed Skill is not a use");
     assert.deepEqual((await service.read(sent.work.work_id)).rounds[1]!.skills, [], "a round that read none used none");
 
     // SKL-11 「这次不用技能」: the round is not offered the Skills it could pick by itself, so it has none to read.
     await service.send({ text: "这次直接写", request_id: "method-send-plain", work_id: sent.work.work_id, auto_skills: false }, {});
     await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 3 && view.work.state === "completed"; }, "third round");
-    assert.ok(!requests.at(-1)!.includes(skill.ref.installation_generation), "a round told not to pick Skills is not shown any to pick");
+    assert.equal(methodsMaterial(requests.at(-1)!).rows.filter(row => row.kind === "skill").length, 0, "a round told not to pick Skills is not shown any skill handles");
 
     // A choice that is no longer current is refused, never swapped for another version.
     const stale: SkillRef = { ...skill.ref, installation_generation: "old" };
@@ -191,4 +217,131 @@ test("B1 B3 SKP-10: an Assistant round reads an auto assistant-only Skill throug
     assert.equal((await readBody([])).reason, "not_named", "a manual Skill nobody named is not readable");
     assert.equal((await readBody([offer.ref])).ok, true, "the person's named list makes it readable");
   } finally { await h.close(); }
+});
+
+test("M3: per-round skill handle translation, 37/37 visibility, cold-to-hot ordering, minute timestamp, and pinned situation", async () => {
+  const skills = Array.from({ length: 37 }, (_, index) => ({
+    ...entry(index),
+    ref: { ...entry(index).ref, skill_id: index >= 30 ? `work-skill-${index}` : index >= 24 ? `overlay-skill-${index}` : `domain-skill-${index}` },
+    name: index >= 30 ? `工作方法 ${index}` : index >= 24 ? `叠加方法 ${index}` : `领域方法 ${index}`,
+  }));
+  const manualSkill: SkillCatalogEntry = { ...entry(99), ref: { ...entry(99).ref, skill_id: "manual-only" }, name: "手动专属", state: "manual" };
+  let clock = new Date("2026-11-23T09:15:12.345Z");
+  const store = new AssistantStore(new DatabaseSync(":memory:"), () => clock);
+  const service = new AssistantService(store, {
+    pages: async () => [],
+    host: async () => { throw new Error("no round"); },
+    authority: async () => { throw new Error("no round"); },
+    timeZone: "Asia/Shanghai",
+    methods: {
+      roles: () => [],
+      bindSigned: async () => new Map(),
+      readSigned: () => { throw new Error("not read"); },
+      recordSignedUse: () => {},
+      recordSkillUse: () => {},
+      skills: async () => [...skills, manualSkill],
+      readSkills: async () => [],
+    },
+  }, "web-user", () => clock);
+  const work = store.create({ actor_id: "web-user", title: "37 项技能可见性与缓存顺序", scope: { kind: "personal" }, origin: null });
+  const offered: ActionView[] = [{
+    capability_id: "skills.body.read", version: 1, operation: "query",
+    provider: { provider_id: SKILLS_PROVIDER_ID, title: "技能", kind: "system" }, availability: { available: true },
+    action: { title: "读取技能正文", description: "按精确引用读技能正文", kind: "query", scope: "project", audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object" } },
+  }];
+  const first = await service.materials.roundMaterials(work, [], null, offered, [], false, true);
+  // All 37 auto skills appear (no .slice(0, 20) truncation); manual skill never gets a handle.
+  assert.equal(first.skillHandles?.size, 37, "every auto skill gets a compact handle");
+  assert.ok([...first.skillHandles!.values()].every(ref => ref.skill_id !== "manual-only"), "manual skills never get a handle");
+  const methodsText = first.materials.filter(m => m.material_id === "methods" || m.material_id.startsWith("methods.")).map(m => m.text).join("\n");
+  for (const id of ["domain-skill-0", "overlay-skill-24", "work-skill-36"]) {
+    const idx = skills.findIndex(s => s.ref.skill_id === id);
+    assert.ok(methodsText.includes(`"handle":"s${idx + 1}"`), `${id} has handle s${idx + 1}`);
+  }
+  assert.ok(!methodsText.includes("manual-only"), "manual skills are omitted from the auto methods list");
+  // Cold-to-hot ordering: capabilities & methods appear before `situation`.
+  const capIndex = first.materials.findIndex(m => m.material_id === "capabilities");
+  const methodsIndex = first.materials.findIndex(m => m.material_id === "methods" || m.material_id.startsWith("methods."));
+  const sitIndex = first.materials.findIndex(m => m.material_id === "situation");
+  assert.ok(capIndex >= 0 && methodsIndex > capIndex && sitIndex > methodsIndex, `expected capabilities < methods < situation, got ${[capIndex, methodsIndex, sitIndex].join(",")}`);
+  // Minute-level local timestamp: advancing seconds within the same minute keeps `situation` byte-identical.
+  const firstSituation = first.materials[sitIndex]!.text;
+  assert.doesNotMatch(firstSituation, /2026-11-23T09:15:12/, "no ISO second/ms timestamp in situation");
+  clock = new Date("2026-11-23T09:15:58.999Z");
+  const second = await service.materials.roundMaterials(work, [], null, offered, [], false, true);
+  assert.equal(second.materials.find(m => m.material_id === "situation")!.text, firstSituation, "situation stays cache-identical within the same minute");
+  // Decision 58: 35 dynamic materials still never truncate pinned `situation` under the 30-item cap.
+  const flood = Array.from({ length: 35 }, (_, i) => ({ material_id: `extra-${i}`, kind: "text" as const, title: `材料 ${i}`, explicit: true, text: `正文 ${i}` }));
+  const capped = await service.materials.roundMaterials(work, flood, null, offered, [], false, true);
+  assert.equal(capped.materials.length, 30, "total materials stay within the 30-item cap");
+  assert.ok(capped.materials.some(m => m.material_id === "situation"), "situation is pinned and never truncated");
+
+  // Gateway handle translation boundary: translates sN on check & invoke, passes full SkillRef through, rejects unknown handles, never wraps offer.
+  const handles = first.skillHandles!;
+  const readBodiesRef = { capability_id: skillCatalogActions.readBodies.capability_id, version: skillCatalogActions.readBodies.version, provider_id: SKILLS_PROVIDER_ID };
+  const readResourceRef = { capability_id: skillCatalogActions.readResource.capability_id, version: skillCatalogActions.readResource.version, provider_id: SKILLS_PROVIDER_ID };
+  const fullRef = skills[36]!.ref;
+  assert.deepEqual(resolveSkillHandleInput(readBodiesRef, { refs: ["s1", fullRef] }, handles), { refs: [skills[0]!.ref, fullRef] });
+  assert.deepEqual(resolveSkillHandleInput(readResourceRef, { ref: "s37", path: "references/a.md" }, handles), { ref: fullRef, path: "references/a.md" });
+  assert.throws(() => resolveSkillHandleInput(readBodiesRef, { refs: ["s999"] }, handles), (e: unknown) => e instanceof ActionError && e.code === "actions.input_invalid");
+  assert.throws(() => resolveSkillHandleInput(readResourceRef, { ref: "manual-only", path: "a.md" }, handles), (e: unknown) => e instanceof ActionError && e.code === "actions.input_invalid");
+  const seen: { checked?: unknown; invoked?: unknown; offered?: unknown } = {};
+  const wrapped = withRoundSkillHandles({
+    discover: async () => offered,
+    check: async (_ref, input) => { seen.checked = input; },
+    invoke: async (_ref, input) => { seen.invoked = input; return { results: [] }; },
+    offer: async offer => { seen.offered = offer.input; return { offer_id: "o1" }; },
+  }, handles);
+  await wrapped.check!(readBodiesRef, { refs: ["s1"] });
+  await wrapped.invoke(readBodiesRef, { refs: ["s37"] });
+  await wrapped.offer!({ title: "t", summary: "s", reference: readBodiesRef, input: { refs: ["s1"] } });
+  assert.deepEqual(seen.checked, { refs: [skills[0]!.ref] }, "check resolves handle to exact frozen SkillRef");
+  assert.deepEqual(seen.invoked, { refs: [fullRef] }, "invoke resolves handle to exact frozen SkillRef");
+  assert.deepEqual(seen.offered, { refs: ["s1"] }, "offer never resolves ephemeral handles");
+});
+
+test("M3: end-to-end Assistant round reads an auto Skill via compact handle and records canonical SkillRef", { timeout: 120_000 }, async t => {
+  const h = await installedPackageHost();
+  let toolStep = 0;
+  let pickedHandle: string | undefined;
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async (_url: unknown, init: RequestInit) => {
+    const body = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
+    const listed = methodsMaterial(body).rows.find(row => row.kind === "skill" && row.name === MEETING_NOTES.id);
+    if (toolStep === 0 && typeof listed?.handle === "string") {
+      toolStep++;
+      pickedHandle = listed.handle;
+      const events: string[] = [];
+      const emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
+      emit("message_start", { message: { id: "m1", type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
+      emit("content_block_start", { index: 0, content_block: { type: "tool_use", id: "call-read-skill", name: "read-capability", input: {} } });
+      emit("content_block_delta", { index: 0, delta: { type: "input_json_delta", partial_json: JSON.stringify({
+        capability_id: skillCatalogActions.readBodies.capability_id, version: skillCatalogActions.readBodies.version, provider_id: SKILLS_PROVIDER_ID, input: { refs: [pickedHandle] },
+      }) } });
+      emit("content_block_stop", { index: 0 });
+      emit("message_delta", { delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: 10 } });
+      emit("message_stop", {});
+      return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
+    }
+    return reply("已按会议纪要方法整理完成。");
+  }));
+  const queue = new AgentReviewQueue(), agentHost = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-handle-e2e", appVersion: "1.0.0" }, storageRoot: join(h.home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    resolveCredential: () => "fixture-only" });
+  agentHost.register(adapter);
+  const { service } = assistantServiceFor({ localHost: h.host, homeDirectory: h.home, agentHost, agentReady: async () => {}, projectTitle: async () => "句柄实测", pages: async () => [] });
+  try {
+    await h.install(signedContentPackage(newPublisher()));
+    const person = { ...h.person, permissions: [...h.person.permissions, ...SKILLS_PERMISSIONS] }, ref = (action: { capability_id: string; version: number }) => ({ capability_id: action.capability_id, version: action.version });
+    const [off] = ((await h.client.invoke(person, ref(skillCatalogActions.list), {})) as { skills: SkillCatalogEntry[] }).skills.filter(row => row.ref.source.plugin_id === CONTENT_PLUGIN_ID);
+    assert.ok(off);
+    await h.client.invoke(person, ref(skillCatalogActions.setState), { install_id: off.ref.install_id, skill_id: off.ref.skill_id, scope: "project", expected_revision: 0, state: "auto" });
+    const sent = await service.send({ text: "帮我整理会议纪要", request_id: "handle-e2e-1" }, { project_ref: h.reference });
+    await until(async () => (await service.read(sent.work.work_id)).work.state === "completed", "handle round");
+    assert.equal(toolStep, 1, "model read the Skill via compact handle s1");
+    const round = (await service.read(sent.work.work_id)).rounds[0]!;
+    assert.deepEqual(round.skills, [{ ref: off.ref, name: off.name, picked: "auto" }], "round.skills records the canonical 8-field SkillRef");
+  } finally {
+    service.continuations.close(); await adapter.close(); await h.close();
+  }
 });

@@ -17,7 +17,7 @@ type Memory = RoundState["memoryRounds"] extends Map<string, infer M> ? M : neve
  * The round's actions: the business gateway's three tools, or one tool per frozen action. What the round really keeps,
  * forgets and changes is counted for the stop check; a call to a capability that is gone is refused before review.
  */
-export function roundGateway(deps: Pick<RunDeps, "state" | "runtime" | "options">, input: Pick<PrologueStartInput, "action_gateway" | "actions" | "assertBeforeDispatch" | "character" | "root_path" | "session_id" | "text_materials">, none: boolean, stopping: () => boolean, work: PrologueWorkDelegation | undefined, mcp: RoundMcp | undefined) {
+export function roundGateway(deps: Pick<RunDeps, "state" | "runtime" | "options">, input: Pick<PrologueStartInput, "action_gateway" | "actions" | "assertBeforeDispatch" | "character" | "root_path" | "session_id" | "text_materials"> & Partial<Pick<PrologueStartInput, "provenance">>, none: boolean, stopping: () => boolean, work: PrologueWorkDelegation | undefined, mcp: RoundMcp | undefined) {
   const { state, runtime } = deps;
   const actionController = new AbortController();
   const reviews = new PrologueActionReviews(input.session_id, () => {
@@ -47,7 +47,7 @@ export function roundGateway(deps: Pick<RunDeps, "state" | "runtime" | "options"
   const actionTools = none ? undefined : gatewayTools ? { ...gatewayTools, scope: "gateway" }
     : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL),
       // The symbol tool is part of this pack's identity (the catalog allows one registration per name and `prepare` compares content).
-      !none && input.root_path !== undefined && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL), reviews, pinnedRevisions);
+      !none && input.root_path !== undefined && input.character.tools.includes(FIND_SYMBOL_HOST_TOOL), reviews, pinnedRevisions, input.provenance?.frozen.reply_locale);
   const gateway = gatewayForRun && { ...gatewayForRun, declare: gatewayTools?.declare };
   if (gateway) {
     state.gatewayRuns.set(input.session_id, gateway);

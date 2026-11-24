@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installHostUiText, openPluginDatabase, registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
-import { IssueStore, IssueCaptures, ISSUES_DATABASE, ISSUES_NAME, ISSUES_PLUGIN_ID, ISSUE_ASK, ISSUE_TITLE_RULES, ISSUE_TOO_LITTLE, ISSUE_TYPE_RULES,
+import { IssueStore, IssueCaptures, ISSUES_DATABASE, ISSUES_NAME, ISSUES_PLUGIN_ID,
   createIssuesPlugin, issueActionHandlers, issuesActions, issuesManifest, issuesSkills, titleLanguage, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -18,6 +18,7 @@ const issueText = <T>(locale: "zh" | "en", run: () => T): T => {
   assert.ok(reader, "Issue's actual package owns the question");
   return runWithLocale(locale, () => runWithRegisteredText(reader, run));
 };
+const ISSUE_ASK = "你在哪个页面做了什么，出现了什么问题？也可以补充截图。";
 const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7x8AAAAASUVORK5CYII=";
 const shots = [{ name: "保存.png", data_url: png }, { name: "列表.png", data_url: png }];
 
@@ -198,7 +199,13 @@ test("ISSUE-51 suggesting a name for a saved record's edit writes nothing", asyn
 
 test("ISSUE-52 ISSUE-53 Issue's rules are written once: the naming instruction and the Assistant's method share them, and the method names no tool", () => {
   const [method] = issuesSkills;
-  for (const line of [...ISSUE_TOO_LITTLE, ...ISSUE_TITLE_RULES, ...ISSUE_TYPE_RULES]) {
+  for (const line of [
+    "用户提交了就是要记下来，追问会让这条停在那里等人补充。",
+    "一句话，和本次描述用同一种语言：",
+    "bug：现有功能出错、没反应、报错、数据丢失或显示错误",
+    "experience：功能能用，但难找、难用、慢、费解、不顺手。",
+    "feature：要一个现在没有的能力。",
+  ]) {
     assert.ok(ISSUES_NAME.body.includes(line), line); assert.ok(method!.body.includes(line), line);
   }
   // Carried by Issue's own definition, registered while it runs, so the person can read and edit it in “Prompt 与 Character” (PG-051).

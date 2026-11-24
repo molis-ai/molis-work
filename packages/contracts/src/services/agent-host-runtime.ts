@@ -3,7 +3,7 @@ import type { STATE_VOCABULARIES } from "../platform/state-vocabulary.js";
 import type { AgentMemoryExecutionControl, AgentMemoryCapability } from "./agent-host-memory.js";
 import type { AgentRecoveryCapability, AgentScheduleCapability, AgentCheckpointsCapability, AgentMcpLibrary, AgentSubagentsCapability } from "./agent-host-ports.js";
 import type { AgentCreateSessionRequest, AgentStartExecution, AgentStartRequest } from "./agent-host-start.js";
-import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput } from "./agent-host-run-view.js";
+import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput, AgentWriteCheckResult } from "./agent-host-run-view.js";
 import type { AgentProjectWorkCapability, AgentSessionMessagesCapability, AgentBackgroundCapability } from "./agent-host-session.js";
 import type { AgentCollaborationPort } from "./agent-collaboration.js";
 import type { AgentOriginalInput, AgentOriginalInputRef } from "./agent-inputs.js";
@@ -187,6 +187,8 @@ export interface AgentRuntimeAdapter {
   read(run: AgentRunRef): Promise<AgentRunView>;
   observe(run: AgentRunRef, listener: (view: AgentRunView) => void): () => void;
   control(run: AgentRunRef, control: AgentRunControl): Promise<void>;
+  /** Verified checks of the requested writes in this round. An unreadable receipt is omitted. */
+  readWriteChecks?(session: AgentSessionRef, runId: string, writeIds: string[]): Promise<AgentWriteCheckResult[]>;
   readCommandOutput(
     session: AgentSessionRef,
     ref: AgentCommandOutputRef,

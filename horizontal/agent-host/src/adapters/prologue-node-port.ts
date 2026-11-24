@@ -1,3 +1,4 @@
+import { commandReceipts } from "./prologue-command-receipts.js";
 import { personalContinuationOpenings } from "./prologue-session-opening.js";
 import { bindBusinessSubagent } from "./prologue-business-child.js";
 import { childRoleRestorer } from "./prologue-child-setup.js";
@@ -9,8 +10,8 @@ import { answerPending, readPendingQuestion, childQuestionScope } from "./prolog
 import { readOriginalInput, resolveOriginalInput, originalInputIdByKey, sessionNotifier } from "./prologue-original-inputs.js";
 import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
-import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type QueuedTask, type Runtime, type SessionOpeningReader, type StorageGuard, type SubagentHandle } from "@prologue/sdk";
-import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isTerminalEventType, DEFAULT_CONTEXT_WINDOW_TOKENS, createRuntime, type ConditionCheckers, type ExactRef, type ModelRequestObserved, type QueuedTask, type Runtime, type SessionOpeningReader, type StorageGuard, type SubagentHandle } from "@prologue/sdk";
+import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { createCollaborationHost, readyStep, sessionBlock, type ContinuationStarts, type DispatchChecks } from "./prologue-collaboration.js";
@@ -31,7 +32,7 @@ import type { PrologueRuntimePort } from "./prologue.js";
 import { PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 import { agentErrors } from "../errors.js";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, unexecutedApprovalCallOf, type CommandEvent, type DispatchControl, type DispatchGuard, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
+import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, unexecutedApprovalCallOf, type DispatchControl, type DispatchGuard, type NodeHost, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import { SESSION_INDEX_SCHEMA, type SessionIndex, type SessionIndexStore } from "./prologue-session-index.js";
 import type { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
 import type { ReviewDecisionStore } from "../review-decisions.js";
@@ -200,45 +201,6 @@ function projectWorkPort(deps: PortDeps): NonNullable<PrologueRuntimePort["proje
       return { ...item, wait_id: armed.waitId };
     },
     release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
-  };
-}
-
-/** A command's receipt, read back from the exact resource the runtime published for it; anything inconsistent is refused. */
-function readCommandOutput(deps: PortDeps): NonNullable<PrologueRuntimePort["readCommandOutput"]> {
-  return async (sessionId, ref) => {
-    const { runtime, state } = deps;
-    const index = await deps.index.read(sessionId);
-    if (!index) throw new Error("会话执行索引不可用");
-    const session = await runtime.sessions.open(index.ref);
-    if (!session) throw new Error("SDK 会话不可读");
-    const terminal = await session.terminalRuns();
-    const matches: Array<{ event: CommandEvent; runId: string; root: ExactRef<"authorized-root">; check?: AgentWriteCheckNote }> = [];
-    for (const attempt of index.attempts) {
-      if (!attempt.run_id || !attempt.root_ref || ref.run_id && ref.run_id !== attempt.run_id) continue;
-      const saved = terminal.find(run => run.id === attempt.run_id);
-      const events = saved ? await session.replay(saved) : state.commandEvents.get(attempt.run_id) ?? [];
-      for (const event of events) if (event.type === "command-receipt" && event.callId === ref.call_id) {
-        // A person's after-write check answers one write: its receipt is that write's `<call id>:diagnostics`, and the
-        // executor noted which checker it chose under the write's call id (§6.0p.4: the SDK's receipt names neither).
-        const check = Object.values(attempt.write_checks ?? {}).find(note => note.write_call_id !== undefined && `${note.write_call_id}:diagnostics` === ref.call_id);
-        matches.push({ event, runId: attempt.run_id, root: attempt.root_ref, ...(check ? { check } : {}) });
-      }
-    }
-    if (matches.length !== 1) throw new Error(matches.length ? "命令引用对应多次执行，请指定轮次" : "没有这次命令的持久回执；结果未知，不能当作成功或自动重跑");
-    const { event, runId, root, check } = matches[0]!;
-    const record = await readResource(runtime, event.receiptRef);
-    const receipt = record.receipt;
-    if (record.kind !== WORKSPACE_COMMAND_RECEIPT_KIND || record.version !== 1 || !sameRef(record.rootRef, root)
-      || typeof record.executable !== "string" || !Array.isArray(record.argv) || !record.argv.every((arg: unknown) => typeof arg === "string")
-      || !receipt || receipt.commandId !== event.commandId || !sameRef(receipt.effectRef, event.effectRef)
-      || typeof receipt.stdout !== "string" || typeof receipt.stderr !== "string" || typeof receipt.truncated !== "boolean"
-      || typeof receipt.timedOut !== "boolean" || typeof receipt.cancelled !== "boolean"
-      || receipt.exitCode !== undefined && !Number.isInteger(receipt.exitCode)
-      || receipt.stopReason !== undefined && !["cancelled", "timed-out"].includes(receipt.stopReason)) throw new Error("命令回执与这轮执行不一致，不能展示为已确认结果");
-    return { ref: { run_id: runId, call_id: ref.call_id }, command: [record.executable, ...record.argv.map((arg: string) => JSON.stringify(arg))].join(" "),
-      exit_code: receipt.exitCode ?? null, stdout: receipt.stdout, stderr: receipt.stderr, truncated: receipt.truncated,
-      timed_out: receipt.timedOut, cancelled: receipt.cancelled, ...(receipt.stopReason ? { stop_reason: receipt.stopReason } : {}),
-      ...(check ? { after_write_check: { checker_id: check.checker_id, display_name: check.display_name, version: check.version } } : {}) };
   };
 }
 
@@ -566,7 +528,7 @@ async function continueSubagentAttempt(
   };
   continued.run.subscribe(event => {
     for (const changed of state.subagentListeners) changed(parentRun.run_id);
-    if (["completed", "failed", "cancelled", "tripped", "circuit-tripped"].includes(event.type)) {
+    if (isTerminalEventType(event.type)) {
       authority.finish();
       if (state.liveSessions.get(child.session.id) === newRunId) state.liveSessions.delete(child.session.id);
       state.activeRuns.delete(newRunId);
@@ -720,7 +682,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
     actionTools: true,
     mcpLibrary,
     readPendingQuestion: (run, id, revision) => readPendingQuestion(deps, run, id, revision),
-    readCommandOutput: readCommandOutput(deps),
+    ...commandReceipts(deps),
     sessions: sessionsPort(deps),
     startAgentRun: input => startPrologueRun(deps, input),
     shutdown: deps.shutdown,

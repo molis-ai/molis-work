@@ -1,3 +1,4 @@
+import { createRoundState, createSessionMessages, endedOnPromise, watchRoundFacts, watchRoundLifecycle } from "@molis-ai/molis-work-service-agent-host/testing";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -41,4 +42,52 @@ test("W4-06-01: refusing overlapping child directories leaves no durable plan or
       assert.deepEqual(restored.boards.assignedTo({ kind: "session", id: session.session_id, revision: 1 }), [], "reopening must not reveal a plan admitted before the refused child setup");
     } finally { await restored.shutdown(); }
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("RT-1/2 the Node adapter releases each round once, including a terminal event replayed before setup completes", async () => {
+  for (const [type, end, letterEnd] of [
+    ["completed", "completed", "completed"], ["failed", "failed", "failed"], ["cancelled", "stopped", "delivered"],
+    ["tripped", "stopped", "stopped"], ["circuit-tripped", "stopped", "stopped"],
+  ] as const) {
+    const state = createRoundState(), actionController = new AbortController();
+    const runRef = { kind: "run", id: "round", revision: 1 } as const, session = { ref: { kind: "session", id: "holder", revision: 1 } as const };
+    const listeners = new Set<(event: { type: string }) => void>();
+    const run = { ref: runRef, subscribe(listener: (event: { type: string }) => void) { listeners.add(listener); return () => listeners.delete(listener); } };
+    const emit = () => { for (const listener of listeners) listener({ type }); };
+    state.actionControllers.set("round", actionController);
+    state.liveSessions.set("holder", "round"); state.runRefs.set("round", runRef);
+    state.activeRuns.set("round", { live: () => true, assertAuthority() {}, steer: async () => {} });
+    state.runWork.set("round", { project: "project", id: "job", session: session.ref, directory: "/tmp/fixture" });
+    const releases: unknown[] = [], letter = { ref: { id: "question" }, state: "delivered", kind: "request", awaitReply: true };
+    let letterEvent = "delivered", note = "";
+    const runtime = { readClock: async () => ({ wallTimeMs: 1 }), hooks: { register() {} }, delivery: {
+      subscribe() { return () => {}; }, list: (query: { to?: unknown }) => query.to ? [letter] : [],
+      respond: () => letter, complete() { letterEvent = "completed"; }, cancel(_ref: unknown, detail: { event: string; note: string }) { letterEvent = detail.event; note = detail.note; },
+      flush: async () => {},
+    } };
+    const messages = createSessionMessages(runtime as never, {} as never);
+    const deps = { state, options: {}, messages, surfaces: () => ({ releaseRun: () => releases.push("surface-run") }),
+      stepBoards: { unfollow: () => releases.push("board") }, workGraphs: { ended: (_run: unknown, _session: unknown, event: string) => releases.push(["graph", event]) },
+      projectWork: { end: async (project: string, id: string, phase: string) => { releases.push([project, id, phase]); } } };
+    const guard = { reader: "person" as const, writing: true, business: true, task: "", materials: [], runs: new Map([["round", { held: new Set<"announce">(["announce"]), announcedAt: 0 }]]) };
+    state.stopGuards.set("holder", guard);
+    watchRoundFacts(state, run, true);
+    const lifecycle = watchRoundLifecycle(deps as never, { session_id: "holder" } as never, {
+      session, started: { run, control: { state: "running" } }, actionController, attemptIndex: 0, stepBoard: { ref: { id: "board" } },
+      surface: { release: async (phase: string) => { releases.push(["surface", phase]); } },
+      actionReviews: { releaseRun: () => true }, codeIntelligence: { close: async () => { releases.push("lsp"); } }, onAborted() {},
+    } as never);
+    emit();
+    assert.equal(state.liveSessions.get("holder"), "round", "cleanup waits until the run is attached");
+    lifecycle.markReady(); emit(); lifecycle.dispose("cancelled");
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(releases, ["lsp", "board", ["graph", type], ["surface", end], "surface-run", ["project", "job", end]], type);
+    assert.equal(actionController.signal.aborted, true);
+    assert.deepEqual([state.liveSessions.size, state.runWork.size, state.activeRuns.size, state.runRefs.size, state.actionControllers.size], [0, 0, 0, 0, 0]);
+    if (type === "completed") assert.equal(endedOnPromise(state, "round", "holder"), true, "the completed view consumes its final guard facts");
+    assert.deepEqual([state.roundFacts.size, guard.runs.size], [0, 0]);
+    assert.equal(letterEvent, letterEnd, type);
+    if (type === "tripped") assert.match(note, /护栏叫停/);
+    if (type === "circuit-tripped") assert.match(note, /连续尝试没有进展/);
+  }
 });

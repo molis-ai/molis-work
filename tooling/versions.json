@@ -131,6 +131,7 @@
     "action.agent.task_grants.list": 1,
     "action.agent.task_grants.set": 1,
     "action.agent.tools.kit.report": 1,
+    "action.agent.write-checks.read": 1,
     "action.agent.write_checkers.list": 1,
     "action.agent.write_checkers.save": 1,
     "action.appearance.selection.apply": 1,

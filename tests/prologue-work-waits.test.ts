@@ -1,3 +1,4 @@
+import { createPrologueConditionCheckers, createWorkGraphs } from "@molis-ai/molis-work-service-agent-host/testing";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -201,4 +202,44 @@ test("WLN-RETURN-01: the work may go on as soon as one part ends while another i
   await w.works.end({ graph_id: w.graph_id, node_id: "p-2", note: "做完了" });
   await until("the work may go on after the last part", async () => (await w.rootStep()).continuation?.state === "eligible");
   await until("the listener hears the second", () => ready.length === 2);
+});
+
+test("RT-2 restart reconciles the last settled round of a part for every terminal event and preserves the open work root", async () => {
+  for (const [type, state] of [["completed", "succeeded"], ["failed", "failed"], ["cancelled", "cancelled"],
+    ["tripped", "cancelled"], ["circuit-tripped", "cancelled"], ["text-delta", "running"]] as const) {
+    const session = { kind: "session", id: "s" }, board = { id: "board" }, run = { id: "run" };
+    const root = { id: "work", state: "running", assignee: session, attempts: [] };
+    const part = { id: "part", parent: "work", state: "running", generation: 2, assignee: session, attempts: [{ state: "settled", run, session }] };
+    const reports: string[] = [];
+    const runtime = {
+      sessions: { open: async () => ({ terminalRuns: async () => [run], replay: async () => [{ type }] }) },
+      boards: { subscribe: () => () => {}, refs: () => [board], get: () => ({ nodes: [root, part], version: 5 }),
+        report: async (input: { nodeId: string; to: string; scope: { generation: number } }) => {
+          assert.equal(input.nodeId, part.id); assert.equal(input.scope.generation, 2); reports.push(input.to); part.state = input.to;
+        } },
+    };
+    const graphs = createWorkGraphs(runtime as never, { read: async () => ({ work_graph: "board" }) } as never);
+    await graphs.reconcile(); await graphs.reconcile();
+    assert.deepEqual([part.state, root.state, reports, graphs.failures()], [state, "running", type === "text-delta" ? [] : [state], []], type);
+  }
+});
+
+test("RT-2 a terminal round keeps checker authority for a waiting call and releases it when that wait ends", async () => {
+  for (const type of ["completed", "failed", "cancelled", "tripped", "circuit-tripped"]) {
+    let prune = () => {}, emit = (_event: { type: string }) => {};
+    const scope = { board: "b", node: "n", generation: 1 };
+    const wait = { state: "waiting", run: { id: "r" }, session: { id: "s" }, scope };
+    const runtime = { hooks: { register() {} }, waits: { get: () => wait, list: () => [wait], subscribe(fn: () => void) { prune = fn; return () => {}; } } };
+    const checks = createPrologueConditionCheckers({ runtime: () => runtime as never, project: async () => undefined, owner: async () => undefined });
+    checks.open();
+    let authorized = 0;
+    checks.remember("r", { session_id: "s", beforeDispatch: () => { authorized++; } }, { subscribe(fn) { emit = fn; return () => {}; } });
+    emit({ type });
+    const read = () => checks.checkers.check({ wait: { ref: { id: "w" } }, scope, check: { checker: { id: "molis.file-present", version: 1 }, params: { path: "a" } } } as never, new AbortController().signal);
+    await read(); assert.equal(authorized, 1, type);
+    wait.state = "satisfied"; prune();
+    // Another wait cannot borrow the old run's closed authority.
+    wait.state = "waiting"; const denied = await read();
+    assert.equal(authorized, 1); assert.match(denied.note ?? "", /授权已经不在/); checks.close();
+  }
 });

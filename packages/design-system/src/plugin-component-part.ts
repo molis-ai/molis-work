@@ -58,9 +58,9 @@ export function pcSubmit(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry) {
                   return;
                 }
               }
-            } catch {
+            } catch (error) {
               if (live(part, generation)) {
-                if (controller.signal.aborted) report(part, '', '');
+                if (controller.signal.aborted || error instanceof DOMException && error.name === 'AbortError') report(part, '', '');
                 else report(part, 'error', t.text('common.component-connection-need.unavailable'));
               }
               return;

@@ -242,7 +242,15 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     if (!target || byId(message.id) || [...opening.values()].some(item => item.id === message.id) || !scope.visible) { fail(); return; }
     // One card a target on a page: asked again, the card already there answers the new request and its place is brought into view.
     const existing = entries.get(key);
-    if (existing && !existing.answered) { send("done", existing.id, { error: "AbortError" }); existing.id = message.id; send("reveal", message.id); return; }
+    if (existing && !existing.answered) {
+      send("done", existing.id, { error: "AbortError" });
+      existing.id = message.id;
+      existing.area.layout(null);
+      if (existing.area.height >= 0) send("size", message.id, { height: existing.area.height });
+      send("shown", message.id, { service: existing.read!.service_title });
+      send("reveal", message.id);
+      return;
+    }
     if (existing) close(key);
     let read: Read;
     const previous = opening.get(key);
@@ -297,11 +305,12 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
   const made = childNeeds.get(port);
   if (made) return made;
   let sequence = 0;
-  type Waiting = { element: HTMLElement; image: boolean; settle?: { resolve(outcome: UiConnectionNeedOutcome): void; reject(error: Error): void }; stop?: () => void };
+  type Waiting = { element: HTMLElement; image: boolean; restoreLabel?: () => void; settle?: { resolve(outcome: UiConnectionNeedOutcome): void; reject(error: Error): void }; stop?: () => void };
   const entries = new Map<number, Waiting>(), up = (message: ConnectionNeedUp) => port.postMessage(message);
   const close = (id: number, error: Error = closed()) => {
     const entry = entries.get(id); if (!entry) return;
     entries.delete(id); places.untrack(id); entry.stop?.(); entry.settle?.reject(error);
+    entry.restoreLabel?.();
     entry.element.style.removeProperty("height"); up({ type: "connection-need-close", id });
   };
   const places = childPlaces(scope, (id, box) => up({ type: "connection-need-layout", id, box }), id => close(id));
@@ -314,7 +323,20 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
     if (kind === "size") element.style.height = Math.max(0, Number(said.height) || 0) + "px";
     else if (kind === "reveal") element.scrollIntoView({ block: "nearest" });
     // Shown: the place is reported again, since a report made while the shell was still reading the target had no card to go to.
-    else if (kind === "shown") { places.resend(message.id); element.setAttribute("role", "note"); element.setAttribute("aria-label", sayNamed(uiText.text, entry.image)("common.connection-need.name-needs-be-connected-here-connection-card-page", { name: String(said.service) })); }
+    else if (kind === "shown") {
+      places.resend(message.id);
+      if (!entry.restoreLabel) {
+        const original = ["role", "aria-label"].map(name => [name, element.getAttribute(name)] as const);
+        entry.restoreLabel = () => {
+          for (const [name, value] of original) {
+            if (value === null) element.removeAttribute(name);
+            else element.setAttribute(name, value);
+          }
+        };
+      }
+      element.setAttribute("role", "note");
+      element.setAttribute("aria-label", sayNamed(uiText.text, entry.image)("common.connection-need.name-needs-be-connected-here-connection-card-page", { name: String(said.service) }));
+    }
     else if (kind !== "done") return;
     else if (said.error) close(message.id, said.error === "AbortError" ? closed() : new Error(CONNECTION_NEED_UNAVAILABLE));
     else if (said.outcome) { const settle = entry.settle, outcome = said.outcome; entry.settle = undefined; entry.stop?.(); settle?.resolve(outcome.status === "connected" ? { status: "connected", account: { label: String(outcome.account.label) } } : { status: "cancelled" }); }

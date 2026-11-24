@@ -158,6 +158,13 @@ test("S-plugin-connection-card ASC-68 C3-2 C3-5 C3-10 ASC-65 ASC-66 made-up mess
   const accounts = await browser.evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(CARD + " [data-framed-control^='use:']")})].map(button => button.textContent)`);
   assert.equal(accounts.length, 5, "the five accounts are offered");
 
+  // A second form using the same slot takes over the visible card at the same width.
+  await p.ask("next-form", "left:24px;top:84px;width:560px");
+  assert.match(await p.answer("card"), /^refused:/u);
+  await child.waitFor(`document.getElementById('next-form').getBoundingClientRect().height === ${WIDE} && document.getElementById('next-form').getAttribute('role') === 'note' && document.getElementById('next-form').getAttribute('aria-label')`);
+  assert.equal(await child.evaluate("document.getElementById('card').style.height"), "");
+  assert.deepEqual(await child.evaluate("['role', 'aria-label'].map(name => document.getElementById('card').getAttribute(name))"), [null, null]);
+  assert.equal(await browser.evaluate(`document.querySelectorAll(${JSON.stringify(CARD)}).length`), 1);
   // C3-10: a script in the outer document clicks an account outright: nothing it dispatches is trusted, nothing is written.
   await p.ready();
   const first = await browser.evaluate<string>(`document.querySelector(${JSON.stringify(CARD + " [data-framed-control^='use:']")}).dataset.framedControl`);
@@ -167,15 +174,15 @@ test("S-plugin-connection-card ASC-68 C3-2 C3-5 C3-10 ASC-65 ASC-66 made-up mess
   // The person's own press, three times at once: one bind, the page hears connected with the display name only.
   const point = await p.centre(p.control(first));
   await Promise.all([p.press("", point), p.press("", point), p.press("", point)]);
-  assert.match(await p.answer("card"), /^connected: /u);
+  assert.match(await p.answer("next-form"), /^connected: /u);
   const binds = await p.writes();
   assert.equal(binds.length, 1, "C3-10 one write for the person's presses: " + JSON.stringify(binds));
   assert.equal(binds[0]!.body?.operation, "bind");
   assert.equal((await p.bound())?.connection_id, first.slice(4), "the chosen account is on the source");
   await browser.waitFor(`document.querySelector(${JSON.stringify(CARD)})?.dataset.stage === "line"`);
   // The card is drawn in the outer document first; the page's element gets its height from the size message after it, over the port.
-  await child.waitFor(`document.getElementById('card').getBoundingClientRect().height === ${LINE}`).catch(() => undefined);
-  assert.equal(await child.evaluate("document.getElementById('card').getBoundingClientRect().height"), LINE, "ASC-66 the card folds into one line");
+  await child.waitFor(`document.getElementById('next-form').getBoundingClientRect().height === ${LINE}`).catch(() => undefined);
+  assert.equal(await child.evaluate("document.getElementById('next-form').getBoundingClientRect().height"), LINE, "ASC-66 the card folds into one line");
 
   // C3-5: what the frame heard: heights, that the card shows, and one answer; no account id, label of another account, or key.
   const heard = await p.down();

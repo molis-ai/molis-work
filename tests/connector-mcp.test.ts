@@ -15,9 +15,10 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { ListToolsRequestSchema, CallToolRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { createConnectorMcpHost, type McpConfiguration, type McpServerConfiguration } from "../apps/local-host/dist/connector-mcp.js";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { formatMcpToolError } from "@molis-ai/molis-work-app-mcp";
-import { captureHostLog, larkMcpLaunch, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, stdioMcpLaunch, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { CATALOG_LOCAL_MCP_SERVERS } from "@molis-ai/molis-work-integration-catalog";
 import { createAgentConnectorPorts } from "../apps/local-host/dist/agent-connector-ports.js";
 import { connectorAuthorizationStatus, finishConnectorAuthorization } from "../apps/local-host/dist/connector-authorization-status.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -58,8 +59,8 @@ const ORIGINAL_MCP_SERVERS: Readonly<Record<string, McpServerConfiguration>> = {
   teams: { endpoint: "https://agent365.svc.cloud.microsoft/agents/tenants/{tenantId}/servers/mcp_TeamsServer", auth: "either", registration: "manual", endpointPattern: /^https:\/\/agent365\.svc\.cloud\.microsoft\/agents\/tenants\/[0-9a-f-]{36}\/servers\/mcp_TeamsServer$/iu },
   salesforce: { endpoint: "https://api.salesforce.com/platform/mcp/v1/{serverName}", auth: "either", registration: "manual", endpointPattern: /^https:\/\/api\.salesforce\.com\/platform\/mcp\/v1\/(?:sandbox\/)?[A-Za-z0-9_-]+$/u },
   canva: { endpoint: "https://mcp.canva.com/mcp", auth: "oauth", registration: "manual" },
-  feishu: { endpoint: "https://open.feishu.cn/", stdio: true },
-  lark: { endpoint: "https://open.larksuite.com/", stdio: true },
+  feishu: { endpoint: "https://open.feishu.cn/", stdio: true, launch: input => stdioMcpLaunch(CATALOG_LOCAL_MCP_SERVERS.feishu!.stdio!, input) },
+  lark: { endpoint: "https://open.larksuite.com/", stdio: true, launch: input => stdioMcpLaunch(CATALOG_LOCAL_MCP_SERVERS.lark!.stdio!, input) },
   notion: { endpoint: "https://mcp.notion.com/mcp", auth: "oauth" },
   github: { endpoint: "https://api.githubcopilot.com/mcp/", auth: "either", registration: "manual" },
   // Registration endpoint exists, but rejects non-partner clients (403).
@@ -589,7 +590,7 @@ test("the Host starts the Feishu/Lark child with the launch it built, and the ch
   const host = createConnectorMcpHost({ stdioTransport: larkChild(started) });
   const connected = await host.startMcpConnection(temp, { serviceId: "feishu", displayName: "Tenant", clientId: "fixture-app", clientSecret: "fixture-secret", origin: callbackOrigin });
   const parameters = started.at(-1)!;
-  const expected = larkMcpLaunch({ appId: "fixture-app", appSecret: "fixture-secret", domain: "https://open.feishu.cn" });
+  const expected = stdioMcpLaunch(CATALOG_LOCAL_MCP_SERVERS.feishu!.stdio!, { client_id: "fixture-app", client_secret: "fixture-secret", origin: "https://open.feishu.cn" });
   expected.cleanup();
   assert.deepEqual(parameters.env, expected.env, "the transport gets the launch environment unchanged: not merged with the Host's process.env");
   assert.notEqual(parameters.cwd, expected.cwd, "and its own working directory, not one shared with another launch");
@@ -1008,6 +1009,13 @@ test("ASC-05 ASC-08 ASC-09: protected prepared MCP requests preserve authenticat
         }
         const result = await local.host.homeActionClient().invoke(caller, connectorManagementActions.authorization, { authorization_id: prepared.authorization_id }) as { status: string; connection_id: string };
         assert.equal(result.status, "connected");
+        // BL-1051: the public view remembers the selected mode after authorization, without protocol secrets.
+        const { connections } = await bindActionClient(local.host.homeActionClient(), () => caller).invoke(connectorManagementActions.list, { service_id: "mcp-bearer" });
+        const view = connections.find(row => row.connection_id === result.connection_id);
+        assert.ok(view && view.source !== "project_mcp");
+        assert.equal(view.mcp_authentication, authentication);
+        assert.equal(view.mcp_endpoint, remote.endpoint);
+        assert.doesNotMatch(JSON.stringify(view), /fixture-private-mcp|credential_ref|refresh_ref|client_secret|access_token/);
         const reference = local.host.connectorMcp!.reference(result.connection_id, connectorMcpCapabilityId(result.connection_id, "echo"));
         assert.ok(reference);
         const called = await local.host.homeActionClient().invoke(caller, reference, { message: "Prepared and actually called" });

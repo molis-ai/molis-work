@@ -47,9 +47,9 @@ function harness() {
       { id: "row-1", source: { capability_id: "coding.background.tasks", version: 1, provider_id: "coding" }, origin: { surface: "coding", title: "Coding", icon: "code" }, subject: { kind: "coding_session", id: "s1" }, title: "修登录",
         state: "running", step: { text: "跑了 3 项" }, details: [], waiting: false, updated_at: at(48), executor: { kind: "plugin", label: "Coding" }, serves: [{ kind: "coding_session", id: "s1" }], scope: "project",
         commands: [{ role: "stop", action: { capability_id: "coding.background.stop", version: 1, provider_id: "coding" }, input: { session_id: "s1", task_id: "t1" }, summary: "停止 dev server" }], decisions: [], open: null },
-      { id: "row-2", source: { capability_id: "assistant.background.tasks", version: 1, provider_id: "io.molis.work.assistant.rules" }, origin: { surface: "assistant", title: "助理", icon: "assistant" }, subject: subject("tracked"), title: "整理访谈",
+      { id: "row-2", source: { capability_id: "assistant.background.tasks", version: 1, provider_id: "system.assistant.rules" }, origin: { surface: "assistant", title: "助理", icon: "assistant" }, subject: subject("tracked"), title: "整理访谈",
         state: "approval", details: [], waiting: true, updated_at: at(47), executor: { kind: "assistant", label: "助理" }, serves: [subject("tracked")], scope: "project", commands: [],
-        decisions: [{ id: "r1", ask: "把访谈整理成三段", changes: [{ label: "标题", value: "访谈纪要" }], answers: [{ role: "approve", action: { capability_id: "assistant.background.decide", version: 1, provider_id: "io.molis.work.assistant.rules" }, input: { work_id: "tracked", review_id: "r1", version: "v-r1", decision: "approve" }, summary: "同意" }] }], open: null }] }; },
+        decisions: [{ id: "r1", ask: "把访谈整理成三段", changes: [{ label: "标题", value: "访谈纪要" }], answers: [{ role: "approve", action: { capability_id: "assistant.background.decide", version: 1, provider_id: "system.assistant.rules" }, input: { work_id: "tracked", review_id: "r1", version: "v-r1", decision: "approve" }, summary: "同意" }] }], open: null }] }; },
   };
   const registration = assistantLineRegistration(() => source);
   let effects = 0;

@@ -121,7 +121,7 @@ export const pagesActions = {
   /** The input of 「存为文档」 for a passage from anywhere; no choices of its own, so it is only the `prepare` of `create`. */
   intakeOffers: defineFragmentOffersAction("pages.intake.offers", /* @version action.pages.intake.offers */ 1, [FRAGMENT_ANY_OBJECT], "选中的内容可以存为文档", read, []),
   /** System search: every document of the project by version; its text is read back through `subject`. */
-  searchEntries: defineSearchEntriesAction("pages.search.entries", /* @version action.pages.search.entries */ 1, [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "文档", read),
+  searchEntries: defineSearchEntriesAction("pages.search.entries", /* @version action.pages.search.entries */ 1, [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages", glyph: "note" }], "文档", read),
   /** The side panel's file tab (specs/archive/side-panel): documents by folder; the preview reads the same `subject` text. */
   fileEntries: defineFileEntriesAction("pages.files.entries", /* @version action.pages.files.entries */ 1, [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "Pages 文档", read),
   /** The document as Markdown, the same conversion Pages uses when it hands a page to another plugin. */

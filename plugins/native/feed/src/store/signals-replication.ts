@@ -22,7 +22,7 @@ function parseDraft(input:unknown,projectId:string):SignalDraft{
  const value=object(JSON.parse(String(input))),keys=['project_id','source_id','provider_dedupe_id','kind','occurred_at','observed_at','payload','content_refs','raw_event_id','adapter','provenance'];
  if(Object.keys(value).some(k=>!keys.includes(k))||value.project_id!==projectId)invalid();
  const adapter=object(value.adapter);if(Object.keys(adapter).sort().join(',')!=='plugin_id,version')invalid();
- if(value.content_refs!==undefined&&(!Array.isArray(value.content_refs)||value.content_refs.some(ref=>typeof ref!=='string'||!/^molis-work-feed\/sha256\/[a-f0-9]{64}$/.test(ref))))invalid();
+ if(value.content_refs!==undefined&&(!Array.isArray(value.content_refs)||value.content_refs.some(ref=>typeof ref!=='string'||!/^molis-work-evidence\/sha256\/[a-f0-9]{64}$/.test(ref))))invalid();
  const draft:SignalDraft={project_id:value.project_id as string,source_id:value.source_id as string,provider_dedupe_id:value.provider_dedupe_id as string,kind:value.kind as string,occurred_at:value.occurred_at as string,observed_at:value.observed_at as string,payload:object(value.payload),content_refs:(value.content_refs??[]) as string[],raw_event_id:value.raw_event_id as string,adapter:{plugin_id:adapter.plugin_id as string,version:adapter.version as string},provenance:object(value.provenance)};
  assertSignalDraft(draft);return draft;
 }

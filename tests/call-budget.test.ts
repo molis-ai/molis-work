@@ -226,7 +226,10 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
     measured[name] = median(runs);
   }
   assert.ok(measured.projectBrief!.actionDirectoryRows > 0 && measured.projectBrief!.sceneDirectoryRows > 0, "the measured brief uses both directories");
-  assert.ok(measured.projectBrief!.ownerResolutions > 0 && measured.projectBrief!.shippedRegistrationRows > 0, "the measured brief checks plugin reach");
+  // The brief resolves each provider's owner; since 44B it reads no catalog row of its own (no always-on stamp), so the row probe is
+  // checked on the requests that enumerate the catalog.
+  assert.ok(measured.projectBrief!.ownerResolutions > 0, `the measured brief checks plugin reach: ${JSON.stringify(measured.projectBrief)}`);
+  assert.ok(Object.values(measured).some(counts => counts.shippedRegistrationRows > 0), "the catalog row probe counts the requests that read the catalog");
   assert.equal(measured.memoryOverview!.prepareContext, 1, "the memory overview prepares one person context for its reads and the Goals titles");
 
   // BCC-06 (N43/46): the controlled counterexample. The production reach resolver is called once per built-in id during a projection;

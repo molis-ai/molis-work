@@ -32,7 +32,7 @@ test("RAC-2685 the host's route handlers match pages with the declared routes an
     for (const matcher of removed) assert.equal(text.includes(matcher), false, `${name} names ${matcher}`);
     assert.equal(text.includes("GOALS_PAGE_ROUTES"), false, `${name} reads Goals' declarations instead of the Host's matcher`);
   }
-  assert.match(readFileSync(new URL("apps/local-host/src/page-routes.ts", ROOT), "utf8"), /matchDeclaredPageRoute\(PLATFORM_PLUGIN_REGISTRATIONS\.map\(entry => entry\.manifest\)/u);
+  assert.match(readFileSync(new URL("apps/local-host/src/page-routes.ts", ROOT), "utf8"), /matchDeclaredPageRoute\(shippedParts\(\)\.map\(entry => entry\.manifest\)/u);
   assert.equal(GOALS_PACKAGE.test(readFileSync(new URL("apps/local-host/src/web-owner-unavailable.ts", ROOT), "utf8")), false);
   assert.ok(goalsManifest.ui.page_routes?.length, "Goals declares its page routes in its Manifest");
 });

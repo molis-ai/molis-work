@@ -1,5 +1,5 @@
 import type { UiDeclaredMountHost } from "@molis-ai/molis-work-ui-host";
-import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, type ArtifactBrowserUiModel, type GoalArtifactEmbed } from "./artifacts/index.js";
+import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, type ArtifactBrowserUiModel, type SubjectArtifactEmbed } from "./artifacts/index.js";
 import { FILE_PREVIEW_STYLES } from "@molis-ai/molis-work-design-system";
 
 export const ARTIFACT_EMBED_STYLES = `
@@ -34,8 +34,8 @@ export const ARTIFACT_WORKBENCH_STYLES = `${FILE_PREVIEW_STYLES}
   .artifact-port-inputs-status:empty { display:none; }
   .artifact-links-heading, .artifact-links-works h3 { margin:12px 0 0; font-size:12px; font-weight:600; color:var(--muted); }
   .artifact-link-work { padding:0; border:0; background:none; color:var(--accent); font:inherit; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
-  .artifact-continue-actions, .artifact-goal-input form { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
-  .artifact-goal-input form select { flex:1 1 200px; min-width:0; }
+  .artifact-continue-actions, .artifact-attach-target form { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
+  .artifact-attach-target form select { flex:1 1 200px; min-width:0; }
   .artifact-version-list .mw-dir-row,
   .artifact-version-list .mw-stage-entry { width:100%; }
   .artifact-detail, .artifact-empty { max-width:72ch; overflow-wrap:anywhere; }
@@ -79,7 +79,7 @@ export function createArtifactWorkbenchRenderer(host: UiDeclaredMountHost) {
     fragments: (model: ArtifactBrowserUiModel, surface: "detail" | "frame-block" = "detail", language?: string): string =>
       `<div data-artifact-directory>${mount("directory", model)}</div><div data-artifact-detail${language ? ` data-artifact-fragment-language="${model.primitives.escape(language)}"` : ""}>${surface === "frame-block" ? mount("frame-block", model) : mount("detail", model)}</div>`,
     embed: (model: ArtifactBrowserUiModel): string => mount("embed", model),
-    goalContext: (items: readonly GoalArtifactEmbed[], model: Omit<ArtifactBrowserUiModel, "view" | "relationship">): string =>
+    subjectContext: (items: readonly SubjectArtifactEmbed[], model: Omit<ArtifactBrowserUiModel, "view" | "relationship">): string =>
       items.map((item) => mount("embed", { ...model, view: item.view, relationship: item.relationship })).join(""),
   };
 }

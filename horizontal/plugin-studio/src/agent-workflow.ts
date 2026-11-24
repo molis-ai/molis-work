@@ -764,18 +764,26 @@ export class AgentBuilderWorkflow {
   async close() { this.closed = true; for (const abort of this.drawing) abort.abort(); for (const job of this.jobs.values()) job.abort.abort(failStudioBuild('build-interrupted', '', { guidance: 'build-continue-after-restart' })); await Promise.all([...this.jobs.values()].map(job => job.done)); await Promise.all(this.store.list().map(build => this.resetPreview(build.id))); this.listeners.clear(); }
 }
 
-const MOCKUP_INTENT_LABELS: Readonly<Record<'zh' | 'en', Readonly<Record<string, string>>>> = {
-  zh: { heading: '标题栏', description: '说明或数字', input: '表单', action: '按钮', collection: '列表', reading: '分节文字', schedule: '按日期的列表', conversation: '对话', evidence: '表格', feedback: '提示' },
-  en: { heading: 'heading bar', description: 'summary or metrics', input: 'form', action: 'button', collection: 'list', reading: 'sectioned text', schedule: 'dated list', conversation: 'conversation', evidence: 'table', feedback: 'notice' },
+const MOCKUP_INTENT_LABELS: Readonly<Record<string, readonly [zh: string, en: string]>> = {
+  heading: ['标题栏', 'heading bar'],
+  description: ['说明或数字', 'summary or metrics'],
+  input: ['表单', 'input form'],
+  action: ['按钮', 'action button'],
+  collection: ['列表', 'item list'],
+  reading: ['分节文字', 'sectioned text'],
+  schedule: ['按日期的列表', 'dated list'],
+  conversation: ['对话', 'conversation'],
+  evidence: ['表格', 'data table'],
+  feedback: ['提示', 'status notice'],
 };
 
 /** What the image service is asked to draw for a proposal: registered mockup style instructions plus the proposal details. */
 export function mockupPrompt(proposal: AgentProposal, instructions?: string, locale?: string): string {
   const english = locale?.toLowerCase().startsWith('en') ?? false;
-  const labels = MOCKUP_INTENT_LABELS[english ? 'en' : 'zh'];
-  const parts = proposal.preview.parts.map(part => english
-    ? `- ${part.purpose} (${labels[part.intent] ?? part.intent})`
-    : `- ${part.purpose}（${labels[part.intent] ?? part.intent}）`).join('\n');
+  const parts = proposal.preview.parts.map(part => {
+    const label = MOCKUP_INTENT_LABELS[part.intent]?.[english ? 1 : 0] ?? part.intent;
+    return english ? `- ${part.purpose} (${label})` : `- ${part.purpose}（${label}）`;
+  }).join('\n');
   const details = english
     ? [`Plugin: ${proposal.title}. ${proposal.description}`, `Page from top to bottom:\n${parts}`, `User journey: ${proposal.journey.join(' → ')}`].join('\n')
     : [`插件：${proposal.title}。${proposal.description}`, `页面从上到下：\n${parts}`, `使用路径：${proposal.journey.join(' → ')}`].join('\n');

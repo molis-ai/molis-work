@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import ts from "typescript";
-import { SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-module-shelf/surface";
 import { BUILTIN_DEFINITIONS } from "./fixtures/builtin-definitions.js";
 import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
 import { BUILTIN_INSTRUCTIONS } from "../apps/local-host/src/agent-definitions/builtin-instructions.js";

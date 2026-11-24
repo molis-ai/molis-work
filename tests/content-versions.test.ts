@@ -4,8 +4,8 @@ import { contentVersionChanges } from "../scripts/gates/content-versions.mjs";
 
 // The content-version gate covers the methods of built-in plugins and the Skills of content packs, in every language.
 const key = "method.planning-methods.work-design-plan";
-const file = "plugins/content/planning-methods/skills/work-design-plan/SKILL.md";
-const english = "plugins/content/planning-methods/skills/work-design-plan/SKILL.en.md";
+const file = "packages/system-skills/planning-methods/skills/work-design-plan/SKILL.md";
+const english = "packages/system-skills/planning-methods/skills/work-design-plan/SKILL.en.md";
 const body = "---\nname: work-design-plan\nversion: 1\n---\n\n# 设计与规划\n";
 const englishBody = "# Design and planning\n";
 const table = (version: number) => JSON.stringify({ versions: { [key]: version } });
@@ -23,6 +23,31 @@ test("content versions: a content pack Skill body that changes must advance its 
   assert.deepEqual(run(body, englishBody.replace("Design", "Designing"), 2, [english]), [], "a changed translation is the same Skill and needs the same version");
   assert.match(run(body, englishBody, 2)[0] ?? "", /advanced without changing its content/u);
   assert.deepEqual(run(body, englishBody, 1, [english]), [], "the translation alone maps to the Skill's key");
+  // 44B moves the system packs to packages/system-skills: an unchanged Skill that moved keeps its version, a changed one still advances.
+  const moved = (currentBody: string, version: number) => {
+    const before = new Map([["tooling/versions.json", table(1)], [file.replace("packages/system-skills/", "plugins/content/"), body]]);
+    const after = new Map([["tooling/versions.json", table(version)], [file, currentBody]]);
+    const old = file.replace("packages/system-skills/", "plugins/content/");
+    return contentVersionChanges({ files: [old, file], read: (path: string) => after.get(path) }, (path: string) => before.get(path));
+  };
+  assert.deepEqual(moved(body, 1), [], "a moved Skill is compared with where it was");
+  assert.match(moved(body.replace("设计与规划", "设计和规划"), 1)[0] ?? "", /changed content without advancing its version/u);
+  // Only the old path of a moved Skill is let go: deleting one language of a Skill in place is still a change.
+  const en = file.replace(/SKILL\.md$/u, "SKILL.en.md");
+  const deleted = contentVersionChanges({ files: [file, en], read: (path: string) => (path === file ? body : path === "tooling/versions.json" ? table(1) : undefined) },
+    (path: string) => (path === "tooling/versions.json" ? table(1) : path === file || path === en ? body : undefined));
+  assert.match(deleted[0] ?? "", /changed content without advancing its version/u, "a deleted translation needs a new version");
+});
+
+test("content versions: Shelf's prompts moved to its Module (44B) are versioned there and compared with where they were", () => {
+  const now = "modules/shelf/prompts/shelf.translate.md", was = "plugins/native/shelf/prompts/shelf.translate.md", prompt = "version: 1\n把下面的文字翻译成中文。\n";
+  const versions = (version: number) => JSON.stringify({ versions: { "prompt.shelf.translate": version } });
+  const check = (current: string, version: number) => contentVersionChanges({ files: [was, now],
+    read: (path: string) => (path === now ? current : path === "tooling/versions.json" ? versions(version) : undefined) },
+    (path: string) => (path === was ? prompt : path === "tooling/versions.json" ? versions(1) : undefined));
+  assert.deepEqual(check(prompt, 1), [], "an unchanged moved prompt keeps its version");
+  assert.match(check(prompt.replace("中文", "英文"), 1)[0] ?? "", /changed content without advancing its version/u);
+  assert.deepEqual(check(prompt.replace("中文", "英文"), 2), []);
 });
 
 test("content versions: covers horizontal prompts, modules prompts (including language-suffixed ids), and packages/system-skills", () => {

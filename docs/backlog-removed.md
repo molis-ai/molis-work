@@ -6,6 +6,9 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-921 | 已完成并删除 | 记录槽在存储层拒绝普通换绑，明确换用核对原账号。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
+| BL-1050 | 已完成并删除 | 连接页经项目 MCP 目录汇总 Coding 配置的用途，自动换用另属 BL-1045。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
+| BL-1051 | 已完成并删除 | 自定义 MCP 重登预填认证方式，令牌和客户端密钥框留空。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
 | BL-1000 | 已完成并删除 | 2026-11-23：修复模型和 HTTP 替身的逐块 UTF-8 转换，真实 HTTP 分别切开中文和 emoji，逐字核对收到的正文。[验收记录](../specs/archive/test-fixture-utf8-linux-head/spec.md#bl-1000) |
 | BL-linux-repro-source-head | 已完成并删除 | 2026-11-23：Linux 回归取源、检出失败即停，在构建和测试前核对并记录实际提交。[验收记录](../specs/archive/test-fixture-utf8-linux-head/spec.md#验收记录) |
 | BL-989 | 已修复并删除 | 2026-11-24。项目设置读取与永久删除交错时，目录库确认项目已不存在后，设置请求返回 404（`catalog.project_not_found`）。目录库仍有项目时保留数据库打开失败的诊断。回归核对目录库记录、项目文件和同一删除请求的回执。 [#2283](https://github.com/molis-ai/molis-work/pull/2283) |

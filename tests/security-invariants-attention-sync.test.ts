@@ -23,7 +23,7 @@ test('S-132 PCSYNC-14/22 Inbox restores references and fixed history without inv
  const value=b.owner.query.get('project','entry');assert.equal(value.status,'done');assert.equal(value.subject_id,'missing-on-new-device');assert.deepEqual(value.detail,{source_id:'saved-source'});assert.equal(b.owner.events.list('project').length,2);assert.equal(b.effects(),0);assert.equal(b.replica.next(),null,'remote restore is not a local modification');
  const before=b.owner.query.list('project'),events=b.owner.events.list('project');
  let revision=1;for(const change of [(r:Record<string,unknown>)=>{r.project_id='other';},(r:Record<string,unknown>)=>{r.detail_json='{"body":"copied content"}';},(r:Record<string,unknown>)=>{r.status='running';},(r:Record<string,unknown>)=>{r.reason='bad reason!';},(r:Record<string,unknown>)=>{r.completed_at=null;}]){
-  const wire=structuredClone(mutation.value) as {facts:{attention_content:{inbox_entries:Record<string,unknown>[]}}};change(wire.facts.attention_content.inbox_entries[0]!);
+  const wire=structuredClone(mutation.value) as {facts:{attention_content:{attention_entries:Record<string,unknown>[]}}};change(wire.facts.attention_content.attention_entries[0]!);
   b.replica.receive({key:mutation.key,operationId:crypto.randomUUID(),base:1,value:wire,revision:++revision});assert.equal(b.replica.counts().conflicts,1,'invalid content is isolated, not adopted');assert.throws(()=>b.replica.resolve(mutation.key,'remote',revision));assert.deepEqual(b.owner.query.list('project'),before);assert.deepEqual(b.owner.events.list('project'),events);assert.equal(b.effects(),0);
  }
 });

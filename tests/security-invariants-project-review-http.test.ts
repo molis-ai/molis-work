@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { ChildProcess } from "node:child_process";
 import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { HomeConsentLedger, LocalMcpServer, pluginInstallActions, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, pluginInstallActions, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginDefinition, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxPluginContract, SandboxSchema } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
@@ -16,9 +16,6 @@ import { newPublisher, PACKAGE_PLUGIN_ID, signedPackage } from "./fixtures/sandb
 
 async function removeGoals(env: Awaited<ReturnType<typeof openTestHome>>, pid: string) {
   await env.host.homePlugins?.ready();
-  const ledger = new HomeConsentLedger(env.home);
-  const consent = ledger.consents("io.molis.work.goals").find(row => row.kind === "always_on" && row.revoked_at === null);
-  if (consent) ledger.revoke(consent.consent_id, new Date().toISOString());
   await env.host.ensureWebCatalog(env.home).withCatalog({ homeDirectory: env.home },
     catalog => catalog.removeProjectPlugin({ project_id: pid, plugin_id: "goals", actor_id: LOCAL_PERSON_ACTOR_ID }));
 }

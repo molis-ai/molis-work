@@ -55,7 +55,7 @@ function renderDrawer(): string {
 /** The role page. Its sections are read once and drawn by the program; system and plugin roles are listed only in Settings. */
 export function renderCharacters(model: CharactersUiModel): string {
   const p = model.primitives, personal = model.scope === "personal";
-  const data = `data-characters data-character-scope="${personal ? "personal" : "project"}" data-character-api="${p.escape(model.route_prefix)}/api/plugins/io.molis.work.characters" data-character-runtime-names="${p.escape(RUNTIME_NAMES)}"`;
+  const data = `data-characters data-character-scope="${personal ? "personal" : "project"}" data-character-api="${p.escape(model.route_prefix)}/api/platform/characters" data-character-runtime-names="${p.escape(RUNTIME_NAMES)}"`;
   const heading = `<header class="settings-heading"><div class="settings-heading-title"><h1 id="${personal ? "settings-title" : "roles-title"}">${uiText("workbench.characters.title")}</h1></div>
       <p>${uiText(personal ? "workbench.roles.about-personal" : "workbench.roles.about-project")}</p></header>`;
   const builtin = personal ? renderSettingsSection({

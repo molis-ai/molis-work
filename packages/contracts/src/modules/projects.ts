@@ -11,7 +11,6 @@ export { directoryInputOnly, projectDirectoryErrors } from "./projects-errors.js
 // Keep the Catalog's current transport classification; project absence is a 404.
 const projectErrors = defineErrorCodes("catalog", {
   invalid_name: "invalid",
-  plugin_always_on: "invalid",
   plugin_not_found: "invalid",
   project_not_found: "not_found",
   project_storage_invalid: "invalid",
@@ -69,14 +68,8 @@ export interface ProjectPluginRegistry {
   initial?(): readonly ProjectPluginId[];
   /** Plugins that must be enabled together with this one. */
   companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
-  /** Always-on plugins a project may hide. Absent means none are personal. */
+  /** Plugins on in every project that a project may hide. Absent means none are personal. */
   isPersonal?(pluginId: ProjectPluginId): boolean;
-  /**
-   * 常开插件 (the Manifest's `always_on`): the plugins that are on in every project, and that no project may hide or remove. The
-   * Host answers from what is installed and agreed to, each time it is asked, so a revoked or newly installed one counts at once.
-   * Absent means none are.
-   */
-  alwaysOn?(): readonly ProjectPluginId[];
 }
 
 export interface AddProjectPluginInput {

@@ -257,7 +257,7 @@ test("WLN-03 WLN-07 WLN-08 WLN-12 WLN-13 POLISH-66: a press on an event turns th
   // three readings an event's card does, and 「逐项审阅」 opens the column on the task — a task done for no event gets there too.
   const asked = await evaluate<{ status: number; body: unknown }>(`fetch(${JSON.stringify(`/projects/${projectId}/api/acceptance/requirements`)}, { method: 'POST',
     headers: { 'content-type': 'application/json', ...(globalThis.molisWorkControlHeaders?.() || {}) },
-    body: ${JSON.stringify(JSON.stringify({ subject: { provider_id: "io.molis.work.assistant.rules", subject: { kind: "assistant_work", id: made[0]!.work_id } },
+    body: ${JSON.stringify(JSON.stringify({ subject: { provider_id: "system.assistant.rules", subject: { kind: "assistant_work", id: made[0]!.work_id } },
       requirements: [{ id: "r1", statement: "先问清预算上限", requires_person: false }, { id: "r2", statement: "回电前给你看一眼要点", requires_person: true }] }))} }).then(async response => ({ status: response.status, body: await response.json().catch(() => ({})) }))`);
   assert.equal(asked.status, 200, JSON.stringify(asked.body));
   await evaluate(openRow);

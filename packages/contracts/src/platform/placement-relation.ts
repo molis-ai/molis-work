@@ -11,7 +11,11 @@ import type { TextRef } from "./ui-text.js";
  */
 export const PLACEMENT_RELATION_ROLES = ["list", "bind", "release", "candidates", "create"] as const;
 export type PlacementRelationRole = (typeof PLACEMENT_RELATION_ROLES)[number];
-export interface PlacementRelationTarget { readonly kind: string; readonly noun: string; readonly noun_text?: TextRef }
+export interface PlacementRelationTarget {
+  readonly kind: string; readonly noun: string; readonly noun_text?: TextRef;
+  /** The owner's view of a target that lists what is attached to it; after 「挂到…」 the shell opens the target there (M3). */
+  readonly open_view?: string;
+}
 export interface PlacementRelationDeclaration {
   readonly relation: string;
   readonly role: PlacementRelationRole;

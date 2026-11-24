@@ -1,4 +1,4 @@
-import type { InstalledPackageRepair } from './installed-plugin-common.js';
+import { isInstalledPackage, type InstalledPackageRepair } from './installed-plugin-common.js';
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -249,7 +249,7 @@ export async function regrantPluginInProject(source: ProjectPluginHost, projectI
   await source.host.withRuntime(reference, async runtime => {
     const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
     const record = platform?.runtime.list().find(row => row.install_id === installId);
-    if (platform && record && platform.supervisor.state(record.plugin_id)?.install_id === installId) {
+    if (platform && record && !isInstalledPackage(record) && platform.supervisor.state(record.plugin_id)?.install_id === installId) {
       assertPermissionSwitchTarget(record, expected);
       if (platform.dualInstance(record.plugin_id)) throw pluginErrors.grant_denied("请在个人空间里管理这个插件的可选权限");
       await platform.runtime.regrant(installId, permission, granted);
@@ -257,13 +257,22 @@ export async function regrantPluginInProject(source: ProjectPluginHost, projectI
     }
     if (source.options.homeDirectory) {
       const installed = await installedPluginsOf(source, reference, runtime, true);
+      await installed.reconcilePublishers();
       const owned = installed.records().find(row => row.install_id === installId);
-      if (owned && installed.releaseFor(owned.plugin_id)) {
+      if (owned) {
+        const release = installed.releaseFor(owned.plugin_id);
+        if (!release) {
+          if (installed.recoveryErrors.code(owned.plugin_id) === "plugin.publisher_revoked") {
+            throw pluginErrors.publisher_revoked("这个插件的发布者已被撤销信任，不能修改它的权限");
+          }
+          throw pluginErrors.grant_denied("这个插件没有可以开关的可选权限");
+        }
         assertPermissionSwitchTarget(owned, expected);
         // A signed dual-instance package's project half cannot exceed its Home half's optional permission upper bound (PEQ-06, S-48).
-        if (granted && installed.platform.dualInstance(owned.plugin_id)) {
+        if (granted && (installed.platform.dualInstance(owned.plugin_id) || release.packaged?.manifest.runtime?.dual_instance === true)) {
           const home = source.homePlugins();
           if (!home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
+          await home.reconcilePublishers();
           home.capturePermission(owned, permission);
         }
         await installed.platform.runtime.regrant(installId, permission, granted);
@@ -319,8 +328,18 @@ export async function controlHomePackage(homePlugins: HomePluginHost | undefined
 /** Switches one optional permission of a Home instance: the Home platform's supervisor runs it, so the Home platform stops it and starts it again. */
 export async function regrantHomePlugin(homePlugins: HomePluginHost | undefined, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget, source?: ProjectPluginHost): Promise<void> {
   const platform = await homePlugins?.ready();
+  if (homePlugins) await homePlugins.reconcilePublishers();
   const record = platform?.runtime.list().find(row => row.install_id === installId && row.state !== "uninstalled");
-  if (!platform || !record || !homePlugins?.manifest(record.plugin_id)) {
+  if (!platform || !record) {
+    throw pluginErrors.grant_denied("这个插件没有可以开关的可选权限");
+  }
+  if (isInstalledPackage(record) && !homePlugins?.trustedPackageRelease(record.plugin_id)) {
+    if (homePlugins?.packageError(record.plugin_id, "code") === "plugin.publisher_revoked") {
+      throw pluginErrors.publisher_revoked("这个插件的发布者已被撤销信任，不能修改它的权限");
+    }
+    throw pluginErrors.grant_denied("这个插件没有可以开关的可选权限");
+  }
+  if (!homePlugins?.manifest(record.plugin_id)) {
     throw pluginErrors.grant_denied("这个插件没有可以开关的可选权限");
   }
   assertPermissionSwitchTarget(record, expected);

@@ -4,7 +4,7 @@ import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-wo
 import type { UiViewGroup, UiViewRail } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
-import { HOST_FRAMED_SURFACES } from "./host-surfaces.js";
+import { HOST_FRAMED_SURFACES, SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.js";
 export type {PluginRegistration as BuiltinPluginEntry} from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 import { SESSIONS_NAVIGATION, SESSIONS_PROVIDER_ID } from "./sessions/navigation.js";
@@ -80,7 +80,7 @@ function entryFor(projectPluginId: ProjectPluginId): PluginRegistration | undefi
 /** Surface aliases declared by built-in plugins (`alias -> canonical project_plugin_id`). */
 export function pluginSurfaceAliases(): Readonly<Record<string, string>> {
   const aliases: Record<string, string> = {};
-  for (const entry of BUILTIN_PLUGIN_CATALOG) {
+  for (const entry of SHIPPED_WORKBENCH_PARTS) {
     for (const alias of entry.workbench.surfaceAliases ?? []) aliases[alias] = entry.project_plugin_id;
   }
   return aliases;
@@ -93,7 +93,7 @@ export function resolveSurfaceAlias(surface: string): string {
 /** Search hit kinds per plugin that jump to `searchRow` instead of opening an item tab. */
 export function pluginSearchRecordKinds(): Readonly<Record<string, readonly string[]>> {
   const kinds: Record<string, readonly string[]> = {};
-  for (const entry of BUILTIN_PLUGIN_CATALOG) {
+  for (const entry of SHIPPED_WORKBENCH_PARTS) {
     if (entry.workbench.searchRecordKinds?.length) kinds[entry.project_plugin_id] = entry.workbench.searchRecordKinds;
   }
   return kinds;
@@ -101,12 +101,12 @@ export function pluginSearchRecordKinds(): Readonly<Record<string, readonly stri
 
 /** Plugins that opt out of auto-reopening their last record on reload. */
 export function pluginNoReopenRecords(): readonly string[] {
-  return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.workbench.reopenRecord === false).map(entry => entry.project_plugin_id);
+  return SHIPPED_WORKBENCH_PARTS.filter(entry => entry.workbench.reopenRecord === false).map(entry => entry.project_plugin_id);
 }
 
-/** Manifest `plugin_id` for each built-in plugin, keyed by its `project_plugin_id`. */
+/** Manifest `plugin_id` for each built-in plugin and hosted platform part, keyed by its `project_plugin_id`. */
 export function pluginManifestIds(): Readonly<Record<string, string>> {
-  return Object.fromEntries(BUILTIN_PLUGIN_CATALOG.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]));
+  return Object.fromEntries(SHIPPED_WORKBENCH_PARTS.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]));
 }
 
 const SURFACE_ALIAS_MAP = pluginSurfaceAliases();
@@ -292,7 +292,7 @@ function hasWorkAreaPlace(entry: PlacedPluginDeclarations): boolean {
       .some((surface) => surface.target_slot_id === "workbench.main" || surface.target_slot_id === "workbench.directory");
 }
 
-export function sideOpenedPlugins(entries: readonly PlacedPluginDeclarations[] = BUILTIN_PLUGIN_CATALOG): Record<string, string> {
+export function sideOpenedPlugins(entries: readonly PlacedPluginDeclarations[] = SHIPPED_WORKBENCH_PARTS): Record<string, string> {
   const placed: Record<string, string> = {};
   for (const entry of entries) {
     if (hasWorkAreaPlace(entry)) continue;
@@ -306,7 +306,7 @@ export function sideOpenedPlugins(entries: readonly PlacedPluginDeclarations[] =
  * Where an open that names an item lands (context-program §21.6): a plugin that also has a work-area place, and declares a side
  * view with \`opens_items\`, takes such an open there first. Plugins whose only place is the side are in \`sideOpenedPlugins\`.
  */
-export function sideOpenedItemPlugins(entries: readonly PlacedPluginDeclarations[] = BUILTIN_PLUGIN_CATALOG): Record<string, string> {
+export function sideOpenedItemPlugins(entries: readonly PlacedPluginDeclarations[] = SHIPPED_WORKBENCH_PARTS): Record<string, string> {
   const sideOnly = sideOpenedPlugins(entries), placed: Record<string, string> = {};
   for (const entry of entries) {
     if (Object.hasOwn(sideOnly, entry.project_plugin_id)) continue;
@@ -322,14 +322,16 @@ export function sideOpenedItemPlugins(entries: readonly PlacedPluginDeclarations
  */
 function directoryPlacements(directory: PluginDirectory): PlacedPluginDeclarations[] {
   return directory.map((entry) => {
-    const builtin = BUILTIN_PLUGIN_CATALOG.find((candidate) => candidate.project_plugin_id === entry.id && candidate.manifest.plugin_id === entry.plugin_id);
+    const builtin = SHIPPED_WORKBENCH_PARTS.find((candidate) => candidate.project_plugin_id === entry.id && candidate.manifest.plugin_id === entry.plugin_id);
     return { project_plugin_id: entry.id, manifest: { ui: { views: entry.ui.views } }, ...(builtin ? { workbench: builtin.workbench } : {}) };
   });
 }
 
 /** Where opening each plugin of the runtime directory lands in the side panel: the page's tab workspace reads these, not the built-in catalog. */
 export function sidePlaces(directory: PluginDirectory): { readonly side: Record<string, string>; readonly items: Record<string, string> } {
-  const placements = directoryPlacements(directory);
+  // The platform's own surfaces (Shelf, 44B) are in no plugin directory, but a link that names one still opens it where it is declared.
+  const surfaces = hostSurfacePlacement().filter(surface => !directory.some(entry => entry.id === surface.id));
+  const placements = directoryPlacements([...directory, ...surfaces]);
   return { side: sideOpenedPlugins(placements), items: sideOpenedItemPlugins(placements) };
 }
 
@@ -340,7 +342,9 @@ export function sideEntries(enabled: readonly ProjectPluginId[], directory: Plug
 
 /** Settings pages for the enabled set, in Manifest order. */
 export function settingsEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): UiPlacedView[] {
-  return registryFor(directory, enabled).slot("settings");
+  // The platform's own surfaces (Shelf, 44B) are in no plugin directory and in every project: their settings pages always count.
+  const surfaces = hostSurfaceDirectory().filter(surface => !directory.some(entry => entry.id === surface.id));
+  return registryFor([...directory, ...surfaces], enabled).slot("settings");
 }
 
 export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | undefined {
@@ -351,18 +355,11 @@ export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | 
  * The market's cards. Whether one is the person's (`personal`) is the Host's mark on the page's directory (W5-02 B1); a page drawn with
  * no Host has none, so none of its cards is.
  */
-export interface PluginMarketOptions {
-  /**
-   * The directory carries the Host's marks (`always_on` is what this Home agreed to now, not what a Manifest declares): a plugin whose
-   * agreement the person took back is one to add again. Without it the Manifest's declaration decides, as for a page drawn with no Host.
-   */
-  readonly marksFromHost?: boolean;
-}
-export function pluginMarketCards(options: PluginMarketOptions = {}, directory: PluginDirectory = builtinPluginDirectory()): readonly PluginMarketCard[] {
+export function pluginMarketCards(directory: PluginDirectory = builtinPluginDirectory()): readonly PluginMarketCard[] {
   const marked = new Map(directory.map((entry) => [entry.id, entry]));
   return BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
-    const listed = marked.get(entry.project_plugin_id), alwaysOn = options.marksFromHost ? listed?.always_on === true : entry.manifest.always_on === true;
-    if (!listed?.summary || alwaysOn) return [];
+    const listed = marked.get(entry.project_plugin_id);
+    if (!listed?.summary) return [];
     // A plugin whose page lives only in settings (角色) is part of the settings, not something a project adds or
     // removes: it stays out of the market (decision 2026-10-01, specs/post-merge-review §9).
     const nav = listed.ui.views.find((view) => view.slot === "navigator" || view.slot === "island");

@@ -19,7 +19,7 @@ function view(): MolisWorkWebView {
     goals: [], archived_goals: [], trashed_goals: [], enabled_plugins: ["goals"],
     counts: { waiting_for_human: 0, executing: 0, execution_blocked: 0, execution_pending: 0, satisfied: 0, invalidated: 0, trashed: 0, archived: 0 },
     input_bindings: [], policy_bindings: [], events: [],
-    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
+    feed: { sources: [], feed_items: [], attention_entries: [], runs: [], out_rules: [] },
   };
 }
 

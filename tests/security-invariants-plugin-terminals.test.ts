@@ -15,10 +15,10 @@ test("SYS-15-F3 S-47 Shelf opens the backend program in its owner directory, rec
   const priorPath = process.env.MOLIS_WORK_LOCAL_TOOLS_PATH;
   process.env.MOLIS_WORK_LOCAL_TOOLS_PATH = bin;
   t.after(() => { if (priorPath === undefined) delete process.env.MOLIS_WORK_LOCAL_TOOLS_PATH; else process.env.MOLIS_WORK_LOCAL_TOOLS_PATH = priorPath; });
-  const opened = await f.request("/api/host/plugin-pages", { method: "POST", body: { plugin_id: "io.molis.work.shelf" } });
+  const opened = await f.request("/api/host/plugin-pages", { method: "POST", body: { plugin_id: "system.shelf" } });
   assert.equal(opened.status, 200, await opened.clone().text());
   const { page_id } = await opened.json(), headers = { "x-molis-plugin-page": page_id };
-  const start = () => f.request("/api/plugins/io.molis.work.shelf/terminal", { method: "POST", body: {}, headers });
+  const start = () => f.request("/api/platform/shelf/terminal", { method: "POST", body: {}, headers });
   const launch = await start(); assert.equal(launch.status, 200, await launch.clone().text());
   const { panelId } = await launch.json(), client = await socketClient(t, f.origin.replace("http:", "ws:") + "/pty", page_id);
   client.send({ type: "spawn", panelId, attachOnly: true });
@@ -29,7 +29,7 @@ test("SYS-15-F3 S-47 Shelf opens the backend program in its owner directory, rec
   assert.equal((await (await start()).json()).panelId, panelId, "reopen attaches the same running program");
   client.send({ type: "write", panelId, data: "REATTACH_KEEPS_INPUT\n" });
   await client.wait(message => message.type === "data" && String(message.data).includes("REATTACH_KEEPS_INPUT"));
-  const platform = await f.host.homePlugins!.ready(), install = f.host.homePlugins!.installation("io.molis.work.shelf")!;
+  const platform = await f.host.homePlugins!.ready(), install = f.host.homePlugins!.installation("system.shelf")!;
   await platform.runtime.stop(install.install_id);
   assert.equal((await start()).status, 403);
   client.socket.terminate();

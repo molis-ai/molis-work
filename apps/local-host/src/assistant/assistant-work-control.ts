@@ -7,7 +7,7 @@ import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { assertSubtaskGraph, assertSubtaskRun, assertSubtaskWork } from "./assistant-subtask-binding.js";
-import { assertAssistantSessionSettled, assistantEndControl, assistantWorkEnding, beginAssistantWorkEnds, inAssistantWorkEffect, stopOriginalRun } from "./assistant-work-permissions.js";
+import { assertAssistantSessionSettled, assistantEndControl, assistantWorkEnding, beginAssistantWorkEnds, inAssistantWorkEffect, stopOriginalRun, stopOriginalRunWithSettlement } from "./assistant-work-permissions.js";
 import { RUNTIME } from "./assistant-service-shared.js";
 
 /** The original Work permission owner revokes admission before stopping or taking back its execution. */
@@ -140,8 +140,30 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
       if (work.session_id && !control.keep_connections) ports.cancelSetups?.(work.session_id);
       if (wait?.wait) await ports.continuations.withdraw(work, "用户停止了这项工作", effect);
     }
+    let deferredPending = 0;
+    let deferredReady = false;
+    const onDeferredRunSettled = () => {
+      deferredPending -= 1;
+      if (deferredReady && deferredPending === 0) void finish?.(false).catch(() => undefined);
+    };
+    const stopForControl = async (runRef: { session_id: string; run_id: string }, runControl: AgentActionReviewControl) => {
+      if (closeForDeletion) {
+        await stopOriginalRun(host.adapter(RUNTIME), runRef, runControl);
+        return;
+      }
+      deferredPending += 1;
+      let settled = false;
+      try {
+        settled = await stopOriginalRunWithSettlement(host.adapter(RUNTIME), runRef, runControl, {
+          deferRunningSettlement: true,
+          onSettled: onDeferredRunSettled,
+        });
+      } finally {
+        if (settled) deferredPending -= 1;
+      }
+    };
     if (running) {
-      if (control.kind === "stop" && ending) await stopOriginalRun(host.adapter(RUNTIME), latest.ref, effect);
+      if (control.kind === "stop" && ending) await stopForControl(latest.ref, effect);
       else { await effect.beforeEffect(); effect.assertCurrent(); await host.adapter(RUNTIME).control(latest.ref, { kind: control.kind }); }
       if (control.kind === "stop") host.reviews.cancelPending(latest.ref.run_id, "这一轮已停止");
     }
@@ -152,7 +174,7 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
       if (child.session_id && !(control.kind === "stop" && control.keep_connections)) ports.cancelSetups?.(child.session_id);
       if (childWait?.wait) await ports.continuations.withdraw(child, "委托它的工作已停止", childControl);
       if (run && !isTerminalAgentPhase(run.phase)) {
-        if (assistantWorkEnding(host, child)) await stopOriginalRun(host.adapter(RUNTIME), run.ref, childControl);
+        if (assistantWorkEnding(host, child)) await stopForControl(run.ref, childControl);
         else { await childControl.beforeEffect(); childControl.assertCurrent(); await host.adapter(RUNTIME).control(run.ref, { kind: "stop" }); }
         host.reviews.cancelPending(run.ref.run_id, "委托它的工作已停止");
       }
@@ -164,7 +186,8 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
       for (const member of [work, ...children]) await closeForDeletion(member, host, assistantEndControl(ports.store, member, caller));
     }
     for (const member of [work, ...children]) assertAssistantSessionSettled(host, member);
-    await finish?.();
+    deferredReady = true;
+    if (deferredPending === 0) await finish?.();
     if (control.kind === "resume") ports.continuations.attach();
   } finally { release(); endAccess(); }
 }

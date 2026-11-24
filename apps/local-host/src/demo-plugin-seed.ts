@@ -2,7 +2,7 @@ import { PROJECT_SCOPED_PLUGIN_IDS } from "./plugin-registry.js";
 import type { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
-import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfActions } from "@molis-ai/molis-work-module-shelf/surface";
 export { DEMO_CORE_ARTIFACT_ID } from "./demo-deliverable.js";
 
 /**

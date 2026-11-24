@@ -46,8 +46,8 @@ test("a new project has separated Feed and Inbox tables with persisted read stat
       const feedItemColumns = new Set((store.db.pragma("table_info(feed_items)") as Array<{ name: string }>).map((row) => row.name));
       assert.ok(feedItemColumns.has("read_at"));
       assert.ok(tables.has("feed_source_runs"));
-      assert.ok(tables.has("feed_runtime_blobs"));
-      assert.ok(tables.has("inbox_entries"));
+      assert.ok(tables.has("opaque_blobs"));
+      assert.ok(tables.has("attention_entries"));
       const sourceColumns = new Set((store.db.pragma("table_info(feed_sources)") as Array<{ name: string }>).map((row) => row.name));
       assert.ok(sourceColumns.has("schedule_json"));
       assert.equal(sourceColumns.has("cursor_json"), false);

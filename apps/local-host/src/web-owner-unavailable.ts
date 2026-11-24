@@ -10,12 +10,11 @@ import { matchPageRoute } from "./page-routes.js";
 import { sendLocalWebJson } from "./web-http.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
 /** GET display projection only. Availability, commands and content routes must use the strict Catalog methods. */
 export function projectPluginMembershipForPage(catalog: MolisWorkProjectCatalog, projectId: string) {
-  try { return catalog.projectPluginMembershipWithRevision(projectId, () => readOnlyAlwaysOnProjectPlugins(catalog.homeDirectory)); }
+  try { return catalog.projectPluginMembershipWithRevision(projectId); }
   catch (error) {
     if (!isHomePluginStoreRefusal(error)) throw error;
     return { ...catalog.storedProjectPluginMembership(projectId), unavailable: uiText.text("workbench.home-plugin-recovery.home-plugin-store-unavailable") };

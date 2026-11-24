@@ -13,7 +13,7 @@ test("PG-026-S4-03 demo sample warning remains visible until manual refresh and 
     assert.equal(event.type, "confirm");
     void command("Page.handleJavaScriptDialog", { accept: true }, session).catch(() => undefined);
   }));
-  const shelf = await fetch(origin + "/api/plugins/io.molis.work.shelf/");
+  const shelf = await fetch(origin + "/api/platform/shelf/");
   assert.equal(shelf.status, 200); await shelf.text();
   const catalog = resolve(homeDirectory, "shelf", "catalog.json"), saved = await readFile(catalog);
   await navigate(() => command("Page.navigate", { url: origin + "/settings/projects" }, sessionId));

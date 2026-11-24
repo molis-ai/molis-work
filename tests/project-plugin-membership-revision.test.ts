@@ -20,7 +20,6 @@ const otherProjectId = "project-b";
 const actorId = "user-1";
 const registry: ProjectPluginRegistry = {
   has: id => ["goals", "feed", "inbox", "pages", "personal"].includes(id),
-  alwaysOn: () => ["goals"],
   companions: id => id === "feed" ? ["inbox"] : [],
   isPersonal: id => id === "personal",
 };
@@ -105,7 +104,7 @@ test("SPC-C08 the declared actions validate caller and input, then read and writ
   assert.deepEqual(f.get(), before);
 
   const saved = await service.invoke(person, set, change) as VersionedProjectPluginMembership;
-  assert.deepEqual(saved.plugins, ["goals", "pages"]);
+  assert.deepEqual(saved.plugins, ["pages"]);
   assert.deepEqual(saved.hidden, []);
   assert.notEqual(saved.revision, before.revision);
   assert.deepEqual(await service.invoke(person, get, {}), saved);
@@ -121,19 +120,18 @@ test("SPC-C08 the declared actions validate caller and input, then read and writ
   assert.deepEqual(f.events(), events);
 });
 
-test("SPC-C08 set follows always-on, companion and personal hiding rules", t => {
+test("SPC-C08 set follows companion and personal hiding rules", t => {
   const f = fixture(t);
   const before = f.get();
-  assert.throws(() => f.set("goals", false, before.revision), { code: "catalog.plugin_always_on" });
-  assert.deepEqual(f.set("goals", true, before.revision), before);
+  assert.deepEqual(before.plugins, [], "a new project has no member nobody chose (44B: nothing is 常开)");
   assert.deepEqual(f.projects.query.storedProjectPluginMembership(projectId), { plugins: [], hidden: [] });
   assert.deepEqual(f.portable.read(projectId)?.plugins, []);
   assert.deepEqual(f.events(), []);
 
   const withFeed = f.set("feed", true, before.revision);
-  assert.deepEqual(withFeed.plugins, ["feed", "goals", "inbox"]);
+  assert.deepEqual(withFeed.plugins, ["feed", "inbox"]);
   const withoutFeed = f.set("inbox", false, withFeed.revision);
-  assert.deepEqual(withoutFeed.plugins, ["goals"]);
+  assert.deepEqual(withoutFeed.plugins, []);
   assert.notEqual(withoutFeed.revision, before.revision);
   assert.throws(() => f.set("goals", true, before.revision), { code: "actions.conflict" });
 
@@ -152,30 +150,6 @@ test("SPC-C08 set follows always-on, companion and personal hiding rules", t => 
     ["project.plugin_removed", "inbox"], ["project.plugin_removed", "feed"],
     ["project.plugin_removed", "personal"], ["project.plugin_added", "personal"],
   ]);
-});
-
-test("SPC-C08 enabling an always-on personal plugin preserves its stored exclusion", t => {
-  const f = fixture(t);
-  let personalAlwaysOn = false;
-  const { get, set, projects } = f.open({
-    ...registry,
-    alwaysOn: () => personalAlwaysOn ? ["goals", "personal"] : ["goals"],
-  });
-  const hidden = set("personal", false, get().revision);
-  assert.deepEqual(hidden.hidden, ["personal"]);
-  const events = f.events();
-
-  personalAlwaysOn = true;
-  const alwaysOn = get();
-  assert.deepEqual(alwaysOn.hidden, []);
-  assert.throws(() => set("personal", true, hidden.revision), { code: "actions.conflict" });
-  assert.deepEqual(set("personal", true, alwaysOn.revision), alwaysOn);
-  assert.deepEqual(get(), alwaysOn);
-  assert.deepEqual(projects.query.storedProjectPluginMembership(projectId), { plugins: [], hidden: ["personal"] });
-  assert.deepEqual(f.events(), events);
-
-  personalAlwaysOn = false;
-  assert.deepEqual(get().hidden, ["personal"]);
 });
 
 test("SPC-C08 earlier clocks and decreasing event ids cannot hide a membership ABA after reopening", t => {
@@ -216,7 +190,7 @@ test("SPC-C08 a second connection cannot commit a competing change from the same
   });
   const committed = writer.set("feed", true, observed.revision);
   assert.equal(overlapped, true);
-  assert.deepEqual(committed.plugins, ["feed", "goals", "inbox"]);
+  assert.deepEqual(committed.plugins, ["feed", "inbox"]);
   assert.throws(() => f.set("pages", true, observed.revision), { code: "actions.conflict" });
   assert.deepEqual(f.get(), committed);
   assert.deepEqual(f.events().map(event => event.plugin_id), ["feed", "inbox"]);
@@ -272,8 +246,7 @@ test("BL-project-membership-revision-read one versioned read is one statement, w
 
 test("BL-project-membership-revision-read lists and hidden rules match the unversioned read, and the revision keeps its formula", t => {
   const f = fixture(t);
-  let personalAlwaysOn = false;
-  const { get, set, projects } = f.open({ ...registry, alwaysOn: () => personalAlwaysOn ? ["goals", "personal"] : ["goals"] });
+  const { get, set, projects } = f.open(registry);
   const latestEvent = (project: string) => (f.db.prepare<[string], { event_id: string }>(`
     SELECT event_id FROM project_events WHERE project_id = ? AND type IN ('project.plugin_added', 'project.plugin_removed')
     ORDER BY rowid DESC LIMIT 1
@@ -285,22 +258,18 @@ test("BL-project-membership-revision-read lists and hidden rules match the unver
     const facts = [project, [...plugins].sort(), [...hidden].sort(), latestEvent(project)];
     assert.equal(versioned.revision, createHash("sha256").update(JSON.stringify(facts)).digest("hex"), label);
   };
-  check(projectId, "fresh project, only the derived always-on member");
+  check(projectId, "fresh project");
   check(otherProjectId, "untouched second project");
   const withFeed = set("feed", true, get().revision);
   set("personal", false, withFeed.revision);
   check(projectId, "stored members with a companion and a hidden personal plugin");
-  // Rows a sync or an older always-on list can leave: a stored always-on member, a hidden mark on an always-on plugin, and ids whose
-  // byte order differs from a case-insensitive one.
+  // Rows a sync can leave: a stored member that is also marked hidden, and ids whose byte order differs from a case-insensitive one.
   const at = "2026-11-08T02:00:00.000Z";
   f.db.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, 'goals', ?), (?, 'Zeta', ?)").run(projectId, at, projectId, at);
   f.db.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'goals', ?), (?, 'Alpha', ?)").run(projectId, at, projectId, at);
-  check(projectId, "stored always-on member and hidden always-on mark");
+  check(projectId, "a stored member that is also marked hidden");
   assert.deepEqual(get().plugins, ["Zeta", "feed", "goals", "inbox"]);
-  assert.deepEqual(get().hidden, ["Alpha", "personal"]);
-  personalAlwaysOn = true;
-  check(projectId, "an always-on personal plugin is neither a derived member nor hidden");
-  assert.deepEqual(get().hidden, ["Alpha"]);
+  assert.deepEqual(get().hidden, ["Alpha", "goals", "personal"]);
 
   const recycle = f.projects.recycle;
   recycle.change({

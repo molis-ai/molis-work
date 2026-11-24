@@ -112,6 +112,11 @@ for (const { boundary, action } of scenarios) {
       const controlled = await home.web.post<AssistantWorkView>(`/api/assistant/works/${sent.work.work_id}/control`, { kind: action });
       assert.equal(controlled.work.state, action === "stop" ? "stopped" : "paused");
       assert.equal(current.store.get(LOCAL_PERSON_ACTOR_ID, sent.work.work_id).continuation_hold, action === "stop" ? "stopped" : "paused");
+      if (action === "stop") {
+        const delegations = await system.agentHost.workDelegations?.("prologue")?.list();
+        const workDelegation = delegations?.find(entry => entry.subject.kind === "work" && entry.subject.work.id === sent.work.work_id);
+        assert.equal(workDelegation?.lifecycle, "ending", "work delegation stays in ending while the in-flight remember tool has not unwound yet");
+      }
     } else if (action === "withdraw" || action === "withdraw-unrelated") {
       const withdrawnId = action === "withdraw" ? inputId! : unrelatedId!;
       // The SDK cannot retract text already sent to the model. The validated
@@ -138,6 +143,13 @@ for (const { boundary, action } of scenarios) {
       const run = await adapter.read({ session_id: sent.work.session_id!, run_id: sent.run_id! });
       return ["completed", "failed", "stopped", "cancelled"].includes(run.phase) ? run : undefined;
     }, "the actual Run settles after the tool returns");
+    if (action === "stop") {
+      await untilSetup(async () => {
+        const delegations = await system.agentHost.workDelegations?.("prologue")?.list();
+        const workDelegation = delegations?.find(entry => entry.subject.kind === "work" && entry.subject.work.id === sent.work.work_id);
+        return workDelegation?.lifecycle === "ended" ? workDelegation : undefined;
+      }, "deferred finishEnd transitions work delegation from ending to ended after Run settles");
+    }
     if (action === "withdraw-unrelated" || action === "revoke") {
       assert.equal(captured?.[0].signal?.aborted, false, "success or permission failure did not abort this completed invocation");
       // The public withdrawal still reaches its validated owner seam, even when

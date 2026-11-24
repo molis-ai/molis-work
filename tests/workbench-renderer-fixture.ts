@@ -15,7 +15,7 @@ export {
   firstBlockedDescendant, unsatisfiedOutgoingDependencies, goalTreeReferenceLabel, goalTreeReferenceLabels,
 } from "@molis-ai/molis-work-plugin-goals";
 export type { GoalDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
-import { BUILTIN_PLUGIN_CATALOG, pluginOnDemandStylesheet, renderWorkbenchRefreshDocument } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES, pluginOnDemandStylesheet, renderWorkbenchRefreshDocument } from "@molis-ai/molis-work-app-workbench";
 export type { MolisWorkOnboardingRenderOptions } from "@molis-ai/molis-work-app-workbench";
 
 // The platform's words, as the Host installs them when it starts: pages say stable keys (`t`) as well as `L`.
@@ -25,23 +25,23 @@ export const { renderMolisWorkProjectIndex, renderMolisWorkSettings, renderMolis
 
 /** Legacy test fixtures supply facts directly; only the owners convert these into UI models or HTML. */
 function ownerStageFacts(view: MolisWorkWebView & { feed?: FeedSnapshot; feed_source_catalog?: FeedStageData["source_catalog"]; feed_connector_auth?: FeedStageData["connector_auth"] }): MolisWorkWebView {
-  const facts = view.feed ?? { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] };
-  const { inbox_entries, ...snapshot } = facts;
-  const feed: FeedStageData = { snapshot: { ...snapshot, offset: 0, next_offset: null, facets: snapshot.feed_items.map(item => ({ source_id: item.source_id ?? "", label: item.source_label, count: 1 })) }, inbox_entries, source_catalog: view.feed_source_catalog ?? [],
+  const facts = view.feed ?? { sources: [], feed_items: [], attention_entries: [], runs: [], out_rules: [] };
+  const { attention_entries, ...snapshot } = facts;
+  const feed: FeedStageData = { snapshot: { ...snapshot, offset: 0, next_offset: null, facets: snapshot.feed_items.map(item => ({ source_id: item.source_id ?? "", label: item.source_label, count: 1 })) }, attention_entries, source_catalog: view.feed_source_catalog ?? [],
     connector_auth: view.feed_connector_auth ?? { github: { bound: false }, gmail: { bound: false } },
     source_messages: Object.fromEntries(facts.sources.map(source => [source.source_id, facts.feed_items.filter(item => item.source_id === source.source_id).slice(0, 3).map(item => item.title)])),
     source_presentations: Object.fromEntries(facts.sources.flatMap(source => {
       const id = feedSourcePresentationId(source);
       return id ? [[source.source_id, id === "rss-http" ? rssSourcePresentation({ cursor: source.cursor }) : gmailSourcePresentation()]] : [];
     })) };
-  const subjects = inbox_entries.map(entry => {
+  const subjects = attention_entries.map(entry => {
     const record = entry.subject_type === "feed_item" ? facts.feed_items.find(item => item.item_id === entry.subject_id)
       : entry.subject_type === "source_fault" ? facts.sources.find(source => source.source_id === entry.subject_id)
       : [...view.goals, ...view.archived_goals, ...view.trashed_goals].find(goal => goal.goal.goal_id === entry.subject_id)?.goal;
     return { entry_id: entry.entry_id, title: record ? "title" in record ? record.title : record.name : null,
       source_label: record && "source_label" in record ? record.source_label || record.source_kind : record && "name" in record ? record.name : null };
   });
-  return { ...view, stage_data: { feed, inbox: { entries: inbox_entries, subjects, judgments: inbox_entries.flatMap(entry => entry.next_judgment ? [entry.next_judgment] : []) }, ...view.stage_data } };
+  return { ...view, stage_data: { feed, inbox: { entries: attention_entries, subjects, judgments: attention_entries.flatMap(entry => entry.next_judgment ? [entry.next_judgment] : []) }, ...view.stage_data } };
 }
 
 export function renderPersistedFeedItemDetail(item: FeedItemRecord, routePrefix = "") {
@@ -58,7 +58,7 @@ export const renderFeedWorkbenchFragment = (view: MolisWorkWebView) => {
 
 /** The workbench sheet and the sheets the plugins bring themselves (PG-070): the rules a page with every plugin frame loaded has. */
 export const renderMolisWorkWorkbenchWithPluginStylesheets = (): string => renderMolisWorkWorkbenchStylesheet()
-  + BUILTIN_PLUGIN_CATALOG.map((entry) => pluginOnDemandStylesheet(entry.project_plugin_id) ?? "").join("");
+  + [...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES].map((entry) => pluginOnDemandStylesheet(entry.project_plugin_id) ?? "").join("");
 
 /** Existing fixtures supply the owner-read collection; production obtains it through the declared stage action. */
 export function renderMolisWorkWeb(view: MolisWorkWebView, goalId?: string, archive = false, trash = false, token = "", desktop = false, cli: Record<string, boolean> = {}): string {

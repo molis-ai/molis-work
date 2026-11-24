@@ -1,4 +1,5 @@
 import { createFeedInformationPlanHandler } from "./information-plan.js";
+import { addressedDefinition, isHttpFeedSourceKind } from "./source-request.js";
 import { FEED_INSTRUCTIONS } from "./prompts.js";
 import { createFeedRunsHandlers, feedRunsActions } from "./missed-pulls.js";
 import { releaseHistoryPages } from "./history-pages.js";
@@ -113,14 +114,15 @@ export function createFeedPlugin(): PluginDefinition {
     const vocabulary = services?.sourcePull?.vocabulary, noVocabulary = later("来源词汇");
     const providers: FeedSourceProviders = vocabulary ? {
       listCatalog: () => vocabulary.catalog().map(entry => ({ sourceId: entry.source_id, enabled: entry.enabled, feedUrl: entry.feed_url, name: entry.name })),
-      customRss: { definitionId: vocabulary.custom_rss_definition_id, normalizeUrl: vocabulary.normalizeCustomRssUrl },
-      youtube: { definitionId: vocabulary.youtube_definition_id, normalizeChannel: vocabulary.normalizeYouTubeChannel },
+      // Feed's custom address and channel kinds are the integration's addressed definitions (M10), asked for when a source is described.
+      customRss: { get definitionId() { return addressedDefinition(vocabulary, "feed_url"); }, normalizeUrl: value => vocabulary.normalizeAddress(addressedDefinition(vocabulary, "feed_url"), value) },
+      youtube: { get definitionId() { return addressedDefinition(vocabulary, "channel_id"); }, normalizeChannel: value => vocabulary.normalizeAddress(addressedDefinition(vocabulary, "channel_id"), value) },
       gmail: { defaultScope: "", parseScope: later("Gmail 范围") },
-      rss: { isSourceKind: vocabulary.isRssSourceKind, failureCount: vocabulary.rssFailureCount, withFailure: vocabulary.rssCursorAfterFailure, withSuccess: vocabulary.rssCursorAfterSuccess },
+      rss: { isSourceKind: isHttpFeedSourceKind, failureCount: vocabulary.feedFailureCount, withFailure: vocabulary.feedCursorAfterFailure, withSuccess: vocabulary.feedCursorAfterSuccess },
     } : {
       listCatalog: noVocabulary, customRss: { definitionId: "", normalizeUrl: noVocabulary },
       youtube: { definitionId: "", normalizeChannel: noVocabulary }, gmail: { defaultScope: "", parseScope: noVocabulary },
-      rss: { isSourceKind: noVocabulary, failureCount: noVocabulary, withFailure: noVocabulary, withSuccess: noVocabulary },
+      rss: { isSourceKind: isHttpFeedSourceKind, failureCount: noVocabulary, withFailure: noVocabulary, withSuccess: noVocabulary },
     };
     const sourcePull = services?.sourcePull, dependencies = services?.actions?.dependencies, forget = sourcePull?.forget;
     // An account source is read with the account the person bound to it: both services come with the two optional permissions (`connections:use`, `sources:pull_connector`).

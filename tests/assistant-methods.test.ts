@@ -100,7 +100,7 @@ test("SKP-02 SKP-04 SKC-07 a round lists the catalog's Skills for the Assistant;
     return reply();
   }));
   const queue = new AgentReviewQueue(), agentHost = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-methods-test", appVersion: "1.0.0" }, storageRoot: join(h.home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-methods-test", appVersion: "1.0.0" }, storageRoot: join(h.home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
     resolveCredential: () => "fixture-only" });
   agentHost.register(adapter);

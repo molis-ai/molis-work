@@ -29,7 +29,7 @@ export interface ArtifactBrowserUiModel {
     /** Objects of other plugins that link to the version (a Pages document), each opening in its plugin (五.1). */
     readonly referrers?: ReadonlyArray<{ title: string; open: { surface: string; id: string }; plugin_title: string }> };
   /** False when the project has no Goals (RAC-400): there is no Goal to take the selected version as an input, so the form is not offered. */
-  readonly goalInput?: boolean;
+  readonly attachTarget?: boolean;
   /** Plugin input ports that take the selected version's type, and what they read now (artifact-positioning, 2026-10-04). */
   readonly pluginInputs?: ReadonlyArray<ArtifactPluginInput>;
   readonly primitives: {
@@ -161,7 +161,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     ${!embedded && model.continuers?.length ? continueActions(model.continuers, artifact, p) : ""}
     ${!embedded ? handoffActions(artifact, p, model.handoffExecutors, languagePreview) : ""}
     ${preview}
-    ${!embedded && model.links ? linksSection(model.links, routePrefix, p, artifact, model.goalInput !== false, languagePreview) : ""}
+    ${!embedded && model.links ? linksSection(model.links, routePrefix, p, artifact, model.attachTarget !== false, languagePreview) : ""}
     ${!embedded && model.pluginInputs?.length ? renderArtifactPortInputs(model.pluginInputs, { artifact_id: artifact.artifact_id, version: artifact.version }, p) : ""}
     <dl class="artifact-facts">
       <div><dt>${uiText("workbench.browser-ui.result-type")}</dt><dd>${p.escape(model.typeTitle?.(artifact) ?? typeIdLabel(artifact.artifact_type_id))} · ${p.escape(artifact.artifact_type_id)} · Schema ${artifact.schema_version}</dd></div>
@@ -201,7 +201,7 @@ const LINK_ROLES = { input: "workbench.browser-ui.inputs", output: "workbench.br
  * 「被谁引用」: under each plugin that declares the link, its objects that use this version, each opening in the workbench; the
  * Assistant's works, and how many other links there are.
  */
-function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, routePrefix: string, p: ArtifactBrowserUiModel["primitives"], artifact: NonNullable<ArtifactBrowserView["selected"]>, goalInput = true, languagePreview = false): string {
+function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, routePrefix: string, p: ArtifactBrowserUiModel["primitives"], artifact: NonNullable<ArtifactBrowserView["selected"]>, attachTarget = true, languagePreview = false): string {
   const open = (target: { surface: string; id: string }, title: string) => languagePreview ? "" : `<a href="#" data-workbench-item-plugin="${p.escape(target.surface)}" data-workbench-item-id="${p.escape(target.id)}" data-workbench-item-title="${p.escape(title)}" translate="no">${p.escape(title)}</a>`;
   const linked = links.plugins.map(group => `<h3 class="artifact-links-heading">${p.escape(group.plugin_title)}</h3><ul data-artifact-linked-plugin="${p.escape(group.plugin_id)}">${group.objects
     .map(link => `<li>${open(link.open, link.title)}<span>${uiText(LINK_ROLES[link.proposal ? (link.role === "input" ? "proposed_input" : "proposed_output") : link.role])}</span></li>`).join("")}</ul>`).join("");
@@ -210,7 +210,7 @@ function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, route
   // 「作为 Goal 的输入」 (A4b): only a version people can still use is offered.
   const usable = artifact.availability === "available" && artifact.lifecycle_state !== "archived";
   const reference = p.escape(JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version }));
-  const asInput = usable && goalInput ? `<details class="artifact-goal-input" data-artifact-goal-input><summary>${uiText("workbench.browser-ui.use-goal-s-input")}</summary><form data-artifact-goal-input-form data-artifact-reference="${reference}"><select class="mw-select" name="goal" required aria-label="${uiText("workbench.browser-ui.choose-goal")}"><option value="">${uiText("workbench.browser-ui.loading-goals")}</option></select><button class="mw-btn" type="submit">${uiText("workbench.browser-ui.record-input")}</button><span data-artifact-goal-input-status role="status"></span></form></details>` : "";
+  const asInput = usable && attachTarget ? `<details class="artifact-attach-target" data-artifact-attach-target><summary>${uiText("workbench.browser-ui.use-as-input")}</summary><form data-artifact-attach-target-form data-artifact-reference="${reference}"><select class="mw-select" name="target" required aria-label="${uiText("workbench.browser-ui.choose-goal")}"><option value="">${uiText("workbench.browser-ui.loading-goals")}</option></select><button class="mw-btn" type="submit">${uiText("workbench.browser-ui.record-input")}</button><span data-artifact-attach-target-status role="status"></span></form></details>` : "";
   // Assistant works that started from this version, took it as material or produced it: the Assistant keeps these in its
   // own store, so the 成果 client reads them once the detail shows. A version is named by its subject or, from a tab, its path
   // (with the project's prefix when the tab came from a direct link).

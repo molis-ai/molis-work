@@ -85,18 +85,18 @@ export interface AttentionSubjectResolver {
 
 /**
  * What an owner declared the person's Inbox shows of its entries: the owner plugin's id → the kinds its trusted Manifest lists in
- * `attention.inbox`. It is the owner's own declaration for the owner's own rows (a kind another plugin declared never shows this
+ * `attention.waiting`. It is the owner's own declaration for the owner's own rows (a kind another plugin declared never shows this
  * owner's), and the platform reads it from the installation, never from an id or a kind written in code.
  */
-export type AttentionInboxDeclarations = ReadonlyMap<string, ReadonlySet<AttentionSubjectType>>;
+export type AttentionWaitingDeclarations = ReadonlyMap<string, ReadonlySet<AttentionSubjectType>>;
 
 export interface AttentionQuery {
   list(projectId: string): AttentionEntryRecord[];
   get(projectId: string, entryId: string): AttentionEntryRecord;
   /** The person's Inbox: the unassigned entries, and the owned ones whose owner declared that kind in `declared`. Nothing else. */
-  listInbox(projectId: string, declared: AttentionInboxDeclarations): AttentionEntryRecord[];
+  listWaiting(projectId: string, declared: AttentionWaitingDeclarations): AttentionEntryRecord[];
   /** One entry of the person's Inbox; an owned entry its owner did not declare is "not found", as if it were not there. */
-  getInbox(projectId: string, entryId: string, declared: AttentionInboxDeclarations): AttentionEntryRecord;
+  getWaiting(projectId: string, entryId: string, declared: AttentionWaitingDeclarations): AttentionEntryRecord;
   findActiveForSubject(
     projectId: string,
     subjectType: AttentionSubjectType,
@@ -128,7 +128,7 @@ export interface AttentionEvent {
   entry_id: string;
   /** Recorded with the event, so deleting an entry does not erase its ownership. */
   owner_plugin_id: string | null;
-  type: `inbox_entry.${"created" | AttentionStatus | "deleted"}`;
+  type: `attention_entry.${"created" | AttentionStatus | "deleted"}`;
   subject_type: AttentionSubjectType;
   subject_id: string;
   at: string;

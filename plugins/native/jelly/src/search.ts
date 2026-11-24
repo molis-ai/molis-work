@@ -9,7 +9,7 @@ export const JELLY_NOTE_SUBJECT_KIND = "jelly_note";
 /** Jelly's part in the system search: calendar items (and repeating series) and notes that are not archived. */
 const kinds = [
   { kind: JELLY_ITEM_SUBJECT_KIND, title: "日程", surface: JELLY_PROJECT_PLUGIN_ID },
-  { kind: JELLY_NOTE_SUBJECT_KIND, title: "笔记", surface: JELLY_PROJECT_PLUGIN_ID },
+  { kind: JELLY_NOTE_SUBJECT_KIND, title: "笔记", surface: JELLY_PROJECT_PLUGIN_ID, glyph: "note" },
 ];
 const itemReader = defineSubjectContextAction("jelly.item.subject.read", /* @version action.jelly.item.subject.read */ 1, JELLY_ITEM_SUBJECT_KIND, "Jelly 日程", ["jelly:read"], "home");
 const noteReader = defineSubjectContextAction("jelly.note.subject.read", /* @version action.jelly.note.subject.read */ 1, JELLY_NOTE_SUBJECT_KIND, "Jelly 笔记", ["jelly:read"], "home");

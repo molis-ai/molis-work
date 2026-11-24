@@ -1,11 +1,10 @@
-import type { ProjectPluginId, ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import { availableProjectPluginIds, builtinPluginByManifestId, shownProjectPlugins } from "./plugin-registry.js";
 import type { ActionAvailability, ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
-import { alwaysOnPluginStamp } from "./always-on-plugins.js";
 
 type ReachEntry = PluginRegistration | { readonly personal: true; readonly project_plugin_id: string; readonly runtime?: never };
 type ReachCatalog = Pick<MolisWorkProjectCatalog, "projectPluginMembership"> & {
@@ -16,40 +15,36 @@ type ReachCatalog = Pick<MolisWorkProjectCatalog, "projectPluginMembership"> & {
 const projectReachCache = new WeakMap<object, Map<string, { readonly stamp: string; readonly reachable: ReadonlySet<string> | null }>>();
 
 /**
- * Live stamp combining catalog file/data/schema state, Home always-on plugin state, and external Home registrations.
+ * Live stamp combining catalog file/data/schema state and external Home registrations.
  * Returns `null` when the catalog does not expose a live stamp (or is inside a transaction), forcing a direct read.
  */
 export function projectReachStamp(
   catalog: ReachCatalog,
-  homeDirectory: string | undefined,
   outsideBuild: readonly string[] = [],
 ): string | null {
   if (typeof catalog.catalogDataStamp !== "function") return null;
   const catalogStamp = catalog.catalogDataStamp();
   if (catalogStamp === null) return null;
-  const effectiveHome = homeDirectory ?? catalog.homeDirectory;
-  const alwaysOn = effectiveHome ? alwaysOnPluginStamp(effectiveHome) : "none";
-  return `${catalogStamp}|${alwaysOn}|${outsideBuild.join("\0")}`;
+  return `${catalogStamp}|${outsideBuild.join("\0")}`;
 }
 
 /**
- * Reuses a project's computed reachable-plugin set while both the catalog DB and the Home's always-on plugin store remain
- * at the exact same live stamp. Any membership write, always-on consent change, external SQLite edit, or Home registration
+ * Reuses a project's computed reachable-plugin set while the catalog DB remains at the exact same live stamp. Any membership
+ * write, external SQLite edit, or Home registration
  * change changes the stamp immediately before the cache is consulted.
  */
 export function cachedProjectReachablePlugins(
   catalog: ReachCatalog,
   projectId: string,
-  homeDirectory: string | undefined,
   outsideBuild: readonly string[] = [],
 ): ReadonlySet<string> | null {
-  const before = projectReachStamp(catalog, homeDirectory, outsideBuild);
+  const before = projectReachStamp(catalog, outsideBuild);
   if (before !== null) {
     const cached = projectReachCache.get(catalog)?.get(projectId);
     if (cached && cached.stamp === before) return cached.reachable;
   }
   const reachable = projectReachablePlugins(catalog, projectId, outsideBuild);
-  if (before !== null && projectReachStamp(catalog, homeDirectory, outsideBuild) === before) {
+  if (before !== null && projectReachStamp(catalog, outsideBuild) === before) {
     let entries = projectReachCache.get(catalog);
     if (!entries) projectReachCache.set(catalog, entries = new Map());
     entries.set(projectId, { stamp: before, reachable });
@@ -70,9 +65,9 @@ export function projectMembershipReach({ plugins, hidden }: ProjectPluginMembers
  * that passes none reaches none of them.
  */
 export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "projectPluginMembership">, projectId: string,
-  outsideBuild: readonly string[] = [], directory?: () => readonly ProjectPluginId[]): ReadonlySet<string> | null {
+  outsideBuild: readonly string[] = []): ReadonlySet<string> | null {
   try {
-    const membership = catalog.projectPluginMembership(projectId, directory);
+    const membership = catalog.projectPluginMembership(projectId);
     const reachable = new Set(projectMembershipReach(membership));
     for (const key of outsideBuild) if (!membership.hidden.includes(key)) reachable.add(key);
     return reachable;
@@ -106,7 +101,7 @@ export function reachEntry(homeDirectory: string | undefined, pluginId: string):
  */
 export function projectPluginJudge(catalog: ReachCatalog, projectId: string,
   homeDirectory: string | undefined): (pluginId: string) => boolean | undefined {
-  const reachable = cachedProjectReachablePlugins(catalog, projectId, homeDirectory, homePluginsOutsideBuild(homeDirectory));
+  const reachable = cachedProjectReachablePlugins(catalog, projectId, homePluginsOutsideBuild(homeDirectory));
   return pluginId => {
     const entry = reachEntry(homeDirectory, pluginId);
     return entry ? pluginReachable(entry, reachable) : undefined;
@@ -123,7 +118,7 @@ export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, ho
   };
   const read = async (caller: ActionCallContext): Promise<ReadonlySet<string> | null> => {
     if (!caller.project_id) return null;
-    return withCatalog({ homeDirectory }, catalog => cachedProjectReachablePlugins(catalog, caller.project_id!, homeDirectory, homePluginsOutsideBuild(homeDirectory)));
+    return withCatalog({ homeDirectory }, catalog => cachedProjectReachablePlugins(catalog, caller.project_id!, homePluginsOutsideBuild(homeDirectory)));
   };
   const state = (caller: ActionCallContext, action: Pick<ActionView, "provider">, entry: ReachEntry | undefined, reachable: ReadonlySet<string> | null): ActionAvailability => {
     // Only Runtime stamps an installation id. A Home provider belongs to its trusted Home registration,

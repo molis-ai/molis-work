@@ -409,18 +409,14 @@ function applyTodoChanged(state: PrologueStreamState, event: PrologueEvent, _at:
 
 // The runtime's circuit breaker stopped a round that kept failing the same way (it settles the run as stopped and
 // sends nothing more): the round has ended, and says why, instead of waiting for a close that never comes.
-function applyCircuitTripped(state: PrologueStreamState, event: PrologueEvent, _at: string | null): boolean {
+function applyCircuitTripped(state: PrologueStreamState, event: PrologueEvent, _at: string | null, readCall?: ApprovalCallReader): boolean {
   const tripped = event as Extract<PrologueEvent, { type: "circuit-tripped" }>;
-  closeStreaming(state);
-  closeSleep(state);
-  state.phase = "stopped";
   const count = tripped.count ?? "几";
   const what = tripped.reason === "repeated-calls" ? `同一个调用连续重复了 ${count} 次，没有进展`
     : tripped.reason === "repeated-text" ? `同样的话连续重复了 ${count} 次`
     : tripped.reason === "repeated-errors" ? `连续 ${count} 次调用都没有成功`
     : `连续 ${count} 次调用都没有成功${tripped.why ? `（${tripped.why}）` : ""}`;
-  state.stop_reason = `${what}，这一轮先停在这里；已完成的保留，可以说明怎么调整后继续`;
-  return true;
+  return endRound(state, "stopped", `${what}，这一轮先停在这里；已完成的保留，可以说明怎么调整后继续`, readCall);
 }
 
 // The person's (or the Run's own) control of the Run changed. Only sleeping says something the phase does not.
@@ -681,11 +677,18 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
   ...Object.fromEntries(["steer-applied", "steer-read", "steer-withdrawn", "inputs-acknowledged"].map(type => [type, () => false])),
 };
 
+const TERMINAL_STREAM_PHASES: ReadonlySet<AgentRunPhase> = new Set(["completed", "failed", "cancelled", "stopped"]);
+const POST_TERMINAL_EVENTS: ReadonlySet<string> = new Set(["run-recovered", "usage", "usage-recorded", "compaction-usage-recorded", "memory-context"]);
+
 /**
  * Apply one event of a round to its view: the stream itself, then its supplements' receipts, which the runtime projects
- * from the same events. Returns true when the view changed.
+ * from the same events. Returns true when the view changed. Once a round has reached a terminal phase, late non-accounting
+ * events are ignored so an ended round can never resurrect back to running or waiting.
  */
 export function applyRunEvent(state: PrologueStreamState, event: PrologueEvent, at: string | null, readCall?: ApprovalCallReader): boolean {
+  if (TERMINAL_STREAM_PHASES.has(state.phase) && !POST_TERMINAL_EVENTS.has(event.type)) {
+    return false;
+  }
   const waited = state.retry_wait !== undefined && ENDS_RETRY_WAIT.has(event.type);
   if (waited) delete state.retry_wait;
   const changed = (Object.hasOwn(HANDLERS, event.type) ? HANDLERS[event.type]! : applyUnknown)(state, event, at, readCall) || waited;
@@ -732,8 +735,9 @@ export function settleProloguePending(state: PrologueStreamState, pendingId: str
   state.awaiting_input = state.awaiting_input.filter((item) => item.pending_id !== pendingId);
   const after = state.awaiting_approval.length + state.awaiting_input.length;
   if (after === before) return false;
-  if (after === 0 && (state.phase === "awaiting-review" || state.phase === "awaiting-input")) {
-    state.phase = "running";
+  if (state.phase === "awaiting-review" || state.phase === "awaiting-input") {
+    state.phase = state.awaiting_approval.length > 0 ? "awaiting-review"
+      : state.awaiting_input.length > 0 ? "awaiting-input" : "running";
   }
   return true;
 }

@@ -124,7 +124,7 @@ Agent 会话等平台审批时，任务行用 `held_reviews: { session_id, ids }
 
 `APPROVED_BUILD_TIME_EXCEPTIONS` 第 44B 批起为空：插件创作台第 47 批起是平台能力，最后一个构建期例外（旧炼金术士，连同它的 `alchemist-native-plugin-http.ts`）在第 44B 批删除。新插件只走 Plugin Runtime。
 
-- Shelf 不属于这一份：它已由监督器启动（在 `RUNTIME_ASSEMBLED`，不是构建期例外），路由从 Shelf S3 起是 Manifest 声明的插件路由（`/api/plugins/io.molis.work.shelf/…`），宿主里已没有 Shelf 名下的文件（Shelf S4：演示数据的示例由常驻宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回），新插件不照抄。
+- Shelf 不属于这一份：它已由监督器启动（在 `RUNTIME_ASSEMBLED`，不是构建期例外），路由从 Shelf S3 起是 Manifest 声明的插件路由（`/api/platform/shelf/…`），宿主里已没有 Shelf 名下的文件（Shelf S4：演示数据的示例由常驻宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回），新插件不照抄。
 - `project_id` 同样由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 
 ### 按需

@@ -1,7 +1,7 @@
 import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderIconSprite, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
-import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.js";
 import { renderWorkbenchDocument } from "./document-shell.js";
 import { renderUnavailablePluginStatus } from "./unavailable-plugin-stage.js";
 import { OWNER_UNAVAILABLE_COPY_CLIENT_SCRIPT } from "./scripts/owner-unavailable-copy.js";
@@ -22,12 +22,12 @@ export function renderOwnerUnavailablePage(input: {
 }, locale: { readText(text: string, values?: Record<string, string | number>): string; htmlLang(): string; desktop: WorkbenchRendererPorts["desktop"] }): string {
   const { readText } = locale, membership = input.membership;
   const members = membership ? [...new Set([...membership.plugins, ...membership.hidden])].map(pluginId => {
-    const entry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pluginId);
+    const entry = SHIPPED_WORKBENCH_PARTS.find(entry => entry.project_plugin_id === pluginId);
     const hidden = membership.hidden.includes(pluginId);
     return `<li data-stored-project-plugin="${escapeHtml(pluginId)}" data-plugin-hidden="${hidden}">${escapeHtml((entry?.manifest.name ?? pluginId))}${hidden ? ` · ${escapeHtml(uiText.text("workbench.plugin-store-unavailable.hidden"))}` : ""}</li>`;
   }).join("") : "";
   // These are failure/status entries, not derived project members. Never invoke a running contribution while its ledger is unreadable.
-  const statuses = membership ? BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home").map(entry =>
+  const statuses = membership ? SHIPPED_WORKBENCH_PARTS.filter(entry => entry.manifest.runtime?.scope === "home").map(entry =>
     `<section class="mw-frame__panel" data-work-surface="${escapeHtml(entry.project_plugin_id)}" data-home-plugin-unavailable="workbench">${renderUnavailablePluginStatus({
       surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home", reason: uiText.text("workbench.plugin-store-unavailable.home-plugin-store-unavailable"),
     }, readText, false)}</section>`).join("") : "";

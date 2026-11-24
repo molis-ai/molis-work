@@ -95,7 +95,7 @@ export interface PluginPlatformOptions {
   /** Test seam for `services.sourcePull`: the fetch its public-feed pulls go through. Production never passes it. */
   sourcePullFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>;
   /** Test seam for `services.sourcePull.repository`: the `git` it runs. Production never passes it. */
-  sourcePullGit?: import("./research-repository-read.js").ResearchGit;
+  sourcePullGit?: import("./builtin-drivers.js").ResearchGit;
   /** Test seam for `services.sourcePull.connector`: the Home's integration registry, with providers of the test's own. Production never passes it. */
   sourcePullIntegrations?: () => Promise<import("./integration-registry.js").IntegrationRegistry>;
   /** The owner of private KV supplies whole-installation cleanup for synchronous non-retaining reinstalls. */

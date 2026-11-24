@@ -135,10 +135,10 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   assert.equal((await change("DELETE", project.project_id, "inbox", false)).status, 403);
   assert.equal((await change("DELETE", project.project_id, "unknown")).status, 400);
   assert.equal((await change("DELETE", "missing", "inbox")).status, 404);
-  // Shelf is the only 常开插件 (PEQ-12): no project removes or hides it; Goals can be added and removed like any other plugin.
-  const alwaysOn = await change("DELETE", project.project_id, "shelf");
-  assert.equal(alwaysOn.status, 400, "shelf");
-  assert.equal((await alwaysOn.json()).code, "catalog.plugin_always_on", "shelf");
+  // Shelf is a platform part (44B), not a plugin of the project: there is nothing of it to remove. Goals is added and removed like any other plugin.
+  const platformPart = await change("DELETE", project.project_id, "shelf");
+  assert.equal(platformPart.status, 400, "shelf");
+  assert.equal((await platformPart.json()).code, "catalog.plugin_not_found", "shelf");
   assert.deepEqual(catalog.projectPluginMembership(project.project_id).hidden, []);
   assert.equal(catalog.listProjectPlugins(project.project_id).includes("goals"), false);
   assert.equal((await change("POST", project.project_id, "goals")).status, 200);

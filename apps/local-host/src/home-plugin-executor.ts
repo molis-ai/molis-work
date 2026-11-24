@@ -27,7 +27,8 @@ import { openInstalledPluginLibrary, removeInstalledPluginLibrary } from "./inst
 import { pluginSyncDatabaseDeclaration } from "./plugin-sync-database.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { pluginHomeFor } from "./home-side.js";
-import { declaresProjectCoordination } from "./plugin-project-coordination.js";
+import { declaresProjectHalf } from "./plugin-project-coordination.js";
+import { homePluginArtifactsFor, type HomeProjectArtifactStores } from "./plugin-home-artifacts.js";
 import { givenService } from "./plugin-declared-services.js";
 import { forgetPluginAgentDefinitions, registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
@@ -83,6 +84,8 @@ export class HomePluginExecutor implements PluginExecutor {
     installations(): InstallationDirectoryClient | undefined;
     /** A definition's language files, registered while its instance runs (`pluginTextFor`); absent: none. */
     localePacks?(definition: PluginDefinition): PluginTextReader | null;
+    /** The open projects' 成果库, for what a Home instance consumes (`homePluginArtifactsFor`); absent: it reads none. */
+    projectArtifacts?: HomeProjectArtifactStores;
   }) {}
 
   async start(definition: PluginDefinition, context: PluginStartContext) {
@@ -90,8 +93,8 @@ export class HomePluginExecutor implements PluginExecutor {
     refuseUngivenSandboxServices(definition, context);
     const manifest = definition.manifest, execution = definition.execution;
     // A dual-instance plugin's Home half leaves these to its project half, and is still given none of their services here.
-    if (!this.options.dualInstance(definition) && declaresProjectCoordination(manifest)) {
-      throw pluginErrors.state_invalid("Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/archive/dual-instance-plugins）");
+    if (!this.options.dualInstance(definition) && declaresProjectHalf(manifest)) {
+      throw pluginErrors.state_invalid("Home 级插件不往项目里固定成果，也不给端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/archive/dual-instance-plugins）");
     }
     let active = true, stopped = false;
     const record = this.options.record(context.install_id), generation = record?.installation_generation;
@@ -169,6 +172,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const connections = pluginConnectionsFor(home, definition, authorized, assertActive);
       const installations = pluginInstallationsFor(manifest, authorized, null, this.options.installations(), assertActive, this.options.home);
       const evidenceCollector = pluginEvidenceCollectorFor(manifest, authorized, null, this.options.home, assertActive);
+      const artifacts = homePluginArtifactsFor(manifest, authorized, this.options.projectArtifacts, assertActive);
       directory = manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
         ? directoryForHome(this.options.home).connect({ plugin_id: manifest.plugin_id, install_id: context.install_id, installation_generation: context.installation_generation, name: manifest.name,
           project_id: null, actor_id: this.options.actorId, assertCurrent: () => authorize(DIRECTORY_READ_PERMISSION) }) : undefined;
@@ -178,7 +182,7 @@ export class HomePluginExecutor implements PluginExecutor {
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       terminal = pluginTerminalFor({ home: this.options.home, manifest, context: authorized, ownerFiles: ownerFiles?.client, assertActive });
       const hosted: PluginStartContext = Object.freeze({ ...authorized, ...(home.startedAt ? { host_started_at: home.startedAt } : {}), actor_id: this.options.actorId, sync: syncActivation(this.options.home, manifest, authorized, assertActive), copy: copyActivation(this.options.home, manifest, authorized, assertActive), services: Object.freeze({
-        ui: ui.client, ...(database?.sync ? {sync: database.sync} : {}), interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(sandboxLibrary ? { database_statements: sandboxLibrary.statements } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(localTools ? { localTools } : {}), ...(projects ? { projects } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}), ...(installations ? { installations } : {}), ...(evidenceCollector ? { evidenceCollector } : {}),
+        ui: ui.client, ...(database?.sync ? {sync: database.sync} : {}), interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(sandboxLibrary ? { database_statements: sandboxLibrary.statements } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(localTools ? { localTools } : {}), ...(projects ? { projects } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}), ...(installations ? { installations } : {}), ...(evidenceCollector ? { evidenceCollector } : {}), ...(artifacts ? { artifacts } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });

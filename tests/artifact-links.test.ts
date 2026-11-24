@@ -91,7 +91,7 @@ test("RAC-420: with no Plugin declaring link kinds (Goals absent) the links and 
       importDocument: async () => { throw new Error("n/a"); }, openProjectReference: async () => { throw new Error("n/a"); } }),
   });
   assert.deepEqual(await actions.invoke(person, artifactsActions.links, { reference: { artifact_id: "a", version: 1 } }), { plugins: [], other: 1 });
-  assert.deepEqual(await actions.invoke(person, artifactsActions.goalEmbeds, { goal_id: "G1" }), { embeds: [] });
+  assert.deepEqual(await actions.invoke(person, artifactsActions.subjectEmbeds, { subject_id: "G1" }), { embeds: [] });
 });
 
 /** One version with edges from any module, read through `artifacts.links` with the given declarers and naming port. */

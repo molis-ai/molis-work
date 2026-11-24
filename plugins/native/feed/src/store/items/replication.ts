@@ -4,7 +4,7 @@ const dispositions=['inbox','saved','promoted','archived'];
 const date=(v:unknown)=>typeof v==='string'&&Number.isFinite(Date.parse(v));
 const id=(v:unknown)=>typeof v==='string'&&!!v.trim()&&v.length<=1000;
 const nullableText=(v:unknown)=>v===null||typeof v==='string';
-const evidence=/^molis-work-feed\/sha256\/[a-f0-9]{64}$/;
+const evidence=/^molis-work-evidence\/sha256\/[a-f0-9]{64}$/;
 const itemColumns='project_id item_id source_id signal_id signal_revision kind title summary body source_kind source_label external_id url origin_status priority tags_json author disposition read_at revision source_created_at source_updated_at imported_at updated_at'.split(' ');
 const materialColumns='project_id material_id item_id canonical_url title source_name published_at preview content_hash content_ref content_available content_type character_count captured_at provenance_json selected_for_context imported_at updated_at'.split(' ');
 /** Only saved messages/materials/dispositions and fixed history. No Provider/Listener/Attention or execution facts. */

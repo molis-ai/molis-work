@@ -12,13 +12,13 @@ import { DEMO_PROJECT_ID, MolisWorkLocalHost, molisWorkHostProjectReference, see
 import { caller, mac } from "./fixtures/signed-package-host.js";
 
 // Batch 41, 41-2 (用户 2026-11-14 定, specs/prologue-strategies/skill.md §10): the planning and breakdown methods are a Skill pack
-// that comes with the system — `plugins/content/planning-methods`, whose pack-content.json writes `system` — not a library of the
+// that comes with the system — `packages/system-skills/planning-methods`, whose pack-content.json writes `system` — not a library of the
 // Goals plugin. Every Home has its Skills in the catalog with no install, each `auto` until the person changes it; switching one off
 // is kept. A Skill's body may be written in more than one language (`SKILL.<locale>.md`, declared in `locales`) and is read in the
 // caller's.
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const PACK = join(root, "plugins/content/planning-methods");
+const PACK = join(root, "packages/system-skills/planning-methods");
 const PLUGIN_ID = "io.molis.work.content.planning-methods";
 const ref = (action: { capability_id: string; version: number }) => ({ capability_id: action.capability_id, version: action.version });
 const publisher = { publisher_id: "molis-work", signature: "ed25519:sha256:" + "0".repeat(64) };

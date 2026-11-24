@@ -1,4 +1,3 @@
-import { createAllowlistedRssTransport } from "@molis-ai/molis-work-integration-rss/host";
 import { createSearchRuntime } from "@adeptify/search-evidence-layer";
 import { createPortBackedNodeSearchHost } from "@adeptify/search-evidence-layer/host/node";
 import { createRssProvider } from "@adeptify/search-evidence-layer/providers/rss";
@@ -6,14 +5,9 @@ import {
   createEvidenceContentStore, createFileSecretStore,
   type EvidenceContentStore, type SecretStore, type SqliteDatabase,
 } from "@molis-ai/molis-work-storage";
-import { createRssExactRouteResolver } from "@molis-ai/molis-work-integration-rss";
-import {
-  listFeedUrls, listRegisterableFeeds, readRssHttpState, type RssFetchReceipt,
-  CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, isCustomRssFeedUrl,
-} from "@molis-ai/molis-work-integration-rss";
-import {
-  YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, isYouTubePublicFeedUrl,
-} from "@molis-ai/molis-work-integration-youtube";
+import type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
+import { builtinPublicFeedDriver } from "./builtin-drivers.js";
+import type { PublicFeedDriver } from "./public-feed-driver.js";
 import { createSearchContentPort, createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./search-evidence-runtime.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 
@@ -27,7 +21,7 @@ export interface SourcePullRuntime extends SearchEvidenceRuntime {
   writtenContentRefs?(): readonly string[];
 }
 
-/** The platform's public-feed pull: source selection, HTTP cursors and receipts, composed with the common SEL runtime. */
+/** The platform's public-feed pull: the public-feed driver's transport, routes and HTTP cursor (M10), composed with the common SEL runtime. */
 export function createSourcePullRuntime(options: {
   db: SqliteDatabase;
   fetch?: FetchPort;
@@ -39,7 +33,10 @@ export function createSourcePullRuntime(options: {
   assertCurrent?: () => void;
   /** Awaited right before a web query leaves for the search service. */
   beforeDispatch?: () => Promise<void>;
+  /** The public-feed driver; absent: the one the built-in integrations register. */
+  driver?: PublicFeedDriver;
 }): SourcePullRuntime {
+  const driver = options.driver ?? builtinPublicFeedDriver();
   const secretStore = options.secretStore ?? createFileSecretStore();
   const store = options.content ?? createEvidenceContentStore({ secretStore });
   const written = new Set<string>();
@@ -51,15 +48,12 @@ export function createSourcePullRuntime(options: {
       return stored;
     },
   };
-  const httpState = readRssHttpState(options.sourceCursor);
   let publicFeedReceipt: RssFetchReceipt | null = null;
   const rssHost = createPortBackedNodeSearchHost({
     appId: APP_ID,
-    transport: createAllowlistedRssTransport(listFeedUrls(), options.fetch ?? globalThis.fetch, {
-      isPublicChannelFeed: isYouTubePublicFeedUrl,
+    transport: driver.createTransport(options.fetch ?? globalThis.fetch, {
       userAgent: `Molis Work/${PRODUCT_VERSION} (+local feed ingest)`,
-      allowCustomPublicFeeds: true,
-      conditional: { etag: httpState.etag, lastModified: httpState.last_modified },
+      conditional: driver.conditional(options.sourceCursor),
       onReceipt(receipt) { publicFeedReceipt = receipt; },
     }),
     content: createSearchContentPort(content, options.assertCurrent, options.beforeContentWrite),
@@ -73,11 +67,7 @@ export function createSourcePullRuntime(options: {
     db: options.db, secretStore, content, assertCurrent: options.assertCurrent, beforeDispatch: options.beforeDispatch, beforeContentWrite: options.beforeContentWrite,
     source: {
       runtime: rssRuntime,
-      routeResolver: createRssExactRouteResolver({
-        listCatalog: listRegisterableFeeds,
-        customRss: { id: CUSTOM_RSS_DEFINITION_ID, acceptsUrl: isCustomRssFeedUrl, host: customRssFeedHost },
-        youtube: { id: YOUTUBE_CHANNEL_DEFINITION_ID, host: YOUTUBE_PUBLIC_FEED_HOST, acceptsUrl: isYouTubePublicFeedUrl },
-      }),
+      routeResolver: driver.routeResolver(),
     },
   });
   return { ...shared, publicFeedReceipt() { return publicFeedReceipt; }, writtenContentRefs() { return [...written]; } };

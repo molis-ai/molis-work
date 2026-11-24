@@ -39,7 +39,7 @@ export type CharactersProject = Pick<MolisWorkProjectRuntime, "project_id" | "ar
  */
 export function charactersProvider(project: CharactersProject, actionPorts: CharactersActionPorts, agent?: CharactersAgentCatalog): ActionProviderRegistration {
   return {
-    provider: { provider_id: CHARACTER_PLUGIN_ID, plugin_id: CHARACTER_PLUGIN_ID, title: "Characters", kind: "plugin", project_id: project.project_id },
+    provider: { provider_id: CHARACTER_PLUGIN_ID, title: "Characters", kind: "system", project_id: project.project_id },
     definitions: CHARACTERS_ACTIONS,
     handlers: bindCharactersActions(actionPorts.actorId, (caller, guard) => createCharactersActionHandlers(actionPorts,
       { projectId: project.project_id, artifacts: characterArtifacts(project, caller, guard), ...(agent ? { agent } : {}) }, guard.beforeWrite)),

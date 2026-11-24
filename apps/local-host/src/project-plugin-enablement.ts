@@ -17,7 +17,7 @@ export async function projectPluginEnablement(home: string | undefined, projectI
   const catalog = home ? pluginCatalogFor(home) : undefined;
   if (!catalog) return undefined;
   // The one list actions and routes read (PG-013), so what a project runs and what it may call never disagree.
-  const reachable = await catalog({ homeDirectory: home }, value => cachedProjectReachablePlugins(value, projectId, home, homePluginsOutsideBuild(home)));
+  const reachable = await catalog({ homeDirectory: home }, value => cachedProjectReachablePlugins(value, projectId, homePluginsOutsideBuild(home)));
   if (!reachable) return undefined;
   return enablementMap(reachable);
 }
@@ -63,11 +63,11 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
       if (!catalog || !home) return resetCache();
       const read = await catalog({ homeDirectory: home }, value => {
         const outsideBuild = homePluginsOutsideBuild(home);
-        const stamp = projectReachStamp(value, home, outsideBuild);
+        const stamp = projectReachStamp(value, outsideBuild);
         if (pending.size === 0 && stamp !== null && stamp === lastStamp && lastEnabled !== undefined) {
           return { stamp, enabled: lastEnabled };
         }
-        const reachable = cachedProjectReachablePlugins(value, projectId, home, outsideBuild);
+        const reachable = cachedProjectReachablePlugins(value, projectId, outsideBuild);
         return { stamp, enabled: reachable ? enablementMap(reachable) : undefined };
       });
       const enabled = read.enabled;

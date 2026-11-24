@@ -19,7 +19,7 @@ test("a plugin reminder reaches the Inbox under its plugin's name; uninstall rem
   await f.tick(at);
   const items = await f.inbox(); assert.equal(items.length, 1); assert.equal(items[0]!.title, "定时笔记：复习第一章");
   const store = await f.store();
-  assert.ok(createLocalFeedApplication(store.db).snapshot(f.project.project_id).inbox_entries.some(row => row.subject_id === items[0]!.item_id && row.status === "open"));
+  assert.ok(createLocalFeedApplication(store.db).snapshot(f.project.project_id).attention_entries.some(row => row.subject_id === items[0]!.item_id && row.status === "open"));
   assert.deepEqual(await f.sdk.invoke(reminderActions.cancel, first), { cancelled: false });
   const platform = await runningProjectPlatform(store, f.project.project_id); assert.ok(platform);
   await platform.runtime.uninstall((await f.record()).install_id, { retain_private_data: true });

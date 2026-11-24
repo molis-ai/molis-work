@@ -7,7 +7,7 @@ import { blueprintActions } from "@molis-ai/molis-work-contracts/services/bluepr
 import type { SettingsWriteInput } from "@molis-ai/molis-work-contracts/platform/settings";
 import { memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { memorySettingActions, MEMORY_SETTING_KEYS } from "@molis-ai/molis-work-service-memory";
-import { shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfManifest } from "@molis-ai/molis-work-module-shelf/surface";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
 

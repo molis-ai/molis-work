@@ -207,3 +207,12 @@ export const CATALOG_OAUTH_METHODS: Readonly<Record<string, Method>> = {
 export function catalogOAuthMethod(connectorId: string): Method | undefined {
   return Object.hasOwn(CATALOG_OAUTH_METHODS, connectorId) ? CATALOG_OAUTH_METHODS[connectorId] : undefined;
 }
+
+/**
+ * The OAuth return addresses the catalog's services were registered under in their providers' consoles (W5-11 §3.1 R1), kept byte
+ * for byte so those registrations stay valid. A service that names a loopback host is registered under that name (Notion takes no
+ * numeric address).
+ */
+export const CATALOG_OAUTH_CALLBACK_ALIASES: readonly { service: string; path: string; project: boolean; host?: "localhost" }[] = Object.freeze([
+  { service: "notion", path: "/api/settings/connectors/notion/oauth/callback", project: false, host: "localhost" as const },
+]);

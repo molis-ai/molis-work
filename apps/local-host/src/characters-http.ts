@@ -9,7 +9,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { matchesNativePluginPrefix, readNativePluginJsonBody, writeNativePluginJsonResponse } from "./native-plugin-http.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
-const PREFIX = `/api/plugins/${CHARACTER_PLUGIN_ID}`;
+const PREFIX = "/api/platform/characters";
 
 type Body = Record<string, unknown>;
 interface CharacterRoute {

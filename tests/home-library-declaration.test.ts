@@ -18,7 +18,7 @@ test("PLIB-11 RAC-301 a Home library is declared only in the Manifest's database
   assert.doesNotMatch(source("apps/local-host/src/plugin-entry-identity.ts"), /new WeakMap<PluginDefinition, HomePluginDatabaseDeclaration>/u, "no library is remembered about a definition object");
 
   const registrations = readdirSync(new URL("../plugins/native/", import.meta.url)).filter(name => existsSync(new URL(`../plugins/native/${name}/src/registration.ts`, import.meta.url)));
-  assert.ok(registrations.length > 20, "the shipped plugins' registrations were found");
+  assert.ok(registrations.length > 15, "the shipped plugins' registrations were found");
   for (const name of registrations) {
     assert.doesNotMatch(source(`plugins/native/${name}/src/registration.ts`), /\bdatabase: /u, `${name}: its registration names a library`);
   }

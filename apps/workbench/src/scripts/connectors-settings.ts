@@ -416,8 +416,6 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         if (!row || !old || row === old || row.dataset.connectionService !== service || old.dataset.connectionService !== service || row.dataset.connectionAuth !== old.dataset.connectionAuth) return false;
         if (mcp ? !row.dataset.connectionEndpoint || row.dataset.connectionEndpoint !== old.dataset.connectionEndpoint || !old.querySelector('[data-connection-method="mcp"]') : !old.querySelector('[data-connection-switch]')) return false;
         const result = row.querySelector('[data-connection-result]'), name = old.dataset.connectionName || '';
-        // Coding's MCP settings do not report their usages yet (BL-1050), so what the page counts is never all there is.
-        const coding = mcp ? [globalThis.t.text("workbench.connectors-settings.coding-s-mcp-settings-can-t-be-checked", { name })] : [];
         const link = () => mcp ? panel.querySelector('[data-connector-next-link][data-connector-next-kind="mcp-tools"]')?.cloneNode(true) : null;
         let shown, left = 0;
         const controls = nodes => {
@@ -427,7 +425,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         // The message, the usages it lists, then notes of their own (what could not be read, and what the page cannot see), then the choices.
         const show = (message, lines, nodes, error, notes = []) => {
           output(result, message, error); listInto(result, lines);
-          for (const note of [...notes, ...coding]) { const text = make('p'); text.textContent = note; result.append(text); }
+          for (const note of notes) { const text = make('p'); text.textContent = note; result.append(text); }
           controls(nodes);
         };
         // A step that fails says why and leaves the same choices, so the person can try again or keep both connections.
@@ -478,6 +476,11 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           // The same server as before: only a login at the old connection's address is offered as its replacement.
           const old = button.closest('[data-connection-row]'), endpoint = old.dataset.connectionEndpoint, field = area.querySelector('[data-protocol-field="endpoint"]');
           if (endpoint && field) field.value = endpoint;
+          const authentication = area.querySelector('select[data-protocol-field="authentication"]');
+          if (authentication) {
+            authentication.value = old.dataset.mcpAuthentication || 'oauth';
+            for (const secret of area.querySelectorAll('[data-protocol-field="token"], [data-protocol-field="client_secret"]')) secret.value = '';
+          }
           // A name told apart from the old one's where only names show (Coding's MCP settings), within a name's 100 characters.
           const named = panel.querySelector('[data-connector-new-name]');
           if (named && !named.value.trim()) {

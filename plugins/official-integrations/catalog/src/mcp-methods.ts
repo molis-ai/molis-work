@@ -1,4 +1,5 @@
 import type { PluginMcpMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import type { LocalMcpLaunchInput, LocalMcpServerDeclaration, LocalMcpStdioDeclaration } from "@molis-ai/molis-work-contracts/platform/integration-drivers";
 
 /** Remote MCP data owned by each catalog integration, consumed by the common Host path. */
 const METHODS: Readonly<Record<string, PluginMcpMethodDeclaration>> = {
@@ -40,3 +41,27 @@ const METHODS: Readonly<Record<string, PluginMcpMethodDeclaration>> = {
 export function catalogMcpMethod(serviceId: string): PluginMcpMethodDeclaration | undefined {
   return Object.hasOwn(METHODS, serviceId) ? METHODS[serviceId] : undefined;
 }
+
+/**
+ * The catalog's MCP servers that run on this machine (D3 A, M11): `stdio` ones the Host starts itself, `loopback` ones a desktop
+ * app already serves on a fixed local address. The Host reads only these flags and never names a service.
+ */
+/**
+ * The Feishu/Lark MCP server: the `@larksuiteoapi/lark-mcp` package the Host pins, given the app credentials and the open-platform
+ * origin, with the user's token when the connection has one and the app's tenant token otherwise.
+ */
+const LARK_MCP: LocalMcpStdioDeclaration = Object.freeze({
+  package: "@larksuiteoapi/lark-mcp",
+  entry: "dist/cli.js",
+  args: ["mcp"],
+  environment: (input: LocalMcpLaunchInput): Record<string, string> => ({
+    APP_ID: input.client_id, APP_SECRET: input.client_secret, LARK_DOMAIN: input.origin,
+    LARK_TOKEN_MODE: input.access_token ? "user_access_token" : "tenant_access_token",
+    ...(input.access_token ? { USER_ACCESS_TOKEN: input.access_token } : {}),
+  }),
+});
+export const CATALOG_LOCAL_MCP_SERVERS: Readonly<Record<string, LocalMcpServerDeclaration>> = Object.freeze({
+  feishu: { endpoint: "https://open.feishu.cn/", stdio: LARK_MCP },
+  lark: { endpoint: "https://open.larksuite.com/", stdio: LARK_MCP },
+  figma: { endpoint: "http://127.0.0.1:3845/mcp", loopback: true, auth: "none" },
+});

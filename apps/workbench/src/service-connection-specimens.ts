@@ -116,14 +116,14 @@ function cardsSpecimen(readText: Say): string {
 
 /** The use matrix (§13.7 ①B) with sample services: connected ones work, the rest say 「要先连」; narrow the board to see the lists. */
 function usesSpecimen(): string {
-  const uses = ["feed_source", "document_import", "assistant_read", "web_search", "category"].map((id) => ({ id, label: uiText.text(`workbench.connection-uses.${id.replace("_", "-")}`) }));
+  const uses = ["source_pull", "document_import", "assistant_read", "web_search", "category"].map((id) => ({ id, label: uiText.text(`workbench.connection-uses.${id.replace("_", "-")}`) }));
   const row = (id: string, name: string, connected: boolean, can: readonly string[]) => ({ id, name, mark: renderConnectorMark(id, escapeHtml),
     cells: Object.fromEntries(can.map((use) => [use, connected ? "ready" as const : "connect" as const])) });
   return renderConnectionUseMatrix({ label: uiText.text("workbench.connection-uses.by-use"), uses, connectHref: (id) => `#svc-${id}`, rows: [
-    row("github", "GitHub", true, ["feed_source", "assistant_read", "category"]),
-    row("notion", "Notion", true, ["feed_source", "document_import", "assistant_read", "category"]),
-    row("gmail", "Gmail", false, ["feed_source", "assistant_read", "category"]),
-    row("linear", "Linear", false, ["feed_source", "category"]),
+    row("github", "GitHub", true, ["source_pull", "assistant_read", "category"]),
+    row("notion", "Notion", true, ["source_pull", "document_import", "assistant_read", "category"]),
+    row("gmail", "Gmail", false, ["source_pull", "assistant_read", "category"]),
+    row("linear", "Linear", false, ["source_pull", "category"]),
     row("brave-search", "Brave Search", false, ["web_search"]),
   ] });
 }

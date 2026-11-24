@@ -86,6 +86,10 @@ export async function handleBlueprintHttp(request: IncomingMessage, response: Se
       else {
         const result = await client.invoke(action, input);
         if (!response.destroyed) sendLocalWebJson(response, 200, result);
+        else if (!response.writableEnded) {
+          response.statusCode = 200;
+          response.end();
+        }
       }
     } else sendLocalWebJson(response, 405, {});
   } catch (error) {

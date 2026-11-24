@@ -33,7 +33,7 @@ const projectView = {
   project: { project_id: "project-1", display_name: "工作台" },
   projects: [{ project_id: "project-1", display_name: "工作台" }],
   route_prefix: "/projects/project-1", demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {},
-  input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
+  input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], attention_entries: [], runs: [], out_rules: [] },
 } as MolisWorkWebView;
 const guidance = { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" };
 

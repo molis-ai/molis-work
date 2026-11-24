@@ -107,13 +107,13 @@ test("RAC-734 MOLIS_WORK_LOCAL_TOOLS=off finds nothing and says no to every path
   assert.equal(await f.check(join(directory, "alpha-cli")), false);
 });
 
-test("RAC-733 RAC-735 the Host's service only queries the file system, and neither the plugin package nor the Module reads the environment or starts a process", () => {
+test("RAC-733 RAC-735 the Host's service only queries the file system, and the Shelf Module does not read the environment or start a process", () => {
   const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
   assert.doesNotMatch(source("apps/local-host/src/plugin-local-tools-service.ts"), /child_process|spawn|exec(File)?\(/u);
   assert.doesNotMatch(source("packages/plugin-runtime/src/local-tools.ts"), /child_process|spawn|process\.env|node:fs/u);
   // The only file reads left are the two page-client wrappers reading their own bundle that sits beside them.
-  const ownBundle = /\/plugins\/native\/shelf\/src\/(?:settings-)?client\.ts$/u;
-  for (const directory of ["modules/shelf/src", "plugins/native/shelf/src"]) {
+  const ownBundle = /\/modules\/shelf\/src\/surface\/(?:settings-)?client\.ts$/u;
+  for (const directory of ["modules/shelf/src"]) {
     for (const file of listSources(new URL(`../${directory}/`, import.meta.url))) {
       const text = readFileSync(file, "utf8");
       assert.doesNotMatch(text, /process\.env|child_process|node:os|homedir\(/u, file.pathname);

@@ -84,8 +84,8 @@ async function assertDemoPluginFacts(input: {
     assert.equal(gmail?.status, "disconnected");
     assert.equal(gmail?.enabled, false);
     assert.equal(gmail?.credential_ref, null);
-    const active = snapshot.inbox_entries.filter((entry) => entry.status === "open" || entry.status === "in_progress");
-    const history = snapshot.inbox_entries.filter((entry) => entry.status === "done" || entry.status === "dismissed");
+    const active = snapshot.attention_entries.filter((entry) => entry.status === "open" || entry.status === "in_progress");
+    const history = snapshot.attention_entries.filter((entry) => entry.status === "done" || entry.status === "dismissed");
     assert.ok(active.some((entry) => entry.reason === "manual"));
     assert.ok(active.some((entry) => entry.reason === "source_rule"));
     assert.ok(active.some((entry) => entry.reason === "source_fault"));
@@ -118,7 +118,7 @@ test("seedDemoBoard fixtures stay empty of plugin samples", async () => {
     try {
       const snapshot = createLocalFeedApplication(store.db).snapshot(DEMO_PROJECT_ID);
       assert.equal(snapshot.feed_items.length, 0);
-      assert.equal(snapshot.inbox_entries.length, 0);
+      assert.equal(snapshot.attention_entries.length, 0);
       assert.equal(snapshot.sources.length, 0);
       assert.equal(openProjectVersionStores(store).artifacts.query.listArtifacts(DEMO_PROJECT_ID).length, 0);
     } finally {
@@ -155,8 +155,8 @@ test("plugin samples are written under the project id they are given", async () 
       assert.ok(kinds.has("github"));
       assert.ok(kinds.has("gmail"));
       assert.ok(snapshot.feed_items.length >= 5);
-      const active = snapshot.inbox_entries.filter((entry) => entry.status === "open" || entry.status === "in_progress");
-      const history = snapshot.inbox_entries.filter((entry) => entry.status === "done" || entry.status === "dismissed");
+      const active = snapshot.attention_entries.filter((entry) => entry.status === "open" || entry.status === "in_progress");
+      const history = snapshot.attention_entries.filter((entry) => entry.status === "done" || entry.status === "dismissed");
       assert.ok(active.some((entry) => entry.reason === "manual"));
       assert.ok(active.some((entry) => entry.reason === "source_rule"));
       assert.ok(active.some((entry) => entry.reason === "source_fault"));

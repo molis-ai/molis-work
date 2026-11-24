@@ -220,7 +220,7 @@ test("RAC-488 a plugin nothing names is registered and bound the way the built-i
   await registry.enable(holderOf("com.example.ext-feed", "ext-feed"));
   assert.equal(registry.integration("ext-feed")?.plugin_id, "com.example.ext-feed");
   assert.ok(registry.hasSource("ext-feed"));
-  assert.ok(connectorDirectory(registry).some(entry => entry.connector_id === "ext-feed" && entry.feed_available === true));
+  assert.ok(connectorDirectory(registry).some(entry => entry.connector_id === "ext-feed" && entry.source_available === true));
   const key = integrationKeyOf({ sync_kind: "connector", kind: "ext-feed" })!;
   const bound = await registry.bind(key, "source", binding("source-ext"));
   assert.equal((await bound.connector_driver.health(connectorControl())).ok, true);
@@ -345,9 +345,9 @@ test("RAC-491 the directory is the platform's cards then each plugin's declared 
   assert.deepEqual(directory.slice(0, 4).map(entry => entry.connector_id), ["model-api", "typesafe", "image-api", "mcp-bearer"]);
   assert.deepEqual(directory.slice(4, 6).map(entry => entry.connector_id), ["github", "gmail"]);
   const loom = directory.find(entry => entry.connector_id === "loom")!;
-  assert.equal(loom.feed_available, false, "a service with no source integration says Feed cannot read it");
-  assert.equal(directory.find(entry => entry.connector_id === "github")!.feed_available, true);
-  assert.equal(directory.find(entry => entry.connector_id === "model-api")!.feed_available, undefined, "a platform card does not say");
+  assert.equal(loom.source_available, false, "a service with no source integration says Feed cannot read it");
+  assert.equal(directory.find(entry => entry.connector_id === "github")!.source_available, true);
+  assert.equal(directory.find(entry => entry.connector_id === "model-api")!.source_available, undefined, "a platform card does not say");
 });
 
 test("RAC-491 notion is both a Feed source and a document import; google-docs reads with the google-drive account", async () => {

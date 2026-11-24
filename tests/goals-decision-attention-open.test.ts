@@ -20,7 +20,7 @@ test("PG094-08 Goals settles a decision reminder when it writes and catches up o
   const decisions = async (host: MolisWorkLocalHost) => {
     await bindActionClient(host.actionClient(reference), () => ({ ...caller, permissions: ["goals:read"] })).invoke(goalsActions.list, {});
     return host.withProject(reference, runtime => runtime.store.db.prepare(
-      "SELECT subject_id, status FROM inbox_entries WHERE project_id = ? AND owner_plugin_id = ? AND subject_type = 'goal_decision' ORDER BY subject_id").all(PROJECT, GOALS_PLUGIN_ID)
+      "SELECT subject_id, status FROM attention_entries WHERE project_id = ? AND owner_plugin_id = ? AND subject_type = 'goal_decision' ORDER BY subject_id").all(PROJECT, GOALS_PLUGIN_ID)
       .map(row => ({ ...(row as { subject_id: string; status: string }) })));
   };
   const first = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -38,7 +38,7 @@ test("PG094-08 Goals settles a decision reminder when it writes and catches up o
     // The submission itself opened the reminder.
     assert.deepEqual(await decisions(first), [{ subject_id: "root", status: "open" }]);
     // A reminder lost outside Goals' writes stays lost while the project is open: reading Inbox does not reconcile.
-    await first.withProject(reference, runtime => runtime.store.db.prepare("DELETE FROM inbox_entries WHERE project_id = ? AND subject_type = 'goal_decision'").run(PROJECT));
+    await first.withProject(reference, runtime => runtime.store.db.prepare("DELETE FROM attention_entries WHERE project_id = ? AND subject_type = 'goal_decision'").run(PROJECT));
     assert.deepEqual(await decisions(first), []);
     await first.close();
     // The next time the project opens, Goals catches it up once.

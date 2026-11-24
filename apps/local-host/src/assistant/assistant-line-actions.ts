@@ -26,7 +26,7 @@ import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
  *   fields the review itself shows, answered through `assistant.background.decide`, which is the same decision the conversation's
  *   own confirmation card records.
  */
-const PROVIDER = "io.molis.work.assistant.rules";
+const PROVIDER = "system.assistant.rules";
 export const ASSISTANT_WORK_KIND = "assistant_work";
 /** Who registered the Assistant's events and tasks, named in the reader's language. */
 const sourceNamed = () => ({ surface: "assistant", title: uiText.text("workbench.assistant-line.assistant"), icon: "assistant" }) as const;

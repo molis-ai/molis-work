@@ -189,7 +189,7 @@ async function platform(t: TestContext) {
   assert.deepEqual((await running.start([main, peer, reader, bare, loose, child, source].map(item => ({ definition: item.definition, trust: { level: "host" as const } })))).running.toSorted(),
     [main, peer, reader, bare, loose, child, source].map(item => item.id).toSorted());
   const noted = (short: string, name: string) => store.db.prepare(`SELECT 1 FROM ${short}_notes WHERE text = ?`).get(name) !== undefined;
-  const entry = (name: string) => store.db.prepare("SELECT project_id, status, reason FROM inbox_entries WHERE subject_id = ?").get(name) as
+  const entry = (name: string) => store.db.prepare("SELECT project_id, status, reason FROM attention_entries WHERE subject_id = ?").get(name) as
     { project_id: string; status: string; reason: string } | undefined;
   // The edge is stored under its plugin's id: `<plugin_id>:edge-<name>`.
   const edge = (name: string) => store.db.prepare("SELECT actor_id FROM context_edges WHERE edge_key LIKE ?").get(`%:edge-${name}`) as { actor_id: string } | undefined;
@@ -220,7 +220,7 @@ const createdOf = (item: ReturnType<typeof probe>) => item.gate.value as ReturnT
 const ownedWrite = (client: ReturnType<typeof pluginActions>["client"], item: ReturnType<typeof probe>, input: Omit<ProbeInput, "step">) =>
   client.invoke(caller(permissionsOf(item)).context, item.act, { ...input, step: "owned" });
 const attentionState = (store: LocalProjectDatabase) => ({
-  entries: store.db.prepare("SELECT * FROM inbox_entries ORDER BY entry_id").all(),
+  entries: store.db.prepare("SELECT * FROM attention_entries ORDER BY entry_id").all(),
   events: store.db.prepare("SELECT * FROM attention_events ORDER BY event_id").all(),
   journal: store.db.prepare("SELECT * FROM events WHERE object_type = 'inbox_entry' ORDER BY seq").all(),
 });
@@ -253,7 +253,7 @@ test("S-68 ATTN-OWNER-01 equal kinds and bare ids belong independently to each p
   assert.equal(reading.get(rows[1]!.entry_id).owner_plugin_id, peer.id);
   assert.equal(reading.get(rows[2]!.entry_id).owner_plugin_id, child.id);
   assert.deepEqual(reading.events(rows[0]!.entry_id).map(event => [event.type, event.owner_plugin_id]),
-    [["inbox_entry.created", main.id], ["inbox_entry.deleted", main.id]], "deleting the entry retains the event's factual owner");
+    [["attention_entry.created", main.id], ["attention_entry.deleted", main.id]], "deleting the entry retains the event's factual owner");
 });
 
 // ATTN-OWNER-02
@@ -293,7 +293,7 @@ test("S-68 ATTN-OWNER-04 another writer can read and close an entry by global id
   assert.equal(closed.owner_plugin_id, main.id);
   assert.equal(closed.status, "done");
   assert.equal(closed.revision, 2);
-  const change = store.db.prepare("SELECT actor_id, payload_json FROM events WHERE object_id = ? AND type = 'inbox_entry.done'").get(entry.entry_id) as { actor_id: string; payload_json: string };
+  const change = store.db.prepare("SELECT actor_id, payload_json FROM events WHERE object_id = ? AND type = 'attention_entry.done'").get(entry.entry_id) as { actor_id: string; payload_json: string };
   assert.equal(change.actor_id, "status-author");
   assert.equal((JSON.parse(change.payload_json) as { owner_plugin_id: string }).owner_plugin_id, main.id);
   const before = attentionState(store);
@@ -349,7 +349,7 @@ test("S-68 ATTN-OWNER-08 the real Feed/Inbox read chain and Goals reconcile stay
   assert.equal(old.owner_plugin_id, null);
   assert.notEqual(owned.entry_id, old.entry_id);
   assert.equal(feed.listInboxEntries(DEMO_PROJECT_ID).some(entry => entry.entry_id === owned.entry_id), false);
-  assert.equal(feed.snapshot(DEMO_PROJECT_ID).inbox_entries.some(entry => entry.entry_id === owned.entry_id), false);
+  assert.equal(feed.snapshot(DEMO_PROJECT_ID).attention_entries.some(entry => entry.entry_id === owned.entry_id), false);
   assert.throws(() => feed.getInboxEntry(DEMO_PROJECT_ID, owned.entry_id), { code: "feed.entry_not_found" });
   assert.throws(() => feed.setInboxEntryStatus(DEMO_PROJECT_ID, owned.entry_id, "done"), { code: "feed.entry_not_found" });
   let relatedReads = 0;
@@ -414,7 +414,7 @@ test("S-68 ATTN-OWNER-08 a real successful RSS pull resolves only the old source
   assert.ok(pulls > 0, "the real RSS runtime consumed the controlled transport");
   assert.equal(service.feed.getInboxEntry(DEMO_PROJECT_ID, old.entry_id).status, "done");
   assert.equal(writer.services().attention!.get(owned.entry_id).status, "open", "source recovery does not settle another plugin's object");
-  assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).inbox_entries.some(entry => entry.entry_id === owned.entry_id), false);
+  assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).attention_entries.some(entry => entry.entry_id === owned.entry_id), false);
 });
 
 // RAC-273
@@ -540,7 +540,7 @@ test("S-68 an entry is added or deleted only for a kind of subject the Manifest 
   main.reset();
   assert.equal(await client.invoke(caller(permissionsOf(main)).context, main.act, { name: "stray", step: "stray" }), true);
   assert.equal(entry("stray")?.project_id, DEMO_PROJECT_ID, "a project the plugin names is overwritten by the call's");
-  assert.deepEqual(events("declared").map(item => [item.type, item.actor_id, item.project_id]), [["inbox_entry.created", OWNER, DEMO_PROJECT_ID]], "the entry's event is written for the caller");
+  assert.deepEqual(events("declared").map(item => [item.type, item.actor_id, item.project_id]), [["attention_entry.created", OWNER, DEMO_PROJECT_ID]], "the entry's event is written for the caller");
   assert.equal(main.services().attention!.findActiveForSubject({ owner_plugin_id: main.id, subject_type: "goal_decision", subject_id: "declared" })?.status, "open");
   assert.equal(main.services().attention!.list().some(item => item.subject_id === "declared"), true);
 });

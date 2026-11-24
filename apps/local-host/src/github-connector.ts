@@ -1,7 +1,10 @@
 import {
   createGithubProvider,
+  githubWhoami,
   type GithubFetch,
 } from "@molis-ai/molis-work-integration-github";
+
+export { githubWhoami };
 
 import { resolveApiConnection } from "./connector-access.js";
 import { connectorFixtureAllowed } from "./connector-execution-mode.js";

@@ -16,24 +16,12 @@ export function publishedFunctionKey(reference: { readonly provider_id?: string;
   return reference.provider_id === FUNCTIONS_PROVIDER_ID && reference.capability_id.startsWith(PUBLISHED_FUNCTION_PREFIX)
     ? reference.capability_id.slice(PUBLISHED_FUNCTION_PREFIX.length) : null;
 }
+// A plugin's own scenes and options (Feed's capture, Inbox's next step) are declared and exported by that plugin (M9); this contract
+// keeps the platform's scene (Home) and the general shapes.
 export const HOME_DOCK_SCENE_ID = "home.dock";
-export const FEED_CAPTURE_SCENE_ID = "feed.capture";
-export const INBOX_NEXT_SCENE_ID = "inbox.next";
 export const HOME_CONTINUE_OPTION_ID = "home.continue";
 export const HOME_ASK_OPTION_ID = "home.ask";
-export const INBOX_DONE_OPTION_ID = "inbox.done";
-export const INBOX_DISMISS_OPTION_ID = "inbox.dismiss";
-export const INBOX_COMPOSE_OPTION_ID = "inbox.compose";
-export const INBOX_VERIFY_OPTION_ID = "inbox.verify";
-export const INBOX_ADMIT_OPTION_ID = "inbox.admit";
-export const FEED_REAUTH_OPTION_ID = "feed.reauth";
-export const FEED_OPEN_OPTION_ID = "feed.open";
-export const FEED_SAVE_OPTION_ID = "feed.save";
-export const FEED_PROMOTE_OPTION_ID = "feed.promote";
-export const FEED_ARCHIVE_OPTION_ID = "feed.archive";
 export const SYSTEM_HOME_DOCK_FUNCTION_KEY = "system_pick_home_dock";
-export const SYSTEM_INBOX_ADMIT_FUNCTION_KEY = "system_admit_inbox";
-export const SYSTEM_INBOX_NEXT_FUNCTION_KEY = "system_pick_inbox_next";
 export const AGENT_MCP_DESTINATION_ID = "agent.mcp";
 export const NOUL_TRUE_MAP_KEY = "true";
 export const NOUL_FALSE_MAP_KEY = "false";
@@ -271,47 +259,14 @@ export function filterSuggestedOptionIds(
   return [choice];
 }
 
-export function defaultInboxNextOptionIds(active: boolean): string[] {
-  return active ? [INBOX_DONE_OPTION_ID, INBOX_DISMISS_OPTION_ID] : [];
-}
-
-export const FEED_CAPTURE_DISPOSITION_IDS: readonly string[] = [
-  INBOX_ADMIT_OPTION_ID,
-  FEED_SAVE_OPTION_ID,
-  FEED_PROMOTE_OPTION_ID,
-  FEED_ARCHIVE_OPTION_ID,
-];
-
-export function defaultFeedCaptureOptionIds(canAdmit: boolean): string[] {
-  return canAdmit ? [...FEED_CAPTURE_DISPOSITION_IDS, FEED_OPEN_OPTION_ID] : [];
-}
-
-/** Footer dispositions on a Feed item. `feed.open` maps to "stay in Feed" and is not a footer button. */
-export function visibleFeedDispositionIds(
-  suggested: readonly string[] | null | undefined,
-  canAdmit: boolean,
-): string[] {
-  if (!canAdmit) return [];
-  const offered = [...FEED_CAPTURE_DISPOSITION_IDS];
-  const suggestedIds = suggested ?? [];
-  const picked = offered.filter((id) => suggestedIds.includes(id));
-  if (picked.length > 0) return picked;
-  if (suggestedIds.includes(FEED_OPEN_OPTION_ID)) {
-    return offered.filter((id) => id !== INBOX_ADMIT_OPTION_ID);
-  }
-  return offered;
-}
-
 export function isJudgmentRuleDestinationId(value: string): boolean {
   // Registration and live compatibility belong to the scene service. Drafts
   // retain valid identities even if their original provider is currently absent.
   return /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(value);
 }
 
+/** The kinds of object the platform itself judges; a plugin's kinds are titled by its own declarations (its search sources, M9). */
 export const JUDGMENT_RULE_AUTHORING_SUBJECTS: readonly JudgmentRuleAuthoringSubject[] = [
-  { subject_kind: "feed_item", title: "Feed 消息" },
-  { subject_kind: "inbox_entry", title: "Inbox" },
-  { subject_kind: "source", title: "来源出错" },
   { subject_kind: "home_event", title: "首页事件" },
   { subject_kind: "mcp_invoke", title: "Agent" },
 ];

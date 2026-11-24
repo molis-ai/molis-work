@@ -41,10 +41,10 @@ type PermissionSwitch = ActionDefinition<{ install_id: string; permission: strin
 const consentRow = {
   oneOf: [
     { properties: { kind: { const: "project_reach" }, approved_capability_ids: { type: "array" }, granted_by: { const: "user" } } },
-    { properties: { kind: { enum: ["always_on", "default_wiring", "default_group", "local_directory"] }, approved_capability_ids: { type: "null" } } },
+    { properties: { kind: { enum: ["default_wiring", "default_group", "local_directory"] }, approved_capability_ids: { type: "null" } } },
   ],
   type: "object", additionalProperties: false, required: ["consent_id", "plugin_id", "publisher_signature", "kind", "subject", "manifest_digest", "granted_at", "granted_by", "revoked_at", "approved_capability_ids"],
-  properties: { consent_id: text, plugin_id: text, publisher_signature: text, kind: { enum: ["always_on", "default_wiring", "default_group", "local_directory", "project_reach"] }, subject: text, manifest_digest: text,
+  properties: { consent_id: text, plugin_id: text, publisher_signature: text, kind: { enum: ["default_wiring", "default_group", "local_directory", "project_reach"] }, subject: text, manifest_digest: text,
     granted_at: text, granted_by: { enum: ["user", "host_build"] }, revoked_at: { type: ["string", "null"] }, approved_capability_ids: { type: ["array", "null"], items: text } },
 };
 /** The installation an uninstall names (BL-915): the `uninstall_target` of the row the person acted on, checked against the trusted row under its lock. */

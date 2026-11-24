@@ -61,7 +61,7 @@ const replyInvalid = (key: string) => feedInformationPlanErrors.plan_reply_inval
 export interface FeedInformationPlanState {
   readonly sources: ReadonlyArray<{ readonly source_id: string; readonly name: string; readonly enabled: boolean }>;
   readonly items: ReadonlyArray<{ readonly item_id: string; readonly source_id?: string | null; readonly title: string; readonly summary?: string | null }>;
-  readonly inbox_entries: readonly Pick<AttentionEntryRecord, "entry_id" | "subject_type" | "subject_id" | "status">[];
+  readonly attention_entries: readonly Pick<AttentionEntryRecord, "entry_id" | "subject_type" | "subject_id" | "status">[];
   /** An open entry's item may be older than the recent ones; one that is gone has no title. */
   titleOf(itemId: string): string | undefined;
 }
@@ -73,7 +73,7 @@ export interface FeedInformationPlanState {
  */
 export function feedInformationPlanContext(state: FeedInformationPlanState, projectId: string, input: PlanInput) {
   const recent = state.items.slice(0, ITEM_LIMIT);
-  const open = state.inbox_entries.filter(entry => entry.subject_type === "feed_item" && ACTIVE.has(entry.status)).slice(0, INBOX_LIMIT);
+  const open = state.attention_entries.filter(entry => entry.subject_type === "feed_item" && ACTIVE.has(entry.status)).slice(0, INBOX_LIMIT);
   const titleOf = (itemId: string) => recent.find(item => item.item_id === itemId)?.title ?? state.titleOf(itemId) ?? "";
   const items = recent.map(item => ({ id: item.item_id, source_id: item.source_id ?? "", title: wholeCharacters(item.title, 200), summary: cutHead(item.summary ?? "", 1000) }));
   const inbox = open.map(entry => ({ entry_id: entry.entry_id, item_id: entry.subject_id, title: wholeCharacters(titleOf(entry.subject_id), 200) }));
@@ -119,9 +119,9 @@ export function createFeedInformationPlanHandler(feed: FeedApplication, projectI
     if (!model || !state?.available) throw new ActionError("actions.connection_required", state && !state.available ? state.reason : uiText.text("feed.information-plan.connect-text-model"));
     const prompt = input.prompt.trim();
     if (!prompt) throw new ActionError("actions.input_invalid", uiText.text("feed.information-plan.prompt-required"));
-    const inbox_entries = await ports.inboxEntries(caller);
+    const attention_entries = await ports.inboxEntries(caller);
     const page = (extra: { limit: number; item_id?: string }) => feed.reads.page(projectId, { offset: 0, sort: "newest", status: "all", unread: false, ...extra });
-    const context = feedInformationPlanContext({ sources: feed.sources.list(projectId), items: page({ limit: ITEM_LIMIT }), inbox_entries,
+    const context = feedInformationPlanContext({ sources: feed.sources.list(projectId), items: page({ limit: ITEM_LIMIT }), attention_entries,
       titleOf: item_id => page({ limit: 1, item_id })[0]?.title }, projectId, { ...input, prompt });
     const reply = await model.complete(instructed(FEED_INFORMATION_PLAN, feedInformationPlanData(context, prompt)), { output: "json", signal: caller.signal });
     await caller.beforeEffect();

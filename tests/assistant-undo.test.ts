@@ -83,7 +83,7 @@ test("a change that can be undone runs when asked without a confirmation, and th
     return (script[turn++] ?? (() => reply()))(JSON.parse(body));
   }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-undo-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-undo-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
@@ -168,7 +168,7 @@ async function undoFixture(t: import("node:test").TestContext, script: Array<(bo
   }));
   const flags = { model: true };
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-undo-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-undo-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));

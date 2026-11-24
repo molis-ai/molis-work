@@ -7,7 +7,7 @@ const id = { type: "string", minLength: 1, maxLength: 160 };
 const target = object({ provider_id: id, subject_kind: id, subject_id: id, thread_id: id });
 const define = (name: string, version: number, title: string, input: ActionSchema, model = false, query = false): ActionDefinition => ({ ...createActionDefinition(`assistant.threads.${name}`, query ? "query" : "command", { title, description: title, kind: query ? "query" : "operation", effect: query ? "read" : "write", scope: "project", audiences: ["user"],
     scheduling: "concurrent", permissions: model ? ["model:invoke"] : [], subject_kinds: [], input_schema: input, output_schema: { type: ["object", "null"] },
-    execution: { cost: model ? "metered" : "none", timeout_ms: 120000 } }, version), provider_id: "io.molis.work.assistant.rules" });
+    execution: { cost: model ? "metered" : "none", timeout_ms: 120000 } }, version), provider_id: "system.assistant.rules" });
 export const assistantThreadActions = {
   start: define("start", /* @version action.assistant.threads.start */ 1, "请助理回复原评论", object({ target, message_id: id,
     draft: object({ text: { type: "string", maxLength: 100000 }, revision: id }) }, ["target", "message_id"]), true),

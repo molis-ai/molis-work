@@ -9,7 +9,7 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { localeMessageArguments, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { registeredBuiltinText, workbenchPlatformText } from "./ui-text-provider.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { shippedParts } from "./plugin-registry.js";
 import { currentLocale } from "./web-locale.js";
 
 /** The existing discovery already distinguishes a Host-built provider from any installed or external one. */
@@ -20,7 +20,7 @@ function libraryTitles(actions: readonly ActionView[]): ReadonlyMap<ActionView, 
     if (!readers.has(identity)) {
       // Only Host-built Runtime definitions use their Manifest ID as provider ID.
       const manifest = kind === "plugin" && provider_id === plugin_id
-        ? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === plugin_id)?.manifest : undefined;
+        ? shippedParts().find(entry => entry.manifest.plugin_id === plugin_id)?.manifest : undefined;
       readers.set(identity, kind === "system" ? workbenchPlatformText : manifest ? registeredBuiltinText(manifest) : null);
     }
     const reader = readers.get(identity);

@@ -95,7 +95,7 @@ test("W2-18-CATALOG-ERROR-01: every business-error family produces a closed fail
       assert.deepEqual(durable.cursor, before); assert.equal(durable.last_error_code, fixture.auth ? "connector.needs_auth" : "connector.provider");
       assert.equal(snapshot.feed_items.some(item => item.source_id === source.source_id), false);
       assert.ok(snapshot.runs.some(run => run.source_id === source.source_id && run.outcome === "failed"));
-      assert.equal(snapshot.inbox_entries.some(entry => entry.subject_type === "source_fault" && entry.subject_id === source.source_id), fixture.auth === true);
+      assert.equal(snapshot.attention_entries.some(entry => entry.subject_type === "source_fault" && entry.subject_id === source.source_id), fixture.auth === true);
       const error = publicFailure as { message: string; details?: unknown };
       const publicViews = JSON.stringify([error.message, error.details, await port.health(connectorControl()), await catalogWhoami({ connectorId: fixture.service, token: fixture.token, fetchImpl: async () => json(fixture.body) }), snapshot, withConnectorConnections(home.directory, store => store.list())]);
       // Read every stored cell in this temporary project, including receipt/checkpoint error text, rather than assuming its table name.

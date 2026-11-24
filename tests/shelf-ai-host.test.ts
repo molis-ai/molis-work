@@ -12,7 +12,7 @@ import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { composeInstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { shelfActions as a, shelfAiPorts, shelfManifest, SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfActions as a, shelfAiPorts, shelfManifest, SHELF_ACTIONS, SHELF_ACTION_PERMISSIONS, SHELF_PLUGIN_ID, SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-module-shelf/surface";
 import { createExtractablePdf, SHELF_RECIPES } from "@molis-ai/molis-work-module-shelf";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";

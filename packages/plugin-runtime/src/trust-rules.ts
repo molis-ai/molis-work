@@ -1,7 +1,7 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { definitionOrigin } from "./platform-definitions.js";
-import type { PluginConsentGrant, PluginConsentGranter, PluginDeclarationNeedingConsent, PluginTrust, PluginTrustLevel } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import type { PluginConsentGrant, PluginConsentGranter, PluginConsentKind, PluginConsentRecord, PluginDeclarationNeedingConsent, PluginTrust, PluginTrustLevel } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 
 // Install trust and the declarations that need consent (ac-trust T1, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §2–§3).
 // Pure rules: the install, the supervisor and the tests read the same ones. A level is evidence the Host gives; nothing a plugin writes
@@ -126,9 +126,12 @@ export function assertTrustFitsDefinition(definition: PluginDefinition, trust: P
 /** Who a consent is recorded as given by: the Host, for the build it ships; a person, for everything else. */
 export const consentGranter = (trust: PluginTrust): PluginConsentGranter => trust.level === "host" ? "host_build" : "user";
 
+/** Whether one of a plugin's ledger rows is a standing agreement to this declaration from this publisher: the row is not revoked. */
+export const consentStands = (rows: readonly PluginConsentRecord[], publisherSignature: string, kind: PluginConsentKind, subject: string): boolean =>
+  rows.some(row => row.kind === kind && row.subject === subject && row.publisher_signature === publisherSignature && row.revoked_at === null);
+
 /** A consent's subject, written the one way: a declaration that changes is another subject and asks again. */
 export const consentSubject = {
-  alwaysOn: (): string => "always_on",
   defaultGroup: (groupId: string): string => groupId,
   projectReach: (projectId: string, installId: string): string => JSON.stringify([projectId, installId]),
   /** The target port reads the source plugin's output by default, for the source publisher that was current when the consent was given. */
@@ -141,7 +144,6 @@ interface DeclaredConsent { readonly kind: PluginConsentGrant["kind"]; readonly 
 
 function declaredConsents(manifest: PluginManifest): DeclaredConsent[] {
   const declared: DeclaredConsent[] = [];
-  if (manifest.always_on === true) declared.push({ kind: "always_on", prefix: consentSubject.alwaysOn(), complete: true, summary: "每个项目都开、删不掉（常开插件）" });
   for (const input of manifest.ports?.inputs ?? []) {
     const source = input.default_source;
     if (source) declared.push({ kind: "default_wiring", prefix: `${input.port}<-${source.plugin_id}:${source.port}@`, complete: false,

@@ -1,6 +1,6 @@
 # 页面客户端生命周期（Page Client Lifecycle）
 
-状态：实现完成，待合入（2026-11-21 立项，分支 `fix/b44-shell-goals-state`）。来源 BL-b44-shell-goals-state（已结清，见 [已删除的 BL](../../docs/backlog-removed.md)；[插件同等地位](../plugin-equal-standing/spec.md) H4 未达成）。用户 2026-11-21 定：H4 单独一个 PR，先写这份通用接口的短需求。
+状态：现行规范，已随 #2219 合入 main（2026-11-21 立项）。来源 BL-b44-shell-goals-state（已结清，见 [已删除的 BL](../../docs/backlog-removed.md)；[插件同等地位](../plugin-equal-standing/spec.md) 原 H4 缺口）。用户 2026-11-21 定：H4 单独一个 PR，先写这份通用接口的短需求。
 
 需求维护与实现：Claude（本会话）。类型：底层与架构。
 

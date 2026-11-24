@@ -610,3 +610,60 @@ test("B10-R3: switching work before the shared composer script arrives saves onl
     await browser.waitFor("document.querySelector('[data-assistant-composer] textarea').value === 'Typed before the program arrived'");
   } finally { await barrier.close(); }
 });
+
+test("MLN-16: a late receipt for the first send in item A preserves item B's focused draft", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t);
+  if (!browser) return;
+  const route = "/projects/" + browser.projectId + "/api/mainline/items/create";
+  const createItem = async (name: string) => {
+    const saved = await browser.evaluate<{ item: { item_id: string } }>(`fetch(${JSON.stringify(route)}, {
+      method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({name: ${JSON.stringify(name)}})
+    }).then(r => r.json())`);
+    return saved.item.item_id;
+  };
+  const a = await createItem("事项 A"), b = await createItem("事项 B");
+  await browser.navigate(() => browser.command("Page.navigate", {
+    url: browser.origin + "/projects/" + browser.projectId + "/",
+  }, browser.sessionId));
+  await browser.waitFor("document.querySelector('[data-top-corner-toggle]') && document.querySelector('[data-assistant-composer] .mw-composer__input')");
+  const field = "document.querySelector('[data-assistant-composer] .mw-composer__input')";
+  const thread = "document.querySelector('[data-assistant-thread]')?.textContent";
+  const selectItem = async (id: string, name: string) => {
+    await browser.click("[data-top-corner-toggle]");
+    await browser.waitFor("document.querySelector('[data-mainline-search]')?.checkVisibility()");
+    await browser.evaluate(`(() => { const input = document.querySelector('[data-mainline-search]');
+      input.value = ${JSON.stringify(name)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    const selector = '[data-ml-pick="' + id + '"]';
+    await browser.waitFor(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`);
+    await browser.click(selector);
+    await browser.waitFor(`document.querySelector('[data-work-item-pill]')?.textContent.includes(${JSON.stringify(name)})`);
+  };
+  await selectItem(a, "事项 A");
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+  try {
+    await putInput(browser, "给事项 A 的第一条");
+    await browser.click("[data-assistant-composer] [data-composer-send]");
+    const receipt = await barrier.next();
+    assert.equal(receipt.responseStatusCode, 200);
+    assert.equal(JSON.parse(receipt.request.postData!).work_item_id, a);
+    const pendingKey = JSON.stringify("molis.assistant.unsent:" + browser.projectId + ":item:" + a + ":new");
+    assert.ok(await browser.evaluate(`localStorage.getItem(${pendingKey})`));
+
+    await selectItem(b, "事项 B");
+    await browser.waitFor(field + ".value === ''");
+    await browser.evaluate(field + ".focus()");
+    await putInput(browser, "事项 B 的草稿");
+    await barrier.release(receipt);
+    await browser.waitFor(`localStorage.getItem(${pendingKey}) === null`);
+    assert.equal(await browser.evaluate(field + ".value"), "事项 B 的草稿");
+    assert.equal(await browser.evaluate("document.activeElement === " + field), true);
+    assert.doesNotMatch(await browser.evaluate<string>(thread + " || ''"), /给事项 A 的第一条/);
+
+    await selectItem(a, "事项 A");
+    await browser.waitFor(thread + "?.includes('给事项 A 的第一条')");
+    await selectItem(b, "事项 B");
+    await browser.waitFor(field + ".value === '事项 B 的草稿'");
+  } finally {
+    await barrier.close();
+  }
+});

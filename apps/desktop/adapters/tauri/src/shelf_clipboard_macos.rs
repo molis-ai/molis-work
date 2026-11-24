@@ -1,5 +1,6 @@
 //! A front-file copy borrows the clipboard; restore only the version it actually read.
 
+use crate::native_language::tr;
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2_app_kit::{NSPasteboard, NSPasteboardItem, NSPasteboardWriting};
@@ -20,16 +21,25 @@ impl Snapshot {
             for original in originals.iter() {
                 let mut item = Vec::new();
                 for kind in original.types().iter() {
-                    let data = original
-                        .dataForType(&kind)
-                        .ok_or("读不了原剪贴板，未复制文件")?;
+                    let data = original.dataForType(&kind).ok_or_else(|| {
+                        tr(
+                            "没能读取原剪贴板内容，已跳过复制文件。",
+                            "Couldn’t read the current clipboard, so files weren’t copied.",
+                            "現在のクリップボードを読み取れなかったため、ファイルのコピーを中止しました。",
+                        )
+                    })?;
                     item.push((kind.to_string(), data.to_vec()));
                 }
                 items.push(item);
             }
         }
         if board.changeCount() != change_count {
-            return Err("剪贴板正在变化，请重试收取文件".into());
+            return Err(tr(
+                "剪贴板内容刚发生变化，请再试一次。",
+                "The clipboard changed while copying. Please try again.",
+                "コピー中にクリップボードの内容が変わりました。もう一度お試しください。",
+            )
+            .into());
         }
         Ok(Self {
             change_count,
@@ -47,7 +57,12 @@ impl Snapshot {
             let item = NSPasteboardItem::new();
             for (kind, bytes) in original {
                 if !item.setData_forType(&NSData::with_bytes(bytes), &NSString::from_str(kind)) {
-                    return Err("没能保全原剪贴板，请重试".into());
+                    return Err(tr(
+                        "没能保留原剪贴板内容，请再试一次。",
+                        "Couldn’t preserve the previous clipboard. Please try again.",
+                        "元のクリップボード内容を保持できませんでした。もう一度お試しください。",
+                    )
+                    .into());
                 }
             }
             items.push(item);
@@ -69,7 +84,12 @@ impl Snapshot {
             return Ok(false);
         }
         if !board.writeObjects(&objects) {
-            return Err("没能恢复原剪贴板".into());
+            return Err(tr(
+                "没能恢复原剪贴板内容。",
+                "Couldn’t restore the previous clipboard.",
+                "元のクリップボード内容を復元できませんでした。",
+            )
+            .into());
         }
         Ok(true)
     }

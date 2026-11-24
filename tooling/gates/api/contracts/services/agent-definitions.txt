@@ -50,6 +50,7 @@ export interface AgentPromptRegistration extends LocalizedAgentBody {
     version: number;
     kind: AgentPromptKind;
     layer?: AgentPromptLayer;
+    override_policy?: PromptOverridePolicy;
     title: string;
     purpose: string;
     used_by: string[];
@@ -83,6 +84,7 @@ export interface AgentPromptView {
     prompt_id: string;
     kind: AgentPromptKind;
     layer?: AgentPromptLayer;
+    override_policy?: PromptOverridePolicy;
     title: string;
     purpose: string;
     used_by: string[];
@@ -156,6 +158,8 @@ export interface AgentSkillView {
 
 export declare const PROMPT_OVERRIDES_FILE_MAX_ROWS = 200;
 
+export type PromptOverridePolicy = "editable" | "protected";
+
 export interface PromptOverridesFile {
     format: "molis.prompt-overrides";
     format_version: 1;
@@ -210,6 +214,7 @@ export declare const agentDefinitionErrors: import("platform/action-errors").Err
     readonly overrides_preview_unknown: "not_found";
     readonly overrides_row_not_applicable: "conflict";
     readonly instruction_role_unknown: "invalid";
+    readonly prompt_override_protected: "forbidden";
 }>;
 
 export declare const servicesAgentDefinitionsContract: {

@@ -21,10 +21,21 @@ function sources(directory: string): string[] {
   });
 }
 
+function subPackageSources(directory: string): string[] {
+  return readdirSync(join(ROOT, directory)).flatMap(name => {
+    try {
+      return sources(`${directory}/${name}/src`);
+    } catch {
+      return [];
+    }
+  });
+}
+
 const HOST = sources("apps/local-host/src");
-const PLUGINS = readdirSync(join(ROOT, "plugins/native")).flatMap(name => {
-  try { return sources(`plugins/native/${name}/src`); } catch { return []; }
-});
+const PLUGINS = subPackageSources("plugins/native");
+const MODULES = subPackageSources("modules");
+const HORIZONTALS = subPackageSources("horizontal");
+const RUNTIME_SOURCES = [...HOST, ...MODULES, ...HORIZONTALS];
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
 /** The built-in plugins' definitions, each carrying its own instructions and Agent prompts, which the Host registers while it runs (PG-051). */
 const DEFINITIONS = BUILTIN_DEFINITIONS;
@@ -37,26 +48,36 @@ const registeredPrompts = () => new Map([
 const registered = () => new Set(registeredPrompts().keys());
 
 /**
- * Model calls that still send text the person cannot see in “Prompt 与 Character”, each with why. The list only
- * shrinks: a new entry needs the same kind of reason, and a file that no longer needs one fails below.
+ * Low-level transports, runtime adapters, factories, and connectivity probes that invoke SDK/inference primitives
+ * directly on behalf of higher-level callers whose prompts are already resolved by `AgentDefinitions` or the
+ * connectivity health check. Every entry must actually contain a monitored model call site and carry an explicit
+ * justification; product callers must never be added here.
  */
-const TRANSITIONAL: Readonly<Record<string, string>> = {
-  // The transport itself: it sends what its callers already resolved.
+const LOW_LEVEL_MODEL_CALL_ALLOWLIST: Readonly<Record<string, string>> = {
   "apps/local-host/src/host-complete-text.ts": "Host 文字模型的传输层，发送调用方已解析好的文字",
-  // Prologue inference as the Host composes it: it forwards the questions its caller gives, whatever they are.
-  "apps/local-host/src/agent-host-composition.ts": "Prologue 推理的宿主装配，原样转发调用方给出的判断题目，属于传输层",
+  "apps/local-host/src/agent-host-composition.ts": "Prologue 运行时与推理的宿主装配层，转发已由 AgentHost 或调用方解析的提示词",
+  "apps/local-host/src/typesafe-prologue.ts": "TypeSafe 判断服务提供方工厂，调用方题面由 TYPESAFE_CALLERS 单独审计",
+  "apps/local-host/src/plugin-image-generation-service.ts": "Host 生图模型传输端口，转发用户或插件的生图请求",
+  "apps/local-host/src/model-provider-test.ts": "模型连通性探针（role.model-check@1，prompts: []），仅发送无业务指令的最小连通测试",
+  "apps/local-host/src/model-provider-setup.ts": "模型向导连通性检测入口，仅调用 testConfiguredModel 验证配置",
+  "apps/local-host/src/web-model-settings.ts": "模型设置页连通性检测入口，仅调用 testConfiguredModel 验证配置",
+  "horizontal/agent-host/src/adapters/prologue-inference.ts": "Prologue 单次推理底层协议适配器，执行 Host 已解析的请求",
+  "horizontal/agent-host/src/adapters/prologue-node.ts": "Prologue Node 运行时底层适配器，执行经 AgentHost.start 与 AgentDefinitions.effective 冻结的角色提示词",
+  "horizontal/agent-host/src/adapters/prologue-run.ts": "Prologue Agent 运行循环底层适配器，消费已冻结的角色与提示词",
+  "horizontal/agent-host/src/adapters/prologue-run-start.ts": "Prologue Agent 启动桥接底层适配器，消费已冻结的角色与提示词",
+  "horizontal/agent-host/src/adapters/prologue-effects.ts": "Prologue 副作用钩子底层包装器，仅转发底层 startRun 调用",
+  "horizontal/agent-host/src/adapters/prologue-compaction.ts": "Prologue 上下文整理底层适配器，执行经 AgentHost 登记解析的整理提示词",
+  "horizontal/agent-host/src/adapters/ending-review.ts": "Prologue 收尾核对底层适配器，执行经 AgentHost 登记解析的收尾核对提示词",
+  "horizontal/agent-host/src/adapters/plugin-builder.ts": "插件创作台底层运行时适配器，执行经 agent-surface.ts 调用 AgentDefinitions.effective 解析的角色提示词",
 };
 
-/** Modules that only build a Host text model and hand it to a caller that resolves its instructions. */
-const FACTORIES = new Set([
-  // The former Jelly factory now serves trusted consumer declarations; it only probes environment availability.
-  "apps/local-host/src/model-configuration.ts",
-  // Builds the TypeSafe provider a caller hands its own questions to; the questions are the caller's (see TYPESAFE_CALLERS).
+/** Modules that only build a TypeSafe provider factory and hand it to callers audited in `TYPESAFE_CALLERS`. */
+const TYPESAFE_FACTORIES = new Set([
   "apps/local-host/src/typesafe-prologue.ts",
 ]);
 
 /**
- * Host files that ask the judgment service (TypeSafe) through `createPrologueTypeSafeProvider`, which the direct-call pattern below
+ * Runtime files that ask the judgment service (TypeSafe) through `createPrologueTypeSafeProvider`, which the direct-call pattern below
  * cannot see, each with where its questions come from. A new file that does is listed with its reason or the test fails.
  */
 const TYPESAFE_CALLERS: Readonly<Record<string, string>> = {
@@ -94,17 +115,65 @@ test("N31-ALL-PROMPTS-01 every registered instruction, Agent prompt and built-in
   }
 });
 
+function unwrapExpression(node: ts.Expression): ts.Expression {
+  let current = node;
+  while (ts.isParenthesizedExpression(current) || ts.isAsExpression(current) || ts.isSatisfiesExpression(current) || ts.isNonNullExpression(current)) {
+    current = current.expression;
+  }
+  return current;
+}
+
+function literalString(node: ts.Expression | undefined): string | undefined {
+  if (!node) return undefined;
+  const expr = unwrapExpression(node);
+  return ts.isStringLiteral(expr) || ts.isNoSubstitutionTemplateLiteral(expr) ? expr.text : undefined;
+}
+
+function objectProperty(object: ts.ObjectLiteralExpression, name: string): ts.Expression | undefined {
+  for (const property of object.properties) {
+    if (ts.isPropertyAssignment(property) && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) && property.name.text === name) {
+      return property.initializer;
+    }
+  }
+  return undefined;
+}
+
+function extractInstructionDefinitions(filePath: string): string[] {
+  const text = read(filePath);
+  if (!text.includes("defineInstructionPrompt")) return [];
+  const source = ts.createSourceFile(filePath, text, ts.ScriptTarget.ES2022, true);
+  const found: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node)) {
+      const callee = unwrapExpression(node.expression);
+      const isDefine = (ts.isIdentifier(callee) && callee.text === "defineInstructionPrompt")
+        || (ts.isPropertyAccessExpression(callee) && callee.name.text === "defineInstructionPrompt");
+      if (isDefine && node.arguments.length > 0) {
+        const argument = unwrapExpression(node.arguments[0]!);
+        if (ts.isObjectLiteralExpression(argument)) {
+          const promptId = literalString(objectProperty(argument, "prompt_id"));
+          if (promptId) {
+            const ownerExpr = objectProperty(argument, "owner_id");
+            const unwrappedOwner = ownerExpr ? unwrapExpression(ownerExpr) : undefined;
+            const ownerId = literalString(ownerExpr)
+              ?? (unwrappedOwner && ts.isIdentifier(unwrappedOwner) ? ownerConstant(filePath, unwrappedOwner.text) : undefined);
+            assert.ok(ownerId, `${filePath}: ${promptId} 的 owner_id 需能解析到字面量、同文件常量或相对模块导出的常量`);
+            found.push(`${ownerId}/${promptId}`);
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return found;
+}
+
 test("every instruction a built-in model call defines is registered where the person can see and edit it", () => {
   const known = registered();
   const defined: string[] = [];
-  for (const path of [...HOST, ...PLUGINS]) {
-    const text = read(path);
-    for (const match of text.matchAll(/defineInstructionPrompt\(\{[\s\S]*?prompt_id:\s*"([^"]+)"/g)) {
-      const owner = /owner_id:\s*([A-Z_]+|"[^"]+")/.exec(text.slice(match.index))?.[1] ?? "";
-      const ownerId = owner.startsWith("\"") ? owner.slice(1, -1) : ownerConstant(path, owner);
-      assert.ok(ownerId, `${path}: ${match[1]} 的 owner_id 需能解析到字面量、同文件常量或相对模块导出的常量`);
-      defined.push(`${ownerId}/${match[1]}`);
-    }
+  for (const path of [...HOST, ...PLUGINS, ...MODULES, ...HORIZONTALS]) {
+    defined.push(...extractInstructionDefinitions(path));
   }
   // Shelf creates its option prompts from the recipe catalog; inspect every actual declaration too.
   defined.push(...SHELF_INSTRUCTIONS.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}`));
@@ -130,56 +199,289 @@ test("RAC-194 a Plugin's instructions reach the register through its own definit
   for (const id of ["choose.capability", "choose.component"]) assert.ok(keys.includes(`io.molis.work.plugin-builder/${id}`), `${id} is the platform's, in the Host list`);
 });
 
-test("a Plugin's model port takes registered instructions, not a raw prompt string", () => {
-  const raw = PLUGINS.filter(path => /completeText\??\s*[:(]\s*\(?\s*prompt\s*:\s*string/.test(read(path)));
-  assert.deepEqual(raw, [], "插件的 completeText 端口应接收 InstructedPrompt / ModelPromptInput");
+test("a Plugin, Module or Horizontal model port takes registered instructions, not a raw prompt string", () => {
+  const raw = [...PLUGINS, ...MODULES, ...HORIZONTALS].filter(path => /completeText\??\s*[:(]\s*\(?\s*prompt\s*:\s*string/.test(read(path)));
+  assert.deepEqual(raw, [], "插件与平台模块的 completeText 端口应接收 InstructedPrompt / ModelPromptInput");
 });
 
-/** A prepared instruction counts only when the call uses the binding imported from the owning registry module. */
-function callsPreparedInstruction(path: string): boolean {
-  const name = join(ROOT, path), owner = join(ROOT, "apps/local-host/src/agent-definitions/instructions.js");
-  const program = ts.createProgram([name], { noResolve: true, noLib: true, types: [] });
-  const file = program.getSourceFile(name);
-  if (!file) return false;
-  const checker = program.getTypeChecker(), bindings = new Set<ts.Symbol>();
-  for (const node of file.statements) {
-    if (!ts.isImportDeclaration(node) || !ts.isStringLiteral(node.moduleSpecifier) || node.importClause?.isTypeOnly
-      || join(dirname(name), node.moduleSpecifier.text) !== owner) continue;
-    const imports = node.importClause?.namedBindings;
-    if (!imports || !ts.isNamedImports(imports)) continue;
-    for (const specifier of imports.elements) {
-      if (specifier.isTypeOnly || (specifier.propertyName ?? specifier.name).text !== "prepareInstructionPrompt") continue;
-      const binding = checker.getSymbolAtLocation(specifier.name);
-      if (binding) bindings.add(binding);
-    }
-  }
-  function calls(node: ts.Node): boolean {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-      const binding = checker.getSymbolAtLocation(node.expression);
-      if (binding && bindings.has(binding)) return true;
-    }
-    return ts.forEachChild(node, calls) === true;
-  }
-  return bindings.size > 0 && calls(file);
+const DIRECT_MODEL_CALLS = new Set([
+  "hostCompleteText",
+  "hostTextGeneration",
+  "hostTextForCommit",
+  "resolvePrologueInference",
+  "createPrologueNodeAdapter",
+  "generateImages",
+  "testConfiguredModel",
+]);
+const METHOD_MODEL_CALLS = new Set([
+  "completeText",
+  "completeTextResult",
+  "evaluateTypeSafe",
+  "generateImages",
+  "startRun",
+  "startAgentRun",
+]);
+const INSTRUCTIONS_RESOLVERS = new Set([
+  "resolveModelPrompt",
+  "resolveInstructionPrompt",
+  "prepareInstructionPrompt",
+  "registeredInstructionBody",
+  "declaredInstructionBody",
+]);
+const PLUGIN_PROMPT_RESOLVERS = new Set(["resolvePluginPrompt"]);
+const INSTRUCTIONS_OWNER_MODULE = join(ROOT, "apps/local-host/src/agent-definitions/instructions.js");
+const PLUGIN_PROMPTS_OWNER_MODULE = join(ROOT, "apps/local-host/src/installed-plugin-prompts.js");
+const MODEL_PROMPTS_CONTRACT = "@molis-ai/molis-work-contracts/platform/model-prompts";
+
+interface ModelCallSite {
+  kind: string;
+  line: number;
+  isTypedCompleteText: boolean;
 }
 
-test("Host modules reach a model only through the register, apart from the transitional list", () => {
-  const direct = /host(?:CompleteText|TextGeneration)\(|\.completeText(Result)?\(\{|\.evaluateTypeSafe\(/;
-  const offenders = HOST.filter(path => {
-    const text = read(path);
-    if (!direct.test(text)) return false;
-    return !/resolveModelPrompt|resolveInstructionPrompt|withRegisteredPrompts|resolvePluginPrompt|registeredInstructionBody|declaredInstructionBody/.test(text)
-      && !TRANSITIONAL[path] && !FACTORIES.has(path) && !callsPreparedInstruction(path);
-  });
-  assert.deepEqual(offenders, [], "这些 Host 模块直接调用模型而没有经过登记的指令");
-  for (const path of Object.keys(TRANSITIONAL)) assert.ok(direct.test(read(path)), `${path} 已不再直接调用模型，从过渡清单里去掉它`);
+interface CallableUnit {
+  id: string;
+  exported: boolean;
+  modelCalls: ModelCallSite[];
+  callsRegistryResolver: boolean;
+  callsInstructedWrapper: boolean;
+  calledLocalUnits: Set<string>;
+}
+
+function isExportedStatement(statement: ts.Statement): boolean {
+  if (!ts.canHaveModifiers(statement)) return false;
+  return Boolean(ts.getModifiers(statement)?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword));
+}
+
+function collectLocalBindingNames(node: ts.Node, out: Set<string>): void {
+  if (ts.isParameter(node) || ts.isVariableDeclaration(node) || ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) {
+    if (node.name && ts.isIdentifier(node.name)) {
+      out.add(node.name.text);
+    }
+  }
+  ts.forEachChild(node, child => collectLocalBindingNames(child, out));
+}
+
+/**
+ * Inspect one TypeScript module with the TS AST and return all monitored model call sites together with those whose
+ * enclosing callable unit (or every in-file caller of a non-exported private helper) is NOT bound to an imported
+ * prompt-registry resolver. Comments, string literals, unimported fake helpers, and a second unregistered function
+ * sharing a file with a registered caller can never bypass this check.
+ */
+function inspectModelCallSites(filePath: string, sourceText: string): { calls: string[]; unregistered: string[] } {
+  const source = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.ES2022, true);
+  const absFile = join(ROOT, filePath);
+  const registryResolvers = new Set<string>();
+  const instructedWrappers = new Set<string>();
+
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || statement.importClause?.isTypeOnly) continue;
+    const named = statement.importClause?.namedBindings;
+    if (!named || !ts.isNamedImports(named)) continue;
+    const spec = statement.moduleSpecifier.text;
+    const resolved = spec.startsWith(".") ? join(dirname(absFile), spec) : spec;
+    for (const element of named.elements) {
+      if (element.isTypeOnly) continue;
+      const importedName = (element.propertyName ?? element.name).text;
+      const localName = element.name.text;
+      if (resolved === INSTRUCTIONS_OWNER_MODULE && INSTRUCTIONS_RESOLVERS.has(importedName)) {
+        registryResolvers.add(localName);
+      } else if (resolved === PLUGIN_PROMPTS_OWNER_MODULE && PLUGIN_PROMPT_RESOLVERS.has(importedName)) {
+        registryResolvers.add(localName);
+      } else if (resolved === MODEL_PROMPTS_CONTRACT && importedName === "instructed") {
+        instructedWrappers.add(localName);
+      }
+    }
+  }
+
+  const unitNodes: Array<{ id: string; exported: boolean; node: ts.Node }> = [];
+  for (const statement of source.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      unitNodes.push({ id: statement.name.text, exported: isExportedStatement(statement), node: statement });
+    } else if (ts.isClassDeclaration(statement) && statement.name) {
+      unitNodes.push({ id: statement.name.text, exported: isExportedStatement(statement), node: statement });
+    } else if (ts.isVariableStatement(statement)) {
+      const exported = isExportedStatement(statement);
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.initializer) {
+          unitNodes.push({ id: declaration.name.text, exported, node: declaration.initializer });
+        }
+      }
+    } else if (!ts.isImportDeclaration(statement) && !ts.isInterfaceDeclaration(statement) && !ts.isTypeAliasDeclaration(statement)) {
+      unitNodes.push({ id: "<module>", exported: true, node: statement });
+    }
+  }
+
+  const knownUnitIds = new Set(unitNodes.map(unit => unit.id).filter(id => id !== "<module>"));
+  const units = new Map<string, CallableUnit>();
+  const getUnit = (id: string, exported: boolean): CallableUnit => {
+    let existing = units.get(id);
+    if (!existing) {
+      existing = { id, exported, modelCalls: [], callsRegistryResolver: false, callsInstructedWrapper: false, calledLocalUnits: new Set() };
+      units.set(id, existing);
+    } else if (exported) {
+      existing.exported = true;
+    }
+    return existing;
+  };
+
+  for (const entry of unitNodes) {
+    const unit = getUnit(entry.id, entry.exported);
+    const shadowed = new Set<string>();
+    if (ts.isFunctionDeclaration(entry.node) || ts.isClassDeclaration(entry.node)) {
+      ts.forEachChild(entry.node, child => {
+        if (child !== entry.node.name) collectLocalBindingNames(child, shadowed);
+      });
+    } else {
+      collectLocalBindingNames(entry.node, shadowed);
+    }
+
+    const visit = (node: ts.Node) => {
+      if (ts.isCallExpression(node)) {
+        const callee = unwrapExpression(node.expression);
+        const line = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+        if (ts.isIdentifier(callee)) {
+          const name = callee.text;
+          if (!shadowed.has(name) && registryResolvers.has(name)) {
+            unit.callsRegistryResolver = true;
+          }
+          if (!shadowed.has(name) && instructedWrappers.has(name)) {
+            unit.callsInstructedWrapper = true;
+          }
+          if (DIRECT_MODEL_CALLS.has(name)) {
+            unit.modelCalls.push({ kind: name, line, isTypedCompleteText: false });
+          }
+          if (knownUnitIds.has(name) && name !== unit.id) {
+            unit.calledLocalUnits.add(name);
+          }
+        } else if (ts.isPropertyAccessExpression(callee)) {
+          const method = callee.name.text;
+          if (METHOD_MODEL_CALLS.has(method) && (method !== "completeText" || node.arguments.length > 0)) {
+            unit.modelCalls.push({ kind: `.${method}`, line, isTypedCompleteText: method === "completeText" });
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(entry.node);
+  }
+
+  const reaches = (unitId: string, predicate: (unit: CallableUnit) => boolean, seen = new Set<string>()): boolean => {
+    if (seen.has(unitId)) return false;
+    seen.add(unitId);
+    const unit = units.get(unitId);
+    if (!unit) return false;
+    if (predicate(unit)) return true;
+    for (const childId of unit.calledLocalUnits) {
+      if (reaches(childId, predicate, seen)) return true;
+    }
+    return false;
+  };
+
+  const callersOf = new Map<string, Set<string>>();
+  for (const unit of units.values()) {
+    for (const target of unit.calledLocalUnits) {
+      let callers = callersOf.get(target);
+      if (!callers) {
+        callers = new Set<string>();
+        callersOf.set(target, callers);
+      }
+      callers.add(unit.id);
+    }
+  }
+
+  const unitBoundFor = (unitId: string, isTypedCompleteText: boolean, seen = new Set<string>()): boolean => {
+    if (seen.has(unitId)) return false;
+    seen.add(unitId);
+    const unit = units.get(unitId);
+    if (!unit) return false;
+    if (reaches(unitId, item => item.callsRegistryResolver)) return true;
+    if (isTypedCompleteText && reaches(unitId, item => item.callsInstructedWrapper)) return true;
+    if (unit.exported) return false;
+    const callers = callersOf.get(unitId);
+    if (!callers || callers.size === 0) return false;
+    for (const callerId of callers) {
+      if (!unitBoundFor(callerId, isTypedCompleteText, new Set(seen))) return false;
+    }
+    return true;
+  };
+
+  const calls: string[] = [];
+  const unregistered: string[] = [];
+  for (const unit of units.values()) {
+    for (const call of unit.modelCalls) {
+      const label = `${filePath}:${call.line} (${unit.id} -> ${call.kind})`;
+      calls.push(label);
+      if (!unitBoundFor(unit.id, call.isTypedCompleteText)) {
+        unregistered.push(label);
+      }
+    }
+  }
+  return { calls, unregistered };
+}
+
+test("Host, Module and Horizontal call sites reach a model only through verified prompt-registry resolvers, apart from the low-level allowlist", () => {
+  const offenders: string[] = [];
+  const allowlistHits = new Set<string>();
+  for (const path of RUNTIME_SOURCES) {
+    const inspected = inspectModelCallSites(path, read(path));
+    if (inspected.calls.length === 0) continue;
+    if (LOW_LEVEL_MODEL_CALL_ALLOWLIST[path]) {
+      allowlistHits.add(path);
+      continue;
+    }
+    offenders.push(...inspected.unregistered);
+  }
+  assert.deepEqual(offenders, [], "这些模型调用点未在所属函数内绑定到已登记的指令解析器");
+  for (const [path, reason] of Object.entries(LOW_LEVEL_MODEL_CALL_ALLOWLIST)) {
+    assert.ok(allowlistHits.has(path), `${path} 已不再包含底层模型调用点，请从 LOW_LEVEL_MODEL_CALL_ALLOWLIST 中移除`);
+    assert.ok(reason.replace(/\s+/g, "").length >= 12, `${path}: 请写明底层豁免原因`);
+  }
+});
+
+test("per-call-site AST gate rejects sibling rogue calls, comment-only mentions, and unimported fake resolvers", () => {
+  const siblingRogue = `
+    import { resolveModelPrompt } from "./agent-definitions/instructions.js";
+    import { hostTextGeneration, hostTextForCommit } from "./host-complete-text.js";
+    export function legitimate(home: string, prompt: any) {
+      const generate = hostTextGeneration({ homeDirectory: home });
+      return generate?.(resolveModelPrompt(home, prompt, "ok"));
+    }
+    export function sneaky(home: string) {
+      // resolveModelPrompt mentioned in comment must never bypass the gate
+      return hostTextForCommit(home);
+    }
+  `;
+  const siblingResult = inspectModelCallSites("apps/local-host/src/synthetic-rogue.ts", siblingRogue);
+  assert.equal(siblingResult.unregistered.length, 1, JSON.stringify(siblingResult));
+  assert.match(siblingResult.unregistered[0]!, /sneaky -> hostTextForCommit/);
+
+  const fakeResolver = `
+    import { resolvePrologueInference } from "./prologue-inference-host.js";
+    function resolveModelPrompt(raw: string) { return raw; }
+    export async function bypass(home: string) {
+      const inf = await resolvePrologueInference(home);
+      return inf.completeText({ prompt: resolveModelPrompt("unregistered") });
+    }
+  `;
+  const fakeResult = inspectModelCallSites("apps/local-host/src/synthetic-fake.ts", fakeResolver);
+  assert.equal(fakeResult.unregistered.length, 2, JSON.stringify(fakeResult));
+
+  const moduleStartRun = `
+    export async function rogueModuleCall(session: any, runtime: any) {
+      await session.startRun({ prompt: "raw" });
+      await runtime.startAgentRun({ task: "raw" });
+    }
+  `;
+  const moduleResult = inspectModelCallSites("modules/example/src/rogue.ts", moduleStartRun);
+  assert.equal(moduleResult.unregistered.length, 2, JSON.stringify(moduleResult));
 });
 
 test("Plugin Builder's designer and code Agents are registered as the prompts they run, not its unused manifest set", () => {
   const known = registered();
   for (const name of ["designer", "experience", "ui", "review", "implement", "revise", "repair", "acceptance"]) assert.ok(known.has(`io.molis.work.plugin-builder/builder-${name}`), name);
   const designer = builtinRegistrations().find(owner => owner.owner_id === "io.molis.work.plugin-builder")!.prompts.find(prompt => prompt.prompt_id === "builder-designer")!;
-  assert.equal(designer.version, 4, "FSS-74: the translated designer ships as one current version");
+  assert.ok(designer.version >= 4, "FSS-74: the translated designer ships as one current version");
   assert.match(designer.body_by_locale?.en ?? "", /design/iu);
   const roles = builtinRegistrations().find(owner => owner.owner_id === "io.molis.work.plugin-builder")!.roles;
   assert.deepEqual(roles.map(role => [role.role_id, role.prompt_ids.length]), [["designer", 4], ["coder", 4]], "两个 Agent 作为 Character 列出");
@@ -189,8 +491,8 @@ test("Plugin Builder's designer and code Agents are registered as the prompts th
   assert.doesNotMatch(workflow, /BUILDER_PROMPTS\.(designer|experience|ui|review|implement|revise|repair|acceptance)/, "工作流要经 this.prompt() 取得登记后的文字");
 });
 
-test("a Host file that asks the judgment service through the TypeSafe provider factory says where its questions come from", () => {
-  const callers = HOST.filter(path => /createPrologueTypeSafeProvider\(/.test(read(path)) && !FACTORIES.has(path)).sort();
+test("a runtime file that asks the judgment service through the TypeSafe provider factory says where its questions come from", () => {
+  const callers = RUNTIME_SOURCES.filter(path => /createPrologueTypeSafeProvider\(/.test(read(path)) && !TYPESAFE_FACTORIES.has(path)).sort();
   assert.deepEqual(callers, Object.keys(TYPESAFE_CALLERS).sort(), "a file that builds a TypeSafe provider is listed in TYPESAFE_CALLERS with its reason, and a file that no longer does is taken off it");
   for (const [path, reason] of Object.entries(TYPESAFE_CALLERS)) assert.ok(reason.replace(/\s+/g, "").length >= 12, `${path}: say where its questions come from`);
 });

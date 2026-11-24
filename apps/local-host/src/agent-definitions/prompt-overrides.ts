@@ -48,7 +48,7 @@ export function promptOverrideHandlers(definitions: () => AgentDefinitions, now 
     bindActionHandler(promptOverrideActions.export, input => {
       const wanted = input.keys && new Set(input.keys);
       return { format: "molis.prompt-overrides", format_version: FORMAT_VERSION, exported_at: new Date(now()).toISOString(),
-        overrides: definitions().prompts().filter(view => view.user && (!wanted || wanted.has(view.key))).slice(0, PROMPT_OVERRIDES_FILE_MAX_ROWS)
+        overrides: definitions().prompts().filter(view => view.user && view.override_policy !== "protected" && (!wanted || wanted.has(view.key))).slice(0, PROMPT_OVERRIDES_FILE_MAX_ROWS)
           .map(view => ({ owner_id: view.owner_id, prompt_id: view.prompt_id, title: view.title.slice(0, 200), base_version: view.user!.base_version, body: view.body })) };
     }),
     bindActionHandler(promptOverrideActions.preview, (input, caller) => {
@@ -57,7 +57,14 @@ export function promptOverrideHandlers(definitions: () => AgentDefinitions, now 
       for (const override of input.file.overrides) {
         const key = `${override.owner_id}/${override.prompt_id}`, row_id = randomUUID();
         let view: ReturnType<AgentDefinitions["prompt"]> | undefined;
-        try { view = register.prompt(key); } catch { view = undefined; }
+        try {
+          view = register.prompt(key);
+        } catch {
+          view = undefined;
+        }
+        if (view?.override_policy === "protected") {
+          throw agentDefinitionErrors.prompt_override_protected("受保护的 Prompt 不能通过导入改写", { key });
+        }
         const status: Status = !view ? "prompt_missing" : view.body === override.body ? "same" : view.default_version !== override.base_version ? "base_mismatch" : "applicable";
         rows.push({ row_id, owner_id: override.owner_id, prompt_id: override.prompt_id, title: (view?.title ?? override.title).slice(0, 200), base_version: override.base_version,
           default_version: view?.default_version ?? null, status,
@@ -76,15 +83,38 @@ export function promptOverrideHandlers(definitions: () => AgentDefinitions, now 
       const picked = input.row_ids.map(row_id => ({ row_id, row: preview.rows.get(row_id) }));
       const refused = picked.find(({ row }) => row?.status !== "applicable");
       if (refused) throw agentDefinitionErrors.overrides_row_not_applicable("只有能套用的行可以确认", { row_id: refused.row_id, status: refused.row?.status ?? "unknown" });
+      const register = definitions();
+      for (const { row } of picked) {
+        let current: ReturnType<AgentDefinitions["prompt"]> | undefined;
+        try {
+          current = register.prompt(row!.key);
+        } catch {
+          current = undefined;
+        }
+        if (current?.override_policy === "protected") {
+          throw agentDefinitionErrors.prompt_override_protected("受保护的 Prompt 不能通过导入改写", { key: row!.key });
+        }
+      }
       held.delete(input.preview_id);
       await caller.beforeEffect();
-      const register = definitions(), applied: Array<{ key: string; revision: number }> = [], skipped: Array<{ row_id: string; reason: string }> = [];
+      const applied: Array<{ key: string; revision: number }> = [];
+      const skipped: Array<{ row_id: string; reason: string }> = [];
       for (const { row_id, row } of picked) {
         // The default may have moved, or the prompt been edited elsewhere, since the preview: that row is not applied.
         try {
-          if (register.prompt(row!.key).default_version !== row!.base_version) { skipped.push({ row_id, reason: "base_mismatch" }); continue; }
+          const current = register.prompt(row!.key);
+          if (current.override_policy === "protected") {
+            throw agentDefinitionErrors.prompt_override_protected("受保护的 Prompt 不能通过导入改写", { key: row!.key });
+          }
+          if (current.default_version !== row!.base_version) {
+            skipped.push({ row_id, reason: "base_mismatch" });
+            continue;
+          }
           applied.push({ key: row!.key, revision: register.save(row!.key, row!.body, row!.revision, caller.actor_id).user!.revision });
-        } catch (error) { skipped.push({ row_id, reason: error instanceof ActionError ? error.code : "failed" }); }
+        } catch (error) {
+          if (error instanceof ActionError && error.code === "agent_definitions.prompt_override_protected") throw error;
+          skipped.push({ row_id, reason: error instanceof ActionError ? error.code : "failed" });
+        }
       }
       return { applied, skipped };
     }),

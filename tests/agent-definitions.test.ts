@@ -19,7 +19,7 @@ import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/ass
 import { DEFAULT_JUDGMENT_WORDING, fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { codingManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
-import { AgentDefinitions, agentDefinitionsFor, agentRegistration, openedAgentDefinitions } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
+import { AgentDefinitions, agentDeclarationsFor, agentDefinitionsFor, agentRegistration, openedAgentDefinitions } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
 import { builtinAgents, builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
 import { handleContextualHttp, judgmentWording, judgmentWordingRevision } from "../apps/local-host/dist/contextual/contextual-http.js";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
@@ -203,10 +203,14 @@ test("the person's edit is kept apart from the default: saved, conflict-checked,
   const second = definitions.save(key, "只用中文回答，简短。", 1, "web-user");
   assert.equal(second.user?.revision, 2);
 
-  // The run's text is the person's version, marked so its record can say so; other prompts pass through.
+  // The run's text is the person's version, marked so its record can say so; unregistered prompts are refused except platform-fixed reply-language.
   const effective = definitions.effective(ASSISTANT_PLUGIN_ID, { prompt_id: "assistant-base", version: BASE_VERSION, layer: "base", body: "default" });
   assert.deepEqual([effective.body, effective.user_revision], ["只用中文回答，简短。", 2]);
-  assert.deepEqual(definitions.effective("io.molis.work.unknown", { prompt_id: "x", version: 1, body: "as given" }).body, "as given");
+  assert.throws(
+    () => definitions.effective("io.molis.work.unknown", { prompt_id: "x", version: 1, body: "as given" }),
+    (error: unknown) => typeof error === "object" && error !== null && Reflect.get(error, "code") === "agent_definitions.not_found",
+  );
+  assert.equal(definitions.effective(ASSISTANT_PLUGIN_ID, { prompt_id: "reply-language", version: 2, body: "Reply in English." }).body, "Reply in English.");
   assert.equal(definitions.prompt(key).last_used?.user_revision, 2);
 
   // A newer default does not replace the person's version; it is flagged for them to look at.
@@ -392,4 +396,52 @@ test("PF-A14: prompt guidance splits cleanly from locked JSON output contracts a
     assert.throws(() => composeSimplifiedPrompt(sample, "   "), /恢复默认/u, "Chinese empty guidance error");
     assert.throws(() => validateFullPromptBody(sample, "纯文本"), /缺少 JSON 输出格式要求/u, "Chinese missing JSON error");
   });
+});
+
+test("AgentDeclarations preserves body_by_locale on prompts and methods across disable/reload without DDL changes", async t => {
+  const home = await mkdtemp(join(tmpdir(), "agent-declarations-locale-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const declarations = agentDeclarationsFor(home);
+  const pluginId = "com.example.localized";
+  declarations.remember("install-1", {
+    owner_id: pluginId,
+    source: { kind: "plugin", plugin_id: pluginId, plugin_version: "1.0.0", title: "Localized Plugin", state: "enabled" },
+    prompts: [
+      {
+        prompt_id: "summarize",
+        version: 1,
+        kind: "instruction",
+        title: "摘要",
+        purpose: "整理材料摘要",
+        used_by: ["Localized Plugin"],
+        body: "用中文整理材料摘要。",
+        body_by_locale: { en: "Summarize the materials in English.", "  ": "ignored", fr: "   " },
+      },
+    ],
+    roles: [],
+    methods: [
+      {
+        skill_id: "triage",
+        version: 1,
+        name: "分拣",
+        summary: "按优先级分拣条目",
+        tools: ["read-capability"],
+        body: "中文方法说明。",
+        body_by_locale: { en: "English method guidance." },
+      },
+    ],
+  });
+
+  const [remembered] = declarations.all();
+  assert.ok(remembered, "declaration persisted");
+  assert.deepEqual(remembered.registration.prompts[0]?.body_by_locale, { en: "Summarize the materials in English." });
+  assert.deepEqual(remembered.registration.methods?.[0]?.body_by_locale, { en: "English method guidance." });
+
+  const reloaded = agentDefinitionsFor(home, builtinRegistrations);
+  const enView = reloaded.prompt(`${pluginId}/summarize`, "en");
+  assert.equal(enView.source.kind === "plugin" ? enView.source.state : "", "disabled");
+  assert.equal(enView.default_body, "Summarize the materials in English.");
+  assert.equal(enView.body, "Summarize the materials in English.");
+  const zhView = reloaded.prompt(`${pluginId}/summarize`, "zh");
+  assert.equal(zhView.default_body, "用中文整理材料摘要。");
 });

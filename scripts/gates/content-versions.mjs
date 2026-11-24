@@ -1,9 +1,9 @@
 /** Content files are versioned once, independently of the language they are read in. */
 function versionKeys(file, known) {
-  const prompt = /^(?:apps\/local-host|plugins\/native\/[^/]+)\/prompts\/([^/]+)\.md$/u.exec(file);
+  const prompt = /^(?:apps\/local-host|(?:plugins\/native|horizontal|modules)\/[^/]+)\/prompts\/([^/]+)\.md$/u.exec(file);
   const method = /^plugins\/native\/([^/]+)\/methods\/(?:[^/]+\/)?([^/]+)\.md$/u.exec(file);
-  // A content pack's Skill body carries its own version in SKILL.md; the other languages are the same Skill and version.
-  const contentMethod = /^plugins\/content\/([^/]+)\/skills\/([^/]+)\/SKILL(?:\.[a-z]{2,3})?\.md$/u.exec(file);
+  // A content pack's or system skill pack's Skill body carries its own version in SKILL.md; translations share the same Skill and version.
+  const contentMethod = /^(?:plugins\/content|packages\/system-skills)\/([^/]+)\/skills\/([^/]+)\/SKILL(?:\.[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-[A-Z]{2})?)?\.md$/u.exec(file);
   const name = prompt ? "prompt." + prompt[1] : contentMethod
     ? "method." + contentMethod[1] + "." + contentMethod[2]
     : method && !method[2].startsWith("runtime.")

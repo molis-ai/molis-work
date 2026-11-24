@@ -41,9 +41,6 @@ test("OCL-01 OCL-05 OCL-06 OCL-08: a round's main event path becomes its work re
   observer.event({ type: "compaction-usage-recorded", callId: "c3", receipt: usage(30) });
   observer.event({ type: "compacted", replaced: 2 });
   observer.event({ type: "memory-recalled", injected: [{ id: "memory-1", version: 2 }], omitted: [], unavailable: [], retrieval: { outcome: "ready" } });
-  observer.event({ type: "tripped", stage: "input", rail: "prompt", why: "blocked" });
-  observer.event({ type: "tripped", stage: "output", rail: "source", why: "failed", failed: true });
-  observer.event({ type: "circuit-tripped", reason: "repeated", count: 3 });
   observer.event({ type: "awaiting-approval", effectRef: { kind: "effect", id: "e1", revision: 1 }, pendingRef: { kind: "pending", id: "p1", revision: 1 }, why: "allow?" });
   observer.event({ type: "awaiting-input", pendingRef: { id: "q1" }, kind: "question", why: "answer?" });
   observer.event({ type: "retry-waiting", model: "m2", attempt: 1, waitMs: 100, retryAtMs: 1, reason: "rate-limited", why: "busy" });
@@ -58,7 +55,7 @@ test("OCL-01 OCL-05 OCL-06 OCL-08: a round's main event path becomes its work re
     "agent.run:started:succeeded", "agent.instructions::succeeded", "agent.materials::succeeded", "agent.skill:effective:succeeded",
     "agent.reply::succeeded", "agent.prompt:system:succeeded", "agent.tool:read:succeeded",
     "agent.usage:model:succeeded", "agent.model:switched:succeeded", "agent.usage:model:succeeded", "agent.usage:compaction:succeeded",
-    "agent.compaction::succeeded", "agent.memory:recalled:succeeded", "agent.guard:input:refused", "agent.guard:output:failed", "agent.guard:circuit:refused",
+    "agent.compaction::succeeded", "agent.memory:recalled:succeeded",
     "agent.waiting:approval:waiting", "agent.waiting:input:waiting", "agent.retry::waiting",
     "agent.changes::succeeded", "agent.subagent:started:succeeded", "agent.subagent:ended:succeeded", "agent.run:ended:succeeded",
   ]);
@@ -75,7 +72,6 @@ test("OCL-01 OCL-05 OCL-06 OCL-08: a round's main event path becomes its work re
   assert.equal(uses[0]!.detail?.model_call_id, "c1"); assert.equal(uses[1]!.detail?.model_call_id, "c2"); assert.equal(uses[2]!.detail?.model_call_id, undefined);
   assert.equal(factsOf("agent.compaction")[0]!.detail?.replaced, 2);
   assert.deepEqual(factsOf("agent.memory")[0]!.subjects?.at(-1), { kind: "memory", id: "memory-1", version: 2 });
-  assert.deepEqual(factsOf("agent.guard").map(fact => [fact.stage, fact.outcome]), [["input", "refused"], ["output", "failed"], ["circuit", "refused"]]);
   assert.deepEqual(factsOf("agent.retry")[0]!.detail, { reason: "rate-limited", attempt: 1, wait_ms: 100 });
   assert.deepEqual(factsOf("agent.changes")[0]!.evidence?.map(item => item.ref), [{ kind: "owner", owner: "agent-runtime", id: "checkpoint-1", version: "digest-1" }]);
   assert.deepEqual(factsOf("agent.subagent").map(fact => [fact.stage, fact.detail?.child_run_id, fact.subjects?.at(-1)]), [
@@ -111,4 +107,20 @@ test("OCL-08: a round's failures, cancellation, action tools and compaction vari
   assert.deepEqual(factsOf("agent.memory").map(fact => fact.outcome), ["failed", "cancelled"], "a recall that failed or was cancelled is not recorded as complete");
   assert.deepEqual(factsOf("agent.subagent").map(fact => [fact.stage, fact.outcome]), [["ended", "failed"], ["ended", "cancelled"]]);
   assert.deepEqual(factsOf("agent.run").map(fact => [fact.stage, fact.outcome, fact.detail?.code]).slice(-2), [["ended", "failed", "agent.timeout"], ["ended", "cancelled", undefined]]);
+});
+
+test("RT-2 each guard stop flushes the final reply, records the guard and ends its own round once", () => {
+  for (const [event, stage, outcome] of [
+    [{ type: "tripped", stage: "input", rail: "prompt", why: "blocked" }, "input", "refused"],
+    [{ type: "tripped", stage: "output", rail: "source", why: "failed", railFailed: true }, "output", "failed"],
+    [{ type: "circuit-tripped", reason: "repeated-calls", count: 3 }, "circuit", "refused"],
+  ] as const) {
+    const facts: ObservationFactInput[] = [];
+    const observer = observeRun({ record: fact => { facts.push(fact); } }, ref, frozen, start, model);
+    observer.event({ type: "text-delta", text: "最后一段" });
+    observer.event(event);
+    assert.deepEqual(facts.filter(f => f.fact === "agent.guard").map(f => [f.stage, f.outcome]), [[stage, outcome]]);
+    assert.equal(facts.filter(f => f.fact === "agent.reply").length, 1);
+    assert.deepEqual(facts.filter(f => f.stage === "ended").map(f => [f.fact, f.outcome, f.detail]), [["agent.run", "cancelled", { reason: event.type }]]);
+  }
 });

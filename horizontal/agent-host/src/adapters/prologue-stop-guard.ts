@@ -1,4 +1,4 @@
-import type { Runtime } from "@prologue/sdk";
+import { isTerminalEventType, type Runtime } from "@prologue/sdk";
 import { actionEffect, exactBoundActionView, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, actedThisRound, emptyRoundFacts, internalIdsHeld, memoryFormationOff, memoryHeld, mentionsInternalIds, noteRoundEvent,
@@ -57,13 +57,13 @@ async function changedThisRound(done: { client: AgentActionClient; invoked: Exac
 }
 
 /** Keeps the facts of a round as its events arrive: the calls, how each ended, what the results named. */
-export function watchRoundFacts(state: RoundState, run: { ref: { id: string }; subscribe(listener: (event: { type: string }) => void): () => void }): void {
+export function watchRoundFacts(state: RoundState, run: { ref: { id: string }; subscribe(listener: (event: { type: string }) => void): () => void }, keepCompletedForView = false): void {
   const facts = emptyRoundFacts();
   state.roundFacts.set(run.ref.id, facts);
   run.subscribe(event => {
     noteRoundEvent(facts, event as { type: string; [key: string]: unknown });
     // A completed run's facts are read once more for how it ended (endedOnPromise), and dropped there.
-    if (event.type === "failed" || event.type === "cancelled") { state.roundFacts.delete(run.ref.id); state.stopGuards.forEach(guard => guard.runs.delete(run.ref.id)); }
+    if (isTerminalEventType(event.type) && !(event.type === "completed" && keepCompletedForView)) { state.roundFacts.delete(run.ref.id); state.stopGuards.forEach(guard => guard.runs.delete(run.ref.id)); }
   });
 }
 

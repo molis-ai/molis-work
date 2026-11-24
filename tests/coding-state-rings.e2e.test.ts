@@ -46,7 +46,7 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
     await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`); // the scripts read the page's SDK text context
     const result = await page.evaluate<{
       running: string[]; paused: string[]; person: string; accepted: string; labels: string[];
-      commands: string[]; letters: string[]; delegation: string; errors: string[];
+      commands: string[]; letters: string[]; stoppedMail: string; delegation: string; errors: string[];
     }>(`(async () => {
       document.body.innerHTML=${JSON.stringify(html)};
       ${STATE_RING_CLIENT_SCRIPT}
@@ -66,11 +66,11 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
       const labels=[...root.querySelectorAll('.coding-plan-state')].map(n=>n.textContent);
       const cooperation=(${embeddedFactory("cooperationUi")})({...ports,q:selector=>root.querySelector(selector),rounds:()=>[],openSession(){},refreshSessions:async()=>{},prefill(){},materialsChanged:async()=>{},
         api:async path=>path.endsWith('/background')?{commands:['running','succeeded','failed','stopped','interrupted'].map(state=>({state,summary:'command '+state}))}
-          :path.endsWith('/messages')?{messages:[{state:'queued',kind:'request',body:'请检查',outgoing:true},{state:'cancelled',kind:'request',body:'请检查',history:[{event:'failed'}]}]}
+          :path.endsWith('/messages')?{messages:[{state:'queued',kind:'request',body:'请检查',outgoing:true},{state:'cancelled',kind:'request',body:'请检查',history:[{event:'failed'}]},{state:'cancelled',kind:'request',body:'已交办',await_reply:true,history:[{event:'stopped',note:'收信的会话被护栏叫停，没有答复'}]}]}
           :{incoming:null,related:[],outgoing:[{delegation_id:'d',state:'accepted',state_label:'已接受，等待发送',title:'检查',deliveries:[],receipts:[]}]}});
       await cooperation.refresh(true);await Promise.resolve();
       const states=selector=>[...root.querySelectorAll(selector+' .mw-state-ring')].map(n=>n.dataset.mwState);
-      return {running,paused,person,accepted,labels,commands:states('.coding-background-list .mw-status'),letters:states('[data-coding-cooperation] .coding-coop-mail .mw-status'),delegation:states('.coding-coop-card .mw-status')[0],errors};
+      return {running,paused,person,accepted,labels,commands:states('.coding-background-list .mw-status'),stoppedMail:root.querySelector('.coding-coop-mail li').textContent,letters:states('[data-coding-cooperation] .coding-coop-mail .mw-status'),delegation:states('.coding-coop-card .mw-status')[0],errors};
     })()`);
     assert.deepEqual(result.running, ["done", "running", "waiting", "blocked", "cancelled", "ready"]);
     assert.deepEqual(result.paused, ["done", "paused", "waiting", "blocked", "cancelled", "ready"]);
@@ -79,7 +79,8 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
     // RCPT-356: the plan card says each state in the receipt's words (host.receipts.step), handed through its port.
     assert.deepEqual(result.labels, ["模型报告完成", "你已验收", "等待前一步", "受阻，等你决定", "已取消", "可以开始"]);
     assert.deepEqual(result.commands, ["interrupted", "stopped", "failed", "done", "running"]);
-    assert.deepEqual(result.letters, ["failed", "queued"], "failed receiving rounds are not voluntary cancellations");
+    assert.deepEqual(result.letters, ["stopped", "failed", "queued"], "failed receiving rounds are not voluntary cancellations");
+    assert.match(result.stoppedMail, /已停止/); assert.match(result.stoppedMail, /护栏叫停/); assert.doesNotMatch(result.stoppedMail, /在等答复|失败/);
     assert.equal(result.delegation, "ready", "accepting a delegation does not start execution");
     assert.deepEqual(result.errors, []);
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }

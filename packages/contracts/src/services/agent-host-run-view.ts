@@ -99,6 +99,16 @@ export interface AgentCommandOutputRef {
   run_id: string;
 }
 
+/** A verified after-write receipt, identified by the write it checked. */
+export interface AgentWriteCheckResult {
+  call_id: string;
+  checker: string | null;
+  version: number | null;
+  exit_code: number | null;
+  timed_out: boolean;
+  cancelled: boolean;
+}
+
 export interface AgentCommandOutput {
   ref: AgentCommandOutputRef;
   command: string;

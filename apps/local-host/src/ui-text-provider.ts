@@ -162,7 +162,10 @@ export function drawRegisteredText<T>(manifest: PluginManifest, draw: (resolve?:
 export function manifestWordResolver(reader: PluginTextReader | null, requested?: string | null): DirectoryWordResolver | undefined {
   if (!hasHostUiText()) return undefined;
   const locale = requested ?? activeLocale();
-  return locale === null ? undefined : directoryWordResolver(reader, locale);
+  if (locale === null) return undefined;
+  const resolve = directoryWordResolver(reader, locale);
+  if (reader !== null) return resolve;
+  return (ref, original) => ref.key.startsWith("common.") ? resolve(ref, original) : original;
 }
 
 /**

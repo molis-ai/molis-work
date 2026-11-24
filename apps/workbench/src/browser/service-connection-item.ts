@@ -17,8 +17,12 @@ export function mountConnectionItems(root: Document | HTMLElement = document): v
     const row = target.closest(".settings-connection-row");
     if (!own && (!row || row.parentElement !== item || target.closest("a, button, input, select, textarea, summary, label"))) return;
     const open = item.dataset.open !== "true";
+    const toggle = item.querySelector<HTMLElement>("[data-connection-toggle]");
+    if (!open && item.querySelector(".settings-connection-item__fold")?.contains(document.activeElement)) {
+      toggle?.focus({ preventScroll: true });
+    }
     item.dataset.open = String(open);
-    item.querySelector("[data-connection-toggle]")?.setAttribute("aria-expanded", String(open));
+    toggle?.setAttribute("aria-expanded", String(open));
   });
 }
 

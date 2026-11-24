@@ -80,3 +80,7 @@ export function renderTable(options: {
     options.rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")
   }</tbody></table></div>`;
 }
+
+export function renderCollapsible(options: { summary: string; body: string; open?: boolean; className?: string; attrs?: Record<string, AttrValue> }): string {
+  return `<details class="${cx("mw-collapsible", options.className)}" data-slot="collapsible"${options.open ? " open" : ""}${renderAttrs(options.attrs)}><summary>${escapeHtml(options.summary)}</summary><div class="mw-collapsible__body">${options.body}</div></details>`;
+}

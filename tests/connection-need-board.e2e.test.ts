@@ -18,6 +18,43 @@ test("ASC-71 at 375 and 400 wide every stage of the connection card keeps its bu
   const shots = reviewEvidenceUrl("connection-need-board/");
   await mkdir(shots, { recursive: true });
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  // BL-1055: open the SDK disclosure through the component board's real summary.
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
+  const sample = "#foundation [data-slot=collapsible]";
+  await waitFor(`document.querySelector('${sample} > summary')`);
+  await browser.click(sample + " > summary");
+  await waitFor(`document.querySelector('${sample}').open && document.querySelector('${sample} .mw-collapsible__body').innerText.includes('DESIGN.md')`);
+
+  // SCF-02 / BL-1061: the live connection specimen uses the same folds as settings. Reduced motion must
+  // settle in the same frame even after the test harness's still-mode override is removed.
+  await command("Page.navigate", { url: `${origin}/__ui/catalog#service-connections` }, sessionId);
+  await waitFor("document.readyState === 'complete' && document.querySelector('#board-conn-gmail')");
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await evaluate("document.documentElement.removeAttribute('data-craft-still')");
+  const heights: number[] = [];
+  for (const id of ["gmail", "bitbucket"]) {
+    const measured = await evaluate<{ height: number; body: number; closed: number; keptFocus: boolean; motion: string }>(`(() => {
+      const item = document.querySelector('#board-conn-${id}'), fold = item.querySelector('.settings-connection-item__fold');
+      const button = fold.querySelector('button'), toggle = item.querySelector('[data-connection-toggle]');
+      const height = fold.getBoundingClientRect().height, body = fold.querySelector('.settings-connection-item__body').getBoundingClientRect().height;
+      button.focus();
+      item.querySelector('.settings-connection-row strong').click();
+      button.focus();
+      return {height, body, closed: fold.getBoundingClientRect().height, keptFocus: document.activeElement === toggle, motion: getComputedStyle(fold).transitionDuration};
+    })()`);
+    assert.ok(measured.height > 0 && Math.abs(measured.height - measured.body) < 1);
+    assert.equal(measured.closed, 0);
+    assert.equal(measured.keptFocus, true, "the closed content cannot reclaim focus from the toggle");
+    assert.equal(parseFloat(measured.motion), 0);
+    heights.push(measured.height);
+  }
+  assert.ok(heights[1]! > heights[0]!, "the longer specimen has room for its extra content");
+  await browser.click("[data-conn-card-go]");
+  await waitFor("document.activeElement?.matches('[data-conn-card-demo] .connection-need__done')");
+  assert.deepEqual(await evaluate(`(() => {
+    const fold = document.querySelector('[data-conn-card-demo] .connection-need__fold');
+    return [fold.inert, fold.getBoundingClientRect().height, document.activeElement.textContent.trim().length > 0];
+  })()`), [true, 0, true], "the completed card gives its space and focus to the result line");
   for (const lang of ["zh", "en"] as const) {
     await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog?lang=${lang}#connection-need` }, sessionId));
     await waitFor("document.readyState === 'complete' && !!document.querySelector('#connection-need [data-connection-need-specimen]')", 20_000);

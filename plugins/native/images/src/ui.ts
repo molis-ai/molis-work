@@ -1,6 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution, UiContributionDeclaration, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderChoice, renderPluginStageShell, renderPreActionFacts } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, renderChoice, renderCollapsible, renderPluginStageShell, renderPreActionFacts } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { IMAGES_UI_CONTRIBUTION_ID } from "./manifest.js";
 
 export interface ImagesUiModel {
@@ -97,12 +97,14 @@ export function renderImagesWorkbench({ }: ImagesUiModel): string {
                   .map(([preset, label]) => renderChoice({ label, attrs: { "data-images-preset": preset } })).join("")}</div>
                 <small class="images-offer" data-images-offer></small></div>
               <label class="images-field"><span>${uiText("images.account.label")}</span><select class="mw-select" data-images-connection-auth><option value="">${uiText("images.account.anonymous")}</option></select><small data-images-key-help>${uiText("images.account.key-management")}</small></label><a href="/settings/connectors?connector=image-api">${uiText("images.account.open-connectors")}</a>
-              <details class="mw-collapsible images-advanced" data-images-advanced><summary>${uiText("images.service.advanced")}</summary><div class="mw-collapsible__body">
+              ${renderCollapsible({
+                summary: uiText.text("images.service.advanced"), className: "images-advanced", attrs: { "data-images-advanced": true },
+                body: `
                 <label class="images-field"><span>${uiText("images.service.name")}</span><input class="mw-input" name="connection_name" data-images-connection-name required autocomplete="off"></label>
                 <div class="images-field"><span>${uiText("images.service.format")}</span><div class="images-protocols" role="group" aria-label="${uiText("images.service.format")}"><button class="mw-btn mw-btn--secondary" type="button" data-images-format="openai-images" aria-pressed="true">OpenAI Images</button><button class="mw-btn mw-btn--secondary" type="button" data-images-format="gemini" aria-pressed="false">Gemini generateContent</button></div></div>
                 <label class="images-field"><span>${uiText("images.service.url")}</span><input class="mw-input" name="base_url" data-images-connection-url type="url" required autocomplete="off" placeholder="https://api.openai.com/v1"></label>
                 <label class="images-field"><span>${uiText("images.service.model-name")}</span><input class="mw-input" name="model" data-images-connection-model required autocomplete="off"></label>
-              </div></details>
+              ` })}
             </fieldset>
           </div>
           <footer class="images-dialog-footer"><p class="images-note" role="status" data-images-connection-note hidden></p><div class="images-actions"><button class="mw-btn mw-btn--ghost" type="button" data-images-add-connection>${uiText("images.service.add-another")}</button><button class="mw-btn mw-btn--primary" type="submit" data-images-save-connection>${uiText("images.service.save")}</button></div></footer>

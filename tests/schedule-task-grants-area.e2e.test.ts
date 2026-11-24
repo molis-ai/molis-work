@@ -25,6 +25,10 @@ const OBSERVE = `(() => { if (window.top !== window) return;
   window.fetch = function (input, init) {
     const url = String(input instanceof Request ? input.url : input);
     window.tgaUrls.push(url);
+    if (window.tgaFailGrantList && new URL(url, location.href).pathname.endsWith("/io.molis.work.schedule/grants")) {
+      window.tgaFailGrantList = false;
+      return Promise.resolve(new Response(null, { status: 503 }));
+    }
     if (url.includes("/api/host/plugin-page-task-grants")) {
       let body; try { body = JSON.parse(init.body); } catch { /* not a JSON body: not an area request */ }
       if (body) window.tgaKeys.push(body.key);
@@ -44,18 +48,33 @@ test("TGA-21 TGA-22 FSS-35 Schedule keeps the open task's grants and its localiz
   const made = async (title: string) => (await browser.web.post<{ task: { task_id: string } }>(api + "/tasks", { title, instructions: "List what is due today", time: "08:00" })).task.task_id;
   const first = await made("Morning brief"), second = await made("Evening review");
   const child = await pluginFrameBrowser(t, browser, "schedule");
-  await pluginFrameInitScript(t, browser, OBSERVE);
   const path = `/projects/${browser.projectId}/?openPlugin=schedule`;
-  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/locale?lang=zh&next=" + encodeURIComponent(path) }, browser.sessionId));
-  await browser.surfaceReady("schedule");
   const row = (id: string) => `[data-schedule-row][data-schedule-task-id="${id}"]`;
   const mark = (id: string) => child.evaluate<string>(`document.querySelector(${JSON.stringify(row(id) + " [data-schedule-kind-mark]")}).dataset.scheduleKindMark`);
-  await child.waitFor(`document.querySelector(${JSON.stringify(row(first) + " [data-schedule-kind-mark]")}).dataset.scheduleKindMark !== "unknown"`);
-  assert.equal(await mark(first), "files", "a new task reads project files");
   const grantReads = () => browser.evaluate<number>(`window.tgaUrls.filter(url => new URL(url, location.href).pathname.endsWith("/io.molis.work.schedule/grants")).length`);
   const areas = () => browser.evaluate<number>(`document.querySelectorAll(${JSON.stringify(AREA)}).length`);
   const element = (id: string) => `[data-schedule-detail="${id}"] [data-schedule-reads-area]`;
   const settle = (ms = 650) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // SCF-03 / BL-schedule-reads-actions-render-alert: with the grants list and platform area both unavailable,
+  // the fallback in the actual plugin detail is reachable. Only the first list read fails.
+  await pluginFrameInitScript(t, browser, "window.tgaFailGrantList = window.tgaFailNextRead = true;" + OBSERVE);
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + path }, browser.sessionId));
+  await browser.surfaceReady("schedule");
+  const failed = `[data-schedule-detail="${first}"] [data-schedule-reads-failed][data-slot="alert"]`;
+  await child.waitFor(`document.querySelector('${failed}')?.hidden === false`);
+  await child.click(row(first));
+  await child.waitFor(`!document.querySelector('${element(first)}').hasAttribute('data-schedule-area-placed')`);
+  assert.equal(await grantReads(), 1);
+  await child.click(failed + " .mw-alert__actions [data-schedule-reads-retry]");
+  await child.waitFor(`document.querySelector('${failed}').hidden && document.querySelector('${row(first)} [data-schedule-kind-mark]').dataset.scheduleKindMark === 'files'`);
+  assert.equal(await grantReads(), 2, "one failed list request and one successful read from the retry button");
+
+  await pluginFrameInitScript(t, browser, OBSERVE);
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/locale?lang=zh&next=" + encodeURIComponent(path) }, browser.sessionId));
+  await browser.surfaceReady("schedule");
+  await child.waitFor(`document.querySelector(${JSON.stringify(row(first) + " [data-schedule-kind-mark]")}).dataset.scheduleKindMark !== "unknown"`);
+  assert.equal(await mark(first), "files", "a new task reads project files");
 
   // TGA-21: opening a task places the area on its detail's kept element, keyed by the task's id; the element is the area's height.
   await child.click(row(first));

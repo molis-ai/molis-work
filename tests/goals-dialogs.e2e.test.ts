@@ -19,6 +19,9 @@ test("QEA-167 refreshing create choices preserves the unsaved draft, selected re
   await showGoalStageList();
   await click("[data-goal-stage-chrome] [data-open-create]");
   await waitFor("document.activeElement.name === 'title'");
+  // BL-1055: all advanced fields are inside the shared fold, including the last priority field.
+  await click("[data-create-form] [data-slot=collapsible] > summary");
+  await waitFor("document.querySelector('[data-create-form] .mw-collapsible__body [name=priority]').checkVisibility()");
   await evaluate(`(() => {
     const form = document.querySelector('[data-create-form]');
     form.elements.title.value = 'Unsaved draft';

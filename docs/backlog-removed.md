@@ -6,6 +6,9 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-1055 | 分支已实现 | SDK 与设计系统共用折叠组件，Images、Goals 已接入，Files 旧面板随 #2009 退役。[SCF-01](../specs/shared-ui-folds/spec.md#验收标准) |
+| BL-1061 | 分支已实现 | 连接行、原处连接卡和设计系统的自然高度折叠共用选择器函数。[SCF-02](../specs/shared-ui-folds/spec.md#验收标准) |
+| BL-schedule-reads-actions-render-alert | 分支已实现 | 日程读取失败使用共享提示的动作槽，点击重试会再次读取。[SCF-03](../specs/shared-ui-folds/spec.md#验收标准) |
 | BL-921 | 已完成并删除 | 记录槽在存储层拒绝普通换绑，明确换用核对原账号。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
 | BL-1050 | 已完成并删除 | 连接页经项目 MCP 目录汇总 Coding 配置的用途，自动换用另属 BL-1045。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
 | BL-1051 | 已完成并删除 | 自定义 MCP 重登预填认证方式，令牌和客户端密钥框留空。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |

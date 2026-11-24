@@ -5,6 +5,7 @@
       "assets": [
         "/assets/molis-work-workbench.css",
         "/assets/molis-work-workbench.js",
+        "/assets/molis-work-mainline.js",
         "/assets/molis-work-composer.js",
         "/assets/ui-skin/folio-1.css"
       ]

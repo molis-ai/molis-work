@@ -75,8 +75,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     get(key) { try { return localStorage.getItem(key); } catch { return null; } },
     set(key, value) { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* per-viewer convenience only */ } },
   };
-  // What this viewer has in front of them is remembered per project (proactive-assistant §12.1): another project starts from its own.
-  const scoped = (name) => "molis.assistant." + name + (project ? ":" + project.id : "");
+  // What this viewer has in front of them is remembered per project (proactive-assistant §12.1) and per work item (MLN-16).
+  const scoped = (name) => "molis.assistant." + name + (project ? ":" + project.id : "") + (activeWorkItem() ? ":item:" + activeWorkItem().id : "");
   let works = [];
   let curId = store.get(scoped("current"));
   let view = null;
@@ -765,5 +765,5 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
       closeSubtask(); project = chosen; eventTabs = []; nextChar = undefined; talkDraft = ""; nextScope = project ? "project" : "personal";
       void showWork(store.get(scoped("current")));
     },
-    dispose: () => { closeSubtask(); releaseSubtaskAccount?.(); executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
+    dispose: () => { closeSubtask(); releaseSubtaskAccount?.(); executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); disposeWorkItemPill(); document.removeEventListener("molis-work:attention", placedMoved); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
 }`;

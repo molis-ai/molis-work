@@ -29,7 +29,7 @@ const css = [
   processFold("", { group: ".pf-group", groupBody: ".pf-group__body", step: ".pf-step", stepBody: ".pf-step__body" }),
   // Item rows and their glyph square (the board's catalog-patterns.ts), then the board's list-and-detail parts: 08's skill packs and
   // 09's AI kits (state block, item group, cells, trail, icon counts, state rows, usage, sticky detail).
-  ds.ITEM_ROW_STYLES, ds.MARK_STYLES, ds.SKILL_PACK_BOARD_STYLES, ds.CAPABILITY_PACK_BOARD_STYLES,
+  ds.ITEM_ROW_STYLES, ds.MARK_STYLES, ds.SKILL_PACK_BOARD_STYLES, ds.CAPABILITY_PACK_BOARD_STYLES, ds.HOME_PAGE_ADOPTION_STYLES,
   // The palette hues (--hue-*) and the tone aliases built on them, for both resolved themes.
   `html{${ds.renderPaletteTokens("light")}} html[data-resolved-theme="dark"]{${ds.renderPaletteTokens("dark")}}`,
 ].filter(Boolean).join("\n");
@@ -43,11 +43,13 @@ import { renderDiff, compareChange } from ${sdk("diff-view.js")};
 import { renderMenu, renderMenuItem, renderMenuGroup, renderPopover, renderTooltip } from ${dsp("primitives/overlay.js")};
 import { renderToggleGroup, renderTabs, renderCollapsible } from ${dsp("primitives/navigation.js")};
 import { renderNowBlock, renderPickRow, renderItemGroup, renderCells, renderDetailTrail, renderIconCounts, renderStateRows, renderUsage } from ${dsp("primitives/capability-pack.js")};
+import { renderCompareAdoptBar, renderCheckSummary, renderEditConflict } from ${dsp("primitives/home-page-adoption.js")};
 import { renderFileKind, renderFileRow, renderFileGroup, renderBarStatus, renderSteps } from ${dsp("primitives/arrival.js")};
 window.mwKit = { ...ui, renderDiff, compareChange,
   renderMenu, renderMenuItem, renderMenuGroup, renderPopover, renderTooltip, renderToggleGroup, renderTabs, renderSteps,
   renderFileKind, renderFileRow, renderFileGroup, renderBarStatus, renderCollapsible,
-  renderNowBlock, renderPickRow, renderItemGroup, renderCells, renderDetailTrail, renderIconCounts, renderStateRows, renderUsage };
+  renderNowBlock, renderPickRow, renderItemGroup, renderCells, renderDetailTrail, renderIconCounts, renderStateRows, renderUsage,
+  renderCompareAdoptBar, renderCheckSummary, renderEditConflict };
 `;
 const out = await build({ stdin: { contents: entry, resolveDir: root, loader: "js" }, bundle: true, write: false, format: "iife", platform: "browser", minify: true, logLevel: "silent" });
 const renderers = out.outputFiles[0].text;

@@ -9,7 +9,7 @@ export { UI_LANGUAGE_PREVIEW_HEADER } from "./web-sessions.js";
 function shell(request: IncomingMessage, control: string): boolean {
   const { headers } = request;
   return typeof headers[WEB_PAGE_SESSION_HEADER] === "string" && webRequestAuthenticated(request, control)
-    && headers["x-molis-plugin-page"] === undefined && headers["x-molis-context-page"] === undefined
+    && headers["x-molis-plugin-page"] === undefined && headers["x-molis-context-page"] === undefined && headers["x-molis-home-page"] === undefined
     && (headers["sec-fetch-site"] === undefined || headers["sec-fetch-site"] === "same-origin")
     && (headers.origin === undefined || headers.origin === `http://${requestHost(request)}`);
 }

@@ -252,6 +252,16 @@
       ],
       "reason": "Requirements, evidence and acceptance (specs/proactive-assistant §7.3.1, modules/acceptance): the contract of its system actions, the module and its Host wiring; its codes are acceptance.*."
     },
+    "home": {
+      "paths": [
+        "apps/local-host/src/home-page-authority.ts",
+        "apps/local-host/src/home-pages-actions.ts",
+        "apps/local-host/src/home-pages-http.ts",
+        "horizontal/home/",
+        "packages/contracts/src/services/home.ts"
+      ],
+      "reason": "The homepage service (specs/scene-and-page-contract §6): generated page versions, SHA-256 blobs, approval receipts, preview sessions and their Host wiring; its codes are home.*."
+    },
     "mainline": {
       "paths": [
         "apps/local-host/src/mainline-actions.ts",

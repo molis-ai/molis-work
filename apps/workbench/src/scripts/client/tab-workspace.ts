@@ -88,11 +88,20 @@ ${TAB_WORKSPACE_DRAG_PART}
   const TAB_SHARE_MIN = ${TAB_SHARE_MIN};
   const TAB_SHARE_MIN_TOUCH = ${TAB_SHARE_MIN_TOUCH};
   const storageKey = "molis-work-tab-workspace:" + (getProjectId() || "board");
+  const itemsStorageKey = storageKey + ":by-item";
+  const activeItemStorageKey = storageKey + ":active-item";
+  const readItemLayouts = () => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(itemsStorageKey) || "{}");
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch { return {}; }
+  };
   const paneParams = new URLSearchParams(location.search), personal = getProjectId() === "personal";
   // A link that asked for a plugin page (onboarding sends the person to Todo) is honored over "entering starts at home".
   let pluginRequestedOnLoad = false;
   const embedded = window.parent !== window && paneParams.has("workbenchPane");
   if (embedded) document.body.dataset.paneEmbedded = "true";
+  let currentWorkItemId = embedded ? null : (() => { try { return localStorage.getItem(activeItemStorageKey) || null; } catch { return null; } })();
   const panes = host.paneMessages;
   if (embedded) {
     document.addEventListener("pointerdown", () => notifyParent("workbench-pane-focus"), true);
@@ -180,7 +189,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       return;
     }
     try {
-      const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
+      const stored = currentWorkItemId ? (readItemLayouts()[currentWorkItemId]?.state ?? null) : JSON.parse(localStorage.getItem(storageKey) || "null");
       // Only a layout of another shape starts fresh (口径 4). One naming a plugin this project no longer offers, or one Home no
       // longer has at all, is read as it is: that plugin's tabs stay, marked removed (removedPlugin), until added back or closed.
       if (!resetLayout && isCurrent(stored)) {
@@ -729,6 +738,72 @@ ${TAB_WORKSPACE_DRAG_PART}
     const page = pageClient?.(plugin);
     if (page?.withItem) page.withItem(itemId, () => { apply(); persist(); });
     else { apply(); persist(); }
+  });
+  // Per-item PFG-22 workspace state layer (specs/work-mainline §4.3, MLN-05, MLN-06): switching work items saves
+  // the current item's panes/tabs/side/scroll and restores the target item's (or opens its First Page + 「这件事的东西」).
+  if (!embedded) document.addEventListener("molis-work:work-item-changed", (event) => {
+    const detail = event.detail || {};
+    const nextId = typeof detail.item_id === "string" && detail.item_id ? detail.item_id : null;
+    if (nextId === currentWorkItemId) {
+      if (nextId && detail.item_name) {
+        let renamed = false;
+        for (const pane of state.panes) {
+          for (const tab of pane.tabs) {
+            if (tab.kind === "system" && tab.owner === "work-item" && tab.itemId === nextId && tab.title !== detail.item_name) {
+              tab.title = detail.item_name; renamed = true;
+            }
+          }
+        }
+        if (renamed) { apply(); persist(); }
+      }
+      return;
+    }
+    for (const node of collectMounted()) if (!node.hidden) rememberScroll(node);
+    persist();
+    currentWorkItemId = nextId;
+    try {
+      if (nextId) localStorage.setItem(activeItemStorageKey, nextId);
+      else localStorage.removeItem(activeItemStorageKey);
+    } catch { /* ignore */ }
+    const savedEntry = nextId ? readItemLayouts()[nextId] : null;
+    const savedState = nextId ? savedEntry?.state : (() => { try { return JSON.parse(localStorage.getItem(storageKey) || "null"); } catch { return null; } })();
+    tabHistory.clear();
+    if (savedEntry?.history && typeof savedEntry.history === "object") {
+      for (const [pid, h] of Object.entries(savedEntry.history)) {
+        if (Array.isArray(h?.stack)) tabHistory.set(pid, { stack: h.stack.slice(-HISTORY_LIMIT), index: Math.max(-1, Math.min(Number(h.index) || 0, h.stack.length - 1)) });
+      }
+    }
+    openRecords = savedEntry?.openRecords && typeof savedEntry.openRecords === "object" ? { ...savedEntry.openRecords } : {};
+    if (isCurrent(savedState)) {
+      state = ops.normalizeLayout(savedState);
+      apply();
+      sidePane?.restore();
+      persist();
+      return;
+    }
+    state = ops.create();
+    apply();
+    if (nextId) {
+      const contentsBtn = document.querySelector('[data-side-tab="item-contents"]');
+      if (contentsBtn) contentsBtn.hidden = false;
+      sidePane?.open("item-contents");
+      if (detail.source) {
+        void molisWorkRequest(host.route("/api/mainline/open"), { body: { subject: detail.source } }).then((found) => {
+          const to = found && found.target;
+          if (!to) return;
+          if (to.kind === "surface" || !to.id) openPlugin(to.surface);
+          else openItem(to.surface, to.id, to.title);
+        }).catch(() => {});
+      } else {
+        document.dispatchEvent(new CustomEvent("molis-work:system-view-open", {
+          detail: { owner: "work-item", id: nextId, title: detail.item_name || nextId },
+          cancelable: true,
+        }));
+      }
+    } else {
+      sidePane?.restore();
+    }
+    persist();
   });
   return { apply, readView, writeView, openView, focusPane, syncHomeClones, homeNavigationFrom, positionNavigationFrom, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, setItemView, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, startPage, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,

@@ -19,6 +19,7 @@ import { hostErrors } from "./host-errors.js";
 import { createSettingsVersionClaims } from "./declaration-owners.js";
 import { bindHomeSide, bindPluginCatalog, releaseHomeSide, type PluginFixture } from "./home-side.js";
 import { homeActionProvider } from "./home-actions.js";
+import { homePagesPorts } from "./home-pages-actions.js";
 import { surfaceActionProvider } from "./surface-actions.js";
 import type { SurfaceHomeCatalogReader } from "./surface-home-directory.js";
 import { projectSurfaceHome } from "./surface-home-http.js";
@@ -271,6 +272,7 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes: this.sceneClient(reference), functions: options.functions, readFunctions: this.systemFunctions?.read, pageDrafts: this.draftReferences,
+                homePages: homePagesPorts(options.homeDirectory, caller => this.inspectActions(caller, reference), clock),
                 projectPlugins: projectId => this.projectPluginReach(projectId) }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,

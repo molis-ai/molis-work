@@ -36,6 +36,8 @@ export interface TaskPanelLine {
   acceptance(slot: HTMLElement, target: { provider_id: string; subject: ActionSubject }): { update(): void; destroy(): void };
   /** The steps given to sub-agents that this page knows of (the Assistant's works). */
   subtasks(): readonly SubtaskRef[];
+  /** Owning work item name for a task or the event it serves, shown neutrally in 「在办」 (Decision 48 ⑥). */
+  itemName?(subject: ActionSubject, serves: readonly ActionSubject[]): string | undefined;
 }
 
 /** Draw `root` again and keep the words being written into a decision's field, with the caret, when the field is still there. */
@@ -252,10 +254,14 @@ export function installTasks(host: WorkBarHost, line: TaskPanelLine): WorkTasks 
   const ended = (task: BackgroundTaskRow) => BACKGROUND_TASK_DONE_STATES.has(task.state);
   const servedBy = (task: BackgroundTaskRow) => task.serves.map(subject => events.values().find(one => keyOf(one.subject) === keyOf(subject))).find(Boolean);
   const serving = (subject: ActionSubject) => tasks.filter(task => task.serves.some(one => keyOf(one) === keyOf(subject)));
-  const row = (task: BackgroundTaskRow, level: 1 | 2 = 1): TaskRowView => ({ id: task.id, title: task.title, ring: task.state, step: [task.step?.text, task.executor.label].filter(Boolean).join(" · "), level,
-    ...(ended(task) ? { done: true } : {}),
-    ...(offlineSince !== null && !ended(task) ? { checking: true } : asks(task) && task.open && !task.decisions.length ? { control: "decide" as const }
-      : task.commands.some(command => command.role === "stop") ? { control: "stop" as const, busy: stops.busy(task) } : {}) });
+  const row = (task: BackgroundTaskRow, level: 1 | 2 = 1): TaskRowView => {
+    const item = line.itemName?.(task.subject, task.serves);
+    return { id: task.id, title: task.title, ring: task.state, step: [task.step?.text, task.executor.label].filter(Boolean).join(" · "), level,
+      ...(item ? { item } : {}),
+      ...(ended(task) ? { done: true } : {}),
+      ...(offlineSince !== null && !ended(task) ? { checking: true } : asks(task) && task.open && !task.decisions.length ? { control: "decide" as const }
+        : task.commands.some(command => command.role === "stop") ? { control: "stop" as const, busy: stops.busy(task) } : {}) };
+  };
   /** These tasks as rows: a step given to a sub-agent under its task — the same row, one level in, when the step is a task of the table too. */
   const tree = (list: readonly BackgroundTaskRow[]): string => {
     const all = ordered(list), subs = line.subtasks(), at = new Map(all.map(task => [keyOf(task.subject), task]));

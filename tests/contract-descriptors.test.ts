@@ -8,11 +8,11 @@ import { servicesHomeContract } from "@molis-ai/molis-work-contracts/services/ho
 import { servicesSessionsContract } from "@molis-ai/molis-work-contracts/services/sessions";
 import { servicesSurfaceCompositionContract } from "@molis-ai/molis-work-contracts/services/surface-composition";
 
-const later: ReadonlyArray<[string, ContractDescriptor]> = [["services/home", servicesHomeContract]];
+const later: ReadonlyArray<[string, ContractDescriptor]> = [];
 const root = join(import.meta.dirname, "..");
 
-test("composition, external sessions and scene adoption identify their running providers and SSOT", () => {
-  for (const contract of [servicesSurfaceCompositionContract, servicesSessionsContract, servicesBlueprintsContract]) {
+test("composition, external sessions, scene adoption and home identify their running providers and SSOT", () => {
+  for (const contract of [servicesSurfaceCompositionContract, servicesSessionsContract, servicesBlueprintsContract, servicesHomeContract]) {
     assert.equal(contract.kind, "service");
     assert.equal(contract.maturity, "partial");
     assert.ok(existsSync(join(root, contract.ssot)), contract.ssot);

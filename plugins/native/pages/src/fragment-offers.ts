@@ -1,4 +1,38 @@
 import type { FragmentActionOffer, FragmentOfferChoice, FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+
+const OFFER_TITLE_KEYS: Readonly<Record<string, string>> = {
+  explain: "pages.offer.explain",
+  counter: "pages.offer.counter",
+  reader: "pages.offer.reader",
+  coach: "pages.offer.coach",
+  expand: "pages.offer.expand",
+  continue: "pages.offer.continue",
+  actions: "pages.offer.actions",
+  bullets: "pages.offer.bullets",
+  summarize: "pages.offer.summarize",
+  outline: "pages.offer.outline",
+  concise: "pages.offer.concise",
+  elaborate: "pages.offer.elaborate",
+  formal: "pages.offer.formal",
+  casual: "pages.offer.casual",
+  translate: "pages.offer.translate",
+  compare: "pages.offer.compare",
+  merge: "pages.offer.merge",
+  synthesize: "pages.offer.synthesize",
+  proofread: "pages.offer.proofread",
+  translate_new: "pages.offer.translate-new",
+};
+
+function localized(key: string, fallback: string, args?: Record<string, string | number>): string {
+  const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null; ownerOfPrefix?(prefix: string): string | null } | undefined;
+  if (!provider?.locale?.() || !provider.ownerOfPrefix?.("pages")) return fallback;
+  try {
+    return uiText.text(key, args);
+  } catch {
+    return fallback;
+  }
+}
 
 /**
  * Everything Pages offers for a document, its parts and several documents: the one list both the context row and the
@@ -60,7 +94,8 @@ export function preparePagesFragmentOffers(input: FragmentOffersInput, kind: str
   return PAGES_FRAGMENT_CHOICES.filter(choice => (!choice.granularities || choice.granularities.includes(fragment.granularity))
     && (!choice.roles || fragment.granularity === "object" || roles.some(role => role && choice.roles!.includes(role))))
     .map(choice => ({
-      offer_id: choice.offer_id, title: choice.title,
+      offer_id: choice.offer_id,
+      title: OFFER_TITLE_KEYS[choice.offer_id] ? localized(OFFER_TITLE_KEYS[choice.offer_id]!, choice.title) : choice.title,
       action: { ...choice.action, ...(providerId ? { provider_id: providerId } : {}) },
       input: choice.offer_id === "synthesize" ? synthesizeInput(input)
         : { id: fragment.object.id, ...COMMAND[choice.offer_id], text: text180000, ...(Number.isInteger(version) && fragment.granularity !== "objects" ? { expected_version: version } : {}) },
@@ -71,8 +106,16 @@ export function preparePagesFragmentOffers(input: FragmentOffersInput, kind: str
 }
 
 function objectsSummary(offerId: string, targets: FragmentOffersInput["fragment"]["targets"]): string {
-  const names = targets.map(target => `「${target.ref?.title ?? "无标题"}」`).join("");
-  return [...(offerId === "synthesize" ? `用 ${targets.length} 篇文档${names}合成一篇新文档，原文不变` : `并排比较 ${targets.length} 篇文档${names}的相同点、不同点和冲突`)].slice(0, 600).join("");
+  const untitled = localized("pages.doc.untitled", "无标题");
+  const separator = localized("common.list.separator", "、");
+  const names = targets.map(target => target.ref?.title ?? untitled).join(separator);
+  const fallback = offerId === "synthesize"
+    ? `用 ${targets.length} 篇文档（${names}）合成一篇新文档，原文不变`
+    : `并排比较 ${targets.length} 篇文档（${names}）的相同点、不同点和冲突`;
+  const text = offerId === "synthesize"
+    ? localized("pages.offer.synthesize-summary", fallback, { count: targets.length, names })
+    : localized("pages.offer.compare-summary", fallback, { count: targets.length, names });
+  return [...text].slice(0, 600).join("");
 }
 
 /** `pages.generate` input for several selected documents: their current text as snapshots, one stable request per selection. */
@@ -83,7 +126,10 @@ function synthesizeInput(input: FragmentOffersInput): unknown {
     provenance: [{ kind: target.ref!.kind, id: target.ref!.id, version: target.ref!.version ?? null, selected_as: "context-actions", snapshot_scope: "selection", truncated: target.truncated === true }],
   }));
   const titles = inputs.map(item => item.title).filter(Boolean);
+  const rawTitle = titles.length
+    ? localized("pages.offer.synthesize-title", `综合：${titles.slice(0, 3).join(" · ")}`, { titles: titles.slice(0, 3).join(" · ") })
+    : localized("pages.offer.synthesize-untitled", "综合文稿");
   return { request_id: input.request_id, request_hash: input.request_id, inputs,
-    title: titles.length ? [...`综合：${titles.slice(0, 3).join(" · ")}`].slice(0, 80).join("") : "综合文稿",
-    instructions: "提炼这些材料的共同结论、分歧和可执行建议，写成一篇结构清楚的新文档；引用时注明出自哪份材料。" };
+    title: [...rawTitle].slice(0, 80).join(""),
+    instructions: localized("pages.offer.synthesize-instructions", "提炼这些材料的共同结论、分歧和可执行建议，写成一篇结构清楚的新文档；引用时注明出自哪份材料。") };
 }

@@ -1,5 +1,15 @@
-import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as esc, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormRecord, FormSubmissionRecord } from "./contract.js";
+
+function localized(key: string, fallback: string): string {
+  const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null; ownerOfPrefix?(prefix: string): string | null } | undefined;
+  if (!provider?.locale?.() || !provider.ownerOfPrefix?.("form")) return fallback;
+  try {
+    return uiText.text(key);
+  } catch {
+    return fallback;
+  }
+}
 
 /** What an exported fill page writes and `form.answers.import` reads back. */
 export const FORM_ANSWER_FORMAT = /* @version type.molis.form.answer "molis.form.answer.v{version}" */ "molis.form.answer.v1";
@@ -139,7 +149,8 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
 }
 
 export function formFillPageFilename(title: string): string {
-  return [...(title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷")].slice(0, 80).join("") + " · 填写页.html";
+  const base = title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || localized("form.page.title", "问卷");
+  return [...base].slice(0, 80).join("") + localized("form.export.fill-suffix", " · 填写页.html");
 }
 
 /** Responses as a table a spreadsheet opens: one row per response, one column per question (UTF-8 with BOM for Excel). */
@@ -148,8 +159,16 @@ export function formResultsCsv(form: FormRecord, submissions: readonly FormSubmi
   for (const question of form.questions) columns.set(question.id, question.title || question.id);
   for (const submission of submissions) for (const question of submission.questions) if (!columns.has(question.id)) columns.set(question.id, question.title || question.id);
   const cell = (value: string) => /[",\r\n]/u.test(value) || /^[=+\-@]/u.test(value) ? '"' + (/^[=+\-@]/u.test(value) ? "'" : "") + value.replaceAll('"', '""') + '"' : value;
-  const source = { preview: "试填", fill: "本机填写页", file: "答卷文件", agent: "助理提交", mcp: "外部工具提交", workflow: "工作流提交", plugin: "插件提交" } as const;
-  const header = ["request_id", "提交时间", "来源", ...columns.values()].map(cell).join(",");
+  const source = {
+    preview: localized("form.try.label", "试填"),
+    fill: localized("form.source.fill", "本机填写页"),
+    file: localized("form.source.file", "答卷文件"),
+    agent: localized("form.source.agent", "助理提交"),
+    mcp: localized("form.source.mcp", "外部工具提交"),
+    workflow: localized("form.source.workflow", "工作流提交"),
+    plugin: localized("form.source.plugin", "插件提交"),
+  } as const;
+  const header = ["request_id", localized("form.csv.submitted-at", "提交时间"), localized("form.csv.source", "来源"), ...columns.values()].map(cell).join(",");
   const rows = [...submissions].sort((a, b) => a.submitted_at.localeCompare(b.submitted_at)).map(submission => [
     submission.request_id?.trim() || submission.id, submission.submitted_at, source[submission.source], ...[...columns.keys()].map(id => String(submission.answers[id] ?? "").replaceAll("\n", "；")),
   ].map(cell).join(","));
@@ -157,5 +176,6 @@ export function formResultsCsv(form: FormRecord, submissions: readonly FormSubmi
 }
 
 export function formResultsCsvFilename(title: string): string {
-  return [...(title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷")].slice(0, 80).join("") + " · 答卷.csv";
+  const base = title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || localized("form.page.title", "问卷");
+  return [...base].slice(0, 80).join("") + localized("form.export.csv-suffix", " · 答卷.csv");
 }

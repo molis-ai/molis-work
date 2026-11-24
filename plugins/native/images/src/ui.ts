@@ -27,7 +27,7 @@ export const imagesUiContribution: UiContribution<ImagesUiModel> = {
   render(request: UiRenderRequest<ImagesUiModel>): string {
     if (request.surface === "directory") return "";
     if (request.surface === "workbench") return renderImagesWorkbench(request.model);
-    throw new Error(`Images UI surface ${request.surface} 不存在`);
+    throw new Error(`Unknown Images UI surface: ${request.surface}`);
   },
 };
 
@@ -99,7 +99,7 @@ export function renderImagesWorkbench({ }: ImagesUiModel): string {
               <label class="images-field"><span>${uiText("images.account.label")}</span><select class="mw-select" data-images-connection-auth><option value="">${uiText("images.account.anonymous")}</option></select><small data-images-key-help>${uiText("images.account.key-management")}</small></label><a href="/settings/connectors?connector=image-api">${uiText("images.account.open-connectors")}</a>
               <details class="mw-collapsible images-advanced" data-images-advanced><summary>${uiText("images.service.advanced")}</summary><div class="mw-collapsible__body">
                 <label class="images-field"><span>${uiText("images.service.name")}</span><input class="mw-input" name="connection_name" data-images-connection-name required autocomplete="off"></label>
-                <div class="images-field"><span>${uiText("images.service.format")}</span><div class="images-protocols" role="group" aria-label="${uiText("images.service.format")}"><button class="mw-btn mw-btn--secondary" type="button" data-images-format="openai-images" aria-pressed="true">OpenAI Images</button><button class="mw-btn mw-btn--secondary" type="button" data-images-format="gemini" aria-pressed="false">Gemini generateContent</button></div></div>
+                <div class="images-field"><span>${uiText("images.service.format")}</span><div class="images-protocols" role="group" aria-label="${uiText("images.service.format")}"><button class="mw-btn mw-btn--secondary" type="button" data-images-format="openai-images" aria-pressed="true">${uiText("images.service.format-openai")}</button><button class="mw-btn mw-btn--secondary" type="button" data-images-format="gemini" aria-pressed="false">${uiText("images.service.format-gemini")}</button></div></div>
                 <label class="images-field"><span>${uiText("images.service.url")}</span><input class="mw-input" name="base_url" data-images-connection-url type="url" required autocomplete="off" placeholder="https://api.openai.com/v1"></label>
                 <label class="images-field"><span>${uiText("images.service.model-name")}</span><input class="mw-input" name="model" data-images-connection-model required autocomplete="off"></label>
               </div></details>

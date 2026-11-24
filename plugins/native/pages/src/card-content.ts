@@ -1,16 +1,29 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { DOMOutputSpec, Node } from "prosemirror-model";
 
+function localized(key: string, fallback: string): string {
+  const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null; ownerOfPrefix?(prefix: string): string | null } | undefined;
+  if (!provider?.locale?.() || !provider.ownerOfPrefix?.("pages")) return fallback;
+  try {
+    return uiText.text(key);
+  } catch {
+    return fallback;
+  }
+}
+
 export function taskStatusText(status: string): string {
-  return status === "doing" ? "进行中" : status === "done" ? "完成" : "待办";
+  if (status === "doing") return localized("pages.editor.doing", "进行中");
+  if (status === "done") return localized("pages.editor.done", "完成");
+  return localized("pages.editor.todo", "待办");
 }
 
 /** The visible facts of an atomic card also belong in portable text and static HTML. */
 export function cardText(node: Node): string[] {
-  if (node.type.name === "page_ref") return [String(node.attrs.title || "文档引用")];
-  if (node.type.name === "task_card") return [String(node.attrs.title || "任务"),
+  if (node.type.name === "page_ref") return [String(node.attrs.title || localized("pages.editor.page-mention", "文档引用"))];
+  if (node.type.name === "task_card") return [String(node.attrs.title || localized("pages.editor.task", "任务")),
     [taskStatusText(String(node.attrs.status)), String(node.attrs.due || "")].filter(Boolean).join(" · "),
     String(node.attrs.description || "")].filter(Boolean);
-  if (node.type.name === "event_card") return [String(node.attrs.title || "日程"), String(node.attrs.at || "没有日期")];
+  if (node.type.name === "event_card") return [String(node.attrs.title || localized("pages.editor.event", "日程")), String(node.attrs.at || localized("pages.editor.no-date", "没有日期"))];
   return [];
 }
 
@@ -26,7 +39,7 @@ export function fillStaticIndexes(root: HTMLElement, doc: Node): void {
   doc.descendants(node => {
     if (node.type.name === "heading") headings.push(node.textContent);
     const at = node.type.name === "task_card" ? node.attrs.due : node.type.name === "event_card" ? node.attrs.at : "";
-    if (at) dated.push(`${String(at)} · ${String(node.attrs.title || "日程")}`);
+    if (at) dated.push(`${String(at)} · ${String(node.attrs.title || localized("pages.editor.event", "日程"))}`);
   });
   const fill = (selector: string, rows: readonly string[]) => root.querySelectorAll(selector).forEach(element => {
     const list = root.ownerDocument.createElement("ul");

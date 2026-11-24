@@ -1,4 +1,5 @@
 import { PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS } from "./actions.js";
+import { localizeAction, localizePermission } from "./action-text.js";
 import { pagesContentActions } from "./content-actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { IMPORTED_DOCUMENT_READ_TYPES } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -57,9 +58,9 @@ export const pagesManifest: PluginManifest = {
     { permission: "artifact:write", required: true, reason: "把文档存为成果" },
     { permission: "artifact:read", required: true, reason: "读取自己固定的文档以编号、恢复或对比版本" },
     { permission: "goals:read", required: false, reason: "项目启用 Goals 时选择文档所属的目标" },
-  ],
+  ].map(localizePermission),
   capabilities: { provides: [], consumes: ["goals.collection.read"] },
-  actions: [...PAGES_ACTIONS, ...Object.values(pagesContentActions)],
+  actions: [...PAGES_ACTIONS, ...Object.values(pagesContentActions)].map(localizeAction),
   artifacts: {
     produces: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION, title: "文档", title_text: { key: "pages.artifacts.type-title" },
       preview: { capability_id: "pages.artifacts.preview", version: /* @version action.pages.artifacts.preview */ 1 }, pin: { capability_id: "pages.artifacts.pin", version: /* @version action.pages.artifacts.pin */ 1 },
@@ -67,7 +68,7 @@ export const pagesManifest: PluginManifest = {
     // Pages also continues from imported files it can read (artifact-positioning A3, A4b): its continue action's intake names them.
     consumes: [...IMPORTED_DOCUMENT_READ_TYPES],
   },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

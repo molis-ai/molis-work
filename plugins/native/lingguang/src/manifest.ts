@@ -1,4 +1,5 @@
 import { LINGGUANG_ACTIONS, LINGGUANG_ACTION_PERMISSIONS } from "./actions.js";
+import { localizeAction, localizePermission } from "./action-text.js";
 import { lingguangContentActions } from "./content-actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID } from "./contract.js";
@@ -26,9 +27,9 @@ export const lingguangManifest: PluginManifest = {
   permissions: [
     ...[...new Set([...LINGGUANG_ACTION_PERMISSIONS, ...Object.values(lingguangContentActions).flatMap(d => d.action.permissions)])].map(permission => ({ permission, required: false, reason: "读写交接内容" })),
     { permission: "storage:private", required: true, reason: "本机灵光库" },
-  ],
+  ].map(localizePermission),
   capabilities: { provides: [], consumes: [] },
-  actions: [...LINGGUANG_ACTIONS, ...Object.values(lingguangContentActions)],
+  actions: [...LINGGUANG_ACTIONS, ...Object.values(lingguangContentActions)].map(localizeAction),
   databases: { home: LINGGUANG_DATABASE },
   routes: [
     { route_id: "lingguang.list", method: "GET", path: "/sparks" },
@@ -43,7 +44,7 @@ export const lingguangManifest: PluginManifest = {
     { route_id: "lingguang.discard", method: "POST", path: "/sparks/:id/discard", max_body_bytes: BODY_BYTES },
   ],
   artifacts: { produces: [], consumes: [] },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

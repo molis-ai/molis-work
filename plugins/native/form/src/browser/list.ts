@@ -48,7 +48,7 @@ const listRow = (page: FormPage, record: FormRecord) => {
 };
 
 /** Repaints the rows, keeping the list where it was scrolled to. */
-const renderList = (page: FormPage) => {
+export const renderList = (page: FormPage) => {
   const top = page.list?.scrollTop || 0;
   if (page.empty) page.empty.hidden = page.records.length > 0;
   page.rowsEl.replaceChildren();

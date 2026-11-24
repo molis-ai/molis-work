@@ -13,7 +13,7 @@ export function mountComments(host: CommentSideHost): void {
   const project=typeof host.projectId==='function'?host.projectId():host.projectId;
   const key='molis.pages.comments:'+project;
   let saved: Record<string, unknown>={};try{saved=JSON.parse(localStorage.getItem(key)||'{}');}catch{/* A broken local draft does not replace server comments. */}
-  let context: UiSideContext|null=null, threads: readonly PagesCommentThread[]=[], handed='', opening: CommentOpening|null=null;
+  let context: UiSideContext|null=null, threads: readonly PagesCommentThread[]=[], handed=false, opening: CommentOpening|null=null;
   let epoch=0,active='',mode='comments',busy=false,loadSeq=0,notesSeq=0,lastOpening: string|null=null,loaded: string|null=null;
   const activePages=(saved.__active ||= {}) as Record<string,string>;
   const savedDraft=(key: string)=>saved[key] as CommentDraft|undefined;
@@ -31,13 +31,16 @@ export function mountComments(host: CommentSideHost): void {
   const needsSave=()=>!!context?.unsaved&&!(draft().ai&&draft().includeDraft&&draft().anchor?.kind!=='text');
   const paintDraft=()=>{
     const d=draft();q('draft').value=d.body;q('ai').setAttribute('aria-pressed',String(d.ai));
-    q('reply').hidden=!d.reply_to;q('reply').textContent=d.reply_to?uiText.text('pages.comments.reply-selected')+' · '+uiText.text('pages.action.cancel'):'';
+    q('reply').hidden = !d.reply_to;
+    q('reply').textContent = d.reply_to ? uiText.text('pages.comments.reply-cancel') : '';
     q('form').hidden=mode!=='comments'||!context;
     q('scope').hidden=!d.ai;q('unsaved').hidden=!context?.unsaved||!d.ai||d.anchor?.kind==='text';q('include-draft').checked=!!d.includeDraft;
     q('send').disabled=busy||needsSave()||!d.body.trim();q('send').textContent=uiText.text(needsSave()?'pages.comments.waiting-save':d.ai?'pages.comments.send-ask':'pages.comments.send');
   };
   // The reply itself is the Assistant's: started from its panel by the person's press there (PG-057), followed, retried or stopped there.
-  const paintRun=()=>{q('run').textContent=handed;};
+  const paintRun = () => {
+    q('run').textContent = handed ? uiText.text('pages.comments.handed') : '';
+  };
   const paint=()=>{
     q('threads').replaceChildren();
     for(const thread of threads){const node=button(firstCharacters((thread.anchor.kind==='text'?thread.anchor.excerpt:thread.messages.find(message=>message.author==='user')?.body)||'',36)||uiText.text('pages.comments.whole-doc'),()=>choose(thread.thread_id));node.setAttribute('aria-current',String(thread.thread_id===active));q('threads').append(node);}
@@ -54,8 +57,8 @@ export function mountComments(host: CommentSideHost): void {
     if(!thread){const hint=document.createElement('p');hint.textContent=uiText.text(loaded!==context?.object_ref.id?'pages.comments.loading':'pages.comments.hint');q('messages').append(hint);}
     paintDraft();paintRun();
   };
-  const choose=(id: string)=>{active=id;rememberActive();handed='';paint();};
-  const fresh=(markId: string|null,excerpt?: string)=>{handed='';active=crypto.randomUUID();rememberActive();draft().anchor=markId?{kind:'text',mark_id:markId}:{kind:'document'};draft().excerpt=excerpt||'';persist();paint();};
+  const choose=(id: string)=>{active=id;rememberActive();handed=false;paint();};
+  const fresh=(markId: string|null,excerpt?: string)=>{handed=false;active=crypto.randomUUID();rememberActive();draft().anchor=markId?{kind:'text',mark_id:markId}:{kind:'document'};draft().excerpt=excerpt||'';persist();paint();};
   const applyOpening=()=>{
     if(!opening||opening.open_id===lastOpening||opening.page_id!==loaded||opening.page_id!==context?.object_ref.id)return;
     const value=opening;lastOpening=value.open_id;opening=null;mode='comments';paintMode();
@@ -80,7 +83,7 @@ export function mountComments(host: CommentSideHost): void {
   q('draft').addEventListener('keydown',event=>{if(!event.isComposing&&event.key==='Enter'&&(event.metaKey||event.ctrlKey)){event.preventDefault();void send();}});
   const send=async()=>{
     if(busy||!context||needsSave()||!draft().body.trim())return;
-    const id=context.object_ref.id,title=context.object_ref.title,version=context.object_ref.version,threadId=active,d={...draft()},before=draftKey();busy=true;handed='';paintRun();paintDraft();error('');
+    const id=context.object_ref.id,title=context.object_ref.title,version=context.object_ref.version,threadId=active,d={...draft()},before=draftKey();busy=true;handed=false;paintRun();paintDraft();error('');
     try{
       const snapshot=d.ai&&d.includeDraft&&context.unsaved?await command({kind:'draft'}):null;
       const offer=d.ai?{message_id:crypto.randomUUID(),purpose:'suggest',source:{surface:'pages'},
@@ -96,7 +99,7 @@ export function mountComments(host: CommentSideHost): void {
         // The real id can cross the boundary. Keep both the saved id and pending draft so retry never saves the same comment twice.
         if(JSON.stringify(offer).length>100000)throw new Error(uiText.text('pages.comments.saved-offer-too-long'));
         window.dispatchEvent(new CustomEvent('molis:assistant-message',{detail:offer}));
-        if(before===draftKey())handed=uiText.text('pages.comments.handed');}
+        if(before===draftKey())handed=true;}
       if(savedDraft(before)?.request_id===d.request_id)delete saved[before];persist();if(before===draftKey()){await load();paintDraft();}
     }catch(e){if(before===draftKey()){error(commentErrorMessage(e));if(d.message_id)await load();}}
     finally{busy=false;if(context)paintDraft();}
@@ -125,7 +128,7 @@ export function mountComments(host: CommentSideHost): void {
       if(data.context_epoch<epoch)return;const id=context?.object_ref.id;context=data.context;epoch=data.context_epoch;
       if(context?.plugin_id!=='io.molis.work.pages')context=null;
       q('title').textContent=context?.object_ref.title||uiText.text('pages.comments.pick-doc');q('notes').hidden=!context||mode!=='notes';q('discussion').hidden=!context||mode!=='comments';q('form').hidden=!context||mode!=='comments';
-      if(id!==context?.object_ref.id){notesSeq++;active=context?activePages[context.object_ref.id]||'':'';loaded=null;threads=[];handed='';error('');q('notes').replaceChildren();if(context){paint();void load();if(mode==='notes')void notes();}}
+      if(id!==context?.object_ref.id){notesSeq++;active=context?activePages[context.object_ref.id]||'':'';loaded=null;threads=[];handed=false;error('');q('notes').replaceChildren();if(context){paint();void load();if(mode==='notes')void notes();}}
       else if(context){paintDraft();applyOpening();for(const [request_id,waiting] of commands)if(waiting.stale&&waiting.page===context.object_ref.id)ask(request_id,waiting);}
     }else if(data?.type==='molis:side-shown'&&data.target){opening=data.target;applyOpening();}
     else if(data?.type==='molis:side-context-result'){
@@ -133,6 +136,12 @@ export function mountComments(host: CommentSideHost): void {
       if(data.stale){if(waiting.epoch<epoch)ask(data.request_id,waiting);else waiting.stale=true;return;}
       commands.delete(data.request_id);clearTimeout(waiting.timeout);data.error?waiting.reject(new Error(data.error)):waiting.resolve(data);
     }
+  });
+  document.addEventListener('molis-work:language-changed', () => {
+    q('title').textContent = context?.object_ref.title || uiText.text('pages.comments.pick-doc');
+    if (!context) return;
+    paint();
+    if (mode === 'notes') void notes();
   });
   host.messages.send({type:'molis:side-ready'});
 }

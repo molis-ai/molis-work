@@ -8,6 +8,21 @@ export { COGNIA_DATABASE };
 interface Staged { path: string; data: string; base_hash: string | null; material: Material }
 interface SavedPreview extends Preview { files: Staged[] }
 const parse = <T>(row: unknown): T | null => row ? JSON.parse((row as { body: string }).body) as T : null;
+const SKIP_REASON_CODES: Readonly<Record<string, string>> = {
+  隐藏或缓存目录: "hidden",
+  暂不支持此文件类型: "unsupported",
+  超过文件或批次大小限制: "too_large",
+  文件超过大小限制: "too_large",
+  文件编码无效或超过大小限制: "unreadable",
+  文件编码无效: "unreadable",
+  正文不是有效UTF8: "unreadable",
+  "正文不是有效 UTF-8": "unreadable",
+  文件读取失败: "unreadable",
+  读取失败: "unreadable",
+  文件已不存在: "missing",
+  "目录太大，已截断": "truncated",
+};
+const skipReasonCode = (reason?: string): string => (reason ? SKIP_REASON_CODES[reason] ?? reason : "hidden");
 export type CogniaSqlValue = string | number | null;
 export interface CogniaSql {
   get(sql: string, parameters?: readonly CogniaSqlValue[]): Readonly<Record<string, unknown>> | null | undefined;
@@ -70,7 +85,10 @@ export class CogniaStore {
     const seen = new Set<string>(); let total = 0;
     for (const file of input.files) {
       const path = safeRelativePath(file.path); requireCognia(!seen.has(path), "同一批次含重复路径：" + path); seen.add(path);
-      if (file.reason || ignoredPath(path)) { preview.entries.push({ path, status: "skipped", reason: file.reason || "隐藏或缓存目录" }); continue; }
+      if (file.reason || ignoredPath(path)) {
+        preview.entries.push({ path, status: "skipped", reason: skipReasonCode(file.reason) });
+        continue;
+      }
       try {
         const decoded = decodeFile(file); total += decoded.bytes.length; requireCognia(total <= COGNIA_LIMITS.batch_bytes, "批次超过 32 MB，请选择较小目录");
         const old = this.atPath(source.id, path), hash = contentHash(decoded.bytes);
@@ -78,7 +96,9 @@ export class CogniaStore {
         const material: Material = { ...metadata(decoded.body, path), id: old?.id ?? randomUUID(), source_id: source.id, path, domain_id: source.domain_id, role: materialRole(path, decoded.text, source.kind), revision: (old?.revision ?? 0) + 1, hash, bytes: decoded.bytes.length, updated_at: new Date().toISOString(), mime: decoded.mime, body: decoded.body };
         preview.entries.push({ path, status, bytes: material.bytes, role: material.role });
         preview.files.push({ path, data: file.data!, base_hash: old?.hash ?? null, material });
-      } catch (error) { preview.entries.push({ path, status: "skipped", reason: error instanceof Error ? error.message : "读取失败" }); }
+      } catch (error) {
+        preview.entries.push({ path, status: "skipped", reason: skipReasonCode(error instanceof Error ? error.message : "unreadable") });
+      }
     }
     this.db.run("DELETE FROM cognia_previews WHERE expires_at < ? AND receipt IS NULL", [Date.now()]);
     this.db.run("INSERT INTO cognia_previews VALUES (?,?,?,NULL)", [preview.id, JSON.stringify(preview), preview.expires_at]);

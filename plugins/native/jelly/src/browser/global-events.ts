@@ -1,4 +1,5 @@
 import { openGeneric } from "./dialog.js";
+import { periodTitle } from "./calendar.js";
 import { openItem } from "./item.js";
 import { flushEditor, openRecord, recordFor } from "./notes.js";
 import { closeWorkspace, run, showNote } from "./page.js";
@@ -106,6 +107,10 @@ export function installGlobalEvents(page: JellyPage): void {
     if (typeof id === "string" && id) { event.preventDefault(); void run(page, () => showItem(page, id, Boolean(detail?.quiet))); }
   });
   window.addEventListener("beforeunload", (event) => { if (page.dirty) { event.preventDefault(); event.returnValue = ""; } });
+  document.addEventListener("molis-work:language-changed", () => {
+    periodTitle(page);
+    if (page.state) void renderView(page);
+  });
   root.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); void run(page, () => flushEditor(page)); }
   });

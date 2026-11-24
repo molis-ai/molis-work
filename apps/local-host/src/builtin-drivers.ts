@@ -46,7 +46,15 @@ export const builtinPublicFeedDriver = once((): PublicFeedDriver => {
 });
 
 /** The OAuth return addresses the integrations' services were registered under; every one leads to the same callback handler. */
-export const builtinOAuthCallbackAliases = once((): readonly OAuthCallbackAlias[] => Object.freeze(DRIVERS.flatMap(drivers => drivers.oauth_callback_aliases ?? [])));
+export const builtinOAuthCallbackAliases = once((): readonly OAuthCallbackAlias[] => {
+  const aliases = DRIVERS.flatMap(drivers => drivers.oauth_callback_aliases ?? []);
+  const paths = new Set<string>();
+  for (const alias of aliases) {
+    if (paths.has(alias.path)) throw new Error(`two integrations declare the OAuth return address ${alias.path}`);
+    paths.add(alias.path);
+  }
+  return Object.freeze(aliases);
+});
 
 /** The MCP servers the integrations declare run on this machine (started over stdio, or a desktop app's loopback address). */
 export const builtinLocalMcpServers = once((): Readonly<Record<string, LocalMcpServerDeclaration>> => merged(drivers => drivers.local_mcp_servers, "local MCP server"));

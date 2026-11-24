@@ -548,3 +548,9 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - **页面刷新与固定变更的公开签名**（2026-11-23，[#2274](https://github.com/molis-ai/molis-work/pull/2274)）。`@molis-ai/molis-work-contracts/platform/ui` 的 `UiClientScope` 补上必需的 `watchRevision(read, refresh)`。使用宿主传入的 scope 可直接调用。自己实现 scope 的宿主、适配器与测试替身需要提供此方法。SDK `/diff-view` 新增 `compareCodingChangeSet`，用于从已解析的 Coding 固定变更生成单个选中条目的比较视图。成果与过程项的 `FixedVersionCommandApi.registerVersion` 签名接受校验前的 inline payload 与 metadata，写入时由成果模块按原规则校验和规范化。插件客户端仍使用 `PluginArtifactPublishInput` 与 `PluginProcessItemInput`。动作版本、schema 和存储格式沿用现行合同。
 
 - **事项线卡片的 Agent 待审操作**（2026-11-23）。后台任务集合增加可选 `held_reviews: { session_id, ids }`；插件可通过 `agent.reviews.pending-ids@1` 批量读取本安装、本项目的待审编号。平台读取结果把该提示投影为审批卡，`background.tasks.decide@1` 按卡片提供的 `review_version` 提交原审批。阶段一原位扩充后台任务合同，原有插件决定输入与权限继续有效。新只读动作登记为 @1，存储格式与已有版本号保持原样。见[规格书](../../specs/archive/work-line-held-reviews/spec.md)。
+
+- **第 44B 批 PR3：官方集成的连接器驱动与公开订阅拉取**（2026-11-24，`specs/post-anticorruption-roadmap/reference/batches/44b.md`「PR3 实施中主会话定」；阶段一在原版本改，无兼容期）。
+  - **新增** `@molis-ai/molis-work-contracts/platform/integration-drivers`（`IntegrationDrivers` 及 CLI、OAuth 回调别名、本机 MCP、公开订阅、研究库、邮箱各驱动类型）；随宿主发布的集成包从自己的 `./drivers` 导出 `drivers`，由生成的登记表列出，宿主只经 `apps/local-host/src/builtin-drivers.ts` 合并读取，同一服务或同一回调地址被两份声明就拒绝启动。
+  - **来源拉取**：`plugin-source-pull` 的请求改为 `public_feed{definition_id, address?, cursor?}`，权限 `sources:pull_feed` 改名 `sources:pull_public_feed`（只有 Feed 用，同批已改）。
+  - **连接卡**：连接用途 `feed_source` 改 `source_pull`，卡片字段 `feed_available` 改 `source_available`；`connector-host` 的 `assertTarget` 服务参数放宽为 `string`，运行时仍核对连接属于该服务。
+  - **删掉的**：宿主导出 `larkMcpLaunch`（改为通用的 `stdioMcpLaunch(declaration, input)`），`@molis-ai/molis-work-integration-rss/driver` 入口（改 `./drivers`），三条没有页面调用的 `/api/settings/connectors/feishu/cli/*` 路由。

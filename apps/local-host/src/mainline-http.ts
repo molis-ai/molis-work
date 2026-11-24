@@ -92,7 +92,13 @@ const SUBJECT_PART = /^[A-Za-z0-9._:-]{1,200}$/u;
  */
 async function handleReceiveRoutes(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost, project: LocalHostProjectReference): Promise<boolean> {
   if (url.pathname !== "/api/mainline/receive" && url.pathname !== "/api/mainline/receive/targets") return false;
-  return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/mainline", maxBodyBytes: 256 * 1024,
+  // As the person's other doors (`person-action-http.ts`): a page that goes away cancels the placement it asked for.
+  const controller = new AbortController();
+  const cancel = () => controller.abort(new ActionError("actions.cancelled", "请求已经结束"));
+  const disconnected = () => { if (!response.writableEnded) cancel(); };
+  request.once("aborted", cancel);
+  response.once("close", disconnected);
+  try { return await dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/mainline", maxBodyBytes: 256 * 1024,
     async handle({ method, pathname, body }) {
       if (method !== "POST") return null;
       if (pluginPageRequest(request) || homePageRequestBound(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人放东西");
@@ -109,13 +115,17 @@ async function handleReceiveRoutes(request: IncomingMessage, response: ServerRes
       const title = typeof input.title === "string" ? input.title.slice(0, 200) : "", text = typeof input.text === "string" ? input.text : "";
       if (!title || !text || text.length > 200_000) throw new ActionError("actions.input_invalid", "请写好标题与正文");
       const station = typeof input.station === "string" && input.station ? input.station : PLATFORM_RECEIVER;
-      if (station === PLATFORM_RECEIVER) return { status: 200, body: await invokePersonPageAction(host, project, SHELF_ADMIT_ACTION as ActionDefinition, { title, text }) as object };
+      if (station === PLATFORM_RECEIVER) return { status: 200, body: await invokePersonPageAction(host, project, SHELF_ADMIT_ACTION as ActionDefinition, { title, text }, controller.signal) as object };
       const source = input.source as { kind?: unknown; id?: unknown } | undefined;
       if (typeof source?.kind !== "string" || typeof source.id !== "string" || !SUBJECT_PART.test(source.kind) || !SUBJECT_PART.test(source.id)) throw new ActionError("actions.input_invalid", "要说明放的是哪一件");
       const converted = await invokePersonPageAction(host, project, placementActions.convert, { source: { kind: source.kind, id: source.id, project_id: project.project_id },
-        to: { station }, to_project_id: project.project_id, request_id: `receive:${randomUUID()}`, payload: { title, body: text } });
+        to: { station }, to_project_id: project.project_id, request_id: `receive:${randomUUID()}`, payload: { title, body: text } }, controller.signal);
       return { status: 200, body: converted as object };
     } });
+  } finally {
+    request.off("aborted", cancel);
+    response.off("close", disconnected);
+  }
 }
 
 /** The workbench's own doors to the mainline service in one project (`person-action-http.ts`): a plugin reads its own tasks, and stops them, through its own actions. */

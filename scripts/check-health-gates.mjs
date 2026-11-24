@@ -456,6 +456,7 @@ const METRIC_BASE_INPUTS = {
   curveLiterals: isSource,
   rawFetchInScripts: (file) => isSource(file) || browserWantsText(file),
   packedStatements: isSource,
+  platformPluginNames: (file) => isSource(file) || /^plugins\/[^/]+\/[^/]+\/package\.json$/u.test(file),
   contractsPurity: (file) => isStructureSource(file) || structureWantsText(file),
   hostEntryExports: (file) => isStructureSource(file) || structureWantsText(file),
   layerExceptions: (file) => isStructureSource(file) || structureWantsText(file),

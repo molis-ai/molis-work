@@ -5,7 +5,7 @@ import { type ShelfArtifactPreview, type ShelfItemRecord, type ShelfSnapshot } f
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ShelfStore } from "../index.js";
 import { shelfErrors } from "../index.js";
-import { checkedDocument, documentFromPreview, shelfCopyOf } from "./coding-result.js";
+import { checkedDocument, documentFromPreview, shelfCopyOf } from "./result-document.js";
 
 const text = { type: "string" };
 const reference = object({ artifact_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "integer", minimum: 1 } });

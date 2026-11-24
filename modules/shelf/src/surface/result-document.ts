@@ -5,17 +5,17 @@ import type { ShelfArtifactPreview } from "../contract.js";
 import { shelfErrors } from "../index.js";
 
 /** What Shelf reads from an artifact producer: the fixed version, its title, when it was saved, and the body as Markdown. */
-export interface CodingResultDocument { reference: ArtifactReference; title: string; saved_at: string; markdown: string }
+export interface ResultDocument { reference: ArtifactReference; title: string; saved_at: string; markdown: string }
 
 /** Convert a standard artifact preview (`FileContent`) into a copyable Markdown document. */
-export function documentFromPreview(record: Pick<FixedVersionRecord, "artifact_id" | "version" | "created_at" | "metadata">, preview: FileContent): CodingResultDocument {
+export function documentFromPreview(record: Pick<FixedVersionRecord, "artifact_id" | "version" | "created_at" | "metadata">, preview: FileContent): ResultDocument {
   const markdown = preview.encoding === "utf8" ? preview.data : Buffer.from(preview.data, "base64").toString("utf8");
   const title = preview.title || (typeof record.metadata.title === "string" ? record.metadata.title : record.artifact_id);
   return { reference: { artifact_id: record.artifact_id, version: record.version }, title, saved_at: record.created_at, markdown };
 }
 
 /** The answer must be the document's four fields; anything else is Coding's fault, not text to put on the shelf. */
-export function checkedDocument(value: unknown): CodingResultDocument {
+export function checkedDocument(value: unknown): ResultDocument {
   const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const ref = row.reference && typeof row.reference === "object" ? row.reference as Record<string, unknown> : {};
   if (typeof ref.artifact_id !== "string" || !ref.artifact_id || !Number.isSafeInteger(ref.version) || (ref.version as number) < 1
@@ -29,7 +29,7 @@ const sha256 = (value: string) => createHash("sha256").update(value).digest("hex
  * The copy Shelf would take: its own heading and disclaimer over the document's body, where it came from, and a fingerprint of all of
  * it, so receiving can tell the version the person looked at from one that changed since.
  */
-export function shelfCopyOf(record: Pick<FixedVersionRecord, "producer_plugin_id" | "payload">, document: CodingResultDocument,
+export function shelfCopyOf(record: Pick<FixedVersionRecord, "producer_plugin_id" | "payload">, document: ResultDocument,
   project: { project_id: string; project_path: string }): ShelfArtifactPreview {
   const source = { project_id: project.project_id, project_path: project.project_path, reference: document.reference,
     producer_plugin_id: record.producer_plugin_id, content_hash: sha256(JSON.stringify(record.payload)) };

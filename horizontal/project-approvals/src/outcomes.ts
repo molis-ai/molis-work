@@ -16,6 +16,7 @@ type Facts = Readonly<Record<string, ProjectReplicaRows>>;
 
 const invalid = () => new ActionError("actions.conflict", "同步的插件结果与原平台决定不一致");
 const quoted = (name: string) => `"${name.replaceAll('"', '""')}"`;
+const compareText = (left: string, right: string) => left < right ? -1 : Number(left > right);
 
 /** The declared columns of an outcome's table, without the section's sequence fields: those differ between copies of one history. */
 function stableColumns(collection: PluginSyncCollection, declaration: SyncApprovalOutcomeDeclaration): readonly string[] {
@@ -29,7 +30,7 @@ function outcomeOf(kind: string, declaration: SyncApprovalOutcomeDeclaration, co
   const subject = rows[0]?.[declaration.subject_column];
   if (typeof subject !== "string" || !subject || rows.some(row => row[declaration.subject_column] !== subject)) throw invalid();
   const stable = rows.map(row => Object.fromEntries(columns.map(column => [column, row[column] ?? null])))
-    .sort((a, b) => { const left = canonicalJsonText(a)!, right = canonicalJsonText(b)!; return left < right ? -1 : Number(left > right); });
+    .sort((a, b) => compareText(canonicalJsonText(a)!, canonicalJsonText(b)!));
   return { kind, id: subject, digest: "sha256:" + createHash("sha256").update(canonicalJsonText(["approval-outcome", 1, kind, stable])!).digest("hex") };
 }
 

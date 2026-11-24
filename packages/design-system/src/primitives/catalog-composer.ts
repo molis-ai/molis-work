@@ -9,10 +9,10 @@
 import { escapeHtml, icon, renderButton, renderComposer, renderProgress, type MwComposerAiLabels, type MwComposerStatus } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu, renderMenuGroup, renderMenuItem } from "./overlay.js";
 import { renderComposerCommands, renderComposerDeliveryMenu, renderComposerNotice } from "../composer-parts.js";
-import { section, specimen } from "./catalog-parts.js";
+import { section, specimen, type CatalogSay } from "./catalog-parts.js";
 import { composerRestRules, composerRestTouch } from "../composer-styles.js";
 
-export type Say = (text: string, values?: Record<string, string | number>) => string;
+export type Say = CatalogSay;
 
 /** The board's own layout for the three sections; the shell's look is `COMPOSER_STYLES` (composer-styles.ts), served to pages. */
 export const COMPOSER_BOARD_STYLES = `
@@ -132,11 +132,14 @@ function notices(say: Say, add: string): string {
 /** The attachment strip is the board's upload rows: one being read, one read, one refused with its reason. */
 function files(say: Say): string {
   const row = (mark: Parameters<typeof icon>[0], name: string, body: string) =>
-    `<li class="mw-upload"><span class="mw-mark">${icon(mark)}</span><span>${name}${body}</span>${ghostIcon(say("workbench.catalog-composer.remove-name", { name }), "x")}</li>`;
+    `<li class="mw-upload"><span class="mw-mark">${icon(mark)}</span><span>${escapeHtml(name)}${body}</span>${ghostIcon(say("workbench.catalog-composer.remove-name", { name }), "x")}</li>`;
+  const interview = say("workbench.catalog-board.ds.composer-file-interview");
+  const sketch = say("workbench.catalog-board.ds.composer-file-sketch");
+  const report = say("workbench.catalog-board.ds.composer-file-report");
   return `<ul class="mw-uploads mw-composer__files">${
-    row("note", "访谈记录.docx", renderProgress({ value: 60, label: say("workbench.catalog-composer.reading-name", { name: "访谈记录.docx" }) }))
-    + row("image", "首页草图.png", "<small>820 KB</small>")
-    + row("file", "年度报告.pdf", `<small class="is-failed">${escapeHtml(say("workbench.catalog-composer.too-large-2-1-gb-cannot-attach"))}</small>`)
+    row("note", interview, renderProgress({ value: 60, label: say("workbench.catalog-composer.reading-name", { name: interview }) }))
+    + row("image", sketch, "<small>820 KB</small>")
+    + row("file", report, `<small class="is-failed">${escapeHtml(say("workbench.catalog-composer.too-large-2-1-gb-cannot-attach"))}</small>`)
   }</ul>`;
 }
 

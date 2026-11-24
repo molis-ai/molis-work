@@ -1,19 +1,25 @@
 // The catalog board's directory panel and shell-layout specimens.
-import { renderButton, renderCard, renderDirectoryHeading, renderDirectoryPanel, renderDirectoryRow, renderEmpty, renderFrame, renderGroup, renderScrollArea, renderSidebar, renderTable } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { mark, section, specimen } from "./catalog-parts.js";
+import { escapeHtml, renderButton, renderCard, renderDirectoryHeading, renderDirectoryPanel, renderDirectoryRow, renderEmpty, renderFrame, renderGroup, renderScrollArea, renderSidebar, renderTable } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { mark, resolveCatalogSay, section, specimen, type CatalogSay } from "./catalog-parts.js";
 
-export function directorySection(say: (key: string) => string = (k) => k): string {
-  const catalogDirTools = renderButton({ label: "筛选", variant: "ghost", size: "icon", icon: "filter", iconOnly: true })
-    + renderButton({ label: "搜索", variant: "ghost", size: "icon", icon: "search", iconOnly: true });
+export function directorySection(say: CatalogSay = resolveCatalogSay()): string {
+  const catalogDirTools = renderButton({ label: say("workbench.catalog-board.ds.dir-tool-filter"), variant: "ghost", size: "icon", icon: "filter", iconOnly: true })
+    + renderButton({ label: say("workbench.catalog-board.ds.dir-tool-search"), variant: "ghost", size: "icon", icon: "search", iconOnly: true });
+  const localSessionTitle = say("workbench.catalog-board.ds.dir-local-session");
+  const viewableStatus = say("workbench.catalog-board.ds.dir-status-viewable");
+  const boundaryTitle = say("workbench.catalog-board.ds.dir-task-boundary");
+  const pendingStatus = say("workbench.catalog-board.ds.dir-status-pending");
+  const addTaskLabel = say("workbench.catalog-board.ds.dir-add-task");
+  const yieldLabel = say("workbench.catalog-board.ds.dir-yield-label");
   const catalogDirRows = renderDirectoryRow({
-    title: "全部",
-    caption: "所有来源的流水",
+    title: say("workbench.catalog-board.ds.dir-all-title"),
+    caption: say("workbench.catalog-board.ds.dir-all-caption"),
     icon: "rss",
     count: 12,
     density: "meta",
-  }) + renderDirectoryHeading("拉取任务") + renderDirectoryRow({
-    title: "设计观察",
-    caption: "10 分钟前",
+  }) + renderDirectoryHeading(say("workbench.catalog-board.ds.dir-heading-tasks")) + renderDirectoryRow({
+    title: say("workbench.catalog-board.ds.dir-task-design"),
+    caption: say("workbench.catalog-board.ds.dir-time-10m"),
     status: say("workbench.settings-call-diagnostics.running"),
     statusTone: "progress",
     statusIcon: "check",
@@ -21,20 +27,20 @@ export function directorySection(say: (key: string) => string = (k) => k): strin
     count: 4,
     density: "meta",
     current: true,
-    trailing: renderButton({ label: "任务配置", variant: "ghost", size: "icon", icon: "more", iconOnly: true }),
+    trailing: renderButton({ label: say("workbench.catalog-board.ds.dir-task-config"), variant: "ghost", size: "icon", icon: "more", iconOnly: true }),
   }) + renderDirectoryRow({
-    title: "runtime / 本地会话",
-    caption: "电脑上的 AI 工具",
-    status: "可查看",
+    title: localSessionTitle,
+    caption: say("workbench.catalog-board.ds.dir-ai-tools"),
+    status: viewableStatus,
     statusTone: "idle",
     statusIcon: "ready",
     icon: "refresh",
     count: 2,
     density: "meta",
   }) + renderDirectoryRow({
-    title: "确认对象边界",
-    caption: "你手工加入",
-    status: "待处理",
+    title: boundaryTitle,
+    caption: say("workbench.catalog-board.ds.dir-added-manually"),
+    status: pendingStatus,
     statusTone: "attention",
     statusIcon: "bell",
     icon: "refresh",
@@ -44,62 +50,62 @@ export function directorySection(say: (key: string) => string = (k) => k): strin
   const catalogDirectory = renderDirectoryPanel({
     pluginId: "catalog",
     label: "Feed",
-    listLabel: "目录示例",
+    listLabel: say("workbench.catalog-board.ds.dir-list-example"),
     listRole: "none",
     tools: catalogDirTools,
     body: catalogDirRows,
-    add: { label: "添加任务" },
+    add: { label: addTaskLabel },
   });
   const catalogCompact = renderDirectoryPanel({
     pluginId: "catalog-compact",
     label: "Sessions",
-    listLabel: "会话",
+    listLabel: say("workbench.catalog-board.ds.dir-list-sessions"),
     listRole: "none",
     body: renderDirectoryRow({
-      title: "runtime / 本地会话",
-      status: "可查看",
+      title: localSessionTitle,
+      status: viewableStatus,
       statusTone: "idle",
       statusIcon: "ready",
       density: "compact",
       current: true,
     }) + renderDirectoryRow({
-      title: "确认对象边界",
-      status: "待处理",
+      title: boundaryTitle,
+      status: pendingStatus,
       statusTone: "attention",
       statusIcon: "bell",
       density: "compact",
     }) + renderDirectoryRow({
       title: "quarterly-planning-notes-and-a-very-long-session-name",
-      status: "可查看",
+      status: viewableStatus,
       statusTone: "idle",
       statusIcon: "ready",
       density: "compact",
     }),
-    add: { label: "新建 Session" },
+    add: { label: say("workbench.catalog-board.ds.dir-new-session") },
   });
   const catalogDirectoryEmpty = renderDirectoryPanel({
     pluginId: "catalog-empty",
     label: "Feed",
-    listLabel: "空目录",
+    listLabel: say("workbench.catalog-board.ds.dir-list-empty"),
     listRole: "none",
     body: "",
     empty: renderEmpty({
       icon: "rss",
-      title: "还没有拉取任务",
-      body: "添加一个来源后，新内容会出现在这里。",
+      title: say("workbench.catalog-board.ds.dir-empty-title"),
+      body: say("workbench.catalog-board.ds.dir-empty-body"),
     }),
-    add: { label: "添加任务" },
+    add: { label: addTaskLabel },
   });
-  const yieldOps = renderButton({ label: "复制", variant: "ghost", size: "icon", icon: "copy", iconOnly: true })
-    + renderButton({ label: "隐藏", variant: "ghost", size: "icon", icon: "x", iconOnly: true })
-    + renderButton({ label: "删除副本", variant: "ghost", size: "icon", icon: "trash", iconOnly: true });
+  const yieldOps = renderButton({ label: say("workbench.catalog-board.ds.dir-op-copy"), variant: "ghost", size: "icon", icon: "copy", iconOnly: true })
+    + renderButton({ label: say("workbench.catalog-board.ds.dir-op-hide"), variant: "ghost", size: "icon", icon: "x", iconOnly: true })
+    + renderButton({ label: say("workbench.catalog-board.ds.dir-op-delete-copy"), variant: "ghost", size: "icon", icon: "trash", iconOnly: true });
   const catalogYield = renderDirectoryPanel({
     pluginId: "catalog-yield",
-    label: "材料",
-    listLabel: "行让位",
+    label: say("workbench.catalog-board.ds.dir-materials-label"),
+    listLabel: yieldLabel,
     listRole: "none",
     body: renderDirectoryRow({
-      title: "试用示例.pdf",
+      title: say("workbench.catalog-board.ds.dir-sample-pdf"),
       icon: "file",
       density: "compact",
       fileName: true,
@@ -116,27 +122,28 @@ export function directorySection(say: (key: string) => string = (k) => k): strin
     }),
   });
   return section("directory", "Directory Panel / Row", `
-      <div class="mw-catalog__specimens">${specimen("目录栏", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogDirectory}</div></div>`)}${specimen("单行", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogCompact}</div></div>`)}${specimen("行让位", `<div class="mw-catalog-dir-stage is-yield"><div class="mw-catalog-dir">${catalogYield}</div></div>`)}${specimen("空态", `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogDirectoryEmpty}</div></div>`)}</div>`);
+      <div class="mw-catalog__specimens">${specimen(escapeHtml(say("workbench.catalog-board.ds.dir-spec-panel")), `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogDirectory}</div></div>`)}${specimen(escapeHtml(say("workbench.catalog-board.ds.dir-spec-compact")), `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogCompact}</div></div>`)}${specimen(escapeHtml(yieldLabel), `<div class="mw-catalog-dir-stage is-yield"><div class="mw-catalog-dir">${catalogYield}</div></div>`)}${specimen(escapeHtml(say("workbench.catalog-board.ds.dir-spec-empty")), `<div class="mw-catalog-dir-stage"><div class="mw-catalog-dir">${catalogDirectoryEmpty}</div></div>`)}</div>`);
 }
 
-export function layoutSection(say: (key: string) => string = (k) => k): string {
-  const catalogDirTools = renderButton({ label: "筛选", variant: "ghost", size: "icon", icon: "filter", iconOnly: true })
-    + renderButton({ label: "搜索", variant: "ghost", size: "icon", icon: "search", iconOnly: true });
+export function layoutSection(say: CatalogSay = resolveCatalogSay()): string {
+  const catalogDirTools = renderButton({ label: say("workbench.catalog-board.ds.dir-tool-filter"), variant: "ghost", size: "icon", icon: "filter", iconOnly: true })
+    + renderButton({ label: say("workbench.catalog-board.ds.dir-tool-search"), variant: "ghost", size: "icon", icon: "search", iconOnly: true });
+  const designTitle = say("workbench.catalog-board.ds.dir-task-design");
   const catalogShellDirectory = renderDirectoryPanel({
     pluginId: "catalog-shell",
     label: "Feed",
-    listLabel: "目录示例",
+    listLabel: say("workbench.catalog-board.ds.dir-list-example"),
     listRole: "none",
     tools: catalogDirTools,
     body: renderDirectoryRow({
-      title: "全部",
-      caption: "所有来源的流水",
+      title: say("workbench.catalog-board.ds.dir-all-title"),
+      caption: say("workbench.catalog-board.ds.dir-all-caption"),
       icon: "rss",
       count: 12,
       density: "meta",
-    }) + renderDirectoryHeading("拉取任务") + renderDirectoryRow({
-      title: "设计观察",
-      caption: "10 分钟前",
+    }) + renderDirectoryHeading(say("workbench.catalog-board.ds.dir-heading-tasks")) + renderDirectoryRow({
+      title: designTitle,
+      caption: say("workbench.catalog-board.ds.dir-time-10m"),
       status: say("workbench.settings-call-diagnostics.running"),
       statusTone: "progress",
       statusIcon: "check",
@@ -144,18 +151,18 @@ export function layoutSection(say: (key: string) => string = (k) => k): string {
       count: 4,
       density: "meta",
       current: true,
-      trailing: renderButton({ label: "任务配置", variant: "ghost", size: "icon", icon: "more", iconOnly: true }),
+      trailing: renderButton({ label: say("workbench.catalog-board.ds.dir-task-config"), variant: "ghost", size: "icon", icon: "more", iconOnly: true }),
     }) + renderDirectoryRow({
-      title: "确认对象边界",
-      caption: "你手工加入",
-      status: "待处理",
+      title: say("workbench.catalog-board.ds.dir-task-boundary"),
+      caption: say("workbench.catalog-board.ds.dir-added-manually"),
+      status: say("workbench.catalog-board.ds.dir-status-pending"),
       statusTone: "attention",
       statusIcon: "bell",
       icon: "refresh",
       count: 1,
       density: "meta",
     }),
-    add: { label: "添加任务" },
+    add: { label: say("workbench.catalog-board.ds.dir-add-task") },
   });
   const catalogShell = `<div class="mw-catalog-shell">${mark("sidebar", renderSidebar({
     variant: "rail",
@@ -172,29 +179,32 @@ export function layoutSection(say: (key: string) => string = (k) => k): string {
     variant: "directory",
     body: catalogShellDirectory,
   }))}${mark("frame", renderFrame({
-    title: "设计观察",
-    description: "运行中 · 当前任务的流水",
-    action: renderButton({ label: "添加已有内容", variant: "link", size: "sm" }),
-    panel: "<p>第一次打开这条任务时，人会先扫目录里哪一条是当前的，再落到纸面上的流水。</p><p>栏留在灰色里，正文自己发亮。页眉和正文靠间距分开，不要再画一条线把它们切成两块。</p>",
+    title: designTitle,
+    description: say("workbench.catalog-board.ds.layout-frame-desc"),
+    action: renderButton({ label: say("workbench.catalog-board.ds.layout-add-existing"), variant: "link", size: "sm" }),
+    panel: `<p>${escapeHtml(say("workbench.catalog-board.ds.layout-frame-p1"))}</p><p>${escapeHtml(say("workbench.catalog-board.ds.layout-frame-p2"))}</p>`,
   }))}</div>`;
-  return section("layout", "Sidebar / Frame / Group / Card / Scroll Area / Table", `<div class="mw-catalog__specimens">${specimen("栏与内容框", catalogShell)}${mark("group", specimen("成组工具", renderGroup({
-      label: "历史",
-      body: renderButton({ label: "上一步", variant: "ghost", size: "icon", icon: "back", iconOnly: true })
-        + renderButton({ label: "下一步", variant: "ghost", size: "icon", icon: "arrow", iconOnly: true }),
-    })))}${mark("card", specimen("卡片", renderCard({
-      title: "快捷方式",
-      description: "打开常用入口。",
-      body: "<p>添加快捷方式后显示在这里。</p>",
-      footer: renderButton({ label: "添加", variant: "secondary", size: "sm" }),
-    })))}${mark("surface-slot", specimen("对象挂载位 · 插件页只定位置，原件由它的主人画", `<div role="group" aria-label="原件">${renderCard({
-      title: "移动端价格表第三列换行",
-      description: "Inbox · 等你决定",
-      body: "<p>回复草稿和预览导出的重试已经备好，等你看。</p>",
-    })}</div>`))}${mark("scroll-area", specimen("内部滚动", renderScrollArea({
+  return section("layout", "Sidebar / Frame / Group / Card / Scroll Area / Table", `<div class="mw-catalog__specimens">${specimen(escapeHtml(say("workbench.catalog-board.ds.layout-spec-shell")), catalogShell)}${mark("group", specimen(escapeHtml(say("workbench.catalog-board.ds.layout-spec-group")), renderGroup({
+      label: say("workbench.catalog-board.ds.layout-group-history"),
+      body: renderButton({ label: say("workbench.catalog-board.ds.layout-group-prev"), variant: "ghost", size: "icon", icon: "back", iconOnly: true })
+        + renderButton({ label: say("workbench.catalog-board.ds.layout-group-next"), variant: "ghost", size: "icon", icon: "arrow", iconOnly: true }),
+    })))}${mark("card", specimen(escapeHtml(say("workbench.catalog-board.ds.layout-spec-card")), renderCard({
+      title: say("workbench.catalog-board.ds.layout-card-title"),
+      description: say("workbench.catalog-board.ds.layout-card-desc"),
+      body: `<p>${escapeHtml(say("workbench.catalog-board.ds.layout-card-body"))}</p>`,
+      footer: renderButton({ label: say("workbench.catalog-board.ds.layout-card-add"), variant: "secondary", size: "sm" }),
+    })))}${mark("surface-slot", specimen(escapeHtml(say("workbench.catalog-board.ds.layout-spec-slot")), `<div role="group" aria-label="${escapeHtml(say("workbench.catalog-board.ds.layout-slot-aria"))}">${renderCard({
+      title: say("workbench.catalog-board.ds.layout-slot-title"),
+      description: say("workbench.catalog-board.ds.layout-slot-desc"),
+      body: `<p>${escapeHtml(say("workbench.catalog-board.ds.layout-slot-body"))}</p>`,
+    })}</div>`))}${mark("scroll-area", specimen(escapeHtml(say("workbench.catalog-board.ds.layout-spec-scroll")), renderScrollArea({
       className: "mw-catalog-scroll",
-      body: "<p>目录超过这一屏高度后，只在栏内滚动，外面的工作区不动。</p><p>第二段用来把滚动条唤醒：行与行仍然贴紧，组和组才拉开。</p><p>纸面用发丝线围住，不是描边玩具盒。</p><p>再往下还有一屏，确认 overflow 真的发生。</p>",
-    })))}${mark("table", specimen("表格", renderTable({
-      head: ["Goal", "状态", "下一步"],
-      rows: [["统一控件语言", say("workbench.assistant-delivery.progress"), "收口旧 class"], ["Home 月历", "可用", "接 Calendar"]],
+      body: `<p>${escapeHtml(say("workbench.catalog-board.ds.layout-scroll-p1"))}</p><p>${escapeHtml(say("workbench.catalog-board.ds.layout-scroll-p2"))}</p><p>${escapeHtml(say("workbench.catalog-board.ds.layout-scroll-p3"))}</p><p>${escapeHtml(say("workbench.catalog-board.ds.layout-scroll-p4"))}</p>`,
+    })))}${mark("table", specimen(escapeHtml(say("workbench.catalog-board.ds.layout-spec-table")), renderTable({
+      head: ["Goal", say("workbench.catalog-board.ds.layout-table-col-status"), say("workbench.catalog-board.ds.layout-table-col-next")],
+      rows: [
+        [say("workbench.catalog-board.ds.layout-table-r1-goal"), say("workbench.assistant-delivery.progress"), say("workbench.catalog-board.ds.layout-table-r1-next")],
+        [say("workbench.catalog-board.ds.layout-table-r2-goal"), say("workbench.catalog-board.ds.layout-table-r2-status"), say("workbench.catalog-board.ds.layout-table-r2-next")],
+      ],
     })))}</div>`);
 }

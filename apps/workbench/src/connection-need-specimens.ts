@@ -15,8 +15,6 @@ type View = Omit<ConnectionNeedView, "read"> & { read: NonNullable<ConnectionNee
 
 const SLOT = { kind: "slot", slot_id: "github", record_key: "feed-source-1" } as const;
 const IMAGE = { kind: "image", slot_id: "openai", base_url: "https://api.openai.com/v1" } as const;
-// The Feed manifest's own words for its slot: the plugin's, quoted as they are in either language.
-const FEED_REASON = "读取你为这个来源选好的账号";
 const ACCOUNTS = [
   { connection_id: "specimen-a", account_label: "yijunw0212", display_name: "GitHub" },
   { connection_id: "specimen-b", account_label: "molis-bot", display_name: "GitHub" },
@@ -38,9 +36,9 @@ function figure(_L: Say, caption: string, body: string): string {
 
 /** The section the board places after 平台区域. */
 export function renderConnectionNeedSection(readText: Say): string {
-  const feed = "Feed", images = uiText.text("workbench.connection-need-specimens.images"), github = { service_title: "GitHub", reason: FEED_REASON, connection: null };
+  const feed = "Feed", images = uiText.text("workbench.connection-need-specimens.images"), github = { service_title: "GitHub", reason: readText("workbench.catalog-board.wb.cn-feed-reason"), connection: null };
   const signedIn = { ...github, connection: { label: "yijunw0212" } };
-  const imageModel = { service_title: "图像模型", origin: "https://api.openai.com", connection: null };
+  const imageModel = { service_title: readText("workbench.catalog-board.wb.cn-image-model"), origin: "https://api.openai.com", connection: null };
   const stages: Array<[string, string, View]> = [
     [uiText.text("workbench.connection-need-specimens.no-account-yet-sign-browser"), feed, view("ask", github)],
     [uiText.text("workbench.connection-need-specimens.accounts-exist-which-one-uses"), feed, view("choose", github, { accounts: ACCOUNTS })],

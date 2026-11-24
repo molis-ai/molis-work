@@ -1,9 +1,9 @@
 import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
-import { inspectLocaleSet, matchLocale, parseLocalePack, parseUiLanguageCatalog } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { UiFileResult } from "@molis-ai/molis-work-contracts/platform/ui";
+import { BASELINE_REGISTRY, registerCatalogBoardText } from "@molis-ai/molis-work-design-system";
+import { createTextReader, inspectLocaleSet, matchLocale, parseLocalePack, parseUiLanguageCatalog, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { UiFileResult, UiLanguageTag, UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
 
 const root = realpathSync(fileURLToPath(new URL("../", import.meta.url)));
@@ -56,4 +56,70 @@ const sceneLocales = scenePacks.map(pack => pack.locale);
 export const sceneOwnerStatusPacks = WORKBENCH_LANGUAGES.languages.map(({ tag, direction }) => {
   const source = matchLocale(tag, sceneLocales, WORKBENCH_LANGUAGES.default);
   return { ...scenePacks.find(pack => pack.locale === source)!, locale: tag, direction };
+});
+
+const catalogDirectory = registeredPath(directory, "catalog");
+const catalogPacks = readPacks(catalogDirectory, readdirSync(catalogDirectory).filter(name => name.endsWith(".json")).sort());
+const catalogLocales = catalogPacks.map(pack => pack.locale);
+const catalogMerged = new Map<string, UiLocalePack>();
+
+function catalogPackFor(tag: UiLanguageTag): UiLocalePack {
+  const matched = WORKBENCH_LANGUAGES.languages.find(row => row.tag === tag || row.html_lang === tag)?.tag ?? tag;
+  const source = matchLocale(matched, catalogLocales, WORKBENCH_LANGUAGES.default);
+  return catalogPacks.find(item => item.locale === source)!;
+}
+
+/** On-demand component board reader (`/__ui/catalog*` only): merges the catalog sub-pack without touching production startup packs. */
+export const catalogBoardText: PluginTextReader = {
+  owner, default: WORKBENCH_LANGUAGES.default,
+  pack(tag) {
+    const cached = catalogMerged.get(tag);
+    if (cached) return cached;
+    const base = workbenchPlatformText.pack(tag), extra = catalogPackFor(tag);
+    const merged = base ? { ...base, messages: { ...base.messages, ...extra.messages } } : { ...extra, locale: tag };
+    catalogMerged.set(tag, merged);
+    return merged;
+  },
+};
+
+/** Inline page text payload for `/__ui/catalog*` documents so browser live switching resolves `workbench.catalog-board.*` with +0 B production cost. */
+export function catalogInlinePageText(tag: UiLanguageTag): { readonly slot: string; readonly producer: string; readonly packs: readonly UiLocalePack[] } {
+  const matched = WORKBENCH_LANGUAGES.languages.find(row => row.tag === tag || row.html_lang === tag)?.tag ?? WORKBENCH_LANGUAGES.default;
+  const pack = catalogPackFor(matched);
+  return { slot: "catalog:workbench", producer: owner, packs: [pack.locale === matched ? pack : { ...pack, locale: matched }] };
+}
+
+const localeByEnvTitle = new Map<string, string>(
+  WORKBENCH_LANGUAGES.languages.flatMap(({ tag }) => {
+    const marker = workbenchPlatformText.pack(tag)?.messages["workbench.env.title"];
+    return typeof marker === "string" ? [[marker, tag] as const] : [];
+  }),
+);
+const catalogOnlyReaders = new Map(
+  WORKBENCH_LANGUAGES.languages.map(({ tag }) => {
+    const selected = catalogPackFor(tag);
+    const set = selected.locale === WORKBENCH_LANGUAGES.default ? [selected] : [catalogPackFor(WORKBENCH_LANGUAGES.default), { ...selected, locale: tag }];
+    return [tag, createTextReader({ locale: tag, packs: set })] as const;
+  }),
+);
+
+/** Plain-text catalog reader for standalone specimen renders (such as unit tests outside `/__ui/catalog` HTTP). */
+export function catalogBoardSay(tag: UiLanguageTag): (key: string, values?: Readonly<Record<string, string | number>>) => string {
+  const matched = WORKBENCH_LANGUAGES.languages.find(row => row.tag === tag || row.html_lang === tag)?.tag ?? WORKBENCH_LANGUAGES.default;
+  const set = [...new Set([matched, WORKBENCH_LANGUAGES.default])].flatMap(locale => catalogBoardText.pack(locale) ?? []);
+  const reader = createTextReader({ locale: matched, packs: set });
+  return (key, values) => {
+    const args = values ? textArgs(values) : undefined;
+    return reader.text({ owner, key, ...(args?.length ? { args } : {}) });
+  };
+}
+
+registerCatalogBoardText((key, values, probe) => {
+  if (!key.startsWith("workbench.catalog-board.")) return null;
+  let marker = "";
+  try { marker = probe(); } catch { /* default locale */ }
+  const tag = localeByEnvTitle.get(marker) ?? WORKBENCH_LANGUAGES.default;
+  const reader = catalogOnlyReaders.get(tag) ?? catalogOnlyReaders.get(WORKBENCH_LANGUAGES.default)!;
+  const args = values ? textArgs(values) : undefined;
+  return reader({ owner, key, ...(args?.length ? { args } : {}) });
 });

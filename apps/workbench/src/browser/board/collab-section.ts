@@ -91,17 +91,19 @@ if (root) {
   if (previous) clearInterval(previous);
   let line = root.querySelector<HTMLElement>("[data-preparing-line]");
   if (line && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const LINES = [t("workbench.collab-section.read-zhe-s-document"), t("workbench.collab-section.checked-the-ready-capabilities"), t("workbench.collab-section.drew-a-first-plugin-sketch")];
+    const LINE_KEYS = ["workbench.collab-section.read-zhe-s-document", "workbench.collab-section.checked-the-ready-capabilities", "workbench.collab-section.drew-a-first-plugin-sketch"] as const;
     let at = 0, timer = 0;
     const stop = () => { if (timer) { clearInterval(timer); timer = 0; } delete holder.dataset.collabPreparingTimer; };
+    const paint = () => { if (line?.isConnected) line.textContent = t(LINE_KEYS[at]!); };
     timer = window.setInterval(() => {
       if (!line || !line.isConnected) { stop(); return; }
-      at = (at + 1) % LINES.length;
+      at = (at + 1) % LINE_KEYS.length;
       const next = line.cloneNode(false) as HTMLElement;
-      next.textContent = LINES[at] ?? "";
+      next.textContent = t(LINE_KEYS[at]!);
       line.replaceWith(next);
       line = next;
     }, 1800);
+    document.addEventListener("molis-work:language-changed", paint);
     holder.dataset.collabPreparingTimer = String(timer);
     window.addEventListener("pagehide", stop, { once: true });
   }

@@ -1,82 +1,90 @@
 // The catalog board's choice group and composition specimens: the same primitives put together as product pages do.
-import { icon, renderAlert, renderButton, renderChoice, renderDirectoryPanel, renderDirectoryRow, renderField, renderForm, renderFrame, renderInput, renderInputGroup, renderScrollArea, renderSelect, renderTextarea } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, renderAlert, renderButton, renderChoice, renderDirectoryPanel, renderDirectoryRow, renderField, renderForm, renderFrame, renderInput, renderInputGroup, renderScrollArea, renderSelect, renderTextarea } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderToggleGroup, renderToolbar } from "./navigation.js";
 import { renderDialog, renderMenu, renderMenuItem } from "./overlay.js";
-import { mark, section, specimen } from "./catalog-parts.js";
+import { mark, resolveCatalogSay, section, specimen, type CatalogSay } from "./catalog-parts.js";
 
-export function choiceSection(say: (key: string) => string): string {
+export function choiceSection(say: CatalogSay = resolveCatalogSay()): string {
   return section("choice", "Choice", `<div class="mw-catalog__specimens">
-    ${mark("choice", specimen("按钮 · aria-pressed", `<div class="mw-choice-group" role="group" aria-label="主题" data-catalog-choice-group>${renderChoice({ label: say("workbench.context-onboarding.light"), icon: "sun", selected: true })}${renderChoice({ label: say("workbench.context-onboarding.dark"), icon: "moon" })}${renderChoice({ label: "跟随系统", icon: "system" })}</div>`))}
-    ${specimen("链接 · aria-current", `<div class="mw-choice-group" role="group" aria-label="语言">${renderChoice({ label: "简体中文", href: "#choice", selected: true })}${renderChoice({ label: "English", href: "#choice" })}</div>`)}
+    ${mark("choice", specimen(escapeHtml(say("workbench.catalog-board.ds.choice-btn-caption")), `<div class="mw-choice-group" role="group" aria-label="${escapeHtml(say("workbench.catalog-board.ds.choice-theme-aria"))}" data-catalog-choice-group>${renderChoice({ label: say("workbench.context-onboarding.light"), icon: "sun", selected: true })}${renderChoice({ label: say("workbench.context-onboarding.dark"), icon: "moon" })}${renderChoice({ label: say("workbench.catalog-board.ds.choice-follow-system"), icon: "system" })}</div>`))}
+    ${specimen(escapeHtml(say("workbench.catalog-board.ds.choice-link-caption")), `<div class="mw-choice-group" role="group" aria-label="${escapeHtml(say("workbench.catalog-board.ds.choice-lang-aria"))}">${renderChoice({ label: say("workbench.catalog-board.ds.choice-lang-zh"), href: "#choice", selected: true })}${renderChoice({ label: "English", href: "#choice" })}</div>`)}
   </div>`);
 }
 
-export function composeSection(say: (key: string) => string): string {
+export function composeSection(say: CatalogSay = resolveCatalogSay()): string {
+  const firstTitle = say("workbench.catalog-board.ds.compose-item-1-title");
+  const firstCaption = say("workbench.catalog-board.ds.compose-item-1-caption");
+  const goalsLabel = say("workbench.catalog-board.ds.compose-goals-label");
   const composeRows = [
-    ["打磨 Molis Work 的第一印象", "进行中 · 今天", "progress"],
-    ["让信息流更适合专注阅读", "待确认 · 昨天", "attention"],
-    ["从已有资料开始一个项目", "草稿 · 9 月 25 日", "idle"],
+    [firstTitle, firstCaption, "progress"],
+    [say("workbench.catalog-board.ds.compose-item-2-title"), say("workbench.catalog-board.ds.compose-item-2-caption"), "attention"],
+    [say("workbench.catalog-board.ds.compose-item-3-title"), say("workbench.catalog-board.ds.compose-item-3-caption"), "idle"],
   ].map(([title, caption, tone], index) => renderDirectoryRow({
     title, caption, icon: "target", density: "meta", current: index === 0, statusTone: tone as "progress" | "attention" | "idle",
     attrs: { "data-compose-item": title, "data-compose-caption": caption },
   })).join("");
   const composeSplit = `<div class="mw-compose mw-compose--split" data-compose-split>
-    <div class="mw-compose__list">${renderDirectoryPanel({ pluginId: "compose-list", label: "目标", listLabel: "目标", listRole: "none", body: composeRows, add: { label: "新建目标" } })}</div>
+    <div class="mw-compose__list">${renderDirectoryPanel({ pluginId: "compose-list", label: goalsLabel, listLabel: goalsLabel, listRole: "none", body: composeRows, add: { label: say("workbench.catalog-board.ds.compose-new-goal") } })}</div>
     <div class="mw-compose__detail">${renderFrame({
-      title: "打磨 Molis Work 的第一印象",
-      description: "进行中 · 今天",
-      action: renderButton({ label: "记录进展", variant: "primary", size: "sm", icon: "plus" }),
-      panel: `<p data-compose-body>让布局、文字和每一次交互收成一个完整的体验。选左边任一条，右边随之切换；选中的行是一块中性的底色，不是彩色描边。</p>`,
+      title: firstTitle,
+      description: firstCaption,
+      action: renderButton({ label: say("workbench.catalog-board.ds.compose-record-progress"), variant: "primary", size: "sm", icon: "plus" }),
+      panel: `<p data-compose-body>${escapeHtml(say("workbench.catalog-board.ds.compose-detail-body"))}</p>`,
     })}</div>
   </div>`;
   const composeFilterMenu = renderMenu({
-    items: renderMenuItem({ label: "只看进行中", iconName: "check" }) + renderMenuItem({ label: "含已归档", iconName: "archive" }) + renderMenuItem({ label: "清除筛选", iconName: "x" }),
+    items: renderMenuItem({ label: say("workbench.catalog-board.ds.compose-filter-active"), iconName: "check" })
+      + renderMenuItem({ label: say("workbench.catalog-board.ds.compose-filter-archived"), iconName: "archive" })
+      + renderMenuItem({ label: say("workbench.catalog-board.ds.compose-filter-clear"), iconName: "x" }),
     labelledBy: "compose-filter-button",
     className: "mw-anchored-menu",
     attrs: { id: "compose-filter-menu", popover: "auto" },
   });
+  const filterLabel = say("workbench.catalog-board.ds.compose-filter-action");
+  const newLabel = say("workbench.catalog-board.ds.compose-new-action");
   const composeToolbar = `<div class="mw-compose mw-compose--toolbar">${renderToolbar({ body: `
-    <div class="mw-compose__search">${renderInputGroup({ start: icon("search"), control: renderInput({ type: "search", placeholder: "搜索标题、来源" }) })}</div>
-    ${renderToggleGroup({ label: "视图", items: [{ value: "list", label: "列表", current: true }, { value: "board", label: "看板" }, { value: "canvas", label: "画布" }] })}
-    ${renderButton({ label: "筛选", variant: "secondary", icon: "filter", attrs: { id: "compose-filter-button", "data-anchored-menu": true, popovertarget: "compose-filter-menu", "aria-controls": "compose-filter-menu", "aria-expanded": "false", "aria-haspopup": "menu" } })}${composeFilterMenu}
+    <div class="mw-compose__search">${renderInputGroup({ start: icon("search"), control: renderInput({ type: "search", placeholder: say("workbench.catalog-board.ds.compose-search-placeholder") }) })}</div>
+    ${renderToggleGroup({ label: say("workbench.catalog-board.ds.compose-view-label"), items: [{ value: "list", label: say("workbench.catalog-board.ds.compose-view-list"), current: true }, { value: "board", label: say("workbench.catalog-board.ds.compose-view-board") }, { value: "canvas", label: say("workbench.catalog-board.ds.compose-view-canvas") }] })}
+    ${renderButton({ label: filterLabel, variant: "secondary", icon: "filter", attrs: { id: "compose-filter-button", "data-anchored-menu": true, popovertarget: "compose-filter-menu", "aria-controls": "compose-filter-menu", "aria-expanded": "false", "aria-haspopup": "menu" } })}${composeFilterMenu}
     <span class="mw-compose__spacer"></span>
-    ${renderButton({ label: "新建", variant: "primary", icon: "plus" })}` })}</div>`;
+    ${renderButton({ label: newLabel, variant: "primary", icon: "plus" })}` })}</div>`;
   const composeForm = renderForm({
-    header: `<div><h2>添加来源</h2><p>提交前就地说明哪里需要修正，草稿不丢。</p></div>`,
-    body: renderAlert({ title: "还不能保存", body: "网址和拉取频率需要修正。", tone: "danger" })
-      + renderField({ label: "来源网址", error: "这不是有效的网址。", control: renderInput({ name: "compose-url", value: "example", invalid: true }) })
-      + renderField({ label: "名称", hint: "显示在目录里。", control: renderInput({ name: "compose-name", value: "设计观察" }) })
-      + renderField({ label: "说明", control: renderTextarea({ name: "compose-note", placeholder: "为什么关注这个来源" }) }),
+    header: `<div><h2>${escapeHtml(say("workbench.catalog-board.ds.compose-form-title"))}</h2><p>${escapeHtml(say("workbench.catalog-board.ds.compose-form-subtitle"))}</p></div>`,
+    body: renderAlert({ title: say("workbench.catalog-board.ds.compose-form-alert-title"), body: say("workbench.catalog-board.ds.compose-form-alert-body"), tone: "danger" })
+      + renderField({ label: say("workbench.catalog-board.ds.compose-form-url-label"), error: say("workbench.catalog-board.ds.compose-form-url-error"), control: renderInput({ name: "compose-url", value: "example", invalid: true }) })
+      + renderField({ label: say("workbench.catalog-board.ds.compose-form-name-label"), hint: say("workbench.catalog-board.ds.compose-form-name-hint"), control: renderInput({ name: "compose-name", value: say("workbench.catalog-board.ds.compose-form-name-value") }) })
+      + renderField({ label: say("workbench.catalog-board.ds.compose-form-note-label"), control: renderTextarea({ name: "compose-note", placeholder: say("workbench.catalog-board.ds.compose-form-note-placeholder") }) }),
     footer: `${renderButton({ label: say("common.control.cancel"), variant: "secondary" })}${renderButton({ label: say("common.control.save"), variant: "primary" })}`,
     className: "mw-catalog-form",
   });
   const composeDialog = renderDialog({
     labelledBy: "compose-dialog-title",
-    title: "移动到",
-    description: "对话框里的选择与菜单，都从触发它的控件长出来。",
-    body: renderField({ label: "目标项目", control: renderSelect({ name: "compose-project", optionsHtml: `<option>Molis Work 示例项目</option><option>增长实验</option><option>Research</option>` }) })
-      + `<div class="mw-compose__anchor mw-compose__anchor--inline">${renderButton({ label: "更多操作", variant: "secondary", icon: "more", attrs: { "data-compose-menu-toggle": "", "aria-expanded": "false", "aria-haspopup": "menu" } })}<div class="mw-compose__menu" data-compose-menu hidden>${renderMenu({ items: renderMenuItem({ label: "复制链接", iconName: "link" }) + renderMenuItem({ label: "移入回收站", iconName: "trash", danger: true }) })}</div></div>`,
-    footer: `${renderButton({ label: say("common.control.cancel"), variant: "secondary", attrs: { "data-dialog-close": "" } })}${renderButton({ label: "移动", variant: "primary" })}`,
+    title: say("workbench.catalog-board.ds.compose-move-title"),
+    description: say("workbench.catalog-board.ds.compose-move-desc"),
+    body: renderField({ label: say("workbench.catalog-board.ds.compose-move-project-label"), control: renderSelect({ name: "compose-project", optionsHtml: `<option>${escapeHtml(say("workbench.catalog-board.ds.compose-project-demo"))}</option><option>${escapeHtml(say("workbench.catalog-board.ds.compose-project-growth"))}</option><option>Research</option>` }) })
+      + `<div class="mw-compose__anchor mw-compose__anchor--inline">${renderButton({ label: say("workbench.catalog-board.ds.compose-more-actions"), variant: "secondary", icon: "more", attrs: { "data-compose-menu-toggle": "", "aria-expanded": "false", "aria-haspopup": "menu" } })}<div class="mw-compose__menu" data-compose-menu hidden>${renderMenu({ items: renderMenuItem({ label: say("workbench.catalog-board.ds.compose-copy-link"), iconName: "link" }) + renderMenuItem({ label: say("workbench.catalog-board.ds.compose-move-trash"), iconName: "trash", danger: true }) })}</div></div>`,
+    footer: `${renderButton({ label: say("common.control.cancel"), variant: "secondary", attrs: { "data-dialog-close": "" } })}${renderButton({ label: say("workbench.catalog-board.ds.compose-move-confirm"), variant: "primary" })}`,
+    closeLabel: say("common.control.close"),
     attrs: { "data-catalog-demo": "compose-dialog" },
   });
   const composeLong = `<div class="mw-compose mw-compose--long">${renderScrollArea({
     className: "mw-compose__scroll",
-    body: `<h3>长内容</h3><p>工作面内部各自滚动：外层滚正文，内层的代码块和附件列表各管各的，滚到尽头不会带动外面。</p>
+    body: `<h3>${escapeHtml(say("workbench.catalog-board.ds.compose-long-heading"))}</h3><p>${escapeHtml(say("workbench.catalog-board.ds.compose-long-intro"))}</p>
       <pre class="mw-compose__code"><code>pnpm --filter ./packages/design-system --filter ./apps/workbench run build && node dist/web/server.js --port 4251 --home ~/.molis-work</code></pre>
-      ${renderScrollArea({ className: "mw-compose__nested", body: Array.from({ length: 12 }, (_, index) => `<p>附件 ${index + 1} · 设计手记-${index + 1}.pdf</p>`).join("") })}
-      ${Array.from({ length: 6 }, (_, index) => `<p>第 ${index + 1} 段：页眉和正文靠间距分开，行与行贴紧，组和组才拉开。连续的白色工作面里，层次先靠字重与字号，再靠少量分隔线。</p>`).join("")}`,
+      ${renderScrollArea({ className: "mw-compose__nested", body: Array.from({ length: 12 }, (_, index) => `<p>${escapeHtml(say("workbench.catalog-board.ds.compose-long-attachment", { index: index + 1 }))}</p>`).join("") })}
+      ${Array.from({ length: 6 }, (_, index) => `<p>${escapeHtml(say("workbench.catalog-board.ds.compose-long-paragraph", { index: index + 1 }))}</p>`).join("")}`,
   })}</div>`;
   const composeNarrow = `<div class="mw-compose mw-compose--narrow" data-compose-narrow>
-    <div class="mw-compose__density"><span>密度</span><div class="mw-choice-group" role="group" aria-label="${say("workbench.context-onboarding.interface-density")}">${renderChoice({ label: say("workbench.context-onboarding.standard"), icon: "rows", selected: true, attrs: { "data-density-option": "standard" } })}${renderChoice({ label: say("workbench.context-onboarding.compact"), icon: "list", attrs: { "data-density-option": "compact" } })}</div></div>
-    <div class="mw-compose__resizable">${renderToolbar({ body: `${renderButton({ label: "新建", variant: "primary", icon: "plus" })}${renderButton({ label: "筛选", variant: "secondary", icon: "filter" })}${renderButton({ label: "工作规划", variant: "ghost", icon: "workflow" })}` })}${renderDirectoryPanel({ pluginId: "compose-narrow", label: "目标", listLabel: "目标", listRole: "none", body: composeRows })}</div>
-    <p class="mw-catalog__hint">拖动右下角改变宽度：窄于 420px 时工具条只留图标，名称仍是可访问名称。</p>
+    <div class="mw-compose__density"><span>${escapeHtml(say("workbench.catalog-board.ds.compose-density-label"))}</span><div class="mw-choice-group" role="group" aria-label="${escapeHtml(say("workbench.context-onboarding.interface-density"))}">${renderChoice({ label: say("workbench.context-onboarding.standard"), icon: "rows", selected: true, attrs: { "data-density-option": "standard" } })}${renderChoice({ label: say("workbench.context-onboarding.compact"), icon: "list", attrs: { "data-density-option": "compact" } })}</div></div>
+    <div class="mw-compose__resizable">${renderToolbar({ body: `${renderButton({ label: newLabel, variant: "primary", icon: "plus" })}${renderButton({ label: filterLabel, variant: "secondary", icon: "filter" })}${renderButton({ label: say("workbench.catalog-board.ds.compose-workflow-action"), variant: "ghost", icon: "workflow" })}` })}${renderDirectoryPanel({ pluginId: "compose-narrow", label: goalsLabel, listLabel: goalsLabel, listRole: "none", body: composeRows })}</div>
+    <p class="mw-catalog__hint">${escapeHtml(say("workbench.catalog-board.ds.compose-narrow-hint"))}</p>
   </div>`;
-  return section("compose", "组合", `<div class="mw-catalog__specimens">
-    ${specimen("目录与详情", composeSplit)}
-    ${specimen("工具条与筛选", composeToolbar)}
-    ${specimen("带错误的表单", composeForm)}
-    ${specimen("对话框里的菜单", renderButton({ label: "打开对话框", variant: "secondary", attrs: { "data-catalog-open": "compose-dialog" } }) + composeDialog)}
-    ${specimen("长内容与嵌套滚动", composeLong)}
-    ${specimen("窄窗口与密度", composeNarrow)}
+  return section("compose", escapeHtml(say("workbench.catalog-board.ds.compose-title")), `<div class="mw-catalog__specimens">
+    ${specimen(escapeHtml(say("workbench.catalog-board.ds.compose-spec-split")), composeSplit)}
+    ${specimen(escapeHtml(say("workbench.catalog-board.ds.compose-spec-toolbar")), composeToolbar)}
+    ${specimen(escapeHtml(say("workbench.catalog-board.ds.compose-spec-form")), composeForm)}
+    ${specimen(escapeHtml(say("workbench.catalog-board.ds.compose-spec-dialog")), renderButton({ label: say("workbench.catalog-board.ds.compose-open-dialog"), variant: "secondary", attrs: { "data-catalog-open": "compose-dialog" } }) + composeDialog)}
+    ${specimen(escapeHtml(say("workbench.catalog-board.ds.compose-spec-long")), composeLong)}
+    ${specimen(escapeHtml(say("workbench.catalog-board.ds.compose-spec-narrow")), composeNarrow)}
   </div>`);
 }

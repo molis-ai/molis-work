@@ -17,6 +17,7 @@ const SAMPLE_OWNER = "com.example.board-notes";
 const SAMPLE_PACKS: readonly UiLocalePack[] = [
   { format_version: UI_FORMAT_VERSIONS.locale, owner: SAMPLE_OWNER, locale: "en", messages: { "board-notes.env.owner": "Words of a sample plugin" } },
   { format_version: UI_FORMAT_VERSIONS.locale, owner: SAMPLE_OWNER, locale: "zh", messages: { "board-notes.env.owner": "样例插件自己的词" } },
+  { format_version: UI_FORMAT_VERSIONS.locale, owner: SAMPLE_OWNER, locale: "ja", messages: { "board-notes.env.owner": "サンプルプラグイン独自の文言" } },
 ];
 
 /** A name with ' and &: `renderButton` escapes its label, so the label is `t.text`. */

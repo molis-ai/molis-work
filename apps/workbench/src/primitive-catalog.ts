@@ -1,6 +1,6 @@
-import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
+import { catalogBoardSay, catalogInlinePageText, WORKBENCH_LANGUAGES } from "./platform-languages.js";
 import { DEFAULT_WEB_LOCALE, type WebLocale } from "./i18n.js";
-import { renderLanguageHead } from "./language-resource.js";
+import { renderInlinePageText, renderLanguageHead } from "./language-resource.js";
 import { escapeHtml, icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
@@ -48,20 +48,31 @@ import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.
 const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "images", "jelly", "shelf", "lingguang", "todo",
   "pages", "form", "dataset", "ppt", "workflows"];
 
+type CatalogSay = (key: string, values?: Readonly<Record<string, string | number>>) => string;
+
+function htmlLangFor(lang: WebLocale): string {
+  return WORKBENCH_LANGUAGES.languages.find(row => row.tag === lang || row.html_lang === lang)?.html_lang
+    ?? WORKBENCH_LANGUAGES.languages.find(row => row.tag === DEFAULT_WEB_LOCALE)!.html_lang;
+}
+
 /** The workbench's own surfaces that draw a glyph without being a plugin: they are not in any Manifest, so the board names them here. */
-const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [
-  { id: "home", name: "项目主页", icon: "home" }, { id: "characters", name: "Characters", icon: "user" }, { id: "market", name: "插件市场", icon: "grid" },
-  { id: ARTIFACT_NAVIGATION.id, name: ARTIFACT_NAVIGATION.label, icon: ARTIFACT_NAVIGATION.glyph },
-  { id: SESSIONS_NAVIGATION.id, name: SESSIONS_NAVIGATION.label, icon: SESSIONS_NAVIGATION.glyph },
-];
+function surfaceGlyphs(say: CatalogSay): readonly CatalogPluginIcon[] {
+  return [
+    { id: "home", name: say("workbench.catalog-board.core.surface-home"), icon: "home" },
+    { id: "characters", name: say("workbench.catalog-board.core.surface-characters"), icon: "user" },
+    { id: "market", name: say("workbench.catalog-board.core.surface-market"), icon: "grid" },
+    { id: ARTIFACT_NAVIGATION.id, name: say("workbench.catalog-board.core.surface-artifacts"), icon: ARTIFACT_NAVIGATION.glyph },
+    { id: SESSIONS_NAVIGATION.id, name: say("workbench.catalog-board.core.surface-sessions"), icon: SESSIONS_NAVIGATION.glyph },
+  ];
+}
 
 /**
  * The icon inventory's plugin rows: the glyph each built-in plugin's Manifest declares (the one the rail, tabs and market draw), and
  * the platform's framed surfaces' (the plugin studio, 47-1 C), after the workbench's own surfaces.
  */
-function iconInventoryPlugins(): CatalogPluginIcon[] {
+function iconInventoryPlugins(say: CatalogSay): CatalogPluginIcon[] {
   const glyphs = pluginTabGlyphs(), registered = registeredIconNames();
-  return [...SURFACE_GLYPHS, ...[...builtinPluginDirectory(), ...hostSurfaceDirectory()].flatMap(entry => {
+  return [...surfaceGlyphs(say), ...[...builtinPluginDirectory(), ...hostSurfaceDirectory()].flatMap(entry => {
     const glyph = registered.find(name => name === glyphs[entry.id]);
     return glyph ? [{ id: entry.id, name: entry.name, icon: glyph }] : [];
   })];
@@ -72,13 +83,18 @@ function iconInventoryPlugins(): CatalogPluginIcon[] {
  * (「项目 › 项目主页」), the tabs' place and the start page's ＋ with the project at the top; the work line with the one input
  * at the bottom. The start page opens with the same popover.
  */
-function renderBarSpecimen(): string {
-  const primitives = { readText: (text: string) => text, escapeHtml, icon, htmlLang: () => "zh-CN" };
-  const project = { project_id: "project-demo", display_name: "Molis Work 示例项目" };
+function renderBarSpecimen(lang: WebLocale = DEFAULT_WEB_LOCALE): string {
+  const say = catalogBoardSay(lang), htmlLang = htmlLangFor(lang);
+  const primitives = { readText: say, escapeHtml, icon, htmlLang: () => htmlLang };
+  const project = { project_id: "project-demo", display_name: say("workbench.catalog-board.core.bar-demo-project") };
   const monogram = renderProjectMonogram(project.display_name, project.project_id, escapeHtml);
-  const projectMenu = `<div class="navigator-project-primary"><details class="navigator-project-menu" data-project-menu><summary class="navigator-project-selector" aria-label="切换项目">${monogram}<strong>${project.display_name}</strong>${icon("chevron-down")}</summary><div class="navigator-project-menu-popover"><span>切换项目</span><nav><a class="navigator-project-option is-current" href="#bar" aria-current="page"><span>${monogram}<strong>${project.display_name}</strong></span>${icon("check")}</a></nav><a class="navigator-project-manage" href="#bar">${icon("database")}<span>管理项目</span></a>${renderPersonalMenuItems(primitives)}</div></details></div>`;
+  const switchLabel = escapeHtml(say("workbench.catalog-board.core.bar-switch-project"));
+  const manageLabel = escapeHtml(say("workbench.catalog-board.core.bar-manage-projects"));
+  const homeLabel = escapeHtml(say("workbench.catalog-board.core.bar-project-home"));
+  const projectName = escapeHtml(project.display_name);
+  const projectMenu = `<div class="navigator-project-primary"><details class="navigator-project-menu" data-project-menu><summary class="navigator-project-selector" aria-label="${switchLabel}">${monogram}<strong>${projectName}</strong>${icon("chevron-down")}</summary><div class="navigator-project-menu-popover"><span>${switchLabel}</span><nav><a class="navigator-project-option is-current" href="#bar" aria-current="page"><span>${monogram}<strong>${projectName}</strong></span>${icon("check")}</a></nav><a class="navigator-project-manage" href="#bar">${icon("database")}<span>${manageLabel}</span></a>${renderPersonalMenuItems(primitives)}</div></details></div>`;
   // The first place, 「项目 › 项目主页」 with ⌂ in it, as the project home's tab (§4「底栏第十三版」第 1 条).
-  const corner = `<div class="top-corner" data-top-corner><button type="button" class="top-corner-cell" aria-current="page" aria-expanded="false" aria-label="${project.display_name} › 项目主页">${icon("home")}<span class="top-corner-project-name">${project.display_name}</span>${icon("chevron-right")}<span class="top-corner-page-name">项目主页</span>${icon("chevron-down")}</button></div>`;
+  const corner = `<div class="top-corner" data-top-corner><button type="button" class="top-corner-cell" aria-current="page" aria-expanded="false" aria-label="${projectName} › ${homeLabel}">${icon("home")}<span class="top-corner-project-name">${projectName}</span>${icon("chevron-right")}<span class="top-corner-page-name">${homeLabel}</span>${icon("chevron-down")}</button></div>`;
   const strip = renderImmersiveHeader(primitives, false, [], {
     corner,
     enabled: SAMPLE_PROJECT_PLUGINS,
@@ -90,28 +106,30 @@ function renderBarSpecimen(): string {
 }
 
 /** The board shows the bar in its own workbench context: the page the iframe below loads. */
-export function renderMolisWorkBarSpecimen(appearance?: WorkbenchAppearance): string {
+export function renderMolisWorkBarSpecimen(appearance?: WorkbenchAppearance, lang: WebLocale = DEFAULT_WEB_LOCALE): string {
+  const say = catalogBoardSay(lang), htmlLang = htmlLangFor(lang);
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="${htmlLang}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>底栏样例 · Molis Work</title>
+  <title>${escapeHtml(say("workbench.catalog-board.core.bar-page-title"))} · Molis Work</title>
+  ${renderInlinePageText([catalogInlinePageText(lang)])}${renderLanguageHead(lang)}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-workbench.css">
   ${appearanceHead(appearance)}
 </head>
 <body class="immersive-workbench mw-bar-specimen-page">
   ${renderIconSprite()}
-  ${renderBarSpecimen()}
+  ${renderBarSpecimen(lang)}
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}${BAR_SPECIMEN_SCRIPT}</script>
 </body>
 </html>`;
 }
 
-function renderBarSection(): string {
-  return `<section class="mw-catalog__section" id="bar" data-primitive="bar"><h2>底栏与浮层</h2>
-    <iframe class="mw-catalog-bar-frame" src="/__ui/catalog/bar" title="底栏与浮层样例" loading="lazy"></iframe>
+function renderBarSection(say: CatalogSay, lang: WebLocale): string {
+  return `<section class="mw-catalog__section" id="bar" data-primitive="bar"><h2>${say("workbench.primitive-catalog.bar-and-overlays")}</h2>
+    <iframe class="mw-catalog-bar-frame" src="/__ui/catalog/bar?lang=${encodeURIComponent(lang)}" title="${say("workbench.catalog-board.core.bar-frame-title")}" loading="lazy"></iframe>
   </section>`;
 }
 
@@ -163,25 +181,27 @@ const SPECIMEN_SCRIPT = `
   });
   const elapsed = document.querySelector("[data-catalog-elapsed]");
   let seconds = 0;
-  if (elapsed) setInterval(() => { seconds = (seconds + 7) % 3600; elapsed.textContent = seconds < 60 ? seconds + " 秒" : Math.floor(seconds / 60) + " 分 " + (seconds % 60) + " 秒"; }, 400);
+  const paintElapsed = () => { if (elapsed) elapsed.textContent = seconds < 60 ? globalThis.t.text("workbench.catalog-board.core.elapsed-sec", { seconds }) : globalThis.t.text("workbench.catalog-board.core.elapsed-min-sec", { minutes: Math.floor(seconds / 60), seconds: seconds % 60 }); };
+  if (elapsed) setInterval(() => { seconds = (seconds + 7) % 3600; paintElapsed(); }, 400);
   // A log that keeps growing: it follows while at the end; scrolled up, the lines wait behind the button.
   const log = document.querySelector("[data-catalog-follow]"), latest = document.querySelector("[data-catalog-latest]");
   const follow = log && window.molisFollow?.(log, { onChange: (state) => { if (state === "following") latest.hidden = true; } });
   let line = 0;
-  if (follow) setInterval(() => { const row = document.createElement("div"); row.textContent = "第 " + (++line) + " 行 · 运行中"; log.append(row); if (follow.state === "following") follow.pin(); else latest.hidden = false; }, 700);
+  if (follow) setInterval(() => { const row = document.createElement("div"); row.textContent = globalThis.t.text("workbench.catalog-board.core.follow-line", { line: ++line }); log.append(row); if (follow.state === "following") follow.pin(); else latest.hidden = false; }, 700);
   latest?.addEventListener("click", () => follow?.toLatest());
   // Newly written text, the way a reply comes in: short pieces at a model's pace, the same reveal in both, only the blur differs.
-  const SAMPLE = ["Molis 把这一轮读过的文件、改动和测试结果放在一起，", "你不用翻日志就能看到它做到哪了 👩‍💻。", "下一步：跑 tests/split-divider.e2e.test.ts，再对照基线。"];
+  const sampleLines = () => [globalThis.t.text("workbench.catalog-board.core.stream-line-1"), globalThis.t.text("workbench.catalog-board.core.stream-line-2"), globalThis.t.text("workbench.catalog-board.core.stream-line-3")];
   const streams = [...document.querySelectorAll("[data-catalog-stream]")], replay = document.querySelector("[data-catalog-stream-replay]");
   let timer = 0;
   const play = () => {
     clearInterval(timer); streams.forEach((box) => box.replaceChildren());
     // Pieces are cut by code point, as a model's stream is: an emoji sequence may still arrive in two pieces.
-    const parts = SAMPLE.map((part) => [...part]), total = parts.flat().length; let at = 0;
+    const parts = sampleLines().map((part) => [...part]), total = parts.flat().length; let at = 0;
     const html = (upto) => parts.map((part, i) => part.slice(0, Math.max(0, upto - parts.slice(0, i).flat().length)).join("")).filter(Boolean).map((part) => "<p>" + part.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</p>").join("");
     timer = setInterval(() => { at = Math.min(total, at + 3 + Math.floor(Math.random() * 4)); streams.forEach((box) => window.molisStreamText?.(box, html(at), { reveal: at < total })); if (at >= total) clearInterval(timer); }, 60);
   };
   replay?.addEventListener("click", play);
+  document.addEventListener("molis-work:language-changed", () => { paintElapsed(); if (streams.length) play(); });
   document.querySelector("[data-catalog-stream-slow]")?.addEventListener("change", (event) => streams.forEach((box) => box.toggleAttribute("data-slow", event.target.checked)));
   if (streams.length) play();
   // The media zoom: the button says what it does next, as a preview's own control would.
@@ -218,6 +238,7 @@ const BOARD_PAGE_STYLES = "body.mw-catalog-page .mw-catalog{position:relative;co
  * 语言与文字 section (`renderEnvironmentSection`), drawn by the Host, which has the language scopes its two renders need; without it the board has none. This entry also supplies the text environment for the presentation forms.
  */
 export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = t, lang: WebLocale = DEFAULT_WEB_LOCALE, environment = "", appearance?: WorkbenchAppearance, delivery?: string): string {
+  const boardSay: CatalogSay = say === t ? catalogBoardSay(lang) : say;
   const languages = renderToggleGroup({
     label: say("workbench.primitive-catalog.language"),
     items: WORKBENCH_LANGUAGES.languages.map(({ tag, name }) => ({ value: tag, label: name, current: tag === lang, attrs: { "data-board-lang": tag } })),
@@ -250,7 +271,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
     + `<a href="#on-demand-help" title="${t("workbench.on-demand-help-specimens.title")}">${t("workbench.on-demand-help-specimens.title")}</a>`
     + (environment ? `<a href="#environment" title="${t("workbench.env.title")}">${t("workbench.env.title")}</a>` : "");
   const extraSections = [
-    renderFoundationSection(),
+    renderFoundationSection(boardSay),
     renderConditionsSection(say, lang),
     renderAssistantBoardSection(say, lang),
     renderPluginRowsSection(say, lang),
@@ -258,10 +279,10 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
     renderReturnTripSection(say),
     renderSettingsRowsSection(),
     renderPlatformAreaSection(say, lang),
-    renderConnectionNeedSection(say),
+    renderConnectionNeedSection(boardSay),
     renderPackageInstallSection(say),
-    renderBarSection(),
-    renderCollabSection(say),
+    renderBarSection(boardSay, lang),
+    renderCollabSection(boardSay),
     renderSessionSourceSection(),
     renderNavigationSection(say, lang),
     renderWorkLineSection(lang),
@@ -270,8 +291,8 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
     environment,
   ].filter(Boolean).join("\n    ");
   const catalog = renderPrimitiveCatalog({
-    plugins: iconInventoryPlugins(),
-    say,
+    plugins: iconInventoryPlugins(boardSay),
+    say: boardSay,
     delivery,
     ...(environment ? {
       presentationLocale: lang,
@@ -289,12 +310,12 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
     }],
   });
   return `<!doctype html>
-<html lang="${WORKBENCH_LANGUAGES.languages.find(row => row.tag === lang)?.html_lang ?? DEFAULT_WEB_LOCALE}">
+<html lang="${htmlLangFor(lang)}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${t("workbench.primitive-catalog.component-board")} · Molis Work</title>
-  ${renderLanguageHead(lang)}
+  ${renderInlinePageText([catalogInlinePageText(lang)])}${renderLanguageHead(lang)}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}
   <style>${SUBTASK_CONVERSATION_STYLES}${SUBTASK_SPECIMEN_STYLES}${ON_DEMAND_HELP_SPECIMEN_STYLES}${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}${COLLAB_SECTION_STYLES}${SESSION_SOURCE_SECTION_STYLES}${NAVIGATION_SECTION_STYLES}${SERVICE_CONNECTION_SECTION_STYLES}${RETURN_TRIP_SECTION_STYLES}${SETTINGS_ROWS_SECTION_STYLES}${PLATFORM_AREA_SECTION_STYLES}${CONNECTION_NEED_SECTION_STYLES}${PACKAGE_INSTALL_SECTION_STYLES}${environment ? ENVIRONMENT_SECTION_STYLES : ""}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}${BOARD_PAGE_STYLES}</style>

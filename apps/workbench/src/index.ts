@@ -24,7 +24,7 @@ export { renderMcpAccessRows, type McpAccessModel, type McpAccessEntry } from ".
 export type { MolisWorkWebView, PreparedStageView } from "./page-view.js";
 export type { PluginRestartOffer, UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 export { createWorkbenchLocale, DEFAULT_WEB_LOCALE, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, WEB_LOCALES, webLanguage, type WebLocale, type WebLocalePreference } from "./i18n.js";
-export { WORKBENCH_LANGUAGES, workbenchPlatformText } from "./platform-languages.js";
+export { catalogBoardText, catalogInlinePageText, WORKBENCH_LANGUAGES, workbenchPlatformText } from "./platform-languages.js";
 export { workbenchLanguageResource } from "./language-resource.js";
 export { installCatalogTextScope } from "./plugin-text.js";
 export {

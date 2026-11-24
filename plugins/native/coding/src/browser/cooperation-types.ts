@@ -51,7 +51,7 @@ export interface Mail {
   readonly from_title?: string;
   readonly sent_at_ms: number;
   readonly body: string;
-  readonly history?: readonly { readonly event: string }[];
+  readonly history?: readonly { readonly event: string; readonly note?: string }[];
 }
 
 /** A command a round left running in the background. */

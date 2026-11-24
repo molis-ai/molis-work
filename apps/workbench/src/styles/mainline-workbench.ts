@@ -186,7 +186,7 @@ dialog.mw-dialog.ml-hold-dialog::backdrop{background:var(--scrim)}
   .ml-item-acts{opacity:1}
 }
 @media (max-width:760px){
-  html body .workbench-header[data-dock][data-dock][data-dock][data-mainline-open]{z-index:80}
+  html body .workbench-header[data-dock][data-dock][data-dock][data-corner-open]{z-index:80}
   html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-list{position:fixed;inset:auto 0 0 0;width:100vw;max-width:100vw;height:auto;max-height:84dvh;border-radius:16px 16px 0 0;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);z-index:140}
   html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-projects{max-height:30dvh;overflow:auto;border-right:0;border-bottom:1px solid var(--line)}
   html body .workbench-header[data-dock][data-dock][data-dock] .top-corner-rows{overflow:visible;flex:none}

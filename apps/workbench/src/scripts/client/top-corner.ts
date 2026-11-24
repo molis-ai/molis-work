@@ -19,6 +19,7 @@ export const TOP_CORNER_PART = `
     if (!cornerList || !cornerToggle || cornerList.hidden === !open) return;
     if (open) { setPicker(false); showPages(projectId); }
     cornerList.hidden = !open;
+    dock.toggleAttribute('data-corner-open', Boolean(open));
     cornerToggle.setAttribute('aria-expanded', String(open));
     if (open) cornerList.querySelector('[data-corner-pages]:not([hidden]) .top-corner-page')?.focus();
   };

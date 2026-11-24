@@ -89,6 +89,7 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
   const closeCorner = () => {
     if (listEl.hidden) return;
     listEl.hidden = true;
+    corner.closest("[data-dock]")?.removeAttribute("data-corner-open");
     toggle.setAttribute("aria-expanded", "false");
   };
 
@@ -444,7 +445,6 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
   });
 
   new MutationObserver(() => {
-    listEl.closest(".workbench-header")?.toggleAttribute("data-mainline-open", !listEl.hidden);
     if (!listEl.hidden) void refresh(false);
   }).observe(listEl, { attributes: true, attributeFilter: ["hidden"] });
 

@@ -9,6 +9,7 @@ import type {
   AgentMcpToolRef,
   AgentMcpSourceRef,
   AgentCommandOutput,
+  AgentWriteCheckResult,
   AgentCommandOutputRef,
   AgentCreateSessionRequest,
   AgentRunControl,
@@ -194,6 +195,7 @@ export interface PrologueRuntimePort {
   /** Hear each model request a round sends, as the runtime handed it to the Host; returns how to stop hearing. */
   /** Each model request the runtime settles, with the runs above it when a subagent sent it (nearest first; empty for a round of ours). */
   listenModelRequests?(listen: (request: import("@prologue/sdk").ModelRequestObserved, lineage: () => readonly string[]) => void): () => void;
+  readWriteChecks?(sessionId: string, runId: string, writeIds: string[]): Promise<AgentWriteCheckResult[]>;
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
     lifecycle?: AgentRuntimeAdapter["sessionLifecycle"];

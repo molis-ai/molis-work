@@ -24,7 +24,7 @@ function slideNode(record: Ppt, slide: Slide, index: number): HTMLElement {
   return card;
 }
 
-const PRINT_PAGE = "<!doctype html><html><head><meta charset='utf-8'><title></title><style>@page{size:A4 landscape;margin:0}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif}.ppt-present-slide{box-sizing:border-box;width:100vw;height:100vh;padding:7vh 8vw;page-break-after:always;border-left:1.2vw solid var(--ppt-accent)}h2{font-size:5vh;margin:0 0 4vh}ul{font-size:3vh;line-height:1.6;margin:0;padding-left:1.2em}p{font-size:3vh}</style></head><body></body></html>";
+const PRINT_PAGE = "<!doctype html><html><head><meta charset='utf-8'><title></title><style>@page{size:A4 landscape;margin:0}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','PingFang SC','Yu Gothic UI','Microsoft YaHei',system-ui,sans-serif}:lang(ja) body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Meiryo','Noto Sans JP',system-ui,sans-serif}.ppt-present-slide{box-sizing:border-box;width:100vw;height:100vh;padding:7vh 8vw;page-break-after:always;border-left:1.2vw solid var(--ppt-accent)}h2{font-size:5vh;margin:0 0 4vh}ul{font-size:3vh;line-height:1.6;margin:0;padding-left:1.2em}p{font-size:3vh}</style></head><body></body></html>";
 
 /** Full-screen presenting on this computer, and every slide on its own landscape page for the browser's print dialog. */
 export function installPresent(page: PptPage): void {
@@ -107,6 +107,8 @@ export function installPresent(page: PptPage): void {
     doc.open();
     doc.write(PRINT_PAGE);
     doc.close();
+    doc.documentElement.lang = document.documentElement.lang || "en";
+    if (document.documentElement.dir) doc.documentElement.dir = document.documentElement.dir;
     doc.title = record.title;
     (record.slides || []).forEach((slide, index) => doc.body.append(doc.importNode(slideNode(record, slide, index), true)));
     page.host.printDocument(doc.documentElement.outerHTML);

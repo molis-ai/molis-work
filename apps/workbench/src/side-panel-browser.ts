@@ -246,12 +246,14 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(!reviewTimer&&(mode!=='person'||changed||!reviewing&&!polled)){polled=true;void pollReviews();}
     else if(changed&&reviewRow)renderApproval(reviewRow);
   };
+  const isSiteField=(field)=>Boolean(field&&(field.key==='site'||field.label===globalThis.t.text("workbench.assistant-review.field.site")||field.label==='网站'||field.label==='Site'));
+  const isWarningField=(field)=>Boolean(field&&(field.key==='warning'||field.label===globalThis.t.text("workbench.assistant-review.field.warning")||field.label==='注意'||field.label==='Warning'));
   const pollReviews=async()=>{
     clearTimeout(reviewTimer);reviewTimer=null;
     let rows;
     try{
       const result=await molisWorkRequest(routePrefix+'/api/agent/reviews?status=pending');
-      rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(f=>f.label==='网站')&&(!row.receipt||row.receipt.status==='pending'));
+      rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(isSiteField)&&(!row.receipt||row.receipt.status==='pending'));
     }catch{/* Failed approval read keeps previous card visible until next poll. */}
     // A failed read did not settle the visible review. Keep it available at the same polling cadence.
     if(rows)renderApproval(rows[0]||null);
@@ -277,12 +279,12 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(!same&&focused)focusBrowserTab();
     const scroll=same&&(!held||focused)?approval.querySelector('.side-browser-approval-copy').scrollTop:0;
     reviewing=row.request.review_id;reviewMode=mode;approval.dataset.reviewVersion=row.request.reference.version;
-    const doc=row.request.document||{},fields=doc.fields||[],site=(fields.find(field=>field.label==='网站')||{}).value||state?.origin||'';
+    const doc=row.request.document||{},fields=doc.fields||[],site=(fields.find(isSiteField)||{}).value||state?.origin||'';
     // Uploads always ask; a blank page is no site to remember.
-    const upload=/上传/.test(doc.summary||''),remember=!upload&&/^https?:\/\//.test(site);
+    const upload=fields.some(isWarningField)||/上传|\bupload\b|アップロード/i.test(doc.summary||''),remember=!upload&&/^https?:\/\//.test(site);
     // While the person holds the page the step cannot run; after the handback the Assistant looks again first.
     const note=held?'<p class="side-browser-approval-note">'+esc(globalThis.t.text("workbench.side-panel-browser.while-hold-page-step-wont-run-after-hand"))+'</p>':!row.decisions.approve.available?'<p class="side-browser-approval-note">'+esc(globalThis.say.text(row.decisions.approve.reason))+'</p>':'';
-    const details=fields.filter(field=>field.label!=='网站').map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('');
+    const details=fields.filter(field=>!isSiteField(field)).map(field=>'<dt>'+esc(field.label)+'</dt><dd>'+esc(field.value)+'</dd>').join('');
     const choices=held||!row.decisions.approve.available?'':browserButton('approve-once',globalThis.t.text("workbench.side-panel-browser.allow-once"),'primary')+(remember?browserButton('approve-site',globalThis.t.text("workbench.side-panel-browser.dont-ask-again-site"),'secondary'):'');
     approval.innerHTML='<h2 id="side-browser-approval-title" tabindex="-1">'+esc(globalThis.t.text("workbench.side-panel-browser.assistant-asks-confirm"))+'</h2>'
       +'<div class="side-browser-approval-copy" role="group" aria-labelledby="side-browser-approval-title" tabindex="0">'
@@ -439,5 +441,10 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(now&&!shown){shown=true;connect();attach();}else shown=now&&shown;
     if(now&&event.detail?.target?.url){if(ready)sendRaw({type:'navigate',input:event.detail.target.url});else queuedAddress=event.detail.target.url;}
     syncVisible();
+  });
+  document.addEventListener('molis-work:language-changed',()=>{
+    if(state)render();
+    if(reviewRow){reviewMode=null;renderApproval(reviewRow);}
+    if(!sitesBox.hidden)void renderSites();
   });
 })();`.replace(/^[ \t]*\/\/.*\n/gm, "");

@@ -80,4 +80,16 @@ export function createImPage(c: ImCtx) {
       c.scheduleRead();
     }
   });
+  document.addEventListener('molis-work:language-changed', () => {
+    if (!s.roomState) return;
+    c.updateHeader();
+    c.render('group');
+    if (s.threadId) {
+      if (s.threadState) v.context(s.threadState);
+      c.render('thread');
+    }
+    c.syncComposer('group');
+    c.syncComposer('thread');
+    c.refreshObjects?.();
+  });
 }

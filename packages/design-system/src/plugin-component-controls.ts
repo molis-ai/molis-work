@@ -83,7 +83,11 @@ export function pcControls(c: State & Kit & Rel) {
     if ((spec.enum && chipsFit(spec.enum.map(say))) || spec.type === 'boolean' && filtering) {
       const values = spec.enum ?? [true, false], options = values.map(value => ({ value: text(value), label: () => say(value) }));
       // A filter whose own choices already include "all" needs no second one.
-      const all = options.find(option => ['all', 'any', '*', '全部', '所有', '全部状态', '不限'].includes(option.value));
+      const allWord = t.text("common.generated.all").trim().toLowerCase();
+      const all = options.find(option => {
+        const normalized = option.value.trim().toLowerCase();
+        return ['all', 'any', '*', '全部', '所有', '全部状态', '不限', 'すべて', '全て', '全件'].includes(normalized) || normalized === allWord;
+      });
       if (filtering && !required && !all) return choices(name, field, label, [{ value: '', label: () => t.text("common.generated.all") }, ...options], '');
       return choices(name, field, label, options, filtering && all ? all.value : options[0]!.value);
     }

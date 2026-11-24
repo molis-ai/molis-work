@@ -31,6 +31,20 @@ export function nativeLanguagePublisher(language: () => NativeDocumentLanguage) 
       quit_confirm_active_body: t.text("workbench.native-tray.quit-confirm-active-body"),
       quit_confirm_upgrading_body: t.text("workbench.native-tray.quit-confirm-upgrading-body"),
       quit_confirm_cancel: t.text("workbench.native-tray.quit-confirm-cancel"),
+    }, wheel: {
+      shelf: t.text("workbench.native-wheel.shelf"),
+      send: t.text("workbench.native-wheel.send"),
+      summarize: t.text("workbench.native-wheel.summarize"),
+      extract: t.text("workbench.native-wheel.extract"),
+      translate: t.text("workbench.native-wheel.translate"),
+      to_markdown: t.text("workbench.native-wheel.to-markdown"),
+    }, dialogs: {
+      choose_folder_prompt: t.text("workbench.native-dialog.choose-folder-prompt"),
+      choose_folder_message: t.text("workbench.native-dialog.choose-folder-message", { folder: "{folder}" }),
+      folder_downloads: t.text("workbench.native-dialog.folder-downloads"),
+      folder_documents: t.text("workbench.native-dialog.folder-documents"),
+      folder_desktop: t.text("workbench.native-dialog.folder-desktop"),
+      folder_custom: t.text("workbench.native-dialog.folder-custom"),
     } };
     pending = pending.then(() => {
       if (generation === document && turn === sequence && alive()) return invoke("native_set_locale", { document, sequence: turn, projection });

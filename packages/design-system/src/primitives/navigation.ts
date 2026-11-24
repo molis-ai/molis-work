@@ -1,4 +1,12 @@
-import { cx, escapeHtml, renderAttrs, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { cx, escapeHtml, renderAttrs, t, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
+
+function uiDefault(fallback: string, read: () => string): string {
+  try { return read(); }
+  catch (error) {
+    if (typeof error === "object" && error && "code" in error && error.code === "ui.text_no_context") return fallback;
+    throw error;
+  }
+}
 
 export function renderTabs(options: {
   label: string;
@@ -47,25 +55,33 @@ export function renderPagination(options: {
   page: number;
   pages: number;
   className?: string;
+  label?: string;
+  previousLabel?: string;
+  nextLabel?: string;
 }): string {
+  const label = options.label ?? uiDefault("Pagination", () => t.text("common.pagination.label"));
+  const previous = options.previousLabel ?? uiDefault("Previous", () => t.text("common.pagination.previous"));
+  const next = options.nextLabel ?? uiDefault("Next", () => t.text("common.pagination.next"));
   const buttons = Array.from({ length: options.pages }, (_, index) => {
     const page = index + 1;
     return `<button type="button" class="${cx("mw-pagination__page", page === options.page && "is-current")}" ${
       page === options.page ? 'aria-current="page"' : ""
     }>${page}</button>`;
   }).join("");
-  return `<nav class="${cx("mw-pagination", options.className)}" data-slot="pagination" aria-label="分页">
-    <button type="button" class="mw-pagination__page" ${options.page <= 1 ? "disabled" : ""} aria-label="上一页">上一页</button>
+  return `<nav class="${cx("mw-pagination", options.className)}" data-slot="pagination" aria-label="${escapeHtml(label)}">
+    <button type="button" class="mw-pagination__page" ${options.page <= 1 ? "disabled" : ""} aria-label="${escapeHtml(previous)}">${escapeHtml(previous)}</button>
     ${buttons}
-    <button type="button" class="mw-pagination__page" ${options.page >= options.pages ? "disabled" : ""} aria-label="下一页">下一页</button>
+    <button type="button" class="mw-pagination__page" ${options.page >= options.pages ? "disabled" : ""} aria-label="${escapeHtml(next)}">${escapeHtml(next)}</button>
   </nav>`;
 }
 
 export function renderBreadcrumb(options: {
   items: ReadonlyArray<{ label: string; href?: string }>;
   className?: string;
+  label?: string;
 }): string {
-  return `<nav class="${cx("mw-breadcrumb", options.className)}" data-slot="breadcrumb" aria-label="路径"><ol>${
+  const label = options.label ?? uiDefault("Breadcrumb", () => t.text("common.breadcrumb.label"));
+  return `<nav class="${cx("mw-breadcrumb", options.className)}" data-slot="breadcrumb" aria-label="${escapeHtml(label)}"><ol>${
     options.items.map((item, index) => {
       const last = index === options.items.length - 1;
       const inner = item.href && !last

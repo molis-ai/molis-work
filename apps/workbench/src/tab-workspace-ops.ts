@@ -7,7 +7,10 @@ export function createTabWorkspaceOps(titles, aliases) {
   const pluginViewKey = (plugin) => "plugin:" + plugin;
   const tabKey = (tab) => tab.kind === "system" ? "system:" + tab.owner + ":" + tab.itemId : tab.kind === "item" ? tab.plugin + ":item:" + tab.itemId : tab.plugin + ":" + tab.kind;
   // Plugins name their tabs with their Manifest views' titles (the page passes `pluginTabTitles`); only the Host's own surfaces are named here.
-  const pluginTitle = (plugin) => (titles && titles[plugin]) || ({ home: "项目主页", characters: "Characters", market: "插件市场" }[plugin] || plugin);
+  const HOST_TITLE_KEYS = { home: "workbench.immersive-navigation.project-home", market: "workbench.tab-workspace.plugin-market" };
+  const pluginTitle = (plugin) => (titles && titles[plugin])
+    || (HOST_TITLE_KEYS[plugin] && typeof globalThis.t?.text === "function" ? globalThis.t.text(HOST_TITLE_KEYS[plugin]) : null)
+    || ({ home: "项目主页", characters: "Characters", market: "插件市场" }[plugin] || plugin);
   const pluginOfSurface = (surface) => (aliases && Object.hasOwn(aliases, surface) ? aliases[surface] : surface);
   const countTabs = (state) => state.panes.reduce((sum, pane) => sum + pane.tabs.length, 0);
   const focused = (state) => state.panes.find((pane) => pane.id === state.focusedPaneId) || state.panes[0];

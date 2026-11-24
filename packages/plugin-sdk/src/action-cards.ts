@@ -181,7 +181,7 @@ function summarizeResult(result: unknown): OwnedTextRef | null {
 }
 
 /** Words that count days from the day they were said. */
-const RELATIVE_DAYS = /今天|明天|后天|今晚|今早|明早|明晚|今日|明日|本周|这周|下周|周末|昨天|大后天/;
+const RELATIVE_DAYS = /今天|明天|后天|今晚|今早|明早|明晚|今日|明日|明後日|今夜|今朝|本周|这周|下周|今週|来週|周末|週末|昨天|昨日|大后天|\b(?:today|tomorrow|yesterday|tonight|this week|next week|weekend)\b/i;
 
 /** Why a card is no longer what the person would mean by it: a moment passed, or "today" was another day. */
 function outdated(card: ActionCard, input: unknown, edited: boolean, ports: Pick<ActionCardPorts, "now" | "timeZone">): OwnedTextRef | null {

@@ -1,6 +1,14 @@
-import { cx, escapeHtml, icon, renderAttrs, renderButton, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { cx, escapeHtml, icon, renderAttrs, renderButton, t, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export { renderMenu, renderMenuItem, renderPopover, renderPreviewCard, renderSheet } from "@molis-ai/molis-work-plugin-sdk/ui";
+
+function defaultCloseLabel(): string {
+  try { return t.text("common.control.close"); }
+  catch (error) {
+    if (typeof error === "object" && error && "code" in error && error.code === "ui.text_no_context") return "Close";
+    throw error;
+  }
+}
 
 export function renderDialog(options: {
   labelledBy: string;
@@ -18,7 +26,7 @@ export function renderDialog(options: {
     size: "icon",
     icon: "x",
     iconOnly: true,
-    label: options.closeLabel ?? "关闭",
+    label: options.closeLabel ?? defaultCloseLabel(),
     className: "mw-dialog__close",
     attrs: { "data-dialog-close": true },
   });
@@ -83,7 +91,7 @@ export function renderDrawer(options: {
     size: "icon",
     icon: "x",
     iconOnly: true,
-    label: options.closeLabel ?? "关闭",
+    label: options.closeLabel ?? defaultCloseLabel(),
     className: "mw-dialog__close",
     attrs: { "data-dialog-close": true },
   });

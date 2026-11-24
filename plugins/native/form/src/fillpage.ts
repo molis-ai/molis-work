@@ -8,20 +8,35 @@ export const FORM_ANSWER_LIMIT = 4000;
 /** JSON that can sit inside a <script> element without ending it. */
 const scriptJson = (value: unknown) => JSON.stringify(value).replaceAll("<", "\\u003c").replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
 
+function resolveFillHtmlLang(locale?: string): string {
+  const raw = locale ?? (() => {
+    const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null } | undefined;
+    return provider?.locale?.() ?? "";
+  })();
+  const tag = raw.trim().toLowerCase();
+  if (!tag) return "";
+  if (tag === "zh" || tag.startsWith("zh-")) return "zh-CN";
+  if (tag === "ja" || tag.startsWith("ja-")) return "ja";
+  if (tag === "en" || tag.startsWith("en-")) return "en";
+  return raw.trim();
+}
+
 /**
  * One self-contained HTML file someone else opens in their own browser: they fill the form and the page saves an
  * answer file for them to send back. Nothing is uploaded anywhere; the owner imports the files into Results
  * (specs/archive/work-placement §6: forms are shared without a hosted collector).
  */
-export function formFillPageHtml(form: FormRecord): string {
+export function formFillPageHtml(form: FormRecord, locale?: string): string {
   const data = { format: FORM_ANSWER_FORMAT, form_id: form.id, form_version: form.version, title: form.title, description: form.description, questions: form.questions };
+  const initialLang = resolveFillHtmlLang(locale);
   return `<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html${initialLang ? ` lang="${esc(initialLang)}"` : ""}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(form.title)}</title>
 <style>
 :root{color-scheme:light dark;--ink:#222326;--muted:#6b6f76;--line:#d9dce1;--paper:#fff;--page:#f3f4f5;--accent:#5e6ad2}
 @media (prefers-color-scheme:dark){:root{--ink:#f2f3f5;--muted:#9a9ea6;--line:#34363c;--paper:#18191b;--page:#0f1011;--accent:#8b93f1}}
-*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Hiragino Sans","PingFang SC","Yu Gothic UI","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif}
+:lang(ja) body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo","Noto Sans JP",system-ui,sans-serif}
 main{max-width:640px;margin:32px auto;padding:0 16px}.sheet{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:28px}
 h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}.q{margin:0 0 20px}.q>:first-child{display:block;font-weight:600;margin-bottom:8px}
 .opts{display:grid;gap:6px}.opts label{display:flex;gap:8px;align-items:center}input[type=text],input[type=date],select,textarea{width:100%;font:inherit;color:inherit;background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
@@ -36,13 +51,22 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
 <script>
 (function(){
   var data = JSON.parse(document.getElementById("form-data").textContent);
-  // Whoever fills it in may not read the author's language: a browser not set to Chinese gets English.
-  var en = !/^zh/i.test(navigator.language || "") ? { title: "Form", untitled: "(Untitled question)", required: "(Required)", missing: "A required question is still empty: ", tooLong: "Keep each answer within ${FORM_ANSWER_LIMIT} characters: ", file: " · answers · ",
+  // Whoever fills it in may not read the author's language: match browser language across zh/ja/en.
+  var nav = String(navigator.language || "").toLowerCase();
+  var pack = /^zh/.test(nav) ? null : /^ja/.test(nav) ? {
+    lang: "ja", title: "フォーム", untitled: "（無題の質問）", required: "（必須）", missing: "必須の質問が未入力です：", tooLong: "各回答は ${FORM_ANSWER_LIMIT} 文字以内にしてください：", file: " · 回答 · ",
+    go: "回答ファイルを保存", h: "入力が終わると回答ファイル（.json）が保存されます。依頼元へお送りください。このページから内容はアップロードされません。",
+    okt: "回答ファイルを保存しました", okd: "ダウンロードしたファイルを依頼元へお送りください。修正したい場合は入力し直して再保存できます。取り込み時は 1 ファイルにつき 1 回カウントされます。",
+    again: "もう一度入力する", foot: "Molis Work フォーム · ブラウザ上で入力でき、アカウントは不要です"
+  } : {
+    lang: "en", title: "Form", untitled: "(Untitled question)", required: "(Required)", missing: "A required question is still empty: ", tooLong: "Keep each answer within ${FORM_ANSWER_LIMIT} characters: ", file: " · answers · ",
     go: "Save my answers", h: "When you finish, an answer file (.json) is saved. Send it back to whoever asked; this page uploads nothing.",
     okt: "Answer file saved", okd: "Send the file you just downloaded back to whoever asked. To change an answer, fill it in again and save another; each file counts once when it is imported.",
-    again: "Fill in again", foot: "Molis Work form · filled in your browser, no account needed" } : null;
-  var say = function(key, zh){ return en ? en[key] : zh; };
-  if (en) { document.documentElement.lang = "en"; ["go", "h", "okt", "okd", "again", "foot"].forEach(function(id){ document.getElementById(id).textContent = en[id]; }); }
+    again: "Fill in again", foot: "Molis Work form · filled in your browser, no account needed"
+  };
+  var say = function(key, zh){ return pack ? pack[key] : zh; };
+  document.documentElement.lang = pack ? pack.lang : "zh-CN";
+  if (pack) { ["go", "h", "okt", "okd", "again", "foot"].forEach(function(id){ document.getElementById(id).textContent = pack[id]; }); }
   var form = document.getElementById("f"), qs = document.getElementById("qs"), error = document.getElementById("e");
   document.getElementById("t").textContent = data.title || say("title", "问卷");
   document.getElementById("d").textContent = data.description || "";

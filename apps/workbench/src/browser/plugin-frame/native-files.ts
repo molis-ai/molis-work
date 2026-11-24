@@ -1,4 +1,5 @@
 import type { UiPageFiles } from "@molis-ai/molis-work-contracts/platform/ui";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FrameDown, FrameScope, FrameUp } from "./types.js";
 import { childFilePicker } from "./file-picker-child.js";
 
@@ -31,10 +32,10 @@ export async function handoffPageFiles(port: MessagePort, scope: FrameScope, pag
   message: Extract<FrameUp, { type: "native-files" }>): Promise<void> {
   try {
     const invoke = nativeFileInvoke();
-    if (!invoke || !navigator.userActivation.isActive || !["copy", "drag", "open"].includes(message.operation)) throw new Error("请重新点击或拖动文件");
-    if (message.operation === "open" && (!Array.isArray(message.paths) || message.paths.length !== 1)) throw new Error("请选择一份文件");
+    if (!invoke || !navigator.userActivation.isActive || !["copy", "drag", "open"].includes(message.operation)) throw new Error(uiText.text("workbench.plugin-frame.retry-file-action"));
+    if (message.operation === "open" && (!Array.isArray(message.paths) || message.paths.length !== 1)) throw new Error(uiText.text("workbench.plugin-frame.choose-one-file"));
     if (message.itemIds !== undefined && (!Array.isArray(message.itemIds) || message.itemIds.length > 100
-      || message.itemIds.some(id => typeof id !== "string" || id.length > 200))) throw new Error("文件标识无效");
+      || message.itemIds.some(id => typeof id !== "string" || id.length > 200))) throw new Error(uiText.text("workbench.plugin-frame.invalid-file-id"));
     scope.assertCurrent();
     const input = { endpoint: route("/api/host/plugin-page-files"), pageId, paths: message.paths };
     if (message.operation === "open") await invoke("files_open", input);

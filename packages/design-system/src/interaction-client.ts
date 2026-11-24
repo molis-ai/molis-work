@@ -111,12 +111,18 @@ export function interactionCalendar(picked: (input: HTMLInputElement) => void) {
     });
   };
   const markDay = (popup: HTMLElement, value: string) => {
+    const lang = popup.ownerDocument.documentElement.lang || undefined;
+    let formatDay: ((iso: string) => string) | null = null;
+    try {
+      const formatter = new Intl.DateTimeFormat(lang, { month: "long", day: "numeric", timeZone: "UTC" });
+      formatDay = (iso: string) => formatter.format(new Date(`${iso}T12:00:00Z`));
+    } catch { formatDay = null; }
     for (const cell of all(popup, "td[data-date]")) {
-      const day = q<HTMLButtonElement>(cell, ".mw-calendar__day"), [, month, date] = (cell.dataset.date ?? "").split("-");
-      if (!day) continue;
-      day.setAttribute("aria-label", `${Number(month)}月${Number(date)}日`);
-      day.setAttribute("aria-pressed", String(cell.dataset.date === value));
-      cell.classList.toggle("is-selected", cell.dataset.date === value);
+      const day = q<HTMLButtonElement>(cell, ".mw-calendar__day"), iso = cell.dataset.date ?? "";
+      if (!day || !iso) continue;
+      day.setAttribute("aria-label", formatDay ? formatDay(iso) : iso);
+      day.setAttribute("aria-pressed", String(iso === value));
+      cell.classList.toggle("is-selected", iso === value);
     }
   };
   /** A press anywhere outside the date field closes the popover, wherever it lands (the card's own listeners never see it). */

@@ -24,16 +24,21 @@ interface AuthReply { verificationId: string; handle: string; nextStep: string; 
     message.setAttribute('role','status'); message.setAttribute('aria-live','polite');
     const social = node('div', '', 'account-social');
     const help=node('details','','mw-disclosure');help.hidden=true;
-    help.append(node('summary',readText('workbench.account.cant-use-sign-methods')),
-      node('p',readText('workbench.account.if-method-still-works-sign-verify-identity-profile')),
-      node('p',readText('workbench.account.if-all-methods-lost-recover-original-method-through')),
-      node('p',readText('workbench.account.molis-does-not-currently-offer-manual-account-recovery')));
+    const helpSummary = node('summary', readText('workbench.account.cant-use-sign-methods'));
+    const helpLines = [
+      node('p', readText('workbench.account.if-method-still-works-sign-verify-identity-profile')),
+      node('p', readText('workbench.account.if-all-methods-lost-recover-original-method-through')),
+      node('p', readText('workbench.account.molis-does-not-currently-offer-manual-account-recovery')),
+    ];
+    help.append(helpSummary, ...helpLines);
     dialog.append(head,close,modes,form,message,social,help); document.body.append(dialog); dialog.showModal();
     let mode = 'login', transaction: AuthReply | null = null, challenge: string | null = null, address = '', busy = false, generation = 0, retryAt = 0, timer: ReturnType<typeof setInterval> | undefined;
     let disposeManagement: (() => void) | undefined;
+    let shownAccount: Extract<AccountView, {state: "AUTHENTICATED" | "OFFLINE_CACHED"}> | null = null;
     let methods: LoginCapabilities["methods"] | null = null;
     let providerTimer: ReturnType<typeof setTimeout> | undefined, providerWindow: Window | null = null;
-    const buttons: [HTMLButtonElement, string][] = [];
+    const buttons: [HTMLButtonElement, string, () => string][] = [];
+    const socialButtons: [HTMLButtonElement, () => string][] = [];
     const cancel = () => { clearTimeout(providerTimer); providerWindow?.close(); providerWindow=null; const old = transaction; transaction = null; challenge = null; generation++; if(old) void request('/auth/transactions/'+old.handle+'/cancel',{}).catch(() => { /* Local page is already closed; Host expiry also fences abandoned attempts. */ }); };
     const field = (label: string,name: string,type: string,autocomplete: string) => { const wrap=node('label', '', 'mw-field'); wrap.append(node('span',readText(label))); const input=node('input','','mw-input'); input.name=name; input.type=type; input.setAttribute("autocomplete",autocomplete); input.required=true; if(type==='password') { input.minLength=mode==='login'?1:12; input.maxLength=128; } if(name==='code') { input.pattern='[0-9]{6}'; input.maxLength=6; input.inputMode='numeric'; } if(name==='address') { input.maxLength=mode==='phone'?11:254; if(mode==='phone') { input.pattern='1[3-9][0-9]{9}'; input.inputMode='tel'; } } wrap.append(input);form.append(wrap);return input; };
     const button = (text: string, action: () => void | Promise<void>, parent: HTMLElement = form) => { const b=node('button',readText(text),'mw-btn mw-btn--secondary'); b.type='button'; b.onclick=action;parent.append(b);return b; };
@@ -60,6 +65,7 @@ interface AuthReply { verificationId: string; handle: string; nextStep: string; 
     const fail = (error: unknown) => { const failure = error as {code?: string; body?: {details?: {authCode?: string;retryAfterSeconds?: number}}}; const code=failure.body?.details?.authCode || failure.code; const wait=failure.body?.details?.retryAfterSeconds; const texts: Record<string, string>={INVALID_CREDENTIALS:readText("workbench.account.email-password-code-incorrect-please-try-again"),CHALLENGE_EXPIRED:readText("workbench.account.code-has-expired-request-new-code"),TRANSACTION_EXPIRED:readText("workbench.account.verification-expired-please-start-again"),RATE_LIMITED:readText("workbench.account.too-many-attempts-please-try-again-later"),IDENTITY_IN_USE:readText("workbench.account.sign-method-belongs-another-account"),LAST_LOGIN_METHOD:readText("workbench.account.keep-least-one-usable-sign-method-link-another"),VERSION_CONFLICT:readText("workbench.account.account-state-changed-go-back-reload-before-continuing"),SESSION_EXPIRED:readText("workbench.account.session-expired-please-sign-again"),REAUTH_REQUIRED:readText("workbench.account.verify-current-account-again"),FORBIDDEN:readText("workbench.account.do-not-have-permission-refresh-account-status"),TENANT_DISABLED:readText("workbench.account.tenant-disabled-contact-platform-administrator"),OWNER_TRANSFER_REQUIRED:readText("workbench.account.complete-ownership-transfer-before-leaving"),NOT_FOUND:readText("workbench.account.record-unavailable-refresh-try-again"),CAPACITY_CONFLICT:readText("workbench.account.capacity-changed-release-excess-assignments-refresh"),SUBSCRIPTION_INACTIVE:readText("workbench.account.inactive-subscription-cannot-assign-reassign-seats"),'account.invalid_configuration':readText("workbench.account.account-service-not-configured-local-features-remain-available")};message.textContent=texts[code || ""]||readText("workbench.account.unable-complete-step-try-again-start-over");if(wait) { retryAt=Date.now()+wait*1000;message.textContent+=' '+Math.ceil(wait)+'s'; } };
     async function perform(run: () => Promise<void>) {if(busy)return;busy=true;message.textContent='';form.setAttribute('aria-busy','true');dialog.querySelectorAll<HTMLButtonElement>('button').forEach(b=>{if(b!==close)b.disabled=true;});try {await run();}catch(error){if(dialog.open)fail(error);}finally{busy=false;form.removeAttribute('aria-busy');if(dialog.open){buttons.forEach(([b])=>b.disabled=false);dialog.querySelectorAll<HTMLButtonElement>('button').forEach(b=>{b.disabled=b.hasAttribute('data-resend')&&Date.now()<retryAt;});}}}
     function showAccount(account: Extract<AccountView, {state: "AUTHENTICATED" | "OFFLINE_CACHED"}>) {
+      shownAccount = account;
       disposeManagement?.();disposeManagement=undefined;form.onsubmit=e=>e.preventDefault();
       transaction=null;challenge=null;clearInterval(timer);modes.replaceChildren();social.replaceChildren();form.replaceChildren();
       if(loginNonce && account.state==='AUTHENTICATED') {
@@ -133,11 +139,43 @@ interface AuthReply { verificationId: string; handle: string; nextStep: string; 
       const result=await submitStep({step:'REQUEST_CHALLENGE',address});if(own!==generation)return;challenge=result.challengeHandle;retryAt=Date.now()+result.retryAfterSeconds*1000;draw();
     });};
     function switchMode(next: string) { cancel(); mode=next; address='';retryAt=0;message.textContent='';draw(); }
-    for (const [next, key] of [['login','workbench.account.sign-in-with-email'],['signup','workbench.account.sign-up-with-email'],['phone','workbench.account.sign-in-with-phone-code']]) {
-      const modeButton=button(key!,()=>switchMode(next!),modes);modeButton.className='mw-toggle';buttons.push([modeButton,next!]);modeButton.hidden=true;
+    for (const [next, key, label] of [
+      ['login', 'workbench.account.sign-in-with-email', () => readText('workbench.account.sign-in-with-email')],
+      ['signup', 'workbench.account.sign-up-with-email', () => readText('workbench.account.sign-up-with-email')],
+      ['phone', 'workbench.account.sign-in-with-phone-code', () => readText('workbench.account.sign-in-with-phone-code')],
+    ] as const) {
+      const modeButton=button(key,()=>switchMode(next),modes);modeButton.className='mw-toggle';buttons.push([modeButton,next,label]);modeButton.hidden=true;
     }
-    for(const [provider,key] of [['GOOGLE','workbench.account.sign-in-with-google'],['GITHUB','workbench.account.sign-in-with-github']]){const b=button(key!,()=>startProvider(provider!),social);b.dataset.method=provider;b.hidden=true;}
-    dialog.addEventListener('close',()=>{disposeManagement?.();cancel();clearInterval(timer);form.reset();dialog.remove();opened=null;const back=trigger.closest('details:not([open])')?.querySelector<HTMLElement>(':scope > summary') || trigger;
+    for (const [provider, key, label] of [
+      ['GOOGLE', 'workbench.account.sign-in-with-google', () => readText('workbench.account.sign-in-with-google')],
+      ['GITHUB', 'workbench.account.sign-in-with-github', () => readText('workbench.account.sign-in-with-github')],
+    ] as const) {
+      const b=button(key,()=>startProvider(provider),social);b.dataset.method=provider;b.hidden=true;socialButtons.push([b,label]);
+    }
+    const onLanguageChanged = () => {
+      if (!dialog.open) return;
+      head.textContent = readText('workbench.account.molis-account');
+      close.textContent = readText('common.control.close');
+      helpSummary.textContent = readText('workbench.account.cant-use-sign-methods');
+      helpLines[0]!.textContent = readText('workbench.account.if-method-still-works-sign-verify-identity-profile');
+      helpLines[1]!.textContent = readText('workbench.account.if-all-methods-lost-recover-original-method-through');
+      helpLines[2]!.textContent = readText('workbench.account.molis-does-not-currently-offer-manual-account-recovery');
+      for (const [b, , label] of buttons) b.textContent = label();
+      for (const [b, label] of socialButtons) b.textContent = label();
+      if (shownAccount) { if (!disposeManagement) showAccount(shownAccount); return; }
+      if (!methods) return;
+      const saved = new Map([...form.querySelectorAll<HTMLInputElement>('input[name]')].map(input => [input.name, input.value]));
+      const consentChecked = form.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked;
+      draw();
+      for (const input of form.querySelectorAll<HTMLInputElement>('input[name]')) {
+        const value = saved.get(input.name);
+        if (value !== undefined) input.value = value;
+      }
+      const nextCheck = form.querySelector<HTMLInputElement>('input[type="checkbox"]');
+      if (nextCheck && consentChecked) nextCheck.checked = true;
+    };
+    document.addEventListener('molis-work:language-changed', onLanguageChanged);
+    dialog.addEventListener('close',()=>{document.removeEventListener('molis-work:language-changed', onLanguageChanged);disposeManagement?.();cancel();clearInterval(timer);form.reset();dialog.remove();opened=null;const back=trigger.closest('details:not([open])')?.querySelector<HTMLElement>(':scope > summary') || trigger;
       // Opened from the account menu, which has closed: the focus goes back to the avatar that opened that menu.
       (back.checkVisibility() ? back : [...document.querySelectorAll<HTMLElement>('[data-account-link]')].find(link => link.checkVisibility()) ?? back).focus();});
     draw();void perform(async()=>{const account=await request<AccountView>('/session');if(!dialog.open)return;if(account.state==='AUTHENTICATED'||account.state==='OFFLINE_CACHED'){showAccount(account);if(!loginNonce&&account.state==='AUTHENTICATED'&&document.visibilityState==='visible')await request('/activity',{eventId:crypto.randomUUID(),kind:'OPEN'});}else {methods=(await request<LoginCapabilities>('/auth/capabilities')).methods;if(!dialog.open)return;buttons.forEach(([b,m])=>b.hidden=!(methods as readonly string[]).includes(({login:'ACCOUNT_PASSWORD',signup:'EMAIL_CODE',phone:'PHONE_OTP'} as Record<string,string>)[m]!));social.querySelectorAll<HTMLElement>('[data-method]').forEach(b=>b.hidden=!(methods as readonly string[]).includes(b.dataset.method!));draw();if(account.state==='EXPIRED')message.textContent=readText('workbench.account.session-expired-please-sign-again');}});

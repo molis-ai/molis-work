@@ -77,7 +77,7 @@ export const STUDIO_CLIENT_SESSION = String.raw` let viewSignal,opening=0,initia
    };
    if(!current||fresh){const v=await api('/builds','POST',{brief:text});await clear();await refreshState();await open(v.build.id);return;}
    const node=target&&current.nodes.find(n=>n.id===target);await act($('[data-as-edit-mode]').value,{message:node?'［'+node.purpose+'］'+text:text});await clear();target=null;});
-  if(current?.design&&!target&&/^(我|帮我|请)?(要|想|需要|来)?(做|建|创建|新建|开发|搭)(一个|个|一款|款)/.test(text))
+  if(current?.design&&!target&&/^(?:我|帮我|请)?(?:要|想|需要|来)?(?:做|建|创建|新建|开发|搭)(?:一个|个|一款|款)|^(?:please\s+)?(?:i\s+(?:want|would\s+like|need)\s+to\s+|help\s+me\s+|let['’]?s\s+)?(?:build|create|make|start)\s+(?:a|an|another)\s+(?:new\s+)?(?:plugin|tool|app)\b|(?:新しい|別の)?(?:プラグイン|ツール|アプリ)を?(?:作|つく|作成|新規|開発)/i.test(text))
    ask(globalThis.t.text("plugin-builder.agent-studio.make-new-plugin-change-name",{name:current.design.title}),'“'+text.slice(0,80)+'”',[['new',globalThis.t.text("plugin-builder.agent-studio.make-new-plugin"),true],['modify',globalThis.t.text("plugin-builder.agent-studio.change-name",{name:current.design.title})],['cancel',globalThis.t.text("plugin-builder.agent-studio.cancel")]]).then(choice=>{if(choice==='new')go(true);else if(choice==='modify')go(false);});
   else go(false);});
  lifetime.listen(scroll,'scroll',()=>{if(!playing)pointers();},{passive:true});lifetime.listen(window,'resize',()=>pointers());

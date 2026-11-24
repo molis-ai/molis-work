@@ -43,13 +43,13 @@ export type HomePageApprovalOperation = (typeof approvalOperations)[number];
 
 export interface HomePageApprovalReadQuery {
     by: "approval_request";
-    operation: HomePageApprovalOperation;
+    operation: HomePageApprovalOperation | "basic";
     request_id: string;
 }
 
 export type HomePageApprovalReadResult = {
     kind: "receipt";
-    receipt: HomePageApprovalReceipt;
+    receipt: HomePageApprovalReceipt | HomePageSelectResult;
     current: HomeSelectionState;
 } | {
     kind: "missing";
@@ -133,9 +133,14 @@ export interface HomePageOverview extends HomeSelectionState {
     versions: HomePageVersionSummary[];
 }
 
+export interface HomePagePreviewInput extends HomePageRef {
+    include_files?: true;
+}
+
 export interface HomePagePreviewResult {
     page: HomePageRef;
     page_session_id: string;
+    loaded?: HomePageFilesResult;
 }
 
 export type HomePageReadInput = Record<string, never> | {
@@ -202,7 +207,7 @@ export declare const homeErrors: import("platform/action-errors").ErrorCodeRaise
 export declare const homePageActions: {
     read: ActionDefinition<HomePageReadInput, HomePageReadResult>;
     saveDraft: ActionDefinition<HomePageDraftSaveInput, HomePageDraftSaveResult>;
-    preview: ActionDefinition<HomePageRef, HomePagePreviewResult>;
+    preview: ActionDefinition<HomePagePreviewInput, HomePagePreviewResult>;
     adopt: ActionDefinition<HomePageApprovalInput, HomePageApprovalReceipt<"adopt">>;
     restore: ActionDefinition<HomePageApprovalInput, HomePageApprovalReceipt<"restore">>;
     select: ActionDefinition<HomePageSelectInput, HomePageSelectResult>;

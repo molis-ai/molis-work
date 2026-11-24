@@ -421,6 +421,8 @@ export interface ActionDefinition<Input = unknown, Output = unknown> extends Omi
 }
 
 export interface ActionProvider {
+  /** On the accepting action's directory entry, the content types this system provider accepts there. */
+  readonly adopts?: readonly import("./blueprints.js").AdoptsDeclaration[];
   readonly provider_id: string;
   readonly title: string;
   /**

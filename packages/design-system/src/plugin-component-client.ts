@@ -16,6 +16,7 @@ import { pcPart, pcSubmit } from './plugin-component-part.js';
 import { pcHelp } from './plugin-component-help.js';
 export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[]; presentation?: PluginPresentation; authoringWords?: readonly UiLocalePack[]; deriveFieldWords?: boolean }
 export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: string, binding: 'read' | 'submit', payload: unknown): Promise<unknown>; inspect?(nodeId: string): void;
+  connectionNeed?: import("@molis-ai/molis-work-contracts/platform/ui").UiPluginClientHost<HTMLElement>["connectionNeed"];
   mountSurfaceSlot?: UiPageView<HTMLElement>['surfaceSlot'];
   /** The inspect button's label (the studio passes it translated). */
   inspectLabel?: string;
@@ -120,7 +121,12 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
     const refreshNeeded = !c.view || JSON.stringify([c.view.contract.revision, c.view.nodes, c.view.connected]) !== JSON.stringify([next.contract.revision, next.nodes, next.connected]);
     const focused = root.contains(document.activeElement) ? document.activeElement as HTMLInputElement : null;
     const caret = focused && typeof focused.selectionStart === 'number' ? [focused.selectionStart, focused.selectionEnd] : undefined;
-    if (c.view?.contract.revision !== next.contract.revision) { c.epoch++; c.selection = {}; selectionVersions.clear(); }
+    if (c.view?.contract.revision !== next.contract.revision) {
+      for (const part of parts.values()) part.connection?.abort();
+      c.epoch++;
+      c.selection = {};
+      selectionVersions.clear();
+    }
     c.view = next;
     const pageIds = new Set<string>(), regionIds = new Set<string>(), partIds = new Set<string>(); tabList.replaceChildren();
     // A single page needs no page switcher.
@@ -150,7 +156,11 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
             const focused = previous?.root.contains(active) ? active?.name : undefined;
             const values = new Map<string, { value: string; checked?: boolean }>();
             previous?.form?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[data-field]').forEach(input => values.set(input.name, { value: input.value, ...('checked' in input ? { checked: input.checked } : {}) }));
-            previous?.slot?.dispose(); clearTimeout(previous?.feedbackTimer); previous?.opener?.remove(); details.delete(node.id);
+            previous?.connection?.abort();
+            previous?.slot?.dispose();
+            clearTimeout(previous?.feedbackTimer);
+            previous?.opener?.remove();
+            details.delete(node.id);
             const replacement = createPart(node); previous?.root.replaceWith(replacement.root); part = replacement; parts.set(node.id, part);
             replacement.form?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[data-field]').forEach(input => { const saved = values.get(input.name); if (saved) { input.value = saved.value; if ('checked' in input && saved.checked !== undefined) input.checked = saved.checked; } if (focused === input.name) input.focus(); });
             if (replacement.form) syncChoices(replacement.form);
@@ -184,7 +194,16 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
         }
       }
     }
-    for (const [id, part] of parts) if (!partIds.has(id)) { part.query++; part.slot?.dispose(); clearTimeout(part.feedbackTimer); part.opener?.remove(); part.root.remove(); parts.delete(id); details.delete(id); }
+    for (const [id, part] of parts) if (!partIds.has(id)) {
+      part.query++;
+      part.connection?.abort();
+      part.slot?.dispose();
+      clearTimeout(part.feedbackTimer);
+      part.opener?.remove();
+      part.root.remove();
+      parts.delete(id);
+      details.delete(id);
+    }
     for (const part of parts.values()) {
       const hasReader = detailEnabled(part.node.id) || next.nodes.some(other => other.id !== part.node.id && other.props.textField && Object.values(other.read?.input ?? {}).some(source => source.source === 'selection' && source.componentId === part.node.id));
       part.root.toggleAttribute('data-reading-preview', !!next.presentation && part.node.kind === 'directory' && hasReader);
@@ -210,6 +229,20 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
     help.syncHelp();
     if (refreshNeeded) await refresh();
   }
-  function destroy() { c.disposed = true; c.epoch++; for (const part of parts.values()) { part.slot?.dispose(); clearTimeout(part.waiting); clearTimeout(part.feedbackTimer); } parts.clear(); details.clear(); pages.clear(); regions.clear(); root.replaceChildren(); }
+  function destroy() {
+    c.disposed = true;
+    c.epoch++;
+    for (const part of parts.values()) {
+      part.connection?.abort();
+      part.slot?.dispose();
+      clearTimeout(part.waiting);
+      clearTimeout(part.feedbackTimer);
+    }
+    parts.clear();
+    details.clear();
+    pages.clear();
+    regions.clear();
+    root.replaceChildren();
+  }
   return { update, destroy };
 }

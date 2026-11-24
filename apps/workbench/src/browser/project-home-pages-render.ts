@@ -9,8 +9,8 @@ import {
   renderCheckSummary,
   renderCompareAdoptBar,
   renderEditConflict,
-  type CheckSummaryItem,
-} from "@molis-ai/molis-work-design-system/home-page-adoption";
+} from "./mainline-ui.js";
+import type { CheckSummaryItem } from "@molis-ai/molis-work-design-system/home-page-adoption";
 import {
   escapeHtml,
   icon,
@@ -20,7 +20,7 @@ import {
   renderPopover,
   renderStatusMark,
   t as uiText,
-} from "@molis-ai/molis-work-plugin-sdk/ui";
+} from "./mainline-ui.js";
 
 export interface InspectedAction extends ExactActionReference {
   readonly title: string;
@@ -50,6 +50,8 @@ const DESIGN_ISSUE_KEYS: Readonly<Record<string, string>> = {
   action_not_public: "workbench.home-pages.issue-action-not-public",
   dynamic_eval: "workbench.home-pages.issue-dynamic-eval",
   nested_embed: "workbench.home-pages.issue-nested-embed",
+  low_contrast: "workbench.home-pages.issue-low-contrast",
+  amber_usage: "workbench.home-pages.issue-amber",
   literal_color: "workbench.home-pages.issue-literal-color",
   pill_radius: "workbench.home-pages.issue-pill-radius",
 };
@@ -439,4 +441,92 @@ export function renderApprovalDialogHtml(options: {
       ${renderButton({ label: uiText.text(operation === "restore" ? "workbench.home-pages.confirm-restore" : "workbench.home-pages.confirm-adopt"), variant: "primary", key: "↵", attrs: { "data-hp-act": "dialog-confirm" } })}
     </footer>
   </form>`;
+}
+
+export function relabelComparison(compareHost: HTMLElement, overview: HomePageOverview): void {
+  // Re-label compare column headers, badges, ARIA labels, quiet notes & view toggle in place without tearing down live preview iframes.
+  const sideNow = uiText.text("workbench.home-pages.side-now");
+  const sideDraft = uiText.text("workbench.home-pages.side-draft");
+  const group = compareHost.querySelector<HTMLElement>("[data-hp-compare-group]");
+  if (group) group.setAttribute("aria-label", uiText.text("workbench.home-pages.compare-which"));
+  const nowBtn = compareHost.querySelector<HTMLElement>('[data-hp-view="now"]');
+  const draftBtn = compareHost.querySelector<HTMLElement>('[data-hp-view="draft"]');
+  if (nowBtn) nowBtn.textContent = sideNow;
+  if (draftBtn) draftBtn.textContent = sideDraft;
+  const nowCol = compareHost.querySelector<HTMLElement>('[data-col="now"]');
+  const draftCol = compareHost.querySelector<HTMLElement>('[data-col="draft"]');
+  if (nowCol) nowCol.setAttribute("aria-label", sideNow);
+  if (draftCol) draftCol.setAttribute("aria-label", sideDraft);
+  const nowBadge = compareHost.querySelector<HTMLElement>("[data-hp-now-badge]");
+  if (nowBadge) nowBadge.innerHTML = renderBadge({ label: uiText.text("workbench.home-pages.in-use"), tone: "success" });
+  const draftBadge = compareHost.querySelector<HTMLElement>("[data-hp-draft-badge]");
+  if (draftBadge) draftBadge.innerHTML = renderBadge({ label: uiText.text("workbench.home-pages.draft"), tone: "info" });
+  const nowTitle = compareHost.querySelector<HTMLElement>("[data-hp-now-title]");
+  if (nowTitle) {
+    nowTitle.textContent = overview.selection.kind === "page"
+      ? uiText.text("workbench.home-pages.now-version", { v: overview.selection.version })
+      : uiText.text("workbench.home-pages.default-first-page");
+  }
+  const nowNote = compareHost.querySelector<HTMLElement>("[data-hp-now-note]");
+  if (nowNote) {
+    nowNote.textContent = nowNote.dataset.hpNowNote === "unavailable"
+      ? uiText.text("workbench.home-pages.now-unavailable-in-compare")
+      : uiText.text("workbench.home-pages.now-is-default");
+  }
+  const previewNote = compareHost.querySelector<HTMLElement>(".hp-preview-note");
+  if (previewNote) previewNote.textContent = uiText.text("workbench.home-pages.preview-readonly-note");
+}
+
+export function updateComparison(compareHost: HTMLElement, compareView: "now" | "draft", issuesHtml: string, barHtml: string): void {
+  const issuesSlot = compareHost.querySelector<HTMLElement>("[data-hp-compare-issues]");
+  const barSlot = compareHost.querySelector<HTMLElement>("[data-hp-compare-bar]");
+  const grid = compareHost.querySelector<HTMLElement>("[data-hp-compare-grid]");
+  if (issuesSlot) issuesSlot.innerHTML = issuesHtml;
+  if (barSlot) barSlot.innerHTML = barHtml;
+  if (grid) grid.dataset.view = compareView;
+  compareHost.querySelectorAll<HTMLButtonElement>("[data-hp-view]").forEach(btn => {
+    const on = btn.dataset.hpView === compareView;
+    btn.classList.toggle("is-current", on);
+    btn.setAttribute("aria-pressed", String(on));
+  });
+}
+
+export function mirrorBasicPage(root: HTMLElement, nowStage: HTMLElement, signal: AbortSignal): MutationObserver | null {
+  const current = root.querySelector("[data-home-groups]");
+  nowStage.inert = true;
+  if (current) {
+    const mirror = () => {
+      if (signal.aborted) return;
+      nowStage.replaceChildren(...Array.from(current.children, section => section.cloneNode(true)));
+      for (const node of nowStage.querySelectorAll("[id]")) node.removeAttribute("id");
+    };
+    mirror();
+    const observer = new MutationObserver(mirror);
+    observer.observe(current, { subtree: true, childList: true, characterData: true, attributes: true });
+    return observer;
+  }
+  return null;
+}
+
+export function relabelApprovalDialog(dialog: HTMLDialogElement, dialogTarget: { operation: "adopt" | "restore"; version: HomePageVersionSummary; inspect: InspectResponse }, overview: HomePageOverview): void {
+  const grants = new Map(Array.from(dialog.querySelectorAll<HTMLInputElement>("input[data-hp-grant]"), box => [box.dataset.hpGrant, box.checked]));
+  dialog.innerHTML = renderApprovalDialogHtml({
+    operation: dialogTarget.operation,
+    target: dialogTarget.version,
+    inspect: dialogTarget.inspect,
+    overview,
+  });
+  for (const box of dialog.querySelectorAll<HTMLInputElement>("input[data-hp-grant]")) {
+    box.checked = !box.disabled && grants.get(box.dataset.hpGrant) === true;
+  }
+}
+
+export function checkedGrants(dialog: HTMLDialogElement, inspect: InspectResponse): ExactActionReference[] {
+  const approved: ExactActionReference[] = [];
+  dialog.querySelectorAll<HTMLInputElement>("input[data-hp-grant]").forEach(box => {
+    if (!box.checked || box.disabled) return;
+    const item = inspect.actions[Number(box.dataset.hpGrant)];
+    if (item) approved.push({ capability_id: item.capability_id, version: item.version, provider_id: item.provider_id });
+  });
+  return approved;
 }

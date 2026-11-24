@@ -42,6 +42,8 @@ Valid intents: heading, description, input (entry/edit), action (operate on a se
 - A collection can bind query input to a control: {"op":"books.list","input":{"status":"form"}}. The filter appears above the list and changing it rereads. Use an optional "status?" field for a selectable “All”. Verify with fill books.status = reading. Do not add a filter part or action.
 - The only props are title, description, submitLabel, requiredText, emptyText, idField, titleField, textField and columns. Columns specify field and label; for booleans or enums values may map {"true":"Checked in","false":"Not checked in"}, otherwise booleans use Yes/No. Example collection props: {"idField":"id","titleField":"title","emptyText":"No records yet"}. Give intent only; the system chooses a component from legal catalog candidates.
 
+Attach the platform account picker to the form that performs the original command. For example, a GitHub memo form is {"id":"memo","intent":"input","purpose":"Save the account memo","submit":"notes.save","connectionNeed":{"slot_id":"source"}}. The shell supplies the picker, Cancel and Retry inside that form. Use the memo form’s ID for that interaction. In unbound preview acceptance, fill it, submit, then assert the draft with {"action":"expectValue","componentId":"memo","field":"text","value":"draft"} using the actual command field. Exercise account selection, cancellation and binding failure after installation. The faultRead and retry steps target read queries only.
+
 ## Acceptance in detail and revise
 
 Every case starts empty. Its steps contain real browser actions and at least one assertion. Supported string shortcuts: "fill editor.text = Learn spaced repetition", "submit editor", "select notes Learn spaced repetition", "expect notes Learn spaced repetition", "expect-not notes Incorrect", "expect notes New note before Old note", "page home", "reload". To clear a filter use fill list.field = "", never reset or clear.
@@ -52,7 +54,7 @@ When input includes uiText, put the complete uiText inside design. Copy every ta
 
 Example detail response, for syntax only. Its short text, part order and flow are not a template for other work. The selected experience and scenarios take priority.
 
-{"summary":"The selected Quick notes design writes, reads and removes on one page.","design":{"title":"Quick notes","description":"Save a sentence and see the latest on top","journey":["Write and save a sentence","See it at the top","Select a mistaken note and remove it"],"operations":[
+{"summary":"The selected Quick notes design writes, reads and removes on one page.","design":{"icon":"note","title":"Quick notes","description":"Save a sentence and see the latest on top","journey":["Write and save a sentence","See it at the top","Select a mistaken note and remove it"],"operations":[
  {"id":"notes.list","kind":"query","description":"List newest notes first","input":{},"output":[{"id":"string","text":"string"}],"effects":{"storage":["read"]},"examples":[{"input":{},"output":[]}]},
  {"id":"notes.add","kind":"command","description":"Save a note","input":{"text":"string(1..500) Note text"},"output":{"id":"string","text":"string"},"effects":{"storage":["read","write"]},"examples":[{"input":{"text":"Buy milk"},"includes":{"text":"Buy milk"}}]},
  {"id":"notes.remove","kind":"command","description":"Remove a note","input":{"id":"string"},"output":{"removed":"boolean"},"effects":{"storage":["read","write"]},"errors":[{"code":"not_found","description":"Note not found"}],"examples":[{"input":{"id":"missing"},"error":"not_found"}]}],

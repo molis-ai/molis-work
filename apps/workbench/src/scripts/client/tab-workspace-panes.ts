@@ -17,7 +17,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
     try {
       if (currentWorkItemId) {
         const all = readItemLayouts();
-        all[currentWorkItemId] = { state, openRecords: { ...openRecords }, history: Object.fromEntries(tabHistory) };
+        all[currentWorkItemId] = { state, ...(openingSource && { openingSource: true }), openRecords: { ...openRecords }, history: Object.fromEntries(tabHistory) };
         localStorage.setItem(itemsStorageKey, JSON.stringify(all));
       } else {
         localStorage.setItem(storageKey, JSON.stringify(state));
@@ -441,7 +441,7 @@ ${TAB_WORKSPACE_CLONES_PART}
     }
   };
   const landAtProjectRoot = () => {
-    if (pluginRequestedOnLoad) return;
+    if (pluginRequestedOnLoad || currentWorkItemId) return;
     ops.landAtProjectRoot(state);
     apply();
     persist();

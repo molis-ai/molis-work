@@ -37,7 +37,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       forgetIntent(intent);
       const visible = sendTarget() === intent.target && host.route("/api/assistant/send") === intent.route;
       retainSent(res.work); takeMaterials(intent, visible);
-      if (visible) {
+      if (visible && !intent.projectOnce) {
         if (!intent.work) { handedOver = true; askedIn = res.work.work_id; } fresh = false; curId = res.work.work_id; remember();
         if (pendingChar === intent.character) pendingChar = undefined;
         if (nextChar === intent.character) nextChar = undefined;
@@ -88,7 +88,10 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       context: pageContext(), materials: [...sendMaterials(), ...(extra.materials || [])], ...(extra.written_by ? { written_by: extra.written_by } : {}) };
     const character = curId ? pendingChar : nextChar;
     if (character !== undefined && allowsCharacter()) body.character = character ? character.ref : null;
-    if (curId) {
+    if (extra.projectOnce && project) {
+      body.scope = { kind: "project", project_id: project.id };
+      body.main = true;
+    } else if (curId) {
       body.work_id = curId;
       body.draft_revision = getWork()?.draft_revision;
       // Answering the round's question is its own target; the Host takes a way of delivering only with a supplement (K0b).
@@ -106,11 +109,11 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       if (body.scope.kind === "project" && activeWorkItem()) body.work_item_id = activeWorkItem().id;
     }
     // Said in an event's tab with no conversation yet: a new work in this project, done for that event (WLN-12).
-    if (!curId && curEvent && project) { body.scope = { kind: "project", project_id: project.id }; body.for_event = eventOf().subject; }
+    if (!extra.projectOnce && !curId && curEvent && project) { body.scope = { kind: "project", project_id: project.id }; body.for_event = eventOf().subject; }
     if (!again && !extra.named) again = pending.find(one => one.target === target && one.route === route && contentOf(one.body) === contentOf(body));
     if (again) recovering = false;
     const intent = again?.body.text === text ? again
-      : { body, unsentKey, work: curId, target, route, character, files: files.slice(), selection: sel, removed: [...removed], joined: [...joined] };
+      : { body, unsentKey, projectOnce: extra.projectOnce, work: curId, target, route, character, files: files.slice(), selection: sel, removed: [...removed], joined: [...joined] };
     if (recovering) {
       if (await recoverSend(kept, unsentKey)) return { consumed: false };
       // The person may have changed receivers during the lookup; this click must not send to that new receiver.
@@ -121,7 +124,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     // The work a new work's Send made is where the words are now: the composer moves to it without writing them anywhere else.
     const chooseSent = (work) => { if (!intent.work) { handedOver = true; askedIn = work.work_id; } fresh = false; curId = work.work_id; remember(); };
     // A refused draft save has not submitted anything and must not discard an older uncertain request key.
-    if (extra.before) { const revision = await extra.before; if (!again && typeof revision === "number") intent.body.draft_revision = revision; }
+    if (extra.before) { const revision = await extra.before; if (!again && !extra.projectOnce && typeof revision === "number") intent.body.draft_revision = revision; }
     problem = null; setPanel(true); scrollOwner()?.toLatest();
     lostSends.set(intent.body.request_id, intent);
     store.set(intent.unsentKey, JSON.stringify({ work: intent.work || null, text, id: intent.body.request_id, target: intent.target, route: intent.route }));
@@ -135,7 +138,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       const data = error.body?.details || {}, visible = here();
       if (data.work) retainSent(data.work);
       if (visible) {
-        if (data.work) chooseSent(data.work);
+        if (data.work && !intent.projectOnce) chooseSent(data.work);
         if (data.action || data.action_kind) problem = { ...error, name: error.name, message: error.message, action: data.action, action_kind: data.action_kind };
         if (curId) await reload(); else render();
       }

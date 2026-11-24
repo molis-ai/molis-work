@@ -1,8 +1,10 @@
 import { t, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { SandboxJson, SandboxPluginContract, SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxDataOperation, SandboxJson, SandboxPluginContract, SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { PluginConnectionsDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
+import type { PluginImageTarget } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { TextRef, UiComponentIntent, UiComponentSpec, UiSlotDescriptor } from '@molis-ai/molis-work-contracts/platform/ui';
 import type { SandboxUiContribution } from '@molis-ai/molis-work-plugin-sdk';
-import { isDestructivePluginOperation, literalPluginWord } from './plugin-surface-text.js';
+import { isDestructivePluginPart, literalPluginWord } from './plugin-surface-text.js';
 import { BASELINE_SPEC } from './baseline.js';
 import { PLUGIN_PRESENTATION_STYLES } from './plugin-presentation-client.js';
 
@@ -40,6 +42,7 @@ export interface PluginComponentPlan {
   props: PluginComponentProps;
   read?: PluginOperationBinding;
   submit?: PluginOperationBinding;
+  connectionNeed?: { kind?: 'slot'; slot_id: string; recordField?: string } | ({ kind: 'image' } & PluginImageTarget);
   surfaceSlot?: Pick<UiSlotDescriptor, 'slot_id'>;
 }
 export interface PluginComponentNode extends PluginComponentPlan { kind: PluginComponentKind }
@@ -74,7 +77,7 @@ const PREFERENCE: Record<PluginComponentIntent, string[]> = {
 const componentsByKind = new Map(PLUGIN_COMPONENTS.map(component => [component.kind, component]));
 /** A declared object slot is placed where the page names it, never chosen for an intent (intelligent-surfaces §16). */
 const SURFACE_SLOT_PART = 'surface-slot';
-const implementedParts = new Set([...Object.values(PREFERENCE).flat(), SURFACE_SLOT_PART]);
+const implementedParts = new Set([...Object.values(PREFERENCE).flat(), SURFACE_SLOT_PART, "connection-need"]);
 for (const component of PLUGIN_COMPONENTS) {
   if ((component.use === 'part') !== implementedParts.has(component.kind)) throw new Error('组件装配登记与实际实现不符：' + component.kind);
 }
@@ -149,11 +152,11 @@ function checkSurfaceSlot(part: PluginComponentPlan, contract: SandboxPluginCont
   }
 }
 
-export function validatePluginComponentPlans(value: unknown, contract: SandboxPluginContract, ui?: SandboxUiContribution): PluginComponentPlan[] {
+export function validatePluginComponentPlans(value: unknown, contract: SandboxPluginContract, ui?: SandboxUiContribution, connections?: PluginConnectionsDeclaration): PluginComponentPlan[] {
   if (!Array.isArray(value) || value.length === 0 || value.length > 100) fail('需要 1–100 个界面零件');
   const seen = new Set<string>();
   for (const raw of value as unknown[]) try {
-    if (!plain(raw) || Object.keys(raw).some(key => !['id', 'pageId', 'regionId', 'intent', 'purpose', 'props', 'read', 'submit', 'surfaceSlot'].includes(key))) fail('未知零件属性');
+    if (!plain(raw) || Object.keys(raw).some(key => !['id', 'pageId', 'regionId', 'intent', 'purpose', 'props', 'read', 'submit', 'surfaceSlot', 'connectionNeed'].includes(key))) fail('未知零件属性');
     const part = raw as unknown as PluginComponentPlan;
     if (!IDENTIFIER.test(part.id) || seen.has(part.id)) fail('零件标识重复或不合法'); seen.add(part.id);
     if (!contract.pages.some(page => page.id === part.pageId && page.regions.some(region => region.id === part.regionId))) fail('零件引用了不存在的页面或区域');
@@ -173,6 +176,26 @@ export function validatePluginComponentPlans(value: unknown, contract: SandboxPl
     for (const binding of [part.read, part.submit]) if (binding && !allowed.includes(binding.operationId)) fail('操作不属于这个区域');
     if (part.read) checkBinding(part.read, contract, true);
     if (part.submit) checkBinding(part.submit, contract, false);
+    if (part.connectionNeed !== undefined) {
+      const need = part.connectionNeed;
+      const op = contract.operations.find((item): item is SandboxDataOperation =>
+        item.id === part.submit?.operationId && item.read_protocol === undefined && item.action_protocol === undefined);
+      if (!need || typeof need !== 'object' || Array.isArray(need) || !op || op.kind !== 'command' || part.read || !['action', 'input'].includes(part.intent))
+        return fail('连接卡必须绑定到提交操作');
+      if (need.kind === 'image') {
+        const url = typeof need.base_url === 'string' ? URL.parse(need.base_url) : null;
+        if (Object.keys(need).some(key => !['kind', 'slot_id', 'base_url'].includes(key)) || typeof need.slot_id !== 'string' || !/^[a-z][a-z0-9-]{0,127}$/u.test(need.slot_id)
+          || !url || url.protocol !== 'https:' || url.username || url.password || url.search || url.hash
+          || !op.effects.imageGeneration?.includes('bind') || !op.effects.networkDomains?.includes(url.hostname))
+          fail('图片连接卡必须使用操作声明的图片连接权限和服务域名');
+      } else {
+        const slot = connections?.slots.find(item => item.slot_id === need.slot_id);
+        if (need.kind !== undefined && need.kind !== 'slot' || Object.keys(need).some(key => !['kind', 'slot_id', 'recordField'].includes(key))
+          || !slot || !op.effects.connections?.includes(slot.slot_id)) return fail('连接卡必须绑定到使用该连接槽的提交操作');
+        if ((slot.binding === 'per_record') !== (need.recordField !== undefined) || need.recordField !== undefined &&
+          (!Object.hasOwn(part.submit!.input, need.recordField) || op.input.properties?.[need.recordField]?.type !== 'string')) fail('按记录连接的卡必须指定提交操作的记录字段');
+      }
+    }
     if (part.surfaceSlot !== undefined) checkSurfaceSlot(part, contract, ui);
     if (['input', 'action', 'conversation'].includes(part.intent) && !part.submit) fail('交互零件需要提交操作');
     if (['collection', 'reading', 'conversation', 'evidence', 'schedule'].includes(part.intent) && !part.read) fail('内容零件需要读取操作');
@@ -193,6 +216,7 @@ export function validatePluginComponentPlans(value: unknown, contract: SandboxPl
   return structuredClone(value) as PluginComponentPlan[];
 }
 export function pluginComponentChoices(part: PluginComponentPlan, contract: SandboxPluginContract): UiComponentSpec[] {
+  if (part.connectionNeed) return PLUGIN_COMPONENTS.filter(item => item.kind === "connection-need");
   if (part.surfaceSlot) return PLUGIN_COMPONENTS.filter(item => item.kind === SURFACE_SLOT_PART);
   const operation = contract.operations.find(item => item.id === part.read?.operationId);
   const schema = operation?.read_protocol === undefined && operation?.action_protocol === undefined ? operation?.output : undefined;
@@ -200,8 +224,7 @@ export function pluginComponentChoices(part: PluginComponentPlan, contract: Sand
   const items = output?.type === 'array' ? output.items : undefined;
   // A calendar needs records that carry a date; a confirmation fits an action that cannot be undone.
   const dated = items?.type === 'object' && Object.entries(items.properties ?? {}).some(([name, spec]) => spec.type === 'string' && (spec.format === 'date' || spec.format === 'date-time' || /date|day|日期/i.test(name)));
-  const destructive = isDestructivePluginOperation(part.submit?.operationId)
-    || /删除|移除|清空|撤销|丢弃/u.test(literalPluginWord(part.props.submitLabel) + literalPluginWord(part.props.title) + part.purpose);
+  const destructive = isDestructivePluginPart(part);
   return PREFERENCE[part.intent].map(kind => componentsByKind.get(kind)!).filter(item => {
     if (!item.intents.includes(part.intent)) return false;
     if (item.data === 'array' && output?.type !== 'array') return false;

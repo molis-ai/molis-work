@@ -668,6 +668,7 @@ export interface ActionNamedSkills {
 export type ActionProgressEvent = Parameters<NonNullable<ActionCallContext["on_progress"]>>[0];
 
 export interface ActionProvider {
+    readonly adopts?: readonly import("@molis-ai/molis-work-contracts/platform/blueprints").AdoptsDeclaration[];
     readonly provider_id: string;
     readonly title: string;
     readonly title_text?: OwnedTextRef;

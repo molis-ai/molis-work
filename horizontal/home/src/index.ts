@@ -20,7 +20,7 @@ export {
   diffHomePageVersions,
   homePageActionHandlers,
   previewHomePage,
-  readAdoptedHomePageSessionTarget,
+  openSelectedHomePage,
   readHomePageFiles,
   readHomePages,
   readPrunedHomePageVersions,

@@ -33,7 +33,7 @@ export function builderPorts(inputs: {
   choice: NonNullable<AgentStudioOptions['choice']>;
   prompt: NonNullable<AgentBuilderPorts['prompt']>; instruction: NonNullable<AgentBuilderPorts['instruction']>;
 }): AgentBuilderPorts {
-  const { execute, options, home, studio, installed, models: { selected, models: withModels, access }, preview: { previewFor, standIns, networkFor, runnerFor, stopRunner, clearPreview, inTrial }, mockups: images, choice } = inputs;
+  const { execute, options, home, studio, installed, models: { selected, models: withModels, access }, preview: { previewFor, standIns, draftAccountServices, networkFor, runnerFor, stopRunner, clearPreview, inTrial }, mockups: images, choice } = inputs;
   return {
     projectId: options.projectId,
     // What a design may use: the project's unified action directory, as offered to generated plugins.
@@ -88,10 +88,10 @@ export function builderPorts(inputs: {
       const scope = build.runtimeScope, catalog = await studio.catalog(scope), effects = buildEffects(build);
       signal.throwIfAborted();
       for (const capability of effects.capabilities ?? []) if (!catalog.some(entry => entry.id === capability && entry.offered && entry.installed)) throw studioScopeCapabilityUnavailable(capability);
-      if (scope === 'home') assertHomePackageAllowed(sandboxPluginManifest({ pluginId: build.design!.contract.pluginId, name: build.title, version: "0.0.0",
+      if (scope === 'home') assertHomePackageAllowed(sandboxPluginManifest({ pluginId: build.design!.contract.pluginId, name: build.title, icon: build.design!.icon, connections: build.design!.connections, version: "0.0.0",
         publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + build.id }, presentation: !!build.design!.presentation, effects, contract: build.design!.contract, runtime: { scope: 'home' } }));
       return runPluginChecks({ root: build.directory!, contract: build.design!.contract, manifest: buildManifest(build.design!.contract),
-      operationIds, services: previewFor(build), mockServices: { capability: standIns, network: networkFor(build) }, grants: buildEffects(build), signal, settled: settledFor(build.directory!),
+      operationIds, services: previewFor(build), mockServices: { ...draftAccountServices, capability: standIns, network: networkFor(build) }, grants: buildEffects(build), signal, settled: settledFor(build.directory!),
       identity: { projectId: scope === 'home' ? null : options.projectId, installationId: 'checks:' + build.id, pluginId: build.design!.contract.pluginId, namespace: 'preview' } });
     },
     call: async (build, operationId, input, control) => execute(build.id, async () => {

@@ -179,13 +179,9 @@ function sandboxResources(input: SandboxManifestInput): Pick<PluginManifest, 'da
     ...(ownerFiles ? { owner_files: { store_name: 'files', entries: ownerFiles, read_permission: FILE_READ, write_permission: FILE_WRITE } } : {}),
   };
   const permissions = new Set(['storage:private', ...sandboxDerivedPermissions(effects).map(row => row.permission)]);
-  const problems = [...databaseDeclarationProblems(resources.databases, permissions), ...connectionDeclarationProblems(connections, permissions),
+  const problems = [...databaseDeclarationProblems(resources.databases, permissions), ...connectionDeclarationProblems(connections, permissions, effects?.connections),
     ...ownerFilesDeclarationProblems(resources.owner_files, permissions)];
   if (problems.length) refuse(problems.join('；'));
-  const slots = new Set(connections?.slots.map(slot => slot.slot_id));
-  if (effects?.connections?.some(id => !slots.has(id)) || connections?.slots.some(slot => !effects?.connections?.includes(slot.slot_id))) {
-    refuse('每个连接槽都须被操作请求，每个连接效果都须有声明的槽');
-  }
   return resources;
 }
 

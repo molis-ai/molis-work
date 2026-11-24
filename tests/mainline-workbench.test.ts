@@ -9,6 +9,9 @@ import { AssistantService, AssistantStore, LocalHost, assistantAuthority, instal
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePageDraft } from "@molis-ai/molis-work-contracts/services/home";
 import type { Mainline, MainlineItemResult, MainlineResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import { notesPlugin } from "./fixtures/mainline-items-plugin.js";
+import { openTestHome } from "./fixtures/test-home.js";
+import { startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { reply } from "./fixtures/fixture-replies.js";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
@@ -33,7 +36,7 @@ interface MainlineViewResponse {
   mainline: Mainline;
   sources: Array<{ kind: string; owner: string; create: boolean; next: boolean; label: string }>;
   counts?: { items: Record<string, { waiting: number; running: number }>; groups: Record<string, { waiting: number; running: number }> };
-  resolved: Record<string, { item_id: string; state: "ok" | "missing" | "denied"; title: string; light: boolean; source: { kind: string; id: string } | null }>;
+  resolved: Record<string, { item_id: string; state: "ok" | "missing" | "denied"; title: string; light: boolean; presentation?: { markup: string; done: boolean }; source: { kind: string; id: string } | null }>;
   task_items: Record<string, string>;
 }
 
@@ -511,4 +514,26 @@ test("S-work-line-person-doors MLN-22: all 18 mainline item/group/switch/hold/vi
   assert.equal(after.mainline.revision, rev, "no unauthorized request mutated mainline revision");
   assert.equal(after.mainline.items.length, 1);
   assert.equal(after.mainline.items[0]?.name, "本人事项");
+});
+
+test("MLN-11 MLN-12 MLN-21: an installed third-party owner supplies the row and completion without Goals", async t => {
+  const notes = notesPlugin();
+  const home = await openTestHome(t, { host: { pluginFixtures: { project: [notes.definition] } } });
+  const project = await home.createProject("第三方事项", []);
+  await startProjectPlugins(home.host, project.reference);
+  const prefix = "/projects/" + project.project_id + "/api/mainline/items/";
+  const light = await home.web.post<MainlineItemResult>(prefix + "create", { name: "笔记事项" });
+  const converted = await home.web.post<MainlineItemResult>(prefix + "convert", {
+    item_id: light.item.item_id, expected_revision: light.mainline.revision, kind: "note", request_id: "note-presentation",
+  });
+  assert.ok(converted.item.source);
+  const note = notes.state.notes.get(converted.item.source.id);
+  assert.ok(note);
+  note.title = "笔记主人改过标题";
+  note.status = "done";
+  const view = await home.web.post<MainlineViewResponse>(prefix + "view", {});
+  const row = view.resolved[light.item.item_id];
+  assert.equal(row?.presentation?.done, true);
+  assert.match(row.presentation.markup, /笔记主人改过标题/);
+  assert.deepEqual(view.mainline.completed, []);
 });

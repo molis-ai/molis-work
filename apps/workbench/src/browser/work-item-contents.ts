@@ -1,6 +1,6 @@
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { escapeHtml as e, icon, renderButton, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as e, icon, renderButton, t as uiText } from "./mainline-ui.js";
 import { runBusy } from "./busy.js";
 import type { MainlineContentEntryView, WorkItemChangedDetail, WorkItemSummary } from "./mainline-types.js";
 
@@ -43,7 +43,7 @@ function renderContentsEntries(entries: readonly MainlineContentEntryView[]): st
       }
       const sub = uiText.text(entry.origin === "held" ? "workbench.mainline.origin-held" : "workbench.mainline.origin-related");
       return `<div class="side-ic-row" data-state="ok" data-ic-entry="${e(key)}">`
-        + `<button class="side-ic-open" type="button" data-ic-open="${e(key)}"><strong>${e(entry.title)}</strong><small>${e(sub)}</small></button>`
+        + `<button class="side-ic-open" type="button" data-ic-open="${e(key)}">${entry.presentation?.markup || `<strong>${e(entry.title)}</strong>`}<small>${e(sub)}</small></button>`
         + `<div class="side-ic-acts">`
         + (entry.open ? `<button class="ml-icon-btn" type="button" data-ic-beside="${e(key)}" aria-label="${e(uiText.text("workbench.mainline.open-beside"))}" title="${e(uiText.text("workbench.mainline.open-beside"))}">${icon("panel")}</button>` : "")
         + (entry.removable ? `<button class="ml-icon-btn" type="button" data-ic-release="${e(key)}" aria-label="${e(uiText.text("workbench.mainline.take-out"))}" title="${e(uiText.text("workbench.mainline.take-out"))}">${icon("x")}</button>` : "")
@@ -80,6 +80,7 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
       + `</div><div class="side-ic-body">${renderContentsEntries(entries)}</div>`;
   };
 
+  let readGeneration = 0;
   const load = async () => {
     if (!currentItemId) {
       entries = [];
@@ -87,13 +88,15 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
       return;
     }
     const readingFor = currentItemId;
+    const generation = ++readGeneration;
     try {
       const res = await api<{ entries?: MainlineContentEntryView[] }>("/api/mainline/items/contents/view", { item_id: readingFor });
-      if (readingFor !== currentItemId) return;
+      if (generation !== readGeneration || readingFor !== currentItemId) return;
       entries = res.entries ?? [];
       paint();
     } catch {
-      if (readingFor === currentItemId) paint();
+      if (generation === readGeneration && readingFor === currentItemId) { entries = [];
+        paint(); }
     }
   };
 
@@ -132,7 +135,7 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
         const path = box.checked ? "/api/mainline/holds/bind" : "/api/mainline/holds/release";
         void api(path, { subject, target: { kind: "work_item", id: box.value } }).then(async () => {
           host.showToast(uiText.text("workbench.mainline.hold-saved-toast"));
-          await Promise.all([load(), host.refreshMainline()]);
+          await host.refreshMainline();
         }).catch((err) => {
           box.checked = !box.checked;
           host.showToast(err, true);
@@ -154,7 +157,7 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
             await api("/api/mainline/holds/create", { subject, name });
             dlg.close();
             host.showToast(uiText.text("workbench.mainline.put-in-toast"));
-            await Promise.all([load(), host.refreshMainline()]);
+            await host.refreshMainline();
           } catch (err) {
             host.showToast(err, true);
           } finally {
@@ -176,7 +179,7 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
           title: string;
           plugin_id?: string;
           state?: string;
-          page?: { entries?: Array<{ title: string; subject?: ActionSubject }> };
+          page?: { entries?: Array<{ title: string; subject?: ActionSubject }>; next_cursor?: string | null };
         }>;
       }>(host.route("/api/side/files/sources?first_pages=1"), { method: "GET" });
       const heldEntries = itemId === currentItemId ? entries : [];
@@ -184,7 +187,7 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
       const objects: Array<{ title: string; group: string; subject: ActionSubject }> = [];
       for (const source of sourcesRes.sources ?? []) {
         if (source.state !== "ready") continue;
-        const groupTitle = source.plugin_id === "system.materials" ? uiText.text("workbench.side-panel-files.folder") : source.title;
+        const groupTitle = source.title;
         for (const row of source.page?.entries ?? []) {
           if (row.subject && !existingKeys.has(`${row.subject.kind}|${row.subject.id}`)) {
             objects.push({ title: row.title, group: groupTitle, subject: row.subject });
@@ -194,14 +197,64 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
       const dlg = document.createElement("dialog");
       dlg.className = "mw-dialog ml-hold-dialog";
       dlg.dataset.mainlinePickObjectDialog = "";
-      const listHtml = objects.length
-        ? objects.slice(0, 60).map((obj, idx) => `<div class="side-ic-row"><div class="side-ic-open"><strong>${e(obj.title)}</strong><small>${e(obj.group)}</small></div>`
+      const initial = objects.slice();
+      const cursors = new Map((sourcesRes.sources ?? []).flatMap(s => s.page?.next_cursor ? [[s.id, s.page.next_cursor] as const] : []));
+      let searchCursor: string | null = null, requestNumber = 0;
+      const listHtml = () => objects.length
+        ? objects.map((obj, idx) => `<div class="side-ic-row"><div class="side-ic-open"><strong>${e(obj.title)}</strong><small>${e(obj.group)}</small></div>`
           + renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.mainline.put-in"), attrs: { "data-pick-obj": String(idx) } })
           + `</div>`).join("")
         : `<p class="side-ic-empty">${e(uiText.text("workbench.mainline.pick-object-empty"))}</p>`;
       dlg.innerHTML = `<div class="ml-hold-shell"><h2>${e(uiText.text("workbench.mainline.pick-object-title"))}</h2>`
-        + `<div class="ml-hold-list">${listHtml}</div>`
+        + `<input class="mw-input" type="search" data-pick-search aria-label="${e(uiText.text("workbench.mainline.search-objects"))}" placeholder="${e(uiText.text("workbench.mainline.search-objects"))}"><div class="ml-hold-list">${listHtml()}</div>`
+        + renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.mainline.show-more-objects"), attrs: { "data-pick-more": "" } })
         + `<div class="ml-hold-foot">${renderButton({ variant: "secondary", size: "sm", label: uiText.text("common.control.close"), attrs: { "data-pick-close": "" } })}</div></div>`;
+      const search = dlg.querySelector<HTMLInputElement>("[data-pick-search]")!;
+      const more = dlg.querySelector<HTMLButtonElement>("[data-pick-more]")!;
+      const repaint = () => {
+        dlg.querySelector(".ml-hold-list")!.innerHTML = listHtml();
+        more.hidden = search.value.trim() ? !searchCursor : !cursors.size;
+      };
+      const append = (row: typeof objects[number]) => {
+        if (!existingKeys.has(row.subject.kind + "|" + row.subject.id)
+          && !objects.some(o => o.subject.kind === row.subject.kind && o.subject.id === row.subject.id)) objects.push(row);
+      };
+      async function find(extend: boolean) {
+        const query = search.value.trim(), turn = ++requestNumber;
+        more.disabled = true;
+        try {
+          if (query) {
+            const res = await api<import("@molis-ai/molis-work-contracts/services/search").SearchQueryResponse>("/api/search/query",
+              { query, scope: "project", limit: 40, ...(extend && searchCursor ? { cursor: searchCursor } : {}) });
+            if (turn !== requestNumber || !dlg.open) return;
+            if (!extend) objects.length = 0;
+            for (const hit of res.hits) append({ title: hit.title, group: hit.plugin_title, subject: hit.subject });
+            searchCursor = res.next_cursor;
+          } else if (extend) {
+            const source = sourcesRes.sources?.find(s => cursors.has(s.id));
+            if (!source) return;
+            const cursor = cursors.get(source.id)!;
+            const res = await request<{ page: NonNullable<typeof source.page> }>(
+              host.route("/api/side/files/entries?source=" + encodeURIComponent(source.id) + "&cursor=" + encodeURIComponent(cursor)), { method: "GET" });
+            if (turn !== requestNumber || !dlg.open) return;
+            if (res.page.next_cursor) cursors.set(source.id, res.page.next_cursor); else cursors.delete(source.id);
+            for (const row of res.page.entries ?? []) if (row.subject) append({ title: row.title, group: source.title, subject: row.subject });
+            initial.splice(0, initial.length, ...objects);
+          } else objects.splice(0, objects.length, ...initial);
+          repaint();
+        } catch (err) { if (turn === requestNumber) host.showToast(err, true); }
+        finally { if (turn === requestNumber) more.disabled = false; }
+      }
+      more.hidden = !cursors.size;
+      more.addEventListener("click", () => void find(true));
+      search.addEventListener("input", () => {
+        searchCursor = null;
+        if (search.value.trim()) {
+          objects.length = 0;
+          repaint();
+        }
+        void find(false);
+      });
       document.body.append(dlg);
       dlg.addEventListener("close", () => dlg.remove());
       dlg.addEventListener("click", (ev) => {
@@ -218,7 +271,7 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
           await api("/api/mainline/holds/bind", { subject: chosen.subject, target: { kind: "work_item", id: itemId } });
           dlg.close();
           host.showToast(uiText.text("workbench.mainline.put-in-toast"));
-          await Promise.all([load(), host.refreshMainline()]);
+          await host.refreshMainline();
         }).catch((err) => host.showToast(err, true));
       });
       dlg.showModal();
@@ -255,7 +308,7 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
       const itemId = currentItemId;
       if (!entry) return;
       void api("/api/mainline/holds/release", { subject: entry.subject, target: { kind: "work_item", id: itemId } }).then(async () => {
-        await Promise.all([load(), host.refreshMainline()]);
+        await host.refreshMainline();
         const card = globals.molisPlacement?.card;
         const msg = uiText.text("workbench.mainline.taken-out-toast");
         if (card) {
@@ -263,7 +316,7 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
             label: uiText.text("workbench.mainline.undo"),
             run: () => {
               void api("/api/mainline/holds/bind", { subject: entry.subject, target: { kind: "work_item", id: itemId } })
-                .then(() => Promise.all([load(), host.refreshMainline()]));
+                .then(() => host.refreshMainline());
             },
           }], "done");
         } else {
@@ -275,9 +328,12 @@ export function mountWorkItemContents(host: WorkItemContentsHost) {
 
   document.addEventListener("molis-work:work-item-changed", (event) => {
     const detail = (event as CustomEvent<WorkItemChangedDetail>).detail;
+    if (currentItemId !== detail.item_id) { entries = [];
+      ++readGeneration; }
     currentItemId = detail.item_id;
     currentItemName = detail.item_name;
     allItems = detail.items;
+    paint();
     void load();
   });
 

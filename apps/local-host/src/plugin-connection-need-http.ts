@@ -13,7 +13,7 @@ import { pinnedToAnother } from "./connector-plugin-requests.js";
 import { shownState } from "./connector-refresh-refusals.js";
 import { connectorSetupAction } from "./connector-setup.js";
 import { checkCandidateKey, rememberCandidateCheck } from "./connector-candidate-check.js";
-import { connectionChoice, pageOwnerClient, trustedPluginPage } from "./plugin-connection-slots-http.js";
+import { connectionChoice, pageOwnerClient, scopedContextPage } from "./plugin-connection-slots-http.js";
 import { imageBaseUrl, imageConnectionSnapshot, imageConnectionViews } from "./plugin-image-connections.js";
 import { createPluginImageGenerationPort } from "./plugin-image-generation-service.js";
 import type { WebRequestContext } from "./web-route-table.js";
@@ -66,7 +66,7 @@ function needRequest(body: unknown): NeedRequest {
 }
 
 /** The target as this installation declares it and holds the grant for (S-57; the image write permission); anything else is no card. */
-function resolveTarget(page: ReturnType<typeof trustedPluginPage>["page"], target: UiConnectionNeedTarget): Resolved {
+function resolveTarget(page: ReturnType<typeof scopedContextPage>, target: UiConnectionNeedTarget): Resolved {
   const installation = page.connectionInstallation(), own = { install_id: installation.install_id, plugin_id: installation.plugin_id };
   if (target.kind === "slot") {
     const slot = installation.manifest.connections?.slots?.find(item => item.slot_id === target.slot_id);
@@ -177,12 +177,14 @@ function requestSignal(context: WebRequestContext): AbortSignal {
 
 /** `POST /api/host/plugin-page-connection`: read, connect, choose, switch, enable or key one connection card's target (§13.5 三第 4 条). */
 export async function pageConnectionNeed(context: WebRequestContext, reference: LocalHostProjectReference | undefined, body: Record<string, unknown>) {
-  const { page, project } = trustedPluginPage(context, reference);
+  const page = scopedContextPage(context, reference);
   const home = context.serverOptions.homeDirectory;
   if (!home) throw new ActionError("actions.unavailable", "连接卡需要 Home");
   const request = needRequest(body), target = resolveTarget(page, request.target);
+  if (!reference && target.kind === "slot" && target.record_key !== undefined)
+    throw connectionNeedErrors.target_undeclared("按记录连接需要当前项目");
   await page.beforeEffect();
-  const client = await pageOwnerClient(context, project, page), current = await bound(home, client, target);
+  const client = await pageOwnerClient(context, reference, page), current = await bound(home, client, target);
   const chosen = request.connection_id;
   switch (request.operation) {
     case "read": return respond(home, client, target);

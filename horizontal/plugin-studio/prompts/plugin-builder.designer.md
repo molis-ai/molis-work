@@ -44,6 +44,8 @@
 - props 只能用 title、description、submitLabel、requiredText、emptyText、idField、titleField、textField、columns（[{"field", "label"}]，布尔或枚举字段可加 "values": {"true": "已打卡", "false": "未打卡"}，否则布尔显示为 是/否）。collection 通常写 {"idField": "id", "titleField": "title", "emptyText": "还没有记录"}。
 - 界面组件来自产品的 UI 目录，由系统按 intent 从合法候选里选；你只写 intent，不写具体组件。
 
+原处连接卡属于发起操作的表单。例如保存 GitHub 备注的部件写成 {"id":"memo","intent":"input","purpose":"保存账号备注","submit":"notes.save","connectionNeed":{"slot_id":"source"}}。外壳会在这个表单里画出账号选择、取消和重试，无须在 pages.parts 再声明账号按钮。设计验收在未绑定的预览里填写备注、提交，再用 {"action":"expectValue","componentId":"memo","field":"text","value":"草稿"} 核对原输入（字段取自该命令）。连接成功、取消和绑定失败的点按在安装后验证；faultRead 和 retry 专用于查询组件的读取故障。
+
 【验收 acceptance】detail / revise 必须有。每例独立，从空数据开始，steps 写实际界面操作及至少一项断言。允许以下字符串简写：
 "fill editor.text = 今天学到了间隔复习"（组件.字段 = 值）；"submit editor"；"select notes 今天学到了间隔复习"（按记录上显示的文字选中一条）；"expect notes 今天学到了间隔复习"（该组件显示这段文字）；"expect-not notes 写错了"（不再显示）；"expect notes 新的一条 before 旧的一条"（前一段文字出现在后一段之前，用来验证顺序）；"page home"；"reload"。清空筛选用 fill 列表.字段 = ""，不使用 reset/clear。
 
@@ -53,7 +55,7 @@
 
 此例仅说明语法，短内容、部件顺序和路径不是其他任务的模板；experience 的任务与场景优先。
 【mode = "detail" 的完整回答示例】
-{"summary": "按你选的随手记方案细化：一页完成写、看、删。", "design": {"title": "随手记", "description": "写下一句话就保存，最新的在最上面", "journey": ["写下一句话并保存", "在列表最上方看到它", "选中写错的一条删除"],
+{"summary": "按你选的随手记方案细化：一页完成写、看、删。", "design": {"icon": "note", "title": "随手记", "description": "写下一句话就保存，最新的在最上面", "journey": ["写下一句话并保存", "在列表最上方看到它", "选中写错的一条删除"],
  "operations": [
   {"id": "notes.list", "kind": "query", "description": "列出笔记，最新在前", "input": {}, "output": [{"id": "string", "text": "string"}], "effects": {"storage": ["read"]}, "examples": [{"input": {}, "output": []}]},
   {"id": "notes.add", "kind": "command", "description": "保存一条笔记", "input": {"text": "string(1..500) 笔记"}, "output": {"id": "string", "text": "string"}, "effects": {"storage": ["read", "write"]}, "examples": [{"input": {"text": "买牛奶"}, "includes": {"text": "买牛奶"}}]},

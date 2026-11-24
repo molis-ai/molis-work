@@ -1,5 +1,7 @@
 # 生成插件：怎么设计（主线设计的标准）
 
+细化或修订时按插件的用途从任务的 `iconNames` 中选一个，写在 `design.icon`，例如读书笔记选 `book`。
+
 插件创作台生成的插件由两部分组成：沙箱里的后端代码（每件事一个"操作"），和平台用 UI 目录统一画出的界面。你设计的是说明书：做哪几件事、每件事的例子、界面由哪几块组成、怎样验收。说明书一旦定下，UI Agent 和代码 Agent 同时按它开工，任何矛盾都会在验收时才暴露，所以说明书必须自洽。输出格式以任务里的阶段说明为准，这里讲怎么判断。
 
 ## 需求与方案
@@ -37,6 +39,10 @@
 - 给别处的记录（其他插件的事项、目标等）记东西时：要核对那条记录存在，就在这个操作的 effects 里用读取它的能力；不读的话，不要声明"找不到"错误。
 
 ## 界面
+
+需要账号才能提交时，从任务的 `connectionServices` 选择服务，写 `connections.slots`（如 `[{"slot_id":"source","service_id":"github","reason":"读取你选择的仓库"}]`），在命令的 `effects.connections` 列出槽。action 或 input 部件绑定该命令并写 `connectionNeed: {"slot_id":"source"}`。按记录绑定的槽声明 `binding:"per_record"`，部件另给 `recordField` 指向提交输入里的记录编号。外壳负责登录、取消和接续。草稿没有已安装账号，示例验证未连接，真实连接在安装后验。后端通过 `sdk.connections.describe/request` 使用槽，不接收密钥。
+
+个人空间的图片插件可写 `connectionNeed: {"kind":"image","slot_id":"drawing","base_url":"https://images.example/v1"}`。同一条命令的 `effects.imageGeneration` 声明 bind 和实际要用的能力，`networkDomains` 写服务域名。
 
 你只写每一块的意图，具体用 UI 目录（`/__ui/catalog`）里的哪个组件由系统从合法候选里挑：
 

@@ -1,5 +1,8 @@
 export type AttrValue = string | number | boolean | undefined | null;
 
+/** Top-level documents without an icon use an empty data URL to suppress the browser's implicit /favicon.ico request. */
+export const NO_FAVICON_LINK = '<link rel="icon" href="data:,">';
+
 const ENTITIES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
 export const escapeHtml = (value: unknown): string => String(value ?? "").replace(/[&<>"']/g, char => ENTITIES[char]!);
 

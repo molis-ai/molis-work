@@ -5,6 +5,7 @@ import ts from "typescript";
 import { sqliteDriverFindings } from "./gates/project-sqlite-driver.mjs";
 import { catalogText } from "./gates/catalog-entries.mjs";
 import { checkGoalsManagementWiring } from "./gates/goals-management-wiring.mjs";
+import { checkStandaloneReviewPort } from "./gates/management-review-ports.mjs";
 import { checkArtifactsPlatformUi } from "./gates/artifacts-platform-ui.mjs";
 import { checkPlatformNoPluginPackageImports } from "./gates/platform-plugin-imports.mjs";
 
@@ -18,6 +19,8 @@ import {
 import { isMainScript } from "./script-paths.mjs";
 import { versionSource } from "./version-source.mjs";
 import { checkWorkspacePackages, REGISTERED_PLUGINS, WORKSPACE_PACKAGES } from "./workspace-packages.mjs";
+
+export { checkStandaloneReviewPort };
 
 const SOURCE_EXTENSIONS = new Set([".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx"]);
 /** The Web request dispatcher: the entry and its ordered route tables (W5-07). The checks on web-request.ts read all of them. */
@@ -1177,35 +1180,6 @@ function moduleReferences(file) {
   };
   visit(file);
   return found;
-}
-
-/**
- * The command line's port (batch 44, H6): the standalone entry and the resident narrowing both refuse any reference that is not one of the
- * platform's review operations, and evidence from the caller, before anything runs; the standalone entry calls only the protected review
- * entry on the bound project with the original signal, and binds no Goals port.
- */
-export function checkStandaloneReviewPort(source) {
-  const file = ts.createSourceFile("apps/local-host/src/management-action-client.ts", source, ts.ScriptTarget.Latest, true);
-  const compact = node => node?.getText(file).replace(/\s+/gu, "");
-  const fn = name => file.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name);
-  const invokeBody = declaration => {
-    const [only] = declaration?.body?.statements ?? [];
-    const returned = only && ts.isReturnStatement(only) && only.expression && ts.isObjectLiteralExpression(only.expression) ? only.expression : undefined;
-    const invoke = returned?.properties.find(item => ts.isMethodDeclaration(item) && compact(item.name) === "invoke");
-    return declaration?.body?.statements.length === 1 && returned?.properties.length === 2 ? invoke?.body?.statements.map(compact) : undefined;
-  };
-  const require = fn("requireReview")?.body?.statements.map(compact) ?? [];
-  const standalone = fn("bindStandaloneReviewActions"), narrowed = fn("reviewOnly");
-  const valid = require.length === 4 && require[0] === "constname=reviewOperation(reference);"
-    && require[1].startsWith('if(!name)thrownewActionError("actions.forbidden",')
-    && require[2].startsWith('if(evidence!==undefined)thrownewActionError("actions.input_invalid",') && require[3] === "returnname;"
-    && standalone?.parameters.map(parameter => compact(parameter.name)).join(",") === "host,project,signal"
-    && JSON.stringify(invokeBody(standalone)) === JSON.stringify(["constname=requireReview(reference,evidence);",
-      "returnawaitinvokeProjectReviewManagement(host,project,name,input,currentCallId()??newCallId(),signal)asOutput;"])
-    && narrowed?.parameters.length === 1
-    && JSON.stringify(invokeBody(narrowed)) === JSON.stringify(["requireReview(reference,evidence);", "returnawaitport.invoke<Output>(reference,input);"])
-    && !/bind(Goals)?ManagementActions/u.test(compact(standalone) ?? "") && !/bind(Goals)?ManagementActions/u.test(compact(narrowed) ?? "");
-  return valid ? [] : [file.fileName + ": the command line's port must refuse everything but the platform's review operations before it runs, and bind no Goals port"];
 }
 
 function importsTrustedReviewActions(file) {

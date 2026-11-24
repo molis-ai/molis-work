@@ -3,9 +3,12 @@ import { inputSchemaFor } from "../platform/action-input.js";
 import { closedObjectSchema } from "../platform/closed-object-schema.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import { observationHoldActions } from "./observation-holds.js";
-import { OBSERVATION_LIMITS } from "./observation-types.js";
+import {
+  OBSERVATION_ENTRIES, OBSERVATION_LIMITS, OBSERVATION_OUTCOMES, OBSERVATION_QUERY_FIELDS, OBSERVATION_RECORD_KINDS, OBSERVATION_SOURCE_CLASSES,
+  observationNullableToken as nullableToken, observationToken as token, observationVersion,
+} from "./observation-types.js";
 
-export { OBSERVATION_LIMITS } from "./observation-types.js";
+export { OBSERVATION_ENTRIES, OBSERVATION_LIMITS, OBSERVATION_OUTCOMES, OBSERVATION_RECORD_KINDS, OBSERVATION_SOURCE_CLASSES } from "./observation-types.js";
 export type {
   ObservationHoldListInput,
   ObservationHoldListOutput,
@@ -30,22 +33,13 @@ export const servicesObservationContract = {
 
 export const OBSERVATION_PROVIDER_ID = "system.observation";
 
-/**
- * Where a record came from (design §3). The last four are simulations: kept, but never counted as the person's results, reports, habits or
- * real effect. `first_read`, `catch_up` and `imported` are set by the entry that knows (a first connection, a reconnect, an import).
- */
-export const OBSERVATION_SOURCE_CLASSES = ["real", "first_read", "catch_up", "imported", "trial", "replay", "demo", "system_check"] as const;
 export type ObservationSourceClass = (typeof OBSERVATION_SOURCE_CLASSES)[number];
 /** The classes an owner may say about its own facts: whether a batch is a first read, a catch-up or an import. Nothing else is self-declared. */
 export const OBSERVATION_OWNER_SOURCE_CLASSES = ["first_read", "catch_up", "imported"] as const satisfies readonly ObservationSourceClass[];
 export type ObservationOwnerSourceClass = (typeof OBSERVATION_OWNER_SOURCE_CLASSES)[number];
 
-/** How a stage ended. Not acting, no answer and being taken over are results of their own, not missing records (OCL-08). */
-export const OBSERVATION_OUTCOMES = ["succeeded", "failed", "refused", "cancelled", "waiting", "no_action", "no_response", "taken_over", "unknown"] as const;
 export type ObservationOutcome = (typeof OBSERVATION_OUTCOMES)[number];
 
-/** The way in, from the trusted caller: never named by the writer. `host` when it cannot be told. */
-export const OBSERVATION_ENTRIES = ["workbench", "desktop", "assistant", "mcp", "cli", "workflow", "schedule", "plugin", "agent", "background", "host"] as const;
 export type ObservationEntry = (typeof OBSERVATION_ENTRIES)[number];
 
 /**
@@ -201,8 +195,7 @@ export interface ObservationSink {
   bind(origin: ActionCallContext | ObservationBackgroundOrigin): ObservationRecorder;
 }
 
-const token = { type: "string", minLength: 1, maxLength: OBSERVATION_LIMITS.ref_text } as const;
-const version = { type: ["string", "integer"], maxLength: OBSERVATION_LIMITS.ref_text } as const;
+const version = observationVersion;
 const OWNER_REF = closedObjectSchema({ kind: { const: "owner" }, owner: token, id: token, version });
 const CONTENT = closedObjectSchema({ kind: { const: "content" }, media_type: token, text: { type: "string" } });
 const MISSING = closedObjectSchema({ kind: { const: "missing" }, reason: { enum: OBSERVATION_WRITER_MISSING_REASONS } });
@@ -233,8 +226,6 @@ export interface ObservationReportResult {
   readonly rejected: readonly { readonly index: number; readonly code: string }[];
 }
 
-/** The five user-facing record kinds (design §8, docs/design/work-records/), each bound to one `--mark-*` tone. */
-export const OBSERVATION_RECORD_KINDS = ["user", "ai", "content", "flow", "present"] as const;
 export type ObservationRecordKind = (typeof OBSERVATION_RECORD_KINDS)[number];
 export const OBSERVATION_RECORD_KIND_HUES = {
   user: "blue",
@@ -479,7 +470,6 @@ export interface ObservationCleanupResult {
   readonly cleaned_at: string;
 }
 
-const nullableToken = { type: ["string", "null"], maxLength: OBSERVATION_LIMITS.ref_text } as const;
 const RECORDING_STATE_SCHEMA = closedObjectSchema({
   state: { enum: ["recording", "paused", "catching_up"] },
   paused_at: { type: "string" },
@@ -552,29 +542,7 @@ export const observationActions = {
       kind: "query", scope: "home", effect: "read", audiences: ["user", "agent", "workflow", "plugin", "mcp"], permissions: [], subject_kinds: [],
       input_schema: inputSchemaFor<ObservationQueryInput>()(closedObjectSchema({
         use: { enum: OBSERVATION_USES },
-        project_id: nullableToken,
-        all_projects: { type: "boolean" },
-        work_ref: token,
-        call_id: token,
-        invocation_id: token,
-        runtime_session_id: token,
-        run_id: token,
-        subject: closedObjectSchema({ kind: token, id: token, version }, ["kind"]),
-        fact: { type: "string", minLength: 1, maxLength: OBSERVATION_LIMITS.fact_name },
-        owner_kind: { enum: ["plugin", "service", "shell"] },
-        owner_id: token,
-        entry: { enum: OBSERVATION_ENTRIES },
-        actor_id: token,
-        outcomes: { type: "array", items: { enum: OBSERVATION_OUTCOMES } },
-        source_classes: { type: "array", items: { enum: OBSERVATION_SOURCE_CLASSES } },
-        include_simulated: { type: "boolean" },
-        kinds: { type: "array", items: { enum: OBSERVATION_RECORD_KINDS } },
-        since: { type: "string" },
-        until: { type: "string" },
-        platform_version: token,
-        after_seq: { type: "integer", minimum: 0 },
-        limit: { type: "integer", minimum: 1, maximum: 500 },
-        resolve_subjects: { type: "boolean" },
+        ...OBSERVATION_QUERY_FIELDS,
       }, [])),
       output_schema: closedObjectSchema({
         records: { type: "array" },

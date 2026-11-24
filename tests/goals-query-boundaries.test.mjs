@@ -133,6 +133,8 @@ test("W3-07-4-01 / APR-17: MCP keeps registered Goals actions and uses the commo
 test("PEQ-15 H6 44B the command line's and management MCP's port refuses everything but the review operations and binds no Goals port", () => {
   const source = read("apps/local-host/src/management-action-client.ts");
   assert.deepEqual(checkStandaloneReviewPort(source), []);
+  const renamed = source.replace(/\bname\b/gu, "operation").replace(/\bevidence\b/gu, "sourceEvidence");
+  assert.deepEqual(checkStandaloneReviewPort(renamed), [], "parameter and local names can change while the same values reach the checks");
   for (const [from, to] of [
     ['if (!name) throw new ActionError("actions.forbidden", "管理入口只提供平台的审阅操作");', "void name;"],
     ['if (evidence !== undefined) throw new ActionError("actions.input_invalid", "本人决定的出处由当前管理入口提供");\n  return name;', "return name;"],

@@ -193,6 +193,9 @@ importers:
       '@molis-ai/molis-work-service-evaluation':
         specifier: workspace:*
         version: link:horizontal/evaluation
+      '@molis-ai/molis-work-service-home':
+        specifier: workspace:*
+        version: link:horizontal/home
       '@molis-ai/molis-work-service-kit':
         specifier: workspace:*
         version: link:horizontal/kit
@@ -492,6 +495,9 @@ importers:
       '@molis-ai/molis-work-service-evaluation':
         specifier: workspace:*
         version: link:../../horizontal/evaluation
+      '@molis-ai/molis-work-service-home':
+        specifier: workspace:*
+        version: link:../../horizontal/home
       '@molis-ai/molis-work-service-kit':
         specifier: workspace:*
         version: link:../../horizontal/kit
@@ -757,6 +763,18 @@ importers:
         version: link:../../packages/plugin-sdk
 
   horizontal/evaluation:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+
+  horizontal/home:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*

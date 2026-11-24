@@ -5,6 +5,8 @@
 store	owner	version	structure	upgrades
 agent-declarations/agent-declarations.db	apps/local-host	1	90aa329cbf64815e	-
 agent-definitions/agent-definitions.db	apps/local-host	3	abad6100076206e5	1,2
+alchemist/projects/*/search.sqlite	apps/local-host	1	d7365cb6761c89e8	-
+alchemist/projects/*/studio.sqlite	apps/local-host	1	d7686ca8b5832e96	-
 assistant/assistant.db	apps/local-host	1	81eb1ed879d29fa5	-
 blueprints/blueprints.db	horizontal/blueprints	2	303892485f7fee88	1
 characters/characters.sqlite	modules/characters	1	c93cce5f71eea87a	-
@@ -18,6 +20,7 @@ external-sessions/external-sessions.db	horizontal/sessions	2	eabec6a25b46795b	1
 feed-content/feed-content.db	io.molis.work.feed	1	0a6d43d10416d5ee	-
 form/form.db	io.molis.work.form	1	0e3c9d4717792190	-
 functions/functions.db	modules/functions	2	e8e455da5a281ae8	1
+home-pages/home-pages.db	horizontal/home	1	b9566d6fb909a746	-
 images/images.db	io.molis.work.images	1	0eb943ac8d0c510e	-
 issues/issues.db	io.molis.work.issues	1	2ebbffe4d0eb92a4	-
 jelly/jelly.db	io.molis.work.jelly	1	f8ed975502abc63b	-

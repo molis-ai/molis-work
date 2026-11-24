@@ -7,6 +7,7 @@ import type { AssistantDelegations } from "./assistant-delegation.js";
 import type { AssistantMethod, AssistantMethodSelection, AssistantContextSnapshot, AssistantMaterial } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_METHOD_ACTIONS } from "./assistant-rule-actions.js";
 import { SKILL_ROUND_AUTO_LIMIT, SKILLS_PROVIDER_ID, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { MAINLINE_PROVIDER_ID, mainlineItemActions, type MainlineContentsResult, type MainlineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { capabilityDirectory, knowledgeDirectory, knowledgeFact } from "./assistant-directory.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -38,6 +39,42 @@ function chunked(base: Pick<AgentTextMaterial, "title">, id: string, text: strin
   const parts = materialParts(text);
   return parts.map((part, index) => ({ material_id: parts.length === 1 ? id : `${id}.${index + 1}`,
     title: parts.length === 1 ? base.title : `${base.title}（${index + 1}/${parts.length}）`, text: part }));
+}
+
+/**
+ * Reads the current work item's title and held/related references under the caller's own authority (MLN-16).
+ * Degrades cleanly to `null` when the mainline or item is unreadable so conversation is never blocked or leaked.
+ */
+async function readWorkItemContextMaterial(
+  work: StoredWork,
+  scopeActions: NonNullable<AssistantServicePorts["scopeActions"]>,
+): Promise<AgentTextMaterial | null> {
+  if (!work.work_item_id) return null;
+  try {
+    const actions = await scopeActions(work);
+    const read = await actions.invoke(
+      { capability_id: mainlineItemActions.read.capability_id, version: mainlineItemActions.read.version, provider_id: MAINLINE_PROVIDER_ID },
+      {},
+    ) as MainlineReadResult;
+    const item = read.mainline.items.find(candidate => candidate.item_id === work.work_item_id);
+    if (!item) return null;
+    const contents = await actions.invoke(
+      { capability_id: mainlineItemActions.contents.capability_id, version: mainlineItemActions.contents.version, provider_id: MAINLINE_PROVIDER_ID },
+      { item_id: item.item_id },
+    ).catch(() => null) as MainlineContentsResult | null;
+    const lines = [
+      `本轮对话所属事项：${item.name ? `「${cutHead(item.name, 120)}」` : `${item.source?.kind ?? "work_item"}:${item.source?.id ?? item.item_id}`}（id: ${item.item_id}）。`,
+    ];
+    if (contents) {
+      const held = contents.held.slice(0, 20).map(ref => `- ${ref.kind}:${ref.id}`);
+      const related = contents.related.flatMap(group => group.subjects.slice(0, 10).map(ref => `- ${ref.kind}:${ref.id}`));
+      if (held.length) lines.push("事项内已放进的对象：", ...held);
+      if (related.length) lines.push("来源关联的对象：", ...related);
+    }
+    return { material_id: `work-item:${item.item_id}`, title: "当前事项上下文", text: lines.join("\n") };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -100,6 +137,10 @@ export class AssistantRoundMaterials {
       work.origin ? `工作最初从「${work.origin.title ?? work.origin.surface}」页面发起。` : "",
       pictured.length ? `之前的轮次里用户附过图片（${pictured.slice(0, 5).map(title => `「${title}」`).join("、")}），你当时看到了图；图片只在附带的那一轮可见，现在看不到。` : "", knowledgeFact(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered)].filter(Boolean).join("\n");
     const setup = this.ports.setupMaterial?.(work, offered, previousWaitWithdrawn), out: AgentTextMaterial[] = [{ material_id: "situation", title: "本轮情况", text: situation }, ...(setup ? [setup] : [])];
+    if (work.work_item_id && work.scope.kind === "project" && this.ports.scopeActions) {
+      const workItemBlock = await readWorkItemContextMaterial(work, this.ports.scopeActions);
+      if (workItemBlock) out.push(workItemBlock);
+    }
     // What this round tells that is told only once: marked after the round has started, not before (a start that fails tells nothing).
     const told = { undos: [] as string[], unsettled: [] as string[] };
     // What the person did with earlier suggestions since the last round: the next round goes on from there.

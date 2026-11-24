@@ -19,11 +19,22 @@ export interface RetainedActionDirectory {
  * Every check is made on the registry's own frozen descriptors before anything is returned; the rows share those declarations
  * (`action`, `provider`), which stay frozen. `also` narrows further, as the directory's visibility does.
  */
+function homePageAllows(d: Readonly<HostCapabilityDescriptor>, context: ActionCallContext): boolean {
+  const homePage = context.home_page;
+  if (!homePage) return true;
+  if (context.project_id !== homePage.project_id) return false;
+  if (d.action_provider?.project_id && d.action_provider.project_id !== homePage.project_id) return false;
+  if (!d.action?.audiences.includes("plugin")) return false;
+  if (homePage.kind === "home-page-preview" && d.operation !== "query") return false;
+  return true;
+}
+
 export function registeredActionMetadata(registry: Pick<CapabilityRegistry<ActionCallContext>, "descriptors">, context: ActionCallContext,
   also?: (definition: ActionDefinition, provider: ActionProvider) => boolean): RegisteredActionMetadata[] {
   const listed = (d: Readonly<HostCapabilityDescriptor>) => {
     const provider = d.action_provider;
     return !!d.action && !!provider && !!context.actor_id && (!provider.project_id || provider.project_id === context.project_id)
+      && homePageAllows(d, context)
       && actionReachesAudience(d.action, d.capability_id, context.audience) && (!also || also(d as ActionDefinition, provider));
   };
   return registry.descriptors(listed).map(definition => ({ capability_id: definition.capability_id, version: definition.version,
@@ -39,6 +50,7 @@ export function registeredOneActionMetadata(
 ): RegisteredActionMetadata | undefined {
   const descriptor = registry.descriptor(reference, context.project_id), provider = descriptor?.action_provider;
   if (!descriptor?.action || !provider || !context.actor_id || (provider.project_id && provider.project_id !== context.project_id)
+    || !homePageAllows(descriptor, context)
     || !actionReachesAudience(descriptor.action, descriptor.capability_id, context.audience)
     || (reference.provider_id && provider.provider_id !== reference.provider_id)
     || (also && !also(descriptor as ActionDefinition, provider))) return undefined;

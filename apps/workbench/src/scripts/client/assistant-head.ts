@@ -5,7 +5,11 @@ export const ASSISTANT_HEAD_PART = String.raw`  /* ─── What the conversati
   // functions, so the script above this part may call them.
   // Only this place's: the list holds the works of every project, and another project's main conversation is not this one's.
   function mineHere(work) { return project ? work.scope?.kind === "project" && work.scope.project_id === project.id : work.scope?.kind === "personal"; }
-  function mains() { return works.filter((work) => work.main && !work.archived && mineHere(work)).sort((a, b) => Number(Boolean(a.character)) - Number(Boolean(b.character))); }
+  function mains() {
+    const wid = activeWorkItem()?.id || null;
+    return works.filter((work) => work.main && !work.archived && mineHere(work) && (work.work_item_id || null) === wid)
+      .sort((a, b) => Number(Boolean(a.character)) - Number(Boolean(b.character)));
+  }
   function mainId() { return mains().find((work) => !work.character_selection_required && (nextChar && !fresh ? roleKey(work.character?.ref) === roleKey(nextChar.ref) : !work.character))?.work_id || null; }
   function startFresh() { askAssistant(); fresh = true; nextChar = undefined; talkDraft = ""; if (curId || curEvent) return showWork(null); drawHead(); render(); }
   // A work's mark says at a glance which waits on the person, which runs, and which has news not yet seen (the list of works).
@@ -23,7 +27,9 @@ export const ASSISTANT_HEAD_PART = String.raw`  /* ─── What the conversati
   function drawHead() {
     const work = curId ? workById(curId) : null, about = eventOf(), talk = !curId && !curEvent && !fresh && nextChar ? nextChar : null;
     const own = !about && work && !work.main ? host.lineEvent?.({ kind: WORK_KIND, id: curId }) : null;
-    const place = project ? project.title || readText("workbench.assistant-island.project") : readText("workbench.assistant-island.personal");
+    const projectLabel = project ? project.title || readText("workbench.assistant-island.project") : readText("workbench.assistant-island.personal");
+    const wi = activeWorkItem();
+    const place = wi ? wi.name + " · " + projectLabel : projectLabel;
     // An event: its state mark as the lists draw it now, its name, then who registered it and where it is kept.
     const live = about ? host.lineEvent?.(about.subject) : null;
     // (An event put back from the side panel after a reload comes without its name, WLN-28: the line names it.)

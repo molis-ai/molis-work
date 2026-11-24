@@ -11,6 +11,7 @@ import { clearObservationProjectFile } from "@molis-ai/molis-work-service-observ
 import { AdoptionStore } from "@molis-ai/molis-work-service-blueprints";
 import { clearEvaluationProjectFile } from "@molis-ai/molis-work-service-evaluation";
 import { MAINLINE_HOME_STORE, openMainlineDatabase, purgeMainlineProject } from "@molis-ai/molis-work-service-mainline";
+import { HOME_PAGES_HOME_STORE, openHomePagesDatabase, purgeHomePagesProject } from "@molis-ai/molis-work-service-home";
 import { clearExternalSessionsProjectFile, sessionsProjectData } from "@molis-ai/molis-work-service-sessions";
 import { randomUUID } from "node:crypto";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -122,6 +123,22 @@ function purgeMainline(home: string, projectId: string): void {
   catch (error) { db.exec("ROLLBACK"); throw error; } finally { db.close(); }
 }
 
+/** Generated home pages, versions, blobs and approval receipts of the deleted project go atomically. */
+function purgeHomePages(home: string, projectId: string): void {
+  if (!existsSync(homeSqlitePath(home, HOME_PAGES_HOME_STORE.path))) return;
+  const db = openHomePagesDatabase(home);
+  try {
+    db.exec("BEGIN IMMEDIATE");
+    purgeHomePagesProject(db, projectId);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  } finally {
+    db.close();
+  }
+}
+
 /** A module of the Host's own: its label is in the Host's words. */
 function ownerOf(home: string, id: string, data: ProjectDataDeclaration) {
   return { id, label: data.label, order: data.order, clear: (projectId: string) => data.purge(home, projectId) };
@@ -142,6 +159,8 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "assistant", label: { key: "workbench.project-deletion.assistant" }, clear: async projectId => { await purgeAssistantProject(home, projectId); } },
     // The work items of the project's mainline (specs/work-mainline §6): containers and references only; what they held stays with its owners.
     { id: "mainline", label: { key: "workbench.project-deletion.mainline" }, clear: projectId => { purgeMainline(home, projectId); } },
+    // Generated home pages, versions, blobs and approval receipts owned by horizontal/home (Batch 37).
+    { id: "home-pages", label: null, clear: projectId => { purgeHomePages(home, projectId); } },
     // Project knowledge's cards (what the person edited on them, and what organizing used) are a plain library any process clears.
     { id: "knowledge", label: { key: "workbench.project-deletion.knowledge" }, clear: projectId => { clearKnowledgeProject(home, projectId); } },
     // Where a project's plugins may read an imported file again: only the Host's record of the place goes, never the person's file.

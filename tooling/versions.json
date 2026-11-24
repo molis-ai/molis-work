@@ -1169,6 +1169,7 @@
     "database.functions_store_baseline": 2,
     "database.goals_project_database": 1,
     "database.home.catalog": 1,
+    "database.home_pages_baseline": 1,
     "database.home_plugin_runtime_baseline": 1,
     "database.images_database": 1,
     "database.inbox_project_database": 1,

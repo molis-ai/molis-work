@@ -6,6 +6,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { withProtectedHostAction } from "./plugin-consent-settings-entry.js";
+import { homePageRequestBound } from "./home-page-authority.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
@@ -34,7 +35,7 @@ export async function handlePersonActionRoutes(request: IncomingMessage, respons
     async handle({ method, pathname, body }) {
       const definition = doors.routes.get(pathname.slice(doors.prefix.length + 1));
       if (!definition || method !== "POST") return null;
-      if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", doors.refusal);
+      if (pluginPageRequest(request) || homePageRequestBound(request)) throw new ActionError("actions.forbidden", doors.refusal);
       return { status: 200, body: await invokePersonPageAction(host, project, definition, body, controller.signal) as object };
     } });
   } finally { request.off("aborted", cancel); response.off("close", disconnected); }

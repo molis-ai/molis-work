@@ -20,8 +20,8 @@ const composerPick: ActionDefinition<ComposerPickInput, ComposerPickOutput> = {
 export const todoSearchActions = {
   // Two sources over one store: the person's own (personal and unplaced) is indexed once for the Home; a project's todos
   // are indexed with that project, so a project search finds them and no other project or the personal index holds them.
-  entries: defineSearchEntriesAction("todo.search.entries", /* @version action.todo.search.entries */ 1, [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "个人待办", ["todo:read"], "home"),
-  projectEntries: defineSearchEntriesAction("todo.search.project_entries", /* @version action.todo.search.project_entries */ 1, [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID }], "项目待办", ["todo:read"], "project"),
+  entries: defineSearchEntriesAction("todo.search.entries", /* @version action.todo.search.entries */ 1, [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID, glyph: "check" }], "个人待办", ["todo:read"], "home"),
+  projectEntries: defineSearchEntriesAction("todo.search.project_entries", /* @version action.todo.search.project_entries */ 1, [{ kind: TODO_SUBJECT_KIND, title: "待办", surface: TODO_PROJECT_PLUGIN_ID, glyph: "check" }], "项目待办", ["todo:read"], "project"),
   subject: { ...subjectReader, action: { ...subjectReader.action, execution: { cost: "none" as const } } },
   pick: composerPick,
 };

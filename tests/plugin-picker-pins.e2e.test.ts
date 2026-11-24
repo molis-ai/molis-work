@@ -108,7 +108,7 @@ test("DOCK-04 方案 C: the top strip holds the first place alone (⌂ inside it
   await press(`${tile("pages")} > .plugin-rail-item`); await frames();
   assert.deepEqual(await dock(), ["top-corner"], "the Dock is still the first place alone");
   assert.equal(await evaluate("localStorage.getItem('molis-work:dock-pins')"), null, "nothing is written for the Dock");
-  // Shelf is a 常开插件 in the side panel, so it has no entry here.
+  // Shelf is a platform part in the side panel, so it has no entry here.
   assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(tile("shelf"))}))`), false, "Shelf is not in the switcher");
 });
 

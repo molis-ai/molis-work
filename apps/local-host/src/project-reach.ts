@@ -6,7 +6,6 @@ import { capabilityCatalog, type ProjectActions } from "./installed-plugin-catal
 import { pluginCatalogFor } from "./home-side.js";
 import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
-import { readOnlyAlwaysOnProjectPlugins, withFreshReadOnlyPluginDirectory } from "./always-on-plugins.js";
 
 interface ProjectReachActions {
   actionRegistry(reference: LocalHostProjectReference): ActionRegistryPort;
@@ -64,11 +63,11 @@ export function homeProjectReach(home: string, currentProjects: () => LocalHostS
     const catalog = pluginCatalogFor(home);
     if (!catalog) return undefined;
     const entry = reachEntry(home, manifest.plugin_id), outsideBuild = homePluginsOutsideBuild(home);
-    return catalog({ homeDirectory: home }, projects => withFreshReadOnlyPluginDirectory(home, () => {
+    return catalog({ homeDirectory: home }, projects => {
       const closing = new Set(currentProjects().filter(project => project.state === "closing").map(project => project.project_id));
       return projects.listProjects()
-        .filter(project => !closing.has(project.project_id) && (!entry || pluginReachable(entry, projectReachablePlugins(projects, project.project_id, outsideBuild, () => readOnlyAlwaysOnProjectPlugins(home)))))
+        .filter(project => !closing.has(project.project_id) && (!entry || pluginReachable(entry, projectReachablePlugins(projects, project.project_id, outsideBuild))))
         .map(project => project.project_id);
-    }));
+    });
   };
 }

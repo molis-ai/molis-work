@@ -181,7 +181,7 @@ test("large imported resources publish through the real Artifact store and survi
     const { draft } = characterDb.service.import(snapshot, all(snapshot));
     const result = characterDb.service.publish(draft.character_id, draft.revision, content => artifacts.commands.registerVersion({ ...pinnedArtifact(content.title, { kind: "character", id: content.character_id }),
       project_id: "board", artifact_id: "large-character", version: 1, actor_id: "actor", artifact_type_id: "character.definition.v1", schema_version: 1,
-      producer: { plugin_id: "io.molis.work.characters", plugin_version: "1", binding_signature: "official-characters-binding" },
+      producer: { plugin_id: "system.characters", plugin_version: "1", binding_signature: "official-characters-binding" },
       content: { kind: "inline", payload: JSON.parse(JSON.stringify(content)) },
     }));
     assert.ok(result.artifact.size_bytes > 56_800_000);

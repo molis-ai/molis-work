@@ -9,8 +9,8 @@ import type { GoalEventTrustedAuthority, GoalTreeProposalDecisionAuthority, Reco
 import type { ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { projectApprovalRules, projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
-import { goalsManifest, readGoalApprovalOutcome } from "@molis-ai/molis-work-plugin-goals";
+import { approvalOutcomeCollection, projectApprovalRules, projectReviewDecisions, readApprovalOutcome } from "@molis-ai/molis-work-service-project-approvals";
+import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { openAcceptance, type AcceptanceService } from "@molis-ai/molis-work-module-acceptance";
 import { ACCEPTANCE_PROVIDER_ID, type AcceptanceView } from "@molis-ai/molis-work-contracts/modules/acceptance";
 import type { GoalAcceptanceReading, GoalHungRequirement } from "@molis-ai/molis-work-plugin-goals/contract";
@@ -43,7 +43,9 @@ export function fixtureApprovals(store: LocalProjectDatabase, clock: () => Date)
   const provenance = new GovernanceProvenance();
   const finish = (project: string, id: string, kind: TestDecisionSubject["kind"]) => {
     const decisions = history(project), record = decisions.findCommitted(id);
-    const outcome = readGoalApprovalOutcome(store.db, project, id, kind);
+    // The platform reads the result where Goals' Manifest declares it (44B).
+    const outcome = record && record.review.target.subject.kind === kind
+      ? readApprovalOutcome(store.db, approvalOutcomeCollection(goalsManifest.sync?.collections)!, project, id, record.review.target.subject) : null;
     if (record && !record.outcome_digest && outcome) decisions.freezeOutcome(record, outcome.digest);
   };
   return {

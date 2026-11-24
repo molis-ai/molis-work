@@ -94,7 +94,7 @@ export interface MolisWorkSettingsView {
 }
 
 export interface ConnectorSettingsCardView {
-  feed_available?: boolean;
+  source_available?: boolean;
   connector_id: string;
   title: string;
   availability: ConnectorDirectoryAvailability;

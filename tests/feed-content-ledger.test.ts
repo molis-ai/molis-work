@@ -81,7 +81,7 @@ test("RAC-1016: holds a failed pull left behind are taken back: only this source
   const f = fixture(t);
   const kept = f.evidence.write("a body the source's rows point at").contentRef, shared = f.evidence.write("a body another project holds").contentRef,
     stray = f.evidence.write("a body only the failed pull held").contentRef;
-  const unwritten = "molis-work-feed/sha256/" + "0".repeat(63) + "1";
+  const unwritten = "molis-work-evidence/sha256/" + "0".repeat(63) + "1";
   await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [kept, shared, stray, unwritten]);
   await f.ledger.hold(noEffect, { project_id: "p2", source_id: "s1" }, [shared]);
   // The pull failed after holding all four; the source's rows point at `kept` only. The named three are the ones it does not point at.
@@ -120,7 +120,7 @@ test("RAC-494: a release that fails part way leaves the ledger as it was, so a r
 // batches; a batch not reached yet stays held, and a failure throws so the source stays to be deleted again.
 test("FI-C-06: a large history is given back in batches of at most 5000 bodies and 1000 records; a failure part way keeps what is not reached, and deleting again finishes", async t => {
   const f = fixture(t);
-  const ref = (n: number) => "molis-work-feed/sha256/" + n.toString(16).padStart(64, "0");
+  const ref = (n: number) => "molis-work-evidence/sha256/" + n.toString(16).padStart(64, "0");
   const refs = Array.from({ length: FEED_CONTENT_LEDGER_BATCH + 1_001 }, (_, n) => ref(n + 1)), stray = ref(999_999), shared = [refs[0]!, refs[FEED_CONTENT_LEDGER_BATCH + 500]!];
   // The bodies exist until the collector deletes them; it counts what it deleted, so a second deletion of the same body is no deletion.
   const existing = new Set([...refs, stray]);
@@ -170,7 +170,7 @@ const standIn = <T extends object>(members: Partial<Record<keyof T, unknown>>): 
 // FI-C-07 (specs/.../feed-inbox-runtime-plugins.md §13): the job that names a project's kept bodies in the Home's ledger at start does it in
 // batches, tries again a bounded number of times while the ledger does not answer, then at each change of a connection until it has worked.
 test("FI-C-07: the kept bodies are named in batches; a ledger that does not answer is tried a bounded number of times, then at each change until it works", async t => {
-  const ref = (n: number) => "molis-work-feed/sha256/" + n.toString(16).padStart(64, "0");
+  const ref = (n: number) => "molis-work-evidence/sha256/" + n.toString(16).padStart(64, "0");
   const kept = Array.from({ length: 201 }, (_, n) => ref(n + 1));
   const snapshot = { sources: [{ source_id: "s1" }, { source_id: "s2" }], runs: [{ source_id: "s2", operation_id: "op-1", receipt: { content_refs: [ref(0)] } }],
     feed_items: [{ source_id: "s1", materials: [...kept.map(content_ref => ({ content_ref })), { content_ref: "research:note-1" }] }] };
@@ -184,7 +184,7 @@ test("FI-C-07: the kept bodies are named in batches; a ledger that does not answ
   } }), projectId: "p1", connections: undefined, commit: async (_control, body) => body(),
     hold: async (sourceId, refs) => {
       if (failing > 0) { failing -= 1; asked.push("refused"); throw new Error("the Home's ledger is unavailable"); }
-      assert.ok(refs.every(each => each.startsWith("molis-work-feed/sha256/")), "only the ledger's own bodies are named");
+      assert.ok(refs.every(each => each.startsWith("molis-work-evidence/sha256/")), "only the ledger's own bodies are named");
       asked.push(`${sourceId}:${refs.length}`);
     } };
   const abort = new AbortController();
@@ -253,7 +253,7 @@ test("RAC-494: a hold takes only well-formed body references, and a batch is bou
   const a = f.evidence.write("body a").contentRef;
   assert.deepEqual(await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [a, a, "research:note-1", "../../etc/passwd", ""]), { held: 1 });
   assert.equal(f.library.rows().length, 1);
-  const many = Array.from({ length: FEED_CONTENT_LEDGER_BATCH + 1 }, (_, index) => "molis-work-feed/sha256/" + index.toString(16).padStart(64, "0"));
+  const many = Array.from({ length: FEED_CONTENT_LEDGER_BATCH + 1 }, (_, index) => "molis-work-evidence/sha256/" + index.toString(16).padStart(64, "0"));
   await assert.rejects(f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, many), { code: "feed.request_invalid" });
   await assert.rejects(f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, many), { code: "feed.request_invalid" });
   await assert.rejects(f.ledger.reclaim(noEffect, { project_id: "p1", source_id: "s1" }, many), { code: "feed.request_invalid" });

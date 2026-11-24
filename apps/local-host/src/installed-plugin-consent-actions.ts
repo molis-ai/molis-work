@@ -16,7 +16,7 @@ import { latestCapability } from "./installed-plugin-capabilities.js";
 // holds one row for each declaration of a plugin that changes what it does elsewhere (常开, a default wiring, a default input group). Only
 // the person lists and takes them back: the audience is `user` and the handler requires the Host's settings entry credential, so neither an
 // Agent, MCP, a workflow nor a plugin can withdraw (or by withdrawing, keep) an agreement. Revoking writes `revoked_at` on the row and
-// nothing else is rewritten. The always-on list reads it on its next query; default wirings reconcile on the project's next request.
+// nothing else is rewritten. Default wirings reconcile on the project's next request.
 
 export const PLUGIN_CONSENT_PROVIDER_ID = "plugin-consents";
 export const PLUGIN_CONSENT_READ = "plugin-consents:read";
@@ -29,11 +29,11 @@ const consentView = {
   type: "object", additionalProperties: false,
   oneOf: [
     { properties: { kind: { const: "project_reach" }, approved_capability_ids: { type: "array" }, granted_by: { const: "user" } } },
-    { properties: { kind: { enum: ["always_on", "default_wiring", "default_group", "local_directory"] }, approved_capability_ids: { type: "null" } } },
+    { properties: { kind: { enum: ["default_wiring", "default_group", "local_directory"] }, approved_capability_ids: { type: "null" } } },
   ],
   required: ["consent_id", "plugin_id", "publisher_signature", "kind", "subject", "manifest_digest", "granted_at", "granted_by", "revoked_at", "approved_capability_ids"],
   properties: {
-    consent_id: { type: "string" }, plugin_id: { type: "string" }, publisher_signature: { type: "string" }, kind: { enum: ["always_on", "default_wiring", "default_group", "local_directory", "project_reach"] },
+    consent_id: { type: "string" }, plugin_id: { type: "string" }, publisher_signature: { type: "string" }, kind: { enum: ["default_wiring", "default_group", "local_directory", "project_reach"] },
     subject: { type: "string" }, manifest_digest: { type: "string" }, granted_at: { type: "string" }, granted_by: { enum: ["user", "host_build"] }, revoked_at: { type: ["string", "null"] }, approved_capability_ids: { type: ["array", "null"], items: { type: "string" } },
   },
 };

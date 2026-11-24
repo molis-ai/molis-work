@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createCatalogProvider, catalogWhoami, readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { feishuCliFetch, feishuCliStatus } from "../apps/local-host/dist/feishu-cli.js";
+import { cliApiFetch } from "../apps/local-host/dist/connector-cli.js";
 import { listConnectorSettingsCards } from "../apps/local-host/dist/connector-directory.js";
 import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connectors.js";
 
@@ -15,7 +15,7 @@ const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connector-oa
 
 async function isolated<T>(run: (directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), "connector-oauth-choice-"));
-  const keys = ["MOLIS_WORK_HOME", "MOLIS_WORK_SECRET_BACKEND", "MOLIS_WORK_ENCRYPTION_KEY", "MOLIS_WORK_FEISHU_CLI_PATH"] as const;
+  const keys = ["MOLIS_WORK_HOME", "MOLIS_WORK_SECRET_BACKEND", "MOLIS_WORK_ENCRYPTION_KEY", "PATH"] as const;
   const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   process.env.MOLIS_WORK_HOME = directory;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
@@ -56,8 +56,8 @@ test("Notion feed refreshes after an API 401 and retries with the new token", as
   assert.deepEqual(seen, ["Bearer stale-token", "Bearer fresh-token", "Bearer fresh-token"]);
 });
 
-test("Feishu CLI mode reads identity and document without copying its user token", async () => isolated(async (directory) => {
-  const executable = join(directory, "fake-lark-cli");
+test("Feishu CLI mode reads identity and document through the driver's read-only API bridge without copying its user token", async () => isolated(async (directory) => {
+  const executable = join(directory, "lark-cli");
   await writeFile(executable, `#!/usr/bin/env node
 const args = process.argv.slice(2);
 if (args[0] === "auth" && args[1] === "status") console.log(JSON.stringify({ok:true,identity:"user",identities:{user:{available:true,name:"Ada"}}}));
@@ -69,8 +69,8 @@ else if (args[0] === "api" && args[1] === "GET") {
 } else process.exit(1);
 `);
   await chmod(executable, 0o755);
-  process.env.MOLIS_WORK_FEISHU_CLI_PATH = executable;
-  assert.equal(feishuCliStatus().authorized, true);
+  process.env.PATH = `${directory}:${process.env.PATH ?? ""}`;
+  const feishuCliFetch = cliApiFetch("feishu");
   const whoami = await catalogWhoami({ connectorId: "feishu", token: "lark-cli", fetchImpl: feishuCliFetch });
   assert.deepEqual(whoami, { ok: true, login: "Ada" });
   const provider = createCatalogProvider({ connectorId: "feishu", token: "lark-cli", fetchImpl: feishuCliFetch });

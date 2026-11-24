@@ -8,7 +8,7 @@ import { once } from "node:events";
 import { performance } from "node:perf_hooks";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { HomeConsentLedger, MolisWorkLocalHost, MolisWorkProjectCatalog, PLATFORM_PLUGIN_REGISTRATIONS, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, MolisWorkProjectCatalog, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { acquireStorageOwner, releaseHeldHomeSqlite } from "@molis-ai/molis-work-storage";
 import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
@@ -165,10 +165,7 @@ test("live-stamped projectActionAvailability and web-catalog-access reuse snapsh
 
   const availability = projectActionAvailability(access.withCatalog, home);
   const caller = { actor_id: "user", project_id: project.project_id, audience: "user" as const, permissions: [] };
-  const alwaysOnEntry = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.always_on === true)!;
-  assert.ok(alwaysOnEntry, "the build ships at least one always-on plugin");
   const pagesAction = { provider: { provider_id: "io.molis.work.pages", plugin_id: "io.molis.work.pages", title: "Pages", kind: "plugin" as const } };
-  const alwaysOnAction = { provider: { provider_id: alwaysOnEntry.manifest.plugin_id, plugin_id: alwaysOnEntry.manifest.plugin_id, title: alwaysOnEntry.manifest.name, kind: "plugin" as const } };
 
   let membershipReads = 0, projectListReads = 0;
   const origMembership = MolisWorkProjectCatalog.prototype.projectPluginMembership;
@@ -185,7 +182,6 @@ test("live-stamped projectActionAvailability and web-catalog-access reuse snapsh
   // First check populates the live-stamped snapshot; subsequent unchanged checks hit it with 0 extra catalog reads.
   assert.deepEqual(await availability(caller, pagesAction), { available: true });
   assert.deepEqual(await availability(caller, pagesAction), { available: true });
-  assert.deepEqual(await availability(caller, alwaysOnAction), { available: true });
   assert.equal(membershipReads, 1, "unchanged availability checks reuse the live-stamped snapshot");
   assert.equal(projectListReads, 0, "pure-read withCatalog turns skip redundant listProjects refreshes");
 
@@ -201,29 +197,6 @@ test("live-stamped projectActionAvailability and web-catalog-access reuse snapsh
   } finally { external.close(); }
   assert.equal((await availability(caller, pagesAction)).available, true, "external catalog.db write invalidates snapshot immediately");
   assert.equal(membershipReads, 3);
-
-  // Revoking an always-on consent in plugin-runtime.db immediately invalidates the stamp without touching catalog.db.
-  const ledger = new HomeConsentLedger(home);
-  ledger.record({
-    plugin_id: alwaysOnEntry.manifest.plugin_id,
-    publisher_signature: alwaysOnEntry.manifest.publisher.signature,
-    manifest_digest: "digest-always-on",
-    granted_by: "host_build",
-    grants: [{ kind: "always_on", subject: "always_on" }],
-    at: "2026-11-22T00:00:00Z",
-  });
-  const consent = ledger.consents(alwaysOnEntry.manifest.plugin_id).find(row => row.kind === "always_on")!;
-  ledger.revoke(consent.consent_id, "2026-11-22T00:01:00Z");
-  // The availability check must miss its cache because alwaysOnPluginStamp changed, even though catalog.db was untouched.
-  const afterRevoke = await availability(caller, alwaysOnAction);
-  assert.equal(membershipReads, 4, "always-on consent revocation invalidates the cached reach stamp without touching catalog.db");
-  assert.equal(afterRevoke.available, alwaysOnEntry.personal === true, "non-personal always-on becomes unavailable; personal stays reachable until hidden");
-  // Hiding the personal plugin immediately flips availability to false too.
-  if (alwaysOnEntry.personal === true) {
-    await access.withCatalog({ homeDirectory: home }, catalog => catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: alwaysOnEntry.project_plugin_id, actor_id: "user" }));
-    assert.equal((await availability(caller, alwaysOnAction)).available, false, "hiding a personal plugin invalidates availability immediately");
-    assert.equal(membershipReads, 5);
-  }
 
   // Creating another project via withCatalog refreshes projectCount immediately.
   await access.withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "第二个项目", actor_id: "user" }));

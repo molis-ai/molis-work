@@ -7,7 +7,7 @@ import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@moli
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { PLUGIN_DEVELOPMENT_ACTOR_ID, refuseUnusableDevelopmentLanguage, runPluginDevelopment } from "./plugin-development.js";
-import { refusePayloadIdentity } from "./management-actions.js";
+import { refusePayloadIdentity } from "./management-reference.js";
 import { bindProjectArtifacts } from "./declared-types.js";
 import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { installHostUiText } from "./ui-text-provider.js";

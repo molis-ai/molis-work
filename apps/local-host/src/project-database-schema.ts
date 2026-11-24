@@ -1,10 +1,10 @@
 import { PROJECT_REPLICATION_SCHEMA_SQL } from './project-replication-schema.js';
 import { STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
-import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, personalConfigJournal, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, personalConfigJournal, replicaMarkRowsSql, replicaMarkSql, replicaSchemaSql, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { MATERIAL_RECENT_USES_SCHEMA_SQL, PROJECT_GUIDANCE_SCHEMA_SQL, PROJECT_ROOT_SCHEMA_SQL, SINGLE_PROJECT_ROOT_SQL } from "@molis-ai/molis-work-module-projects";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
-import { ATTENTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-attention-resumption";
+import { attentionContentReplicationDefinition, ATTENTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-attention-resumption";
 import { ACCEPTANCE_SCHEMA_SQL } from "@molis-ai/molis-work-module-acceptance";
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import { SURFACE_CORRECTIONS_SCHEMA_SQL, SURFACE_CONFIG_JOURNAL, surfaceConfigJournal } from "@molis-ai/molis-work-service-surfaces";
@@ -35,6 +35,20 @@ import {
 const surfaceTracking = surfaceConfigJournal(SINGLE_PROJECT_ROOT_SQL);
 const SURFACE_CONFIG_TRACKING = personalConfigJournal(SURFACE_CONFIG_JOURNAL, surfaceTracking.table, surfaceTracking.key, surfaceTracking.eligible);
 
+/**
+ * The journal of the person's waiting list ("等你", `system.attention`, 44B): one key per project, `[project, 'project_attention', project]`,
+ * marked by every change to the attention tables. It is the platform's, so it is here whichever plugin shows the list; until 44B it was
+ * the Inbox plugin's sync section and went with Inbox. The seed in the upgrade queues the projects that already have entries.
+ */
+export const ATTENTION_SYNC_JOURNAL = "attention";
+const attentionKey = (row: string) => `json_array(${row}.project_id,'project_attention',${row}.project_id)`;
+const attentionTables = attentionContentReplicationDefinition().tables.map(table => table.name);
+const ATTENTION_SYNC_TRACKING_SQL = replicaSchemaSql(ATTENTION_SYNC_JOURNAL)
+  + `\nINSERT INTO ${ATTENTION_SYNC_JOURNAL}_replica_state(id,device) VALUES(1,lower(hex(randomblob(16))));\n`
+  + attentionTables.flatMap(table => (["INSERT", "UPDATE", "DELETE"] as const).map(change =>
+    `CREATE TRIGGER ${ATTENTION_SYNC_JOURNAL}_${table}_${change.toLowerCase()} AFTER ${change} ON ${table} BEGIN ${replicaMarkSql(attentionKey(change === "DELETE" ? "OLD" : "NEW"), undefined, ATTENTION_SYNC_JOURNAL)} END;`)).join("\n");
+const ATTENTION_SYNC_SEED_SQL = replicaMarkRowsSql(attentionTables.map(table => `SELECT ${attentionKey("saved")} AS key FROM ${table} AS saved`).join(" UNION "), ATTENTION_SYNC_JOURNAL);
+
 const PROJECT_DATABASE_SCHEMA = [
   STORAGE_SPACE_SCHEMA_SQL,
   PROJECT_ROOT_SCHEMA_SQL,
@@ -43,6 +57,7 @@ const PROJECT_DATABASE_SCHEMA = [
   LOCAL_JOURNAL_SCHEMA_SQL,
   CONTEXT_LEDGER_SCHEMA,
   ATTENTION_SCHEMA_SQL,
+  ATTENTION_SYNC_TRACKING_SQL,
   LOCAL_OPAQUE_BLOB_SCHEMA_SQL,
   PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL,
   PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL,
@@ -63,7 +78,7 @@ const PROJECT_DATABASE_SCHEMA = [
 ].join("\n");
 
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: /* @version database.project_database_baseline */ 2,
+  version: /* @version database.project_database_baseline */ 3,
   schema: PROJECT_DATABASE_SCHEMA,
-  upgrades: [{ from: 1, sql: SURFACE_CONFIG_TRACKING.upgrade }],
+  upgrades: [{ from: 1, sql: SURFACE_CONFIG_TRACKING.upgrade }, { from: 2, sql: ATTENTION_SYNC_TRACKING_SQL + "\n" + ATTENTION_SYNC_SEED_SQL }],
 };

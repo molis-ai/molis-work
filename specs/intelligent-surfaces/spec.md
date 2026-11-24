@@ -280,7 +280,7 @@ flowchart LR
 | Diff | 无；[现有 state/compare](../../plugins/native/diff/src/actions.ts)读取固定输入或计算差异 | 64，核定固定变更与计算结果的对象身份 |
 | Git | 无；[现有动作](../../plugins/native/git/src/actions.ts)读仓库、分支及暂存状态 | 64，核定提交、分支的对象粒度 |
 | Schedule | [`schedule_task`](../../plugins/native/schedule/src/search.ts) | 64 |
-| Shelf | [`shelf_item`](../../plugins/native/shelf/src/search.ts)，当前 reader 不开放 plugin audience | 53 接挂载；Shelf 自有声明归 64 |
+| Shelf | [`shelf_item`](../../modules/shelf/src/surface/search.ts)，当前 reader 不开放 plugin audience | 53 接挂载；Shelf 自有声明归 64 |
 | Files | 无；第 06 批已退役，目录和内容改由平台资料服务（`system.materials`，[`system-materials-actions.ts`](../../apps/local-host/src/system-materials-actions.ts)）给，它不是 subject reader | 06-1 退役交 knowledge 与平台资料服务，不给旧包新增呈现 |
 | 插件创作台 | 无；[自身页面](../../horizontal/plugin-studio/src/surface.ts)读取构建和设计；生成设计的 `presentation` 是页面布局 | 68-4，不能把生成页面布局当创作台对象声明 |
 | Alchemist | `alchemist-direction`、`alchemist-idea`、`alchemist-playbook`，仍走现存 Host 特例 | 64 总清单列缺口；场景与产出身份随 BL-377 核定，具体实施批次待定 |

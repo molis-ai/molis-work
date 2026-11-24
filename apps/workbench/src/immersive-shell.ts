@@ -1,7 +1,7 @@
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText, icon as glyph, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
-import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, extendPluginIds, hostSurfaceEntries, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, resolveSurfaceAlias, type PluginMarketOptions } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, extendPluginIds, hostSurfaceEntries, islandEntries, pluginMarketCards, railEntries, pluginStageSummaries, resolveSurfaceAlias } from "./plugin-catalog.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderWorkLine } from "./work-line-parts.js";
@@ -119,12 +119,11 @@ export function renderPluginRail(
   primitives: ImmersiveShellPrimitives,
   enabled: readonly string[],
   directory: PluginDirectory = builtinPluginDirectory(),
-  options: PluginMarketOptions = {},
 ): string {
   const { icon, escapeHtml } = primitives;
   const have = new Set(enabled);
   const extendIds = extendPluginIds(directory);
-  const cards = pluginMarketCards(options, directory);
+  const cards = pluginMarketCards(directory);
   const addable = cards.map(card => card.id).filter(id => !have.has(id) && !extendIds.has(id));
   const everyone = [...enabled, ...addable];
   const entries = directoryPlugins(directory, everyone);
@@ -150,18 +149,17 @@ export function renderPluginRail(
   const besideButton = (plugin: { id: string; label: string }, owned: boolean) => renderButton({ variant: "secondary", size: "sm", icon: "columns", iconOnly: true, className: "rail-beside", disabled: !owned,
     label: uiText.text("workbench.immersive-shell.open-beside-name", { name: plugin.label }), attrs: { "data-rail-beside": plugin.id, title: uiText.text("workbench.immersive-shell.open-beside") } });
   // One button, two states: a plus while the plugin is not in the project, a red trash can once it is. Both glyphs are in the
-  // button, so a change of state is the tile's class and nothing more; the stylesheet shows the one that fits. A 常开 plugin stays.
+  // button, so a change of state is the tile's class and nothing more; the stylesheet shows the one that fits.
   const toggleButton = (plugin: { id: string; label: string }, owned: boolean, along: readonly string[]) => {
-    const locked = owned && marks.get(plugin.id)?.always_on === true;
     const sites = sitesOf.get(plugin.id) ?? [];
     const alongNote = along.length ? uiText.text("workbench.immersive-shell.adding-also-adds-list", { list: join(along.map(id => names.get(id) ?? id)) }) : "";
     // What adding it will not bring although it depends on it: an addable plugin cannot add them for it (RAC-1315).
     const needed = owned ? [] : addable.filter(id => id !== plugin.id && companionsOf(id).includes(plugin.id));
     const dependNote = needed.length ? uiText.text("workbench.immersive-shell.plugins-that-depend-not-added-list", { list: join(needed.map(id => names.get(id) ?? id)) }) : "";
-    const button = renderButton({ variant: owned ? "secondary" : "primary", size: "sm", icon: "plus", iconOnly: true, className: "plugin-toggle", disabled: locked,
+    const button = renderButton({ variant: owned ? "secondary" : "primary", size: "sm", icon: "plus", iconOnly: true, className: "plugin-toggle",
       label: uiText.text(owned ? "workbench.immersive-shell.remove-name" : "workbench.immersive-shell.add-name", { name: plugin.label }),
       attrs: { "data-plugin-toggle": plugin.id, "data-state": owned ? "added" : "available",
-        title: locked ? uiText.text("workbench.immersive-shell.always-plugin-cannot-be-removed-project") : owned ? uiText.text("workbench.immersive-shell.turn-off-project-its-data-stays-comes-back") : `${uiText.text("workbench.immersive-shell.add-project")}${alongNote}${dependNote}${sites.length ? uiText.text("workbench.immersive-shell.uses-side-panel-browser-sites", { sites: join(sites) }) : ""}` } });
+        title: owned ? uiText.text("workbench.immersive-shell.turn-off-project-its-data-stays-comes-back") : `${uiText.text("workbench.immersive-shell.add-project")}${alongNote}${dependNote}${sites.length ? uiText.text("workbench.immersive-shell.uses-side-panel-browser-sites", { sites: join(sites) }) : ""}` } });
     return button.replace(glyph("plus"), glyph("plus", "plugin-toggle-add") + glyph("trash", "plugin-toggle-remove"));
   };
   // The second line a removal asks in (navigation-presentation.ts).
@@ -331,14 +329,14 @@ export function renderGlobalSearchOverlay({ icon }: Pick<ImmersiveShellPrimitive
   </dialog>`;
 }
 
-export function renderPluginMarket(primitives: ImmersiveShellPrimitives, options: PluginMarketOptions = {}, directory: PluginDirectory = builtinPluginDirectory()): string {
+export function renderPluginMarket(primitives: ImmersiveShellPrimitives, directory: PluginDirectory = builtinPluginDirectory()): string {
   const { readText, icon, escapeHtml } = primitives;
   const join = (values: readonly string[]) => values.join(uiText.text("common.list.separator"));
   // Sites a Plugin says it uses in the side panel browser are read before it is added (specs/archive/side-panel D16).
   const sites = (plugin: { sites: readonly string[] }) => plugin.sites.length
     ? `<small class="plugin-market-sites" data-market-sites>${uiText("workbench.immersive-shell.uses-side-panel-browser-sites-2", { sites: join(plugin.sites) })}</small>` : "";
   // What adding one brings, and what removing one takes, in the same words the Projects service applies (W5-02 B1 marks, RAC-1310).
-  const cards = pluginMarketCards(options, directory), cardIds = new Set(cards.map(card => card.id));
+  const cards = pluginMarketCards(directory), cardIds = new Set(cards.map(card => card.id));
   const marks = new Map(directory.map(entry => [entry.id, entry]));
   const companionsOf = (id: string): readonly string[] => marks.get(id)?.companions ?? [];
   const related = (ids: readonly string[]) => ids.filter(id => cardIds.has(id));

@@ -32,7 +32,7 @@ test('S-133 PCSYNC-01/11/12/22 Feed restores exact evidence bytes, fixed Signal 
  assert.ok(encoded.blobs.some(blob=>Buffer.from(blob.bytes).equals(Buffer.from(text))));assert.doesNotMatch(JSON.stringify(encoded.value),/\.db|evidence-content-key|credential|cursor|lease/);
  const decoded=await b.codec.decode(mutation.key,encoded.value,async r=>{const blob=encoded.blobs.find(b=>b.digest===r.digest&&b.size===r.size);assert.ok(blob);return blob.bytes;});
  b.replica.receive({...mutation,value:decoded,revision:1});assert.equal(b.content.read(ref),text);assert.equal(b.feed.query.get('project',item.item_id).materials[0]!.content_ref,ref);assert.equal(b.signals.query.list('project')[0]!.revision,2);assert.equal(b.signals.events.list('project').length,2);assert.equal(b.attention.query.list('project').length,0);assert.equal(b.effects(),0);assert.equal(b.replica.next(),null);
- assert.notEqual(createLazyFileSecretStore(a.home).get('system:feed:evidence-content-key:v1'),createLazyFileSecretStore(b.home).get('system:feed:evidence-content-key:v1'),'target encrypts with its own key; no key is transported');
+ assert.notEqual(createLazyFileSecretStore(a.home).get('system:evidence:content-key:v1'),createLazyFileSecretStore(b.home).get('system:evidence:content-key:v1'),'target encrypts with its own key; no key is transported');
  const next=b.signals.commands.submitDraft({...draft,payload:{title:'Version three'}});assert.equal(next.signal.revision,3,'fixed history resumes without renumbering');
 });
 test('S-133 PCSYNC-01/12/14/15 Feed refuses foreign identity, missing/corrupt evidence, stale edits and revoked late writes',async t=>{

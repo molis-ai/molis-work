@@ -82,7 +82,7 @@ export const modulesCharactersContract = {
 } as const satisfies ContractDescriptor;
 
 export const CHARACTER_ARTIFACT_TYPE = /* @version type.character.definition "character.definition.v{version}" */ "character.definition.v1";
-export const CHARACTER_PLUGIN_ID = "io.molis.work.characters";
+export const CHARACTER_PLUGIN_ID = "system.characters";
 export const CHARACTER_PUBLISHER_SIGNATURE = "official-characters-binding";
 
 /** How a published Character reads in the 成果库; Characters answers it, the 成果库 and the Host's producer table name it. */
@@ -94,7 +94,7 @@ export const characterArtifactPreviewAction = defineArtifactPreviewAction("chara
  */
 export const CHARACTER_ARTIFACT_PRODUCER = {
   plugin_id: CHARACTER_PLUGIN_ID, name: "Characters", binding_signature: CHARACTER_PUBLISHER_SIGNATURE,
-  produces: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: /* @version type.character.definition */ 1, title: "角色",
+  produces: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: /* @version type.character.definition */ 1, title: "角色", searchable_fields: ["instructions"],
     preview: { capability_id: characterArtifactPreviewAction.capability_id, version: characterArtifactPreviewAction.version } }],
 } as const;
 

@@ -10,8 +10,8 @@ import type { SyncReplicaAdapter, SyncEvent } from '@molis-ai/molis-work-contrac
 import { AGENT_DEFINITIONS_BASELINE, AGENT_DEFINITIONS_STORE } from './agent-definitions/agent-definitions.js';
 import { homeAgentDefinitions } from './agent-definitions/builtin-registrations.js';
 import { promptOverrideConfigReplica } from './agent-definitions/prompt-overrides-replica.js';
-import { attentionSyncManifest, attentionSyncSelection, PLATFORM_SYNC_COLLECTIONS } from './platform-sync-catalog.js';
-import { pluginSyncNamespace } from './plugin-sync-database.js';
+import { PLATFORM_SYNC_COLLECTIONS } from './platform-sync-catalog.js';
+import { ATTENTION_SYNC_JOURNAL } from './project-database-schema.js';
 import { projectPlatformSyncRegistration } from './personal-project-approval-sync.js';
 import { appearanceForHome } from './ui-locale-memory.js';
 import type { SyncCatalogReader } from './personal-runtime-sync-authority.js';
@@ -19,9 +19,8 @@ import type { LocalWebCatalogRunner } from './web-project-settings.js';
 
 type Policy = () => { revision: number; selections: readonly SyncSelection[] };
 const ATTENTION_KIND = 'project_attention';
-const attentionJournal = pluginSyncNamespace(attentionSyncManifest, attentionSyncSelection.collection_id);
 const attentionDefinition = attentionContentReplicationDefinition(assertPortableConfig);
-const attentionReplica = createProjectContentReplicaFactory([attentionDefinition], attentionJournal, ATTENTION_KIND);
+const attentionReplica = createProjectContentReplicaFactory([attentionDefinition], ATTENTION_SYNC_JOURNAL, ATTENTION_KIND);
 
 export function personalConfigRegistrations(context: { home: string; spaceId: string; actor: string; authorize(): void;
   catalog: LocalWebCatalogRunner; readCatalog?: SyncCatalogReader; selected: Policy }): SyncRegistration[] {

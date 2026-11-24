@@ -2,7 +2,7 @@
 export { SqlitePluginPrivateStorage, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, privateValueReplicaOwner, validatePrivateValueReplication, installPrivateValueReplicationJournal } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
 export { SqlitePluginRuntimeRepository, readPluginRuntimeRecords, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL } from "./repository.js";
-export { alwaysOnAgreed, consentStands, leaveRefusal } from "./always-on-rules.js";
+export { consentStands } from "./trust-rules.js";
 export { holdsFailedDatabaseUpgrade } from "./plugin-database-version.js";
 export { MemoryPluginConsentLedger, PLUGIN_TRUST_SCHEMA_SQL, SqlitePluginConsentLedger, readPluginConsents, readProjectReachSubject } from "./consent-ledger.js";
 export type { PluginConsentEntry, PluginConsentLedger } from "./consent-ledger.js";

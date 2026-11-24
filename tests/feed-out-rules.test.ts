@@ -21,10 +21,7 @@ import {
   feedManifest,
   createFeedRuleHandlers, feedRuleActions,
 } from "@molis-ai/molis-work-plugin-feed";
-import {
-  FEED_CAPTURE_SCENE_ID,
-  INBOX_ADMIT_OPTION_ID,
-} from "@molis-ai/molis-work-contracts/modules/functions";
+import { FEED_CAPTURE_SCENE_ID, INBOX_ADMIT_OPTION_ID } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { FEED_API, feedTestRoutes } from "./fixtures/feed-http.js";
 

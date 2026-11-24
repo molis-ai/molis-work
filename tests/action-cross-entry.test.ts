@@ -11,7 +11,7 @@ import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { agentHostCapabilities as service } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfActions } from "@molis-ai/molis-work-module-shelf/surface";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
 import { crossEntrySchedule as subject, crossEntryTodo as todo, isCrossEntryObject } from "./fixtures/cross-entry-subjects.js";
 
@@ -193,8 +193,8 @@ test("W3-09-1-01 T7: stale Home Todo revisions refuse page and actual MCP equall
 });
 
 test("W3-09-1-01 T5: a real Shelf page caller retains the operation id on schema refusal before any owner write", { timeout: 60_000 }, async t => {
-  const home = await openTestHome(t), project = await home.createProject("Literal page caller", ["shelf"]);
-  const path = `/projects/${encodeURIComponent(project.project_id)}/api/plugins/io.molis.work.shelf`;
+  const home = await openTestHome(t), project = await home.createProject("Literal page caller", []);
+  const path = `/projects/${encodeURIComponent(project.project_id)}/api/platform/shelf`;
   const before = await home.web.get(path + "/");
   const refused = await page(home, path + "/items", { text: "原材料保留", title: "x".repeat(201) });
   assert.equal(refused.status, 400); assert.equal(refused.body.code, "actions.input_invalid");

@@ -161,12 +161,12 @@ test("SYS-15-U14 S-47 object placement uses the owner's declared scope and rejec
   const f = await serveHomeRuntime(t), project = await f.project("Object scope");
   const prefix = `/projects/${project.project_id}`;
   const open = async (id: string) => {
-    const response = await f.request(prefix + "/api/host/plugin-pages", {method:"POST",body:{plugin_id:`io.molis.work.${id}`}});
+    const response = await f.request(prefix + "/api/host/plugin-pages", {method:"POST",body:{plugin_id:id}});
     assert.equal(response.status, 200, await response.clone().text());
     return {"x-molis-plugin-page":(await response.json()).page_id as string};
   };
-  const shelf = await open("shelf"), pages = await open("pages");
-  const admitted = await f.request("/api/plugins/io.molis.work.shelf/items", {method:"POST",body:{text:"Personal material",title:"Personal material"}});
+  const shelf = await open("system.shelf"), pages = await open("io.molis.work.pages");
+  const admitted = await f.request("/api/platform/shelf/items", {method:"POST",body:{text:"Personal material",title:"Personal material"}});
   assert.equal(admitted.status, 200, await admitted.clone().text());
   const item = (await admitted.json()).item;
   const store = openPagesStore(f.home);

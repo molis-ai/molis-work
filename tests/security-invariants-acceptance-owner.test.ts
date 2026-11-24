@@ -68,7 +68,7 @@ test("S-acceptance-subject-owner: an owner that declares no reader for the kind 
 test("S-acceptance-subject-owner: a Host's acting_for does not travel with a plugin's onward call", { timeout: 90_000 }, async t => {
   const { a, provider, call } = await rig(t, { reader: true, relay: true });
   const pid = a.project_id;
-  const work: AcceptanceSubject = { provider_id: "io.molis.work.assistant.rules", subject: { kind: "assistant_work", id: "w-1" } };
+  const work: AcceptanceSubject = { provider_id: "system.assistant.rules", subject: { kind: "assistant_work", id: "w-1" } };
   const workRound = agent(pid, { acting_for: { provider_id: work.provider_id, kind: work.subject.kind, id: work.subject.id } });
   // The work's own round speaks for the work…
   await call(workRound, acceptanceActions.set, { subject: work, requirements: REQUIREMENTS });

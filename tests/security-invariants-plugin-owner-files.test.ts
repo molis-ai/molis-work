@@ -403,13 +403,13 @@ test("S-plugin-data plugins.data refuses non-person, delegated, quarantined, uno
   mkdirSync(shelfDir, { recursive: true });
   writeFileSync(join(shelfDir, "catalog.json"), JSON.stringify({ copies: [{ id: "cross-project-secret" }] }));
   assert.ok(
-    listed.sections.some(section => section.plugin_id === "io.molis.work.shelf" && section.scope === "home"),
+    listed.sections.some(section => section.plugin_id === "system.shelf" && section.scope === "home"),
     "built-in Shelf without databases and with runtime.scope=home must declare home-scoped sections",
   );
-  const shelfHomeExport = await homeClient.invoke(homePerson, exportRef, { plugin_id: "io.molis.work.shelf" }) as PluginDataExportResult;
+  const shelfHomeExport = await homeClient.invoke(homePerson, exportRef, { plugin_id: "system.shelf" }) as PluginDataExportResult;
   assert.ok(shelfHomeExport.sections.some(section => section.files?.some(file => file.path === "catalog.json")), "Shelf exports under Home scope");
   await assert.rejects(
-    projectClient.invoke(basePerson, exportRef, { plugin_id: "io.molis.work.shelf", project_id: project.project_id }),
+    projectClient.invoke(basePerson, exportRef, { plugin_id: "system.shelf", project_id: project.project_id }),
     (error: unknown) => error instanceof ActionError && error.code === "actions.scope_mismatch",
     "built-in Shelf Home owner_files must be refused under project scope",
   );

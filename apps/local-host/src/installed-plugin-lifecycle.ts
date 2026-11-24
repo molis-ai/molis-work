@@ -11,7 +11,7 @@ import type { PluginRetainedItem, PluginUninstallTarget } from '@molis-ai/molis-
 import { collectRetained } from './uninstall-retained.js';
 import { sameInstalledRelease, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
 import { assertUpgradeOf } from './package-upgrade.js';
-import { leaveRefusal, UNINSTALL_PENDING, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import { UNINSTALL_PENDING, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
 
 /** What the install lifecycle uses of a platform: a project's, or the Home's (BL-628). */
@@ -244,9 +244,6 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
       throw pluginErrors.upgrade_validation_failed('等待 Home 插件库完成恢复');
     }
     if (action === 'upgrade') return upgradePackage(release, record, grants);
-    // A 常开 agreement that stands keeps the installation on: asked before anything is withdrawn, revoked or stopped.
-    const refusal = action === 'disable' || action === 'uninstall' ? leaveRefusal(platform.consents ?? undefined, record, action === 'disable' ? '停用' : '卸载') : undefined;
-    if (refusal) throw refusal;
     grants.assertCurrent?.();
     if (action === 'disable') {
       c.withdraw(pluginId); platform.supervisor.revoke(pluginId);
@@ -305,8 +302,6 @@ export async function uninstallInstalledRecord(c: InstalledLifecycleContext, plu
   }
   if (c.project_id === null && installedHomeUpgradeBlocked(c.home, record)) throw pluginErrors.upgrade_validation_failed('等待 Home 插件库完成恢复');
   if (!live) return await removeInstallation(c, pluginId, record, undefined, target, input.assertCurrent);
-  const refusal = leaveRefusal(c.platform.consents ?? undefined, record, '卸载');
-  if (refusal) throw refusal;
   input.assertCurrent?.();
   c.withdraw(pluginId); c.platform.supervisor.revoke(pluginId);
   return await removeInstallation(c, pluginId, record, record.state === 'uninstalled' ? input.keepData : input.keepData === true, target, input.assertCurrent);

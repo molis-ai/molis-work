@@ -137,7 +137,7 @@ test("restoring an ignored Feed item closes an entry that is still pending for i
     const archived = feed.setDisposition(DEMO_PROJECT_ID, item.item_id, "archived", item.revision);
     // An entry that predates this behaviour is not left pending by the restore. The person can no longer reopen an
     // ignored item's entry (see below), so the stale state is written the way an older version left it.
-    store.db.prepare("UPDATE inbox_entries SET status = 'open', completed_at = NULL, revision = revision + 1 WHERE project_id = ? AND subject_id = ?")
+    store.db.prepare("UPDATE attention_entries SET status = 'open', completed_at = NULL, revision = revision + 1 WHERE project_id = ? AND subject_id = ?")
       .run(DEMO_PROJECT_ID, item.item_id);
     assert.deepEqual(entriesOf(feed, item.item_id), ["manual:open", "source_rule:open"]);
     feed.restoreToFeed(DEMO_PROJECT_ID, item.item_id, archived.revision);
@@ -346,7 +346,7 @@ const COMMITTED_MATERIAL = {
   title: "定时拉取已提交的材料",
   source_name: "Example",
   preview: "定时拉取提交之后判断才失败的正文",
-  content_ref: `molis-work-feed/sha256/${"e".repeat(64)}`,
+  content_ref: `molis-work-evidence/sha256/${"e".repeat(64)}`,
   content_hash: `sha256:${"e".repeat(64)}`,
   content_type: "text/markdown",
   character_count: 12,

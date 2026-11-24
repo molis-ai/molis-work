@@ -4,6 +4,7 @@ import { createCatalogIntegrationPlugin, catalogConnectorIds } from "@molis-ai/m
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import { createGmailIntegrationPlugin } from "@molis-ai/molis-work-integration-gmail";
 import { createRssIntegrationPlugin } from "@molis-ai/molis-work-integration-rss";
+import { builtinPublicFeedDriver } from "./builtin-drivers.js";
 import { normalizeGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import { createCatalogConnector } from "./catalog-connector.js";
 import { createGithubConnector } from "./github-connector.js";
@@ -37,13 +38,15 @@ export function builtinIntegrationDefinitions(override?: IntegrationProviderFact
   const providerFor = (integrationId: string, own: (binding: IntegrationBinding) => IntegrationProviderPort) =>
     (binding: IntegrationBinding): IntegrationProviderPort => override ? override(integrationId, binding) : own(binding);
   return [
-    createRssIntegrationPlugin({ now }),
+    { ...createRssIntegrationPlugin({ now }), publicFeed: builtinPublicFeedDriver() },
     createGithubIntegrationPlugin({ providerFor: providerFor("github", binding => githubProvider(home, binding)), now }),
     createGmailIntegrationPlugin({ providerFor: providerFor("gmail", binding => gmailProvider(home, binding)), now }),
     ...catalogConnectorIds().map(connectorId => createCatalogIntegrationPlugin({
       connectorId, providerFor: providerFor(connectorId, binding => catalogProvider(home, connectorId, binding)), now })),
   ];
 }
+
+export { builtinCliDrivers, builtinCliReleaseHosts, builtinPublicFeedDriver, type CliDriver, type CliNativeDistribution, type CliReleasePort } from "./builtin-drivers.js";
 
 /** What a reader of the declarations may do: look, never declare. */
 export type IntegrationDeclarationsView = Pick<IntegrationDeclarations, "connectionServices" | "hasSource" | "integration" | "listIntegrations" | "pluginName">;

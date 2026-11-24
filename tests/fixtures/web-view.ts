@@ -20,7 +20,7 @@ export function readTestGoalCollection(store: LocalProjectDatabase, app: GoalPro
 }
 /** What the Inbox plugin lists (`inbox.list`): every explicitly owned entry of the project, whoever owns it. */
 function ownedInboxEntries(store: LocalProjectDatabase, projectId: string) {
-  return (store.db.prepare("SELECT * FROM inbox_entries WHERE project_id = ? AND owner_plugin_id IS NOT NULL ORDER BY updated_at DESC, entry_id").all(projectId) as Array<Record<string, unknown>>)
+  return (store.db.prepare("SELECT * FROM attention_entries WHERE project_id = ? AND owner_plugin_id IS NOT NULL ORDER BY updated_at DESC, entry_id").all(projectId) as Array<Record<string, unknown>>)
     .map(({ detail_json, ...row }) => ({ ...row, detail: JSON.parse(String(detail_json)) as Record<string, unknown> }));
 }
 export function buildMolisWorkWebView(store: LocalProjectDatabase, app: GoalProjectApplication,
@@ -28,7 +28,7 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, app: GoalProj
   const snapshot = createLocalFeedApplication(store.db).snapshot(options.projectId);
   const schedule = createScheduleActionPorts({ db: store.db, schedule: scheduleServiceFor(store.db) });
   const goals = readTestGoalCollection(store, app, options.projectId);
-  const feed = { ...snapshot, inbox_entries: ownedInboxEntries(store, options.projectId) as never, feed_items: snapshot.feed_items.map(item => ({ ...item, body: null, materials: item.materials.map(material => ({ ...material, content: undefined })) })) };
+  const feed = { ...snapshot, attention_entries: ownedInboxEntries(store, options.projectId) as never, feed_items: snapshot.feed_items.map(item => ({ ...item, body: null, materials: item.materials.map(material => ({ ...material, content: undefined })) })) };
   const feed_source_catalog = listTestFeedSourceCatalog();
   const feed_connector_auth = feedConnectorAuthStatus(options.homeDirectory);
   return {

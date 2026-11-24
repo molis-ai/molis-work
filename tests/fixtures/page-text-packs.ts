@@ -8,8 +8,8 @@ import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 
 const ROOT = new URL("../../", import.meta.url);
 const cache = new Map<string, UiLocalePack>();
-/** Framed surfaces a platform package owns (47-1 C: the plugin studio), whose packs sit in that package. */
-const PLATFORM_SURFACE_DIRS: Record<string, string> = { "plugin-builder": "horizontal/plugin-studio/locales/" };
+/** Framed surfaces a platform package owns (47-1 C: the plugin studio; 44B: Shelf in its Module), whose packs sit in that package. */
+const PLATFORM_SURFACE_DIRS: Record<string, string> = { "plugin-builder": "horizontal/plugin-studio/locales/", shelf: "modules/shelf/locales/" };
 
 /** Real packs for source-level tests that cannot also load the built Workbench and its plugin registry. */
 export function shippedPagePack(owner: string, locale: string): UiLocalePack {

@@ -35,7 +35,7 @@ export const servicesAssistantContract = {
 } as const satisfies ContractDescriptor;
 
 /** The identity the Assistant's sessions are owned by. It is a system module, not an installed Plugin. */
-export const ASSISTANT_PLUGIN_ID = "io.molis.work.assistant";
+export const ASSISTANT_PLUGIN_ID = "system.assistant";
 export const ASSISTANT_INSTALL_ID = "system";
 /**
  * Session owner for personal work. The Home is the person's own scope — the one the action service already calls

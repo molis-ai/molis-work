@@ -240,14 +240,15 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     },
     discover: async () => {
       const outer = currentPluginInvocation();
-      const plugin = outer?.caller.audience === "plugin" && inPluginInstance(outer, context) ? outer : undefined;
-      return (await ownActions({ project_id: plugin?.caller.project_id ?? options.project_id ?? null, client: options.client }, plugin).discover())
+      const own = outer && inPluginInstance(outer, context) ? outer : undefined, plugin = own?.caller.audience === "plugin" ? own : undefined;
+      // A Home instance answers each call in the caller's project, so its own actions are found there, not in the Home catalog.
+      return (await ownActions({ project_id: own?.caller.project_id ?? options.project_id ?? null, client: options.client }, plugin).discover())
         .filter(view => view.provider.plugin_install_id === context.install_id);
     },
     discoverOne: async reference => {
       const outer = currentPluginInvocation();
-      const plugin = outer?.caller.audience === "plugin" && inPluginInstance(outer, context) ? outer : undefined;
-      const actions = ownActions({ project_id: plugin?.caller.project_id ?? options.project_id ?? null, client: options.client }, plugin);
+      const own = outer && inPluginInstance(outer, context) ? outer : undefined, plugin = own?.caller.audience === "plugin" ? own : undefined;
+      const actions = ownActions({ project_id: own?.caller.project_id ?? options.project_id ?? null, client: options.client }, plugin);
       const target = { ...reference, provider_id: reference.provider_id ?? ownProvider };
       const view = await actions.discoverOne(target);
       return view && view.provider.plugin_install_id === context.install_id ? view : undefined;

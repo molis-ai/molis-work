@@ -16,7 +16,7 @@ import { feedWakeAction } from "./runtime-wake.js";
 import { feedRuntimeCaptureScene } from "./scenes.js";
 import { feedSourceActions } from "./source-actions.js";
 
-const FEED_PULL = "sources:pull_feed", QUERY_PULL = "sources:pull_query", REPOSITORY_READ = "sources:read_repository";
+const FEED_PULL = "sources:pull_public_feed", QUERY_PULL = "sources:pull_query", REPOSITORY_READ = "sources:read_repository";
 const CONNECTIONS = "connections:use", CONNECTOR_PULL = "sources:pull_connector", EVIDENCE = "evidence:read";
 /** An action whose new or judged items the capture rules match pins what they capture in the 成果库, in its own commit (RAC-510). */
 const CAPTURE = "artifact:write";

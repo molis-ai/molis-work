@@ -6,6 +6,7 @@ import type {
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { readRssHttpState } from "./http-state.js";
+export * from "./youtube-channel.js";
 import type { SourcePresentation, SourcePresentationInput } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 
 export function rssSourcePresentation({ cursor }: SourcePresentationInput): SourcePresentation {

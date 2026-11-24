@@ -17,11 +17,9 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  const sideText = globalThis.
   };
   const spinner = (state = "running") => { const mark = el("span", "assistant-state-ring"); mark.dataset.mwState = state; mark.setAttribute("aria-hidden", "true"); return mark; };
   const proc = (${ASSISTANT_PROCESS_FACTORY_SCRIPT})({ readText, el, keyed, setText, placer, glyph, spinner }), activityLine = proc.activityLine, retries = (${ASSISTANT_RETRY_FACTORY_SCRIPT})({ readText, root: island, setText });
-  /** What an object is, read from its kind or the surface it opens in. */
-  const KIND_GLYPH = [[/todo/, "check"], [/image|photo/, "image"], [/coding|code/, "code"], [/goal/, "target"], [/lingguang|idea/, "idea"],
-    [/feed|inbox|mail/, "inbox"], [/workflow|schedule/, "workflow"], [/dataset|database/, "database"], [/artifact|package/, "package"], [/page|doc|note|form|ppt/, "note"]];
-  const kindGlyph = (text) => { const key = String(text || "").toLowerCase(); const hit = KIND_GLYPH.find(([pattern]) => pattern.test(key)); return hit ? hit[1] : "file"; };
-  const objectGlyph = (object) => kindGlyph((object.subject ? object.subject.kind : "") + " " + (object.open ? object.open.surface : ""));
+  /** What an object is: the icon its kind's owner declares (search source glyph, M8, read with the surface kinds), else a file. */
+  const kindGlyphs = {};
+  const objectGlyph = (object) => (object.subject && Object.hasOwn(kindGlyphs, object.subject.kind) && kindGlyphs[object.subject.kind]) || "file";
   /** The plugin's own name for where an object lives: the catalog's name for it (the host asks the tab workspace, which holds
    *  the catalog and the plugins installed at run time), never what one list in the page happens to show. */
   const surfaceName = (surf) => surf ? ((host.pluginTitle && host.pluginTitle(surf)) || surf) : "";

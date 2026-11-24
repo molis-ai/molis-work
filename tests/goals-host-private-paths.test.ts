@@ -35,13 +35,14 @@ test("RAC-803 the Host hand-writes no authority for Goals: no per-action provena
   // `goal-callers.ts` is deleted (PEQ-03/H1): management actions come from generic plugin declarations, web entry from `local-web-actions.ts`.
   assert.equal(existsSync(join(HOST, "goal-callers.ts")), false, "goal-callers.ts stays deleted");
   // A person's act gets its provenance from `entryUserAction` alone; a literal `user_action` in the Host callers is the old private road.
-  for (const name of ["management-actions.ts", "local-web-actions.ts"]) {
+  for (const name of ["management-action-client.ts", "management-action-gateway.ts", "local-web-actions.ts"]) {
     const source = text(join(HOST, name));
     assert.doesNotMatch(source, /user_action\s*:\s*\{/u, `${name} writes a user_action by hand`);
     assert.doesNotMatch(source, /source\s*:\s*"(?:web|management)"\s*,\s*conversation_ref/u, `${name} writes a provenance by hand`);
   }
-  // The generic management action helper names no plugin or Goals action id.
-  assert.doesNotMatch(text(join(HOST, "management-actions.ts")), /"goals\./u, "management-actions.ts hardcodes no Goals action id");
+  // The management entries (44B: the platform's review operations only) name no plugin or Goals action id.
+  assert.equal(existsSync(join(HOST, "management-actions.ts")), false, "management-actions.ts stays deleted (44B)");
+  for (const name of ["management-action-client.ts", "management-action-gateway.ts"]) assert.doesNotMatch(text(join(HOST, name)), /"goals\./u, `${name} hardcodes no Goals action id`);
   // The page entry binds the person once for every action; it does not know which action it carries (that was the old per-action branches).
   const webActions = text(join(HOST, "local-web-actions.ts"));
   const start = webActions.indexOf("export function bindWebEntryActions");

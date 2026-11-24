@@ -26,13 +26,14 @@ export function checkGoalsManagementWiring(source, mode) {
   const errors = [], reject = message => errors.push(`${path}: ${message}`);
   if (production?.error) reject(production.error);
   const namedCalls = name => calls.filter(node => ts.isIdentifier(node.expression) && node.expression.text === name);
-  // The management MCP's fallback keeps the full management actions port (including plugin-declared management tools); the command line's has only the platform's review operations (batch 44, H6).
-  const factoryName = mcp ? "bindStandaloneManagementActions" : "bindStandaloneReviewActions";
+  // Both entries' fallbacks hold only the platform's review operations (batch 44 H6 for the command line, 44B for the management MCP: no
+  // plugin declares management actions any more).
+  const factoryName = "bindStandaloneReviewActions";
   const factory = namedCalls(factoryName), call = factory.length === 1 ? factory[0] : undefined;
   const opened = call?.arguments[0], fallback = declarations.get("fallback");
   const body = fallback?.initializer && ts.isArrowFunction(fallback.initializer) ? fallback.initializer.body : undefined;
   const creates = namedCalls("prepareLocalProjectStorage").filter(node => text(node.arguments[1]) === '"create"');
-  // The CLI no longer creates a project database (batch 44 removed `init` with the Goals commands): it opens only an existing one.
+  // Neither entry creates a project database (batch 44 removed the CLI's `init`, 44B the management MCP's `initialize`): both open only an existing one.
   const guarded = !mcp && body && ts.isBlock(body) && body.statements.length === 3
     && imports.has("./home-storage-lifetime.js:ensureHomeStorageOwner")
     && imports.has("./memory/memory-initialization.js:preflightMemoryHome")
@@ -45,7 +46,7 @@ export function checkGoalsManagementWiring(source, mode) {
   if (!imports.has(`./management-action-client.js:${factoryName}`) || !call || call.arguments.length !== 3
     || text(opened) !== expectedHost || text(call.arguments[1]) !== "reference"
     || text(call.arguments[2]) !== (mcp ? "caller.resident?.signal" : "options.signal")
-    || !fallback?.initializer || !ts.isArrowFunction(fallback.initializer) || fallback.initializer.parameters.length !== 0 || (mcp ? body !== call : !guarded)) {
+    || !fallback?.initializer || !ts.isArrowFunction(fallback.initializer) || fallback.initializer.parameters.length !== 0 || (mcp ? body !== call || creates.length !== 0 : !guarded)) {
     reject(`${factoryName} must build the single lazy fallback with the original Host, retaining Home ownership before creation, bound reference and original signal`);
   }
   const resident = namedCalls("residentManagementActions"), residentCall = resident.length === 1 ? resident[0] : undefined;
@@ -150,7 +151,7 @@ function productionMcpBranch(file, text) {
   };
   if (fn?.body) find(fn.body);
   const valid = purePrefix && !branch.elseStatement && dispatch?.arguments.length === 4 && text(dispatch.arguments[1]) === "name"
-    && text(dispatch.arguments[2]) === "arguments_" && text(dispatch.arguments[3]) === "{audience,createError:createPresentationError,declared:MANAGEMENT_MCP_TOOLS}"
+    && text(dispatch.arguments[2]) === "arguments_" && text(dispatch.arguments[3]) === "{audience,createError:createPresentationError}"
     && input && ts.isObjectLiteralExpression(input) && input.properties.length === Object.keys(expected).length
     && values.size === Object.keys(expected).length && Object.entries(expected).every(([key, value]) => values.get(key) === value)
     && firstPreparation && branch.end < firstPreparation.pos && missingLocation && missingLocation.end <= branch.pos;

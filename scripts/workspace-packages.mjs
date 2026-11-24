@@ -165,7 +165,9 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-design-system",
       "@molis-ai/molis-work-plugin-sdk",
       // The platform's plugin studio (47-1 C): the shell frames its declared surface.
-      "@molis-ai/molis-work-plugin-studio"
+      "@molis-ai/molis-work-plugin-studio",
+      // Shelf, a platform part (44B): the shell frames its declared surface the same way.
+      "@molis-ai/molis-work-module-shelf"
     ],
     extraDependencies: {
       marked: "^18.0.11",
@@ -196,7 +198,6 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-integration-github",
       "@molis-ai/molis-work-integration-gmail",
       "@molis-ai/molis-work-integration-rss",
-      "@molis-ai/molis-work-integration-youtube",
       "@molis-ai/molis-work-kernel",
       "@molis-ai/molis-work-module-acceptance",
       "@molis-ai/molis-work-module-artifacts",
@@ -391,7 +392,10 @@ export const WORKSPACE_PACKAGES = [
     maturity: "slice",
     capabilities: [
       "shelf.store.v1",
-      "shelf.jobs.v1"
+      "shelf.jobs.v1",
+      "shelf.ui-contribution.v1",
+      "shelf.http-routes.v1",
+      "shelf.actions.v1"
     ],
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-plugin-sdk"
@@ -637,9 +641,6 @@ export const WORKSPACE_PACKAGES = [
     extraDependencies: {
       "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz"
     }
-  }),
-  entry("plugins/official-integrations/youtube", "@molis-ai/molis-work-contracts/platform/plugin", {
-    maturity: "production"
   }),
   entry("tooling/plugin-cli", "@molis-ai/molis-work-contracts/platform/tooling", {
     maturity: "production",

@@ -2,12 +2,12 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
 import { resolveMcpConnectionToken } from "./connector-mcp.js";
 import { captureMcpOperationSource, type StoredMcpConfiguration } from "./connector-mcp-configuration.js";
-import { LOCAL_MCP_SERVERS, requiresMcpDeclaration } from "./connector-mcp-endpoint.js";
+import { localMcpServer, requiresMcpDeclaration } from "./connector-mcp-endpoint.js";
 import { subscribeConnectorChanges } from "./connector-lifecycle.js";
 import { oauthRefreshGuard } from "./connector-oauth-targets.js";
 
 export function agentMcpEndpoint(config: StoredMcpConfiguration | null | undefined): string | null {
-  if (config?.protocol !== "mcp" || config.transport === "stdio" || !config.endpoint || config.transport === "sse" || (Object.hasOwn(LOCAL_MCP_SERVERS, config.serviceId) && LOCAL_MCP_SERVERS[config.serviceId]?.stdio) ||
+  if (config?.protocol !== "mcp" || config.transport === "stdio" || !config.endpoint || config.transport === "sse" || localMcpServer(config.serviceId)?.stdio ||
     (config.mode === "bearer" && config.tokenScheme) || (requiresMcpDeclaration(config.serviceId, config.endpoint, config.transport) && !config.source)) return null;
   return config.endpoint;
 }

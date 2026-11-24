@@ -1,4 +1,4 @@
-import { HOST_PLUGIN_ID_PREFIX, pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_PLUGIN_ID_PREFIX, PLATFORM_ID_PREFIX, pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDefinition, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentGrant, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { assertConsentsDeclared, assertPluginTrust, assertScopeFitsRuntime, assertTrustFitsDefinition, type InProcessAdmission } from "./trust-rules.js";
@@ -42,7 +42,9 @@ export function assertInstallIdentity(
   if (trust.level === "pinned" ? publisher.signature !== trust.publisher_key_id : publisher.signature.trim().toLowerCase().startsWith(FINGERPRINT_FORM)) {
     throw pluginErrors.signer_mismatch("发布者签名只有验过的固定公钥才能写成指纹的形式；自己写的标签不能冒充某个发布者");
   }
+  // Only the Host's own build runs a platform part under `system.` (the Shelf the runtime hosts, 44B); no package is installed there.
   if (trust.level === "host") return trust;
+  if (id.startsWith(PLATFORM_ID_PREFIX)) throw pluginErrors.id_namespace_conflict(`插件 ID ${id} 用了平台自己的前缀 ${PLATFORM_ID_PREFIX}，请换成你自己的名字`);
   if (id.startsWith(HOST_PLUGIN_ID_PREFIX) && !releaseIds.has(id)) throw pluginErrors.id_namespace_conflict(`插件 ID ${id} 用了只给随宿主发布的插件的前缀 ${HOST_PLUGIN_ID_PREFIX}，请换成你自己的名字`);
   for (const reserved of hostIds) {
     if (reserved === id || nested(reserved, id)) throw pluginErrors.id_namespace_conflict(`插件 ID ${id} 与随宿主发布的 ${reserved} 冲突`);

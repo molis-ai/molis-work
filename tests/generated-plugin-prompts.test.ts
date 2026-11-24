@@ -135,7 +135,7 @@ test("developer diagnostics say what each source registered and what is not in e
     assert.deepEqual([generated.instructions, generated.edited], [1, 1]);
     assert.ok(generated.issues.some(issue => /插件已停用/.test(issue.text)));
     assert.ok(generated.issues.some(issue => /基于旧默认/.test(issue.text)), "the default moved from A to A2 under the person's edit");
-    const assistant = report.owners.find(owner => owner.owner_id === "io.molis.work.assistant")!;
+    const assistant = report.owners.find(owner => owner.owner_id === "system.assistant")!;
     assert.ok(assistant.prompts > 0 && assistant.roles > 0);
     assert.ok(assistant.issues.some(issue => issue.level === "info" && /还没有被调用过/.test(issue.text)));
   } finally { rmSync(home, { recursive: true, force: true }); }

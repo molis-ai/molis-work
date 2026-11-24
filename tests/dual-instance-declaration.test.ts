@@ -40,9 +40,13 @@ test("DUAL-12 DUAL-05 a Home half marked on the Host's list and its project half
     [dual.actions.home.capability_id, dual.actions.homeReach.capability_id]);
   // The Manifest publishes an event, and the Home half still starts; it is given none of a project's services for it.
   assert.ok(dual.services.home, "the Home half started");
-  for (const service of ["events", "inputs", "outputs", "artifacts", "processItems"] as const) {
+  for (const service of ["events", "inputs", "outputs", "processItems"] as const) {
     assert.equal(dual.services.home[service], undefined, `the Home half has no ${service} service`);
   }
+  // Since 44B a Home half reads the 成果 of the project each call is for, and pins none into it.
+  const homeArtifacts = dual.services.home.artifacts;
+  assert.ok(homeArtifacts, "the Manifest consumes 成果, so the Home half reads them");
+  assert.throws(() => homeArtifacts.publish({} as never), /不往项目里固定版本/u, "the Home half publishes no 成果 into a project");
 
   // Looking at the project's actions starts its Plugin Runtime, and with it the project half.
   const context = await host.localPersonContext(reference);

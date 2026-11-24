@@ -14,7 +14,7 @@ import { formActions } from "@molis-ai/molis-work-plugin-form";
 import { lingguangActions } from "@molis-ai/molis-work-plugin-lingguang";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
-import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfActions } from "@molis-ai/molis-work-module-shelf/surface";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindSearchEntriesHandler, defineSearchEntriesAction, definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
@@ -76,7 +76,7 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     await host.homeActionClient().invoke(personalCaller, shelfActions.admit, { text: "置物架里的抹香鲸观察笔记", title: "抹香鲸观察"});
     await host.homeActionClient().invoke(personalCaller, shelfActions.clip, { text: "剪贴板里的抹香鲸暗号 7731" });
     const shelfHits = await search(refA, "抹香鲸");
-    assert.deepEqual(ids(shelfHits), ["io.molis.work.shelf:shelf_clip", "io.molis.work.shelf:shelf_item"]);
+    assert.deepEqual(ids(shelfHits), ["system.shelf:shelf_clip", "system.shelf:shelf_item"]);
     // W2-18-SHELF-OPEN-01: listing-backed open retains the real clipboard ID, without requiring a subject reader.
     const clipHit = shelfHits.hits.find(hit => hit.subject.kind === "shelf_clip")!;
     const openedClip = await call(refA, searchActions.open, { hit_id: clipHit.hit_id });
@@ -84,7 +84,7 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     if (openedClip.state === "ok") assert.deepEqual(openedClip.open, { surface: "shelf", id: clipHit.subject.id });
     const agent: ActionCallContext = { ...await owner(refA), actor_id: "agent:reader", audience: "agent" };
     const agentSees = await host.actionClient(refA).invoke(agent, searchActions.query, { query: "抹香鲸" }) as SearchQueryResponse;
-    assert.deepEqual(ids(agentSees), ["io.molis.work.shelf:shelf_item"], "an Agent never finds clipboard history");
+    assert.deepEqual(ids(agentSees), ["system.shelf:shelf_item"], "an Agent never finds clipboard history");
     assert.ok(!JSON.stringify(agentSees).includes("7731"), "not even in a snippet or a source status");
     const agentOpen = await host.actionClient(refA).invoke(agent, searchActions.open, { hit_id: clipHit.hit_id }) as { state: string };
     assert.notEqual(agentOpen.state, "ok", "a user's clipboard hit does not authorize an Agent to open it");

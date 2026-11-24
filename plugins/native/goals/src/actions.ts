@@ -44,7 +44,7 @@ const limit = { type: "integer", minimum: 1, maximum: 100 };
 export const goalsActions = {
   subject: defineSubjectContextAction("goals.subject.read", /* @version action.goals.subject.read */ 1, "goal", "目标上下文", ["goals:read"]),
   /** System search: every current Goal with the same revision its context reader reports. */
-  searchEntries: defineSearchEntriesAction("goals.search.entries", /* @version action.goals.search.entries */ 1, [{ kind: "goal", title: "目标", surface: "goals" }], "目标", ["goals:read"]),
+  searchEntries: defineSearchEntriesAction("goals.search.entries", /* @version action.goals.search.entries */ 1, [{ kind: "goal", title: "目标", surface: "goals", glyph: "target" }], "目标", ["goals:read"]),
   /** What part of anything the person has in hand can do for Goals (specs/archive/contextual-interaction). */
   fragmentOffers: goalsFragmentOffersAction,
   /** 「被谁引用」 in the 成果库 (BL-646): the current Goals behind the link kinds Goals declares, by title; others are left out. */

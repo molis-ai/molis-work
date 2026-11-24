@@ -41,7 +41,7 @@ test("the committed CODEOWNERS and the SSOT 归属 column are what the owner rul
 test("the lead answers for every package; the second reviewer also for Coding, Agent Host, Jelly, Shelf and Diff", () => {
   assert.deepEqual(reviewedBy(LEAD), WORKSPACE_PACKAGES.map((item) => item.path).sort());
   assert.deepEqual(reviewedBy(CODING_REVIEWER), [
-    "horizontal/agent-host", "modules/shelf", "plugins/native/coding", "plugins/native/diff", "plugins/native/jelly", "plugins/native/shelf",
+    "horizontal/agent-host", "modules/shelf", "plugins/native/coding", "plugins/native/diff", "plugins/native/jelly",
   ]);
   const rules = codeowners().split("\n").filter((line) => line && !line.startsWith("#"));
   assert.equal(rules[0], `* ${LEAD}`);

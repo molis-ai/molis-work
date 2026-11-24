@@ -162,9 +162,9 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `modules/artifacts` | `ARTIFACTS_SCHEMA_SQL` | `library_artifacts`、`library_artifact_versions`（成果库） |
 | | `PROCESS_ITEMS_SCHEMA_SQL` | `process_items`、`process_item_versions`（过程项，不进成果库） |
 | `packages/storage` | `LOCAL_JOURNAL_SCHEMA_SQL` | `events`、`idempotency_records`（共享日志，见 4.5） |
-| | `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | `feed_runtime_blobs` |
+| | `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | `opaque_blobs` |
 | `modules/context-ledger` | `CONTEXT_LEDGER_SCHEMA` | `context_edges` |
-| `modules/attention-resumption` | `ATTENTION_SCHEMA_SQL` | `inbox_entries`、`attention_events` |
+| `modules/attention-resumption` | `ATTENTION_SCHEMA_SQL` | `attention_entries`、`attention_events` |
 | `modules/projects` | `PROJECT_GUIDANCE_SCHEMA_SQL`（`src/project-guidance.ts`） | `guidance_entries`、`guidance_revisions`（项目长期说明及其修订，第 44 批从 Goals 接过来） |
 | `modules/acceptance` | `ACCEPTANCE_SCHEMA_SQL`（`src/schema.ts`） | `acceptance_subjects`、`acceptance_requirements`、`acceptance_deliveries`、`acceptance_checks`、`acceptance_decisions`（要求与认可，第 44 批从 Home 库搬进项目库），`acceptance_sync_resolving`（同步冲突选择时的临时标记） |
 | `packages/plugin-runtime` | `PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL` | `plugin_runtime_installs`（含 `publisher_trust` 列） |
@@ -230,7 +230,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 ### 6.1 Agent 运行时、凭据与证据
 
-`security/` 是平台的凭据与证据目录（`HOME_SECURITY_DIRNAME`，`packages/storage/src/adapters/local-security-paths.ts`）。它原来叫 `feed/`，名字是 Feed 的，内容却归平台（BL-b44-feed-home-dir-and-styles，用户 2026-11-21 定）：还留着 `feed/` 的 Home 在下次启动时由升级过程整目录改名一次（`HOME_LAYOUT_MOVES`，`apps/local-host/src/home-upgrade.ts`），一个 `rename`、不复制，所以不会多出一份密文；`feed/` 不是普通目录，或两个名字同时在，升级停下、什么都不动。Keychain 条目的服务名 `com.molis.work.feed.secretstore` 与证据正文的引用前缀 `molis-work-feed/` 是存下来的值，不随目录改名。用旧文件密钥（`aes-gcm-file`）的 Home 在改名前做的快照记的是 `home:feed/secrets.key`，新构建不认，不能用来恢复；真实 Home 用 Keychain，不受影响。
+`security/` 是平台的凭据与证据目录（`HOME_SECURITY_DIRNAME`，`packages/storage/src/adapters/local-security-paths.ts`）。它原来叫 `feed/`，名字是 Feed 的，内容却归平台（BL-b44-feed-home-dir-and-styles，用户 2026-11-21 定）；第 44B 批按 Clean v1 删掉了旧目录的搬家（没有用户，不留兼容），还留着 `feed/` 的 Home 不再被认。Keychain 条目的服务名 `com.molis.work.feed.secretstore` 是存下来的值，冻结不改；证据正文的引用前缀 44B 起是 `molis-work-evidence/`、密钥引用是 `system:evidence:content-key:v1`。
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
@@ -242,13 +242,13 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `git-operation-details.json`（Home 根目录） | `apps/local-host/src/workspace-git-actions.ts:52`：Git 操作审查产生的细节文字，按项目与操作 id 存；同一进程里的保存排队写 | JSON 文件 · 无版本 | 必备份，与 `agent-runtime/` 同一时点（`molis-git-review-*` 记录里只有回执） | purge |
 | `security/secrets.json` | `packages/storage/src/adapters/file-secret-store.ts:82`；`SecretStore` 的密文，含模型 API Key、连接器凭据、Feed 证据密钥（`apps/local-host/src/project-catalog.ts:179`、`apps/local-host/src/agent-connector-ports.ts:33`） | JSON，AES-256-GCM 封条 · 文件字段 `version` = 1（`packages/storage/src/adapters/file-secret-store.ts:60`），旧格式拒绝 | 密钥。主密钥在 macOS Keychain，不在 Home 里（第 8 节） | purge |
 | `security/secrets.key` | `packages/storage/src/adapters/file-secret-store.ts:134`：没有 Keychain、没有 `MOLIS_WORK_ENCRYPTION_KEY` 时的安装密钥文件 | 密钥文件 · 0600 | 密钥；真实 Home 里不存在，用的是 Keychain | purge |
-| `security/evidence/blobs/**` | `packages/storage/src/adapters/evidence-content.ts`：Feed 证据正文，引用形如 `molis-work-feed/sha256/<hash>` | 加密文件 · 无存储版本 | 必备份，读取要求 `secrets.json`、其原后端主密钥和唯一正文密钥引用 `system:feed:evidence-content-key:v1`；缺钥、错钥或损坏密文拒绝，不另写副本；缺钥时目录里还有正文，就保留旧文件、暂停新写入（Feed 同步先停下说明缺钥），目录为空才在首次保存时建钥（BL-1065）。已删除的恢复目录按未知数据拒绝快照；真实切换沿第 02 批重建窗口 | purge |
+| `security/evidence/blobs/**` | `packages/storage/src/adapters/evidence-content.ts`：Feed 证据正文，引用形如 `molis-work-evidence/sha256/<hash>` | 加密文件 · 无存储版本 | 必备份，读取要求 `secrets.json`、其原后端主密钥和唯一正文密钥引用 `system:evidence:content-key:v1`；缺钥、错钥或损坏密文拒绝，不另写副本；缺钥时目录里还有正文，就保留旧文件、暂停新写入（Feed 同步先停下说明缺钥），目录为空才在首次保存时建钥（BL-1065）。已删除的恢复目录按未知数据拒绝快照；真实切换沿第 02 批重建窗口 | purge |
 
 ### 6.2 文件型状态
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `shelf/catalog.json`、`shelf/catalog.json.lock.sqlite`、`shelf/files/<item>/`、`shelf/jobs/<job>/` | `modules/shelf/src/store.ts:848`（`catalog.json` 路径）、`:870`（打开；`files/`、`jobs/` 由 `plugins/native/shelf/src/plugin.ts:15` 的 `SHELF_OWNER_FILES` 声明）；桌面壳也读 `catalog.json` 的设置（`apps/desktop/adapters/tauri/src/shelf_http.rs:146`） | JSON 加文件 · `catalog.json` 的 `version` = 1（`modules/shelf/src/catalog-shape.ts#CATALOG_VERSION`，2026-11-19 发布前 v1 复位拍平；现行条目含偏好回执且不带原件路径） | 必备份 | purge（`installer/uninstall.ts:52`） |
+| `shelf/catalog.json`、`shelf/catalog.json.lock.sqlite`、`shelf/files/<item>/`、`shelf/jobs/<job>/` | `modules/shelf/src/store.ts:848`（`catalog.json` 路径）、`:870`（打开；`files/`、`jobs/` 由 `modules/shelf/src/surface/plugin.ts:15` 的 `SHELF_OWNER_FILES` 声明）；桌面壳也读 `catalog.json` 的设置（`apps/desktop/adapters/tauri/src/shelf_http.rs:146`） | JSON 加文件 · `catalog.json` 的 `version` = 1（`modules/shelf/src/catalog-shape.ts#CATALOG_VERSION`，2026-11-19 发布前 v1 复位拍平；现行条目含偏好回执且不带原件路径） | 必备份 | purge（`installer/uninstall.ts:52`） |
 | `computer/settings.json` | `apps/local-host/src/computer/computer-settings.ts`：助理能否用这台 Mac 的总开关、人加的禁用应用 | JSON · `version` = 1 | 必备份 | purge（`computer` 已登记） |
 | `computer/records/<id>/record.json`、`computer/records/<id>/<序号>.png` | `apps/local-host/src/computer/computer-records.ts`：每一轮用电脑的目标、步骤与回执，步骤的脱敏截图（结束 30 天后删截图，文字留下） | JSON · `version` = 1；截图是文件 | 必备份（截图是屏幕内容，只留在这个 Home 和它自己的快照里） | purge（`computer` 已登记） |
 | `browser/sites.json` | `apps/local-host/src/browser/browser-surfaces.ts:36`：侧栏浏览器允许、拒绝了哪些站点，助理能否使用浏览器 | JSON · `version` = 1（`:61`） | 必备份 | purge |
@@ -361,7 +361,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 | 应用数据目录下的 `directory-access/bookmarks.json` | 没设 `MOLIS_WORK_HOME` 时的目录授权书签 | `apps/desktop/adapters/tauri/src/context_directories.rs:109-125` |
 | 用户授权的工作区目录 | 项目绑定的外部目录，不归 Molis Work 备份 | `docs/installation.md` 离线备份一节 |
 | 插件开发状态目录（调用时给定的 `state_directory`） | 标记文件 `.molis-work-plugin-development.json` 加 `development.db` | `apps/local-host/src/local-plugin-development.ts:10-20` |
-| macOS Keychain（其他系统是各自的系统凭据库），服务 `lark-mcp`，账户 `encryption-key` | 飞书/Lark MCP 连接器的包（`@larksuiteoapi/lark-mcp`）给自己的令牌存储文件加密用的 AES 密钥。**只在 `keytar` 已构建时才有，即 npm 归档路径**：装好后连接器每启动一次子进程就读这一项，没有就生成一个写进去，与是否保存登录无关。仓库检出、Home release、桌面安装包里 `keytar` 不构建，加载失败被包自己接住，不碰钥匙串。不受 `MOLIS_WORK_HOME` 约束，不联网，卸载不删。用户 2026-10-10 决定接受（`specs/archive/repository-anti-corruption/spec.md` §1，说明在 `docs/installation.md`「npm 路径上的飞书/Lark 连接器」） | 读写在 `node_modules/@larksuiteoapi/lark-mcp/dist/auth/utils/storage-manager.js:74-78`，名字在 `dist/auth/config.js:6-7`；Molis Work 一侧只是用 `apps/local-host/src/lark-mcp-launch.ts` 起这个子进程 |
+| macOS Keychain（其他系统是各自的系统凭据库），服务 `lark-mcp`，账户 `encryption-key` | 飞书/Lark MCP 连接器的包（`@larksuiteoapi/lark-mcp`）给自己的令牌存储文件加密用的 AES 密钥。**只在 `keytar` 已构建时才有，即 npm 归档路径**：装好后连接器每启动一次子进程就读这一项，没有就生成一个写进去，与是否保存登录无关。仓库检出、Home release、桌面安装包里 `keytar` 不构建，加载失败被包自己接住，不碰钥匙串。不受 `MOLIS_WORK_HOME` 约束，不联网，卸载不删。用户 2026-10-10 决定接受（`specs/archive/repository-anti-corruption/spec.md` §1，说明在 `docs/installation.md`「npm 路径上的飞书/Lark 连接器」） | 读写在 `node_modules/@larksuiteoapi/lark-mcp/dist/auth/utils/storage-manager.js:74-78`，名字在 `dist/auth/config.js:6-7`；Molis Work 一侧只是按 catalog 集成的声明用 `apps/local-host/src/stdio-mcp-launch.ts` 起这个子进程 |
 | `~/Library/Application Support/lark-mcp-nodejs/`（其他系统是 `env-paths` 的用户数据目录） | 同一个包的数据目录。**同样只在 `keytar` 已构建时才建**（`keytar` 读写成功之后）。令牌存储文件 `storage.json` 只有该包自己的登录或保存令牌流程才会写，Molis Work 用环境变量传令牌，不触发，所以通常只有一个空目录。不受 `MOLIS_WORK_HOME` 约束，卸载不删 | `node_modules/@larksuiteoapi/lark-mcp/dist/auth/utils/storage-manager.js:87-91`，路径常量 `dist/utils/constants.js:10`、`dist/auth/config.js:8` |
 | `~/Library/Logs/lark-mcp-nodejs/`（其他系统是 `env-paths` 的用户日志目录） | 同一个包的日志目录，`lark-mcp-<日期>.log` 追加告警和错误，包自己只留最近 7 天的文件。**不限于 npm 路径、与 `keytar` 无关**：包一加载就建这个目录，仓库检出、Home release、桌面安装包和 npm 归档都一样；连接器子进程的环境里有 `HOME`，写的是用户真实的目录。不属于用户 2026-10-10 决定的那两件事，作为事实记在这里和 `docs/installation.md` 同一小节末尾。不受 `MOLIS_WORK_HOME` 约束，卸载不删 | `node_modules/@larksuiteoapi/lark-mcp/dist/utils/logger.js:21-25`（建目录）、`:26-49`（清 7 天前的）、`:97`（导入时就实例化），路径常量 `dist/utils/constants.js:10` |
 | 用户其他 Agent 的目录：`~/.claude`、`~/.codex`、`~/.cursor`、`~/.grok`、`~/.config` | 角色导入只读扫描，不写 | `apps/local-host/src/character-import-discovery.ts:86-100` |

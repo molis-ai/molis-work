@@ -48,14 +48,14 @@ test("RAC-2345 actual platform Artifact import, exact Goal input, English naviga
     await writeFile(`${REVIEW_EVIDENCE}/action-service/artifacts/read-${width}.png`, Buffer.from(screenshot.data, "base64"));
   }
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await click("[data-artifact-goal-input] summary");
+  await click("[data-artifact-attach-target] summary");
   const target = JSON.stringify({ kind: "goal", id: "V1" });
-  await waitFor(`[...document.querySelectorAll('[data-artifact-goal-input] select option')].some(option => option.value === ${JSON.stringify(target)})`);
-  await evaluate(`document.querySelector('[data-artifact-goal-input] select').value = ${JSON.stringify(target)}`);
-  await click("[data-artifact-goal-input-form] button[type=submit]");
+  await waitFor(`[...document.querySelectorAll('[data-artifact-attach-target] select option')].some(option => option.value === ${JSON.stringify(target)})`);
+  await evaluate(`document.querySelector('[data-artifact-attach-target] select').value = ${JSON.stringify(target)}`);
+  await click("[data-artifact-attach-target-form] button[type=submit]");
   await waitFor("Boolean(document.querySelector('[data-artifact-links] [data-artifact-linked-plugin] a[data-workbench-item-plugin=\"goals\"][data-workbench-item-id=\"V1\"]'))");
   // A fixed input is listed with the Goal's other inputs (artifact-positioning 五.1, one entry), opening its exact version.
-  const fixedInput = `Boolean(document.querySelector('[data-goal-inputs] [data-goal-input-fixed] [data-workbench-item-id="/artifacts/${encodeURIComponent(exact!.artifact_id)}/versions/1"]'))`;
+  const fixedInput = `Boolean(document.querySelector('[data-goal-inputs] [data-placement-input-fixed] [data-workbench-item-id="/artifacts/${encodeURIComponent(exact!.artifact_id)}/versions/1"]'))`;
   await visit("/goals/V1");
   assert.equal(await evaluate(fixedInput), true);
   assert.ok(b.localHost);

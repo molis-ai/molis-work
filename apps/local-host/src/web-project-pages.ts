@@ -1,4 +1,3 @@
-import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./installed-plugin-http.js";
@@ -73,8 +72,8 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
   // The installed packages run on this platform too (47-1 B), but their entries are the installed host's, keyed by their installation
   // (`installedPluginStages`): listed here under the plugin id they would take the id of a Home plugin by another publisher (BL-586).
   const platform = record.platform;
-  const directory = platform ? runningPluginDirectory(platform.supervisor, ports.homeDirectory).filter(entry => entry.chosen || !installedPackageOn(platform, entry.plugin_id)) : [];
-  const stageView = { ...view, plugin_directory: mergePluginDirectories(directory, view.plugin_directory ?? [], builtinMarketDirectory(ports.homeDirectory)) };
+  const directory = platform ? runningPluginDirectory(platform.supervisor).filter(entry => entry.chosen || !installedPackageOn(platform, entry.plugin_id)) : [];
+  const stageView = { ...view, plugin_directory: mergePluginDirectories(directory, view.plugin_directory ?? [], builtinMarketDirectory()) };
   const runtime = renderProjectRuntimeStages(record, ports.store, { shown: view.shown_plugins ?? shownProjectPlugins(configuration.plugins, configuration.hidden),
     drawn: view.plugin_stage_surfaces ?? [], views: view.plugin_stage_views, page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, stageView), home: await homeStageHalves(ports.homePlugins),
     ...(ports.homeDirectory ? { homeDirectory: ports.homeDirectory } : {}) });
@@ -101,14 +100,14 @@ async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
     ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }).catch(noInstalledStages);
   return { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.flatMap(item => item.stage ? [item.stage] : [])],
     unavailable_plugin_stages: [...(view.unavailable_plugin_stages ?? []), ...installed.flatMap(item => item.unavailable ? [item.unavailable] : [])],
-    plugin_directory: mergePluginDirectories(builtin.directory, view.plugin_directory ?? [], installed.map(item => item.directory), builtinMarketDirectory(homeDirectory)) };
+    plugin_directory: mergePluginDirectories(builtin.directory, view.plugin_directory ?? [], installed.map(item => item.directory), builtinMarketDirectory()) };
 }
 
 async function readSubjectArtifactContext(subjectId: string, actions: BoundActionClient, readArtifactDisplay: ReadArtifactDisplay) {
   let html: string | undefined, outputs = 0;
   let inputs: Array<{ artifact_id: string; version: number; title: string; state: "available" | "unavailable" | "archived" | "missing"; reason: string | null }> = [];
   try {
-    const { embeds } = await lookingForArea(() => actions.invoke(artifactsActions.goalEmbeds, { goal_id: subjectId, supported_types: declaredArtifactTypes() }));
+    const { embeds } = await lookingForArea(() => actions.invoke(artifactsActions.subjectEmbeds, { subject_id: subjectId, supported_types: declaredArtifactTypes() }));
     const delivered = embeds.filter(embed => embed.relationship === "output");
     html = await renderProjectArtifactContext(delivered, readArtifactDisplay);
     outputs = delivered.length;
@@ -254,7 +253,7 @@ export function createLocalProjectPagesHttp(ports: {
     }
     const desktopShell = isDesktopShellRequest(request, url);
     const projectConfiguration = options.project
-      ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(options.project!.project_id, homeDirectory ? () => readOnlyAlwaysOnProjectPlugins(homeDirectory) : undefined))
+      ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(options.project!.project_id))
       : null;
     if (projectConfiguration) {
       view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden,

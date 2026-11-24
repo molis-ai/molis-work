@@ -1,3 +1,4 @@
+import { trustedReviewActions } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -50,9 +51,12 @@ export async function residentManagement(t: TestContext, options: MolisWorkLocal
   const headers = (overrides: Record<string, string | undefined> = {}) => Object.fromEntries(Object.entries({
     origin, "content-type": "application/json", "x-molis-work-control-token": token,
     "x-molis-work-idempotency-key": randomUUID(), ...overrides }).filter((pair): pair is [string, string] => pair[1] !== undefined));
-  const body = (input: unknown = { idempotency_key: randomUUID() }) => ({
+  // The management gateway serves only the platform's review operations (44B). By default a read of a review that is not there: it reaches
+  // the platform and is refused there (`actions.missing`), writing nothing.
+  const body = (input: unknown = { reference: { owner: { kind: "trusted-decision", project_id: project.project_id, scope: "project", provider_id: "management-probe" },
+    id: randomUUID(), version: "1" } }) => ({
     home_id: createHash("sha256").update(resolve(home)).digest("hex"), database_path: project.database_path,
-    project_id: project.project_id, call_id: randomUUID(), capability: { capability_id: "goals.board.initialize", version: 1 }, input });
+    project_id: project.project_id, call_id: randomUUID(), capability: { capability_id: trustedReviewActions.read.capability_id, version: trustedReviewActions.read.version }, input });
   const post = async (input: unknown, overrides: Record<string, string | undefined> = {}) => {
     const response = await fetch(origin + MANAGEMENT_ROUTE, { method: "POST", headers: headers(overrides), body: JSON.stringify(input) });
     return { status: response.status, body: await response.json() as Record<string, unknown> };

@@ -827,7 +827,7 @@ fn refresh_shelf(ids: &[String]) {
         return;
     };
     let ids = serde_json::to_string(ids).unwrap_or_else(|_| "[]".into());
-    let _ = window.eval(format!(r#"window.dispatchEvent(new CustomEvent("molis-shelf-refresh", {{ detail: {{ item_ids: {ids} }} }}));"#));
+    let _ = window.eval(format!(r#"window.dispatchEvent(new CustomEvent("molis:shelf-refresh", {{ detail: {{ item_ids: {ids} }} }}));"#));
 }
 
 /// Hand the copies to the terminal session without opening the panel.
@@ -844,7 +844,7 @@ fn send_terminal_text(items: &[String], text: Option<&str>) {
     let text = serde_json::to_string(&text).unwrap_or_else(|_| "null".into());
     let script = format!(
         r#"(() => {{
-          window.dispatchEvent(new CustomEvent("molis-shelf-send-tui", {{ detail: {{ item_ids: {encoded}, text: {text} }} }}));
+          window.dispatchEvent(new CustomEvent("molis:shelf-send-tui", {{ detail: {{ item_ids: {encoded}, text: {text} }} }}));
         }})();"#
     );
     let _ = window.eval(&script);

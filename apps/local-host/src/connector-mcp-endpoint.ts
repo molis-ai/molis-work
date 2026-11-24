@@ -2,15 +2,19 @@ import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connect
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 import type { McpServerConfiguration, StartMcpConnectionInput } from "./connector-mcp.js";
 import type { PluginAuthMethodDeclaration, PluginMcpMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import { builtinLocalMcpServers } from "./builtin-drivers.js";
+import { stdioMcpLaunch } from "./stdio-mcp-launch.js";
 
 /** The existing generic MCP connection entry also accepts complete remote server configurations. */
 export const CUSTOM_MCP_SERVICE = "mcp-bearer";
-/** Local launch/address exceptions stay here until BL-791; remote server data comes only from the declaration. */
-export const LOCAL_MCP_SERVERS: Readonly<Record<string, McpServerConfiguration>> = {
-  feishu: { endpoint: "https://open.feishu.cn/", stdio: true },
-  lark: { endpoint: "https://open.larksuite.com/", stdio: true },
-  figma: { endpoint: "http://127.0.0.1:3845/mcp", auth: "none" },
-};
+/** The servers the integrations declare run on this machine (stdio, or a local app's loopback address); remote server data comes only from the declaration. */
+export function localMcpServer(serviceId: string): (McpServerConfiguration & { loopback?: boolean }) | undefined {
+  const servers = builtinLocalMcpServers(), declared = Object.hasOwn(servers, serviceId) ? servers[serviceId] : undefined;
+  if (!declared) return undefined;
+  const stdio = declared.stdio;
+  return { endpoint: declared.endpoint, ...(declared.auth ? { auth: declared.auth } : {}), ...(declared.loopback ? { loopback: true } : {}),
+    ...(stdio ? { stdio: true, launch: input => stdioMcpLaunch(stdio, input) } : {}) };
+}
 
 export function declaredMcpMethod(method: PluginAuthMethodDeclaration): method is PluginMcpMethodDeclaration {
   return method.kind === "mcp" && "endpoint" in method;
@@ -18,8 +22,8 @@ export function declaredMcpMethod(method: PluginAuthMethodDeclaration): method i
 
 /** The one compilation point for a validated, serialized complete-address pattern. */
 export function mcpServerFor(serviceId: string, method?: PluginMcpMethodDeclaration, requested?: string): McpServerConfiguration | undefined {
-  const local = Object.hasOwn(LOCAL_MCP_SERVERS, serviceId) ? LOCAL_MCP_SERVERS[serviceId] : undefined;
-  if (local && (serviceId !== "figma" || !requested || /^http:/iu.test(requested.trim()))) return local;
+  const local = localMcpServer(serviceId);
+  if (local && (!local.loopback || !requested || /^http:/iu.test(requested.trim()))) return local;
   if (!method) return undefined;
   return { endpoint: method.endpoint, auth: method.auth, ...(method.registration ? { registration: method.registration } : {}),
     ...(method.token_scheme ? { tokenScheme: method.token_scheme } : {}),
@@ -27,7 +31,8 @@ export function mcpServerFor(serviceId: string, method?: PluginMcpMethodDeclarat
 }
 
 export function requiresMcpDeclaration(serviceId: string, endpoint: string, transport?: string): boolean {
-  return serviceId !== CUSTOM_MCP_SERVICE && transport !== "stdio" && !(serviceId === "figma" && endpoint === LOCAL_MCP_SERVERS.figma!.endpoint) && serviceId !== "feishu" && serviceId !== "lark";
+  const local = localMcpServer(serviceId);
+  return serviceId !== CUSTOM_MCP_SERVICE && transport !== "stdio" && !local?.stdio && !(local?.loopback && endpoint === local.endpoint);
 }
 const invalid = (message: string) => connectorErrors["connector.mcp.configuration"](message);
 export function mcpEndpointFor(servers: Readonly<Record<string, McpServerConfiguration>>, serviceId: string, requested?: string, testing = false): string {
@@ -38,7 +43,7 @@ export function mcpEndpointFor(servers: Readonly<Record<string, McpServerConfigu
   try { endpoint = new URL(requested || server!.endpoint); } catch { throw invalid("MCP 地址无效"); }
   if (endpoint.username || endpoint.password || endpoint.hash || [...endpoint.searchParams.keys()].some(key => /^(auth|authorization|password|secret|token|access_token|refresh_token|api[_-]?key)$/i.test(key))) throw invalid("MCP 地址不能包含凭据；请使用受保护的凭据字段");
   if (!custom && (server!.endpointPattern ? !server!.endpointPattern.test(endpoint.href) : endpoint.href !== new URL(server!.endpoint).href)) throw invalid("MCP 地址必须匹配所选服务的官方地址；租户 ID 和 server name 需替换成实际值");
-  if (endpoint.protocol !== "https:" && !(isLoopbackHttpUrl(endpoint) && (custom || testing || serviceId === "figma"))) throw invalid("远程 MCP 必须使用 HTTPS；HTTP 仅用于明确选择的本机回环服务");
+  if (endpoint.protocol !== "https:" && !(isLoopbackHttpUrl(endpoint) && (custom || testing || localMcpServer(serviceId)?.loopback === true))) throw invalid("远程 MCP 必须使用 HTTPS；HTTP 仅用于明确选择的本机回环服务");
   return endpoint.href;
 }
 export function mcpAuthentication(input: StartMcpConnectionInput, server: McpServerConfiguration): "none" | "bearer" | "oauth" {

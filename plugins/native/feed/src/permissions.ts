@@ -28,7 +28,7 @@ export const FEED_PERMISSIONS: PluginPermissionDeclaration[] = [
   { permission: "evidence:read", required: true, reason: "读取留存的原始正文" },
   { permission: PLUGIN_EVIDENCE_COLLECT_PERMISSION, required: true, reason: "删除 Home 引用账里已没有人引用的留存正文" },
   { permission: "plugins:read", required: true, reason: "得知哪些项目装了 Feed，引用账才知道自己记全了没有" },
-  { permission: "sources:pull_feed", required: true, reason: "按平台的公开订阅源目录与格式描述来源、拉取公开订阅源" },
+  { permission: "sources:pull_public_feed", required: true, reason: "按平台的公开订阅源目录与格式描述来源、拉取公开订阅源" },
   { permission: "sources:pull_query", required: true, reason: "拉取固定的网页查询来源" },
   { permission: "sources:read_repository", required: true, reason: "读取 GitHub 研究库里发布的内容" },
   { permission: "schedule:read", required: true, reason: "查看是否已设好按时拉取" },

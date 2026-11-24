@@ -5,7 +5,7 @@
 export declare const ARTIFACT_FILE_IMPORT_ACTION: {
     readonly capability_id: "artifacts.import.file";
     readonly version: 1;
-    readonly provider_id: "io.molis.work.artifacts";
+    readonly provider_id: "system.artifacts";
 };
 
 export declare const ARTIFACT_SUBJECT_KIND = "artifact";

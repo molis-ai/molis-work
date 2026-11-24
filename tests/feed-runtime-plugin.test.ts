@@ -294,8 +294,8 @@ test("RAC-506 a Runtime Feed changes a source's schedule and pause state in one 
 });
 
 // RAC-506 (4e-2a, 4c-3)
-// A call that describes a source with the platform's vocabulary holds sources:pull_feed, as the action declares.
-const DESCRIBE = [...WRITE, "sources:pull_feed"];
+// A call that describes a source with the platform's vocabulary holds sources:pull_public_feed, as the action declares.
+const DESCRIBE = [...WRITE, "sources:pull_public_feed"];
 test("RAC-506 a Runtime Feed registers a source from the platform's vocabulary, once, under the original caller", async t => {
   const { client, count } = await platform(t);
   const sources = () => count("SELECT count(*) AS n FROM feed_sources");
@@ -319,7 +319,7 @@ test("RAC-506 a Runtime Feed registers a source from the platform's vocabulary, 
 // 4c-4: an account source is pulled with the person's bound account, so a sync also holds connections:use and sources:pull_connector,
 // and records a source that needs the person in the Inbox.
 const CONNECTOR = ["connections:use", "sources:pull_connector"];
-const SYNC = [...WRITE, "sources:pull_feed", "sources:pull_query", "sources:read_repository", ...CONNECTOR, "attention:write", "artifact:write"];
+const SYNC = [...WRITE, "sources:pull_public_feed", "sources:pull_query", "sources:read_repository", ...CONNECTOR, "attention:write", "artifact:write"];
 /** Deleting a source also removes its items' Inbox entries and links to Goals, so the call holds what those ledgers ask. */
 const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write", "connections:use"];
 const feedXml = (entries: Array<{ id: string; title: string }>) => `<?xml version="1.0"?><rss version="2.0"><channel><title>Runtime feed</title><link>https://example.com/</link>${entries.map(entry => `
@@ -434,7 +434,7 @@ test("RAC-518 a caller revoked at any point leaves every held body named by a ru
 });
 
 /** The search records of the project's pulls: the platform keeps one per pull, under the pull's operation id (`forgetIntelligenceOperations`). */
-const pullRecords = (f: Awaited<ReturnType<typeof syncing>>) => f.count("SELECT count(*) AS n FROM feed_runtime_blobs WHERE key LIKE 'intent-run/%'");
+const pullRecords = (f: Awaited<ReturnType<typeof syncing>>) => f.count("SELECT count(*) AS n FROM opaque_blobs WHERE key LIKE 'intent-run/%'");
 
 // The Host's release of a source's history (FI-6 deleted it) was proven in tests/feed-local-history-delete.test.ts; these two cases and the
 // Home ledger's own (tests/feed-content-ledger.test.ts: a body another source or project holds, the holds a failed pull left, a ledger that
@@ -911,7 +911,7 @@ test("RAC-1024 an account source nobody bound an account to needs the person: th
   assert.equal(f.calls.length, 0, "the provider was not called");
   assert.equal(f.items(), 0);
   assert.equal(f.row().status, "error");
-  assert.equal(f.count("SELECT count(*) AS n FROM inbox_entries WHERE subject_type = 'source_fault' AND subject_id = ?", f.sourceId), 1);
+  assert.equal(f.count("SELECT count(*) AS n FROM attention_entries WHERE subject_type = 'source_fault' AND subject_id = ?", f.sourceId), 1);
 });
 
 test("RAC-1025 the Home's account status says only whether there is an account, and an item's material is read while its source's account still works", async t => {
@@ -995,7 +995,7 @@ test("RAC-2665 BL-917 SCAF-06 a Runtime Feed adds a declared, pullable account s
 test("RAC-2664 feed.sources.update@1 changes a source's own fields only: an account is not one of them, and retired @2 is gone", async t => {
   const f = await connecting(t), account = f.connect();
   f.bind(account.connection_id);
-  const who = caller([...WRITE, "sources:pull_feed"]), update = (input: unknown) => f.client.invoke(who.context, feedSourceActions.update, input);
+  const who = caller([...WRITE, "sources:pull_public_feed"]), update = (input: unknown) => f.client.invoke(who.context, feedSourceActions.update, input);
   assert.equal(feedSourceActions.update.version, 1);
   await assert.rejects(update({ source_id: f.sourceId, connection_id: account.connection_id }), { code: "actions.input_invalid" });
   await assert.rejects(f.client.invoke(who.context, { ...feedSourceActions.update, version: 2 }, { source_id: f.sourceId, name: "Renamed" }), ActionError);
@@ -1026,7 +1026,7 @@ test("RAC-1026 an account the person changes while a pull is running ends the pu
   let swap = () => {};
   const f = await connecting(t, { sync: () => swap() }), account = f.connect(), other = f.connect("Other");
   f.bind(account.connection_id);
-  const snapshot = () => JSON.stringify(["feed_items", "feed_source_runs", "events", "listener_deliveries", "inbox_entries"].map(table => f.store.db.prepare(`SELECT * FROM ${table}`).all()));
+  const snapshot = () => JSON.stringify(["feed_items", "feed_source_runs", "events", "listener_deliveries", "attention_entries"].map(table => f.store.db.prepare(`SELECT * FROM ${table}`).all()));
   let before = "";
   swap = () => { before = snapshot(); f.bind(other.connection_id, account.connection_id); };
   await assert.rejects(f.sync("swap-sync-key"), { code: "feed.source_connection_changed" });
@@ -1128,7 +1128,7 @@ test("RAC-1027 a Runtime Feed takes the platform's notification as one write: th
   assert.equal(first.created, true);
   assert.equal(f.count("SELECT count(*) AS n FROM feed_sources WHERE source_id = ?", `plugin-notifications:${SENDER}`), 1);
   assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE item_id = ? AND title = ?", first.item_id, "Title one"), 1);
-  assert.equal(f.count("SELECT count(*) AS n FROM inbox_entries WHERE subject_type = 'feed_item' AND subject_id = ?", first.item_id), 1, "the item is in the Inbox as it is received");
+  assert.equal(f.count("SELECT count(*) AS n FROM attention_entries WHERE subject_type = 'feed_item' AND subject_id = ?", first.item_id), 1, "the item is in the Inbox as it is received");
   assert.ok(f.count("SELECT count(*) AS n FROM events WHERE object_id = ? AND actor_id = ?", first.item_id, PLUGIN_NOTIFICATION_DELIVERY_ACTOR) >= 1, "the journal names the platform's delivery");
   // The same key is the same notification; another key from the same sender is another item in the same source.
   const again = await receive("one");
@@ -1143,7 +1143,7 @@ test("RAC-1027 a Runtime Feed takes the platform's notification as one write: th
 
 test("RAC-1027 only the platform's notification service delivers: a person, a workflow or an Agent under another identity is refused, and nothing is written", async t => {
   const f = await platform(t);
-  const written = () => f.count("SELECT (SELECT count(*) FROM feed_sources WHERE kind = 'plugin') + (SELECT count(*) FROM feed_items) + (SELECT count(*) FROM inbox_entries) AS n");
+  const written = () => f.count("SELECT (SELECT count(*) FROM feed_sources WHERE kind = 'plugin') + (SELECT count(*) FROM feed_items) + (SELECT count(*) FROM attention_entries) AS n");
   const before = written();
   for (const identity of [{ actor_id: OWNER, audience: "user" as const }, { actor_id: OWNER, audience: "workflow" as const }, { actor_id: PLUGIN_NOTIFICATION_DELIVERY_ACTOR, audience: "user" as const },
     { actor_id: PLUGIN_NOTIFICATION_DELIVERY_ACTOR, audience: "agent" as const }]) {
@@ -1166,7 +1166,7 @@ test("RAC-1028 a notification delivered by a caller who is revoked at any point 
     const sender = `com.example.sweep${from}`, source = `plugin-notifications:${sender}`;
     const outcome = await f.client.invoke(platformCaller(from).context, RECEIVER.reference, delivery(`sweep-${from}`, sender)).then(() => "done" as const, () => "refused" as const);
     const parts = [f.count("SELECT count(*) AS n FROM feed_sources WHERE source_id = ?", source), f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", source),
-      f.count("SELECT count(*) AS n FROM inbox_entries WHERE subject_type = 'feed_item' AND subject_id IN (SELECT item_id FROM feed_items WHERE source_id = ?)", source)];
+      f.count("SELECT count(*) AS n FROM attention_entries WHERE subject_type = 'feed_item' AND subject_id IN (SELECT item_id FROM feed_items WHERE source_id = ?)", source)];
     // All of it or none of it; a caller revoked after the commit has delivered (the call is refused, the notification is there).
     assert.ok(parts.every(count => count === parts[0]) && parts[0]! <= 1, `revoked at check ${from}: ${parts}`);
     if (outcome === "done") assert.deepEqual(parts, [1, 1, 1]);
@@ -1255,7 +1255,7 @@ async function judging(t: TestContext, options: { goals?: readonly string[] } = 
   const rule = async (match: object, name = "judged") => (await f.client.invoke(caller(JUDGING).context, feedRuleActions.create,
     { name, match, admission: "inbox", judgment }) as { rule: { rule_id: string; revision: string } }).rule;
   const ledger = () => withFunctionsService(f.home, service => service.listJudgments());
-  const entriesOf = (itemId: string) => f.store.db.prepare("SELECT entry_id, subject_id, reason FROM inbox_entries WHERE subject_type = 'feed_item' AND subject_id = ?").all(itemId) as Array<{ entry_id: string; subject_id: string; reason: string }>;
+  const entriesOf = (itemId: string) => f.store.db.prepare("SELECT entry_id, subject_id, reason FROM attention_entries WHERE subject_type = 'feed_item' AND subject_id = ?").all(itemId) as Array<{ entry_id: string; subject_id: string; reason: string }>;
   return { ...f, seen, judgment, rule, ledger, entriesOf };
 }
 
@@ -1423,7 +1423,7 @@ test("RAC-1033 a caller revoked at any point of a judged hand-in never leaves an
   const f = await judging(t);
   await f.rule({ contains: "judge" });
   const state = () => ({ items: f.count("SELECT count(*) AS n FROM feed_items"), ledger: f.ledger().filter(row => row.scene_id === feedCaptureScene.scene_id).length,
-    entries: f.count("SELECT count(*) AS n FROM inbox_entries WHERE reason = 'source_rule'"), events: f.count("SELECT count(*) AS n FROM events WHERE type LIKE '%judgment_completed'") });
+    entries: f.count("SELECT count(*) AS n FROM attention_entries WHERE reason = 'source_rule'"), events: f.count("SELECT count(*) AS n FROM events WHERE type LIKE '%judgment_completed'") });
   const probe = caller(JUDGING);
   await f.client.invoke(probe.context, feedContentActions.receive, receive("judge-probe"));
   const asked = probe.checks();
@@ -1469,9 +1469,9 @@ test("RAC-1035 admitting an item to the Inbox asks the Inbox and Home to judge t
   assert.ok(admitted.created);
   assert.deepEqual(f.seen.inbox, [[admitted.entry_id]], "the Inbox judged the admitted entry");
   assert.ok(f.seen.home.flat().some(subject => subject.kind === "inbox_entry" && subject.id === admitted.entry_id), "Home judged it too");
-  assert.equal(f.count("SELECT count(*) AS n FROM inbox_entries WHERE entry_id = ?", admitted.entry_id), 1, "judged after the commit that wrote it, so the entry was already there");
+  assert.equal(f.count("SELECT count(*) AS n FROM attention_entries WHERE entry_id = ?", admitted.entry_id), 1, "judged after the commit that wrote it, so the entry was already there");
   // Ignoring the item settles its entry, and restoring it is allowed again: both write the Inbox, so both are actions that may.
-  const open = () => f.count("SELECT count(*) AS n FROM inbox_entries WHERE entry_id = ? AND status IN ('open', 'in_progress')", admitted.entry_id);
+  const open = () => f.count("SELECT count(*) AS n FROM attention_entries WHERE entry_id = ? AND status IN ('open', 'in_progress')", admitted.entry_id);
   assert.equal(open(), 1);
   const revision = async () => (await f.client.invoke(caller(BODIES).context, feedQueryActions.item, { item_id: item.item_id }) as { item: { revision: number } }).item.revision;
   await f.client.invoke(caller(JUDGING).context, feedItemActions.disposition, { item_id: item.item_id, disposition: "archived", expected_revision: await revision() });
@@ -1485,12 +1485,12 @@ test("RAC-1035 admitting an item to the Inbox asks the Inbox and Home to judge t
 test("FI-C-08 a hand-in a plain rule admits to the Inbox opens its entry with the item; the action declares attention:write, and a caller without it is refused at the entry", async t => {
   const f = await platform(t);
   await f.client.invoke(caller(RULES).context, feedRuleActions.create, { name: "into the Inbox", match: { contains: "admit me" }, admission: "inbox" });
-  const entries = (itemId: string) => f.store.db.prepare("SELECT reason FROM inbox_entries WHERE subject_type = 'feed_item' AND subject_id = ?").all(itemId) as Array<{ reason: string }>;
+  const entries = (itemId: string) => f.store.db.prepare("SELECT reason FROM attention_entries WHERE subject_type = 'feed_item' AND subject_id = ?").all(itemId) as Array<{ reason: string }>;
   const admitted = await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, { request_id: "admit-1", title: "Please admit me", body: "b" }).then(itemOf);
   assert.deepEqual(entries(admitted.item_id).map(entry => entry.reason), ["source_rule"], "the rule admitted the item in the hand-in's own commit");
   // The rule also captures what it admits (RAC-510): the item, its entry and its 成果 are there together, and no capture failed.
   assert.equal(f.count("SELECT count(*) AS n FROM library_artifact_versions WHERE json_extract(metadata_json, '$.feed_item_id') = ?", admitted.item_id), 1);
-  assert.equal(f.count("SELECT count(*) AS n FROM inbox_entries WHERE reason = 'artifact_out_failed'"), 0);
+  assert.equal(f.count("SELECT count(*) AS n FROM attention_entries WHERE reason = 'artifact_out_failed'"), 0);
   const declared = feedManifest.actions!.find(definition => definition.capability_id === feedContentActions.receive.capability_id)!.action.permissions;
   assert.ok(declared.includes("attention:write"), JSON.stringify(declared));
   const items = f.count("SELECT count(*) AS n FROM feed_items");
@@ -1510,7 +1510,7 @@ test("RAC-510 a hand-in a capture rule matches pins its capture in the same comm
     WHERE json_extract(v.metadata_json, '$.feed_item_id') = ?`).all(itemId);
   const written = await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, { request_id: "pin-1", title: "Please pin me", body: "b" }).then(itemOf);
   assert.deepEqual(pinned(written.item_id), [{ plugin: feedManifest.plugin_id, signature: feedManifest.publisher.signature, version: feedManifest.version, author: OWNER }]);
-  assert.equal(f.count("SELECT count(*) AS n FROM inbox_entries WHERE subject_id = ? AND reason = 'artifact_out_failed'", written.item_id), 0, "the capture did not fail");
+  assert.equal(f.count("SELECT count(*) AS n FROM attention_entries WHERE subject_id = ? AND reason = 'artifact_out_failed'", written.item_id), 0, "the capture did not fail");
   for (const definition of [feedContentActions.receive, feedNotificationActions.receive, feedRuleActions.evaluate, feedSourceActions.sync, feedSourceActions.tick]) {
     const declared = feedManifest.actions!.find(action => action.capability_id === definition.capability_id)!.action.permissions;
     assert.ok(declared.includes("artifact:write"), `${definition.capability_id}: ${JSON.stringify(declared)}`);
@@ -1540,9 +1540,9 @@ test("RAC-510 a sync cancelled after its pull and before its commit leaves no it
   const f = await syncing(t);
   await f.client.invoke(caller(RULES).context, feedRuleActions.create, { name: "admit and pin", match: { contains: "Captured" }, admission: "inbox" });
   const state = () => ({ items: f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId),
-    entries: f.count("SELECT count(*) AS n FROM inbox_entries WHERE subject_type = 'feed_item' AND reason = 'source_rule'"),
+    entries: f.count("SELECT count(*) AS n FROM attention_entries WHERE subject_type = 'feed_item' AND reason = 'source_rule'"),
     captures: f.count("SELECT count(*) AS n FROM library_artifacts WHERE producer_plugin_id = ?", feedManifest.plugin_id),
-    failures: f.count("SELECT count(*) AS n FROM inbox_entries WHERE reason = 'artifact_out_failed'") });
+    failures: f.count("SELECT count(*) AS n FROM attention_entries WHERE reason = 'artifact_out_failed'") });
   const published = () => f.calls.filter(call => /^sdk\.artifacts\..+\.publish$/u.test(call.capability_id) && call.ok);
   // The same rule on an uncancelled pull makes all four but the failure.
   const start = state();
@@ -1658,7 +1658,7 @@ type SourceChange = "pause" | "configure" | "delete";
 const SOURCE_CHANGES: readonly SourceChange[] = ["pause", "configure", "delete"];
 const SOURCE_REFUSALS = new Set(["feed.source_paused", "feed.source_not_found", "feed.source_configuration_changed", "feed.source_changed"]);
 /** Where the platform keeps the search record of each pull (`intent-run/<scope>/<sha256 of the operation id>`). */
-const PULL_RECORDS = "search-evidence-layer/molis-work/feed-intent-v1/data/operation/v1";
+const PULL_RECORDS = "search-evidence-layer/molis-work/search-store-v1/data/operation/v1";
 
 function changeSource(store: LocalProjectDatabase, sourceId: string, change: SourceChange): void {
   if (change === "pause") store.db.prepare("UPDATE feed_sources SET enabled = 0, status = 'paused' WHERE source_id = ?").run(sourceId);
@@ -1669,9 +1669,9 @@ function changeSource(store: LocalProjectDatabase, sourceId: string, change: Sou
 /** Calls `attempt(k)` for every check `k` a call asks (and two more), changing its source at that check; what the call left is compared with the moment of the change. */
 async function sweepSourceChanges(store: LocalProjectDatabase, checks: number, attempt: (k: number) => { sourceId: string; call(who: ActionCallContext): Promise<unknown> }) {
   const { db } = store;
-  const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND (name LIKE 'feed%' OR name LIKE '%listener%' OR name LIKE '%signal%' OR name IN ('inbox_entries', 'events')) ORDER BY name")
+  const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND (name LIKE 'feed%' OR name LIKE '%listener%' OR name LIKE '%signal%' OR name IN ('attention_entries', 'events')) ORDER BY name")
     .all() as Array<{ name: string }>).map(row => row.name);
-  assert.ok(["feed_items", "feed_source_runs", "inbox_entries", "listener_deliveries"].every(name => tables.includes(name)), tables.join());
+  assert.ok(["feed_items", "feed_source_runs", "attention_entries", "listener_deliveries"].every(name => tables.includes(name)), tables.join());
   const snapshot = () => JSON.stringify(tables.map(table => db.prepare(`SELECT * FROM "${table}"`).all()));
   /** The rows that differ between two snapshots, by table: `+table row` written, `-table row` removed. */
   const differences = (before: string, after: string) => tables.flatMap((table, index) => {
@@ -1704,8 +1704,8 @@ async function sweepSourceChanges(store: LocalProjectDatabase, checks: number, a
       // (createSourcePullPort). Removing that one record is the only difference a refusal may leave; nothing else goes and nothing is written.
       const pulls = new Set(at.runs.filter(run => !before.some(old => old.run_id === run.run_id)).map(run => createHash("sha256").update(run.operation_id, "utf8").digest("hex")));
       const ownRecord = (difference: string) => {
-        if (outcome === null || !difference.startsWith("-feed_runtime_blobs ")) return false;
-        const row = JSON.parse(difference.slice("-feed_runtime_blobs ".length)) as { namespace: string; key: string };
+        if (outcome === null || !difference.startsWith("-opaque_blobs ")) return false;
+        const row = JSON.parse(difference.slice("-opaque_blobs ".length)) as { namespace: string; key: string };
         const pull = /^intent-run\/[0-9a-f]{64}\/([0-9a-f]{64})$/u.exec(row.key);
         return row.namespace === PULL_RECORDS && pull !== null && pulls.has(pull[1]!);
       };
@@ -1916,7 +1916,7 @@ test("FBR-01 FBR-02 FBR-04 FBR-05 owner pages include later data, facets and ded
   const summary = await read(0);
   assert.ok(summary.runs.some(run => run.receipt?.rss_http && JSON.stringify(run.receipt.rss_http).includes("403")));
   assert.equal(JSON.stringify(summary.runs).includes("not-a-summary"), false);
-  const refs = Array.from({ length: 405 }, (_, n) => `molis-work-feed/sha256/${n.toString(16).padStart(64, "0")}`);
+  const refs = Array.from({ length: 405 }, (_, n) => `molis-work-evidence/sha256/${n.toString(16).padStart(64, "0")}`);
   // A single large receipt is expanded and deduplicated inside the owner database, never loaded as a JS snapshot.
   f.store.db.prepare("UPDATE feed_source_runs SET receipt_json = ? WHERE source_id = ?").run(JSON.stringify({ content_refs: [...refs, ...refs] }), source.source_id);
   const refPages = [...feed.reads.history(DEMO_PROJECT_ID, source.source_id, "refs")];

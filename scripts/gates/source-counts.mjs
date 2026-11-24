@@ -198,6 +198,62 @@ const measureSnapshot = (snapshot, { isSource }) => {
   return result;
 };
 
+// G1 (specs/plugin-specials-demotion/spec.md §5.1, 44B): the platform names no plugin. In the platform's sources (apps, packages,
+// horizontal, modules, server; the two generated plugin registries are not counted) each of these counts one: a plugin id as
+// `io.molis.work.<id>`, a plugin package `@molis-ai/molis-work-plugin-<id>`, a short id as a whole quoted string, a `.<id>-…` class
+// and a `data-<id>-…` attribute; a file named after a plugin (`<id>-….ts`, `<id>.ts`) counts one more. An official integration counts
+// by its package `@molis-ai/molis-work-integration-<id>` and `io.molis.work.<id>` (its short ids, such as `catalog`, are platform words
+// too). The ids are read from the plugin directories of the same snapshot (plugins/native, plugins/content and
+// plugins/official-integrations), never written here.
+const PLATFORM_SOURCE = /^(?:apps|packages|horizontal|modules|server)\//;
+const GENERATED_PLUGIN_REGISTRIES = new Set(["apps/local-host/src/plugin-registry.generated.ts", "apps/workbench/src/builtin-plugins.ts"]);
+const PLUGIN_PACKAGE_FILE = /^plugins\/(native|official-integrations|content)\/([a-z0-9-]+)\/package\.json$/;
+
+/** The plugin and integration ids of a snapshot: the directory names of its packages. Exported for tests. */
+export const pluginIdsOf = (files) => {
+  const found = files.map((file) => PLUGIN_PACKAGE_FILE.exec(file)).filter(Boolean);
+  const of = (integration) => [...new Set(found.filter((match) => (match[1] === "official-integrations") === integration).map((match) => match[2]))].sort();
+  return { plugins: of(false), integrations: of(true) };
+};
+
+const namePatterns = new Map();
+/** Counts the plugin names one platform source carries (G1). Exported for tests. */
+export const countPlatformPluginNames = (file, text, { plugins, integrations }) => {
+  if (!PLATFORM_SOURCE.test(file) || GENERATED_PLUGIN_REGISTRIES.has(file) || !plugins.length || typeof text !== "string") return 0;
+  const either = (ids) => ids.map((id) => id.replace(/[-.]/g, "\\$&")).join("|");
+  const key = `${plugins.join(",")};${integrations.join(",")}`, alternatives = either(plugins), all = either([...plugins, ...integrations]);
+  let patterns = namePatterns.get(key);
+  if (!patterns) {
+    patterns = [
+      new RegExp(`\\bio\\.molis\\.work\\.(?:${all})(?![a-z0-9-])`, "g"),
+      new RegExp(`@molis-ai/molis-work-plugin-(?:${alternatives})(?![a-z0-9-])`, "g"),
+      ...(integrations.length ? [new RegExp(`@molis-ai/molis-work-integration-(?:${either(integrations)})(?![a-z0-9-])`, "g")] : []),
+      new RegExp(`(["'\`])(?:${alternatives})\\1`, "g"),
+      new RegExp(`(?<![\\w.-])\\.(?:${alternatives})-[a-z]`, "g"),
+      new RegExp(`\\bdata-(?:${alternatives})-[a-z]`, "g"),
+    ];
+    namePatterns.set(key, patterns);
+  }
+  const base = file.slice(file.lastIndexOf("/") + 1);
+  return patterns.reduce((count, pattern) => count + (text.match(pattern) ?? []).length, 0)
+    + (plugins.some((id) => base.startsWith(`${id}-`) || base.startsWith(`${id}.`)) ? 1 : 0);
+};
+
+const platformNamePasses = new WeakMap();
+const measurePlatformPluginNames = (snapshot, { isSource }) => {
+  let result = platformNamePasses.get(snapshot);
+  if (result) return result;
+  result = {};
+  const ids = pluginIdsOf(snapshot.files);
+  for (const file of snapshot.files) {
+    if (!isSource(file) || !PLATFORM_SOURCE.test(file)) continue;
+    const count = countPlatformPluginNames(file, snapshot.read(file), ids);
+    if (count) result[file] = count;
+  }
+  platformNamePasses.set(snapshot, result);
+  return result;
+};
+
 /**
  * The rules, in the shape the entry turns into metrics. `measure(snapshot, scope)` returns { file: count } for a snapshot
  * (a file list plus a reader) and the entry's `isSource` predicate.
@@ -221,4 +277,7 @@ export const SOURCE_COUNT_RULES = [...[
   { id: "packedStatements", title: "Multiple sibling statements packed onto one line in sources", summary: "packed statements",
     what: "multiple sibling statements on one line", hint: "put each statement on its own line instead of packing statements onto a single line",
     measure: (snapshot, scope) => measurePackedStatements(snapshot, scope) },
+  { id: "platformPluginNames", title: "Plugin names in platform sources (G1)", summary: "plugin names in the platform",
+    what: "plugin names in a platform source", hint: "make it a public declaration any plugin can make (specs/plugin-specials-demotion §5), or move it into the plugin",
+    measure: (snapshot, scope) => measurePlatformPluginNames(snapshot, scope) },
 ];

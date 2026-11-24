@@ -1,3 +1,4 @@
+import { pluginRouteBase } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { childTaskView } from "./task-child.js";
 import { childEmbeds } from "./embed.js";
 import { childSurfaceSlots } from "./surface-slot-child.js";
@@ -86,7 +87,7 @@ export function childView(port: MessagePort, scope: FrameScope, task?: Readonly<
 export async function readOwnPageDocument(root: HTMLElement, route: (path: string) => string,
   pluginId: string, pageId: string, scope?: FrameScope, signal?: AbortSignal): Promise<string> {
     const version = frameDocumentRevision(), language = document.documentElement.lang;
-    const check = () => molisWorkRequest(route("/api/plugins/" + pluginId + "/view-revision"), { scope, signal, headers: { "x-molis-plugin-page": pageId } });
+    const check = () => molisWorkRequest(route(pluginRouteBase(pluginId) + "/view-revision"), { scope, signal, headers: { "x-molis-plugin-page": pageId } });
     await check();
     const source = await molisWorkRequest<string>(location.pathname + location.search, { as: "text", scope, signal });
     const rendered = new DOMParser().parseFromString(source, "text/html");

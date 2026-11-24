@@ -85,3 +85,4 @@ export type { FeedHydrate } from "./item-hydration.js";
 
 export { syncBindings as createFeedSyncBindings } from "./sync-binding.js";
 export { createFeedRunsHandlers, decideMissedPull, feedRunsActions, feedRunsOverview, missedPullRunId } from "./missed-pulls.js";
+export * from "./scene-options.js";

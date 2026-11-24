@@ -3,34 +3,6 @@
 // say what it means for them in the PR.
 
 export declare const DOM_EVENTS: readonly [{
-    readonly name: "molis-shelf-notice";
-    readonly kind: "request";
-    readonly owner: "shelf";
-    readonly on: "window";
-    readonly detail: "{ message }";
-    readonly summary: "Show a one-line notice in the Shelf. Sent by the desktop shell, the native drop wheel and the Shelf's own terminal.";
-}, {
-    readonly name: "molis-shelf-refresh";
-    readonly kind: "request";
-    readonly owner: "shelf";
-    readonly on: "window";
-    readonly detail: "{ item_ids? }";
-    readonly summary: "Reload the Shelf list and select the last of item_ids. Sent when something landed in the Shelf outside its page (desktop shell, drop wheel, Shelf settings).";
-}, {
-    readonly name: "molis-shelf-send-tui";
-    readonly kind: "request";
-    readonly owner: "shelf";
-    readonly on: "window";
-    readonly detail: "{ item_ids, text? }";
-    readonly summary: "Send the named Shelf items, or text, to the terminal Agent. Sent by the native drop wheel (Rust).";
-}, {
-    readonly name: "molis-shelf-tui-unsent";
-    readonly kind: "announcement";
-    readonly owner: "shelf";
-    readonly on: "window";
-    readonly detail: "{ texts, message }";
-    readonly summary: "The Shelf terminal was not connected, so typed text was not sent; the Shelf puts it back into its input.";
-}, {
     readonly name: "molis-work:attention";
     readonly kind: "announcement";
     readonly owner: "attention";
@@ -53,11 +25,11 @@ export declare const DOM_EVENTS: readonly [{
     readonly summary: "The page's read of what waits on the person did not get through (not a gone project): the work line and the task panel keep what they showed and say it is being checked (WLN-05, WLN-29).";
 }, {
     readonly name: "molis-work:character-run-open";
-    readonly kind: "request";
-    readonly owner: "character-handoff";
+    readonly kind: "announcement";
+    readonly owner: "character-run";
     readonly on: "window";
     readonly detail: "{ reference, title, task, workspace_id, skill_ids }";
-    readonly summary: "Open a new workspace session prepared from a Character run (the fixed role package and the task). Sent by the Characters page.";
+    readonly summary: "The person asked the Characters page to open a Character run (the fixed role package and the task) in a workspace; a plugin surface that offers workspaces (data-character-run-target) opens a new session prepared from it.";
 }, {
     readonly name: "molis-work:character-terminal";
     readonly kind: "request";
@@ -483,6 +455,34 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ verb, title, object?, note?, file? }";
     readonly summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
 }, {
+    readonly name: "molis:shelf-notice";
+    readonly kind: "request";
+    readonly owner: "shelf";
+    readonly on: "window";
+    readonly detail: "{ message }";
+    readonly summary: "Show a one-line notice in the Shelf. Sent by the desktop shell, the native drop wheel and the Shelf's own terminal.";
+}, {
+    readonly name: "molis:shelf-refresh";
+    readonly kind: "request";
+    readonly owner: "shelf";
+    readonly on: "window";
+    readonly detail: "{ item_ids? }";
+    readonly summary: "Reload the Shelf list and select the last of item_ids. Sent when something landed in the Shelf outside its page (desktop shell, drop wheel, Shelf settings).";
+}, {
+    readonly name: "molis:shelf-send-tui";
+    readonly kind: "request";
+    readonly owner: "shelf";
+    readonly on: "window";
+    readonly detail: "{ item_ids, text? }";
+    readonly summary: "Send the named Shelf items, or text, to the terminal Agent. Sent by the native drop wheel (Rust).";
+}, {
+    readonly name: "molis:shelf-tui-unsent";
+    readonly kind: "announcement";
+    readonly owner: "shelf";
+    readonly on: "window";
+    readonly detail: "{ texts, message }";
+    readonly summary: "The Shelf terminal was not connected, so typed text was not sent; the Shelf puts it back into its input.";
+}, {
     readonly name: "molis:side-browser-control";
     readonly kind: "announcement";
     readonly owner: "side-panel";
@@ -670,12 +670,12 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "The effective Home appearance that this document has finished preparing and rendered.";
     };
     readonly shelf: {
-        readonly files: readonly ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/browser/terminal.ts", "plugins/native/shelf/src/browser/settings/reload.ts"];
+        readonly files: readonly ["modules/shelf/src/surface/browser/document.ts", "modules/shelf/src/surface/browser/tui.ts", "modules/shelf/src/surface/browser/terminal.ts", "modules/shelf/src/surface/browser/settings/reload.ts"];
         readonly state: "The Shelf surface: its list and selection, the notice line and the input to the terminal Agent.";
     };
-    readonly "character-handoff": {
-        readonly files: readonly ["plugins/native/coding/src/browser/main/mount-events.ts"];
-        readonly state: "A workspace surface opened from a Character run.";
+    readonly "character-run": {
+        readonly files: readonly ["apps/workbench/src/browser/characters/import-client.ts"];
+        readonly state: "The Character run the person asked to open in a workspace (its fixed role package, task, workspace and Skills); a plugin whose surface carries data-character-run-target opens it (M6).";
     };
     readonly "character-terminal": {
         readonly files: readonly ["apps/workbench/src/browser/characters/terminal.ts"];
@@ -686,8 +686,8 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "The object work terminal pane: which plugin object it is bound to, whether that object is read-only for terminal work, and its panels.";
     };
     readonly "surface-landing": {
-        readonly files: readonly ["plugins/native/pages/src/landing-editor.ts"];
-        readonly state: "Where something in hand would land in an open document surface, the preview there, and the brief flash that shows the place.";
+        readonly files: readonly ["apps/workbench/src/browser/plugin-frame/context.ts"];
+        readonly state: "The flash that shows where something in hand would land in an open document surface: asked of the surface that reported the landing, which any plugin surface may answer, and relayed out of a plugin frame by its adapter (M6).";
     };
     readonly "knowledge-picker": {
         readonly files: readonly ["apps/workbench/src/browser/knowledge/picker.ts", "apps/workbench/src/browser/plugin-frame/materials-picker.ts"];

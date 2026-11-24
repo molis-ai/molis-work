@@ -122,25 +122,7 @@ export type BuiltinSyncBinding = ({
     readonly locate?: (key: string) => string | null;
 };
 
-export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_id" | "manifest" | "workbench" | "sync">;
-
-export interface PluginApprovalOutcome {
-    readonly kind: string;
-    readonly id: string;
-    readonly digest: string;
-}
-
-export interface PluginApprovalOutcomesBinding {
-    readonly collection_id: string;
-    readonly subject_kinds: readonly string[];
-    readOutcome(db: {
-        prepare(sql: string): {
-            all(...params: string[]): unknown[];
-        };
-    }, project: string, decision: string, subjectKind: string): PluginApprovalOutcome | null;
-    outcomesFromFacts(facts: Readonly<Record<string, import("@molis-ai/molis-work-contracts/platform/sync-transport").ProjectReplicaRows>>): Map<string, PluginApprovalOutcome>;
-    assertHistory(previous: ReadonlyMap<string, PluginApprovalOutcome>, incoming: ReadonlyMap<string, PluginApprovalOutcome>, facts: Readonly<Record<string, import("@molis-ai/molis-work-contracts/platform/sync-transport").ProjectReplicaRows>>): void;
-}
+export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_id" | "manifest" | "workbench" | "sync" | "runtime" | "home_store" | "observation">;
 
 export interface PluginBoardSpecimen {
     readonly id: string;
@@ -166,16 +148,6 @@ export type PluginDistributionVerifier = (release: {
 
 export type PluginFrameStyleFeature = "coding-basics" | "coding-companions" | "composer" | "context-toolbar" | "detail-reading" | "input-receipts" | "interaction" | "keep-edits" | "presentation-form" | "settings-document" | "source-ladder";
 
-export interface PluginManagementActionDeclaration {
-    readonly capability_id: string;
-    readonly version: number;
-    readonly refused_identity_fields?: readonly string[];
-    readonly mcp_tool?: {
-        readonly name: string;
-        readonly opens_new_database?: true;
-    };
-}
-
 export interface PluginObservationCoverageDeclaration {
     readonly fact: string;
     readonly entries: readonly ("plugin" | "workbench" | "cli" | "mcp" | "agent" | "workflow" | "schedule" | "background" | "host" | "desktop")[];
@@ -186,11 +158,9 @@ export interface PluginObservationCoverageDeclaration {
 
 export interface PluginRegistration {
     readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
-    readonly approval_outcomes?: PluginApprovalOutcomesBinding;
     readonly observation?: {
         readonly coverage?: readonly PluginObservationCoverageDeclaration[];
     };
-    readonly management_actions?: readonly PluginManagementActionDeclaration[];
     readonly project_plugin_id: string;
     readonly catalog_order: number;
     readonly manifest: PluginManifest;

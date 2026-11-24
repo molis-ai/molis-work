@@ -25,7 +25,7 @@ const part = (title: string, description: string, permission: "goals:read" | "go
  */
 export const goalsAttachActions = {
   list: definePlacementRelationAction(GOALS_ATTACH_RELATION, "list", "goals.attach.list", /* @version action.goals.attach.list */ 1,
-    { ...part("资料挂在哪些目标上", "读取一个对象此刻挂在哪些目标上；只读。", "goals:read"), target: { kind: GOAL, noun: "Goal", noun_text: { key: "goals.attach.noun" } } }),
+    { ...part("资料挂在哪些目标上", "读取一个对象此刻挂在哪些目标上；只读。", "goals:read"), target: { kind: GOAL, noun: "Goal", noun_text: { key: "goals.attach.noun" }, open_view: "work" } }),
   bind: usingServices(authored(definePlacementRelationAction(GOALS_ATTACH_RELATION, "bind", "goals.attach.bind", /* @version action.goals.attach.bind */ 1,
     part("挂到目标", "把一个对象挂到一个目标上，作为它的输入；不复制、不移动原对象，重复挂接不另加一条。", "goals:write"))), [CONTEXT_LEDGER_WRITE_PERMISSION, ARTIFACTS_READ_PERMISSION]),
   release: authored(definePlacementRelationAction(GOALS_ATTACH_RELATION, "release", "goals.attach.release", /* @version action.goals.attach.release */ 1,

@@ -1,7 +1,8 @@
 import { createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { DOCUMENT_GENERATION_PROTOCOL, retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionAvailability, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSchema, type SubjectOffersInput, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ATTENTION_NAME_PATTERN, type AttentionEntryRecord, type AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { INBOX_NEXT_SCENE_ID } from "./scene-options.js";
 import type { InboxPagesDocument, InboxPagesGeneration } from "./pages-shapes.js";
 import type { InboxBriefs } from "./content-actions.js";
 import type { InboxJudgmentState, InboxJudgmentSummary } from "./route-handlers.js";

@@ -68,7 +68,7 @@ function emptyView(): MolisWorkWebView {
     input_bindings: [],
     policy_bindings: [],
     events: [],
-    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
+    feed: { sources: [], feed_items: [], attention_entries: [], runs: [], out_rules: [] },
   } as MolisWorkWebView;
 }
 

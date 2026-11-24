@@ -140,7 +140,7 @@
     "action.artifacts.documents.preview": 1,
     "action.artifacts.export": 1,
     "action.artifacts.files.entries": 1,
-    "action.artifacts.goals.embeds": 1,
+    "action.artifacts.subject.embeds": 1,
     "action.artifacts.import.external": 1,
     "action.artifacts.import.file": 1,
     "action.artifacts.import.sources": 1,
@@ -1011,7 +1011,6 @@
     "action.shelf.material.save": 1,
     "action.shelf.preferences.read": 1,
     "action.shelf.preferences.write": 1,
-    "action.shelf.results.copy": 1,
     "action.shelf.results.list": 1,
     "action.shelf.results.preview": 1,
     "action.shelf.results.receive": 1,
@@ -1187,7 +1186,7 @@
     "database.pages_database": 1,
     "database.placement_baseline": 1,
     "database.ppt_database": 1,
-    "database.project_database_baseline": 2,
+    "database.project_database_baseline": 3,
     "database.risk_project_database": 2,
     "database.schedule_project_database": 1,
     "database.search.text-index": 1,
@@ -1473,7 +1472,7 @@
     "sync.collection.form.forms": 1,
     "sync.collection.goals.project_goals": 1,
     "sync.collection.images.saved_images": 1,
-    "sync.collection.inbox.attention": 1,
+    "sync.collection.platform.attention": 1,
     "sync.collection.issues.issues": 1,
     "sync.collection.jelly.jelly_workspace": 1,
     "sync.collection.lingguang.ideas": 1,
@@ -1518,8 +1517,8 @@
     "type.git.result": 1,
     "type.listener.host": 1,
     "type.molis-work-connector-receipt": 1,
-    "type.molis-work-feed-aead": 1,
-    "type.molis-work-feed-blob-cursor": 1,
+    "type.molis-work-opaque-aead": 1,
+    "type.molis-work-opaque-blob-cursor": 1,
     "type.molis-work-feed-collection-receipt": 1,
     "type.molis-work-home-install": 1,
     "type.molis-work-local-payload": 1,
@@ -1956,192 +1955,192 @@
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/pack-content.json",
+      "file": "packages/system-skills/planning-methods/pack-content.json",
       "key": "plugin.content-planning-methods",
       "pattern": "(^  \"version\": \")[^\"]+(\",?)"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-ai-data-product/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-ai-data-product/SKILL.md",
       "key": "method.planning-methods.domain-ai-data-product",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-app-product/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-app-product/SKILL.md",
       "key": "method.planning-methods.domain-app-product",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-brand-communication/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-brand-communication/SKILL.md",
       "key": "method.planning-methods.domain-brand-communication",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-customer-success-service/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-customer-success-service/SKILL.md",
       "key": "method.planning-methods.domain-customer-success-service",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-data-analysis/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-data-analysis/SKILL.md",
       "key": "method.planning-methods.domain-data-analysis",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-game-design/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-game-design/SKILL.md",
       "key": "method.planning-methods.domain-game-design",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-growth-distribution/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-growth-distribution/SKILL.md",
       "key": "method.planning-methods.domain-growth-distribution",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-market-analysis/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-market-analysis/SKILL.md",
       "key": "method.planning-methods.domain-market-analysis",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-operations-organization/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-operations-organization/SKILL.md",
       "key": "method.planning-methods.domain-operations-organization",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-pricing-monetization/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-pricing-monetization/SKILL.md",
       "key": "method.planning-methods.domain-pricing-monetization",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-product-ux/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-product-ux/SKILL.md",
       "key": "method.planning-methods.domain-product-ux",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-reliability-release/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-reliability-release/SKILL.md",
       "key": "method.planning-methods.domain-reliability-release",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-research-content/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-research-content/SKILL.md",
       "key": "method.planning-methods.domain-research-content",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-security-privacy/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-security-privacy/SKILL.md",
       "key": "method.planning-methods.domain-security-privacy",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/domain-software-development/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/domain-software-development/SKILL.md",
       "key": "method.planning-methods.domain-software-development",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/industry-banking-payments/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/industry-banking-payments/SKILL.md",
       "key": "method.planning-methods.industry-banking-payments",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/industry-developer-tools/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/industry-developer-tools/SKILL.md",
       "key": "method.planning-methods.industry-developer-tools",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/industry-ecommerce/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/industry-ecommerce/SKILL.md",
       "key": "method.planning-methods.industry-ecommerce",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/industry-education/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/industry-education/SKILL.md",
       "key": "method.planning-methods.industry-education",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/industry-enterprise-saas/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/industry-enterprise-saas/SKILL.md",
       "key": "method.planning-methods.industry-enterprise-saas",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/industry-games/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/industry-games/SKILL.md",
       "key": "method.planning-methods.industry-games",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/industry-healthcare/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/industry-healthcare/SKILL.md",
       "key": "method.planning-methods.industry-healthcare",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/industry-investing-wealth/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/industry-investing-wealth/SKILL.md",
       "key": "method.planning-methods.industry-investing-wealth",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/meta-domain-pack-builder/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/meta-domain-pack-builder/SKILL.md",
       "key": "method.planning-methods.meta-domain-pack-builder",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/overlay-ai-human-review/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/overlay-ai-human-review/SKILL.md",
       "key": "method.planning-methods.overlay-ai-human-review",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/overlay-marketplace/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/overlay-marketplace/SKILL.md",
       "key": "method.planning-methods.overlay-marketplace",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/overlay-minors/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/overlay-minors/SKILL.md",
       "key": "method.planning-methods.overlay-minors",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/overlay-payments-assets/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/overlay-payments-assets/SKILL.md",
       "key": "method.planning-methods.overlay-payments-assets",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/overlay-sensitive-data-privacy/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/overlay-sensitive-data-privacy/SKILL.md",
       "key": "method.planning-methods.overlay-sensitive-data-privacy",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/overlay-ugc-trust-safety/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/overlay-ugc-trust-safety/SKILL.md",
       "key": "method.planning-methods.overlay-ugc-trust-safety",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/work-analyze-decide/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/work-analyze-decide/SKILL.md",
       "key": "method.planning-methods.work-analyze-decide",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/work-build-change/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/work-build-change/SKILL.md",
       "key": "method.planning-methods.work-build-change",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/work-content-communication/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/work-content-communication/SKILL.md",
       "key": "method.planning-methods.work-content-communication",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/work-design-plan/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/work-design-plan/SKILL.md",
       "key": "method.planning-methods.work-design-plan",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/work-diagnose-fix/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/work-diagnose-fix/SKILL.md",
       "key": "method.planning-methods.work-diagnose-fix",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/work-migrate-refactor/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/work-migrate-refactor/SKILL.md",
       "key": "method.planning-methods.work-migrate-refactor",
       "pattern": "(^version: )\\d+()"
     },
     {
-      "file": "plugins/content/planning-methods/skills/work-operate-process/SKILL.md",
+      "file": "packages/system-skills/planning-methods/skills/work-operate-process/SKILL.md",
       "key": "method.planning-methods.work-operate-process",
       "pattern": "(^version: )\\d+()"
     },

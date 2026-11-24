@@ -446,9 +446,9 @@
     },
     "youtube": {
       "paths": [
-        "plugins/official-integrations/youtube/"
+        "plugins/official-integrations/rss/src/youtube-channel.ts"
       ],
-      "reason": "The YouTube official integration (the public channel rules the platform's source vocabulary uses); its refusal was raised in Feed's name until PG-111 Feed (T-110)."
+      "reason": "YouTube public channels read as RSS (the channel rules the platform's source vocabulary uses), folded into the RSS integration in 44B; its refusal was raised in Feed's name until PG-111 Feed (T-110)."
     },
     "sync_replication": {
       "paths": [

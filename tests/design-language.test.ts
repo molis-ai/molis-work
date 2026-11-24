@@ -22,7 +22,7 @@ const index = board.slice(board.indexOf('<nav class="mw-catalog__index"'), board
 test("UXUP-02 an owner's identity hue is a cool one, the same for the same plugin", () => {
   const cool = new Set(["blue", "indigo", "purple", "slate", "steel"]);
   const ids = ["io.molis.work.feed", "io.molis.work.goals", "io.molis.work.inbox", "io.molis.work.todo", "io.molis.work.pages", "io.molis.work.coding",
-    "io.molis.work.shelf", "io.molis.work.issues", "com.example.one", "com.example.two", ...Array.from({ length: 200 }, (_, n) => `dev.author.plugin-${n}`)];
+    "system.shelf", "io.molis.work.issues", "com.example.one", "com.example.two", ...Array.from({ length: 200 }, (_, n) => `dev.author.plugin-${n}`)];
   const seen = new Set<string>();
   for (const id of ids) {
     const hue = presentationOwnerHue(id);

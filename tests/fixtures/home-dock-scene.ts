@@ -1,5 +1,6 @@
 import type { ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
+import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
+import { INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID } from "@molis-ai/molis-work-plugin-inbox";
 
 /**
  * Test input for the current Host home.dock seeding contract: the rule and its subject-offer recommendations.

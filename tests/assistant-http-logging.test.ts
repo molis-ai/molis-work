@@ -83,7 +83,7 @@ test("RAC-116: learning enqueue refusal stays observable and private while the c
   t.mock.getter(f.agents, "ready", () => Promise.resolve());
   let modelGate = Promise.resolve(), finishModel = () => {};
   const endpoint = await modelServer(t, () => modelGate);
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-log-test", appVersion: "1.0.0" }, storageRoot: join(f.home, "sdk"),
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-log-test", appVersion: "1.0.0" }, storageRoot: join(f.home, "sdk"),
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint, model: "fixture", credential_ref: "fixture" }),
     resolveCredential: () => "fixture-only" });
   f.agents.agentHost.register(adapter);
@@ -201,7 +201,7 @@ async function questionnaire(t: TestContext, f: Awaited<ReturnType<typeof httpFi
   t.after(close);
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   const address = model.address(); assert.ok(address && typeof address === "object");
-  adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-catch-test", appVersion: "1.0.0" }, storageRoot: join(f.home, "question-sdk"), reviewQueue: new AgentReviewQueue(), questionTypes: hostQuestionTypes(),
+  adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-catch-test", appVersion: "1.0.0" }, storageRoot: join(f.home, "question-sdk"), reviewQueue: new AgentReviewQueue(), questionTypes: hostQuestionTypes(),
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: `http://127.0.0.1:${address.port}/v1/messages`, model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   f.agents.agentHost.register(adapter);
   const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: ASSISTANT_PERSONAL_OWNER, plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_PLUGIN_ID };

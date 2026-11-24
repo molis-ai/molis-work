@@ -106,7 +106,7 @@ test("RAC-1012: a notification waits without a Feed in the project, and reaches 
   const snapshot = createLocalFeedApplication(reopened.db).snapshot(f.project.project_id), [item] = snapshot.feed_items.filter(value => value.source_id === "plugin-notifications:" + SCHEDULE_PLUGIN_ID);
   assert.ok(item); assert.match(item.url ?? "", new RegExp(`^/projects/${f.project.project_id}/plugins/`));
   assert.equal(snapshot.sources.find(value => value.source_id === item.source_id)?.name, scheduleManifest.name, "shown under the sender's name");
-  assert.ok(snapshot.inbox_entries.some(entry => entry.subject_id === item.item_id));
+  assert.ok(snapshot.attention_entries.some(entry => entry.subject_id === item.item_id));
 });
 
 test("RAC-1013: only the platform's notification service can call a receiver", async t => {

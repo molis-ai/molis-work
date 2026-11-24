@@ -10,7 +10,7 @@ import { objectLinkAt, type BoundActionClient, type HostOfferedOriginalFile } fr
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {
   ARTIFACTS_PLUGIN_ID, artifactsErrors, documentErrors, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, openArtifactOriginal,
-  EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactImportResult, type ArtifactExternalImport, type GoalArtifactEmbed,
+  EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactImportResult, type ArtifactExternalImport, type SubjectArtifactEmbed,
 } from "@molis-ai/molis-work-module-artifacts";
 import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
 import { artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, continuerReadsFile, type ArtifactTypeDeclaration } from "./artifact-type-registry.js";
@@ -96,10 +96,10 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
     plugin_id: declaration.surface, item_id: pinned?.id ?? "" };
 }
 
-export async function renderProjectArtifactContext(embeds: GoalArtifactEmbed[], readArtifactDisplay: ReadArtifactDisplay): Promise<string> {
+export async function renderProjectArtifactContext(embeds: SubjectArtifactEmbed[], readArtifactDisplay: ReadArtifactDisplay): Promise<string> {
   // The containing Goal fragment applies its Project prefix once to every local link; types are named as their owners declare.
   const words = await readArtifactDisplay(embeds.flatMap(({ view }) => view.selected ? [view.selected] : []));
-  return artifactWorkbench.goalContext(embeds, { routePrefix: "", primitives, importedDocumentWarnings, typeTitle: version => words(version)?.title });
+  return artifactWorkbench.subjectContext(embeds, { routePrefix: "", primitives, importedDocumentWarnings, typeTitle: version => words(version)?.title });
 }
 
 /** The name the page sends with a raw original (percent-encoded UTF-8): one file name, no path. */
@@ -263,7 +263,7 @@ export function createLocalArtifactHttp() {
       const referrers = linked && reference && context.ownerActions ? (await Promise.all(artifactReferrerActions().map(item => context.ownerActions!(item.action.action.permissions)
         .invoke(item.action, { reference }).then(result => (result as ArtifactReferrersResult).referrers.map(row => ({ ...row, plugin_title: item.plugin_title }))).catch(() => [])))).flat() : [];
       const links = linked ? { ...linked, referrers } : undefined;
-      const goalInput = !links
+      const attachTarget = !links
         ? true
         : context.inputTargetAvailable
           ? await context.inputTargetAvailable()
@@ -279,7 +279,7 @@ export function createLocalArtifactHttp() {
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
       });
-      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, importedDocumentWarnings, ...(links ? { links } : {}), ...(goalInput ? {} : { goalInput }), continuers, handoffExecutors, pluginInputs,
+      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, importedDocumentWarnings, ...(links ? { links } : {}), ...(attachTarget ? {} : { attachTarget }), continuers, handoffExecutors, pluginInputs,
         languagePreview, typeTitle: version => words(version)?.title }, compact ? "frame-block" : "detail", currentLocale()));
       return true;
     } catch (error) {

@@ -1,5 +1,6 @@
 import { ActionError, objectLink, type ActionCallContext, type ActionSceneDefinition, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneExecutionContext, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, INBOX_NEXT_SCENE_ID, SYSTEM_INBOX_NEXT_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, INBOX_NEXT_SCENE_ID, SYSTEM_INBOX_NEXT_FUNCTION_KEY } from "./scene-options.js";
 
 export const inboxNextScene: ActionSceneDefinition = {
   scene_id: INBOX_NEXT_SCENE_ID, version: /* @version scene.inbox.next */ 1, title: "Inbox 下一步",

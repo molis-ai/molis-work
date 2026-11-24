@@ -686,6 +686,7 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
         kind: string;
         id: string;
     };
+    work_item_id?: string;
     executor?: AssistantExecutorChoice;
     mode?: string;
     executor_session_id?: string;
@@ -841,6 +842,7 @@ export interface AssistantWork {
     budget_tokens?: number;
     ask_each_step?: true;
     main?: true;
+    work_item_id?: string;
     serves?: Array<{
         kind: string;
         id: string;

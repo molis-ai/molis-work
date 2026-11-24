@@ -445,6 +445,7 @@ export interface ActionCallContext extends ActionCallOrigin, ActionDelegationSou
     };
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
+    readonly home_page?: HomePageSubject;
     readonly original_file?: HostOfferedOriginalFile;
     readonly original_input?: HostOfferedOriginalInput;
     readonly query_only?: true;
@@ -551,6 +552,7 @@ export interface ActionExecutionContext extends ActionCallContext, ActionPersonE
     readonly provideSubjectState?: (current: () => import("platform/action-subjects").ActionSubjectCurrentState) => void;
     readonly beforeEffect: () => Promise<void>;
     readonly current_action?: ExactActionReference;
+    readonly parent_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
         readonly audience?: "workflow";
     }) => RetainedActionAuthority;
@@ -1496,6 +1498,28 @@ export declare const BACKGROUND_TASK_COLLECTION_SCHEMA: {
                             additionalProperties: boolean;
                         };
                     };
+                    held_reviews: {
+                        type: string;
+                        properties: {
+                            session_id: {
+                                maxLength: number;
+                                minLength: number;
+                                type: string;
+                            };
+                            ids: {
+                                type: string;
+                                minItems: number;
+                                maxItems: number;
+                                items: {
+                                    minLength: number;
+                                    maxLength: number;
+                                    type: string;
+                                };
+                            };
+                        };
+                        required: string[];
+                        additionalProperties: boolean;
+                    };
                     open: {
                         anyOf: ({
                             readonly type: "object";
@@ -1753,6 +1777,8 @@ export declare const BACKGROUND_TASK_DECISION_SCHEMA: {
 };
 
 export declare const BACKGROUND_TASK_DONE_STATES: ReadonlySet<StateRingState>;
+
+export declare const BACKGROUND_TASK_MAX_HELD_REVIEWS = 10;
 
 export declare const BACKGROUND_TASK_SCHEMA: {
     type: string;
@@ -2094,6 +2120,28 @@ export declare const BACKGROUND_TASK_SCHEMA: {
                 additionalProperties: boolean;
             };
         };
+        held_reviews: {
+            type: string;
+            properties: {
+                session_id: {
+                    maxLength: number;
+                    minLength: number;
+                    type: string;
+                };
+                ids: {
+                    type: string;
+                    minItems: number;
+                    maxItems: number;
+                    items: {
+                        minLength: number;
+                        maxLength: number;
+                        type: string;
+                    };
+                };
+            };
+            required: string[];
+            additionalProperties: boolean;
+        };
         open: {
             anyOf: ({
                 readonly type: "object";
@@ -2171,6 +2219,10 @@ export interface BackgroundTask {
     scope: "project" | "personal";
     commands: BackgroundTaskCommand[];
     decisions: BackgroundTaskDecision[];
+    held_reviews?: {
+        session_id: string;
+        ids: string[];
+    };
     open: OpenTarget | null;
     reports_to?: "assistant";
 }
@@ -3934,8 +3986,8 @@ export interface PluginArtifactWriter {
 export interface PluginAttentionClient {
     list(): PluginAttentionEntryRecord[];
     get(entryId: string): PluginAttentionEntryRecord;
-    listWaiting(): AttentionEntryRecord[];
-    getWaiting(entryId: string): AttentionEntryRecord;
+    listInbox(): AttentionEntryRecord[];
+    getInbox(entryId: string): AttentionEntryRecord;
     findActiveForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord | null;
     findForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord[];
     events(entryId?: string): PluginAttentionEvent[];
@@ -3944,7 +3996,7 @@ export interface PluginAttentionClient {
 
 export interface PluginAttentionDeclaration {
     readonly subjects: readonly PluginAttentionSubjectDeclaration[];
-    readonly waiting?: readonly AttentionSubjectType[];
+    readonly inbox?: readonly AttentionSubjectType[];
 }
 
 export interface PluginAttentionEntryInput extends PluginAttentionSubjectReference {
@@ -5530,7 +5582,6 @@ export interface PluginSyncCollection {
     readonly tracking?: readonly SyncTrackedTable[];
     readonly sections?: import("platform/plugin-sync-sections").SyncSectionsDeclaration;
     readonly aggregates?: readonly SyncAggregateDeclaration[];
-    readonly approval_outcomes?: readonly SyncApprovalOutcomeDeclaration[];
 }
 
 export interface PluginSyncCollectionCopy {
@@ -7174,19 +7225,6 @@ export interface SyncAggregateRecords {
     children: Record<string, SyncPortableRow[]>;
 }
 
-export interface SyncApprovalOutcomeDeclaration {
-    readonly subject_kind: string;
-    readonly section: string;
-    readonly table: string;
-    readonly decision_column: string;
-    readonly subject_column: string;
-    readonly subjects: {
-        readonly section: string;
-        readonly table: string;
-        readonly column: string;
-    };
-}
-
 export type SyncFailureReason = "invalid" | "unsupported" | "scope" | "conflict" | "dependencies" | "busy" | "limit" | "unavailable";
 
 export type SyncKeyPart = {
@@ -7232,7 +7270,7 @@ export interface SyncSectionTable {
 export interface SyncSectionsDeclaration {
     readonly kind: string;
     readonly business: readonly SyncSectionDeclaration[];
-    readonly platform: readonly 'relation-edges'[];
+    readonly platform: readonly ('relation-edges' | 'attention')[];
     readonly journal: boolean;
     readonly journalIgnoredTypes?: readonly string[];
 }

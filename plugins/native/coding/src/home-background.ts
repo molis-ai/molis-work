@@ -2,6 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindOwnerPluginAction, defineBackgroundTasksAction, type ActionHandlerBinding, type BackgroundTask, type BackgroundTaskCollection, type BackgroundTaskPhrase } from "@molis-ai/molis-work-plugin-sdk";
 import type { StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CodingBackgroundSession, CodingSessionStore } from "./store.js";
 
 /**
@@ -26,7 +27,7 @@ export const CODING_RING: Readonly<Record<string, StateRingState>> = { running: 
  * Home-level agent host, so an activation that started later says nothing about a round (plugin.ts takes the process's start). A queued
  * round has not started, so it was not cut off.
  */
-function codingBackgroundTasksOf(sessions: readonly CodingBackgroundSession[], startedAt: string): BackgroundTask[] {
+function codingBackgroundTasksOf(sessions: readonly CodingBackgroundSession[], startedAt: string, reviewIds: ReadonlyMap<string, string[]>): BackgroundTask[] {
   return sessions.map(session => {
     const beforeRestart = session.active && !["reconcile-required", "queued"].includes(session.state) && session.updated_at < startedAt;
     const mine = session.steps?.mine ?? 0, subtasks = session.steps?.subtasks ?? 0, unowned = session.steps?.unowned ?? 0;
@@ -36,6 +37,8 @@ function codingBackgroundTasksOf(sessions: readonly CodingBackgroundSession[], s
       ...unowned ? [{ text: uiText.text("coding.home-background.n-unclaimed-steps", { n: unowned }) }] : []];
     const ended = holders.length || session.commands?.length ? uiText.text("coding.home-background.the-round-ended") : session.state;
     const subject = { kind: "coding_session", id: session.session_id };
+    const agentSession = shown === "waiting-approval" ? session.runtime_session_id : undefined;
+    const ids = agentSession ? reviewIds.get(agentSession) : undefined;
     return { subject, title: session.title, state: mine && shown !== "running" ? "answer" : CODING_RING[shown] ?? "round-ended", updated_at: session.updated_at,
       waiting: !beforeRestart && (WAITING.has(session.state) || mine > 0),
       step: { text: beforeRestart ? uiText.text("coding.home-background.this-did-not-finish-before-the-service") : CODING_STANDING[session.state] ? uiText.text(CODING_STANDING[session.state]!) : ended }, details: holders,
@@ -43,13 +46,21 @@ function codingBackgroundTasksOf(sessions: readonly CodingBackgroundSession[], s
       // Stopping one is the same reviewed stop the session's own panel offers, as Coding's own action.
       commands: (session.commands ?? []).map(command => ({ role: "stop", action: { capability_id: "coding.background.stop", version: /* @version action.coding.background.stop */ 1 },
         input: { session_id: session.session_id, task_id: command.task_id }, summary: command.summary })),
-      // What a session waits on is decided in the session: only the person decides a held step, and a plugin offers no action that does (agent-host).
       decisions: [],
+      ...(agentSession && ids?.length ? { held_reviews: { session_id: agentSession, ids } } : {}),
       open: { kind: "item", surface: "coding", id: session.session_id, title: session.title || uiText.text("coding.home-background.open-session"), label: uiText.text("coding.home-background.open-session") } };
   });
 }
 
 export function codingBackgroundTasksHandler(context: PluginStartContext, sessions: CodingSessionStore, startedAt: string): ActionHandlerBinding {
-  return bindOwnerPluginAction(context, codingBackgroundTasks, (): BackgroundTaskCollection => ({ source: { surface: "coding", title: "Coding", icon: "code" },
-    tasks: codingBackgroundTasksOf(sessions.backgroundSessions(context.project_id ?? ""), startedAt) }));
+  return bindOwnerPluginAction(context, codingBackgroundTasks, async (): Promise<BackgroundTaskCollection> => {
+    const rows = sessions.backgroundSessions(context.project_id ?? "");
+    const waiting = rows.flatMap(row => row.state === "waiting-approval" && row.updated_at >= startedAt && row.runtime_session_id ? [row.runtime_session_id] : []);
+    const actions = context.services?.actions;
+    const reviews = waiting.length && actions
+      ? await actions.invoke(agentHostCapabilities.listPendingReviewIds, [waiting]).catch(() => [])
+      : [];
+    return { source: { surface: "coding", title: "Coding", icon: "code" },
+      tasks: codingBackgroundTasksOf(rows, startedAt, new Map(reviews.map(row => [row.session_id, row.ids]))) };
+  });
 }

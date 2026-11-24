@@ -1,5 +1,5 @@
 import {
-  ACTION_REFERENCE_SCHEMA, inputSchemaFor, type ActionAudience, type ActionDefinition, type ActionSchema, type ExactActionReference,
+  ACTION_REFERENCE_SCHEMA, defineErrorCodes, inputSchemaFor, type ActionAudience, type ActionDefinition, type ActionSchema, type ExactActionReference, type HomePageSubject,
 } from "../platform/actions.js";
 import {
   CONTENT_ADOPTION_RESULT_SCHEMA, contentAdoptionInputSchema, contentAdoptionReadInputSchema, contentAdoptionReadOutputSchema,
@@ -9,17 +9,48 @@ import { closedObjectSchema } from "../platform/closed-object-schema.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { SandboxSchema } from "../platform/plugin-sandbox.js";
 
-/** The homepage service's public contract (specs/scene-and-page-contract/spec.md §6): the basic homepage, generated page versions and their approval; the page's run is batch 37's. */
+/** The homepage service's public contract (specs/scene-and-page-contract/spec.md §6): the basic homepage, generated page versions, approval, and runtime isolation. */
 export const servicesHomeContract = {
   contractId: /* @version contract.io.molis.work.service.home "io.molis.work.service.home.v{version}" */ "io.molis.work.service.home.v1",
   kind: "service",
   schemaVersion: /* @version contract.io.molis.work.service.home */ 1,
-  maturity: "contract-only",
+  maturity: "partial",
   ssot: "specs/scene-and-page-contract/spec.md",
 } as const satisfies ContractDescriptor;
 
 export const HOME_PAGE_CONTENT_TYPE = /* @version type.molis.home-page "molis.home-page.v{version}" */ "molis.home-page.v1";
+export const HOME_PAGE_SUBJECT_KIND = "home-page" as const;
 export const HOME_PAGE_LIMITS = { files: 64, fileBytes: 1024 * 1024, totalBytes: 4 * 1024 * 1024 } as const;
+export const HOME_PAGE_RETENTION = { maxPagesPerProject: 20, maxVersionsPerPage: 20 } as const;
+
+export function formatHomePageSubject(subject: HomePageSubject): string {
+  return `${subject.kind}:${subject.project_id}/${subject.page_id}@${subject.version}`;
+}
+
+export const homeErrors = defineErrorCodes("home", {
+  /** A project already holds the maximum number of generated pages (20). */
+  page_limit: "invalid",
+  /** Stored file content no longer matches the version's SHA-256 manifest. */
+  page_file_mismatch: "conflict",
+  /** Named generated page does not exist in this project. */
+  page_not_found: "not_found",
+  /** Named version does not exist on this generated page. */
+  version_not_found: "not_found",
+  /** Expected version CAS did not match the latest stored version. */
+  version_conflict: "conflict",
+  /** Expected selection revision CAS did not match the current home selection. */
+  revision_conflict: "conflict",
+  /** Same idempotency request_id reused with different operation, version, or approved actions. */
+  request_conflict: "conflict",
+  /** Draft failed static shape, path, size, entry, or action-reference validation. */
+  draft_invalid: "invalid",
+  /** Declared or approved action is missing, unavailable, or lacks explicit plugin audience. */
+  action_unavailable: "unavailable",
+  /** Adopt/restore requires a direct top-level person call (never nested, delegated, or page/agent). */
+  approval_forbidden: "forbidden",
+  /** Home page session handle is unknown, expired, revoked, or belongs to another project. */
+  session_invalid: "forbidden",
+});
 
 const mediaTypes = ["text/html", "text/javascript", "text/css"] as const;
 const authors = ["assistant", "person"] as const;

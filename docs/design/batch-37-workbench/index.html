@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-resolved-theme="light" data-ui-skin="soft-workbench@1" data-density="standard">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>第 37 批定样 · 生成页面挂载与事项工作台 · Molis Work 原型</title>
+  <link rel="stylesheet" href="../kit/kit.css">
+  <link rel="stylesheet" href="b37.css">
+</head>
+<body class="b37-body">
+  <div id="icons" hidden></div>
+
+  <header class="b37-proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b id="p-title">第 37 批定样</b>
+    <div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="视图" id="ctrl-view"></div>
+    <label id="wrap-plan"><span id="lbl-plan"></span><select class="mw-select" id="ctrl-plan"></select></label>
+    <label id="wrap-state"><span id="lbl-state"></span><select class="mw-select" id="ctrl-state"></select></label>
+    <div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="窗口宽度" id="ctrl-width"></div>
+    <div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="语言" id="ctrl-lang"></div>
+    <div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="主题" id="ctrl-theme"></div>
+    <div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="标注" id="ctrl-notes"></div>
+    <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="ctrl-reset"><span data-slot="button-label">重置</span></button>
+  </header>
+
+  <div class="b37-stage-wrap" id="stage-wrap">
+    <div class="b37-win" id="app" data-width="1440"></div>
+  </div>
+
+  <div id="toasts" class="b37-toasts" aria-live="polite"></div>
+  <div id="live" class="mw-sr-only" aria-live="polite"></div>
+
+  <script src="../kit/kit.js"></script>
+  <script>
+    document.getElementById("icons").innerHTML = window.mwKitSprite;
+    const client = document.createElement("script");
+    client.textContent = window.mwKitClient;
+    document.body.appendChild(client);
+  </script>
+  <script src="b37.js"></script>
+</body>
+</html>

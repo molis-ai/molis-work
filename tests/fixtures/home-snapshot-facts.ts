@@ -61,6 +61,8 @@ function libraryFacts(project: string): Record<string, Seed> {
     acceptance: { table: "acceptance_subjects", values: { subject_no: 7, project_id: project, provider_id: "plugin:io.snapshot.fixture", subject_kind: "snapshot_item", subject_id: title, created_at: at }, field: "subject_id" },
     evaluation: { table: "evaluation_samples", values: { sample_id: id, version: 1, purpose: "validation", work_mode: "manual_plugin", project_id: project,
       frozen_digest: "snapshot-digest", spec_json: JSON.stringify({ title }), hold_id: null, held_record_count: 0, created_at: at }, field: "spec_json" },
+    // A generated project home page saved on the Home (batch 37, horizontal/home).
+    "home-pages": { table: "home_page_versions", values: { page_id: id, project_id: project, version: 1, title, entry: "index.html", actions: "[]", files: "[]", author: "person", based_on: null, origin: null, created_at: at }, field: "title" },
     // An item a person named on their mainline (the store keeps names, references and order; batch 36).
     mainline: { table: "mainline_items", values: { item_id: id, owner_actor_id: actor, project_id: project, name: title, created_at: at }, field: "name" },
     // A document a person brought into a conversation, kept with its text by the platform (batch 35, S-conversation-attachments).

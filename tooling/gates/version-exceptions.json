@@ -504,38 +504,6 @@
     "reason": "P-3c 仅发布场景动作合同；第 45 批 system.blueprints 实际登记后删除本条。"
   },
   {
-    "entry": "action.home.pages.adopt",
-    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.home.pages.diff",
-    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.home.pages.drafts.save",
-    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.home.pages.files.read",
-    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.home.pages.preview",
-    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.home.pages.restore",
-    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.home.read",
-    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
-  },
-  {
-    "entry": "action.home.select",
-    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
-  },
-  {
     "row": "functions.published.system_admit_inbox",
     "reason": "内置判断规则发布后的动作，版本是规则记录自身的发布修订号，运行时才有，不是自有版本。"
   },

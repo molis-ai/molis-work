@@ -94,6 +94,7 @@ agent.project-work.queue	1	platform	command	operation	project	write	-	plugin	-	-
 agent.project-work.read	1	platform	query	query	project	read	-	plugin	-	-	-	-	721b7d646a52	70b692bc5ff1	-
 agent.project-work.release	1	platform	command	operation	project	write	-	plugin	-	-	-	-	21673f095f49	-	-
 agent.reviews.decide	1	system.agent-reviews	command	operation	home	write	concurrent	user	-	-	-	-	3622152c68fa	a2c799262a3c	3cfff55e5308
+agent.reviews.pending-ids	1	platform	query	query	project	read	-	plugin	-	-	-	-	23ecf32e555f	b69ab4ee69b1	-
 agent.reviews.permission.set	1	system.agent-reviews	command	operation	home	write	concurrent	user	-	-	-	-	70936219d38a	a2c799262a3c	3cfff55e5308
 agent.reviews.recover	1	system.agent-reviews	command	operation	home	write	concurrent	user	-	-	-	-	35bca135e6fa	a2c799262a3c	3cfff55e5308
 agent.roles	1	platform	query	query	project	read	-	plugin	-	-	-	-	d840c5a0a551	cb50ef7c59b1	-
@@ -181,8 +182,8 @@ automation.recommendations.preferences.set	1	system.automation-recommendations	c
 automation.recommendations.report.save	1	system.automation-recommendations	command	operation	project	write	concurrent	user	-	-	-	-	88ee376de193	a2c799262a3c	-
 automation.recommendations.scan	1	system.automation-recommendations	query	query	project	read	concurrent	user	-	-	-	-	d746974fa9af	a2c799262a3c	-
 background.tasks.command	1	system.mainline	command	operation	project	write	concurrent	user	mainline:control	-	-	-	b72eab443ba0	5eeca3761a19	-
-background.tasks.decide	1	system.mainline	command	operation	project	write	concurrent	user	mainline:control	-	-	-	8d4343f573d8	92203e6141bb	-
-background.tasks.read	1	system.mainline	query	query	project	read	concurrent	user	mainline:read	-	-	-	99334726611c	b9c9586aef93	-
+background.tasks.decide	1	system.mainline	command	operation	project	write	concurrent	user	mainline:control	-	-	-	0f62b8066ad2	92203e6141bb	-
+background.tasks.read	1	system.mainline	query	query	project	read	concurrent	user	mainline:read	-	-	-	99334726611c	83ef8259cad2	-
 blueprints.adoption.apply	1	system.blueprints	command	operation	home	write	concurrent	user	-	-	-	-	6880e9daf8db	7d283b67dd38	-
 blueprints.adoption.preview	1	system.blueprints	command	operation	home	write	concurrent	user	-	-	-	-	54b18c0538ba	b9b90369b3fc	-
 blueprints.adoption.read	1	system.blueprints	query	query	home	read	concurrent	user	-	-	-	-	ff6a65e570bf	80bfc73eaf3e	-
@@ -293,7 +294,15 @@ home.events.read	1	system.home	query	query	project	read	concurrent	agent,mcp,use
 home.judgment.evaluate	1	system.home	command	operation	project	write	concurrent	agent,mcp,user,workflow	home:read,model:invoke	-	-	-	14f7b8ca12fc	1849cb2ba26c	d2ec79d66593
 home.judgment.read	1	system.home	query	query	project	read	-	agent,mcp,user,workflow	home:read	-	-	-	99334726611c	ab6bc165d6d7	-
 home.judgment.write	1	system.home	command	operation	project	write	-	agent,mcp,user,workflow	home:write	-	-	-	561b3068099c	3bef9ab5352a	-
+home.pages.adopt	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	eb2d997c5b17	28c55f201e44	-
+home.pages.diff	1	system.home	query	query	project	read	-	user	home:read	-	-	-	68accb374655	8a8c40f94aa0	-
+home.pages.drafts.save	1	system.home	command	operation	project	write	-	agent,user	home:write	-	-	-	a6b0ed6495f2	9ac46ac4a58b	5e0374458cf9
+home.pages.files.read	1	system.home	query	query	project	read	-	user	home:read	-	-	-	4ad159333bd6	7517fef855f8	-
+home.pages.preview	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	4ad159333bd6	c68cdd5488a9	-
+home.pages.restore	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	eb2d997c5b17	5db3a309907b	-
+home.read	1	system.home	query	query	project	read	-	agent,plugin,user	home:read	-	-	-	4f8336b9fd7e	f6dc1ed9a438	-
 home.recommendations.read	1	system.home	query	query	project	read	-	agent,mcp,user,workflow	home:read	-	-	-	99334726611c	1849cb2ba26c	-
+home.select	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	9176d5f05ac2	e1d9a802e7f3	-
 kit.catalog.list	1	system.kit	query	query	home	read	concurrent	user	kit:read	-	-	-	d746974fa9af	62d0a2a7bd41	-
 knowledge.card.edit	1	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	6764c11200e2	d3f54c851bfe	-
 knowledge.card.exclude	1	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	0a3c56932129	d3f54c851bfe	-
@@ -320,7 +329,7 @@ mainline.items.create	1	system.mainline	command	operation	project	write	concurre
 mainline.items.move	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:arrange	-	-	-	f504273218f3	93d87603519b	-
 mainline.items.remove	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:arrange	-	-	-	4d0d60726172	93d87603519b	-
 mainline.items.rename	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:arrange	-	-	-	5d3d5bdd8f5e	93d87603519b	-
-mainline.line.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	b52cab3beee0	2dfe24191e1f	-
+mainline.line.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	b52cab3beee0	b31da0b313db	-
 mainline.place	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:place	-	-	-	ba18f726ac6a	aef3a8191520	-
 mainline.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	6fa80a88b0fe	2364515194bb	-
 mainline.subject.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	mainline:read	work_item	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	3c18e4478c29	-

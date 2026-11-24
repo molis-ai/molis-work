@@ -6,10 +6,19 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { withProtectedHostAction } from "./plugin-consent-settings-entry.js";
+import { homePageRequestBound } from "./home-page-authority.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 const MAX_BODY_BYTES = 256 * 1024;
+
+/** Invoke an action from a workbench-owned request after its route has excluded plugin pages. */
+export function invokePersonPageAction<Input, Output>(host: MolisWorkLocalHost, project: LocalHostProjectReference,
+  definition: ActionDefinition<Input, Output>, input: Input, signal?: AbortSignal): Promise<Output> {
+  const action = Object.freeze({ source: "web" as const, conversation_ref: `web:${project.project_id}`, message_ref: `web:${randomUUID()}` });
+  const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS, { signal, user_action: () => action });
+  return withProtectedHostAction(action, () => client.invoke(definition, input));
+}
 
 /**
  * The workbench's own doors to a system service in one project: each route under `prefix` is a POST that invokes its action as the
@@ -26,12 +35,8 @@ export async function handlePersonActionRoutes(request: IncomingMessage, respons
     async handle({ method, pathname, body }) {
       const definition = doors.routes.get(pathname.slice(doors.prefix.length + 1));
       if (!definition || method !== "POST") return null;
-      if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", doors.refusal);
-      const message = `web:${randomUUID()}`;
-      const action = Object.freeze({ source: "web" as const, conversation_ref: `web:${project.project_id}`, message_ref: message });
-      const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS, { signal: controller.signal,
-        user_action: () => action });
-      return { status: 200, body: await withProtectedHostAction(action, () => client.invoke(definition, body)) as object };
+      if (pluginPageRequest(request) || homePageRequestBound(request)) throw new ActionError("actions.forbidden", doors.refusal);
+      return { status: 200, body: await invokePersonPageAction(host, project, definition, body, controller.signal) as object };
     } });
   } finally { request.off("aborted", cancel); response.off("close", disconnected); }
 }

@@ -277,6 +277,23 @@ test("SPC-10 ONB-25 ONB-26 ONB-27 WBR-26: home page lifecycle — draft save, bl
   ]);
   assert.equal(cssExternalReport.ok, false, "CSS external @import/url must fail sandbox_isolation");
   assert.ok(cssExternalReport.issues.some(i => i.code === "external_asset" && i.path === "styles.css"));
+  // CSS parser security edge cases: @media/nested rules, EOF unclosed blocks, unquoted backslash escapes, quoted /* */, and spaceless @import.
+  for (const [label, css, expectedCode] of [
+    ["@media nested literal color", `@media (min-width: 600px) { .card { color: #ff0000; } }`, "literal_color"],
+    ["EOF unclosed block", `.a { color: #ff0000`, "literal_color"],
+    ["unquoted backslash escape before quote", `.a\\" { color: #ff0000; }`, "literal_color"],
+    ["quoted comment tokens hiding literal color", `.a { --a: "/*"; color: #f00; --b: "*/"; }`, "literal_color"],
+    ["quoted comment tokens hiding external url", `.a { --a: "/*"; background: url(https://evil.example/x); --b: "*/"; }`, "external_asset"],
+    ["spaceless @import quote", `@import"https://evil.example/a.css";`, "external_asset"],
+    ["comment-separated @import quote", `@import/**/"https://evil.example/a.css";`, "external_asset"],
+  ] as const) {
+    const rep = inspectHomePageDesign([
+      { path: "index.html", media_type: "text/html", text: `<main></main>` },
+      { path: "styles.css", media_type: "text/css", text: css },
+    ]);
+    assert.equal(rep.ok, false, `${label}: must fail design check`);
+    assert.ok(rep.issues.some(i => i.code === expectedCode), `${label}: must report ${expectedCode}`);
+  }
 
   // 9. Retention (>20 versions protects active + based_on + last approved & prunes oldest unpinned; >20 pages refuses).
   // Seed other project so we also prove project deletion does not affect it.
@@ -480,10 +497,17 @@ test("S-home-page-authority SPC-11 ONB-25 ONB-26: preview is query-only, live ex
   }, { [HOME_PAGE_SESSION_HEADER]: liveSessionId });
   assert.equal(crossProject.status, 403);
 
-  // Calling any other route with x-molis-home-page is refused at transport guard.
+  // Calling any other route with x-molis-home-page is refused at transport guard (POST and GET SSE streams alike).
   for (const forbiddenPath of ["/api/home-pages/read", "/api/home-pages/adopt", "/api/mainline/line", "/api/acceptance/read"]) {
     const res = await post(project.project_id, forbiddenPath, {}, { [HOME_PAGE_SESSION_HEADER]: liveSessionId });
     assert.equal(res.status, 403, `${forbiddenPath} with x-molis-home-page must be 403`);
+  }
+  for (const forbiddenGet of ["/api/attention", "/api/attention/events"]) {
+    const res = await f.request(`/projects/${project.project_id}${forbiddenGet}`, {
+      method: "GET",
+      headers: { [HOME_PAGE_SESSION_HEADER]: liveSessionId },
+    });
+    assert.equal(res.status, 403, `GET ${forbiddenGet} with x-molis-home-page must be 403`);
   }
 
   // Trigger a failed declared query in preview AND a real approved command in live so ActionCallLog records both subjects!

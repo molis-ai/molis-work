@@ -82,8 +82,8 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + FIRST_PAGE_STYLES 
   .hp-draft-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; border-radius: var(--r-card); background: var(--surface-soft); border: 1px solid var(--line); }
   .hp-draft-banner__copy { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-inline-size: 0; color: var(--muted); font-size: 12px; }
   .hp-draft-banner__actions { display: flex; align-items: center; gap: 8px; }
-  :is(.hp-draft-banner, .hp-ver-popover, .home-adopt-dialog) .mw-btn--secondary:not(:disabled) { background: var(--control-fill); border-color: var(--line); }
-  :is(.hp-draft-banner, .hp-ver-popover, .home-adopt-dialog) .mw-btn--secondary:hover:not(:disabled) { background: var(--nav-hover); border-color: var(--line-strong); }
+  body.immersive-workbench :is(.hp-draft-banner, .hp-ver-popover, .home-adopt-dialog) .mw-btn--secondary:not(:disabled) { background: var(--control-fill); border-color: var(--line); }
+  body.immersive-workbench :is(.hp-draft-banner, .hp-ver-popover, .home-adopt-dialog) .mw-btn--secondary:hover:not(:disabled) { background: var(--nav-hover); border-color: var(--line-strong); }
   .hp-quiet-note { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
   .hp-quiet-note > svg { width: 14px; height: 14px; flex: none; color: var(--accent); }
   .home-compare { display: grid; gap: 12px; margin-block-start: 14px; padding-bottom: 84px; min-inline-size: 0; }

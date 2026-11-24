@@ -104,17 +104,21 @@ function buildBridgeScript(challenge: string, page: { page_id: string; version: 
       } else if (msg.type === "theme" && msg.dataset) {
         Object.assign(document.documentElement.dataset, msg.dataset);
       } else if (msg.type === "appearanceSheet") {
-        const prior = document.querySelector('link[data-ui-appearance-sheet]');
+        const priors = [...document.querySelectorAll('link[data-ui-appearance-sheet]')];
         if (typeof msg.href === "string" && msg.href) {
-          if (prior && prior.getAttribute("href") === msg.href) return;
+          if (priors.length === 1 && priors[0].getAttribute("href") === msg.href) return;
           const link = document.createElement("link");
           link.rel = "stylesheet";
           link.setAttribute("data-ui-appearance-sheet", "");
           link.href = msg.href;
           document.head.appendChild(link);
-          if (prior) link.addEventListener("load", () => prior.remove(), { once: true });
-        } else if (prior) {
-          prior.remove();
+          const dropPriors = () => { for (const p of priors) p.remove(); };
+          if (priors.length) {
+            link.addEventListener("load", dropPriors, { once: true });
+            link.addEventListener("error", dropPriors, { once: true });
+          }
+        } else {
+          for (const p of priors) p.remove();
         }
       }
     };

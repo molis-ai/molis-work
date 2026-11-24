@@ -25,7 +25,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   });
   document.addEventListener("molis-work:attention", (event) => {
     const kinds = event?.detail?.mainline_summary?.source_kinds;
-    if (Array.isArray(kinds) && !mainlineSourceKinds.size) mainlineSourceKinds = new Set(kinds);
+    if (Array.isArray(kinds)) mainlineSourceKinds = new Set(kinds);
   });
   const loadSpaces = async () => { if (!spaces) spaces = (await api("spaces")).spaces || []; return spaces; };
   const cache = new Map();

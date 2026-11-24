@@ -32,7 +32,7 @@ export interface HomePageDesignCheckReport {
 const INLINE_STYLE_RE = /\sstyle\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/iu;
 const INLINE_HANDLER_RE = /\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/iu;
 const EXTERNAL_URL_RE = /(?:src|href)\s*=\s*(?:"|')\s*(?:https?:|\/\/)/iu;
-const CSS_EXTERNAL_URL_RE = /(?:url\s*\(\s*(?:"|')?\s*(?:https?:|\/\/)|@import\s+(?:url\s*\(\s*)?(?:"|')?\s*(?:https?:|\/\/))/iu;
+const CSS_EXTERNAL_URL_RE = /(?:url\s*\(\s*(?:"|')?\s*(?:https?:|\/\/)|@import\s*(?:"|')\s*(?:https?:|\/\/))/iu;
 const NESTED_EMBED_RE = /<\s*(?:iframe|object|embed|base)\b/iu;
 const DYNAMIC_EVAL_RE = /\b(?:eval|Function)\s*\(|new\s+Function\b/u;
 const LITERAL_COLOR_VALUE_RE = /#[0-9a-f]{3,8}\b|\brgba?\s*\(|\bhsla?\s*\(|\boklch\s*\(|\boklab\s*\(/iu;
@@ -40,8 +40,48 @@ const PILL_RADIUS_RE = /border-radius\s*:\s*(?:999|9999)px/iu;
 const CROSS_PROJECT_PATH_RE = /\/projects\/[^/\s"']+\//u;
 
 /**
+ * Strips CSS block comments while respecting quoted strings and backslash escapes, replacing comments with a single
+ * space so tokens adjacent to a comment never merge or drop rules between quoted strings.
+ */
+function stripCssComments(css: string): string {
+  let out = "";
+  let i = 0;
+  let inQuote: string | null = null;
+  while (i < css.length) {
+    const ch = css[i]!;
+    if (ch === "\\" && i + 1 < css.length) {
+      out += css.slice(i, i + 2);
+      i += 2;
+      continue;
+    }
+    if (inQuote) {
+      if (ch === inQuote) inQuote = null;
+      out += ch;
+      i++;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inQuote = ch;
+      out += ch;
+      i++;
+      continue;
+    }
+    if (ch === "/" && css[i + 1] === "*") {
+      const end = css.indexOf("*/", i + 2);
+      out += " ";
+      i = end < 0 ? css.length : end + 2;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
+/**
  * Extracts CSS declaration values (the part after `:` inside rule blocks, skipping selectors and nested at-rule preludes)
  * so ID selectors like `#feed`, `#cafe`, or `#fade` are never misclassified as literal hex colors.
+ * Handles unquoted backslash escapes and EOF-terminated unclosed blocks per CSS Syntax Level 3.
  */
 function extractCssDeclarationValues(css: string): string[] {
   const values: string[] = [];
@@ -62,11 +102,11 @@ function extractCssDeclarationValues(css: string): string[] {
   };
   while (i < css.length) {
     const ch = css[i]!;
+    if (ch === "\\" && i + 1 < css.length) {
+      i += 2;
+      continue;
+    }
     if (inQuote) {
-      if (ch === "\\" && i + 1 < css.length) {
-        i += 2;
-        continue;
-      }
       if (ch === inQuote) inQuote = null;
       i++;
       continue;
@@ -92,6 +132,7 @@ function extractCssDeclarationValues(css: string): string[] {
     }
     i++;
   }
+  if (depth > 0) flushDecl(css.length);
   return values;
 }
 
@@ -166,7 +207,7 @@ export function inspectHomePageDesign(
     }
 
     if (file.media_type === "text/css") {
-      const stripped = file.text.replace(/\/\*[\s\S]*?\*\//gu, "");
+      const stripped = stripCssComments(file.text);
       if (CSS_EXTERNAL_URL_RE.test(stripped)) {
         sandboxIssues.push({
           code: "external_asset",

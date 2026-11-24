@@ -1,5 +1,6 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { runBusy } from "./busy.js";
 import { createMainlineOrganizeDialog } from "./mainline-organize.js";
 import {
   renderMainlineSourceChips,
@@ -419,8 +420,7 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
         creating = false;
       }
     };
-    const busy = (globalThis as typeof globalThis & { molisBusy?: <R>(el: HTMLElement, fn: () => Promise<R>) => Promise<R> }).molisBusy;
-    void (submitBtn && busy ? busy(submitBtn, createOnly) : createOnly()).then(async (res) => {
+    void runBusy(submitBtn, createOnly).then(async (res) => {
       selectedKind = "";
       if (input) input.value = "";
       host.showToast(uiText.text("workbench.mainline.created-toast", { name }));

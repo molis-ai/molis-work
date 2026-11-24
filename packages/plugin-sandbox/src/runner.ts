@@ -15,7 +15,7 @@ import { modelDeadlines } from './model.js';
 import { sharedSandboxProcessMonitor } from './process-monitor.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { assertEffects, assertJson, checkSandboxContract, SandboxError } from './schema.js';
-import { seatbeltProfile } from './seatbelt.js';
+import { inspectNodeRuntime, seatbeltProfile } from './seatbelt.js';
 import { SANDBOX_TEXT_BYTES } from './worker-text.js';
 
 export interface SandboxLimits {
@@ -128,11 +128,11 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   const workerPath = join(directory, 'worker.mjs'), bundlePath = join(directory, 'plugin.mjs');
   let child: ChildProcessWithoutNullStreams;
   try {
+    const { node, libraries } = await inspectNodeRuntime(process.execPath, directory);
     await fs.writeFile(bundlePath, bundle, { mode: 0o400 });
     await fs.copyFile(fileURLToPath(new URL('./worker.mjs', import.meta.url)), workerPath);
     await fs.chmod(workerPath, 0o400);
-    const node = await fs.realpath(process.execPath);
-    const profile = seatbeltProfile({ node, worker: workerPath, bundle: bundlePath });
+    const profile = seatbeltProfile({ node, worker: workerPath, bundle: bundlePath, libraries });
     child = spawn('/usr/bin/sandbox-exec', ['-p', profile, node, `--max-old-space-size=${limits.heapMb}`, '--disable-proto=throw', '--no-addons', workerPath, pathToFileURL(bundlePath).href, identity.pluginId], { cwd: directory, env: {}, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
   } catch (error) { await fs.rm(directory, { recursive: true, force: true }); throw error; }
   const queue = new BoundedQueue(limits.operationQueue), calls = new RateBudget(limits.operationsPerMinute), wire = new RateBudget(limits.sdkPerMinute + limits.operationsPerMinute * 2);

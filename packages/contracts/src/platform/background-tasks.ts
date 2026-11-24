@@ -2,7 +2,7 @@ import { inputSchemaFor } from "./action-input.js";
 import { ACTION_REFERENCE_SCHEMA } from "./action-offers.js";
 import { ACTION_SUBJECT_SCHEMA } from "./action-subjects.js";
 import type { ActionDefinition, ActionReference, ActionSubject } from "./actions.js";
-import { REVIEW_REFERENCE_SCHEMA, type ReviewOwner, type ReviewReference } from "./reviews.js";
+import { BACKGROUND_TASK_MAX_HELD_REVIEWS, REVIEW_REFERENCE_SCHEMA, type ReviewOwner, type ReviewReference } from "./reviews.js";
 import { STATE_RING_FAMILIES, type StateRingState } from "./ui-state-rings.js";
 import { OPEN_TARGET_SCHEMA, WORK_EVENT_SOURCE_SCHEMA, type OpenTarget } from "./work-events.js";
 
@@ -48,6 +48,8 @@ export interface BackgroundTaskDecision {
 
 export interface BackgroundTaskExecutor { kind: "assistant" | "character" | "plugin" | "platform"; label: string }
 
+export { BACKGROUND_TASK_MAX_HELD_REVIEWS } from "./reviews.js";
+
 export interface BackgroundTask {
   /** The task itself: what a relation attaches and what opens. */
   subject: ActionSubject;
@@ -69,6 +71,8 @@ export interface BackgroundTask {
   commands: BackgroundTaskCommand[];
   /** What it waits on the person to decide, each answered on its own; empty when it asks nothing that can be listed. */
   decisions: BackgroundTaskDecision[];
+  /** Pending Agent review IDs for this task's runtime session. Only the Host resolves them and records the person's decision. */
+  held_reviews?: { session_id: string; ids: string[] };
   open: OpenTarget | null;
   /**
    * A task no conversation started (a plugin's own, a schedule's, an outside Agent's through MCP) that the scope's Assistant should
@@ -109,6 +113,8 @@ export const BACKGROUND_TASK_SCHEMA = { type: "object", properties: {
   executor: { type: "object", properties: { kind: { enum: ["assistant", "character", "plugin", "platform"] }, label: { ...id, maxLength: 120 } }, required: ["kind", "label"], additionalProperties: false },
   serves: { type: "array", maxItems: 20, items: ACTION_SUBJECT_SCHEMA }, scope: { enum: ["project", "personal"] },
   commands: { type: "array", maxItems: 50, items: command(["stop", "pause", "resume"]) }, decisions: { type: "array", maxItems: 10, items: BACKGROUND_TASK_DECISION_SCHEMA },
+  held_reviews: { type: "object", properties: { session_id: { ...id, maxLength: 500 }, ids: { type: "array", minItems: 1, maxItems: BACKGROUND_TASK_MAX_HELD_REVIEWS, items: id } },
+    required: ["session_id", "ids"], additionalProperties: false },
   open: { anyOf: [{ type: "null" }, OPEN_TARGET_SCHEMA] }, reports_to: { enum: ["assistant"] } },
   required: ["subject", "title", "state", "details", "waiting", "updated_at", "executor", "serves", "scope", "commands", "decisions", "open"], additionalProperties: false };
 export const BACKGROUND_TASK_COLLECTION_SCHEMA = { type: "object", properties: { source: WORK_EVENT_SOURCE_SCHEMA, tasks: { type: "array", maxItems: 500, items: BACKGROUND_TASK_SCHEMA } }, required: ["source", "tasks"], additionalProperties: false };

@@ -154,8 +154,11 @@ export function renderInfoTabs(): string {
  * in the side panel, the sources that could not be read, the rows, and one quiet line that says what a press does.
  */
 export function renderInfoLists(): string {
+  const scopeToggle = `<div class="work-lists-scope" data-work-lists-scope role="group" aria-label="${uiText("workbench.work-line.scope-label")}" hidden>`
+    + `<button type="button" data-work-scope="item" aria-pressed="true">${uiText("workbench.work-line.scope-item")}</button>`
+    + `<button type="button" data-work-scope="project" aria-pressed="false">${uiText("workbench.work-line.scope-project")}</button></div>`;
   return `<section class="work-lists" id="work-lists" data-work-lists role="tabpanel" hidden><header class="work-lists-head"><small id="work-lists-title" data-work-lists-title></small>`
-    + `${iconButton("pin", uiText.text("workbench.work-line.park-list"), { "data-work-lists-pin": "" })}</header><div class="work-lists-sources" data-work-lists-sources></div><div class="work-lists-body" data-work-lists-body></div>`
+    + `<div class="work-lists-head-right">${scopeToggle}${iconButton("pin", uiText.text("workbench.work-line.park-list"), { "data-work-lists-pin": "" })}</div></header><div class="work-lists-sources" data-work-lists-sources></div><div class="work-lists-body" data-work-lists-body></div>`
     + `<p class="work-lists-foot" data-work-lists-foot></p></section>`;
 }
 
@@ -220,7 +223,19 @@ export function renderStackLook(card: { readonly n: number; readonly more: numbe
   return stackNote({ id: "look", title: uiText.text("workbench.work-line.to-look-at", { n: card.n }), ask: uiText.text("workbench.work-line.to-look-at-note"), more: card.more, open: "data-work-stack-look" });
 }
 
-function stackNote(card: { readonly id: "main" | "look"; readonly title: string; readonly ask: string; readonly more: number; readonly open: string }): string {
+/** Tail card of the stack when other work items also wait on the person (MLN-17): opens the top-left switcher. */
+export function renderStackOtherItems(card: { readonly n: number; readonly more: number }): string {
+  return stackNote({
+    id: "other-items",
+    title: uiText.text("workbench.work-line.other-items-waiting", { n: card.n }),
+    ask: uiText.text("workbench.work-line.other-items-waiting-note"),
+    more: card.more,
+    open: "data-work-stack-other",
+    openLabel: uiText.text("workbench.work-line.open-switcher"),
+  });
+}
+
+function stackNote(card: { readonly id: "main" | "look" | "other-items"; readonly title: string; readonly ask: string; readonly more: number; readonly open: string; readonly openLabel?: string }): string {
   const said = plainLine(card.ask);
   const more = card.more > 0
     ? `<button type="button" class="work-stack-more" data-work-stack-next>${uiText("workbench.work-line.your-turn-more", { n: card.more })}${icon("chevron-right")}</button>`
@@ -228,7 +243,7 @@ function stackNote(card: { readonly id: "main" | "look"; readonly title: string;
   return `<article class="work-stack-card" data-work-stack-card="${card.id}" data-${card.id}${card.more > 0 ? ` data-behind="${Math.min(card.more, 2)}"` : ""} aria-label="${escapeHtml(card.title)}">`
     + `<div class="work-stack-head"><span class="work-stack-dot" aria-hidden="true"></span><strong title="${escapeHtml(card.title)}">${escapeHtml(card.title)}</strong>${more}</div>`
     + `<div class="work-stack-body"><p class="work-stack-ask" title="${escapeHtml(said)}">${escapeHtml(said)}</p>`
-    + `<button type="button" class="work-stack-open" ${card.open}${card.id === "look" ? ' aria-haspopup="true"' : ""}>${uiText("workbench.work-line.open")}${icon("chevron-right")}</button></div></article>`;
+    + `<button type="button" class="work-stack-open" ${card.open}${card.id === "look" ? ' aria-haspopup="true"' : ""}>${escapeHtml(card.openLabel ?? uiText.text("workbench.work-line.open"))}${icon("chevron-right")}</button></div></article>`;
 }
 
 export interface TaskRowView {
@@ -248,6 +263,8 @@ export interface TaskRowView {
   readonly busy?: boolean;
   /** The connection is lost: the row says it is being checked and offers nothing to press. */
   readonly checking?: boolean;
+  /** Owning work item label shown neutrally in 「在办」 (Decision 48 ⑥, design-language-37). */
+  readonly item?: string;
 }
 
 /**
@@ -258,9 +275,10 @@ export interface TaskRowView {
 export function renderTaskRow(row: TaskRowView): string {
   const step = row.checking ? uiText.text("workbench.work-line.checking") : row.step && plainLine(row.step);
   const control = row.control && !row.checking ? `<button type="button" class="work-task-row-key"${row.control === "decide" ? " data-lead" : ""} data-task-control="${row.control}" data-task="${escapeHtml(row.id)}"${row.busy ? " disabled" : ""}>${uiText(`workbench.work-line.${row.control === "decide" ? "go-handle" : row.control}`)}</button>` : "";
-  const label = [row.title, step].filter(Boolean).join(" · ");
+  const itemTag = row.item ? `<span class="work-task-row-item" title="${escapeHtml(row.item)}">${escapeHtml(row.item)}</span>` : "";
+  const label = [row.title, row.item, step].filter(Boolean).join(" · ");
   return `<div class="work-task-row" data-level="${row.level ?? 1}" data-state="${row.done ? "done" : "live"}"><button type="button" class="work-task-row-main" ${row.sub ? `data-subtask-open="${escapeHtml(row.sub)}"` : `data-task-open="${escapeHtml(row.id)}"`}${row.checking ? " disabled" : ""} title="${escapeHtml(label)}">${renderStateGlyph(row.checking ? "wait" : row.done ? "done" : glyphOfRing(row.ring))}`
-    + `<b class="work-task-row-title">${escapeHtml(row.title)}</b>${step ? `<small class="work-task-row-step">${escapeHtml(step)}</small>` : ""}</button>${control}</div>`;
+    + `<b class="work-task-row-title">${escapeHtml(row.title)}</b>${itemTag}${step ? `<small class="work-task-row-step">${escapeHtml(step)}</small>` : ""}</button>${control}</div>`;
 }
 
 export interface TaskDecisionView {
@@ -268,6 +286,8 @@ export interface TaskDecisionView {
   readonly task: string; readonly id: string;
   readonly reference?: { readonly id: string; readonly version: string };
   readonly ask: string; readonly why?: string;
+  /** Rendered by the Host from the review queue. */
+  readonly reviewHtml?: string;
   /** The asking task's name, where the card is not that task's own. */
   readonly from?: string;
   readonly changes: readonly { readonly label: string; readonly value: string }[];
@@ -298,9 +318,10 @@ export function renderTaskDecision(view: TaskDecisionView): string {
     : `<div class="work-card-actions">${view.answers.length
       ? view.answers.map(role => button(role, role === "approve" && view.lead ? "primary" : "secondary", { "data-decision-answer": role })).join("")
       : renderButton({ variant: view.lead ? "primary" : "secondary", size: "sm", label: say("go-handle"), attrs: { "data-decision-go": "" } })}</div>`;
-  return `<section class="work-decision" data-task-decision="${escapeHtml(view.id)}" data-task="${escapeHtml(view.task)}"${view.reference ? ` data-review-reference="${escapeHtml(view.reference.id)}" data-review-version="${escapeHtml(view.reference.version)}"` : ""} aria-label="${escapeHtml(view.ask)}"${view.busy ? ' aria-busy="true"' : ""}>`
-    + `<p class="work-decision-ask" title="${escapeHtml(plainLine(view.ask))}">${escapeHtml(plainLine(view.ask))}</p>`
+  return `<section class="work-decision" data-task-decision="${escapeHtml(view.id)}" data-task="${escapeHtml(view.task)}"${view.reference ? ` data-review-reference="${escapeHtml(view.reference.id)}" data-review-version="${escapeHtml(view.reference.version)}"` : ""}${view.reviewHtml ? " data-task-held-review" : ""} aria-label="${escapeHtml(view.ask)}"${view.busy ? ' aria-busy="true"' : ""}>`
+    + (view.reviewHtml ? "" : `<p class="work-decision-ask" title="${escapeHtml(plainLine(view.ask))}">${escapeHtml(plainLine(view.ask))}</p>`)
     + (changes ? `<ul class="work-decision-changes" aria-label="${escapeHtml(say("decision-changes"))}">${changes}</ul>` : "")
+    + (view.reviewHtml ? `<div class="work-decision-changes">${view.reviewHtml}</div>` : "")
     + (why ? `<small class="work-decision-why" title="${escapeHtml(why)}">${escapeHtml(why)}</small>` : "") + answers + `</section>`;
 }
 

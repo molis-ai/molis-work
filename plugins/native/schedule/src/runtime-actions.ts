@@ -1,13 +1,13 @@
 import { ActionError, type ActionExecutionContext, type ActionHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
-import { createScheduleActionHandlers } from "./actions.js";
+import { createScheduleActionHandlers, scheduleActions } from "./actions.js";
 import { createScheduleActionPorts } from "./service.js";
 import { createReminderActionHandlers } from "./reminder-actions.js";
 import { createScheduleReminders } from "./reminders.js";
 import { createScheduleReminderManagement } from "./reminder-management.js";
 import { createScheduledOperationActionHandlers, scheduledOperationActions } from "./operation-actions.js";
-import { createScheduledOperations, type ScheduledOperationInput } from "./operations.js";
+import { createScheduledOperations, listScheduledOperations, type ScheduledOperationInput } from "./operations.js";
 import { createScheduledOperationManagement } from "./operation-management.js";
 import { scheduleErrors } from "./error.js";
 import type { scheduleRuntimeDatabase } from "./runtime-database.js";
@@ -19,10 +19,12 @@ export type ScheduleRuntime = ReturnType<typeof scheduleRuntimeDatabase>;
 
 export async function scheduleRuntimeActions(projectId: string, services: PluginHostServices, runtime: ScheduleRuntime, grants: ScheduleTaskGrants,
   caller: ActionExecutionContext, capabilityId: string): Promise<ActionHandlerBinding[]> {
-  const observed = services.installations!.list();
-  const needOperations = capabilityId === "schedule.tasks.list" || capabilityId.startsWith("schedule.operations.") || capabilityId.startsWith("schedules.");
+  const { db, schedule } = runtime, observed = services.installations!.list();
+  const listedOperations = capabilityId === scheduleActions.list.capability_id ? listScheduledOperations(db, projectId) : undefined;
+  // Only saved plans need the installation's list of operations for their recovery view.
+  const needOperations = Boolean(listedOperations?.length) || capabilityId.startsWith("schedule.operations.") || capabilityId.startsWith("schedules.");
   const views: readonly ActionView[] = needOperations ? await services.actions!.dependencies!.discover() : [];
-  const owners = scheduleInstallations(services.installations!, observed, views), { db, schedule } = runtime;
+  const owners = scheduleInstallations(services.installations!, observed, views);
   const write = <T>(context: ActionExecutionContext, operation: () => T) => runtime.write(context.beforeEffect, operation);
   const link = (pluginId: string) => `/projects/${encodeURIComponent(projectId)}/plugins/${encodeURIComponent(pluginId)}`;
   const reminders = createScheduleReminders({ db, projectId, schedule, describe: identity => {
@@ -35,7 +37,7 @@ export async function scheduleRuntimeActions(projectId: string, services: Plugin
   }, link });
   const ports = createScheduleActionPorts({ db, schedule,
     reminders: createScheduleReminderManagement({ db, projectId, schedule, currentInstallation: owners.reminder }),
-    operations: createScheduledOperationManagement({ db, projectId, schedule, currentInstallation: owners.operation }),
+    operations: createScheduledOperationManagement({ db, projectId, schedule, currentInstallation: owners.operation, listedOperations }),
     readiness: async () => {
       // A round runs in the project's output (SSC-17). A project without directory services is not ready; refused or failed reads remain errors.
       const directories = await services.actions!.invoke(projectDirectoryActions.get, {}).catch(error => {

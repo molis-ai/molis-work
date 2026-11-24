@@ -1,7 +1,7 @@
 import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ActionError, defineRunDecisionAction, defineRunsOverviewAction, type ActionCallContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineRunDecisionAction, defineRunsOverviewAction, type ActionExecutionContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { decideBackgroundTask, readBackgroundTasks, runBackgroundTaskCommand } from "@molis-ai/molis-work-service-mainline";
 import { readFileSync } from "node:fs";
 import { createImagesActionHandlers, imagesActions, type ImageJob } from "@molis-ai/molis-work-plugin-images";
@@ -13,7 +13,7 @@ import { installTextForTest, parseLocalePack } from "@molis-ai/molis-work-plugin
  * what is pressed on a row is the owner's own action, read again in that call.
  */
 
-const CALLER: ActionCallContext = { actor_id: "person", audience: "user", project_id: "p1", permissions: [] };
+const CALLER: ActionExecutionContext = { actor_id: "person", audience: "user", project_id: "p1", permissions: [], beforeEffect: async () => {} };
 const view = (definition: Pick<ActionView, "capability_id" | "version" | "operation" | "action">, provider: string, available = true): ActionView => ({ ...definition, provider: { provider_id: provider, title: provider, kind: "plugin" },
   availability: available ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "这个插件没有开启" } });
 const overview = (provider: string, scope: "project" | "home" = "project") => view(defineRunsOverviewAction(`${provider}.runs.overview`, 1, "运行概况", [`${provider}:read`], scope), provider);
@@ -48,7 +48,10 @@ test("WLN-39 what runs on its own and was missed is a task that waits on the per
   assert.deepEqual([r1!.title, r1!.state, r1!.waiting, r1!.updated_at, r1!.scope, r1!.executor, r1!.origin], ["每天 r1", "answer", true, "2026-11-14T01:00:00.000Z", "project", { kind: "plugin", label: "定时任务" }, { surface: "schedule", title: "定时任务", icon: "clock" }]);
   assert.deepEqual(r1!.open, { kind: "item", surface: "schedule", id: "r1", title: "每天 r1", label: "打开" }); assert.equal(r2!.open, null);
   assert.deepEqual(r1!.commands, []);
-  assert.deepEqual(r1!.decisions.map(asked => [asked.id, asked.answers.map(answer => [answer.role, answer.action, answer.input])]), [["missed", [
+  assert.deepEqual(r1!.decisions.map(asked => [asked.id, asked.answers.map(answer => {
+    assert.ok("action" in answer, "the answer comes from the missed run's owner");
+    return [answer.role, answer.action, answer.input];
+  })]), [["missed", [
     ["approve", { capability_id: "schedule.runs.decide", version: 2, provider_id: "schedule" }, { run_id: "r1", decision: "run_now" }],
     ["reject", { capability_id: "schedule.runs.decide", version: 2, provider_id: "schedule" }, { run_id: "r1", decision: "skip" }]]]]);
   assert.deepEqual(pull!.decisions, [], "an owner with no decision action of its own offers nothing to press; another provider's is not borrowed");

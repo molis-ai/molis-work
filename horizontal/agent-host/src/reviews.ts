@@ -1,6 +1,7 @@
 import { agentErrors } from "./errors.js";
 import { isDeepStrictEqual } from "node:util";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import { BACKGROUND_TASK_MAX_HELD_REVIEWS } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
 
   AgentReviewDecisionInput,
@@ -11,6 +12,7 @@ import type {
   AgentReviewRequest,
   AgentReviewRow,
   AgentReviewStatus,
+  AgentSessionOwner,
   AgentGitIndexObservation,
   AgentReviewRecoveryInput,
   AgentReviewRecoveryView,
@@ -31,7 +33,12 @@ export interface ReviewDecisionCommit {
   assertCurrent(): void;
   effect<T>(write: () => Promise<T>, assertOwnerCurrent?: () => void): Promise<T>;
 }
-interface DecisionBoundary { beforeEffect?(): Promise<void>; assertCurrent?(request: AgentReviewRequest): void }
+interface DecisionBoundary {
+  beforeEffect?(): Promise<void>;
+  /** A source can check that it still offers the pending decision when it is about to be saved. */
+  beforeSave?(): Promise<void>;
+  assertCurrent?(request: AgentReviewRequest): void;
+}
 
 /**
  * The installation that started a plugin's person-reviewed Host operation (PG-009). It must declare and hold `review:<kind>`
@@ -392,10 +399,18 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     const commit: ReviewDecisionCommit = Object.assign(async (assertOwnerCurrent?: () => void) => {
       if (committed) throw agentErrors.review_already_decided("本次决定已经保存");
       const saved = await store.save({ reference: request.reference, decision: input.decision, actor_id: input.actor_id,
-        decided_at: this.#now().toISOString(), note: input.note ?? null, source }, request, { ...control, assertCurrent: () => {
-          assertCurrent(); requireSynchronous(assertOwnerCurrent?.()); this.#pending(input.review_id);
+        decided_at: this.#now().toISOString(), note: input.note ?? null, source }, request, {
+        beforeEffect: async () => {
+          await control.beforeEffect();
+          await boundary?.beforeSave?.();
+        },
+        assertCurrent: () => {
+          assertCurrent();
+          requireSynchronous(assertOwnerCurrent?.());
+          this.#pending(input.review_id);
           if (this.#claims.get(input.review_id) !== claim || this.#deciders.get(input.review_id) !== handler || answerable && !answerable()) throw agentErrors.pending_not_open("原执行等待已经结束");
-        } });
+        },
+      });
       if (saved.state === "not-saved") throw saved.error;
       if (saved.state === "unknown") {
         claim.unknown = true; row.receipt.decision_save_error = "决定保存待核对，不能再次批准或拒绝";
@@ -462,6 +477,21 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
         && (status === undefined || this.#status(row) === status))
       .map((row) => clonePresentedReview(row.request))
       .sort((left, right) => left.requested_at.localeCompare(right.requested_at));
+  }
+
+  /** Task providers only need IDs. Scan once without copying any of the proposals. */
+  pendingIds(owner: Pick<AgentSessionOwner, "project_id" | "plugin_id" | "install_id">, sessionIds: readonly string[]) {
+    const sessions = new Set(sessionIds), matches = new Map<string, string[]>();
+    for (const row of this.#rows.values()) {
+      const { run, reference, review_id } = row.request;
+      if (!run || !sessions.has(run.session_id) || review_id.length > 200 || reference.owner.kind !== "agent-review"
+        || reference.owner.project_id !== owner.project_id || reference.owner.plugin_id !== owner.plugin_id
+        || reference.owner.install_id !== owner.install_id || this.#status(row) !== "pending") continue;
+      const ids = matches.get(run.session_id) ?? [];
+      if (ids.length < BACKGROUND_TASK_MAX_HELD_REVIEWS) ids.push(review_id);
+      matches.set(run.session_id, ids);
+    }
+    return Array.from(matches, ([session_id, ids]) => ({ session_id, ids }));
   }
 
   get(reviewId: string): AgentReviewRequest | null {

@@ -52,6 +52,7 @@ export function createPrologueInference(runtime: Runtime,
           if (event.type === "text-delta" || event.type === "model-reported" || event.type === "usage-recorded") input.onProgress?.(event);
         } });
         const execution = { run_ref: result.ref, state: result.state, configuredModel: input.model, reportedModels: result.reportedModels, usage: result.usage };
+        input.onReceipt?.(execution);
         if (result.state !== "completed") {
           const error = result.terminal.type === "failed" ? safeError(result.terminal.error) : undefined;
           throw new PrologueInferenceError(error instanceof PrologueInferenceError ? error.code : `inference.${result.state}`, "模型未完成，原材料已保留",

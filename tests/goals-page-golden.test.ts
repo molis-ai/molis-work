@@ -373,6 +373,11 @@ const pages: Record<string, Draw> = {
 // On merging main 1ab4eb5b (#2239, Batch 47-1 C moving Plugin Studio onto the platform), all 16 `page-*` records were re-recorded
 // (`MOLIS_WORK_GOLDEN_RECORD=1`): uniform +5008 (zh) / +5364 (en) vs pre-merge #2258 (exact #2239 studio delta after #2243's -26),
 // and all 36 fragment/settings records stayed byte-identical.
+// Batch 37 (37-1 generated home page & 37-2 mainline workbench, PR #2288): `apps/workbench/src/project-home.ts` added the generated-page
+// mount/compare/adopt containers, `apps/workbench/src/side-panel.ts` added the hidden conditional `item-contents` tab (`order: 52`), and
+// `apps/workbench/src/shell-page-renderer.ts` loaded `/assets/molis-work-mainline.js`. Re-recorded (`MOLIS_WORK_GOLDEN_RECORD=1`):
+// uniform +1814 (zh) / +1892 (en) on 14 `page-*` records and +1834 (zh) / +1912 (en) on `page-current-desktop`; all 36 fragment/settings
+// records stayed byte-identical.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

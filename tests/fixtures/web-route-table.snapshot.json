@@ -790,6 +790,7 @@
       "background_tasks",
       "board_cursor",
       "line",
+      "mainline_summary",
       "notices",
       "plugin_events_pending",
       "tasks"

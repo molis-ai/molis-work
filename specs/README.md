@@ -16,8 +16,6 @@
 
 ## 在做的
 
-- [D 轨界面收口](d-track-ui-closeout/spec.md) 由 Codex 负责。390px 英文组件板、引导提示和首显阶梯已通过本地定向验收，待合入。
-
 - [欢迎页语言切换与工作台 503 提示](onboarding-language-503/spec.md)：Codex。首次使用保留欢迎区、焦点和底栏，工作台遇到本机服务不可用时提供重试。
 - [11 月 21 日三天复核修复](main-review-1121/spec.md)：Claude，11-18～11-21 合入与全部已合入批次的复核修复（定时任务、主线半写入、预算棘轮、删兼容、公网地址一张表、整字截断、证据与文档补齐）；报告在 [`docs/reviews/main-review-2026-11-21.md`](../docs/reviews/main-review-2026-11-21.md)。
 - [11 月 19 日 main 合入复查修复](main-review-1119/spec.md)：Codex，附件、交付评估、会话发现、子任务读取、CI 和角色编辑回归。
@@ -26,7 +24,6 @@
 - [第 35 批复核修复](batch-35-audit-fixes/spec.md) 覆盖 Sessions 接续、Coding A 期与共享附件。负责人 Codex。工程验证和本人验收进度见规格书。
 - [项目删除、待办与生图一致性](architecture-review-fixes/spec.md)：独立分支已实现，工程验证见该需求书。
 - [第 61 批复核修复](batch-61-audit-fixes/spec.md)：Codex，在独立分支修复 #2133 的采用、触达、账号选择与搜索问题；实施与验证见该需求书。
-- [页面刷新、成果动作和固定变更的 SDK 收口](sdk-contract-closeouts/spec.md)，负责人 Codex，实施与验证见需求书。
 
 刚合入、等真实 Home 采用或本人验收的项也留在这里，状态写在条目上。
 
@@ -172,8 +169,12 @@
 
 ## 梳理记录
 
+- 2026-11-23：[第 42 批 Skill 创作余项](archive/bl-b42-followups/spec.md)归档（已实现，负责人 Codex）。工程验证见 #2271，真实供应商和本人试用见 BL-b42-acceptance。
+- 2026-11-23：[D 轨界面收口](archive/d-track-ui-closeout/spec.md)归档（已实现，负责人 Codex）。390px 英文组件板、引导提示和首显阶梯随 [#2277](https://github.com/molis-ai/molis-work/pull/2277) 合入。
+
 - 2026-11-13：个人同步六份、Prologue 四份、情境三份分别合并为一份总纲 + 子文档；原正文保留，子文档开头注明原路径，现行文档的入链已改到新位置，历史研究里的旧 URL 保留。工作线两份保留，见「相关 spec 族」。
 - 2026-11-13：文档收口 P0 归档五份已完成 spec：[D0002](archive/daily-quality-d0002/spec.md)（#1970）、[D0071](archive/daily-quality-d0071/spec.md)（#1972）、[D0039](archive/daily-quality-d0039/spec.md)（#1971）、[D0244](archive/daily-quality-d0244/spec.md)（#1974）与 [D0038](archive/daily-quality-d0038/spec.md)（#1982）；五份均判定已实现、无剩余。Feed 有界读取因 #2045 补修在评审，保留在「在做的」。同期立项 [documentation-consolidation](documentation-consolidation/spec.md)，记录审计结论与 P0/P1/P2。
+- 2026-11-23：[页面刷新、成果动作和固定变更的 SDK 收口](archive/sdk-contract-closeouts/spec.md)归档（已实现，负责人 Codex）。[#2274](https://github.com/molis-ai/molis-work/pull/2274) 已合入 `main`（`6c2de22521`），三项验收完成。
 
 - 2026-11-10：[D0033 侧栏与打印隔离](archive/daily-quality-d0033/spec.md)归档（已实现）；既有隔离与打印回收专项 42 项通过，Chrome 验收不替代真实桌面 IPC。
 - 2026-11-10：[中优先级 A54 修复](archive/daily-quality-medium-20261108/spec.md)归档（已实现）；#2004 经最终 CI、Full 32 分片与正常合并队列通过后合入 main，B/C 未决项仍见对应日评。

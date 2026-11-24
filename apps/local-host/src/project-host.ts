@@ -4,6 +4,8 @@ import { skillCatalogProviderFor } from "./agent-definitions/skill-catalog-host.
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
 import { kitProviders } from "./kit-actions.js";
 import { mainlineHost, mainlineProvider } from "./mainline-actions.js";
+import { mainlineHeldReviews } from "./mainline-held-reviews.js";
+import { computerHolderFor } from "./computer/computer-surfaces.js";
 import { acceptanceProvider } from "./acceptance-actions.js";
 import { resolveHostProjectReference } from "./acceptance-http.js";
 import { withConnectorsKitReport } from "./kit-mcp-reports.js";
@@ -17,6 +19,7 @@ import { hostErrors } from "./host-errors.js";
 import { createSettingsVersionClaims } from "./declaration-owners.js";
 import { bindHomeSide, bindPluginCatalog, releaseHomeSide, type PluginFixture } from "./home-side.js";
 import { homeActionProvider } from "./home-actions.js";
+import { homePagesPorts } from "./home-pages-actions.js";
 import { surfaceActionProvider } from "./surface-actions.js";
 import type { SurfaceHomeCatalogReader } from "./surface-home-directory.js";
 import { projectSurfaceHome } from "./surface-home-http.js";
@@ -269,6 +272,7 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes: this.sceneClient(reference), functions: options.functions, readFunctions: this.systemFunctions?.read, pageDrafts: this.draftReferences,
+                homePages: homePagesPorts(options.homeDirectory, caller => this.inspectActions(caller, reference), clock),
                 projectPlugins: projectId => this.projectPluginReach(projectId) }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
@@ -311,10 +315,11 @@ export class MolisWorkLocalHost {
     // What the Host offers for as long as it runs, registered here and nowhere else: all `system`, none a plugin's (a plugin registers its own through the Plugin Runtime).
     this.plugins = { host: this.host, localHost: this, options: this.options, ownerClosing: () => !!this.closing.started, agents: () => this.agents?.service, homePlugins: () => this.homePlugins };
     const callerClient = (caller: ActionCallContext) => callerOwnClient(this, caller);
+    const taskReviews = mainlineHeldReviews(async () => (await readyAgentHost(this.plugins))?.reviews, () => computerHolderFor(this)?.() ?? null);
     const platform: ActionProviderRegistration[] = [
       accountActionProvider(() => accountSessionForHost(this)), ...(this.observation ? [this.observation.provider] : []), ...(this.sessions ? [this.sessions.provider] : []),
       actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(), ...(options.homeDirectory && this.recommendations ? [adoptionProvider(this, options.homeDirectory, callerClient)] : []), agentReviewProvider(), assistantPanelProvider(), authorizationManagementProvider(), projectApprovalsProvider(), // the pages' writes, behind their doors (B9)
-      mainlineProvider(callerClient, options.homeDirectory ? mainlineHost(options.homeDirectory, this.plugins) : undefined), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
+      mainlineProvider(callerClient, options.homeDirectory ? mainlineHost(options.homeDirectory, this.plugins) : undefined, taskReviews), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
       ...(this.assistantStore ? [assistantSettingsProvider(this.assistantStore), assistantDelegationProvider({ host: this, works: this.assistantStore,
         permissions: async () => (await readyAgentHost(this.plugins))?.workDelegations("prologue") })] : []),
       stateMachineRegistryProvider(options.homeDirectory ? { homeDirectory: options.homeDirectory, resolveProject: projectId => resolveHostProjectReference(this.host.projects(), options.homeDirectory!, this.catalogRunner, molisWorkHostProjectReference, projectId) } : undefined),

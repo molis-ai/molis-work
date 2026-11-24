@@ -33,6 +33,10 @@
     "./session-sources": {
       "types": "./dist/primitives/session-sources.d.ts",
       "import": "./dist/primitives/session-sources.js"
+    },
+    "./home-page-adoption": {
+      "types": "./dist/primitives/home-page-adoption.d.ts",
+      "import": "./dist/primitives/home-page-adoption.js"
     }
   },
   "files": [

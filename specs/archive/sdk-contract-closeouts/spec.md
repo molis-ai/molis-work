@@ -1,6 +1,8 @@
 # 页面刷新、成果动作和固定变更的 SDK 收口
 
-状态：本地验证通过，待评审（2026-11-23，负责人 Codex）。
+> 归档（2026-11-23）：判定为**已实现**。[#2274](https://github.com/molis-ai/molis-work/pull/2274) 已合入 `main`（`6c2de22521`）。三项工程验收通过，三份待办已删除并登记。
+
+状态：已合入（负责人 Codex）。
 
 用户授权把 BL-ui-client-scope-watch-revision、BL-artifact-sdk-handler-binding、BL-coding-changeset-view-shared 合成一组改动。目标是功能可用并完成本地工程验证。推送和开 PR 按仓库授权规则办理，最终提交的全量测试由 CI 运行。
 
@@ -33,4 +35,7 @@
 - 合同套件 68/68 文件、980/980 条通过。关键定向回归 20/20 文件、117/117 条通过，覆盖已打开 Schedule 详情的就地刷新和迟到响应、成果动作读写及拒绝、Shelf 的列出到接收、Coding 和 Diff 的固定变更与补丁。
 - 包级回归首次通过 116/117 文件。Shelf 的测试替身曾把未声明的计划加入可消费查询。替身改从 Manifest 取声明，保留原断言。末次构建后，Shelf 单测及真实 HTTP、成果 SDK 和 schema 共复跑 4/4 文件通过，补齐第 117 个包级文件。
 - `pnpm studio:replay` 的 404 份答卷维持既有判定。隔离 Home 的替身生成冒烟 4/4。该 Home 未配置模型，真实生成未运行。
-- 共享核心全量与合并队列验证待送审提交进入 CI。
+- 最终 PR 头 `bdaffee9e4` 复评后重新构建。本机包边界、资源预算、版本校验和五个定向文件全过。Coding 预览沿用已有固定引用规则，真实 HTTP 回归验证未保存时能预览，已保存后才有逐行反馈。[复评记录](https://github.com/molis-ai/molis-work/pull/2274#issuecomment-7108446905)
+- [常规 CI](https://github.com/molis-ai/molis-work/actions/runs/45225850212)、[视觉检查](https://github.com/molis-ai/molis-work/actions/runs/45225849703)和[全量回归 24/24](https://github.com/molis-ai/molis-work/actions/runs/45226135096)通过。
+- 首轮合并队列的 `tests/doc-reference-gates.test.ts` 超时，同一队列提交在本机单跑 85/85 通过。[首轮记录](https://github.com/molis-ai/molis-work/actions/runs/45234614121)
+- 最终[合并队列](https://github.com/molis-ai/molis-work/actions/runs/45254592491)的 `Verify` 通过，并确认 [`6c2de22521`](https://github.com/molis-ai/molis-work/commit/6c2de22521f88e4809dff98111e92aa2ff74cba6) 已在 `main` 上，文件树与同一基线合入评审头的结果一致。

@@ -23,6 +23,7 @@
 - **插件上报**：照工作流程插件（`plugins/native/workflows/src/observation.ts`）：Manifest 声明消费 `observation.report@1`，用 `context.services.actions.invoke` 以自己的安装身份调用，在业务写完之后 await、出错吞掉，从不让上报决定业务的成败；被取消或撤权的调用，上报也会被拒。
 - **外壳的界面阶段**：工作台页面脚本 `apps/workbench/src/scripts/client/work-records.ts` 是唯一的发送处（项目页发到 `/projects/<id>/api/observation/ui`，记在该项目下）；别的界面代码拿到它的 `record`、`subject`、`interaction(list)` 来记，不另开请求。高频的停留与滚动按对象每分钟汇总。
 - **宿主侧的记录器**：服务不在 Host 对象上时，用 `liveObservation(home)` 找到这个 Home 正在运行的采集层；没有运行层（命令行卸载）时，`recordGrantChanges` 直接开这个 Home 的库写同形记录。授权变化写在保存之后、从不抛错。
+- **单次文字模型用量**：`HostCompleteText` 和 `hostTextGeneration` 共用 `onReceipt`。技能起草、修订、回放和插件的 `services.model` 经同一个宿主记录器写 `agent.usage`（`stage: "inference"`）。每份实际用量回执只记一次，正文交付的末次复查仍单独进行。记录用原调用的项目、入口和调用编号，带 Prologue 运行编号、请求模型、供应商报告的模型、用量来源与缓存口径。估算值标明来源，未知数字留空。技能回放与判定标为 `trial`。
 
 ## 读取、用途开关与清理
 

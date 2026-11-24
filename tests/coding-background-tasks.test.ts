@@ -1,10 +1,12 @@
-import type { HomeBackgroundTaskRow, HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import type { BackgroundTasksReadResult, HomeBackgroundTaskRow, HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { homeAggregatePorts, homeBackgroundTasks, LOCALE_COOKIE, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { BACKGROUND_TASKS_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/platform/actions";
+import { BACKGROUND_TASKS_OUTPUT_TYPE, LOCAL_PERSON_ACTOR_ID, type ActionClient, type BackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import * as codingPackage from "@molis-ai/molis-work-plugin-coding";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
@@ -23,6 +25,51 @@ import { openTestHome } from "./fixtures/test-home.js";
  */
 
 const source = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
+
+test("WLHR-01: Coding reports pending IDs for its bound Agent session; the workbench gets the original review from the Host", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t);
+  const project = await home.createProject("Coding reviews", ["coding"]);
+  await startProjectPlugins(home.host, project.reference);
+  const { project_id, database_path } = project, sessionId = "coding-session", runtimeSessionId = "runtime-session";
+  const store = new LocalProjectDatabase(database_path), sessions = codingSessions(store), at = new Date().toISOString();
+  try {
+    await sessions.create(noEffect, { project_id, session_id: sessionId, title: "Revise the quote", runtime_id: "prologue", at });
+    await sessions.setRuntimeSession(noEffect, project_id, sessionId, runtimeSessionId, at);
+    await sessions.setState(noEffect, project_id, sessionId, "waiting-approval", at);
+  } finally { store.close(); }
+  const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user" as const, project_id, permissions: ["artifact:read"] };
+  const client: ActionClient = home.host.actionClient(project.reference);
+  const view = (await client.discover(caller)).find(action => action.capability_id === "coding.background.tasks");
+  assert.ok(view?.provider.plugin_id && view.provider.plugin_install_id);
+  const agents = home.host.ensureAgentService(home.home, () => { throw new Error("The served Home owns the Agent service"); });
+  await agents.ready;
+  const queue: AgentReviewQueue = agents.agentHost.reviews;
+  const owner = { kind: "agent-review" as const, project_id, plugin_id: view.provider.plugin_id, install_id: view.provider.plugin_install_id };
+  for (const [id, session_id, install_id] of [["edit-quote", runtimeSessionId, owner.install_id], ["edit-other", "other-session", owner.install_id], ["edit-old", runtimeSessionId, "other-install"]]) {
+    queue.request({ review_id: id, reference: { owner: { ...owner, install_id }, id, version: "proposal-1" }, project_id, plugin_id: owner.plugin_id,
+      kind: "text-edit", run: { session_id, run_id: "test-run" }, requested_at: at, expires_at: null,
+      document: { kind: "text-edit", target_path: id + ".md", exists: true, before_text: "Before", after_text: "New quote" } });
+    queue.registerDecisionHandler(id, async (_input, commit) => await commit());
+  }
+  const raw = await client.invoke(caller, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {}) as BackgroundTaskCollection;
+  const task = raw.tasks.find(one => one.subject.id === sessionId);
+  assert.deepEqual(task?.held_reviews, { session_id: runtimeSessionId, ids: ["edit-quote"] });
+  assert.deepEqual(task?.decisions, []);
+  assert.doesNotMatch(JSON.stringify(task), /New quote|edit-quote\.md/);
+  const table = await home.web.post<BackgroundTasksReadResult>(`/projects/${project_id}/api/mainline/tasks`, {});
+  const row = table.tasks.find(one => one.subject.id === sessionId);
+  assert.deepEqual(row?.decisions.map(decision => decision.id), ["edit-quote"]);
+  assert.match(JSON.stringify(row?.decisions), /New quote/);
+  const overview = await home.web.get<{ background_tasks: HomeBackgroundTasksReadResult }>("/api/attention");
+  const summary = overview.background_tasks.tasks.find(one => one.subject.id === sessionId);
+  assert.ok(summary, "the session still appears in the Home summary");
+  assert.doesNotMatch(JSON.stringify(summary), /held_reviews|edit-quote|New quote/);
+  assert.equal(await home.host.sleepIfIdle(project.reference, 0), true);
+  const cache = join(home.home, "cache", "resting-readings");
+  const resting = readdirSync(cache).filter(name => name.endsWith(".json")).map(name => readFileSync(join(cache, name), "utf8")).join("\n");
+  assert.match(resting, /Revise the quote/, "the resting cache still has the summary of the waiting task");
+  assert.doesNotMatch(resting, /held_reviews|edit-quote|New quote/);
+});
 
 test("W5-01-CODING-32 Coding declares its background tasks as a read-only project query the Home may gather; its reader and the Host's old one are gone", () => {
   const declared = codingManifest.actions?.find(action => action.capability_id === "coding.background.tasks");

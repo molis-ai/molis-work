@@ -106,7 +106,7 @@ export async function stopOriginalRunWithSettlement(
   if (originalRunEnded(before)) return true;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let unsubscribe: (() => void) | undefined;
-  let deferred = false;
+  let handedOff = false;
   let settledByEvent = false;
   try {
     let settle!: (completed: boolean) => void;
@@ -117,7 +117,7 @@ export async function stopOriginalRunWithSettlement(
       settledByEvent = true;
       unsubscribe?.();
       unsubscribe = undefined;
-      if (deferred) options.onSettled?.();
+      if (handedOff) options.onSettled?.();
       else settle(true);
     };
     const waiting = new Promise<boolean>((resolve, reject) => {
@@ -140,7 +140,6 @@ export async function stopOriginalRunWithSettlement(
       if (deferRunning && before.phase === "running") {
         timer = setTimeout(() => {
           if (done || settledByEvent) return;
-          deferred = true;
           settle(false);
         }, runningWaitMs);
       } else {
@@ -148,16 +147,17 @@ export async function stopOriginalRunWithSettlement(
       }
     }
     const settled = await waiting;
-    if (!settled && !settledByEvent && originalRunEnded(await adapter.read(run))) {
+    if (settled || settledByEvent) return true;
+    const after = await adapter.read(run);
+    if (settledByEvent || originalRunEnded(after)) {
       settledByEvent = true;
-      unsubscribe?.();
-      unsubscribe = undefined;
       return true;
     }
-    return settled;
+    handedOff = true;
+    return false;
   } finally {
     clearTimeout(timer);
-    if (!deferred || settledByEvent) unsubscribe?.();
+    if (!handedOff) unsubscribe?.();
   }
 }
 

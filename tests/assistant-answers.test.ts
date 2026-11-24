@@ -12,7 +12,7 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-a
 import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_PERSONAL_OWNER } from "@molis-ai/molis-work-contracts/services/assistant";
-import { assistantAuthority, AssistantStore, installHostUiText, LocalHost, stopOriginalRun } from "@molis-ai/molis-work-app-local-host";
+import { assistantAuthority, AssistantStore, installHostUiText, LocalHost, stopOriginalRun, stopOriginalRunWithSettlement } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -136,6 +136,110 @@ test("stopOriginalRun holds the ending barrier past 50ms for running rounds and 
     (error: unknown) => error instanceof ActionError && error.code === "assistant.state",
     "a running round that never settles must reject stopOriginalRun",
   );
+});
+
+test("stopOriginalRunWithSettlement guarantees exact-once handoff across post-timeout read races and read failures", async () => {
+  const run = { session_id: "s-race", run_id: "r-race" };
+  const control = { beforeEffect: async () => {}, assertCurrent() {} };
+
+  // Case 1: terminal event arrives while the post-timeout adapter.read(run) is pending -> must return true, call onSettled 0 times, and unsubscribe.
+  {
+    let reads = 0;
+    let unsubscribed = 0;
+    let onSettledCalls = 0;
+    const listeners = new Set<(view: { phase: string; ended_at: string | null }) => void>();
+    const thirdReadEntered = Promise.withResolvers<void>();
+    const releaseThirdRead = Promise.withResolvers<void>();
+    const adapter = {
+      read: async () => {
+        reads += 1;
+        if (reads <= 2) return { ref: run, phase: "running", ended_at: null };
+        thirdReadEntered.resolve();
+        await releaseThirdRead.promise;
+        return { ref: run, phase: "stopped", ended_at: new Date().toISOString() };
+      },
+      observe: (_ref: unknown, listener: (view: { phase: string; ended_at: string | null }) => void) => {
+        listeners.add(listener);
+        return () => {
+          if (listeners.delete(listener)) unsubscribed += 1;
+        };
+      },
+      control: async () => {},
+    };
+    const stopping = stopOriginalRunWithSettlement(adapter as never, run, control, {
+      deferRunningSettlement: true,
+      runningWaitMs: 20,
+      onSettled: () => { onSettledCalls += 1; },
+    });
+    await thirdReadEntered.promise;
+    for (const listener of [...listeners]) listener({ phase: "stopped", ended_at: new Date().toISOString() });
+    releaseThirdRead.resolve();
+    const settled = await stopping;
+    assert.equal(settled, true, "event during pending post-timeout read resolves synchronously as settled");
+    assert.equal(onSettledCalls, 0, "onSettled must never fire when returning settled=true");
+    assert.equal(unsubscribed, 1, "observer is unsubscribed exactly once");
+  }
+
+  // Case 2: post-timeout adapter.read(run) throws -> must reject, unsubscribe observer, and never invoke onSettled.
+  {
+    let reads = 0;
+    let unsubscribed = 0;
+    let onSettledCalls = 0;
+    const listeners = new Set<(view: { phase: string; ended_at: string | null }) => void>();
+    const adapter = {
+      read: async () => {
+        reads += 1;
+        if (reads <= 2) return { ref: run, phase: "running", ended_at: null };
+        throw new Error("read failed after timeout");
+      },
+      observe: (_ref: unknown, listener: (view: { phase: string; ended_at: string | null }) => void) => {
+        listeners.add(listener);
+        return () => {
+          if (listeners.delete(listener)) unsubscribed += 1;
+        };
+      },
+      control: async () => {},
+    };
+    await assert.rejects(
+      stopOriginalRunWithSettlement(adapter as never, run, control, {
+        deferRunningSettlement: true,
+        runningWaitMs: 20,
+        onSettled: () => { onSettledCalls += 1; },
+      }),
+      /read failed after timeout/,
+    );
+    assert.equal(unsubscribed, 1, "observer is unsubscribed on post-timeout read error");
+    for (const listener of [...listeners]) listener({ phase: "stopped", ended_at: new Date().toISOString() });
+    assert.equal(onSettledCalls, 0, "onSettled never fires after rejected call");
+  }
+
+  // Case 3: run stays running past post-timeout read -> returns false, keeps observer attached, and invokes onSettled once on terminal event.
+  {
+    let unsubscribed = 0;
+    let onSettledCalls = 0;
+    const listeners = new Set<(view: { phase: string; ended_at: string | null }) => void>();
+    const adapter = {
+      read: async () => ({ ref: run, phase: "running", ended_at: null }),
+      observe: (_ref: unknown, listener: (view: { phase: string; ended_at: string | null }) => void) => {
+        listeners.add(listener);
+        return () => {
+          if (listeners.delete(listener)) unsubscribed += 1;
+        };
+      },
+      control: async () => {},
+    };
+    const settled = await stopOriginalRunWithSettlement(adapter as never, run, control, {
+      deferRunningSettlement: true,
+      runningWaitMs: 20,
+      onSettled: () => { onSettledCalls += 1; },
+    });
+    assert.equal(settled, false);
+    assert.equal(listeners.size, 1, "observer stays attached after handoff");
+    assert.equal(onSettledCalls, 0);
+    for (const listener of [...listeners]) listener({ phase: "stopped", ended_at: new Date().toISOString() });
+    assert.equal(onSettledCalls, 1, "onSettled fires exactly once when deferred run settles");
+    assert.equal(unsubscribed, 1, "observer self-unsubscribes after deferred settlement");
+  }
 });
 
 test("AssistantOutcomes.decide surfaces delivery_error instead of returning 200 or sending a false rejection steer", async () => {

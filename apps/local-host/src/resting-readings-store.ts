@@ -10,7 +10,7 @@ import { ASSISTANT_HOME_STORE } from "./assistant/assistant-store.js";
 import type { HomeAggregateIssue } from "./home-aggregate.js";
 import { withReadOnlyHomePluginStore } from "./home-plugin-store.js";
 import { repeatingFailure } from "./host-log.js";
-import { INSTALLED_LIBRARIES_HOME_STORE } from "./installed-plugin-libraries.js";
+import { INSTALLED_LIBRARIES_HOME_STORE, INSTALLED_LIBRARY_NAME } from "./installed-plugin-libraries.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 import type { MolisWorkLocalHostOptions } from "./project-host.js";
@@ -269,7 +269,10 @@ function installedAggregateHomeStoreNames(homeDirectory: string, homePluginsStam
       }
       const packages = new SandboxPackageStore(homeDirectory);
       for (const row of rows) {
-        if (typeof row.store_name !== "string" || !row.store_name) continue;
+        if (typeof row.store_name !== "string" || !INSTALLED_LIBRARY_NAME.test(row.store_name)) {
+          installedAggregateStoresCache.delete(ledgerPath);
+          return null;
+        }
         if (typeof row.plugin_id === "string" && typeof row.publisher_signature === "string") {
           const record = runtimeByPlugin?.get(row.plugin_id);
           if (record && record.publisher_signature === row.publisher_signature) {

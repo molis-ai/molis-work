@@ -64,7 +64,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     for (const authorDirectory of [project, join(root, "examples/plugin-sample")]) {
       const packed = JSON.parse(execFileSync("pnpm", ["--dir", authorDirectory, "pack", "--pack-destination", directory, "--json"], { encoding: "utf8" })) as { filename: string };
       const files = execFileSync("tar", ["-tf", resolve(directory, packed.filename)], { encoding: "utf8" }).split("\n");
-      for (const lang of ["zh", "en"]) assert.ok(files.includes("package/locales/" + lang + ".json"), files.join(", "));
+      for (const lang of ["zh", "en", "ja"]) assert.ok(files.includes("package/locales/" + lang + ".json"), files.join(", "));
     }
     execFileSync("npm", ["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--cache", join(directory, "npm-cache"),
       join(directory, "molis-ai-molis-work-contracts-0.0.0.tgz"), join(directory, "molis-ai-molis-work-plugin-sdk-0.0.0.tgz")],
@@ -321,7 +321,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
 
     const repositorySample = join(directory, "repository-sample");
     mkdirSync(repositorySample);
-    for (const file of ["index.mjs", "manifest.json", "package.json", "README.md", "locales/en.json", "locales/zh.json"]) {
+    for (const file of ["index.mjs", "manifest.json", "package.json", "README.md", "locales/en.json", "locales/zh.json", "locales/ja.json"]) {
       mkdirSync(dirname(join(repositorySample, file)), { recursive: true });
       writeFileSync(join(repositorySample, file), readFileSync(join(root, "examples/plugin-sample", file)));
     }

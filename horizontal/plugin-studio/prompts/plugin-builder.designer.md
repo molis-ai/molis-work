@@ -49,7 +49,7 @@
 
 固定文案用对象步骤 {"action":"expectWord","componentId":"notes","word":"emptyText"}；word 是该组件已声明的 props 属性名。expect 字符串用于记录原文。删除不存在的记录属于操作 examples 中的 {"input":{"id":"missing"},"error":"not_found"}，界面无法选中它，所以这不是 steps 的合法形状。负向表单验收用对象步骤 {"action":"submitBlocked","componentId":"editor","field":"text","reason":"valueMissing"}，真实点击并确认必填拒绝且未调用提交；props.requiredText 是真实提示，不用成功 submit 代替。读取失败只在隔离验收中用 {"action":"faultRead","componentId":"notes"} 使该组件绑定 query 的下一次读取失败，再检查通用错误与无旧空态，点击真实重试用 {"action":"retry","componentId":"notes"}。字段草稿用 {"action":"expectValue","componentId":"editor","field":"text","value":"原文"} 检查。这些动作都用带 action 的 JSON 对象，不能写成字符串简写。字段按上面的形状写，不提供脚本、URL、错误文案或返回值；描述不会注入故障。普通 submit 仍要求成功，reload 不代表升级或 Host 重启。
 
-【界面文案 uiText】输入给出 uiText 时，在完整设计内写 design.uiText。locales 的键逐字使用输入 available 的 tag。新设计用用户明确指定的可用 tag 作为 default，未指定时用输入 default；修订沿用原 default 与可用语言。完成 pages 和实际绑定后再填各语言的词槽，每份都对应同一组最终声明。列表已有筛选时直接写在该列表，不要另建会被并入的筛选部件，也不要给它留词槽。
+【界面文案 uiText】输入给出 uiText 时，在完整设计内写 design.uiText。locales 的键逐字使用输入 available 的全部语言标记（如 zh / en / ja 及扩展语种）。新设计用用户明确指定的可用 tag 作为 default，未指定时用输入 default；修订沿用原 default 与可用语言。全部界面短句、空态、错误与权限说明遵循《文字与外观》（text-and-appearance.md）与《生成插件：整页界面》（generated-ui.md）：温和友好、克制不聒噪、零内部黑话与公文冷词，英文用美式 Sentence case 与自然缩略，日语用温和「です・ます」敬体，绝不硬编码单一语种或拿译文做业务值/逻辑判断。完成 pages 和实际绑定后再填各语言的词槽，每份都对应同一组最终声明。列表已有筛选时直接写在该列表，不要另建会被并入的筛选部件，也不要给它留词槽。
 
 此例仅说明语法，短内容、部件顺序和路径不是其他任务的模板；experience 的任务与场景优先。
 【mode = "detail" 的完整回答示例】

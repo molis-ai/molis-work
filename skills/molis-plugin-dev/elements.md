@@ -30,7 +30,7 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 
 ## 权限与能力
 
-`permissions[]`：`permission` + `required` + `reason`。真权限 = Host grant ∩ Manifest 上限。常见：
+`permissions[]`：`permission` + `required` + `reason`（面向用户写清「读取/修改什么、用来做什么」，温和直白、无黑话；第二波公共合同将同步扩展可选 `reason_text` `TextRef`，并与 `read_groups` / `actions` 的 `*_text` 声明对齐）。真权限 = Host grant ∩ Manifest 上限。常见：
 
 | permission | 何时 |
 | --- | --- |
@@ -74,6 +74,7 @@ Manifest 里有三类声明会改变插件在别处的效果，安装预览把�
 
 ## UI
 
+- `ui.locales`：`{ default, available }` 声明随包提供的语言文件（`locales/<语言>.json`，推荐覆盖 `en`/`zh`/`ja` 并向 N 语种扩展；禁止写二元 `zh`/`en` 逻辑分支），详见 [text-and-appearance.md](text-and-appearance.md)。
 - `ui.contributions`：contribution id 列表。
 - `ui.views`：`view_id`、`slot`、`title`、`contribution_id`、`icon`（限平台图标集，集合外的名字 Manifest 读取即被拒）、`order`。可选 `accepts_objects`：这个插件的标签能按 id 打开一个对象，插件收 `molis-work:select-item`。当前搜索、放置卡和侧栏文件的对象标签名单由构建期插件目录派生；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），声明字段本身仍适用。不声明的，命中打开插件页，有 `searchRow` 的再点那一行。
 - **槽（合同五选一）**：`navigator` 一级入口（底栏插件切换与 Dock）、`stage` 工作区工具面、`settings` 全局设置目录、`island` 底栏右侧的个人常驻入口（项目圆钮旁）、`side` 侧栏里的一个标签（见 [ui.md](ui.md#侧栏标签side)）。不要发明第六个。

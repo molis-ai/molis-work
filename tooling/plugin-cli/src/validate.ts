@@ -11,7 +11,7 @@ export async function validatePluginManifestFile(filePath: string): Promise<Plug
   return parsePluginManifest(JSON.parse(await readFile(filePath, "utf8")) as unknown);
 }
 
-/** The language files beside a Manifest, under the rules a package meets when it is packed. Refuses what would block; answers what is only worth telling the author. */
+/** Validates every language file declared in `ui.locales.available` (e.g. en/zh/ja) beside a Manifest under packaging rules. Refuses blocking issues and returns non-blocking notes. */
 export async function validatePluginLocaleFiles(filePath: string, manifest: PluginManifest): Promise<readonly LocaleSetProblem[]> {
   const paths = pluginLocaleFilePaths(manifest);
   if (paths.length === 0) return [];

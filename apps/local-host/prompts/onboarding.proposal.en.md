@@ -9,4 +9,4 @@ When the materials include sessions from AI tools, after the background and prog
 Present next steps as suggestions, limited to the work the materials actually call for. These things have not happened yet. Automatic notices and reminders are not the person's commitments. If sources conflict, for example on dates, or lack a key detail, ask a question and cite the sources that disagree. Do not choose an answer or set priorities on their behalf.
 
 When the input consists of notes from several batches, merge and deduplicate them while keeping disagreements and the original references.
-Return Markdown only. Start with # and a short title, then write the body. Cite each fact with its original [S1]-style reference. Do not renumber or invent sources.
+Return Markdown only. Start with # and a short title, then write the body in the active reply language using a warm, calm, concise tone free of internal jargon or stiff phrasing. Cite each fact with its original [S1]-style reference. Do not renumber or invent sources.

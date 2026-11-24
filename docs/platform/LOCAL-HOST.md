@@ -46,11 +46,12 @@ AP2 保证一个 Local Host 实例内，每个 Project storage key 只有一份 
 
 执行只在常驻 Web 宿主里：一个 Home 只有一个进程持有 Agent 运行锁，stdio MCP 等其他进程经本机动作网关转发（见下文「串行队列与并发声明」）。typed Host Client 本身是进程内实现；没有独立 daemon 或 Unix socket 的自动发现。CLI 与管理 MCP 对当前 Home 已登记且连接的项目走受保护常驻管理网关；未连接或未登记时才经同一 composition 在进程内打开 Host。
 
-## 生命周期与刷新
+## 生命周期、多语言作用域与错误出口
 
 - 同一 storage key 如果被错误映射为另一个 `project_id`，Host 拒绝连接。
 - Capability ID + version 重复注册或未注册调用会给出明确错误。
 - 关闭 Project Runtime 会等待当前使用者退出，再关闭 Store。
+- **多语言作用域与出口统一错误转译**：请求作用域语言由 `web-locale.ts` 按 `languages.json`（`zh` / `en` / `ja` 及后续 N 语种）提供，禁止在后端服务中新增二元 `zh`/`en` 分支、固定 `Intl.DateTimeFormat("zh-CN")` / `.toLocaleString("en-US")`、硬编码中文顿号 `.join("、")` 或固定 `accept-language: zh-CN`。HTTP / SSE / WS 出口（`web-http.ts` 及各直出路由）与助理/Prologue 边界统一将结构化 `ActionError(code, kind, details)` 及账号/上游失败按请求语言转译为 `common.error.*` 温和文案，保留 `details` 与可复制的诊断编号（`call_id`），绝不向前端透传异语言报错、原始 `PrologueErrorCode`、AJV 路径或本机路径（同时严守不改动 `horizontal/account/src/upstream/` 上游快照）。
 
 ## 串行队列与并发声明
 

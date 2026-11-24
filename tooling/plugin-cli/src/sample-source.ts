@@ -95,7 +95,7 @@ export default definePlugin({
         surfaces: [{ surface_id: "main", target_slot_id: "plugin.main", format: "html" }],
       },
       render() {
-        // The words are in locales/<language>.json; \`t\` takes the language from the page. A name may hold ' and &: \`t\` escapes it for HTML.
+        // The words live in locales/<language>.json (en/zh/ja by default); \`t\` reads the active language from the page with no language branches. Values like ' and & are escaped for HTML by \`t\`.
         const count = savedCount();
         return "<section><h2>" + t("notes.main.title") + "</h2><p>" + t("notes.main.saved", { count }) + "</p><p>" + t("notes.main.saved-count", { count })
           + "</p><p>" + t("notes.main.source", { name: SAMPLE_SOURCE }) + "</p></section>";

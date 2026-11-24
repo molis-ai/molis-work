@@ -10,8 +10,11 @@ export interface TimelineItem {
   readonly received_at?: string;
   readonly title?: string;
   readonly type_label?: string;
+  readonly type_key?: string | null;
+  readonly system_operation?: string | null;
   readonly actor_id?: string;
   readonly status_label?: string;
+  readonly status_key?: string | null;
   readonly relation?: unknown;
 }
 
@@ -57,8 +60,12 @@ export const appendTimelineItems = (nav: HTMLElement, items: readonly TimelineIt
     button.setAttribute("aria-expanded", "false");
     applyLaneFilter(button, reading.filter);
     const time = validDate ? pad(date.getHours()) + ":" + pad(date.getMinutes()) : "--:--";
-    const status = item.type_label === "请求决定" ? pending.has(item.event_id || "") ? globalThis.t.text("goals.event-document-client.needs-decision") : globalThis.t.text("goals.event-document-client.handled") : item.status_label;
-    button.innerHTML = "<time></time><span class=timeline-dot aria-hidden=true><span class=timeline-mark>" + markOf(item) + "</span></span><span class=timeline-copy><strong>" + escapeText(item.title || "") + "</strong><small><b class=timeline-type>" + escapeText(item.type_label || "") + "</b> <span class=timeline-actor>" + escapeText(item.actor_id || "") + "</span></small>" + (status ? "<em class=history-state>" + escapeText(status) + "</em>" : "") + "</span>";
+    const isDecisionRequest = item.system_operation === "decision_requested";
+    const typeLabel = item.type_key ? globalThis.t.text(item.type_key) : (item.type_label || "");
+    const status = isDecisionRequest
+      ? pending.has(item.event_id || "") ? globalThis.t.text("goals.event-document-client.needs-decision") : globalThis.t.text("goals.event-document-client.handled")
+      : item.status_key ? globalThis.t.text(item.status_key) : item.status_label;
+    button.innerHTML = "<time></time><span class=timeline-dot aria-hidden=true><span class=timeline-mark>" + markOf(item) + "</span></span><span class=timeline-copy><strong>" + escapeText(item.title || "") + "</strong><small><b class=timeline-type>" + escapeText(typeLabel) + "</b> <span class=timeline-actor>" + escapeText(item.actor_id || "") + "</span></small>" + (status ? "<em class=history-state>" + escapeText(status) + "</em>" : "") + "</span>";
     const stamp = button.querySelector("time");
     if (stamp) {
       stamp.dateTime = received;

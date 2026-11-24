@@ -26,7 +26,7 @@ export function applyLabel(page: TodoPage, batch: TodoBatch): string {
   if (counts.update) parts.push(uiText.text("todo.review.apply-update", { count: counts.update }));
   if (counts.complete) parts.push(uiText.text("todo.review.apply-complete", { count: counts.complete }));
   if (counts.reopen) parts.push(uiText.text("todo.review.apply-reopen", { count: counts.reopen }));
-  return parts.join("、");
+  return parts.join(uiText.text("common.list.separator"));
 }
 
 /** The decisions for the candidates the person kept, with their edits and the protected fields they accepted. */

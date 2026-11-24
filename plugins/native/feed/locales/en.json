@@ -466,6 +466,11 @@
     "feed.help.example-2": "Save a useful item to project materials, send it to Inbox, or turn it into a goal",
     "feed.help.scope": "Fetching sources contacts only the URLs or connected accounts you added; Feed never posts or replies on your behalf, and removing a source keeps saved items.",
     "feed.help.advanced-summary": "Deduplication and judgment rules",
-    "feed.help.advanced": "Repeated syncs skip duplicates automatically; bind a published judgment rule when you want automatic triage."
+    "feed.help.advanced": "Repeated syncs skip duplicates automatically; bind a published judgment rule when you want automatic triage.",
+    "feed.stage-ui.stage-data-unavailable": "Feed view data isn’t available right now",
+    "feed.stage-ui.item-data-unavailable": "This item’s details aren’t available right now",
+    "feed.stage-ui.source-presentation-unavailable": "Display details for this source aren’t available yet",
+    "feed.rule-authoring.criteria-true": "Matches your description and is worth following.",
+    "feed.rule-authoring.criteria-false": "Doesn’t match your description and can be skipped."
   }
 }

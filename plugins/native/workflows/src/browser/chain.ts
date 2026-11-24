@@ -2,8 +2,10 @@ import type { WorkflowLink } from "../model.js";
 import { uid } from "./dom.js";
 import type { ActionRef, Chain } from "./types.js";
 
+export const DEFAULT_BODY_TOKEN = "{正文}";
+
 /** The chain rules the page edits with. New links default to direct pass-through (PF-A13) so no template syntax is needed. */
-export const handLink = (): WorkflowLink => ({ kind: "function", title_template: "", body_template: "{正文}", instructions: "" });
+export const handLink = (): WorkflowLink => ({ kind: "function", title_template: "", body_template: DEFAULT_BODY_TOKEN, instructions: "" });
 export const tint = (plugin: string) => `var(--plugin-${plugin}, var(--muted))`;
 export const ruleKey = (ref: ActionRef | null | undefined) => ref ? `${ref.capability_id}@${ref.version}@${ref.provider_id}` : "";
 

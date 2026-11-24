@@ -111,6 +111,7 @@
     "inbox.help.example-2": "Open History to revisit handled items and their original sources",
     "inbox.help.scope": "Runs a follow-up action only when you choose it; dismissing an item never deletes the underlying source material.",
     "inbox.help.advanced-summary": "Recommendations and rules",
-    "inbox.help.advanced": "Works manually even without a judgment rule bound; stays quiet when nothing awaits your attention."
+    "inbox.help.advanced": "Works manually even without a judgment rule bound; stays quiet when nothing awaits your attention.",
+    "inbox.ui.stage-data-unavailable": "Inbox view data isn’t available right now"
   }
 }

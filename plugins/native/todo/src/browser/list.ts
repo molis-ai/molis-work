@@ -20,14 +20,23 @@ const markView = (page: TodoPage) => (button: HTMLElement) => {
 export function installList(page: TodoPage): void {
   const { el, state } = page;
   const mark = markView(page);
-  const empties: Record<string, [string, string]> = {
-    today: [uiText.text("todo.empty.today-title"), uiText.text("todo.empty.today-text")],
-    waiting: [uiText.text("todo.empty.waiting-title"), uiText.text("todo.empty.waiting-text")],
-    unscheduled: [uiText.text("todo.empty.unscheduled-title"), uiText.text("todo.empty.unscheduled-text")],
-    upcoming: [uiText.text("todo.empty.upcoming-title"), uiText.text("todo.empty.upcoming-text")],
-    all: [uiText.text("todo.empty.all-title"), uiText.text("todo.empty.all-text")],
-    closed: [uiText.text("todo.empty.closed-title"), uiText.text("todo.empty.closed-text")],
-    search: [uiText.text("todo.empty.search-title"), uiText.text("todo.empty.search-text")],
+  const EMPTY_KEYS: Record<string, [string, string]> = {
+    today: ["todo.empty.today-title", "todo.empty.today-text"],
+    waiting: ["todo.empty.waiting-title", "todo.empty.waiting-text"],
+    unscheduled: ["todo.empty.unscheduled-title", "todo.empty.unscheduled-text"],
+    upcoming: ["todo.empty.upcoming-title", "todo.empty.upcoming-text"],
+    all: ["todo.empty.all-title", "todo.empty.all-text"],
+    closed: ["todo.empty.closed-title", "todo.empty.closed-text"],
+    search: ["todo.empty.search-title", "todo.empty.search-text"],
+  };
+  const VIEW_KEYS: Record<string, string> = {
+    today: "todo.date.today",
+    waiting: "todo.view.waiting",
+    unscheduled: "todo.view.unscheduled",
+    upcoming: "todo.view.upcoming",
+    all: "todo.view.all",
+    closed: "todo.status.done",
+    review: "todo.view.review",
   };
 
   page.renderList = () => {
@@ -36,9 +45,9 @@ export function installList(page: TodoPage): void {
     el.rowsEl.replaceChildren();
     const emptyKey = state.query ? "search" : state.view;
     el.empty.hidden = state.items.length > 0;
-    const [emptyTitle = "", emptyText = ""] = empties[emptyKey] ?? [];
-    page.$("[data-todo-empty-title]").textContent = emptyTitle;
-    page.$("[data-todo-empty-text]").textContent = emptyText;
+    const emptyPair = EMPTY_KEYS[emptyKey];
+    page.$("[data-todo-empty-title]").textContent = emptyPair ? uiText.text(emptyPair[0]) : "";
+    page.$("[data-todo-empty-text]").textContent = emptyPair ? uiText.text(emptyPair[1]) : "";
     for (const group of groupsFor(page)) {
       if (!group.title) { for (const item of group.items) el.rowsEl.append(renderRow(page, item)); continue; }
       const fold = make("details", "mw-collection-fold todo-group");
@@ -54,8 +63,11 @@ export function installList(page: TodoPage): void {
     el.summary.textContent = summaryText(page);
     el.summary.hidden = !el.summary.textContent;
     el.bench.querySelectorAll<HTMLElement>("[data-todo-view]").forEach((button) => {
-      const count = state.counts[button.dataset.todoView ?? ""];
-      button.textContent = (button.dataset.todoViewLabel ?? "") + (count && !["all", "closed"].includes(button.dataset.todoView ?? "") ? ` ${count}` : "");
+      const view = button.dataset.todoView ?? "";
+      const label = VIEW_KEYS[view] ? uiText.text(VIEW_KEYS[view]!) : (button.dataset.todoViewLabel ?? "");
+      button.dataset.todoViewLabel = label;
+      const count = state.counts[view];
+      button.textContent = label + (count && !["all", "closed"].includes(view) ? ` ${count}` : "");
       mark(button);
     });
     el.scopeButton.setAttribute("aria-pressed", String(state.everything));

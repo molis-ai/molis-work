@@ -145,7 +145,7 @@ export function pageRefresh(context: RefreshContext) {
       pageResponse = await molisWorkRequest<Response>(path, { scope: lifetime(), signal: signal ?? undefined, as: "response" });
       if (pageResponse.ok) break;
     }
-    if (!pageResponse?.ok) throw new Error("无法更新 Goal 页面");
+    if (!pageResponse?.ok) throw new Error(globalThis.t.text("goals.page-refresh.update-failed"));
     return { parsed: new DOMParser().parseFromString(await pageResponse.text(), "text/html"), collectionPath };
   };
   /** Puts a refreshed page in place: the Goals lists always, the open Goal's document unless only the lists were read. */
@@ -203,7 +203,7 @@ export function pageRefresh(context: RefreshContext) {
     }
     if (!force && liveUiInteractionActive(collectionOnly)) return;
     try {
-      const cursor = hint ?? (await molisWorkRequest<{ observed_event_cursor: number }>(route("/api/board/cursor"), { scope: lifetime(), signal: signal ?? undefined, fallback: "无法读取 Molis Work 游标" })).observed_event_cursor;
+      const cursor = hint ?? (await molisWorkRequest<{ observed_event_cursor: number }>(route("/api/board/cursor"), { scope: lifetime(), signal: signal ?? undefined, fallback: globalThis.t.text("goals.page-refresh.cursor-failed") })).observed_event_cursor;
       lifetime().assertCurrent(signal ?? undefined);
       // The platform journal and the Goals plugin journal have independent sequence numbers.
       // Acknowledge the platform cursor only after its refresh was actually applied.
@@ -234,7 +234,7 @@ export function pageRefresh(context: RefreshContext) {
         return;
       }
       const nextStateNode = parsed.querySelector("#molis-work-data");
-      if (!nextStateNode) throw new Error("页面状态不完整");
+      if (!nextStateNode) throw new Error(globalThis.t.text("goals.page-refresh.state-incomplete"));
       const nextState = JSON.parse(nextStateNode.textContent || "null") as GoalsPageData;
       if (!collectionOnly && refreshGeneration !== page.documentReplaceGeneration) {
         scheduleDeferredRefresh();

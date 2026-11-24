@@ -64,7 +64,7 @@ export const scheduleUiContribution: UiContribution<StagePageModel<ScheduleStage
       case "workbench":
         return renderScheduleWorkbench(scheduleUiModel(request.model));
       default:
-        throw new Error(`Schedule UI surface ${(request as UiRenderRequest).surface} 不存在`);
+        throw new Error(`Unknown Schedule UI surface: ${String((request as UiRenderRequest).surface)}`);
     }
   },
 };

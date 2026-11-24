@@ -157,6 +157,7 @@
     "risk.help.example-2": "按严重程度筛选未关闭风险，缓解后再标记关闭",
     "risk.help.scope": "风险记录存在当前项目本机库里；如设置定期复查提醒，只会按你的授权在本机触发提醒。",
     "risk.help.advanced-summary": "关联目标与定期复查",
-    "risk.help.advanced": "可以和项目目标互相引用，方便在收尾前逐项核对高风险是否已解决。"
+    "risk.help.advanced": "可以和项目目标互相引用，方便在收尾前逐项核对高风险是否已解决。",
+    "risk.directory.name": "风险"
   }
 }

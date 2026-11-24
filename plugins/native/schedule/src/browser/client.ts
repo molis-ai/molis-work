@@ -63,6 +63,12 @@ export function scheduleClient(host: ScheduleHost): void {
     if (detailOf(workbench, itemId)) select(page, itemId, "task");
     else workbench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId } }));
   });
+  workbench.ownerDocument.addEventListener("molis-work:language-changed", () => {
+    if (!host.scope.visible) return;
+    const open = openNow(page);
+    if (open.kind === "form" || page.creating || page.recovering || page.operationBusy || page.changing > 0) return;
+    void refreshStage(page, open.id, open.kind === "none" ? "task" : open.kind, false, false);
+  }, { signal: host.scope.signal });
   const pending = sessionStorage.getItem(OPEN_KEY);
   if (pending) {
     sessionStorage.removeItem(OPEN_KEY);

@@ -22,7 +22,7 @@ const workBriefUiDescriptor: UiContributionDeclaration = {
 export const workBriefUiContribution: UiContribution = {
   descriptor: workBriefUiDescriptor,
   render(request: UiRenderRequest): string {
-    if (request.surface !== "workbench") throw new Error(`Work Brief UI surface ${request.surface} 不存在`);
+    if (request.surface !== "workbench") throw new Error(`Unknown Work Brief UI surface: ${String(request.surface)}`);
     return renderPluginStageShell({ surface: "work-brief", label: uiText("work-brief.view.brief"), dataset: "workBrief",
       body: `<div class="wb mw-layout-primitives" data-work-brief-body aria-live="polite"><p class="wb-muted" aria-busy="true">${uiText("work-brief.page.loading")}</p></div>` });
   },

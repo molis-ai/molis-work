@@ -157,6 +157,7 @@
     "risk.help.example-2": "Filter open high-impact risks and close them once mitigated",
     "risk.help.scope": "Risk entries stay in this project’s local database; optional review reminders trigger locally under your permission.",
     "risk.help.advanced-summary": "Linking goals and reviews",
-    "risk.help.advanced": "Cross-reference goals so high-severity risks are double-checked before goal closure."
+    "risk.help.advanced": "Cross-reference goals so high-severity risks are double-checked before goal closure.",
+    "risk.directory.name": "Risk"
   }
 }

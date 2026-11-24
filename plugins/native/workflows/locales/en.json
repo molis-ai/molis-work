@@ -258,6 +258,23 @@
     "workflows.help.example-2": "Set a critical step to “I decide” so you review and edit before handing it over",
     "workflows.help.scope": "Default pass-through runs purely locally with zero model cost; model or judgment services are called only when you select “Let AI organize” or “Filter by rule”.",
     "workflows.help.advanced-summary": "Custom templates, edits, and stopping runs",
-    "workflows.help.advanced": "Expand “Customize handoff format (advanced)” to combine title, source, or date; ending a run keeps everything already delivered to earlier plugins."
+    "workflows.help.advanced": "Expand “Customize handoff format (advanced)” to combine title, source, or date; ending a run keeps everything already delivered to earlier plugins.",
+    "workflows.rule.title-placeholder": "Optional, e.g. {title}",
+    "workflows.content-client.role-list": "list",
+    "workflows.content-client.role-read": "read",
+    "workflows.content-client.role-receive": "receive",
+    "workflows.content-client.role-create": "create",
+    "workflows.content-client.multiple-versions": "This step has multiple versions available. Pick one before using it.",
+    "workflows.content-client.missing-role": "This step is missing authorized “{role}” access.",
+    "workflows.content-client.saved-missing-role": "This saved step is missing its “{role}” configuration.",
+    "workflows.content-client.saved-role-unavailable": "The saved “{role}” action (v{version}) isn’t available anymore. Your saved setup is kept — check the plugin or reconfigure this step.",
+    "workflows.content-client.plugin-unauthorized": "Content access for “{plugin}” isn’t enabled or authorized.",
+    "workflows.content-client.multiple-providers": "Multiple sources match “{plugin}”, so it can’t be replaced automatically.",
+    "workflows.content-client.first-only": "This step can only be the first step and doesn’t accept handoffs.",
+    "workflows.content-client.no-blank-start": "This step can’t start from a blank item.",
+    "workflows.content-client.capability-expired": "Action “{capability}” is no longer available. Your saved setup is kept.",
+    "workflows.content-client.wrong-station-ref": "This step returned an item from a different plugin.",
+    "workflows.content-client.duplicate-station": "Multiple steps share this name and can’t be selected automatically.",
+    "workflows.content-client.station-unavailable": "This step isn’t available right now"
   }
 }

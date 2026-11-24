@@ -240,6 +240,23 @@
     "workflows.help.example-2": "在关键一步改成「由我亲手定」，先核对改好再交给下一站",
     "workflows.help.scope": "默认「直接交过去」完全在本机运行、不调用模型；只有你选了「请 AI 整理」或「按条件筛选」时才调用对应模型或判断规则，并按服务商计费。",
     "workflows.help.advanced-summary": "自定义格式、运行中改链与停止",
-    "workflows.help.advanced": "需要拼接标题、来源或日期时，展开「自定义传递格式（高级）」即可；随时可结束某次运行，已经交到各插件的内容会完整保留。"
+    "workflows.help.advanced": "需要拼接标题、来源或日期时，展开「自定义传递格式（高级）」即可；随时可结束某次运行，已经交到各插件的内容会完整保留。",
+    "workflows.rule.title-placeholder": "{title}",
+    "workflows.content-client.role-list": "内容列表",
+    "workflows.content-client.role-read": "读取",
+    "workflows.content-client.role-receive": "接收",
+    "workflows.content-client.role-create": "空白创建",
+    "workflows.content-client.multiple-versions": "同一站点有多个版本，请先明确选择后再使用。",
+    "workflows.content-client.missing-role": "这个站点缺少已授权的「{role}」功能。",
+    "workflows.content-client.saved-missing-role": "已保存的站点缺少「{role}」配置。",
+    "workflows.content-client.saved-role-unavailable": "已保存的「{role}」功能（v{version}）现在不可用。原有配置已保留，请检查对应插件或重新配置这个站点。",
+    "workflows.content-client.plugin-unauthorized": "「{plugin}」的内容功能未启用或未获授权。",
+    "workflows.content-client.multiple-providers": "「{plugin}」有多个同名来源，无法自动替换。",
+    "workflows.content-client.first-only": "这个站点只能作为第一步，不接收上一步交过来的内容。",
+    "workflows.content-client.no-blank-start": "这个站点不能从空白开始。",
+    "workflows.content-client.capability-expired": "功能「{capability}」已失效，原有配置已保留。",
+    "workflows.content-client.wrong-station-ref": "这一步返回了其他站点的内容，无法继续。",
+    "workflows.content-client.duplicate-station": "存在多个同名站点，无法自动选择。",
+    "workflows.content-client.station-unavailable": "站点暂时不可用"
   }
 }

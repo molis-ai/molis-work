@@ -150,7 +150,7 @@ export function relationClient(host: RelationHost) {
           target_goal_id: values.get("target_goal_id"),
           reason: String(values.get("reason") || "").trim(),
         },
-        fallback: "关系建立失败",
+        fallback: globalThis.t.text("goals.relation-client.create-failed"),
       });
       await refreshBoard(true);
       showFactorReceipt(
@@ -173,7 +173,7 @@ export function relationClient(host: RelationHost) {
     if (relationDeactivateForm.getAttribute("aria-busy") === "true") return;
     const submit = relationDeactivateForm.querySelector<HTMLButtonElement>('button[type="submit"]');
     const errorBox = relationDeactivateForm.querySelector<HTMLElement>("[data-relation-deactivate-error]");
-    if (!errorBox || requireDecisionText(relationDeactivateForm, errorBox, "reason", "请填写解除原因。说明这条关系为什么不再成立。")) return;
+    if (!errorBox || requireDecisionText(relationDeactivateForm, errorBox, "reason", "goals.relation-client.deactivate-reason-required")) return;
     const reason = String(new FormData(relationDeactivateForm).get("reason") || "").trim();
     const relatedGoal = relationDeactivateForm.closest(".relation-record")?.querySelector(".relation-copy strong")?.textContent?.trim() || globalThis.t.text("goals.relation-client.other-goal");
     relationDeactivateForm.setAttribute("aria-busy", "true");
@@ -184,7 +184,7 @@ export function relationClient(host: RelationHost) {
       await molisWorkRequest(route(GOALS_PLUGIN_API + "/relations/" + encodeURIComponent(relationDeactivateForm.dataset.relationId || "") + "/deactivate"), {
         method: "POST",
         body: { reason, idempotency_key: relationDeactivateForm.dataset.idempotencyKey ||= crypto.randomUUID() },
-        fallback: "关系解除失败",
+        fallback: globalThis.t.text("goals.relation-client.remove-failed"),
       });
       await refreshBoard(true);
       showFactorReceipt(

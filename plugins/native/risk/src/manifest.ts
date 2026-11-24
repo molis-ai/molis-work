@@ -22,7 +22,7 @@ export const riskManifest: PluginManifest = {
   host_api_version: /* @version host.api */ 1,
   plugin_id: RISK_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
-  name: "风险",
+  name: "风险", name_text: { key: "risk.directory.name" },
   summary: "记下项目的风险，按状态看全局，到点复查。", summary_text: { key: "risk.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-risk-binding" },

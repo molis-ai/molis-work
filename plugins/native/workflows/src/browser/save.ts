@@ -6,7 +6,7 @@ import { drawFlow } from "./flow.js";
 import { drawList } from "./list.js";
 import { emitCtx } from "./nav.js";
 import type { WorkflowsPage } from "./page.js";
-import { insertStn, moveStation, removeStn } from "./chain.js";
+import { DEFAULT_BODY_TOKEN, insertStn, moveStation, removeStn } from "./chain.js";
 import { label, stateKey, stnMeta } from "./state.js";
 import { toast } from "./toast.js";
 import type { Chain, Edit, Flow, Patch, SaveAnswer } from "./types.js";
@@ -17,7 +17,7 @@ type SaveMode = "error" | "unsaved" | "saved" | "saving";
 
 const draftId = (page: WorkflowsPage) => stateKey(page) + ":drafts";
 const configured = (link: WorkflowLink) => link.kind !== "function"
-  || Boolean(link.title_template.trim() || (link.body_template.trim() && link.body_template.trim() !== "{正文}") || link.instructions.trim());
+  || Boolean(link.title_template.trim() || (link.body_template.trim() && link.body_template.trim() !== DEFAULT_BODY_TOKEN) || link.instructions.trim());
 const applyPatch = (flow: Flow, patch: { chain?: Chain; title?: string }) => Object.assign(flow, patch.chain || {}, patch.title === undefined ? {} : { title: patch.title });
 
 /** Keeps what is not saved yet in this tab, so a reload does not lose it. */

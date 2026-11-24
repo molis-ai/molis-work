@@ -142,12 +142,16 @@ function renderTimeline(items: readonly GoalHistoryIndexItem[], _L: GoalsDocumen
     const current = false;
     const kind = item.lane && item.lane !== "other" ? item.lane : "";
     const time = formatClock(item.received_at);
-    const pending = item.type_label === "请求决定" ? state?.pending_decisions.find((request) => request.event_id === item.event_id) : undefined;
-    const statusLabel = item.type_label === "请求决定" && state ? pending ? uiText.text("goals.event-document-ui.needs-decision") : uiText.text("goals.event-document-ui.handled") : item.status_label;
+    const isDecisionRequest = item.system_operation === "decision_requested";
+    const pending = isDecisionRequest ? state?.pending_decisions.find((request) => request.event_id === item.event_id) : undefined;
+    const typeLabel = item.type_key ? uiText.text(item.type_key) : item.type_label;
+    const statusLabel = isDecisionRequest && state
+      ? pending ? uiText.text("goals.event-document-ui.needs-decision") : uiText.text("goals.event-document-ui.handled")
+      : item.status_key ? uiText.text(item.status_key) : item.status_label;
     return `<button type="button" class="timeline-entry${kind ? ` is-${kind}` : ""}" data-timeline-item="${escapeHtml(item.item_id)}" data-event-id="${escapeHtml(item.event_id ?? "")}" data-source="${escapeHtml(item.source)}" data-original-id="${escapeHtml(item.original_id)}" data-lane="${escapeHtml(item.lane)}" aria-current="${current ? "true" : "false"}" aria-expanded="${current ? "true" : "false"}">
       <time datetime="${escapeHtml(item.received_at)}">${escapeHtml(time)}</time>
       <span class="timeline-dot" aria-hidden="true"><span class="timeline-mark">${item.relation ? "↗" : kind === "result" ? "✓" : kind === "decision" ? "◇" : kind === "problem" ? "!" : "·"}</span></span>
-      <span class="timeline-copy"><strong>${escapeHtml(item.title)}</strong><small><b class="timeline-type">${escapeHtml(item.type_label)}</b> <span class="timeline-actor">${escapeHtml(item.actor_id)}</span></small>${statusLabel ? `<em class="history-state">${escapeHtml(statusLabel)}</em>` : ""}</span>
+      <span class="timeline-copy"><strong>${escapeHtml(item.title)}</strong><small><b class="timeline-type">${escapeHtml(typeLabel)}</b> <span class="timeline-actor">${escapeHtml(item.actor_id)}</span></small>${statusLabel ? `<em class="history-state">${escapeHtml(statusLabel)}</em>` : ""}</span>
     </button>`;
   }).join("")}`).join("");
 }

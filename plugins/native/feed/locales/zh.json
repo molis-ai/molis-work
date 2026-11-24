@@ -418,6 +418,11 @@
     "feed.help.example-2": "遇到重要条目一键收入项目资料、加入 Inbox，或转成新目标",
     "feed.help.scope": "拉取订阅来源时会访问你添加的外部网址或已连接账号；不会替你对外发帖或回复，删除来源不影响已保存的资料。",
     "feed.help.advanced-summary": "去重与自动判断规则",
-    "feed.help.advanced": "重复拉取会自动按条目编号去重；需要自动筛选时，可在「能力 › 判断规则」里绑定已发布规则。"
+    "feed.help.advanced": "重复拉取会自动按条目编号去重；需要自动筛选时，可在「能力 › 判断规则」里绑定已发布规则。",
+    "feed.stage-ui.stage-data-unavailable": "Feed 页面数据暂时不可用",
+    "feed.stage-ui.item-data-unavailable": "这条消息的内容暂时不可用",
+    "feed.stage-ui.source-presentation-unavailable": "这个来源的展示信息暂时不可用",
+    "feed.rule-authoring.criteria-true": "符合你的描述，值得关注。",
+    "feed.rule-authoring.criteria-false": "不符合你的描述，不需要关注。"
   }
 }

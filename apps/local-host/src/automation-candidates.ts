@@ -13,60 +13,21 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
 import { observedScopeInstallations, type ScopeInstallation } from "./scope-installations.js";
-import { say } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { baseLanguageOf } from "./ui-error-words.js";
-import { hasHostUiText } from "./ui-text-provider.js";
+import { readWorkbenchText } from "./ui-error-words.js";
 import { DEFAULT_WEB_LOCALE } from "./web-locale.js";
 
-const AUTOMATION_COPY_FALLBACKS = {
-  "workbench.automation-candidates.skill-effect": {
-    zh: "让已安装的技能可以在适用的对话里使用。",
-    en: "Makes this installed skill available in matching conversations.",
-    ja: "インストール済みのスキルを該当する会話で使えるようにします。",
-  },
-  "workbench.automation-candidates.skill-risk-scripts": {
-    zh: "含脚本，启用后仍按原有工具授权执行。",
-    en: "Includes scripts. Existing tool permissions still apply.",
-    ja: "スクリプトを含みます。有効後も既存のツール権限に従って実行されます。",
-  },
-  "workbench.automation-candidates.skill-risk-quota": {
-    zh: "使用技能可能会消耗模型额度。",
-    en: "Using this skill can consume model quota.",
-    ja: "このスキルを使うとモデルの利用枠を消費する場合があります。",
-  },
-  "workbench.automation-candidates.connection-effect": {
-    zh: "完成连接后，可以从这项服务读取你授权的资料。",
-    en: "Reads the materials you grant access to after connecting.",
-    ja: "接続後、許可した資料をこのサービスから読み取れます。",
-  },
-  "workbench.automation-candidates.connection-requirement": {
-    zh: "可授权的服务账号",
-    en: "A service account you can authorize",
-    ja: "認証可能なサービスアカウント",
-  },
-  "workbench.automation-candidates.connection-risk": {
-    zh: "连接会把获准的数据交给这项服务，按对方的权限和计费规则处理。",
-    en: "The connection uses this service’s access and pricing rules.",
-    ja: "接続により許可されたデータがこのサービスへ渡され、サービス側の権限と料金規定が適用されます。",
-  },
-  "workbench.automation-candidates.role-effect": {
-    zh: "可以在适用的工作里把这类核对交给这个角色。",
-    en: "Can take on this kind of review when a role is needed.",
-    ja: "該当するワークでこの種の確認作業をこのロールに任せられます。",
-  },
-  "workbench.automation-candidates.role-risk": {
-    zh: "调用角色会消耗模型额度，工具仍受当前这一轮的权限限制。",
-    en: "Uses model quota and follows the current turn’s tool permissions.",
-    ja: "モデルの利用枠を消費し、ツールの実行は現在のターンの権限に従います。",
-  },
-} as const;
-
-type AutomationCopyKey = keyof typeof AUTOMATION_COPY_FALLBACKS;
+type AutomationCopyKey =
+  | "workbench.automation-candidates.skill-effect"
+  | "workbench.automation-candidates.skill-risk-scripts"
+  | "workbench.automation-candidates.skill-risk-quota"
+  | "workbench.automation-candidates.connection-effect"
+  | "workbench.automation-candidates.connection-requirement"
+  | "workbench.automation-candidates.connection-risk"
+  | "workbench.automation-candidates.role-effect"
+  | "workbench.automation-candidates.role-risk";
 
 function candidateWord(key: AutomationCopyKey, locale: string | undefined): string {
-  const effective = locale ?? DEFAULT_WEB_LOCALE;
-  const fallback = AUTOMATION_COPY_FALLBACKS[key][baseLanguageOf(effective)];
-  return hasHostUiText() ? say.text({ owner: "workbench", key, fallback }, { locale: effective }) : fallback;
+  return readWorkbenchText(key, locale ?? DEFAULT_WEB_LOCALE);
 }
 
 const technical = /工程|测试|代码|审查|排错|前端|debug|test|code|review|frontend|lint|typescript/i;

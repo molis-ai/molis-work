@@ -1,6 +1,6 @@
 import { isRecord } from "./json-value.js";
 import { ACTION_ERROR_CODE, ACTION_ERROR_KIND_NAMES, ActionError, isActionErrorKind, platformErrorKind, type ActionErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
+import { trySharedUiText } from "./ui/text.js";
 
 // One error model (specs/archive/repository-anti-corruption W3-02): the transport derives the status from the failure's kind, and every
 // entry writes the same body, { error, code, details? }. Failures are read by shape, never by `instanceof`: a Runtime bundle or the
@@ -15,26 +15,10 @@ const STATUS_KIND = new Map(ACTION_ERROR_KIND_NAMES.map(kind => [KIND_STATUS[kin
 /** The code of a failure that has none of ours: it is a bug or an outage, not a mistake of the caller. */
 const FALLBACK_CODE = "actions.execution_failed";
 const FALLBACK_MESSAGE = "能力执行失败";
-const UI_TEXT_CONTEXT_KEY = "molis.work.ui-text.v1";
-const FALLBACK_ERROR_KEY = "common.error.internal";
-const FALLBACK_BY_LANGUAGE: Readonly<Record<string, string>> = {
-  zh: FALLBACK_MESSAGE,
-  en: "Something went wrong. Please try again.",
-  ja: "処理に失敗しました。しばらくしてからもう一度お試しください。",
-};
 
 /** Resolve the generic failure fallback in the active UI locale when a UI text context is installed. */
 function fallbackMessage(): string {
-  const provider = Reflect.get(globalThis, Symbol.for(UI_TEXT_CONTEXT_KEY)) as UiTextProvider | undefined;
-  const locale = provider?.locale?.();
-  if (!provider || typeof locale !== "string" || !locale.trim()) return FALLBACK_MESSAGE;
-  const parts = locale.trim().split("-");
-  for (let len = parts.length; len > 0; len -= 1) {
-    const candidate = provider.message("workbench", FALLBACK_ERROR_KEY, parts.slice(0, len).join("-"));
-    if (typeof candidate === "string" && candidate.trim().length > 0) return candidate;
-  }
-  const base = parts[0]?.toLowerCase() ?? "";
-  return FALLBACK_BY_LANGUAGE[base] ?? FALLBACK_BY_LANGUAGE.en!;
+  return trySharedUiText("common.error.internal") ?? FALLBACK_MESSAGE;
 }
 
 export interface ActionErrorBody {

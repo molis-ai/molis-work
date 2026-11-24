@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { readPagesText as localized } from "./ui-text-safe.js";
 
 export const PAGES_AI_COMMANDS = [
   { id: "translate", label: "翻译" },
@@ -66,17 +66,6 @@ const STYLE_LABEL: Record<PagesAiStyle, string> = {
   formal: "更正式",
   casual: "更口语",
 };
-
-function localized(key: string | undefined, fallback: string): string {
-  if (!key) return fallback;
-  const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null; ownerOfPrefix?(prefix: string): string | null } | undefined;
-  if (!provider?.locale?.() || !provider.ownerOfPrefix?.("pages")) return fallback;
-  try {
-    return uiText.text(key);
-  } catch {
-    return fallback;
-  }
-}
 
 export function isPagesAiCommand(value: string): value is PagesAiCommandId {
   return PAGES_AI_COMMANDS.some((item) => item.id === value);

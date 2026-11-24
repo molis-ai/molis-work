@@ -1,12 +1,6 @@
 import { cx, escapeHtml, renderAttrs, t, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-function uiDefault(fallback: string, read: () => string): string {
-  try { return read(); }
-  catch (error) {
-    if (typeof error === "object" && error && "code" in error && error.code === "ui.text_no_context") return fallback;
-    throw error;
-  }
-}
+import { uiTextOrFallback as uiDefault } from "../ui-text-safe.js";
 
 export function renderTabs(options: {
   label: string;

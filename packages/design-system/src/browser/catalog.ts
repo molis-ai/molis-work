@@ -8,13 +8,8 @@ import { wireCatalogPresentation } from "./catalog-presentation.js";
 import { wireCatalogSplit } from "./catalog-skill-packs.js";
 import { wireCatalogCapabilityPacks } from "./catalog-capability-packs.js";
 import { wireCatalogLanguage } from "./catalog-language.js";
+import { catalogBrowserSay as say } from "./catalog-say.js";
 type Craft = { land(element: Element): void; celebrate(element: Element): void };
-type CatalogBrowserSay = (key: string, values?: Record<string, string | number>) => string;
-const say: CatalogBrowserSay = (key, values) => {
-  const tool: unknown = Reflect.get(globalThis, "t");
-  const read: unknown = typeof tool === "object" && tool !== null ? Reflect.get(tool, "text") : undefined;
-  return typeof read === "function" ? String((read as CatalogBrowserSay)(key, values)) : key;
-};
 const craft = () => (globalThis as typeof globalThis & { molisCraft?: Craft }).molisCraft;
 const all = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = document) => [...scope.querySelectorAll<T>(selector)];
 const one = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = document) => scope.querySelector<T>(selector);

@@ -16,11 +16,6 @@ const CATALOG_SUBPACK_FILE = /\/locales\/catalog\/[^/]+\.json$/u;
 const TIER_B_FILE = /^(?:plugins\/native\/(?:coding|git|diff)\/|plugins\/official-integrations\/|plugins\/content\/)/u;
 const TIER_B_KEY = /^(?:common\.connector\.|workbench\.(?:mcp-access|settings-agent-diagnostics|settings-call-diagnostics|settings-work-records|settings-connector|connector-|connection-service|call-row|agent-[a-z-]+-prompt|settings-prompts)\.)/u;
 
-// Untouched red-line plugin legacy key exempted narrowly until `plugins/native/shelf/` enters trilingual migration.
-const LEGACY_UNTOUCHED_RULE_EXEMPTIONS = new Map([
-  ["zh.bureaucratic-tone", new Set(["plugins/native/shelf/locales/zh.json#shelf.tui.the-terminal-is-not-connected"])],
-]);
-
 const ZH_RULES = [
   {
     id: "zh.arch-jargon",
@@ -109,7 +104,7 @@ const JA_RULES = [
 ];
 
 const PROD_SOURCE_ROOT = /^(?:apps|horizontal|modules|packages|plugins|server\/src)\//u;
-const UI_LOCALE_FORMAT_ROOT = /^(?:apps\/workbench\/src|packages|plugins)\//u;
+const UI_LOCALE_FORMAT_ROOT = /^(?:apps\/workbench\/src|horizontal|modules|packages|plugins)\//u;
 const PROD_JS_TS_EXT = /\.(?:ts|mts|tsx|js|mjs)$/u;
 const PROD_NATIVE_EXT = /\.(?:rs|swift)$/u;
 const PROD_HTML_EXT = /\.html?$/iu;
@@ -146,14 +141,6 @@ const BINARY_LOCALE_EXEMPTIONS = [
   {
     file: "apps/workbench/src/settings-renderer.ts",
     pattern: /NETWORK_DOC_HREF\[currentLocale\(\)\s*===\s*["']zh["']\s*\?\s*["']zh["']\s*:\s*["']en["']\]/u,
-  },
-  {
-    file: "apps/local-host/src/agent-definitions/skill-catalog.ts",
-    pattern: /const fallback = lang === ["']zh["'] \? `第 \$\{version\} 版` : `v\$\{version\}`/u,
-  },
-  {
-    file: "apps/local-host/src/assistant/assistant-present.ts",
-    pattern: /baseLanguageOf\(locale\)\s*===\s*["']zh["']\s*\?\s*["']；["']\s*:\s*["'];\s*["']/u,
   },
 ];
 
@@ -244,7 +231,6 @@ export function auditLocaleText({ file, locale, key, text, categoryFilter = null
     if (rule.tierAOnly && isTierB) continue;
     if (rule.filePattern && !rule.filePattern.test(file)) continue;
     if (categoryFilter && rule.id !== categoryFilter) continue;
-    if (LEGACY_UNTOUCHED_RULE_EXEMPTIONS.get(rule.id)?.has(`${file}#${key}`)) continue;
     if (rule.pattern.test(text)) findings.push({ file, key, rule: rule.id, label: rule.label, text });
   }
   if (base === "en") {

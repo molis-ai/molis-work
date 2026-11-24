@@ -195,7 +195,7 @@ function reviewLabel(row: Pick<AgentReviewRow, "request">): string {
   const document = row.request.document, documentReadable = isReviewDocumentReadable(document);
   // The heading names the thing itself, so a history list reads without opening every row.
   const roleField = document.kind === "tool-operation" && document.tool === "dispatch-subagent"
-    ? document.fields.find(field => isReviewFieldNamed(field as { key?: string; label: string }, "subtask-role", uiText.text("workbench.assistant-review.field.subtask-role"), ["子任务角色", "Subtask role", "サブタスクの役割"]))
+    ? document.fields.find(field => isReviewFieldNamed(field, "subtask-role", uiText.text("workbench.assistant-review.field.subtask-role"), ["子任务角色", "Subtask role", "サブタスクの役割"]))
     : undefined;
   return document.kind === "text-edit" ? document.target_path
     : document.kind === "command" && documentReadable ? [document.command, ...document.args].map(shellWord).join(" ")
@@ -346,8 +346,8 @@ export function renderAgentReviewDocument(document: AgentReviewDocument, p: Pick
     case "tool-operation": {
       // Exact arguments stay reviewable, folded under the readable fields rather than in front of them.
       const exactLabel = uiText.text("workbench.assistant-review.field.exact-arguments");
-      const isExact = (field: { key?: string; label: string }) => isReviewFieldNamed(field, "exact-arguments", exactLabel, ["本次完整参数", "完整参数", "Full parameters", "Exact arguments"]);
-      const exact = document.fields.filter(field => isExact(field as { key?: string; label: string })), readable = document.fields.filter(field => !isExact(field as { key?: string; label: string }));
+      const isExact = (field: { key?: string; label: string }) => isReviewFieldNamed(field, "exact-arguments", exactLabel, ["本次完整参数", "完整参数", "Full parameters", "Exact arguments", "今回の全パラメーター", "詳細な引数"]);
+      const exact = document.fields.filter(isExact), readable = document.fields.filter(field => !isExact(field));
       return `<div class="agent-review-doc" data-agent-review-kind="tool-operation"><p class="agent-review-meta">${p.escape(document.summary)}</p>${readable.length ? `<dl class="agent-review-fields">${readable.map(field => `<dt>${p.escape(field.label)}</dt><dd>${p.escape(field.value)}</dd>`).join("")}</dl>` : ""}${exact.map(field => `<details class="agent-review-bounds" data-review-detail="arguments"><summary>${p.escape(uiText.text("workbench.agent-review.arguments"))}</summary><pre>${p.escape(field.value)}</pre></details>`).join("")}</div>`;
     }
     case "mcp": return `<div class="agent-review-doc" data-agent-review-kind="mcp"><p>${p.escape(document.server + " · " + document.tool)}</p><pre translate="no">${p.escape(document.arguments_json)}</pre></div>`;

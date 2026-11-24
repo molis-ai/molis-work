@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { readPagesText as localized } from "./ui-text-safe.js";
 import type { PagesBody } from "./contract.js";
 
 interface PagesTemplate {
@@ -295,17 +295,6 @@ const TEMPLATE_SUMMARY_KEYS: Readonly<Record<string, string>> = {
   "tech-design": "pages.template.tech-design.summary",
   competitor: "pages.template.competitor.summary",
 };
-
-function localized(key: string | undefined, fallback: string): string {
-  if (!key) return fallback;
-  const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null; ownerOfPrefix?(prefix: string): string | null } | undefined;
-  if (!provider?.locale?.() || !provider.ownerOfPrefix?.("pages")) return fallback;
-  try {
-    return uiText.text(key);
-  } catch {
-    return fallback;
-  }
-}
 
 function localizedTemplate(item: PagesTemplate): PagesTemplate {
   return {

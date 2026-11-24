@@ -15,6 +15,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { readErrorWord } from "./ui-error-words.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
 /** Live display projection of one work item; titles of source-backed items are read fresh from their owners (MLN-11, MLN-12). */
@@ -261,7 +262,7 @@ async function handleContentsView(
   const body = await readLocalWebBody(request, 16_000);
   const itemId = typeof body.item_id === "string" ? body.item_id.trim() : "";
   if (!itemId) {
-    sendLocalWebJson(response, 400, { error: "actions.input_invalid", message: "缺少事项编号" });
+    sendLocalWebJson(response, 400, { error: readErrorWord("common.error.invalid"), code: "actions.input_invalid" });
     return;
   }
   const [mainlineResult, contents]: [Awaited<ReturnType<typeof client.invoke>>, MainlineContentsResult] = await Promise.all([
@@ -318,11 +319,11 @@ export async function handleMainlineViewHttp(
   const isContents = url.pathname === "/api/mainline/items/contents/view";
   if (!isItems && !isContents) return false;
   if (request.method !== "POST") {
-    sendLocalWebJson(response, 405, { error: "请求方法不受支持" });
+    sendLocalWebJson(response, 405, { error: readErrorWord("common.error.method-not-allowed"), code: "actions.input_invalid" });
     return true;
   }
   if (pluginPageRequest(request) || homePageRequestBound(request)) {
-    sendLocalWebJson(response, 403, { error: "forbidden", message: "插件页面不能代本人读取主线事项" });
+    sendLocalWebJson(response, 403, { error: readErrorWord("common.error.forbidden"), code: "actions.forbidden" });
     return true;
   }
   try {

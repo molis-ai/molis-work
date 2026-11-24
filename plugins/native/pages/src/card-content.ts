@@ -1,15 +1,5 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { readPagesText as localized } from "./ui-text-safe.js";
 import type { DOMOutputSpec, Node } from "prosemirror-model";
-
-function localized(key: string, fallback: string): string {
-  const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null; ownerOfPrefix?(prefix: string): string | null } | undefined;
-  if (!provider?.locale?.() || !provider.ownerOfPrefix?.("pages")) return fallback;
-  try {
-    return uiText.text(key);
-  } catch {
-    return fallback;
-  }
-}
 
 export function taskStatusText(status: string): string {
   if (status === "doing") return localized("pages.editor.doing", "进行中");

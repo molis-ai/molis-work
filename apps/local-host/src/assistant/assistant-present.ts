@@ -115,13 +115,6 @@ const SIMPLE_STOP_KEYS = {
   "model-error": "workbench.assistant-stop.model-error",
 } as const satisfies Readonly<Record<Exclude<PrologueStopCategory, "turn-limit" | "budget">, string>>;
 
-export const ASSISTANT_STOP_WORD_KEYS = [
-  ...Object.values(SIMPLE_STOP_KEYS),
-  "workbench.assistant-stop.turn-limit",
-  "workbench.assistant-stop.work-budget",
-  "workbench.assistant-stop.turn-budget",
-] as const;
-
 /**
  * Why a round stopped, in the person's words. A limit is a boundary the round kept, not a crash: what it did stays,
  * and the person can let it go on. Technical codes stay in diagnostics logs and never leak into user-facing text.

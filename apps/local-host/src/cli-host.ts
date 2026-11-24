@@ -36,7 +36,7 @@ function readHomeCliLocale(homeDirectory: string | undefined, args: readonly str
   }
 }
 
-export function resolveLocalCliLocale(homeDirectory: string | undefined, args: readonly string[] = []): WebLocale {
+function resolveLocalCliLocale(homeDirectory: string | undefined, args: readonly string[] = []): WebLocale {
   const envLocale = resolveEnvCliLocale();
   if (envLocale && isWebLocale(envLocale)) return envLocale;
   const fromHome = readHomeCliLocale(homeDirectory, args);

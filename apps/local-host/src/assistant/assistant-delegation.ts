@@ -3,10 +3,9 @@ import { roleKey } from "./assistant-characters.js";
 import { cutHead, cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { MATERIAL_PART_UNITS } from "./assistant-material-parts.js";
 import { takeBackAssistantWork } from "./assistant-work-control.js";
-import { numberArg, say, t, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { numberArg, t, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
-import { baseLanguageOf, sanitizeErrorForNotice } from "../ui-error-words.js";
-import { hasHostUiText } from "../ui-text-provider.js";
+import { readWorkbenchText, sanitizeErrorForNotice } from "../ui-error-words.js";
 import { activeLocale, DEFAULT_WEB_LOCALE, pageLocale } from "../web-locale.js";
 import { eventBehind } from "./assistant-line-actions.js";
 import { deliveryOf, handedBackLines, hangRequirements, readStanding, requirementsBrief, type WorkAcceptancePort } from "./assistant-delegated-delivery.js";
@@ -419,14 +418,7 @@ export class AssistantDelegations {
         this.#refused.add(ready.request_key);
         const locale = activeLocale() ?? pageLocale() ?? DEFAULT_WEB_LOCALE;
         const count = DELEGATION_LIMITS.autoRounds;
-        const fallback = baseLanguageOf(locale) === "zh"
-          ? `已连续自动推进了 ${count} 轮，先停下来等你看看进展；你再说一句，它就会接着做。`
-          : baseLanguageOf(locale) === "ja"
-            ? `自動で ${count} ターン続けたため、確認のためいったん停止しました。メッセージを送ると再開します。`
-            : `Ran ${count} turns on its own and paused for your check-in. Send a message whenever you’re ready for it to continue.`;
-        const original = hasHostUiText()
-          ? say.text({ owner: "workbench", key: "workbench.assistant-notice.handoff-auto-limit", args: textArgs({ count: numberArg(count, "decimal") }), fallback }, { locale })
-          : fallback;
+        const original = readWorkbenchText("workbench.assistant-notice.handoff-auto-limit", locale, textArgs({ count: numberArg(count, "decimal") }));
         this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original }, key);
         return;
       }

@@ -1,12 +1,7 @@
 /// <reference lib="dom" />
 // The board's composed patterns (`primitives/catalog-patterns.ts`) made to feel real: picking and sorting the data table, adding
 // and removing tags, and the drop zone's two faces. Presentation only; nothing here is a product control.
-type CatalogBrowserSay = (key: string, values?: Record<string, string | number>) => string;
-const say: CatalogBrowserSay = (key, values) => {
-  const tool: unknown = Reflect.get(globalThis, "t");
-  const read: unknown = typeof tool === "object" && tool !== null ? Reflect.get(tool, "text") : undefined;
-  return typeof read === "function" ? String((read as CatalogBrowserSay)(key, values)) : key;
-};
+import { catalogBrowserSay as say } from "./catalog-say.js";
 const all = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = document) => [...scope.querySelectorAll<T>(selector)];
 
 /** Called once by the board script, after the board is on the page. */

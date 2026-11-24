@@ -2950,7 +2950,7 @@
     "workbench.client-events.reload": "重新加载",
     "workbench.client-events.request-failed": "判断规则请求失败",
     "workbench.client-events.requesting-judgment-usually-takes-few-seconds": "正在请求判断，通常需要几秒。",
-    "workbench.client-events.score-only-for-agent": "Score 只能给 Agent 用，不能绑到页面上的用途。",
+    "workbench.client-events.score-only-for-agent": "Score 只能给助理用，不能绑到页面上的用途。",
     "workbench.client-events.score-needs-least-two-levels": "Score 至少需要两个档位",
     "workbench.client-events.settings-weren-t-saved-please-retry": "配置未保存，请重试。",
     "workbench.client-events.some-results-not-mapped-page-actions-complete-mapping": "还有结果未对应页面动作，请补齐后再发布。",
@@ -10015,6 +10015,10 @@
     "workbench.home-pages.crashed-in-sandbox": "页面在隔离里出错停下了",
     "workbench.home-pages.action-denied": "这项操作没有获得许可",
     "workbench.home-pages.action-request-failed": "操作请求未成功",
-    "common.appearance.font-sample": "本周工作 Aa 123"
+    "common.appearance.font-sample": "本周工作 Aa 123",
+    "common.error.secret-entry-unreadable": "保存的凭据暂时无法读取，请到「设置」里重新填写即可继续。",
+    "workbench.capability-library.system-assistant-rules--assistant-works-related-v1.title": "相关的助理工作",
+    "workbench.capability-library.system-assistant-rules--assistant-works-related-v1.description": "列出与一个对象相关的助理工作：状态与结果链接，不含对话与材料",
+    "workbench.capability-library.system-connectors--connectors-project_mcp-usages-v1.title": "项目外部工具使用的连接"
   }
 }

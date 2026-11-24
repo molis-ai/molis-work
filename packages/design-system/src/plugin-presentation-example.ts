@@ -49,11 +49,12 @@ function buildReadingNodes(say: CatalogSay): PluginComponentNode[] {
   const title = say('workbench.catalog-board.ex.pp-title');
   const subtitle = say('workbench.catalog-board.ex.pp-subtitle');
   const newNote = say('workbench.catalog-board.ex.pp-new-note');
+  const [heading, notes, editor, remove] = readingNodes;
   return [
-    { id: 'heading', pageId: 'home', regionId: 'main', intent: 'heading', purpose: subtitle, props: { title, description: subtitle }, kind: 'frame' },
-    { id: 'notes', pageId: 'home', regionId: 'main', intent: 'collection', purpose: say('workbench.catalog-board.ex.pp-purpose-notes'), props: { titleField: 'title', textField: 'text', idField: 'id', emptyText: say('workbench.catalog-board.ex.pp-empty'), columns: [{ field: 'source', label: say('workbench.catalog-board.ex.pp-field-source') }] }, kind: 'directory', read: { operationId: 'notes.list', input: { query: { source: 'form', field: 'query' } } } },
-    { id: 'editor', pageId: 'home', regionId: 'main', intent: 'input', purpose: newNote, props: { title: newNote, submitLabel: say('workbench.catalog-board.ex.pp-save-note') }, kind: 'sheet', submit: { operationId: 'notes.add', input: { title: { source: 'form', field: 'title' }, text: { source: 'form', field: 'text' }, source: { source: 'form', field: 'source' } } } },
-    { id: 'remove', pageId: 'home', regionId: 'main', intent: 'action', purpose: say('workbench.catalog-board.ex.pp-delete-note'), props: { submitLabel: say('workbench.catalog-board.ex.pp-delete-this-note') }, kind: 'alert-dialog', submit: { operationId: 'notes.remove', input: { id: { source: 'selection', componentId: 'notes', field: 'id' } } } },
+    { ...heading!, purpose: subtitle, props: { title, description: subtitle } },
+    { ...notes!, purpose: say('workbench.catalog-board.ex.pp-purpose-notes'), props: { ...notes!.props, emptyText: say('workbench.catalog-board.ex.pp-empty'), columns: [{ field: 'source', label: say('workbench.catalog-board.ex.pp-field-source') }] } },
+    { ...editor!, purpose: newNote, props: { title: newNote, submitLabel: say('workbench.catalog-board.ex.pp-save-note') } },
+    { ...remove!, purpose: say('workbench.catalog-board.ex.pp-delete-note'), props: { submitLabel: say('workbench.catalog-board.ex.pp-delete-this-note') } },
   ];
 }
 

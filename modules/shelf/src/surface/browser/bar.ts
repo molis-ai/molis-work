@@ -74,7 +74,7 @@ function paintHint(page: ShelfPage, kind: BarKind): void {
     if (page.admitRetry?.hint === page.stickyHint) hint.insertAdjacentHTML("beforeend", ' <button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-shelf-retry-admit>' + escText(uiText.text("shelf.bar.try-the-ones-not-added")) + "</button>");
     return;
   }
-  hint.textContent = page.hintDefault;
+  hint.textContent = uiText.text("shelf.ui.configure-an-ai-model-in");
   hint.hidden = !(kind === "pdf" || kind === "text" || kind === "markdown" || kind === "image" || kind === "url" || kind === "website") || !agentMissing(page);
 }
 

@@ -14,9 +14,8 @@ import type { AgentDefinitions } from "./agent-definitions.js";
 import { skillUseVersionKey, USES_KEPT, type SkillSetting } from "./skill-settings.js";
 import { skillSettingReceipt } from "./skill-setting-receipt.js";
 import { KIT_LIMITS, type KitReport } from "@molis-ai/molis-work-contracts/platform/kit-report";
-import { say, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { baseLanguageOf } from "../ui-error-words.js";
-import { hasHostUiText } from "../ui-text-provider.js";
+import { textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { readWorkbenchText } from "../ui-error-words.js";
 import { DEFAULT_WEB_LOCALE } from "../web-locale.js";
 
 /** Ephemeral projection of the existing installation and Agent definition owners, never a second register. */
@@ -223,17 +222,8 @@ export class SkillCatalog {
   async kitReport(caller: ActionCallContext): Promise<KitReport> {
     const { skills, scenes } = await this.list(caller, {}), counts = this.ports.definitions.skills.useCounts();
     const locale = caller.locale ?? DEFAULT_WEB_LOCALE;
-    const lang = baseLanguageOf(locale);
-    const assistantFallback = lang === "zh" ? "助理" : lang === "ja" ? "アシスタント" : "Assistant";
-    const assistantLabel = hasHostUiText()
-      ? say.text({ owner: "workbench", key: "workbench.skill-catalog.assistant", fallback: assistantFallback }, { locale })
-      : assistantFallback;
-    const versionLabel = (version: number) => {
-      const fallback = lang === "zh" ? `第 ${version} 版` : `v${version}`;
-      return hasHostUiText()
-        ? say.text({ owner: "workbench", key: "workbench.skill-catalog.version-label", args: textArgs({ version }), fallback }, { locale })
-        : fallback;
-    };
+    const assistantLabel = readWorkbenchText("workbench.skill-catalog.assistant", locale);
+    const versionLabel = (version: number) => readWorkbenchText("workbench.skill-catalog.version-label", locale, textArgs({ version }));
     const active = scenes ?? skillSceneChoicesOf(builtinActiveSkillScenes());
     const sceneNames = new Map(active.map(row => [row.scene, row.name]));
     const forWhom = (entry: string) => entry === "assistant" ? assistantLabel : sceneNames.get(entry) ?? entry;

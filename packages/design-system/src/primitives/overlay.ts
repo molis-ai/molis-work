@@ -2,12 +2,10 @@ import { cx, escapeHtml, icon, renderAttrs, renderButton, t, type AttrValue } fr
 
 export { renderMenu, renderMenuItem, renderPopover, renderPreviewCard, renderSheet } from "@molis-ai/molis-work-plugin-sdk/ui";
 
+import { uiTextOrFallback } from "../ui-text-safe.js";
+
 function defaultCloseLabel(): string {
-  try { return t.text("common.control.close"); }
-  catch (error) {
-    if (typeof error === "object" && error && "code" in error && error.code === "ui.text_no_context") return "Close";
-    throw error;
-  }
+  return uiTextOrFallback("Close", () => t.text("common.control.close"));
 }
 
 export function renderDialog(options: {

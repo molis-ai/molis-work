@@ -12,6 +12,7 @@ import {
   renderIconSprite,
   renderPrimitiveCatalog,
   type CatalogPluginIcon,
+  type CatalogSay,
   renderProjectMonogram,
   renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
@@ -48,8 +49,6 @@ import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.
  */
 const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "images", "jelly", "shelf", "lingguang", "todo",
   "pages", "form", "dataset", "ppt", "workflows"];
-
-type CatalogSay = (key: string, values?: Readonly<Record<string, string | number>>) => string;
 
 function htmlLangFor(lang: WebLocale): string {
   return WORKBENCH_LANGUAGES.languages.find(row => row.tag === lang || row.html_lang === lang)?.html_lang

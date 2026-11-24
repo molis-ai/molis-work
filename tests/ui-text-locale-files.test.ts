@@ -612,7 +612,7 @@ test("audit-ui-copy.mjs enforces tightened zh rules, cross-language en/ja leak c
 
   // English CJK leak rule + narrow allowlist.
   assert.ok(localeRules("apps/workbench/resources/locales/en.json", "en", "workbench.demo.leak", "Save 笔记").includes("en.cjk-leak"));
-  assert.deepEqual(localeRules("plugins/native/shelf/locales/en.json", "en", "shelf.recipe.translate.choice.ja", "日本語"), []);
+  assert.deepEqual(localeRules("modules/shelf/locales/en.json", "en", "shelf.recipe.translate.choice.ja", "日本語"), []);
   assert.deepEqual(localeRules("apps/workbench/resources/locales/en.json", "en", "workbench.catalog-appearance.on-4-november-2026-1-284-notes", "Longer passages read more easily, and 中\u2060文 mixed with English should sit on one baseline."), []);
 
   // Japanese Simplified-Chinese leak, markup, and quote rules.

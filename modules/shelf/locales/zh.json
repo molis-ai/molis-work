@@ -290,7 +290,7 @@
     "shelf.tui.no-terminal-agent-found-the": "电脑上未检测到外部 AI 工具，文件仍保留在暂存架中。",
     "shelf.tui.terminal-dropped": "终端连接已断开，未发送的输入已恢复。",
     "shelf.tui.terminal-ended": "终端会话已结束，未发送的输入已恢复。",
-    "shelf.tui.the-terminal-is-not-connected": "终端尚未连接，输入已保留。",
+    "shelf.tui.the-terminal-is-not-connected": "终端还没连上，输入都保留着。",
     "shelf.ui.add-files": "添加材料",
     "shelf.ui.back-to-material-list": "返回材料列表",
     "shelf.ui.choose-a-saved-result": "选择固定成果",
@@ -376,6 +376,22 @@
     "shelf.help.example-2": "在项目侧栏打开置物架，把准备好的材料直接交给助理或文档",
     "shelf.help.scope": "默认只存在本机个人空间里；只有你明确复制到某个项目或发出时，材料才会离开置物架。",
     "shelf.help.advanced-summary": "快捷动作与剪贴板历史",
-    "shelf.help.advanced": "可在「设置 › 插件 › 置物架」里调整快捷动作、快捷键和剪贴板保留规则。"
+    "shelf.help.advanced": "可在「设置 › 插件 › 置物架」里调整快捷动作、快捷键和剪贴板保留规则。",
+    "shelf.permission.storage-private.reason": "本机置物架文件与摘录",
+    "shelf.permission.artifact-read.reason": "读取明确选择接收的 Coding 成果",
+    "shelf.permission.shelf-read.reason": "读取置物架的副本和处理状态",
+    "shelf.permission.terminal-run.reason": "打开资料架对话终端",
+    "shelf.permission.shelf-write.reason": "添加和整理置物架副本",
+    "shelf.permission.materials-read.reason": "解析已选择的材料",
+    "shelf.permission.materials-fetch.reason": "获取已选择的网页内容",
+    "shelf.permission.materials-fetch-local.reason": "获取已选择的本机网页内容",
+    "shelf.permission.materials-original.reason": "处理前核对放进来的原文件有没有变",
+    "shelf.permission.model-invoke.reason": "按所选配方处理材料",
+    "shelf.permission.artifacts-read.reason": "读取项目成果",
+    "shelf.permission.artifacts-write.reason": "将副本保存到项目成果",
+    "shelf.permission.projects-exist.reason": "副本来自的项目被删除后，在副本上标出「项目已删除」",
+    "shelf.permission.actions-invoke.reason": "调用已授权的成果与资料能力",
+    "shelf.permission.model-read.reason": "读取当前可用模型",
+    "shelf.permission.local-tools.reason": "查找这台电脑上已安装的外部 AI 工具"
   }
 }

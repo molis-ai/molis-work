@@ -3118,7 +3118,7 @@
     "workbench.client-events.reload": "Reload",
     "workbench.client-events.request-failed": "Judgment rule request failed",
     "workbench.client-events.requesting-judgment-usually-takes-few-seconds": "Requesting a judgment. This usually takes a few seconds.",
-    "workbench.client-events.score-only-for-agent": "Score can only be used by an Agent, not bound to a use on a page.",
+    "workbench.client-events.score-only-for-agent": "Score can only be used by the assistant, not bound to a use on a page.",
     "workbench.client-events.score-needs-least-two-levels": "A Score needs at least two levels",
     "workbench.client-events.settings-weren-t-saved-please-retry": "The settings weren’t saved. Please retry.",
     "workbench.client-events.some-results-not-mapped-page-actions-complete-mapping": "Some results are not mapped to page actions. Complete the mapping before publishing.",
@@ -10370,6 +10370,9 @@
     "workbench.installed-plugin.recovery-hint": "See this plugin in Settings › Plugins.",
     "workbench.installed-plugin.recovery-title": "The plugin cannot run right now",
     "workbench.home-pages.version-label": "Version · v{v}",
+    "workbench.capability-library.system-assistant-rules--assistant-works-related-v1.title": "Related assistant works",
+    "workbench.capability-library.system-assistant-rules--assistant-works-related-v1.description": "List assistant works linked to an item with their status and result links, without conversations or materials",
+    "workbench.capability-library.system-connectors--connectors-project_mcp-usages-v1.title": "Connections used by project external tools",
     "workbench.home-pages.default-first-page": "Default first page",
     "workbench.home-pages.in-use": "In use",
     "workbench.home-pages.draft": "Draft",
@@ -10826,6 +10829,7 @@
     "workbench.home-pages.crashed-in-sandbox": "The page stopped due to an error in isolation",
     "workbench.home-pages.action-denied": "This action wasn’t allowed",
     "workbench.home-pages.action-request-failed": "Action request failed",
-    "common.appearance.font-sample": "Work Aa 123"
+    "common.appearance.font-sample": "Work Aa 123",
+    "common.error.secret-entry-unreadable": "Your saved credential couldn’t be read. Re-enter it in Settings to continue."
   }
 }

@@ -1,4 +1,5 @@
 import { MemoryCandidates } from "./candidates.js";
+import { resolveMemoryIntlLocale } from "./memory-locale.js";
 import { MemoryBatch } from "./batch.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { randomUUID } from "node:crypto";
@@ -1224,13 +1225,7 @@ export class MemoryService {
   }
 
   private date(at?: string): string {
-    const direct = typeof this.ports.locale === "function" ? this.ports.locale() : this.ports.locale;
-    let activeLocale = direct;
-    if (!activeLocale) {
-      const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null; intlLocale?(tag: string): string | undefined } | undefined;
-      const tag = provider?.locale?.();
-      activeLocale = tag ? provider?.intlLocale?.(tag) ?? tag : undefined;
-    }
+    const activeLocale = resolveMemoryIntlLocale(this.ports.locale);
     return new Intl.DateTimeFormat(activeLocale, { timeZone: this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone, dateStyle: "medium" }).format(at ? new Date(at) : this.now());
   }
 

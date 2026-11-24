@@ -1,21 +1,12 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { workbenchPlatformText } from "../platform-languages.js";
-
-function defaultNavigationLabel(key: string): string {
-  const value = workbenchPlatformText.pack(workbenchPlatformText.default)?.messages[key];
-  return typeof value === "string" ? value : key;
-}
+import { workbenchNavigationLabel } from "../navigation-label.js";
 
 /** Platform navigation for external AI tool session history (BL-177, SRB-08). */
 export const SESSIONS_NAVIGATION = {
   id: "sessions",
   surface: "sessions",
   get label(): string {
-    try { return uiText.text("workbench.sessions.navigation-name"); }
-    catch (error) {
-      if (typeof error === "object" && error && "code" in error && error.code === "ui.text_no_context") return defaultNavigationLabel("workbench.sessions.navigation-name");
-      throw error;
-    }
+    return workbenchNavigationLabel("workbench.sessions.navigation-name", () => uiText.text("workbench.sessions.navigation-name"));
   },
   glyph: "history",
   group: "make",

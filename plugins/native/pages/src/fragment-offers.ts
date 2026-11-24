@@ -1,5 +1,5 @@
 import type { FragmentActionOffer, FragmentOfferChoice, FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { readPagesText as localized } from "./ui-text-safe.js";
 
 const OFFER_TITLE_KEYS: Readonly<Record<string, string>> = {
   explain: "pages.offer.explain",
@@ -23,16 +23,6 @@ const OFFER_TITLE_KEYS: Readonly<Record<string, string>> = {
   proofread: "pages.offer.proofread",
   translate_new: "pages.offer.translate-new",
 };
-
-function localized(key: string, fallback: string, args?: Record<string, string | number>): string {
-  const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null; ownerOfPrefix?(prefix: string): string | null } | undefined;
-  if (!provider?.locale?.() || !provider.ownerOfPrefix?.("pages")) return fallback;
-  try {
-    return uiText.text(key, args);
-  } catch {
-    return fallback;
-  }
-}
 
 /**
  * Everything Pages offers for a document, its parts and several documents: the one list both the context row and the

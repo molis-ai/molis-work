@@ -8,6 +8,7 @@ import type { MemoryOperations } from "./operations.js";
 import type { MemoryForgetting } from "./forgetting.js";
 import { MemoryPreferences } from "./preferences.js";
 import { memoryErrors } from "./errors.js";
+import { resolveMemoryIntlLocale } from "./memory-locale.js";
 import { belongsToMemorySession } from "./classification.js";
 import { fromEntryMeta } from "./facts.js";
 import { isExpired, personOnly, placeOf, visibleTo } from "./places.js";
@@ -282,14 +283,7 @@ export class MemoryScopeCommands {
     for (const [index, item] of entries.entries()) {
       const child = { ...caller, operation_id: `${caller.operation_id}:import:${index}` };
       const stamp = this.ports.operations.begin(child, "import", { kind: "import", scope, owner: where.owner });
-      const activeLocale = (() => {
-        const direct = typeof this.ports.locale === "function" ? this.ports.locale() : this.ports.locale;
-        if (direct) return direct;
-        const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null; intlLocale?(tag: string): string | undefined } | undefined;
-        const tag = provider?.locale?.();
-        return tag ? provider?.intlLocale?.(tag) ?? tag : undefined;
-      })();
-      const date = new Intl.DateTimeFormat(activeLocale, { timeZone: this.ports.timeZone, dateStyle: "medium" }).format(new Date(stamp.at));
+      const date = new Intl.DateTimeFormat(resolveMemoryIntlLocale(this.ports.locale), { timeZone: this.ports.timeZone, dateStyle: "medium" }).format(new Date(stamp.at));
       const origin = `${date} · 导入 · 原出处：${item.origin.slice(0, 120)}`;
       const result = await (async () => {
         const res = await this.ports.importEntry(child, scope, item, origin);

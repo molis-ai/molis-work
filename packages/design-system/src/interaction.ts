@@ -11,13 +11,7 @@
 import type { InteractionNextStep } from "@molis-ai/molis-work-contracts/platform/ui";
 import { cx, escapeHtml, icon, renderAttrs, renderButton, renderCalendar, renderChoice, renderStateRing, t, type AttrValue, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-function uiDefault(fallback: string, read: () => string): string {
-  try { return read(); }
-  catch (error) {
-    if (typeof error === "object" && error && "code" in error && error.code === "ui.text_no_context") return fallback;
-    throw error;
-  }
-}
+import { uiTextOrFallback as uiDefault } from "./ui-text-safe.js";
 
 export type InteractionTone = "waiting" | "progress" | "done" | "failed" | "quiet";
 export interface InteractionBadge { label: string; tone: InteractionTone; /** null for descriptions that do not express a state (such as an effect). */ state?: StateRingState | null }

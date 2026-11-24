@@ -5,7 +5,7 @@ import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { assistantErrors } from "./assistant-errors.js";
 import { localizeActionErrorResponse, readWorkbenchText } from "../ui-error-words.js";
 
-export const ASSISTANT_ERROR_WORD_KEYS = [
+const ASSISTANT_ERROR_WORD_KEYS = [
   "workbench.assistant-error.open-model-settings",
   "workbench.assistant-error.close-other-service",
   "workbench.assistant-error.session-busy",
@@ -19,7 +19,7 @@ export const ASSISTANT_ERROR_WORD_KEYS = [
   "workbench.assistant-error.work-budget-plugin",
 ] as const;
 
-export type AssistantErrorWordKey = (typeof ASSISTANT_ERROR_WORD_KEYS)[number];
+type AssistantErrorWordKey = (typeof ASSISTANT_ERROR_WORD_KEYS)[number];
 
 /** Read a localized assistant error/action label from the single-source workbench locale pack, safely outside or inside a request. */
 export function readAssistantErrorWord(key: AssistantErrorWordKey, args?: readonly TextArg[]): string {

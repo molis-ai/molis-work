@@ -1,8 +1,12 @@
 import { NO_FAVICON_LINK, escapeHtml as esc, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormRecord, FormSubmissionRecord } from "./contract.js";
 
+function activeUiTextProvider(): { locale?(): string | null; ownerOfPrefix?(prefix: string): string | null } | undefined {
+  return Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null; ownerOfPrefix?(prefix: string): string | null } | undefined;
+}
+
 function localized(key: string, fallback: string): string {
-  const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null; ownerOfPrefix?(prefix: string): string | null } | undefined;
+  const provider = activeUiTextProvider();
   if (!provider?.locale?.() || !provider.ownerOfPrefix?.("form")) return fallback;
   try {
     return uiText.text(key);
@@ -19,10 +23,7 @@ export const FORM_ANSWER_LIMIT = 4000;
 const scriptJson = (value: unknown) => JSON.stringify(value).replaceAll("<", "\\u003c").replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
 
 function resolveFillHtmlLang(locale?: string): string {
-  const raw = locale ?? (() => {
-    const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null } | undefined;
-    return provider?.locale?.() ?? "";
-  })();
+  const raw = locale ?? activeUiTextProvider()?.locale?.() ?? "";
   const tag = raw.trim().toLowerCase();
   if (!tag) return "";
   if (tag === "zh" || tag.startsWith("zh-")) return "zh-CN";

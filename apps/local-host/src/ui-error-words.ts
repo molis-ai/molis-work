@@ -11,7 +11,7 @@ import { activeLocale, DEFAULT_WEB_LOCALE, pageLocale, webLanguage } from "./web
 // raw driver/network/OS paths, horizontal/account English messages in zh/ja, Chinese in en/ja)
 // and replaces them cleanly while preserving `code`, `details`, and `call_id` / `diagnostic_id`.
 
-export const COMMON_ERROR_KEYS = [
+const COMMON_ERROR_KEYS = [
   "common.error.invalid",
   "common.error.forbidden",
   "common.error.not-found",
@@ -49,6 +49,7 @@ export const COMMON_ERROR_KEYS = [
   "common.error.upgrade-in-progress",
   "common.error.storage-busy",
   "common.error.storage-no-space",
+  "common.error.secret-entry-unreadable",
   "common.error.outcome-unknown",
   "common.error.method-not-allowed",
   "common.error.endpoint-not-found",
@@ -137,6 +138,8 @@ const CODE_KEYS: Readonly<Record<string, CommonErrorKey>> = {
   "storage.upgrade_in_progress": "common.error.upgrade-in-progress",
   "storage.owner.busy": "common.error.storage-busy",
   "storage.upgrade_no_space": "common.error.storage-no-space",
+  "storage.secret_entry_invalid": "common.error.secret-entry-unreadable",
+  "storage.secret_entry_decryption_failed": "common.error.secret-entry-unreadable",
   "host.request_path_invalid": "common.error.invalid",
   "im.stopping": "common.error.service-stopping",
   "im.server.host_denied": "common.error.forbidden",
@@ -164,9 +167,9 @@ const ALWAYS_LOCALIZE_CODES = new Set<string>([
   "sandbox.storage_conflict",
 ]);
 
-export function baseLanguageOf(locale: string | null | undefined): "zh" | "en" | "ja" {
+function baseLanguageOf(locale: string | null | undefined): "zh" | "en" | "ja" {
   const base = locale?.trim().toLowerCase().split("-")[0];
-  if (base === "zh") return "zh";
+  if (!base || base === "zh") return "zh";
   if (base === "ja") return "ja";
   return "en";
 }
@@ -208,7 +211,7 @@ export function readErrorWord(key: CommonErrorKey, localeOverride?: string | nul
   return readWorkbenchText(key, localeOverride);
 }
 
-export function statusToErrorKey(status: number): CommonErrorKey {
+function statusToErrorKey(status: number): CommonErrorKey {
   if (status === 401) return "common.error.account-session-expired";
   if (status === 403) return "common.error.forbidden";
   if (status === 404) return "common.error.not-found";
@@ -229,7 +232,7 @@ export function statusToErrorKey(status: number): CommonErrorKey {
  * raw network/driver/OS errors, stack traces, file paths, hardcoded fallback) and maps them to a warm
  * `common.error.*` key. Returns null when the message is already clean user-facing prose.
  */
-export function classifyTechnicalMessage(message: string): CommonErrorKey | null {
+function classifyTechnicalMessage(message: string): CommonErrorKey | null {
   const trimmed = message.trim();
   if (!trimmed || trimmed === "能力执行失败") return "common.error.internal";
 
@@ -307,7 +310,7 @@ const ENGLISH_PROSE_WORD = /\b(?:is|are|was|were|be|been|being|has|have|had|do|d
  * than the active UI locale (e.g. raw Chinese backend text in en/ja UI, raw English in zh/ja UI),
  * while preserving localized English sentences that embed unquoted CJK user titles (e.g. project or file names).
  */
-export function isWrongLanguageForLocale(message: string, locale: string): boolean {
+function isWrongLanguageForLocale(message: string, locale: string): boolean {
   const core = message.replace(QUOTED_SEGMENTS, " ").replace(NEUTRAL_PROPER_NOUNS, " ").trim();
   if (!core) return false;
   const hanMatches = core.match(/\p{Script=Han}/gu);
@@ -332,7 +335,7 @@ export function isWrongLanguageForLocale(message: string, locale: string): boole
   return !isEnglishProse;
 }
 
-function keyForCodeAndMessage(code: string | undefined, rawMessage: string, status: number, kind?: ActionErrorKind): CommonErrorKey {
+function keyForCodeAndMessage(code: string | undefined, rawMessage: string, status: number): CommonErrorKey {
   if (code) {
     if (code === "account.unavailable" && /\b(?:storage|credential|keychain)\b/iu.test(rawMessage)) {
       return "common.error.account-credential-store";
@@ -347,7 +350,6 @@ function keyForCodeAndMessage(code: string | undefined, rawMessage: string, stat
     const platformKind = platformErrorKind(code);
     if (platformKind) return KIND_KEYS[platformKind];
   }
-  if (kind) return KIND_KEYS[kind];
   return statusToErrorKey(status);
 }
 
@@ -434,16 +436,5 @@ export function localizeWebErrorMessage(
  * strings with a warm localized sentence.
  */
 export function sanitizeErrorForNotice(error: unknown, fallbackKey: CommonErrorKey = "common.error.internal"): string {
-  const raw = error instanceof Error ? error.message : typeof error === "string" ? error : "";
-  const code = typeof error === "object" && error !== null && "code" in error && typeof (error as { code?: unknown }).code === "string"
-    ? (error as { code: string }).code
-    : undefined;
-  const locale = activeLocale() ?? pageLocale();
-  const technicalKey = classifyTechnicalMessage(raw);
-  if (technicalKey) return readErrorWord(technicalKey, locale);
-  if (shouldAlwaysLocalizeCode(code)) return readErrorWord(keyForCodeAndMessage(code, raw, 500), locale);
-  if (locale && isWrongLanguageForLocale(raw, locale)) {
-    return readErrorWord(code ? keyForCodeAndMessage(code, raw, 500) : fallbackKey, locale);
-  }
-  return raw.trim() || readErrorWord(fallbackKey, locale);
+  return localizeWebErrorMessage(error, fallbackKey);
 }

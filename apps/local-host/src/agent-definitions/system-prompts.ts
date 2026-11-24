@@ -10,20 +10,20 @@ const promptBody = (id: string) => readLocalizedMarkdown(new URL("../../prompts/
 export const ONBOARDING_OWNER = "system:onboarding";
 
 export const ONBOARDING_NOTES = defineInstructionPrompt({
-  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.notes", version: /* @version prompt.onboarding.notes */ 3, title: "分批读材料",
+  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.notes", version: /* @version prompt.onboarding.notes */ 4, title: "分批读材料",
   purpose: "导入的材料较多时，逐批提取与工作有关的主题、日期、进展、待办、冲突和缺失信息", used_by: ["项目上手"],
   ...promptBody("onboarding.notes"),
 });
 
 export const ONBOARDING_PROPOSAL = defineInstructionPrompt({
-  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.proposal", version: /* @version prompt.onboarding.proposal */ 3, title: "项目建议",
+  owner_id: ONBOARDING_OWNER, prompt_id: "onboarding.proposal", version: /* @version prompt.onboarding.proposal */ 4, title: "项目建议",
   purpose: "把已有材料整理成一个能继续工作的项目建议：背景、进展、下一步与待确认事项", used_by: ["项目上手"],
   ...promptBody("onboarding.proposal"),
 });
 
 /** Settings › 能力包 › 新建技能: one sentence becomes the form's fields for the person to change (batch 41, 定样 B). It only proposes. */
 export const SKILL_DRAFT = defineInstructionPrompt({
-  owner_id: "system:skills", prompt_id: "skills.draft", version: /* @version prompt.skills.draft */ 2, title: "起草技能",
+  owner_id: "system:skills", prompt_id: "skills.draft", version: /* @version prompt.skills.draft */ 3, title: "起草技能",
   purpose: "把用户一句话写成一个技能的初稿：名称、什么时候用、什么时候不用、给谁用和正文；只起草，由用户改完再保存", used_by: ["设置里的新建技能"],
   ...promptBody("skills.draft"),
 });
@@ -44,7 +44,7 @@ export const SKILL_TRIAL_JUDGE = defineInstructionPrompt({
 
 /** 「告诉助理怎么改」 on a draft (batch 42): one sentence changes the draft's fields. It only proposes the next revision of the draft. */
 export const SKILL_REVISE = defineInstructionPrompt({
-  owner_id: "system:skills", prompt_id: "skills.revise", version: /* @version prompt.skills.revise */ 1, title: "改技能草稿",
+  owner_id: "system:skills", prompt_id: "skills.revise", version: /* @version prompt.skills.revise */ 2, title: "改技能草稿",
   purpose: "按用户一句话改技能草稿的字段与正文，没让改的地方原样保留；只改草稿，采用由用户来", used_by: ["技能草稿的「告诉助理怎么改」"],
   ...promptBody("skills.revise"),
 });
@@ -90,7 +90,7 @@ export const CONTEXTUAL_SURFACE = defineInstructionPrompt({
  * instruction; the person edits only the words here, not that boundary.
  */
 export const CONTEXTUAL_DRAFT = defineInstructionPrompt({
-  owner_id: CONTEXTUAL_OWNER, prompt_id: "contextual.draft", version: /* @version prompt.contextual.draft */ 2, title: "放进去处：起草",
+  owner_id: CONTEXTUAL_OWNER, prompt_id: "contextual.draft", version: /* @version prompt.contextual.draft */ 3, title: "放进去处：起草",
   purpose: "把选中的内容或用户写的一句话放进某个去处（待办、灵光…）时，请模型把它整理成新记录的文字和日期字段；只填材料里有的，拿不准的留空",
   used_by: ["放进去处", "一句话新建"],
   ...promptBody("contextual.draft"),

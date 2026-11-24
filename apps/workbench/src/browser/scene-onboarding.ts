@@ -1,7 +1,7 @@
 import type { BlueprintAdoptionApplyInput, BlueprintAdoptionApplyResult, BlueprintAdoptionPreviewResult, BlueprintAdoptionReadResult,
   BlueprintAdoptionTarget, BlueprintAdoptionUndoResult, BlueprintApplyStep, BlueprintDraftResult, BlueprintLibraryResult,
   BlueprintPreviewChange, UndoStep } from "@molis-ai/molis-work-contracts/services/blueprints";
-import type { OwnedTextRef, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { OwnedTextRef, TextRef, UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { readEventStream } from "./event-stream.js";
 
 import type { sceneSettingValues } from "./scene-setting-values.js";
@@ -19,6 +19,7 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
   let target: BlueprintAdoptionTarget, selection = new Set<string>(), changes: BlueprintPreviewChange[] = [];
   let original: BlueprintAdoptionApplyInput | undefined, targetProject: string | undefined;
   let undo: { operation: "remove" | "revert"; request_id: string } | undefined;
+  let lastLibrary: BlueprintLibraryResult | undefined, recordTitle: TextRef | undefined;
   const applied = new Map<string, BlueprintApplyStep>(), undone = new Map<string, UndoStep>();
 
   function report(e: unknown) { error.hidden = false; error.textContent = request.text(e, t("load-error")); }
@@ -73,7 +74,7 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
           const data = JSON.parse(raw);
           if (event === "snapshot" && data.preview) {
             preview = data.preview;
-            if (data.record) sceneContext(data.record.title);
+            if (data.record) { recordTitle = data.record.title; sceneContext(data.record.title); }
             else if (data.draft) { restoreReview(data.preview, data.draft); return; }
           }
           if (event === "snapshot" && data.record) {
@@ -136,7 +137,8 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
       draft = (await request<BlueprintDraftResult>(api + "draft?id=" + encodeURIComponent(draftId))).draft; chooseTarget(draft); return;
     }
     if (adoptionId || previewId) { watch((adoptionId ?? previewId)!, adoptionId ? "adoption" : "preview"); return; }
-    page.library(await request<BlueprintLibraryResult>(api + "library"));
+    lastLibrary = await request<BlueprintLibraryResult>(api + "library");
+    page.library(lastLibrary);
   }
   function restoreReview(savedPreview: BlueprintAdoptionPreviewResult, current: BlueprintDraftResult["draft"]) {
     preview = savedPreview; target = preview.target; draft = current;
@@ -151,6 +153,29 @@ export function sceneOnboarding(request: UiRequest, readStream: typeof readEvent
     original = saved?.request?.preview_id === savedPreview.preview_id ? saved.request : undefined;
     draw();
   }
-  addEventListener("pagehide", () => stream?.abort(), { once: true });
+  const onLanguageChanged = () => {
+    if (preview) {
+      if (draft) sceneContext(draft.blueprint.title, draft.blueprint.purpose.work);
+      else if (recordTitle) sceneContext(recordTitle);
+      draw();
+      return;
+    }
+    if (draft) {
+      const checked = page.main.querySelector<HTMLInputElement>('input[name="scene-target"]:checked')?.value;
+      const input = page.main.querySelector<HTMLInputElement>("input.mw-input");
+      const typed = input?.value;
+      chooseTarget(draft);
+      if (checked) {
+        const radio = page.main.querySelector<HTMLInputElement>(`input[name="scene-target"][value="${CSS.escape(checked)}"]`);
+        if (radio) { radio.checked = true; radio.dispatchEvent(new Event("change", { bubbles: true })); }
+      }
+      const nextInput = page.main.querySelector<HTMLInputElement>("input.mw-input");
+      if (nextInput && typed !== undefined) nextInput.value = typed;
+      return;
+    }
+    if (lastLibrary) page.library(lastLibrary);
+  };
+  document.addEventListener("molis-work:language-changed", onLanguageChanged);
+  addEventListener("pagehide", () => { stream?.abort(); document.removeEventListener("molis-work:language-changed", onLanguageChanged); }, { once: true });
   void start().catch(report);
 }

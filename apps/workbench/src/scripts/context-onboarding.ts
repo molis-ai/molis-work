@@ -763,6 +763,13 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   if (otherTabs) otherTabs.onmessage = () => {
     readConfig().then(latest => { config = latest; if (lastView === 'preview' || lastView === 'materials' || lastView === 'model') render(); }).catch(() => undefined);
   };
+  document.addEventListener('molis-work:language-changed', () => {
+    if (!journey && !introStep) return;
+    if (editing) preserveEdits();
+    const blankInput = app.querySelector('#cx-blank-name');
+    if (blankInput) blankName = blankInput.value;
+    render();
+  });
 
   /* ───────── Start ───────── */
   (async()=>{try{

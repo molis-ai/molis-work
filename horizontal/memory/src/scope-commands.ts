@@ -49,6 +49,7 @@ interface ScopePorts {
   now: () => Date;
   newId: () => string;
   timeZone?: string;
+  locale?: string | (() => string | undefined);
   importEntry(caller: MemoryCaller, scope: MemoryScope, entry: MemoryExportPackage["entries"][number], origin: string): Promise<MemoryWriteResult>;
   beforeForget(caller: MemoryCaller, scope: MemoryScope, owner: string, memories: readonly { memory_id: string; version: number }[]): Promise<void>;
   acceptForget(caller: MemoryCaller, scope: MemoryScope, owner: string, memories: readonly { memory_id: string; version: number }[]): Promise<void>;
@@ -281,7 +282,14 @@ export class MemoryScopeCommands {
     for (const [index, item] of entries.entries()) {
       const child = { ...caller, operation_id: `${caller.operation_id}:import:${index}` };
       const stamp = this.ports.operations.begin(child, "import", { kind: "import", scope, owner: where.owner });
-      const date = new Intl.DateTimeFormat("zh-CN", { timeZone: this.ports.timeZone, dateStyle: "medium" }).format(new Date(stamp.at));
+      const activeLocale = (() => {
+        const direct = typeof this.ports.locale === "function" ? this.ports.locale() : this.ports.locale;
+        if (direct) return direct;
+        const provider = Reflect.get(globalThis, Symbol.for("molis.work.ui-text.v1")) as { locale?(): string | null; intlLocale?(tag: string): string | undefined } | undefined;
+        const tag = provider?.locale?.();
+        return tag ? provider?.intlLocale?.(tag) ?? tag : undefined;
+      })();
+      const date = new Intl.DateTimeFormat(activeLocale, { timeZone: this.ports.timeZone, dateStyle: "medium" }).format(new Date(stamp.at));
       const origin = `${date} · 导入 · 原出处：${item.origin.slice(0, 120)}`;
       const result = await (async () => {
         const res = await this.ports.importEntry(child, scope, item, origin);

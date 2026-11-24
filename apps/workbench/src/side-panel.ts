@@ -518,6 +518,11 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   settle();
   (${SIDE_CONTEXT_FACTORY})({panel,strip,select,current});
   document.addEventListener('molis-work:plugins-changed',()=>{settle();draw();save();});
+  document.addEventListener('molis-work:language-changed',()=>{
+    divider.setAttribute('aria-label',globalThis.t.text("workbench.side-panel.resize-side-panel"));
+    for(const button of strip.querySelectorAll('[data-side-removed]')){const tab=tabOf(button.dataset.sideTab);if(!tab)continue;const label=tab.title+' · '+globalThis.t.text("workbench.side-panel.removed");button.parentElement.title=label;button.setAttribute('aria-label',label);}
+    drawPanes();drawEar();drawUndo();
+  });
   // A view that comes or goes (its tab's hidden) is drawn again; the list itself opening or closing is not, so the undo chip a
   // press lands on is still the one that takes the click.
   new MutationObserver(records=>{if(records.some(record=>record.target!==strip))draw();}).observe(strip,{subtree:true,attributes:true,attributeFilter:['hidden']});

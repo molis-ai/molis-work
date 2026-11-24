@@ -14,7 +14,7 @@
 export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el, kinds, tile, glyph, group, sideAct, paintBlock, keepFocus, current, pending, sidePanelHere,
   readBack, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, pickFile, addFiles, expired, block }) => {
   const GLYPH = { image: "image", file: "file", method: "zap", capability: "zap", text: "note", selection: "text", object: "file" };
-  const nameOf = (material) => material.title.replace(/^(方法|用|图片|引用)：/, "");
+  const nameOf = (material) => material.method?.name || material.capability?.title || String(material.title || "").replace(/^(?:方法|用|图片|引用|Method|Skill|Use|Image|Quote|Selection|スキル|ツール|画像|選択)[:：]\s*/i, "");
   const objectTile = (object, round) => {
     const state = objectState(object), open = openObject(object);
     const box = el("div", "assistant-tile" + (open ? " is-openable" : "") + (state ? " is-attention" : ""));
@@ -37,7 +37,7 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el,
     return box;
   };
   const tiles = (items) => { const box = el("div", "assistant-tiles"); items.forEach((one) => box.append(one)); return box; };
-  return { paint() {
+  const paint = () => {
     const view = current(), work = view ? view.work : null, rounds = work ? view.rounds : [];
     const latest = rounds.length ? rounds[rounds.length - 1] : null, since = latest ? Date.parse(latest.started_at) : Infinity;
     const objects = work && view.objects ? view.objects.filter((o) => o.relation === "material") : [];
@@ -54,7 +54,7 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el,
     const now = [...objects.filter(usedNow).map((o) => objectTile(o)), ...[...used.values()].filter((one) => one.now).map((one) => materialTile({ material: one.material }))];
     const before = [...objects.filter((o) => !usedNow(o)).map((o) => objectTile(o, roundOf(o))), ...[...used.values()].filter((one) => !one.now).map(materialTile)];
     const node = block();
-    const signature = JSON.stringify([work && work.work_id, sidePanelHere(), waiting.map((one) => one.kind + ":" + one.title),
+    const signature = JSON.stringify([document.documentElement.lang, work && work.work_id, sidePanelHere(), waiting.map((one) => one.kind + ":" + one.title),
       objects.map((o) => [o.subject.id, o.state, o.title, o.current_revision, o.recorded_at, roundOf(o)]), [...used.keys()], latest && latest.run_id]);
     if (!node || node.dataset.signature === signature) return;
     node.dataset.signature = signature;
@@ -75,7 +75,9 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ readText, el,
       const changed = objects.filter((o) => o.state !== "current").length;
       paintBlock(node, globalThis.t.text("workbench.assistant-dock.context"), "paperclip", content, changed ? changed + " " + globalThis.t.text("workbench.assistant-side-context.changed") : waiting.length ? waiting.length + " " + globalThis.t.text("workbench.assistant-side-context.send-2") : now.length + before.length ? String(now.length + before.length) : "", changed > 0);
     });
-  } };
+  };
+  document.addEventListener("molis-work:language-changed", () => { if (block()?.isConnected) paint(); });
+  return { paint };
 }`;
 
 /**
@@ -98,7 +100,7 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ readText
   const paint = (work, read) => {
     const env = environmentBlock(), tools = toolsBlock();
     if (!env || !tools) return;
-    const signature = JSON.stringify([work && work.work_id, read]);
+    const signature = JSON.stringify([document.documentElement.lang, work && work.work_id, read]);
     if (env.dataset.signature === signature) return;
     env.dataset.signature = signature;
     if (!work || !read) { paintBlock(env, "", "", null); paintBlock(tools, "", "", null); return; }
@@ -144,6 +146,7 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ readText
     paint(work, held && held.id === work.work_id ? held.read : null);
   };
   document.addEventListener("focusin", (event) => { if (last && side()?.contains(event.target)) surround(last); });
+  document.addEventListener("molis-work:language-changed", () => { if (last && environmentBlock()?.isConnected) paint(last, held && held.id === last.work_id ? held.read : null); });
   return { paint: surround };
 }`;
 
@@ -159,16 +162,18 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ readText
  * - 这项工作: the work's own total and its cap, as before.
  */
 export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ readText, el, progress, api, toast, box, current, adopt }) => {
-  const number = (value) => Number(value).toLocaleString("en-US");
+  const number = (value) => Number(value).toLocaleString(document.documentElement.lang || undefined);
   const MARK = { estimated: "workbench.assistant-side-context.estimated", partial: "workbench.assistant-side-context.partial", "partial-estimated": "workbench.assistant-side-context.partly-estimated" };
   const tag = (coverage) => MARK[coverage] ? globalThis.t.text("workbench.assistant-side-context.coverage-mark", { mark: globalThis.t.text(MARK[coverage]) }) : "", marked = (value, coverage) => coverage === "unknown" ? globalThis.t.text("workbench.assistant-side-context.unavailable") : globalThis.t.text("workbench.assistant-side-context.marked-value", { value: number(value), mark: tag(coverage) });
   const row = (label, value, muted) => { const line = el("p", "assistant-usage-row" + (muted ? " is-muted" : "")); line.append(el("span", "", label), el("span", "mw-num", value)); return line; };
   const section = (title, ...rows) => { const part = el("div", "assistant-usage-part"); part.append(el("p", "assistant-block-sub", title), ...rows.filter(Boolean)); return part; };
-  return { paint(work) {
+  let lastWork = null;
+  const paint = (work) => {
+    lastWork = work;
     const node = box(), view = current();
     if (!node) return;
     const usage = work && view && view.usage ? view.usage : null, last = work && view ? view.rounds[view.rounds.length - 1] : null, round = last || null;
-    const signature = JSON.stringify([work && work.work_id, usage, round && [round.run_id, round.usage, round.model, round.ended_at]]);
+    const signature = JSON.stringify([document.documentElement.lang, work && work.work_id, usage, round && [round.run_id, round.usage, round.model, round.ended_at]]);
     if (node.dataset.signature === signature) return;
     const wasOpen = node.querySelector("details")?.open;
     node.dataset.signature = signature;
@@ -210,5 +215,7 @@ export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ readText, el, p
       details.append(section(globalThis.t.text("workbench.assistant-side-context.work") + " · " + number(usage.rounds) + " " + globalThis.t.text("workbench.assistant-side-context.turns"), form));
     }
     node.replaceChildren(details);
-  } };
+  };
+  document.addEventListener("molis-work:language-changed", () => { if (box()?.isConnected) paint(lastWork); });
+  return { paint };
 }`;

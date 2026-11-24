@@ -134,7 +134,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
         : view.section === "mcp"
           ? renderMcpSettings(view, desktopShell, primitives)
           : view.section === "connectors"
-            ? renderConnectorsSettings(view, { readText, escapeHtml, icon, networkDocHref: NETWORK_DOC_HREF[currentLocale() === "en" ? "en" : "zh"] })
+            ? renderConnectorsSettings(view, { readText, escapeHtml, icon, networkDocHref: NETWORK_DOC_HREF[currentLocale() === "zh" ? "zh" : "en"] })
           : view.section === "web-search" ? renderWebSearchSettings(view.web_search)
           : view.section === "projects"
           ? renderProjectSettings(view, desktopShell, primitives)

@@ -49,7 +49,9 @@ export function createTransport(onUnauthorized: () => void) {
       throw localFailure("im-ui.transport.unreadable");
     }
     if (!response.ok) {
-      const error: ApiError = new Error(typeof value?.error === "string" ? value.error : "Discussion request failed");
+      const error: ApiError = typeof value?.error === "string" && value.error
+        ? new Error(value.error)
+        : localFailure("im-ui.transport.try-again");
       error.code = typeof value?.code === "string" ? value.code : undefined;
       error.status = response.status;
       if (response.status === 401)

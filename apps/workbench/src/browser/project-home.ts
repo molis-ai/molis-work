@@ -245,7 +245,9 @@ export function mountHome(host: HomeHost) {
   const placement = createPositionPeek(groups, (body, signal) => host.read(body.click ? "/click" : "", body.click ?? body, signal), host,
     { source: () => ({}), expanded: () => false, visible, displayed: () => display ?? undefined, lookup: key => controls.get(key),
       navigate: async () => { /* Placement offers have no peek navigation. */ } });
+  let captionState: [string | undefined, string | undefined] = [undefined, undefined];
   const caption = (word?: string, button?: string) => {
+    captionState = [word, button];
     status.innerHTML = (word ? "<p>" + escapeHtml(homeWord(word)) + "</p>" : "") + (button ? homeButton(button, homeWord(button === "refresh" ? "retry" : "open-result")) : "");
   };
   const closePeek = () => {
@@ -442,10 +444,23 @@ export function mountHome(host: HomeHost) {
     shown = false;
     leave();
   });
+  const onLanguageChanged = () => {
+    if (captionState[0] || captionState[1]) caption(captionState[0], captionState[1]);
+    if (!display || !visible()) return;
+    paint(display);
+    primary.apply();
+    corrections.afterPaint();
+    if (peek.open && inspected) {
+      peekContent.innerHTML = renderHomePeek(display, inspected, peekControls);
+      if (inspected.read.state === "ok") offers.refresh();
+    }
+  };
+  document.addEventListener("molis-work:language-changed", onLanguageChanged);
   return {
     sync: syncAll,
     openCompare: (ref: { page_id: string; version: number }) => homePages?.openCompare(ref),
     dispose() {
+      document.removeEventListener("molis-work:language-changed", onLanguageChanged);
       unwatch();
       primary.stop();
       homePages?.dispose();

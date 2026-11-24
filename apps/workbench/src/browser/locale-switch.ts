@@ -18,7 +18,14 @@ export interface LocaleMerge {
 }
 
 /** These change with what a person does, not with the language. */
-const TEXT_ATTRIBUTES = new Set(["title", "placeholder", "aria-label", "aria-description", "aria-valuetext", "alt", "label", "data-placeholder", "data-work-surface-label", "data-work-surface-description", "data-home-starts", "data-connector-search", "data-steps", "data-caption", "data-words"]);
+const TEXT_ATTRIBUTES = new Set([
+  "title", "placeholder", "aria-label", "aria-description", "aria-valuetext", "alt", "label",
+  "data-placeholder", "data-work-surface-label", "data-work-surface-description", "data-home-starts",
+  "data-connector-search", "data-steps", "data-caption", "data-words",
+  "data-rail-toggle-label", "data-idle", "data-output-label", "data-reopened",
+  "data-conn-card-say", "data-connector-project-label", "data-web-search-name",
+  "data-goal-input-done", "data-goal-input-fail", "data-placement-create-title",
+]);
 /**
  * A button-type input's label is its value. Every other `value` is data: a field's is the person's, and an `<option>`'s or a `<button>`'s goes with
  * the form when it is sent (a `<button>`'s label is the text inside it), so it is never merged.

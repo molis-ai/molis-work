@@ -237,7 +237,15 @@ function renderArtifactFrameBlock(model: ArtifactBrowserUiModel): string {
 export const artifactBrowserUiContribution: UiContribution<ArtifactBrowserUiModel> = {
   descriptor: {
     contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID,
-    kind: "primary-page", navigation_id: "artifacts", label: "成果", slots: [],
+    kind: "primary-page", navigation_id: "artifacts",
+    get label(): string {
+      try { return uiText.text("workbench.artifacts.navigation-name"); }
+      catch (error) {
+        if (typeof error === "object" && error && "code" in error && error.code === "ui.text_no_context") return "成果";
+        throw error;
+      }
+    },
+    slots: [],
     surfaces: [
       { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
       { surface_id: "detail", target_slot_id: "workbench.main", format: "declarative-html" },
@@ -251,7 +259,7 @@ export const artifactBrowserUiContribution: UiContribution<ArtifactBrowserUiMode
       case "detail": return detail(model, false);
       case "embed": return detail(model, true);
       case "frame-block": return renderArtifactFrameBlock(model);
-      default: throw new Error(`成果 UI surface ${surface} 不存在`);
+      default: throw new Error(`Unknown artifact UI surface: ${surface}`);
     }
   },
 };

@@ -9,7 +9,15 @@
  * Markup carries `data-ix-*` hooks so one client can wire behaviour without depending on class names.
  */
 import type { InteractionNextStep } from "@molis-ai/molis-work-contracts/platform/ui";
-import { cx, escapeHtml, icon, renderAttrs, renderButton, renderCalendar, renderChoice, renderStateRing, type AttrValue, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { cx, escapeHtml, icon, renderAttrs, renderButton, renderCalendar, renderChoice, renderStateRing, t, type AttrValue, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+
+function uiDefault(fallback: string, read: () => string): string {
+  try { return read(); }
+  catch (error) {
+    if (typeof error === "object" && error && "code" in error && error.code === "ui.text_no_context") return fallback;
+    throw error;
+  }
+}
 
 export type InteractionTone = "waiting" | "progress" | "done" | "failed" | "quiet";
 export interface InteractionBadge { label: string; tone: InteractionTone; /** null for descriptions that do not express a state (such as an effect). */ state?: StateRingState | null }
@@ -137,9 +145,10 @@ export function renderInteractionOptions(options: InteractionOption[], group: { 
   const described = options.some(option => option.description || option.recommended);
   const radio = !group.multiple;
   const state = (selected: boolean | undefined) => radio ? ` role="radio" aria-checked="${selected ? "true" : "false"}"` : ` aria-pressed="${selected ? "true" : "false"}"`;
+  const recommendedLabel = group.recommendedLabel ?? uiDefault("推荐", () => t.text("common.interaction.recommended"));
   const body = options.map(option => described
     ? `<button type="button" class="mw-ix-option" data-ix-option="${esc(option.value)}"${state(option.selected)}${option.disabled ? " disabled" : ""}>
-        <span class="mw-ix-option__top"><span class="mw-ix-option__title">${esc(option.label)}</span>${option.recommended ? `<span class="mw-ix-tag">${esc(group.recommendedLabel ?? "推荐")}</span>` : ""}<span class="mw-ix-option__check" aria-hidden="true">${icon("check")}</span></span>
+        <span class="mw-ix-option__top"><span class="mw-ix-option__title">${esc(option.label)}</span>${option.recommended ? `<span class="mw-ix-tag">${esc(recommendedLabel)}</span>` : ""}<span class="mw-ix-option__check" aria-hidden="true">${icon("check")}</span></span>
         ${option.description ? `<span class="mw-ix-option__desc">${esc(option.description)}</span>` : ""}</button>`
     : renderChoice({ label: option.label, selected: option.selected, attrs: { "data-ix-option": option.value, disabled: option.disabled } })
         .replace(/ aria-pressed="(true|false)"/, radio ? ' role="radio" aria-checked="$1"' : ' aria-pressed="$1"')).join("");
@@ -150,12 +159,13 @@ function calendarPopup(calendar: InteractionCalendar | undefined, selected: stri
   if (!calendar?.months.length) return "";
   const pages = calendar.months.map(({ year, month }, index) => renderCalendar({ year, month, today: calendar.today, selected, compact: true,
     attrs: { "data-ix-calendar-page": index, hidden: index > 0 || undefined } })).join("");
-  return `<div class="mw-ix-calendar" data-ix-calendar role="dialog" aria-label="${esc(calendar.label ?? "选择日期")}" hidden>${pages}</div>`;
+  const label = calendar.label ?? uiDefault("选择日期", () => t.text("common.interaction.choose-date"));
+  return `<div class="mw-ix-calendar" data-ix-calendar role="dialog" aria-label="${esc(label)}" hidden>${pages}</div>`;
 }
 function dateControl(control: { value: string; weekday?: string; placeholder?: string; calendar?: InteractionCalendar; calendarLabel?: string }, input: Record<string, AttrValue>): string {
   return `<span class="mw-ix-date" data-ix-date><input class="mw-input mw-ix-date__input" data-slot="input"${renderAttrs({ type: "text", value: control.value, placeholder: control.placeholder ?? "YYYY-MM-DD", autocomplete: "off", inputmode: "numeric", ...input })}>
     <span class="mw-ix-weekday" data-ix-weekday aria-hidden="true">${esc(control.weekday ?? "")}</span>${control.calendar ? renderButton({
-      label: control.calendarLabel ?? "打开日历", icon: "calendar", iconOnly: true, variant: "ghost", attrs: { "data-ix-calendar-open": true, "aria-expanded": "false" } }) : ""}${calendarPopup(control.calendar, control.value)}</span>`;
+      label: control.calendarLabel ?? uiDefault("打开日历", () => t.text("common.interaction.open-calendar")), icon: "calendar", iconOnly: true, variant: "ghost", attrs: { "data-ix-calendar-open": true, "aria-expanded": "false" } }) : ""}${calendarPopup(control.calendar, control.value)}</span>`;
 }
 function control(scope: string, field: InteractionField): string {
   const id = fieldId(scope, field.id);
@@ -170,25 +180,36 @@ function control(scope: string, field: InteractionField): string {
       ? `<textarea class="mw-textarea mw-ix-text" data-slot="textarea" rows="2"${renderAttrs({ id, placeholder: c.placeholder, maxlength: c.maxLength, ...value })}>${esc(c.value)}</textarea>`
       : `<input class="mw-input mw-ix-text" data-slot="input"${renderAttrs({ id, type: "text", value: c.value, placeholder: c.placeholder, maxlength: c.maxLength, autocomplete: "off", ...value })}>`;
     case "number": {
-      const step = c.step ?? 1, [less, more] = c.stepLabels ?? [`减少 ${step}`, `增加 ${step}`];
+      const step = c.step ?? 1;
+      const [less, more] = c.stepLabels ?? [
+        uiDefault(`减少 ${step}`, () => t.text("common.interaction.step-decrease", { step })),
+        uiDefault(`增加 ${step}`, () => t.text("common.interaction.step-increase", { step })),
+      ];
       const stepper = (sign: 1 | -1) => renderButton({ label: sign > 0 ? more : less, icon: sign > 0 ? "plus" : "minus", iconOnly: true, variant: "ghost", attrs: { "data-ix-step-by": sign * step } });
       // The unit is read with the field (after its label), so a screen reader hears "时长, 分钟", not a bare number.
       const unit = c.unit ? fieldId(scope, field.id, "unit") : "";
       return `<span class="mw-ix-number-row"><span class="mw-number mw-ix-number">${stepper(-1)}<input class="mw-input" data-slot="input"${renderAttrs({ id, type: "text", value: c.value, placeholder: c.placeholder, inputmode: c.integer ? "numeric" : "decimal", autocomplete: "off", "data-ix-min": c.min, "data-ix-max": c.max, ...value, ...(unit ? { "aria-describedby": `${unit} ${describedBy}` } : {}) })}>${stepper(1)}</span>${unit ? `<span class="mw-ix-unit" id="${esc(unit)}">${esc(c.unit!)}</span>` : ""}</span>`;
     }
     case "date": return dateControl(c, { id, ...value });
-    case "datetime": return `<span class="mw-ix-when">${dateControl({ ...c, value: c.date }, { id: `${id}-date`, "data-ix-part": "date", "data-ix-focus": true, "aria-label": c.dateLabel ?? "日期", "aria-describedby": describedBy })}<span class="mw-ix-clock"><input class="mw-input mw-ix-time" data-slot="input"${
-      renderAttrs({ id, type: "text", value: c.time, placeholder: "10:00", inputmode: "numeric", autocomplete: "off", "data-ix-part": "time", "aria-label": c.timeLabel ?? "时刻（24 小时制）", "aria-describedby": describedBy })}><span class="mw-ix-zone">${esc(c.zone)}</span></span></span>`;
+    case "datetime": return `<span class="mw-ix-when">${dateControl({ ...c, value: c.date }, { id: `${id}-date`, "data-ix-part": "date", "data-ix-focus": true, "aria-label": c.dateLabel ?? uiDefault("日期", () => t.text("common.interaction.date")), "aria-describedby": describedBy })}<span class="mw-ix-clock"><input class="mw-input mw-ix-time" data-slot="input"${
+      renderAttrs({ id, type: "text", value: c.time, placeholder: "10:00", inputmode: "numeric", autocomplete: "off", "data-ix-part": "time", "aria-label": c.timeLabel ?? uiDefault("时刻（24 小时制）", () => t.text("common.interaction.time-24h")), "aria-describedby": describedBy })}><span class="mw-ix-zone">${esc(c.zone)}</span></span></span>`;
     case "reference": return referenceControl(id, c, describedBy);
   }
 }
-const REFERENCE_LABELS: Required<Omit<InteractionReferenceLabels, "found">> = { remove: "去掉", empty: "没有找到", failed: "暂时搜不了，稍后再试", full: "已经选够了" };
+function defaultReferenceLabels(): Required<Omit<InteractionReferenceLabels, "found">> {
+  return {
+    remove: uiDefault("去掉", () => t.text("common.interaction.ref-remove")),
+    empty: uiDefault("没有找到", () => t.text("common.interaction.ref-empty")),
+    failed: uiDefault("暂时搜不了，稍后再试。", () => t.text("common.interaction.ref-failed")),
+    full: uiDefault("已经选够了", () => t.text("common.interaction.ref-full")),
+  };
+}
 /** One picked object; the shared client draws the same when the person picks one. */
-export const renderInteractionReferenceChip = (ref: InteractionReference, remove = REFERENCE_LABELS.remove): string =>
+export const renderInteractionReferenceChip = (ref: InteractionReference, remove = defaultReferenceLabels().remove): string =>
   `<li class="mw-ix-chip" data-ix-reference="${esc(ref.value)}"><span>${esc(ref.label)}</span><button type="button" data-ix-unpick aria-label="${esc(`${remove} ${ref.label}`)}">${icon("x")}</button></li>`;
 /** The picked objects, then a search box whose results (a listbox the client fills) are offered as the person types. */
 function referenceControl(id: string, c: Extract<InteractionControl, { kind: "reference" }>, describedBy: string): string {
-  const labels = { ...REFERENCE_LABELS, ...c.labels };
+  const labels = { ...defaultReferenceLabels(), ...c.labels };
   return `<div class="mw-ix-refs"${renderAttrs({ "data-ix-references": true, "data-ix-ref-source": c.source, "data-ix-multiple": c.multiple === true, "data-ix-ref-max": c.multiple ? c.max : 1, "data-ix-ref-labels": JSON.stringify(labels) })}>
     <ul class="mw-ix-picked" data-ix-picked>${c.picked.map(ref => renderInteractionReferenceChip(ref, labels.remove)).join("")}</ul><template data-ix-chip>${renderInteractionReferenceChip({ value: "", label: "" }, labels.remove)}</template>
     <span class="mw-input-group mw-ix-ref-search" data-slot="input-group">${icon("search")}<input class="mw-input" data-slot="input"${renderAttrs({ id, type: "text", role: "combobox", "aria-autocomplete": "list", "aria-expanded": "false",
@@ -196,7 +217,12 @@ function referenceControl(id: string, c: Extract<InteractionControl, { kind: "re
     <ul class="mw-menu mw-ix-ref-results" role="listbox" id="${esc(`${id}-results`)}" hidden></ul><template data-ix-ref-row><li class="mw-menu__item mw-ix-ref" role="option" tabindex="-1" aria-selected="false"><span></span><span class="mw-ix-ref__meta"></span></li></template><p class="mw-ix-ref-status" id="${esc(`${id}-status`)}" data-ix-ref-status aria-live="polite"></p></div>`;
 }
 /** An optional single choice can be emptied again before it is sent: a radio alone cannot be unpicked. */
-export function renderInteractionField(scope: string, field: InteractionField, optionalLabel = "选填", clearLabel = "清除选择"): string {
+export function renderInteractionField(
+  scope: string,
+  field: InteractionField,
+  optionalLabel = uiDefault("选填", () => t.text("common.interaction.optional")),
+  clearLabel = uiDefault("清除选择", () => t.text("common.interaction.clear-choice")),
+): string {
   const c = field.control, group = c.kind === "choice";
   const labelId = fieldId(scope, field.id, "label");
   const label = group ? `<span id="${esc(labelId)}">${esc(field.label)}</span>` : `<label id="${esc(labelId)}" for="${esc(fieldId(scope, field.id))}">${esc(field.label)}</label>`;
@@ -237,7 +263,11 @@ export function renderInteractionOperation(view: InteractionOperationView): stri
     view.impact ? `<p class="mw-ix-impact">${icon("info")}<span>${esc(view.impact)}</span></p>` : ""}</div>${view.fields?.length ? `<div class="mw-ix-fields" data-ix-fields>${view.fields.map(field => renderInteractionField(scope, field, view.optionalLabel, view.clearLabel)).join("")}</div>` : ""}${actionRow(view.actions, "data-ix-actions")}${preview}${status}${actionRow(view.recovery, "data-ix-recovery")}${result}${evidenceBlock(view.evidence)}</article>`;
 }
 /** Next steps beside a composer: at most one primary and one secondary; a busy step shows its progress. */
-export function renderInteractionNextSteps(steps: InteractionNextStep[], label = "下一步", options?: InteractionNextStepsOptions): string {
+export function renderInteractionNextSteps(
+  steps: InteractionNextStep[],
+  label = uiDefault("下一步", () => t.text("common.interaction.next-steps")),
+  options?: InteractionNextStepsOptions,
+): string {
   const max = options?.max;
   // Without a limit: one primary and one secondary, as beside a composer with a single next step.
   const shown = max === undefined ? [...steps.filter(step => step.primary !== false).slice(0, 1), ...steps.filter(step => step.primary === false).slice(0, 1)] : steps.slice(0, Math.max(0, max));

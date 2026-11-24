@@ -168,7 +168,7 @@ ${ASSISTANT_REVIEW_PART}
   const EXPIRED_IMAGE = "workbench.assistant-conversation.image-no-longer-kept-add-again";
   /** One thing a message carried: its kind at a glance, its name; an object opens where it lives. */
   const attachmentChip = (material) => {
-    const title = String(material.title || "").replace(/^(图片|方法|用|引用)：/, "");
+    const title = material.method?.name || material.capability?.title || String(material.title || "").replace(/^(?:图片|方法|用|引用|Image|Method|Skill|Use|Quote|Selection|画像|スキル|ツール|選択)[:：]\s*/i, "");
     const icon = material.kind === "image" ? "image" : material.kind === "method" || material.kind === "capability" ? "zap" : material.kind === "selection" || material.kind === "text" ? "text"
       : material.object ? kindGlyph(material.object.kind + " " + (material.source ? material.source.surface : "")) : (FILE_GLYPH.find(([pattern]) => pattern.test(title.replace(/（\d+ 页）$/, ""))) || [null, "file"])[1];
     const surf = material.source && material.source.surface && material.source.surface !== "page" ? material.source.surface : "";

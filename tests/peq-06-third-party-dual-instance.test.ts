@@ -43,7 +43,7 @@ const DUAL_CODE = `export const operations = {
 
 function dualPackage(
   publisher = newPublisher(),
-  options: { pluginId?: string; version?: string; alwaysOn?: boolean; extraOptionalNetwork?: boolean } = {},
+  options: { pluginId?: string; version?: string; extraOptionalNetwork?: boolean } = {},
 ): PluginPackageBundle {
   return signedPackage(publisher, (files: PackageFiles, manifest: PluginManifest) => {
     const contract: SandboxPluginContract = {
@@ -106,7 +106,6 @@ function dualPackage(
       projectDatabase: { version: 1, schema: PROJECT_SCHEMA },
     });
     Object.assign(manifest, rebuilt);
-    if (options.alwaysOn) Object.assign(manifest, { always_on: true });
     const parts: PluginComponentPlan[] = [
       { id: "title", pageId: "home", regionId: "main", intent: "heading", purpose: "说明双实例插件", props: { title: "双实例笔记" } },
     ];
@@ -229,11 +228,9 @@ test("PEQ-06 S-48 S-80 S-87 a signed third-party dual-instance package shares it
   await homePlatform.runtime.regrant(homeInstall.install_id, "home-database:write", false);
   await assert.rejects(operate(h.homeClient(), homeCaller, homeViews, "home.add", { text: "blocked" }));
 
-  // S-80: dual-instance scope cannot be changed to project-only under the same plugin_id, and always_on is refused.
+  // S-80: dual-instance scope cannot be changed to project-only under the same plugin_id.
   const projectOnly = signedPackage(publisher, undefined, { pluginId: DUAL_PLUGIN_ID, version: "1.1.0" });
   await assert.rejects(clientA.invoke(person(projectA.project_id), ref(pluginInstallActions.preview), { bundle: projectOnly }), refused("plugin.declaration_invalid"));
-  const alwaysOnBundle = dualPackage(newPublisher(), { pluginId: "com.example.dual-always-on", alwaysOn: true });
-  await assert.rejects(clientA.invoke(person(projectA.project_id), ref(pluginInstallActions.preview), { bundle: alwaysOnBundle }), refused("plugin.declaration_invalid"));
 
   // S-87: revoking the publisher via the settings door blocks live project/Home regrant immediately AND stops BOTH halves on reopen while keeping stored data.
   const servedAfterRevoke = await serveTestHost(null, { home: h.home, host: h.host });

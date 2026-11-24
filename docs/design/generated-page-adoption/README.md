@@ -1,6 +1,6 @@
 # 37-1 · 生成页面运行、采用与恢复定样（原型）
 
-状态：**用户已选 B：现在和草稿并排**（2026-11-04，经统筹转达；决定记在 [Onboarding §10](../../../specs/onboarding-coverage/spec.md#10-决策记录) 与 [Work Brief §1.3](../../../specs/work-brief/spec.md#13-生成首页当前事实与保存的简报)）。原型默认打开 B；A、C 留着只为对照，不做。这是 2026-11-04 的交互定样。产品实现见[第 37 批](../../../specs/post-anticorruption-roadmap/reference/batches/37.md)，实际验收另见[复核修复记录](../../../specs/b37-review-fixes/spec.md)。来源：[Onboarding §3.10、§3.12](../../../specs/onboarding-coverage/spec.md#310-ai-生成新的交互首页)（ONB-24～28）、[Work Brief §1.3、§4](../../../specs/work-brief/spec.md#13-生成首页当前事实与保存的简报)（WBR-05、WBR-22）；排期见路线书[第 37 批第 1 项](../../../specs/post-anticorruption-roadmap/reference/batches/37.md#batch-37-item-1)，界面要求是「先定样：页面采用／恢复」。
+状态：**用户已选 B：现在和草稿并排**（2026-11-04，经统筹转达；决定记在 [Onboarding §10](../../../specs/onboarding-coverage/spec.md#10-决策记录) 与 [Work Brief §1.3](../../../specs/work-brief/spec.md#13-生成首页当前事实与保存的简报)）。原型默认打开 B；A、C 留着只为对照，不做。这是 2026-11-04 的交互定样。产品实现见[第 37 批](../../../specs/post-anticorruption-roadmap/reference/batches/37.md)，实际验收另见[复核修复记录](../../../specs/archive/b37-review-fixes/spec.md)。来源：[Onboarding §3.10、§3.12](../../../specs/onboarding-coverage/spec.md#310-ai-生成新的交互首页)（ONB-24～28）、[Work Brief §1.3、§4](../../../specs/work-brief/spec.md#13-生成首页当前事实与保存的简报)（WBR-05、WBR-22）；排期见路线书[第 37 批第 1 项](../../../specs/post-anticorruption-roadmap/reference/batches/37.md#batch-37-item-1)，界面要求是「先定样：页面采用／恢复」。
 
 这一批只定**已经在用生成页面以后**新出现的状态和动线：校验与隔离、页面里的真实操作、版本与恢复、预览／采用／挂到首页、你改过的地方不被覆盖、退回基础首页。下面这些已经定过，这里直接照用，不重定：
 

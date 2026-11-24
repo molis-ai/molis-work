@@ -322,7 +322,7 @@ function contextPage() {
   const factory = vm.runInContext(`(${CONTEXT_ACTIONS_FACTORY_SCRIPT})`, context) as (host: unknown) => unknown;
   factory({ translate: (text: string) => text, route: (path: string) => path, showToast() {}, paneMessages: vm.runInContext(PANE_MESSAGES_SCRIPT, context) });
   const settle = async () => { for (let round = 0; round < 6; round += 1) { await new Promise(resolve => setImmediate(resolve)); timers.splice(0).forEach(fn => fn()); } };
-  const focus = { context_id: "ctx-1", plugin_id: "io.molis.work.shelf", activity: "selecting", granularity: "range",
+  const focus = { context_id: "ctx-1", plugin_id: "system.shelf", activity: "selecting", granularity: "range",
     object: { kind: "shelf_item", id: "item-1", title: "在手材料.md" }, targets: [{ kind: "text_range", role: "paragraph", text: "右栏里选中的一段" }] };
   const send = (source: unknown, origin = ORIGIN, claims: Record<string, unknown> = {}) =>
     windowListeners.forEach(fn => fn({ origin, source, data: { type: "workbench-surface-focus", focus: { ...focus, ...claims } } }));

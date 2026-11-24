@@ -294,7 +294,8 @@ class ImportView {
 
   private runInternal(): void {
     const { q } = this;
-    if (!document.querySelector("[data-coding-workbench]")) { q("run-notice").textContent = uiText.text("workbench.characters.must-enable-coding"); return; }
+    // A run opens in a surface that says it takes Character runs (M6), whichever plugin it belongs to.
+    if (!document.querySelector("[data-character-run-target]")) { q("run-notice").textContent = uiText.text("workbench.characters.no-run-target"); return; }
     const skillIds = [...q("run-skills").querySelectorAll<HTMLInputElement>("input:checked")].map(input => input.value);
     window.dispatchEvent(new CustomEvent("molis-work:character-run-open", { detail: { reference: this.reference, title: this.runContent?.title,
       task: q<HTMLTextAreaElement>("run-task").value, workspace_id: q<HTMLSelectElement>("run-workspace").value, skill_ids: skillIds } }));

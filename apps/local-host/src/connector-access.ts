@@ -10,21 +10,9 @@ import { ApiOAuthError, apiOAuthConnectionId, apiOAuthContext, readApiOAuthAccou
 import type { OAuthNetwork } from "./connector-oauth-send.js";
 import { clearRefreshRefused, markRefreshRefused } from "./connector-refresh-refusals.js";
 import { replacedOAuthShape, REPLACED_OAUTH_NOTE } from "./connector-oauth-shape.js";
-import { feishuCliFetch, feishuCliMarker } from "./feishu-cli.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
-import { inspectCliConnection } from "./connector-cli.js";
-import { createGmailConnector } from "./gmail-connector.js";
-import { createGithubConnector } from "./github-connector.js";
-
-/** Fetch through the official CLI, checking before and after that its current account is still this connection's. */
-function cliConnectionFetch(home: string, id: string): typeof fetch {
-  return async (input, init) => {
-    await inspectCliConnection(home, id);
-    const result = await feishuCliFetch(input, init);
-    await inspectCliConnection(home, id);
-    return result;
-  };
-}
+import { cliConnectionApi, inspectCliConnection } from "./connector-cli.js";
+import { accountProviderWithToken } from "./account-providers.js";
 
 /** The service, not the connection, said no for now: a check that ends this way is remembered with when to look again. */
 export const connectorCheckErrors = defineErrorCodes("connector.check", { rate_limited: "rate_limited" });
@@ -97,9 +85,9 @@ export async function resolveApiConnection(home: string, id: string, control: Co
     if (forceRefresh === "if_available" && (connection.auth_method !== "oauth" || !connection.refresh_ref
       || !createFileSecretStore().get(connection.refresh_ref))) return null;
     if (connection.auth_method === "cli") {
-      if (connection.service_id !== "feishu") throw new Error("此 CLI 连接请通过连接设置中的只读操作使用");
+      const api = cliConnectionApi(home, id, connection.service_id);
       await inspectCliConnection(home, id);
-      return { connection, token: feishuCliMarker(), fetchImpl: cliConnectionFetch(home, id), authExtras: undefined };
+      return { connection, ...api, authExtras: undefined };
     }
     const oauthId = apiOAuthConnectionId(connection.credential_ref ?? undefined);
     if (oauthId) {
@@ -117,12 +105,10 @@ export async function resolveApiConnection(home: string, id: string, control: Co
 /** What a preview reads with the connection once its account is checked: the service's first page, if its reader has one. */
 async function previewRead(home: string, service: string, access: ApiConnectionAccess, fetchImpl: typeof fetch, control: ConnectorCallControl,
   signal: AbortSignal, beforeRead?: () => void | Promise<void>): Promise<{ record_count?: number; items?: unknown[] }> {
-  if (isCatalogConnectorId(service) && getCatalogSpec(service).feed_available === false) return {};
+  if (isCatalogConnectorId(service) && getCatalogSpec(service).source_available === false) return {};
   const provider = isCatalogConnectorId(service)
     ? createCatalogProvider({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl })
-    : service === "github" || service === "gmail"
-      ? runWithMolisWorkHome(home, () => service === "github" ? createGithubConnector({ token: access.token, fetchImpl, allowFixture: false }) : createGmailConnector({ accessToken: access.token, fetchImpl, allowFixture: false }))
-      : undefined;
+    : accountProviderWithToken(home, service, { token: access.token, fetchImpl });
   if (!provider) return {};
   await beforeRead?.(); signal.throwIfAborted();
   const read = await provider.sync({ cursor: null }, control);
@@ -161,8 +147,8 @@ export async function inspectApiConnection(home: string, id: string, preview = f
     if (!preview) return verified;
     return { ...verified, ...await previewRead(home, service, access, fetchImpl, control, signal, beforeRead) };
   }
-  if (!["github", "gmail"].includes(service)) throw new Error("请在使用此连接的模型、图片、判断规则或 Coding 设置中运行对应功能，验证目标服务");
-  const provider = runWithMolisWorkHome(home, () => service === "github" ? createGithubConnector({ token: access.token, fetchImpl, allowFixture: false }) : createGmailConnector({ accessToken: access.token, fetchImpl, allowFixture: false }));
+  const provider = accountProviderWithToken(home, service, { token: access.token, fetchImpl });
+  if (!provider) throw new Error("请在使用此连接的功能里运行一次，验证目标服务");
   const health = await provider.health(control);
   if (!health.ok) throw connectorReadFailure(health);
   if (!preview) return { ...health, checked_at: new Date().toISOString() };

@@ -145,7 +145,7 @@ export interface ConnectorMethodOption {
  * `document_import` (the 成果库) or `web_search` (the default web search), a fixed record reader (`connectors.records.read@1`, the
  * assistant), or `categories` a skill can name.
  */
-export const CONNECTOR_USES = ["feed_source", "document_import", "assistant_read", "web_search", "category"] as const;
+export const CONNECTOR_USES = ["source_pull", "document_import", "assistant_read", "web_search", "category"] as const;
 export type ConnectorUse = (typeof CONNECTOR_USES)[number];
 
 export interface ConnectorDirectoryEntry {
@@ -155,7 +155,7 @@ export interface ConnectorDirectoryEntry {
   readonly auth_kind: ConnectorAuthKind;
   readonly group_id: ConnectorDirectoryGroupId;
   readonly summary: string;
-  readonly feed_available?: boolean;
+  readonly source_available?: boolean;
   readonly capabilities: readonly ConnectorCapability[];
   readonly unavailable_reason?: string;
   readonly outbound_note?: string;

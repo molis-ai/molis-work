@@ -59,7 +59,7 @@ test("BL-975 source sync: title, summary and body previews keep whole characters
     try {
       const material = (request: SourcePullRequest, n: number, title: string, preview: string): SourcePullMaterial => ({
         id: `material:bl975-${n}`, candidate_id: `candidate:bl975-${n}`, canonical_url: `https://example.com/bl975-${n}`,
-        title, source_name: "Example", preview, content_ref: `molis-work-feed/sha256/${String(n).repeat(64)}`,
+        title, source_name: "Example", preview, content_ref: `molis-work-evidence/sha256/${String(n).repeat(64)}`,
         content_hash: `sha256:${String(n).repeat(64)}`, content_type: "text/plain", character_count: preview.length,
         captured_at: `2026-11-21T08:0${n}:00.000Z`, content_available: true,
         provenance: { operationId: request.operation_id, providerId: "rss", providerVersion: "1.0.0", bindingRevision: 1,

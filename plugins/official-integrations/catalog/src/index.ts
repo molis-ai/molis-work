@@ -37,7 +37,7 @@ const DOCUMENT_SOURCES: Readonly<Record<string, { service: string; methods: read
 /** The service this connector is, and the card shown for it where a person connects accounts. */
 function catalogConnectionService(connectorId: string): PluginConnectionServiceDeclaration {
   const spec = getCatalogSpec(connectorId);
-  const feed = spec.feed_available !== false;
+  const feed = spec.source_available !== false;
   const oauth = catalogOAuthMethod(connectorId);
   const mcp = catalogMcpMethod(connectorId);
   return {
@@ -64,7 +64,7 @@ function catalogConnectionService(connectorId: string): PluginConnectionServiceD
 /** What the connector does with its service: pull a Feed source if it has one, and import the documents it can read. */
 function catalogIntegrations(connectorId: string): PluginIntegrationDeclaration[] {
   const integrations: PluginIntegrationDeclaration[] = [];
-  if (getCatalogSpec(connectorId).feed_available !== false) integrations.push({ integration_id: connectorId, kind: "source", service_id: connectorId });
+  if (getCatalogSpec(connectorId).source_available !== false) integrations.push({ integration_id: connectorId, kind: "source", service_id: connectorId });
   if (getCatalogSpec(connectorId).web_search) integrations.push({ integration_id: `${connectorId}-web`, kind: "web_search", service_id: connectorId });
   for (const [source, { service, methods }] of Object.entries(DOCUMENT_SOURCES)) {
     if (service === connectorId) integrations.push({ integration_id: source === connectorId ? `${source}-documents` : source, kind: "document_import",
@@ -132,7 +132,7 @@ export function createCatalogIntegrationPlugin(input: {
 export { CATALOG_CONNECTORS, catalogConnectorIds, getCatalogSpec, isCatalogConnectorId } from "./catalog.js";
 export { setupLinksFor } from "./setup-links.js";
 export { officialMethodsFor, OFFICIAL_CONNECTOR_METHODS } from "./methods.js";
-export { CATALOG_OAUTH_METHODS, catalogOAuthMethod } from "./oauth-methods.js";
+export { CATALOG_OAUTH_CALLBACK_ALIASES, CATALOG_OAUTH_METHODS, catalogOAuthMethod } from "./oauth-methods.js";
 export { catalogWhoami, createCatalogProvider, type CatalogWhoamiResult } from "./provider.js";
 export { CatalogLiveError } from "./http.js";
 export { catalogCloudOrigin } from "./targets.js";
@@ -141,3 +141,4 @@ export { readExternalDocument, externalDocumentErrors } from "./document-import.
 export { searchCatalogWeb } from "./web-search-read.js";
 export type { CatalogWebResult } from "./types.js";
 export type { ExternalDocument, ExternalDocumentSource, ExternalDocumentImportErrorCode } from "./document-import.js";
+export { CATALOG_LOCAL_MCP_SERVERS } from "./mcp-methods.js";

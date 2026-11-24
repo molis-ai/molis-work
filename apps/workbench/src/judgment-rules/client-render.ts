@@ -199,7 +199,6 @@ export const FUNCTIONS_CLIENT_RENDER_PART = `  const say = globalThis.t.text;
     if (choiceOnlyHint) choiceOnlyHint.hidden = kind !== "score";
     destinationHint.textContent = destOf(dst)?.availability?.available === false ? (destOf(dst).availability.reason) : dst === "agent.mcp"
       ? say("workbench.client-render.returns-suggestion-agent-without-running-tools-calls-depend")
-      : dst === "feed.capture" ? say("workbench.client-render.after-publishing-select-function-feed-task-s-capture")
       : dst ? say("workbench.client-render.results-suggest-page-actions-activate-project-after-publishing")
       : say("workbench.client-render.save-test-without-binding-page-published-functions-can");
     bench.querySelectorAll("[data-functions-source]").forEach((node) => {

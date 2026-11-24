@@ -322,6 +322,10 @@
       "types": "./dist/platform/plugin-directory.d.ts",
       "import": "./dist/platform/plugin-directory.js"
     },
+    "./platform/integration-drivers": {
+      "types": "./dist/platform/integration-drivers.d.ts",
+      "import": "./dist/platform/integration-drivers.js"
+    },
     "./platform/plugin-source-pull": {
       "types": "./dist/platform/plugin-source-pull.d.ts",
       "import": "./dist/platform/plugin-source-pull.js"

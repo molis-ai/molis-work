@@ -11,7 +11,11 @@ import { consentGranter, consentSubject } from "./trust-rules.js";
 // installs are its own, but what a person agreed to and whom they trust is one answer for the Home. Plugin Runtime owns the tables;
 // anything else reads them through this port.
 
-/** The two tables as one current schema; the Host composes it into the Home Runtime store's baseline. */
+/**
+ * The two tables as one current schema; the Host composes it into the Home Runtime store's baseline. The `kind` CHECK still lists
+ * `always_on` only so the library's structure (version 1) is unchanged since 44B removed always-on plugins: nothing writes it,
+ * and `newRows` refuses it.
+ */
 export const PLUGIN_TRUST_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS plugin_publishers (
       key_id TEXT PRIMARY KEY,
@@ -138,7 +142,7 @@ function defaultWiringReadsSystemSource(subject: string): boolean {
 function newRows(entry: PluginConsentEntry, existing: readonly PluginConsentRecord[]): PluginConsentRecord[] {
   const rows: PluginConsentRecord[] = [];
   for (const grant of entry.grants) {
-    if (!["always_on", "default_wiring", "default_group", "local_directory"].includes(grant.kind)) {
+    if (!["default_wiring", "default_group", "local_directory"].includes(grant.kind)) {
       throw pluginErrors.state_invalid("项目同意必须由项目设置单独记录");
     }
     const same = existing.filter(row => key(row) === key({ ...entry, ...grant }));

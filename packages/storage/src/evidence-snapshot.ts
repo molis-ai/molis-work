@@ -25,7 +25,7 @@ function evidenceReferences(root: string): string[] {
     for (const name of readdirSync(join(blobs, shard))) {
       if (!/^[0-9a-f]{64}\.blob$/u.test(name) || !name.startsWith(shard)) throw invalid();
       snapshotFileStat(join(blobs, shard, name));
-      refs.push("molis-work-feed/sha256/" + name.slice(0, -5));
+      refs.push("molis-work-evidence/sha256/" + name.slice(0, -5));
     }
   }
   return refs;

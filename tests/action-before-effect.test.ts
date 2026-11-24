@@ -167,7 +167,7 @@ for (const kind of ["form", "dataset", "lingguang", "pages", "cognia", "ppt"] as
 test("effect guard rechecks the actual Catalog installation after an asynchronous call, then permits reactivation", { timeout: 15_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "catalog-install-effect-")), catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Installation lifecycle", actor_id: "owner" });
-  // Schedule, not Goals: Goals is a 常开 plugin (ac-trust T3) that no project removes.
+  // Schedule: an ordinary project plugin, switched off and on here.
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
   const entered = gate(), release = gate();
   const host = new LocalHost({ runtimeFactory: { open: () => ({ writes: 0 }), close: () => {} },

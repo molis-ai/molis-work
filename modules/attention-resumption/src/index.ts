@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import type {
   AttentionApi,
-  AttentionInboxDeclarations,
+  AttentionWaitingDeclarations,
   AttentionEntryRecord,
   AttentionEvent,
   AttentionReason,
@@ -71,15 +71,15 @@ const INBOX_ENTRIES_COLUMNS = `
 
 /** The Inbox tables, as one current schema; the host composes them into the project database baseline. */
 export const ATTENTION_SCHEMA_SQL = `
-    CREATE TABLE IF NOT EXISTS inbox_entries (${INBOX_ENTRIES_COLUMNS});
-    CREATE UNIQUE INDEX IF NOT EXISTS inbox_entries_owned_subject_idx
-      ON inbox_entries(project_id, owner_plugin_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NOT NULL;
-    CREATE UNIQUE INDEX IF NOT EXISTS inbox_entries_unassigned_subject_idx
-      ON inbox_entries(project_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NULL;
-    CREATE INDEX IF NOT EXISTS inbox_entries_project_status_idx
-      ON inbox_entries(project_id, status, updated_at DESC, entry_id);
-    CREATE INDEX IF NOT EXISTS inbox_entries_project_subject_idx
-      ON inbox_entries(project_id, subject_type, subject_id);
+    CREATE TABLE IF NOT EXISTS attention_entries (${INBOX_ENTRIES_COLUMNS});
+    CREATE UNIQUE INDEX IF NOT EXISTS attention_entries_owned_subject_idx
+      ON attention_entries(project_id, owner_plugin_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS attention_entries_unassigned_subject_idx
+      ON attention_entries(project_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NULL;
+    CREATE INDEX IF NOT EXISTS attention_entries_project_status_idx
+      ON attention_entries(project_id, status, updated_at DESC, entry_id);
+    CREATE INDEX IF NOT EXISTS attention_entries_project_subject_idx
+      ON attention_entries(project_id, subject_type, subject_id);
 
     CREATE TABLE IF NOT EXISTS attention_events (
       event_id TEXT PRIMARY KEY,
@@ -99,8 +99,8 @@ export class AttentionModule implements AttentionApi {
   readonly query = {
     list: (projectId: string) => this.list(projectId),
     get: (projectId: string, entryId: string) => this.get(projectId, entryId),
-    listInbox: (projectId: string, declared: AttentionInboxDeclarations) => this.list(projectId).filter(entry => inInbox(entry, declared)),
-    getInbox: (projectId: string, entryId: string, declared: AttentionInboxDeclarations) => {
+    listWaiting: (projectId: string, declared: AttentionWaitingDeclarations) => this.list(projectId).filter(entry => inInbox(entry, declared)),
+    getWaiting: (projectId: string, entryId: string, declared: AttentionWaitingDeclarations) => {
       const entry = this.get(projectId, entryId);
       if (!inInbox(entry, declared)) throw attentionErrors.entry_not_found("找不到这个 Inbox Entry");
       return entry;
@@ -150,7 +150,7 @@ export class AttentionModule implements AttentionApi {
     if (selected && !kind) return [];
     const rows = this.db.prepare(`
       SELECT owner_plugin_id, subject_type, subject_id, reason, revision, created_at
-      FROM inbox_entries WHERE project_id = ? AND status IN ('open', 'in_progress') AND owner_plugin_id IS NOT NULL
+      FROM attention_entries WHERE project_id = ? AND status IN ('open', 'in_progress') AND owner_plugin_id IS NOT NULL
       ${selected ? "AND subject_type = ? AND subject_id = ? AND owner_plugin_id = ?" : ""}
       ORDER BY created_at DESC, entry_id
     `).all(projectId, ...(selected ? [kind, selected.subject.id, selected.owner_plugin_id] : [])) as Array<{ owner_plugin_id: string; subject_type: AttentionSubjectType; subject_id: string;
@@ -166,13 +166,13 @@ export class AttentionModule implements AttentionApi {
 
   private list(projectId: string): AttentionEntryRecord[] {
     return (this.db.prepare(
-      "SELECT * FROM inbox_entries WHERE project_id = ? ORDER BY updated_at DESC, entry_id",
+      "SELECT * FROM attention_entries WHERE project_id = ? ORDER BY updated_at DESC, entry_id",
     ).all(projectId) as Row[]).map(mapAttentionEntry);
   }
 
   private get(projectId: string, entryId: string): AttentionEntryRecord {
     const row = this.db.prepare(
-      "SELECT * FROM inbox_entries WHERE project_id = ? AND entry_id = ?",
+      "SELECT * FROM attention_entries WHERE project_id = ? AND entry_id = ?",
     ).get(projectId, entryId) as Row | undefined;
     if (!row) throw attentionErrors.entry_not_found("找不到这个 Inbox Entry");
     return mapAttentionEntry(row);
@@ -185,7 +185,7 @@ export class AttentionModule implements AttentionApi {
     ownerPluginId: string | null,
   ): AttentionEntryRecord | null {
     const row = this.db.prepare(`
-      SELECT * FROM inbox_entries
+      SELECT * FROM attention_entries
       WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND owner_plugin_id IS ?
         AND status IN ('open', 'in_progress')
       ORDER BY CASE reason WHEN 'manual' THEN 0 ELSE 1 END, updated_at DESC, entry_id
@@ -201,7 +201,7 @@ export class AttentionModule implements AttentionApi {
     ownerPluginId: string | null,
   ): AttentionEntryRecord[] {
     return (this.db.prepare(`
-      SELECT * FROM inbox_entries
+      SELECT * FROM attention_entries
       WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND owner_plugin_id IS ?
       ORDER BY updated_at DESC, entry_id
     `).all(projectId, subjectType, subjectId, ownerPluginId) as Row[]).map(mapAttentionEntry);
@@ -216,7 +216,7 @@ export class AttentionModule implements AttentionApi {
       }
       const owner = ownerOf(input.owner_plugin_id ?? null);
       const existing = this.db.prepare(`
-        SELECT * FROM inbox_entries
+        SELECT * FROM attention_entries
         WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND reason = ? AND owner_plugin_id IS ?
       `).get(input.project_id, input.subject_type, input.subject_id, input.reason, owner) as Row | undefined;
       if (existing) return { entry: mapAttentionEntry(existing), created: false };
@@ -237,7 +237,7 @@ export class AttentionModule implements AttentionApi {
       };
       assertShape(entry);
       this.db.prepare(`
-        INSERT INTO inbox_entries (
+        INSERT INTO attention_entries (
           project_id, entry_id, owner_plugin_id, subject_type, subject_id, reason, status,
           detail_json, revision, created_at, updated_at, completed_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -255,7 +255,7 @@ export class AttentionModule implements AttentionApi {
         entry.updated_at,
         entry.completed_at,
       );
-      this.appendEvent(entry, "inbox_entry.created", at, "对象已加入 Inbox");
+      this.appendEvent(entry, "attention_entry.created", at, "对象已加入 Inbox");
       return { entry, created: true };
     }).immediate();
   }
@@ -276,12 +276,12 @@ export class AttentionModule implements AttentionApi {
       const at = this.now().toISOString();
       const completedAt = status === "done" || status === "dismissed" ? at : null;
       this.db.prepare(`
-        UPDATE inbox_entries
+        UPDATE attention_entries
         SET status = ?, revision = revision + 1, updated_at = ?, completed_at = ?
         WHERE project_id = ? AND entry_id = ?
       `).run(status, at, completedAt, projectId, entryId);
       const updated = this.get(projectId, entryId);
-      this.appendEvent(updated, `inbox_entry.${status}`, at, `Inbox Entry 已标记为 ${status}`);
+      this.appendEvent(updated, `attention_entry.${status}`, at, `Inbox Entry 已标记为 ${status}`);
       return updated;
     }).immediate();
   }
@@ -292,9 +292,9 @@ export class AttentionModule implements AttentionApi {
       if (entries.length === 0) return 0;
       const at = this.now().toISOString();
       this.db.prepare(
-        "DELETE FROM inbox_entries WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND owner_plugin_id IS ?",
+        "DELETE FROM attention_entries WHERE project_id = ? AND subject_type = ? AND subject_id = ? AND owner_plugin_id IS ?",
       ).run(projectId, subjectType, subjectId, ownerPluginId);
-      for (const entry of entries) this.appendEvent(entry, "inbox_entry.deleted", at, "Inbox 引用已删除");
+      for (const entry of entries) this.appendEvent(entry, "attention_entry.deleted", at, "Inbox 引用已删除");
       return entries.length;
     }).immediate();
   }
@@ -357,7 +357,7 @@ export {attentionContentReplicationDefinition} from './replication.js';
 function assertTransition(from: AttentionStatus, to: AttentionStatus): void {
   if (from === to) return;
   if (!ATTENTION_STATUS_TRANSITIONS[from].includes(to)) {
-    throw attentionErrors.invalid_transition(`feed_contract_invalid_inbox_transition:${from}:${to}`);
+    throw attentionErrors.invalid_transition(`attention_invalid_transition:${from}:${to}`);
   }
 }
 
@@ -397,8 +397,8 @@ function mapAttentionEvent(row: Row): AttentionEvent {
   };
 }
 
-/** Unassigned entries are the person's Inbox; an owned one is, only when its own owner declared its kind (`attention.inbox`). */
-function inInbox(entry: AttentionEntryRecord, declared: AttentionInboxDeclarations): boolean {
+/** Unassigned entries are the person's Inbox; an owned one is, only when its own owner declared its kind (`attention.waiting`). */
+function inInbox(entry: AttentionEntryRecord, declared: AttentionWaitingDeclarations): boolean {
   return entry.owner_plugin_id === null || declared.get(entry.owner_plugin_id)?.has(entry.subject_type) === true;
 }
 

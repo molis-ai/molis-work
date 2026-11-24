@@ -76,7 +76,7 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
     withStore(0,s=>s.delete(page.id));await clients[0].run();await clients[1].run();
     assert.equal(withStore(1,s=>s.list(project.project_id).length),0);
     // Actual artifact owner -> WASM/D1 opaque transport -> another owner, not a JSON-only mock.
-    const artifactSelection={plugin_id:'io.molis.work.artifacts',publisher_id:'molis',publisher_signature:'official-artifacts-binding',collection_id:'versions',schema_version:1};
+    const artifactSelection={plugin_id:'system.artifacts',publisher_id:'molis',publisher_signature:'official-artifacts-binding',collection_id:'versions',schema_version:1};
     const artifactNamespace=JSON.stringify([artifactSelection.plugin_id,artifactSelection.publisher_id,artifactSelection.publisher_signature,artifactSelection.collection_id,1]);
     const nextPolicy=await call('/v1/policy','alice',{spaceId:space.spaceId,revision:1,selections:[selection,artifactSelection]},'PUT');assert.equal(nextPolicy.status,200);
     const databases=[openTestSqlite(':memory:'),openTestSqlite(':memory:')];

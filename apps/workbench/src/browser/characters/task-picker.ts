@@ -28,7 +28,7 @@ function rowsOf(catalog: CharacterRoleCatalog, layer: "project" | "personal"): R
   })) : catalog.originals.map(({ ref, title, availability, host_tools }) => ({ ref, character_id: ref.character_id, title, availability, host_tools }));
 }
 
-const roleRoute = (projectId: string | null): string => "/projects/" + encodeURIComponent(projectId ?? PERSONAL_SPACE_PROJECT_ID) + "/api/plugins/io.molis.work.characters";
+const roleRoute = (projectId: string | null): string => "/projects/" + encodeURIComponent(projectId ?? PERSONAL_SPACE_PROJECT_ID) + "/api/platform/characters";
 const roleRequest = (projectId: string | null): CharacterRequest => (method, path, body) =>
   pageRequest()(roleRoute(projectId) + path, { method, body, fallback: say("workbench.characters.request-failed") });
 

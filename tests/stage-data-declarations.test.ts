@@ -258,7 +258,7 @@ test("QEA-112 the Goal collection projection keeps navigation without reading or
   assert.match(await visible.text(), /data-goal-event-document/);
   assert.ok(reads.includes(goalsActions.stage.capability_id), "the normal fragment reads through the declared stage owner");
   assert.ok(timelines > 0, "the normal fragment reads the selected document timeline");
-  assert.ok(reads.includes("artifacts.goals.embeds"), "the normal fragment reads current artifact ownership too");
+  assert.ok(reads.includes("artifacts.subject.embeds"), "the normal fragment reads current artifact ownership too");
   reads.length = 0;
   timelines = 0;
   const response = await fetch(base(scheduled.project_id) + "/api/board/refresh?view=current&projection=collection");
@@ -272,7 +272,7 @@ test("QEA-112 the Goal collection projection keeps navigation without reading or
   assert.ok(reads.includes(goalsActions.stage.capability_id), "the collection fragment still reads through the declared stage owner");
   assert.equal(reads.filter(id => id === goalsActions.document.capability_id).length, 0, "the collection fragment never calls the document owner");
   assert.equal(timelines, 0, "neither the stage nor the Host reads the document internally");
-  assert.equal(reads.filter(id => id === "artifacts.goals.embeds").length, 0, "a collection fragment does not decorate a hidden document's artifacts");
+  assert.equal(reads.filter(id => id === "artifacts.subject.embeds").length, 0, "a collection fragment does not decorate a hidden document's artifacts");
   await assert.rejects(client.invoke({ ...caller, permissions: [] }, goalsActions.stage, input), (cause: unknown) => cause instanceof ActionError && cause.code === "actions.forbidden");
   await assert.rejects(client.invoke(caller, goalsActions.stage, { projection: "unknown" }));
   const invalid = await fetch(base(scheduled.project_id) + "/api/board/refresh?projection=unknown");

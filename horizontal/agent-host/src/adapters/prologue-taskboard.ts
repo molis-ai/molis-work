@@ -27,7 +27,7 @@ export function placeOf(attempt: PrologueStepBinding | undefined): PlanPlace | u
 }
 
 /** Only scoped progress metadata is automatic; all existing external effects still ask. */
-export const codingExecutionRules: readonly PolicyRule[] = [
+export const agentExecutionRules: readonly PolicyRule[] = [
   // Reporting on its own steps and messaging another session of the project need no review each time (the person's
   // decision); reading a background command's output and waiting on it are reads, and so is a step's wait (`board-wait`):
   // it only says what the step waits for and ends the run. Every other system tool asks —

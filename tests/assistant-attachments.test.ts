@@ -71,7 +71,7 @@ test("B35-R5 a PDF the person brings is kept as a conversation attachment and re
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-attachments-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-attachments-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-attachments-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const attachments = assistantAttachments(home);
@@ -104,7 +104,7 @@ test("a picture the person brings is kept by the platform's attachments and show
   }));
   let vision: boolean | undefined;
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-images-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-images-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture", ...(vision === undefined ? {} : { vision }) }),
     resolveCredential: () => "fixture-only" });
   host.register(adapter);

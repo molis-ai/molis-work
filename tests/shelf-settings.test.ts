@@ -302,7 +302,7 @@ fi
 
 test("ONB-22/29 Shelf writes only the declared device group, restores inheritance, and keeps its saved receipt after a manual edit", async () => {
   const { bindSettingsHandlers } = await import("@molis-ai/molis-work-plugin-sdk");
-  const { shelfManifest } = await import("@molis-ai/molis-work-plugin-shelf");
+  const { shelfManifest } = await import("@molis-ai/molis-work-module-shelf/surface");
   const { shelfErrors } = await import("@molis-ai/molis-work-module-shelf");
   await withHome(async home => {
     const store = openTestShelfStore(home, { disabled: true }, {}, shelfTestAi());

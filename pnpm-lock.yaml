@@ -58,9 +58,6 @@ importers:
       '@molis-ai/molis-work-integration-rss':
         specifier: workspace:*
         version: link:plugins/official-integrations/rss
-      '@molis-ai/molis-work-integration-youtube':
-        specifier: workspace:*
-        version: link:plugins/official-integrations/youtube
       '@molis-ai/molis-work-kernel':
         specifier: workspace:*
         version: link:packages/kernel
@@ -157,9 +154,6 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:packages/plugin-sdk
-      '@molis-ai/molis-work-plugin-shelf':
-        specifier: workspace:*
-        version: link:plugins/native/shelf
       '@molis-ai/molis-work-plugin-studio':
         specifier: workspace:*
         version: link:horizontal/plugin-studio
@@ -360,9 +354,6 @@ importers:
       '@molis-ai/molis-work-integration-rss':
         specifier: workspace:*
         version: link:../../plugins/official-integrations/rss
-      '@molis-ai/molis-work-integration-youtube':
-        specifier: workspace:*
-        version: link:../../plugins/official-integrations/youtube
       '@molis-ai/molis-work-kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
@@ -456,9 +447,6 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
-      '@molis-ai/molis-work-plugin-shelf':
-        specifier: workspace:*
-        version: link:../../plugins/native/shelf
       '@molis-ai/molis-work-plugin-studio':
         specifier: workspace:*
         version: link:../../horizontal/plugin-studio
@@ -605,6 +593,9 @@ importers:
       '@molis-ai/molis-work-module-artifacts':
         specifier: workspace:*
         version: link:../../modules/artifacts
+      '@molis-ai/molis-work-module-shelf':
+        specifier: workspace:*
+        version: link:../../modules/shelf
       '@molis-ai/molis-work-plugin-coding':
         specifier: workspace:*
         version: link:../../plugins/native/coding
@@ -659,9 +650,6 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
-      '@molis-ai/molis-work-plugin-shelf':
-        specifier: workspace:*
-        version: link:../../plugins/native/shelf
       '@molis-ai/molis-work-plugin-studio':
         specifier: workspace:*
         version: link:../../horizontal/plugin-studio
@@ -1017,6 +1005,10 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   modules/sync-replication:
     dependencies:
@@ -1417,22 +1409,6 @@ importers:
         specifier: ^0.28.2
         version: 0.28.2
 
-  plugins/native/shelf:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@molis-ai/molis-work-module-shelf':
-        specifier: workspace:*
-        version: link:../../../modules/shelf
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
-    devDependencies:
-      esbuild:
-        specifier: ^0.28.2
-        version: 0.28.2
-
   plugins/native/todo:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -1510,12 +1486,6 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-
-  plugins/official-integrations/youtube:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
 
   server:
     dependencies:

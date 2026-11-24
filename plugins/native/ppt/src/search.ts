@@ -7,7 +7,7 @@ const subjectReader = defineSubjectContextAction("ppt.subject.read", /* @version
 
 /** PPT's part in the system search: title, description and every slide's title, bullets and notes. */
 export const pptSearchActions = {
-  entries: defineSearchEntriesAction("ppt.search.entries", /* @version action.ppt.search.entries */ 1, [{ kind: PPT_SUBJECT_KIND, title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"]),
+  entries: defineSearchEntriesAction("ppt.search.entries", /* @version action.ppt.search.entries */ 1, [{ kind: PPT_SUBJECT_KIND, title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID, glyph: "note" }], "演示稿", ["ppt:read"]),
   subject: { ...subjectReader, action: { ...subjectReader.action, execution: { cost: "none" as const } } },
   /** The side panel's file tab (specs/archive/side-panel): each deck; its preview is the outline `subject` reads. */
   files: defineFileEntriesAction("ppt.files.entries", /* @version action.ppt.files.entries */ 1, [{ kind: PPT_SUBJECT_KIND, title: "演示稿", surface: PPT_PROJECT_PLUGIN_ID }], "演示稿", ["ppt:read"]),

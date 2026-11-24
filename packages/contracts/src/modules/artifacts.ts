@@ -28,7 +28,7 @@ export type { ArtifactReference } from "./artifact-reference.js";
 export const ARTIFACT_SUBJECT_KIND = "artifact";
 
 /** Imports a file into the caller's current project through its owner. */
-export const ARTIFACT_FILE_IMPORT_ACTION = { capability_id: "artifacts.import.file", version: /* @version action.artifacts.import.file */ 1, provider_id: "io.molis.work.artifacts" } as const;
+export const ARTIFACT_FILE_IMPORT_ACTION = { capability_id: "artifacts.import.file", version: /* @version action.artifacts.import.file */ 1, provider_id: "system.artifacts" } as const;
 
 /**
  * An imported file or document in the 成果库 (specs/artifact-positioning A3): its type, and its original file as imported

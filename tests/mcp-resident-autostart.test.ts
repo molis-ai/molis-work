@@ -44,16 +44,15 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
     const forged = await peer.request("tools/call", { name: "molis_work_v1_review_decide", arguments: { database_path: managed.database_path,
       project_id: managed.project_id, choice_id: "approve", request_key: "forged-decision", actor_id: "forged" } }).promise;
     assert.equal((forged.result as { isError: boolean }).isError, true); assert.equal((await readdir(f.attempts)).length, count);
-    // PEQ-02: Goals was enabled explicitly above; the first init adopts its board on the cold-started resident, and the second hits goals.board.exists.
-    const setup = await peer.request("tools/call", { name: "molis_work_v1_initialize", arguments: {
-      database_path: managed.database_path, project_id: managed.project_id, idempotency_key: "management-setup" } }).promise;
-    assert.equal((setup.result as { isError: boolean }).isError, false, JSON.stringify(setup.result));
-    const initialized = await peer.request("tools/call", { name: "molis_work_v1_initialize", arguments: {
-      database_path: managed.database_path, project_id: managed.project_id, idempotency_key: "management-cold" } }).promise;
-    const result = initialized.result as { isError: boolean; content: Array<{ text: string }> };
-    assert.equal(result.isError, true, "the existing Board must retain its original already-exists refusal");
+    // A read of a review that is not there runs on the cold-started resident and is refused there by the platform's review service (44B: the
+    // management MCP serves only the review tools).
+    const read = await peer.request("tools/call", { name: "molis_work_v1_review_request", arguments: {
+      database_path: managed.database_path, project_id: managed.project_id,
+      reference: { owner: { kind: "trusted-decision", project_id: managed.project_id, scope: "project", provider_id: "autostart-probe" }, id: "none", version: "1" } } }).promise;
+    const result = read.result as { isError: boolean; content: Array<{ text: string }> };
+    assert.equal(result.isError, true, JSON.stringify(result));
     const failure = JSON.parse(result.content[0]!.text) as { code: string; call_id: string };
-    assert.equal(failure.code, "goals.board.exists");
+    assert.equal(failure.code, "actions.missing");
     assert.match(failure.call_id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
       "the actual resident recorded this domain refusal; a local SQLite fallback would have been rejected by the preload");
     assert.equal((await readdir(f.attempts)).length, count + 1); await f.health(); await peer.close(); await f.stopHost();

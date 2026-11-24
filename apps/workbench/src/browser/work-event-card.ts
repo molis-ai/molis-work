@@ -42,6 +42,8 @@ export interface EventCardLine {
 }
 
 export function installEventCards(host: WorkBarHost, line: EventCardLine): { mount(slot: HTMLElement, card: EventCardOpen): EventCardHandle; page(slot: HTMLElement, card: EventCardOpen): EventCardHandle; park(card: EventCardOpen): void; paint(): void; setItem(item: string | null): void; sideChanged(): void } {
+  /** Where 「放到…」 can put a card's result, asked once per page (M4): the platform's Shelf, then each receive station of the project. */
+  const receivers: { asked: boolean; targets?: readonly { station: string; title: string; icon: string }[] } = { asked: false };
   const { molisWorkRequest: request } = globalThis as typeof globalThis & { molisWorkRequest?: UiRequest };
   const live = new Set<() => void>(), baseKey = `molis.work-line.parked:${document.body.dataset.projectId ?? ""}`;
   let key = baseKey;
@@ -66,18 +68,27 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
     const result = slot.querySelector<HTMLElement>("[data-card-result]")!, body = slot.querySelector<HTMLElement>("[data-card-body]")!;
     const rest = slot.querySelector<HTMLElement>("[data-card-body-home]"), own = slot.querySelector<HTMLElement>("[data-card-own]")!, nothing = slot.querySelector<HTMLElement>("[data-card-nothing]");
     const factOwner = slot.querySelector<HTMLElement>("[data-fact-owner]"), factState = slot.querySelector<HTMLElement>("[data-fact-state]");
-    let rows = "", named = "", asks = "", offered = "", owned = "", composed = !card.composed, shelf: "" | "busy" | "done" = "";
-    // 「打开」 is the event's own place, as a tab; 「放到 Shelf」 puts its name, its words and its address there, as the person (WLN-11).
+    let rows = "", named = "", asks = "", offered = "", owned = "", composed = !card.composed, shelf: "" | "busy" | "done" = "", placed = "", choosing = false;
+    // 「打开」 is the event's own place, as a tab; 「放到…」 puts its name, its words and its address where the person picks, as the person (WLN-11, M4).
     slot.addEventListener("click", pressed => {
       const target = pressed.target instanceof Element ? pressed.target : null, event = line.event(card.subject);
       if (!event) return;
       if (target?.closest("[data-event-open]") && event.open) { if (event.open.kind === "surface" || !event.open.id) host.openSurface(event.open.surface); else host.openItem(event.open.surface, event.open.id, event.open.title); }
-      else if (target?.closest("[data-event-shelve]") && !shelf && request) {
+      else if (target?.closest("[data-event-receive-more]") && !shelf) {
+        choosing = !choosing;
+        paint();
+      }
+      else if (target?.closest("[data-event-receive]") && !shelf && request) {
+        choosing = false;
+        const station = target.closest<HTMLElement>("[data-event-receive]")!.dataset.eventReceive ?? "";
         const to = event.open && event.open.kind !== "surface" && event.open.id ? { surface: event.open.surface, id: event.open.id, title: event.open.title } : event.subject;
         const address = location.origin + objectLink(document.body.dataset.projectId ?? "", to);
         shelf = "busy"; paint();
-        void request(host.route("/api/mainline/shelve"), { body: { title: event.title.slice(0, 200), text: [event.title, event.content, address].filter(Boolean).join("\n") } })
-          .then(() => { shelf = "done"; }, (error: unknown) => { shelf = ""; request.toast?.(document.querySelector("[data-toast]") as never, error); }).finally(paint);
+        void request(host.route("/api/mainline/receive"), { body: { station, source: { kind: event.subject.kind, id: event.subject.id }, title: event.title.slice(0, 200), text: [event.title, event.content, address].filter(Boolean).join("\n") } })
+          .then(() => {
+            shelf = "done";
+            placed = station;
+          }, (error: unknown) => { shelf = ""; request.toast?.(document.querySelector("[data-toast]") as never, error); }).finally(paint);
       }
     }, { signal: gone.signal });
     // 「停到侧边」: the card goes to the side panel and the conversation closes (WLN-14).
@@ -138,7 +149,14 @@ export function installEventCards(host: WorkBarHost, line: EventCardLine): { mou
       if (body.parentElement !== home) { if (owners) askBody.append(body); else if (rest) rest.prepend(body); else facts.after(body); }
       // Something done: what came of it, and what can be done with it; the owner's display, where it declared one, is the preview.
       const slim = composed && !body.querySelector(".mw-presentation:not(.mw-presentation--chip)");
-      const done = event?.wing === "done", offer = done ? renderCardResult({ id: line.keyOf(card.subject), preview: slim ? event.content.trim() : "", open: Boolean(event.open), shelf }) : "";
+      const done = event?.wing === "done", offer = done ? renderCardResult({ id: line.keyOf(card.subject), preview: slim ? event.content.trim() : "", open: Boolean(event.open), shelf, placed, choosing, ...(receivers.targets ? { targets: receivers.targets } : {}) }) : "";
+      if (done && !receivers.asked && request) {
+        receivers.asked = true;
+        void request(host.route("/api/mainline/receive/targets"), { body: {} }).then(answer => {
+          receivers.targets = (answer as { targets?: typeof receivers.targets }).targets;
+          paint();
+        }, () => undefined);
+      }
       if (offer !== offered) { offered = offer; result.hidden = !offer; result.innerHTML = offer; }
       // In the column what can be done with a finished thing stands first, where an answer would (办完了); the page keeps it with the owner's words.
       const finished = Boolean(offer) && !asked && !owners && !page;

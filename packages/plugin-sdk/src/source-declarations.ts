@@ -1,4 +1,5 @@
 import { isRecord } from "./json-value.js";
+import { PLUGIN_ICON_NAMES } from "./ui/icon-names.js";
 import {
   FILE_CONTENT_INPUT_SCHEMA, FILE_CONTENT_INPUT_TYPE, FILE_CONTENT_OUTPUT_SCHEMA, FILE_CONTENT_OUTPUT_TYPE,
   FILE_ENTRIES_INPUT_SCHEMA, FILE_ENTRIES_INPUT_TYPE, FILE_ENTRIES_OUTPUT_SCHEMA, FILE_ENTRIES_OUTPUT_TYPE,
@@ -28,14 +29,15 @@ export function searchSourceDeclarationProblems(key: string, action: Record<stri
   const kindsValid = Array.isArray(kinds) && kinds.length > 0 && kinds.every(entry => !!entry && typeof entry === "object"
     && typeof (entry as SearchSourceKind).kind === "string" && subjectKinds.includes((entry as SearchSourceKind).kind)
     && typeof (entry as SearchSourceKind).title === "string" && (entry as SearchSourceKind).title.trim().length > 0
-    && typeof (entry as SearchSourceKind).surface === "string" && /^[a-zA-Z0-9_-]{1,64}$/u.test((entry as SearchSourceKind).surface))
+    && typeof (entry as SearchSourceKind).surface === "string" && /^[a-zA-Z0-9_-]{1,64}$/u.test((entry as SearchSourceKind).surface)
+    && ((entry as SearchSourceKind).glyph === undefined || (PLUGIN_ICON_NAMES as readonly string[]).includes((entry as SearchSourceKind).glyph!)))
     && new Set(kinds.map(entry => (entry as SearchSourceKind).kind)).size === kinds.length && kinds.length === subjectKinds.length;
   const schemas = entries ? [SEARCH_ENTRIES_INPUT_SCHEMA, SEARCH_ENTRIES_OUTPUT_SCHEMA] : null;
   // The index is built as the local person; a source closed to `user` could never be indexed.
   const openToUser = Array.isArray(action.audiences) && (action.audiences as unknown[]).includes("user");
   if (!schemas || operation !== "query" || action.kind !== "query" || !["home", "project"].includes(String(action.scope)) || !kindsValid || !openToUser
     || canonical(action.input_schema) !== canonical(schemas[0]) || canonical(action.output_schema) !== canonical(schemas[1])) {
-    problems.push(`能力 ${key} 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型、对本机用户开放与对应对象种类的打开位置`);
+    problems.push(`能力 ${key} 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型、对本机用户开放与对应对象种类的打开位置（图标须取平台图标集）`);
   }
   return problems;
 }
@@ -168,7 +170,8 @@ export function placementRelationProblems(key: string, action: Record<string, un
   const nounText = isRecord(target) ? target.noun_text : undefined;
   const targetOk = role === "list" ? isRecord(target) && hasText(target.kind) && hasText(target.noun)
     && (nounText === undefined || (isRecord(nounText) && typeof nounText.key === "string" && nounText.key.length > 0 && nounText.key.length <= 200))
-    && Object.keys(target).every(field => ["kind", "noun", "noun_text"].includes(field)) : target === undefined;
+    && (target.open_view === undefined || (typeof target.open_view === "string" && /^[a-z][a-z0-9-]{0,63}$/u.test(target.open_view)))
+    && Object.keys(target).every(field => ["kind", "noun", "noun_text", "open_view"].includes(field)) : target === undefined;
   const audiences = Array.isArray(action.audiences) ? action.audiences as unknown[] : [];
   if (!isRecord(declared) || !RELATION_NAME.test(String(declared.relation)) || !known || !targetOk
     || Object.keys(declared).some(field => !["relation", "role", "target"].includes(field))

@@ -4,7 +4,7 @@ import ts from "typescript";
 
 const UI_ROOT = "apps/workbench/src/artifacts";
 const MODULE = "@molis-ai/molis-work-module-artifacts";
-const PRESENTATION_EXPORTS = new Set(["artifactVersionPath", "ArtifactBrowserView", "GoalArtifactEmbed"]);
+const PRESENTATION_EXPORTS = new Set(["artifactVersionPath", "ArtifactBrowserView", "SubjectArtifactEmbed"]);
 const RESERVED_UI = new Set(["io.molis.work.native.artifacts.browser.v1", "io.molis.work.native.artifacts.reference.v1"]);
 
 function sources(root, relative) {

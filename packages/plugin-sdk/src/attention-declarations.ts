@@ -9,7 +9,7 @@ import { PLUGIN_ATTENTION_WRITE_PERMISSION } from "@molis-ai/molis-work-contract
 export function attentionDeclarationProblems(value: unknown, permissions: ReadonlySet<string>): string[] {
   if (value === undefined) return [];
   if (!isRecord(value)) return ["attention 必须为对象"];
-  const extra = Object.keys(value).filter(field => field !== "subjects" && field !== "inbox");
+  const extra = Object.keys(value).filter(field => field !== "subjects" && field !== "waiting");
   if (extra.length > 0) return [`attention 不认这些字段：${extra.join("、")}`];
   const problems: string[] = permissions.has(PLUGIN_ATTENTION_WRITE_PERMISSION) ? [] : [`声明 attention.subjects 要同时声明权限 ${PLUGIN_ATTENTION_WRITE_PERMISSION}`];
   if (!Array.isArray(value.subjects) || value.subjects.length === 0) return [...problems, "attention.subjects 至少要声明一种对象"];
@@ -26,7 +26,7 @@ export function attentionDeclarationProblems(value: unknown, permissions: Readon
     kinds.add(subject.object_kind);
     problems.push(...reasonProblems(subject.type, subject.reasons));
   }
-  if (value.inbox !== undefined) problems.push(...inboxProblems(value.inbox, seen));
+  if (value.waiting !== undefined) problems.push(...waitingProblems(value.waiting, seen));
   return problems;
 }
 
@@ -44,13 +44,13 @@ function reasonProblems(type: string, reasons: unknown): string[] {
   return problems;
 }
 
-/** `attention.inbox` lists some of `attention.subjects`, each once: a kind the plugin cannot write is not one it can put in the Inbox. */
-function inboxProblems(inbox: unknown, subjects: ReadonlySet<string>): string[] {
-  if (!Array.isArray(inbox) || inbox.length === 0) return ["attention.inbox 至少要列一种对象，不需要进收件箱就不要写这一项"];
+/** `attention.waiting` lists some of `attention.subjects`, each once: a kind the plugin cannot write is not one it can put on the person's waiting list. */
+function waitingProblems(waiting: unknown, subjects: ReadonlySet<string>): string[] {
+  if (!Array.isArray(waiting) || waiting.length === 0) return ["attention.waiting 至少要列一种对象，不需要进「等你」就不要写这一项"];
   const problems: string[] = [], seen = new Set<string>();
-  for (const subject of inbox) {
-    if (typeof subject !== "string" || !subjects.has(subject)) problems.push("attention.inbox 只能列 attention.subjects 里声明过的对象种类");
-    else if (seen.has(subject)) problems.push(`attention.inbox 重复：${subject}`);
+  for (const subject of waiting) {
+    if (typeof subject !== "string" || !subjects.has(subject)) problems.push("attention.waiting 只能列 attention.subjects 里声明过的对象种类");
+    else if (seen.has(subject)) problems.push(`attention.waiting 重复：${subject}`);
     else seen.add(subject);
   }
   return problems;

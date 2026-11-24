@@ -48,7 +48,7 @@ the published surface (contracts, plugin-sdk) is the lowest layer
 - Module 导入 Horizontal Service、App 或 Plugin（代码 import 与 `package.json` 依赖都查，`module-upward-dependency`）。
 - Plugin 导入另一个 Plugin implementation、Store 或未公开 UI 组件。
 - 项目库的同步连接只由 `packages/storage` 打开（底下是 `node:sqlite`）；测试使用 test-kit 的 `/sqlite` 子路径。没有例外：最后一个 `better-sqlite3` 用户（旧 Alchemist）随第 44B 批删除，例外名单 `sqlite-driver-owners.json` 一起删了。`project-sqlite-driver` 检查所有放代码的目录（不按工作区包名单，所以没有 `package.json` 的 `apps/sync-worker` 也在内）里的字面量 import、require、`createRequire(...)(...)`，以及交给别的东西运行的程序文本（`node -e` 及同类参数、shell 命令、`eval`、`new Function`、`vm`、`new Worker(x,{eval:true})`）；动态拼出的模块名不在此检查内。
-- Plugin 导入 App、Horizontal Service 或 Module implementation（`plugin-upward-dependency`）。在册的唯一例外：`plugins/native/shelf → modules/shelf`（Shelf 仍用 Shelf Module 的配方与设置解析，是待还的债，不是先例）。Goals 插件曾声明却从未导入 `modules/goals`，该依赖已删。
+- Plugin 导入 App、Horizontal Service 或 Module implementation（`plugin-upward-dependency`）。没有在册例外（第 44B 批 Shelf 成为平台部件，原 `plugins/native/shelf → modules/shelf` 一条随包删除）。Goals 插件曾声明却从未导入 `modules/goals`，该依赖已删。
 - 生产源码导入任何插件的 `./testing` 出口，或插件自己的其他模块导入它的 `testing` 模块（`plugin-testing-entry-import`）。`./testing` 是测试在运行时之外开插件数据的入口（现在没有插件带这个出口：Pages 的 `openPagesStore` 已搬进测试夹具 `tests/fixtures/plugin-home-stores.ts`，PG-023；规则留着，不让它再长出来）；生产代码经 Plugin Runtime 取数据，不经它。同一条线上：插件包（Todo、Form、灵光、Dataset、PPT、Workflows、Jelly、Cognia、Pages）的 `package.json` 不依赖私有的 `@molis-ai/molis-work-storage`，不导出 `openXStore` 一类按路径开 Home 库文件的函数；运行中的插件用 Runtime 给的 `services.database`，测试要开库就用夹具 `tests/fixtures/plugin-home-stores.ts`（`tests/plugin-storage-dependency.test.ts` 钉住）。目前还依赖 storage 的只有 Images。
 - Plugin SDK 导入或依赖 contracts 以外的任何工作区包（`public-sdk-private-dependency`，源码 import 与 `package.json` 依赖都查）。外部作者只装 contracts 与 SDK 两个包；SDK 依赖了私有包，打包后的示例就装不上（2026-09-30 出过一次）。所以作者和平台共用、会运行的工具放在 SDK 里，而不是私有的 kernel 或 plugin-runtime，平台各层从 SDK 取同一份。现在在 SDK 里的是执行生命周期（kernel、宿主、调度服务、Shelf 模块和沙箱从 SDK 取）、Manifest 解析与版本比较（`parsePluginManifest` 等，Plugin Runtime 与命令行从 SDK 取）动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，kernel 注册时用）和逐行文本比较（`compareTexts` 等，工作台审查界面、Coding 与 Diff 从 SDK 取；结果与行的类型留在合同包）以及动作的两个绑定函数（`bindPluginActionRoute`、`bindOwnerPluginAction`，失败按错误的 kind 答，合同包里的那张状态表随之删除）；W3-03 要从合同包搬出的三样会运行的东西都已在 SDK 里；W3-02-C 又把这两个绑定函数从合同包搬了进来。
 - Plugin 导入私有的界面包 `design-system`、`im-ui`、`ui-host`（`plugin-private-ui-dependency`，源码 import 与 `package.json` 依赖都查）。插件画界面用 SDK 公开的部件（`/ui` 的字符串部件、`/browser` 的 DOM 工具、`/page-globals` 的页面全局类型），外部作者装的也是这一套，内置插件不另走私有的路（2026-10-18「插件同等待遇」）。创作台是[由宿主装配的平台表面](../../apps/workbench/src/host-surfaces.ts)（第 47 批 #2239）。测试工具仍导出 `PRIVATE_UI_EXEMPT_PLUGINS`，其中的创作台路径属于平台包，当前规则只检查插件包。伙伴页面的舞台（Git、Diff）不是公开部件，两个插件各自用公开部件写。
@@ -218,7 +218,7 @@ typed 条目的新增、Repository 导出的新增、宿主入口的变宽、合
 
 旧根 `src/` 与 0.1.x 的根 SDK 都已退出产品实现，根包 `@molis-ai/molis-work` 只发布命令行入口，不导出代码。`pnpm boundary:check` 拒绝任何根目录 `src/`（不再有兼容白名单）；各包的大文件由 `pnpm health:check` 的巨大单元门禁只许变小。
 
-Goals 的十四个 typed 桥已删除；`checkNoGoalTypedAdapters` 用 AST 拒绝它们的名称、literal 与旧模块重新进入生产定义、注册、导出和调用。`tests/goals-query-boundaries.test.mjs` 注入别名、动态引用和拼接 literal 验门禁；`tests/typed-registry-inventory.test.ts` 核实际 Host 剩余宿主内注册和 Goals 动作目录。CLI 与管理 MCP 经宿主造的管理调用者调用插件登记的管理动作（Host 私有 `bindManagementActions`，`actionClient(reference, false)`；MCP 只接管理动作端口或 null）。门禁 `checkGoalTransportCallers` 用 AST 核对实际动作调用与 Host 装配，并以 mutation 拒绝 typed/domain 路线、Runtime 获得管理端口、提前准备插件或丢失原库身份预打开。Host 只对未登记到当前 Home 的项目保留原 `client(reference).withScope(() => undefined)` 空 scope；已登记项目从目录取得原路径与项目身份，避免转发进程先打开项目，Apps MCP 不持有客户端，标准 MCP 按 Action 目录发现，不要求恢复已退出的旧 MCP snapshot 分支。它们仍不得越过 Host 直接读写领域 owner。2026-10-07 的 N-12 决定是对外只走动作、没有生产调用方的 Goals typed 桥要删（W2-08、W3-07 做），在此之前 `typedCapabilities` 只许减少，不许新增。
+Goals 的十四个 typed 桥已删除；`checkNoGoalTypedAdapters` 用 AST 拒绝它们的名称、literal 与旧模块重新进入生产定义、注册、导出和调用。`tests/goals-query-boundaries.test.mjs` 注入别名、动态引用和拼接 literal 验门禁；`tests/typed-registry-inventory.test.ts` 核实际 Host 剩余宿主内注册和 Goals 动作目录。CLI 与管理 MCP 只经宿主造的审阅端口调平台的两个审阅操作（`bindStandaloneReviewActions`／`residentManagementActions`；插件声明的管理动作已于第 44B 批删除；MCP 只接审阅端口或 null）。门禁 `checkGoalTransportCallers` 用 AST 核对实际动作调用与 Host 装配，并以 mutation 拒绝 typed/domain 路线、Runtime 获得管理端口、提前准备插件或丢失原库身份预打开。Host 只对未登记到当前 Home 的项目保留原 `client(reference).withScope(() => undefined)` 空 scope；已登记项目从目录取得原路径与项目身份，避免转发进程先打开项目，Apps MCP 不持有客户端，标准 MCP 按 Action 目录发现，不要求恢复已退出的旧 MCP snapshot 分支。它们仍不得越过 Host 直接读写领域 owner。2026-10-07 的 N-12 决定是对外只走动作、没有生产调用方的 Goals typed 桥要删（W2-08、W3-07 做），在此之前 `typedCapabilities` 只许减少，不许新增。
 
 Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public entrypoint 仍导出构造类型，尚待将 Host 装配与普通消费者接口分清。`moduleRepositoryExports` 把现有导出冻结住，只许减少。不能将现有导出视为任意调用 Store 的许可，也不能通过删除此约束宣称边界已完成收口。
 
@@ -317,7 +317,6 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `plugins/native/ppt` | 内置插件 | 36 | 2,853 | `store.ts` 295 | 3 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/risk` | 内置插件 | 26 | 1,995 | `browser/client.ts` 361 | 2 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/schedule` | 内置插件 | 46 | 3,103 | `tasks.ts` 300 | 2 | 2 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/shelf` | 内置插件 | 62 | 6,298 | `styles.ts` 647 | 2 | 3 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/todo` | 内置插件 | 49 | 5,225 | `organize.ts` 328 | 3 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/work-brief` | 内置插件 | 26 | 2,084 | `briefs.ts` 263 | 2 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/workflows` | 内置插件 | 44 | 4,602 | `model.ts` 438 | 2 | 2 | 2 | Runtime | 中 | 待审 |
@@ -325,6 +324,5 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `plugins/official-integrations/github` | 官方接入 | 6 | 960 | `provider.ts` 592 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `plugins/official-integrations/gmail` | 官方接入 | 16 | 2,641 | `history-cursor.ts` 529 | 3 | 2 | 2 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/rss` | 官方接入 | 9 | 1,635 | `catalog.ts` 513 | 2 | 2 | 2 | 在用 | 中 | 已审 |
-| `plugins/official-integrations/youtube` | 官方接入 | 2 | 86 | `channel.ts` 84 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `server` | 模块 | 18 | 1,182 | `continuity/service.ts` 185 | 1 | 3 | 2 | 在用 | 中 | 已审 |
 | `tooling/plugin-cli` | 工具 | 8 | 359 | `sample-source.ts` 108 | 1 | 3 | 0 | 在用 | 浅 | 已审 |

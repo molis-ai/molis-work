@@ -8,7 +8,7 @@ import ts from "typescript";
 import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MCP_TOOLS, MolisWorkLocalHost, molisWorkHostProjectReference, createPrivateDevelopmentHost, developInPrivateHost, runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import type { GoalEventDecisionResult } from "@molis-ai/molis-work-plugin-goals/contract";
-import { goalsActions, GOALS_PLUGIN_ID, type GoalTreeProposalDecisionResult } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, type GoalTreeProposalDecisionResult } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { TrustedReviewCommand } from "@molis-ai/molis-work-contracts/services/project-approvals";
@@ -202,45 +202,6 @@ test("a second management MCP connection reads and retries the same decision thr
     assert.equal((await reviews.read({ reference: command.reference })).decision?.decision_id, decided.record.decision_id);
     assert.deepEqual(await decideEntry(command), { record: decided.record, replayed: true });
   } finally { await management.close(); await done(); }
-});
-
-/** docs/mcp.md says so: `initialize` is the one management tool that does not refuse an identity field, it does not read one. */
-test("the management MCP's initialize reads only project_id and idempotency_key: an identity in its arguments is ignored, not read", async () => {
-  const home = await mkdtemp(join(tmpdir(), "management-door-initialize-"));
-  const databasePath = join(home, "project.db"), project_id = "project/initialize";
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const management = new MolisWorkServer("management", null, null, host);
-  try {
-    const call = async (extra: Record<string, unknown>) => JSON.parse(await management.callTool("molis_work_v1_initialize",
-      { database_path: databasePath, project_id, idempotency_key: "init", ...extra })) as { replayed: boolean };
-    assert.equal((await call({ actor_id: "someone-else", actor_kind: "runtime" })).replayed, false, "a forged identity does not stop the call");
-    // The same operation of the same person replays whatever identity fields ride along: had one been read, it would be someone else's request.
-    for (const identity of IDENTITY_FIELDS) assert.equal((await call(identity)).replayed, true, `ignores ${Object.keys(identity).join(" and ")}`);
-    const actors = await host.withProject(molisWorkHostProjectReference({ projectId: project_id, databasePath }),
-      runtime => runtime.store.db.prepare("SELECT actor_id FROM events WHERE project_id = ? AND type = ?").all(project_id, `${GOALS_PLUGIN_ID}:board.created`) as Array<{ actor_id: string }>);
-    assert.deepEqual(actors.map(row => row.actor_id), [LOCAL_PERSON_ACTOR_ID], "the board was created by the person on this machine");
-  } finally { await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
-});
-
-/** W3-01 D / W3-07-4-01: the management door is reached through MCP messages too. Its one Goals action leaves a row, and the result says which. */
-test("a management tool call is one operation: its single Goals action leaves a row and the result names that operation", async () => {
-  const home = await mkdtemp(join(tmpdir(), "management-door-call-id-"));
-  const databasePath = join(home, "project.db"), project_id = "project/call-id";
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const management = new MolisWorkServer("management", null, null, host);
-  try {
-    const reply = await management.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_initialize",
-      arguments: { database_path: databasePath, project_id, idempotency_key: "init-call-id" }, _meta: { "molis-work/callId": "11111111-2222-4333-8444-555555555555" } } }) as { result: { isError: boolean; _meta?: Record<string, unknown> } };
-    assert.equal(reply.result.isError, false, JSON.stringify(reply));
-    const id = String(reply.result._meta?.["molis-work/callId"]);
-    assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
-    assert.notEqual(id, "11111111-2222-4333-8444-555555555555", "a number the client put in `_meta` is not taken");
-    const rows = host.callLog!.find(id);
-    assert.equal(rows.length, 1, "the operation left exactly one Goals action row");
-    assert.equal(rows[0]!.count ?? 1, 1, "the first message settled only once");
-    assert.deepEqual(rows.map(row => [row.call_id, row.operation, row.path ?? "action", row.capability_id, row.ok]),
-      [[id, "command", "action", "goals.board.initialize", true]]);
-  } finally { await management.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("the management MCP's common decision schema names no identity or claimed source", () => {

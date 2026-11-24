@@ -42,7 +42,7 @@ const view = (capability_id: string, provider: ActionView["provider"], options: 
     input_schema: {}, output_schema: {}, ...(options.reader ? { input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE } : {}) },
 }) as ActionView;
 const goals = { provider_id: "goals", title: "目标", kind: "plugin", plugin_id: "goals" } as const;
-const library = { provider_id: "artifacts-install-1", title: "成果库", kind: "plugin", plugin_id: "io.molis.work.artifacts" } as const;
+const library = { provider_id: "artifacts-install-1", title: "成果库", kind: "plugin", plugin_id: "system.artifacts" } as const;
 const pages = { provider_id: "pages-install-1", title: "Pages", kind: "plugin", plugin_id: "pages" } as const;
 
 /** The catalog a caller discovers: the folder reads, and object readers of a few kinds as the tests need them. */

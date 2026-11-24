@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { SHELF_LOCAL_TOOLS } from "@molis-ai/molis-work-plugin-shelf";
+import { BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES } from "@molis-ai/molis-work-app-workbench";
+import { SHELF_LOCAL_TOOLS } from "@molis-ai/molis-work-module-shelf/surface";
 
 // specs/archive/repository-anti-corruption/slices/platform-local-tools-home-scope.md, PG-112: the command-line tools a plugin looks for on this
 // machine are declared in its Manifest (`local_tools`) and nowhere else.
@@ -42,10 +42,10 @@ test("RAC-731 the Manifest's local_tools declare named tools with bare file name
 });
 
 test("RAC-731 Shelf's terminal Agents are its Manifest's local_tools: one tool per engine, the permission is required, and no other shipped plugin declares any", () => {
-  const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === "io.molis.work.shelf")!;
+  const shelf = HOST_FRAMED_SURFACES.find(entry => entry.manifest.plugin_id === "system.shelf")!;
   assert.equal(shelf.manifest.local_tools, SHELF_LOCAL_TOOLS);
   assert.equal(shelf.manifest.permissions.find(entry => entry.permission === "local-tools:read")?.required, true, "a dual-instance Manifest's permissions are all required");
   assert.deepEqual(SHELF_LOCAL_TOOLS.tools.map(tool => tool.tool_id), ["grok", "claude", "gemini", "opencode", "cursor", "codex", "kimi", "codebuddy", "qwen"]);
-  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.local_tools).map(entry => entry.manifest.plugin_id), ["io.molis.work.shelf"]);
+  assert.deepEqual([...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES].filter(entry => entry.manifest.local_tools).map(entry => entry.manifest.plugin_id), ["system.shelf"]);
   assert.doesNotThrow(() => parsePluginManifest(JSON.parse(JSON.stringify(shelf.manifest))), "the declaration Shelf ships passes the same check as any plugin's");
 });

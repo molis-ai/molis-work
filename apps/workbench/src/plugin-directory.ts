@@ -72,11 +72,10 @@ function homeMarks(entry: PluginDirectoryEntry): Pick<PluginDirectoryEntry, "per
 }
 
 /** The Host's marks on a chosen entry: a flag only when exactly `true`, companions as distinct keys (at most {@link MAX_COMPANIONS}). */
-function trustedMarks(entry: PluginDirectoryEntry): Pick<PluginDirectoryEntry, "personal" | "home" | "always_on" | "companions"> {
+function trustedMarks(entry: PluginDirectoryEntry): Pick<PluginDirectoryEntry, "personal" | "home" | "companions"> {
   const companions = [...new Set((Array.isArray(entry.companions) ? entry.companions : []).flatMap(value => { const clean = key(value); return clean ? [clean] : []; }))].slice(0, MAX_COMPANIONS);
   return {
     ...homeMarks(entry),
-    ...(entry.always_on === true ? { always_on: true as const } : {}),
     ...(companions.length ? { companions } : {}),
   };
 }

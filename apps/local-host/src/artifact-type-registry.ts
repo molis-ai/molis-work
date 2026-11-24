@@ -4,7 +4,7 @@ import { intakeMaterial, isArtifactLinkSubjectsAction, isArtifactReferrersAction
 import { ARTIFACTS_HOST_PRODUCER, type ArtifactLinkKinds } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactFileDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRuntime, PluginSupervisor } from "@molis-ai/molis-work-plugin-runtime";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { shippedParts } from "./plugin-registry.js";
 
 // The platform's table of 成果 types, read from what each producer's Manifest declares (PG-079, PG-064 in
 // specs/archive/repository-anti-corruption/privileges.md; slices/ac-artifacts.md §3.3). It lives in the Host with the other platform
@@ -22,6 +22,8 @@ export interface ArtifactTypeDeclaration {
   readonly pin: ActionDefinition | null;
   /** The owner's action that says whether a version still matches its work object (A4b). */
   readonly compare: ActionDefinition | null;
+  /** Payload keys the owner declares as reading text, for system search (M12). */
+  readonly searchable_fields?: readonly string[];
 }
 
 /** A plugin that can start new work from a 成果 type (「从这一版继续」, A4b), whether it owns the type or only reads it. */
@@ -134,12 +136,12 @@ const sourceOf = (manifest: PluginManifest, surface: string): ArtifactProducerSo
  */
 export function artifactProducerSources(): readonly ArtifactProducerSource[] {
   const effective = installedArtifacts.effective(), byId = new Map(effective.map(manifest => [manifest.plugin_id, manifest] as const)), known = installedArtifacts.known();
-  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {
+  const shipped = shippedParts().flatMap(entry => {
     const installed = byId.get(entry.manifest.plugin_id);
     if (installed) return [sourceOf(installed, entry.project_plugin_id)];
     return known.has(entry.manifest.plugin_id) ? [] : [sourceOf(entry.manifest, entry.project_plugin_id)];
   });
-  const shippedIds = new Set(PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest.plugin_id));
+  const shippedIds = new Set(shippedParts().map(entry => entry.manifest.plugin_id));
   return [
     ...shipped,
     ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, name: host.name, surface: host.surface, artifacts: { produces: host.produces, consumes: [] }, actions: host.actions })),
@@ -183,7 +185,8 @@ export function artifactTypeDeclarations(sources: readonly ArtifactProducerSourc
     if (!type.title) continue;
     const action = (declared?: { capability_id: string; version: number }) => declared ? source.actions.find(item => item.capability_id === declared.capability_id && item.version === declared.version) ?? null : null;
     declarations.set(type.artifact_type_id, { title: type.title, plugin_id: source.plugin_id, plugin_title: source.name,
-      surface: source.surface, preview: action(type.preview), pin: action(type.pin), compare: action(type.compare) });
+      surface: source.surface, preview: action(type.preview), pin: action(type.pin), compare: action(type.compare),
+      ...(type.searchable_fields ? { searchable_fields: type.searchable_fields } : {}) });
   }
   return declarations;
 }

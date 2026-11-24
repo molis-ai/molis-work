@@ -15,9 +15,9 @@ import { codingToolResponse } from "./fixtures/coding-sdk-runtime.js";
 const prefix = "/api/plugins/io.molis.work.coding";
 type Host = Awaited<ReturnType<typeof codingProductHost>>;
 async function material(f: Host, text: string) {
-  const admitted = await f.call<{ item: { item_id: string } }>(f.project.project_id, "/api/plugins/io.molis.work.shelf/items", { filename: "selected.md", bytes_base64: Buffer.from(text).toString("base64") });
+  const admitted = await f.call<{ item: { item_id: string } }>(f.project.project_id, "/api/platform/shelf/items", { filename: "selected.md", bytes_base64: Buffer.from(text).toString("base64") });
   assert.equal(admitted.status, 200, JSON.stringify(admitted.body));
-  const path = `/api/plugins/io.molis.work.shelf/items/${admitted.body.item.item_id}/project-material`;
+  const path = `/api/platform/shelf/items/${admitted.body.item.item_id}/project-material`;
   const preview = await f.call<{ fingerprint: string }>(f.project.project_id, path);
   const pinned = await f.call<{ reference: ArtifactReference }>(f.project.project_id, path, { expected_fingerprint: preview.body.fingerprint });
   assert.equal(pinned.status, 200, JSON.stringify(pinned.body));

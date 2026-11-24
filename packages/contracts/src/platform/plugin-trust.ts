@@ -53,7 +53,7 @@ export type PluginTrust =
   | { readonly level: "unsigned" };
 
 /** The declarations of a Manifest that change what the plugin does elsewhere; each is agreed to, or not, on its own. */
-export type PluginConsentKind = "always_on" | "default_wiring" | "default_group" | "local_directory" | "project_reach";
+export type PluginConsentKind = "default_wiring" | "default_group" | "local_directory" | "project_reach";
 
 /** Who recorded a consent: a person, or the Host on a `host` install's behalf from the Manifest it ships. */
 export type PluginConsentGranter = "user" | "host_build";

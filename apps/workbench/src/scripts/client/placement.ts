@@ -328,7 +328,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       action("use-in-project", readText("workbench.placement.use-project"), () => useInProject(view), view.can.use_in_project, readText("workbench.placement.no-other-projects-yet"));
       action("move", readText("workbench.placement.move"), () => moveOrCopy(view, "move"), view.can.move, view.object.project_id === null ? readText("workbench.placement.kind-item-only-lives-personal-space") : readText("workbench.placement.items-plugin-can-t-be-moved-yet"));
       action("copy", readText("workbench.placement.copy"), () => moveOrCopy(view, "copy"), view.can.copy, view.object.project_id === null ? readText("workbench.placement.kind-item-only-lives-personal-space") : readText("workbench.placement.items-plugin-can-t-be-copied-elsewhere-yet"));
-      action("attach", readText("workbench.placement.attach-to"), () => bindToGoal(view), Boolean(view.object.project_id || here()), readText("workbench.placement.open-project-personal-space-first"));
+      action("attach", readText("workbench.placement.attach-to"), () => bindToTarget(view), Boolean(view.object.project_id || here()), readText("workbench.placement.open-project-personal-space-first"));
       if (here() && here() !== "personal") {
         action("put-in-item", readText("workbench.placement.put-in-item"), () => {
           document.dispatchEvent(new CustomEvent("molis-work:work-item-hold-open", { detail: { subject: { kind: view.object.kind, id: view.object.id }, title: view.title, mode: "hold" } }));
@@ -385,11 +385,11 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     const text = node("span"); text.append(node("strong", title), node("small", detail));
     label.append(input, text); return label;
   };
-  // A Goal takes an input one of two ways (specs/artifact-positioning 五.1, one entry): following the object as it changes, or
+  // A target takes an input one of two ways (specs/artifact-positioning 五.1, one entry): following the object as it changes, or
   // a version fixed now in the 成果库. A version that is already in the 成果库 is fixed by nature.
   const inputMode = () => {
-    const set = node("fieldset", undefined, "placement-linked-mode"); set.append(node("legend", readText("workbench.placement.which-version-goal-uses")),
-      choice("mode", "live", readText("workbench.placement.follow-original"), readText("workbench.placement.goal-sees-now"), true), choice("mode", "fixed", readText("workbench.placement.fix-version"), readText("workbench.placement.save-version-now-later-edits-original-don-t"), false));
+    const set = node("fieldset", undefined, "placement-linked-mode"); set.append(node("legend", readText("workbench.placement.which-version-target-uses")),
+      choice("mode", "live", readText("workbench.placement.follow-original"), readText("workbench.placement.target-sees-now"), true), choice("mode", "fixed", readText("workbench.placement.fix-version"), readText("workbench.placement.save-version-now-later-edits-original-don-t"), false));
     return set;
   };
   // Both following an object and fixing its current version flow through the generic placement_relation attach contract.
@@ -408,7 +408,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     await api("attach", { object, project_id: projectId, target: { kind: targetKind, id: targetId }, mode: "fixed" });
   };
   // 「加输入…」 on an attach target: anything this project lists among its files, chosen here and taken one of the two ways.
-  const addGoalInput = async (targetId, targetKind = "goal") => {
+  const addTargetInput = async (targetId, targetKind) => {
     const read=path=>molisWorkRequest(route(path),{fallback:readText("workbench.placement.couldn-t-read-project-s-items")});
     const entries = [];
     try {
@@ -418,14 +418,14 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       const share = Math.ceil(80 / Math.max(1, sources.length));
       for (const source of sources) entries.push(...pages.get(source.id).items.filter((entry) => entry.subject).slice(0, share).map((entry) => ({ ...entry, group: source.title })));
     } catch (error) { card(readText("workbench.placement.couldn-t-read-project-s-items"), error, [], "error"); return; }
-    if (!entries.length) { card(readText("workbench.placement.nothing-here-can-be-used-input-yet"), readText("workbench.placement.create-one-goal-first-import-into-results"), [], "error"); return; }
+    if (!entries.length) { card(readText("workbench.placement.nothing-here-can-be-used-input-yet"), readText("workbench.placement.create-one-first-import-into-results"), [], "error"); return; }
     const rows = entries.slice(0, 80).map((entry, index) => choice("object", JSON.stringify(entry.subject), entry.title, entry.group, index === 0));
-    dialog(readText("workbench.placement.add-input-goal"), readText("workbench.placement.versions-results-already-fixed-anything-else-can-follow"), [...rows, inputMode()], readText("workbench.placement.add"), async (data) => {
+    dialog(readText("workbench.placement.add-input-target"), readText("workbench.placement.versions-results-already-fixed-anything-else-can-follow"), [...rows, inputMode()], readText("workbench.placement.add"), async (data) => {
       const subject = JSON.parse(String(data.get("object") || "null"));
       if (!subject) throw new Error(readText("workbench.placement.choose-one-first"));
       await takeAsInput(here(), targetKind, targetId, { ...subject, project_id: here() }, data.get("mode") === "fixed");
       invalidate();
-      card(readText("workbench.placement.added-goal-s-inputs"), data.get("mode") === "fixed" || subject.kind === "artifact" ? readText("workbench.placement.goal-uses-version") : readText("workbench.placement.goal-follows-original"), [], "done");
+      card(readText("workbench.placement.added-to-inputs"), data.get("mode") === "fixed" || subject.kind === "artifact" ? readText("workbench.placement.uses-this-version") : readText("workbench.placement.follows-original"), [], "done");
     });
   };
   const useInProject = async (view) => {
@@ -478,8 +478,8 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       });
   };
 
-  /* ---- Goals: bind an object to a Goal, create straight into a Goal ---- */
-  const bindToGoal = async (view) => {
+  /* ---- 「挂到…」: bind an object to a target its owner declares (placement_relation, M3), or create straight onto one ---- */
+  const bindToTarget = async (view) => {
     const home = view.object.project_id || here();
     const places = [home, ...view.associations.filter((link) => link.type === "used_in").map((link) => link.target.project_id), here()]
       .filter((id, index, all) => id && all.indexOf(id) === index);
@@ -491,37 +491,35 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     };
     const found = [];
     for (const projectId of places) {
-      try { for (const kind of (await api("attach-targets", { project_id: projectId, object: view.object })).kinds || []) for (const target of kind.targets) found.push({ kind: kind.kind, goal_id: target.id, title: target.title, project_id: projectId }); }
-      catch (error) { if (projectId === home) { card(readText("workbench.placement.couldn-t-read-goals"), error, [], "error"); return; } }
+      try { for (const kind of (await api("attach-targets", { project_id: projectId, object: view.object })).kinds || []) for (const target of kind.targets) found.push({ kind: kind.kind, noun: kind.noun, open_view: kind.open_view || "", id: target.id, title: target.title, project_id: projectId }); }
+      catch (error) { if (projectId === home) { card(readText("workbench.placement.couldn-t-read-targets"), error, [], "error"); return; } }
     }
-    if (!found.length) { card(readText("workbench.placement.no-goals-here-yet"), readText("workbench.placement.create-goal-goals-first-then-link-material"), [], "error"); return; }
+    if (!found.length) { card(readText("workbench.placement.nothing-to-attach-yet"), readText("workbench.placement.create-target-first-then-link"), [], "error"); return; }
+    const key = (target) => [target.project_id, target.kind, target.id].join("|");
     const bound = new Set(view.associations.filter((link) => link.type === "attached").map((link) => [link.target.project_id, link.target.object.kind, link.target.object.id].join("|")));
-    const several = new Set(found.map((goal) => goal.project_id)).size > 1;
-    const rows = found.slice(0, 60).map((goal, index) => choice("goal", [goal.project_id, goal.kind, goal.goal_id].join("|"), goal.title,
-      [several ? nameOf(goal.project_id) : "", bound.has([goal.project_id, goal.kind, goal.goal_id].join("|")) ? readText("workbench.placement.already-linked") : ""].filter(Boolean).join(" · "), index === 0));
+    const several = new Set(found.map((target) => target.project_id)).size > 1, kinds = new Set(found.map((target) => target.kind)).size > 1;
+    const rows = found.slice(0, 60).map((target, index) => choice("target", key(target), kinds ? target.noun + " · " + target.title : target.title,
+      [several ? nameOf(target.project_id) : "", bound.has(key(target)) ? readText("workbench.placement.already-linked") : ""].filter(Boolean).join(" · "), index === 0));
     const where = home === "personal" ? readText("workbench.placement.personal-space") : readText("workbench.placement.project");
-    dialog(readText("workbench.placement.link-title-goal", { title: view.title }), readText("workbench.placement.goal-s-inputs-will-list-stays-place-isn", { place: view.location ? view.location.title : where }), [...rows, inputMode()], readText("workbench.placement.link"), async (data) => {
-      const [projectId, targetKind, goalId] = String(data.get("goal") || "").split("|");
-      await takeAsInput(projectId, targetKind, goalId, view.object, data.get("mode") === "fixed");
+    dialog(readText("workbench.placement.link-title-to", { title: view.title }), readText("workbench.placement.listed-as-input-stays-place", { place: view.location ? view.location.title : where }), [...rows, inputMode()], readText("workbench.placement.link"), async (data) => {
+      const target = found.find((entry) => key(entry) === String(data.get("target") || ""));
+      if (!target) throw new Error(readText("workbench.placement.choose-one-first"));
+      await takeAsInput(target.project_id, target.kind, target.id, view.object, data.get("mode") === "fixed");
       invalidate(); repaint();
-      const goal = found.find((entry) => entry.project_id === projectId && entry.kind === targetKind && entry.goal_id === goalId);
+      // The target opens where its owner shows what is attached to it (the list part's open_view), in its own project.
       const openTarget = async () => {
         try {
-          const next = await describe({ kind: targetKind, id: goalId, project_id: projectId }, false), open = next?.open;
+          const next = await describe({ kind: target.kind, id: target.id, project_id: target.project_id }, false), open = next?.open;
           if (!open) return;
-          if (open.surface === "goals") {
-            if (projectId === here()) { openItem(open.surface, open.id, goal ? goal.title : ""); host.openItemView?.(open.surface, "work"); return; }
-            const u = new URL("/projects/" + encodeURIComponent(projectId) + "/", location.origin), q = u.searchParams;
-            q.set("openPlugin", open.surface); q.set("openItem", open.id); q.set("openView", "work");
-            if (goal) q.set("openTitle", goal.title);
-            location.assign(u.pathname + u.search);
-            return;
-          }
-          openObject(open, goal ? goal.title : next.title);
+          if (target.project_id === here()) { openItem(open.surface, open.id, target.title); if (target.open_view) host.openItemView?.(open.surface, target.open_view); return; }
+          const u = new URL("/projects/" + encodeURIComponent(target.project_id) + "/", location.origin), q = u.searchParams;
+          q.set("openPlugin", open.surface); q.set("openItem", open.id); q.set("openTitle", target.title);
+          if (target.open_view) q.set("openView", target.open_view);
+          location.assign(u.pathname + u.search);
         } catch { /* no-op */ }
       };
-      card(readText("workbench.placement.linked-goal-goal", { goal: goal ? goal.title : "" }), readText("workbench.placement.open-goal-s-inputs-where-s-stored-doesn"),
-        [{ label: readText("workbench.placement.open-goal"), primary: true, run: () => { void openTarget(); } }], "done");
+      card(readText("workbench.placement.linked-to-target", { noun: target.noun, target: target.title }), readText("workbench.placement.open-from-inputs"),
+        [{ label: readText("workbench.placement.open-target", { noun: target.noun }), primary: true, run: () => { void openTarget(); } }], "done");
     });
   };
   const paintMaterials = () => {
@@ -536,25 +534,25 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
           : view.state === "missing" ? readText("workbench.placement.original-was-deleted") : (view.reason || readText("workbench.placement.can-t-read-right-now-2"));
         row.classList.toggle("is-gone", view.state !== "ok");
         // A project-folder file the Goal follows: what was read when it was taken is compared with the file now (SSC-28).
-        const digest = row.dataset.goalInputDigest;
+        const digest = row.dataset.placementInputDigest;
         if (view.state === "ok" && object.kind === "workspace_file" && digest !== undefined) {
           if (!digest) state.textContent += " · " + readText("workbench.placement.content-not-checked");
           else void molisWorkRequest(route("/api/materials/read"), { body: { ref: { subject: { kind: object.kind, id: object.id }, pin: { mode: "current", read_revision: digest.slice(7) } }, mode: "head" }, fallback: "" })
             .then((read) => {
               if (read.state !== "changed") return;
-              const bindingId = row.dataset.goalInputBinding, reviewAction = row.dataset.goalSourceReviewAction;
+              const bindingId = row.dataset.placementInputBinding, reviewAction = row.dataset.placementSourceReviewAction;
               if (!bindingId || !reviewAction || !read.comparable || !/^[0-9a-f]{64}$/.test(read.read_revision)) {
                 state.textContent += " · " + readText("workbench.placement.changed"); return;
               }
               const latestDigest = "sha256:" + read.read_revision, normalState = state.textContent;
               const pending = node("strong", readText("workbench.placement.changed-needs-review"));
               const review = ghost(readText("workbench.placement.source-review"));
-              review.dataset.goalSourceReview = ""; row.dataset.sourceReviewPending = "1";
+              review.dataset.placementSourceReview = ""; row.dataset.sourceReviewPending = "1";
               state.append(" · ", pending); actions.prepend(review); remove.remove();
               review.onclick = () => {
                 const detail = node("p", readText("workbench.placement.source-versions", { previous: digest.slice(7, 15), current: read.read_revision.slice(0, 8) }));
                 const open = ghost(readText("workbench.placement.source-open")), unlink = ghost(readText("common.source-review.remove"));
-                open.dataset.goalSourceOpen = ""; unlink.dataset.goalSourceRemove = "";
+                open.dataset.placementSourceOpen = ""; unlink.dataset.placementSourceRemove = "";
                 let decision = "adopt_latest", reference;
                 const requestKeys = new Map();
                 const post = (path, body) => molisWorkRequest(route("/api/project-approvals/" + path), { body, fallback: readText("workbench.placement.source-review-failed") });
@@ -563,7 +561,8 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
                   try {
                     if (!reference) ({ reference } = await post("request", {
                       action: JSON.parse(reviewAction), request_id: bindingId,
-                      draft: { goal_id: row.dataset.goalId, expected_old_digest: digest, observed_new_digest: latestDigest },
+                      // The owner's own part of the draft (which of its objects) rides on the row; placement adds the two versions.
+                      draft: { ...JSON.parse(row.dataset.placementSourceReviewDraft || "{}"), expected_old_digest: digest, observed_new_digest: latestDigest },
                     }));
                     if (!requestKeys.has(decision)) requestKeys.set(decision, crypto.randomUUID());
                     if (!shell.isConnected || !shell.open || !row.isConnected) return;
@@ -575,7 +574,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
                     }
                     invalidate();
                     if (decision === "remove") { row.remove(); return; }
-                    row.dataset.goalInputDigest = latestDigest; delete row.dataset.sourceReviewPending;
+                    row.dataset.placementInputDigest = latestDigest; delete row.dataset.sourceReviewPending;
                     state.textContent = normalState + " · " + readText("workbench.placement.source-reviewed");
                     review.remove(); actions.append(remove);
                   } finally { unlink.disabled = false; }
@@ -603,39 +602,39 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
           try {
             await api("unlink", { key: JSON.stringify(["attached", here(), row.dataset.placementTargetKind, row.dataset.placementTargetId, row.dataset.placementKind, row.dataset.placementId]) });
             row.remove(); invalidate();
-            card(readText("workbench.placement.link-removed"), readText("workbench.placement.only-entry-goal-was-removed-material-itself-unchanged"), [], "done");
+            card(readText("workbench.placement.link-removed"), readText("workbench.placement.only-entry-was-removed"), [], "done");
           } catch (error) { card(readText("workbench.placement.couldn-t-remove-link"), error, [], "error"); }
         };
         actions.append(remove);
       }).catch((error) => { molisWorkRequest.show(state,error); });
     });
-    // Versions the materials service fixed for a Goal: only whether the person can still read each is asked, never where it was.
-    const fixed = [...document.querySelectorAll("[data-goal-material-snapshot]:not([data-placement-filled])")];
+    // Versions the materials service fixed for a target: only whether the person can still read each is asked, never where it was.
+    const fixed = [...document.querySelectorAll("[data-placement-snapshot]:not([data-placement-filled])")];
     if (!fixed.length) return;
     fixed.forEach((row) => { row.dataset.placementFilled = "1"; });
-    const versions = fixed.map((row) => { try { const [artifact_id, version] = JSON.parse(row.dataset.goalMaterialSnapshot); return { artifact_id, version }; } catch { return null; } });
+    const versions = fixed.map((row) => { try { const [artifact_id, version] = JSON.parse(row.dataset.placementSnapshot); return { artifact_id, version }; } catch { return null; } });
     void molisWorkRequest(route("/api/materials/pinned"), { body: { versions: versions.filter(Boolean) }, fallback: readText("workbench.placement.can-t-read-right-now-2") }).then(({ items }) => {
       let at = 0;
       fixed.forEach((row, index) => {
         const found = versions[index] ? items[at++] : null, gone = !found || !found.ref;
         row.classList.toggle("is-gone", gone);
-        row.querySelector("[data-goal-material-snapshot-state]").textContent = gone ? readText("workbench.placement.unreadable") : "";
+        row.querySelector("[data-placement-snapshot-state]").textContent = gone ? readText("workbench.placement.unreadable") : "";
       });
-    }).catch((error) => { fixed.forEach((row) => molisWorkRequest.show(row.querySelector("[data-goal-material-snapshot-state]"), error)); });
+    }).catch((error) => { fixed.forEach((row) => molisWorkRequest.show(row.querySelector("[data-placement-snapshot-state]"), error)); });
   };
   document.addEventListener("click", (event) => {
-    const add = event.target.closest && event.target.closest("[data-goal-input-add]");
-    if (add && here()) { event.preventDefault(); void addGoalInput(add.dataset.goalId, add.dataset.placementTargetKind || "goal"); }
-    // An input leaves the Goal, or a proposed one is accepted; the button carries the request and the words for a failure.
-    const act = event.target.closest && event.target.closest("[data-goal-input-post]");
+    const add = event.target.closest && event.target.closest("[data-placement-input-add]");
+    if (add && here() && add.dataset.placementTargetKind) { event.preventDefault(); void addTargetInput(add.dataset.placementTargetId, add.dataset.placementTargetKind); }
+    // An input leaves its target, or a proposed one is accepted; the button carries the request and the words for a failure.
+    const act = event.target.closest && event.target.closest("[data-placement-input-post]");
     if (act && here()) {
       event.preventDefault(); act.disabled = true;
-      molisWorkRequest(route(act.dataset.goalInputPost),{body:JSON.parse(act.dataset.goalInputBody),fallback:readText("workbench.placement.couldn-t-do-that-right-now-try-again")})
+      molisWorkRequest(route(act.dataset.placementInputPost),{body:JSON.parse(act.dataset.placementInputBody),fallback:readText("workbench.placement.couldn-t-do-that-right-now-try-again")})
         .then(() => {
-          const row = act.closest("article"), done = act.dataset.goalInputDone;
-          if (done) { row.querySelector("[data-goal-input-state]").textContent = done; act.parentNode.remove(); } else row.remove();
+          const row = act.closest("article"), done = act.dataset.placementInputDone;
+          if (done) { row.querySelector("[data-placement-input-state]").textContent = done; act.parentNode.remove(); } else row.remove();
         })
-        .catch((error) => { act.disabled = false; card(act.dataset.goalInputFail, error, [], "error"); });
+        .catch((error) => { act.disabled = false; card(act.dataset.placementInputFail, error, [], "error"); });
     }
   });
   document.addEventListener("click", async (event) => {
@@ -739,7 +738,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   };
   const placementObserver = new MutationObserver((records) => {
     for (const record of records) {
-      if (record.type === "attributes" || [...record.addedNodes].some(added => added.nodeType === 1 && (added.matches?.("[data-placement-slot],[data-placement-target],[data-placement-material],[data-goal-material-snapshot]") || added.querySelector?.("[data-placement-slot],[data-placement-target],[data-placement-material],[data-goal-material-snapshot]")))) { scheduleRepaint(); return; }
+      if (record.type === "attributes" || [...record.addedNodes].some(added => added.nodeType === 1 && (added.matches?.("[data-placement-slot],[data-placement-target],[data-placement-material],[data-placement-snapshot]") || added.querySelector?.("[data-placement-slot],[data-placement-target],[data-placement-material],[data-placement-snapshot]")))) { scheduleRepaint(); return; }
     }
   });
   const placementTargets = [document.querySelector("main") || document.querySelector("[data-tab-panes]"), document.getElementById("side-panel"), document.querySelector("[data-assistant-panel]")].filter(Boolean);

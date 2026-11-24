@@ -61,7 +61,7 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 还等你处理: everyth
       if (work && !objects.some((o) => o.relation === "origin") && work.origin && (work.origin.title || work.origin.surface)) {
         // The page is named as it names itself; its id is never shown, and the same name is not said twice.
         const name = surfaceName(work.origin.surface), title = work.origin.title || name;
-        step("flag", "", globalThis.t.text("workbench.assistant-side-path.start"), card({ icon: kindGlyph(work.origin.surface), title, sub: name !== title && name !== work.origin.surface ? name : "" }));
+        step("flag", "", globalThis.t.text("workbench.assistant-side-path.start"), card({ icon: objectGlyph({}), title, sub: name !== title && name !== work.origin.surface ? name : "" }));
       }
       objects.filter((o) => o.relation === "session").forEach((o) => step("code", "", globalThis.t.text("workbench.assistant-side-path.agent-session"), objectCard(o, "", globalThis.t.text("workbench.assistant-side-path.open-executor"))));
       const steps = latestSteps(work);

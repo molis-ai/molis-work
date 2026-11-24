@@ -5,7 +5,7 @@ import ts from "typescript";
 import { sqliteDriverFindings } from "./gates/project-sqlite-driver.mjs";
 import { catalogText } from "./gates/catalog-entries.mjs";
 import { checkGoalsManagementWiring } from "./gates/goals-management-wiring.mjs";
-import { checkStandaloneManagementPort, checkStandaloneReviewPort } from "./gates/management-review-ports.mjs";
+import { checkStandaloneReviewPort } from "./gates/management-review-ports.mjs";
 import { checkArtifactsPlatformUi } from "./gates/artifacts-platform-ui.mjs";
 import { checkPlatformNoPluginPackageImports } from "./gates/platform-plugin-imports.mjs";
 
@@ -20,7 +20,7 @@ import { isMainScript } from "./script-paths.mjs";
 import { versionSource } from "./version-source.mjs";
 import { checkWorkspacePackages, REGISTERED_PLUGINS, WORKSPACE_PACKAGES } from "./workspace-packages.mjs";
 
-export { checkStandaloneManagementPort, checkStandaloneReviewPort };
+export { checkStandaloneReviewPort };
 
 const SOURCE_EXTENSIONS = new Set([".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx"]);
 /** The Web request dispatcher: the entry and its ordered route tables (W5-07). The checks on web-request.ts read all of them. */
@@ -453,7 +453,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "plugins/native/goals/src/module/lifecycle-revisions.ts",
     "plugins/native/goals/src/module/planning/decomposition-coverage.ts",
     "plugins/native/goals/src/module/planning/decomposition-validation.ts",
-    // Planning and breakdown methods are Skills of the platform's catalog (plugins/content/planning-methods), not Goals' (batch 41, 2026-11-14).
+    // Planning and breakdown methods are Skills of the platform's catalog (packages/system-skills/planning-methods), not Goals' (batch 41, 2026-11-14).
     "plugins/native/goals/src/module/planning/method-catalog.ts",
     "plugins/native/goals/src/module/planning/method-packs.ts",
     "plugins/native/goals/src/module/planning/personal-methods.ts",
@@ -481,7 +481,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   // The methods moved out of Goals; neither Goals nor the installed Skill carries a copy.
   for (const directory of ["plugins/native/goals/methods", "skills/goal-advance/methods"]) {
     if (filesUnder(path.join(repositoryRoot, directory), (filePath) => path.extname(filePath) === ".md").length > 0) {
-      errors.push(`${directory}: planning methods are the Skills of plugins/content/planning-methods and must not be copied here`);
+      errors.push(`${directory}: planning methods are the Skills of packages/system-skills/planning-methods and must not be copied here`);
     }
   }
 
@@ -580,7 +580,6 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${relativePath}: App composition must not own Goal business implementations`);
     }
   }
-  errors.push(...checkStandaloneManagementPort(read("apps/local-host/src/management-action-client.ts")));
   errors.push(...checkStandaloneReviewPort(read("apps/local-host/src/management-action-client.ts")));
   errors.push(...checkGoalTransportCallers({
     cli: { dispatcher: read("apps/cli/src/command-dispatch.ts"), project: read("apps/local-host/src/cli-project.ts") },
@@ -1239,7 +1238,7 @@ function blockHasManagementBinding(node) {
  * management port the Host builds (`CliManagementActions`), reaches only the action contract and its protocol file, invokes only the
  * platform's protected review actions (it names no plugin action: PEQ-15, batch 44) and holds no Host client under any spelling;
  * `cli-project.ts` builds that port with
- * `bindStandaloneManagementActions(host, reference, signal)`, over the bound project and original signal, and hands the dispatcher what it returned.
+ * `bindStandaloneReviewActions(host, reference, signal)`, over the bound project and original signal, and hands the dispatcher what it returned.
  * `mcp`: the dispatcher takes only
  * the Host's management port or null; mcp-v1-tool builds it only for management over the same client/reference. Each part is the source text of the file it names; a comment or a
  * string is not a caller.
@@ -1297,26 +1296,21 @@ function checkMcpGoalTransportCallers({ dispatcher: source, host: hostSource }) 
   for (const { kind, specifier } of moduleReferences(file)) {
     if (!MCP_DISPATCHER_MODULES.has(specifier)) errors.push(`${toolPath}: imports ${specifier ?? "a module that is not a string literal"} (${kind}); only the action contract and the presentation error type belong to the transport, and no Goals contract`);
   }
-  // Batch 44 recheck: the transport names no plugin. A plugin's management tool is the one the Host found by name among the declared
-  // tools (`ports.declared`), and it invokes that tool's own action; the rest are the platform's review actions.
-  let port = false, declaredLookup = false, declaredInvoke = false;
+  // Batch 44 recheck, 44B: the transport names no plugin and no plugin declares management tools; it invokes only the platform's review actions.
+  let port = false;
   const visit = node => {
     if (ts.isInterfaceDeclaration(node) && node.name.text === "McpManagementActions") port = true;
     if (ts.isIdentifier(node) && HOST_CLIENT_NAMES.has(node.text)) errors.push(`${toolPath}: ${node.text} is a Host client; use McpManagementActions`);
     if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && HOST_CLIENT_NAMES.has(node.argumentExpression.text)) errors.push(`${toolPath}: ${node.argumentExpression.text} is a Host client`);
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "declared" && node.initializer
-      && node.initializer.getText(file).replace(/\s+/gu, "") === "ports.declared.find(tool=>tool.name===name)") declaredLookup = true;
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "invoke") {
       const action = node.arguments[0]?.getText(file);
-      if (action === "declared.action") declaredInvoke = true;
-      else if (action !== "trustedReviewActions.read" && action !== "trustedReviewActions.decide")
-        errors.push(`${toolPath}: invoke must name the declared tool's action or a platform review action, never a typed descriptor, a plugin's table or a caller`);
+      if (action !== "trustedReviewActions.read" && action !== "trustedReviewActions.decide")
+        errors.push(`${toolPath}: invoke must name a platform review action, never a plugin's action, a typed descriptor, a plugin's table or a caller`);
     }
     ts.forEachChild(node, visit);
   };
   visit(file);
   if (!port) errors.push(`${toolPath}: declare the Host's McpManagementActions port`);
-  if (declaredInvoke && !declaredLookup) errors.push(`${toolPath}: a declared management tool's action is the one found by name in ports.declared`);
 
   errors.push(...checkTrustedReviewRoutes(file, "mcp"));
   errors.push(...checkGoalsManagementWiring(hostSource, "mcp"));

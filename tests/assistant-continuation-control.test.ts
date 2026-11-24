@@ -151,7 +151,7 @@ test("ASC-36: explicit keep-connections stops and withdraws business before reta
   try {
     for (const keep of [true, false]) {
       const work = store.create({ actor_id: "user", title: "Waiting connection", scope: { kind: "personal" }, origin: null }); workId = work.work_id;
-      const session = await adapter.createSession({ project_id: "assistant-personal", plugin_id: "io.molis.work.assistant", actor_id: "user", install_id: "assistant",
+      const session = await adapter.createSession({ project_id: "assistant-personal", plugin_id: "system.assistant", actor_id: "user", install_id: "assistant",
         directory: { canonical_path: home, realpath_verified: true }, title: work.title });
       store.update("user", workId, null, { session_id: session.session_id }); events.length = 0;
       const stopped = await service.control(workId, { kind: "stop", ...(keep ? { keep_connections: true } : {}) });
@@ -207,7 +207,7 @@ for (const change of ["close", "latest-input"] as const) test(`ASC-18 ASC-34: a 
   t.mock.method(adapter, "observe", (_run, callback) => { observer.resolve(callback); return () => {}; });
   t.mock.method(service.continuations, "state", async () => { entered.resolve(); await release.promise; return "completed" as const; });
   try {
-    const session = await adapter.createSession({ project_id: "assistant-personal", plugin_id: "io.molis.work.assistant", actor_id: "user", install_id: "assistant",
+    const session = await adapter.createSession({ project_id: "assistant-personal", plugin_id: "system.assistant", actor_id: "user", install_id: "assistant",
       directory: { canonical_path: directory, realpath_verified: true }, title: change });
     const work = store.create({ actor_id: "user", title: change, scope: { kind: "personal" }, origin: null });
     const saved = store.update("user", work.work_id, null, { session_id: session.session_id });

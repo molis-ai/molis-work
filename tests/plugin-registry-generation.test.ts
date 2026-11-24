@@ -205,7 +205,7 @@ test("PG070-NB-01 RAC-767 a prefix cannot cover another plugin's hyphenated name
   // The Host's list and the shell's are the same declarations, so the shell never frames a surface the Host gives no requests or words.
   assert.deepEqual(HOST_SURFACE_REGISTRATIONS.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]),
     HOST_FRAMED_SURFACES.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]), "the two platform surface lists agree");
-  assert.deepEqual(HOST_SURFACE_REGISTRATIONS.map(entry => entry.package_name), ["@molis-ai/molis-work-plugin-studio"]);
+  assert.deepEqual(HOST_SURFACE_REGISTRATIONS.map(entry => entry.package_name), ["@molis-ai/molis-work-plugin-studio", "@molis-ai/molis-work-module-shelf"]);
 });
 
 test("W5-02-REG-02: loading the Host rejects an invalid catalog before the module becomes available", () => {
@@ -358,7 +358,7 @@ test("RAC-574 RAC-575 a new plugin with a project runtime changes only its own p
 });
 
 test("W5-15-10 W5-02-REG-04 a built-in plugin’s capabilities live only in its own package.json block", () => {
-  for (const packagePath of ["plugins/native/schedule", "plugins/native/shelf", "plugins/native/ppt"]) {
+  for (const packagePath of ["plugins/native/schedule", "plugins/native/ppt"]) {
     const manifest = JSON.parse(readReal(`${packagePath}/package.json`)!) as { "molis-work": Record<string, unknown> };
     const entry = WORKSPACE_PACKAGES.find((item) => item.path === packagePath);
     assert.ok(entry, packagePath);

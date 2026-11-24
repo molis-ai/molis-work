@@ -75,6 +75,16 @@ function producedTypeProblems(type: Part, actions: ReadonlyMap<string, Part>): s
   // A version that can be pinned on the spot says whether it still matches its object (A4b), so the 成果库 can tell 「原文已改」.
   if (type.pin !== undefined && type.compare === undefined) problems.push(`成果类型 ${key} 可以当场固定，必须声明比较动作（compare）`);
   else problems.push(...roleProblems(type, "compare", actions));
+  problems.push(...searchableFieldProblems(key, type.searchable_fields));
+  return problems;
+}
+
+/** The payload keys a type asks system search to read (M12): a short list of distinct snake_case names. */
+function searchableFieldProblems(key: string, fields: unknown): string[] {
+  if (fields === undefined) return [];
+  if (!Array.isArray(fields) || fields.length === 0 || fields.length > 32) return [`成果类型 ${key} 的 searchable_fields 必须是 1～32 项的数组`];
+  const problems = fields.filter(field => typeof field !== "string" || !/^[a-z][a-z0-9_]{0,63}$/u.test(field)).map(field => `成果类型 ${key} 的可搜字段 ${String(field)} 必须是小写字母开头的字段名`);
+  if (new Set(fields).size !== fields.length) problems.push(`成果类型 ${key} 的 searchable_fields 有重复`);
   return problems;
 }
 

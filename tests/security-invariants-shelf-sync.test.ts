@@ -1,4 +1,4 @@
-import {SHELF_OWNER_FILES} from '@molis-ai/molis-work-plugin-shelf';
+import {SHELF_OWNER_FILES} from '@molis-ai/molis-work-module-shelf/surface';
 import { openTestShelfFiles } from './shelf-direct-actions.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';

@@ -90,7 +90,7 @@ test("workbench project gear links to the standalone settings path", () => {
     feed: {
       sources: [],
       feed_items: [],
-      inbox_entries: [],
+      attention_entries: [],
       runs: [],
       out_rules: [],
     },

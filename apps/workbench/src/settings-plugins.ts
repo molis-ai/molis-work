@@ -56,7 +56,7 @@ const el = (tag, className, text) => { const node = document.createElement(tag);
 const button = (text, variant) => { const node = el("button", "mw-btn " + variant + " mw-btn--sm", text); node.type = "button"; return node; };
 const TRUST = { host: "workbench.settings-plugins.shipped-molis-work", pinned: "workbench.settings-plugins.publisher-pinned", unsigned: "workbench.settings-plugins.not-signed" };
 const STATE = { installed: "workbench.settings-plugins.installed", running: "workbench.settings-plugins.running", disabled: "workbench.settings-plugins.switched-off", uninstalled: "workbench.settings-plugins.uninstalled" };
-const KIND = { always_on: "workbench.settings-plugins.always", default_wiring: "workbench.settings-plugins.default-wiring", default_group: "workbench.settings-plugins.default-input-group", local_directory: "workbench.settings-plugins.local-folders" };
+const KIND = { default_wiring: "workbench.settings-plugins.default-wiring", default_group: "workbench.settings-plugins.default-input-group", local_directory: "workbench.settings-plugins.local-folders" };
 const SYSTEM_SOURCES = { "system.materials": "workbench.settings-plugins.sys-materials" };
 // What an uninstall that deleted data left in place, and why (BL-915): each owner's own kind and reason, never a path, an id or a credential.
 const KEPT = { home_library: "workbench.settings-plugins.library", owner_files: "workbench.settings-plugins.files-saved", network_credential: "workbench.settings-plugins.network-credentials-used", installation_binding: "workbench.settings-plugins.account-connections", task_grant: "workbench.settings-plugins.task-permissions-given", declared_rule: "workbench.settings-plugins.judgment-rules-brought" };

@@ -20,7 +20,6 @@ test("RAC-711 the Host marks each built-in from its own registration: personal, 
     if (companions.length === 0) assert.equal("companions" in entry, false, "no empty mark");
   }
   assert.deepEqual(market.find(entry => entry.id === "feed")?.companions, ["inbox"]);
-  assert.equal(market.some(entry => entry.always_on === true), false, "without a Home nothing is 常开: a declaration alone is not agreement");
 });
 
 test("RAC-711 a running plugin gets the marks only when it is the built-in itself: same plugin id and the same publisher", () => {
@@ -42,7 +41,7 @@ test("RAC-711 a running plugin gets the marks only when it is the built-in itsel
   assert.deepEqual([impostor!.id, impostor!.chosen, "personal" in impostor!], [pages.manifest.plugin_id, false, false]);
 });
 
-test("RAC-710 forged marks are refused: honest changes still bring companions, hide personal plugins and leave always-on plugins in place", { timeout: 60_000 }, async t => {
+test("RAC-710 forged marks are refused: honest changes still bring companions and hide personal plugins, and a platform part is no plugin to remove", { timeout: 60_000 }, async t => {
   const { origin, request, project } = await serveHomeRuntime(t), here = await project("页面改过的标记");
   const plugins = `/api/settings/projects/${encodeURIComponent(here.project_id)}/plugins`;
   const revision = () => projectPluginRevisionAt(origin, here.project_id);
@@ -67,7 +66,8 @@ test("RAC-710 forged marks are refused: honest changes still bring companions, h
   assert.equal(removed.status, 200);
   assert.ok((await removed.json() as { hidden: string[] }).hidden.includes("pages"));
 
-  const kept = await change("DELETE", "shelf", { always_on: false });
-  assert.notEqual(kept.status, 200);
-  assert.equal((await kept.json() as { code?: string }).code, "catalog.plugin_always_on");
+  // Shelf is a platform part (44B): whatever the page claims, there is no project plugin of that name to remove.
+  const forged = await change("DELETE", "shelf", { personal: true });
+  assert.notEqual(forged.status, 200);
+  assert.equal((await forged.json() as { code?: string }).code, "catalog.plugin_not_found");
 });

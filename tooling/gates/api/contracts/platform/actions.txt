@@ -3484,6 +3484,7 @@ export interface PlacementRelationTarget {
     readonly kind: string;
     readonly noun: string;
     readonly noun_text?: TextRef;
+    readonly open_view?: string;
 }
 
 export interface PlacementRelationTargetInput {
@@ -4679,6 +4680,7 @@ export interface SearchSourceKind {
     kind: string;
     title: string;
     surface: string;
+    glyph?: string;
 }
 
 export interface StageSceneMetadataAuthority {

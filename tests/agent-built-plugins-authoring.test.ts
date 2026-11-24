@@ -472,7 +472,7 @@ test('a success example that looks a record up by id on an empty store is unmeet
 test('several broken operation references go back in one repair, not one per round', () => {
   // The shape of a real answer: a list reading a misspelled query, a button for an operation never defined, one query unused.
   const design = { operations: [
-    { id: 'inbox_entries.list', kind: 'query', description: '列出待处理事项', input: {}, output: [{ id: 'string', title: 'string' }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [] }] },
+    { id: 'attention_entries.list', kind: 'query', description: '列出待处理事项', input: {}, output: [{ id: 'string', title: 'string' }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [] }] },
     { id: 'notes.add', kind: 'command', description: '记一句备注', input: { entry_id: 'string', note: 'string' }, output: { id: 'string' }, effects: { storage: ['write'] }, examples: [{ input: { entry_id: 'e1', note: '先看' }, includes: {} }] },
     { id: 'notes.list', kind: 'query', description: '列出备注', input: {}, output: [{ id: 'string', note: 'string' }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [] }] },
   ], pages: [{ id: 'home', title: '收件箱摘要', parts: [
@@ -482,7 +482,7 @@ test('several broken operation references go back in one repair, not one per rou
   ] }], acceptance: [{ id: 'add', description: '记下后能看到', steps: ['fill editor.note = 先看', 'submit editor', 'expect entries 先看'] }] };
   assert.throws(() => expandDesign(design, base, 'studio.x', 'r', []), (error: Error) =>
     /有 3 处要一起改/.test(error.message) && /entries 的 read 绑定了不存在的操作 entries\.list/.test(error.message)
-    && /remove 的 submit 绑定了不存在的操作 notes\.remove/.test(error.message) && /inbox_entries\.list、notes\.list 没有任何组件使用/.test(error.message));
+    && /remove 的 submit 绑定了不存在的操作 notes\.remove/.test(error.message) && /attention_entries\.list、notes\.list 没有任何组件使用/.test(error.message));
 });
 
 test('a part naming its own field ("editor.note") means the person fills it', () => {

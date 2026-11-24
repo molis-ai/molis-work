@@ -15,7 +15,7 @@ import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
  * or in `modules/acceptance`, knows Goals (APR-15).
  */
 
-const SUBJECT = { provider_id: "io.molis.work.assistant.rules", subject: { kind: "assistant.work", id: "w1" } };
+const SUBJECT = { provider_id: "system.assistant.rules", subject: { kind: "assistant.work", id: "w1" } };
 const agent = (session: string | null = "s-maker", project = "p1"): AcceptanceCaller => ({ project_id: project, actor_id: "agent:assistant", person: false, session });
 const me = (project = "p1"): AcceptanceCaller => ({ project_id: project, actor_id: "person", person: true, session: null });
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;

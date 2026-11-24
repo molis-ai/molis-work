@@ -116,7 +116,7 @@ export function createSearchContentPort(store: EvidenceContentStore, assertCurre
       return store.write(markdown);
     },
     async read({ appId, contentRef }) {
-      if (appId !== APP_ID || !/^molis-work-feed\/sha256\/[0-9a-f]{64}$/u.test(contentRef)) {
+      if (appId !== APP_ID || !/^molis-work-evidence\/sha256\/[0-9a-f]{64}$/u.test(contentRef)) {
         throw new Error("search evidence content reference rejected");
       }
       return store.read(contentRef);

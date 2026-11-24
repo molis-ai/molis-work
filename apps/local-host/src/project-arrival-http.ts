@@ -4,7 +4,7 @@ import os from "node:os";
 import { projectOrNull } from "./catalog-lookup.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { lookingForArea } from "./web-view.js";
-import { composeProjectBrief, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "@molis-ai/molis-work-app-workbench";
+import { composeProjectBrief, summarizeProjectBrief, type BriefEvent, type BriefProgressItem, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "@molis-ai/molis-work-app-workbench";
 import { isResumeSummaryAction, type ActionDefinition, type ResumeSummary, type WorkEventView, type WorkEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 import { homeActions } from "./home-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -107,7 +107,7 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
     if (!found) {
       // The personal space is made the first time it is opened; until then it has nothing to read.
       if (projectId !== PERSONAL_SPACE_PROJECT_ID) return null;
-      const model = composeProjectBrief({ project_id: projectId, name: uiText.text("workbench.project-arrival-http.personal-space"), personal: true, demo: false, opened_at: null, description: null, goals: [], events: [], workspace_path: null, now: new Date().toISOString() });
+      const model = composeProjectBrief({ project_id: projectId, name: uiText.text("workbench.project-arrival-http.personal-space"), personal: true, demo: false, opened_at: null, description: null, progress: [], events: [], workspace_path: null, now: new Date().toISOString() });
       return { html: ports.renderBrief(model), summary: summarizeProjectBrief(model, [], []) };
     }
     const { project } = found;
@@ -120,7 +120,7 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
     // The brief's track comes from the plugins that publish progress in their resume summary (`progress`); a summary without it names
     // no counts or times, so the brief invents none. Several publishers: the first by provider id, so the brief does not change with
     // discovery order.
-    const readResume = async (): Promise<{ items: BriefGoal[]; detail: string | null } | null> => {
+    const readResume = async (): Promise<{ items: BriefProgressItem[]; detail: string | null } | null> => {
       const views = (await lookingForArea(() => actions.declaredMatching(definition => isResumeSummaryAction(definition.action))))
         .slice().sort((left, right) => left.provider.provider_id.localeCompare(right.provider.provider_id));
       if (!views.length) return null;
@@ -132,19 +132,19 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
       if (!withProgress?.progress) return null;
       return {
         items: withProgress.progress.items.map(item => ({
-          goal_id: item.id, title: item.title, work_status: item.status,
+          item_id: item.id, title: item.title, work_status: item.status,
           next_hint: item.next_hint, pending_decision_count: item.pending_decision_count, updated_at: item.updated_at,
         })),
         detail: withProgress.focus?.detail ?? null,
       };
     };
     const [resume, events, guidance] = await Promise.all([
-      personal ? Promise.resolve({ ok: true as const, value: { items: [] as BriefGoal[], detail: null } }) : settle(readResume()),
+      personal ? Promise.resolve({ ok: true as const, value: { items: [] as BriefProgressItem[], detail: null } }) : settle(readResume()),
       settle(actions.invoke(homeActions.events, eventWindow(now))),
       // The introduction the person accepted at creation is kept here; a project made another way may carry long-term notes instead.
       remembered?.description || personal ? Promise.resolve({ ok: false as const }) : settle(actions.invoke(pinnedProjectGuidanceRead, {})),
     ]);
-    const goalList: BriefGoal[] | null = resume.ok && resume.value !== null ? resume.value.items : null;
+    const progressList: BriefProgressItem[] | null = resume.ok && resume.value !== null ? resume.value.items : null;
     const eventList: BriefEvent[] | null = events.ok ? events.value.events.map(briefEvent) : null;
     const detail = resume.ok && resume.value !== null ? resume.value.detail : null;
     const context = guidance.ok ? guidance.value.entries.find(entry => entry.active && entry.kind === "context") : undefined;
@@ -155,14 +155,14 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
       demo: project.data_class === "regenerable_demo",
       opened_at: remembered?.last_opened_at ?? null,
       description: remembered?.description ?? (context ? descriptionFromSummary(context.content) : null),
-      goals: goalList,
+      progress: progressList,
       events: eventList,
       current_detail: detail ? oneLine(detail) : null,
       workspace_path: found.workspace_path ? tildePath(found.workspace_path) : null,
       now: now.toISOString(),
     };
     const model = composeProjectBrief(input);
-    return { html: ports.renderBrief(model), summary: summarizeProjectBrief(model, eventList, goalList) };
+    return { html: ports.renderBrief(model), summary: summarizeProjectBrief(model, eventList, progressList) };
   }
 
   return async function handleProjectArrivalHttp(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined): Promise<boolean> {

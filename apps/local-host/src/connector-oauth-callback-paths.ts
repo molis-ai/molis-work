@@ -1,4 +1,5 @@
 import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { builtinOAuthCallbackAliases } from "./builtin-drivers.js";
 
 /**
  * The addresses an OAuth authorization may come back to (W5-11 §3.1). The generic callback is the platform's own; an alias is a path a
@@ -13,11 +14,8 @@ import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/lo
  */
 export const OAUTH_CALLBACK = "/api/settings/connectors/methods/oauth/callback";
 
-interface Alias { service: string; path: string; project: boolean; /** The loopback name the address is registered under: `localhost` is the only one, so it is the type, not a check. */ host?: "localhost" }
-const ALIASES: readonly Alias[] = [
-  { service: "gmail", path: "/api/feed/connectors/gmail/oauth/callback", project: true },
-  { service: "notion", path: "/api/settings/connectors/notion/oauth/callback", project: false, host: "localhost" },
-];
+/** The aliases the built-in integrations declare (D3 A, M11): this file names no service. */
+const ALIASES = builtinOAuthCallbackAliases();
 
 /** The service whose registered callback this path is, with an optional leading `/projects/<segment>` where the alias allows one. */
 export function oauthCallbackAlias(pathname: string): string | undefined {

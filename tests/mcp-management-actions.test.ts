@@ -8,13 +8,14 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalEventDecisionResult } from "@molis-ai/molis-work-plugin-goals/contract";
-import { GOALS_PLUGIN_ID, goalsActions, type GoalTreeProposalDecisionResult, type GoalTreeApplicationApi } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, type GoalTreeProposalDecisionResult, type GoalTreeApplicationApi } from "@molis-ai/molis-work-plugin-goals";
 import { trustedReviewActions, type ProjectTrustedDecision } from "@molis-ai/molis-work-contracts/services/project-approvals";
 import { dispatchMcpProjectTool, mcpWebUrl, type McpToolResult } from "@molis-ai/molis-work-app-mcp";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";
 import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 import { mcpGoalReviews, prepareGoalReview } from "./fixtures/project-review-entry.js";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 const PROJECT = "management-actions", FORGED = "11111111-2222-4333-8444-555555555555";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -89,13 +90,7 @@ async function propose(host: MolisWorkLocalHost, databasePath: string, input: { 
 
 test("W3-07-4-01 / W3-07-4-02: management MCP shares Goals actions and the person's proposals across a real Host close/restart", async t => {
   const fixture = await setup(t), host = fixture.host(), management = fixture.server(host);
-  const initialize = fixture.args({ idempotency_key: 42, actor_id: "forged-runtime", actor_kind: "runtime" });
-  const initialized = await success<{ project_id: string; replayed: boolean; observed_event_cursor: number }>(host, management,
-    "molis_work_v1_initialize", initialize, "goals.board.initialize");
-  assert.deepEqual([initialized.project_id, initialized.replayed], [PROJECT, false]);
-  assert.deepEqual(await success(host, management, "molis_work_v1_initialize", initialize, "goals.board.initialize"), { ...initialized, replayed: true });
-  const boardFacts = await fixture.facts(host);
-  assert.equal(boardFacts.events.find(event => event.type === `${GOALS_PLUGIN_ID}:board.created`)?.actor_id, LOCAL_PERSON_ACTOR_ID);
+  await initializeBoard(host, fixture.reference, { actor_id: LOCAL_PERSON_ACTOR_ID });
   const proposalInput = { project_id: PROJECT, summary: "首个目标", idempotency_key: "propose",
     items: [{ item_id: "first", kind: "goal", operation: "create", payload: { goal_id: "first", title: "验证管理入口", outcome: "重启后决定" },
       source_refs: ["conversation://management-actions"], reason: "明确用户要留的结果", confidence: 1 }] };
@@ -145,7 +140,7 @@ test("W3-07-4-01 / W3-07-4-02: management MCP shares Goals actions and the perso
 
 test("W3-07-4-01 / W3-07-4-02: pre-action refusals have no number or row; each action-layer refusal has one real row and changes no facts", async t => {
   const fixture = await setup(t), host = fixture.host(), management = fixture.server(host), runtime = fixture.server(host, "runtime");
-  await success(host, management, "molis_work_v1_initialize", fixture.args({ idempotency_key: "initialize" }), "goals.board.initialize");
+  await initializeBoard(host, fixture.reference, { actor_id: LOCAL_PERSON_ACTOR_ID });
   const before = await fixture.facts(host);
   const refusal = async (server: LocalMcpServer, name: string, input: Record<string, unknown>, code: string, action?: string) => {
     const rows = host.callLog!.list(PROJECT), count = recordCount(host), result = await message(server, name, fixture.args(input));
@@ -158,20 +153,20 @@ test("W3-07-4-01 / W3-07-4-02: pre-action refusals have no number or row; each a
     assert.deepEqual(await fixture.facts(host), before, "refusal saves no Goal, event or governance decision");
     return body;
   };
-  for (const name of ["molis_work_v1_initialize", "molis_work_v1_review_request", "molis_work_v1_review_decide"]) {
+  for (const name of ["molis_work_v1_review_request", "molis_work_v1_review_decide"]) {
     await refusal(runtime, name, {}, "mcp.authority_denied");
   }
-  for (const name of ["molis_work_v1_event_decide", "molis_work_v1_goal_tree_decide"]) await refusal(management, name, {}, "mcp.tool_unknown");
+  // 44B: no plugin declares management tools; Goals' former `initialize` is unknown like the retired decision tools.
+  for (const name of ["molis_work_v1_initialize", "molis_work_v1_event_decide", "molis_work_v1_goal_tree_decide"]) await refusal(management, name, {}, "mcp.tool_unknown");
   const event = prepareGoalReview(goalsActions.decide, { goal_id: "absent", conclusion: "确认", idempotency_key: "event" });
   // A review tool's input is the platform's review action's: the kernel refuses it against that contract, inside the settled call, so the
-  // refusal has the operation number and one refused row of that action, as `initialize`'s has of its own (AGENTS: one diagnostic row).
+  // refusal has the operation number and one refused row of that action (AGENTS: one diagnostic row).
   const [read, decide] = [trustedReviewActions.read.capability_id, trustedReviewActions.decide.capability_id];
   for (const extra of [{ actor_id: "forged" }, { authority: { conversation_ref: "conversation://forged" } }]) {
     await refusal(management, "molis_work_v1_review_request", { ...event, ...extra }, "actions.input_invalid", read);
   }
   await refusal(management, "molis_work_v1_review_decide", { proposal_id: "absent", request_key: "tree", runtime_actor_id: "forged" }, "actions.input_invalid", decide);
   await refusal(management, "molis_work_v1_review_decide", { proposal_id: "absent", request_key: "tree", authority: { actor_id: "forged" } }, "actions.input_invalid", decide);
-  await refusal(management, "molis_work_v1_initialize", { idempotency_key: "" }, "actions.input_invalid", "goals.board.initialize");
   await refusal(management, "molis_work_v1_review_request", { ...event, request_id: "" }, "actions.input_invalid", read);
   await refusal(management, "molis_work_v1_review_decide", { reference: null, request_key: "tree", choice_id: "apply" }, "actions.input_invalid", decide);
 });
@@ -188,8 +183,8 @@ test("R-MCP-OWNER-01: MCP presentation and Runtime approval refusals keep their 
   });
   assert.equal(mcpWebUrl("/projects/example", "http://127.0.0.1:4173", createError), "http://127.0.0.1:4173/projects/example");
   let invoked = 0;
-  await assert.rejects(dispatchMcpProjectTool({ project_id: "example", fields: () => [], invoke: async () => { invoked++; throw new Error("must not dispatch"); } },
-    "molis_work_v1_review_decide", { project_id: "example" }, { audience: "runtime", createError, declared: [] }), error => {
+  await assert.rejects(dispatchMcpProjectTool({ project_id: "example", invoke: async () => { invoked++; throw new Error("must not dispatch"); } },
+    "molis_work_v1_review_decide", { project_id: "example" }, { audience: "runtime", createError }), error => {
       assert.ok(error instanceof ActionError);
       assert.equal(error.code, "mcp.authority_denied");
       assert.match(error.message, /受保护的管理入口或 Web/u);
@@ -199,22 +194,19 @@ test("R-MCP-OWNER-01: MCP presentation and Runtime approval refusals keep their 
   assert.equal(invoked, 0);
 });
 
-// Batch 44 recheck: a management tool is one a plugin declares on its management action (`mcp_tool`). The transport finds it by name,
-// takes the bound project and the action's own business fields only, and calls that action; it names no plugin.
-test("PEQ-15 a plugin-declared management tool calls its own action with only the action's business fields", async () => {
+// 44B: no plugin declares management tools. The transport serves the platform's two review tools on the bound project; any other name is
+// unknown and reaches no action, whatever port the Host handed it.
+test("44B PEQ-15 the management transport serves only the platform's review tools and names no plugin action", async () => {
   const createError = (code: string, message: string) => new ActionError(code, message);
-  const action = { capability_id: "example.board.prepare", version: 3 };
-  const declared = [{ name: "molis_work_v1_example_prepare", action, description: "准备示例", input_schema: { properties: { idempotency_key: { type: "string" } } } }];
   const calls: unknown[] = [];
-  const port = { project_id: "p-1", fields: (reference: unknown) => { assert.deepEqual(reference, action); return ["idempotency_key"]; },
-    invoke: async <Output>(reference: unknown, input: Record<string, unknown>) => { calls.push([reference, input]); return { ok: true } as Output; } };
-  const ports = { audience: "management" as const, createError, declared };
-  assert.deepEqual(JSON.parse(await dispatchMcpProjectTool(port, "molis_work_v1_example_prepare", { database_path: "/tmp/x.db", project_id: "p-1", idempotency_key: "k" }, ports)), { ok: true });
-  assert.deepEqual(calls, [[action, { idempotency_key: "k" }]]);
-  await dispatchMcpProjectTool(port, "molis_work_v1_example_prepare", { project_id: "p-1", idempotency_key: 7, actor_id: "someone" }, ports);
-  assert.deepEqual(calls[1], [action, { idempotency_key: "7" }], "an identity in the arguments is not read; a number for a text field is read as text");
-  await assert.rejects(dispatchMcpProjectTool(port, "molis_work_v1_example_prepare", { project_id: "p-2", idempotency_key: "k" }, ports), { code: "actions.scope_mismatch" });
-  await assert.rejects(dispatchMcpProjectTool(port, "molis_work_v1_example_prepare", { project_id: "p-1" }, { ...ports, declared: [] }), { code: "mcp.tool_unknown" });
-  await assert.rejects(dispatchMcpProjectTool(null, "molis_work_v1_example_prepare", { project_id: "p-1" }, { ...ports, audience: "runtime" }), { code: "mcp.authority_denied" });
-  assert.equal(calls.length, 2, "no refused call reached the action");
+  const port = { project_id: "p-1", invoke: async <Output>(reference: unknown, input: Record<string, unknown>) => { calls.push([reference, input]); return { ok: true } as Output; } };
+  const ports = { audience: "management" as const, createError };
+  assert.deepEqual(JSON.parse(await dispatchMcpProjectTool(port, "molis_work_v1_review_request", { database_path: "/tmp/x.db", project_id: "p-1", request_id: "r" }, ports)), { ok: true });
+  assert.deepEqual(calls, [[trustedReviewActions.read, { request_id: "r" }]], "the transport fields are not passed on");
+  for (const name of ["molis_work_v1_initialize", "molis_work_v1_example_prepare"]) {
+    await assert.rejects(dispatchMcpProjectTool(port, name, { project_id: "p-1", idempotency_key: "k" }, ports), { code: "mcp.tool_unknown" }, name);
+  }
+  await assert.rejects(dispatchMcpProjectTool(port, "molis_work_v1_review_request", { project_id: "p-2" }, ports), { code: "actions.scope_mismatch" });
+  await assert.rejects(dispatchMcpProjectTool(null, "molis_work_v1_review_request", { project_id: "p-1" }, { ...ports, audience: "runtime" }), { code: "mcp.authority_denied" });
+  assert.equal(calls.length, 1, "no refused call reached the port");
 });

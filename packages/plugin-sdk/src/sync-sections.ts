@@ -36,7 +36,7 @@ export function parseSyncSections(input: unknown): SyncSectionsDeclaration {
   const names=(value:unknown)=>{for(const name of list(value))if(typeof name!=='string'||!name||name.length>200)fail();};
   const value=object(input,['kind','business','platform','journal','journalIgnoredTypes']);
   if(typeof value.kind!=='string'||!/^[a-z][a-z0-9_]*$/u.test(value.kind)||typeof value.journal!=='boolean')fail();
-  if(list(value.platform).some(p=>p!=='relation-edges'&&p!=='attention'))fail();
+  if(list(value.platform).some(p=>p!=='relation-edges'))fail();
   if(value.journalIgnoredTypes!==undefined)names(value.journalIgnoredTypes);
   const business=list(value.business);if(!business.length&&!list(value.platform).length)fail();
   for(const item of business){const section=object(item,['id','tables','journalTypes','receiptOperations','sequenceFields']);if(typeof section.id!=='string')fail();

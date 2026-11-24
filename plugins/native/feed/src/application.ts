@@ -45,10 +45,10 @@ export class FeedApplication {
   }
 
   snapshot(projectId: string, page: FeedItemPage = { limit: 200, offset: 0 }): FeedSnapshot {
-    return { ...this.directory(projectId, page), inbox_entries: this.listInboxEntries(projectId) };
+    return { ...this.directory(projectId, page), attention_entries: this.listInboxEntries(projectId) };
   }
 
-  directory(projectId: string, page: FeedItemPage): Omit<FeedSnapshot, "inbox_entries"> {
+  directory(projectId: string, page: FeedItemPage): Omit<FeedSnapshot, "attention_entries"> {
     const sources = this.ports.sources.query.list(projectId).map((source) => this.sources.record(source));
     const feedItems = this.reads.page(projectId, page);
     const runs = this.ports.listener.listRuns(projectId, { limit: 200, summaries: true }).map(sourceRunRecord);

@@ -36,7 +36,7 @@ const WEB_SEARCH_CONNECTORS: readonly Draft[] = [
     summary: { key: "brave-search.connection.summary" }, inbound: { key: "brave-search.connection.inbound" },
     token_label: { key: "brave-search.connection.token-label" }, token_placeholder: "BSA…",
     auth_help: { key: "brave-search.connection.auth-help" },
-    permission_host: "api.search.brave.com", feed_available: false, categories: ["web-search"],
+    permission_host: "api.search.brave.com", source_available: false, categories: ["web-search"],
     identity: { request: (ctx) => ({ url: braveSearch("molis", 1), headers: braveHeaders(ctx.accessToken) }), read: () => "Brave Search API" },
     feed: NO_FEED,
     web_search: {
@@ -51,7 +51,7 @@ const WEB_SEARCH_CONNECTORS: readonly Draft[] = [
     summary: { key: "deepseek-search.connection.summary" }, inbound: { key: "deepseek-search.connection.inbound" },
     token_label: { key: "deepseek-search.connection.token-label" }, token_placeholder: "sk-…",
     auth_help: { key: "deepseek-search.connection.auth-help" },
-    permission_host: "api.deepseek.com", feed_available: false, categories: ["web-search"],
+    permission_host: "api.deepseek.com", source_available: false, categories: ["web-search"],
     identity: { request: (ctx) => ({ url: "https://api.deepseek.com/user/balance", headers: bearer(ctx) }), read: () => "DeepSeek API" },
     feed: NO_FEED,
     web_search: {
@@ -67,7 +67,7 @@ const WEB_SEARCH_CONNECTORS: readonly Draft[] = [
     summary: { key: "tavily.connection.summary" }, inbound: { key: "tavily.connection.inbound" },
     token_label: { key: "tavily.connection.token-label" }, token_placeholder: "tvly-…",
     auth_help: { key: "tavily.connection.auth-help" },
-    permission_host: "api.tavily.com", feed_available: false, categories: ["web-search"],
+    permission_host: "api.tavily.com", source_available: false, categories: ["web-search"],
     identity: { request: (ctx) => ({ url: "https://api.tavily.com/usage", headers: bearer(ctx) }),
       read: (json) => text(nestedText(asRecord(asRecord(json)?.account), ["current_plan"]) ? `Tavily · ${nestedText(asRecord(asRecord(json)?.account), ["current_plan"])}` : "", "Tavily API") },
     feed: NO_FEED,

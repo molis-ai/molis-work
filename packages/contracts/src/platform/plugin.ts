@@ -40,7 +40,7 @@ export type { PluginProjectsClient } from "./plugin-projects.js";
 export type { PluginPrivateStorage, PluginUiClient, PluginActionDirectory, PluginActionClient, PluginHostServices, PluginTerminalClient, PluginTerminalDirectory, PluginTerminalPanel, PluginTerminalProgram } from "./plugin-host-services.js";
 import type { PluginPrivateStorage, PluginHostServices } from "./plugin-host-services.js";
 export type { ArtifactFileDeclaration, ArtifactLinkDeclaration, PluginDeployment, PluginKind, PluginPermissionDeclaration, PluginEntrypointManifest, PluginRequirementDeclaration, PluginUpgradeCompatibilityDeclaration, PluginRouteMethod, PluginRouteDeclaration, PluginRuntimeDeclaration, PluginManifest, PluginLocalesDeclaration, SubjectContextAnswer, UiSubjectContextDeclaration, UiSubjectContextKind } from "./plugin-manifest.js";
-export { HOST_PLUGIN_ID_PREFIX, PLUGIN_ID_PATTERN, PLUGIN_LOCALE_LIMITS, SUBJECT_CONTEXT_PATH, SURFACE_BROWSER_PERMISSION, UI_SUBJECT_CONTEXT_KIND_PATTERN, isUiSubjectContextKind, UI_SUBJECT_CONTEXT_LIMIT, UI_SUBJECT_CONTEXT_PLUGINS, browserSiteDeclarations } from "./plugin-manifest.js";
+export { HOST_PLUGIN_ID_PREFIX, PLATFORM_ID_PREFIX, pluginRouteBase, PLUGIN_ID_PATTERN, PLUGIN_LOCALE_LIMITS, SUBJECT_CONTEXT_PATH, SURFACE_BROWSER_PERMISSION, UI_SUBJECT_CONTEXT_KIND_PATTERN, isUiSubjectContextKind, UI_SUBJECT_CONTEXT_LIMIT, UI_SUBJECT_CONTEXT_PLUGINS, browserSiteDeclarations } from "./plugin-manifest.js";
 import type { PluginDeployment, PluginManifest } from "./plugin-manifest.js";
 export type { PluginRouteRequest, PluginRouteStreamLine, PluginExecutionControl, PluginRouteResponse, PluginRouteBinding } from "./plugin-routes.js";
 import type { PluginRouteBinding } from "./plugin-routes.js";

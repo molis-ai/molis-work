@@ -176,7 +176,7 @@ async function roundMaterials(deps: RunDeps, input: PrologueStartInput, index: S
   const earlier = plan ? undefined : [...index.attempts].reverse().map(placeOf).find(Boolean);
   // The plan as it stands travels with this round's task, where it reads as newer than the conversation before it.
   const digest = stepBoard ? await stepBoards.digest(stepBoard, session.ref.id) : earlier ? await stepBoards.standing(earlier, session.ref.id) : "";
-  if (digest) textResources.push({ ref: await stageTextResource(runtime, digest, "coding-board-digest"), as: "original" });
+  if (digest) textResources.push({ ref: await stageTextResource(runtime, digest, "agent-board-digest"), as: "original" });
   // What other sessions in the project are doing, and where it overlaps this round, as the round starts.
   const project = index.owner.project_id, workText = `${input.task}\n${(plan?.steps ?? []).map(step => `${step.title}\n${step.acceptance}`).join("\n")}`;
   const scopePaths = none ? [] : workPaths(workText);
@@ -184,17 +184,17 @@ async function roundMaterials(deps: RunDeps, input: PrologueStartInput, index: S
     try {
       const seen = await projectWork.read(project, { session_id: session.ref.id, directory: input.root_path, paths: scopePaths });
       const note = projectWorkDigest(await projectWork.projectId(project), seen.items, session.ref.id, seen.overlaps, input.character.tools.includes("session-send"));
-      if (note) textResources.push({ ref: await stageTextResource(runtime, note, "coding-project-work"), as: "original" });
+      if (note) textResources.push({ ref: await stageTextResource(runtime, note, "agent-project-work"), as: "original" });
     } catch { /* the project's list is a courtesy to the round; a failed read leaves it out rather than stopping the round */ }
     // Messages other sessions left for this one while it was not running.
     const inbox = await messages.inbox(session.ref.id, project).catch(() => "");
-    if (inbox) textResources.push({ ref: await stageTextResource(runtime, inbox, "coding-session-inbox"), as: "original" });
+    if (inbox) textResources.push({ ref: await stageTextResource(runtime, inbox, "agent-session-inbox"), as: "original" });
     // Steps other sessions handed to this one and not yet done: where they are, so this round can go on with them.
     const board = await projectBoardOf(deps, index).catch(() => undefined);
     const handed = board ? handedSteps(runtime, board, session.ref, `s-${session.ref.id}`) : [];
     if (handed.length) textResources.push({ ref: await stageTextResource(runtime, ["别的会话交给你、还没做完的步骤（项目任务图上现在归你）：",
       ...handed.map(node => `- 任务图 ${board!.id}：${node.id}「${node.title.slice(0, 60)}」（${node.state}）`),
-      "用 board-read / board-report（board 写上面的任务图编号）处理这些步骤；做完后在交接信上答复对方。"].join("\n"), "coding-handed-steps"), as: "original" });
+      "用 board-read / board-report（board 写上面的任务图编号）处理这些步骤；做完后在交接信上答复对方。"].join("\n"), "agent-handed-steps"), as: "original" });
   }
   return { textResources, stepBoard, project, scopePaths };
 }
@@ -746,7 +746,7 @@ async function startBoundRound(deps: RunDeps, input: PrologueStartInput, index: 
   const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [],
     hostSystemTools(input).filter(tool => tool !== FIND_SYMBOL_HOST_TOOL || symbolToolName !== undefined), resolveHostTool);
   const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
-  for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material"), as: "original" });
+  for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "agent-material"), as: "original" });
   const { childRoots, childRoles, childInstructions } = await childSetup(deps, input, actionTools?.names ?? [], work);
   const plan = input.provenance.frozen.execution_plan;
   const materials = await roundMaterials(deps, input, index, session, mode.none, plan, textResources);

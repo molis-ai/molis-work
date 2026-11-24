@@ -46,9 +46,11 @@ export function liveHostJudgmentRuleAuthoringCatalog(directory: readonly ActionV
       configure_at: "发布后在原用途中启用", subject_kinds: definition.subject_kinds.length ? definition.subject_kinds : [...new Set(offered.flatMap(choice => choice.subject_kinds))],
       option_ids: ids, availability: available };
   });
+  // A plugin's kind reads as the title its search source declares for it (M9); the platform names only its own kinds.
+  const declaredTitles = new Map(directory.flatMap(view => (view.action.search_source?.kinds ?? []).map(kind => [kind.kind, kind.title] as const)));
   return {
     subjects: [...JUDGMENT_RULE_AUTHORING_SUBJECTS, ...kinds.filter(kind => !JUDGMENT_RULE_AUTHORING_SUBJECTS.some(subject => subject.subject_kind === kind))
-      .map(subject_kind => ({ subject_kind, title: subject_kind }))],
+      .map(subject_kind => ({ subject_kind, title: declaredTitles.get(subject_kind) ?? subject_kind }))],
     destinations: [...destinations, { destination_id: AGENT_MCP_DESTINATION_ID, kind: "mcp", title: "Agent", when: "返回判断和推荐能力，由 Agent 按授权调用",
       configure_at: "发布后可供已授权 Agent 调用", effect: "推荐不自动执行，也不授予权限", subject_kinds: [], option_ids: agentActions.map(action => action.option_id) }],
     options: [...options, ...agentActions],

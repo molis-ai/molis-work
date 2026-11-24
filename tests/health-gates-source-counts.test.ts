@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { countFile, countNonTsOldNames, countPackedStatements } from "../scripts/gates/source-counts.mjs";
+import { countFile, countNonTsOldNames, countPackedStatements, countPlatformPluginNames, pluginIdsOf } from "../scripts/gates/source-counts.mjs";
 
 // specs/archive/repository-anti-corruption §4.13/§4.16 (W1-04): per-file counts of the old names (goalboard, board_id) and of empty
 // catch blocks inside browser programs written as string and template literals, which may only fall. The definitions are
@@ -74,6 +74,21 @@ for (const [name, text, expected, inSource] of definitions) {
   });
 }
 
+// G1 (specs/plugin-specials-demotion §5.1): plugin names in the platform's sources, the ids read from the plugin directories.
+test("44B G1 definition: platform sources count plugin ids, packages, quoted short ids, classes, attributes and files named after a plugin", () => {
+  const ids = pluginIdsOf(["plugins/native/goals/package.json", "plugins/content/methods/package.json", "plugins/official-integrations/catalog/package.json", "plugins/native/goals/src/a.ts"]);
+  assert.deepEqual(ids, { plugins: ["goals", "methods"], integrations: ["catalog"] });
+  const named = 'import x from "@molis-ai/molis-work-plugin-goals"; const id = "io.molis.work.goals"; q("goals"); const css = ".goals-row [data-goals-id]";';
+  assert.equal(countPlatformPluginNames("apps/local-host/src/a.ts", named, ids), 5);
+  assert.equal(countPlatformPluginNames("modules/x/src/goals-link.ts", "", ids), 1, "a file named after a plugin");
+  assert.equal(countPlatformPluginNames("packages/x/src/a.ts", 'import y from "@molis-ai/molis-work-integration-catalog"; io.molis.work.catalog', ids), 2);
+  // Not counted: a plugin's own code, the generated registries, an integration's short id (a platform word), and look-alikes.
+  assert.equal(countPlatformPluginNames("plugins/native/goals/src/a.ts", named, ids), 0);
+  assert.equal(countPlatformPluginNames("apps/local-host/src/plugin-registry.generated.ts", named, ids), 0);
+  assert.equal(countPlatformPluginNames("apps/local-host/src/catalog-commit.ts", 'const kind = "catalog";', ids), 0);
+  assert.equal(countPlatformPluginNames("apps/local-host/src/b.ts", 'const a = "goals:read"; const b = "subgoals"; const c = ".x.goals-y"; const d = "io.molis.work.goalsx";', ids), 0);
+});
+
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-health-counts-"));
   gitAt(repo, "init", "-q", "-b", "main");
@@ -85,6 +100,8 @@ before(() => {
   put("packages/alpha/src/kept.ts", "export const KEPT_SCRIPT = `keep();`;\n");
   put("packages/alpha/src/ellipses.ts", 'export const a = (s: string) => s.slice(0, 10) + "…";\n');
   put("packages/alpha/src/packed.ts", "export const p1 = 1; export const p2 = 2;\n");
+  put("plugins/native/demo/package.json", "{\"name\":\"@molis-ai/molis-work-plugin-demo\"}\n");
+  put("packages/alpha/src/plugin-named.ts", "export const id = 'io.molis.work.demo';\n");
   // Not violations: look-alike names (and code the static checks, not these counts, look at).
   put("packages/alpha/src/clean.ts", [
     "export const a = () => { try { run(); } catch { /* the file may not exist yet */ } };",
@@ -129,6 +146,10 @@ const violations: Scenario[] = [
   { name: "BSH-10 leading template ellipsis in a file with one", mutate: () => put("packages/alpha/src/ellipses.ts", read("packages/alpha/src/ellipses.ts") + 'export const b = (s: string, n: number) => s.slice(0, 3) + `… ${n}`;\n'),
     expect: [/direct ellipsis cuts in packages\/alpha\/src\/ellipses\.ts 1 → 2/] },
   { name: "BoardId as the tail of a longer name", mutate: () => put("packages/alpha/src/tail.ts", "export type ExistingBoardId = string;\n"), expect: [/in packages\/alpha\/src\/tail\.ts 0 → 1/] },
+  { name: "44B G1 a plugin named in a new platform file", mutate: () => put("packages/alpha/src/wiring.ts", "export const page = '.demo-row';\n"),
+    expect: [/plugin names in a platform source in packages\/alpha\/src\/wiring\.ts 0 → 1/] },
+  { name: "44B G1 a plugin named once more in a platform file that names it", mutate: () => put("packages/alpha/src/plugin-named.ts", read("packages/alpha/src/plugin-named.ts") + "export const short = \"demo\";\n"),
+    expect: [/plugin names in a platform source in packages\/alpha\/src\/plugin-named\.ts 1 → 2/] },
   { name: "Batch 100-2 packed sibling statements in a new file", mutate: () => put("packages/alpha/src/new-packed.ts", "export function f() { const a = 1; return a; }\n"), expect: [/multiple sibling statements on one line in packages\/alpha\/src\/new-packed\.ts 0 → 1/] },
   { name: "Batch 100-2 another packed sibling statement in an existing file", mutate: () => put("packages/alpha/src/packed.ts", read("packages/alpha/src/packed.ts") + "export const p3 = 3; export const p4 = 4;\n"), expect: [/multiple sibling statements on one line in packages\/alpha\/src\/packed\.ts 1 → 2/] },
   { name: "PG-097 retired name in Rust source", mutate: () => put("apps/desktop/adapters/tauri/src/probe.rs", 'const ENV: &str = "MOLIS_JELLY_WHISPER";\n'), expect: [/uses of an old name \(goalboard, board_id\) in apps\/desktop\/adapters\/tauri\/src\/probe\.rs 0 → 1/] },

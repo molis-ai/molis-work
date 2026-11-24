@@ -45,7 +45,7 @@ test("RAC-405 an install preview lists each permission with the plugin's reason 
 test("RAC-406 an installed plugin's detail has its trust, the publisher's name, each permission with reason and meaning, its background jobs, and every agreement given including a revoked one", () => {
   const ledger = new MemoryPluginConsentLedger();
   ledger.pinPublisher({ key_id: "ed25519:sha256:aa", public_key_spki_base64: "spki", label: "Example", pinned_at: AT, pinned_by: LOCAL_PERSON_ACTOR_ID });
-  const [given] = ledger.record({ plugin_id: PACKAGE_PLUGIN_ID, publisher_signature: "ed25519:sha256:aa", manifest_digest: "digest", granted_by: "user", grants: [{ kind: "always_on", subject: "plugin" }], at: AT });
+  const [given] = ledger.record({ plugin_id: PACKAGE_PLUGIN_ID, publisher_signature: "ed25519:sha256:aa", manifest_digest: "digest", granted_by: "user", grants: [{ kind: "default_group", subject: "group" }], at: AT });
   ledger.revoke(given!.consent_id, AT);
   const manifest = { ...sandboxPluginManifest({ pluginId: PACKAGE_PLUGIN_ID, version: "1.0.0", name: "Example notes", publisher: { publisher_id: "example", signature: "ed25519:sha256:aa" }, presentation: false }) };
   manifest.permissions = [...manifest.permissions, { permission: "network:api.example.com", required: false, reason: "查询天气" }, { permission: "issues:write", required: false, reason: "记录问题" }];
@@ -55,7 +55,7 @@ test("RAC-406 an installed plugin's detail has its trust, the publisher's name, 
   assert.deepEqual(view!.permissions.map(item => [item.permission, item.reason, item.meaning === null]), [
     ["storage:private", "保存这个插件自己的数据", false], ["network:api.example.com", "查询天气", false], ["issues:write", "记录问题", true]]);
   assert.deepEqual(view!.jobs, [{ job_id: "refresh", reason: "每天更新一次天气", permissions: ["network:api.example.com"] }]);
-  assert.deepEqual(view!.consents.map(item => [item.kind, item.revoked_at]), [["always_on", AT]]);
+  assert.deepEqual(view!.consents.map(item => [item.kind, item.revoked_at]), [["default_group", AT]]);
   assert.deepEqual([unreadable!.name, unreadable!.manifest_available, unreadable!.permissions, unreadable!.publisher_label], ["io.molis.work.other", false, [], null],
     "a Manifest that cannot be read is said so, not shown as asking for nothing");
 });

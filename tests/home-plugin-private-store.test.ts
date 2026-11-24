@@ -52,10 +52,11 @@ for (const version of [2, 1] as const) {
     await assert.rejects(first, refusal);
     assert.equal(host.homePlugins!.ready(), first, "ordinary preparation keeps the failure and never retries");
     const one = await project("A broken Home has a recovery page");
-    // The stopped Runtime registered no Goals action; public discovery still enforces the original damaged-Home refusal.
+    // The stopped Runtime registered no Goals action. Public discovery stays available (W3-06-F-08): since 44B no plugin is always on,
+    // so what a project offers no longer waits on the damaged Home ledger.
     const client = host.actionClient(one.reference, false), caller = person(["goals:read"], one.project_id);
     await assert.rejects(client.invoke(caller, goalsActions.snapshot, {}), { code: "actions.missing" });
-    await assert.rejects(client.discover(caller), refusal);
+    await assert.doesNotReject(client.discover(caller));
     const page = await request(`/projects/${one.project_id}`, { headers: { accept: "text/html" } });
     assert.equal(page.status, 200, await page.clone().text());
     assert.match(page.headers.get("content-type") ?? "", /^text\/html\b/iu);

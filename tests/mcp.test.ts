@@ -154,10 +154,10 @@ it("a management call that names no database fails instead of using a path under
     process.chdir(directory);
     const management = new MolisWorkServer("management");
     try {
-      // `initialize` is the call that would have created the default path.
+      // No management tool creates a database (44B); with no path given, none is guessed either.
       for (const named of [{}, { database_path: "" }, { database_path: "  " }, { database_path: 5 }]) {
         await assert.rejects(
-          () => management.callTool("molis_work_v1_initialize", { project_id: "no-default", idempotency_key: "k", ...named }),
+          () => management.callTool("molis_work_v1_review_request", { project_id: "no-default", request_id: "r", ...named }),
           (error: unknown) => error instanceof ActionError && error.code === "mcp.path_required",
           JSON.stringify(named),
         );
@@ -188,10 +188,12 @@ it("a management call takes its database from database_path before MOLIS_WORK_DA
     const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
     const management = new MolisWorkServer("management", null, null, host);
     try {
-      const created = JSON.parse(await management.callTool("molis_work_v1_initialize",
-        { database_path: fromArgument, project_id: "project/argument-first", idempotency_key: "argument-first" })) as { project_id: string; replayed: boolean };
-      assert.deepEqual([created.project_id, created.replayed], ["project/argument-first", false]);
-      assert.equal(fs.existsSync(fromArgument), true, "the named database was created");
+      // Neither exists and no management tool creates one (44B): the refusal names the argument's path, not the environment's.
+      await assert.rejects(
+        () => management.callTool("molis_work_v1_review_request", { database_path: fromArgument, project_id: "project/argument-first", request_id: "r" }),
+        (error: unknown) => error instanceof ActionError && error.code === "mcp.not_found" && error.message.includes(fromArgument) && !error.message.includes(fromEnvironment),
+      );
+      assert.equal(fs.existsSync(fromArgument), false, "nothing was created at the named path");
       assert.equal(fs.existsSync(fromEnvironment), false, "the environment variable's path was left alone");
     } finally {
       if (previousDatabase === undefined) delete process.env.MOLIS_WORK_DATABASE; else process.env.MOLIS_WORK_DATABASE = previousDatabase;

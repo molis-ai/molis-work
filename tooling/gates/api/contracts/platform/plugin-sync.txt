@@ -49,6 +49,7 @@ export interface PluginSyncCollection {
     readonly tracking?: readonly SyncTrackedTable[];
     readonly sections?: import("platform/plugin-sync-sections").SyncSectionsDeclaration;
     readonly aggregates?: readonly SyncAggregateDeclaration[];
+    readonly approval_outcomes?: readonly SyncApprovalOutcomeDeclaration[];
 }
 
 export interface PluginSyncCollectionCopy {
@@ -146,6 +147,19 @@ export interface SyncAggregateRecords {
     children: Record<string, SyncPortableRow[]>;
 }
 
+export interface SyncApprovalOutcomeDeclaration {
+    readonly subject_kind: string;
+    readonly section: string;
+    readonly table: string;
+    readonly decision_column: string;
+    readonly subject_column: string;
+    readonly subjects: {
+        readonly section: string;
+        readonly table: string;
+        readonly column: string;
+    };
+}
+
 export type SyncFailureReason = "invalid" | "unsupported" | "scope" | "conflict" | "dependencies" | "busy" | "limit" | "unavailable";
 
 export type SyncKeyPart = {
@@ -191,7 +205,7 @@ export interface SyncSectionTable {
 export interface SyncSectionsDeclaration {
     readonly kind: string;
     readonly business: readonly SyncSectionDeclaration[];
-    readonly platform: readonly ('relation-edges' | 'attention')[];
+    readonly platform: readonly 'relation-edges'[];
     readonly journal: boolean;
     readonly journalIgnoredTypes?: readonly string[];
 }

@@ -241,7 +241,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
   const panels = model.tools.map((tool) => renderToolPanel(tool, p)).join("");
   // The results panel is in reading order (screen-polish §6.5): what changed, what waits on a decision, the checks, the
   // outcomes, the checkpoints; then how the work was split, and the run's own details (paths, capability ids, usage) last.
-  return `<section class="desktop-work-surface plugin-stage-shell mw-layout-primitives" data-work-surface="coding" data-work-surface-label="Coding" hidden data-coding-workbench data-coding-prefix="${p.escape(model.route_prefix)}">
+  return `<section class="desktop-work-surface plugin-stage-shell mw-layout-primitives" data-work-surface="coding" data-work-surface-label="Coding" hidden data-coding-workbench data-character-run-target data-coding-prefix="${p.escape(model.route_prefix)}">
     <dialog class="mw-dialog mw-dialog--form" data-coding-step-dialog aria-label="${p.escape(uiText.text("coding.step.title"))}"><div class="mw-form mw-dialog__shell">
       <header class="mw-form__header"><h2>${p.escape(uiText.text("coding.step.title"))}</h2>${renderButton({label:uiText.text("coding.common.close"),variant:"ghost",attrs:{"data-coding-step-close":""}})}</header>
       <section class="mw-form__body"><div data-coding-step-detail></div><p>${p.escape(uiText.text("coding.step.note"))}</p>

@@ -159,7 +159,7 @@ const COMMITTED_MATERIAL = {
   title: "已提交的材料",
   source_name: "Example",
   preview: "提交之后判断才失败的正文",
-  content_ref: `molis-work-feed/sha256/${"c".repeat(64)}`,
+  content_ref: `molis-work-evidence/sha256/${"c".repeat(64)}`,
   content_hash: `sha256:${"c".repeat(64)}`,
   content_type: "text/markdown",
   character_count: 12,

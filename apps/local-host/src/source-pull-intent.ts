@@ -1,12 +1,12 @@
 import { fingerprintSearchIntentExactV1, validateSearchIntentExactV1 } from "@adeptify/intelligence-client";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SourcePullRequest } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
-import { CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, listRegisterableFeeds, normalizeCustomRssFeedUrl } from "@molis-ai/molis-work-integration-rss";
-import { YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, normalizeYouTubeChannelId, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-youtube";
+import { builtinPublicFeedDriver } from "./builtin-drivers.js";
+import type { PublicFeedDriver } from "./public-feed-driver.js";
 import type { IntelligenceCollectRequest } from "./search-intelligence-client.js";
 
 // The request a plugin's pull becomes (`services.sourcePull`, S-97 provisional). The plugin names an address, a channel, a catalog entry or
-// a query; the budget, the source policy and where the request may go are made here, from the platform's own catalog and normalizers.
+// a query; the budget and the source policy are made here, and where a public feed may go is the public-feed driver's answer (M10).
 // The platform owns the plan used by both the pure fingerprint query and the actual pull.
 
 const WEB_QUERY_DEFINITION_ID = "anysearch";
@@ -21,7 +21,7 @@ function normalizeQuery(value: string): string {
   return query;
 }
 
-export function buildSourcePullIntent(request: SourcePullRequest): IntelligenceCollectRequest {
+export function buildSourcePullIntent(request: SourcePullRequest, driver: PublicFeedDriver = builtinPublicFeedDriver()): IntelligenceCollectRequest {
   const webQuery = request.kind === "web_query";
   const budget = {
     maxProviderCalls: 1,
@@ -38,7 +38,7 @@ export function buildSourcePullIntent(request: SourcePullRequest): IntelligenceC
     return validateSearchIntentExactV1({
       schema: /* @version type.search-intent "search-intent-v{version}" */ "search-intent-v1",
       operationId: request.operation_id,
-      goal: `同步网页查询来源「${request.source_name}」到 Molis Work Feed`,
+      goal: `同步网页查询来源「${request.source_name}」到 Molis Work`,
       taskProfile: "latest_monitoring",
       mode: "exact",
       input: { kind: "query", query },
@@ -59,26 +59,11 @@ export function buildSourcePullIntent(request: SourcePullRequest): IntelligenceC
       resultProfile: "materials_v1",
     });
   }
-  let feedUrl: string, definitionId: string, domain: string;
-  if (request.kind === "youtube_channel") {
-    feedUrl = youtubeChannelFeedUrl(normalizeYouTubeChannelId(request.channel_id));
-    definitionId = YOUTUBE_CHANNEL_DEFINITION_ID;
-    domain = YOUTUBE_PUBLIC_FEED_HOST;
-  } else if (request.kind === "custom_rss") {
-    feedUrl = normalizeCustomRssFeedUrl(request.feed_url);
-    definitionId = CUSTOM_RSS_DEFINITION_ID;
-    domain = customRssFeedHost(feedUrl);
-  } else {
-    const catalog = listRegisterableFeeds().find(entry => entry.sourceId === request.definition_id);
-    if (!catalog) throw new ActionError("actions.input_invalid", "RSS 目录来源不存在");
-    feedUrl = catalog.feedUrl;
-    definitionId = catalog.sourceId;
-    domain = new URL(feedUrl).hostname.toLowerCase();
-  }
+  const { feed_url: feedUrl, definition_id: definitionId, domain } = driver.target(request.definition_id, request.address);
   return validateSearchIntentExactV1({
     schema: /* @version type.search-intent "search-intent-v{version}" */ "search-intent-v1",
     operationId: request.operation_id,
-    goal: `同步公开来源「${request.source_name}」到 Molis Work Feed`,
+    goal: `同步公开来源「${request.source_name}」到 Molis Work`,
     taskProfile: "exact_rss_ingest",
     mode: "exact",
     input: { kind: "feed", url: feedUrl },
@@ -99,6 +84,6 @@ export function buildSourcePullIntent(request: SourcePullRequest): IntelligenceC
 }
 
 /** The fingerprint of the pull the request would make, with nothing fetched or written. */
-export function sourcePullFingerprint(request: SourcePullRequest): string {
-  return fingerprintSearchIntentExactV1(buildSourcePullIntent(request));
+export function sourcePullFingerprint(request: SourcePullRequest, driver?: PublicFeedDriver): string {
+  return fingerprintSearchIntentExactV1(buildSourcePullIntent(request, driver));
 }

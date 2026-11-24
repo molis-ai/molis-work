@@ -21,3 +21,4 @@ export type { InboxBriefs, InboxItemBrief } from "./content-actions.js";
 
 export { inboxErrors } from "./errors.js";
 export { createInboxPagesHandlers, inboxPagesMaterialReference, inboxPagesRequestHash } from "./pages.js";
+export * from "./scene-options.js";

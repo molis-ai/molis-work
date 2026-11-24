@@ -27,7 +27,7 @@ test("FSS-18 changing the mono role remeasures the attached terminal without sta
   // Plan C: the imported role is a member of this project, and its native runs show in the member's drawer under 项目设置 › 角色.
   const member = characters.service.roles.addMember(b.projectId, draft.character_id).current.member_id;
   characters.close();
-  const api = `/projects/${b.projectId}/api/plugins/io.molis.work.characters`;
+  const api = `/projects/${b.projectId}/api/platform/characters`;
   const { reference } = await b.web.post<{ reference: { artifact_id: string; version: number } }>(api + `/drafts/${draft.character_id}/publish`, { expected_revision: draft.revision });
   const prepared = await b.web.post<{ executable: string }>(api + "/execution", { reference });
   assert.equal(prepared.executable, await realpath(join(bin, "codex")));

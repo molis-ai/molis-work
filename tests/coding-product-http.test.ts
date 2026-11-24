@@ -40,11 +40,11 @@ test("Coding formal routes preserve drafts and isolate projects across server re
       projects.push(created.body.project.project_id);
     }
     // Shelf is personal and always available; it is not a per-project opt-in. What it saves into a project is project knowledge.
-    const shelfItem = await request('/api/plugins/io.molis.work.shelf/items', 'POST', { filename: 'port.md', bytes_base64: Buffer.from('固定端口材料').toString('base64') });
+    const shelfItem = await request('/api/platform/shelf/items', 'POST', { filename: 'port.md', bytes_base64: Buffer.from('固定端口材料').toString('base64') });
     assert.equal(shelfItem.status, 200);
     // RAC-1044 (PG-077 D1): platform imports work without project membership; the same write still requires the person's token.
     assert.equal((await request(`/api/settings/projects/${projects[1]}/plugins`, 'DELETE', { plugin_id: 'artifacts', expected_revision: await projectPluginRevisionAt(origin, projects[1]) })).status, 400);
-    const elsewhere = `/projects/${projects[1]}/api/plugins/io.molis.work.shelf/items/${shelfItem.body.item.item_id}/project-material`;
+    const elsewhere = `/projects/${projects[1]}/api/platform/shelf/items/${shelfItem.body.item.item_id}/project-material`;
     const elsewherePreview = await request(elsewhere);
     assert.equal(elsewherePreview.status, 200);
     const elsewhereInput = { expected_fingerprint: elsewherePreview.body.fingerprint };
@@ -54,14 +54,14 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     assert.equal(elsewhereMaterial.status, 200, JSON.stringify(elsewhereMaterial.body));
     assert.equal(elsewhereMaterial.body.reference.version, 1);
     assert.equal((await request(`/api/settings/projects/${projects[0]}/plugins`, 'POST', { plugin_id: 'artifacts', expected_revision: await projectPluginRevisionAt(origin, projects[0]) })).status, 400);
-    const projectMaterial = `/projects/${projects[0]}/api/plugins/io.molis.work.shelf/items/${shelfItem.body.item.item_id}/project-material`;
+    const projectMaterial = `/projects/${projects[0]}/api/platform/shelf/items/${shelfItem.body.item.item_id}/project-material`;
     const materialPreview = await request(projectMaterial);
     assert.equal(materialPreview.status, 200);
     const fixedMaterial = await request(projectMaterial, 'POST', { expected_fingerprint: materialPreview.body.fingerprint });
     assert.equal(fixedMaterial.status, 200, JSON.stringify(fixedMaterial.body));
     assert.equal(fixedMaterial.body.reference.version, 1);
     assert.deepEqual((await request(projectMaterial, 'POST', { expected_fingerprint: materialPreview.body.fingerprint })).body.reference, fixedMaterial.body.reference, "the same text saved again keeps its version");
-    assert.equal((await request(`/projects/${projects[0]}/api/plugins/io.molis.work.shelf/material-output`)).status, 404, "there is no material output to choose any more");
+    assert.equal((await request(`/projects/${projects[0]}/api/platform/shelf/material-output`)).status, 404, "there is no material output to choose any more");
     const plugin = (project: string) => `/projects/${project}/api/plugins/io.molis.work.coding`;
     // W3-02-C: not enabled in this project is 403 actions.plugin_disabled (it was 404 plugin_not_enabled).
     const notEnabled = await request(plugin(projects[0])+'/state'); assert.equal(notEnabled.status,403); assert.equal(notEnabled.body.code,'actions.plugin_disabled');

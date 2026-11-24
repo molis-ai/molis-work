@@ -6,13 +6,9 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { PLATFORM_PLUGIN_REGISTRATIONS, seedSceneRules, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import {
-  INBOX_DISMISS_OPTION_ID,
-  INBOX_DONE_OPTION_ID,
-  SYSTEM_HOME_DOCK_FUNCTION_KEY,
-  SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
-  SYSTEM_INBOX_NEXT_FUNCTION_KEY,
-} from "@molis-ai/molis-work-contracts/modules/functions";
+import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
+import { SYSTEM_INBOX_ADMIT_FUNCTION_KEY } from "@molis-ai/molis-work-plugin-feed";
+import { INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, SYSTEM_INBOX_NEXT_FUNCTION_KEY } from "@molis-ai/molis-work-plugin-inbox";
 import type { ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";

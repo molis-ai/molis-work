@@ -186,7 +186,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
       now: new Date().toISOString(), last_project_id: remembered.last_project_id,
       opened: Object.fromEntries(Object.entries(remembered.projects).flatMap(([id, record]) => record.last_opened_at ? [[id, record.last_opened_at]] : [])),
       ...(notice ? { upgrade_notice: notice } : {}),
-      plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory),
+      plugin_directory: await pagePluginDirectory(localHost.homePlugins),
     }));
     return true;
   } },

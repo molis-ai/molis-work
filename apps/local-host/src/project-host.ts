@@ -72,7 +72,6 @@ import { admitProviderRules } from "./scene-rule-admission.js";
 import { agentStudioOpen, releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { clearProjectRestingReadings, homeAggregatePorts, persistProjectRestingReadings, persistShutdownRestingReadings, trackRestingSleepPersist } from "./home-aggregate.js";
 import { backgroundWorkUnderWay } from "./home-background-tasks.js";
-import { readOnlyAlwaysOnProjectPlugins, withFreshReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { computeProjectRestingFingerprint, homeAggregateStoresFingerprint, homePluginsSemanticStamp, pluginFixturesStamp } from "./resting-readings-store.js";
 import { installedPluginsStarting, releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPreparedProject } from "./project-plugin-ports.js";
@@ -300,7 +299,9 @@ export class MolisWorkLocalHost {
     if (home) this.homePlugins = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, settingsVersionClaims, ownerClosing: () => !!this.closing.started,
       registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(home, () => this.host.projects()),
       projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, home, this.catalogRunner,
-        this, this.host, molisWorkHostProjectReference) });
+        this, this.host, molisWorkHostProjectReference),
+      projectArtifacts: projectId => { const open = this.host.openRuntimes().find(runtime => runtime.project_id === projectId);
+        return open ? { api: open.artifacts, process: open.processItems } : undefined; } });
     if (options.homeDirectory) this.systemFunctions = new SystemFunctionsActions(this.host.actionRegistry(), options.homeDirectory, options.functions ?? {}, caller => {
       const project = caller.project_id ? this.host.projects().find(row => row.project_id === caller.project_id) : undefined;
       if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "判断目录缺少当前项目运行环境");
@@ -614,7 +615,7 @@ export class MolisWorkLocalHost {
     const homeAggregateStoresStamp = homeAggregateStoresFingerprint(home, { fixtures: this.options.pluginFixtures, homePluginsStamp });
     if (!homeAggregateStoresStamp) return new Map(references.map(reference => [reference.storage_key, null]));
     try {
-      return await this.catalogRunner({ homeDirectory: home }, catalog => withFreshReadOnlyPluginDirectory(home, () => {
+      return await this.catalogRunner({ homeDirectory: home }, catalog => {
         const byId = new Map(catalog.listProjects().map(project => [project.project_id, project]));
         const result = new Map<string, string | null>();
         for (const reference of references) {
@@ -623,7 +624,7 @@ export class MolisWorkLocalHost {
             result.set(reference.storage_key, null);
             continue;
           }
-          const membership = catalog.projectPluginMembership(reference.project_id, () => readOnlyAlwaysOnProjectPlugins(home));
+          const membership = catalog.projectPluginMembership(reference.project_id);
           result.set(reference.storage_key, computeProjectRestingFingerprint({
             homeDirectory: home,
             reference,
@@ -634,7 +635,7 @@ export class MolisWorkLocalHost {
           }));
         }
         return result;
-      }));
+      });
     } catch {
       return new Map(references.map(reference => [reference.storage_key, null]));
     }

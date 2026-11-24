@@ -134,28 +134,6 @@ export interface PluginWorkbenchRegistration {
  * specs/archive/repository-anti-corruption/privileges.md).
  */
 /** One decision outcome digest computed from the owning plugin's immutable rows. */
-export interface PluginApprovalOutcome {
-  readonly kind: string;
-  readonly id: string;
-  readonly digest: string;
-}
-
-/**
- * Trusted owner binding for freezing and verifying synced decision outcomes alongside platform project approvals.
- * Declaring this grants no approval or synchronization authority.
- */
-export interface PluginApprovalOutcomesBinding {
-  readonly collection_id: string;
-  readonly subject_kinds: readonly string[];
-  readOutcome(db: { prepare(sql: string): { all(...params: string[]): unknown[] } }, project: string, decision: string, subjectKind: string): PluginApprovalOutcome | null;
-  outcomesFromFacts(facts: Readonly<Record<string, import("./sync-transport.js").ProjectReplicaRows>>): Map<string, PluginApprovalOutcome>;
-  assertHistory(
-    previous: ReadonlyMap<string, PluginApprovalOutcome>,
-    incoming: ReadonlyMap<string, PluginApprovalOutcome>,
-    facts: Readonly<Record<string, import("./sync-transport.js").ProjectReplicaRows>>,
-  ): void;
-}
-
 /** One observation coverage fact declared by a built-in plugin package for the platform's coverage register. */
 export interface PluginObservationCoverageDeclaration {
   readonly fact: string;
@@ -166,36 +144,22 @@ export interface PluginObservationCoverageDeclaration {
   readonly record_kind?: "flow" | "content";
 }
 
-/** One management-entry action declared by a built-in plugin registration (resolved without hardcoding plugin IDs in Host). */
-export interface PluginManagementActionDeclaration {
-  readonly capability_id: string;
-  readonly version: number;
-  /** Additional identity fields refused in management payload input alongside `actor_id` and `actor_kind`. */
-  readonly refused_identity_fields?: readonly string[];
-  /**
-   * The management MCP tool this action is offered as (`molis_work_v1_<name>`, unique across the build). The tool's description and
-   * business fields are the action's own; `opens_new_database` lets a standalone management call create the project database it names.
-   */
-  readonly mcp_tool?: { readonly name: string; readonly opens_new_database?: true };
-}
 
 export type {PluginDistributionVerifier,BuiltinSyncBinding,ReplicaDatabase,AggregateReplicaContext,AggregateCopyContext,SyncDocumentStorage,ProjectSyncServices,ProjectSyncUploadContext,ProjectSyncContentOwner} from './plugin-sync-registration.js';
 /**
- * A surface of the platform's own that the shell frames like a plugin's page (47-1 C: the plugin studio): its stage, page requests,
- * sheet and program, and the sync collections it owns. It is not a plugin and is in no plugin catalog.
+ * A surface of the platform's own that the shell frames like a plugin's page (47-1 C: the plugin studio; 44B: Shelf): its stage, page
+ * requests, sheet and program, and the sync collections it owns. One the runtime hosts (Shelf) also names the code its Home instance
+ * starts from (`runtime`) and its Home store (`home_store`). It is not a plugin and is in no plugin catalog: nothing installs, switches
+ * off or adds it to a project.
  */
-export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_id" | "manifest" | "workbench" | "sync">;
+export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_id" | "manifest" | "workbench" | "sync" | "runtime" | "home_store" | "observation">;
 
 export interface PluginRegistration {
   readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
-  /** Trusted owner binding for freezing and verifying synced decision outcomes against platform project approvals. */
-  readonly approval_outcomes?: PluginApprovalOutcomesBinding;
   /** Optional observation facts reported by this plugin, collected dynamically into the observation coverage plan. */
   readonly observation?: {
     readonly coverage?: readonly PluginObservationCoverageDeclaration[];
   };
-  /** Optional actions exposed through the Host's management entry (e.g. management MCP). */
-  readonly management_actions?: readonly PluginManagementActionDeclaration[];
   /** The plugin's key inside a project (`^[a-z0-9][a-z0-9-]*$`); the Manifest's `plugin_id` stays its identity. */
   readonly project_plugin_id: string;
   /** Position in the catalog, unique across the build; the derived lists keep this order. */

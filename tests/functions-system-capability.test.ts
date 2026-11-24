@@ -4,27 +4,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
-import {
-  FEED_ARCHIVE_OPTION_ID,
-  FEED_CAPTURE_SCENE_ID,
-  FEED_OPEN_OPTION_ID,
-  FEED_PROMOTE_OPTION_ID,
-  FEED_SAVE_OPTION_ID,
-  HOME_CONTINUE_OPTION_ID,
-  HOME_DOCK_SCENE_ID,
-  INBOX_ADMIT_OPTION_ID,
-  INBOX_DONE_OPTION_ID,
-  INBOX_DISMISS_OPTION_ID,
-  INBOX_NEXT_SCENE_ID,
-  SYSTEM_HOME_DOCK_FUNCTION_KEY,
-  SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
-  SYSTEM_INBOX_NEXT_FUNCTION_KEY,
-  filterSuggestedOptionIds,
-  mapJudgmentChoice,
-  defaultInboxNextOptionIds,
-  defaultFeedCaptureOptionIds,
-  visibleFeedDispositionIds,
-} from "@molis-ai/molis-work-contracts/modules/functions";
+import { HOME_CONTINUE_OPTION_ID, HOME_DOCK_SCENE_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, filterSuggestedOptionIds, mapJudgmentChoice } from "@molis-ai/molis-work-contracts/modules/functions";
+import { FEED_ARCHIVE_OPTION_ID, FEED_CAPTURE_SCENE_ID, FEED_OPEN_OPTION_ID, FEED_PROMOTE_OPTION_ID, FEED_SAVE_OPTION_ID, INBOX_ADMIT_OPTION_ID, SYSTEM_INBOX_ADMIT_FUNCTION_KEY, defaultFeedCaptureOptionIds, visibleFeedDispositionIds } from "@molis-ai/molis-work-plugin-feed";
+import { INBOX_DONE_OPTION_ID, INBOX_DISMISS_OPTION_ID, INBOX_NEXT_SCENE_ID, SYSTEM_INBOX_NEXT_FUNCTION_KEY, defaultInboxNextOptionIds } from "@molis-ai/molis-work-plugin-inbox";
 import {
   functionsErrors,
   createFunctionsService,

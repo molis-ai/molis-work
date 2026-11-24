@@ -13,7 +13,7 @@ const json = (value: unknown, init?: ResponseInit) => new Response(JSON.stringif
 const sourceItems = (feed: FeedApplication, sourceId: string) => feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === sourceId);
 const sourceAttention = (feed: FeedApplication, sourceId: string) => {
   const ids = new Set(sourceItems(feed, sourceId).map(item => item.item_id));
-  return feed.snapshot(DEMO_PROJECT_ID).inbox_entries.filter(entry => entry.subject_type === "feed_item" && ids.has(entry.subject_id));
+  return feed.snapshot(DEMO_PROJECT_ID).attention_entries.filter(entry => entry.subject_type === "feed_item" && ids.has(entry.subject_id));
 };
 const gmailMessage = (id: string) => ({ id, internalDate: String(Date.parse(AT)), labelIds: ["INBOX", "UNREAD"], snippet: `Literal ${id}`,
   payload: { headers: [{ name: "Subject", value: `Message ${id}` }, { name: "From", value: "sender@example.com" }, { name: "To", value: "owner@example.com" }] } });

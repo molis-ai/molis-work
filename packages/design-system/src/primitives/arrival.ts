@@ -37,13 +37,13 @@ export function renderSteps(options: { total: number; current: number; label: st
   return `<ol class="${cx("mw-steps", options.className)}" data-slot="steps" aria-label="${escapeHtml(options.label)}">${items}</ol>`;
 }
 
-export type MwGoalTrackState = "done" | "doing" | "todo";
+export type MwProgressTrackState = "done" | "doing" | "todo";
 
-/** One segment per goal: done in ink-soft, the one in progress in copper, the rest in the line colour. */
-export function renderGoalTrack(options: { goals: ReadonlyArray<{ title: string; state: MwGoalTrackState }>; label: string; className?: string }): string {
-  const items = options.goals.map((goal, index) =>
-    `<li data-s="${goal.state}" style="--i:${index}" title="${escapeHtml(goal.title)}"><span class="mw-goal-track__bar"></span><span class="mw-goal-track__name">${escapeHtml(goal.title)}</span></li>`).join("");
-  return `<ol class="${cx("mw-goal-track", options.goals.length > 7 && "is-dense", options.className)}" data-slot="goal-track" role="img" aria-label="${escapeHtml(options.label)}">${items}</ol>`;
+/** One segment per item: done in ink-soft, the one in progress in copper, the rest in the line colour. */
+export function renderProgressTrack(options: { items: ReadonlyArray<{ title: string; state: MwProgressTrackState }>; label: string; className?: string }): string {
+  const segments = options.items.map((item, index) =>
+    `<li data-s="${item.state}" style="--i:${index}" title="${escapeHtml(item.title)}"><span class="mw-progress-track__bar"></span><span class="mw-progress-track__name">${escapeHtml(item.title)}</span></li>`).join("");
+  return `<ol class="${cx("mw-progress-track", options.items.length > 7 && "is-dense", options.className)}" data-slot="progress-track" role="img" aria-label="${escapeHtml(options.label)}">${segments}</ol>`;
 }
 
 /** The bar's left block while something is only being looked at: a mark, its name and what Enter does. */

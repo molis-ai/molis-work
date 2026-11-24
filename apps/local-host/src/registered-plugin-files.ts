@@ -4,12 +4,16 @@ import { fileURLToPath } from "node:url";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginLocaleFilePaths, type PluginLocaleRead } from "@molis-ai/molis-work-plugin-runtime";
 
-/** A name from the Host's build registry, not the plugin's Manifest or a browser request. */
+/**
+ * A name from the Host's build registry, not the plugin's Manifest or a browser request. It may name an export of the package (Shelf's
+ * runtime is `@molis-ai/molis-work-module-shelf/surface`, 44B): the directory is the package's own, whose name is the specifier's first part.
+ */
 export function registeredPackageDirectory(name: string): string {
+  const root = name.split("/").slice(0, name.startsWith("@") ? 2 : 1).join("/");
   let directory = dirname(fileURLToPath(import.meta.resolve(name)));
   for (;;) {
     const file = join(directory, "package.json");
-    if (existsSync(file) && (JSON.parse(readFileSync(file, "utf8")) as { name?: unknown }).name === name) return directory;
+    if (existsSync(file) && (JSON.parse(readFileSync(file, "utf8")) as { name?: unknown }).name === root) return directory;
     const parent = dirname(directory);
     if (parent === directory) throw new Error(`找不到 ${name} 的包目录`);
     directory = parent;

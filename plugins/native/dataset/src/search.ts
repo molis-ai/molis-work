@@ -7,7 +7,7 @@ const subjectReader = defineSubjectContextAction("dataset.subject.read", /* @ver
 
 /** Dataset's part in the system search: table name, description, column names and cell text. */
 export const datasetSearchActions = {
-  entries: defineSearchEntriesAction("dataset.search.entries", /* @version action.dataset.search.entries */ 1, [{ kind: "dataset", title: "数据表", surface: DATASET_PROJECT_PLUGIN_ID }], "数据表", ["dataset:read"]),
+  entries: defineSearchEntriesAction("dataset.search.entries", /* @version action.dataset.search.entries */ 1, [{ kind: "dataset", title: "数据表", surface: DATASET_PROJECT_PLUGIN_ID, glyph: "database" }], "数据表", ["dataset:read"]),
   subject: { ...subjectReader, action: { ...subjectReader.action, execution: { cost: "none" as const } } },
   /** The side panel's file tab (specs/archive/side-panel): each table as the CSV it would export to. */
   files: defineFileEntriesAction("dataset.files.entries", /* @version action.dataset.files.entries */ 1, [{ kind: "dataset", title: "数据表", surface: DATASET_PROJECT_PLUGIN_ID }], "数据表", ["dataset:read"]),

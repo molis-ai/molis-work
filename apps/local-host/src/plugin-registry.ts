@@ -3,8 +3,9 @@ import type { ProjectPluginId, ProjectPluginRegistry } from "@molis-ai/molis-wor
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { HostSurfaceRegistration, PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.generated.js";
+import { HOSTED_SURFACES, type HostSurface } from "./host-surface-list.js";
 import type { HomePluginEntry } from "./home-plugins.js";
-import { declaresProjectCoordination } from "./plugin-project-coordination.js";
+import { declaresProjectHalf } from "./plugin-project-coordination.js";
 import { ARTIFACTS_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-module-artifacts";
 
 // The platform's facts about the plugins this build ships, derived in this one place from the plugins' own registrations
@@ -13,6 +14,29 @@ import { ARTIFACTS_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-module-artifac
 // hands the shell what it needs to draw (S-08, S-15: the start list is one).
 
 export { PLATFORM_PLUGIN_REGISTRATIONS };
+
+/** A declaration the build ships: a catalog plugin's registration, or a platform part the runtime hosts (Shelf, 44B). */
+export type ShippedPart = PluginRegistration | HostSurface;
+
+/**
+ * Everything this build ships that the runtime runs and whose declaration the platform reads (stores, upgrades, routes, words, owners,
+ * observation, data export, project deletion): the plugin catalog and the platform parts the runtime hosts. The catalog alone is for what a
+ * person chooses: membership, the market, the directory, enablement.
+ */
+export function shippedParts(): readonly ShippedPart[] {
+  // Read at each use, not copied once: callers that extend the catalog list (tests add a probe plugin to it) are seen.
+  return [...PLATFORM_PLUGIN_REGISTRATIONS, ...HOSTED_SURFACES];
+}
+
+/** The shipped part a project key names: a catalog plugin or a hosted platform part. */
+export function shippedPartByProjectKey(key: string): ShippedPart | undefined {
+  return shippedParts().find(entry => entry.project_plugin_id === key);
+}
+
+/** The shipped part a Manifest id names: a catalog plugin or a hosted platform part. */
+export function shippedPartByManifestId(pluginId: string): ShippedPart | undefined {
+  return shippedParts().find(entry => entry.manifest.plugin_id === pluginId);
+}
 
 /**
  * What makes a catalog unusable (W5-02-REG-02): two entries with one project key, Manifest id or position, or a short id in
@@ -40,8 +64,8 @@ export function catalogProblems(catalog: readonly (PluginRegistration | HostSurf
     if ((entry.manifest.runtime?.scope === "home") !== (entry.runtime !== undefined)) {
       problems.push(`${entry.project_plugin_id}: the Manifest's runtime.scope and the registration's runtime (the code a Home instance starts from) go together`);
     }
-    if (entry.runtime && !entry.runtime.dual_instance && declaresProjectCoordination(entry.manifest)) {
-      problems.push(`${entry.project_plugin_id}: a Home instance is given no 成果, ports or events; declaring them takes a dual-instance plugin (the project half gets them)`);
+    if (entry.runtime && !entry.runtime.dual_instance && declaresProjectHalf(entry.manifest)) {
+      problems.push(`${entry.project_plugin_id}: a Home instance pins no 成果 and is given no ports or events; declaring them takes a dual-instance plugin (the project half gets them)`);
     }
     const named: Array<readonly [string, string]> = [
       ...(entry.companions ?? []).map(id => ["companions", id] as const),
@@ -142,24 +166,24 @@ export function availableProjectPluginIds(
 }
 
 /** Whether a catalog entry runs in the Home: its Manifest says so (PG-011), and `catalogProblems` holds that to the registration's code. */
-export const runsInHome = (entry: PluginRegistration): boolean => entry.manifest.runtime?.scope === "home";
+export const runsInHome = (entry: Pick<PluginRegistration, "manifest">): boolean => entry.manifest.runtime?.scope === "home";
 
 /**
  * Whether the plugin lives only in the Home: a dual-instance plugin has a Home half and also a project half, and the page and the library
  * a project shows of it are the project half's (Feed keeps its tables in each project's library and the reference ledger of their bodies
  * in the Home's).
  */
-export const runsOnlyInHome = (entry: PluginRegistration): boolean => runsInHome(entry) && entry.runtime?.dual_instance !== true;
+export const runsOnlyInHome = (entry: Pick<PluginRegistration, "manifest" | "runtime">): boolean => runsInHome(entry) && entry.runtime?.dual_instance !== true;
 
 /** Each Home plugin's definition as the owner-files and scope checks read it, with the dual-instance mark its registration gives it. */
 export function homeDefinitionEntries(): { definition: PluginDefinition; dual_instance?: true }[] {
-  return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime
+  return shippedParts().flatMap(entry => entry.runtime
     ? [{ definition: entry.runtime.create(), ...entry.runtime.dual_instance ? { dual_instance: true as const } : {} }] : []);
 }
 
 /** The Home Runtime's start list: each registration that runs there, under its project key, with what deleting a project clears of it. */
 export function homePluginEntries(): HomePluginEntry[] {
-  return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime ? [{ ...entry.runtime, scope: "home" as const, key: entry.project_plugin_id, manifest: entry.manifest,
+  return shippedParts().flatMap(entry => entry.runtime ? [{ ...entry.runtime, scope: "home" as const, key: entry.project_plugin_id, manifest: entry.manifest,
     project_data: { owner_id: entry.project_plugin_id } }] : []);
 }
 

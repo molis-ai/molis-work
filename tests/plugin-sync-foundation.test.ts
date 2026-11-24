@@ -46,6 +46,38 @@ test("sync declarations are optional, validated, immutable and dependency-aware"
   }
 });
 
+// 44B: approval outcomes are a Manifest declaration the platform reads itself; it names only this collection's own declared tables and columns.
+test("44B approval outcomes name declared section tables and columns, one subject kind each, and the platform digests the rows itself", async () => {
+  const { goalsManifest } = await import("@molis-ai/molis-work-plugin-goals");
+  const { approvalOutcomesFromFacts, readApprovalOutcome } = await import("@molis-ai/molis-work-service-project-approvals");
+  const declaration = parsePluginSyncDeclaration(goalsManifest.sync);
+  const collection = declaration.collections[0]!;
+  assert.deepEqual(collection.approval_outcomes!.map(row => [row.subject_kind, row.table]), [["goal", "goal_event_applied_decisions"], ["goal-tree-proposal", "goal_tree_item_effects"]]);
+  const outcomes = collection.approval_outcomes!;
+  for (const bad of [
+    [{ ...outcomes[0]!, table: "goals_elsewhere" }], [{ ...outcomes[0]!, decision_column: "secret" }], [{ ...outcomes[0]!, section: "governance" }],
+    [{ ...outcomes[0]!, subjects: { ...outcomes[0]!.subjects, column: "nope" } }], [outcomes[0]!, { ...outcomes[1]!, subject_kind: "goal" }],
+    [{ ...outcomes[0]!, sql: "1=1" }], [],
+  ]) assert.throws(() => parsePluginSyncDeclaration({ ...declaration, collections: [{ ...collection, approval_outcomes: bad }] }), ActionError, JSON.stringify(bad));
+  const { sections: _sections, ...bare } = collection;
+  assert.throws(() => parsePluginSyncDeclaration({ ...declaration, collections: [bare] }), ActionError, "outcomes need the collection's sections");
+  // The same rows give the same digest from the library and from synced facts; row order does not change it, a missing row does.
+  const db = new DatabaseSync(":memory:");
+  db.exec("CREATE TABLE goal_tree_item_effects (effect_id TEXT, project_id TEXT, proposal_id TEXT, item_id TEXT, approval_id TEXT, result TEXT, runtime_actor_id TEXT, reason TEXT, revision_proposal_id TEXT, materialized_objects_json TEXT, created_at TEXT)");
+  const row = (effect_id: string, item_id: string) => ({ effect_id, project_id: "p", proposal_id: "tree", item_id, approval_id: "decision", result: "applied",
+    runtime_actor_id: null, reason: null, revision_proposal_id: null, materialized_objects_json: "[]", created_at: "2026-11-23T00:00:00.000Z" });
+  for (const value of [row("e2", "b"), row("e1", "a")]) db.prepare("INSERT INTO goal_tree_item_effects VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(...Object.values(value));
+  const read = readApprovalOutcome(db, collection, "p", "decision", { kind: "goal-tree-proposal", id: "tree" })!;
+  assert.match(read.digest, /^sha256:[a-f0-9]{64}$/u);
+  const facts = { goals: { goal_event_applied_decisions: [] }, governance: { goal_tree_item_effects: [row("e1", "a"), row("e2", "b")] } };
+  assert.deepEqual(approvalOutcomesFromFacts(collection, facts).get("decision"), read);
+  assert.notEqual(approvalOutcomesFromFacts(collection, { ...facts, governance: { goal_tree_item_effects: [row("e1", "a")] } }).get("decision")!.digest, read.digest);
+  assert.equal(readApprovalOutcome(db, collection, "p", "other", { kind: "goal-tree-proposal", id: "tree" }), null);
+  assert.throws(() => readApprovalOutcome(db, collection, "p", "decision", { kind: "goal-tree-proposal", id: "another" }), ActionError);
+  assert.throws(() => readApprovalOutcome(db, collection, "p", "decision", { kind: "undeclared", id: "tree" }), ActionError);
+  db.close();
+});
+
 test("policy wire format belongs to a space and retains exact unavailable selections for repair", () => {
   const selection = { plugin_id: "io.molis.work.future", publisher_id: "author", publisher_signature: "sig",
     collection_id: "drafts", schema_version: 7 };

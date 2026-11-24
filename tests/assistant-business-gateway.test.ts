@@ -74,7 +74,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
     return next(body, init);
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => options.model === false ? null : ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
     // The background jobs the works follow are looked at with the work's authority, as the Host wires it (agent-work-authority.ts).
     resolveCredential: () => "fixture-only", checks: { workAuthority: at => service.jobs.authority(at) } });
@@ -111,7 +111,7 @@ test("APR-07/12: a real business review restores its saved person source without
     assert.deepEqual(receipt.source, { kind: "person", actor_id: "web-user" });
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
     await f.adapter.close(); f.queue.close();
-    restored = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-test", appVersion: "1.0.0" }, storageRoot: join(f.home, "sdk"), reviewQueue: history });
+    restored = await createPrologueNodeAdapter({ app: { appId: "system.assistant-test", appVersion: "1.0.0" }, storageRoot: join(f.home, "sdk"), reviewQueue: history });
     await history.refresh("project");
     const saved = history.get(pending.review_id), decision = history.receipt(pending.review_id);
     assert.deepEqual(saved?.reference, original.reference); assert.deepEqual(saved?.document, original.document);
@@ -297,7 +297,7 @@ for (const decision of ["approve", "reject"] as const) test(`APR-07/12: ordinary
     await new Promise(resolve => setTimeout(resolve, 20)); assert.equal(closed, false, "the accepted decision retains its original owner and storage");
     release.resolve(); const receipt = await answering; await closing;
     assert.deepEqual(receipt.source, { kind: "person", actor_id: "person" }); assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
-    restored = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-test", appVersion: "1.0.0" }, storageRoot: join(f.home, "sdk"), reviewQueue: history });
+    restored = await createPrologueNodeAdapter({ app: { appId: "system.assistant-test", appVersion: "1.0.0" }, storageRoot: join(f.home, "sdk"), reviewQueue: history });
     await history.refresh("project");
     assert.equal(history.receipt(review.review_id)?.status, decision === "approve" ? "approved" : "rejected");
     assert.deepEqual(history.receipt(review.review_id)?.source, { kind: "person", actor_id: "person" });
@@ -527,7 +527,7 @@ test("business roles are declared narrowly and the Host keeps directories, MCP a
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "first round");
     const [work] = await f.service.list();
     const session = { session_id: work!.session_id!, runtime_id: "prologue" };
-    const base = { project_id: "project", plugin_id: "io.molis.work.assistant", install_id: "system", actor_id: "web-user", session, role_id: "assistant", workspace: "business" as const, task: "x" };
+    const base = { project_id: "project", plugin_id: "system.assistant", install_id: "system", actor_id: "web-user", session, role_id: "assistant", workspace: "business" as const, task: "x" };
     const { ASSISTANT_AGENT, ASSISTANT_PROMPTS } = await import("../apps/local-host/dist/assistant/assistant-agent.js");
     const authority = { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: ["/tmp"], actions: async () => ({ discover: async () => [], invoke: async () => null }) };
     for (const extra of [{ directory: { canonical_path: "/tmp", realpath_verified: true } }, { mcp_tools: [{ server: "s", tool: "t", version: "1", configuration_version: 1 }] },
@@ -797,7 +797,7 @@ test("APR-08/11: an owner reply after adapter shutdown cannot write through its 
     await entered.promise;
     await f.service.control(sent.work.work_id, { kind: "stop" });
     await f.adapter.close();
-    next = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-test", appVersion: "1.0.0" }, storageRoot: join(f.home, "sdk"), reviewQueue: history });
+    next = await createPrologueNodeAdapter({ app: { appId: "system.assistant-test", appVersion: "1.0.0" }, storageRoot: join(f.home, "sdk"), reviewQueue: history });
     returnReceipt.resolve();
     await until(() => f.store.unsettled("web-user", sent.work.work_id).some(change => change.state === "completed") || undefined, "the old action owner's reply");
     await history.refresh(f.project.project_id);

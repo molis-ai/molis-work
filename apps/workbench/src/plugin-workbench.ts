@@ -1,3 +1,4 @@
+import { pluginRouteBase } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { HostSurfaceRegistration, PluginFrameStyleFeature, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { declaresOwner, ownedContribution, type OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
@@ -55,8 +56,8 @@ function withUsedClients(user: Registered, factory: string, all: readonly Regist
   const used = (user.clientUses ?? []).map(id => {
     const lent = all.find(candidate => candidate.project_plugin_id === id), manifest = catalog.find(entry => entry.project_plugin_id === id)?.manifest;
     if (!lent?.clientFactory || !manifest) throw new Error(`${user.project_plugin_id} uses the client of ${id}, which has none`);
-    const key = JSON.stringify(id), plugin = JSON.stringify(manifest.plugin_id);
-    return `${key}: ports => globalThis.molisWorkbenchPluginFactories[${key}]({ ...host, ...ports, pluginId: ${plugin}, pluginRoute: path => host.route("/api/plugins/" + ${plugin} + path) })`;
+    const key = JSON.stringify(id), plugin = JSON.stringify(manifest.plugin_id), base = JSON.stringify(pluginRouteBase(manifest.plugin_id));
+    return `${key}: ports => globalThis.molisWorkbenchPluginFactories[${key}]({ ...host, ...ports, pluginId: ${plugin}, pluginRoute: path => host.route(${base} + path) })`;
   });
   return `(host) => (${factory})({ ...host, clients: { ${used.join(", ")} } })`;
 }

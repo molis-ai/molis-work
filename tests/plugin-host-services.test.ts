@@ -15,7 +15,6 @@ import type {
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { MemoryPluginEventsRepository, MemoryPluginWiringRepository, PluginEventBus, PluginInputGraph, PluginRuntime, PluginSupervisor, portArtifactId } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import {
   DEMO_PROJECT_ID,
@@ -531,35 +530,6 @@ test("W5-01-D1-06: a process item port keeps its own version sequence: selecting
   } finally { rig.close(); }
 });
 
-
-// W3-02-F-INTEGRATION: C's owner binding and foreign-IO refusal survive the migration of Shelf's own declared errors.
-test("Shelf's Runtime action wraps an outside IO error before the SDK route can trust its forged code or diagnostic id", async () => {
-  // Shelf's personal actions are its Home half's; this project's half redeems only the Coding-result ones.
-  const rig = harness(() => [], true);
-  let reads = 0;
-  rig.artifacts.query.getArtifactVersion = () => {
-    reads++;
-    throw Object.assign(new Error("外部读取被拒绝"), {
-      code: "outside.denied", kind: "forbidden", call_id: "forged-call-id",
-      details: { code: "outside.denied", call_id: "forged-call-id" },
-    });
-  };
-  try {
-    const definition = createShelfPlugin();
-    // Shelf is a 常开插件: only an install that ships with the Host may carry the mark (S-34).
-    await rig.supervisor.start([{ definition, trust: { level: "host" }, dual_instance: true }]);
-    const contribution = rig.supervisor.contribution(definition.manifest.plugin_id);
-    assert.equal(contribution?.kind, "app", JSON.stringify(rig.supervisor.state(definition.manifest.plugin_id)));
-    if (contribution?.kind !== "app") throw new Error("Expected Shelf app contribution");
-    const route = contribution.routes?.find(row => row.route_id === "shelf.project-result-preview");
-    assert.ok(route);
-    const result = await route.handle({ actor_id: "tester", method: "GET", pathname: "/api/plugins/io.molis.work.shelf/project-result",
-      params: {}, query: { artifact_id: "coding-report:outside:run", version: "1" } });
-    assert.equal(reads, 1, "the real action reached the outside artifact IO port");
-    assert.deepEqual(result, { status: 400, body: { error: "外部读取被拒绝", code: "shelf.invalid" } },
-      "an outside code, kind and call_id cannot become Shelf's response or fake a recorded diagnostic id");
-  } finally { rig.close(); }
-});
 
 // The actual Runtime action scope, rather than a supplied author callback, must determine attribution through the Host.
 test("W5-01-D1-04 W5-01-D1-06: Host services retain the current action author and reject another actor's personal process recovery", async () => {

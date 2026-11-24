@@ -73,11 +73,11 @@ test("the search operation store forgets only the entries of its namespace that 
     const storage = new LocalSqliteStorage(join(directory, "search.sqlite"));
     try {
       storage.db.exec(LOCAL_OPAQUE_BLOB_SCHEMA_SQL);
-      const put = storage.db.prepare("INSERT INTO feed_runtime_blobs (namespace, key, opaque, cas_token) VALUES (?, ?, 'sealed', 'cas')");
+      const put = storage.db.prepare("INSERT INTO opaque_blobs (namespace, key, opaque, cas_token) VALUES (?, ?, 'sealed', 'cas')");
       for (const [namespace, key] of [["a", "k1"], ["a", "k2"], ["a", "k3"], ["b", "k1"]]) put.run(namespace, key);
       const blobs = createSearchOpaqueBlobStore(storage.db);
       assert.equal(blobs.collect({ namespace: "a", discard: (key) => key !== "k2" }), 2);
-      assert.deepEqual(storage.db.prepare("SELECT namespace, key FROM feed_runtime_blobs ORDER BY namespace, key").all(), [
+      assert.deepEqual(storage.db.prepare("SELECT namespace, key FROM opaque_blobs ORDER BY namespace, key").all(), [
         { namespace: "a", key: "k2" }, { namespace: "b", key: "k1" },
       ]);
       assert.equal(blobs.collect({ namespace: "missing", discard: () => true }), 0);

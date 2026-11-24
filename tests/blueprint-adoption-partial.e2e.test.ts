@@ -50,7 +50,7 @@ test("ONB-21/SPC-02: review, repair, or skip one malformed suggestion while adop
     await b.waitFor("document.querySelector('[data-scene-main] dl') && !document.querySelector('[data-scene-main] input[type=checkbox]')");
   };
   const result = "location.search.includes('adoption=') && document.querySelector('[data-scene-aside] button')";
-  const wheel = async () => (await b.web.post<SettingsValues>("/api/plugins/io.molis.work.shelf/preferences/read", { keys: ["shelf.drop_wheel"] })).values[0]!;
+  const wheel = async () => (await b.web.post<SettingsValues>("/api/platform/shelf/preferences/read", { keys: ["shelf.drop_wheel"] })).values[0]!;
   const original = await wheel();
   await open();
   assert.match(await b.evaluate<string>("document.querySelector('[data-scene-main]').innerText"), /格式|wrong format/i);

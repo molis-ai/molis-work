@@ -174,8 +174,12 @@ test("SKP-10: Coding's round lists the automatic Skills for Coding and offers th
   assert.doesNotMatch(english, /可自动使用的技能|技能 · 读取 · 读取技能正文/u, "English catalog instructions carry no Chinese label leak");
   assert.match(english, /\[system\.skills \/ skills\.body\.read@1\]/u, "English catalog references the stable action tag");
   const englishTools = roundTools(englishRequest!);
-  assert.ok(englishTools.some(tool => tool.description.includes("[system.skills / skills.body.read@1]") && tool.description.includes(" · read · ")),
-    "English action tool description uses English effect label and carries the stable action reference tag");
+  const actionToolsOf = (list: Array<{ name: string; description: string }>) =>
+    list.filter(tool => tool.name.startsWith("molis-action-")).map(tool => [tool.name, tool.description]);
+  assert.ok(englishTools.some(tool => tool.description.includes("[system.skills / skills.body.read@1]")),
+    "action tool description carries the stable action reference tag");
+  assert.deepEqual(actionToolsOf(englishTools), actionToolsOf(firstTools),
+    "Decision 67 #5: Coding action tool names and descriptions stay identical across zh and en rounds so toolsFingerprint and KV-Cache hold");
   assert.ok(CODING_INSTRUCTIONS.some(prompt => prompt.prompt_id === CODING_AUTO_SKILL_CATALOG.prompt_id), "coding.auto-skill-catalog is formally registered");
   for (const id of ["coding-compaction", "coding-ending-review"]) {
     assert.ok(codingPrompts.find(prompt => prompt.prompt_id === id)?.body_by_locale?.en, `${id} ships an English translation`);

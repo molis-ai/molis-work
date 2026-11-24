@@ -283,6 +283,8 @@ test("M3: per-round skill handle translation, 37/37 visibility, cold-to-hot orde
   const fullRef = skills[36]!.ref;
   assert.deepEqual(resolveSkillHandleInput(readBodiesRef, { refs: ["s1", fullRef] }, handles), { refs: [skills[0]!.ref, fullRef] });
   assert.deepEqual(resolveSkillHandleInput(readResourceRef, { ref: "s37", path: "references/a.md" }, handles), { ref: fullRef, path: "references/a.md" });
+  assert.deepEqual(resolveSkillHandleInput({ ...readBodiesRef, version: readBodiesRef.version + 1 }, { refs: ["s1"] }, handles), { refs: ["s1"] }, "version mismatch is not translated");
+  assert.deepEqual(resolveSkillHandleInput({ ...readResourceRef, version: readResourceRef.version + 1 }, { ref: "s37", path: "a.md" }, handles), { ref: "s37", path: "a.md" }, "resource version mismatch is not translated");
   assert.throws(() => resolveSkillHandleInput(readBodiesRef, { refs: ["s999"] }, handles), (e: unknown) => e instanceof ActionError && e.code === "actions.input_invalid");
   assert.throws(() => resolveSkillHandleInput(readResourceRef, { ref: "manual-only", path: "a.md" }, handles), (e: unknown) => e instanceof ActionError && e.code === "actions.input_invalid");
   const seen: { checked?: unknown; invoked?: unknown; offered?: unknown } = {};
@@ -343,5 +345,71 @@ test("M3: end-to-end Assistant round reads an auto Skill via compact handle and 
     assert.deepEqual(round.skills, [{ ref: off.ref, name: off.name, picked: "auto" }], "round.skills records the canonical 8-field SkillRef");
   } finally {
     service.continuations.close(); await adapter.close(); await h.close();
+  }
+});
+
+test("M3 S-skill-delegation: assistant-dispatch isolates per-round skill handles to the exact parent session, never child subagent sessions", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "assistant-handle-child-iso-"));
+  const autoSkill = entry(0);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const invokedInputs: Array<{ session: string; input: unknown }> = [];
+  const readBodiesRef = { capability_id: skillCatalogActions.readBodies.capability_id, version: skillCatalogActions.readBodies.version, provider_id: SKILLS_PROVIDER_ID };
+  const offered: ActionView[] = [{
+    capability_id: skillCatalogActions.readBodies.capability_id, version: skillCatalogActions.readBodies.version, operation: "query",
+    provider: { provider_id: SKILLS_PROVIDER_ID, title: "技能", kind: "system" }, availability: { available: true },
+    action: { title: "读取技能正文", description: "按精确引用读技能正文", kind: "query", scope: "project", audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object" } },
+  }];
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async () => reply("好的。")));
+  const queue = new AgentReviewQueue(), agentHost = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-handle-child-iso", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    resolveCredential: () => "fixture-only" });
+  agentHost.register(adapter);
+  let capturedAuthority: import("@molis-ai/molis-work-service-agent-host").AgentStartAuthority | undefined;
+  let capturedSessionId: string | undefined;
+  const realStart = agentHost.start.bind(agentHost);
+  agentHost.start = (async (runtimeId, request, authority) => {
+    capturedAuthority = authority;
+    capturedSessionId = request.session.session_id;
+    return realStart(runtimeId, request, authority);
+  }) as typeof agentHost.start;
+  const service = new AssistantService(store, {
+    pages: async () => [],
+    host: async () => agentHost,
+    authority: async () => ({
+      manifest: { roles: [{ role_id: "assistant", version: 1, name: "个人工作助理", workspace: "business", execution: "operate", prompts: [], host_tools: [] }], prompts: [] },
+      authorizedDirectories: [],
+      actions: async (_runtime, _validate, session) => ({
+        discover: async () => offered,
+        invoke: async (_ref, input) => { invokedInputs.push({ session: session?.session_id ?? "none", input }); return { results: [] }; },
+      }),
+    }),
+    methods: {
+      roles: () => [],
+      bindSigned: async () => new Map(),
+      readSigned: () => { throw new Error("not read"); },
+      recordSignedUse: () => {},
+      recordSkillUse: () => {},
+      skills: async () => [autoSkill],
+      readSkills: async () => [],
+    },
+  }, "web-user");
+  try {
+    const sent = await service.send({ text: "测试子会话句柄隔离", request_id: "child-isolation-1" }, {});
+    await until(async () => (await service.read(sent.work.work_id)).work.state === "completed", "isolation round");
+    assert.ok(capturedAuthority?.actions && capturedSessionId, "dispatch passed wrapped actions authority to host.start");
+    const parentClient = await capturedAuthority.actions("prologue", undefined, { session_id: capturedSessionId, runtime_id: "prologue" });
+    const childClient = await capturedAuthority.actions("prologue", undefined, { session_id: `${capturedSessionId}-child`, runtime_id: "prologue" });
+    const unscopedClient = await capturedAuthority.actions("prologue");
+    await parentClient.invoke(readBodiesRef, { refs: ["s1"] });
+    await childClient.invoke(readBodiesRef, { refs: ["s1"] });
+    await unscopedClient.invoke(readBodiesRef, { refs: ["s1"] });
+    assert.deepEqual(invokedInputs, [
+      { session: capturedSessionId, input: { refs: [autoSkill.ref] } },
+      { session: `${capturedSessionId}-child`, input: { refs: ["s1"] } },
+      { session: "none", input: { refs: ["s1"] } },
+    ], "only the exact parent session translates s1 to the frozen SkillRef; child and unscoped sessions never inherit parent handles");
+  } finally {
+    service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true });
   }
 });

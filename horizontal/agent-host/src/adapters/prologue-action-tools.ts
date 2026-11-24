@@ -74,9 +74,7 @@ export function prologueActionTools(
   symbols = false,
   reviews?: PrologueActionReviews,
   pinnedRevisions?: ReadonlyMap<string, string>,
-  locale?: string,
 ) {
-  const english = locale === "en";
   const tools = [...(actions?.tools ?? [])].sort((a, b) => compareCodeUnits(JSON.stringify([a.capability_id, a.version, a.provider.provider_id]),
     JSON.stringify([b.capability_id, b.version, b.provider.provider_id])));
   // A pack owns its tool names in the SDK's shared catalog, which keeps the first declaration under an id for the whole
@@ -85,7 +83,7 @@ export function prologueActionTools(
   // or rebinding the same choice reuses it.
   const suggests = Boolean(suggest && tools.length);
   // The id covers everything the pack declares: a round that also carries the coding pack's symbol tool is another pack.
-  const scope = createHash("sha256").update(JSON.stringify({ timeoutMs, suggests, symbols, ...(english ? { english: true } : {}), tools: tools.map(view => ({
+  const scope = createHash("sha256").update(JSON.stringify({ timeoutMs, suggests, symbols, tools: tools.map(view => ({
     capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, provider_title: view.provider.title,
     operation: view.operation, action: view.action,
   })) })).digest("hex").slice(0, 24);
@@ -117,11 +115,9 @@ export function prologueActionTools(
       } finally { reviews?.release(call.callId); unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
     };
     // Provider and effect lead the description: the name is a hash, and deferred tools are found by searching this text.
+    // Kept strictly locale-invariant so switching UI/reply language never mutates toolsFingerprint or invalidates KV-Cache (Decision 67 #5).
     const effect = actionEffect(view.action, view.capability_id);
-    const effectLabel = english
-      ? (effect === "read" ? "read" : effect === "irreversible" ? "irreversible" : "change")
-      : (effect === "read" ? "读取" : effect === "irreversible" ? "不可撤回" : "修改");
-    const label = `${view.provider.title} · ${effectLabel} · ${view.action.title} [${view.provider.provider_id} / ${view.capability_id}@${view.version}]`;
+    const label = `${view.provider.title} · ${effect === "read" ? "读取" : effect === "irreversible" ? "不可撤回" : "修改"} · ${view.action.title} [${view.provider.provider_id} / ${view.capability_id}@${view.version}]`;
     return { executor: name, registration: { name, version: String(view.version), description: label + "\n" + view.action.description,
       // A copy: the directory's declarations are frozen, and the runtime owns what it is handed.
       parameters: wrapped ? { type: "object", properties: { input: structuredClone(view.action.input_schema) }, required: ["input"], additionalProperties: false } : structuredClone(view.action.input_schema),

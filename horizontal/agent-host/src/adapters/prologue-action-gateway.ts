@@ -317,10 +317,14 @@ export function resolveSkillHandleInput(
     }
     return structuredClone(found);
   };
-  if (reference.capability_id === skillCatalogActions.readBodies.capability_id && Array.isArray(record.refs)) {
+  if (reference.capability_id === skillCatalogActions.readBodies.capability_id
+    && reference.version === skillCatalogActions.readBodies.version
+    && Array.isArray(record.refs)) {
     return { ...record, refs: record.refs.map(resolveOne) };
   }
-  if (reference.capability_id === skillCatalogActions.readResource.capability_id && typeof record.ref === "string") {
+  if (reference.capability_id === skillCatalogActions.readResource.capability_id
+    && reference.version === skillCatalogActions.readResource.version
+    && typeof record.ref === "string") {
     return { ...record, ref: resolveOne(record.ref) };
   }
   return input;

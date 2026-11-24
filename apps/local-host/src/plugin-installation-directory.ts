@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstallationClient, PluginInstanceRecord, PluginManifest, PluginRuntimeRepository, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
-import { isRetiredStudioInstallation, pluginInstallRecords } from "./plugin-install-records.js";
+import { pluginInstallRecords } from "./plugin-install-records.js";
 import { pluginInstalledProjects } from "./plugin-installed-projects.js";
 import { PLUGINS_READ_PERMISSION } from "./plugin-service-permissions.js";
 
@@ -36,7 +36,7 @@ function declaredManifest(db: PluginRuntimeDatabase, record: PluginInstanceRecor
 
 /** Every installation of a project that has not been uninstalled, each with the Manifest it was installed with (undefined when that cannot be read). */
 export function installedPluginEntries(db: PluginRuntimeDatabase): Array<{ record: PluginInstanceRecord; manifest: PluginManifest | undefined }> {
-  return pluginInstallRecords(db).list().filter(record => record.state !== "uninstalled" && !isRetiredStudioInstallation(record)).map(record => ({ record, manifest: declaredManifest(db, record) }));
+  return pluginInstallRecords(db).list().filter(record => record.state !== "uninstalled").map(record => ({ record, manifest: declaredManifest(db, record) }));
 }
 
 /** A project's installation and its Manifest, for a check that needs what it declares; `null` when it is not installed there. */

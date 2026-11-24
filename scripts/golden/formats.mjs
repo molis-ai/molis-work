@@ -33,8 +33,7 @@ export const PERSISTENT_FORMAT_LOCATIONS = Object.freeze({
   "database.memory_ledger_baseline": { store: "memory/memory.db" },
   // The JSON in the one row of jelly_workspace, not jelly/preferences.json (format.model.preference).
   "format.jelly.workspace": { store: "jelly/jelly.db", rows: "SELECT json_extract(body, '$.schema_version') AS version FROM jelly_workspace" },
-  // `feed/` is where goldens made before BL-b44-feed-home-dir-and-styles hold it; the upgrade renames that directory to `security/`.
-  "format.secret-store.map": { file: ["security/secrets.json", "feed/secrets.json"], field: "version" },
+  "format.secret-store.map": { file: "security/secrets.json", field: "version" },
   "format.mcp.tool-preference": { file: "config/mcp-tools.json", field: "version" },
   "format.shelf.catalog": { file: "shelf/catalog.json", field: "version" },
   "format.home.onboarding": { file: "config/onboarding.json", field: "schema_version" },

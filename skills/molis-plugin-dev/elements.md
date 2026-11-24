@@ -64,7 +64,7 @@ Manifest 里有两类声明会改变插件在别处的效果，安装预览把�
 
 ## 个人 vs 项目
 
-插件 `registration`（各包 `src/registration.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。今天（`BUILTIN_PLUGIN_CATALOG`，由各包的 `registration` 生成）：Cognia、Images、Jelly、灵光、Todo、Pages、Forms、Dataset、PPT、Workflows、Issues。
+插件 `registration`（各包 `src/registration.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。例如 Images、Jelly。完整成员见[生成的插件登记](../../apps/local-host/src/plugin-registry.generated.ts)，个人属性由条目对应的包声明。
 
 其余按项目启用。必选输入口会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。Feed 启用会带上 Inbox（Feed `registration` 上的 `companions`）。
 
@@ -80,7 +80,8 @@ Manifest 里有两类声明会改变插件在别处的效果，安装预览把�
 - `kind`：`primary-page` | `embedded` | `overlay` | `settings-page`。
 
 构建期 Native：第 44B 批起已没有。  
-经 Plugin Runtime 启动的插件（`app`，以及 Todo 这样的 `native`）：`start()` 返回的 `views` 必须覆盖 Manifest 每一条，否则启动失败。
+经 Plugin Runtime 启动的插件（`app`，以及 Images 这样的 `native`）：`start()` 返回的 `views` 必须覆盖 Manifest 每一条，否则启动失败。
+
 所有 framed 插件页面由宿主统一下发 `<80 KB` 基础样式表 `molis-work-plugin-base.css`（含 `@container plugin-stage` 容器查询、四档版心/主从左栏令牌、`mw-*` 纸面控件与 `.mw-section-well` / `.mw-inset-group` / `.mw-inset-row` / `.mw-tabs__list--underline` / `.mw-glyph-status` / `.mw-signal` 原语）与共享微交互脚本（`molisBusy`、`molisToast`、`molisAutosave`、`molisEnhanceDateInputs`、`molisCopy`、`molisReflow`、`molisStreamText`、`molisFollow`）；完整视觉、动效与布局规范见 [UI 与视觉设计 Skill](../molis-design-ui/SKILL.md)。
 
 ## HTTP
@@ -125,6 +126,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 - 在 Manifest `artifacts.links` 里声明了链接种类（自己的对象把某一版记为输入或产出，边写进上下文关联）的，再加一个 `defineArtifactLinkSubjectsAction(id, version, 对象显示名, 读权限)` 查询：输入 `{ids}`，返回这些 id 里现在还在、调用者读得到的对象（`id`、`title`、`open`），读不到的不返回（一个读不到的 id 不能让整批失败）；一次最多 200 个 id，`open` 只能指向你自己的 surface。受众由这个函数定成与 `artifacts.links` 相同，因为它以那个调用者的身份被问。「被谁引用」把你的对象列在你的插件名下，名字和打开位置就从这里来；没有这个动作，你的对象只显示 id（例：`goals.artifacts.link_subjects`）。
 - `process_items.produces/consumes`：过程项，插件之间交换的数据（快照、变更集、回执），记在生产插件名下，不进成果库、侧栏文件和搜索。一种类型要么是成果、要么是过程项。端口发布一律记成过程项；直接记用 `services.processItems.record`。几个插件可以声明同一种过程项类型（例：研究和写作插件都交「研究摘录」）；每一份记的生产插件由平台按运行身份写。接收方用 `services.artifacts.listConsumable()` 不带条件取全部有权读取的，带 `{ producer_plugin_id }` 只要某一家、带 `{ artifact_type_id }` 只要某一类；条件只缩小，不放宽声明与授权。成果类型仍只有一个属主（S-82）。
 - **新类型先写合同**（如 `packages/contracts/src/modules/workspace-artifacts.ts` 或该插件的 `modules/<id>.ts`），再声明 `produces`。只写端口、合同里没有这个类型，连不上。
+- `copy_out: true`（写在 `artifacts.produces` 或 `process_items.produces` 的某个类型上）：本人可以把这类成果或过程项的正文带出项目，放进自己的 Shelf。宿主只把标了的类型给 Shelf，且只给标记的这一家产出的那几份；正文经你的文档或预览角色读（`defineArtifactDocumentAction` 或 `produces` 上的 `preview`）。不标就不能带出。只能写 `true`，`consumes` 上不能写。
 - `ports.inputs/outputs`：按 Artifact 类型连接，不指定生产者插件。声明输出口必须同时 `artifact:write` 且类型在 `process_items.produces`（或固定后再选择的成果在 `artifacts.produces`）。输入同理 `artifact:read` + `consumes`。
 - 输入口默认必选。项目启用时会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。不会永远有生产者就不要声明必选入口。
 - 缺绑定仍然可以 `start`。状态是 `missing`，Host 不会调用 `onUpstreamReady`。整份构建里没有产出者时，解析只记 `port_type_unsatisfiable`，插件不因此进 `blocked`。挡住启动的是必需 Capability、依赖成环，或依赖的插件被挡住。

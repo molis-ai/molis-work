@@ -80,7 +80,7 @@
 
 2026-11-14 第 12 批合后审计：`UiPageWorkspaces.readInstructions()` 的返回从 `Promise<void>` 改为 `Promise<UiPageInstructionSettings>`（`off`/`trusted`/`why_not`，与 `ProjectDirectories.instructions` 同形），工作台框桥把回执交给页面，Coding 直接更新规则菜单而不再整页重读；`contracts/platform/ui` 的 API 快照随改。阶段一原地改，不保留旧返回值读取；调用方只有本仓库的工作台框桥与 Coding。
 
-2026-11-05索引Home增量（2026-11-19 发布前 v1 复位后 Memory ledger 现行基线为 1，`tooling/versions.json` 的 `database.memory_ledger_baseline`；下文的 2 是当时的编号）：Memory ledger当时索引采用格式为2，DDL/业务行不变，仅授权隔离的真正空容器建2；Home恢复journal现行schema为1（#1837 统一起点；用户 2026-11-12 定保持 1），形状和原phase不变，但旧App不得按旧路径权限回滚新索引材料。普通打开拒绝旧/未来版本、不兜底；旧Home的记忆账本只经下方「当前保留机制」登记的 1 → 2 升级段进入第 2 版。生产/冷维护显式 `indexed-v1`，snapshot新增SDK共享DB及精确侧车拒入/目标reset；MemoryRestoreSdkPort签名不变，purge材料语义为SDK已确认的现存权威文件，不能假设一条独占一文件或删除共享DB。公开API没有因此新增类型；原API快照由统筹核对。新容器不得交旧App或改版本回退，回退使用原隔离树和原Home。
+2026-11-05 索引 Home 增量（历史编号）：下文的 2 是当时的索引格式号。记忆账本于 2026-11-19 发布前复位至 v1，2026-11-24 按[当前保留机制](#当前保留机制)从 v1 升至 v2。现行存储版本由 `tooling/versions.json` 的 `database.memory_ledger_baseline` 登记。Memory ledger当时索引采用格式为2，DDL/业务行不变，仅授权隔离的真正空容器建2；Home恢复journal现行schema为1（#1837 统一起点；用户 2026-11-12 定保持 1），形状和原phase不变，但旧App不得按旧路径权限回滚新索引材料。普通打开拒绝旧/未来版本、不兜底；旧Home的记忆账本只经下方「当前保留机制」登记的 1 → 2 升级段进入第 2 版。生产/冷维护显式 `indexed-v1`，snapshot新增SDK共享DB及精确侧车拒入/目标reset；MemoryRestoreSdkPort签名不变，purge材料语义为SDK已确认的现存权威文件，不能假设一条独占一文件或删除共享DB。公开API没有因此新增类型；原API快照由统筹核对。新容器不得交旧App或改版本回退，回退使用原隔离树和原Home。
 
 状态：现行（2026-10-08 入库；同日用户定了读取兼容的起点；2026-10-29 用户定 1.0.0 之前都是开发版本）。分两个阶段：现在在**阶段一，不留兼容期**；**阶段二，读取兼容**从第一个装到开发机之外的版本开始，这个版本不早于 1.0.0。
 
@@ -568,3 +568,6 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **来源拉取**：`plugin-source-pull` 的请求改为 `public_feed{definition_id, address?, cursor?}`，权限 `sources:pull_feed` 改名 `sources:pull_public_feed`（只有 Feed 用，同批已改）。
   - **连接卡**：连接用途 `feed_source` 改 `source_pull`，卡片字段 `feed_available` 改 `source_available`；`connector-host` 的 `assertTarget` 服务参数放宽为 `string`，运行时仍核对连接属于该服务。
   - **删掉的**：宿主导出 `larkMcpLaunch`（改为通用的 `stdioMcpLaunch(declaration, input)`），`@molis-ai/molis-work-integration-rss/driver` 入口（改 `./drivers`），三条没有页面调用的 `/api/settings/connectors/feishu/cli/*` 路由。
+- **第 44B 批复核修复：成果与过程项可带出项目（`copy_out`）**（2026-11-24，44b.md「独立复核」P-07，用户定）。
+  - **新增** Manifest 字段：`artifacts.produces[]` 与 `process_items.produces[]` 上可写 `copy_out: true`，表示本人可以把这类成果或过程项的正文带出项目放进 Shelf。只能写 `true`，写在 `consumes` 上被拒绝。
+  - 宿主每次调用把标了的类型给 Shelf，Shelf 只看到标记方自己产出的那几份（过程项类型可以有几家产出方，BL-375）；Shelf 的 Manifest 不再消费 `coding.report.v1`、`coding.changeset.v1`。Coding 给报告与变更集标了 `copy_out`。对调用方：别的插件要让本人把自己的成果放进 Shelf，在 `produces` 上加这一项，并提供文档或预览角色。

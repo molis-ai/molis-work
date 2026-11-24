@@ -217,14 +217,17 @@ export interface PluginManifest {
   artifacts: {
     produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; title_text?: { key: string }; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number };
       /** Payload keys whose text a person reads, beyond the platform's own (title, text, body…): system search indexes them for this type (M12). */
-      searchable_fields?: readonly string[] }>;
+      searchable_fields?: readonly string[];
+      /** A person may copy this type's text out of the project (Shelf takes it), read through this Plugin's document or preview role. */
+      copy_out?: true }>;
     consumes: Array<{ artifact_type_id: string; schema_version: number }>;
     /** The kinds of link this Plugin writes between its own objects and exact 成果 versions; one Plugin owns a kind. */
     links?: ArtifactLinkDeclaration[];
   };
   /** Exchange data this Plugin records for others and reads from them; kept out of the 成果库. A type is either a 成果 type or a process item type. */
   process_items?: {
-    produces: Array<{ artifact_type_id: string; schema_version: number }>;
+    /** `copy_out`: as on a 成果 type, a person may copy this item's text out of the project (Shelf takes it). */
+    produces: Array<{ artifact_type_id: string; schema_version: number; copy_out?: true }>;
     consumes: Array<{ artifact_type_id: string; schema_version: number }>;
   };
   ui: {

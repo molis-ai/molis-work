@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { isArtifactCompareAction, isArtifactContinueAction, isArtifactPinAction, isArtifactPreviewAction, intakeMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes } from "@molis-ai/molis-work-app-local-host";
+import { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, copyOutTypes, declaredArtifactTypes, type ArtifactProducerSource } from "@molis-ai/molis-work-app-local-host";
 
 /** Who declares 成果 types: the built-in Manifests, and the Host's own producers (Characters since CHR-1). */
 const PRODUCERS = [...BUILTIN_PLUGIN_CATALOG.map(entry => ({ plugin_id: entry.manifest.plugin_id, produces: entry.manifest.artifacts.produces, actions: entry.manifest.actions ?? [] })),
@@ -80,4 +80,24 @@ test("every visible 成果 type can be continued from, by a plugin that declares
   for (const type of artifactTypeDeclarations().keys()) if (!continued.has(type) && !NO_CONTINUE[type]) problems.push(`${type}: nothing continues from it`);
   for (const type of Object.keys(NO_CONTINUE)) if (continued.has(type) || !artifactTypeDeclarations().has(type)) problems.push(`${type}: stale exception`);
   assert.deepEqual(problems, []);
+});
+
+test("P-07 Shelf gets only the types their producers mark copy_out, and only the marker's own versions of them", () => {
+  const source = (plugin_id: string, report: boolean, item: boolean): ArtifactProducerSource => ({ plugin_id, name: plugin_id, surface: plugin_id, actions: [],
+    artifacts: { produces: [{ artifact_type_id: `${plugin_id}.report.v1`, schema_version: 1, ...(report ? { copy_out: true as const } : {}) }], consumes: [] },
+    process_items: { produces: [{ artifact_type_id: "shared.item.v1", schema_version: 1, ...(item ? { copy_out: true as const } : {}) }], consumes: [] } });
+  const marked = source("io.example.marked", true, true), unmarked = source("io.example.unmarked", false, false);
+  const copy = copyOutTypes([marked, unmarked]);
+  assert.deepEqual(copy.artifacts, [{ artifact_type_id: "io.example.marked.report.v1", schema_version: 1 }], "an unmarked type is not given");
+  assert.deepEqual(copy.process_items, [{ artifact_type_id: "shared.item.v1", schema_version: 1 }]);
+  assert.equal(copy.allows({ artifact_type_id: "shared.item.v1", producer_plugin_id: "io.example.marked" }), true);
+  // A process item type may have several producers (BL-375): one producer's mark does not take another's items out of the project.
+  assert.equal(copy.allows({ artifact_type_id: "shared.item.v1", producer_plugin_id: "io.example.unmarked" }), false);
+  // A producer no longer in effect is not among the sources (`artifactProducerSources`), so nothing of its is given.
+  const gone = copyOutTypes([unmarked]);
+  assert.deepEqual([gone.artifacts, gone.process_items], [[], []]);
+  assert.equal(gone.allows({ artifact_type_id: "shared.item.v1", producer_plugin_id: "io.example.marked" }), false);
+  // As built: Coding marks its report and its change set, and nothing else of any producer is marked.
+  const shipped = copyOutTypes();
+  assert.deepEqual([...shipped.artifacts, ...shipped.process_items].map(type => type.artifact_type_id).sort(), ["coding.changeset.v1", "coding.report.v1"]);
 });

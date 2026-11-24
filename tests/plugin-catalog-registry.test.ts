@@ -64,7 +64,8 @@ test("BRC-03 · navigation keeps shell owners, titles and enabled views", () => 
   assert.ok(rail.every(entry => !("pinned_default" in entry)));
   assert.equal(rail.at(-1)!.glyph, "file");
   assert.deepEqual(islandEntries(enabled, directory).map(({ id, label, group }) => [id, label, group]), [["island", "岛屿入口", null]]);
-  assert.deepEqual(settingsEntries(enabled, directory).map(view => view.title), ["项目设置", "旧安装设置"]);
+  // Shelf's settings come last: it is a platform part framed in every project (44B PR2b), not a plugin a project enables.
+  assert.deepEqual(settingsEntries(enabled, directory).map(view => view.title), ["项目设置", "旧安装设置", "Shelf"]);
   assert.deepEqual(creatableKinds(enabled, directory).map(({ id, title }) => [id, title]), [["selected", "新文稿"], ["island", "新笔记"]]);
   assert.deepEqual(homeStarts(enabled, directory).map(({ id, title }) => [id, title]), [["selected", "从文稿开始"], ["island", "从笔记开始"]]);
   const titles = pluginTabTitles(directory);

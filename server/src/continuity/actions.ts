@@ -10,7 +10,7 @@ import type { ActionFactory, BoundActions } from "./types.js";
 
 /** Platform actions Continuity always uses directly (independent of any project plugin). */
 export const CONTINUITY_BASE_ACTIONS = [
-  { capability_id: "artifacts.read", version: /* @version action.artifacts.read */ 1, provider_id: "io.molis.work.artifacts" },
+  { capability_id: "artifacts.read", version: /* @version action.artifacts.read */ 1, provider_id: "system.artifacts" },
 ] as const satisfies readonly ActionReference[];
 
 export type ContinuityRole = WorkProgressContinuityRole | "artifacts.read";

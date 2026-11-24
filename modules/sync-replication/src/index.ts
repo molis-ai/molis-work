@@ -387,16 +387,16 @@ function partitionSyncLayers(registrations:readonly SyncRegistration[]):SyncRegi
   if(registrations.length<=1)return registrations.length?[[...registrations]]:[];
   const byNs=new Map(registrations.map(r=>[syncNamespace(r.selection),r]));
   const catalog=registrations.filter(r=>isProjectCatalogSelection(r.selection)).map(r=>syncNamespace(r.selection));
-  const artifacts=registrations.filter(r=>r.selection.plugin_id==='io.molis.work.artifacts').map(r=>syncNamespace(r.selection));
-  const refOwners=registrations.filter(r=>!isProjectCatalogSelection(r.selection)&&r.selection.plugin_id!=='io.molis.work.artifacts'&&typeof r.hasReference==='function').map(r=>syncNamespace(r.selection));
+  const artifacts=registrations.filter(r=>r.selection.plugin_id==='system.artifacts').map(r=>syncNamespace(r.selection));
+  const refOwners=registrations.filter(r=>!isProjectCatalogSelection(r.selection)&&r.selection.plugin_id!=='system.artifacts'&&typeof r.hasReference==='function').map(r=>syncNamespace(r.selection));
   const deps=new Map<string,Set<string>>();
   for(const r of registrations){
     const ns=syncNamespace(r.selection);
     const set=new Set<string>();
     for(const dep of r.dependencies??[]){const d=syncNamespace(dep);if(d!==ns&&byNs.has(d))set.add(d);}
     if(!isProjectCatalogSelection(r.selection))for(const c of catalog)if(c!==ns)set.add(c);
-    if(!isProjectCatalogSelection(r.selection)&&r.selection.plugin_id!=='io.molis.work.artifacts')for(const a of artifacts)if(a!==ns)set.add(a);
-    if(!isProjectCatalogSelection(r.selection)&&r.selection.plugin_id!=='io.molis.work.artifacts'&&typeof r.hasReference!=='function')for(const o of refOwners)if(o!==ns)set.add(o);
+    if(!isProjectCatalogSelection(r.selection)&&r.selection.plugin_id!=='system.artifacts')for(const a of artifacts)if(a!==ns)set.add(a);
+    if(!isProjectCatalogSelection(r.selection)&&r.selection.plugin_id!=='system.artifacts'&&typeof r.hasReference!=='function')for(const o of refOwners)if(o!==ns)set.add(o);
     deps.set(ns,set);
   }
   const layers:SyncRegistration[][]=[];

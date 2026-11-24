@@ -56,7 +56,7 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))(body);
   }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-delegation-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   // What each round asked the Host for: a delegated work never gets the person's side panel browser.
@@ -128,7 +128,7 @@ test("a sub-task reports to the work that handed it over: its report is not held
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))(body);
   }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-delegation-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
@@ -156,7 +156,7 @@ test("a sub-task whose session opened under the Assistant's own role carries its
     return reply(undefined, "这一部分做完了。");
   }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegated-role-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-delegated-role-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
@@ -209,7 +209,7 @@ test("stopping a work also stops the sub-tasks it handed out that are still runn
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))(body);
   }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-stop-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-delegation-stop-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
@@ -254,7 +254,7 @@ test("the person takes a sub-task back: it stops, the board says so, no more fol
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))(body);
   }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-takeback-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-delegation-takeback-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
@@ -310,7 +310,7 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
   const queue = new AgentReviewQueue();
   const openHost = async () => {
     const host = new AgentHost({ reviews: queue });
-    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-fixture-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue, questionTypes: hostQuestionTypes(),
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-delegation-fixture-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue, questionTypes: hostQuestionTypes(),
       modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
     host.register(adapter); return { host, adapter };
   };
@@ -525,7 +525,7 @@ for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const
     else if (stage === "before-start") f.flags.beforeStart = async () => { entered.resolve(); await release.promise; };
     else {
       const inspector = createNodeHost({ storageRoot: join(f.home, "sdk") });
-      const indexKind = "molis-agent-index-" + createHash("sha256").update("io.molis.work.assistant-delegation-fixture-test").digest("hex").slice(0, 24);
+      const indexKind = "molis-agent-index-" + createHash("sha256").update("system.assistant-delegation-fixture-test").digest("hex").slice(0, 24);
       let armed = false, held = false;
       f.flags.assertBeforeStart = () => {
         // The SDK's commit frame can sit deeper than V8's default ten frames (the SDK's own run journal sits between), so read the whole stack.

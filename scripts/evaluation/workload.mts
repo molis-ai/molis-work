@@ -96,7 +96,7 @@ async function runModelSummaryRound(
   const adapter = system.agentHost.adapter("prologue");
   const owner = {
     project_id: projectId,
-    plugin_id: "io.molis.work.assistant",
+    plugin_id: "system.assistant",
     install_id: "assistant-eval",
     actor_id: LOCAL_PERSON_ACTOR_ID,
   };

@@ -105,7 +105,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     const id = options.id ?? ((prefix: string) => `${prefix}-${randomUUID()}`);
     const repository = new ProjectsRepository(options.db, options.projects_directory, options.outputs_directory, options.spaceId);
     this.records = new ProjectService(repository, options.projects_directory, now, id, options.plugins);
-    const membership = new ProjectPluginMembershipService(repository, this.records, options.plugins);
+    const membership = new ProjectPluginMembershipService(repository, this.records);
     this.recycle = new ProjectRecycle(options.db, now, options.projects_directory);
     this.workspaces = new ProjectWorkspaceService(repository, now, id, options.root_home_directory ?? dirnameOf(options.outputs_directory));
     this.deletionSteps = new ProjectDeletionSteps(options.db, now);

@@ -8,7 +8,7 @@ import type { ShelfSnapshot } from "@molis-ai/molis-work-module-shelf/contract";
 import { createExtractablePdf } from "@molis-ai/molis-work-module-shelf";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-const API = "/api/plugins/io.molis.work.shelf";
+const API = "/api/platform/shelf";
 interface Receipt { item?: { item_id: string }; original_registered?: boolean; code?: string; snapshot?: ShelfSnapshot }
 
 /** The native transport adds no Fetch Metadata: it offers the selected file only in the protected header. */

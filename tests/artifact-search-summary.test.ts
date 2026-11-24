@@ -8,6 +8,7 @@ import type { ArtifactVersionRecord, ArtifactsApplicationApi, ArtifactsQueryApi 
 import { ArtifactsModule, createArtifactsSchema, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
+import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 // The summary a version offers the system search is what the person reads under the hit: its title and body text,
@@ -15,6 +16,7 @@ import { pinnedArtifact } from "./fixtures/artifacts.js";
 const projectId = "artifact-search-summary";
 const person: ActionCallContext = { actor_id: "web-user", project_id: projectId, audience: "user", permissions: ["artifacts:read", "search:read"] };
 
+const declarations = artifactTypeDeclarations();
 function fixture() {
   const db = openTestSqlite(":memory:");
   db.pragma("foreign_keys = ON");
@@ -34,7 +36,9 @@ function fixture() {
   actions.registerProvider({
     provider: { provider_id: ARTIFACTS_PROVIDER_ID, plugin_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "plugin", project_id: projectId },
     definitions: ARTIFACT_ACTIONS,
+    // The reading text each producer keeps under its own keys is its Manifest's `searchable_fields` (M12), as the Host passes it.
     handlers: createArtifactActionHandlers({ projectId, artifacts: port, ledger: ledger.query, importSources: () => ({}),
+      searchableFields: typeId => declarations.get(typeId)?.searchable_fields,
       importDocument: async () => { throw new Error("read-only fixture"); }, openProjectReference: async () => { throw new Error("must not fetch a file"); } }),
   });
   const publish = (artifactId: string, title: string, artifactTypeId: string, payload: unknown) => artifacts.commands.registerVersion({

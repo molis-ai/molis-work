@@ -8,7 +8,6 @@ import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { ManagedProjectFiles } from "./managed-project-files.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
-import { alwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
 import { PersonalProjectProvisioner } from './personal-project-provisioner.js';
 import {preflightProjectCatalog,projectPluginRequirements} from './project-catalog-replication.js';
@@ -162,23 +161,13 @@ async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
   return { homeDirectory, databasePath, existed, storage };
 }
 
-type ProjectPluginDirectory = () => readonly ProjectPluginId[];
 /**
  * The registry a Home's projects validate against. Which Plugins a project may enable comes from what this build ships, not from a list
- * compiled into Projects; which are 常开 is worked out from the install records and the Home's consent ledger each time it is asked. The
- * Home's own registration adds its personal plugins outside the build, so a project can hide those too (#679).
+ * compiled into Projects. The Home's own registration adds its personal plugins outside the build, so a project can hide those too (#679).
  */
-function homeProjectPlugins(homeDirectory: string) {
-  let current: ProjectPluginDirectory | undefined;
-  const registry: ProjectPluginRegistry = { ...BUILTIN_PLUGIN_REGISTRY, alwaysOn: () => [...(current?.() ?? alwaysOnProjectPlugins(homeDirectory))],
+function homeProjectPlugins(homeDirectory: string): ProjectPluginRegistry {
+  return { ...BUILTIN_PLUGIN_REGISTRY,
     isPersonal: pluginId => BUILTIN_PLUGIN_REGISTRY.isPersonal?.(pluginId) === true || homePluginsOutsideBuild(homeDirectory).includes(pluginId) };
-  // A page may borrow its own directory snapshot only during this synchronous read. Other callers see the live registry.
-  const withDirectory = <T>(directory: ProjectPluginDirectory | undefined, read: () => T): T => {
-    const previous = current;
-    current = directory;
-    try { return read(); } finally { current = previous; }
-  };
-  return { registry, withDirectory };
 }
 
 /** Local catalog resource lifetime and explicit composition of Project, Session and platform owners. */
@@ -192,7 +181,6 @@ export class MolisWorkProjectCatalog {
   readonly setProjectPlugin: ProjectsModule["commands"]["setProjectPlugin"];
   private readonly demoProjects: DemoProjectLifecycle;
   private readonly projects: ProjectsModule;
-  private readonly withProjectPluginDirectory: ReturnType<typeof homeProjectPlugins>["withDirectory"];
   private readonly runtimeContexts: ReturnType<typeof createRuntimeContextModule>;
   /** The terminals plugins start through `services.terminal`. */
   readonly terminalPanels: PluginTerminalPanels;
@@ -222,8 +210,7 @@ export class MolisWorkProjectCatalog {
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");
     // `outputs` is derived from the trusted Home each time the catalog opens, never stored: a copied Home reads its own (S-102).
     const space = ensureStorageSpace(homeDirectory), realHome = realpathSync.native(homeDirectory), outputsDirectory = path.join(realHome, "outputs");
-    const { registry, withDirectory } = homeProjectPlugins(homeDirectory);
-    this.withProjectPluginDirectory = withDirectory;
+    const registry = homeProjectPlugins(homeDirectory);
     this.projects = new ProjectsModule({
       spaceId: space.spaceId,
       db, projects_directory: this.projectsDirectory,
@@ -363,15 +350,15 @@ export class MolisWorkProjectCatalog {
     return this.projects.query.listProjects();
   }
 
-  projectPluginMembership(projectId: string, directory?: () => readonly ProjectPluginId[]): ProjectPluginMembership {
-    return this.withProjectPluginDirectory(directory, () => this.projects.query.projectPluginMembership(projectId));
+  projectPluginMembership(projectId: string): ProjectPluginMembership {
+    return this.projects.query.projectPluginMembership(projectId);
   }
-  projectPluginMembershipWithRevision(projectId: string, directory?: ProjectPluginDirectory): VersionedProjectPluginMembership {
-    return this.withProjectPluginDirectory(directory, () => this.projects.query.projectPluginMembershipWithRevision(projectId));
+  projectPluginMembershipWithRevision(projectId: string): VersionedProjectPluginMembership {
+    return this.projects.query.projectPluginMembershipWithRevision(projectId);
   }
 
-  listProjectPlugins(projectId: string, directory?: () => readonly ProjectPluginId[]): ProjectPluginId[] {
-    return this.withProjectPluginDirectory(directory, () => this.projects.query.listProjectPlugins(projectId));
+  listProjectPlugins(projectId: string): ProjectPluginId[] {
+    return this.projects.query.listProjectPlugins(projectId);
   }
 
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[] {

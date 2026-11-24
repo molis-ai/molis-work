@@ -1,5 +1,5 @@
 import { PLUGIN_EVENT_RECOVERY_CLIENT } from "./plugin-event-recovery.js";
-import { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT } from "../../artifacts/goal-input-client.js";
+import { ARTIFACT_ATTACH_TARGET_CLIENT_SCRIPT } from "../../artifacts/attach-target-client.js";
 import { ARTIFACT_WORKS_CLIENT_SCRIPT } from "../../artifacts/works-client.js";
 import { ARTIFACT_HANDOFF_CLIENT_SCRIPT } from "../../artifacts/handoff-client.js";
 import { ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "../../artifacts/port-input-ui.js";
@@ -368,7 +368,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       else detail.replaceChildren(box);
     } finally { if (controller === artifactRequest) artifactRequest = null; }
   };
-  ${ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT + ARTIFACT_WORKS_CLIENT_SCRIPT + ARTIFACT_HANDOFF_CLIENT_SCRIPT + ARTIFACT_PORT_INPUT_CLIENT_SCRIPT}
+  ${ARTIFACT_ATTACH_TARGET_CLIENT_SCRIPT + ARTIFACT_WORKS_CLIENT_SCRIPT + ARTIFACT_HANDOFF_CLIENT_SCRIPT + ARTIFACT_PORT_INPUT_CLIENT_SCRIPT}
   // 「从这一版继续」 (A4b): the chosen plugin starts a new object from this version and it opens here.
   const continueFrom = async (button) => {
     if (button.disabled) return;

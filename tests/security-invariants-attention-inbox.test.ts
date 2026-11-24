@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { createPluginPlatform, homeStores, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AttentionInboxDeclarations, AttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { AttentionWaitingDeclarations, AttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { PluginLifecycleState, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -20,7 +20,7 @@ import { recordInstallation } from "./fixtures/plugin-installations.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 // PG-094 S12 (specs/archive/repository-anti-corruption/slices/goals-s10-s11-runtime-switch.md §6): the person's Inbox is the unassigned entries and
-// the owned entries whose owner declared their kind (`attention.inbox` in its Manifest). It is the platform that reads the declaration
+// the owned entries whose owner declared their kind (`attention.waiting` in its Manifest). It is the platform that reads the declaration
 // from the installation; Feed names no plugin.
 
 const PROJECT = "inbox-declarations";
@@ -35,7 +35,7 @@ function fixture() {
   return { store, attention, entry, close: () => { store.close(); rmSync(directory, { recursive: true, force: true }); } };
 }
 
-const declared = (owners: Record<string, AttentionSubjectType[]>): AttentionInboxDeclarations =>
+const declared = (owners: Record<string, AttentionSubjectType[]>): AttentionWaitingDeclarations =>
   new Map(Object.entries(owners).map(([owner, kinds]) => [owner, new Set(kinds)]));
 const idsOf = (entries: Array<{ entry_id: string }>) => entries.map(entry => entry.entry_id).sort();
 
@@ -49,20 +49,20 @@ test("RAC-807 the Inbox is the unassigned entries and the owned ones whose owner
     const everyone = [unassigned, declaredKind, undeclaredKind, aForeignOwner];
     const query = data.attention.query;
 
-    assert.deepEqual(idsOf(query.listInbox(PROJECT, declared({ "plugin.a": ["goal_decision"] }))), idsOf([unassigned, declaredKind]));
+    assert.deepEqual(idsOf(query.listWaiting(PROJECT, declared({ "plugin.a": ["goal_decision"] }))), idsOf([unassigned, declaredKind]));
     // An owned kind its owner did not declare is not there, for a list and for a direct read alike.
     for (const hidden of [undeclaredKind, aForeignOwner]) {
-      assert.throws(() => query.getInbox(PROJECT, hidden.entry_id, declared({ "plugin.a": ["goal_decision"] })), { code: "attention.entry_not_found" });
+      assert.throws(() => query.getWaiting(PROJECT, hidden.entry_id, declared({ "plugin.a": ["goal_decision"] })), { code: "attention.entry_not_found" });
     }
-    assert.equal(query.getInbox(PROJECT, declaredKind.entry_id, declared({ "plugin.a": ["goal_decision"] })).entry_id, declaredKind.entry_id);
+    assert.equal(query.getWaiting(PROJECT, declaredKind.entry_id, declared({ "plugin.a": ["goal_decision"] })).entry_id, declaredKind.entry_id);
 
     // Declaring a kind opens the declarer's own rows only: plugin.b declaring goal_decision does not bring plugin.a's, nor the reverse.
-    assert.deepEqual(idsOf(query.listInbox(PROJECT, declared({ "plugin.b": ["goal_decision"] }))), idsOf([unassigned, aForeignOwner]));
-    assert.deepEqual(idsOf(query.listInbox(PROJECT, declared({ "plugin.a": ["goal_decision"], "plugin.b": ["goal_decision"] }))), idsOf([unassigned, declaredKind, aForeignOwner]));
+    assert.deepEqual(idsOf(query.listWaiting(PROJECT, declared({ "plugin.b": ["goal_decision"] }))), idsOf([unassigned, aForeignOwner]));
+    assert.deepEqual(idsOf(query.listWaiting(PROJECT, declared({ "plugin.a": ["goal_decision"], "plugin.b": ["goal_decision"] }))), idsOf([unassigned, declaredKind, aForeignOwner]));
     // A plugin that declared another kind adds none of these.
-    assert.deepEqual(idsOf(query.listInbox(PROJECT, declared({ "plugin.c": ["goal_decision", "source_fault"] }))), idsOf([unassigned]));
+    assert.deepEqual(idsOf(query.listWaiting(PROJECT, declared({ "plugin.c": ["goal_decision", "source_fault"] }))), idsOf([unassigned]));
     // With nothing declared the Inbox is the unassigned entries, and the full list is untouched.
-    assert.deepEqual(idsOf(query.listInbox(PROJECT, declared({}))), idsOf([unassigned]));
+    assert.deepEqual(idsOf(query.listWaiting(PROJECT, declared({}))), idsOf([unassigned]));
     assert.deepEqual(idsOf(query.list(PROJECT)), idsOf(everyone));
   } finally {
     data.close();
@@ -71,11 +71,11 @@ test("RAC-807 the Inbox is the unassigned entries and the owned ones whose owner
 
 /** A type in the owner's own words (batch 44 C8): the kind of object it refers to and the reason it gives. */
 const declaredSubject = (type: string) => ({ type, object_kind: type === "goal_decision" ? "goal" : "source", reasons: [{ id: type }] });
-const manifestOf = (pluginId: string, attention: { subjects: readonly string[]; inbox?: readonly string[] }): PluginManifest =>
+const manifestOf = (pluginId: string, attention: { subjects: readonly string[]; waiting?: readonly string[] }): PluginManifest =>
   ({ ...goalsManifest, plugin_id: pluginId, attention: { ...attention, subjects: attention.subjects.map(declaredSubject) } }) as PluginManifest;
 
 // RAC-808 runs against the Inbox as it runs: the Inbox plugin started by the Plugin Runtime, reading the platform's projection
-// (`services.attention.listInbox`/`getInbox`) of the installations recorded in the project. Each read asks the installations again, so an
+// (`services.attention.listWaiting`/`getWaiting`) of the installations recorded in the project. Each read asks the installations again, so an
 // owner stopped after the call was admitted, and even while a status change waited for its last check, has its rows gone from that read.
 async function runtimeInbox(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-runtime-inbox-"));
@@ -124,9 +124,9 @@ test("RAC-808 the Runtime Inbox follows the Manifests of the running installatio
   assert.deepEqual(await inbox.listed(), idsOf([unassigned]));
   inbox.install(goalsManifest);
   assert.deepEqual(await inbox.listed(), idsOf([unassigned, goalsRow]), "the owner's own declaration opens its own row");
-  // Plugins that declare the same kind without `inbox` stay their own: Goals' declaration is Goals', and a quiet plugin has none.
+  // Plugins that declare the same kind without `waiting` stay their own: Goals' declaration is Goals', and a quiet plugin has none.
   inbox.install(manifestOf("io.molis.work.quiet", { subjects: ["goal_decision"] }));
-  inbox.install(manifestOf("io.molis.work.other", { subjects: ["goal_decision", "source_fault"], inbox: ["source_fault"] }));
+  inbox.install(manifestOf("io.molis.work.other", { subjects: ["goal_decision", "source_fault"], waiting: ["source_fault"] }));
   assert.deepEqual(await inbox.listed(), idsOf([unassigned, goalsRow]));
   for (const row of [otherRow, quietRow]) await hidden(row);
 
@@ -135,13 +135,13 @@ test("RAC-808 the Runtime Inbox follows the Manifests of the running installatio
   assert.deepEqual(await inbox.listed(), idsOf([unassigned]));
   await hidden(goalsRow);
   // An installation whose build is not in the release archive declares nothing the platform can trust, nor one whose archived build is another.
-  const unarchived = manifestOf("io.molis.work.unarchived", { subjects: ["goal_decision"], inbox: ["goal_decision"] });
+  const unarchived = manifestOf("io.molis.work.unarchived", { subjects: ["goal_decision"], waiting: ["goal_decision"] });
   recordInstallation(inbox.store.db, unarchived, "running", { archived: false });
   const stranger = inbox.entry("goal_decision", "goal-1", unarchived.plugin_id);
   const swapped = manifestOf("io.molis.work.swapped", { subjects: ["goal_decision"] });
   inbox.install(swapped);
   new SqlitePluginRuntimeReleaseArtifactRepository(inbox.store.db).save(createPluginRuntimeReleaseArtifact(
-    { ...swapped, name: "Another build", attention: { subjects: [declaredSubject("goal_decision")], inbox: ["goal_decision"] } } as PluginManifest, "export default {};"));
+    { ...swapped, name: "Another build", attention: { subjects: [declaredSubject("goal_decision")], waiting: ["goal_decision"] } } as PluginManifest, "export default {};"));
   const swappedRow = inbox.entry("goal_decision", "goal-1", swapped.plugin_id);
   assert.deepEqual(await inbox.listed(), idsOf([unassigned]));
   for (const row of [stranger, swappedRow]) await hidden(row);
@@ -186,13 +186,13 @@ test("RAC-808 an owner stopped after the Runtime Inbox admitted a call is gone f
   assert.ok(refused >= 2, `stops before the read and after the last wait were both reached (${refused})`);
 });
 
-test("RAC-809 a Manifest's attention.inbox lists some of its attention.subjects, each once", () => {
+test("RAC-809 a Manifest's attention.waiting lists some of its attention.subjects, each once", () => {
   const manifest = (attention: unknown) => ({ ...goalsManifest, attention });
   const subjects = ["goal_decision", "source_fault"].map(declaredSubject);
-  parsePluginManifest(manifest({ subjects, inbox: ["source_fault"] }));
+  parsePluginManifest(manifest({ subjects, waiting: ["source_fault"] }));
   parsePluginManifest(manifest({ subjects }));
   for (const inbox of [[], ["feed_item"], ["goal_decision", "goal_decision"], "goal_decision", [1]]) {
-    assert.throws(() => parsePluginManifest(manifest({ subjects, inbox })), /attention\.inbox/u, JSON.stringify(inbox));
+    assert.throws(() => parsePluginManifest(manifest({ subjects, waiting: inbox })), /attention\.waiting/u, JSON.stringify(inbox));
   }
   assert.throws(() => parsePluginManifest(manifest({ subjects, inbox_all: true })), /attention 不认这些字段/u);
 });

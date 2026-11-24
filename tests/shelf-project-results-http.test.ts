@@ -36,7 +36,7 @@ test("SCC-03: Shelf lists and receives a genuine fixed Coding report, preserves 
     content:{kind:'inline' as const,payload:{title:'已固定的原报告',run_id:'run-original',source:{session_id:'session-original'},body_markdown:'## 完整原文\r\n含 ``` 与 <script>，不重新请求模型。\n最后一行🌲'}}};
   const original=library.artifacts.commands.registerVersion(input).artifact;
   const shelf=openTestShelfStore(home,{disabled:true});
-  const base='/api/plugins/io.molis.work.shelf',path=base+'/project-result';
+  const base='/api/platform/shelf',path=base+'/project-result';
   const read=()=>request(path+'?artifact_id='+encodeURIComponent(reference.artifact_id)+'&version=1');
   const catalog=await request(base+'/project-results'); assert.equal(catalog.status,200,JSON.stringify(catalog.body)); assert.equal(catalog.body.results.length,1);
   // The first plugin request starts the Home instance, which places the first-run sample (D6): count the shelf after that.

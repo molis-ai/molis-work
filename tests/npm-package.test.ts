@@ -40,17 +40,17 @@ test("npm staging packs workspace assets without host binaries or modifying the 
     const packedLicense = async (prefix: string) => (await exec("tar", ["-xOf", path.join(output, packed.filename), `package/${prefix}LICENSE`])).stdout;
     assert.equal(await packedLicense(""), license); // CSL-03: read the actual npm archive, not only staging.
     const files = new Set<string>(packed.files.map((file: { path: string }) => file.path));
-    // QEA-68: the actual archive keeps the channel tools under their original package name, without a retired factory or manifest.
-    const youtubePrefix = "node_modules/@molis-ai/molis-work-integration-youtube/";
-    assert.ok(files.has(`${youtubePrefix}dist/channel.js`));
-    assert.equal(files.has(`${youtubePrefix}manifest.json`), false);
+    // QEA-68: the actual archive carries the YouTube channel tools inside the RSS integration (44B folded the youtube package in),
+    // without a retired factory or manifest of their own.
+    assert.ok(files.has("node_modules/@molis-ai/molis-work-integration-rss/dist/youtube-channel.js"));
+    assert.equal([...files].some(file => file.startsWith("node_modules/@molis-ai/molis-work-integration-youtube/")), false);
     assert.equal(packed.bundled.includes("@molis-ai/molis-work-integration-web-query"), false);
     assert.equal([...files].some(file => file.startsWith("node_modules/@molis-ai/molis-work-integration-web-query/")), false);
     const extracted = path.join(temporary, "extracted");
     await mkdir(extracted);
     await exec("tar", ["-xf", path.join(output, packed.filename), "-C", extracted]);
     const { stdout: channelResult } = await exec(process.execPath, ["--input-type=module", "--eval", `
-      const channel = await import('@molis-ai/molis-work-integration-youtube');
+      const channel = await import('@molis-ai/molis-work-integration-rss');
       console.log(JSON.stringify({
         id: channel.normalizeYouTubeChannelId('https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv'),
         url: channel.youtubeChannelFeedUrl('UCabcdefghijklmnopqrstuv'),

@@ -49,7 +49,7 @@ test("UIC-03 UIC-12 UIV-17: delivery reaches the round as chosen, is refused whe
     return reply("好的。");
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delivery-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "system.assistant-delivery-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const sent: AgentInputSend[] = [], send = adapter.inputs!.send.bind(adapter.inputs!);

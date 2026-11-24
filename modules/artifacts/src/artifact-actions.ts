@@ -4,7 +4,7 @@ import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ARTIFACT_FILE_IMPORT_ACTION, ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactVersionPath, importedFileOf, type ArtifactBrowserView } from "./artifact-browser.js";
-import { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./artifact-goal-context.js";
+import { readSubjectArtifactEmbeds, type SubjectArtifactEmbed } from "./artifact-subject-context.js";
 import { linkKindOf, type ArtifactLinkKind, type ArtifactLinkKinds } from "./artifact-link-kinds.js";
 import type { ExternalDocumentSource, ModelRequired } from "./artifact-document-import.js";
 import { DOCUMENT_ARTIFACT_TYPE } from "./artifact-document-type.js";
@@ -54,7 +54,7 @@ export interface ArtifactPluginInput { plugin_id: string; plugin_title: string; 
 const pluginInputsOutput = object({ inputs: array(object({ plugin_id: text, plugin_title: text, port: text,
   source: { enum: ["this", "another-version", "plugin", "none"] }, source_title: nullable(text) })) });
 /** System search: the newest available version of each Artifact, by title and the text inside its payload. */
-const searchEntries = defineSearchEntriesAction("artifacts.search.entries", /* @version action.artifacts.search.entries */ 1, [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
+const searchEntries = defineSearchEntriesAction("artifacts.search.entries", /* @version action.artifacts.search.entries */ 1, [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts", glyph: "package" }], "项目成果", read);
 /** The side panel's file tab (specs/archive/side-panel): the newest available version of each Artifact; previews read `subject`. */
 const fileEntries = defineFileEntriesAction("artifacts.files.entries", /* @version action.artifacts.files.entries */ 1, [{ kind: ARTIFACT_SUBJECT_KIND, title: "成果", surface: "artifacts" }], "项目成果", read);
 /**
@@ -62,19 +62,20 @@ const fileEntries = defineFileEntriesAction("artifacts.files.entries", /* @versi
  * references in the same payload, so only these fields count, wherever they sit in it. A `cells` object is a table row
  * whose keys are column ids: its values are the text. `title` repeated by the payload is the hit's own title line.
  */
-const SEARCHABLE_FIELDS = new Set(["title", "name", "text", "content", "body", "filename", "description", "summary", "caption", "label", "heading", "notes", "markdown", "cells",
-  // The reading text the built-in producers keep under their own keys: a Coding report (task, answer, markdown body), a deck's
-  // bullets, a character's instructions, a captured Feed message's source name and tags.
-  "body_markdown", "task", "model_answer", "bullets", "instructions", "source_label", "tags"]);
-function payloadText(value: unknown, title: string, field = "", out: string[] = [], budget = { left: 4000 }): string[] {
+const SEARCHABLE_FIELDS: ReadonlySet<string> = new Set(["title", "name", "text", "content", "body", "filename", "description", "summary", "caption", "label", "heading", "notes", "markdown", "cells"]);
+/** The fields read for one type: the platform's own, and the reading text its producer keeps under its own keys (`searchable_fields`, M12). */
+function searchableFields(declared: readonly string[] | undefined): ReadonlySet<string> {
+  return declared?.length ? new Set([...SEARCHABLE_FIELDS, ...declared]) : SEARCHABLE_FIELDS;
+}
+function payloadText(value: unknown, title: string, fields: ReadonlySet<string>, field = "", out: string[] = [], budget = { left: 4000 }): string[] {
   if (budget.left <= 0 || value == null) return out;
   if (typeof value === "string") {
-    if (!SEARCHABLE_FIELDS.has(field)) return out;
+    if (!fields.has(field)) return out;
     const text = searchText(value, budget.left);
     if (text && text !== title) { out.push(text); budget.left -= text.length; }
   }
-  else if (Array.isArray(value)) for (const item of value) payloadText(item, title, field, out, budget);
-  else if (typeof value === "object") for (const [key, item] of Object.entries(value)) payloadText(item, title, field === "cells" ? field : key, out, budget);
+  else if (Array.isArray(value)) for (const item of value) payloadText(item, title, fields, field, out, budget);
+  else if (typeof value === "object") for (const [key, item] of Object.entries(value)) payloadText(item, title, fields, field === "cells" ? field : key, out, budget);
   return out;
 }
 export const artifactsActions = {
@@ -96,7 +97,7 @@ export const artifactsActions = {
   importExternal: define<ArtifactExternalImport, ArtifactImportResult>("import.external", /* @version action.artifacts.import.external */ 1, "导入外部文档", "使用当前 Home 已连接的文档账号读取链接，保存个人快照；不写回来源，不自动同步", "command",
     object({ source: sources, url: { ...text, minLength: 1, maxLength: 4096 }, connection_id: id }, ["source", "url"]), imported, [...write, "connectors:document:read"], "concurrent"),
   importSources: define<Record<string, never>, { sources: Record<string, boolean>; connections: ConnectorConnectionView[] }>("import.sources", /* @version action.artifacts.import.sources */ 1, "文档来源连接状态", "查看文档导入支持来源是否已连接，不返回凭据", "query", object({}), object({ sources: { type: "object", additionalProperties: { type: "boolean" } }, connections: array({ type: "object", additionalProperties: true }) })),
-  goalEmbeds: define<{ goal_id: string; supported_types?: ArtifactConsumerType[] }, { embeds: GoalArtifactEmbed[] }>("goals.embeds", /* @version action.artifacts.goals.embeds */ 1, "读取目标成果引用", "读取原 Ledger 明确关联的输入和输出及固定版本，保留失效引用，不猜测关系", "query", object({ goal_id: id, supported_types: consumerTypes }, ["goal_id"]),
+  subjectEmbeds: define<{ subject_id: string; supported_types?: ArtifactConsumerType[] }, { embeds: SubjectArtifactEmbed[] }>("subject.embeds", /* @version action.artifacts.subject.embeds */ 1, "读取对象的成果引用", "读取插件对象在 Ledger 里明确关联的输入和输出及固定版本，保留失效引用，不猜测关系", "query", object({ subject_id: id, supported_types: consumerTypes }, ["subject_id"]),
     object({ embeds: array(object({ relationship: { enum: ["input", "output"] }, view: browser })) })),
   links: define<{ reference: ArtifactReference }, ArtifactReferences>("links", /* @version action.artifacts.links */ 1, "这一版被谁引用", "按声明链接种类的插件分组，列出把这一版作为输入或产出（含提议的）的对象，以及其他引用的数量；不修改数据",
     "query", object({ reference }), object({ plugins: array(object({ plugin_id: id, plugin_title: text, objects: array(object({ id, title: text,
@@ -137,6 +138,8 @@ export interface ArtifactActionPorts {
   linkSubjects?(pluginId: string, ids: readonly string[], caller: ActionExecutionContext): Promise<ReadonlyMap<string, ArtifactLinkSubjectView>>;
   /** A 成果 type's display name as its owner declares it (the side panel groups by it); null when undeclared. */
   typeTitle?(artifactTypeId: string): string | null;
+  /** The payload keys the type's producer declares as reading text (`searchable_fields`, M12). */
+  searchableFields?(artifactTypeId: string): readonly string[] | undefined;
   /** A version's text as its type's owner previews it, for a workflow run that starts from it; null when there is none. */
   previewText?(artifact: ArtifactVersionRecord, caller: ActionExecutionContext): Promise<string | null>;
   /** Plugin input ports that take the version's type, read from the host's plugin wiring; absent where no plugins run. */
@@ -225,7 +228,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         if (!current || record.version > current.version) latest.set(record.artifact_id, record);
       }
       return [...latest.values()].map((record): SearchEntry => {
-        const summary = cutHead(payloadText(record.payload, searchText(record.title)).join("\n"), 4000);
+        const summary = cutHead(payloadText(record.payload, searchText(record.title), searchableFields(ports.searchableFields?.(record.artifact_type_id))).join("\n"), 4000);
         // The summary is searched text read out of the payload by rules this build owns, so the revision covers it: an index made by an
         // earlier build, with other rules, reads the entry again instead of keeping its old summary until the next version.
         return { subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) }, revision: searchRevisionOf([`${record.version}:${record.content_digest}`, summary]),
@@ -251,7 +254,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
     bind(artifactsActions.importFile, (input, caller) => ports.importDocument(input, caller)),
     bind(artifactsActions.importExternal, (input, caller) => ports.importDocument(input, caller)),
     bind(artifactsActions.importSources, async () => ({ sources: await ports.importSources(), connections: (await ports.importConnections?.()) ?? [] })),
-    bind(artifactsActions.goalEmbeds, input => ({ embeds: readGoalArtifactEmbeds({ projectId: ports.projectId, goalId: input.goal_id, artifacts: ports.artifacts.query, ledger: ports.ledger, linkKinds: ports.linkKinds, supportedTypes: input.supported_types }) })),
+    bind(artifactsActions.subjectEmbeds, input => ({ embeds: readSubjectArtifactEmbeds({ projectId: ports.projectId, subjectId: input.subject_id, artifacts: ports.artifacts.query, ledger: ports.ledger, linkKinds: ports.linkKinds, supportedTypes: input.supported_types }) })),
     bind(artifactsActions.projectReference, input => ports.openProjectReference(input)),
     bind(artifactsActions.pluginInputs, async input => ({ inputs: await ports.pluginInputs?.(requireUsable(ports, input.reference)) ?? [] })),
     bind(artifactsActions.bindPluginInput, async (input, caller) => {

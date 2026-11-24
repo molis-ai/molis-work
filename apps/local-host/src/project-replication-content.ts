@@ -4,7 +4,7 @@ import {createEvidenceContentStore,createLazyFileSecretStore,PROJECT_SECTIONS_IN
 import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import {replicaError} from './project-replication-errors.js';
 
-const pattern=/^molis-work-feed\/sha256\/([a-f0-9]{64})$/;
+const pattern=/^molis-work-evidence\/sha256\/([a-f0-9]{64})$/;
 const digest=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
 function object(value:unknown):Record<string,unknown>{if(!value||typeof value!=='object'||Array.isArray(value))throw replicaError('replica_invalid');return value as Record<string,unknown>;}
 function exact(value:Record<string,unknown>,keys:readonly string[]):void{if(Object.keys(value).length!==keys.length||keys.some(k=>!Object.hasOwn(value,k)))throw replicaError('replica_invalid');}

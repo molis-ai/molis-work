@@ -9,7 +9,8 @@ import { startConnectorSetupSubmission } from "./connector-setup-submission.js";
 import { managedCliLaunch } from "./connector-cli-launch.js";
 import { runToolInstallProcess } from "./connector-tool-process.js";
 import { installManagedConnectorTool, readManagedConnectorTool } from "./connector-tool-install.js";
-import { exactToolVersion, validateManagedToolSource } from "./connector-tool-source.js";
+import { exactToolVersion, validateManagedToolSource, type ManagedToolSource } from "./connector-tool-source.js";
+import { cliReleasePort } from "./connector-native-release.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import type { ToolInstallControl } from "./connector-tool-process.js";
 
@@ -20,7 +21,11 @@ export async function cliSetupPlan(home: string, input: CliSetupInput, signal?: 
   if (!distribution) throw connectorErrors["connector.connection.invalid"]("此 CLI 需要原生发行物或额外模块；请查看该客户端的正式安装条件");
   if (!input.display_name.trim() || input.display_name.length > 100) throw connectorErrors["connector.connection.invalid"]("请填写连接名称");
   if ((distribution.kind === "native" || distribution.kind === "powershell") && input.registry) throw connectorErrors["connector.connection.invalid"]("原生客户端只从此适配已声明的官方发布源安装");
-  const source = validateManagedToolSource(distribution.kind === "native" ? await distribution.resolve(input.version, signal) : distribution.kind === "powershell" ? await distribution.resolve(input.version, input.runtime_version ?? "", signal) : { ...distribution, bin: cli.binary, version: input.version, registry: input.registry,
+  // The driver says where its client comes from; a PowerShell module runs on an official PowerShell release of a fixed version.
+  if (distribution.kind === "powershell" && !exactToolVersion(input.runtime_version ?? "")) throw connectorErrors["connector.connection.invalid"]("请为这个客户端选择固定的 PowerShell 版本");
+  const source = validateManagedToolSource(distribution.kind === "native" ? await distribution.resolve(input.version, cliReleasePort, signal)
+    : distribution.kind === "powershell" ? { kind: "powershell", package: distribution.module, version: input.version, bin: cli.binary, runtime: await distribution.runtime.resolve(input.runtime_version ?? "", cliReleasePort, signal) } as ManagedToolSource
+    : { ...distribution, bin: cli.binary, version: input.version, registry: input.registry,
     ...(distribution.kind === "npm" ? { kind: "npm", node_version: input.runtime_version ?? "" } : { kind: "python", python_version: input.runtime_version ?? "" }) });
   return { service_id: input.service_id, display_name: input.display_name.trim(), method: "cli", cli_setup: source,
     installation: { platform: process.platform, architecture: process.arch, directory: join(realpathSync(home), "runtime", "connectors"), requires_credentials: false } };

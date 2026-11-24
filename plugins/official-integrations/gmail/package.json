@@ -14,6 +14,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./drivers": {
+      "types": "./dist/drivers.d.ts",
+      "import": "./dist/drivers.js"
+    },
     "./history-cursor": {
       "types": "./dist/history-cursor.d.ts",
       "import": "./dist/history-cursor.js"

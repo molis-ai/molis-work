@@ -22,7 +22,7 @@ const AT = {
 const demoInput = { type: "object", properties: {}, additionalProperties: false } as const;
 export const feedDemoSeedAction = createActionDefinition<InferActionInput<typeof demoInput>, { seeded: boolean }>("feed.demo.seed", "command", {
   title: "初始化演示消息", description: "为可重建演示项目写入 Feed 自己的示例，已经初始化的项目保持原样",
-  scheduling: "concurrent", subject_kinds: ["project"], audiences: ["workflow"], permissions: ["feed:write", "storage:private", "sources:pull_feed", "attention:write", "context-ledger:write", "artifact:write"],
+  scheduling: "concurrent", subject_kinds: ["project"], audiences: ["workflow"], permissions: ["feed:write", "storage:private", "sources:pull_public_feed", "attention:write", "context-ledger:write", "artifact:write"],
   input_schema: demoInput,
   output_schema: { type: "object", properties: { seeded: { type: "boolean" } }, required: ["seeded"], additionalProperties: false },
 }, /* @version action.feed.demo.seed */ 1);

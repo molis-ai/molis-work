@@ -13,6 +13,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli-drivers.d.ts",
+      "import": "./dist/cli-drivers.js"
+    },
+    "./drivers": {
+      "types": "./dist/drivers.d.ts",
+      "import": "./dist/drivers.js"
     }
   },
   "files": [

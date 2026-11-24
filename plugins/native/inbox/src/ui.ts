@@ -9,13 +9,7 @@ import type {
   UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import {
-  INBOX_DISMISS_OPTION_ID,
-  INBOX_DONE_OPTION_ID,
-  INBOX_COMPOSE_OPTION_ID,
-  INBOX_VERIFY_OPTION_ID,
-  defaultInboxNextOptionIds,
-} from "@molis-ai/molis-work-contracts/modules/functions";
+import { INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, INBOX_COMPOSE_OPTION_ID, INBOX_VERIFY_OPTION_ID, defaultInboxNextOptionIds } from "./scene-options.js";
 import { buildInboxUiEntries, isActiveInboxStatus, type InboxUiEntry, type InboxUiFilter } from "./projection.js";
 import { INBOX_ORIGIN_SLOT, INBOX_PLUGIN_ID } from "./identity.js";
 import { inboxOrigin } from "./content-actions.js";

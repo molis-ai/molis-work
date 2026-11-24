@@ -18,7 +18,7 @@ const COMPUTER_RECORD_KIND = "computer_record";
  * The id the 文件 tab sees once this source is folded into the Assistant's provider.
  * Kept as a literal so this file does not import the Assistant (that file already imports this one).
  */
-export const COMPUTER_RECORD_SOURCE_ID = "io.molis.work.assistant.rules|computer.records.entries|1";
+export const COMPUTER_RECORD_SOURCE_ID = "system.assistant.rules|computer.records.entries|1";
 
 /** Records whose `project_id` is exactly the caller's project. No project selected lists only records with none. */
 export function recordsOwnedBy(records: readonly ComputerRecord[], projectId: string | null): ComputerRecord[] {
@@ -109,7 +109,7 @@ export async function handleUnscopedComputerFiles(request: IncomingMessage, resp
   if (request.method !== "GET") { json(405, { error: uiText.text("workbench.computer-record.method") }); return true; }
   const source = computerRecordFileSource(homeDirectory);
   const caller: ActionExecutionContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [], beforeEffect: async () => {} };
-  const described = { id: COMPUTER_RECORD_SOURCE_ID, plugin_id: "io.molis.work.assistant.rules", title: uiText.text("workbench.computer-record.title"), kinds: [{ ...kinds[0], title: uiText.text("workbench.computer-record.title") }] };
+  const described = { id: COMPUTER_RECORD_SOURCE_ID, plugin_id: "system.assistant.rules", title: uiText.text("workbench.computer-record.title"), kinds: [{ ...kinds[0], title: uiText.text("workbench.computer-record.title") }] };
   try {
     if (route === "sources") { json(200, { sources: [described] }); return true; }
     if (url.searchParams.get("source") !== COMPUTER_RECORD_SOURCE_ID) { json(404, { error: uiText.text("workbench.computer-record.source-missing") }); return true; }

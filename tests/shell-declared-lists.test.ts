@@ -10,7 +10,7 @@ import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeDescriptor } from "@molis-
 import type { SettingsPageModel } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, HOST_FRAMED_SURFACES, extendPluginIds, findPluginSettingsNavItem, pluginSettingsDataAction, pluginWorkbenchPacks, renderPluginSettingsContribution, sanitizePluginDirectory } from "@molis-ai/molis-work-app-workbench";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest, renderCodingSettings } from "@molis-ai/molis-work-plugin-coding";
-import { SHELF_SETTINGS_UI_CONTRIBUTION_ID, renderShelfSettings } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_SETTINGS_UI_CONTRIBUTION_ID, renderShelfSettings } from "@molis-ai/molis-work-module-shelf/surface";
 import { defaultShelfDeviceSettings } from "@molis-ai/molis-work-module-shelf";
 import { withPageText } from "./fixtures/page-text.js";
 
@@ -73,7 +73,7 @@ test("RAC-697 the Host has one route for a plugin's settings page: no plugin is 
   const text = ["web-catalog.ts", "web-catalog-routes.ts", "web-catalog-settings.ts"].map(hostSource).join("\n");
   assert.doesNotMatch(text, /plugin-shelf|plugin-coding|SHELF_|CODING_|codingAgentManifest|shelfActions/u);
   assert.match(text, /pluginSettingsDataAction\(pluginSettings\.contribution_id\)/u);
-  const view = (id: string) => BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === id)?.manifest.ui?.views?.find(item => item.slot === "settings");
+  const view = (id: string) => [...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES].find(entry => entry.project_plugin_id === id)?.manifest.ui?.views?.find(item => item.slot === "settings");
   assert.deepEqual(view("shelf")?.settings_data, { action: "shelf.snapshot" });
   assert.equal(view("coding")?.settings_data, undefined, "Coding's page needs only the platform's context");
   assert.equal(pluginSettingsDataAction(SHELF_SETTINGS_UI_CONTRIBUTION_ID)?.capability_id, "shelf.snapshot");

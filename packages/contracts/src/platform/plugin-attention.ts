@@ -26,7 +26,7 @@ export interface PluginAttentionDeclaration {
    * Which of `subjects` are the person's Inbox: the entries the plugin writes about them show in the Inbox beside the unassigned ones.
    * A kind left out stays the plugin's own (read through `services.attention`); declaring a kind never shows another plugin's entries.
    */
-  readonly inbox?: readonly AttentionSubjectType[];
+  readonly waiting?: readonly AttentionSubjectType[];
 }
 
 /** One type of subject: the object kind its entries refer to (the kind the owner's actions use for it), and why one may need the person. */
@@ -75,8 +75,8 @@ export interface PluginAttentionClient {
   list(): PluginAttentionEntryRecord[];
   get(entryId: string): PluginAttentionEntryRecord;
   /** The person's Inbox: unassigned entries and each running build's explicitly declared inbox kinds, by owner. */
-  listInbox(): AttentionEntryRecord[];
-  getInbox(entryId: string): AttentionEntryRecord;
+  listWaiting(): AttentionEntryRecord[];
+  getWaiting(entryId: string): AttentionEntryRecord;
   findActiveForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord | null;
   findForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord[];
   events(entryId?: string): PluginAttentionEvent[];

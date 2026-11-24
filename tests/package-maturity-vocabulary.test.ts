@@ -45,8 +45,9 @@ test("W5-15-03 the registry rejects any maturity word outside the vocabulary, wi
   // horizontal/automation-recommender and horizontal/project-approvals. Batch 38 adds the horizontal/blueprints slice.
   // The quality audit retires the inactive experimental WebQuery integration package. #2243 retires the production reference plugin
   // plugins/native/text-stats. Batch 47 moves plugins/native/plugin-builder to horizontal/plugin-studio, a slice either way.
-  // 44B retires the slice plugins/native/alchemist; batch 37 adds the horizontal/home slice.
-  assert.deepEqual(counts, { production: 46, experimental: 3, slice: 26 });
+  // 44B retires the slice plugins/native/alchemist, folds the production integration-youtube into rss, and moves the slice
+  // plugins/native/shelf into the platform part modules/shelf; batch 37 adds the horizontal/home slice.
+  assert.deepEqual(counts, { production: 45, experimental: 3, slice: 25 });
   assert.deepEqual(
     WORKSPACE_PACKAGES.filter((item: { path: string; maturity: string }) => item.path === "horizontal/home")
       .map((item: { path: string; maturity: string }) => item.maturity),
@@ -179,13 +180,13 @@ test("W5-15-09 capability names have exactly one writer each", () => {
   const allCapabilities = JSON.stringify(WORKSPACE_PACKAGES.map((item) => item.capabilities));
   assert.ok(!allCapabilities.includes("workflows.actions.v1"), "the descriptor-only name disappears with the descriptor");
   // Names the plugins already declared in their own block stay there, in one place.
-  for (const packagePath of ["plugins/native/schedule", "plugins/native/shelf"]) {
+  for (const packagePath of ["plugins/native/schedule"]) {
     const block = manifestOf(packagePath)["molis-work"];
     assert.deepEqual(block?.capabilities, capabilities(packagePath), `${packagePath}: the plugin block is the only writer`);
   }
   assert.ok(capabilities("plugins/native/schedule").includes("schedule.actions.v1"));
   assert.ok(capabilities("plugins/native/schedule").includes("schedule.conversation-tasks.v1"));
-  assert.ok(capabilities("plugins/native/shelf").includes("shelf.actions.v1"));
+  assert.ok(capabilities("modules/shelf").includes("shelf.actions.v1"));
   // Modules keep their capability names in the registry; no package block carries them.
   assert.ok(capabilities("modules/characters").includes("characters.actions.v1"));
   assert.equal(manifestOf("modules/characters")["molis-work"], undefined, "modules/characters: the registry is the only writer");

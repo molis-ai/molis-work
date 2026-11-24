@@ -1,3 +1,4 @@
+import { pluginRouteBase } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -106,7 +107,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     invokeAction: <Output = unknown>(reference: ActionReference, input: unknown) => call<Output>(route("/api/host/plugin-page-actions"), { body: { reference, input }, scope }),
     actionAvailability: (reference: ActionReference) => call<import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability>(route("/api/host/plugin-page-actions"), { body: { mode: "availability", reference }, scope }),
     surfaceFor: (kind: string) => config.subjectSurfaces[kind] ?? null,
-    pluginId: config.pluginId, pluginRoute: (path: string) => route("/api/plugins/" + config.pluginId + path),
+    pluginId: config.pluginId, pluginRoute: (path: string) => route(pluginRouteBase(config.pluginId) + path),
     projectId: () => config.projectId, projectTitle: () => config.projectTitle, route, headers: call.headers,
     // What a page says when the Host's router refused its read for who-may-read reasons (403 `actions.*`); empty for any other failure.
     readRefusal: (status: number, code: unknown) => status === 403 && String(code).startsWith("actions.") ? uiText.text(code === "actions.plugin_disabled" ? "common.child.project-has-turned-plugin-off-so-can-t" : "common.child.don-t-have-permission-read-so-can-t") : "",

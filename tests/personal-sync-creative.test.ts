@@ -261,8 +261,8 @@ test('AC-M1-05 all six adapters reject unknown fields, oversize, physical paths 
       if (index === 0) value.foreign = mark;
       else if (index === 4) value.clientSecret = mark;
       else if (origin.selection.collection_id === 'attention') {
-        const facts = value.facts as { attention_content: { inbox_entries: { subject_id: string }[] } };
-        facts.attention_content.inbox_entries[0]!.subject_id = mark;
+        const facts = value.facts as { attention_content: { attention_entries: { subject_id: string }[] } };
+        facts.attention_content.attention_entries[0]!.subject_id = mark;
       } else if (origin.selection.collection_id === 'appearance') {
         (value.selection as { skin: { id: string } }).skin.id = mark;
       } else if (origin.selection.collection_id === 'surfaces') {

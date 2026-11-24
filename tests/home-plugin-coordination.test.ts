@@ -25,16 +25,19 @@ test("RAC-744 the catalog refuses a Home plugin that declares 成果, ports or e
     ["event publication", { events: { publishes: [{ event_type_id: "io.molis.work.todo.changed", type_version: 1 }], subscribes: [] } }],
     ["event subscription", { events: { publishes: [], subscribes: [{ event_type_id: "io.molis.work.issues.changed", type_version: 1, from_plugin_ids: ["io.molis.work.issues"] }] } }],
     ["produced 成果", { artifacts: { produces: [{ artifact_type_id: "example.out.v1", schema_version: 1 }], consumes: [] } }],
-    ["consumed 成果", { artifacts: { produces: [], consumes: [{ artifact_type_id: "example.in.v1", schema_version: 1 }] } }],
     ["process items", { process_items: { produces: [{ artifact_type_id: "example.item.v1", schema_version: 1 }], consumes: [] } }],
   ] as never;
   for (const [what, change] of declarations) {
     const entry: PluginRegistration = { ...todo, manifest: { ...todo.manifest, ...change } as PluginManifest };
-    assert.match(catalogProblems([...others, entry]).join("\n"), /todo: a Home instance is given no 成果, ports or events/u, what);
+    assert.match(catalogProblems([...others, entry]).join("\n"), /todo: a Home instance pins no 成果 and is given no ports or events/u, what);
     // The same declarations on a dual-instance registration (the Home half leaves them to its project half) are fine.
     const dual: PluginRegistration = { ...entry, runtime: { ...entry.runtime!, dual_instance: true } };
     assert.deepEqual(catalogProblems([...others, dual]), [], `${what}: dual-instance`);
   }
+  // Reading consumed 成果 is not among them: a Home instance reads those of the project each call is for (44B).
+  const consuming: PluginRegistration = { ...todo, manifest: { ...todo.manifest,
+    artifacts: { produces: [], consumes: [{ artifact_type_id: "example.in.v1", schema_version: 1 }] } } as PluginManifest };
+  assert.deepEqual(catalogProblems([...others, consuming]), [], "a Home instance may consume 成果");
 });
 
 test("RAC-745 a Home instance that is not dual-instance and declares an event is not started: the plugin's own start is never reached", async t => {
@@ -60,7 +63,7 @@ test("RAC-745 a Home instance that is not dual-instance and declares an event is
   assert.equal(refused.started, 0, "the Home executor refuses before the plugin's code is given any service");
   assert.equal(refused.state.status, "failed");
   assert.equal(refused.state.code, "plugin.state_invalid");
-  assert.equal(refused.state.message, "Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/archive/dual-instance-plugins）");
+  assert.equal(refused.state.message, "Home 级插件不往项目里固定成果，也不给端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/archive/dual-instance-plugins）");
   assert.equal(refused.installation.state, "crashed");
   assert.equal(refused.installation.last_error_code, "plugin.state_invalid");
   assert.equal(refused.databaseCreated, false, "the refusal precedes even the Home database service's construction");

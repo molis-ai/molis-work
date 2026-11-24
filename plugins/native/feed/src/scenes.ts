@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { ActionError, objectLink, type ActionCallContext, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { FEED_OPEN_OPTION_ID, INBOX_ADMIT_OPTION_ID, SYSTEM_INBOX_ADMIT_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { FEED_OPEN_OPTION_ID, INBOX_ADMIT_OPTION_ID, SYSTEM_INBOX_ADMIT_FUNCTION_KEY } from "./scene-options.js";
 import type { FeedItemRecord, FeedOutRuleRecord } from "./projection.js";
 import { feedOutRuleMatches } from "./out-rules.js";
 

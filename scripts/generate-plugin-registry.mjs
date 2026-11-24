@@ -46,6 +46,8 @@ export const PLUGIN_DEPENDENCY_MANIFESTS = [
 ];
 export const REGISTRATION_CONTRACT = "packages/contracts/src/platform/plugin-registration.ts";
 const PLUGIN_ROOT = "plugins/native/";
+/** Official integrations that declare connector drivers export them from `./drivers` (D3 A, M11); the platform file lists them. */
+const INTEGRATION_ROOT = "plugins/official-integrations/";
 const REGISTRATION_FILE = "src/registration.ts";
 const SHORT_ID = /^[a-z0-9][a-z0-9-]*$/;
 const SHORT_ID_LISTS = { clientUses: "workbench", companions: "top" };
@@ -147,10 +149,38 @@ export function generateCatalog(entries) {
     "/** Every plugin this build ships, in catalog order: the shared build composition for the catalog and the UI resources. */");
 }
 
-/** The platform's file: the same list, which apps/local-host/src/plugin-registry.ts derives the platform's facts from. */
-export function generatePlatformRegistry(entries) {
-  return generatedList(entries, "PLATFORM_PLUGIN_REGISTRATIONS",
+/** The platform's file: the same list, which apps/local-host/src/plugin-registry.ts derives the platform's facts from, and the integrations' drivers. */
+export function generatePlatformRegistry(entries, drivers = []) {
+  const text = generatedList(entries, "PLATFORM_PLUGIN_REGISTRATIONS",
     "/** Every plugin this build ships, in catalog order, as the platform reads them (apps/local-host/src/plugin-registry.ts). */", true);
+  if (!drivers.length) return text;
+  const sorted = [...drivers].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  const alias = (entry) => entry.dir.replace(/-([a-z0-9])/g, (_, letter) => letter.toUpperCase()) + "Drivers";
+  const lines = text.split("\n"), at = lines.findIndex((line) => line === "");
+  return [
+    ...lines.slice(0, at),
+    `import type { IntegrationDrivers } from "@molis-ai/molis-work-contracts/platform/integration-drivers";`,
+    ...sorted.map((entry) => `import { drivers as ${alias(entry)} } from "${entry.name}/drivers";`),
+    ...lines.slice(at),
+    "/** The connector drivers the built-in integrations declare (apps/local-host/src/builtin-drivers.ts reads them). */",
+    "export const INTEGRATION_DRIVERS: readonly IntegrationDrivers[] = [",
+    ...sorted.map((entry) => `  ${alias(entry)},`),
+    "];",
+    "",
+  ].join("\n");
+}
+
+/** The official integrations whose package.json exports `./drivers`. */
+export function integrationDriverPackages(snapshot, packages) {
+  const result = [];
+  for (const entry of packages.filter((item) => item.path.startsWith(INTEGRATION_ROOT))) {
+    const manifestText = snapshot.read(`${entry.path}/package.json`);
+    if (manifestText === null) continue;
+    let json;
+    try { json = JSON.parse(manifestText); } catch { continue; }
+    if (json.exports?.["./drivers"]) result.push({ name: entry.name, dir: entry.path.slice(INTEGRATION_ROOT.length) });
+  }
+  return result;
 }
 
 function generatedList(entries, name, doc, platform = false) {
@@ -194,7 +224,7 @@ export function pluginRegistry(snapshot, packages) {
   repeated("order", "catalog_order");
   repeated("id", "project_plugin_id");
   if (problems.length) return { text: null, platformText: null, problems: problems.map((problem) => `Plugin registry: ${problem}`) };
-  return { text: generateCatalog(entries), platformText: generatePlatformRegistry(entries), problems: [] };
+  return { text: generateCatalog(entries), platformText: generatePlatformRegistry(entries, integrationDriverPackages(snapshot, packages)), problems: [] };
 }
 
 /** The packages a generated file's text imports registrations from. */

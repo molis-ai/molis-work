@@ -20,7 +20,7 @@ test("W2-18-ATTENTION-TX-01 independent Feed admission and multi-entry deletion 
       schedule: { mode: "manual" }, credential_ref: null, account_label: null, last_sync_at: null, last_outcome: null,
       last_error_code: null, imported_at: at, updated_at: at, item_count: 0, cursor: null });
     const { item } = feed.ingestItem({ source, externalId: "atomic", title: "Atomic item", summary: "", occurredAt: at, attention: false });
-    const snapshot = () => ({ entries: store.db.prepare("SELECT * FROM inbox_entries ORDER BY entry_id").all(),
+    const snapshot = () => ({ entries: store.db.prepare("SELECT * FROM attention_entries ORDER BY entry_id").all(),
       attention: store.db.prepare("SELECT * FROM attention_events ORDER BY event_id").all(),
       journal: store.db.prepare("SELECT * FROM events ORDER BY seq").all() });
     const before = snapshot();
@@ -42,14 +42,14 @@ test("W2-18-ATTENTION-TX-01 independent Feed admission and multi-entry deletion 
       entry_id: "second-entry", at: "2026-01-01T00:00:00.000Z" });
     const two = snapshot();
     // The first deletion's journal write succeeds; rejecting the second must roll both back.
-    store.db.exec("CREATE TRIGGER refuse_second BEFORE INSERT ON events WHEN NEW.type = 'inbox_entry.deleted' AND NEW.object_id = 'second-entry' BEGIN SELECT RAISE(ABORT, 'second journal refused'); END;");
+    store.db.exec("CREATE TRIGGER refuse_second BEFORE INSERT ON events WHEN NEW.type = 'attention_entry.deleted' AND NEW.object_id = 'second-entry' BEGIN SELECT RAISE(ABORT, 'second journal refused'); END;");
     assert.throws(() => attention.commands.deleteSubject(DEMO_PROJECT_ID, "feed_item", item.item_id, FEED_PLUGIN_ID), /second journal refused/);
     assert.deepEqual(snapshot(), two);
     store.db.exec("DROP TRIGGER refuse_second");
     assert.equal(attention.commands.deleteSubject(DEMO_PROJECT_ID, "feed_item", item.item_id, FEED_PLUGIN_ID), 2);
     assert.equal(attention.commands.deleteSubject(DEMO_PROJECT_ID, "feed_item", item.item_id, FEED_PLUGIN_ID), 0);
     assert.deepEqual(attention.query.findForSubject(DEMO_PROJECT_ID, "feed_item", item.item_id, FEED_PLUGIN_ID), []);
-    assert.equal(attention.events.list(DEMO_PROJECT_ID).filter(row => row.type === "inbox_entry.deleted").length, 2);
-    assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM events WHERE type = 'inbox_entry.deleted'").get()?.n, 2);
+    assert.equal(attention.events.list(DEMO_PROJECT_ID).filter(row => row.type === "attention_entry.deleted").length, 2);
+    assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM events WHERE type = 'attention_entry.deleted'").get()?.n, 2);
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });

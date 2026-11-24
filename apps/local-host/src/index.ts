@@ -199,14 +199,14 @@ export { connectorAccountActionProvider, readConnectorAccount } from "./connecto
 export { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 export { oauthAccount, oauthAccountRequest, oauthAuthorizationContext, oauthAuthorizationUrl, oauthClientAuth, oauthContextValue, oauthDeviceRequest, oauthEndpoint, oauthEndpointFingerprint, oauthExpiry, oauthKept, oauthMethodOption, oauthPinnedTenant, oauthScope, oauthSecretRequired, oauthTenantOrigin, oauthTokenRequest, resolveOAuthSettings } from "./connector-oauth-declarations.js";
 export { listConnectorConnectionViews } from "./connector-connection-views.js";
-export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 export { startDeviceOAuth, pollDeviceOAuth, registerConnectorDevicePolling } from "./connector-device-oauth.js";
 export { createPeriodicTasks } from "./periodic-tasks.js";
 
 
+export { createCatalogConnector } from "./catalog-connector.js";
+export { stdioMcpLaunch } from "./stdio-mcp-launch.js";
 export { createGithubConnector } from "./github-connector.js";
 export { createGmailConnector } from "./gmail-connector.js";
-export { createCatalogConnector } from "./catalog-connector.js";
 export { IntegrationRegistry, type OAuthServiceOwner } from "./integration-registry.js";
 export { homeIntegrationRegistry } from "./builtin-integrations.js";
 export { connectorDirectory, connectorLoginReady, homeConnectorDirectory } from "./connector-directory.js";
@@ -245,7 +245,7 @@ export { createLocalWebAssets } from "./web-assets.js";
 
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 export { assembleMcpCatalog, findAssembledMcpTool } from "./mcp-catalog.js";
-export { MANAGEMENT_MCP_TOOLS, MCP_TOOLS, isPlatformMcpTool as isListedPlatformMcpTool } from "./mcp-platform-tools.js";
+export { MCP_TOOLS, isPlatformMcpTool as isListedPlatformMcpTool } from "./mcp-platform-tools.js";
 export { mcpErrors, mcpErrorKind, type McpErrorReason } from "./mcp-errors.js";
 export { createPresentationError } from "./mcp-v1-tool.js";
 export { assertMcpStartInput } from "./mcp-start-preflight.js";
@@ -257,7 +257,6 @@ export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
 export * from "./project-host.js";
 export { projectActionAvailability } from "./project-action-availability.js";
-export { withReadOnlyPluginDirectory } from "./always-on-plugins.js";
 export { homeProjectReach } from "./project-reach.js";
 export { AccountRefreshPages } from "./account-refresh-pages.js";
 export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopmentHost } from "./local-plugin-development.js";
@@ -428,7 +427,6 @@ export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
 export { TERMINAL_RUNTIMES, isTerminalRuntime, terminalRuntimeRecipe, type TerminalRuntime } from "./plugin-terminal-runtimes.js";
 
 export { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
-export { bindManagementActions } from "./management-actions.js";
 export { readProjectGuidance } from "./project-guidance-actions.js";
 export { entryUserAction } from "./entry-user-action.js";
 

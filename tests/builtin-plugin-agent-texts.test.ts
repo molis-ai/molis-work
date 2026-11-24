@@ -11,7 +11,9 @@ import { BUILTIN_DEFINITIONS, BUILTIN_WITHOUT_DEFINITION } from "./fixtures/buil
  */
 
 test("RAC-192 the built-in definitions and the plugins without one are the whole catalog", () => {
-  const listed = [...new Set(BUILTIN_DEFINITIONS.map(definition => definition.manifest.plugin_id)), ...Object.keys(BUILTIN_WITHOUT_DEFINITION)].sort();
+  // A platform part the runtime hosts (`system.*`, Shelf since 44B) ships a definition too, but is no catalog entry.
+  const listed = [...new Set(BUILTIN_DEFINITIONS.map(definition => definition.manifest.plugin_id)), ...Object.keys(BUILTIN_WITHOUT_DEFINITION)]
+    .filter(id => !id.startsWith("system.")).sort();
   assert.deepEqual(listed, BUILTIN_PLUGIN_CATALOG.map(entry => entry.manifest.plugin_id).sort(), "a new built-in plugin is added to tests/fixtures/builtin-definitions.ts");
 });
 

@@ -8,30 +8,19 @@ export const MANAGEMENT_REVIEW_TOOL_NAMES = {
 } as const satisfies Record<keyof typeof trustedReviewActions, string>;
 type McpActionReference = { readonly capability_id: string; readonly version: number };
 
-/**
- * A management tool a plugin declares for one of its management actions (`PluginManagementActionDeclaration.mcp_tool`): the Host
- * reads the name from the registration and the description and business input from the action's own definition.
- */
-export interface McpDeclaredManagementTool {
-  readonly name: string;
-  readonly action: McpActionReference;
-  readonly description: string;
-  readonly input_schema: { readonly properties?: unknown };
-}
 
-/** The Host's management port: the entry chooses a declared action and business input, never a caller or permissions. */
+/**
+ * The Host's management port: the platform's two protected review operations on the bound project, as the person on this machine. No
+ * plugin declares management tools (44B): a client that wants a plugin's actions calls the action tools its grant gives, like any other.
+ */
 export interface McpManagementActions {
   readonly project_id: string;
   invoke<Output = unknown>(reference: McpActionReference, input: Record<string, unknown>, evidence?: unknown): Promise<Output>;
-  /** The business fields the action takes, as the definition the Host ships declares its input; a tool accepts these and nothing else. */
-  fields(reference: McpActionReference): readonly string[];
 }
 
 export interface McpToolDispatchPorts {
   audience: "runtime" | "management";
   createError: McpPresentationErrorFactory;
-  /** The plugin-declared management tools the Host lists; a name outside these and the platform's own is unknown. */
-  declared: readonly McpDeclaredManagementTool[];
 }
 
 /** Adapt the protected management tool wires over the port the Host built. */
@@ -58,19 +47,8 @@ export async function dispatchMcpProjectTool(
       : await actions.invoke(trustedReviewActions.decide, input);
     break;
   }
-  default: {
-    const declared = ports.declared.find(tool => tool.name === name);
-    if (!declared) throw ports.createError("mcp.tool_unknown", `未知 V1 tool: ${name}`);
-    const actions = management();
-    const { database_path: _database, project_id, ...input } = arguments_;
-    bound(actions, project_id);
-    // Only the action's own business fields are read; anything else in the arguments (an identity included) is ignored, never passed on.
-    // A scalar given for a field the action declares as text is read as that text, as the tool has always taken it.
-    const properties = (declared.input_schema.properties ?? {}) as Record<string, { type?: unknown } | undefined>;
-    const read = (field: string, value: unknown) => properties[field]?.type === "string" && (typeof value === "number" || typeof value === "boolean") ? String(value) : value;
-    const fields = actions.fields(declared.action);
-    result = await actions.invoke(declared.action, Object.fromEntries(fields.filter(field => Object.hasOwn(input, field)).map(field => [field, read(field, input[field])])));
-  }
+  default:
+    throw ports.createError("mcp.tool_unknown", `未知 V1 tool: ${name}`);
   }
   return JSON.stringify(result, null, 2);
 }

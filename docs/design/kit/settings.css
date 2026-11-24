@@ -2741,16 +2741,16 @@
   .mw-btn__key { margin-left: 6px; font: inherit; font-size: 15px; line-height: 1; opacity: .62; }
 
   /* ───────── Goal track ───────── */
-  .mw-goal-track { display: flex; gap: 4px; margin: 26px 0 0; padding: 0; list-style: none; }
-  .mw-goal-track > li { flex: 1 1 0; min-width: 0; display: grid; gap: 8px; }
-  .mw-goal-track__bar { display: block; height: 6px; border-radius: 3px; background: var(--line-strong); transform-origin: 0 50%; transition: background-color var(--dur-move, 250ms) var(--ease-quint); }
-  .mw-goal-track > li[data-s="done"] .mw-goal-track__bar { background: var(--ink-soft); }
-  .mw-goal-track > li[data-s="doing"] .mw-goal-track__bar { background: var(--accent); }
-  .mw-goal-track__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); font-size: 12px; line-height: 16px; }
-  .mw-goal-track > li[data-s="done"] .mw-goal-track__name { color: var(--muted); }
-  .mw-goal-track > li[data-s="doing"] .mw-goal-track__name { color: var(--ink); font-weight: var(--weight-control, 500); }
+  .mw-progress-track { display: flex; gap: 4px; margin: 26px 0 0; padding: 0; list-style: none; }
+  .mw-progress-track > li { flex: 1 1 0; min-width: 0; display: grid; gap: 8px; }
+  .mw-progress-track__bar { display: block; height: 6px; border-radius: 3px; background: var(--line-strong); transform-origin: 0 50%; transition: background-color var(--dur-move, 250ms) var(--ease-quint); }
+  .mw-progress-track > li[data-s="done"] .mw-progress-track__bar { background: var(--ink-soft); }
+  .mw-progress-track > li[data-s="doing"] .mw-progress-track__bar { background: var(--accent); }
+  .mw-progress-track__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); font-size: 12px; line-height: 16px; }
+  .mw-progress-track > li[data-s="done"] .mw-progress-track__name { color: var(--muted); }
+  .mw-progress-track > li[data-s="doing"] .mw-progress-track__name { color: var(--ink); font-weight: var(--weight-control, 500); }
   /* A crowded track names nothing: the card above it already names the goal in play. */
-  .mw-goal-track.is-dense .mw-goal-track__name { display: none; }
+  .mw-progress-track.is-dense .mw-progress-track__name { display: none; }
 
   /* ───────── File list ───────── */
 
@@ -7325,13 +7325,17 @@
   body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-title { margin: 10px 0 2px; color: var(--faint); font-size: 11px; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-title:first-child { margin-top: 0; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-start { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 6px 12px; border: 0; border-radius: 10px; background: var(--wash); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
-    transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-quint); animation: craft-rise var(--dur-move) var(--ease-quint) both; }
+    transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-quint); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-start:hover { background: var(--nav-active); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-start:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-start-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-start-state { flex: none; color: var(--muted); font-size: 12px; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-list > :nth-child(2) { animation-delay: 30ms; } body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-list > :nth-child(3) { animation-delay: 60ms; }
-  body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-list > :nth-child(4) { animation-delay: 90ms; } body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-list > :nth-child(n + 5) { animation-delay: 120ms; }
+  body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-list > :nth-child(-n + 4 of .assistant-start) {
+    animation: craft-rise var(--dur-move) var(--ease-quint) both;
+    &:nth-child(2 of .assistant-start) { animation-delay: var(--dur-stagger); }
+    &:nth-child(3 of .assistant-start) { animation-delay: calc(var(--dur-stagger) * 2); }
+    &:nth-child(4 of .assistant-start) { animation-delay: calc(var(--dur-stagger) * 3); }
+  }
   body.immersive-workbench:not([data-pane-embedded]) .assistant-empty-hint { margin: 12px 0 0; color: var(--faint); font-size: 12px; }
   /* Copy an answer: it appears with the pointer over the round (always on touch) and says when it is done. */
   body.immersive-workbench:not([data-pane-embedded]) .assistant-copy { align-self: flex-start; position: relative; margin: -6px 0 0 -6px; height: 22px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
@@ -7889,20 +7893,18 @@
   body.immersive-workbench .immersive-home .home-erow:active { background: var(--nav-press); }
   /* Arrival plays once per surface (`is-arriving`, set on its first reveal); showing Home again does not replay it. */
   body.immersive-workbench .immersive-home.is-arriving .home-focus { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
-  /* The cascade marks arrival — the list's first load or another day — never a background refresh or a click. */
-  body.immersive-workbench .immersive-home .home-tl__rows[data-arrive] > * { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
-  body.immersive-workbench .immersive-home .home-tl__rows[data-arrive] > :nth-child(1) { animation-delay: 30ms; }
-  body.immersive-workbench .immersive-home .home-tl__rows[data-arrive] > :nth-child(2) { animation-delay: 54ms; }
-  body.immersive-workbench .immersive-home .home-tl__rows[data-arrive] > :nth-child(3) { animation-delay: 78ms; }
-  body.immersive-workbench .immersive-home .home-tl__rows[data-arrive] > :nth-child(4) { animation-delay: 102ms; }
-  body.immersive-workbench .immersive-home .home-tl__rows[data-arrive] > :nth-child(5) { animation-delay: 126ms; }
-  body.immersive-workbench .immersive-home .home-tl__rows[data-arrive] > :nth-child(6) { animation-delay: 150ms; }
-  body.immersive-workbench .immersive-home .home-tl__rows[data-arrive] > :nth-child(7) { animation-delay: 174ms; }
-  body.immersive-workbench .immersive-home .home-tl__rows[data-arrive] > :nth-child(8) { animation-delay: 198ms; }
-  body.immersive-workbench .immersive-home .home-tl__rows[data-arrive] > :nth-child(9) { animation-delay: 222ms; }
-  body.immersive-workbench .immersive-home .home-tl__rows[data-arrive] > :nth-child(10) { animation-delay: 246ms; }
-  body.immersive-workbench .immersive-home .home-tl__rows[data-arrive] > :nth-child(11) { animation-delay: 270ms; }
-  body.immersive-workbench .immersive-home .home-tl__rows[data-arrive] > :nth-child(12) { animation-delay: 294ms; }
+  /* These lists cascade on first arrival (or a new timeline day). After four rows, the rest are already visible. */
+  :is(
+    body.immersive-workbench .immersive-home .home-tl__rows[data-arrive],
+    body.immersive-workbench .is-arriving .plugin-market-list,
+    body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list,
+    .mw-catalog .mw-motion-list.is-arriving
+  ) > :nth-child(-n + 4) {
+    animation: craft-rise var(--dur-arrive) var(--ease-quint) both;
+    &:nth-child(2) { animation-delay: var(--dur-stagger); }
+    &:nth-child(3) { animation-delay: calc(var(--dur-stagger) * 2); }
+    &:nth-child(4) { animation-delay: calc(var(--dur-stagger) * 3); }
+  }
 
   /* ─── Feed: a lone source tab is not a choice (the column itself lives in the Feed plugin stylesheet) ─── */
 
@@ -7987,31 +7989,6 @@
   body.immersive-workbench .plugin-market-body .mw-card:has(> .mw-btn ~ .mw-btn ~ .mw-btn) > .plugin-market-copy { flex: 1 1 calc(100% - 64px); }
   body.immersive-workbench .plugin-market-icon { border-radius: 8px; background: var(--nav-hover); color: var(--ink-soft); }
   body.immersive-workbench .plugin-market-installed-row > * { transition: border-color var(--dur-hover) var(--ease-quint); }
-  body.immersive-workbench .is-arriving .plugin-market-list > * { animation: craft-rise 420ms var(--ease-quint) both; }
-  body.immersive-workbench .is-arriving .plugin-market-list > :nth-child(1) { animation-delay: 0ms; }
-  body.immersive-workbench .is-arriving .plugin-market-list > :nth-child(2) { animation-delay: 24ms; }
-  body.immersive-workbench .is-arriving .plugin-market-list > :nth-child(3) { animation-delay: 48ms; }
-  body.immersive-workbench .is-arriving .plugin-market-list > :nth-child(4) { animation-delay: 72ms; }
-  body.immersive-workbench .is-arriving .plugin-market-list > :nth-child(5) { animation-delay: 96ms; }
-  body.immersive-workbench .is-arriving .plugin-market-list > :nth-child(6) { animation-delay: 120ms; }
-  body.immersive-workbench .is-arriving .plugin-market-list > :nth-child(7) { animation-delay: 144ms; }
-  body.immersive-workbench .is-arriving .plugin-market-list > :nth-child(8) { animation-delay: 168ms; }
-  body.immersive-workbench .is-arriving .plugin-market-list > :nth-child(9) { animation-delay: 192ms; }
-  body.immersive-workbench .is-arriving .plugin-market-list > :nth-child(10) { animation-delay: 216ms; }
-  /* A plugin's list arrives once, the first rows in order (at most 12); a refresh or a return never replays it. */
-  body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(-n+12) { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
-  body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(1) { animation-delay: 0ms; }
-  body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(2) { animation-delay: 24ms; }
-  body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(3) { animation-delay: 48ms; }
-  body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(4) { animation-delay: 72ms; }
-  body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(5) { animation-delay: 96ms; }
-  body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(6) { animation-delay: 120ms; }
-  body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(7) { animation-delay: 144ms; }
-  body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(8) { animation-delay: 168ms; }
-  body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(9) { animation-delay: 192ms; }
-  body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(10) { animation-delay: 216ms; }
-  body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(11) { animation-delay: 240ms; }
-  body.immersive-workbench .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(12) { animation-delay: 264ms; }
 
   /* ─── Drag and drop ─── */
   body:is(.immersive-workbench, .settings-page, .project-preferences-page) [draggable="true"] { -webkit-user-drag: element; }
@@ -8105,12 +8082,6 @@
   .mw-catalog .mw-motion-tabs .tab-item[aria-selected="true"] { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
   .mw-catalog .mw-motion-list { display: grid; gap: 4px; margin: 12px 0 0; padding: 0; list-style: none; }
   .mw-catalog .mw-motion-list > li { padding: 8px 12px; border-radius: 8px; background: var(--surface-soft); font-size: 13px; }
-  .mw-catalog .mw-motion-list.is-arriving > li { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
-  .mw-catalog .mw-motion-list.is-arriving > :nth-child(1) { animation-delay: 0ms; }
-  .mw-catalog .mw-motion-list.is-arriving > :nth-child(2) { animation-delay: 24ms; }
-  .mw-catalog .mw-motion-list.is-arriving > :nth-child(3) { animation-delay: 48ms; }
-  .mw-catalog .mw-motion-list.is-arriving > :nth-child(4) { animation-delay: 72ms; }
-  .mw-catalog .mw-motion-list.is-arriving > :nth-child(5) { animation-delay: 96ms; }
   .mw-catalog .mw-motion-row-detail > summary { cursor: pointer; font-size: 13px; }
   .mw-catalog .mw-motion-row-detail > p { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
   .mw-catalog .mw-motion-pages > section { padding: 16px; border-radius: 12px; background: var(--surface-soft); font-size: 13px; }

@@ -5,7 +5,7 @@ import { baselineToken } from "../baseline.js";
 import { renderStateRingCatalog } from "./status-ring-catalog.js";
 import { renderProjectMonogram } from "../monogram.js";
 import { MW_ACTION_TONES, MW_CONTENT_MARKS, MW_CONTENT_SURFACES, MW_HUES, MW_STATUS_TONES, MW_SURFACES, MW_TYPE_TONES } from "../palette.js";
-import { renderBarContext, renderBarStatus, renderBrief, renderBriefFocus, renderBriefRecent, renderBriefSection, renderBriefStatus, renderCaption, renderFileGroup, renderFileRow, renderGoalTrack, renderSteps, renderWordmark } from "./arrival.js";
+import { renderBarContext, renderBarStatus, renderBrief, renderBriefFocus, renderBriefRecent, renderBriefSection, renderBriefStatus, renderCaption, renderFileGroup, renderFileRow, renderProgressTrack, renderSteps, renderWordmark } from "./arrival.js";
 import { section, mark, specimen } from "./catalog-parts.js";
 import { CATALOG_CLIENT_SCRIPT } from "../page-clients.js";
 import { choiceSection, composeSection } from "./catalog-compose.js";
@@ -231,7 +231,7 @@ function motionSection(say: Say): string {
 function arrivalSection(say: Say): string {
   const monogram = renderProjectMonogram("FlyLeaf-V0.1", "flyleaf", (value) => value.replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char] ?? char));
   const goals = [["明确使用场景", "done"], ["确认首版范围", "done"], ["完成阅读页原型", "done"], ["连接笔记链路", "done"], ["打磨首次使用", "doing"], ["邀请首批内测", "todo"]] as const;
-  const track = renderGoalTrack({ goals: goals.map(([title, state]) => ({ title, state })), label: "4 / 6 个目标完成" });
+  const track = renderProgressTrack({ items: goals.map(([title, state]) => ({ title, state })), label: "4 / 6 项完成" });
   const next = renderBriefSection({ title: "接下来", body: `<div class="mw-brief__list">${renderDirectoryRow({ title: "检查空白状态与导入材料的完整路径", caption: "目标「打磨首次使用」", density: "meta", status: say("workbench.assistant-delivery.progress"), statusTone: "progress", statusIcon: "status-progress" })}${renderDirectoryRow({ title: "确认首批内测名单", caption: "12 人", density: "meta", status: "等你确认", statusTone: "attention", statusIcon: "status-needs-you" })}</div>` });
   const recent = renderBriefSection({ title: "最近", body: renderBriefRecent([{ when: "昨天 22:14", text: "更新了《阅读页交互说明》" }, { when: "9月29日", text: "加入 4 份用户访谈记录" }]) });
   const brief = renderBrief({
@@ -264,7 +264,7 @@ function arrivalSection(say: Say): string {
       ${specimen("按钮 · 标明回车键", `${renderButton({ label: "继续", variant: "primary", size: "lg", key: "↵" })}${renderButton({ label: "返回项目", variant: "ghost", size: "lg", icon: "back" })}`)}
       ${mark("bar-context", specimen("底栏 · 左：正在看的是谁", `<div class="mw-arrival-bar-strip">${renderBarContext({ mark: monogram, title: "FlyLeaf-V0.1", caption: "预览中 · 回车进入" })}</div>`))}
       ${mark("bar-status", specimen("底栏 · 中：正在发生什么", `<div class="mw-arrival-bar-strip">${renderBarStatus({ spin: true, title: "正在整理工作脉络", caption: "可以离开，回来后接着整理" })}${renderBarStatus({ glyph: "shield", title: "已选 11 份 · 1.5 MB", caption: "开始后读取正文并发给所选模型整理" })}</div>`))}
-      ${mark("goal-track", specimen("目标条 · 一段一个目标", `<div class="mw-arrival-wide">${track}</div>`))}
+      ${mark("progress-track", specimen("进度条 · 一段一项", `<div class="mw-arrival-wide">${track}</div>`))}
       ${mark("file-list", specimen("材料清单 · 勾选与分组勾选", `<div class="mw-arrival-wide">${files}${added}</div>`))}
       ${mark("brief", specimen("项目简介 · 目录与详情的详情", `<div class="mw-arrival-brief">${brief}</div>`))}
     </div>`);

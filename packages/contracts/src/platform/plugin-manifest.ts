@@ -19,6 +19,20 @@ export const PLUGIN_ID_PATTERN = "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$";
 /** The prefix only the Host's own packages may use (S-reserved-host-prefix); an install of any other trust under it is refused. */
 export const HOST_PLUGIN_ID_PREFIX = "io.molis.work.";
 
+/**
+ * The prefix of the platform's own providers (`system.artifacts`, `system.characters`, `system.assistant`, 第 44B 批): they are not
+ * plugins, and no package of any trust, the release's own included, installs under it (S-reserved-host-prefix).
+ */
+export const PLATFORM_ID_PREFIX = "system.";
+
+/**
+ * Where a provider's own routes are served: `/api/plugins/<id>` for a plugin, `/api/platform/<name>` for a platform part the runtime
+ * hosts (`system.shelf` → `/api/platform/shelf`, 第 44B 批).
+ */
+export function pluginRouteBase(pluginId: string): string {
+  return pluginId.startsWith(PLATFORM_ID_PREFIX) ? "/api/platform/" + pluginId.slice(PLATFORM_ID_PREFIX.length) : "/api/plugins/" + pluginId;
+}
+
 export type PluginDeployment = "local" | "server";
 /**
  * `app` is a v2 Plugin that contributes views, commands, routes, ports and
@@ -179,12 +193,6 @@ export interface PluginManifest {
     signature: string;
   };
   host_api_version: /* @version host.api */ 1;
-  /**
-   * 常开插件. Enabled in every project, never listed where plugins are chosen, added or removed (the plugin list, the
-   * market, the Dock, a project's plugin settings), so it cannot be removed. Only a plugin that ships with the Host may
-   * declare it: the Runtime refuses to install or upgrade to a Manifest that does from anywhere else.
-   */
-  always_on?: boolean;
   /** One sentence for the plugin market and the page heading, at most 120 characters once trimmed. Without one the market lists the plugin by its name. */
   summary?: string;
   /** The displayed summary, independent of the Manifest name and view title. */
@@ -207,7 +215,9 @@ export interface PluginManifest {
    * `[{ kind: "artifact", artifact_types, file? }]` on the plugin's `defineArtifactContinueAction` (contract-design §2.3).
    */
   artifacts: {
-    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; title_text?: { key: string }; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number } }>;
+    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; title_text?: { key: string }; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number };
+      /** Payload keys whose text a person reads, beyond the platform's own (title, text, body…): system search indexes them for this type (M12). */
+      searchable_fields?: readonly string[] }>;
     consumes: Array<{ artifact_type_id: string; schema_version: number }>;
     /** The kinds of link this Plugin writes between its own objects and exact 成果 versions; one Plugin owns a kind. */
     links?: ArtifactLinkDeclaration[];

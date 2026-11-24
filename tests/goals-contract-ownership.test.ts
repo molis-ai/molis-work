@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import ts from "typescript";
-import { MANAGEMENT_MCP_TOOLS, MCP_TOOLS } from "@molis-ai/molis-work-app-local-host";
+import { MCP_TOOLS } from "@molis-ai/molis-work-app-local-host";
 import * as contract from "@molis-ai/molis-work-plugin-goals/contract";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { GoalEventFacts } from "@molis-ai/molis-work-plugin-goals/module";
@@ -153,7 +153,7 @@ interface RegisteredAction { capability_id: string; version: number; operation: 
   action: { kind: string; scope: string; permissions: readonly string[]; description: string; input_schema: { properties: Record<string, unknown>; required?: string[] } } }
 const registered = (table: "goalEntryActions" | "goalPluginActions", key: string): RegisteredAction => (contract[table] as Record<string, RegisteredAction>)[key]!;
 
-test("RAC-1773 PEQ-15: the MCP, Feed and Coding tables hold the ids, versions and kinds of the actions Goals registers, the CLI names none, and the management tools carry the directory's words", () => {
+test("RAC-1773 PEQ-15: the MCP, Feed and Coding tables hold the ids, versions and kinds of the actions Goals registers, the CLI and the management tools name none", () => {
   // CLI (PEQ-15): its Goals commands and their table were removed; it names no Goals action.
   assert.doesNotMatch(readFileSync(new URL("../apps/cli/src/command-dispatch.ts", import.meta.url), "utf8"), /\bGOALS\b|"goals\./u);
   // Feed (Audit #10): discovers the work-item promotion provider by role (`workItemPromotionRoleOf`), not by hardcoded action IDs.
@@ -165,10 +165,7 @@ test("RAC-1773 PEQ-15: the MCP, Feed and Coding tables hold the ids, versions an
     assert.ok(entry.action.input_type?.startsWith("molis.work.promote."), `Goals ${name} tags its work-item promotion input_type`);
     assert.ok(entry.action.output_type?.startsWith("molis.work.promote."), `Goals ${name} tags its work-item promotion output_type`);
   }
-  // MCP: the one management tool Goals declares on its registration (batch 44 recheck); the platform names no Goals action. The
-  // platform publishes the review operations.
-  assert.deepEqual(MANAGEMENT_MCP_TOOLS.map(tool => [tool.name, tool.action.capability_id, tool.action.version, tool.opens_new_database]),
-    [["molis_work_v1_initialize", registered("goalEntryActions", "initialize").capability_id, registered("goalEntryActions", "initialize").version, true]]);
+  // MCP (44B): no plugin declares management tools; the platform names no Goals action and publishes only its review and connection tools.
   // Coding: the five plugin actions, with the kind, scope and the one permission its Manifest declares for them.
   const coding = referencesIn("plugins/native/coding/src/goals-actions.ts", "GOALS_ACTIONS");
   assert.deepEqual(Object.keys(coding).sort(), Object.keys(PLUGIN_ACTIONS).sort());
@@ -177,19 +174,12 @@ test("RAC-1773 PEQ-15: the MCP, Feed and Coding tables hold the ids, versions an
     assert.deepEqual([id, version, operation], [real.capability_id, real.version, real.operation], `Coding ${name}`);
     assert.deepEqual([real.action.kind, real.action.scope, [...real.action.permissions]], [operation === "query" ? "query" : "operation", "project", [operation === "query" ? "goals:read" : "goals:write"]], `Coding ${name}: the handle's kind and permission`);
   }
-  // The management tools: the names and order of the platform tools, the description and business fields the Goals actions declare.
-  assert.deepEqual(MCP_TOOLS.map(tool => tool.name), ["molis_work_v1_initialize", "molis_work_v1_review_request", "molis_work_v1_review_decide", "molis_work_v1_context_resolve",
+  // The management tools: the names and order of the platform tools and the business fields of the review operations.
+  assert.deepEqual(MCP_TOOLS.map(tool => tool.name), ["molis_work_v1_review_request", "molis_work_v1_review_decide", "molis_work_v1_context_resolve",
     "molis_work_v1_context_list_projects", "molis_work_v1_context_reject_suggestion", "molis_work_v1_context_bind", "molis_work_v1_context_unbind",
     "molis_work_v1_context_create_and_bind", "molis_work_v1_project_delete"]);
   const tool = (name: string) => MCP_TOOLS.find(item => item.name === name)!;
-  const business = registered("goalEntryActions", "initialize").action;
-  const description = "在当前可信管理上下文中为本项目初始化尚不存在的目标资料库；不创建项目目录绑定，不覆盖已有资料库，重试保留原请求键";
-  assert.equal(tool("molis_work_v1_initialize").description, description);
-  assert.equal(business.description, description);
-  assert.deepEqual((tool("molis_work_v1_initialize").inputSchema.properties as Record<string, unknown>).idempotency_key,
-    business.input_schema.properties.idempotency_key);
   for (const [name, keys, required] of [
-    ["molis_work_v1_initialize", ["database_path", "project_id", "idempotency_key"], ["project_id", "idempotency_key"]],
     ["molis_work_v1_review_request", ["database_path", "project_id", "action", "request_id", "draft", "reference"], ["project_id"]],
     ["molis_work_v1_review_decide", ["database_path", "project_id", "reference", "choice_id", "request_key", "note"], ["project_id", "reference", "choice_id", "request_key"]],
   ] as const) {

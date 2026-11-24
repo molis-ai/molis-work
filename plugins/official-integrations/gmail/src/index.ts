@@ -88,3 +88,6 @@ export function createGmailIntegrationPlugin(input: {
     return existsSync(url) ? readFileSync(url, "utf8") : null;
   }, guides: { gmail: connectionGuide } } };
 }
+
+/** The OAuth return address Gmail's client was registered under (W5-11 §3.1 R1), kept byte for byte; a project segment may lead it. */
+export const GMAIL_OAUTH_CALLBACK_ALIAS = Object.freeze({ service: "gmail", path: "/api/feed/connectors/gmail/oauth/callback", project: true });

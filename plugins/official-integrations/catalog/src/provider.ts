@@ -158,7 +158,7 @@ export function createCatalogProvider(opts: {
     },
     async sync({ cursor }, control) {
       control.current();
-      if (spec.feed_available === false) return integrationLiveFailure("configuration", `${spec.title} 当前未提供 REST Feed；请使用连接的身份检查或 MCP 工具`);
+      if (spec.source_available === false) return integrationLiveFailure("configuration", `${spec.title} 当前未提供 REST Feed；请使用连接的身份检查或 MCP 工具`);
       const previous = catalogCursor(cursor, spec.id);
       const syncAt = now();
       if (previous && Date.parse(previous.next_poll_at) > syncAt.getTime()) {

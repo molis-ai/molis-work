@@ -139,7 +139,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const id = recOrId && typeof recOrId === "object" ? recOrId.scene_id : recOrId;
     const dest = destOf(id, typeof recOrId === "object" ? recOrId : sel);
     if (dest?.title) return dest.title + (dest.scene_version ? " · v" + dest.scene_version : "");
-    return id === "home.dock" ? globalThis.t.text("workbench.judgment-rules-client.home") : id === "inbox.next" ? "Inbox" : id === "feed.capture" ? "Feed" : id === "agent.mcp" ? "Agent" : globalThis.t.text("workbench.judgment-rules-client.none");
+    // A scene that is not in the catalog any more reads as its id; the catalog's own titles come from each scene's declaration (M9).
+    return id === "home.dock" ? globalThis.t.text("workbench.judgment-rules-client.home") : id === "agent.mcp" ? "Agent" : id || globalThis.t.text("workbench.judgment-rules-client.none");
   };
   const optionIds = () => new Set(cat.options.filter(row => !row.destination_id || optionMatches(row, destKey())).map((row) => row.option_id));
   const matchesSubjects = (beh, kinds) => {

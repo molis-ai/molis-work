@@ -67,6 +67,7 @@ export type PlacementAssociationType = "used_in" | "attached" | "derived_from" |
 export interface PlacementAttachKindView {
     kind: string;
     noun: string;
+    open_view?: string;
     targets: {
         id: string;
         title: string;

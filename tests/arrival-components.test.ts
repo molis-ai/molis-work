@@ -15,7 +15,7 @@ import {
   renderFileGroup,
   renderFileKind,
   renderFileRow,
-  renderGoalTrack,
+  renderProgressTrack,
   renderPrimitiveCatalog,
   renderSteps,
   renderWordmark,
@@ -55,11 +55,11 @@ test("short-line progress marks what is done and the one step in view", () => {
 
 test("the goal track draws one segment per goal and thins its labels when crowded", () => {
   const goals = ["a", "b", "c"].map((title, index) => ({ title, state: (["done", "doing", "todo"] as const)[index]! }));
-  const html = renderGoalTrack({ goals, label: "1 / 3 个目标完成" });
+  const html = renderProgressTrack({ items: goals, label: "1 / 3 项完成" });
   assert.deepEqual([...html.matchAll(/data-s="(\w+)"/g)].map((match) => match[1]), ["done", "doing", "todo"]);
-  assert.match(html, /role="img" aria-label="1 \/ 3 个目标完成"/);
+  assert.match(html, /role="img" aria-label="1 \/ 3 项完成"/);
   assert.doesNotMatch(html, /is-dense/);
-  const crowded = renderGoalTrack({ goals: Array.from({ length: 8 }, (_, index) => ({ title: `g${index}`, state: "todo" as const })), label: "0 / 8" });
+  const crowded = renderProgressTrack({ items: Array.from({ length: 8 }, (_, index) => ({ title: `g${index}`, state: "todo" as const })), label: "0 / 8" });
   assert.match(crowded, /is-dense/);
 });
 
@@ -142,7 +142,7 @@ test("the motion script rests under reduced motion and automation, and types by 
 test("the component board lists the arrival components, each with a specimen", () => {
   const html = withPageText("zh", [], renderPrimitiveCatalog);
   assert.match(html, /<section class="mw-catalog__section" id="arrival" data-primitive="arrival"><h2>到达 \/ Arrival<\/h2>/);
-  for (const id of ["wordmark", "caption", "steps", "bar-context", "bar-status", "goal-track", "file-list", "brief"]) {
+  for (const id of ["wordmark", "caption", "steps", "bar-context", "bar-status", "progress-track", "file-list", "brief"]) {
     assert.match(html, new RegExp(`data-primitive="${id}"`), id);
   }
 });

@@ -313,10 +313,10 @@ test("D0033-01 S-47 the real side plugin cannot read either trusted ancestor, it
     return {parent:read(parent),top:read(top),token:!!document.querySelector('meta[name=molis-work-page-session]'),native:!!window.__TAURI_INTERNALS__,separate:parent!==top};
   })()`), { parent: "SecurityError", top: "SecurityError", token: false, native: false, separate: true });
   assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(ownerFrame)}).contentDocument.querySelector('iframe[data-plugin-frame=shelf]').getAttribute('sandbox')`), "allow-scripts allow-forms");
-  for (const path of ["/api/settings/projects", `/projects/${browser.projectId}/api/plugins/io.molis.work.todo/items`, "/projects/another-project/api/plugins/io.molis.work.shelf/"]) {
+  for (const path of ["/api/settings/projects", `/projects/${browser.projectId}/api/plugins/io.molis.work.todo/items`, "/projects/another-project/api/platform/shelf/"]) {
     assert.equal(await child.evaluate(`fetch(${JSON.stringify(path)}).then(response=>response.status)`), 403, path);
   }
-  assert.equal(await child.evaluate(`fetch(${JSON.stringify(`/projects/${browser.projectId}/api/plugins/io.molis.work.shelf/`)}).then(response=>response.status)`), 200, "the same isolated bridge still serves the side plugin's own content");
+  assert.equal(await child.evaluate(`fetch(${JSON.stringify(`/projects/${browser.projectId}/api/platform/shelf/`)}).then(response=>response.status)`), 200, "the same isolated bridge still serves the side plugin's own content");
   // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
   await browser.evaluate("document.body.dataset.sideOpen === 'true' && (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click())");
   await browser.waitFor("document.body.dataset.sideOpen==='false'");

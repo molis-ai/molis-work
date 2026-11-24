@@ -13,7 +13,6 @@ import { DEMO_PROJECT_ID, LocalProjectDatabase, bindDeclaredDefaults, createPlug
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
-import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { snapshotReaderPlugin } from "./fixtures/snapshot-reader-plugin.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { SNAPSHOT_SOURCE, snapshotSourcePlugin } from "./fixtures/snapshot-source-plugin.js";
@@ -64,7 +63,7 @@ const defaults = (platform: ReturnType<typeof createPluginPlatform>) => platform
 test("W4-03-01 Coding's family is wired from its own Manifests, and Diff's snapshots group is its declared default", project(async platform => {
   // As the Host's start list gives them (`project-plugins.ts`): every one ships with the Host. The snapshot reader is a test fixture
   // standing for a Host plugin whose required input defaults to the platform's materials.
-  await platform.start([{ definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createShelfPlugin(), trust: { level: "host" } },
+  await platform.start([{ definition: createCodingPlugin(), trust: { level: "host" } },
     { definition: createGitPlugin(), trust: { level: "host" } }, { definition: snapshotReaderPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } }]);
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
   // The rows of the table this replaced (apps/local-host/src/workspace-plugin-bindings.ts before W4-03), less Coding's six inputs:
@@ -73,7 +72,6 @@ test("W4-03-01 Coding's family is wired from its own Manifests, and Diff's snaps
   assert.deepEqual(defaults(platform), [
     "com.example.snapshot-reader.text ← system.materials.before",
     "diff.after ← system.materials.after", "diff.before ← system.materials.before", "diff.changeset ← coding.changeset", "diff.git-changeset ← git.changeset",
-    "shelf.coding-changeset ← coding.changeset", "shelf.coding-report ← coding.report",
   ]);
   assert.equal(platform.wiring.selectedGroup("io.molis.work.diff"), "snapshots");
 }));
@@ -117,7 +115,7 @@ test("W4-03-04 a plugin nobody agreed for gets no default (not Coding's changese
   // The same Manifest under a built-in's own id, given by something other than the Host's start list (a developed or generated
   // plugin can name any plugin_id): still not the Host's.
   const impostor = probe([snapshotPort("text", { plugin_id: FILES, port: "before" })], [{ group_id: "one", title: "一份", ports: ["text"], default: true }], "io.molis.work.git");
-  await platform.start([{ definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createShelfPlugin(), trust: { level: "host" } }, { definition: snapshotSourcePlugin(), trust: { level: "host" } },
+  await platform.start([{ definition: createCodingPlugin(), trust: { level: "host" } }, { definition: snapshotSourcePlugin(), trust: { level: "host" } },
     { definition: createDiffPlugin(), trust: { level: "host" } }, { definition: collector }, { definition: impostor }, { definition: reader, trust: { level: "host" } }]);
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
   for (const [pluginId, name] of [[installed, "changes"], [installed, "text"], ["io.molis.work.git", "text"], [PROBE, "text"]] as const) {

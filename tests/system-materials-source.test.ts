@@ -72,7 +72,7 @@ test("BSH-05 a binding reads system.materials; a version on its output that anot
 test("BSH-06 the Host agrees for its build to read system.materials by default only on the target's first install in this Home", () => {
   const subject = consentSubject.defaultWiring("before", { plugin_id: MATERIALS_PROVIDER_ID, port: "before" }, SYSTEM_MATERIALS_SOURCE.signature);
   const grant = { kind: "default_wiring" as const, subject };
-  const entry = (plugin_id: string, grants: readonly { kind: "default_wiring" | "always_on"; subject: string }[]) =>
+  const entry = (plugin_id: string, grants: readonly { kind: "default_wiring"; subject: string }[]) =>
     ({ plugin_id, publisher_signature: "fixture-reader", manifest_digest: "digest", granted_by: "host_build" as const, grants, at: "2026-11-11T00:00:00.000Z" });
   const fresh = new MemoryPluginConsentLedger();
   assert.equal(fresh.record(entry(DIFF, [grant])).length, 1, "a first install in a Home with no record of the target is agreed for");

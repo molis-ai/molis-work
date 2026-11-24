@@ -1,4 +1,4 @@
-import { ActionError, bindActionHandler, requireSynchronous, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, requireSynchronous, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionErrorResponse, isCodedFailure } from "./errors.js";
 
@@ -50,7 +50,8 @@ export function bindPluginActionRoute<Input, Output>(
 export function bindOwnerPluginAction<Input, Output>(
   context: PluginStartContext,
   definition: ActionDefinition<Input, Output>,
-  handle: (input: Input, beforeWrite: () => Promise<void>) => Output | Promise<Output>,
+  /** `caller` says which project the call is for, for a Home instance whose actions serve the caller's project. */
+  handle: (input: Input, beforeWrite: () => Promise<void>, caller: ActionExecutionContext) => Output | Promise<Output>,
   dependencies: readonly ActionReference[] = [],
 ): ActionHandlerBinding {
   const availability = (caller: ActionCallContext): ActionAvailability => {
@@ -84,6 +85,6 @@ export function bindOwnerPluginAction<Input, Output>(
     // availability. Only a command confirms, before it writes, that the action is still the one published: discovering
     // every action of the project on each read made plain page refreshes pay for it.
     if (definition.operation !== "query") await beforeWrite();
-    return handle(input, beforeWrite);
+    return handle(input, beforeWrite, caller);
   }, { availability });
 }

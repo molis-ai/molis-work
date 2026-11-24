@@ -109,7 +109,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `modules/attention-resumption` | Attention reference、reason 与最小处置状态 | Attention reference/reason 与最小处置；平台同步复用原 Inbox 集合身份与回执；旧 Inbox 转发已退出；缺片：完整 snooze/resume；后续：另立 Goal 补未来能力 | `slice` | FD2/Cutover；完整 snooze/resume 仍是未来能力 | Module：@yijunw0212 |
 | `modules/private-work-context` | Runtime context binding（Runtime 工作入口与 Project 的绑定、事件、setup 幂等、拒绝建议） | Runtime 当前 Project 关联经 Ledger API 保存；控制历史留在本模块。Session、内容引用与 Handoff 随 Sessions 插件下线（SC-4）删除，重做见 BL-177；缺片：Sessions 下线后的重做；后续：BL-177 | `slice` | WK1–WK3 已迁移；SC-4 删除 Session 部分 | Module：@yijunw0212 |
 | `modules/artifacts` | Artifact、版本、类型、内容引用、原件与 provenance | 唯一正式事实；平台提供方和生产者声明由 Host 装配，工作台成果界面走动作消费；原件 Home 存储由本模块声明 | `production` | AR1 已迁 Core；AR3 切换现有结果入口 | Module：@yijunw0212 |
-| `modules/shelf` | 个人置物架材料、副本任务、Hash 与本机抽字结果 | Home 下 `shelf/` 副本与 Jobs 沙箱；不写项目 Goal / Artifact；缺片：轮盘/热键的 Desktop 适配；后续：随 Desktop 轮盘接入 | `slice` | Shelf 工作台切片；轮盘/热键仍待 Desktop | Module：@yijunw0212、@jingxusandra-gif |
+| `modules/shelf` | 平台部件 Shelf（`system.shelf`）：个人置物架材料、副本任务、Hash、本机抽字结果与右栏 Shelf 界面 | Home 下 `shelf/` 副本与 Jobs 沙箱；由运行时作为平台部件托管（`HostSurfaceRegistration`，无安装记录、不进插件目录），路由 `/api/platform/shelf/…`；项目结果只经 `services.artifacts` 读；不写项目 Goal / Artifact；缺片：轮盘/热键的 Desktop 适配；后续：随 Desktop 轮盘接入 | `slice` | Shelf 工作台切片；轮盘/热键仍待 Desktop | Module：@yijunw0212、@jingxusandra-gif |
 | `modules/characters` | 个人角色原件、版本与状态，项目成员、节覆盖、默认与模板采用回执；角色动作处理器与本人绑定、本机导入逻辑（CHR-0、CHR-1：角色不再是插件，Host 用它登记动作提供方，「设置 › 角色」是 Host 的设置节，界面在 `apps/workbench/src/characters/`） | 按本人及项目分区。Artifact 持有另行发布的成果；Agent Host 固定本轮版本并核对执行权限。任务与设置使用同一个角色抽屉 | `slice` | `specs/onboarding-coverage/role-service-design.md` | Module：@yijunw0212 |
 | `modules/judgment-rules` | 已发布判断函数与一次判断记录 | 函数库、来源/去向/映射、场景绑定、判断落库；个人规则定义可选同步；TypeSafe 由 Host 注入 | `production` | `specs/archive/functions-system-capability/spec.md`；`specs/archive/functions-product-authoring/spec.md`；`specs/archive/functions-independent-authoring/spec.md`；事件去向动作范围 `specs/archive/function-scene-action-scope/spec.md` | Module：@yijunw0212 |
 | `server` | 共享身份、设备、项目访问、HTTP、SSE 与接续回执；聊天领域在 `src/im` | 右栏「讨论」页签的后端：本地宿主在 `/im` 挂载它的群聊（`apps/local-host/src/im-server.ts`），库是 Home 里的 `server/server.sqlite`；这是在用、还会迭代的功能（spec §1，2026-10-08「右栏『讨论』页签与 IM 代码」）。`apps/server` 是同一份实现的本地可部署启动器；所有业务读写调用现有 Action Host，不启动模型运行时。该决定要修的三处账目均已落地：库 `server/server.sqlite` 已登记进 Home 数据表（`docs/system/HOME-DATA.md` 3.4：必备份，`uninstall --purge-user-data` 清除 `server/`，普通卸载保留）；包的归类已改成业务包（`scripts/workspace-packages.mjs` 里记作 `module`，按 Module 规则检查，包括 `moduleRepositoryExports` 不许它的入口导出 Repository 或 Store）；宿主不再直接读它的表（`im-server.ts` 已于 W2-06 改走 `ContinuityService.projectOwner`） | `production` | `specs/archive/molis-work-im/spec.md` | Module：@yijunw0212 |
@@ -146,7 +146,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 **观测采集层与评测服务已登记在上表**（`horizontal/observation` 与 `horizontal/evaluation`，成熟度均为 `slice`）：`observation` 只拥有观察记录本身、证据快照、覆盖登记与缺口、用途与保留设置及样本留存，原始业务内容、正式状态及对象身份仍归对应插件或服务；历史证据不产生第二份可编辑事实，清理只删记录与无引用快照、不连带删业务内容。第 28 批已随 #2059 合入写入面，第 29 批接入历史查询与证据读取、用途与跨项目边界（S-74）、暂停／恢复、自动与手动清理、空间占用与容量提醒以及全局设置「个人 → 工作记录」界面；第 30 批接入评测样本留存（`observation.holds.*@1`）与独立评测服务（`horizontal/evaluation`）。评测与主动助理经公开能力消费同一事实，分别负责效果判断和工作建议，不各建采集链；实施沿后续演进计划 C 轨。
 
-成果库的浏览、嵌入与文档导入界面属于 `apps/workbench/src/artifacts/`，不登记 Plugin；动作提供方仍为 `io.molis.work.artifacts`。PG-077 已随 #1633 合入 main：提供方为平台的 `kind: "system"`，`plugins/native/artifacts` 旧包已删；真实 Home 已于 2026-11-07 干净重建，本人验收与重建后的实操未完成（见 `specs/archive/repository-anti-corruption/privileges.md` PG-077）。
+成果库的浏览、嵌入与文档导入界面属于 `apps/workbench/src/artifacts/`，不登记 Plugin；动作提供方仍为 `system.artifacts`。PG-077 已随 #1633 合入 main：提供方为平台的 `kind: "system"`，`plugins/native/artifacts` 旧包已删；真实 Home 已于 2026-11-07 干净重建，本人验收与重建后的实操未完成（见 `specs/archive/repository-anti-corruption/privileges.md` PG-077）。
 
 ## 7. Plugins
 
@@ -157,7 +157,6 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `plugins/native/risk` | 项目风险：记录、关联、进展与总览 | 风险记录、关联对象、进展时间线，列表、读取器、搜索、呈现与首页概况；复查由 Schedule 的一次性对象任务承载，风险不调 AI；Goal 的顾虑可引用风险。缺片：RISK-06 的历次结果与采纳（[BL-risk-review-history-adopt](../specs/backlog/BL-risk-review-history-adopt.md)）；RISK-05/06/09 的本人验收 | `experimental` | `specs/risk-plugin/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/work-brief` | 项目简报与个人简报：现在怎么样、要你处理什么、下一步 | 简报及其版本、每句的依据、人工修改、待处理的提案、下一步的处置、固定版本（发成成果）、个人事项汇总；别的插件的内容只经它们公开的概况、读取器和动作读，不存副本；首页上的开头几句话经概况的 `lede` 交给平台首页；缺片：决定卡（39-2 的受保护入口已就位，卡本身待做）、定时刷新走 Schedule、周期报告／living page／使用回顾／交互式报告页等后续片 | `experimental` | `specs/work-brief/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/schedule` | Schedule 一级入口：对话任务与闹钟列表 | 人手创建日历日对话任务；其他插件 job 仍只展示与暂停；缺片：其他插件 job 的创建/编辑；后续：补齐 job 编辑 | `slice` | `specs/archive/schedule-conversation-tasks/spec.md` | 内置插件：@yijunw0212 |
-| `plugins/native/shelf` | Shelf 一级入口：材料/结果/剪贴板与本机抽字 | DropAgent 表面挂进目录与工作面；路由在插件自己的 `/api/plugins/io.molis.work.shelf/…`，Host 注入 Store；缺片：轮盘/抓页/CLI Recipe；后续：Desktop 接入 | `slice` | 工作台进货→抽字切片；轮盘/抓页/CLI Recipe 待 Desktop | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `apps/workbench/src/judgment-rules` | 系统能力服务的判断编辑器：写、试跑、发布 | 通过 Host 系统动作调用 modules/judgment-rules；连接与凭据复用服务连接（TypeSafe）；用途按场景合同派生，Feed 捕捉与首页判断已真实消费；入口在「能力」 | `production` | `specs/action-architecture/spec.md`；`specs/archive/functions-independent-authoring/spec.md` | 共享核心：@yijunw0212 |
 | `plugins/native/pages` | Pages 一级入口：本机文档 | 库、ProseMirror 内核、块备注、正文批注与持久评论线程（含助理回复与引用锚点）、卡、通用放置挂接与 Promote；外部文件预览/批量导入与幂等收据；由 Plugin Runtime 每个项目托管一个实例，库留在 Home 的 `pages/pages.db`，写作模型（经 Prologue）、成果与上传文件读取来自 Runtime 服务，材料快照与幂等生成收据归 Pages；对外只经动作目录与逐客户端授权 | `production` | `specs/archive/pages-plugin/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/form` | Forms 一级入口：本机问卷 | 建题、预览填写、提交与结果；另有显式「AI 拟题」（经 Prologue 文字模型）；对外只经动作目录与逐客户端授权 | `production` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` | 内置插件：@yijunw0212 |
@@ -180,10 +179,9 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `plugins/native/automation` | Automation 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `plugins/official-integrations/github` | GitHub connector/listener/signal adapter | GitHub Provider、Device OAuth 与账号呈现；研究库固定提交解析和发布哈希校验，Host 提供 Git 快照；Host 注入 Secret/env | `production` | FD3/Cutover；无旧 connector caller | 官方集成：@yijunw0212 |
 | `plugins/official-integrations/gmail` | Gmail OAuth/connector/listener/signal adapter | Gmail OAuth/安装账号/scope/cursor/Provider；Host 注入安全存储 | `production` | FD3/Cutover；无旧 connector caller | 官方集成：@yijunw0212 |
-| `plugins/official-integrations/rss` | 官方目录与自定义 RSS provider adapter | 目录/custom RSS/正文分类/HTTP adapter；Host 提供运行上下文 | `production` | FD3/Cutover；真实公开 RSS 拉取 | 官方集成：@yijunw0212 |
-| `plugins/official-integrations/youtube` | YouTube Channel 标识与地址工具 | 频道标识/公开 Feed 地址规则；Host SourcePull 执行受控拉取，Feed 拥有来源与同步事实 | `production` | FD3/Cutover；未接入工厂退役见 quality-experience-audit §28 | 官方集成：@yijunw0212 |
+| `plugins/official-integrations/rss` | 官方目录、自定义 RSS 与 YouTube 频道 provider adapter | 目录/custom RSS/YouTube 频道标识与公开 Feed 地址（第 44B 批并入）/正文分类/HTTP adapter；Host 提供运行上下文 | `production` | FD3/Cutover；真实公开 RSS 拉取 | 官方集成：@yijunw0212 |
 
-所有内置插件都由 molis 发布、带官方签名；常开插件仅剩 Shelf，Goals 与其余项目插件同等地位（新项目不默认安装，可按需添加或移除，移除后数据保留）。Plugin 之间不依赖 implementation：能力经共同动作目录调用；人要留存、引用的固定版本进成果库（`artifacts.produces`），交给别的插件的数据是生产方自己的过程项（`process_items.produces`），经端口与动作交换；其余事实留在各自插件的库里。
+所有内置插件都由 molis 发布、带官方签名；没有常开插件（Shelf 是平台部件），Goals 与其余项目插件同等地位（新项目不默认安装，可按需添加或移除，移除后数据保留）。Plugin 之间不依赖 implementation：能力经共同动作目录调用；人要留存、引用的固定版本进成果库（`artifacts.produces`），交给别的插件的数据是生产方自己的过程项（`process_items.produces`），经端口与动作交换；其余事实留在各自插件的库里。
 
 ### 已删除的接入
 

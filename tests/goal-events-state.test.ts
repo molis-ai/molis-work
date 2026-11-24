@@ -1,4 +1,3 @@
-import { fakeActionClient } from "@molis-ai/molis-work-test-kit";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -7,9 +6,9 @@ import { join } from "node:path";
 import test from "node:test";
 import { LocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { hostEventDecisionAuthority, GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { bindManagementActions, readProjectGuidance } from "@molis-ai/molis-work-app-local-host";
+import { readProjectGuidance } from "@molis-ai/molis-work-app-local-host";
 import { projectGuidanceActions } from "@molis-ai/molis-work-contracts/modules/project-guidance";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalEventTypeDefinitionInput } from "@molis-ai/molis-work-plugin-goals/contract";
 import { GoalProjectApplication, boardSnapshot, goalsQueryOf } from "./fixtures/goal-application.js";
 
@@ -2050,49 +2049,15 @@ test("under the project human-approval rule an acceptance given for the current 
 
 const REPLACEMENT = "com.example.goals-provider";
 
-test("the Goals management caller pins the owner and leaves protected decisions to the platform entry", async () => {
-  const seen: Array<{ caller: ActionCallContext; action: ActionReference; input: unknown }> = [];
-  const client: ActionClient = fakeActionClient({
-    discover: async () => { throw new Error("no directory read"); },
-    invoke: async (caller, action, input) => { seen.push({ caller, action, input }); return {} as never; },
-  });
-  const management = bindManagementActions(client, { project_id: BOARD, storage_key: "fixture" });
-  assert.equal(management.project_id, BOARD);
-  await management.invoke(goalsActions.snapshot, {});
-  await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
-  for (const [i, action] of [goalsActions.snapshot, goalsActions.initialize].entries()) {
-    const observed = seen[i]!;
-    assert.deepEqual([observed.caller.actor_id, observed.caller.actor_kind, observed.caller.audience, observed.caller.project_id],
-      [LOCAL_PERSON_ACTOR_ID, "user", "user", BOARD]);
-    assert.deepEqual(observed.caller.permissions, action.action.permissions);
-    assert.deepEqual(observed.caller.allowed_actions, [{ capability_id: action.capability_id, version: action.version, provider_id: GOALS_PLUGIN_ID }]);
-    assert.equal(observed.action.provider_id, GOALS_PLUGIN_ID);
-    assert.equal("call_id" in observed.caller, false);
-  }
-  assert.deepEqual(seen[0]!.caller.user_action, { source: "management", conversation_ref: `management:${BOARD}`, message_ref: `management:${goalsActions.snapshot.capability_id}` });
-  assert.deepEqual(seen[1]!.caller.user_action, { source: "management", conversation_ref: `management:${BOARD}`, message_ref: "management:init" });
-  for (const action of [goalsActions.decide, goalsActions.treeDecide]) {
-    await assert.rejects(management.invoke(action, { actor_id: "someone-else" }), { code: "actions.dependency_missing" });
-  }
-  await assert.rejects(management.invoke(goalsActions.initialize, { idempotency_key: "init" }, { conversation_ref: "conversation://x" }), { code: "actions.input_invalid" });
-  for (const [action, fields] of [[goalsActions.treeSubmit, ["actor_id", "actor_kind", "submitted_session_id"]],
-    [goalsActions.treeCheck, ["actor_id", "actor_kind"]]] as const) {
-    for (const field of fields) await assert.rejects(management.invoke(action, { [field]: "x" }),
-      { code: "actions.input_invalid", message: new RegExp(field) });
-  }
-  assert.equal(seen.length, 2, "refused inputs never reach either entry");
-});
-
-test("RAC-337: with no Goals in the project, the Host's management call and guidance read are refused by the dispatcher with a code", async () => {
+test("RAC-337: with no Goals in the project, the Host's guidance read is refused by the dispatcher with a code (44B: no management call of Goals' actions)", async () => {
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => undefined } });
   const reference = { project_id: "a", storage_key: "a" };
   try {
-    await assert.rejects(bindManagementActions(host.actionClient(reference), reference).invoke(goalsActions.snapshot, {}), { code: "actions.missing" }, "management");
     await assert.rejects(readProjectGuidance(host.actionClient(reference), reference), { code: "actions.missing" }, "guidance");
   } finally { await host.close(); }
 });
 
-test("RAC-341: a third-party installation that registers Goals' capabilities while Goals is away receives neither the person's management call nor the guidance read", async () => {
+test("RAC-341: a third-party installation that registers Goals' capabilities while Goals is away does not receive the guidance read (44B: no management call of Goals' actions)", async () => {
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => undefined } });
   const reference = { project_id: "a", storage_key: "a" };
   const reached: string[] = [];
@@ -2102,9 +2067,6 @@ test("RAC-341: a third-party installation that registers Goals' capabilities whi
   host.actionRegistry(reference).registerProvider({ provider: { provider_id: REPLACEMENT, plugin_id: GOALS_PLUGIN_ID, plugin_install_id: REPLACEMENT, title: "Third party", kind: "plugin" },
     definitions: offered, handlers: offered.map(definition => ({ ...definition, handle: () => { reached.push(definition.capability_id); return {} as never; } })) });
   try {
-    const management = bindManagementActions(host.actionClient(reference), reference);
-    await assert.rejects(management.invoke(goalsActions.decide, { goal_id: "g", conclusion: "允许发布当前结果", idempotency_key: "third-party" }), { code: "actions.dependency_missing" }, "retired management decision shortcut");
-    await assert.rejects(management.invoke(goalsActions.snapshot, {}), { code: "actions.provider_changed" }, "management read");
     await assert.rejects(readProjectGuidance(host.actionClient(reference), reference), { code: "actions.provider_changed" }, "guidance");
     assert.deepEqual(reached, [], "nothing reaches the third-party provider");
   } finally { await host.close(); }

@@ -22,10 +22,10 @@ const primitives = {
 
 /**
  * The directory as the Host writes it (W5-02 B1): its own registry puts the marks on the chosen entries, and the switcher only reads
- * them. Goals is 常开; Feed comes with Inbox.
+ * them. Feed comes with Inbox.
  */
-const HOST_MARKS: Readonly<Record<string, { always_on?: true; companions?: readonly string[] }>> = {
-  goals: { always_on: true }, feed: { companions: ["inbox"] },
+const HOST_MARKS: Readonly<Record<string, { companions?: readonly string[] }>> = {
+  feed: { companions: ["inbox"] },
 };
 const marked = () => builtinPluginDirectory().map(entry => ({ ...entry, ...HOST_MARKS[entry.id] }));
 
@@ -102,7 +102,7 @@ test("DOCK-04 方案 C: no tile keeps a plugin in the top strip — no pin, no k
   }
   // A plugin the project does not have cannot be opened beside.
   assert.match(tileOf(html, "schedule").beside, / disabled/);
-  // Shelf is a 常开插件, a tab of the side panel: no tile.
+  // Shelf is a platform part, a tab of the side panel: no tile.
   assert.doesNotMatch(html, /data-plugin-id="shelf"/);
 });
 
@@ -167,7 +167,7 @@ test("RAC-1821 the rail's third argument is the directory: the nav opens on its 
   const html = renderPluginRail(primitives, ["goals", "pages"], marked());
   assert.match(html, /<nav [^>]*data-plugin-strip[^>]*>\s*<div class="plugin-rail-items"/, "the nav opens on the rail's own items");
   assert.doesNotMatch(html, /\[object Object\]|assistant-island/, "the directory is read as a directory, and no island slot is written");
-  assert.match(tileOf(html, "goals").toggle, / disabled/, "and it is the directory given that is read: its marks make Goals 常开");
+  assert.doesNotMatch(tileOf(html, "goals").toggle, / disabled/, "and no mark makes a plugin one nobody can remove (44B: nothing is 常开)");
   assert.doesNotMatch(html, /personal-sidebar-footer/, "no account footer section is written");
   assert.doesNotMatch(html, /account-global-items/, "and no placeholder for its items");
   assert.match(html, /<\/div>\s*<\/nav>\s*$/, "the rail's nav closes right after its own content");

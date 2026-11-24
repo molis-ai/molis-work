@@ -23,7 +23,7 @@ import { readRecords } from "@molis-ai/molis-work-service-observation";
 import { CONTEXT_ONBOARDING_HOME_STORE, withContextJourneys, type ContextJourney } from "../apps/local-host/dist/context-onboarding-store.js";
 import { readProjectArrival } from "../apps/local-host/dist/project-arrival.js";
 import { contextReferenceText, selectContextSources, stageContextFile, startContextJourney, waitContextJourney, adoptContextJourney, parseContextSummary, readContextJourney, removeIdleJourneyStaging, reopenContextJourney, updateContextDraft } from "../apps/local-host/dist/context-onboarding-service.js";
-import { codeRoot, contextSources, readContextSource, readOnboardingGmail } from "../apps/local-host/dist/context-onboarding-sources.js";
+import { codeRoot, contextSources, readContextSource, readOnboardingMail } from "../apps/local-host/dist/context-onboarding-sources.js";
 import { createContextOnboardingHttp } from "../apps/local-host/dist/web-context-onboarding.js";
 import { readFileSync, readdirSync } from "node:fs";
 import { handleConnectorApiMethodsHttp, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -349,7 +349,7 @@ test('Gmail reads only chosen account/time with real MIME body parsing; network 
   await runWithMolisWorkHome(dir,async()=>{
     const connection=withConnectorConnections(dir,s=>s.createToken({serviceId:'gmail',displayName:'Fixture account',token:'fixture-token',accountLabel:'fixture@example.com'}));
     const calls:string[]=[];
-    const result=await readOnboardingGmail(dir,{kind:'gmail',selected:true,connection_id:connection.connection_id,days:7},async(input,init)=>{
+    const result=await readOnboardingMail(dir,{kind:'gmail',selected:true,connection_id:connection.connection_id,days:7},async(input,init)=>{
       const url=new URL(String(input));calls.push(url.href);assert.equal(url.origin,'https://gmail.googleapis.com');assert.equal((init!.headers as Record<string,string>).Authorization,'Bearer fixture-token');
       if(url.pathname.endsWith('/messages')){assert.equal(url.searchParams.get('q'),'newer_than:7d -in:spam -in:trash');assert.equal(url.searchParams.get('maxResults'),'20');return Response.json({messages:[{id:'abc123'}]});}
       assert.equal(url.searchParams.get('format'),'full');return Response.json({payload:{mimeType:'multipart/mixed',headers:[{name:'Subject',value:'Launch details'}],parts:[{mimeType:'text/plain',body:{data:Buffer.from('Real full body content').toString('base64url')}},{mimeType:'text/plain',filename:'secret.txt',body:{data:Buffer.from('Attachment excluded').toString('base64url')}}]}});
@@ -408,20 +408,20 @@ for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
     if (mode === "expired") runWithMolisWorkHome(dir, () => createFileSecretStore().put(b.expires_ref!, "1"));
     const source = { kind: "gmail" as const, selected: true, connection_id: b.connection_id, days: 7 as const };
     if (mode === "disconnect") {
-      const pending = readOnboardingGmail(dir, source, transport);
+      const pending = readOnboardingMail(dir, source, transport);
       await entered.promise;
       withConnectorConnections(dir, store => store.disconnect(b.connection_id));
       release.resolve();
       await assert.rejects(pending, /连接已改变|断开/);
       assert.equal(gmail.length, 2, "the second message was never requested");
-      await assert.rejects(readOnboardingGmail(dir, source, transport), /连接|断开/);
+      await assert.rejects(readOnboardingMail(dir, source, transport), /连接|断开/);
       assert.equal(gmail.length, 2);
     } else if (mode === "401-repeated") {
-      await assert.rejects(readOnboardingGmail(dir, source, transport), /无读取权限/);
+      await assert.rejects(readOnboardingMail(dir, source, transport), /无读取权限/);
       assert.deepEqual(refreshes, ["b"]);
       assert.equal(gmail.length, 2, "a second 401 is surfaced rather than refreshed again");
     } else {
-      const read = await readOnboardingGmail(dir, source, transport);
+      const read = await readOnboardingMail(dir, source, transport);
       assert.equal(read.name, "Gmail · b@example.test");
       assert.match(read.files[0]!.bytes!.toString(), /Selected account mail/);
       assert.deepEqual(refreshes, ["b"]);

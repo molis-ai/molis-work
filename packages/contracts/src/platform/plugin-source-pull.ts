@@ -1,7 +1,7 @@
 import type { ConnectorPollResult, ConnectorRawEvent } from "../services/connector-host.js";
 
-/** What a plugin holds to pull public feeds (rss, custom_rss, youtube_channel) through the platform (`services.sourcePull.pull`). */
-export const PLUGIN_SOURCE_PULL_FEED_PERMISSION = "sources:pull_feed";
+/** What a plugin holds to pull a public feed (a catalog entry, or an address a person chose) through the platform (`services.sourcePull.pull`). */
+export const PLUGIN_SOURCE_PULL_PUBLIC_FEED_PERMISSION = "sources:pull_public_feed";
 /** What a plugin holds to run a fixed web query through the platform (`services.sourcePull.pull`). */
 export const PLUGIN_SOURCE_PULL_QUERY_PERMISSION = "sources:pull_query";
 /** What a plugin holds to read back an evidence body it pulled (`services.sourcePull.evidence`). */
@@ -38,15 +38,13 @@ interface SourcePullBase {
 }
 
 /**
- * What a plugin may ask the platform to fetch. Closed on purpose: an address, a channel, a catalog entry or a query, and the HTTP
- * cursor of the last pull. No headers, method, redirect or proxy setting, no provider, no budget: where the request goes is decided
- * by the platform's own allowlists (the public feed catalog, YouTube's public channel feeds, public HTTPS addresses a person chose)
- * and its web search service, whose key the plugin never sees.
+ * What a plugin may ask the platform to fetch. Closed on purpose: a public feed (a catalog entry, or one of the integration's addressed
+ * definitions with the address a person gave) and the HTTP cursor of the last pull, or a query. No headers, method, redirect or proxy
+ * setting, no provider, no budget: where the request goes is decided by the public-feed integration's own allowlists and the platform's
+ * web search service, whose key the plugin never sees (M10: the kinds and the vocabulary are the integration's declarations).
  */
 export type SourcePullRequest =
-  | (SourcePullBase & { readonly kind: "rss"; readonly definition_id: string; readonly cursor?: unknown })
-  | (SourcePullBase & { readonly kind: "custom_rss"; readonly feed_url: string; readonly cursor?: unknown })
-  | (SourcePullBase & { readonly kind: "youtube_channel"; readonly channel_id: string; readonly cursor?: unknown })
+  | (SourcePullBase & { readonly kind: "public_feed"; readonly definition_id: string; readonly address?: string; readonly cursor?: unknown })
   | (SourcePullBase & { readonly kind: "web_query"; readonly query: string });
 
 export type SourcePullKind = SourcePullRequest["kind"];
@@ -124,25 +122,29 @@ export interface SourceCatalogEntry {
 }
 
 /**
- * What a plugin must know to describe a public source the way the platform will fetch it: the catalog, the normal form of a custom feed
- * address and of a YouTube channel, and the HTTP cursor of a feed. Pure: nothing leaves, nothing is written, the same input gives the same
- * answer, and every answer is plain data. The platform owns these because it reads the same catalog to decide where a pull may go and the
- * same cursor to send a conditional request.
+ * A public-feed definition a person completes with an address of their own, as the integration that fetches it declares it: what the
+ * address is (a feed address or a channel). The integration normalizes the address and decides where its pull may go.
+ */
+export interface PublicFeedAddressedDefinition {
+  readonly definition_id: string;
+  readonly address: "feed_url" | "channel_id";
+}
+
+/**
+ * What a plugin must know to describe a public source the way the platform will fetch it: the catalog, the addressed definitions and
+ * the normal form of their addresses, and the HTTP cursor of a feed. Pure: nothing leaves, nothing is written, the same input gives the
+ * same answer, and every answer is plain data. These are the public-feed integration's declarations (M10); the platform answers with
+ * them because it reads the same catalog to decide where a pull may go and the same cursor to send a conditional request.
  */
 export interface PluginSourceVocabulary {
   presentation(id: string, input: import("./plugin-integrations.js").SourcePresentationInput): Promise<import("./plugin-integrations.js").SourcePresentation>;
-  readonly custom_rss_definition_id: string;
-  readonly youtube_definition_id: string;
-  readonly youtube_feed_host: string;
   catalog(): readonly SourceCatalogEntry[];
-  normalizeCustomRssUrl(value: string): string;
-  customRssHost(feed_url: string): string;
-  normalizeYouTubeChannel(value: string): string;
-  youTubeChannelFeedUrl(channel_id: string): string;
-  isRssSourceKind(kind: string): boolean;
-  rssFailureCount(cursor: unknown): number;
-  rssCursorAfterFailure(cursor: unknown): { readonly cursor: unknown; readonly failures: number };
-  rssCursorAfterSuccess(cursor: unknown, receipt: RssFetchReceipt | null, completed_at: string): unknown;
+  addressed(): readonly PublicFeedAddressedDefinition[];
+  /** The address in the form the pull uses; refuses an address the definition does not accept. */
+  normalizeAddress(definition_id: string, value: string): string;
+  feedFailureCount(cursor: unknown): number;
+  feedCursorAfterFailure(cursor: unknown): { readonly cursor: unknown; readonly failures: number };
+  feedCursorAfterSuccess(cursor: unknown, receipt: RssFetchReceipt | null, completed_at: string): unknown;
 }
 
 /**
@@ -249,7 +251,7 @@ export interface PluginSourcePullClient {
   /** Forgets the platform's search records of these pulls in this project; returns how many went. */
   forget?(operation_ids: readonly string[]): Promise<{ readonly records_deleted: number }>;
   /** The published findings of a research library repository, read by the platform: no path of its cache, no Git output, only the entries. */
-  /** Present with `sources:pull_feed`. Pure: usable in any call of this installation that declares the permission, read-only calls included. */
+  /** Present with `sources:pull_public_feed`. Pure: usable in any call of this installation that declares the permission, read-only calls included. */
   readonly vocabulary?: PluginSourceVocabulary;
   readonly repository?: { read(request: RepositoryReadRequest, options?: { readonly signal?: AbortSignal }): Promise<RepositoryReadResult> };
   /** Present with `sources:pull_connector`. */

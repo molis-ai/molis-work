@@ -195,10 +195,6 @@
       "mode": 448
     },
     {
-      "path": "feed",
-      "mode": 493
-    },
-    {
       "path": "feed-content",
       "mode": 448
     },
@@ -327,6 +323,10 @@
       "mode": 448
     },
     {
+      "path": "security",
+      "mode": 493
+    },
+    {
       "path": "server",
       "mode": 448
     },
@@ -409,10 +409,6 @@
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/external-sessions",
       "mode": 448
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/feed",
-      "mode": 493
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/feed-content",
@@ -503,6 +499,10 @@
       "mode": 493
     },
     {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/security",
+      "mode": 493
+    },
+    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync",
       "mode": 448
     },
@@ -547,10 +547,10 @@
       "payload": "stores/agent-declarations/agent-declarations.db.sql",
       "schema_version": 1,
       "tables": {
-        "install_declarations": 14,
+        "install_declarations": 13,
         "molis_storage_space": 1
       },
-      "sha256": "db21d6bcb7db0039f6ed3f9eff51b2ea418b676e63d0678ff15a287d89b9c268"
+      "sha256": "63e5a4e97827880781f173eb57cba2fcfc9fc318016e7b38ed4cac2497dd1931"
     },
     {
       "path": "agent-definitions/agent-definitions.db",
@@ -1040,14 +1040,14 @@
       "schema_version": 1,
       "tables": {
         "molis_storage_space": 1,
-        "plugin_consents": 8,
+        "plugin_consents": 5,
         "plugin_private_values": 1,
         "plugin_publishers": 2,
-        "plugin_runtime_installs": 9,
-        "plugin_runtime_release_artifacts": 8
+        "plugin_runtime_installs": 8,
+        "plugin_runtime_release_artifacts": 7
       },
-      "sha256": "b445bfb1c1d9161fee4c5237d9ffcf68b85dd0c5b85501a8458dcd9380e37815",
-      "expanded_sha256": "6586910cf43d3cd3110af5686dce7cbd963e88d3f81adeefefb9609df6f67432"
+      "sha256": "e24ec65301b51763990e2e784e286fe0e7cc0f77e8f5c3f6e9593a9dfe8f0096",
+      "expanded_sha256": "abf9da6cfd10d5a2ffe558958cd36985ae8d53c6f78c4e22240afbbcec90fee9"
     },
     {
       "path": "ppt/ppt.db",
@@ -1145,6 +1145,7 @@
         "artifacts_replica_outbox": 0,
         "artifacts_replica_resolutions": 0,
         "artifacts_replica_state": 1,
+        "attention_entries": 0,
         "attention_events": 0,
         "boards": 1,
         "builder_replica_changes": 0,
@@ -1166,7 +1167,6 @@
         "feed_materials": 0,
         "feed_missed_pulls": 0,
         "feed_out_rules": 0,
-        "feed_runtime_blobs": 0,
         "feed_source_runs": 0,
         "feed_sources": 0,
         "goal_event_agreements": 17,
@@ -1193,7 +1193,6 @@
         "guidance_entries": 0,
         "guidance_revisions": 0,
         "idempotency_records": 33,
-        "inbox_entries": 0,
         "inbox_scene_bindings": 0,
         "input_bindings": 0,
         "library_artifact_versions": 0,
@@ -1202,18 +1201,19 @@
         "listener_instances": 0,
         "material_recent_uses": 0,
         "molis_storage_space": 1,
+        "opaque_blobs": 0,
         "plugin_event_cursors": 3,
         "plugin_event_resolutions": 0,
         "plugin_events": 0,
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
         "plugin_port_artifact_bindings": 0,
-        "plugin_port_bindings": 6,
+        "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
         "plugin_private_values": 0,
         "plugin_project_databases": 6,
-        "plugin_runtime_installs": 16,
-        "plugin_runtime_release_artifacts": 16,
+        "plugin_runtime_installs": 15,
+        "plugin_runtime_release_artifacts": 15,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -1265,14 +1265,6 @@
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
-        "sync_21391483cd8d8dcc743c2ecd02ca_aggregate_editor_versions": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_context": 1,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_conflicts": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_heads": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_outbox": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_resolutions": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_state": 1,
         "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 0,
@@ -1314,8 +1306,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "1fe53ee6ec8c9abc632b5bb1475af2a5d1a82ff5b36281618b1a0985a9a1b6b9",
-      "expanded_sha256": "caf3f517caf69ab7b856737703d476dee46576853514a4ceec6ec1b542a64935"
+      "sha256": "3ea3f3ec3af6210afb69f485a4e0f356c359f8f67920fc5c1c1c072d0a2564af",
+      "expanded_sha256": "9b63390ac05349244df51d350a84e3fc37e8ae73528b47ab625353c1d6cb292d"
     },
     {
       "path": "projects/molis-work-v1-demo/molis-work.db",
@@ -1351,6 +1343,7 @@
         "artifacts_replica_outbox": 0,
         "artifacts_replica_resolutions": 0,
         "artifacts_replica_state": 1,
+        "attention_entries": 5,
         "attention_events": 7,
         "boards": 1,
         "builder_replica_changes": 0,
@@ -1372,7 +1365,6 @@
         "feed_materials": 0,
         "feed_missed_pulls": 0,
         "feed_out_rules": 1,
-        "feed_runtime_blobs": 0,
         "feed_source_runs": 0,
         "feed_sources": 5,
         "goal_event_agreements": 19,
@@ -1399,7 +1391,6 @@
         "guidance_entries": 0,
         "guidance_revisions": 0,
         "idempotency_records": 86,
-        "inbox_entries": 5,
         "inbox_scene_bindings": 0,
         "input_bindings": 0,
         "library_artifact_versions": 3,
@@ -1408,18 +1399,19 @@
         "listener_instances": 5,
         "material_recent_uses": 0,
         "molis_storage_space": 1,
+        "opaque_blobs": 0,
         "plugin_event_cursors": 3,
         "plugin_event_resolutions": 0,
         "plugin_events": 0,
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
         "plugin_port_artifact_bindings": 0,
-        "plugin_port_bindings": 6,
+        "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
         "plugin_private_values": 0,
         "plugin_project_databases": 6,
-        "plugin_runtime_installs": 16,
-        "plugin_runtime_release_artifacts": 16,
+        "plugin_runtime_installs": 15,
+        "plugin_runtime_release_artifacts": 15,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -1461,7 +1453,7 @@
         "signal_revisions": 0,
         "signals": 0,
         "source_events": 5,
-        "sqlite_sequence": 9,
+        "sqlite_sequence": 8,
         "surface_corrections": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
@@ -1471,14 +1463,6 @@
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
-        "sync_21391483cd8d8dcc743c2ecd02ca_aggregate_editor_versions": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_context": 1,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 14,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_conflicts": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_heads": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_outbox": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_resolutions": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_state": 1,
         "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 12,
@@ -1520,8 +1504,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "5a688eba5a451a28ca9d4ae3a5a2307d76471c361c308d5c8f007e709462ee3d",
-      "expanded_sha256": "8a8a05063510b3eedc9c81f47c7b2248f770ec297e1b7d4eb7dd693c794bb71f"
+      "sha256": "96333ad648dd6856fd105567bf2323ba59c47bd2cb19a3eca304a997bb31cbf0",
+      "expanded_sha256": "bd065b936d868b85dc04250ec6af8e7ff9bce5827d08b453bfe94a11d613d681"
     },
     {
       "path": "projects/personal/molis-work.db",
@@ -1557,6 +1541,7 @@
         "artifacts_replica_outbox": 0,
         "artifacts_replica_resolutions": 0,
         "artifacts_replica_state": 1,
+        "attention_entries": 0,
         "attention_events": 0,
         "boards": 0,
         "builder_replica_changes": 0,
@@ -1578,7 +1563,6 @@
         "feed_materials": 0,
         "feed_missed_pulls": 0,
         "feed_out_rules": 0,
-        "feed_runtime_blobs": 0,
         "feed_source_runs": 0,
         "feed_sources": 0,
         "goal_event_agreements": 0,
@@ -1605,7 +1589,6 @@
         "guidance_entries": 0,
         "guidance_revisions": 0,
         "idempotency_records": 0,
-        "inbox_entries": 0,
         "inbox_scene_bindings": 0,
         "input_bindings": 0,
         "library_artifact_versions": 0,
@@ -1614,18 +1597,19 @@
         "listener_instances": 0,
         "material_recent_uses": 0,
         "molis_storage_space": 1,
+        "opaque_blobs": 0,
         "plugin_event_cursors": 0,
         "plugin_event_resolutions": 0,
         "plugin_events": 0,
         "plugin_input_groups": 0,
         "plugin_notifications": 0,
         "plugin_port_artifact_bindings": 0,
-        "plugin_port_bindings": 2,
+        "plugin_port_bindings": 0,
         "plugin_port_outputs": 0,
         "plugin_private_values": 0,
         "plugin_project_databases": 6,
-        "plugin_runtime_installs": 8,
-        "plugin_runtime_release_artifacts": 8,
+        "plugin_runtime_installs": 7,
+        "plugin_runtime_release_artifacts": 7,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -1677,14 +1661,6 @@
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
-        "sync_21391483cd8d8dcc743c2ecd02ca_aggregate_editor_versions": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_context": 1,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_conflicts": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_heads": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_outbox": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_resolutions": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_state": 1,
         "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 0,
@@ -1726,8 +1702,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "3b76cab446832e6e048fe3ef71f15b6af2f881a6492f87953ffd2f39066be91d",
-      "expanded_sha256": "6f4183426536f038d855b54a42a2a73b792d8ec56676efb87422a4917761d4e6"
+      "sha256": "67dbca3e9b7d965623de260989ec0844fee258f3bc9570ff1c305f80b4cf56e1",
+      "expanded_sha256": "99f84fb5e430f932cbfe2daaa7687ba2974983a5a46589057003186618d06b82"
     },
     {
       "path": "projects/project-ae076f4f-3257-40a5-be48-38652812f188/molis-work.db",
@@ -1763,6 +1739,7 @@
         "artifacts_replica_outbox": 0,
         "artifacts_replica_resolutions": 0,
         "artifacts_replica_state": 1,
+        "attention_entries": 0,
         "attention_events": 0,
         "boards": 1,
         "builder_replica_changes": 0,
@@ -1784,7 +1761,6 @@
         "feed_materials": 0,
         "feed_missed_pulls": 0,
         "feed_out_rules": 1,
-        "feed_runtime_blobs": 0,
         "feed_source_runs": 0,
         "feed_sources": 0,
         "goal_event_agreements": 0,
@@ -1811,7 +1787,6 @@
         "guidance_entries": 1,
         "guidance_revisions": 2,
         "idempotency_records": 8,
-        "inbox_entries": 0,
         "inbox_scene_bindings": 0,
         "input_bindings": 1,
         "library_artifact_versions": 1,
@@ -1820,18 +1795,19 @@
         "listener_instances": 0,
         "material_recent_uses": 0,
         "molis_storage_space": 1,
+        "opaque_blobs": 0,
         "plugin_event_cursors": 3,
         "plugin_event_resolutions": 0,
         "plugin_events": 0,
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
         "plugin_port_artifact_bindings": 0,
-        "plugin_port_bindings": 6,
+        "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
         "plugin_private_values": 2,
         "plugin_project_databases": 6,
-        "plugin_runtime_installs": 17,
-        "plugin_runtime_release_artifacts": 16,
+        "plugin_runtime_installs": 16,
+        "plugin_runtime_release_artifacts": 15,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -1883,14 +1859,6 @@
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
-        "sync_21391483cd8d8dcc743c2ecd02ca_aggregate_editor_versions": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_context": 1,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_conflicts": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_heads": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_outbox": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_resolutions": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_state": 1,
         "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 0,
@@ -1932,8 +1900,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "5f1bdaf60fa08862b0e4d096ee84119df80a8bc196d6e44f6177b61411ea5667",
-      "expanded_sha256": "77f3f0a00077bd6121d49907d39c3fa1c3a7541aceb894fee3a899c5e086506d"
+      "sha256": "9203e07eaff9f66cd3758e8f54b54a9de36cc32e1f9e495c5318061d0bedce62",
+      "expanded_sha256": "71471e1f5f1a33c599b098df6b88c8fa3564c8c940b9e2aaee1b3dc117dfb1a8"
     },
     {
       "path": "sbxdb-07ba5a137b9c31eb32d2afc59b67135f/sbxdb-07ba5a137b9c31eb32d2afc59b67135f.db",
@@ -1980,10 +1948,10 @@
       "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-declarations/agent-declarations.db.sql",
       "schema_version": 1,
       "tables": {
-        "install_declarations": 14,
+        "install_declarations": 13,
         "molis_storage_space": 1
       },
-      "sha256": "63fe6d716401278e9f0402bd0219df218e68fc5403ebe0c3c1bd55443542076a"
+      "sha256": "6a35d1eaf4be93546f50967a26773b4942e8c4fffd70fdfa081f0103d4f0ccb9"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-definitions/agent-definitions.db",
@@ -2426,14 +2394,14 @@
       "schema_version": 1,
       "tables": {
         "molis_storage_space": 1,
-        "plugin_consents": 8,
+        "plugin_consents": 5,
         "plugin_private_values": 0,
         "plugin_publishers": 0,
-        "plugin_runtime_installs": 8,
-        "plugin_runtime_release_artifacts": 8
+        "plugin_runtime_installs": 7,
+        "plugin_runtime_release_artifacts": 7
       },
-      "sha256": "7bb2c6dd7acdbce679f19bc54c7c207a4d5b92dc01c076e9e207342fa7be3a4d",
-      "expanded_sha256": "7e85bfd720aa215e3f419f749311387681ae64ebe02fdf1f56bd4e21a1e9074f"
+      "sha256": "0f10490b8300e4e7f3a266c4f9048baf78d05982015dcc1e41978fc6a630fcc0",
+      "expanded_sha256": "1aa63ed0e41d8f09d46f694c3c01f5696628710ba967b0ee86a1c859bbbfca9d"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/ppt/ppt.db",
@@ -2531,6 +2499,7 @@
         "artifacts_replica_outbox": 0,
         "artifacts_replica_resolutions": 0,
         "artifacts_replica_state": 1,
+        "attention_entries": 0,
         "attention_events": 0,
         "boards": 0,
         "builder_replica_changes": 0,
@@ -2552,7 +2521,6 @@
         "feed_materials": 0,
         "feed_missed_pulls": 0,
         "feed_out_rules": 0,
-        "feed_runtime_blobs": 0,
         "feed_source_runs": 0,
         "feed_sources": 0,
         "goal_event_agreements": 0,
@@ -2579,7 +2547,6 @@
         "guidance_entries": 0,
         "guidance_revisions": 0,
         "idempotency_records": 0,
-        "inbox_entries": 0,
         "inbox_scene_bindings": 0,
         "input_bindings": 0,
         "library_artifact_versions": 0,
@@ -2588,18 +2555,19 @@
         "listener_instances": 0,
         "material_recent_uses": 0,
         "molis_storage_space": 1,
+        "opaque_blobs": 0,
         "plugin_event_cursors": 0,
         "plugin_event_resolutions": 0,
         "plugin_events": 0,
         "plugin_input_groups": 0,
         "plugin_notifications": 0,
         "plugin_port_artifact_bindings": 0,
-        "plugin_port_bindings": 2,
+        "plugin_port_bindings": 0,
         "plugin_port_outputs": 0,
         "plugin_private_values": 0,
         "plugin_project_databases": 6,
-        "plugin_runtime_installs": 8,
-        "plugin_runtime_release_artifacts": 8,
+        "plugin_runtime_installs": 7,
+        "plugin_runtime_release_artifacts": 7,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -2651,14 +2619,6 @@
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
-        "sync_21391483cd8d8dcc743c2ecd02ca_aggregate_editor_versions": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_context": 1,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_conflicts": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_heads": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_outbox": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_resolutions": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_state": 1,
         "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 0,
@@ -2700,8 +2660,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "31e6a1341fbfa9077bfc32e9333c46e3517630413f1d27aa90ebcddbca9e0d4e",
-      "expanded_sha256": "9f9df59c2191c8144e4bec79cd6ce375c24a5b4b07dc8db2e3654bb10334af31"
+      "sha256": "668ee5d7abb812c1baa0ddfc4191bac1c65df7c00816b40dc6e5121d144085fd",
+      "expanded_sha256": "4613ddf83d3fc1f18687c2173dc93aedfbe24278190e500dce02fae42df3e041"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-adcfbd21-e22e-44f4-af64-38851fbc840c/molis-work.db",
@@ -2737,6 +2697,7 @@
         "artifacts_replica_outbox": 0,
         "artifacts_replica_resolutions": 0,
         "artifacts_replica_state": 1,
+        "attention_entries": 0,
         "attention_events": 0,
         "boards": 1,
         "builder_replica_changes": 0,
@@ -2758,7 +2719,6 @@
         "feed_materials": 0,
         "feed_missed_pulls": 0,
         "feed_out_rules": 1,
-        "feed_runtime_blobs": 0,
         "feed_source_runs": 0,
         "feed_sources": 0,
         "goal_event_agreements": 0,
@@ -2785,7 +2745,6 @@
         "guidance_entries": 1,
         "guidance_revisions": 2,
         "idempotency_records": 6,
-        "inbox_entries": 0,
         "inbox_scene_bindings": 0,
         "input_bindings": 1,
         "library_artifact_versions": 1,
@@ -2794,18 +2753,19 @@
         "listener_instances": 0,
         "material_recent_uses": 0,
         "molis_storage_space": 1,
+        "opaque_blobs": 0,
         "plugin_event_cursors": 3,
         "plugin_event_resolutions": 0,
         "plugin_events": 0,
         "plugin_input_groups": 1,
         "plugin_notifications": 0,
         "plugin_port_artifact_bindings": 0,
-        "plugin_port_bindings": 6,
+        "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
         "plugin_private_values": 0,
         "plugin_project_databases": 6,
-        "plugin_runtime_installs": 16,
-        "plugin_runtime_release_artifacts": 16,
+        "plugin_runtime_installs": 15,
+        "plugin_runtime_release_artifacts": 15,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -2857,14 +2817,6 @@
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
-        "sync_21391483cd8d8dcc743c2ecd02ca_aggregate_editor_versions": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_context": 1,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_conflicts": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_heads": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_outbox": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_resolutions": 0,
-        "sync_21391483cd8d8dcc743c2ecd02ca_replica_state": 1,
         "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 0,
@@ -2906,8 +2858,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "b4c500a2fd25ca81e6181ea2e69c42dc5558fc072163dbe0fabbdba2f28867d0",
-      "expanded_sha256": "0c4f2cf205dd3e59080b79aba4c99373d204635ace36dca046bd27e573d786c9"
+      "sha256": "e3923504509128ec9b787c95449c0ff4c1d22e6613106ca115f34f3abf52831c",
+      "expanded_sha256": "2c81ff1c4c8d4975346838edf053fef796a4ef40c58d618a99421be8a8dbff06"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
@@ -3319,14 +3271,6 @@
       "sha256": "dd2f7b620f99beca7f871778d15112869283b4f13399e4ebdf389bb616969bd3"
     },
     {
-      "path": "feed/secrets.json",
-      "owner": "packages/storage",
-      "mode": 384,
-      "payload": "files/feed/secrets.json",
-      "size": 555,
-      "sha256": "506f6dd676e1783187511b293bf19b668d6e4d9143edeb5c1be64dacbfc24f4c"
-    },
-    {
       "path": "interface/state.json",
       "owner": "horizontal/appearance",
       "mode": 384,
@@ -3397,6 +3341,14 @@
       "payload": "files/runtime-integrations/codex.json",
       "size": 300,
       "sha256": "fc9c2b47d5a57ea673e9d9d0dca11ac898cd65466cfc502d4d0c1d19a53401c7"
+    },
+    {
+      "path": "security/secrets.json",
+      "owner": "packages/storage",
+      "mode": 384,
+      "payload": "files/security/secrets.json",
+      "size": 555,
+      "sha256": "506f6dd676e1783187511b293bf19b668d6e4d9143edeb5c1be64dacbfc24f4c"
     },
     {
       "path": "shelf/catalog.json",
@@ -3514,10 +3466,6 @@
       "reason": "Host control token is regenerated; never exported"
     },
     {
-      "path": "feed/secrets.lock.sqlite",
-      "reason": "SecretStore mutex"
-    },
-    {
       "path": "logs",
       "reason": "Diagnostic logs"
     },
@@ -3528,6 +3476,10 @@
     {
       "path": "search",
       "reason": "Rebuildable full-text index"
+    },
+    {
+      "path": "security/secrets.lock.sqlite",
+      "reason": "SecretStore mutex"
     },
     {
       "path": "spaces",
@@ -3546,16 +3498,16 @@
       "reason": "Agent temporary state"
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/feed/secrets.lock.sqlite",
-      "reason": "SecretStore mutex"
-    },
-    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/logs",
       "reason": "Diagnostic logs"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/search",
       "reason": "Rebuildable full-text index"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/security/secrets.lock.sqlite",
+      "reason": "SecretStore mutex"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/storage-space.json",
@@ -3881,7 +3833,7 @@
     },
     {
       "entry": "format.secret-store.map",
-      "path": "feed/secrets.json",
+      "path": "security/secrets.json",
       "version": 1
     },
     {

@@ -100,7 +100,7 @@ export class HomePageSessionRegistry {
         throw sessionInvalid("生成首页会话已失效");
       }
       record.sessionCurrent();
-    });
+    }, approvedActions.filter(ref => record.declared.has(actionKey(ref))));
     return { page_session_id: id, subject };
   }
 

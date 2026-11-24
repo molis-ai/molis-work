@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // Batch 37-2 E2E (MLN-01–19, 21–23, WLN-19/20/23/24, POLISH-62–64, Decision 66,
@@ -14,6 +15,12 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, evaluate, waitFor } = browser;
+
+  assert.ok(projectId);
+  const characters = openCharacters(browser.homeDirectory, "web-user");
+  t.after(() => characters.close());
+  const editor = characters.service.create({ title: "事项编辑", instructions: "核对标题", host_tools: [] });
+  characters.service.roles.addMember(projectId, editor.character_id);
 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -179,12 +186,19 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
   })()`);
   assert.equal(stripRestoredOnSideClose, true, "closing right sidebar immediately restores lightweight item footer contents strip");
 
+  const recipient = "[data-assistant-composer] [data-composer-receiver]";
+  await browser.click(recipient);
+  const editorOption = "[...document.querySelectorAll('[data-assistant-send-to] [role=menuitemradio]')].find(option => option.textContent.includes('事项编辑'))";
+  await waitFor("Boolean(" + editorOption + ")", WAIT_MS);
+  await evaluate(editorOption + ".click()");
+  await waitFor("document.querySelector(" + JSON.stringify(recipient) + ").textContent.includes('事项编辑')", WAIT_MS);
   // Type draft in item 1, verify list scope toggle exists (BL-dialog-info-column-prototype-gaps #3).
   await evaluate(`(() => {
     const input = document.querySelector('[data-assistant-composer] .mw-composer__input');
     input.focus();
     input.value = '事项一的未发草稿';
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.setSelectionRange(1, 4, 'backward');
   })()`);
   const hasScopeToggle = await evaluate<boolean>("Boolean(document.querySelector('[data-work-lists-scope]') && !document.querySelector('[data-work-lists-scope]').hidden)");
   assert.equal(hasScopeToggle, true, "BL-dialog-info-column-prototype-gaps #3: list header scope toggle visible for active item");
@@ -197,6 +211,7 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
     btn.click();
   })()`);
   await waitFor("document.querySelector('[data-top-corner-toggle] .top-corner-page-name')?.textContent?.trim() === '第二件事项'", WAIT_MS);
+  await waitFor("!document.querySelector(" + JSON.stringify(recipient) + ").textContent.includes('事项编辑')", WAIT_MS);
   const item2Draft = await evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__input').value");
   assert.equal(item2Draft, "", "MLN-16: switching work item clears previous item's unsent draft");
   await evaluate(`(() => {
@@ -210,6 +225,9 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
   await evaluate("document.activeElement?.blur?.(); document.dispatchEvent(new KeyboardEvent('keydown', { key: '[', code: 'BracketLeft', altKey: true, bubbles: true }))");
   await waitFor("document.querySelector('[data-top-corner-toggle] .top-corner-page-name')?.textContent?.trim() === '第一件事项'", WAIT_MS);
   await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input').value === '事项一的未发草稿'", WAIT_MS);
+  await waitFor("(() => { const field = document.querySelector('[data-assistant-composer] .mw-composer__input'); return field.selectionStart === 1 && field.selectionEnd === 4 && field.selectionDirection === 'backward'; })()", WAIT_MS);
+
+  await waitFor("document.querySelector(" + JSON.stringify(recipient) + ").textContent.includes('事项编辑')", WAIT_MS);
 
   // Clear composer pill via × -> next send routes to whole project (BL-dialog-info-column-prototype-gaps #4).
   await evaluate("document.querySelector('[data-work-item-pill-clear]').click()");

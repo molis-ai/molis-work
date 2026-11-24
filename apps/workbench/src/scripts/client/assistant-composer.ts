@@ -345,12 +345,24 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     if (!pill.hidden && !pill.isConnected) paintItemPill();
   });
   pillObserver.observe(compose, { childList: true, subtree: true });
+  // The draft text already belongs to its receiver. Keep only the local editor position and an unsent choice of recipient.
+  let returningEditor = null;
+  function rememberItemEditor() {
+    if (!currentWorkItem || !mountedFor || boundPage) return;
+    store.set(scoped("item-editor"), JSON.stringify({ mount: mountedFor, start: input.selectionStart, end: input.selectionEnd,
+      direction: input.selectionDirection, top: input.scrollTop, recipient: !curId && talkDraft ? nextChar : undefined }));
+  }
+  window.addEventListener("pagehide", rememberItemEditor);
   function onWorkItemChanged(event) {
     const detail = event?.detail || {};
     const next = detail.item_id ? { id: detail.item_id, name: detail.item_name || detail.item_id } : null;
     const changed = (next?.id || null) !== (currentWorkItem?.id || null);
+    if (changed) rememberItemEditor();
     currentWorkItem = next;
     if (changed) {
+      try { returningEditor = next ? JSON.parse(store.get(scoped("item-editor"))) : null; } catch { returningEditor = null; }
+      nextChar = returningEditor?.recipient;
+      talkDraft = roleKey(nextChar?.ref);
       itemScopeDismissed = false;
       fresh = false;
       const remembered = store.get(scoped("current"));
@@ -364,6 +376,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   document.addEventListener("molis-work:language-changed", paintItemPill);
   function disposeWorkItemPill() {
     document.removeEventListener("molis-work:work-item-changed", onWorkItemChanged);
+    window.removeEventListener("pagehide", rememberItemEditor);
     document.removeEventListener("molis-work:language-changed", paintItemPill);
     pillObserver.disconnect();
   }
@@ -380,7 +393,16 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       submit: sendNow });
     const work = getWork(); composer.setRunning(Boolean(work && isLive(work.state)));
     paintItemPill();
-    void composer.ready?.().then(() => paintItemPill(), () => {});
+    const editor = returningEditor, mounted = composer;
+    void composer.ready?.().then(() => {
+      if (mounted !== composer) return;
+      if (editor && editor === returningEditor && editor.mount === mountedFor) {
+        returningEditor = null;
+        input.setSelectionRange(editor.start, editor.end, editor.direction);
+        input.scrollTop = editor.top;
+      }
+      paintItemPill();
+    }, () => {});
   };
   /** Keeps the composer on the receiver in front; redrawn only when what it shows changed, so a poll never closes its menu. */
   function syncComposer() {

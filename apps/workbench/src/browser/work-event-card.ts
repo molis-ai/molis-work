@@ -8,7 +8,7 @@
  * owner's words or display, 「打开」 as a tab, 「放到 Shelf」, and how it was done folded under it (WLN-11). Nothing here knows a
  * kind of event or a plugin.
  *
- * Which cards are parked is this viewer's own, per project. A part of the work bar's bundle (work-bar.ts).
+ * Which cards are parked belongs to this viewer, in the active project or work item. A part of the work bar's bundle (work-bar.ts).
  */
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { WorkLineEvent } from "@molis-ai/molis-work-contracts/services/mainline";

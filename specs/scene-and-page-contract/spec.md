@@ -369,7 +369,7 @@ type CharacterTemplateAdoptionInput = { origin: BlueprintPartOrigin; request_id:
 插件不另声明「首页卡片」。卡片用 05② 的呈现声明和插件级概况。首页按 `surfaces.compose@1`、`slot: { kind: "home" }` 取描述，值另用 `PresentationValues` 取。同一份声明供基础首页、生成页面、侧栏、搜索使用。基点 `13cba9962f` 的 `platform/presentation` 已公开 `home`、概况和 values，SDK `/presentation` 已有声明、取值及描述检查。`services/surface-composition` 已声明 `surfaces.compose@1`，动作目录尚无 `system.surfaces` 绑定。组合提供方和 `renderPresentationForm` 分别由第 15 批第 1、2 项交付。P-4 可以先消费这些公共形状，真实卡片组合和渲染随相应提供方接通。
 
 - 基础首页：首页服务直接画 `surfaces.compose` 给的描述（第 15 批 S-2 的内容）。
-- 生成页面：页面要放插件卡片时，同样经页面网关调 `surfaces.compose@1` 与各主人的 values 动作，这两个也要在页面声明、本人批准的动作里；页面拿到的只是描述和值，渲染用 SDK 的 `renderPresentationForm`。
+- 生成页面：页面要放插件卡片时，同样经页面网关调 `surfaces.compose@1` 与各主人的 values 动作，这两个也要在页面声明、本人批准的动作里；已采用版只取得其逐项批准、且主人显式向页面开放的本项目呈现；可传入对象引用，概况须额外逐项获准。未批准的来源、本人专属概况及个人纠正不出现在结果里。预览与普通插件不能读取首页组合。页面拿到的只是描述和值，渲染用 SDK 的 `renderPresentationForm`。
 - 所以 05② 的 `SurfaceSlotKind` 的 `home` 就是首页的组合位置，没有第二个「首页」：不在 `UI_VIEW_SLOTS` 里加 `home`，也没有 `projects.home`。
 - **（2026-11-22 删除：项目只有一个首页，插件的页面不再顶替它；`overview.lead` 与 `lead` 组已从合同里拿掉，见 `docs/system/CONTRACT-CHANGES.md` 第 8 节、路线书决定 62 ③。以下为当时的写法，留作历史。）** 首页主区内容（第 19 批）：插件在呈现声明里写 `overview.lead: { view_id }`，`home` 描述里就多一个 `kind: "lead"` 的组，首页把那个主区视图收进主区，细栏可切回基础首页。它不是第二个首页，也不是新的视图位置：视图还是插件自己的主区视图，装载、凭据和页面网关都是主区现有的那一套。已采用的生成页面优先于主区内容（第 37 批）。写法见 [确定组合 §7.4](../surface-composition/spec.md) 与 [Work Brief 合同设计](../work-brief/contract-design.md) 第 2 节。
 

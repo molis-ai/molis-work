@@ -5,6 +5,8 @@ import test from "node:test";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePageDraft, HomePageOverview, HomePageVersion } from "@molis-ai/molis-work-contracts/services/home";
+import type { SurfaceGroup } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import { HOME_PAGES_BASELINE, HOME_PAGES_HOME_STORE } from "@molis-ai/molis-work-service-home";
 import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { createProject, LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
@@ -536,5 +538,71 @@ test("SPC-11 ONB-26: a pending approved write cannot outlive its page version or
     release.resolve();
     await finished.promise;
     assert.equal(readFileSync(ledger, "utf8"), "", change);
+  }
+});
+
+test("SPC-11: the basic and generated home share the owner's presentation only after its separate approval", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  assert.ok(browser?.projectId && browser.localHost);
+  const { projectId, web } = browser;
+  const root = `/projects/${projectId}`;
+  const visit = () => browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + root + "/" }, browser.sessionId));
+  const title = "核对两种首页的字段";
+  const created = await web.post<{ goal: { goal_id: string } }>(root + "/api/plugins/io.molis.work.goals/goals", {
+    title, outcome: "读取同一份呈现声明", idempotency_key: "compare-presentation",
+  });
+  const subject = { kind: "goal", id: created.goal.goal_id };
+  const basic = await web.post<SurfaceHomeDisplay>(root + "/api/host/surface-home", {});
+  const expected = basic.groups.flatMap(group => group.items).find(item => item.subject.id === subject.id && item.subject.kind === subject.kind);
+  assert.ok(expected && expected.fields.some(field => field.role === "title"));
+  const project = molisWorkHostProjectReference({ projectId, databasePath: browser.databasePath });
+  const directory = await browser.localHost.inspectActions(await browser.localHost.localPersonContext(project), project);
+  const reference = (id: string): ExactActionReference => {
+    const action = directory.find(view => view.capability_id === id);
+    assert.ok(action);
+    return { capability_id: id, version: action.version, provider_id: action.provider.provider_id };
+  };
+  const compose = reference("surfaces.compose"), values = reference("goals.presentation.values");
+  const script = `const compose = ${JSON.stringify(compose)}, values = ${JSON.stringify(values)}, subject = ${JSON.stringify(subject)};
+    (async () => {
+      const { groups } = await window.molisHomePage.invokeAction(compose, { slot: { kind: "home" }, subjects: [subject] });
+      let title;
+      if (groups.length) {
+        const item = groups.flatMap(group => group.items)[0];
+        const result = await window.molisHomePage.invokeAction(values, { subjects: [subject], fields: item.fields.map(field => field.key) });
+        title = result.items[0].values.title;
+        document.querySelector("h2").textContent = title;
+      }
+      window.parent.postMessage({ type: "owner-presentation", groups, title }, "*");
+    })().catch(error => window.parent.postMessage({ type: "owner-presentation", error: error.message }, "*"));`;
+  const draft: HomePageDraft = {
+    title: "项目条目", entry: "index.html", actions: [compose, values], files: [
+      { path: "index.html", media_type: "text/html", text: '<main><h2>项目条目</h2><script src="card.js"></script></main>' },
+      { path: "card.js", media_type: "text/javascript", text: script },
+    ],
+  };
+  await browser.command("Page.addScriptToEvaluateOnNewDocument", {
+    source: 'window.addEventListener("message", event => { if (event.data?.type === "owner-presentation") window.ownerPresentation = event.data; });',
+  }, browser.sessionId);
+  const pages = root + "/api/home-pages/";
+  for (const withValues of [false, true]) {
+    const { version } = await web.post<{ version: HomePageVersion }>(pages + "drafts/save", { draft });
+    await web.post(pages + "adopt", { page_id: version.page_id, version: version.version, approved_actions: withValues ? [compose, values] : [compose],
+      expected_revision: (await web.post<HomePageOverview>(pages + "read", {})).revision, request_id: "present-" + withValues });
+    await visit();
+    await browser.waitFor("Boolean(window.ownerPresentation)");
+    const seen = await browser.evaluate<{ groups: SurfaceGroup[]; title?: string; error?: string }>("window.ownerPresentation");
+    assert.equal(seen.error, undefined);
+    if (!withValues) {
+      assert.deepEqual(seen.groups, []);
+      continue;
+    }
+    assert.deepEqual(seen.groups.map(group => group.owner_plugin_id), [expected.owner_plugin_id]);
+    const [group] = seen.groups;
+    assert.ok(group);
+    assert.equal(group.plugin_card?.summary, undefined, "the owner's private overview remains private");
+    assert.deepEqual(group.items[0]?.fields, expected.fields);
+    assert.equal(group.items[0]?.form, expected.form);
+    assert.equal(seen.title, title);
   }
 });

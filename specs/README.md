@@ -16,7 +16,6 @@
 
 ## 在做的
 
-- [架构复核整改与验收证据](review-evidence-maintenance/spec.md)：创作台共用答卷判定、验收编号与原生测试的证据读取，负责人 Codex。
 - [创作台生成插件的图标与原处连接卡](studio-icon-connection/spec.md)。Codex 负责 BL-1049、BL-1057 的实现与验证。
 - [欢迎页语言切换与工作台 503 提示](onboarding-language-503/spec.md)：Codex。首次使用保留欢迎区、焦点和底栏，工作台遇到本机服务不可用时提供重试。
 - [11 月 21 日三天复核修复](main-review-1121/spec.md)：Claude，11-18～11-21 合入与全部已合入批次的复核修复（定时任务、主线半写入、预算棘轮、删兼容、公网地址一张表、整字截断、证据与文档补齐）；报告在 [`docs/reviews/main-review-2026-11-21.md`](../docs/reviews/main-review-2026-11-21.md)。
@@ -169,6 +168,8 @@
 **现行规范** 不归档。规则变了就改原文；一份规范被新 spec 整体取代时，新 spec 成为现行规范，旧的按上面的规则归档。
 
 ## 梳理记录
+
+- 2026-11-24：[架构复核整改与验收证据](archive/review-evidence-maintenance/spec.md)归档（已实现，负责人 Codex）。创作台答卷与刷新、验收编号报告及其回归已随 [#2306](https://github.com/molis-ai/molis-work/pull/2306) 合入 `main`。
 
 - 2026-11-24：[插件折叠、连接动效与日程重试](archive/shared-ui-folds/spec.md)归档。负责人 Codex。SCF-01 至 SCF-03 的插件入口与组件板验证见需求书。
 

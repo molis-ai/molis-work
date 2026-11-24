@@ -57,7 +57,7 @@ export const datasetManifest: PluginManifest = {
       compare: { capability_id: "dataset.artifacts.compare", version: /* @version action.dataset.artifacts.compare */ 1 } }],
     consumes: [],
   },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

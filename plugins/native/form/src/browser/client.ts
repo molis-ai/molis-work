@@ -1,13 +1,13 @@
 import { generated, onClick } from "./commands.js";
 import { formDraft } from "./draft.js";
-import { collectAnswers, missingRequired } from "./fields.js";
-import { closeEditor, listFailed, loadList } from "./list.js";
+import { collectAnswers, missingRequired, renderPreview } from "./fields.js";
+import { closeEditor, listFailed, loadList, renderList } from "./list.js";
 import { type FormPage, formPage, hasUnsaved } from "./page.js";
-import { fillOptions } from "./questions.js";
+import { fillOptions, retitleQuestions } from "./questions.js";
 import { formRequest } from "./request.js";
-import { importAnswers, submitPreview } from "./results.js";
+import { importAnswers, loadResults, submitPreview } from "./results.js";
 import { queueSave, save } from "./save.js";
-import { draftNote, showNote } from "./status.js";
+import { draftNote, paintStatus, showNote } from "./status.js";
 import type { FormClientHost } from "./types.js";
 
 /** Answers typed in the preview: remembered as unsent, and a required-field note goes once nothing required is empty. */
@@ -56,6 +56,14 @@ const listen = (page: FormPage) => {
     reloadList();
   });
   document.addEventListener("molis-work:model-ready", reloadList);
+  document.addEventListener("molis-work:language-changed", () => {
+    renderList(page);
+    if (!page.sel) return;
+    paintStatus(page, page.sel);
+    retitleQuestions(page);
+    if (page.tab === "results") void loadResults(page);
+    else if (page.tab === "preview" && !page.dirty) renderPreview(page, page.sel);
+  });
   window.addEventListener("beforeunload", (event) => {
     if (page.sel && hasUnsaved(page)) {
       event.preventDefault(); event.returnValue = "";

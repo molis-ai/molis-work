@@ -61,7 +61,7 @@ export const formManifest: PluginManifest = {
       compare: { capability_id: "form.artifacts.compare", version: /* @version action.form.artifacts.compare */ 1 } }],
     consumes: [],
   },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

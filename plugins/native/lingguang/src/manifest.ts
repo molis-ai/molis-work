@@ -43,7 +43,7 @@ export const lingguangManifest: PluginManifest = {
     { route_id: "lingguang.discard", method: "POST", path: "/sparks/:id/discard", max_body_bytes: BODY_BYTES },
   ],
   artifacts: { produces: [], consumes: [] },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

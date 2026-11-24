@@ -117,7 +117,7 @@ export const diffManifest: PluginManifest = {
     ],
   },
   routes: [{ route_id: "diff.state", method: "GET", path: "/state" }],
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

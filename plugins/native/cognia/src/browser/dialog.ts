@@ -1,6 +1,6 @@
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { button } from "./dom.js";
-import { ROLE_KEY, STATUS_KEY } from "./labels.js";
+import { ROLE_KEY, SKIP_REASON_KEY, STATUS_KEY } from "./labels.js";
 import { domainSelect, field, options } from "./list.js";
 import { renderMarkdown, renderReferences } from "./markdown.js";
 import { fail, q, tx, type CogniaPage } from "./page.js";
@@ -41,8 +41,9 @@ export function setStep(page: CogniaPage, key: string): void {
 
 /** The preview or receipt as a table: each file, its kind, and what happens to it or why it is left out. */
 export function entryTable(page: CogniaPage, entries: readonly ImportEntry[]): string {
+  const reasonOf = (reason?: string) => (!reason ? "" : " · " + (Object.hasOwn(SKIP_REASON_KEY, reason) ? tx(page, SKIP_REASON_KEY[reason]!) : esc(reason)));
   const rows = entries.map((entry) =>
-    `<tr><td>${esc(entry.path)}</td><td>${entry.role ? tx(page, ROLE_KEY[entry.role]) : "—"}</td><td>${tx(page, STATUS_KEY[entry.status])}${entry.reason ? " · " + esc(entry.reason) : ""}</td></tr>`);
+    `<tr><td>${esc(entry.path)}</td><td>${entry.role ? tx(page, ROLE_KEY[entry.role]) : "—"}</td><td>${tx(page, STATUS_KEY[entry.status])}${reasonOf(entry.reason)}</td></tr>`);
   return `<table class="cognia-preview"><thead><tr><th>${tx(page, "cognia.import.path")}</th><th>${tx(page, "cognia.import.kind")}</th><th>${tx(page, "cognia.import.status")}</th></tr></thead><tbody>${rows.join("")}</tbody></table>`;
 }
 

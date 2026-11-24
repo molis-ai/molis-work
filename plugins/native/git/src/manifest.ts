@@ -125,7 +125,7 @@ export const gitManifest: PluginManifest = {
     { route_id: "git.operations", method: "GET", path: "/operations" },
     { route_id: "git.prepare-operation", method: "POST", path: "/operations" },
   ],
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

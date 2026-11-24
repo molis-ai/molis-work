@@ -27,7 +27,8 @@ function formatTime(value: string | undefined): string {
 const fixedCell = (_page: PagesPage, record: PagesRecord) => {
   if (!record.publication_pending && !(record.artifact_version > 0)) return null;
   const node = make("span", "mw-status mw-status--plain mw-entry-status " + (record.publication_pending ? "mw-status--attention" : "mw-status--done"));
-  node.dataset.mwState = record.publication_pending ? "unsaved" : "saved"; node.textContent = record.publication_pending ? uiText.text("pages.version.unfinished") : uiText.text("pages.version.pinned") + " v" + record.artifact_version;
+  node.dataset.mwState = record.publication_pending ? "unsaved" : "saved";
+  node.textContent = record.publication_pending ? uiText.text("pages.version.unfinished") : uiText.text("pages.version.pinned-number", { version: record.artifact_version });
   return node;
 };
 

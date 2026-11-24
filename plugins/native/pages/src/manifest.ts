@@ -67,7 +67,7 @@ export const pagesManifest: PluginManifest = {
     // Pages also continues from imported files it can read (artifact-positioning A3, A4b): its continue action's intake names them.
     consumes: [...IMPORTED_DOCUMENT_READ_TYPES],
   },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

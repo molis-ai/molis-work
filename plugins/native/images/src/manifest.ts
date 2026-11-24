@@ -46,7 +46,7 @@ export const imagesManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

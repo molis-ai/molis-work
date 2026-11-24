@@ -56,7 +56,7 @@ export const pptManifest: PluginManifest = {
       compare: { capability_id: "ppt.artifacts.compare", version: /* @version action.ppt.artifacts.compare */ 1 } }],
     consumes: [],
   },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

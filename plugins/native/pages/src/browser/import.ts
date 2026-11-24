@@ -60,7 +60,7 @@ export function bindImport(page: PagesPage) {
     all.indeterminate = count > 0 && count < boxes.length;
     submit.disabled = state.busy || state.blocked || count === 0 || state.finished.length > 0;
     submit.hidden = state.finished.length > 0;
-    submit.textContent = state.busy ? uiText.text("pages.import.processing") : uiText.text("pages.import.submit") + (count ? " (" + count + ")" : "");
+    submit.textContent = state.busy ? uiText.text("pages.import.processing") : count ? uiText.text("pages.import.submit-count", { count }) : uiText.text("pages.import.submit");
     open.hidden = state.finished.length === 0;
     close.disabled = state.busy;
     close.textContent = state.finished.length ? uiText.text("pages.import.done") : state.blocked ? uiText.text("pages.import.close") : uiText.text("pages.action.cancel");
@@ -126,6 +126,12 @@ export function bindImport(page: PagesPage) {
     void openDialog().catch((error) => noteFailure(page, error, uiText.text("pages.error.save")));
   }));
   source.addEventListener("change", help);
+  document.addEventListener?.("molis-work:language-changed", () => {
+    if (!dialog.open) return;
+    if (folder.options[0]?.value === "") folder.options[0].textContent = uiText.text("pages.folder.unfiled");
+    help();
+    sync();
+  });
   filesInput.addEventListener("change", () => { void prepare([...(filesInput.files ?? [])]); });
   all.addEventListener("change", () => { checks().forEach((input) => { input.checked = all.checked; }); sync(); });
   documents.addEventListener("change", sync);

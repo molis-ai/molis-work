@@ -40,7 +40,6 @@ export function installPresent(page: PptPage): void {
     stage.className = "ppt-present";
     stage.tabIndex = -1;
     stage.setAttribute("role", "dialog");
-    stage.setAttribute("aria-label", uiText.text("ppt.present.action") + " · " + record.title);
     const frame = document.createElement("div");
     frame.className = "ppt-present-frame";
     const notesEl = document.createElement("aside");
@@ -54,6 +53,7 @@ export function installPresent(page: PptPage): void {
     window.addEventListener("resize", fit);
     const draw = () => {
       const slide = slides[index]!;
+      stage.setAttribute("aria-label", uiText.text("ppt.present.stage-label", { title: record.title }));
       frame.replaceChildren(slideNode(record, slide, index));
       const text = slide.notes || "";
       notesEl.hidden = !notes || !text;
@@ -63,6 +63,7 @@ export function installPresent(page: PptPage): void {
     let watch: ReturnType<typeof setInterval> | undefined;
     const leave = () => {
       document.removeEventListener("keydown", key, true);
+      document.removeEventListener("molis-work:language-changed", draw);
       window.removeEventListener("resize", fit);
       clearInterval(watch);
       if (document.fullscreenElement === stage) document.exitFullscreen().catch(() => {});
@@ -92,6 +93,7 @@ export function installPresent(page: PptPage): void {
     });
     stage.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && stage.isConnected) leave(); });
     document.addEventListener("keydown", key, true);
+    document.addEventListener("molis-work:language-changed", draw);
     // Switching to another plugin hides this surface; the show must not stay on top of the next one.
     // The surface hides through an ancestor (the tab workspace pool), so visibility is what to watch.
     watch = setInterval(() => { if (!el.bench.isConnected || (el.bench.checkVisibility && !el.bench.checkVisibility())) leave(); }, 250);

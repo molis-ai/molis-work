@@ -13,6 +13,11 @@ export function installChat(page: LingguangPage): void {
     s.shownMessages = [...(messages || [])];
     el.messagesEl.replaceChildren(...s.shownMessages.map((message) => textCard(roleName(message), message.body, "lingguang-message")));
   };
+  document.addEventListener("molis-work:language-changed", () => {
+    if (el.chatPane.hidden) return;
+    el.titleEl.textContent = uiText.text("lingguang.action.brainstorm");
+    renderMessages(s.shownMessages);
+  }, { signal: page.life.signal });
   const renderContext = (sparks: readonly Spark[] | undefined) => {
     el.contextEl.replaceChildren(...(sparks || []).map((spark) => textCard(spark.title, spark.body || "")));
   };

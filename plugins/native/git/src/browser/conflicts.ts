@@ -30,19 +30,33 @@ function blocksOf(text: string): Block[] {
   return blocks;
 }
 
+const sideLabel = (side: string, fallback: "git.conflict.ours" | "git.conflict.theirs"): string =>
+  side === ":ours" || side === ":theirs" ? uiText.text(fallback) : side;
+
+function paintConflictHeader(page: GitPage): void {
+  const current = page.conflictDraft;
+  if (!current) return;
+  const ours = sideLabel(page.conflictSides.ours, "git.conflict.ours");
+  const theirs = sideLabel(page.conflictSides.theirs, "git.conflict.theirs");
+  page.q("[data-git-kind]").textContent = uiText.text("git.conflict.region");
+  page.q("[data-git-conflict-file]").textContent = uiText.text("git.conflict.file", { path: current.path, count: page.conflictCount, ours, theirs });
+}
+
 /** Draws the pick buttons of each conflict left in the editor, and whether the file may be resolved yet. */
 function syncConflict(page: GitPage): void {
   const { q, conflictText } = page;
   const blocks = blocksOf(conflictText.value), left = conflictText.value.split("\n").some(isMark);
   const picks = q("[data-git-conflict-picks]");
   picks.replaceChildren();
+  const ours = sideLabel(page.conflictSides.ours, "git.conflict.ours");
+  const theirs = sideLabel(page.conflictSides.theirs, "git.conflict.theirs");
   blocks.forEach((block, index) => {
     const row = document.createElement("div");
     row.className = "git-sc-pick";
     row.append(document.createTextNode(uiText.text("git.conflict.at", { index: index + 1, line: block.start + 1 })));
     const sides: [("ours" | "theirs" | "both"), string][] = [
-      ["ours", uiText.text("git.conflict.use", { side: page.conflictSides.ours })],
-      ["theirs", uiText.text("git.conflict.use", { side: page.conflictSides.theirs })],
+      ["ours", uiText.text("git.conflict.use", { side: ours })],
+      ["theirs", uiText.text("git.conflict.use", { side: theirs })],
       ["both", uiText.text("git.conflict.both")],
     ];
     for (const [side, label] of sides) {
@@ -99,16 +113,23 @@ export async function openConflict(page: GitPage, path: string, source: HTMLElem
     if (!current()) return selection;
     entry.value ??= { base: file.text, text: file.text };
     page.conflictDraft = { path, entry, disk: file.text, revision: file.revision };
-    // The Host names the two sides in Chinese; the page says them in its own language.
-    page.conflictSides = { ours: file.ours === "当前" ? uiText.text("git.conflict.ours") : file.ours, theirs: file.theirs === "合并进来的一方" ? uiText.text("git.conflict.theirs") : file.theirs };
-    q("[data-git-conflict-file]").textContent = uiText.text("git.conflict.file", { path, count: file.conflicts, ours: page.conflictSides.ours, theirs: page.conflictSides.theirs });
-    conflictText.value = entry.value.text; conflictText.disabled = false;
+    page.conflictSides = { ours: file.ours, theirs: file.theirs };
+    page.conflictCount = file.conflicts;
+    paintConflictHeader(page);
+    conflictText.value = entry.value.text;
+    conflictText.disabled = false;
     syncConflict(page);
     conflictText.focus();
   } catch (error) {
     if (current()) q("[data-git-conflict-state]").textContent = (messageOf(error));
   }
   return selection;
+}
+
+export function refreshConflict(page: GitPage): void {
+  if (page.resultSelection?.kind !== "conflict" || !page.conflictDraft) return;
+  paintConflictHeader(page);
+  syncConflict(page);
 }
 
 /** Lists the files a merge stopped on, or hides the block when no merge is under way. */

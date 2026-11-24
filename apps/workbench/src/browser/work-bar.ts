@@ -477,13 +477,17 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     const btn = (event.target as Element)?.closest<HTMLElement>("[data-work-scope]");
     if (!btn?.dataset.workScope) return;
     document.body.dataset.workLineScope = btn.dataset.workScope;
+    restoreScopeLine();
     paintScopeToggle();
     again();
   });
   const keyOf = (subject: ActionSubject) => `${subject.kind}:${subject.id}`;
   const again = () => document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
   // The last line this tab knew, kept for this tab only: after a reload it stands at once, said to be checked, until the read confirms it (WLN-29).
-  const kept = `molis.work-line.last:${document.body.dataset.projectId ?? ""}`;
+  const projectCache = `molis.work-line.last:${document.body.dataset.projectId ?? ""}`;
+  const cacheKey = () => itemScope() ? projectCache + ":item:" + activeItemId : projectCache;
+  const focusKey = () => projectCache + ":focus:" + (activeItemId ?? "");
+  const restoreFocus = () => { try { focused = sessionStorage.getItem(focusKey()) ?? ""; } catch { focused = ""; } };
   let knownAt: string | null = null;
   let checkingSince: string | null = null;
   const checking = (since: string | null, repaintStack = true) => {
@@ -552,11 +556,13 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
   // What wants a look and is not already a card here: one object is never two cards. (An event about another object — an
   // Inbox entry about a source — does not cover that object: its row in the list is where it is corrected or put away.)
   const covered = (subject: ActionSubject) => waitingEvents().some(event => keyOf(event.subject) === keyOf(subject)) || tasks.loose().some(task => keyOf(task.subject) === keyOf(subject));
-  const toLook = () => (host.attention?.() ?? []).filter(subject => !covered(subject));
+  const itemScope = () => Boolean(activeItemId && document.body.dataset.workLineScope !== "project");
+  const toLook = () => (host.attention?.() ?? []).filter(subject =>
+    (!itemScope() || taskItems[keyOf(subject)]?.item_id === activeItemId) && !covered(subject));
   const waitingItems = (): StackItem[] => {
     const main = host.mainWaiting?.() ?? null;
     const look = toLook().length;
-    const other = activeItemId && otherItemsWaiting > 0 ? otherItemsWaiting : 0;
+    const other = itemScope() && otherItemsWaiting > 0 ? otherItemsWaiting : 0;
     return [
       ...waitingEvents().filter(event => dialog.hidden || keyOf(event.subject) !== focused).map(event => ({ id: event.id, draw: (more: number) => { const qs = tasks.questions(event.subject), said = view(event, false);
         return renderStackCard({ id: event.id, title: event.title, owner: said.owner, more, ask: qs[0]?.ask ?? (said.stateLabel || event.summary || uiText.text("workbench.work-line.waiting-for-you")), ...decisionOf(qs) }); } })),
@@ -711,8 +717,10 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     const found = [...events.values()].find(one => "owner" in front ? pageKey(one) === front.id : Boolean(front.id) && one.open?.kind !== "surface" && one.open?.surface === front.surface && one.open?.id === front.id);
     if (found) {
       const at = keyOf(found.subject);
+      // Restoring an item's highlighted row does not reopen its Assistant conversation.
+      const enteringItemPage = Boolean(activeItemId) && paged !== at;
       paged = at;
-      if (at !== focused && at !== pressing) {
+      if ((at !== focused || enteringItemPage) && at !== pressing) {
         list.show("info");
         host.openEvent(press(found), true);
       }
@@ -782,7 +790,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       knownAt = new Date().toISOString();
       try {
         const display: WorkLineDisplay = { events: read.events, issues: read.issues };
-        sessionStorage.setItem(kept, JSON.stringify({ at: knownAt, line: display }));
+        sessionStorage.setItem(cacheKey(), JSON.stringify({ at: knownAt, line: display }));
       } catch {
         /* a convenience of this tab */
       }
@@ -815,6 +823,18 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     tasks.offline(since ? format.date(since, "time") : "");
     list.draw();
   });
+  function restoreScopeLine() {
+    knownAt = null;
+    tasks.take({ tasks: [], issues: [] }, 0);
+    draw({ events: [], issues: [] });
+    // Clearing the previous scope is not a read. Only compare arrivals after this scope has shown its own line.
+    shown = "";
+    checking("");
+    try {
+      const last = JSON.parse(sessionStorage.getItem(cacheKey()) ?? "null") as { at: string; line: WorkLineDisplay } | null;
+      if (last?.line && Array.isArray(last.line.events)) { draw(last.line); knownAt = last.at; checking(last.at); }
+    } catch { /* nothing kept */ }
+  }
   document.addEventListener("molis-work:work-item-changed", event => {
     const detail = (event as CustomEvent<{ item_id?: string | null; other_waiting?: number; task_items?: Readonly<Record<string, { readonly item_id: string; readonly name: string }>> }>).detail;
     const prevItem = activeItemId;
@@ -823,6 +843,15 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     taskItems = detail?.task_items ?? {};
     if (prevItem !== activeItemId) {
       delete document.body.dataset.workLineScope;
+      cards.setItem(activeItemId);
+      paged = "";
+      pressing = "";
+      followed = false;
+      restoreFocus();
+      restoreScopeLine();
+      // The other listeners restore the new workspace and Assistant receiver synchronously.
+      // Follow its active event after that restore, then again on this scope's first live read.
+      queueMicrotask(follow);
       list.setParkedItem(activeItemId);
     }
     paintScopeToggle();
@@ -840,10 +869,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     cards.paint();
     tasks.retitle();
   });
-  try {
-    const last = JSON.parse(sessionStorage.getItem(kept) ?? "null") as { at: string; line: WorkLineDisplay } | null;
-    if (last?.line && Array.isArray(last.line.events)) { draw(last.line); knownAt = last.at; checking(last.at); }
-  } catch { /* nothing kept */ }
+  restoreScopeLine();
   paintExpand();
   return {
     event(subject) {
@@ -878,6 +904,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     // The outline moves with the event the conversation is about; the event keeps its place in its list (WLN-07).
     focus(subject) {
       focused = subject ? keyOf(subject) : "";
+      try { sessionStorage.setItem(focusKey(), focused); } catch { /* this window only */ }
       pressing = "";
       list.draw();
       cardStack.paint();

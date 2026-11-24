@@ -1,5 +1,5 @@
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import { AGENT_PROMPT_MAX_CHARS, type AgentPromptView, type PromptOverridesFile } from '@molis-ai/molis-work-contracts/services/agent-definitions';
+import { AGENT_PROMPT_MAX_CHARS, agentDefinitionErrors, type AgentPromptView, type PromptOverridesFile } from '@molis-ai/molis-work-contracts/services/agent-definitions';
 import { personalConfigRecord, personalConfigJournal, personalConfigReplica, type ReplicaDatabase } from '@molis-ai/molis-work-storage';
 import type { AgentDefinitions } from './agent-definitions.js';
 
@@ -33,13 +33,33 @@ export function promptOverrideConfigReplica(db: ReplicaDatabase, actor: string, 
     if (!definitions.hasPrompt(owner, prompt)) throw new ActionError('actions.unavailable', '当前设备尚未登记这段提示词', { details: { sync_waiting: true } });
     return definitions.prompt(key);
   };
+  const isProtectedKey = (key: string): boolean => {
+    const [owner, promptId] = readKey(key);
+    return definitions.hasPrompt(owner, promptId) && definitions.prompt(key).override_policy === 'protected';
+  };
+  const assertEditableKey = (key: string): [string, string] => {
+    const parsed = readKey(key);
+    if (isProtectedKey(key)) {
+      throw agentDefinitionErrors.prompt_override_protected('受保护的 Prompt 不能通过同步改写或重置', { key });
+    }
+    return parsed;
+  };
   return personalConfigReplica(db, namespace, { spaceId, authorize }, {
     maximumBytes: 384 * 1024,
-    key: readKey,
+    key: assertEditableKey,
+    // Skip protected keys before outbox reading so a tampered protected row cannot head-of-line poison sync.
+    canUpload(key) {
+      try {
+        return !isProtectedKey(key);
+      } catch {
+        return true;
+      }
+    },
     read(key) {
       const saved = db.prepare('SELECT base_version,body,updated_at FROM prompt_overrides WHERE key=? AND actor_id=?').get(key, actor);
       if (!saved) return null;
       const prompt = view(key);
+      if (prompt.override_policy === 'protected') return null;
       const value: PromptOverridesFile = { format: 'molis.prompt-overrides', format_version: formatVersion, exported_at: String(saved.updated_at),
         overrides: [{ owner_id: prompt.owner_id, prompt_id: prompt.prompt_id, title: prompt.title, base_version: Number(saved.base_version), body: String(saved.body) }] };
       portable(value, key);
@@ -48,6 +68,7 @@ export function promptOverrideConfigReplica(db: ReplicaDatabase, actor: string, 
     apply(key, value) {
       const existing = db.prepare('SELECT actor_id FROM prompt_overrides WHERE key=?').get(key);
       if (existing && existing.actor_id !== actor) throw new ActionError('actions.forbidden', '提示词改写不属于当前账号');
+      assertEditableKey(key);
       if (value === null && !existing) return;
       const prompt = view(key);
       const incoming = value === null ? null : portable(value, key);

@@ -54,6 +54,7 @@ export function personalConfigReplica(db: ReplicaDatabase, namespace: string, co
   key(key: string): void;
   read(key: string): unknown | null;
   apply(key: string, data: unknown | null): void;
+  canUpload?(key: string): boolean;
   belongsToProject?(key: string, project: string): boolean;
 }) {
   const unseal = (value: unknown) => {
@@ -69,6 +70,7 @@ export function personalConfigReplica(db: ReplicaDatabase, namespace: string, co
       owner.key(key);
       if (value !== undefined) unseal(value);
     },
+    ...(owner.canUpload ? { canUpload: owner.canUpload } : {}),
     belongsToProject: owner.belongsToProject ?? (() => false),
     read(key) {
       const data = owner.read(key);

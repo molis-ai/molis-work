@@ -43,6 +43,8 @@ SQLite 冲突确认由可信组合根把 SDK 的 `createSyncConflictState` 通�
 
 ## 一套标准：官方插件与生成插件
 
+创作台细化时从任务的 `iconNames` 选择 `design.icon`，发布到签名清单的 stage 视图。生成插件的提交部件通过 `connectionNeed` 请求第 13 批的原处连接卡，声明与试用方式见 [生成设计](../../skills/molis-plugin-dev/generated-design.md)。
+
 `skills/molis-plugin-dev` 是做插件的唯一标准：手写插件按它交付，插件创作台也在运行时经 Prologue 挂载其中的章节。各阶段实际挂载的章节与顺序以 [`skill.ts` 的 `CHAPTERS`](../../apps/local-host/src/plugin-builder/skill.ts) 为准，版本取挂载正文的摘要并写入每次运行的 promptVersion。这里不再维护第二份章节清单；改挂载内容仍按[创作台 Skill 回放与冒烟](STUDIO-SKILL-REPLAY.md)验证。
 
 - 交付流程与每步做完的标准：`process.md`（按模型能力伸缩：能出图就给效果图，能读图就加截图走查）。
@@ -101,6 +103,8 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 状态目录只能是新目录、空目录或已有 `.molis-work-plugin-development.json` 标记的开发目录。普通非空目录不会被用作数据库，也不写进任何东西，报 `host.plugin_development_directory_occupied`（`details.state_directory` 是被拒的目录）；标记不是这个版本认得的报 `host.plugin_development_directory_unsupported`。漏写 `--allow-unsigned-development` 报 `plugin.unsigned_development_required`，不建目录。这些失败都是退出码 1、stderr 一行 `{"developed":false,"code":…,"message":…}`；Manifest 真写错时才是 `plugin.manifest_invalid` 一类的码；这条命令不选择或改动用户项目 catalog。同一状态目录用于串行调试，不是多进程运行服务；强制杀进程后的安装状态恢复、后台托管与发行物安装不是本命令承诺。不要把正式项目或 Team Server 目录作为开发状态目录。
 
 ## 界面文字与语言文件
+
+插件折叠明细从 `@molis-ai/molis-work-plugin-sdk/ui` 调用 `renderCollapsible({ summary, body })`。标题传纯文本，正文传已渲染的 HTML，默认收起。
 
 插件的界面文字写在自己的语言文件里，每种语言一个 `locales/<语言>.json`，在 Manifest 的 `ui.locales` 声明（`{ "default": "en", "available": ["en", "zh"] }`）；代码里用 SDK `/ui` 的 `t("<plugin_id 最后一段>.<位置>.<元素>", 参数)` 和 `format`，语言由平台给。文件形状、键和参数的规则、`t` 与 `t.text` 的区别、颜色和字体变量，以及界面文案、Manifest 权限理由与动作 `title`/`description` 的写作准则（面向零 AI 基础用户的白话精准表达、黑话禁用、符号与英文 Sentence case）统一见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)。`create` 生成的样例已经带两种语言。
 

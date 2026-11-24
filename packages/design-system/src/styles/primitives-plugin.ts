@@ -179,6 +179,12 @@ export const PRIMITIVE_PLUGIN_KBD = `
     color: var(--muted); font: 11px/20px var(--font-mono);
   }
   .mw-kbd { border-radius: 8px; }
+  /* High-contrast shortcut badge inside filled primary buttons (light & dark themes alike). */
+  .mw-btn--primary:not(:disabled) :is(kbd, .mw-kbd) {
+    color: currentColor;
+    background: color-mix(in srgb, currentColor 16%, transparent);
+    border-color: color-mix(in srgb, currentColor 32%, transparent);
+  }
   .mw-separator { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
 `;
 

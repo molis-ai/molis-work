@@ -1,4 +1,4 @@
-import { mountConnectionItems, type updateConnectionProgress } from "./service-connection-item.js";
+import { mountConnectionItems, setConnectionItemOpen, type updateConnectionProgress } from "./service-connection-item.js";
 
 /**
  * The service-connection parts' row program, for the connections page (`CONNECTORS_SETTINGS_CLIENT_SCRIPT`), which is a string and so
@@ -8,7 +8,7 @@ import { mountConnectionItems, type updateConnectionProgress } from "./service-c
  */
 type Progress = typeof updateConnectionProgress;
 const scope = globalThis as typeof globalThis & {
-  molisWorkConnectionItems?: { mount: typeof mountConnectionItems; progress: Progress };
+  molisWorkConnectionItems?: { mount: typeof mountConnectionItems; setOpen: typeof setConnectionItemOpen; progress: Progress };
   molisWorkConnectionProgress?: Progress;
 };
-scope.molisWorkConnectionItems ??= { mount: mountConnectionItems, progress: (...args) => scope.molisWorkConnectionProgress?.(...args) };
+scope.molisWorkConnectionItems ??= { mount: mountConnectionItems, setOpen: setConnectionItemOpen, progress: (...args) => scope.molisWorkConnectionProgress?.(...args) };

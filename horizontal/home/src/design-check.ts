@@ -1,3 +1,5 @@
+import { lowContrast, unreadablePage } from "./contrast.js";
+import type { UiTokenMap } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { HomePageFile } from "@molis-ai/molis-work-contracts/services/home";
 
 export interface HomePageDesignIssue {
@@ -5,9 +7,13 @@ export interface HomePageDesignIssue {
     | "inline_style_attr"
     | "inline_event_handler"
     | "external_asset"
+    | "cross_project_path"
+    | "action_not_public"
     | "dynamic_eval"
     | "nested_embed"
     | "literal_color"
+    | "low_contrast"
+    | "amber_usage"
     | "pill_radius";
   readonly path: string;
   readonly severity: "error" | "warning";
@@ -30,11 +36,114 @@ export interface HomePageDesignCheckReport {
 const INLINE_STYLE_RE = /\sstyle\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/iu;
 const INLINE_HANDLER_RE = /\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/iu;
 const EXTERNAL_URL_RE = /(?:src|href)\s*=\s*(?:"|')\s*(?:https?:|\/\/)/iu;
+const CSS_EXTERNAL_URL_RE = /(?:url\s*\(\s*(?:"|')?\s*(?:https?:|\/\/)|@import\s*(?:"|')\s*(?:https?:|\/\/))/iu;
 const NESTED_EMBED_RE = /<\s*(?:iframe|object|embed|base)\b/iu;
 const DYNAMIC_EVAL_RE = /\b(?:eval|Function)\s*\(|new\s+Function\b/u;
-const LITERAL_COLOR_RE = /#[0-9a-f]{3,8}\b|\brgba?\s*\(|\bhsla?\s*\(/iu;
+const LITERAL_COLOR_VALUE_RE = /#[0-9a-f]{3,8}\b|\brgba?\s*\(|\bhsla?\s*\(|\boklch\s*\(|\boklab\s*\(/iu;
 const PILL_RADIUS_RE = /border-radius\s*:\s*(?:999|9999)px/iu;
 const CROSS_PROJECT_PATH_RE = /\/projects\/[^/\s"']+\//u;
+
+/**
+ * Strips CSS block comments while respecting quoted strings and backslash escapes, replacing comments with a single
+ * space so tokens adjacent to a comment never merge or drop rules between quoted strings.
+ */
+function stripCssComments(css: string): string {
+  let out = "";
+  let i = 0;
+  let inQuote: string | null = null;
+  while (i < css.length) {
+    const ch = css[i]!;
+    if (ch === "\\" && i + 1 < css.length) {
+      out += css.slice(i, i + 2);
+      i += 2;
+      continue;
+    }
+    if (inQuote) {
+      if (ch === inQuote) inQuote = null;
+      out += ch;
+      i++;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inQuote = ch;
+      out += ch;
+      i++;
+      continue;
+    }
+    if (ch === "/" && css[i + 1] === "*") {
+      const end = css.indexOf("*/", i + 2);
+      out += " ";
+      i = end < 0 ? css.length : end + 2;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
+/**
+ * Extracts CSS declaration values (the part after `:` inside rule blocks, skipping selectors and nested at-rule preludes)
+ * so ID selectors like `#feed`, `#cafe`, or `#fade` are never misclassified as literal hex colors.
+ * Handles unquoted backslash escapes and EOF-terminated unclosed blocks per CSS Syntax Level 3.
+ */
+function extractCssDeclarationValues(css: string, visit: (selector: string, property: string, value: string) => void): string[] {
+  const selectors: string[] = [];
+  const values: string[] = [];
+  let i = 0;
+  let depth = 0;
+  let inQuote: string | null = null;
+  let tokenStart = 0;
+  let colonAt = -1;
+  const flushDecl = (end: number) => {
+    if (colonAt >= 0 && colonAt < end) {
+      const prop = css.slice(tokenStart, colonAt).trim();
+      if (prop && !prop.includes("{") && !prop.includes("}") && !prop.startsWith("@")) {
+        const value = css.slice(colonAt + 1, end);
+        values.push(value);
+        visit(selectors.at(-1) ?? "", prop.toLowerCase(), value);
+      }
+    }
+    tokenStart = end + 1;
+    colonAt = -1;
+  };
+  while (i < css.length) {
+    const ch = css[i]!;
+    if (ch === "\\" && i + 1 < css.length) {
+      i += 2;
+      continue;
+    }
+    if (inQuote) {
+      if (ch === inQuote) inQuote = null;
+      i++;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inQuote = ch;
+      i++;
+      continue;
+    }
+    if (ch === "{") {
+      selectors.push(css.slice(tokenStart, i).trim());
+      depth++;
+      tokenStart = i + 1;
+      colonAt = -1;
+    } else if (ch === "}") {
+      if (depth > 0) flushDecl(i);
+      selectors.pop();
+      depth = Math.max(0, depth - 1);
+      tokenStart = i + 1;
+      colonAt = -1;
+    } else if (ch === ";" && depth > 0) {
+      flushDecl(i);
+    } else if (ch === ":" && depth > 0 && colonAt < 0) {
+      colonAt = i;
+    }
+    i++;
+  }
+  if (depth > 0) flushDecl(css.length);
+  return values;
+}
 
 /**
  * Inspects generated-page files against the Batch 37 isolation and Soft Workbench design-language rules:
@@ -45,7 +154,7 @@ const CROSS_PROJECT_PATH_RE = /\/projects\/[^/\s"']+\//u;
  */
 export function inspectHomePageDesign(
   files: readonly HomePageFile[],
-  options: { readonly actionsValid?: boolean; readonly actionIssueReason?: string } = {},
+  options: { readonly actionsValid?: boolean; readonly actionIssueReason?: string; readonly entry?: string; readonly palettes?: readonly UiTokenMap[] } = {},
 ): HomePageDesignCheckReport {
   const sandboxIssues: HomePageDesignIssue[] = [];
   const scopeIssues: HomePageDesignIssue[] = [];
@@ -98,7 +207,7 @@ export function inspectHomePageDesign(
       }
       if (CROSS_PROJECT_PATH_RE.test(file.text)) {
         scopeIssues.push({
-          code: "external_asset",
+          code: "cross_project_path",
           path: file.path,
           severity: "error",
           reason: "脚本不能直接拼写跨项目路径，请通过获准动作读取本项目数据",
@@ -107,13 +216,40 @@ export function inspectHomePageDesign(
     }
 
     if (file.media_type === "text/css") {
-      const stripped = file.text.replace(/\/\*[\s\S]*?\*\//gu, "");
-      if (LITERAL_COLOR_RE.test(stripped)) {
+      const stripped = stripCssComments(file.text);
+      if (CSS_EXTERNAL_URL_RE.test(stripped)) {
+        sandboxIssues.push({
+          code: "external_asset",
+          path: file.path,
+          severity: "error",
+          reason: "样式不能引用外部网络资源（url 或 @import），所有资源必须声明在页面清单内",
+        });
+      }
+      const colors = new Map<string, { ink?: string; paper?: string }>();
+      let amberMisused = false;
+      const declValues = extractCssDeclarationValues(stripped, (selector, prop, value) => {
+        if (prop !== "color" && prop !== "background" && prop !== "background-color") return;
+        const role = /^\s*var\(\s*--([a-z0-9-]+)\s*\)\s*(?:!important)?\s*$/iu.exec(value)?.[1];
+        if (!role) return;
+        if (/^amber(?:-|$)/u.test(role) && !/attention|waiting|approval|question|decision|ask/iu.test(selector)) amberMisused = true;
+        const pair = colors.get(selector) ?? {};
+        if (prop === "color") pair.ink = role; else pair.paper = role;
+        colors.set(selector, pair);
+      });
+      if (amberMisused) designIssues.push({ code: "amber_usage", path: file.path, severity: "error", reason: "琥珀色只用于等你确认的内容" });
+      for (const { ink, paper } of colors.values()) {
+        // The DOM pass resolves colors inherited from other rules. A CSS-only design sample has the default canvas.
+        if (!files.some(item => item.media_type === "text/html") && lowContrast(ink ?? "ink", paper ?? "paper", options.palettes)) {
+          designIssues.push({ code: "low_contrast", path: file.path, severity: "error", reason: "文字与背景的对比度不足 4.5:1" });
+          break;
+        }
+      }
+      if (declValues.some(val => LITERAL_COLOR_VALUE_RE.test(val))) {
         designIssues.push({
           code: "literal_color",
           path: file.path,
           severity: "error",
-          reason: "样式里出现了字面颜色值，请改用工作台语义变量（如 var(--paper)、var(--ink)、var(--accent)、var(--amber)）",
+          reason: "样式里出现了字面颜色值，请改用工作台配色变量（如 var(--paper)、var(--ink)、var(--accent)、var(--amber)）",
         });
       }
       if (PILL_RADIUS_RE.test(stripped)) {
@@ -128,6 +264,10 @@ export function inspectHomePageDesign(
   }
 
   const actionsOk = options.actionsValid !== false;
+  if (!designIssues.some(issue => issue.code === "low_contrast")) {
+    const path = unreadablePage(files, options.palettes, options.entry);
+    if (path) designIssues.push({ code: "low_contrast", path, severity: "error", reason: "文字与背景的对比度不足 4.5:1" });
+  }
   const checks: HomePageCheckItem[] = [
     {
       id: "public_actions",
@@ -135,7 +275,7 @@ export function inspectHomePageDesign(
       severity: actionsOk ? "ok" : "error",
       issues: actionsOk
         ? []
-        : [{ code: "external_asset", path: "$.actions", severity: "error", reason: options.actionIssueReason ?? "页面声明的动作不可用或未开放给页面调用" }],
+        : [{ code: "action_not_public", path: "$.actions", severity: "error", reason: options.actionIssueReason ?? "页面声明的动作不可用或未开放给页面调用" }],
     },
     {
       id: "sandbox_isolation",

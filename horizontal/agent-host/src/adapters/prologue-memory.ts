@@ -63,14 +63,15 @@ function historyAndPortabilityCapability(call: <T>(work: (bound: Bound) => Promi
   Pick<AgentMemoryCapability, "history" | "restore" | "previewBatch" | "applyBatch" | "previewScope" | "clearScope"> {
   return {
     history: input => call(async bound => {
+      const { limit, before_version: beforeVersion } = input;
+      if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 0)) throw agentErrors.history_invalid("历史条数必须是非负整数");
+      if (beforeVersion !== undefined && (!Number.isSafeInteger(beforeVersion) || beforeVersion < 1)) throw agentErrors.history_invalid("历史版本必须是正整数");
       const page = await bound.memory.history(await formal(bound, input), { scope: input.scope, owner: input.owner, ...(input.signal ? { signal: input.signal } : {}) });
       if (!page) throw agentErrors.capability_unavailable("没有找到这条记忆");
       const all = page.revisions.map(rev => ({ version: rev.version, text: rev.text, origin: rev.origin, tags: [...rev.tags], meta: fromSdkMemoryMeta(rev.meta ?? {}),
         ...(page.key ? { key: { ...page.key } } : {}), created_at_ms: rev.updatedAtMs, updated_at_ms: rev.updatedAtMs, ...(rev.note === undefined ? {} : { note: rev.note }) }));
       // The SDK keeps the bounded window; the public page contract still offers an exact version window and a tail limit.
-      const beforeVersion = input.before_version;
       const bounded = beforeVersion === undefined ? all : all.filter(rev => rev.version < beforeVersion);
-      const limit = input.limit === undefined ? undefined : Math.max(0, Math.trunc(input.limit));
       return { memory_id: page.ref.id, scope: page.scope as Entry["scope"], owner: page.owner, current_version: page.currentVersion,
         ...(page.prunedThroughVersion === undefined ? {} : { pruned_through_version: page.prunedThroughVersion }),
         revisions: limit === undefined ? bounded : limit === 0 ? [] : bounded.slice(-limit) };

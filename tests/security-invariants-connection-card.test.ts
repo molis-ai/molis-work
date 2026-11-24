@@ -295,27 +295,39 @@ test("S-plugin-connection-card ASC-68 C3-1 S-91 a sandboxed package's card binds
   const preview = await client.invoke(installer(project.project_id), ref(pluginInstallActions.preview), { bundle: imagePackage() }) as { preview_id: string };
   await client.invoke(installer(project.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
   const install_id = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.install_id, prefix = `/projects/${project.project_id}`;
-  const post = (path: string, body: unknown, headers: Record<string, string> = {}) => fetch(h.origin + prefix + path, { method: "POST", body: JSON.stringify(body),
+  const post = (path: string, body: unknown, headers: Record<string, string> = {}, routePrefix = prefix) => fetch(h.origin + routePrefix + path, { method: "POST", body: JSON.stringify(body),
     headers: { origin: h.origin, "content-type": "application/json", "x-molis-work-idempotency-key": crypto.randomUUID(), "x-molis-work-control-token": h.controlToken, ...headers } });
-  const open = async () => {
-    const opened = await post("/api/host/plugin-pages", { plugin_id: PACKAGE_PLUGIN_ID });
+  const open = async (routePrefix = prefix) => {
+    const opened = await post("/api/host/plugin-pages", { plugin_id: PACKAGE_PLUGIN_ID }, {}, routePrefix);
     assert.equal(opened.status, 200, await opened.clone().text());
     return (await opened.json() as { page_id: string }).page_id;
   };
-  const save = (page: string) => post(PATH, { operation: "save_key", target: { kind: "image", slot_id: "main", base_url: "https://images.example.com/v1" }, api_key: IMAGE_KEY },
-    { "x-molis-context-page": page });
+  const save = (page: string, routePrefix = prefix, slot_id = "main") => post(PATH, { operation: "save_key", target: { kind: "image", slot_id, base_url: "https://images.example.com/v1" }, api_key: IMAGE_KEY },
+    { "x-molis-context-page": page }, routePrefix);
   const bound = () => withConnectorConnections(h.home, store => store.binding("home", sandboxImageNamespace(install_id), "main")?.connection_id ?? null);
   // Installed, not yet approved: the derived write permission is declared and not granted, so no card.
   const before = records(h.home);
   await refusedWith(await save(await open()), 403, "host.connection_need.not_granted");
+  await refusedWith(await save(await open(""), ""), 403, "host.connection_need.not_granted");
   assert.equal(records(h.home), before);
   const platform = await h.host.homePlugins!.ready();
   await platform.runtime.regrant(install_id, SANDBOX_IMAGE_PERMISSIONS.write, true);
-  const saved = await save(await open());
+  // The Home entry has no project prefix. Closing its trusted page cancels the card and leaves the namespace unbound.
+  const closed = await open("");
+  const closedResponse = await fetch(h.origin + "/api/host/plugin-pages/" + closed, { method: "DELETE",
+    headers: { origin: h.origin, "content-type": "application/json", "x-molis-work-idempotency-key": crypto.randomUUID(), "x-molis-work-control-token": h.controlToken }, body: "{}" });
+  assert.equal(closedResponse.status, 200, await closedResponse.clone().text());
+  assert.equal((await save(closed, "")).status, 403);
+  assert.equal(bound(), null);
+  assert.equal(records(h.home), before);
+  const saved = await save(await open(""), "");
   assert.equal(saved.status, 200, await saved.clone().text());
   const id = bound();
   assert.ok(id, "bound under the namespace derived from the installation, not any name the package gave");
   assert.equal(withConnectorConnections(h.home, store => store.targetOrigin(id)), "https://images.example.com", "pinned to the origin the card showed");
+  const inProject = await save(await open(), prefix, "cover");
+  assert.equal(inProject.status, 200, await inProject.clone().text());
+  assert.ok(withConnectorConnections(h.home, store => store.binding("home", sandboxImageNamespace(install_id), "cover")?.connection_id));
 });
 
 test("S-plugin-connection-card ASC-68 C3-9 asking for a card writes nothing, and a cancelled login leaves no binding", { timeout: 120_000 }, async t => {

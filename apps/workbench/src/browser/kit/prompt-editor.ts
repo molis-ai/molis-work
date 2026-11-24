@@ -8,6 +8,7 @@ export interface PromptRecordResponse {
     body: string;
     default_body: string;
     effective: "default" | "user";
+    override_policy?: "editable" | "protected";
     user?: { revision: number } | null;
   };
   editor: {
@@ -54,6 +55,23 @@ export function mountKitPromptEditor(container: HTMLElement, promptKey: string, 
 
     const form = el("div", "kit-prompt-form");
     form.dataset.kitPromptKey = prompt.key;
+    if (prompt.override_policy === "protected") {
+      const protectedNote = el("p", "kit-note", readText("workbench.settings-prompts.protected-note"));
+      protectedNote.dataset.promptProtected = "true";
+      form.append(protectedNote);
+      const field = el("label", "mw-field");
+      field.append(el("span", "mw-field__label", readText("workbench.settings-prompts.guidance-label")));
+      const guidance = el("textarea", "mw-textarea kit-prompt-guidance");
+      guidance.rows = Math.min(18, Math.max(6, prompt.body.split("\n").length + 1));
+      guidance.value = prompt.body;
+      guidance.readOnly = true;
+      guidance.dataset.promptSimplified = "true";
+      guidance.setAttribute("aria-label", readText("workbench.settings-prompts.view-prompt-title", { title: prompt.title }));
+      field.append(guidance);
+      form.append(field);
+      container.append(form);
+      return;
+    }
     form.append(el("p", "kit-note", readText("workbench.settings-prompts.permission-unchanged-note")));
 
     const field = el("label", "mw-field");

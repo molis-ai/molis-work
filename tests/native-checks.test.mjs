@@ -207,6 +207,10 @@ test("rust: CI installs the pinned WASM toolchain and caches all three crates", 
   assert.match(job, /rustup toolchain install 1\.96\.0 .*--target wasm32-unknown-unknown/);
   assert.match(job, /workspaces: \|\n\s+apps\/desktop\/src-tauri\n\s+apps\/sync-worker\n\s+server\n/);
   assert.match(job, /node scripts\/gates\/native-checks.mjs rust/);
+  // CIP-17: Full's Linux self-test shard uses the same compiler as the native job.
+  const full = readFileSync(new URL("../.github/workflows/full-suite.yml", import.meta.url), "utf8");
+  const shardStep = full.split("      - name: Run this shard\n")[1].split("\n      - name:")[0];
+  assert.equal(/MOLIS_WORK_FULL_NATIVE_TOOLCHAIN: (\S+)/.exec(shardStep)?.[1], /RUSTUP_TOOLCHAIN: (\S+)/.exec(job)[1]);
 });
 test("rust: a repository without Rust files has nothing to check", () => {
   const run = gate(repoWith({ "README.md": "# x\n" }), ["rust"]);

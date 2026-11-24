@@ -1,6 +1,6 @@
 import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./isolated-host.js";
 import assert from "node:assert/strict";
-import { PluginHostExecutor, type LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { PluginHostExecutor, homeAgentDefinitions, pluginAgentRegistration, type LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionRegistryPort, type SyncActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller, LocalHostProjectClient, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -93,7 +93,7 @@ export async function startProjectPlugins(host: { inspectActions(caller: ActionC
  * Host's project client) its `services.actions.availability` asks the Host, as the running Host's does.
  */
 export async function startPlugin(host: { actionRegistry(reference: LocalHostProjectReference): ActionRegistryPort; actionClient(reference: LocalHostProjectReference): ActionClient;
-  syncActionClient(reference: LocalHostProjectReference): SyncActionClient }, reference: LocalHostProjectReference, store: Pick<LocalProjectDatabase, "db" | "appendEvent" | "eventCursor">,
+  syncActionClient(reference: LocalHostProjectReference): SyncActionClient; restingCacheHomeDirectory?(): string | undefined }, reference: LocalHostProjectReference, store: Pick<LocalProjectDatabase, "db" | "appendEvent" | "eventCursor">,
   plugin: CallerPlugin, options: { actorId?: string; grants?: readonly string[]; dependencies?: Pick<LocalHostProjectClient, "availability"> } = {}) {
   const executor = new PluginHostExecutor({ project_id: reference.project_id, actor_id: options.actorId ?? LOCAL_PERSON_ACTOR_ID, ui: new UiHost(),
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id },
@@ -107,6 +107,10 @@ export async function startPlugin(host: { actionRegistry(reference: LocalHostPro
   // The release a product start archives (its supervisor does), so the project's own reads of what this plugin declares find it.
   new SqlitePluginRuntimeReleaseArtifactRepository(store.db).save(createPluginRuntimeReleaseArtifact(plugin.definition.manifest, "export default {};"));
   await runtime.start(install.install_id);
+  // Mirror product PluginHostExecutor: when the Host has a Home, register the started plugin's Agent declarations with that Home's registry.
+  const home = host.restingCacheHomeDirectory?.();
+  const registration = home ? pluginAgentRegistration(plugin.definition) : null;
+  if (home && registration) homeAgentDefinitions(home).register(registration, install.install_id);
   return { runtime, install_id: install.install_id };
 }
 

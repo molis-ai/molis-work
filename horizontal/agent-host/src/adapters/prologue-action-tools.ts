@@ -115,8 +115,9 @@ export function prologueActionTools(
       } finally { reviews?.release(call.callId); unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
     };
     // Provider and effect lead the description: the name is a hash, and deferred tools are found by searching this text.
+    // Kept strictly locale-invariant so switching UI/reply language never mutates toolsFingerprint or invalidates KV-Cache (Decision 67 #5).
     const effect = actionEffect(view.action, view.capability_id);
-    const label = `${view.provider.title} · ${effect === "read" ? "读取" : effect === "irreversible" ? "不可撤回" : "修改"} · ${view.action.title}`;
+    const label = `${view.provider.title} · ${effect === "read" ? "读取" : effect === "irreversible" ? "不可撤回" : "修改"} · ${view.action.title} [${view.provider.provider_id} / ${view.capability_id}@${view.version}]`;
     return { executor: name, registration: { name, version: String(view.version), description: label + "\n" + view.action.description,
       // A copy: the directory's declarations are frozen, and the runtime owns what it is handed.
       parameters: wrapped ? { type: "object", properties: { input: structuredClone(view.action.input_schema) }, required: ["input"], additionalProperties: false } : structuredClone(view.action.input_schema),

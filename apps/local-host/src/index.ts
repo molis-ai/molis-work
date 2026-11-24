@@ -325,6 +325,7 @@ export { issuePluginCaller } from "./plugin-callers.js";
 export { classifyContextModelFailure } from "./context-onboarding-delta.js";
 export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";
 export { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
+export { resolveModelPrompt } from "./agent-definitions/instructions.js";
 export { composeSimplifiedPrompt, splitPromptContract, validateFullPromptBody, type PromptEditorSections } from "./agent-definitions/prompt-sections.js";
 export { PLACEMENT_BASELINE } from "./placement-actions.js";
 export { placementCallPorts } from "./placement-call.js";

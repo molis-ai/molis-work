@@ -1,5 +1,6 @@
 import type { MainlineGroup } from "@molis-ai/molis-work-contracts/services/mainline";
-import { escapeHtml as e, icon, renderButton, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as e, icon, renderButton, t as uiText } from "./mainline-ui.js";
+import { runBusy } from "./busy.js";
 import { groupDisplayName, itemDisplayTitle, type MainlineViewResponse } from "./mainline-types.js";
 
 export interface OrganizePorts {
@@ -21,7 +22,7 @@ function renderCard(view: MainlineViewResponse, groupId: string, itemId: string,
   if (res?.plugin_title) badges.push(`<span>${e(res.plugin_title)}</span>`);
   const checked = selected.has(itemId) ? " checked" : "";
   return `<div class="ml-org-card" draggable="true" data-org-card="${e(itemId)}" data-org-group="${e(groupId)}" data-org-index="${index}">`
-    + `<input type="checkbox" data-org-select="${e(itemId)}" aria-label="${e(uiText.text("workbench.mainline.select-item", { name: title }))}"${checked}>`
+    + `<input class="mw-check" type="checkbox" data-org-select="${e(itemId)}" aria-label="${e(uiText.text("workbench.mainline.select-item", { name: title }))}"${checked}>`
     + `<div class="ml-org-card-main"><span class="ml-org-card-title">${e(title)}</span>${badges.length ? `<div class="ml-org-card-meta">${badges.join("")}</div>` : ""}</div>`
     + `<div class="ml-org-card-acts">`
     + (index > 0 ? `<button class="ml-icon-btn" type="button" data-org-up="${e(itemId)}" data-org-group="${e(groupId)}" aria-label="${e(uiText.text("workbench.mainline.move-up"))}">${icon("chevron-up")}</button>` : "")
@@ -35,7 +36,7 @@ function renderCard(view: MainlineViewResponse, groupId: string, itemId: string,
 function renderColumn(view: MainlineViewResponse, group: MainlineGroup, selected: ReadonlySet<string>, canDelete: boolean, renamingId: string | null): string {
   const name = groupDisplayName(group);
   const head = renamingId === group.group_id
-    ? `<form class="ml-organize-add" data-org-rename-form="${e(group.group_id)}"><input class="ml-create-input" type="text" data-org-rename-input value="${e(name)}" maxlength="200" required>${renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.mainline.save-name"), attrs: { type: "submit" } })}</form>`
+    ? `<form class="ml-organize-add" data-org-rename-form="${e(group.group_id)}"><input class="mw-input ml-create-input" type="text" data-org-rename-input value="${e(name)}" maxlength="200" required>${renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.mainline.save-name"), attrs: { type: "submit", "data-org-rename-submit": "" } })}</form>`
     : `<strong>${e(name)} (${group.items.length})</strong>`
       + `<button class="ml-icon-btn" type="button" data-org-group-rename="${e(group.group_id)}" aria-label="${e(uiText.text("workbench.mainline.rename-group"))}" title="${e(uiText.text("workbench.mainline.rename-group"))}">${icon("edit")}</button>`
       + (canDelete ? `<button class="ml-icon-btn" type="button" data-org-group-delete="${e(group.group_id)}" aria-label="${e(uiText.text("workbench.mainline.delete-group"))}" title="${e(uiText.text("workbench.mainline.delete-group"))}">${icon("x")}</button>` : "");
@@ -66,19 +67,37 @@ export function createMainlineOrganizeDialog(ports: OrganizePorts) {
       + renderButton({ variant: "ghost", size: "sm", label: uiText.text("common.control.close"), attrs: { "data-org-close": "" } })
       + `</header>`
       + `<div class="ml-organize-toolbar">`
-      + `<form class="ml-organize-add" data-org-add-group><input class="ml-create-input" type="text" data-org-add-input maxlength="200" placeholder="${e(uiText.text("workbench.mainline.add-group-placeholder"))}" aria-label="${e(uiText.text("workbench.mainline.add-group"))}">`
-      + renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.mainline.add-group"), attrs: { type: "submit" } })
+      + `<form class="ml-organize-add" data-org-add-group><input class="mw-input ml-create-input" type="text" data-org-add-input maxlength="200" placeholder="${e(uiText.text("workbench.mainline.add-group-placeholder"))}" aria-label="${e(uiText.text("workbench.mainline.add-group"))}">`
+      + renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.mainline.add-group"), attrs: { type: "submit", "data-org-add-submit": "" } })
       + `</form>`
-      + `<div class="ml-organize-batch" data-org-batch${selected.size ? "" : " hidden"}><span>${e(uiText.text("workbench.mainline.move-selected-to", { n: selected.size }))}</span>${batchTargets}</div>`
+      + `<div class="ml-organize-batch" data-org-batch${selected.size ? "" : " hidden"}><span data-org-batch-label>${e(uiText.text("workbench.mainline.move-selected-to", { n: selected.size }))}</span>${batchTargets}</div>`
       + `</div><div class="ml-organize-cols" data-org-cols>${cols}</div></div>`;
   };
 
-  const runEdit = async (path: string, body: Record<string, unknown>, toastMsg?: string) => {
+  const syncBatchBar = () => {
+    if (!dialog) return;
+    const bar = dialog.querySelector<HTMLElement>("[data-org-batch]");
+    const label = dialog.querySelector<HTMLElement>("[data-org-batch-label]");
+    if (bar) bar.hidden = selected.size === 0;
+    if (label) label.textContent = uiText.text("workbench.mainline.move-selected-to", { n: selected.size });
+  };
+
+  const runEdit = async (
+    path: string,
+    body: Record<string, unknown>,
+    toastMsg?: string,
+    triggerBtn?: HTMLElement | null,
+    beforePaint?: () => void,
+  ): Promise<boolean> => {
     try {
-      await ports.call(path, body);
-      await ports.notifyChanged();
+      await runBusy(triggerBtn, async () => {
+        await ports.call(path, body);
+        await ports.notifyChanged();
+      });
+      beforePaint?.();
       paint();
       if (toastMsg) ports.toast(toastMsg);
+      return true;
     } catch (error) {
       const code = (error as { code?: string } | null)?.code;
       if (code === "mainline.conflict") {
@@ -88,6 +107,7 @@ export function createMainlineOrganizeDialog(ports: OrganizePorts) {
       } else {
         ports.toast(error instanceof Error ? error.message : String(error), true);
       }
+      return false;
     }
   };
 
@@ -176,7 +196,8 @@ export function createMainlineOrganizeDialog(ports: OrganizePorts) {
       if (!box?.dataset.orgSelect) return;
       if (box.checked) selected.add(box.dataset.orgSelect);
       else selected.delete(box.dataset.orgSelect);
-      paint();
+      // Update batch toolbar in place so active inputs and checkbox focus are never clobbered.
+      syncBatchBar();
     });
     dialog.addEventListener("click", (event) => {
       const target = event.target as HTMLElement | null;
@@ -190,14 +211,28 @@ export function createMainlineOrganizeDialog(ports: OrganizePorts) {
       event.preventDefault();
       if (form.matches("[data-org-add-group]")) {
         const input = form.querySelector<HTMLInputElement>("[data-org-add-input]");
+        const submitBtn = form.querySelector<HTMLButtonElement>("[data-org-add-submit]");
         const name = input?.value.trim() ?? "";
-        if (name) void runEdit("/api/mainline/groups/edit", { expected_revision: view.mainline.revision, op: "add", name });
+        if (name) void runEdit("/api/mainline/groups/edit", { expected_revision: view.mainline.revision, op: "add", name }, undefined, submitBtn);
       } else if (form.matches("[data-org-rename-form]")) {
         const groupId = form.dataset.orgRenameForm!;
-        const name = form.querySelector<HTMLInputElement>("[data-org-rename-input]")?.value.trim() ?? "";
-        renamingGroupId = null;
-        if (name) void runEdit("/api/mainline/groups/edit", { expected_revision: view.mainline.revision, op: "rename", group_id: groupId, name });
-        else paint();
+        const input = form.querySelector<HTMLInputElement>("[data-org-rename-input]");
+        const submitBtn = form.querySelector<HTMLButtonElement>("[data-org-rename-submit]");
+        const name = input?.value.trim() ?? "";
+        if (!name) {
+          renamingGroupId = null;
+          paint();
+          return;
+        }
+        void runEdit(
+          "/api/mainline/groups/edit",
+          { expected_revision: view.mainline.revision, op: "rename", group_id: groupId, name },
+          undefined,
+          submitBtn,
+          () => { renamingGroupId = null; },
+        ).then((ok) => {
+          if (!ok) dialog?.querySelector<HTMLInputElement>("[data-org-rename-input]")?.focus();
+        });
       }
     });
     dialog.addEventListener("dragstart", (event) => {

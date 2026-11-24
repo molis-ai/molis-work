@@ -5301,6 +5301,7 @@ test("写作助手只依据原文：提示词约束事实与长度，「更短�
   assert.equal(longer?.code, "pages.invalid");
   assert.match(longer?.message ?? "", /没有比原文更短/);
   assert.match(prompt, /命令：改写 · 更短/);
+  assert.match(prompt, /BEGIN_[0-9a-f]{16}/);
   assert.match(prompt, /不添加原文没有的事实、人名、日期、时间、数字/);
   assert.match(prompt, /结果必须比原文短/);
   const shorter = await runPagesAi({ command: "rewrite", style: "concise", text: original }, async () => "会议纪要记录了方案修订、预算、评审会和文案方向的分工与时限。");

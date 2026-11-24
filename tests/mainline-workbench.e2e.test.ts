@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // Batch 37-2 E2E (MLN-01–19, 21–23, WLN-19/20/23/24, POLISH-62–64, Decision 66,
@@ -14,6 +15,12 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, evaluate, waitFor } = browser;
+
+  assert.ok(projectId);
+  const characters = openCharacters(browser.homeDirectory, "web-user");
+  t.after(() => characters.close());
+  const editor = characters.service.create({ title: "事项编辑", instructions: "核对标题", host_tools: [] });
+  characters.service.roles.addMember(projectId, editor.character_id);
 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -83,6 +90,22 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
   await waitFor("[...document.querySelectorAll('[data-org-col]')].some(el => el.textContent.includes('本周重点'))", WAIT_MS);
   await evaluate("document.querySelector('[data-org-pin]').click()");
   await waitFor("Boolean(document.querySelector('[data-org-pin][data-org-pinned=\"true\"]'))", WAIT_MS);
+  // P0 #3 regression: organize dialog uses full multi-column width (>=700px at 1440px) with zero card overlap across columns.
+  const orgGeometry = await evaluate<{ width: number; overlap: boolean }>(`(() => {
+    const dlg = document.querySelector('dialog[data-mainline-organize-dialog][open]');
+    const cols = [...dlg.querySelectorAll('[data-org-col]')];
+    let overlap = false;
+    for (let i = 0; i < cols.length; i++) {
+      const colRect = cols[i].getBoundingClientRect();
+      for (const card of cols[i].querySelectorAll('[data-org-card]')) {
+        const cr = card.getBoundingClientRect();
+        if (cr.bottom > colRect.bottom + 2) overlap = true;
+      }
+    }
+    return { width: Math.round(dlg.getBoundingClientRect().width), overlap };
+  })()`);
+  assert.ok(orgGeometry.width >= 700, `organize dialog width must be >= 700px at 1440px (got ${orgGeometry.width})`);
+  assert.equal(orgGeometry.overlap, false, "organize dialog cards must not overflow their group container");
   await evaluate(`(() => {
     const col = [...document.querySelectorAll('[data-org-col]')].find(el => el.textContent.includes('本周重点'));
     col.querySelector('[data-org-group-delete]').click();
@@ -118,18 +141,69 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
     imTabStillPresent: Boolean(document.querySelector('[data-side-tab="discussion"]')),
   }))()`);
   assert.equal(item1State.cornerLabel, "第一件事项");
+
+  // P1 regression: inline rename on lightweight item First Page MUST survive background attention events without losing text or focus.
+  const renameSurvived = await evaluate<{ survived: boolean; focused: boolean }>(`(async () => {
+    document.querySelector('[data-item-page-rename]')?.click();
+    const input = document.querySelector('[data-item-page-rename-input]');
+    input.focus();
+    input.value = '保留中的改名草稿';
+    document.dispatchEvent(new CustomEvent('molis-work:attention', { detail: { line: { events: [], table: null, issues: [] } } }));
+    await new Promise(r => setTimeout(r, 40));
+    const after = document.querySelector('[data-item-page-rename-input]');
+    const result = { survived: after?.value === '保留中的改名草稿', focused: document.activeElement === after };
+    document.querySelector('[data-item-page-rename-cancel]')?.click();
+    return result;
+  })()`);
+  assert.equal(renameSurvived.survived, true, "inline rename input must not be clobbered by attention refresh");
+  assert.equal(renameSurvived.focused, true, "inline rename input must retain focus across attention refresh");
+
+  // P1 regression: remove confirmation dialog MUST use danger variant (Red Line #6).
+  const removeUsesDanger = await evaluate<boolean>(`(() => {
+    document.querySelector('[data-item-page-remove]')?.click();
+    const okBtn = document.querySelector('[data-rem-ok]');
+    const isDanger = Boolean(okBtn?.classList.contains('mw-btn--danger'));
+    document.querySelector('[data-rem-cancel]')?.click();
+    return isDanger;
+  })()`);
+  assert.equal(removeUsesDanger, true, "remove confirmation button must use mw-btn--danger");
   assert.equal(item1State.hasItemEmpty, true, "Option A lightweight item First Page shows actionable empty state");
   assert.match(item1State.pillText, /第一件事项/, "BL-dialog-info-column-prototype-gaps #4: composer shows active item pill");
   assert.equal(item1State.contentsTabVisible, true, "right-sidebar 「这件事的东西」 tab appears for active item");
   assert.equal(item1State.imTabStillPresent, true, "Decision 66 R21: IM tab remains alongside 「这件事的东西」");
 
-  // Type draft in item 1, verify list scope toggle exists (BL-dialog-info-column-prototype-gaps #3).
+  // Closing the right sidebar immediately reveals the footer 「这件事的东西」 shortcut strip (no 420ms animation race).
+  const stripRestoredOnSideClose = await evaluate<boolean>(`(() => {
+    const strip = document.querySelector('[data-work-item-page] .ml-item-contents-strip');
+    if (!strip) return false;
+    document.body.dataset.sideOpen = 'false';
+    document.dispatchEvent(new CustomEvent('molis:side-shown', { detail: { tab: 'item-contents', open: false } }));
+    const visibleAfterClose = !strip.hidden;
+    document.body.dataset.sideOpen = 'true';
+    document.dispatchEvent(new CustomEvent('molis:side-shown', { detail: { tab: 'item-contents', open: true } }));
+    const hiddenAfterReopen = strip.hidden;
+    return visibleAfterClose && hiddenAfterReopen;
+  })()`);
+  assert.equal(stripRestoredOnSideClose, true, "closing right sidebar immediately restores lightweight item footer contents strip");
+
+  const recipient = "[data-assistant-composer] [data-composer-receiver]";
+  await browser.click(recipient);
+  const editorOption = "[...document.querySelectorAll('[data-assistant-send-to] [role=menuitemradio]')].find(option => option.textContent.includes('事项编辑'))";
+  await waitFor("Boolean(" + editorOption + ")", WAIT_MS);
+  await evaluate(editorOption + ".click()");
+  await waitFor("document.querySelector(" + JSON.stringify(recipient) + ").textContent.includes('事项编辑')", WAIT_MS);
+  // A draft long enough to scroll exercises restoration independently of the caret.
+  const itemDraft = Array.from({ length: 32 }, (_, line) => '事项一的未发草稿 ' + line).join('\n');
   await evaluate(`(() => {
     const input = document.querySelector('[data-assistant-composer] .mw-composer__input');
     input.focus();
-    input.value = '事项一的未发草稿';
+    input.value = ${JSON.stringify(itemDraft)};
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.setSelectionRange(1, 4, 'backward');
+    input.scrollTop = 32;
   })()`);
+  const draftField = "document.querySelector('[data-assistant-composer] .mw-composer__input')";
+  assert.equal(await evaluate(draftField + '.scrollTop'), 32);
   const hasScopeToggle = await evaluate<boolean>("Boolean(document.querySelector('[data-work-lists-scope]') && !document.querySelector('[data-work-lists-scope]').hidden)");
   assert.equal(hasScopeToggle, true, "BL-dialog-info-column-prototype-gaps #3: list header scope toggle visible for active item");
 
@@ -141,6 +215,7 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
     btn.click();
   })()`);
   await waitFor("document.querySelector('[data-top-corner-toggle] .top-corner-page-name')?.textContent?.trim() === '第二件事项'", WAIT_MS);
+  await waitFor("!document.querySelector(" + JSON.stringify(recipient) + ").textContent.includes('事项编辑')", WAIT_MS);
   const item2Draft = await evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__input').value");
   assert.equal(item2Draft, "", "MLN-16: switching work item clears previous item's unsent draft");
   await evaluate(`(() => {
@@ -153,7 +228,11 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
   // Jump back to 「第一件事项」 via Alt+[ shortcut (with focus outside text input).
   await evaluate("document.activeElement?.blur?.(); document.dispatchEvent(new KeyboardEvent('keydown', { key: '[', code: 'BracketLeft', altKey: true, bubbles: true }))");
   await waitFor("document.querySelector('[data-top-corner-toggle] .top-corner-page-name')?.textContent?.trim() === '第一件事项'", WAIT_MS);
-  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input').value === '事项一的未发草稿'", WAIT_MS);
+  await waitFor(draftField + '.value === ' + JSON.stringify(itemDraft), WAIT_MS);
+  await waitFor(draftField + '.scrollTop === 32', WAIT_MS);
+  await waitFor("(() => { const field = document.querySelector('[data-assistant-composer] .mw-composer__input'); return field.selectionStart === 1 && field.selectionEnd === 4 && field.selectionDirection === 'backward'; })()", WAIT_MS);
+
+  await waitFor("document.querySelector(" + JSON.stringify(recipient) + ").textContent.includes('事项编辑')", WAIT_MS);
 
   // Clear composer pill via × -> next send routes to whole project (BL-dialog-info-column-prototype-gaps #4).
   await evaluate("document.querySelector('[data-work-item-pill-clear]').click()");
@@ -162,6 +241,9 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
   // 5. Reload persistence (active item, Recent, collapsed group) + search auto-expand collapsed group (MLN-23).
   await evaluate("document.querySelector('[data-top-corner-toggle]').click()");
   await waitFor("!document.querySelector('[data-top-corner-list]').hidden", WAIT_MS);
+  assert.equal(await evaluate("document.querySelector('[data-ml-group-toggle]')?.getAttribute('aria-expanded')"), "false", "MLN-23: groups start folded on first use");
+  await evaluate("document.querySelector('[data-ml-group-toggle]')?.click()");
+  await waitFor("document.querySelector('[data-ml-group-toggle]')?.getAttribute('aria-expanded') === 'true'", WAIT_MS);
   await evaluate("document.querySelector('[data-ml-group-toggle]')?.click()");
   await waitFor("document.querySelector('[data-ml-group-toggle]')?.getAttribute('aria-expanded') === 'false'", WAIT_MS);
   await navigate(() => command("Page.reload", {}, sessionId));
@@ -193,6 +275,32 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
   await waitFor("Boolean(document.querySelector('[data-ml-completed-section]'))", WAIT_MS);
   await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
   await waitFor("Boolean(document.querySelector('[data-top-corner-list]').hidden)", WAIT_MS);
+
+  // 5b. MLN-05 / PFG-22: Switching from a lightweight work item with an open plugin tab to Project Home via [data-ml-pick-home]
+  // and back preserves both the system work-item tab and the plugin tab (and never corrupts by-item layout).
+  await evaluate("document.querySelector('[data-top-corner-toggle]').click()");
+  await waitFor("!document.querySelector('[data-top-corner-list]').hidden", WAIT_MS);
+  await evaluate(`(() => {
+    const btn = [...document.querySelectorAll('[data-ml-pick]')].find(el => el.textContent.includes('第一件事项'));
+    btn.click();
+  })()`);
+  await waitFor("document.querySelector('[data-top-corner-toggle]')?.textContent?.includes('第一件事项')", WAIT_MS);
+  await evaluate("document.querySelector('[data-plugin-id=\"todo\"]')?.click()");
+  await waitFor("Boolean(document.querySelector('[data-work-surface=\"todo\"]:not([hidden])'))", WAIT_MS);
+  await evaluate("document.querySelector('[data-top-corner-toggle]').click()");
+  await waitFor("!document.querySelector('[data-top-corner-list]').hidden", WAIT_MS);
+  await evaluate("document.querySelector('[data-ml-pick-home]').click()");
+  await waitFor("!document.querySelector('[data-top-corner-toggle]').hasAttribute('data-has-work-item')", WAIT_MS);
+  await evaluate("document.querySelector('[data-top-corner-toggle]').click()");
+  await waitFor("!document.querySelector('[data-top-corner-list]').hidden", WAIT_MS);
+  await evaluate(`(() => {
+    const btn = [...document.querySelectorAll('[data-ml-pick]')].find(el => el.textContent.includes('第一件事项'));
+    btn.click();
+  })()`);
+  await waitFor("Boolean(document.querySelector('[data-top-corner-toggle][data-has-work-item]') && document.querySelector('[data-work-surface=\"todo\"]:not([hidden])'))", WAIT_MS);
+  const preservedTabs = await evaluate<string[]>(`[...document.querySelectorAll('[data-titlebar-tabs] [data-tab-id], [data-tab-pane] [data-tab-id]')].map(n => n.textContent?.trim() || '')`);
+  assert.ok(preservedTabs.some(t => t.includes("第一件事项")), `expected lightweight work-item tab preserved, got ${JSON.stringify(preservedTabs)}`);
+  assert.ok(preservedTabs.some(t => t.includes("待办")), `expected Todo tab preserved across Project Home switch, got ${JSON.stringify(preservedTabs)}`);
 
   // 6. ⌘K Global Search ranks matching work items first (MLN-18).
   await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))");

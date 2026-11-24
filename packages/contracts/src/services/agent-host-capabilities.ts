@@ -9,7 +9,7 @@ import type { AgentDraftTextRequest, AgentDraftTextResult } from "./agent-host.j
 import type { AgentSubagentCommand, AgentSubagentConversation, AgentSubagentRequestResult } from "./agent-host-ports.js";
 import type { AgentMcpServerInput, AgentMcpServerView, AgentCheckpoint, AgentRecoveryReport, AgentSubagentView } from "./agent-host-ports.js";
 import type { AgentReviewReceipt, AgentReviewRequest } from "./agent-host-reviews.js";
-import type { AgentCommandOutput, AgentCommandOutputRef, AgentEvidenceCheck, AgentEvidenceCheckRequest, AgentRunControl, AgentRunHandle, AgentRunView, AgentSessionStatus, AgentSessionView } from "./agent-host-run-view.js";
+import type { AgentWriteCheckResult, AgentCommandOutput, AgentCommandOutputRef, AgentEvidenceCheck, AgentEvidenceCheckRequest, AgentRunControl, AgentRunHandle, AgentRunView, AgentSessionStatus, AgentSessionView } from "./agent-host-run-view.js";
 import type { AgentRunRef, AgentRuntimeDescriptor, AgentSessionLifecycleView, AgentSessionRef } from "./agent-host-runtime.js";
 import type { AgentBackgroundTask, AgentMessageAttachment, AgentPeopleMessageAction, AgentPeopleMessageInput, AgentProjectWork, AgentProjectWorkOverlap, AgentSessionMessage } from "./agent-host-session.js";
 import type { AgentCreateSessionInput, AgentStartInput } from "./agent-host-start.js";
@@ -225,9 +225,9 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
   model_selection: { type: "object", required: ["provider_id", "model_id"], additionalProperties: false, properties: { provider_id: entryId, model_id: entryId } },
   reasoning_effort: { enum: ["low", "medium", "high"] },
   text_materials: { type: "array", maxItems: 200, items: { anyOf: [
-    { type: "object", required: ["material_id", "title", "text"], additionalProperties: false, properties: { ...materialFields, text: text(1_000_000) } },
+    { type: "object", required: ["material_id", "title", "text"], additionalProperties: false, properties: { ...materialFields, text: text(1_000_000), instruction_prompt_id: entryId } },
     { type: "object", required: ["material_id", "title", "text", "source_artifact_id", "source_version"], additionalProperties: false,
-      properties: { ...materialFields, text: text(1_000_000), ...materialSource } },
+      properties: { ...materialFields, text: text(1_000_000), instruction_prompt_id: entryId, ...materialSource } },
   ] } },
   image_materials: { type: "array", maxItems: CONVERSATION_ATTACHMENT_LIMITS.round_images, items: { type: "object", required: ["material_id", "title", "attachment", "media_type"], additionalProperties: false, properties: { material_id: entryId, title: text(2000),
     attachment: MATERIAL_REF_SCHEMA, media_type: entryId } } },
@@ -523,6 +523,16 @@ export const agentHostCapabilities = {
     [session: AgentSessionRef, ref: AgentCommandOutputRef],
     AgentCommandOutput
   >,
+  readWriteChecks: {
+    capability_id: "agent.write-checks.read", version: /* @version action.agent.write-checks.read */ 1, operation: "query",
+    action: { title: "看这轮写入的检查结果", description: "读取自己会话里已写文件的检查回执。", kind: "query", ...pluginOnly,
+      input_schema: { type: "array", minItems: 3, maxItems: 3, additionalItems: false,
+        items: [sessionRef, entryId, { type: "array", minItems: 1, uniqueItems: true, items: entryId }] },
+      output_schema: { type: "array", items: { type: "object", additionalProperties: false,
+        required: ["call_id", "checker", "version", "exit_code", "timed_out", "cancelled"],
+        properties: { call_id: entryId, checker: { type: ["string", "null"] }, version: { type: ["integer", "null"] },
+          exit_code: { type: ["integer", "null"] }, timed_out: { type: "boolean" }, cancelled: { type: "boolean" } } } } },
+  } as ActionDefinition<[session: AgentSessionRef, runId: string, writeIds: string[]], AgentWriteCheckResult[]>,
   /**
    * What the Host recorded of commands in one round of the caller's own session, as evidence another owner cites (a Goal's
    * requirement report, specs/proactive-assistant PWA-144). The session is the one the Host bound the calling round to, never an

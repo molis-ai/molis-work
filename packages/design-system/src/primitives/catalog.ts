@@ -52,7 +52,8 @@ export interface CatalogExtraChapter {
  * host-supplied extraChapters, and filter chips + search narrow the sidebar without regex patching.
  */
 function catalogIndex(sections: string, say: Say, extraChapters: readonly CatalogExtraChapter[] = []): string {
-  const specimens = new Set([...sections.matchAll(/data-primitive="([^"]+)"/gu)].map(([, id]) => id));
+  const specimens = new Set([sections, ...extraChapters.map(chapter => chapter.sectionsHtml)]
+    .flatMap(html => [...html.matchAll(/data-primitive="([^"]+)"/gu)].map(([, id]) => id)));
   for (const kind of PRIMITIVE_CATALOG_IDS) {
     if (!specimens.has(kind)) throw new Error(`组件板缺少 ${kind} 的标本。`);
   }
@@ -347,6 +348,11 @@ export function renderPrimitiveCatalog(options: {
 } = {}): string {
   const say = options.say ?? t;
   const extraChapters = options.extraChapters ?? [];
+  // The trusted shell supplies the live card. The standalone directory links to its existing specimen.
+  const connectionCardLink = extraChapters.some(chapter => chapter.sectionsHtml.includes('data-primitive="connection-need"')) ? '' :
+    section('generated-connection', say('common.component-connection-need.name'), mark('connection-need', renderButton({
+      label: say('common.component-connection-need.name'), href: '/__ui/catalog#connection-need',
+    })));
   // Chapters, in the order a designer reads the board: the language first, then what it is made of, then what is built from it.
   const sections = `
     ${chapter("设计语言")}
@@ -422,6 +428,7 @@ export function renderPrimitiveCatalog(options: {
     ${codingBasicsSection(say)}
     ${homePageAdoptionSections(say)}
     ${composeSection(say)}
+    ${connectionCardLink}
     ${renderCatalogExamples(section)}
     ${options.presentationLocale ? presentationSection(options.presentationLocale, options.presentationPlugins) : ""}`;
   const extraSections = extraChapters.map((item) => item.sectionsHtml).join("\n");

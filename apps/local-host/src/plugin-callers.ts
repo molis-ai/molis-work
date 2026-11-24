@@ -1,6 +1,6 @@
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { ActionError, actionReachesAudience, type ActionCallContext, type ActionMetadata, type HomePageSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionReachesAudience, type ActionCallContext, type ActionMetadata, type ExactActionReference, type HomePageSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_REVIEW_PERMISSION_PREFIX, type PluginReviewKind } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { hostErrors } from "./host-errors.js";
 
@@ -16,12 +16,20 @@ const issued = new WeakMap<HostPluginCaller, { readonly held: ReadonlySet<string
  * Process-local Host-issued generated home-page subjects (`home-page` and `home-page-preview`, S-home-page-authority).
  * A forged or revoked `HomePageSubject` object is absent from this WeakMap and refused before any action runs.
  */
-const issuedHomePages = new WeakMap<HomePageSubject, { readonly held: ReadonlySet<string>; readonly assertActive: () => void }>();
+const issuedHomePages = new WeakMap<HomePageSubject, { readonly approved: readonly ExactActionReference[]; readonly held: ReadonlySet<string>; readonly assertActive: () => void }>();
 
 /** Registers a Host-issued generated home-page subject; the returned callback withdraws it immediately upon close/revocation. */
-export function issueHomePageCaller(subject: HomePageSubject, held: Iterable<string>, assertActive: () => void): () => void {
-  issuedHomePages.set(subject, { held: new Set(held), assertActive });
+export function issueHomePageCaller(subject: HomePageSubject, held: Iterable<string>, assertActive: () => void, approved: readonly ExactActionReference[] = []): () => void {
+  issuedHomePages.set(subject, { held: new Set(held), approved: approved.map(ref => Object.freeze({ ...ref })), assertActive });
   return () => { issuedHomePages.delete(subject); };
+}
+
+/** Only the live page whose version the person approved can supply a nested presentation read. */
+export function approvedHomePageActions(subject: HomePageSubject): readonly ExactActionReference[] {
+  const entry = issuedHomePages.get(subject);
+  if (!entry || subject.kind !== "home-page") throw hostErrors.plugin_caller_invalid("需要已采用的生成首页");
+  entry.assertActive();
+  return entry.approved;
 }
 
 /** Registers a caller the Host built, with the permissions it holds; the returned release withdraws it and its routed copies. */

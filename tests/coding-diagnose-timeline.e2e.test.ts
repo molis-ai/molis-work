@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { renderAgentReviewSurface, type AgentReviewRow } from "@molis-ai/molis-work-app-workbench";
 import { writeCheckCache } from "@molis-ai/molis-work-plugin-coding";
-import type { AgentCommandOutput, AgentCommandOutputRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { commandReceipts } from "@molis-ai/molis-work-service-agent-host/testing";
 import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
 import { mountCodingTranscript } from "./fixtures/coding-transcript.js";
 import { pageTextScript } from "./fixtures/page-text.js";
@@ -18,40 +18,48 @@ import { renderMolisWorkWorkbenchWithPluginStylesheets } from "./workbench-rende
  * given are never the source.
  */
 const run = (outputs: string[]) => ({ ref: { session_id: "s", run_id: "r" }, command_outputs: outputs.map(call_id => ({ call_id, run_id: "r" })) });
-const receipt = (ref: AgentCommandOutputRef, more: Partial<AgentCommandOutput> = {}): AgentCommandOutput =>
-  ({ ref, command: 'node "--check" "a.js"', exit_code: 1, stdout: "", stderr: "SyntaxError", truncated: false, timed_out: false, cancelled: false, ...more });
-
-test("PA-35 Coding reads each write's check from its receipt, once, and never from the observation", async () => {
-  let clock = 0;
-  const cache = writeCheckCache(() => clock), read: string[] = [];
-  let broken = true;
-  const load = async (ref: AgentCommandOutputRef) => {
-    read.push(ref.call_id);
-    if (ref.call_id === "w3:diagnostics" && broken) throw new Error("回执暂时不可读");
-    return ref.call_id === "w2:diagnostics" ? receipt(ref, { exit_code: null, timed_out: true, stop_reason: "timed-out", after_write_check: { checker_id: "slow", display_name: "慢检查", version: 4 } })
-      : receipt(ref, { after_write_check: { checker_id: "syntax", display_name: "语法检查", version: 2 } });
-  };
+test("WC-1/WC-2 PA-35 multiple writes share one read and replay, successes stay cached and a partial miss retries alone", async () => {
+  let clock = 0, replays = 0, broken = true;
+  const cache = writeCheckCache(() => clock), read: string[][] = [], resources: string[] = [];
+  const ref = (kind: string, id: string) => ({ kind, id, revision: 1 });
+  const root = ref("authorized-root", "workspace");
+  const events = ["w2", "w3", "w1"].map(id => ({ type: "command-receipt", callId: id + ":diagnostics", receiptRef: ref("resource", id),
+    commandId: id, effectRef: ref("effect", id) }));
+  const checks = Object.fromEntries(events.map(({ commandId: id }) => [id, { write_call_id: id, display_name: id === "w2" ? "慢检查" : "语法检查", version: id === "w2" ? 4 : 2 }]));
+  const bytes = (id: string) => Buffer.from(JSON.stringify({ kind: "workspace-command-receipt", version: 1, rootRef: id === "w3" && broken ? ref("authorized-root", "wrong") : root,
+    executable: "node", argv: [], receipt: { commandId: id, effectRef: ref("effect", id), exitCode: id === "w2" ? undefined : 1,
+      timedOut: id === "w2", cancelled: false, stdout: "", stderr: "", truncated: false } }));
+  const port = commandReceipts({
+    index: { read: async () => ({ ref: ref("session", "s"), attempts: [{ run_id: "r", root_ref: root, write_checks: checks }] }) },
+    runtime: { sessions: { open: async () => ({ terminalRuns: async () => [{ id: "r" }], replay: async () => { replays++; return events; } }) },
+      resources: { inspect: ({ id }: { id: string }) => { resources.push(id); return { byteLength: bytes(id).length }; },
+        readChunk: ({ id }: { id: string }) => ({ bytes: bytes(id), offset: 0, done: true }) } }, state: {},
+  } as never);
+  const load = (runId: string, ids: string[]) => { read.push(ids); return port.readWriteChecks("s", runId, ids); };
   // An ordinary command's receipt (c1) is not a write's check; neither is a receipt id that names no write.
   const view = run(["w1:diagnostics", "c1", "w2:diagnostics", "w3:diagnostics", ":diagnostics"]);
-  const [first] = await cache.attach("s", [view], load);
+  const [first, concurrent] = await cache.attach("s", [view, view], load);
+  assert.deepEqual(concurrent, first, "two overlapping reads share the same in-flight batch");
   assert.deepEqual(first!.write_checks, [
     { call_id: "w1", checker: "语法检查", version: 2, exit_code: 1, timed_out: false, cancelled: false },
     { call_id: "w2", checker: "慢检查", version: 4, exit_code: null, timed_out: true, cancelled: false },
     { call_id: "w3", unreadable: true },
   ], "each fact is the receipt's; a receipt that cannot be read is said so, not reported as unchecked");
-  assert.deepEqual(read, ["w1:diagnostics", "w2:diagnostics", "w3:diagnostics"], "only the checks' receipts are read");
+  assert.deepEqual(read, [["w1", "w2", "w3"]]); assert.equal(replays, 1);
   // The page asks several times a second: a receipt already read is not read again, and an unreadable one is left alone for a
   // while (each read replays its round), then tried again.
-  broken = false;
+  broken = false; clock = 29_999;
   const [soon] = await cache.attach("s", [view], load);
-  assert.deepEqual([read.slice(3), soon!.write_checks[2]], [[], { call_id: "w3", unreadable: true }]);
-  clock += 30_000;
+  assert.deepEqual([read.slice(1), soon!.write_checks[2]], [[], { call_id: "w3", unreadable: true }]);
+  clock = 30_000;
   const [again] = await cache.attach("s", [view], load);
-  assert.deepEqual(read.slice(3), ["w3:diagnostics"]);
+  assert.deepEqual(read.slice(1), [["w3"]]);
+  assert.equal(replays, 2); assert.deepEqual(resources, ["w1", "w2", "w3", "w3"]);
   assert.equal((again!.write_checks[2] as { checker?: string }).checker, "语法检查");
   assert.deepEqual(again!.ref, view.ref, "the round itself is handed on as it was");
   // Counter-example: a round without any check reads nothing and says so with an empty list.
-  const none = await cache.attach("s", [run([])], async () => { throw new Error("不该读"); });
+  const none = await cache.attach("s", [run(["ordinary", ":diagnostics"]), view], load);
+  assert.equal(read.length, 2); assert.equal(replays, 2);
   assert.deepEqual(none[0]!.write_checks, []);
 });
 

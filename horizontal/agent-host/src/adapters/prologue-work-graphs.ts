@@ -1,4 +1,4 @@
-import type { ExactRef, Runtime } from "@prologue/sdk";
+import { isTerminalEventType, type TerminalRunState, type ExactRef, type Runtime } from "@prologue/sdk";
 import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentErrors } from "../errors.js";
 import { canTakeUp, eligibleContinuation, readyStep } from "./prologue-collaboration.js";
@@ -15,8 +15,6 @@ const KEEP_FINISHED = 64;
 const ENDED: readonly Node["state"][] = ["succeeded", "failed", "cancelled"];
 /** A step that changed hands or generation (the person ended it, a restart handed it on) is not the round's to end. */
 const NOT_OURS: readonly unknown[] = ["TASKBOARD_CONFLICT", "TASKBOARD_STALE_GENERATION"];
-const TERMINAL = ["completed", "failed", "cancelled"] as const;
-type RoundEnd = (typeof TERMINAL)[number];
 const boardRef = (id: string) => ({ kind: "task-board", id, revision: 1 }) as ExactRef<"task-board">;
 const codeOf = (error: unknown) => (error as { code?: unknown } | undefined)?.code;
 
@@ -88,7 +86,7 @@ export function createWorkGraphs(runtime: Runtime, index: SessionIndexStore) {
    * the round's attempt on the same step at the same moment, so a conflict is read again: only a step that ended or
    * moved on meanwhile is left alone.
    */
-  const endAs = async (graph: string, nodeId: string, generation: number, type: RoundEnd, note: string) => {
+  const endAs = async (graph: string, nodeId: string, generation: number, type: TerminalRunState, note: string) => {
     const ref = boardRef(graph);
     for (let tries = 0; ; tries++) {
       const node = runtime.boards.get(ref).nodes.find(one => one.id === nodeId);
@@ -97,7 +95,7 @@ export function createWorkGraphs(runtime: Runtime, index: SessionIndexStore) {
       if (node.state === "ready") await runtime.boards.transition({ ref, nodeId, to: "running", scope: { node: nodeId, generation } });
       try {
         await runtime.boards.report({ ref, expectedVersion: runtime.boards.get(ref).version, nodeId, by: undefined, session: node.assignee, atMs: Date.now(),
-          note, to: type === "completed" ? "succeeded" : type, scope: { node: nodeId, generation } });
+          note, to: type === "completed" ? "succeeded" : type === "failed" ? "failed" : "cancelled", scope: { node: nodeId, generation } });
         return;
       } catch (error) { if (!NOT_OURS.includes(codeOf(error)) || tries >= 2) throw error; }
     }
@@ -110,11 +108,11 @@ export function createWorkGraphs(runtime: Runtime, index: SessionIndexStore) {
     failures.splice(0, Math.max(0, failures.length - 50));
   };
   /** How a round of `session` ended, read back from its session after a restart; unknown while it has not ended. */
-  const endOf = async (session: ExactRef<"session">, run: ExactRef<"run">): Promise<RoundEnd | undefined> => {
+  const endOf = async (session: ExactRef<"session">, run: ExactRef<"run">): Promise<TerminalRunState | undefined> => {
     const opened = await runtime.sessions.open(session);
     const terminal = opened ? (await opened.terminalRuns()).find(one => one.id === run.id) : undefined;
-    const last = terminal ? [...await opened!.replay(terminal)].reverse().find(event => (TERMINAL as readonly string[]).includes(event.type)) : undefined;
-    return last?.type as RoundEnd | undefined;
+    if (!opened || !terminal) return undefined;
+    return (await opened.replay(terminal)).map(event => event.type).reverse().find(isTerminalEventType);
   };
 
   const waits = createWorkWaits(runtime, ROOT, isWorkGraph), jobs = createWorkJobs(runtime, ROOT, isWorkGraph);
@@ -166,7 +164,7 @@ export function createWorkGraphs(runtime: Runtime, index: SessionIndexStore) {
       return { board: saved.work_graph, node: held.id };
     },
     /** A round on a work's graph ended: a part's step ends the same way; the work's root stays open. */
-    ended(run: ExactRef<"run">, session: ExactRef<"session">, type: RoundEnd): void {
+    ended(run: ExactRef<"run">, session: ExactRef<"session">, type: TerminalRunState): void {
       const at = runtime.boards.attemptOf(run);
       if (!at || at.node === ROOT) return;
       void index.read(session.id).then(saved => saved?.work_graph === at.board.id ? endAs(at.board.id, at.node, at.generation, type, `这一轮结束：${type}`) : undefined)

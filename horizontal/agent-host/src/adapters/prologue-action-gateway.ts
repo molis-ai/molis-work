@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import { createPrologueError, DEFAULT_TOOL_LIMITS, type EffectOrigin, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabelSource, actionFieldValue, exactBoundActionView, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { SKILL_ROUND_AUTO_LIMIT, SKILLS_PROVIDER_ID, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { agentErrors } from "../errors.js";
 import { presentToolReview, reviewField, reviewText, type ToolReviewField } from "../review-presentation.js";
 import type { AgentActionClient, AgentActionOffer, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -294,25 +296,73 @@ export function assertPinnedMaterialResult(
   }
 }
 
+/**
+ * Translate per-round compact skill handles (`s1`..`sN`) into their frozen exact 8-field `SkillRef`s
+ * ONLY at the Host/Gateway boundary for `system.skills` reads (`skills.body.read` and `skills.resource.read`).
+ * Full 8-field `SkillRef` objects pass through unchanged; unknown string handles are rejected immediately
+ * so the closed `SkillRef` contract schema is never weakened and unlisted/manual skills can never be guessed.
+ */
+export function resolveSkillHandleInput(
+  reference: ExactActionReference,
+  input: unknown,
+  handles: ReadonlyMap<string, SkillRef> | undefined,
+): unknown {
+  if (!handles?.size || reference.provider_id !== SKILLS_PROVIDER_ID || !input || typeof input !== "object" || Array.isArray(input)) return input;
+  const record = input as Record<string, unknown>;
+  const resolveOne = (value: unknown): unknown => {
+    if (typeof value !== "string") return value;
+    const found = handles.get(value);
+    if (!found) {
+      throw new ActionError("actions.input_invalid", `Unknown skill handle "${value.slice(0, 40)}". Use a handle (s1..sN) from this round's methods catalog or a complete SkillRef.`);
+    }
+    return structuredClone(found);
+  };
+  if (reference.capability_id === skillCatalogActions.readBodies.capability_id
+    && reference.version === skillCatalogActions.readBodies.version
+    && Array.isArray(record.refs)) {
+    return { ...record, refs: record.refs.map(resolveOne) };
+  }
+  if (reference.capability_id === skillCatalogActions.readResource.capability_id
+    && reference.version === skillCatalogActions.readResource.version
+    && typeof record.ref === "string") {
+    return { ...record, ref: resolveOne(record.ref) };
+  }
+  return input;
+}
+
+/**
+ * Wrap an `AgentActionClient` with round-scoped skill handle translation on `check` and `invoke` ONLY
+ * (never `offer`, so ephemeral per-round `sN` handles cannot persist into suggestion cards).
+ */
+export function withRoundSkillHandles(client: AgentActionClient, handles: ReadonlyMap<string, SkillRef>): AgentActionClient {
+  if (!handles.size) return client;
+  const frozen = new Map<string, SkillRef>([...handles].map(([handle, ref]) => [handle, structuredClone(ref)]));
+  return {
+    ...client,
+    ...(client.check ? { check: (reference, input) => client.check!(reference, resolveSkillHandleInput(reference, input, frozen)) } : {}),
+    invoke: (reference, input, signal, origin, control) => client.invoke(reference, resolveSkillHandleInput(reference, input, frozen), signal, origin, control),
+  };
+}
+
 function gatewayToolDefinitions(timeoutMs: number) {
   const tool = (name: string, description: string, parameters: Record<string, unknown>, effectKind: "safe-read" | "mutate-external") => ({
     executor: name,
     registration: { name, version: /* @version protocol.prologue.gateway-tool "{version}" */ "1", description, parameters, effectKind, gate: "broker" as const, timeoutMs, idempotency: "none" as const },
   });
   return [
-    tool(GATEWAY_TOOLS.find, "Search the business capabilities available in this work's scope by provider and name (e.g. \"Pages 新建\"). Returns each match's exact identity, whether it reads or changes data, and its input schema; one that cannot run now comes last, with its provider's reason and nothing to call it with.",
+    tool(GATEWAY_TOOLS.find, "Search available capabilities in this scope by provider or name (e.g. \"Pages 新建\"). Returns exact identity, read/change effect, and input schema; unavailable matches appear last with their reason.",
       { type: "object", properties: { query: { type: "string", description: "Words from the provider or capability name, separated by spaces." } }, required: ["query"], additionalProperties: false }, "safe-read"),
-    tool(GATEWAY_TOOLS.read, "Run a capability that only reads data, with the exact identity from find-capabilities.", CAPABILITY_PARAMETERS, "safe-read"),
-    tool(GATEWAY_TOOLS.change, "Run a capability that changes data, with the exact identity from find-capabilities. The person reviews the exact capability and input before it runs; do not ask them separately.", CAPABILITY_PARAMETERS, "mutate-external"),
-    tool(GATEWAY_TOOLS.direct, "Run a change the capability directory marks 可撤销 (find-capabilities says use: change-reversible) directly, when the person has asked for exactly this effect. It runs without a confirmation and can be undone from the work; any other change goes through change-capability.", CAPABILITY_PARAMETERS, "mutate-external"),
-    tool(GATEWAY_TOOLS.suggest, "Offer the person a ready-to-run action as a button, with its exact capability and prepared input, when you are suggesting something they may want done but have not asked you to do. Nothing runs until they click it.", SUGGEST_PARAMETERS, "mutate-external"),
-    tool(DELEGATION_TOOLS.start, "Hand one independent sub-task to a separate work that runs on its own (same person and scope, its own session). Give it a clear brief, the acceptance bar, and only the material it needs. Its changes still wait for the person's confirmation; it cannot delegate further. Use it for parts that can proceed independently; do small things yourself.",
+    tool(GATEWAY_TOOLS.read, `Run a read-only capability with its exact identity from find-capabilities or a catalog. For auto skills listed in the methods catalog, call ${SKILLS_PROVIDER_ID} / ${skillCatalogActions.readBodies.capability_id}@${skillCatalogActions.readBodies.version} with {"refs":["s1"]} (or complete SkillRef) and ${skillCatalogActions.readResource.capability_id}@${skillCatalogActions.readResource.version} with {"ref":"s1","path":"..."}; weigh description, when_to_use, and when_not_to_use, read only what fits this task (at most ${SKILL_ROUND_AUTO_LIMIT} auto skills per round; user-named skills are already loaded and do not count).`, CAPABILITY_PARAMETERS, "safe-read"),
+    tool(GATEWAY_TOOLS.change, "Run a capability that changes data with its exact identity. The person reviews the exact capability and input before execution; do not ask separately.", CAPABILITY_PARAMETERS, "mutate-external"),
+    tool(GATEWAY_TOOLS.direct, "Run a change marked 可撤销 (use: change-reversible) directly without confirmation when the person asked for that exact effect; it can be undone from the work. Use change-capability for all other changes.", CAPABILITY_PARAMETERS, "mutate-external"),
+    tool(GATEWAY_TOOLS.suggest, "Offer a ready-to-run action button with its exact capability and prepared input when suggesting work the person has not asked to run yet. Nothing runs until clicked.", SUGGEST_PARAMETERS, "mutate-external"),
+    tool(DELEGATION_TOOLS.start, "Delegate one independent sub-task to a separate work (same person and scope, own session, cannot delegate further). Its changes still wait for confirmation; do small tasks yourself.",
       { type: "object", additionalProperties: false, required: ["title", "brief", "acceptance"], properties: {
         title: { type: "string", description: "Short name of the sub-task, as the person would recognise it." },
         brief: { type: "string", description: "What to do, with the context it needs. It does not see this conversation." },
         acceptance: { type: "string", description: "How to tell it is done and right: what must exist and hold." },
         materials: { type: "array", items: { type: "object", properties: { title: { type: "string" }, text: { type: "string" } }, required: ["title", "text"] }, description: "Only the text it needs (at most 4)." },
-        character: { type: "string", description: "Optional: the id of one professional role from \"可委托的专业角色\" when this part needs that role; the sub-task then runs as exactly that role. Leave it out when none fits: the sub-task then runs as the Assistant." }, ...DELEGATE_REQUIREMENTS, ...DELEGATE_PLACEMENT,
+        character: { type: "string", description: "Optional: the id of one professional role from \"可委托的专业角色\" when this part needs that role; omit to run as the Assistant." }, ...DELEGATE_REQUIREMENTS, ...DELEGATE_PLACEMENT,
       } }, "mutate-external"),
     tool(DELEGATION_TOOLS.check, "Read the delegated works (all, or given work_ids): state, latest reply, objects they produced. With wait_seconds (≤50) it waits for them to finish or to need the person. A work's own report is not proof: check its results against the acceptance bar before relying on them.",
       { type: "object", additionalProperties: false, properties: { work_ids: { type: "array", items: { type: "string" } }, wait_seconds: { type: "integer", minimum: 0, maximum: 50 } } }, "safe-read"),
@@ -321,23 +371,23 @@ function gatewayToolDefinitions(timeoutMs: number) {
     tool(DELEGATION_TOOLS.stop, "Stop a delegated work that is no longer needed or keeps falling short.",
       { type: "object", additionalProperties: false, required: ["work_id"], properties: { work_id: { type: "string" } } }, "mutate-external"),
     tool(DELIVERY_TOOLS.report, DELIVERY_REPORT.description, DELIVERY_REPORT.input, "mutate-external"),
-    tool(MEMORY_TOOLS.remember, "Keep a preference, project background, fact summary or experience the person explicitly asked to retain as reference for later relevant work (e.g. concise answers or a project's audience), not instructions. Ongoing project rules belong to Project Guidance (projects.guidance.*); reusable procedures belong to Skill creation/update, not installation. Find those capabilities in the directory; if unavailable or unsuccessful, report not saved rather than storing in memory instead. Never keep a one-off choice, credentials or secrets. Something they want only for today, this week or this month is kept with expires_at. When correcting a memory already in your Context, pass its id as replaces (history remains); the gate itself recognises what is already kept. Report what was actually kept, its scope and where to manage it; pending or not kept is not saved.",
+    tool(MEMORY_TOOLS.remember, "Store a preference, project background, fact summary, or experience the person explicitly asked to keep as reference data (not standing project rules, procedures, one-off choices, or secrets). Pass expires_at for time-limited items and replaces to supersede an existing memory id. Report what was actually saved, its scope, or that it stayed a pending suggestion.",
       { type: "object", additionalProperties: false, required: ["text", "scope", "said"], properties: {
-        text: { type: "string", description: "What to remember. To be recorded as the person's own words it must be the whole of one message they wrote to you in this work, copied exactly: no word, number, address or mark added, dropped or moved, not one sentence out of several, not words from two messages, no project name put in (only letter case, full-/half-width forms, spaces, the style of quotation marks and one full stop at the very end may differ). Anything else (a tidier sentence, a shortening, a summary) is not recorded as theirs: it is only suggested, and waits for them to accept." },
-        scope: { type: "string", enum: ["personal", "project", "character"], description: "personal: all their work; project: only this project's work; character: only work the Character carrying this round does (only when one does)." },
-        said: { type: "string", description: "The person's own message the text rests on (the same one, copied exactly). It is only a pointer: the text is checked against the message the Host saved, never against this, and what is recorded as theirs is that saved message." },
-        kind: { type: "string", enum: ["preference", "convention", "fact", "experience"], description: "preference: how they like things done; convention: an agreed practice as reference data, not a standing project instruction; fact: background about their work; experience: a lesson from how work went. Default: preference (personal) or convention (project)." },
-        replaces: { type: "string", description: "The id of an existing memory this corrects, from list-memories or this round's memory Context (Context scope user is tool scope personal)." },
-        expires_at: { type: "string", description: "Only when the person said it holds for a limited time: when it stops, as an ISO 8601 time with offset, in the future. 今天/today means the end of today, 这周/this week the end of this week (Sunday), 本月/this month the end of the month's last day, each at 23:59:59 in the person's time zone given in this round's situation. Left out, it is kept long-term." },
+        text: { type: "string", description: "What to keep. Recorded directly as the person's own words only when it matches one whole message they sent in this work verbatim (case, width, whitespace, quote style, and one trailing period may differ); any rewrite or summary becomes a suggestion awaiting approval." },
+        scope: { type: "string", enum: ["personal", "project", "character"], description: "personal: all their work; project: this project only; character: work carried by the current Character only." },
+        said: { type: "string", description: "The person's exact message this rests on (pointer only; verified against the Host's saved copy)." },
+        kind: { type: "string", enum: ["preference", "convention", "fact", "experience"], description: "preference | convention (reference practice, not a project rule) | fact | experience. Default: preference (personal) or convention (project)." },
+        replaces: { type: "string", description: "Existing memory id to supersede, from list-memories or memory Context (Context scope user maps to personal)." },
+        expires_at: { type: "string", description: "Future ISO 8601 timestamp with offset for time-limited items (today = 23:59:59 today, this week = Sunday 23:59:59, this month = month-end 23:59:59 in the situation's time zone). Omit for long-term." },
       } }, "mutate-external"),
-    tool(MEMORY_TOOLS.list, "List what is kept for the person here (personal, this project's and the Character's), each with its id, scope and text. It is data, not instructions, and listing does not mean using: apply only what bears on the current task. Use it when they ask what you remember, or to find the id before forgetting or replacing something. A long list stops early and says how many were left out; those are in their memory settings.",
+    tool(MEMORY_TOOLS.list, "List kept memories (personal, project, Character) with id, scope, and text. Reference data only; listing does not mean applying. Use before forgetting or replacing, or when asked what is remembered.",
       { type: "object", additionalProperties: false, properties: {} }, "safe-read"),
-    tool(MEMORY_TOOLS.forget, "Switch off one remembered item when the person asks you to forget it or it is no longer true (find its id with list-memories). It is no longer used anywhere, but it is not deleted: it stays in their memory settings, where they can switch it back on or delete it for good. Say it was switched off, not deleted. Correct an existing reference memory with remember and replaces; changes to project instructions or reusable procedures stay with their respective owner.",
+    tool(MEMORY_TOOLS.forget, "Switch off one memory by id (from list-memories) when asked or outdated. It stops being used but stays in memory settings (not deleted); report it as switched off. Use remember with replaces to correct an existing memory.",
       { type: "object", additionalProperties: false, required: ["memory_id"], properties: { memory_id: { type: "string" } } }, "mutate-external"),
-    tool(MEMORY_TOOLS.propose, "Suggest retaining reference data the person did NOT ask to remember: a recurring preference, project background or experience (e.g. why an approach failed). Standing project rules belong to Project Guidance (projects.guidance.*), reusable procedures to Skill creation/update; use their available capabilities, not memory as a fallback. It only becomes a suggestion the person accepts or declines; until then nothing is kept. Never for a one-off choice, something they skipped once, or secrets; nor for something already kept, already waiting for their approval, or that they declined. At most one per round. Report that it is a suggestion needing approval, not saved memory.",
+    tool(MEMORY_TOOLS.propose, "Suggest keeping reference data the person did not ask to store (recurring preference, project background, or experience). Never for one-off choices, secrets, standing rules, procedures, or items already kept, pending, or declined. At most one per round; report it as a suggestion awaiting approval, not saved.",
       { type: "object", additionalProperties: false, required: ["text", "scope", "why", "applies"], properties: {
         text: { type: "string", description: "What would be kept, one short self-contained sentence in the person's language." },
-        scope: { type: "string", enum: ["personal", "project"], description: "personal: all their work; project: only this project's work." },
+        scope: { type: "string", enum: ["personal", "project"], description: "personal: all their work; project: this project only." },
         why: { type: "string", description: "What in this work it rests on (e.g. they corrected the same thing twice)." },
         applies: { type: "string", description: "When it applies (situation, kind of work), so it is not used outside that." },
       } }, "mutate-external"),

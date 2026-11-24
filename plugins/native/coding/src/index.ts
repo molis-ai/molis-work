@@ -1,5 +1,5 @@
 export {refreshCodingSavedHistory} from './saved-history.js';
-export { CODING_INSTRUCTIONS, CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
+export { CODING_INSTRUCTIONS, CODING_AUTO_SKILL_CATALOG, CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
 export { goalContextReference } from "./goal-context.js";
 export { codingReportPreview } from "./report.js";
 export { codingChangeSetPreview, codingNetChange } from "./changeset.js";

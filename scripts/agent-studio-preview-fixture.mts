@@ -34,7 +34,7 @@ const DESIGN = JSON.stringify({ summary: '两个方向：录入最快的列表�
 /** Stage two: the chosen proposal in full. */
 function detail(chosen: string, title?: string, defaultLocale = "zh") {
   const base = PROPOSALS.find(item => item.id === chosen) ?? PROPOSALS[0]!, name = title ?? base.title;
-  return JSON.stringify({ summary: '细化「' + name + '」：四项功能、五个组件、四条验收。', design: { title: name, description: base.description, journey: base.journey, states: [],
+  return JSON.stringify({ summary: '细化「' + name + '」：四项功能、五个组件、四条验收。', design: { title: name, icon: 'note', description: base.description, journey: base.journey, states: [],
     uiText: { default: defaultLocale, locales: {
       zh: { 'plugin/name': name, 'page/home/title': name, 'region/home/main/title': name,
         'part/title/title': name, 'part/title/description': base.description, 'part/editor/submitLabel': '保存', 'part/notes/title': '全部笔记',
@@ -66,6 +66,22 @@ function detail(chosen: string, title?: string, defaultLocale = "zh") {
 }
 /** A real implementation for each fixture operation; the gates check it like any agent's code. */
 const CODE: Record<string, { source: string; tests: string }> = {
+  'notes.account': {
+    source: `import type { SandboxJson, SandboxSdk } from '@molis/plugin-sdk';
+export default async function operation(input: SandboxJson, sdk: SandboxSdk): Promise<SandboxJson> {
+  const account = await sdk.connections.describe('source');
+  if (!account.bound || account.state !== 'connected') return false;
+  const rows = await sdk.storage.list('note:');
+  const id = 'account-' + rows.length;
+  await sdk.storage.set('note:' + id, { id, text: (input as { memo: string }).memo + ' / ' + account.display_name });
+  return true;
+}`,
+    tests: `import type { SandboxTest } from '@molis/plugin-sdk';
+export const tests: SandboxTest[] = [async (sdk, call, assert) => {
+  assert.same(await call({ memo: 'Draft' }), false);
+  assert.same(await sdk.storage.list('note:'), []);
+}];`,
+  },
   'notes.list': {
     source: `import type { SandboxJson, SandboxSdk } from '@molis/plugin-sdk';
 export default async function operation(_input: SandboxJson, sdk: SandboxSdk): Promise<SandboxJson> {
@@ -162,10 +178,10 @@ async function fixtureAgent(build: AgentBuild) {
         if (task.mode === 'experience') return record(request, JSON.stringify({ summary: '体验替身：先浏览、随手写入，再按需要展开', journey: task.proposal!.journey, pages: task.proposal!.pages,
           scenarios: [{ task: '记录后能找到并展开', content: { text: '间隔复习比集中复习记得更久' }, expected: '列表显示笔记，可使用展开操作' }] }));
         if (task.mode === 'compose') {
-          const input = JSON.parse(request.task) as { parts: Array<{ id: string; pageId: string; intent: string }> };
+          const input = JSON.parse(request.task) as { parts: Array<{ id: string; pageId: string; intent: string; connectionNeed?: unknown }> };
           return record(request, JSON.stringify({ summary: '示例：浏览优先，新建收进侧面表单', presentation: { version: 1,
             pages: [...new Set(input.parts.map(part => part.pageId))].map(pageId => ({ pageId, layout: { layout: 'stack', children: input.parts.filter(part => part.pageId === pageId).map(part => ({ part: part.id })) } })),
-            parts: Object.fromEntries(input.parts.map(part => [part.id, part.intent === 'input' ? { kind: 'sheet', emphasis: 'primary' } : part.intent === 'collection' ? { kind: 'directory', density: 'compact' } : {}])) } }));
+            parts: Object.fromEntries(input.parts.map(part => [part.id, part.connectionNeed ? {} : part.intent === 'input' ? { kind: 'sheet', emphasis: 'primary' } : part.intent === 'collection' ? { kind: 'directory', density: 'compact' } : {}])) } }));
         }
         if (task.mode === 'detail') return record(request, detail(task.proposal?.id ?? 'quick', undefined, task.uiText?.default));
         // A labelled stand-in revision: only the name changes, so working code and parts are kept.

@@ -101,6 +101,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   let pluginRequestedOnLoad = false;
   const embedded = window.parent !== window && paneParams.has("workbenchPane");
   if (embedded) document.body.dataset.paneEmbedded = "true";
+  let openingSource = false, sourceReadPending = false;
   let currentWorkItemId = embedded ? null : (() => { try { return localStorage.getItem(activeItemStorageKey) || null; } catch { return null; } })();
   const panes = host.paneMessages;
   if (embedded) {
@@ -189,6 +190,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       return;
     }
     try {
+      openingSource = Boolean(currentWorkItemId && readItemLayouts()[currentWorkItemId]?.openingSource);
       const stored = currentWorkItemId ? (readItemLayouts()[currentWorkItemId]?.state ?? null) : JSON.parse(localStorage.getItem(storageKey) || "null");
       // Only a layout of another shape starts fresh (口径 4). One naming a plugin this project no longer offers, or one Home no
       // longer has at all, is read as it is: that plugin's tabs stay, marked removed (removedPlugin), until added back or closed.
@@ -226,8 +228,10 @@ ${TAB_WORKSPACE_DRAG_PART}
     // A record in a plugin whose objects open from its own list (Forms, Dataset, PPT…): jump to it once the list is up.
     const requestedRecord = paneParams.get("openRecord");
     // Only the plugin asked for: open its page, if this project offers it (its menu lists the plugins it has on).
-    if (requestedPlugin && !requestedItem && !requestedRecord && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin)) {
-      if (offeredPlugin(requestedPlugin)) {
+    if (requestedPlugin && !requestedItem && !requestedRecord && (requestedPlugin === "home" || Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin))) {
+      if (requestedPlugin === "home" || offeredPlugin(requestedPlugin)) {
+        if (ops.soloSide(state)) ops.toggleSolo(state);
+        column = "main";
         ops.setExclusive(state, null);
         const opened = !recall(requestedPlugin) && ops.openPlugin(state, requestedPlugin);
         if (opened && paneParams.has("openView")) ops.writeView(state, ops.focused(state).id, paneParams.get("openView"), opened.id);
@@ -741,10 +745,24 @@ ${TAB_WORKSPACE_DRAG_PART}
   });
   // Per-item PFG-22 workspace state layer (specs/work-mainline §4.3, MLN-05, MLN-06): switching work items saves
   // the current item's panes/tabs/side/scroll and restores the target item's (or opens its First Page + 「这件事的东西」).
+  const openSource = (source, itemId, generation) => {
+    openingSource = true; sourceReadPending = true;
+    persist();
+    void molisWorkRequest(host.route("/api/mainline/open"), { body: { subject: source } }).then(found => {
+      if (currentWorkItemId !== itemId || generation !== itemSwitch || !found?.target) return;
+      openingSource = false;
+      const to = found.target;
+      if (to.kind === "surface" || !to.id) openPlugin(to.surface);
+      else openItem(to.surface, to.id, to.title);
+      persist();
+    }).catch(() => {}).finally(() => { if (generation === itemSwitch) sourceReadPending = false; });
+  };
+  let itemSwitch = 0;
   if (!embedded) document.addEventListener("molis-work:work-item-changed", (event) => {
     const detail = event.detail || {};
     const nextId = typeof detail.item_id === "string" && detail.item_id ? detail.item_id : null;
     if (nextId === currentWorkItemId) {
+      if (openingSource && detail.source && !sourceReadPending) openSource(detail.source, nextId, itemSwitch);
       if (nextId && detail.item_name) {
         let renamed = false;
         for (const pane of state.panes) {
@@ -760,12 +778,15 @@ ${TAB_WORKSPACE_DRAG_PART}
     }
     for (const node of collectMounted()) if (!node.hidden) rememberScroll(node);
     persist();
+    const switchNumber = ++itemSwitch;
+    sourceReadPending = false;
     currentWorkItemId = nextId;
     try {
       if (nextId) localStorage.setItem(activeItemStorageKey, nextId);
       else localStorage.removeItem(activeItemStorageKey);
     } catch { /* ignore */ }
     const savedEntry = nextId ? readItemLayouts()[nextId] : null;
+    openingSource = Boolean(savedEntry?.openingSource);
     const savedState = nextId ? savedEntry?.state : (() => { try { return JSON.parse(localStorage.getItem(storageKey) || "null"); } catch { return null; } })();
     tabHistory.clear();
     if (savedEntry?.history && typeof savedEntry.history === "object") {
@@ -779,21 +800,18 @@ ${TAB_WORKSPACE_DRAG_PART}
       apply();
       sidePane?.restore();
       persist();
+      if (openingSource && detail.source) openSource(detail.source, nextId, switchNumber);
       return;
     }
     state = ops.create();
+    sidePane?.restore();
     apply();
     if (nextId) {
       const contentsBtn = document.querySelector('[data-side-tab="item-contents"]');
       if (contentsBtn) contentsBtn.hidden = false;
       sidePane?.open("item-contents");
       if (detail.source) {
-        void molisWorkRequest(host.route("/api/mainline/open"), { body: { subject: detail.source } }).then((found) => {
-          const to = found && found.target;
-          if (!to) return;
-          if (to.kind === "surface" || !to.id) openPlugin(to.surface);
-          else openItem(to.surface, to.id, to.title);
-        }).catch(() => {});
+        openSource(detail.source, nextId, switchNumber);
       } else {
         document.dispatchEvent(new CustomEvent("molis-work:system-view-open", {
           detail: { owner: "work-item", id: nextId, title: detail.item_name || nextId },

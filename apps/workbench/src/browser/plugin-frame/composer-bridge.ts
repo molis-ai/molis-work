@@ -99,6 +99,8 @@ export type ComposerDown =
 export interface BarReceiver {
   /** Changes when the page mounts again or its shape changes (stop, `@`, files appear): the bar mounts anew. */
   readonly key: string;
+  /** The workspace object tab persists across frame remounts and application restarts. */
+  itemTabId(): string | null;
   readonly root: HTMLElement;
   readonly placeholder: string;
   visible(): boolean;

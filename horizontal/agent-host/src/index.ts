@@ -43,7 +43,7 @@ export { AgentReviewQueue } from "./reviews.js";
 export { isValidFibonacciStoryPoints } from "./execution-plan.js";
 export { applyUnknownCommandOutcomes, computeWeightedStepBoardProgress } from "./adapters/prologue-plan-steps.js";
 export { pinnedMaterialRevisions } from "./adapters/prologue-action-tools.js";
-export { assertPinnedMaterialResult, prologueActionGateway, withPinnedKnowledgeRevision } from "./adapters/prologue-action-gateway.js";
+export { assertPinnedMaterialResult, prologueActionGateway, resolveSkillHandleInput, withPinnedKnowledgeRevision, withRoundSkillHandles } from "./adapters/prologue-action-gateway.js";
 export { effectiveContextWindow, effectiveCompactionAboveTokens } from "./adapters/prologue-frozen.js";
 export { SUBAGENT_DEFAULT_MAX_ATTEMPTS } from "./adapters/prologue-subagents.js";
 export { createPrologueImageIntake } from "./adapters/prologue-images.js";
@@ -269,6 +269,8 @@ export interface AgentStartAuthority {
 /** Looks up the text a registered prompt runs with now. Returns the prompt unchanged when the person has not edited it. */
 export interface AgentPromptResolver {
   effective(ownerId: string, prompt: AgentPromptText, locale?: string): AgentPromptText;
+  /** Optional registered instruction resolver for materials declaring `instruction_prompt_id` within the calling plugin's owner namespace. */
+  instruction?(ownerId: string, promptId: string, caller: string, locale?: string, deferUse?: (record: () => void) => void): { body: string; version: number; user_revision: number | null };
 }
 
 export class AgentHost implements AgentHostApi {
@@ -387,6 +389,25 @@ export class AgentHost implements AgentHostApi {
     // What runs is the registered prompt as the person left it: their version when they edited it, otherwise the
     // default. Same id and version either way — the frozen record says which, and no text widens what the role may do.
     const locale = authority.reply_language?.locale, resolve = this.#prompts;
+    const recordMaterialInstructionUses: Array<() => void> = [];
+    const resolvedTextMaterials = request.text_materials?.map(material => {
+      if (!material.instruction_prompt_id) return material;
+      const { instruction_prompt_id, ...rest } = material;
+      if (!resolve?.instruction) return rest;
+      const resolved = resolve.instruction(
+        request.plugin_id,
+        instruction_prompt_id,
+        `agent:${request.plugin_id}`,
+        locale,
+        record => { recordMaterialInstructionUses.push(record); },
+      );
+      const trimmed = resolved.body.trim();
+      const nl = trimmed.indexOf("\n");
+      const title = nl > 0 ? trimmed.slice(0, nl).trim() : rest.title;
+      const instructions = nl > 0 ? trimmed.slice(nl + 1).trimStart() : trimmed;
+      const combined = [instructions, rest.text].filter(part => part.length > 0).join("\n\n");
+      return { ...rest, title: title || rest.title, text: combined };
+    });
     const promptAuthority = { manifest: authority.manifest, project_prompts: authority.project_prompts,
       reply_language: authority.reply_language, prompts: authority.prompts?.map(({ body_by_locale, ...prompt }) => {
         const declaration = { ...prompt, ...(body_by_locale ? { body_by_locale } : {}) };
@@ -442,6 +463,7 @@ export class AgentHost implements AgentHostApi {
     assertBeforeStart();
     const handle = await adapter.start({
       ...request,
+      ...(resolvedTextMaterials ? { text_materials: resolvedTextMaterials } : {}),
       ...(actionRefs.length || request.action_tools !== undefined || character?.action_tools ? { action_tools: actionRefs } : {}),
       mcp_tools: mcp,
       mcp_sources: sources,
@@ -474,6 +496,7 @@ export class AgentHost implements AgentHostApi {
       await adapter.control(handle.ref, { kind: "cancel" });
       throw agentErrors.role_execution_exceeded(`Runtime 返回的角色权限与 Manifest 冻结的不一致，已取消该 Run`);
     }
+    for (const record of recordMaterialInstructionUses) record();
     return handle;
     } catch (error) { disposeDispatch(); throw error; }
   }

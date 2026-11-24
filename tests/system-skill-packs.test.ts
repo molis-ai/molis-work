@@ -28,7 +28,7 @@ test("SKL-41-2 the planning and breakdown pack: 37 Skills, each for the Assistan
   assert.equal(skills.length, 37);
   for (const id of skills) {
     const body = readFileSync(join(PACK, "skills", id, "SKILL.md"), "utf8"), english = readFileSync(join(PACK, "skills", id, "SKILL.en.md"), "utf8");
-    assert.match(body, new RegExp(`^---\\nname: ${id}\\nversion: 1\\n`), id);
+    assert.match(body, new RegExp(`^---\\nname: ${id}\\nversion: 2\\n`), id);
     assert.match(body, /\napplies_to: assistant\n/, id);
     for (const section of ["## 规划路径", "## 必须覆盖", "## 依赖规则", "## 完成证据", "## 怎样用这份方法"]) assert.ok(body.includes(section), `${id} ${section}`);
     for (const section of ["## Planning path", "## Required coverage", "## Dependency rules", "## How to use this method"]) assert.ok(english.includes(section), `${id} ${section}`);

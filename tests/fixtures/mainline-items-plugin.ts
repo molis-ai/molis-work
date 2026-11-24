@@ -66,12 +66,11 @@ export function notesPlugin() {
       } },
       { ...values, handle: (_caller: ActionExecutionContext, input: unknown) => {
         state.valuesCalls++;
-        const { subjects } = input as { subjects: ActionSubject[] };
+        const { subjects, fields } = input as { subjects: ActionSubject[]; fields: string[] };
         return { items: subjects.map(subject => {
           const found = state.notes.get(subject.id);
           if (!found) return { subject, revision: "0", state: "deleted" };
-          return { subject, revision: "1", state: "ok", values: { title: found.title, status: found.status, ...(found.due_at ? { due_at: found.due_at } : {}),
-            ...(found.happened_at ? { happened_at: found.happened_at } : {}) } };
+          return { subject, revision: "1", state: "ok", values: Object.fromEntries(Object.entries(found).filter(([key]) => fields.includes(key))) };
         }) };
       } },
       { ...create, handle: async (caller: ActionExecutionContext, input: unknown) => {

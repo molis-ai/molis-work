@@ -1911,6 +1911,7 @@ export interface AgentRuntimeAdapter {
     read(run: AgentRunRef): Promise<AgentRunView>;
     observe(run: AgentRunRef, listener: (view: AgentRunView) => void): () => void;
     control(run: AgentRunRef, control: AgentRunControl): Promise<void>;
+    readWriteChecks?(session: AgentSessionRef, runId: string, writeIds: string[]): Promise<AgentWriteCheckResult[]>;
     readCommandOutput(session: AgentSessionRef, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
     readonly checkpoints?: AgentCheckpointsCapability;
     readonly mcpLibrary?: AgentMcpLibrary;
@@ -2405,6 +2406,7 @@ export type AgentTextMaterial = {
     material_id: string;
     title: string;
     text: string;
+    instruction_prompt_id?: string;
 } & AgentMaterialSource & AgentMaterialOrigin;
 
 export interface AgentTextReviewDocument {
@@ -2516,6 +2518,15 @@ export interface AgentWriteCheckNote {
     display_name: string;
     version: number;
     write_call_id?: string;
+}
+
+export interface AgentWriteCheckResult {
+    call_id: string;
+    checker: string | null;
+    version: number | null;
+    exit_code: number | null;
+    timed_out: boolean;
+    cancelled: boolean;
 }
 
 export interface AgentWriteChecker {
@@ -2890,6 +2901,7 @@ export declare const agentHostCapabilities: {
     }>;
     readonly controlRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, control: AgentRunControl], void>;
     readonly readCommandOutput: ActionDefinition<[session: AgentSessionRef, ref: AgentCommandOutputRef], AgentCommandOutput>;
+    readonly readWriteChecks: ActionDefinition<[session: AgentSessionRef, runId: string, writeIds: string[]], AgentWriteCheckResult[]>;
     readonly checkEvidence: ActionDefinition<AgentEvidenceCheckRequest, AgentEvidenceCheck>;
     readonly inspectRecovery: ActionDefinition<[session: AgentSessionRef], AgentRecoveryReport>;
     readonly recoverRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>;

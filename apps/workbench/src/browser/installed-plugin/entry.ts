@@ -16,7 +16,7 @@ interface RenderedPlugin {
   openRecord(itemId: string): Promise<boolean>;
 }
 type SurfaceSlot = UiPluginClientHost["view"]["surfaceSlot"];
-type ComponentFactory = (input: { root: HTMLElement; call: (componentId: string, binding: string, payload: unknown) => Promise<unknown>; mountSurfaceSlot?: SurfaceSlot }) => RenderedPlugin;
+type ComponentFactory = (input: { root: HTMLElement; call: (componentId: string, binding: string, payload: unknown) => Promise<unknown>; connectionNeed: UiPluginClientHost<HTMLElement>["connectionNeed"]; mountSurfaceSlot?: SurfaceSlot }) => RenderedPlugin;
 type FrameHost = UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement> & {
   readonly mountPluginClient: (root: HTMLElement) => FrameScope | null;
   readonly route: (path: string) => string;
@@ -57,7 +57,7 @@ globalThis.molisWorkbenchPluginFactories["installed-plugin"] = (base) => {
       if (lifetime.alive) globalThis.__molisPluginPending = pending;
     }
   };
-  const plugin = components({ root, call, mountSurfaceSlot: host.view?.surfaceSlot });
+  const plugin = components({ root, call, connectionNeed: host.connectionNeed, mountSurfaceSlot: host.view?.surfaceSlot });
   lifetime.own(() => plugin.destroy());
   const ready = plugin.update(page.view).then(() => { if (lifetime.alive) globalThis.__molisPluginReady = true; })
     .catch((error: unknown) => { if (lifetime.alive) root.textContent = error instanceof Error ? error.message : String(error); });

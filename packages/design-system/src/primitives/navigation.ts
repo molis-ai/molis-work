@@ -1,4 +1,6 @@
-import { cx, escapeHtml, renderAttrs, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { cx, escapeHtml, renderAttrs, renderCollapsible, type AttrValue } from "@molis-ai/molis-work-plugin-sdk/ui";
+
+export { renderCollapsible };
 
 export function renderTabs(options: {
   label: string;
@@ -28,10 +30,6 @@ export function renderToggleGroup(options: {
       ...item.attrs,
     })}>${escapeHtml(item.label)}</button>`).join("")
   }</div>`;
-}
-
-export function renderCollapsible(options: { summary: string; body: string; open?: boolean; className?: string }): string {
-  return `<details class="${cx("mw-collapsible", options.className)}" data-slot="collapsible"${options.open ? " open" : ""}><summary>${escapeHtml(options.summary)}</summary><div class="mw-collapsible__body">${options.body}</div></details>`;
 }
 
 export function renderAccordion(options: {

@@ -334,8 +334,8 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   };
   const dropHelpTab=()=>{const helpBtn=buttons().find(button=>button.dataset.sideTab==='help');if(helpBtn)helpBtn.hidden=true;const helpRec=tabOf('help');if(helpRec)ops.closeSideTab(getState(),helpRec.id);};
   const choose=id=>{if(!offered(id))return;const state=getState();if(tabOf(id))ops.selectSide(state,id);else{ops.openSide(state,id,views());ops.setSideOpen(state,open);}};
-  const select=(id,target)=>{
-    choose(id);if(id&&id!=='help')dropHelpTab();draw(target);
+  const select=(id,target,restore=false)=>{
+    if(!restore)choose(id);if(id&&id!=='help')dropHelpTab();draw(target);
     document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current(),target:target??null,open}}));
   };
   const setOpen=(next,options={})=>{
@@ -345,7 +345,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     if(open){
       if(!was)trigger=document.activeElement;
       panel.hidden=false;panel.inert=false;paint();void panel.offsetWidth;document.body.dataset.sideOpen='true';
-      select(options.tab??current(),options.target);
+      select(options.tab??current(),options.target,options.restore);
       if(options.focus===true)focusTab();
       const inner=options.focus==='content'&&panel.querySelector('[data-side-body="'+current()+'"] iframe');
       if(inner)ready(inner,()=>{inner.focus();inner.contentWindow?.focus();});
@@ -521,12 +521,12 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   // A view that comes or goes (its tab's hidden) is drawn again; the list itself opening or closing is not, so the undo chip a
   // press lands on is still the one that takes the click.
   new MutationObserver(records=>{if(records.some(record=>record.target!==strip))draw();}).observe(strip,{subtree:true,attributes:true,attributeFilter:['hidden']});
-  paint();select(current());
+  paint();select(current(),undefined,true);
   (window.requestIdleCallback||setTimeout)(()=>strip.querySelectorAll('[data-side-keys]').forEach(tab=>load(panel.querySelector('[data-side-body="'+tab.dataset.sideTab+'"]'))),{timeout:4000});
   // The workspace read another state (a reload's, a reset): the side shows what that one says, without saving it again. A
   // narrow window (760 and under, where only the focused pane shows: the side is a sheet over half the work) loads with the
   // side collapsed, its tabs, current tab and width as kept; the saved open stays, so a wide window opens it again.
-  const restore=()=>{settle();paint();const show=side().open&&!matchMedia('(max-width:760px)').matches;if(show!==open)setOpen(show);else draw();};
+  const restore=()=>{settle();paint();const show=side().open&&!matchMedia('(max-width:760px)').matches;if(show!==open)setOpen(show,{restore:true});else draw();};
   return {open:(key,target)=>request({tab:key,target}),restore,toggle,isOpen:()=>open};
 }`.replace(/^[ \t]*\/\/.*\n/gm, "");
 

@@ -17,6 +17,7 @@ import { cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { untilSetup } from "./fixtures/connector-assistant-model.js";
 import { openTestHome } from "./fixtures/test-home.js";
 import { endingReviewAnswer } from "./fixtures/ending-review.js";
+import { parseFencedMaterials } from "./fixtures/fenced-materials.js";
 
 const actor = LOCAL_PERSON_ACTOR_ID, coding = "io.molis.work.coding", project = "source-project";
 const sourceRef = (session: string, input: string, kind = "original"): AgentMemorySourceRef => ({
@@ -29,10 +30,10 @@ const personDecision = (caller: AgentMemoryCaller) => ({ ...caller, consumer: "a
 function formationReply(body: { messages: Array<{ content: string | Array<{ type: string; text?: string }> }> }) {
   const content = body.messages.at(-1)!.content;
   const prompt = typeof content === "string" ? content : content.filter(block => block.type === "text").map(block => block.text).join("\n");
-  const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n\n") + 2)) as {
+  const data = parseFencedMaterials<{
     sources: Array<{ id: string; text: string }>;
     destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }>;
-  };
+  }>(prompt);
   const slot = data.destinations.find(destination => destination.scope === "user" && !destination.replacement)?.slots.preference;
   assert.ok(slot, "Coding's current permission supplies a personal preference slot");
   assert.equal(data.sources.length, 1, "continuation never manufactures a second original");

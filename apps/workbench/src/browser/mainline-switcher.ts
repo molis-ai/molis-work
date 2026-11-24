@@ -1,5 +1,6 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText } from "./mainline-ui.js";
+import { runBusy } from "./busy.js";
 import { createMainlineOrganizeDialog } from "./mainline-organize.js";
 import {
   renderMainlineSourceChips,
@@ -77,6 +78,8 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
   let completedExpanded = false;
   let lastCurrent: string | null | undefined;
   const collapsedGroups = readStoredSet(GROUPS_KEY);
+  let needsGroupDefaults = true;
+  try { needsGroupDefaults = localStorage.getItem(GROUPS_KEY) === null; } catch { /* use defaults */ }
   const visited = readStoredSet(VISITED_KEY);
   let exampleDismissed = (() => { try { return localStorage.getItem(DISMISSED_KEY) === "1"; } catch { return false; } })();
 
@@ -86,6 +89,7 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
   const closeCorner = () => {
     if (listEl.hidden) return;
     listEl.hidden = true;
+    corner.closest("[data-dock]")?.removeAttribute("data-corner-open");
     toggle.setAttribute("aria-expanded", "false");
   };
 
@@ -194,24 +198,31 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
     paintCornerTrigger(view);
   };
 
+  let readGeneration = 0;
   const refresh = async (emit = true): Promise<MainlineViewResponse | null> => {
+    const generation = ++readGeneration;
     try {
       const next = await api<MainlineViewResponse>("/api/mainline/items/view", {});
+      if (generation !== readGeneration) return view;
       const prev = lastCurrent === undefined ? null : lastCurrent;
-      const changed = lastCurrent !== undefined && lastCurrent !== next.mainline.current;
+      const changed = prev !== next.mainline.current;
+      if (needsGroupDefaults) {
+        for (const group of next.mainline.groups) collapsedGroups.add(group.group_id);
+        needsGroupDefaults = false;
+      }
       view = next;
       hydrated = true;
       if (selectedKind && !next.sources.some((s) => s.kind === selectedKind && s.create)) selectedKind = "";
       lastCurrent = next.mainline.current;
       paint();
-      if (emit) announce(next, prev, changed && Boolean(next.mainline.current && !visited.has(next.mainline.current)));
+      if (emit || changed) announce(next, prev, changed && Boolean(next.mainline.current && !visited.has(next.mainline.current)));
       return next;
     } catch {
       return view;
     }
   };
 
-  const switchTo = async (itemId: string | null, originEl?: Element | null) => {
+  const switchTo = async (itemId: string | null, originEl?: Element | null, openHomeOnNull = false) => {
     if (!hydrated && itemId !== null) await refresh(false);
     const prev = view.mainline.current;
     if (prev === itemId) {
@@ -220,20 +231,25 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
       return;
     }
     try {
+      ++readGeneration;
       const firstEntry = Boolean(itemId && !visited.has(itemId));
       await api("/api/mainline/switch", { item_id: itemId });
-      if (itemId) {
+      const generation = ++readGeneration;
+      const next = await api<MainlineViewResponse>("/api/mainline/items/view", {});
+      if (generation !== readGeneration) return;
+      view = next;
+      lastCurrent = next.mainline.current;
+      announce(next, prev, firstEntry && next.mainline.current === itemId);
+      if (itemId && next.mainline.current === itemId) {
         visited.add(itemId);
         writeStoredSet(VISITED_KEY, visited);
       }
-      const next = await api<MainlineViewResponse>("/api/mainline/items/view", {});
-      view = next;
-      lastCurrent = next.mainline.current;
       const craft = globals.molisCraft;
       const applyVisual = () => {
+        if (view !== next) return;
         paint();
         closeCorner();
-        announce(next, prev, firstEntry);
+        if (itemId === null && openHomeOnNull) host.openHome();
       };
       if (originEl && craft?.carry) {
         craft.carry(originEl, applyVisual);
@@ -293,7 +309,9 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
     const target = event.target instanceof Element ? event.target : null;
     if (!target || !view) return;
     if (target.closest("[data-ml-pick-home]")) {
-      void switchTo(null, target.closest("[data-ml-pick-home]"));
+      // Stop bubble to top-corner.ts [data-corner-home] so host.open('home') never runs while currentWorkItemId is still set (would corrupt by-item PFG-22 layout).
+      event.stopPropagation();
+      void switchTo(null, target.closest("[data-ml-pick-home]"), true);
       return;
     }
     const pick = target.closest<HTMLElement>("[data-ml-pick]");
@@ -391,23 +409,34 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
     query = input.value;
     paint();
   });
+  let creating = false;
   slot.addEventListener("submit", (event) => {
     const form = (event.target as Element)?.closest<HTMLFormElement>("[data-ml-create-form]");
     if (!form) return;
     event.preventDefault();
+    if (creating) return;
     const input = form.querySelector<HTMLInputElement>("[data-mainline-create-input]");
+    const submitBtn = form.querySelector<HTMLButtonElement>("[data-ml-create-submit]");
     const name = input?.value.trim() ?? "";
     if (!name) {
       input?.focus();
       return;
     }
     const kind = selectedKind;
-    selectedKind = "";
-    if (input) input.value = "";
     const payload: Record<string, unknown> = kind
       ? { create_as: { kind, name }, request_id: crypto.randomUUID() }
       : { name };
-    void api<{ item?: { item_id: string } }>("/api/mainline/items/create", payload).then(async (res) => {
+    creating = true;
+    const createOnly = async () => {
+      try {
+        return await api<{ item?: { item_id: string } }>("/api/mainline/items/create", payload);
+      } finally {
+        creating = false;
+      }
+    };
+    void runBusy(submitBtn, createOnly).then(async (res) => {
+      selectedKind = "";
+      if (input) input.value = "";
       host.showToast(uiText.text("workbench.mainline.created-toast", { name }));
       await refresh(false);
       if (res?.item?.item_id) await switchTo(res.item.item_id);
@@ -447,7 +476,10 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
     }
   });
 
-  document.addEventListener("molis-work:language-changed", () => mountShell());
+  document.addEventListener("molis-work:language-changed", () => {
+    mountShell();
+    if (hydrated) void refresh(true);
+  });
   document.addEventListener("molis-work:plugins-changed", () => { if (hydrated) void refresh(true); });
   window.addEventListener("molis:placement-changed", () => { if (hydrated) void refresh(true); });
 

@@ -283,3 +283,22 @@ test("56-1 BL-attention-404-by-code a deleted or unknown project answers its att
   // The Home's own read is not a project's, and still answers.
   assert.ok(Array.isArray((await home.web.get<Attention>("/api/attention")).notices));
 });
+
+test("S-home-page-authority generated home-page session header is refused with 403 on GET /api/attention/events", async t => {
+  const server = createServer((request, response) => {
+    void handleAttentionHttp(request, response, new URL(request.url ?? "/", "http://127.0.0.1"), {
+      notices: async () => [],
+      changes: () => () => {},
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const res = await fetch(`http://127.0.0.1:${address.port}/api/attention/events`, {
+    headers: { "x-molis-home-page": "hp-session-forbidden" },
+  });
+  assert.equal(res.status, 403, "GET /api/attention/events with x-molis-home-page must be refused with 403");
+  const body = (await res.json()) as { error?: string };
+  assert.equal(body.error, "forbidden");
+});

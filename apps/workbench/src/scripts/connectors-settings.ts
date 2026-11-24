@@ -89,11 +89,11 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       });
       // After a switch (done, failed or timed out: the service may have moved some uses anyway), every account of the service reads again.
       const rereadUsages = item => { usagesRead.clear(); if (!item) return; item.querySelectorAll('[data-connection-usages]').forEach(node => delete node.dataset.loaded); loadUsages(item); };
-      const setOpen = (item, open) => { item.dataset.open = String(open); item.querySelector('[data-connection-toggle]')?.setAttribute('aria-expanded', String(open)); if (open) loadUsages(item); };
+      const openItem = item => { parts.setOpen(item, true); loadUsages(item); };
       const openService = (id, focus = true) => {
         const item = itemFor(id);
         if (!item) return null;
-        setOpen(item, true);
+        openItem(item);
         if (standalone()) page.replace(new URL(pageUrl(id), location.origin));
         if (focus) requestAnimationFrame(() => { item.scrollIntoView({ block: 'start', behavior: reduced() ? 'auto' : 'smooth' }); item.querySelector('[data-connection-toggle]')?.focus({ preventScroll: true }); });
         return item;
@@ -171,7 +171,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         return body;
       };
       const validate = area => [...area.querySelectorAll('input[required]')].every(input => input.checkValidity() || (input.reportValidity(), false));
-      const expand = node => { for (let p = node; p && p !== box; p = p.parentElement) { if (p.tagName === 'DETAILS') p.open = true; if (p.matches('[data-connector-item]')) setOpen(p, true); } };
+      const expand = node => { for (let p = node; p && p !== box; p = p.parentElement) { if (p.tagName === 'DETAILS') p.open = true; if (p.matches('[data-connector-item]')) openItem(p); } };
       const reserveBrowser = () => {
         if (globalThis.molisWorkOpenExternalUrl) return null;
         const popup = window.open('', '_blank');

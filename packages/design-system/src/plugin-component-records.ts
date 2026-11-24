@@ -22,7 +22,7 @@ export function pcRelations(c: State & Kit) {
   const collections = new Set(['directory', 'card', 'table', 'calendar', 'accordion']);
   /** A part whose whole input is the chosen record of one collection on its page acts on a record: it shows as a button on each record. */
   const rowHost = (node: PluginComponentNode): string | undefined => {
-    if (node.read || !node.submit) return undefined;
+    if (node.connectionNeed || node.read || !node.submit) return undefined;
     const sources = Object.values(node.submit.input), hosts = new Set(sources.flatMap(source => source.source === 'selection' ? [source.componentId] : []));
     const [host] = hosts;
     return hosts.size === 1 && sources.every(source => source.source !== 'form') && c.view?.nodes.some(other => other.id === host && other.pageId === node.pageId && !!other.read && collections.has(other.kind)) ? host : undefined;
@@ -34,12 +34,13 @@ export function pcRelations(c: State & Kit) {
   /** A form that adds something new: every value typed by the person, nothing taken from elsewhere, nothing to show back. */
   const composer = (node: PluginComponentNode) => !node.read && !!node.submit && !node.submit.outputPath && Object.values(node.submit.input).some(source => source.source === 'form')
     && Object.values(node.submit.input).every(source => source.source === 'form' && !source.prefill) && operation(node.submit!.operationId)?.kind === 'command';
-  const signature = (node: PluginComponentNode) => JSON.stringify({ kind: node.kind, read: node.read, submit: node.submit, slot: node.surfaceSlot,
+  const signature = (node: PluginComponentNode) => JSON.stringify({ kind: node.kind, read: node.read, submit: node.submit, slot: node.surfaceSlot, connectionNeed: node.connectionNeed,
     input: operation(node.submit?.operationId)?.input, submitKind: operation(node.submit?.operationId)?.kind, composer: composer(node) });
   const selectPage = (id: string) => {
     if (id !== c.currentPage) for (const part of c.parts.values()) if (part.node.surfaceSlot && part.node.pageId !== id) {
       part.query++; part.slot?.dispose(); part.slot = undefined;
     }
+    if (id !== c.currentPage) for (const part of parts.values()) if (part.node.pageId !== id) part.connection?.abort();
     c.currentPage = id; pages.forEach((page, key) => { page.hidden = key !== id; });
     tabList.querySelectorAll<HTMLButtonElement>('button').forEach(tab => { tab.setAttribute('aria-selected', String(tab.dataset.page === id)); tab.classList.toggle('is-active', tab.dataset.page === id); });
   };

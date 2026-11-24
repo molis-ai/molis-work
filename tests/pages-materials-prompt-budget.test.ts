@@ -9,14 +9,14 @@ import { pagesActions, type PagesInputSnapshot } from "@molis-ai/molis-work-plug
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { pagesTestPorts } from "./fixtures/pages-actions.js";
 
-// RAC-2739/RAC-2740 (T-360): `PAGES_MATERIALS_JSON_MAX_CHARS = 175,800` is derived in a comment from the Host's prompt limit
-// (`标题：` + an 80-character title + `\n用户要求：` + 4,000-character requirements + two `\n\n` + one 16-character line + the JSON, all
-// under the Host's data limit). This file pins that derivation to the Host's real limit: the worst prompt Pages can build is checked
-// against the Host's own number (its public `hostTextGeneration` port, which refuses only what its own limit refuses) and against
-// `MODEL_DATA_MAX_CHARS`, and the JSON boundary is checked through the real `pages.generate` action (175,800 characters run, one more
-// is refused). No number from the Host is written down here.
+// RAC-2739/RAC-2740 (T-360): `PAGES_MATERIALS_JSON_MAX_CHARS = 175,700` is derived in a comment from the Host's prompt limit
+// (`标题：` + an 80-character title + `\n用户要求：` + 4,000-character requirements + `\n\n` + `fencedMaterials` untrusted notice and
+// nonce fence + the JSON, all under the Host's data limit). This file pins that derivation to the Host's real limit: the worst prompt
+// Pages can build is checked against the Host's own number (its public `hostTextGeneration` port, which refuses only what its own limit
+// refuses) and against `MODEL_DATA_MAX_CHARS`, and the JSON boundary is checked through the real `pages.generate` action (175,700
+// characters run, one more is refused). No number from the Host is written down here.
 const PROJECT = "prompt-budget-project";
-const titleChars = 80, instructionsChars = 4_000, jsonChars = 175_800, bodyChars = 100_000;
+const titleChars = 80, instructionsChars = 4_000, jsonChars = 175_700, bodyChars = 100_000;
 const snapshot = (body: string): PagesInputSnapshot => ({ entry_id: "entry", item_id: "item", revision: 1, title: "材料", body,
   url: null, source_label: "来源", captured_at: "initial", provenance: [] });
 

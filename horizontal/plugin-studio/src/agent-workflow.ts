@@ -4,6 +4,8 @@ import { freezeStudioUi, studioUiAnswer, type StudioDesignLanguages } from "./ag
 import { inDesignOrder, type AgentPublicationControl, type AgentRelease as PublishedAgentRelease } from './agent-model.js';
 import { recheckAgentBuild } from './agent-recheck.js';
 import { publishAgentBuild, buildScope, releaseScope } from './agent-publication.js';
+import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { PLUGIN_ICON_NAMES } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import { randomUUID } from 'node:crypto';
 import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
@@ -11,11 +13,11 @@ import { pluginComponentChoices, projectComponentMetadata, resolvePluginComponen
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuilderAgentRequest, BuilderAgentRecord, BuilderSkill } from '@molis-ai/molis-work-contracts/services/agent-host';
 import type { BuildManifest, BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
-import type { InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
+import { agentBodyIn, composeInstructedPrompt, type InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import { AgentBuilderStore } from './agent-store.js';
 import { reviseCheckedPresentation } from './checked-presentation.js';
 import { BUILDER_PROMPTS, type BuilderPromptName } from './agent-prompts.js';
-import { BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT } from './choice-prompts.js';
+import { BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_MOCKUP } from './choice-prompts.js';
 import { capabilityCandidates, focusCatalog, usedCapabilities, withinBudget, type CatalogEntry } from './agent-catalog.js';
 import { validateAgentDesign } from './agent-validation.js';
 import { parseModelJson } from './model-json.js';
@@ -79,8 +81,8 @@ export interface AgentBuilderPorts {
 }
 const snapshot = (build: AgentBuild): AgentBuildSnapshot => ({ design: build.design, nodes: build.nodes, connected: build.connected, ...(build.directory ? { directory: build.directory } : {}), ...(build.designSource ? { designSource: build.designSource } : {}), checks: build.checks, checksScope: build.checksScope, browserResult: build.browserResult, visualResult: build.visualResult });
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
-/** One of the two questions put to Jev as it runs now: the person's edit from the host, or the registered default. */
-const instructionText = (ports: AgentBuilderPorts, prompt: InstructionPrompt): string => ports.instruction?.(prompt) ?? prompt.body;
+/** A registered studio instruction as it runs now: the person's edit from the host, or the localized default. */
+const instructionText = (ports: AgentBuilderPorts, prompt: InstructionPrompt, locale?: string): string => ports.instruction?.(prompt) ?? agentBodyIn(prompt, locale);
 const PENDING_CASE = '前置用例失败，尚未执行';
 type ProposeOutcome = { kind: 'questions'; questions: string[]; summary: string } | { kind: 'proposals'; proposals: AgentProposal[]; summary: string; dropped: string[] };
 /** The whole build record is rewritten on every change, so its history must stay bounded. */
@@ -251,10 +253,12 @@ export class AgentBuilderWorkflow {
     if (!mockups || this.closed || !await mockups.available().catch(() => false)) return;
     const abort = new AbortController(); this.drawing.add(abort);
     const set = (candidateId: string, mockup: NonNullable<AgentProposal['mockup']>) => { if (!this.closed) this.change(id, build => { const item = build.candidates.find(candidate => candidate.id === candidateId); if (item) item.mockup = mockup; }); };
+    const locale = this.ports.designLanguages?.().current;
+    const instructions = instructionText(this.ports, BUILDER_MOCKUP, locale);
     try {
       await Promise.all(proposals.map(async proposal => {
         set(proposal.id, { status: 'drawing' });
-        const result = await mockups.draw({ key: id + ':' + proposal.id, prompt: mockupPrompt(proposal) }, abort.signal).catch(error => ({ reason: message(error) }));
+        const result = await mockups.draw({ key: id + ':' + proposal.id, prompt: mockupPrompt(proposal, instructions, locale) }, abort.signal).catch(error => ({ reason: message(error) }));
         set(proposal.id, 'jobId' in result ? { status: 'ready', jobId: result.jobId, imageId: result.imageId } : { status: 'failed', reason: result.reason });
       }));
     } finally { this.drawing.delete(abort); }
@@ -269,7 +273,10 @@ export class AgentBuilderWorkflow {
     design.contract.state_machines = versionedStateMachines(design.contract.state_machines ?? [], released?.design.contract.state_machines);
     const valid = validateAgentDesign(design, capabilities.map(item => item.id), resources, this.ports.validateContract);
     const source = value && typeof value === 'object' && !Array.isArray(value) && 'design' in value ? (value as { design: unknown }).design : value;
-    if (language) freezeStudioUi(valid, source && typeof source === 'object' && 'uiText' in source ? source.uiText : undefined, language, this.store.require(id).design?.contract.ui?.locales);
+    if (language) {
+      if (!valid.icon) throw new Error('请按插件用途，从任务的 iconNames 中选择一个图标并写入 design.icon');
+      freezeStudioUi(valid, source && typeof source === 'object' && 'uiText' in source ? source.uiText : undefined, language, this.store.require(id).design?.contract.ui?.locales);
+    }
     // A change inside an operation that its contract cannot show (e.g. what the model is asked) still reaches the code.
     const rework: Record<string, string> = {};
     const listed = value && typeof value === 'object' && !Array.isArray(value) ? (value as { rework?: unknown }).rework : undefined;
@@ -304,7 +311,7 @@ export class AgentBuilderWorkflow {
     const stepId = 'detail:' + token, { all, catalog, more, resources } = await this.designContext(id, [initial.brief, proposal.title, proposal.description, ...proposal.journey,
       ...proposal.preview.contract.operations.map(operation => operation.description)].join('\n'), picked);
     this.step(id, { id: stepId, agent: 'design', action: 'design', ...studioProposalStep(proposal.title), status: 'active' });
-    const result = await this.designer(id, token, signal, stepId, { mode: 'detail', brief: initial.brief, messages: initial.messages, proposal: sketch, experience, capabilities: catalog, moreCapabilities: more, resources,
+    const result = await this.designer(id, token, signal, stepId, { mode: 'detail', iconNames: PLUGIN_ICON_NAMES, connectionServices: Object.keys(CONNECTOR_REQUEST_SERVICES), brief: initial.brief, messages: initial.messages, proposal: sketch, experience, capabilities: catalog, moreCapabilities: more, resources,
       ...(this.ports.designLanguages ? { uiText: studioUiAnswer(this.ports.designLanguages()) } : {}) },
       output => this.acceptDesign(id, output, proposal, all, resources));
     if (experience) result.design.experience = experience;
@@ -354,7 +361,7 @@ export class AgentBuilderWorkflow {
     const request = hostRequest ?? [...initial.messages].reverse().find(item => item.role === 'user')?.text ?? '';
     const stepId = 'revise:' + token + (hostRequest ? ':' + randomUUID().slice(0, 8) : ''), { all, catalog, more, resources } = await this.designContext(id, [initial.brief, request, design.title].join('\n'), usedCapabilities(design.contract.operations));
     this.step(id, { id: stepId, agent: 'design', action: 'design', label: studioStep(hostRequest ? 'revising-display' : 'revising-design'), status: 'active', detail: request.slice(0, 300) });
-    const result = await this.designer(id, token, signal, stepId, { mode: 'revise', brief: initial.brief, request, messages: initial.messages, experience: design.experience,
+    const result = await this.designer(id, token, signal, stepId, { mode: 'revise', iconNames: PLUGIN_ICON_NAMES, connectionServices: Object.keys(CONNECTOR_REQUEST_SERVICES), brief: initial.brief, request, messages: initial.messages, experience: design.experience,
       current: initial.designSource ? JSON.parse(initial.designSource) : { title: design.title, operations: design.contract.operations, parts: design.parts, acceptance: design.acceptance },
       capabilities: catalog, moreCapabilities: more, resources, ...(this.ports.designLanguages ? { uiText: studioUiAnswer(this.ports.designLanguages(), design.contract.ui?.locales) } : {}) }, output => this.acceptDesign(id, output, design, all, resources));
     const revision = studioRevisionStep(design, result.design, Object.keys(result.rework), Boolean(hostRequest));
@@ -762,12 +769,30 @@ export class AgentBuilderWorkflow {
   async close() { this.closed = true; for (const abort of this.drawing) abort.abort(); for (const job of this.jobs.values()) job.abort.abort(failStudioBuild('build-interrupted', '', { guidance: 'build-continue-after-restart' })); await Promise.all([...this.jobs.values()].map(job => job.done)); await Promise.all(this.store.list().map(build => this.resetPreview(build.id))); this.listeners.clear(); }
 }
 
-/** What the image service is asked to draw for a proposal: the product's screen, in the product's plain style. */
-export function mockupPrompt(proposal: AgentProposal): string {
-  const parts = proposal.preview.parts.map(part => '- ' + part.purpose + '（' + ({ heading: '标题栏', description: '说明或数字', input: '表单', action: '按钮', collection: '列表', reading: '分节文字', schedule: '按日期的列表', conversation: '对话', evidence: '表格', feedback: '提示' } as Record<string, string>)[part.intent] + '）').join('\n');
-  return ['一张桌面应用里的插件界面效果图（UI mockup），正面平视，单页，不要设备外框、不要手和人物。',
-    '风格：简洁、浅色、中性灰白底、圆角卡片、细分隔线、一个蓝色主按钮，中文界面文字清晰可读，不要渐变和装饰插画。',
-    '插件：' + proposal.title + '。' + proposal.description, '页面从上到下：\n' + parts, '使用路径：' + proposal.journey.join(' → ')].join('\n');
+const MOCKUP_INTENT_LABELS: Readonly<Record<string, readonly [zh: string, en: string]>> = {
+  heading: ['标题栏', 'heading bar'],
+  description: ['说明或数字', 'summary or metrics'],
+  input: ['表单', 'input form'],
+  action: ['按钮', 'action button'],
+  collection: ['列表', 'item list'],
+  reading: ['分节文字', 'sectioned text'],
+  schedule: ['按日期的列表', 'dated list'],
+  conversation: ['对话', 'conversation'],
+  evidence: ['表格', 'data table'],
+  feedback: ['提示', 'status notice'],
+};
+
+/** What the image service is asked to draw for a proposal: registered mockup style instructions plus the proposal details. */
+export function mockupPrompt(proposal: AgentProposal, instructions?: string, locale?: string): string {
+  const english = locale?.toLowerCase().startsWith('en') ?? false;
+  const parts = proposal.preview.parts.map(part => {
+    const label = MOCKUP_INTENT_LABELS[part.intent]?.[english ? 1 : 0] ?? part.intent;
+    return english ? `- ${part.purpose} (${label})` : `- ${part.purpose}（${label}）`;
+  }).join('\n');
+  const details = english
+    ? [`Plugin: ${proposal.title}. ${proposal.description}`, `Page from top to bottom:\n${parts}`, `User journey: ${proposal.journey.join(' → ')}`].join('\n')
+    : [`插件：${proposal.title}。${proposal.description}`, `页面从上到下：\n${parts}`, `使用路径：${proposal.journey.join(' → ')}`].join('\n');
+  return composeInstructedPrompt(instructions ?? agentBodyIn(BUILDER_MOCKUP, english ? 'en' : undefined), details);
 }
 /** Network failures between the host and the model service, worth one more request. */
 const TRANSIENT = /fetch failed|^terminated$|other side closed|ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|ENOTFOUND|getaddrinfo|could not be resolved|socket hang up|network (?:error|timeout)|UND_ERR/i;

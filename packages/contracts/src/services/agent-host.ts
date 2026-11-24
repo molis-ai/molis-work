@@ -100,6 +100,7 @@ export type {
   AgentUsageCoverage,
   AgentRunUsage,
   AgentCommandOutputRef,
+  AgentWriteCheckResult,
   AgentCommandOutput,
   AgentEvidenceCheck,
   AgentEvidenceCheckRequest,

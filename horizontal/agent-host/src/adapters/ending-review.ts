@@ -30,6 +30,7 @@ export interface EndingRound {
 export interface ReviewModel {
   readonly instructions: string;
   readonly protocol: string; readonly endpoint: string; readonly model: string; readonly credentialRef: ExactRef<"credential">;
+  readonly promptCache?: "best-effort" | "required";
   readonly dispatch: <T>(operation: () => Promise<T>) => Promise<T>;
 }
 
@@ -52,6 +53,7 @@ export async function reviewEnding(runtime: Runtime, model: ReviewModel, round: 
       try {
         const run = await session.startRun({ protocol: model.protocol, endpoint: model.endpoint, model: model.model, credentialRef: model.credentialRef,
           messages: [{ role: "system", text: model.instructions }, { role: "user", text: fencedMaterials(data, boundary) }], timeoutMs: REVIEW_TIMEOUT_MS,
+          ...(model.promptCache ? { promptCache: model.promptCache } : {}),
           params: { maxOutputTokens: 1024 } });
         const result = await collectRun(run, { signal, maxTextChars: 8000, maxEvents: 10_000 });
         return result.state === "completed" ? result.text : "";

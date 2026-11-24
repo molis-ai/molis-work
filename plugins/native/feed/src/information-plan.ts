@@ -1,8 +1,9 @@
+import { randomBytes } from "node:crypto";
 import { objectSchema } from "@molis-ai/molis-work-plugin-sdk";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ActionError, bindActionHandler, defineErrorCodes, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { FeedApplication } from "./application.js";
@@ -80,9 +81,9 @@ export function feedInformationPlanContext(state: FeedInformationPlanState, proj
     sources: state.sources.filter(source => source.enabled).slice(0, SOURCE_LIMIT).map(source => ({ source_id: source.source_id, name: wholeCharacters(source.name, 200) })), items, inbox };
 }
 
-/** The instruction's data: the bounded state, then the person's words. */
+/** The instruction's data: the bounded state fenced as untrusted data, then the person's words. */
 export const feedInformationPlanData = (context: ReturnType<typeof feedInformationPlanContext>, prompt: string): string =>
-  [`当前范围：${JSON.stringify(context)}`, `用户请求：${prompt}`].join("\n\n");
+  [fencedMaterials(context, randomBytes(8).toString("hex")), `用户请求：${prompt}`].join("\n\n");
 
 /** The model's answer, held to what this project has: a source and sample that are here, Inbox entries that are open now. */
 export function checkedFeedInformationPlan(reply: unknown, context: ReturnType<typeof feedInformationPlanContext>): FeedInformationPlan {

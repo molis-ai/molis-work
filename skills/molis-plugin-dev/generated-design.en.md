@@ -1,5 +1,7 @@
 # Generated plugins: the lead designer's standard
 
+In detail and revision answers, choose `design.icon` from the task’s `iconNames` for the purpose of the plugin (for example, `book` for a reading journal).
+
 Studio generates sandbox backend code, with one operation per task, and a platform-rendered UI from the catalog. Define the operations, one example per operation, page parts and acceptance. Once frozen, the UI and code Agents work concurrently from that specification; contradictions surface at acceptance, so keep it internally consistent. Follow the current stage's output format; this chapter explains the judgment behind it.
 
 ## Requirements and proposals
@@ -20,6 +22,10 @@ Deliver the smallest complete scope: all requests and no unasked editing, catego
 Examples execute in sequence on that operation's fresh storage. Queries return empty on an empty store; use acceptance for existing records and successful updates/deletes. Examples for missing records use a declared error. Assert a subset for random IDs, only declared fields, and dates supplied by inputs. Foreign stand-ins prove schema or own storage; a missing foreign record error requires its read capability.
 
 ## Interface
+
+For a command requiring an account, choose the service from the task’s `connectionServices` and declare `connections.slots` (e.g. `[{"slot_id":"source","service_id":"github","reason":"Read the chosen repository"}]`), list that slot in the command’s `effects.connections`, and bind an action or input part with `connectionNeed: {"slot_id":"source"}`. Per-record slots use `binding:"per_record"` and the part names the submitted record ID field in `recordField`. The shell handles sign-in and resumes the submission. Drafts have no bound account. Test the unbound case in preview and the connection after installation. Use `sdk.connections.describe/request` on the backend.
+
+For a Home image plugin, use `connectionNeed: {"kind":"image","slot_id":"drawing","base_url":"https://images.example/v1"}`. The command declares bind and its actual image operations in `effects.imageGeneration`, and the service domain in `networkDomains`.
 
 Give every part an intent; the platform chooses a legal component from `/__ui/catalog`.
 
@@ -45,16 +51,9 @@ Give every part an intent; the platform chooses a legal component from `/__ui/ca
 
 Each independent case starts empty. Interact like a person: fill, submit, select a visible row, see text appear or disappear, check order, paginate or reload. Use realistic material: assert the last paragraph of a full body, varied title/summary lengths and meaningfully different values. Respect validation. Fixed stand-ins do not prove presentation.
 
-Cover add-then-see; cover update, delete and filters when present. The acceptance protocol selects a record by visible text before submitting, while the real row button selects its own row. Put inaccessible errors like “record not found” in operation examples. For records, assert their actual words, such as “Reading,” without adding the column label. For fixed UI wording use `{"action":"expectWord","componentId":"notes","word":"emptyText"}`, naming a property the component declares in props. For model operations check the stand-in text. A foreign read stand-in returns exactly one example row: strings `示例`, minimum numbers and first enum values. To act on it, first `select list 示例`, then fill and submit. A foreign write cannot change that fixed row or make the list empty; verify command feedback or local storage instead. After refresh assert a read view, not transient command feedback.
+Cover add-then-see; cover update, delete and filters when present. The acceptance protocol selects a record by visible text before submitting, while the real row button selects its own row. Put inaccessible errors like “record not found” in operation examples. For records, assert their actual words, such as “Reading,” without adding the column label. Use the designer prompt's explicit `expectWord` object step for fixed UI copy. For `model.generate`, examples assert structure or stored data via `includes`, while UI acceptance checks the runtime stand-in prefix (the literal token `［模型替身］` followed by the first 40 characters of input). A foreign read stand-in returns one fixed row whose string fields contain the literal stand-in token `示例`, minimum numbers and first enum values: select that row first before filling and submitting. A foreign write cannot change that fixed row or empty its list, so assert command feedback or local storage instead. After reload assert a read view, not transient command feedback.
 
-Use explicit negative steps, never infer a failure from names or expectation wording:
-
-- `{"action":"submitBlocked","componentId":"editor","field":"text","reason":"valueMissing"}` clicks the form, verifies native required validation and that submit was never called. Use `props.requiredText` for visible feedback; ordinary submit still expects success.
-- `{"action":"faultRead","componentId":"notes"}` only affects the next real bound query in this isolated acceptance. Open the component with conditions met so it consumes the fault. No command, trial, script, URL, custom error copy or data.
-- `{"action":"retry","componentId":"notes"}` clicks real retry; error replaces the old empty state and input survives recovery.
-- `{"action":"expectValue","componentId":"editor","field":"text","value":"original"}` checks a text or boolean value; the existing `expect editor.text = original` is also valid.
-
-Reset each case; collect failures and run remaining independent cases. Stop and report cases not run if environment or reset fails. Reload proves reload only; restart and upgrade need lifecycle tests.
+Negative checks (`submitBlocked`, isolated query `faultRead`, `retry`, and `expectValue`) must use the explicit JSON object steps specified in the lead designer prompt—never infer faults from case names or prose. Ordinary `submit` still expects success; `faultRead` applies only to bound queries and must be consumed, replacing any old empty state with the shared error while preserving drafts across `retry`. Reset each case independently, collect failures across remaining independent cases, and stop if reset fails. Reload proves reload only; restart and upgrade need lifecycle tests.
 
 ## Common mistakes
 
@@ -83,4 +82,4 @@ Reset each case; collect failures and run remaining independent cases. Stop and 
 
 ## Revision and UI handoff
 
-Keep unchanged operations and parts exactly, with stable IDs, to reuse accepted code. If only implementation changes, name affected operations and behavior. Before freeze the UI agent can reorder draft parts and provide concrete experience scenarios. Bind stable IDs, data and operations; a journey gives entry, action, observable result and continuation, and a purpose describes the job served. A collection that already returns the body should give title/text/id fields and share the row with detail, without an extra selection-dependent query. The whole-page stage uses the experience chapter, UI chapter and quality bar; it does not receive these output rules. Detail turns concrete scenarios into real acceptance checks (final paragraph, meaningful differences). Scenario data is not seeded in the real store. Post-freeze visual revisions do not change the contract, acceptance or backend.
+Keep unchanged operations and parts identical with stable IDs so accepted code is reused; list code-only behavior changes in `rework`. See the mounted experience and UI chapters for journey, layout and review rules: when a collection already returns full body text, set `idField`/`titleField`/`textField` to share the row with detail instead of adding a selection-only detail query. Keep `selection:part.field` bound to a real part ID, never seed scenario inputs into production storage, and never let post-freeze visual revisions alter contract, acceptance or backend.

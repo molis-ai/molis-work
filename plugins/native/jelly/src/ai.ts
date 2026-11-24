@@ -1,6 +1,6 @@
-import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { JELLY_DECOMPOSE } from "./prompts.js";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { JellyPlan, JellyPlanAction, JellySchedule, JellyWorkspace } from "./contract.js";
 import { jellySourceHash } from "./content.js";
 import { jellyOccurrences } from "./calendar.js";
@@ -72,7 +72,9 @@ export async function runJellyAi(state: JellyWorkspace, input: JellyAiInput, por
   if (input.manual) entries = text.split(/\n+/u).filter((line) => line.trim()).slice(0, 30).map((title) => ({ title: [...title.replace(/^[-*#\d.\s]+/u, "").slice(0, 400)].slice(0, 200).join(""), notes: "", minutes: 30 }));
   else {
     if (!ports.completeJson) throw jellyErrors.ai_unavailable("尚未配置文字模型。可以使用手工拆解，再逐项编辑和安排。");
-    const result = await complete(ports, instructed(JELLY_DECOMPOSE, `用户补充：${input.instructions ?? ""}\n<原文>\n${text}\n</原文>`));
+    const supplement = input.instructions?.trim();
+    const data = `${supplement ? `用户补充：${supplement}\n\n` : ""}${fencedMaterials({ text }, randomBytes(8).toString("hex"))}`;
+    const result = await complete(ports, instructed(JELLY_DECOMPOSE, data));
     entries = result && typeof result === "object" && "actions" in result && Array.isArray(result.actions) ? result.actions : [];
     questions = result && typeof result === "object" && "clarification_questions" in result && Array.isArray(result.clarification_questions) ? result.clarification_questions.filter((q): q is string => typeof q === "string" && !!q.trim()).slice(0, 3).map(q => [...q.slice(0, 1000)].slice(0, 500).join("")) : [];
   }

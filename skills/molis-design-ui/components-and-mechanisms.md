@@ -64,7 +64,7 @@
 2. **`window.molisFollow(container)`**：对话与长日志的唯一滚动主人——到底跟随，用户首个 `wheel`/`touchmove`/向上滚/选字当即交权 `detached`；新内容调 `pin()`、回底调 `toLatest()`、切会话保存/恢复 `{ scrollTop, followState }`，卸载 `dispose()`。
 3. **`window.molisStreamText(container, html, { reveal, grow, pace })`**：自适应帧率平滑流式输出 + 连续波浪 `.mw-fresh` 不掐断在途动画 + 内联 Markdown 闭合零重闪；代码块原地生长配合 `@molis-ai/molis-work-plugin-sdk/highlight` 的 `growCodeTokens`。
 4. **`window.molisShowMore(list, { key, label, keep })`**：长列表默认收前 5 项，多 1 项直接展开，`keep` 保住失败/需注意项，重画保持展开态。
-5. **`<details class="mw-collapsible">`**：自然高度展开与可中断收起；用户手动点开的 `<details>` 标 `data-user-toggled`，AI 完成时不自动合上（守 `VUX-13`）。
+5. **`<details class="mw-collapsible">`**：插件通过 SDK 的 `@molis-ai/molis-work-plugin-sdk/ui` 调用 `renderCollapsible({ summary, body })`，标题传纯文本，正文传已渲染的 HTML。工作台的连接行和连接卡通过设计系统的 `naturalFold` 按实际高度展开、反向收起；收起连接行时焦点回到开关，正文立即退出键盘导航。用户手动点开的 `<details>` 标 `data-user-toggled`，AI 完成时不自动合上（守 `VUX-13`）。
 6. **`window.molisMediaZoom`**：所有图片缩略图/附件预览统一点击灯箱放大。
 7. **`window.molisDropZone`**：文件/图片拖放区统一高亮与拖入反馈，隐藏原生 `<input type="file">`。
 8. **`data-overflow-fade` & `data-fit` & `.mw-num`**：横向可滚条仅在有更多的一侧淡出；多行输入框自动长高；跳动数字用 `data-num-ghost` 防抖动。
@@ -91,3 +91,7 @@
   - `--measure-wide: 1152px`（Dataset 宽表、PPT 工作区、Goals 画布/看板、Workflows 链）
 - **详情顶栏 `.plugin-stage-detail-bar`**：锁死 `48px` 单行（返回 + 标题 + 最多 1 主 1 次 + `···` 更多菜单），**严禁设 `overflow-x: auto` 裁切弹层菜单**。
 - **代码对照 `.mw-diff`**：左右分栏模式（`.mw-diff-split`）故意保持同行对齐几何，不在 `@container` 下纵向折成单列，以守住代码行号与增删逐行对齐契约（`VUX-33`）。
+- **生成首页采用三原语（`@molis-ai/molis-work-design-system/home-page-adoption`，`/__ui/catalog` 登记）**：
+  - `renderCompareAdoptBar`（`.mw-compare-adopt-bar`）：并排对照底部决策条，左侧放检查摘要，右侧放退出/放弃与唯一主按钮「采用…（↵）」；主按钮内 `.mw-kbd` 须走高对比度反色样式。
+  - `renderCheckSummary`（`.mw-check-summary`）：可点击展开的检查状态标与详情浮层，逐项配 `renderStateRing`（未通过用 `state: "failed"`，非 `blocked` 空心圆）与直白说明；对照底条内用 `placement: "up"`。
+  - `renderEditConflict`（`.mw-edit-conflict`）：手动修改与新草稿的字段级对照卡，琥珀色提示 + 双侧对照（容器 ≤360px 自动折单列）+ 三选一处理按钮（均为次级/轻按钮，不与平面主按钮竞争）；选完收成一行静默确认与「改选」链接。

@@ -55,7 +55,7 @@ function upgradeV1SessionClearMarkers(db: SqliteBaselineDatabase): void {
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
     const plan = parsed as { version?: unknown; binding?: { current_scene?: unknown; target?: Record<string, unknown> } };
     const target = plan.binding?.target;
-    if (plan.version !== 1 || !target || typeof target !== "object" || Array.isArray(target)) continue;
+    if (plan.version !== /* @version format.memory.session-clear-plan */ 1 || !target || typeof target !== "object" || Array.isArray(target)) continue;
     if (typeof target.kind !== "string" || target.kind === "assistant" || plan.binding?.current_scene !== target.kind) continue;
     if (typeof target.plugin_id === "string" && typeof target.provider_id === "string") continue;
     if (!Object.hasOwn(PRE_PROVIDER_SESSION_SCENES, target.kind)) continue;

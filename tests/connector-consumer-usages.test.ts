@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { connectorPluginSlotUsages, connectorUsagesAction, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { ensureSystemAgentService, connectorPluginSlotUsages, connectorUsagesAction, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import type { ActionCallContext, ActionClient, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineConnectorUsagesAction, type ConnectorUsage } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -15,6 +15,38 @@ const caller: ActionCallContext = { actor_id: "consumer-reader", audience: "agen
   permissions: ["connectors:management:read", "images:connections:read", "images:connections:write", "images:generate", "images:files:write", "model:invoke", "feed:read", "feed:write", "functions:manage", "functions:invoke"] };
 type Usage = Omit<ConnectorUsage, "actions"> & { source: ActionReference; actions: Array<ConnectorUsage["actions"][number] & { available: boolean; reason?: string }> };
 const read = (client: ActionClient, connection_id: string, context = caller) => client.invoke(context, connectorUsagesAction, { connection_id }) as Promise<{ usages: Usage[]; issues: string[] }>;
+
+test("BL-1050 the connections page counts saved Coding MCP settings in the visible projects, including disabled settings", async t => {
+  const home = await openTestHome(t), a = await home.createProject("First"), b = await home.createProject("Second");
+  const library = await ensureSystemAgentService(home.host, home.home).mcpLibrary();
+  assert.ok(library);
+  const owner = (project_id: string) => ({ project_id, plugin_id: "io.molis.work.coding" });
+  const endpoint = "https://mcp.example.test/tools";
+  const accounts = withConnectorConnections(home.home, store => ["A", "B"].map(displayName => {
+    const row = store.createToken({ serviceId: "mcp-bearer", displayName, token: "fixture-coding-usage-key" });
+    store.assertTarget(row.connection_id, "mcp-bearer", endpoint);
+    return row.connection_id;
+  }));
+  const input = { expected_version: 0, transport: "http" as const, enabled: true, timeout_ms: 1000, endpoint,
+    label: "Notes", auth: { kind: "connection" as const, connection_id: accounts[0]! } };
+  const first = await library.save(owner(a.project_id), input);
+  const second = await library.save(owner(b.project_id), { ...input, enabled: false });
+  const uses = async (project?: typeof a) => {
+    const result = await read(project ? home.host.actionClient(project.reference) : home.host.homeActionClient(),
+      accounts[0]!, { ...caller, project_id: project?.project_id ?? null });
+    return result.usages.filter(usage => usage.source.capability_id === "connectors.project_mcp.usages")
+      .map(({ usage_id, title, enabled, actions }) => ({ usage_id, title, enabled, actions })).sort((x, y) => Number(y.enabled) - Number(x.enabled));
+  };
+  const one = { usage_id: first.id, title: "First · Notes", enabled: true, actions: [] };
+  const two = { usage_id: second.id, title: "Second · Notes", enabled: false, actions: [] };
+  assert.deepEqual(await uses(), [one, two]);
+  assert.deepEqual(await uses(a), [one]);
+  assert.deepEqual(await uses(b), [two]);
+  await library.save(owner(a.project_id), { ...input, id: first.id, expected_version: first.version, auth: { kind: "connection", connection_id: accounts[1]! } });
+  assert.deepEqual(await uses(), [two]);
+  await library.control(owner(b.project_id), second.id, "remove");
+  assert.deepEqual(await uses(), []);
+});
 
 test("ASC-10 ASC-21: real model and image bindings are reported without keys, and rebinding never changes another account", async t => {
   const home = await openTestHome(t), client = home.host.homeActionClient();

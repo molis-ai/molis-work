@@ -219,7 +219,7 @@ export declare const CONNECTOR_USAGE_SCHEMA: {
     additionalProperties: boolean;
 };
 
-export declare const CONNECTOR_USES: readonly ["source_pull", "document_import", "assistant_read", "web_search", "category"];
+export declare const CONNECTOR_USES: readonly ["feed_source", "document_import", "assistant_read", "web_search", "category"];
 
 export type ConnectorAuthKind = "oauth" | "feishu" | "token" | "none";
 
@@ -345,6 +345,7 @@ export type ConnectorConnectionView = Pick<ConnectorConnectionRecord, "connectio
         readonly title: string;
     };
     readonly mcp_endpoint?: string;
+    readonly mcp_authentication?: "oauth" | "bearer" | "none";
     readonly agent_available?: boolean;
 };
 
@@ -357,7 +358,7 @@ export interface ConnectorDirectoryEntry {
     readonly auth_kind: ConnectorAuthKind;
     readonly group_id: ConnectorDirectoryGroupId;
     readonly summary: string;
-    readonly source_available?: boolean;
+    readonly feed_available?: boolean;
     readonly capabilities: readonly ConnectorCapability[];
     readonly unavailable_reason?: string;
     readonly outbound_note?: string;

@@ -1,8 +1,8 @@
-import { defineErrorCodes, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_CONNECTION_RECORD_KEY_MAX } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { PLUGIN_ID_PATTERN, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { defineConnectorUsagesAction, defineConnectorUsagesSwitchAction, type ConnectorConnectionView, type ConnectorUsage, type ConnectorUsagesInput, type ConnectorUsagesSwitchInput, type ConnectorUsagesSwitchResult } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { lastConnectorCheck, withConnectorConnections } from "./connector-connection-store.js";
+import { type ConnectorConnectionStore, lastConnectorCheck, withConnectorConnections } from "./connector-connection-store.js";
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 import { pinnedToAnother, pluginSlotScope, targetScope } from "./connector-plugin-requests.js";
 import { shownState } from "./connector-refresh-refusals.js";
@@ -23,7 +23,7 @@ const slot = {
 const metadata = { scope: "home", audiences: ["user"], subject_kinds: ["connector"] } as const;
 interface SlotInput { install_id: string; plugin_id: string; slot_id: string }
 interface RecordInput extends SlotInput { record_key: string }
-type BindInput<Input> = Input & { service_id: string; connection_id: string | null };
+type RecordBindInput = RecordInput & { service_id: string; connection_id: string | null; expected_connection_id?: string };
 const record = { ...slot, record_key: { type: "string", minLength: 1, maxLength: PLUGIN_CONNECTION_RECORD_KEY_MAX, pattern: "^[^/:\\u0000-\\u001f\\u007f]+$" } };
 const binding = { service_id: { type: "string", pattern: "^[a-z0-9-]{1,100}$" }, connection_id: { anyOf: [{ type: "string", pattern: "^[a-z0-9-]{1,100}$" }, { type: "null" }] } };
 const result = { type: "object", properties: { connection: { type: ["object", "null"] } }, required: ["connection"], additionalProperties: false };
@@ -61,8 +61,8 @@ export const connectorPluginSlotActions = {
   bindRecord: { capability_id: "connectors.plugin_slot.record.bind", version: /* @version action.connectors.plugin_slot.record.bind */ 1, operation: "command", action: { ...metadata, scope: "project",
     title: "为插件的一条记录选择账号", description: "在本项目里，把本人的一条已连通的服务连接绑定到插件安装按记录绑定的连接槽上的一条记录，或传 connection_id: null 解除绑定。只认这个项目（或 Home）里安装、在 Manifest 里声明为 per_record 的槽。插件看不到凭据。",
     kind: "operation", effect: "write", permissions: [CONNECTOR_MANAGEMENT_WRITE],
-    input_schema: { type: "object", properties: { ...record, ...binding }, required: ["install_id", "plugin_id", "slot_id", "record_key", "service_id", "connection_id"], additionalProperties: false },
-    output_schema: result } } as ActionDefinition<BindInput<RecordInput>, { connection: ConnectorConnectionView | null }>,
+    input_schema: { type: "object", properties: { ...record, ...binding, expected_connection_id: { type: "string", pattern: "^[a-z0-9-]{1,100}$" } }, required: ["install_id", "plugin_id", "slot_id", "record_key", "service_id", "connection_id"], additionalProperties: false },
+    output_schema: result } } as ActionDefinition<RecordBindInput, { connection: ConnectorConnectionView | null }>,
 };
 
 /**
@@ -92,6 +92,12 @@ function recordScope(caller: ActionCallContext, input: RecordInput): string {
   return targetScope({ install_id: input.install_id, project_id: caller.project_id, record_key: input.record_key });
 }
 
+function assertSlotSwitchTarget(home: string, store: ConnectorConnectionStore, connectionId: string, installId: string): void {
+  const now = store.get(connectionId);
+  if (!now || shownState(home, now, store.state(now), lastConnectorCheck(store, connectionId)) !== "connected") throw switchErrors.target_unavailable("要换成的账号现在不可用，请先连好它");
+  if (pinnedToAnother(store, connectionId, installId)) throw pluginSlotErrors.connection_pinned("要换成的账号是为另一个插件建的");
+}
+
 export function connectorPluginSlotHandlers(home: string, directory: PluginSlotDirectory = noInstallations): ActionHandlerBinding[] {
   return [
     { capability_id: connectorPluginSlotActions.read.capability_id, version: connectorPluginSlotActions.read.version, handle: (_caller, input) => ({ connection: bound(home, input as SlotInput) }) },
@@ -109,11 +115,15 @@ export function connectorPluginSlotHandlers(home: string, directory: PluginSlotD
       return { connection: bound(home, input, recordScope(caller, input)) };
     } },
     { capability_id: connectorPluginSlotActions.bindRecord.capability_id, version: connectorPluginSlotActions.bindRecord.version, handle: async (caller, value) => {
-      const input = value as BindInput<RecordInput>, scope = recordScope(caller, input);
+      const input = value as RecordBindInput, scope = recordScope(caller, input);
+      if (input.expected_connection_id !== undefined && input.connection_id === null) throw new ActionError("actions.input_invalid", "换用时请选择新账号");
       if (input.connection_id !== null) await assertDeclared(directory, caller, input, "per_record");
       await caller.beforeEffect();
-      withConnectorConnections(home, store => input.connection_id === null ? store.unbind(scope, input.plugin_id, input.slot_id)
-        : store.bind({ scopeId: scope, pluginId: input.plugin_id, slotId: input.slot_id, serviceId: input.service_id, connectionId: input.connection_id }));
+      withConnectorConnections(home, store => {
+        if (input.connection_id === null) return store.unbind(scope, input.plugin_id, input.slot_id);
+        if (input.expected_connection_id !== undefined) assertSlotSwitchTarget(home, store, input.connection_id, input.install_id);
+        store.bind({ expectedConnectionId: input.expected_connection_id, scopeId: scope, pluginId: input.plugin_id, slotId: input.slot_id, serviceId: input.service_id, connectionId: input.connection_id });
+      });
       return { connection: bound(home, input, scope) };
     } },
   ];
@@ -203,12 +213,14 @@ export function connectorPluginSlotSwitchHandler(home: string, directory: Plugin
         // Asked again at the write, in the one open this use takes: the account switched to may have been disconnected, marked (S-70)
         // or pinned to another package meanwhile, and the slot may have been bound to something else.
         withConnectorConnections(home, store => {
-          const now = store.get(to.connection_id);
-          if (!now || shownState(home, now, store.state(now), lastConnectorCheck(store, now.connection_id)) !== "connected") throw switchErrors.target_unavailable("要换成的账号现在不可用，请先连好它");
-          if (pinnedToAnother(store, to.connection_id, use.install_id)) throw pluginSlotErrors.connection_pinned("要换成的账号是为另一个插件建的");
+          assertSlotSwitchTarget(home, store, to.connection_id, use.install_id);
+          let switched = false;
           for (const scope of use.scopes) {
-            if (store.binding(scope, use.plugin_id, use.slot_id)?.connection_id === input.from_connection_id) store.bind({ scopeId: scope, pluginId: use.plugin_id, slotId: use.slot_id, serviceId: to.service_id, connectionId: to.connection_id });
+            if (store.binding(scope, use.plugin_id, use.slot_id)?.connection_id !== input.from_connection_id) continue;
+            store.bind({ expectedConnectionId: input.from_connection_id, scopeId: scope, pluginId: use.plugin_id, slotId: use.slot_id, serviceId: to.service_id, connectionId: to.connection_id });
+            switched = true;
           }
+          if (!switched) throw pluginSlotErrors.usage_missing("这个账号没有这处使用位置");
         });
         result.switched.push(use.usage_id);
       } catch (error) { result.refused.push({ usage_id: use.usage_id, code: refusalCode(error, pluginSlotErrors.switch_failed) }); }

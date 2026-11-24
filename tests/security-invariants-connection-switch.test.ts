@@ -126,9 +126,17 @@ test("S-108 RAC-2944 a plugin slot is switched only where binding it would pass:
   assert.deepEqual(report.switched, [usage("install-declared", plugin_id, "account")]);
   assert.deepEqual(report.refused.map(entry => entry.code).sort(), ["connector.plugin_slots.project_required", "connector.plugin_slots.slot_undeclared"]);
   assert.equal(bound(), 2, "the undeclared slot and the record stay on the first account");
-  // In the record's own project the person can switch it.
-  const inProject = await call({ ...user, project_id: "project-1" }, { to_connection_id: c!.connection_id, usage_ids: [usage("install-declared", plugin_id, "repos", "project-1")] });
-  assert.deepEqual(inProject.switched, [usage("install-declared", plugin_id, "repos", "project-1")]);
+  // BL-921: both requests discover the same record before either commits. Only the winner can report it switched.
+  const recordUse = usage("install-declared", plugin_id, "repos", "project-1");
+  const input = { from_connection_id: a.connection_id, to_connection_id: c!.connection_id, usage_ids: [recordUse] };
+  const projectCaller = { ...user, project_id: "project-1" };
+  const stale = await handler.handle({ ...projectCaller, beforeEffect: async () => {
+    const winner = await call(projectCaller, input);
+    assert.deepEqual(winner.switched, [recordUse]);
+  } } as never, input);
+  assert.deepEqual(stale, { switched: [], refused: [{ usage_id: recordUse, code: "connector.plugin_slots.usage_missing" }] });
+  const recordScope = pluginBindingScope({ install_id: "install-declared", project_id: "project-1", record_key: "repo-1" });
+  assert.equal(withConnectorConnections(home, store => store.binding(recordScope, plugin_id, "repos"))?.connection_id, c!.connection_id);
 });
 
 test("S-108 RAC-2945 a switch called off part way changes nothing more: what was switched stays, what was not is left", { timeout: 30_000 }, async t => {

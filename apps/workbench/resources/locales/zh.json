@@ -3627,7 +3627,6 @@
     "workbench.connectors-settings.client-operation-did-not-finish-check-its-prompt": "客户端操作未完成。请查看提示后重试。",
     "workbench.connectors-settings.client-ready-can-sign": "客户端已就绪，可以登录。",
     "workbench.connectors-settings.client-wasn-t-detected-install-following-official-instructions": "尚未检测到客户端，请按官方说明安装后重试。",
-    "workbench.connectors-settings.coding-s-mcp-settings-can-t-be-checked": "Coding 的 MCP 设置这里还查不到；如果那里选了「{name}」，请到那里改选这条。",
     "workbench.connectors-settings.confirm-removal": "确认移除",
     "workbench.connectors-settings.connected-carry-molis-work-window-can-close-page": "已连上。回到 Molis Work 的窗口继续；这一页可以关掉。",
     "workbench.connectors-settings.connected-count-tool-s-available": "已连接，可用工具 {count} 个。",

@@ -1,4 +1,4 @@
-import type { PluginInstanceRecord, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SqlitePluginRuntimeRepository, type PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { forgetInDirectoryPass, rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
 

@@ -11,6 +11,8 @@
 | BL-1051 | 已完成并删除 | 自定义 MCP 重登预填认证方式，令牌和客户端密钥框留空。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
 | BL-1000 | 已完成并删除 | 2026-11-23：修复模型和 HTTP 替身的逐块 UTF-8 转换，真实 HTTP 分别切开中文和 emoji，逐字核对收到的正文。[验收记录](../specs/archive/test-fixture-utf8-linux-head/spec.md#bl-1000) |
 | BL-linux-repro-source-head | 已完成并删除 | 2026-11-23：Linux 回归取源、检出失败即停，在构建和测试前核对并记录实际提交。[验收记录](../specs/archive/test-fixture-utf8-linux-head/spec.md#验收记录) |
+| BL-989 | 已修复并删除 | 2026-11-24。项目设置读取与永久删除交错时，目录库确认项目已不存在后，设置请求返回 404（`catalog.project_not_found`）。目录库仍有项目时保留数据库打开失败的诊断。回归核对目录库记录、项目文件和同一删除请求的回执。 [#2283](https://github.com/molis-ai/molis-work/pull/2283) |
+| BL-secret-entry-storage-code | 已修复并删除 | 2026-11-24。本机凭据条目格式错误和解密失败分别返回 `storage.secret_entry_invalid` 和 `storage.secret_entry_decryption_failed`。MCP 调用保留对应的错误码和恢复提示。凭据快照沿用其完整性错误码。 [#2283](https://github.com/molis-ai/molis-work/pull/2283) |
 | BL-1040 | 已完成并删除 | 第 27 批 [#2010](https://github.com/molis-ai/molis-work/pull/2010) 已在没有远端时隐藏「建 PR…」，三种 Git 状态提示均为普通文字。2026-11-23 在隔离 Home 复验并补上无远端时中英文无障碍树都没有 PR 入口、已有暂存文件仍可本地提交的断言（`tests/git-source-controls.e2e.test.ts`）。 |
 | BL-1037 | 已完成并删除 | 2026-11-23 在主干 `8192cc7b10` 的 Goals 调用链打开空项目的 Goals 与画布，没有新增 `goals.stage.read` 输入不合法的「未执行」记录。`tests/goals-momentum.e2e.test.ts` 直接读取隔离 Home 的调用记录并断言这一点。 |
 | BL-coding-change-reader-narrow-toolbar | 已完成并删除 | 2026-11-23 Coding 固定变更阅读器的工具条随可用宽度换行，选中的长路径在行内省略，底色收在清单框内。`tests/code-diff-reader.e2e.test.ts` 在中英文、明暗色下检查横向边界，并在 390 px 验证「设为变更输出」可用 Tab 到达且点击会发出请求。 |

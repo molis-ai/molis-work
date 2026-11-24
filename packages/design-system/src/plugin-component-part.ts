@@ -33,7 +33,8 @@ export function pcSubmit(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry) {
             }
             const need = node.connectionNeed, recordField = need.kind === 'image' ? undefined : need.recordField;
             const source = recordField && node.submit!.input[recordField];
-            const key = source && (source.source === 'literal' ? source.value : source.source === 'form' ? values[source.field] : c.at(payload.selection[source.componentId], source.field));
+            const key = source && (source.source === 'literal' ? source.value
+              : c.at(source.source === 'selection' ? payload.selection[source.componentId] : values, source.field));
             if (recordField && typeof key !== 'string') {
               report(part, 'error', t.text("common.generated.input-preserved"));
               return;

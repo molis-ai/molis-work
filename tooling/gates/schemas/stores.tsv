@@ -18,6 +18,7 @@ external-sessions/external-sessions.db	horizontal/sessions	2	eabec6a25b46795b	1
 feed-content/feed-content.db	io.molis.work.feed	1	0a6d43d10416d5ee	-
 form/form.db	io.molis.work.form	1	0e3c9d4717792190	-
 functions/functions.db	modules/functions	2	e8e455da5a281ae8	1
+home-pages/home-pages.db	horizontal/home	1	b9566d6fb909a746	-
 images/images.db	io.molis.work.images	1	0eb943ac8d0c510e	-
 issues/issues.db	io.molis.work.issues	1	2ebbffe4d0eb92a4	-
 jelly/jelly.db	io.molis.work.jelly	1	f8ed975502abc63b	-

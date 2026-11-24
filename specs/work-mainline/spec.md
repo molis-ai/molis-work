@@ -201,6 +201,9 @@
    - 别的事项等你的不藏：卡叠最后一张写还有几件。
    - 每件事项有自己的助理主对话（改助理的工作合同，走合同流程）。
    没选的：留在线头；放在输入框上沿（第五到第十二版试过的几种）。主线服务的合同一处不改，改的只有页面画它的位置；页面这一侧归第 36A 批的壳层和第 37 批第 2 项。
+6. **第 37 批补齐交互定样与合同定稿**（用户 2026-11-23 弹窗拍板，原型 [`docs/design/batch-37-workbench/`](../../docs/design/batch-37-workbench/README.md)）：
+   - **选方案 A**：左上角切换器右列底部**内联新建事项**（轻量事项或已声明创建动作的来源插件）+ **阅读节奏轻量事项第一页**（对齐 36A 第一页；含决定 66 左列「个人空间」置顶与右栏保留「讨论 / IM」R21、空态可一键清除示例）；否掉方案 B（弹窗新建 + 四格看板轻量事项页）。
+   - **同意每件事项助理主对话合同设计稿**（[assistant-main-contract-design.md](assistant-main-contract-design.md)）：阶段一原位在 `AssistantWork` / `AssistantSendInput` 增加可选 `work_item_id?: string`，经 `system.mainline` 核验，不动 `assistant.db` 表结构。
 
 ## 10. 验收标准
 
@@ -227,3 +230,37 @@
 21. **MLN-21** 轻量事项「变成」某个声明了创建动作的来源对象（例如待办；装着 Goals 时也验 Goal）后，装的东西一件不少，名字改向来源对象读；在来源对象里改名，事项随之改。
 22. **MLN-22** 事项容器的合同里没有状态流、负责人、截止、评论这类字段；要这些只能变成插件对象。
 23. **MLN-23** 列表菜单顶上列最近切过的 3 件（不含已完成）；各组默认折叠，组头显示件数与等你的件数，展开状态刷新后保持；输入搜索词时各组不折叠，列出匹配项。
+
+## 11. 第 37 批开工前检查（37-1 与 37-2 共用，2026-11-23）
+
+对应[路线书第 37 批](../post-anticorruption-roadmap/reference/batches/37.md)全部两项交付（37-1 生成页面运行、采用与恢复，原需求 [scene-and-page-contract](../scene-and-page-contract/spec.md) §6、[onboarding-coverage](../onboarding-coverage/spec.md) §3.10、[work-brief](../work-brief/spec.md) §1.3；37-2 事项切换与工作台状态，原需求本书与 [work-line](../work-line/spec.md)）。
+
+### 11.1 15 项开工前检查
+
+| # | 结论 |
+| --- | --- |
+| 1 事实主人 | 37-1：项目选哪个首页、生成页面定义/版本/文件摘要与每版获准动作归新平台服务 `horizontal/home`（`system.home`）；页面读写业务事实一律经公开动作归原主人。37-2：事项容器/排列/当前事项/装进关联归 `horizontal/mainline`（已有）；按事项的工作台 UI 状态（页签、分屏、右侧视图、停靠卡、焦点）归工作台本机状态（在 PFG-22 同一份结构上加按事项一层）；每件事项的助理主对话归助理服务（`work_item_id` 标归属）。无第二主人。 |
+| 2 插件同等待遇 | 37-1：生成页面不是插件，不进插件目录与市场；调用任何内置或第三方插件动作都走同一页面网关与 `plugin` 受众核对。37-2：事项来源由插件 Manifest 呈现声明的 `item` 驱动，Goals、Coding 与第三方插件走同一套 `mainline.read@1` 与动作目录；没装 Goals 的项目所有主线与切换功能照常，并用无 Goals 夹具验证。 |
+| 3 能力注册 | 37-1：`system.home` 注册 `packages/contracts/src/services/home.ts` 既定的 8 个动作（`home.read@1`、`home.pages.drafts.save@1`、`home.pages.preview@1`、`home.pages.adopt@1`、`home.pages.restore@1`、`home.select@1`、`home.pages.diff@1`、`home.pages.files.read@1`），页面/助理/工作流共用同一份，无 MCP 工具；可信身份从调用上下文来。37-2：全部事项操作经已注册的 `system.mainline` 公开动作（`mainline.*@1`、`mainline.line.read@1` 等），工作台只经 `person-action-http` 代理调用，不绕过动作目录。 |
+| 4 合同 | 37-1：复用第 20 批已落地的 `contracts/services/home.ts`（将 `servicesHomeContract.maturity` 升为 `"partial"`，无破坏性形状变化），并在 `contracts/platform/actions.ts` 为 `ActionCallContext` / `ActionExecutionContext` 增加运行态可选只读字段 `home_page` / `parent_action`。37-2：按[合同设计稿](assistant-main-contract-design.md)在 `contracts/services/assistant.ts` 为 `AssistantWork` 与 `AssistantSendInput` 新增可选 `work_item_id?: string`，阶段一原地扩充并刷新快照，同 PR 改完所有消费者。 |
+| 5 放在哪个包 | 37-1：新建平台服务 `horizontal/home`（`@molis-ai/molis-work-service-home`，遵循用户 2026-11-01 规定，不进宿主），宿主只做装配与页面网关接入，外壳负责 `srcdoc` CSP 装配与第一页挂载 UI。37-2：工作台外壳与客户端脚本落在 `apps/workbench`，HTTP 转发补齐 `apps/local-host/src/mainline-http.ts`，助理归属落在 `apps/local-host/src/assistant/`。 |
+| 6 表与存储 | 37-1：按用户 2026-11-23 拍板，改为独立 Home 级 SQLite 库 `home-pages/home-pages.db`（`HOME_PAGES_HOME_STORE`，v1，按 `project_id` 隔离，不动 `PROJECT_DATABASE_BASELINE` 版本），表独占归 `horizontal/home`；删项目经 `project-deleted-owners.ts` 清理，Home 快照经 `homeStores()` 自动覆盖。37-2：复用 `horizontal/mainline` 既有 `mainline/mainline.db`（v1 不动）与 `assistant/assistant.db`（JSON body 不动表结构）。 |
+| 7 兼容与迁移 | 不新增历史兼容读取或数据迁移逻辑；`home-pages/home-pages.db` 为全新 v1 库。 |
+| 8 安全边界 | 37-1：新增并实测三条安全不变量 `S-home-page-files`（双重 SHA-256 + 仅 `files.read` 送达 + 哈希白名单 CSP + `connect-src 'none'` + 禁 `unsafe-inline`/`unsafe-eval`）、`S-home-page-authority`（仅 `page_session_id` 解析主体、声明 ∩ 批准交集、仅 `plugin` 受众、锁本项目、试用主体只读）、`S-home-page-approval`（`adopt`/`restore` 仅顶层本人调用、拒绝嵌套、换版/切项目后旧在途调用在 `beforeEffect()` 拒写）。37-2：助理 `work_item_id` 经 `system.mainline` 以调用方身份核验，拒绝伪造/跨项目/个人范围传入；`mainline` HTTP 路由沿 `person-action-http` 拒绝插件页代调。 |
+| 9 调用次数 | 37-1：打开第一页合并一次 `home.read@1`（无生成页面时不读文件正文），仅当前选定页面或预览时各读一次 `files.read@1`；不轮询。37-2：主线切换器一次 `mainline.read@1({ counts: true })` 拿全部分组、来源与每项等你/在办数；切事项时 `attention` 带当前 `item` 读一次线（同时返回三清单与任务表），不按事项逐条循环请求，不加新轮询。 |
+| 10 升级与数据 | 全新 `home-pages/home-pages.db`（v1）不改动任何既有项目库或 Home 库结构，已有项目数据、引用与设置全部保留并可继续使用；同步登记 `tooling/versions.json`、`docs/releases/CHECKLIST.md` 第 3 节、`docs/system/HOME-DATA.md` 与 `home-stores.ts`。 |
+| 11 成果与过程项 | 不涉及：生成页面归平台首页服务、事项容器归主线服务，均不是成果库固定产物或插件间过程项。 |
+| 12 页面、外壳与文字 | 37-1 挂在 36A「项目的第一页」正文位（Work Brief 开头在上，删旧细栏「看基础首页」）；37-2 接左上角「项目 › 事项」与 36A 底栏第十三版，不新开全局左栏、不自造第二套基础控件；新增 3 件组件板标本（对照采用条、检查摘要、改动对照）先上 `/__ui/catalog`；全部文字走 `workbench.*` 稳定键与中英双语词典，颜色/字号/曲线全走语义变量，文案过 `audit-ui-copy` 与 `translations` 门禁。 |
+| 13 错误 | `horizontal/home` 新增错误码使用 `defineErrorCodes("home", …)`，登记进 `tooling/gates/error-owners.json`，不新增 `Error` 子类。 |
+| 14 冲突面 | 新建 `horizontal/home`（C3 独占）；改 `apps/local-host/src/plugin-page-authority.ts`、`plugin-page-actions.ts`、`project-database-schema.ts`、`mainline-http.ts`、`assistant/`、`apps/workbench/src/`、`packages/design-system/`、`packages/contracts/src/services/assistant.ts`。已核 `#1743`：当前在途 `batch/44b` 不占 `horizontal/home`、`services/assistant` 与 `top-corner`/第一页正文位；`111` 落地个人空间置顶时与本批切换器对齐。 |
+| 15 全局最优 | **插件**：任何声明 `item` 的内置/第三方插件自动接入事项与「这件事的东西」；任何插件公开动作均可被生成页面按批准调用。**平台**：首页服务独立 `horizontal/home`，页面网关复用 `plugin-page-authority` 扩展主体类型而非另起一套沙箱网关。**助理**：助理可调用 `home.pages.drafts.save@1` 写草稿、调用 `mainline.*@1` 管事项，并按 `work_item_id` 隔离每事项主对话。**各类平台能力**：复用 `surfaces.compose@1`、呈现声明、`placement` 关联、`observation` 记录与 `design-system` 组件板。**后续开发**：第 45 批直接消费 `system.home` 完成场景引导生成首页闭环，第 `91A`（`91-3`）直接在 `37-2` 的每事项主对话上接 SSE 流，第 `111` 批在左上角切换器左列直接承接个人空间置顶。 |
+
+### 11.2 平台能力检查（开发流程 §4.1）
+
+1. **别的插件会不会也要做？** 会：第 45 批场景包引导需要生成/采用首页；全部业务插件需要被「放进事项」或声明为事项来源；助理与 MCP 需要读写主线与保存首页草稿。
+2. **平台里有没有现成的？** 有：首页合同（`contracts/services/home`）、SDK 草稿校验（`inspectHomePageDraft`）、插件隔离框架（`plugin-frame`）、主线服务（`horizontal/mainline`）与组合呈现（`horizontal/surfaces`）均已存在，本批直接补齐缺失的 `horizontal/home` 服务实现与工作台壳层接线，不造第二套。
+3. **是不是插件协作问题？** 是：「放进事项」「这件事的东西」与生成页面跨插件调动作均走平台公开合同与动作目录，不按插件名点对点接线。
+4. **第三方插件能不能同样做到？** 能：声明 `item` 即可出现在「设为事项 / 建成 xx」，声明公开动作即可被生成页面申请与批准。
+5. **助理和 Agent 能不能发现、调用？** 能：`home.read` / `home.pages.drafts.save` 与 `mainline.*` 全部在动作目录注册，`adopt`/`restore` 按安全不变量限本人顶层确认。
+
+**结论**：**用现成的 + 收进平台**——补齐既定的 `horizontal/home` 平台服务、在既有 `plugin-page-authority` 扩展 `home-page` / `home-page-preview` 页面主体、在既有 `services/assistant` 补 `work_item_id`，不写宿主私有分支。

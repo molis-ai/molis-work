@@ -55,6 +55,11 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const away = (hit) => home || (Boolean(hit.project_id) && Boolean(projectId) && hit.project_id !== projectId);
   let scope = (() => { try { const saved = sessionStorage.getItem("molis-work:search-scope"); return scopes.includes(saved) ? saved : scopes[0]; } catch { return scopes[0]; } })();
   let hits = [];
+  let workItems = [];
+  document.addEventListener("molis-work:work-item-changed", (event) => {
+    const items = event?.detail?.items;
+    if (Array.isArray(items)) workItems = items;
+  });
   let selected = 0;
   // This opening of the palette as one interaction of the work records: what it showed, what was chosen, how finding it went.
   let interaction = null, presented = false, chose = false;
@@ -154,10 +159,19 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     pendingRender = false;
     const previous = explicit && hits[selected];
     const query = remote.query;
+    const q = query.toLowerCase();
+    const matchedItems = home ? [] : takeSearchHits(
+      workItems
+        .filter((item) => item.state === "ok" && (!item.completed || Boolean(q)))
+        .map((item) => ({ kind: "work_item", id: item.item_id, title: item.name, plugin: globalThis.t.text("workbench.global-search.work-items"), search: item.name.toLowerCase() })),
+      q,
+      6,
+    );
+    const itemGroup = matchedItems.length ? [{ label: globalThis.t.text("workbench.global-search.work-items"), items: matchedItems }] : [];
     const groups = localGroups(query);
     const content = remoteGroups();
-    // Content first when the words find something; tools stay reachable after it.
-    const ordered = [...content, ...groups];
+    // Work items first in ⌘K (specs/work-mainline §4.1), then content hits, then tools.
+    const ordered = [...itemGroup, ...content, ...groups];
     const noContent = query && !content.length && remote.status === "done";
     // Asking the Assistant is a separate, explicit button: it is not a result, and Enter on no results starts nothing.
     const ask = noContent && typeof askAssistant === "function"
@@ -321,6 +335,11 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     if (!item) return;
     const chosen = interaction, subject = chosen ? subjectOf(item) : null;
     chose = true; chosen?.chosen(subject, hits.indexOf(item));
+    if (item.kind === "work_item") {
+      close();
+      requestAnimationFrame(() => document.dispatchEvent(new CustomEvent("molis-work:work-item-switch", { detail: { item_id: item.id } })));
+      return;
+    }
     if (item.kind === "plugin") {
       close();
       requestAnimationFrame(() => { openPlugin?.(item.id); mobileDocument(); });

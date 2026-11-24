@@ -16,6 +16,7 @@ import type { PageActionRequest } from "./plugin-page-actions.js";
 import { installedPageRelease, sameInstalledRelease } from "./installed-stage-identity.js";
 import { pageSurfaceSlotState, type SurfaceSlotSource } from "./surface-slot-state.js";
 import type { RuntimeStageOwner } from "./project-plugin-stages.js";
+import { HOME_PAGE_SESSION_HEADER, HomePageSessionRegistry } from "./home-page-authority.js";
 export { installedPageRelease };
 
 type PageRelease = ReturnType<typeof installedPageRelease>;
@@ -159,6 +160,7 @@ export class PluginPageAuthority {
   private readonly activations = new Set<Activation>();
   private readonly pages = new Map<string, Page>();
   private readonly texts = new Map<string, TextGrant>();
+  readonly homePages = new HomePageSessionRegistry();
   constructor(private readonly storageScope: string = randomUUID()) {}
 
   connect(activation: Activation): () => void {
@@ -270,6 +272,7 @@ export class PluginPageAuthority {
   clearProject(projectId: string): void {
     for (const [id, page] of this.pages) if (page.project_id === projectId) this.close(id);
     for (const [id, grant] of this.texts) if (grant.project_id === projectId) this.texts.delete(id);
+    this.homePages.clearProject(projectId);
   }
 
   private expire() {
@@ -352,6 +355,10 @@ export class PluginPageAuthority {
   /** The shared transport guard calls this before any route, including management and static resources. */
   async bind(request: IncomingMessage, url: URL, response?: ServerResponse): Promise<(() => void) | undefined> {
     const contextual = request.headers["x-molis-context-page"], id = contextual ?? request.headers["x-molis-plugin-page"];
+    if (request.headers[HOME_PAGE_SESSION_HEADER] !== undefined) {
+      if (id !== undefined) throw refused();
+      return this.homePages.bind(request, url, response);
+    }
     if (id === undefined) return;
     const page = typeof id === "string" ? this.pages.get(id) : undefined;
     if (!page || page.closing) throw refused();

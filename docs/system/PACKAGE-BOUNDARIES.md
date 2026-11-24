@@ -266,6 +266,7 @@ Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public en
 | `horizontal/automation-recommender` | 横向 | 5 | 413 | `scan.ts` 150 | 1 | 3 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/connector-host` | 横向 | 6 | 897 | `connection-store.ts` 452 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `horizontal/evaluation` | 横向 | 11 | 2,428 | `rules.ts` 553 | 1 | 3 | 1 | 在用 | 中 | 待审 |
+| `horizontal/home` | 横向 | 4 | 1,291 | `store.ts` 760 | 1 | 3 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/kit` | 横向 | 1 | 224 | `index.ts` 224 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/knowledge` | 横向 | 11 | 1,388 | `index.ts` 426 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/mainline` | 横向 | 1 | 269 | `index.ts` 269 | 1 | 2 | 1 | 在用 | 浅 | 待审 |

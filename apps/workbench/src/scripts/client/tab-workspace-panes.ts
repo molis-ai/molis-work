@@ -12,7 +12,22 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
   const notifyParent = (type, payload = {}) => { if (embedded) parent.postMessage({ type, paneId: paneParams.get("workbenchPane"), ...payload }, location.origin); };
   const narrow = () => matchMedia("(max-width: 760px)").matches || root.hasAttribute("data-split-narrow");
   const paneById = (id) => state.panes.find((pane) => pane.id === id);
-  const persist = () => { if (embedded) return; try { localStorage.setItem(storageKey, JSON.stringify(state)); unsaved = false; } catch { if (!unsaved) showToast?.(globalThis.t.text("workbench.tab-workspace-panes.layout-could-not-be-saved-device-after-reload"), true); unsaved = true; } };
+  const persist = () => {
+    if (embedded) return;
+    try {
+      if (currentWorkItemId) {
+        const all = readItemLayouts();
+        all[currentWorkItemId] = { state, openRecords: { ...openRecords }, history: Object.fromEntries(tabHistory) };
+        localStorage.setItem(itemsStorageKey, JSON.stringify(all));
+      } else {
+        localStorage.setItem(storageKey, JSON.stringify(state));
+      }
+      unsaved = false;
+    } catch {
+      if (!unsaved) showToast?.(globalThis.t.text("workbench.tab-workspace-panes.layout-could-not-be-saved-device-after-reload"), true);
+      unsaved = true;
+    }
+  };
   const readView = (paneId, tabId) => ops.readView(state, paneId, tabId);
   const writeView = (paneId, view, tabId) => {
     if (!ops.writeView(state, paneId, view, tabId)) return false;

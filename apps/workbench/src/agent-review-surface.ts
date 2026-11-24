@@ -12,9 +12,8 @@ import { reviewChecks } from "./agent-review-checks.js";
  * The Host's review surface: where a user decides whether an Agent's side
  * effect may happen.
  *
- * Deciding lives here and nowhere else. It is deliberately not a Capability —
- * exposing it to Plugins would let a Plugin approve its own effect — so this
- * surface is the one place the decision exists.
+ * The session and work-line cards share the proposal renderer here. Only the
+ * Host's protected person entries can submit a decision to the review queue.
  */
 
 const GIT_TOOL_TITLES: Record<string, string> = { "git-commit": "workbench.agent-review.git-commit", "git-branch-create": "workbench.agent-review.new-branch", "git-branch-switch": "workbench.agent-review.switch-branch", "git-push": "workbench.agent-review.push", "git-pr-create": "workbench.agent-review.create-pr" };
@@ -127,13 +126,13 @@ export function reviewPhase(row: Pick<AgentReviewRow, "receipt">): AgentReviewPh
 
 /** Only a pending item can still be decided. Everything else is settled history. */
 export function isDecidable(row: AgentReviewRow): boolean {
-  return reviewPhase(row) === "pending" && readable(row.request.document) && (row.decisions.reject.available || row.decisions.approve.available);
+  return reviewPhase(row) === "pending" && isReviewDocumentReadable(row.request.document) && (row.decisions.reject.available || row.decisions.approve.available);
 }
 
-function readable(document: AgentReviewDocument): boolean {
+export function isReviewDocumentReadable(document: AgentReviewDocument): boolean {
   switch (document.kind) {
     case "git-integration": return typeof document.source?.directory === "string" && typeof document.target_directory === "string"
-      && typeof document.source?.base_commit === "string" && readable({ kind: "git-index", action: "stage", workspace_name: document.target_directory, files: document.files });
+      && typeof document.source?.base_commit === "string" && isReviewDocumentReadable({ kind: "git-index", action: "stage", workspace_name: document.target_directory, files: document.files });
     case "git-index": return ["stage", "unstage"].includes(document.action) && typeof document.workspace_name === "string"
       && Array.isArray(document.files) && document.files.length > 0 && document.files.every(file => typeof file.path === "string"
         && (file.before_text === null ? file.before_mode === null : typeof file.before_text === "string" && ["100644", "100755"].includes(file.before_mode ?? ""))
@@ -189,7 +188,7 @@ function reviewPriority(row: AgentReviewRow): number {
 }
 
 function reviewLabel(row: Pick<AgentReviewRow, "request">): string {
-  const document = row.request.document, documentReadable = readable(document);
+  const document = row.request.document, documentReadable = isReviewDocumentReadable(document);
   // The heading names the thing itself, so a history list reads without opening every row.
   return document.kind === "text-edit" ? document.target_path
     : document.kind === "command" && documentReadable ? [document.command, ...document.args].map(shellWord).join(" ")
@@ -231,7 +230,7 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
   const mark = reviewMark(row, phase);
   const history = ["done", "rejected", "cancelled", "expired"].includes(phase);
   const document = row.request.document;
-  const documentReadable = readable(document);
+  const documentReadable = isReviewDocumentReadable(document);
   const decidable = isDecidable(row);
   const label = reviewLabel(row);
   const labelClass = document.kind === "command" || document.kind === "text-edit" ? "agent-review-title agent-review-title--code" : "agent-review-title";
@@ -241,7 +240,7 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
       <span class="${labelClass}"${document.kind === "command" || document.kind === "text-edit" ? ' translate="no"' : ""}>${p.escape(label)}</span><span class="agent-review-plugin">${p.escape(row.request.plugin_id)}</span>
       <time>${p.escape(p.formatDate(row.request.requested_at))}</time>
     </header>${history ? "</summary>" : ""}
-    ${documentReadable ? renderDocument(document, p) : `<div class="agent-review-doc" data-agent-review-kind="${p.escape(document.kind)}"><p>${p.escape(uiText.text("workbench.agent-review.unreadable"))}</p></div>`}
+    ${documentReadable ? renderAgentReviewDocument(document, p) : `<div class="agent-review-doc" data-agent-review-kind="${p.escape(document.kind)}"><p>${p.escape(uiText.text("workbench.agent-review.unreadable"))}</p></div>`}
     ${renderFooter(row, decidable, p)}${history ? "</details>" : ""}
   </article>`;
 }
@@ -259,7 +258,7 @@ function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPri
     ? `<p class="agent-review-error">${say(row.decisions.approve.reason)}</p>` : "";
   if (decidable) {
     const reviewId = p.escape(row.request.review_id);
-    const canApprove = row.decisions.approve.available && readable(row.request.document);
+    const canApprove = row.decisions.approve.available && isReviewDocumentReadable(row.request.document);
     // New errors make sending them back the first choice; the person can still write the file as it is.
     const fix = row.request.document.kind === "text-edit" && row.request.run ? reviewChecks(row.request.document).note : undefined;
     // A round's own proposals (edits, commands, dispatches, MCP calls) of any plugin can be refused with a reason the round receives.
@@ -294,7 +293,7 @@ function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPri
   </footer>`;
 }
 
-function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives): string {
+export function renderAgentReviewDocument(document: AgentReviewDocument, p: Pick<AgentReviewPrimitives, "escape" | "icon">): string {
   switch (document.kind) {
     case "git-integration": return `<div class="agent-review-doc" data-agent-review-kind="git-integration">
       <p>${uiText("workbench.agent-review.integrate-workspace")}</p><dl><dt>${uiText("workbench.agent-review.source-directory")}</dt><dd>${p.escape(document.source.directory)}</dd><dt>${uiText("workbench.agent-review.destination-directory")}</dt><dd>${p.escape(document.target_directory)}</dd><dt>${uiText("workbench.agent-review.source-base")}</dt><dd>${p.escape(document.source.branch)} · ${p.escape(document.source.base_commit)}</dd></dl>
@@ -364,7 +363,7 @@ function shellWord(word: string): string {
 const DIFF_CONTEXT = 3;
 const DIFF_ROW_LIMIT = 600;
 /** A unified diff with context, so a reviewer reads what changes instead of two whole files. */
-function renderTextDiff(before: string | null, after: string, p: AgentReviewPrimitives): { html: string; added: number; removed: number } {
+function renderTextDiff(before: string | null, after: string, p: Pick<AgentReviewPrimitives, "escape">): { html: string; added: number; removed: number } {
   const diff = compareTexts(before ?? "", after);
   const rows = diff.ops.map(textDiffRow);
   const added = rows.filter(row => row.kind === "insert").length, removed = rows.filter(row => row.kind === "delete").length;

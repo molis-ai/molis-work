@@ -19,9 +19,18 @@ test("QEA-167 refreshing create choices preserves the unsaved draft, selected re
   await showGoalStageList();
   await click("[data-goal-stage-chrome] [data-open-create]");
   await waitFor("document.activeElement.name === 'title'");
+  // Measure the final layout without sampling the moving bottom edge. Motion itself is covered on the component board.
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   // BL-1055: all advanced fields are inside the shared fold, including the last priority field.
   await click("[data-create-form] [data-slot=collapsible] > summary");
   await waitFor("document.querySelector('[data-create-form] .mw-collapsible__body [name=priority]').checkVisibility()");
+  // The form sections already supply their own spacing. The fold adds no gaps or extra space below the last field group.
+  assert.equal(await evaluate(`(() => {
+    const fold = document.querySelector('[data-create-form] .create-more');
+    const groups = [...fold.querySelectorAll('.create-more-group')].map(node => node.getBoundingClientRect());
+    return groups.length > 1 && groups.every((box, i) => i === 0 || Math.abs(box.top - groups[i - 1].bottom) < 1)
+      && Math.abs(fold.getBoundingClientRect().bottom - groups.at(-1).bottom) < 1;
+  })()`), true);
   await evaluate(`(() => {
     const form = document.querySelector('[data-create-form]');
     form.elements.title.value = 'Unsaved draft';

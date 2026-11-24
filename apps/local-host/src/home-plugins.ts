@@ -118,6 +118,8 @@ export class HomePluginHost {
   }
   /** Whether this is a signed package installed in the Home (BL-628), as opposed to a plugin of the Host's build or one of its fixtures. */
   hasPackage(pluginId: string, retryUninstall = false): boolean { return this.installed?.recordFor(pluginId, retryUninstall) !== undefined; }
+  /** Whether an installed Home package's publisher is still trusted and its verified release is readable on disk (S-87). */
+  trustedPackageRelease(pluginId: string): boolean { return Boolean(this.installed?.releaseFor(pluginId)); }
   async projectReachConsents(): Promise<ProjectReachConsents> {
     await this.ready();
     const consent = this.installed?.projectReach;

@@ -35,8 +35,8 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // Any other caller's write through it keeps its content like any write.
   { owner: "service:gateway", fact: "action.call.draft_content", entries: ["workbench", "cli"], state: "by_rule", reason: "unsent_draft_not_kept" },
   { owner: "service:gateway", fact: "action.call.read_timing", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin"], state: "by_rule", reason: "reads_coalesced_per_minute" },
-  // `agent.instructions`, `agent.skill`, and `agent.materials` cover AgentTextMaterial.instruction_prompt_id resolution
-  // (e.g. `coding.auto-skill-catalog`) and parent-session short-handle (`s1..sN`) skill catalog reads.
+  // `agent.instructions`, `agent.skill`, and `agent.materials` cover `AgentTextMaterial.instruction_prompt_id` resolution
+  // for registered plugin material instructions and parent-session short-handle (`s1..sN`) skill catalog reads.
   ...AGENT_FACTS.map(name => ({ owner: "service:agent", fact: `agent.${name}`, entries: ["agent"], state: "complete" } as const)),
   // Round and compaction events plus receipts from skill authoring, trial replay and the shared plugin model action port.
   { owner: "service:agent", fact: "agent.usage", entries: ["agent", "workbench", "cli", "mcp", "workflow", "plugin", "host"], state: "complete" },

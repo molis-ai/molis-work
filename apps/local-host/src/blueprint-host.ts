@@ -10,7 +10,7 @@ import { projectRuntimeSettingOwner, runtimeSettingSnapshot } from "./project-ru
 import { restrictLocalCallerToHome } from "./local-web-actions.js";
 import { homePageOwner } from "./home-actions.js";
 import type { ContentAdoptionResult } from "@molis-ai/molis-work-contracts/platform/blueprints";
-import type { HomePageReadResult } from "@molis-ai/molis-work-contracts/services/home";
+import { homePageActions, type HomePageReadResult } from "@molis-ai/molis-work-contracts/services/home";
 import { systemSettingOwners } from "./system-setting-owners.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -152,8 +152,10 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
         approved: async (request_id, page, version) => {
           const result = await client.invoke(nested, readPage, { queries: [{ by: "approval_request", operation: "adopt", request_id }] }) as HomePageReadResult;
           const row = "results" in result && result.results[0];
-          return Boolean(row && row.kind === "receipt" && "approval" in row.receipt && row.receipt.operation === "adopt"
-            && row.receipt.selection.page_id === page && row.receipt.selection.version === version);
+          if (!row || row.kind !== "receipt" || !("operation" in row.receipt) || row.receipt.operation !== "adopt"
+            || row.receipt.selection.page_id !== page || row.receipt.selection.version !== version || !("current" in row) || !row.current) return undefined;
+          return { revision: row.receipt.revision, current: typeof row.current === "object" && "revision" in row.current ? String(row.current.revision) : "",
+            action: { capability_id: homePageActions.adopt.capability_id, version: homePageActions.adopt.version, provider_id: owner } };
         },
       } } : {}),
       discover: async () => discovered,

@@ -1,6 +1,7 @@
 import type { ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   HomePageApprovalReceipt,
+  HomePageApprovalReadResult,
   HomePageDiffResult,
   HomePageFilesResult,
   HomePageOverview,
@@ -75,29 +76,47 @@ export function mountHomePages(host: HomePagesUiHost) {
   let sceneApproval = query.get("homeApproval");
   let sceneOpened = false;
   const intentKey = "molis.home.decision:" + host.projectKey;
-  function decision(operation: string, ref: string, actions: readonly ExactActionReference[], revision: string) {
-    const signature = JSON.stringify([operation, ref, actions]);
-    try {
-      const old = JSON.parse(sessionStorage.getItem(intentKey) || "null");
-      if (old?.signature === signature) return { request_id: String(old.request_id), expected_revision: String(old.expected_revision) };
-    } catch { /* local persistence unavailable */ }
-    const request_id = operation === "adopt" && ref === sceneRef.page_id + "@" + sceneRef.version && sceneApproval
-      ? sceneApproval : crypto.randomUUID();
-    const next = { request_id, expected_revision: revision };
-    try { sessionStorage.setItem(intentKey, JSON.stringify({ signature, ...next })); } catch { /* storage unavailable */ }
-    return next;
+  type Intent = { operation: "adopt" | "restore" | "basic"; ref: string; actions: readonly ExactActionReference[]; request_id: string; expected_revision: string };
+  let pending: Intent | null = null;
+  try { pending = JSON.parse(sessionStorage.getItem(intentKey) || "null"); } catch { /* previous intent unavailable */ }
+  function decision(operation: Intent["operation"], ref: string, actions: readonly ExactActionReference[], revision: string) {
+    if (!pending || pending.operation !== operation || pending.ref !== ref || JSON.stringify(pending.actions) !== JSON.stringify(actions)) {
+      const scene = operation === "adopt" && ref === sceneRef.page_id + "@" + sceneRef.version && sceneApproval;
+      pending = { operation, ref, actions, request_id: scene || crypto.randomUUID(), expected_revision: revision };
+      try { sessionStorage.setItem(intentKey, JSON.stringify(pending)); } catch { /* in-memory retry is still available */ }
+    }
+    return { request_id: pending.request_id, expected_revision: pending.expected_revision };
   }
-  const forgetDecision = () => { try { sessionStorage.removeItem(intentKey); } catch { /* storage unavailable */ } };
+  function forgetDecision() {
+    pending = null;
+    try { sessionStorage.removeItem(intentKey); } catch { /* storage unavailable */ }
+  }
+  function finishScene() {
+    sceneApproval = null;
+    sceneOpened = true;
+    const url = new URL(location.href);
+    for (const key of ["homePage", "homeVersion", "homeApproval"]) url.searchParams.delete(key);
+    history.replaceState(history.state, "", url);
+  }
+  async function recoverDecision(signal: AbortSignal) {
+    const intent = pending;
+    if (!intent) return;
+    const read = await host.api<{ results: HomePageApprovalReadResult[] }>("/api/home-pages/read", "POST",
+      { queries: [{ by: "approval_request", operation: intent.operation, request_id: intent.request_id }] }, signal);
+    if (pending !== intent || read.results[0]?.kind !== "receipt") return;
+    if (sceneApproval === intent.request_id) finishScene();
+    forgetDecision();
+  }
 
   let liveLoad = new AbortController();
   let compareLoad = new AbortController();
   type Session = { page_session_id: string; loaded?: HomePageFilesResult };
   async function mountVersion(ref: HomePageRef, container: HTMLElement, preview: boolean, signal: AbortSignal, onCrash?: (reason: string) => void) {
-    const session = await host.api<Session>(preview ? "/api/home-pages/preview" : "/api/home-pages/session", "POST", preview ? ref : {});
+    const session = await host.api<Session>(preview ? "/api/home-pages/preview" : "/api/home-pages/session", "POST", preview ? { ...ref, include_files: true } : {});
     try {
       signal.throwIfAborted();
-      const loaded = session.loaded ?? await host.api<HomePageFilesResult>("/api/home-pages/files/read", "POST", ref, signal);
-      if (homePageRefKey(loaded.version) !== homePageRefKey(ref)) throw new Error(uiText.text("workbench.home-pages.preview-failed"));
+      const loaded = session.loaded;
+      if (!loaded || homePageRefKey(loaded.version) !== homePageRefKey(ref)) throw new Error(uiText.text("workbench.home-pages.preview-failed"));
       return await host.mountFrame({ container, loaded, pageSessionId: session.page_session_id, isPreview: preview,
         routePrefix: host.routePrefix, headers: host.headers, signal, onCrash });
     } catch (error) {
@@ -133,7 +152,7 @@ export function mountHomePages(host: HomePagesUiHost) {
   };
 
   const blocker = (): "check" | "conflict" | null => {
-    if (compareInspect && !compareInspect.report.ok) return "check";
+    if (!compareInspect || !compareInspect.report.ok) return "check";
     if (hasManualConflict() && (conflictChoice === null || conflictChoice === "merge")) return "conflict";
     return null;
   };
@@ -202,7 +221,8 @@ export function mountHomePages(host: HomePagesUiHost) {
     void ensureLiveMounted();
   };
 
-  async function enterCompare(ref: HomePageRef): Promise<void> {
+  async function enterCompare({ page_id, version }: HomePageRef): Promise<void> {
+    const ref = { page_id, version };
     if (!overview) return;
     const draft = overview.versions.find(v => v.page_id === ref.page_id && v.version === ref.version);
     if (!draft) return;
@@ -210,6 +230,11 @@ export function mountHomePages(host: HomePagesUiHost) {
     disposeCompareFrames();
     const { signal } = compareLoad;
     comparingDraft = draft;
+    compareInspect = null;
+    compareDiff = null;
+    compareHost!.replaceChildren();
+    dialogTarget = null;
+    if (dialog?.open) dialog.close();
     conflictChoice = null;
     checksOpen = false;
     compareView = "draft";
@@ -324,14 +349,24 @@ export function mountHomePages(host: HomePagesUiHost) {
 
   async function openApprovalDialog(operation: "adopt" | "restore", ref: HomePageRef): Promise<void> {
     if (!dialog || !overview) return;
+    const guard = compareLoad.signal;
+    if (operation === "adopt" && comparingDraft && blocker()) return;
     const target = overview.versions.find(v => v.page_id === ref.page_id && v.version === ref.version);
     if (!target) return;
     const inspect =
       comparingDraft && homePageRefKey(comparingDraft) === homePageRefKey(ref) && compareInspect
         ? compareInspect
         : await host.api<InspectResponse>("/api/home-pages/inspect", "POST", ref);
+    if (guard.aborted || homePageRefKey(inspect.version) !== homePageRefKey(ref)) return;
     dialogTarget = { operation, version: target, inspect };
     dialog.innerHTML = renderApprovalDialogHtml({ operation, target, inspect, overview });
+    if (pending?.operation === operation && pending.ref === ref.page_id + "@" + ref.version) {
+      const prior = pending.actions;
+      dialog.querySelectorAll<HTMLInputElement>("input[data-hp-grant]").forEach(box => {
+        const item = inspect.actions[Number(box.dataset.hpGrant)];
+        if (item && !box.disabled) box.checked = prior.some(a => a.provider_id === item.provider_id && a.capability_id === item.capability_id && a.version === item.version);
+      });
+    }
     dialog.setAttribute("aria-labelledby", "hp-adopt-title");
     if (!dialog.open) dialog.showModal();
   }
@@ -359,10 +394,7 @@ export function mountHomePages(host: HomePagesUiHost) {
         });
         forgetDecision();
         if (sceneApproval && operation === "adopt" && version.page_id === sceneRef.page_id && version.version === sceneRef.version) {
-          sceneApproval = null;
-          const url = new URL(location.href);
-          for (const key of ["homePage", "homeVersion", "homeApproval"]) url.searchParams.delete(key);
-          history.replaceState(history.state, "", url);
+          finishScene();
         }
         dialog.close();
         dialogTarget = null;
@@ -429,6 +461,7 @@ export function mountHomePages(host: HomePagesUiHost) {
     syncAbort?.abort();
     const controller = (syncAbort = new AbortController());
     try {
+      await recoverDecision(controller.signal);
       const next = await host.api<HomePageOverview>("/api/home-pages/read", "POST", {}, controller.signal);
       if (controller.signal.aborted) return;
       overview = next;

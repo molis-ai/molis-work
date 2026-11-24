@@ -24,6 +24,7 @@ import {
   type HomePageDraftSaveInput,
   type HomePageDraftSaveResult,
   type HomePageFilesResult,
+  type HomePagePreviewInput,
   type HomePagePreviewResult,
   type HomePageReadInput,
   type HomePageReadResult,
@@ -116,7 +117,7 @@ export async function readHomePages(
   const results: Array<ContentAdoptionReadResult | HomePageApprovalReadResult> = [];
   for (const query of input.queries) {
     if (query.by === "approval_request") {
-      const receipt = store.readApprovalReceipt(caller.actor_id, query.operation, query.request_id);
+      const receipt = query.operation === "basic" ? store.readBasicReceipt(caller.actor_id, query.request_id) : store.readApprovalReceipt(caller.actor_id, query.operation, query.request_id);
       results.push(
         receipt
           ? { kind: "receipt", receipt, current: currentState }
@@ -238,7 +239,7 @@ export async function saveHomePageDraft(
 export async function previewHomePage(
   caller: ActionExecutionContext,
   ports: HomePagesPorts,
-  input: HomePageRef,
+  input: HomePagePreviewInput,
 ): Promise<HomePagePreviewResult> {
   const projectId = requireProjectId(caller);
   assertDirectUserOnly(caller, "只有本人可以打开生成首页草稿的试用会话");
@@ -255,7 +256,7 @@ export async function previewHomePage(
   requireSynchronous(caller.assert_authority_current?.(), "打开首页试用会话前必须完成同步授权检查");
   caller.signal?.throwIfAborted();
   const { page_session_id } = ports.openPreviewSession(caller, verified.version);
-  return { page: { page_id: verified.version.page_id, version: verified.version.version }, page_session_id };
+  return { page: { page_id: verified.version.page_id, version: verified.version.version }, page_session_id, ...(input.include_files && { loaded: verified }) };
 }
 
 export async function approveHomePage<Op extends HomePageApprovalOperation>(
@@ -354,6 +355,18 @@ export function readAdoptedHomePageSessionTarget(
     version: detail.version,
     approved_actions: detail.approval?.approved_actions ?? [],
   };
+}
+
+/** Read through the trusted file action, then mint synchronously from the current selection and current grants. */
+export async function openSelectedHomePage<T>(ports: Pick<HomePagesPorts, "open">, projectId: string,
+  files: (ref: HomePageRef) => Promise<HomePageFilesResult>,
+  issue: (target: ReturnType<typeof readAdoptedHomePageSessionTarget>, files: HomePageFilesResult) => T): Promise<T> {
+  const first = readAdoptedHomePageSessionTarget(ports, projectId);
+  const loaded = await files(first.ref);
+  const target = readAdoptedHomePageSessionTarget(ports, projectId);
+  if (target.ref.page_id !== first.ref.page_id || target.ref.version !== first.ref.version)
+    throw homeErrors.revision_conflict("首页已更换，请重新打开");
+  return issue(target, loaded);
 }
 
 /** Reads pruned version records for a project's generated homepage (for inspect UI notices). */

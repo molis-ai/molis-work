@@ -64,6 +64,14 @@ function ownerProblem(owners: readonly DiscoveredSetting[], plan: SettingPlan | 
   return replaced ? "owner_replaced" : "owner_unavailable";
 }
 
+async function pageStatus(step: BlueprintApplyStep, access: SettingsAccess): Promise<BlueprintApplyStep> {
+  if (step.state !== "applied" || !("approval" in step) || !step.approval) return step;
+  const { page_id, version, approval_request_id } = step.approval;
+  const match = await access.homePage?.approved(approval_request_id, page_id, version);
+  if (!match) return { ...step, current: "owner_unavailable" };
+  return match.current === step.receipt.revision ? step : { ...step, current: "changed" };
+}
+
 function withOwnerStatus<Step extends BlueprintApplyStep | UndoStep>(step: Step, current: PendingOwnerStatus): Step {
   return step.state === "pending_verification" && current ? { ...step, current } : step;
 }
@@ -142,8 +150,9 @@ export class AdoptionExecution {
             }
             if (!receipt || typeof receipt.revision !== "number") continue;
             const approval = { page_id: receipt.subject.id, version: receipt.revision, approval_request_id: request + ":approve" };
-            result = await page.approved(approval.approval_request_id, approval.page_id, approval.version)
-              ? { ...base, state: "applied", outcome: receipt.outcome, receipt: { action, subject: receipt.subject, revision: receipt.revision }, approval }
+            const accepted = await page.approved(approval.approval_request_id, approval.page_id, approval.version);
+            result = accepted
+              ? { ...base, state: "applied", outcome: receipt.outcome, receipt: { action: accepted.action, subject: receipt.subject, revision: accepted.revision }, approval }
               : { ...base, state: "needs_approval", ...approval };
           } catch (error) {
             assertCurrent(caller);
@@ -194,7 +203,9 @@ export class AdoptionExecution {
       if (result) await this.change(caller, record, step, result, "apply");
     }
     const finished = this.store.load(caller, "adoption_id", adoptionId);
-    return { ...identity(finished), steps: finished.steps.map(({ apply, plan }) => withOwnerStatus(apply, problem(plan))) };
+    const steps = await Promise.all(finished.steps.map(({ apply, plan }) => pageStatus(withOwnerStatus(apply, problem(plan)), access)));
+    assertCurrent(caller);
+    return { ...identity(finished), steps };
   }
 
   async read(caller: Guard, id: string, accessFor: (project: string | null) => Promise<SettingsAccess>): Promise<BlueprintAdoptionReadResult> {
@@ -204,15 +215,15 @@ export class AdoptionExecution {
     const problem = (plan: SettingPlan | null) => ownerProblem(owners, plan);
     const values = await readOwnerValues(access, record.steps.flatMap(({ plan, apply }) => plan && apply.state === "applied"
       && !problem(plan) ? [plan] : []), caller);
-    const applied = record.steps.map(({ plan, apply }): BlueprintApplyStep => {
-      if (!plan || apply.state !== "applied") return withOwnerStatus(apply, problem(plan));
+    const applied = await Promise.all(record.steps.map(async ({ plan, apply }): Promise<BlueprintApplyStep> => {
+      if (!plan || apply.state !== "applied") return pageStatus(withOwnerStatus(apply, problem(plan)), access);
       const current = values.get(plan.key);
       const expected = "receipt" in apply ? apply.receipt.revision : plan.expected_revision;
       if (current && !sameObservedLayer(plan, expected, current, plan.applied_layer_revision)) return { ...apply, current: "changed" };
       if (current?.state !== "ok" || current.value_unavailable) return { ...apply, current: "owner_unavailable" };
       const { current: _observed, ...original } = apply;
       return original;
-    });
+    }));
     assertCurrent(caller);
     return { ...identity(record), apply_steps: applied, latest_undo: record.row.undo_operation && record.row.undo_request
       ? { operation: record.row.undo_operation, request_id: record.row.undo_request,

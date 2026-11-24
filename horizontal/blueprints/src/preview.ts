@@ -13,7 +13,7 @@ export interface SettingsAccess {
     owner: string;
     save(input: ContentAdoptionInput): Promise<ContentAdoptionResult>;
     saved(request: string): Promise<ContentAdoptionResult | undefined>;
-    approved(request: string, page: string, version: number): Promise<boolean>;
+    approved(request: string, page: string, version: number): Promise<{ action: SettingBinding["write"]; revision: string; current: string } | undefined>;
   };
   discover(): Promise<readonly DiscoveredSetting[]>;
   read(binding: SettingBinding, keys: string[]): Promise<EffectiveSetting[]>;

@@ -176,7 +176,7 @@ export function renderSceneReview(page: ReturnType<typeof sceneReviewPage>, stat
       const state = step?.state === "applied" && step.current ? step.current : step?.state ?? "not_started";
       row.append(node("summary", titleOf(part) + " · " + t(state)));
       if (step?.state === "needs_approval" && targetProject) {
-        const search = new URLSearchParams({ homePage: step.page_id, homeVersion: String(step.version), homeApproval: step.approval_request_id });
+        const search = new URLSearchParams({ openPlugin: "home", homePage: step.page_id, homeVersion: String(step.version), homeApproval: step.approval_request_id });
         row.append(link(t("needs_approval"), "/projects/" + encodeURIComponent(targetProject) + "/?" + search));
       }
       if (step?.state === "failed") row.append(node("p", step.error.message));

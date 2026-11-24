@@ -1,3 +1,4 @@
+import { lowContrast, unreadablePage } from "./contrast.js";
 import type { UiTokenMap } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { HomePageFile } from "@molis-ai/molis-work-contracts/services/home";
 
@@ -103,18 +104,6 @@ function extractCssDeclarationValues(css: string, visit: (selector: string, prop
   return values;
 }
 
-function luminance(role: string, palette: UiTokenMap): number | undefined {
-  const visited = new Set<string>();
-  let value = palette[role];
-  while (value && typeof value === "object" && "role" in value && !visited.has(value.role)) {
-    visited.add(value.role); value = palette[value.role];
-  }
-  if (typeof value !== "string" || !/^#[0-9a-f]{6}$/iu.test(value)) return undefined;
-  const channels = [1, 3, 5].map(i => parseInt(value.slice(i, i + 2), 16) / 255)
-    .map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
-  return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
-}
-
 /**
  * Inspects generated-page files against the Batch 37 isolation and Soft Workbench design-language rules:
  * - Zero inline `style=` attributes or `on*=` event handlers (strict hash-only CSP without `'unsafe-inline'`).
@@ -207,12 +196,9 @@ export function inspectHomePageDesign(
         colors.set(selector, pair);
       });
       if (amberMisused) designIssues.push({ code: "amber_usage", path: file.path, severity: "error", reason: "琥珀色只用于等你确认的内容" });
-      for (const { ink = "ink", paper = "paper" } of colors.values()) {
-        const fails = ink === paper || options.palettes?.some(palette => {
-          const fg = luminance(ink, palette), bg = luminance(paper, palette);
-          return fg !== undefined && bg !== undefined && (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05) < 4.5;
-        });
-        if (fails) {
+      for (const { ink, paper } of colors.values()) {
+        // The DOM pass resolves colors inherited from other rules. A CSS-only design sample has the default canvas.
+        if ((ink && paper || !files.some(item => item.media_type === "text/html")) && lowContrast(ink ?? "ink", paper ?? "paper", options.palettes)) {
           designIssues.push({ code: "low_contrast", path: file.path, severity: "error", reason: "文字与背景的对比度不足 4.5:1" });
           break;
         }
@@ -237,6 +223,10 @@ export function inspectHomePageDesign(
   }
 
   const actionsOk = options.actionsValid !== false;
+  if (!designIssues.some(issue => issue.code === "low_contrast")) {
+    const path = unreadablePage(files, options.palettes);
+    if (path) designIssues.push({ code: "low_contrast", path, severity: "error", reason: "文字与背景的对比度不足 4.5:1" });
+  }
   const checks: HomePageCheckItem[] = [
     {
       id: "public_actions",

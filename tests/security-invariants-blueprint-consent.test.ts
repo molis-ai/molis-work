@@ -88,6 +88,14 @@ test("B37R-1 · scene draft readback and personal approval stay separate across 
   await approve("independent-personal-adoption");
   assert.deepEqual(await resume(), step);
   await approve(step.approval_request_id);
-  assert.equal((await resume())?.state, "applied");
+  const accepted = await resume();
+  assert.ok(accepted?.state === "applied" && "receipt" in accepted);
+  const revision = (await home()).revision;
+  assert.equal(accepted.receipt.revision, revision);
+  await web.post(prefix + "select", { kind: "basic", expected_revision: revision, request_id: "use-default" });
+  const after = await resume();
+  assert.ok(after?.state === "applied" && "receipt" in after);
+  assert.equal(after.current, "changed");
+  assert.equal(after.receipt.revision, revision);
   assert.equal((await home()).versions.length, 1);
 });

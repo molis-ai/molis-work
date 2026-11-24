@@ -1,3 +1,4 @@
+import { openSelectedHomePage, readPrunedHomePageVersions } from "@molis-ai/molis-work-service-home";
 import { BASELINE_SKIN } from "@molis-ai/molis-work-design-system";
 import type { ActionCallContext, ActionExecutionContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePageVersion } from "@molis-ai/molis-work-contracts/services/home";
@@ -9,7 +10,7 @@ import { pluginPagesFor } from "./plugin-page-authority.js";
 export const homePagePalettes = [BASELINE_SKIN.light, BASELINE_SKIN.dark];
 
 /** Store-only port for `horizontal/home` service reads inside `apps/local-host` HTTP routes. */
-export function homePagesStorePort(
+function homePagesStorePort(
   homeDirectory: string,
   clock: () => Date = () => new Date(),
 ): Pick<HomePagesPorts, "open"> {
@@ -20,6 +21,15 @@ export function homePagesStorePort(
         projectId,
         () => clock().toISOString(),
       ),
+  };
+}
+
+export function homePageReads(home: string, project: string) {
+  const ports = homePagesStorePort(home);
+  return {
+    open: <T>(files: Parameters<typeof openSelectedHomePage>[2], issue: Parameters<typeof openSelectedHomePage<T>>[3]) =>
+      openSelectedHomePage(ports, project, files, issue),
+    pruned: (page?: string) => readPrunedHomePageVersions(ports, project, page),
   };
 }
 

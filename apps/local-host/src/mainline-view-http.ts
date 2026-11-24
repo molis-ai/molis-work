@@ -9,8 +9,6 @@ import {
   type WorkItem,
 } from "@molis-ai/molis-work-contracts/services/mainline";
 import { placementActions, type PlacementDescription } from "@molis-ai/molis-work-contracts/services/placement";
-import { PRESENTATION_LIMITS } from "@molis-ai/molis-work-contracts/platform/presentation";
-import { renderPresentationForm, stateRingFamily } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { homePageRequestBound } from "./home-page-authority.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -206,29 +204,6 @@ async function describeEntry(
 type ItemForm = { markup: string; done: boolean };
 type ReadForms = (subjects: ActionSubject[]) => Promise<Map<string, ItemForm>>;
 
-function itemForms(host: MolisWorkLocalHost, project: LocalHostProjectReference, signal: AbortSignal): ReadForms {
-  return async subjects => {
-    const rows = new Map<string, ItemForm>();
-    for (let i = 0; i < subjects.length; i += PRESENTATION_LIMITS.values_subjects) {
-      const selection = { slot: { kind: "side" as const }, subjects: subjects.slice(i, i + PRESENTATION_LIMITS.values_subjects) };
-      await host.surfacePosition(project, selection, "/projects/" + encodeURIComponent(project.project_id), signal, undefined, async access => {
-        const { display } = await access.display();
-        for (const row of display.rows) {
-          const ownerDisplay = display.owners[row.owner];
-          if (!ownerDisplay || row.fallback || row.read.state !== "ok") continue;
-          const status = row.declaration.status;
-          const raw = status && row.read.values?.[status.field];
-          const ring = status && typeof raw === "string" && Object.hasOwn(status.map, raw) ? status.map[raw]?.ring : undefined;
-          const markup = renderPresentationForm(row.declaration, "row", { locale: null, ownerDisplay, read: row.read, actions: [] });
-          rows.set(subjectKey(row.subject), { markup, done: Boolean(ring && stateRingFamily(ring) === "done") });
-        }
-        access.current();
-      });
-    }
-    return rows;
-  };
-}
-
 async function handleItemsView(
   response: ServerResponse,
   client: BoundActionClient,
@@ -335,8 +310,8 @@ export async function handleMainlineViewHttp(
   const cancel = () => controller.abort();
   request.once("aborted", cancel); response.once("close", cancel);
   try {
-    const forms = itemForms(host, project, controller.signal);
     const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS, { signal: controller.signal });
+    const forms: ReadForms = subjects => host.mainlinePresentations(project.project_id, client, subjects, controller.signal);
     if (isItems) await handleItemsView(response, client, project.project_id, forms);
     else await handleContentsView(request, response, client, project.project_id, forms);
   } catch (error) {

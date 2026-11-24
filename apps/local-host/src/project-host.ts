@@ -1,3 +1,4 @@
+import { mainlinePresentations } from "./mainline-presentations.js";
 import { inLanguagePreview } from "./web-locale.js";
 import { DraftReferences } from "./contextual/draft-references.js";
 import { skillCatalogProviderFor } from "./agent-definitions/skill-catalog-host.js";
@@ -95,7 +96,7 @@ import { projectPluginsActiveWorkCount, projectPluginsHaveWork, refreshRunningPr
 import { projectMaterialsProvider } from "./system-materials-actions.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort, type ActionSceneClient, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionSubject, type BoundActionClient, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort, type ActionSceneClient, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostActionClient } from "./local-host-types.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
@@ -445,6 +446,10 @@ export class MolisWorkLocalHost {
   prepareActionReview(caller: ActionCallContext, view: ActionView, input: unknown, project?: LocalHostProjectReference, related?: ExactActionReference) { return this.host.prepareActionReview(caller, view, input, project, related); }
 
   /** A directory has already prepared these providers. Observe the same installation owner without reactivating plugins. */
+  mainlinePresentations(project: string, client: BoundActionClient, subjects: ActionSubject[], signal: AbortSignal) {
+    return mainlinePresentations(this.plugins, project, client, subjects, signal);
+  }
+
   projectActionInstallations(project: LocalHostProjectReference) {
     return this.host.withExistingRuntime(
       project,

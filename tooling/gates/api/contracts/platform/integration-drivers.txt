@@ -115,6 +115,7 @@ export interface LocalMcpStdioDeclaration {
 export interface MailboxDriver {
     readonly service: string;
     readonly title: string;
+    readonly account_title: string;
     readonly origin: string;
     readRecent(get: (url: string) => Promise<Record<string, unknown>>, input: {
         days: 7 | 30;

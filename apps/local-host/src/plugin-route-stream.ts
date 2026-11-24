@@ -4,6 +4,7 @@ import type { PluginRouteResponse, PluginRouteStreamLine } from "@molis-ai/molis
 import { PLUGIN_ROUTE_STREAM_LIMITS, actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { recordedCallIdField } from "./call-id-response.js";
 import { withPluginInteraction } from "./plugin-interaction-answer.js";
+import { markMutationResponseFailed } from "./web-http.js";
 
 /**
  * Answer a route that declares `stream: "ndjson"`. The plugin only hands progress events; this writes each as a `progress` line
@@ -35,11 +36,12 @@ export async function answerPluginRouteStream(response: ServerResponse,
   const overflowError = () => new ActionError("actions.output_invalid", "进度超出了流式回复的上限");
   try {
     const result = await dispatch(emit);
-    if (overflow) write(errorLine(overflowError()));
-    else if (!result) write(errorLine(new ActionError("actions.missing", "插件没有这个入口")));
+    if (overflow) { markMutationResponseFailed(response); write(errorLine(overflowError())); }
+    else if (!result) { markMutationResponseFailed(response); write(errorLine(new ActionError("actions.missing", "插件没有这个入口"))); }
     else if (result.status >= 200 && result.status < 300) write({ type: "result", result: withPluginInteraction(result.body) });
-    else write(refusalLine(result));
+    else { markMutationResponseFailed(response); write(refusalLine(result)); }
   } catch (error) {
+    markMutationResponseFailed(response);
     write(errorLine(overflow ? overflowError() : error));
   } finally {
     if (!response.destroyed && !response.writableEnded) response.end();

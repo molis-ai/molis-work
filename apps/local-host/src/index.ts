@@ -240,7 +240,7 @@ export { draftIntake, type DraftInput, type DraftModel, type DraftPorts } from "
 export type { DraftTarget } from "./drafting/draft-data.js";
 export { scheduleServiceFor } from "./project-clock.js";
 
-export { sendLocalWebJson, sendUnhandledWebError, readLocalWebBody, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
+export { sendLocalWebJson, sendUnhandledWebError, readLocalWebBody, authorizeLocalWebRequest, markMutationResponseFailed, finalizeLocalMutation, type LocalMutationState } from "./web-http.js";
 export { createLocalWebAssets } from "./web-assets.js";
 
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";

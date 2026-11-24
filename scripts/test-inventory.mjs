@@ -1,4 +1,5 @@
 // Print the current test collections without executing a test. Multiple memberships are intentional.
+import { rustTestSource } from "./rust-test-source.mjs";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,7 +37,7 @@ const workerFiles = new Set(workerSuite.split(/\s+/).filter(token => token.start
 const rootSet = new Set(rootNames);
 for (const file of files) {
   if (rootSet.has(file)) continue;
-  if (file.endsWith(".rs") && /^\s*#\[(?:\w+::)?test\]/m.test(read(file))) {
+  if (rustTestSource(file, read) !== null) {
     rows.push([file, "Rust", "native-checks", ""]);
     continue;
   }
@@ -48,7 +49,6 @@ for (const file of files) {
     let entry = "unmapped";
     if (file.startsWith("specs/archive/")) entry = "archived";
     else if (file.startsWith("packages/test-kit/tests/")) entry = "boundary:test";
-    else if (file.startsWith("plugins/native/alchemist/tests/")) entry = "Alchemist Vitest";
     else if (authCommands.has(file)) entry = "account-login";
     else if (/^scripts\/account-[^/]+\.test\.mjs$/.test(file)) entry = "Auth integration (manual)";
     rows.push([file, entry, "", ""]);

@@ -378,7 +378,7 @@
     "shelf.help.advanced-summary": "快捷动作与剪贴板历史",
     "shelf.help.advanced": "可在「设置 › 插件 › 置物架」里调整快捷动作、快捷键和剪贴板保留规则。",
     "shelf.permission.storage-private.reason": "本机置物架文件与摘录",
-    "shelf.permission.artifact-read.reason": "读取明确选择接收的 Coding 成果",
+    "shelf.permission.artifact-read.reason": "读取明确选择接收的项目成果",
     "shelf.permission.shelf-read.reason": "读取置物架的副本和处理状态",
     "shelf.permission.terminal-run.reason": "打开资料架对话终端",
     "shelf.permission.shelf-write.reason": "添加和整理置物架副本",

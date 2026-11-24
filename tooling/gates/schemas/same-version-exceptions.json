@@ -1,10 +1,1 @@
-[
-  {
-    "store": "plugin-runtime/plugin-runtime.db",
-    "version": 1,
-    "from": "e69c29d592801ef1",
-    "to": "d3258b02a3999cee",
-    "approved": "user 2026-11-23 (Batch 44B U13 Clean v1: old values are deleted, no migration)",
-    "reason": "Batch 44B deletes always-on plugins as a whole, so the consent ledger's kind CHECK loses 'always_on' in the clean pre-release v1 baseline; the goldens hold no such row and are rewritten in place."
-  }
-]
+[]

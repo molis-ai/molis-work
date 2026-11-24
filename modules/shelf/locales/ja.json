@@ -378,7 +378,7 @@
     "shelf.help.advanced-summary": "クイックアクションとクリップボード履歴",
     "shelf.help.advanced": "「設定 › プラグイン › Shelf」でクイックアクション・ショートカット・クリップボード保持ルールを調整できます。",
     "shelf.permission.storage-private.reason": "ローカルの Shelf ファイルとクリップを保存します",
-    "shelf.permission.artifact-read.reason": "受け取るよう明示的に選んだ Coding の成果物を読み取ります",
+    "shelf.permission.artifact-read.reason": "受け取るよう明示的に選んだプロジェクトの成果物を読み取ります",
     "shelf.permission.shelf-read.reason": "Shelf 上のコピーと処理状態を読み取ります",
     "shelf.permission.terminal-run.reason": "Shelf の会話ターミナルを開きます",
     "shelf.permission.shelf-write.reason": "Shelf のコピーを追加・整理します",

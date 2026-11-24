@@ -48,4 +48,4 @@ const snapshot = { files, read: (file) => { try { return readFileSync(path.join(
 const result = specCoverage(snapshot);
 if (flags.has("--json")) console.log(JSON.stringify(result, null, 2));
 else console.log(renderReport(result, { strict }).join("\n"));
-process.exit(strict && result.problems.length ? 1 : 0);
+process.exitCode = strict && result.problems.length ? 1 : 0;

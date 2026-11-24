@@ -20,7 +20,7 @@ SQLite 冲突确认由可信组合根把 SDK 的 `createSyncConflictState` 通�
 
 个人同步接入详见 [同步作者规范](../../skills/molis-plugin-dev/sync.md)。Form、Dataset、PPT、Lingguang 使用 owner 声明的 `AggregateDefinition` 与原 Store 事务日志，Host 注册实际适配器后才显示可选集合；不通过扫描数据库或只加 Manifest 来宣称支持同步。该链路仍是本机联调，不含公网发布、附件或运行中任务迁移。
 
-内置 owner 在 `BUILTIN_PLUGIN_CATALOG` 同一条目的 `sync` 工厂接线；Host 通用装配复用目录，不另加硬编码插件清单。文件 Home owner 可声明 `home-document` 与固定相对路径，由可信 Host 注入原子文件 CAS；Shelf 目录是实际消费者，正常动作与同步共用同一目录，文件先保存不可变版本再提交业务与日志，设置、剪贴板和在途执行留在设备。SQLite 日志表由 Storage 提供基线 SQL/队列端口，随 owner 当前 schema 建库，业务插件不直接访问 replica 表。声明解析从 SDK、空间配置解析从 sync-replication 公开入口取；错误归各 owner 的 `ActionError`。细则和验收命令见同步作者规范。
+内置 owner 在 `BUILTIN_PLUGIN_CATALOG` 同一条目的 `sync` 工厂接线；Host 通用装配复用目录，不另加硬编码插件清单。文件 Home owner 可声明 `home-document` 与固定相对路径，由可信 Host 注入原子文件 CAS。平台置物架在[平台入口](../../apps/local-host/src/host-surface-list.ts)登记同类同步工厂，Shelf 目录是实际消费者，正常动作与同步共用同一目录，文件先保存不可变版本再提交业务与日志，设置、剪贴板和在途执行留在设备。SQLite 日志表由 Storage 提供基线 SQL/队列端口，随 owner 当前 schema 建库，业务插件不直接访问 replica 表。声明解析从 SDK、空间配置解析从 sync-replication 公开入口取；错误归各 owner 的 `ActionError`。细则和验收命令见同步作者规范。
 
 写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 选择开发路径并依次交付。本文件维护命令、MCP 登记、动作录取与打包机制；交付步骤与质量线在 Skill 中维护，关键约束保留自包含，供编码 Agent 与创作台使用。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
 
@@ -45,7 +45,7 @@ SQLite 冲突确认由可信组合根把 SDK 的 `createSyncConflictState` 通�
 
 创作台细化时从任务的 `iconNames` 选择 `design.icon`，发布到签名清单的 stage 视图。生成插件的提交部件通过 `connectionNeed` 请求第 13 批的原处连接卡，声明与试用方式见 [生成设计](../../skills/molis-plugin-dev/generated-design.md)。
 
-`skills/molis-plugin-dev` 是做插件的唯一标准：手写插件按它交付，插件创作台也在运行时经 Prologue 挂载其中的章节。各阶段实际挂载的章节与顺序以 [`skill.ts` 的 `CHAPTERS`](../../apps/local-host/src/plugin-builder/skill.ts) 为准，版本取挂载正文的摘要并写入每次运行的 promptVersion。这里不再维护第二份章节清单；改挂载内容仍按[创作台 Skill 回放与冒烟](STUDIO-SKILL-REPLAY.md)验证。
+`skills/molis-plugin-dev` 是做插件的唯一标准：手写插件按它交付，插件创作台也在运行时经 Prologue 挂载其中的章节。各阶段实际挂载的章节与顺序以 [`skill.ts` 的 `CHAPTERS`](../../apps/local-host/src/plugin-builder/skill.ts) 为准，版本取挂载正文的摘要并写入每次运行的 promptVersion。这里不再维护第二份章节清单；改挂载内容仍按[创作台 Skill 回放与冒烟](STUDIO-SKILL-REPLAY.md)验证。分批推出的新合同在首次可用时同步作者章节及 SDK 用例。设计中的分区、总览、依赖和推送能力按[统一分区的交付分工](../../specs/unified-partition-plugins/spec.md#author-delivery)逐批接入。
 
 - 交付流程与每步做完的标准：`process.md`（按模型能力伸缩：能出图就给效果图，能读图就加截图走查）。
 - 质量线（所有插件）：`ui.md#质量线所有插件`——只用 UI 目录组件、三态、一处主操作、token 配色、不重复插件名大标题。视觉统一按 [DESIGN.md](../../DESIGN.md) 的 Soft Workbench：插件共用连续的工作面，不画自己的外框卡片、不带身份色；主操作用 `--action`，焦点与链接用 `--accent`，随皮肤切换。默认柔雾皮肤的主操作为墨蓝色，焦点与链接为雾蓝色；字重 400/500/600；全局入口在底栏（Dock 与插件切换器），`navigator` Slot id 保留，没有全局侧栏。
@@ -758,9 +758,9 @@ await caller.beforeEffect(); // 写业务记录之前
 
 ## Home 主人的私有文件树
 
-插件在自己的 Manifest 里声明 `owner_files: { store_name, entries, read_permission, write_permission }`（PG-102，和 `databases.home` 一样写在 Manifest、不写在宿主条目上；读写权限和 `storage:private` 都要在 Manifest 的 permissions 里）。根目录沿唯一 HomeStoreRegistry 验证 owner；同一根可以同时放这个插件自己 Manifest 声明的库（`databases.home`，如 Images 的 `images/images.db` 与 `images/assets/`），但条目不能叫库文件（`<库名>.db*`）或分区目录 `projects`，别的插件的库、第二份 owner_files 不行；完整声明校验在受管开库之前完成。声明绑定宿主启动名单上的实际 definition 并深复制冻结：声明了文件却不在名单上的定义（装在名单之外的）启动被拒，码 `plugin.declaration_invalid`；项目插件声明文件被拒，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务；沙箱、升级预检不能获得服务。Shelf 用它。
+插件在自己的 Manifest 里声明 `owner_files: { store_name, entries, read_permission, write_permission }`（PG-102，和 `databases.home` 一样写在 Manifest、不写在宿主条目上；读写权限和 `storage:private` 都要在 Manifest 的 permissions 里）。根目录沿唯一 HomeStoreRegistry 验证 owner；同一根可以同时放这个插件自己 Manifest 声明的库（`databases.home`，如 Images 的 `images/images.db` 与 `images/assets/`），但条目不能叫库文件（`<库名>.db*`）或分区目录 `projects`，别的插件的库、第二份 owner_files 不行；完整声明校验在受管开库之前完成。声明绑定宿主启动名单上的实际 definition 并深复制冻结：声明了文件却不在名单上的定义（装在名单之外的）启动被拒，码 `plugin.declaration_invalid`；项目插件声明文件被拒，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务；沙箱、升级预检不能获得服务。Images 插件与平台置物架都使用此服务。
 
-`services.ownerFiles.stat/read/list(relative)` 在本安装正在执行的真实动作里需要动作和原调用者的读权限。`write(run)` 需要 command 和原写权限，等待原 `beforeEffect()` 后才给同步 writer；每个原语继续复核原调用、安装与取消，退出或 Promise 回调后 writer 永久失效。Writer 内读取沿写权限，不借新动作延长旧句柄。动作之外（`start`、`start` 里设的定时器、路由）没有原调用者可问，凭这个安装当前的授权决定：`storage:private` 加文件权限都在现行授权里才读写（与其他服务在动作之外的规则一致，`assertPluginActionCurrent`）；停用、卸载、撤权、停止之后不能写（停止后的调用静默失效，BL-411），别的实例的动作里、场景里一律拒绝。初始文件（Shelf 的示例）由插件在自己的 `start` 里写，不再有宿主启动钩子。新建文件和目录只有 Host 的用户可读写（0o600/0o700），`setAccess` 的只读是 0o400/0o500、读写是 0o600/0o700，不留组和其他人的权限位（V-30）。
+`services.ownerFiles.stat/read/list(relative)` 在本安装正在执行的真实动作里需要动作和原调用者的读权限。`write(run)` 需要 command 和原写权限，等待原 `beforeEffect()` 后才给同步 writer；每个原语继续复核原调用、安装与取消，退出或 Promise 回调后 writer 永久失效。Writer 内读取沿写权限，不借新动作延长旧句柄。动作之外（`start`、`start` 里设的定时器、路由）没有原调用者可问，凭这个安装当前的授权决定：`storage:private` 加文件权限都在现行授权里才读写（与其他服务在动作之外的规则一致，`assertPluginActionCurrent`）；停用、卸载、撤权、停止之后不能写（停止后的调用静默失效，BL-411），别的实例的动作里、场景里一律拒绝。初始文件由实例在自己的 `start` 里写（平台置物架的首次示例也走这条路径），不再有宿主启动钩子。新建文件和目录只有 Host 的用户可读写（0o600/0o700），`setAccess` 的只读是 0o400/0o500、读写是 0o600/0o700，不留组和其他人的权限位（V-30）。
 
 路径是已声明顶层下的严格相对路径，可包含 Unicode；软硬链接、特殊节点和不安全子树均拒绝。create/copy 独占，replace 要已有文件；replaceFileAtomic 使用同目录独占临时文件，rename 前失败保留原字节并清本次临时文件。removeTree 先预检且不删除声明目录顶层。读写无额外32MiB限制，仍受运行环境字节上限约束。没有多文件事务、掉电持久或同 OS 用户并发替换父目录防护的承诺；同步成功后又抛错不会回滚此前合法写入。
 

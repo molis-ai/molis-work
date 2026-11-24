@@ -6,7 +6,7 @@
     "planning-methods.directory.name": "計画と分解",
     "planning-methods.directory.summary": "目標を独立して納品・検収できる成果へ分解し、依存関係と完了の根拠を整理します。作業種別・領域・業界・追加制約ごとのメソッドを収録しています。",
     "planning-methods.skill.domain-ai-data-product.name": "AI・データプロダクト",
-    "planning-methods.skill.domain-ai-data-product.description": "データ、評価、運用コスト、安全性、人の介入を一体で設計します。領域・対象：AI 機能、AI エージェント製品、データプロダクト。この種の目標を依存関係と完了の根拠付きで分解したいときに使います。",
+    "planning-methods.skill.domain-ai-data-product.description": "AI 機能、人の代わりにタスクを進める AI 製品、データプロダクトを計画するときに、目標の分解・依存関係の整理・完了の根拠づくりに使います。データ、評価、運用コスト、安全性、人が介入する場面をまとめて扱います。",
     "planning-methods.skill.domain-ai-data-product.when-to-use": "「AI・データプロダクト」の目標を独立して納品・検収できる成果に分解し、依存関係と完了の証明方法を整理したいとき。",
     "planning-methods.skill.domain-app-product.name": "汎用アプリ",
     "planning-methods.skill.domain-app-product.description": "中核機能、エンドツーエンドのユーザー導線、操作フィードバック、情報設計まで製品としての完成度を分解します。領域・対象：汎用アプリケーション製品。この種の目標を依存関係と完了の根拠付きで分解したいときに使います。",

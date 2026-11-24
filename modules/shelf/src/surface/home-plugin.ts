@@ -142,7 +142,7 @@ export function createHomeShelfPlugin(): PluginDefinition {
   } };
 }
 
-/** A project page's Coding results: each route translates parameters for the registered action MCP and Agents call too. */
+/** A project page's results (those their producers mark `copy_out`): each route translates parameters for the registered action MCP and Agents call too. */
 function resultRoutes(context: PluginStartContext) {
   const body = (value: unknown) => (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
   return [

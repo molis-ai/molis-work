@@ -2924,7 +2924,7 @@
     "workbench.client-events.reload": "再読み込み",
     "workbench.client-events.request-failed": "判定ルールのリクエストに失敗しました",
     "workbench.client-events.requesting-judgment-usually-takes-few-seconds": "判定をリクエストしています。通常数秒かかります。",
-    "workbench.client-events.score-only-for-agent": "Score はアシスタント専用のため、ページ上の用途には紐付けられません。",
+    "workbench.client-events.score-only-for-agent": "評価ルールは単体で試すか、AI に任せて使えます。ページ上で使うには、「1つの結果を選ぶ」または「はい／いいえを判断する」ルールを作成してください。",
     "workbench.client-events.score-needs-least-two-levels": "Scoreには少なくとも2つの段階が必要です",
     "workbench.client-events.settings-weren-t-saved-please-retry": "設定を保存できませんでした。再度お試しください。",
     "workbench.client-events.some-results-not-mapped-page-actions-complete-mapping": "ページアクションに対応付いていない結果があります。公開前にすべて設定してください。",

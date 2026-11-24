@@ -19,9 +19,10 @@ import { reviseCheckedPresentation } from './checked-presentation.js';
 import { BUILDER_PROMPTS, type BuilderPromptName } from './agent-prompts.js';
 import { BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_MOCKUP } from './choice-prompts.js';
 import { capabilityCandidates, focusCatalog, usedCapabilities, withinBudget, type CatalogEntry } from './agent-catalog.js';
+import { readStudioProposals, readStudioRework } from './agent-design-answers.js';
 import { validateAgentDesign } from './agent-validation.js';
 import { parseModelJson } from './model-json.js';
-import { expandDesign, normalizeProposal, versionedStateMachines } from './agent-authoring.js';
+import { expandDesign, versionedStateMachines } from './agent-authoring.js';
 import { presentationTask, presentationReviewTask, acceptPresentation } from './agent-presentation.js';
 import { proposalSketch, experienceTask, acceptExperience } from './agent-experience.js';
 import { acceptPresentationReview } from './agent-review.js';
@@ -84,7 +85,6 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
 /** A registered studio instruction as it runs now: the person's edit from the host, or the localized default. */
 const instructionText = (ports: AgentBuilderPorts, prompt: InstructionPrompt, locale?: string): string => ports.instruction?.(prompt) ?? agentBodyIn(prompt, locale);
 const PENDING_CASE = '前置用例失败，尚未执行';
-type ProposeOutcome = { kind: 'questions'; questions: string[]; summary: string } | { kind: 'proposals'; proposals: AgentProposal[]; summary: string; dropped: string[] };
 /** The whole build record is rewritten on every change, so its history must stay bounded. */
 const MAX_STEPS = 200, MAX_RUNS = 100;
 const ACTIVITY = new Set(['file', 'tool', 'check']);
@@ -216,24 +216,7 @@ export class AgentBuilderWorkflow {
     const initial = this.store.require(id), stepId = 'design:' + token, { catalog, more, ids } = await this.designContext(id, [initial.brief, ...initial.messages.map(item => item.text)].join('\n'));
     this.step(id, { id: stepId, agent: 'design', action: 'design', label: studioStep('understanding-request'), status: 'active' });
     const outcome = await this.designer(id, token, signal, stepId, { mode: 'propose', brief: initial.brief, messages: initial.messages, clarificationAllowed: !initial.clarificationAnswered,
-      capabilities: catalog, moreCapabilities: more, resources: this.ports.resources ?? [] }, (output): ProposeOutcome => {
-      const value = parseModelJson(output) as Record<string, unknown>;
-      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('答案不是 JSON 对象');
-      const summary = typeof value.summary === 'string' ? value.summary.slice(0, 2000) : '';
-      if (Array.isArray(value.questions) && value.questions.length) {
-        if (initial.clarificationAnswered || value.questions.length > 3 || value.questions.some(question => typeof question !== 'string' || !question.trim() || question.length > 1000))
-          throw new Error('已经澄清过一次，这次必须直接给出方案，把仍不确定的地方写成假设放进 summary');
-        return { kind: 'questions', questions: value.questions as string[], summary };
-      }
-      const list = Array.isArray(value.candidates) ? value.candidates : Array.isArray(value.proposals) ? value.proposals : null;
-      if (!list || list.length < 2 || list.length > 3) throw new Error('初次要给 2–3 个在页面结构或关键行为上有实质差异的方案（candidates）');
-      const dropped: string[] = [];
-      const proposals = list.map((item, index) => normalizeProposal(item, index, studioPluginId(id), dropped));
-      if (new Set(proposals.map(item => item.id)).size !== proposals.length) throw new Error('方案标识重复');
-      for (const proposal of proposals) for (const capability of proposal.effects.capabilities ?? [])
-        if (!ids.includes(capability)) throw new Error(`方案 ${proposal.id} 用了能力目录里没有的「${capability}」；目录为空时只能用插件自己的存储`);
-      return { kind: 'proposals', proposals, summary, dropped };
-    });
+      capabilities: catalog, moreCapabilities: more, resources: this.ports.resources ?? [] }, output => readStudioProposals(parseModelJson(output), studioPluginId(id), ids, !initial.clarificationAnswered));
     if (outcome.kind === 'questions') {
       this.change(id, build => { build.questions = outcome.questions; build.active = null; build.phase = 'clarifying'; if (outcome.summary) build.messages.push({ role: 'assistant', text: outcome.summary }); });
       this.step(id, { id: stepId, agent: 'design', action: 'design', label: studioStep('questions', { count: outcome.questions.length }), status: 'waiting' });
@@ -278,15 +261,7 @@ export class AgentBuilderWorkflow {
       freezeStudioUi(valid, source && typeof source === 'object' && 'uiText' in source ? source.uiText : undefined, language, this.store.require(id).design?.contract.ui?.locales);
     }
     // A change inside an operation that its contract cannot show (e.g. what the model is asked) still reaches the code.
-    const rework: Record<string, string> = {};
-    const listed = value && typeof value === 'object' && !Array.isArray(value) ? (value as { rework?: unknown }).rework : undefined;
-    for (const item of Array.isArray(listed) ? listed : []) {
-      const entry = item as { op?: unknown; operation?: unknown; why?: unknown; change?: unknown };
-      const op = String(entry?.op ?? entry?.operation ?? ''), why = String(entry?.why ?? entry?.change ?? '').trim();
-      if (!valid.contract.operations.some(operation => operation.id === op)) throw new Error('rework 引用了不存在的操作：' + op);
-      if (!why || why.length > 600) throw new Error('rework 的 why 写清要在代码里做的改变（600 字以内）：' + op);
-      rework[op] = why;
-    }
+    const rework = readStudioRework(value, valid.contract.operations);
     // A build keeps the catalog it began with, so code already written against it keeps working; new builds use the current one.
     const previous = this.store.require(id).design;
     if (previous?.experience) valid.experience = previous.experience;

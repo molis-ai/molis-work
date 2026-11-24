@@ -402,7 +402,7 @@
     "shelf.help.advanced-summary": "Quick actions and clipboard settings",
     "shelf.help.advanced": "Configure quick actions, shortcuts, and retention under Settings › Plugins › Shelf.",
     "shelf.permission.storage-private.reason": "Store local Shelf files and clips",
-    "shelf.permission.artifact-read.reason": "Read Coding results you explicitly choose to receive",
+    "shelf.permission.artifact-read.reason": "Read project results you explicitly choose to receive",
     "shelf.permission.shelf-read.reason": "Read Shelf copies and processing status",
     "shelf.permission.terminal-run.reason": "Open a Shelf conversation terminal",
     "shelf.permission.shelf-write.reason": "Add and organize Shelf copies",

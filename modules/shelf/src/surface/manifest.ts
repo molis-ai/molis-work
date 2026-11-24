@@ -25,7 +25,7 @@ export const shelfManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: "storage:private", required: true, reason: "本机置物架文件与摘录", reason_text: { key: "shelf.permission.storage-private.reason" } },
-    { permission: "artifact:read", required: true, reason: "读取明确选择接收的 Coding 成果", reason_text: { key: "shelf.permission.artifact-read.reason" } },
+    { permission: "artifact:read", required: true, reason: "读取明确选择接收的项目成果", reason_text: { key: "shelf.permission.artifact-read.reason" } },
     { permission: "shelf:read", required: true, reason: "读取置物架的副本和处理状态", reason_text: { key: "shelf.permission.shelf-read.reason" } },
     { permission: "terminal:run", required: true, reason: "打开资料架对话终端", reason_text: { key: "shelf.permission.terminal-run.reason" } },
     { permission: "shelf:write", required: true, reason: "添加和整理置物架副本", reason_text: { key: "shelf.permission.shelf-write.reason" } },
@@ -42,7 +42,7 @@ export const shelfManifest: PluginManifest = {
     { permission: PLUGIN_LOCAL_TOOLS_PERMISSION, required: true, reason: "查找这台电脑上已安装的外部 AI 工具", reason_text: { key: "shelf.permission.local-tools.reason" } },
   ],
   capabilities: { provides: [], consumes: [] },
-  // One instance, in the Home: a project's Coding results are read for the project each call is for (`services.artifacts`).
+  // One instance, in the Home: a project's results are read for the project each call is for (`services.artifacts`).
   runtime: { scope: "home" },
   owner_files: SHELF_OWNER_FILES,
   // The platform's look for the terminal Agents on this machine (`services.localTools`).
@@ -50,10 +50,10 @@ export const shelfManifest: PluginManifest = {
   settings_entries: shelfSettings,
   actions: [shelfPreferences.read, shelfPreferences.write, ...SHELF_ACTIONS, ...SHELF_PROJECT_ACTIONS, ...SHELF_RUNTIME_ACTIONS],
   sync:{protocol_version:/* @version sync.protocol */ 1,collections:[{id:'copies',title:'材料、结果与终态任务',schema_version:/* @version sync.collection.shelf.copies */ 1,requires:[]}]},
-  artifacts: { produces: [], consumes: [{ artifact_type_id: /* @version type.coding.report "coding.report.v{version}" */ "coding.report.v1", schema_version: /* @version type.coding.report */ 1 }] },
-  // A Coding change set offered to Shelf is exchange data, not a 成果. What Shelf saves into a project is an imported document there.
-  process_items: { produces: [], consumes: [{ artifact_type_id: /* @version type.coding.changeset "coding.changeset.v{version}" */ "coding.changeset.v1", schema_version: /* @version type.coding.changeset */ 1 }] },
-  // The panel's routes, saving into a project and receiving a project's Coding results included (a project page's request carries its project).
+  // Shelf names no plugin's types: it reads the 成果 and process items their producers mark `copy_out`, which the Host gives it on each call.
+  // What Shelf saves into a project is an imported document there.
+  artifacts: { produces: [], consumes: [] },
+  // The panel's routes, saving into a project and receiving a project's results included (a project page's request carries its project).
   routes: [
     ...SHELF_HOME_ROUTES,
     { route_id: "shelf.project-results", method: "GET", path: "/project-results" },

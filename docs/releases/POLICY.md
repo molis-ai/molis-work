@@ -34,7 +34,7 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 | 内置插件 Manifest | `plugins/native/*/src/manifest.ts` 的 `version` | 等于产品版本。当前内置插件（以 `plugins/native/*` 为准，不在这里写死个数）统一为 0.1.0；Runtime 对 `bundled` 插件始终跟随当前构建（第 7 节），其安装身份与私有数据保留。官方集成、示例和第三方插件不在此范围 | 脚本；构建后的 `BUILTIN_PLUGIN_CATALOG` 由 `tests/builtin-manifests-contract.test.ts` 再核对 |
 | 各库的结构版本 | 见 [CHECKLIST.md](CHECKLIST.md) 的「各库版本表」 | 每个库自己一个数字，与产品版本无关；改库就升那个库的数字 | 脚本核对表与代码一致 |
 
-不属于这份策略的版本：非内置插件（第三方、生成的）的 Manifest 版本由插件自己定；`examples/plugin-sample` 是示例插件，自己的 2.0.0 不是产品版本；`vendor/` 里的包版本跟上游。官方集成（`plugins/official-integrations/*`：GitHub、Gmail、目录连接器、RSS、Web Query、YouTube）也不属于这份策略：内置插件指 `BUILTIN_PLUGIN_CATALOG` 里的条目（`docs/system/GLOSSARY.md` 第 3.2 节），官方集成另算，它们的 Manifest 版本（写在版本表里，现在 1.0.0 到 1.5.0）各自独立。它们没有持久的安装记录：`OfficialIntegrationRegistry`（`apps/local-host/src/official-integrations.ts`）为每个 Feed 来源在内存里装一个 Runtime（`MemoryPluginRuntimeRepository`），装进去的只有 GitHub、Gmail 和目录连接器，RSS、Web Query、YouTube 的 Manifest 现在没有任何调用把它们装进 Runtime；所以第 7 节的两种情形不会发生在它们身上。用户 2026-10-08 的决定没有说到它们，这个归类是起草时按上面的口径定的，等用户确认；要让它们也跟产品版本，就把它们并进上表「内置插件 Manifest」一行，并让脚本核对。
+不属于这份策略的版本：非内置插件（第三方、生成的）的 Manifest 版本由插件自己定；`examples/plugin-sample` 是示例插件，自己的 2.0.0 不是产品版本；`vendor/` 里的包版本跟上游。官方集成（`plugins/official-integrations/*`：GitHub、Gmail、目录连接器、RSS（也读 YouTube 频道）、Web Query）也不属于这份策略：内置插件指 `BUILTIN_PLUGIN_CATALOG` 里的条目（`docs/system/GLOSSARY.md` 第 3.2 节），官方集成另算，它们的 Manifest 版本（写在版本表里，现在 1.0.0 到 1.5.0）各自独立。它们没有持久的安装记录：`OfficialIntegrationRegistry`（`apps/local-host/src/official-integrations.ts`）为每个 Feed 来源在内存里装一个 Runtime（`MemoryPluginRuntimeRepository`），装进去的只有 GitHub、Gmail 和目录连接器，RSS、Web Query 的 Manifest 现在没有任何调用把它们装进 Runtime；所以第 7 节的两种情形不会发生在它们身上。用户 2026-10-08 的决定没有说到它们，这个归类是起草时按上面的口径定的，等用户确认；要让它们也跟产品版本，就把它们并进上表「内置插件 Manifest」一行，并让脚本核对。
 
 ## 2. 版本号怎么选
 

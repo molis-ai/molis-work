@@ -27,12 +27,12 @@ pnpm studio:replay --corpus <文件或目录> [--min-pass 0.8]   # 回放自己�
 
 ### 2.1 它跑的是什么
 
-每条语料是创作台设计者的一份原始答卷，加上宿主当时给它的上下文（它细化的方案、可用的动作）。回放对它做宿主在 `AgentBuilderWorkflow` 里做的同样几步（`horizontal/plugin-studio/src/agent-workflow.ts` 的 `propose` 与 `acceptDesign`）：
+每条语料是创作台设计者的一份原始答卷，加上宿主当时给它的上下文（它细化的方案、可用的动作）。回放从下列宿主步骤中执行有输入可重放的共同判定（`horizontal/plugin-studio/src/agent-workflow.ts` 的 `propose` 与 `acceptDesign`）：
 
 - `propose`：解析 JSON → 问题或 2–3 个方案 → `normalizeProposal` → 标识唯一、动作在动作目录内；
 - `detail`、`revise`：解析 JSON → `expandDesign` → `validateAgentDesign` → 检查 `rework`。
 
-这是**照着宿主的检查另写了一份**（`replay.mts` 的 `proposeAnswer` 和 `designAnswer` 里的 rework 循环），不是调用同一个函数，因为这些检查还在 `AgentBuilderWorkflow` 的私有方法和闭包里。`tests/studio-replay.test.ts` 的「the replay accepts and refuses exactly what the studio workflow does」把默认语料里每条答卷（含 380 份真实答卷），以及用例自己造的 Home 运行记录（`harvest` 那条用例里的三种答卷）也交给真实的 `AgentBuilderWorkflow`（脚本化的设计者），要求接受与否、拒绝时回给设计者的原话都和回放一致。宿主的这几步改了而回放没跟上，这条用例会红。**它管不到别人的 Home 里的答卷**：那种语料上两份检查若已分叉，没有用例会红（见第 6 节）。等 `AgentBuilderWorkflow` 的纯检查拆出来、回放直接调用同一个函数，再删这份拷贝和这条对照。
+方案、澄清和返工的业务判定由[创作台答卷函数](../../horizontal/plugin-studio/src/agent-design-answers.ts)提供，宿主与回放共用；展开和校验仍分别调用 `expandDesign` 与 `validateAgentDesign`。回放标记在哪一步拒绝，宿主还使用本次发布历史处理状态机版本、按当前语言冻结界面文案。已有的真实工作流对照保留，独立检查结果和实际回给设计者的话。
 
 报告的主数字是「一次接受率」：每个任务的第一份答卷（`attempt` 为 0）里，宿主不用退回就接受的比例，按来源（`recorded` 模型真实写的、`synthetic` 为检验某条规则手写的）和阶段分开。修复轮的答卷单独计。
 
@@ -186,7 +186,7 @@ pnpm studio:replay smoke --briefs <文件> --minutes 12 --out <报告.json>
 | 限制 | 后果 | 何时能关 |
 | --- | --- | --- |
 | 真实答卷是一次导出的快照（2026-10-08，三个项目，380 份），条目没有时间，也不含需求原文 | 主数字只代表这一批：用户之后的使用、别的项目、别的模型都不在里面；按提示词版本分批是唯一的粗略分法 | 要换一批，按 2.2 末段再导出一次、审过、加进 `recorded.json` |
-| 回放照抄了宿主的检查（`proposeAnswer`、rework 循环），不是调用同一个函数 | 对用例没覆盖到的语料（别人的 Home），两份检查分叉时没有任何东西变红 | 把 `AgentBuilderWorkflow` 的纯检查拆出 plugin-builder 公开导出后改成直接调用，再删这份拷贝和对照用例 |
+| 固定答卷没有当次发布历史和完整的界面语言设置 | 离线回放只证明所给输入下的共同判定。2026-11-24 已收回原先重复的方案和返工检查 | 涉及状态机升级、译文冻结时，另用带相应上下文的宿主工作流用例验证 |
 | 运行记录里没有整个动作目录（2.1 末段） | 对 `shownCatalogOnly` 的条目（380 份真实答卷全是）：宿主接受的答卷可能被回放拒绝（已单列标明），宿主拒绝的答卷也可能被回放接受（看不见）；2026-10-05 的目录收窄就看不见：用了后来被收窄掉的动作的答卷，回放照样接受 | 运行记录保存宿主检查时用的目录编号与执行声明之后 |
 | 基线文件改名并同时改 `DEFAULT_BASELINE` | CI 只剩本地比较（报告里有 `WARNING:` 一行） | 不关：改门禁脚本与 CI 步骤要过评审 |
 | 回放的语料只有 `propose`、`detail`、`revise` 三个阶段的答卷，没有 `experience`、`compose` 和代码阶段的 | 这三个阶段的宿主检查不在回放里；生成冒烟走到设计冻结（含 `experience`），也不看 `compose` 和代码阶段 | 另开任务 |

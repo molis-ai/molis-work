@@ -3122,7 +3122,7 @@
     "workbench.client-events.reload": "Reload",
     "workbench.client-events.request-failed": "Judgment rule request failed",
     "workbench.client-events.requesting-judgment-usually-takes-few-seconds": "Requesting a judgment. This usually takes a few seconds.",
-    "workbench.client-events.score-only-for-agent": "Score can only be used by the assistant, not bound to a use on a page.",
+    "workbench.client-events.score-only-for-agent": "Run a rating rule on its own or give it to AI. For a page, create a “Choose one result” or “Decide yes or no” rule.",
     "workbench.client-events.score-needs-least-two-levels": "A Score needs at least two levels",
     "workbench.client-events.settings-weren-t-saved-please-retry": "The settings weren’t saved. Please retry.",
     "workbench.client-events.some-results-not-mapped-page-actions-complete-mapping": "Some results are not mapped to page actions. Complete the mapping before publishing.",

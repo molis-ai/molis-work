@@ -19,10 +19,10 @@ function define<I, O>(name: string, version: number, title: string, description:
     scope, scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item", "artifact"], input_schema: input, output_schema: output }, version);
 }
 
-/** Coding results of the caller's project offered to Shelf: the Home instance reads them for the project each call is for (44B). */
+/** Results of the caller's project offered to Shelf (those their producers mark `copy_out`): read for the project each call is for (44B). */
 export const shelfRuntimeActions = {
   results: define<Record<string, never>, { results: { reference: ArtifactReference; title: string }[] }>("results.list", /* @version action.shelf.results.list */ 1, "可接收的项目成果",
-    "列出本项目可放进 Shelf 的 Coding 报告与变更", "query", object({}),
+    "列出本项目可放进 Shelf 的成果与过程项", "query", object({}),
     object({ results: { type: "array", items: object({ reference, title: text }) } }), ["artifact:read"]),
   preview: define<{ reference: ArtifactReference }, ShelfArtifactPreview>("results.preview", /* @version action.shelf.results.preview */ 1, "预览项目成果", "读取一份固定版本成果将放进 Shelf 的正文与指纹",
     "query", object({ reference }), preview, ["artifact:read"]),
@@ -44,15 +44,20 @@ const refused = async <T>(run: () => T | Promise<T>): Promise<T> => {
  * Home instance), and the producer's text comes through its declared document or preview role.
  */
 export function shelfRuntimeActionHandlers(context: PluginStartContext, store: () => Pick<ShelfStore, "admit" | "snapshot">): ActionHandlerBinding[] {
-  const services = context.services;
+  const services = context.services, dependencies = services?.actions?.dependencies;
+  // A list asks every candidate's producer from one discovery of the text roles, not one per candidate.
+  type Roles = Awaited<ReturnType<NonNullable<typeof dependencies>["discover"]>>;
+  const rolesOnce = () => {
+    let roles: Promise<Roles> | undefined;
+    return () => roles ??= refused(() => dependencies!.discover());
+  };
   // The version is read here, as this plugin; its text is discovered from the producer's declared document or preview role (Audit #10).
   // `projectId` is the caller's: a Home instance has no project of its own.
-  const read = async (ref: ArtifactReference, projectId: string | null | undefined) => {
+  const read = async (ref: ArtifactReference, projectId: string | null | undefined, roles = rolesOnce()) => {
     const record = await refused(() => services?.artifacts?.read(ref));
     if (!record || record.lifecycle_state !== "active" || record.availability !== "available") throw shelfErrors.unavailable("原成果已归档、不可用或不存在");
-    const dependencies = services?.actions?.dependencies;
     if (!dependencies || !projectId) throw shelfErrors.unavailable("项目成果接收尚未装配");
-    const views = await refused(() => dependencies.discover());
+    const views = await roles();
     const owned = views.filter(view => view.availability.available && view.provider.plugin_id === record.producer_plugin_id);
     const docAction = owned.find(view => isArtifactDocumentAction(view.action));
     if (docAction) {
@@ -69,10 +74,10 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, store: (
   return [
     bindOwnerPluginAction(context, shelfRuntimeActions.results, async (_input, _beforeWrite, caller) => {
       const listed = (services?.artifacts?.listConsumable() ?? []).map(({ artifact_id, version }) => ({ artifact_id, version }));
-      const rows: { reference: ArtifactReference; title: string }[] = [];
+      const rows: { reference: ArtifactReference; title: string }[] = [], roles = rolesOnce();
       for (const ref of listed) {
         // A version its producer will not turn into text (archived, forged, another kind) is simply not offered.
-        const value = await read(ref, caller.project_id).catch(() => null);
+        const value = await read(ref, caller.project_id, roles).catch(() => null);
         if (value) rows.push({ reference: value.source.reference, title: value.title });
       }
       return { results: rows };

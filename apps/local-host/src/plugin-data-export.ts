@@ -16,7 +16,7 @@ import { homeStores } from "./home-stores.js";
 import { installedHomeLibraryName, installedLibrarySnapshots } from "./installed-plugin-libraries.js";
 import { installedPluginManifest } from "./plugin-installation-directory.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
-import { SHIPPED_PARTS } from "./plugin-registry.js";
+import { shippedParts } from "./plugin-registry.js";
 import { sandboxOwnerFilesBase } from "./plugin-sandbox-owner-files.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { SandboxPackageStore } from "./sandbox-package-store.js";
@@ -109,7 +109,7 @@ export function loadVerifiedManifest(
 function collectManifests(homeDirectory: string, projectDb?: SqliteDatabase): Map<string, DiscoveredPluginData> {
   const found = new Map<string, DiscoveredPluginData>();
   const quarantined = new Set<string>();
-  for (const entry of SHIPPED_PARTS) {
+  for (const entry of shippedParts()) {
     found.set(entry.manifest.plugin_id, { builtin: true, builtinManifest: entry.manifest });
   }
   const packages = new SandboxPackageStore(homeDirectory);

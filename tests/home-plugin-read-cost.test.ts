@@ -6,9 +6,13 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { HomeConsentLedger } from "@molis-ai/molis-work-app-local-host";
 import { bindDatabaseSpace, ensureStorageSpace, personalStorageSpace } from "@molis-ai/molis-work-storage";
 
 test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while each read checks current identity and facts", async t => {
+  // Each read is the Home ledger's observed publishers, read through the held read-only handle (since 44B no project membership read opens
+  // the Home plugin store: there are no always-on plugins).
+  const publishers = (home: string) => new HomeConsentLedger(home).observedPublishers();
   const fixtures: Array<{ home: string; catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>; project: { project_id: string }; file: string; location: string }> = [];
   for (const withSpace of [false, false, true, true]) {
     const home = await mkdtemp(join(tmpdir(), "home-plugin-read-cost-"));
@@ -45,7 +49,7 @@ test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while eac
   try {
     for (let attempt = 0; attempt < 2; attempt++) {
       const before = structureReads;
-      for (const f of fixtures) assert.ok(f.catalog.projectPluginMembership(f.project.project_id).plugins.includes("goals"));
+      for (const f of fixtures) assert.ok(Array.isArray(publishers(f.home)));
       if (attempt === 0) assert.ok(structureReads > 0, "every new file is actually inspected");
       else assert.equal(structureReads, before, "QEA-96 unchanged files do not repeat a complete schema scan");
     }
@@ -70,29 +74,29 @@ test("ASR-11 QEA-96 unchanged Home plugin structures are compared once while eac
         } else db.exec(sql);
       } finally { db.close(); }
       const before = readFileSync(f.file);
-      assert.throws(() => f.catalog.projectPluginMembership(f.project.project_id), expected);
+      assert.throws(() => publishers(f.home), expected);
       assert.throws(() => initialByLocation.get(f.location)!.prepare("SELECT 1"), /not open/u, "stale held handle is closed on refusal");
       assert.deepEqual(readFileSync(f.file), before, "refusal does not repair or relabel the file");
     }
     const remaining = fixtures[3]!;
-    assert.ok(remaining.catalog.projectPluginMembership(remaining.project.project_id).plugins.includes("goals"));
+    assert.ok(Array.isArray(publishers(remaining.home)));
     const writer = new DatabaseSync(remaining.file);
     try {
       // The main file can remain unchanged while the WAL's schema cookie changes. Home requires exact shape, including no extra tables.
       writer.exec("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0");
-      assert.ok(remaining.catalog.projectPluginMembership(remaining.project.project_id).plugins.includes("goals"));
+      assert.ok(Array.isArray(publishers(remaining.home)));
       const beforeWalChange = readFileSync(remaining.file);
       writer.exec("CREATE TABLE unexpected_home_rows(id TEXT)");
       assert.deepEqual(readFileSync(remaining.file), beforeWalChange, "only the WAL schema changes after the successful warm read");
-      assert.throws(() => remaining.catalog.projectPluginMembership(remaining.project.project_id), { code: "actions.execution_failed" });
-      assert.throws(() => remaining.catalog.projectPluginMembership(remaining.project.project_id), { code: "actions.execution_failed" }, "a failed comparison is not remembered as success");
+      assert.throws(() => publishers(remaining.home), { code: "actions.execution_failed" });
+      assert.throws(() => publishers(remaining.home), { code: "actions.execution_failed" }, "a failed comparison is not remembered as success");
       writer.exec("DROP TABLE unexpected_home_rows");
-      assert.ok(remaining.catalog.projectPluginMembership(remaining.project.project_id).plugins.includes("goals"), "a repaired structure is rechecked and becomes readable");
+      assert.ok(Array.isArray(publishers(remaining.home)), "a repaired structure is rechecked and becomes readable");
     } finally { writer.close(); }
     const unbound = new DatabaseSync(remaining.file);
     try { unbound.exec("DELETE FROM molis_storage_space"); } finally { unbound.close(); }
     const beforeMissingBinding = readFileSync(remaining.file);
-    assert.throws(() => remaining.catalog.projectPluginMembership(remaining.project.project_id), { code: "actions.execution_failed" },
+    assert.throws(() => publishers(remaining.home), { code: "actions.execution_failed" },
       "QEA-108 a missing binding row cannot reuse the warm bound success, even though the schema is unchanged");
     assert.deepEqual(readFileSync(remaining.file), beforeMissingBinding, "the missing binding is not repaired or relabelled");
     assert.deepEqual(scratch, { plain: 1, scoped: 1 });

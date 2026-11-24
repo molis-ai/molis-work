@@ -50,9 +50,9 @@ test("S-07 W3-07-7-02 management HTTP keeps its body closed, trusts the catalog 
     [{ ...base, project_id: other.project_id }, "actions.scope_mismatch"],
     [{ ...base, capability: { ...base.capability, provider_id: "forged" } }, "actions.input_invalid"],
     // Only the platform's review operations at their current version (44B: no plugin declares management actions).
-    [{ ...base, capability: { ...base.capability, version: 2 } }, "actions.dependency_missing"],
-    [{ ...base, capability: { ...base.capability, version: 3 } }, "actions.dependency_missing"],
-    [{ ...base, capability: { capability_id: "goals.progress.record", version: 1 } }, "actions.dependency_missing"],
+    [{ ...base, capability: { ...base.capability, version: 2 } }, "actions.missing"],
+    [{ ...base, capability: { ...base.capability, version: 3 } }, "actions.missing"],
+    [{ ...base, capability: { capability_id: "goals.progress.record", version: 1 } }, "actions.missing"],
   ];
   for (const [body, code] of cases) {
     const reply = await env.post(body); assert.ok(reply.status >= 400); assert.equal(reply.body.code, code);

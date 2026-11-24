@@ -1,4 +1,4 @@
-import { SHIPPED_PARTS, homeDefinitionEntries, runsInHome, shippedPartByManifestId } from "./plugin-registry.js";
+import { shippedParts, homeDefinitionEntries, runsInHome, shippedPartByManifestId } from "./plugin-registry.js";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { homeFixtureEntries, pluginFixtureDeclarations, storesWithFixtures, type PluginFixture } from "./home-side.js";
@@ -38,7 +38,7 @@ export function projectScopeEntries<Entry extends { definition: PluginDefinition
     throw new Error(`项目插件 ${entry.definition.manifest.plugin_id} 不能自称双实例：标记只写在 Home 那一半`);
   }
   // A shipped plugin's Home half is in the catalog whether or not this host has a Home, so its project half is marked either way.
-  const homeSides = new Map<string, { dual: boolean; hostBuilt: boolean }>(SHIPPED_PARTS.filter(runsInHome)
+  const homeSides = new Map<string, { dual: boolean; hostBuilt: boolean }>(shippedParts().filter(runsInHome)
     .map(entry => [entry.manifest.plugin_id, { dual: entry.runtime!.dual_instance === true, hostBuilt: true }]));
   if (home) for (const entry of homeFixtureEntries(home)) homeSides.set(entry.definition.manifest.plugin_id, { dual: entry.dual_instance === true, hostBuilt: false });
   const marked = entries.map(entry => {

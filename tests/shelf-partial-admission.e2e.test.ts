@@ -28,7 +28,7 @@ test("VUX-12: files dropped on the Shelf together say which went in and which di
     if (session !== sessionId) return;
     const request = event.request as { url: string; method: string; postData?: string };
     const requestId = String(event.requestId);
-    if (request.method === "POST" && request.url.endsWith("/system.shelf/items")) {
+    if (request.method === "POST" && request.url.endsWith("/api/platform/shelf/items")) {
       const name = /"filename":"([^"]+)"/u.exec(request.postData ?? "")?.[1] ?? "";
       asked.push(name);
       if (refusing && name === "second.md") {
@@ -38,7 +38,7 @@ test("VUX-12: files dropped on the Shelf together say which went in and which di
     }
     await command("Fetch.continueRequest", { requestId }, sessionId).catch(() => undefined);
   }));
-  await command("Fetch.enable", { patterns: [{ urlPattern: "*/system.shelf/items", requestStage: "Request" }] }, sessionId);
+  await command("Fetch.enable", { patterns: [{ urlPattern: "*/api/platform/shelf/items", requestStage: "Request" }] }, sessionId);
   t.after(() => command("Fetch.disable", {}, sessionId).catch(() => undefined));
   const names = () => evaluate<string[]>(`[...document.querySelectorAll('[data-shelf-list=materials] [data-shelf-item]')].map((row) => row.dataset.shelfName)`);
 

@@ -6,6 +6,7 @@ import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform
 import { hostLog } from "./host-log.js";
 import type { HomePluginHost } from "./home-plugins.js";
 import { BUILTIN_PLUGIN_REGISTRY, PLATFORM_PLUGIN_REGISTRATIONS, builtinPluginByManifestId } from "./plugin-registry.js";
+import { HOSTED_SURFACES } from "./host-surface-list.js";
 
 /** What the directory reads of a Runtime's supervisor: which plugins it holds enabled, how each one is doing, and its Manifest. */
 export interface DirectorySource {
@@ -25,18 +26,23 @@ export interface DirectorySource {
  * chosen by the project's plugin list. Any other plugin is keyed by its Manifest id and is in the project because it runs there.
  * The key is the Host's to give, never read from the Manifest, and so are a built-in's marks (W5-02 B1): `personal` and `companions`
  * from the platform's own registration, `home` from that registration's own Manifest (its Runtime is the Home's).
+ * A platform part the Runtime hosts (Shelf, 44B PR2b) is not in it: the shell frames it from its own surface list in every project.
  */
 export function runningPluginDirectory(source: DirectorySource): PluginDirectoryEntry[] {
   return source.enabledPluginIds().flatMap(pluginId => {
     const state = source.state(pluginId), running = source.activeInstance?.(pluginId)?.source?.();
     const producer = running?.manifest.plugin_id === pluginId ? running : null;
     const manifest = producer ? producer.manifest : source.manifest(pluginId);
-    if (!manifest || !state || state.status === "blocked") return [];
+    if (!manifest || !state || state.status === "blocked" || hostedPart(manifest)) return [];
     const registration = builtinPluginByManifestId(manifest.plugin_id);
     const builtin = registration?.manifest.publisher.signature === manifest.publisher.signature ? registration : undefined;
     return [{ id: builtin?.project_plugin_id ?? manifest.plugin_id, plugin_id: manifest.plugin_id,
       chosen: builtin !== undefined, ...(builtin ? builtinMarks(builtin) : {}), ...projectDirectoryWords(manifest, directoryWordResolver(producer ? pluginTextReader(producer.activation) : null)) }];
   });
+}
+
+function hostedPart(manifest: { readonly plugin_id: string; readonly publisher: { readonly signature: string } }): boolean {
+  return HOSTED_SURFACES.some(surface => surface.manifest.plugin_id === manifest.plugin_id && surface.manifest.publisher.signature === manifest.publisher.signature);
 }
 
 function builtinMarks(builtin: PluginRegistration): Pick<PluginDirectoryEntry, "personal" | "home" | "companions"> {

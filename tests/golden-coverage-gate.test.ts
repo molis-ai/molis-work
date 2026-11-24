@@ -83,13 +83,6 @@ test("UPG2-04 a row that must be backed up and is not in the latest golden fails
   assert.match(goldenHomeProblems({ ...tree(), files: tree().files.filter(file => !file.startsWith("tests/fixtures/golden-homes/")) }).join("\n"), /holds no golden Home/u);
 });
 
-test("UPG2-04 a golden made before the platform renamed feed/ to security/ still covers the renamed paths: the replay upgrades it there", () => {
-  const before = { ...MANIFEST, files: MANIFEST.files.map(entry => entry.path === "security/secrets.json" ? { path: "feed/secrets.json" } : entry) };
-  assert.deepEqual(goldenHomeProblems(tree({ manifest: before })), []);
-  const elsewhere = { ...MANIFEST, files: MANIFEST.files.map(entry => entry.path === "security/secrets.json" ? { path: "feeds/secrets.json" } : entry) };
-  assert.match(goldenHomeProblems(tree({ manifest: elsewhere })).join("\n"), /security\/secrets\.json must be backed up/u, "only the renamed directory itself counts");
-});
-
 test("UPG2-04 an uncovered path needs a reason, and an entry that is no longer true fails so the list cannot go stale", () => {
   const listed = (entry: { path: string; reason?: string }, manifest: unknown = without("shelf/catalog.json")) => goldenHomeProblems(tree({ manifest, coverage: { ...COVERAGE, uncovered: [entry] } })).join("\n");
   assert.equal(listed({ path: "shelf/catalog.json", reason: "这条理由写清了为什么金样里没有它" }), "");

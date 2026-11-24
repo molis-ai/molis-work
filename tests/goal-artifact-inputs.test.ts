@@ -44,7 +44,7 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
   const goals = (await (await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/directory`)).json() as { goals: Array<{ goal_id: string; title: string }> }).goals;
   const v1 = goals.find(goal => goal.goal_id === "V1");
   assert.ok(v1?.title, JSON.stringify(goals));
-  assert.match(await detail(2), /data-artifact-goal-input-form[^>]*data-artifact-reference="\{&quot;artifact_id&quot;:&quot;pages-brief&quot;,&quot;version&quot;:2\}"/);
+  assert.match(await detail(2), /data-artifact-attach-target-form[^>]*data-artifact-reference="\{&quot;artifact_id&quot;:&quot;pages-brief&quot;,&quot;version&quot;:2\}"/);
 
   const added = await post({ reference: { artifact_id: "pages-brief", version: 2 }, used: true });
   assert.equal(added.status, 200, await added.clone().text());
@@ -57,7 +57,7 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
 
   // An archived version is neither offered nor accepted; removing keeps the version itself.
   library.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: "pages-brief", version: 1 });
-  assert.doesNotMatch(await detail(1), /data-artifact-goal-input-form/);
+  assert.doesNotMatch(await detail(1), /data-artifact-attach-target-form/);
   const archived = await post({ reference: { artifact_id: "pages-brief", version: 1 }, used: true });
   assert.equal(archived.status, 400);
   assert.equal((await archived.json() as { code: string }).code, "goals.artifact_input_unavailable");

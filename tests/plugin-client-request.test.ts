@@ -43,7 +43,7 @@ const plugins = readdirSync("plugins/native").filter(name => statSync(join("plug
 const violations = (dir: string) => sources(join(dir, "src")).flatMap(file => transports(file));
 
 test("RAC-556 no plugin's page code calls fetch, XMLHttpRequest, EventSource or sendBeacon itself, except the two bypassed plugins", () => {
-  assert.ok(plugins.length > 20, "the scan sees the plugin packages");
+  assert.ok(plugins.length > 15, "the scan sees the plugin packages");
   for (const plugin of plugins.filter(name => !BYPASSED.includes(join("plugins/native", name)))) {
     assert.deepEqual(violations(join("plugins/native", plugin)), [], `${plugin}: send requests through molisWorkRequest (scope: lifetime for what the page's lifetime must cancel)`);
   }

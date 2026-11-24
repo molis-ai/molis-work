@@ -55,7 +55,7 @@ test("RAC-2345 actual platform Artifact import, exact Goal input, English naviga
   await click("[data-artifact-attach-target-form] button[type=submit]");
   await waitFor("Boolean(document.querySelector('[data-artifact-links] [data-artifact-linked-plugin] a[data-workbench-item-plugin=\"goals\"][data-workbench-item-id=\"V1\"]'))");
   // A fixed input is listed with the Goal's other inputs (artifact-positioning 五.1, one entry), opening its exact version.
-  const fixedInput = `Boolean(document.querySelector('[data-goal-inputs] [data-goal-input-fixed] [data-workbench-item-id="/artifacts/${encodeURIComponent(exact!.artifact_id)}/versions/1"]'))`;
+  const fixedInput = `Boolean(document.querySelector('[data-goal-inputs] [data-placement-input-fixed] [data-workbench-item-id="/artifacts/${encodeURIComponent(exact!.artifact_id)}/versions/1"]'))`;
   await visit("/goals/V1");
   assert.equal(await evaluate(fixedInput), true);
   assert.ok(b.localHost);

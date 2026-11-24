@@ -114,7 +114,6 @@ const JOINED_BASELINE: Readonly<Record<string, number>> = {
   "apps/local-host/src/connector-plugin-requests.ts": 1,
   "apps/local-host/src/connector-words.ts": 1,
   "apps/local-host/src/context-onboarding-documents.ts": 1,
-  "apps/local-host/src/management-actions.ts": 1,
   "apps/local-host/src/installer/uninstall.ts": 1,
   "apps/local-host/src/installer/web-service-operations.ts": 1,
   "apps/local-host/src/managed-project-deletion.ts": 1,

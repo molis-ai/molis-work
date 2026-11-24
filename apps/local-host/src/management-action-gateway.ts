@@ -32,7 +32,7 @@ export async function handleManagementActionHttp(request: IncomingMessage, respo
     // Only the platform's protected review operations (44B: no plugin declares management actions).
     const review = (Object.keys(trustedReviewActions) as Array<keyof typeof trustedReviewActions>).find(name =>
       trustedReviewActions[name].capability_id === capability.capability_id && trustedReviewActions[name].version === capability.version);
-    if (!review) throw new ActionError("actions.dependency_missing", "这个管理动作或版本不可用");
+    if (!review) throw new ActionError("actions.missing", "这个管理动作或版本不可用");
     const project = catalogManagementProject(home, body.database_path);
     if (!project || project.project_id !== body.project_id) throw new ActionError("actions.scope_mismatch", "管理调用的项目数据库不属于当前 Home");
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });

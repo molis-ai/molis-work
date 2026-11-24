@@ -23,16 +23,19 @@ export type ShippedPart = PluginRegistration | HostSurface;
  * observation, data export, project deletion): the plugin catalog and the platform parts the runtime hosts. The catalog alone is for what a
  * person chooses: membership, the market, the directory, enablement.
  */
-export const SHIPPED_PARTS: readonly ShippedPart[] = [...PLATFORM_PLUGIN_REGISTRATIONS, ...HOSTED_SURFACES];
+export function shippedParts(): readonly ShippedPart[] {
+  // Read at each use, not copied once: callers that extend the catalog list (tests add a probe plugin to it) are seen.
+  return [...PLATFORM_PLUGIN_REGISTRATIONS, ...HOSTED_SURFACES];
+}
 
 /** The shipped part a project key names: a catalog plugin or a hosted platform part. */
 export function shippedPartByProjectKey(key: string): ShippedPart | undefined {
-  return SHIPPED_PARTS.find(entry => entry.project_plugin_id === key);
+  return shippedParts().find(entry => entry.project_plugin_id === key);
 }
 
 /** The shipped part a Manifest id names: a catalog plugin or a hosted platform part. */
 export function shippedPartByManifestId(pluginId: string): ShippedPart | undefined {
-  return SHIPPED_PARTS.find(entry => entry.manifest.plugin_id === pluginId);
+  return shippedParts().find(entry => entry.manifest.plugin_id === pluginId);
 }
 
 /**
@@ -174,13 +177,13 @@ export const runsOnlyInHome = (entry: Pick<PluginRegistration, "manifest" | "run
 
 /** Each Home plugin's definition as the owner-files and scope checks read it, with the dual-instance mark its registration gives it. */
 export function homeDefinitionEntries(): { definition: PluginDefinition; dual_instance?: true }[] {
-  return SHIPPED_PARTS.flatMap(entry => entry.runtime
+  return shippedParts().flatMap(entry => entry.runtime
     ? [{ definition: entry.runtime.create(), ...entry.runtime.dual_instance ? { dual_instance: true as const } : {} }] : []);
 }
 
 /** The Home Runtime's start list: each registration that runs there, under its project key, with what deleting a project clears of it. */
 export function homePluginEntries(): HomePluginEntry[] {
-  return SHIPPED_PARTS.flatMap(entry => entry.runtime ? [{ ...entry.runtime, scope: "home" as const, key: entry.project_plugin_id, manifest: entry.manifest,
+  return shippedParts().flatMap(entry => entry.runtime ? [{ ...entry.runtime, scope: "home" as const, key: entry.project_plugin_id, manifest: entry.manifest,
     project_data: { owner_id: entry.project_plugin_id } }] : []);
 }
 

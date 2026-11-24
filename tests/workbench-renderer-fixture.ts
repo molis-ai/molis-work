@@ -15,7 +15,7 @@ export {
   firstBlockedDescendant, unsatisfiedOutgoingDependencies, goalTreeReferenceLabel, goalTreeReferenceLabels,
 } from "@molis-ai/molis-work-plugin-goals";
 export type { GoalDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
-import { BUILTIN_PLUGIN_CATALOG, pluginOnDemandStylesheet, renderWorkbenchRefreshDocument } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, HOST_FRAMED_SURFACES, pluginOnDemandStylesheet, renderWorkbenchRefreshDocument } from "@molis-ai/molis-work-app-workbench";
 export type { MolisWorkOnboardingRenderOptions } from "@molis-ai/molis-work-app-workbench";
 
 // The platform's words, as the Host installs them when it starts: pages say stable keys (`t`) as well as `L`.
@@ -58,7 +58,7 @@ export const renderFeedWorkbenchFragment = (view: MolisWorkWebView) => {
 
 /** The workbench sheet and the sheets the plugins bring themselves (PG-070): the rules a page with every plugin frame loaded has. */
 export const renderMolisWorkWorkbenchWithPluginStylesheets = (): string => renderMolisWorkWorkbenchStylesheet()
-  + BUILTIN_PLUGIN_CATALOG.map((entry) => pluginOnDemandStylesheet(entry.project_plugin_id) ?? "").join("");
+  + [...BUILTIN_PLUGIN_CATALOG, ...HOST_FRAMED_SURFACES].map((entry) => pluginOnDemandStylesheet(entry.project_plugin_id) ?? "").join("");
 
 /** Existing fixtures supply the owner-read collection; production obtains it through the declared stage action. */
 export function renderMolisWorkWeb(view: MolisWorkWebView, goalId?: string, archive = false, trash = false, token = "", desktop = false, cli: Record<string, boolean> = {}): string {

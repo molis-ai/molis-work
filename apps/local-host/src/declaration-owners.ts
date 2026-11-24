@@ -5,7 +5,7 @@ import { installedManifestMatches } from "./installed-stage-identity.js";
 import { systemSettingOwners } from "./system-setting-owners.js";
 import { HOST_ARTIFACT_PRODUCERS } from "./artifact-type-registry.js";
 import { heldInstalls, sameInstallScope, type InstallScope } from "./plugin-holders.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS, SHIPPED_PARTS } from "./plugin-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS, shippedParts } from "./plugin-registry.js";
 
 const settingKeys = (manifest: PluginManifest): string[] => manifest.settings_entries?.entries.map(entry => entry.key) ?? [];
 
@@ -33,7 +33,7 @@ export function createSettingsVersionClaims() {
 export type SettingsVersionClaims = ReturnType<typeof createSettingsVersionClaims>;
 
 /** The plugins this build ships and the Host's own producers: their artifact names are reserved on every Home. */
-const shippedOwners = (): DeclarationOwner[] => [...SHIPPED_PARTS.map(entry => ({ plugin_id: entry.manifest.plugin_id, artifacts: entry.manifest.artifacts })),
+const shippedOwners = (): DeclarationOwner[] => [...shippedParts().map(entry => ({ plugin_id: entry.manifest.plugin_id, artifacts: entry.manifest.artifacts })),
   ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, artifacts: { produces: host.produces, consumes: [] } }))];
 
 /** A development run has only its own installation and the artifact names the build reserves (S-82). */

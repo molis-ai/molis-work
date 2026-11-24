@@ -214,7 +214,8 @@ test("RAC-605-KEY-02 equal Manifest ids retain each entry's slots, chosen state,
   assert.deepEqual(railEntries([], directory).map(item => item.id), ["other", "alpha", "artifacts", "sessions", "stage-runtime"], "only chosen entries need membership; the platform and other running entries still open their own stage");
   assert.deepEqual(islandEntries(["beta"], directory).map(item => [item.id, item.label]), [["beta", "beta island"], ["alpha", "alpha island"]]);
   assert.deepEqual(settingsEntries(["beta"], directory).map(item => [item.plugin_title, item.plugin_id, item.view_id, item.contribution_id]),
-    [["beta", pluginId, "preferences", `${pluginId}.preferences`], ["alpha", pluginId, "preferences", `${pluginId}.preferences`]], "shell keys do not rewrite Manifest or contribution identity");
+    [["beta", pluginId, "preferences", `${pluginId}.preferences`], ["alpha", pluginId, "preferences", `${pluginId}.preferences`],
+      ["Shelf", "system.shelf", "settings", "io.molis.work.native.shelf.settings.v1"]], "shell keys do not rewrite Manifest or contribution identity; the platform's Shelf follows");
   const tie = pluginDirectoryFor([entry("z-first", false, 1), entry("a-second", false, 1)]);
   assert.deepEqual(railEntries([], tie).map(item => item.id), ["z-first", "a-second", "artifacts", "sessions"], "equal order, Manifest id and view id retain declaration order, rather than sorting by shell key");
   const copied: PluginDirectoryEntry = { ...entry("copied-runtime", false, 1), name: "Same name", ui: { views: [{ view_id: "main", slot: "navigator", title: "Same title", order: 1 }] } };

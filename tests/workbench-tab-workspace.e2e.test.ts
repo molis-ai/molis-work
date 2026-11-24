@@ -177,8 +177,8 @@ test("RAC-2687 the real cross-project placement card opens the associated Goal's
   await click('#pr2-placement-slot .placement-bar');
   await waitFor("Boolean(document.querySelector('.placement-panel [data-placement-action=attach]'))");
   await click('.placement-panel [data-placement-action=attach]');
-  await waitFor(`Boolean(document.querySelector('dialog.placement-dialog input[name=goal][value="${target.project_id}|goal|CORE"]'))`);
-  await click(`dialog.placement-dialog input[name=goal][value="${target.project_id}|goal|CORE"]`);
+  await waitFor(`Boolean(document.querySelector('dialog.placement-dialog input[name=target][value="${target.project_id}|goal|CORE"]'))`);
+  await click(`dialog.placement-dialog input[name=target][value="${target.project_id}|goal|CORE"]`);
   await click('dialog.placement-dialog [data-placement-confirm]');
   await waitFor("[...document.querySelectorAll('.placement-toast button')].some(b=>b.textContent==='打开 Goal')");
   await navigate(() => evaluate("[...document.querySelectorAll('.placement-toast button')].find(b=>b.textContent==='打开 Goal').click()"));

@@ -38,7 +38,7 @@ test("TGA-20: the search source listing the kind is open to user, since the titl
   // A search source closed to `user` breaks the search source protocol as well (the index is built as the person), so the
   // action checks report it too; the task_subjects rule names the declaration that depends on it.
   assert.equal(problems({ kind: "notes_task" }, [closed]),
-    "能力 notes.search.entries@1 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型、对本机用户开放与对应对象种类的打开位置；task_subjects 的 kind notes_task 所在的搜索来源要对 user 开放（以本人身份取标题）");
+    "能力 notes.search.entries@1 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型、对本机用户开放与对应对象种类的打开位置（图标须取平台图标集）；task_subjects 的 kind notes_task 所在的搜索来源要对 user 开放（以本人身份取标题）");
   // One source open to the person is enough when another listing the same kind is not.
   const other = defineSearchEntriesAction("notes.search.archive", 1, [{ kind: "notes_task", title: "任务", surface: "notes" }], "任务", []);
   assert.ok(!problems({ kind: "notes_task" }, [closed, other]).includes("task_subjects"));

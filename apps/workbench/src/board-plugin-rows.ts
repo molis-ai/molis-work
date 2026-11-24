@@ -1,8 +1,9 @@
 import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
 import { DEFAULT_WEB_LOCALE, type WebLocale } from "./i18n.js";
 import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { PluginBoardSpecimenPorts, PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import type { HostSurfaceRegistration, PluginBoardSpecimenPorts } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./plugin-catalog.js";
+import { HOST_FRAMED_SURFACES } from "./host-surfaces.js";
 import { drawCatalogText } from "./plugin-text.js";
 import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js";
@@ -11,11 +12,13 @@ import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js"
  * The component board's 插件行视图 (specs/visual-ui-experience VUX-39): every plugin that declares board specimens
  * (`workbench.specimens`) has them drawn here by its own renderer, in the workbench's context, so the rows are the rows its page
  * draws; the board only lays them out — a directory column's rows in a column's width, a main-area view across the frame —
- * and says they are samples. No plugin is named here: the catalog says which plugins have specimens.
+ * and says they are samples. No plugin is named here: the catalog says which plugins have specimens, and the platform's own framed
+ * surfaces (Shelf, 44B) come first with theirs.
  */
+const BOARD_PARTS: readonly HostSurfaceRegistration[] = [...HOST_FRAMED_SURFACES, ...BUILTIN_PLUGIN_CATALOG];
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
-export function renderBoardPluginRows(readText: Say, sample: PluginBoardSpecimenPorts["sample"], catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): string {
+export function renderBoardPluginRows(readText: Say, sample: PluginBoardSpecimenPorts["sample"], catalog: readonly HostSurfaceRegistration[] = BOARD_PARTS): string {
   // The page's own primitives, scoped to the exact registered owner while it draws;
   // a date as Coding's Host writes it on the first paint (its day), the one plugin that shows one here.
   const portsOf = (_pluginId: string): PluginBoardSpecimenPorts => ({ escape: escapeHtml, text: readText, icon: (name) => icon(name as Parameters<typeof icon>[0]), formatDate: (value) => value.slice(0, 10), sample });
@@ -28,7 +31,7 @@ export function renderBoardPluginRows(readText: Say, sample: PluginBoardSpecimen
 }
 
 /** The sheets the specimens' plugins bring beside the workbench sheet (and those of the plugins their rows draw), so a specimen is styled as its page is. */
-export function boardPluginStyleLinks(catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): string {
+export function boardPluginStyleLinks(catalog: readonly HostSurfaceRegistration[] = BOARD_PARTS): string {
   const drawn = new Set(catalog.filter((entry) => entry.workbench.specimens).map((entry) => entry.project_plugin_id));
   const ids = new Set(pluginSurfaceClients().filter((client) => drawn.has(client.id)).flatMap((client) => client.styles));
   return [...ids].map((id) => `<link rel="stylesheet" href="/assets/molis-work-plugins/${encodeURIComponent(id)}.css">`).join("");

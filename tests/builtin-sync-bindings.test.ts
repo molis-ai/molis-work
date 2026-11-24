@@ -40,9 +40,10 @@ test('PCSYNC-22 current built-in bindings all name a declared collection exactly
  for(const entry of BUILTIN_PLUGIN_CATALOG)for(const id of Object.keys(entry.sync??{}))assert.ok(entry.manifest.sync?.collections.some(c=>c.id===id),`${entry.project_plugin_id}.${id}`);
 });
 
-test('AC-M1-03 all 20 persistent built-ins resolve through static bindings or an active Runtime owner', {timeout: 120_000}, async t => {
- const excluded = new Set(['diff', 'git']);
- const expected = ['coding', 'cognia', 'dataset', 'feed', 'form', 'goals', 'images', 'inbox', 'issues', 'jelly',
+test('AC-M1-03 all 19 persistent built-ins resolve through static bindings or an active Runtime owner', {timeout: 120_000}, async t => {
+ // Inbox keeps nothing to sync since 44B PR3: its attention items are the platform's (system.attention, project library 2→3).
+ const excluded = new Set(['diff', 'git', 'inbox']);
+ const expected = ['coding', 'cognia', 'dataset', 'feed', 'form', 'goals', 'images', 'issues', 'jelly',
   'lingguang', 'pages', 'plugin-builder', 'ppt', 'risk', 'schedule', 'shelf', 'todo', 'work-brief', 'workflows'];
  // The studio's drafts are the platform's since 47-1 C, under the identity they always had (HOST_FRAMED_SURFACES).
  const catalog = [...BUILTIN_PLUGIN_CATALOG.filter(entry => !excluded.has(entry.project_plugin_id)), ...HOST_FRAMED_SURFACES];

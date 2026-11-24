@@ -7,7 +7,7 @@ import { constants, gzipSync } from "node:zlib";
 import { workbenchLanguageResource, type WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import { BASELINE_REGISTRY, baselinePackageFile, COMPOSER_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { appearanceSheet } from "./appearance-sheet.js";
-import { SHIPPED_PARTS } from "./plugin-registry.js";
+import { shippedParts } from "./plugin-registry.js";
 import { tightenServedJs, tightenServedCss } from "./served-page-text.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { currentLocale } from "./web-locale.js";
@@ -225,7 +225,7 @@ export function createLocalWebAssets(ports: {
 }
 
 const DECLARED_CLIENT_ASSET_SPECIFIERS = new Map<string, string>();
-for (const entry of SHIPPED_PARTS) {
+for (const entry of shippedParts()) {
   const pkg = ("project_runtime" in entry ? entry.project_runtime?.package_name : undefined) ?? entry.runtime?.package_name;
   if (!pkg || !entry.workbench.clientAssetSpecifiers) continue;
   for (const [pathname, specifier] of Object.entries(entry.workbench.clientAssetSpecifiers)) {

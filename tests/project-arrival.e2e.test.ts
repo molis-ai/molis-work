@@ -29,7 +29,7 @@ async function openChooser(t: TestContext) {
   const { homeDirectory, projectId } = browser;
   const others: string[] = [];
   for (const name of ["Coding 开发沙盒", LONG_NAME, "Footballnia"]) others.push((await createProject(browser.web, name)).project_id);
-  // PEQ-02: Goals is off on new projects by default; enable it on the first empty project so the chooser tests the "no goals yet" brief wording.
+  // PEQ-02: Goals is off on new projects by default; enable it on the first empty project so the chooser shows a publisher with no progress yet.
   await addProjectPlugin(browser.web, others[0]!, "goals");
   mkdirSync(join(homeDirectory, "config"), { recursive: true });
   const memory = { schema_version: 1, last_project_id: projectId!, projects: {
@@ -240,7 +240,8 @@ test("the arrow keys move through the directory and the brief and the bar follow
   await settled();
   assert.match(await evaluate<string>("document.querySelector('.arrival-bar .mw-bar-context strong').textContent"), /Coding 开发沙盒/);
   assert.equal(await evaluate("document.activeElement.dataset.id"), others[0], "focus travels with the selection");
-  assert.match(await evaluate<string>("document.querySelector('#chooser-detail').textContent"), /还没有目标/, "a project with no goals says so instead of showing a zero");
+  // Progress a plugin publishes with nothing in it draws no focus and no count (M2): what to start with is that plugin's to say on its page.
+  assert.equal(await evaluate<boolean>("Boolean(document.querySelector('#chooser-detail .mw-brief__focus'))"), false, "a project with no progress shows no zero");
   await press("End");
   assert.equal(await evaluate(selected), others[2]);
   await press("Home");

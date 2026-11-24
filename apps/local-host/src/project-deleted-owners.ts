@@ -1,5 +1,5 @@
 import { forgetAutomationOffers, forgetAutomationPreferences } from "@molis-ai/molis-work-service-automation-recommender";
-import { SHIPPED_PARTS } from "./plugin-registry.js";
+import { shippedParts } from "./plugin-registry.js";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { artifactsProjectData } from "@molis-ai/molis-work-module-artifacts";
 import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
@@ -92,7 +92,7 @@ type DeclaredOwner = ProjectDeletedOwner & { order?: number };
 
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
   const declared: DeclaredOwner[] = [
-    ...SHIPPED_PARTS.flatMap((entry): DeclaredOwner[] => {
+    ...shippedParts().flatMap((entry): DeclaredOwner[] => {
       const library = entry.manifest.databases?.home, pluginId = entry.manifest.plugin_id;
       if (library?.project_rows) {
         return [{ id: entry.project_plugin_id, ...projectDataLabel(library.project_rows.label, entry.manifest, registeredBuiltinText(entry.manifest)), order: library.project_rows.order,

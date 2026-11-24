@@ -1,3 +1,4 @@
+import { activeLocale } from "./web-locale.js";
 import type { ActionSubject, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { isPresentationValuesReader, presentationFormFields } from "@molis-ai/molis-work-plugin-sdk/presentation";
@@ -64,7 +65,7 @@ export async function mainlinePresentations(
               provider_id: action.provider.provider_id,
             },
             input,
-            { signal },
+            { signal, query_only: true, beforeEffect: async () => signal.throwIfAborted() },
           ),
       },
       deadline,
@@ -80,7 +81,7 @@ export async function mainlinePresentations(
       const ring =
         status && typeof raw === "string" && Object.hasOwn(status.map, raw) ? status.map[raw]?.ring : undefined;
       const markup = renderPresentationForm(object, "row", {
-        locale: null,
+        locale: activeLocale(),
         ownerDisplay: { name: action.provider.title },
         read,
       });

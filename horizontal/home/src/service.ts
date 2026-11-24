@@ -245,7 +245,7 @@ export async function previewHomePage(
   assertDirectUserOnly(caller, "只有本人可以打开生成首页草稿的试用会话");
   const store = ports.open(projectId);
   const verified = store.readFilesVerified(input);
-  const designReport = inspectHomePageDesign(verified.files, { palettes: ports.palettes });
+  const designReport = inspectHomePageDesign(verified.files, { entry: verified.version.entry, palettes: ports.palettes });
   if (!designReport.ok) {
     const reasons = designReport.issues.filter(item => item.severity === "error").map(item => `${item.path}: ${item.reason}`);
     throw homeErrors.draft_invalid(reasons.join("；") || "页面未通过安全与样式检查，不能进入预览", {
@@ -273,7 +273,7 @@ export async function approveHomePage<Op extends HomePageApprovalOperation>(
   if (store.readApprovalReceipt(caller.actor_id, operation, input.request_id)) return store.approveAndSelect(decision).receipt;
   // Ensure the target version exists and its stored files pass SHA-256 integrity before approving.
   const verified = store.readFilesVerified({ page_id: input.page_id, version: input.version });
-  const designReport = inspectHomePageDesign(verified.files, { palettes: ports.palettes });
+  const designReport = inspectHomePageDesign(verified.files, { entry: verified.version.entry, palettes: ports.palettes });
   if (!designReport.ok) {
     const reasons = designReport.issues.filter(item => item.severity === "error").map(item => `${item.path}: ${item.reason}`);
     throw homeErrors.draft_invalid(reasons.join("；") || "页面未通过安全与样式检查，不能采用", {

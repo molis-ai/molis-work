@@ -386,7 +386,10 @@ export const assistantPanelActions = {
   control: panel("works.control", /* @version action.assistant.panel.works.control */ 1, "暂停、继续、停止或撤回", ofWork,
     (entry, input, caller) => of(entry).service.control(input.work_id, pageBody<AssistantControl>(input.body), assistantPermissionCaller(caller, entry.page))),
   draft: panel("works.draft", /* @version action.assistant.panel.works.draft */ 1, "保存输入草稿", ofWork,
-    (entry, input) => ({ work: of(entry).service.saveDraft(input.work_id, pageBody<{ draft: string }>(input.body).draft) }), false, true),
+    (entry, input) => {
+      const { draft, expected_draft_revision } = pageBody<{ draft: string; expected_draft_revision?: number }>(input.body);
+      return { work: of(entry).service.saveDraft(input.work_id, draft, expected_draft_revision) };
+    }, false, true),
   rename: panel("works.rename", /* @version action.assistant.panel.works.rename */ 1, "改工作名", ofWork,
     async (entry, input) => ({ work: await of(entry).service.rename(input.work_id, Number(input.body.revision), String(input.body.title ?? "")) })),
   mode: panel("works.mode", /* @version action.assistant.panel.works.mode */ 1, "设定执行方的后续模式", ofWork,

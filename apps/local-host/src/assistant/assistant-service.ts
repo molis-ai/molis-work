@@ -344,9 +344,13 @@ export class AssistantService {
       (member, host, control) => this.followUps.stopForArchive(member.work_id, { adapter: host.adapter(RUNTIME), control }));
   }
 
-  saveDraft(workId: string, draft: string): AssistantWork {
+  saveDraft(workId: string, draft: string, expectedDraftRevision?: number): AssistantWork {
     if (typeof draft !== "string" || draft.length > MAX_TEXT) throw assistantErrors.invalid("草稿过长");
-    const work = this.store.update(this.actorId, workId, null, { draft }, false);
+    const current = this.store.get(this.actorId, workId);
+    if (expectedDraftRevision !== undefined && current.draft_revision !== expectedDraftRevision) {
+      return this.reads.publicWork(current, "idle");
+    }
+    const work = this.store.update(this.actorId, workId, current.revision, { draft }, false);
     return this.reads.publicWork(work, "idle");
   }
 

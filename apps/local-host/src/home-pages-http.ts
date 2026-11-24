@@ -158,6 +158,7 @@ export async function handleHomePagesHttp(
       const pruned = homePageReads(homeDirectory, project.project_id).pruned(pageId);
       const forbiddenAction = actions.find(item => item.audience_denied);
       const report = inspectHomePageDesign(loaded.files, {
+        entry: loaded.version.entry,
         palettes: homePagePalettes,
         actionsValid: !forbiddenAction,
         actionIssueReason: forbiddenAction?.unavailable_reason ?? undefined,

@@ -197,9 +197,12 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
     paintCornerTrigger(view);
   };
 
+  let readGeneration = 0;
   const refresh = async (emit = true): Promise<MainlineViewResponse | null> => {
+    const generation = ++readGeneration;
     try {
       const next = await api<MainlineViewResponse>("/api/mainline/items/view", {});
+      if (generation !== readGeneration) return view;
       const prev = lastCurrent === undefined ? null : lastCurrent;
       const changed = lastCurrent !== undefined && lastCurrent !== next.mainline.current;
       if (needsGroupDefaults) {
@@ -227,17 +230,21 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
       return;
     }
     try {
+      ++readGeneration;
       const firstEntry = Boolean(itemId && !visited.has(itemId));
       await api("/api/mainline/switch", { item_id: itemId });
       if (itemId) {
         visited.add(itemId);
         writeStoredSet(VISITED_KEY, visited);
       }
+      const generation = ++readGeneration;
       const next = await api<MainlineViewResponse>("/api/mainline/items/view", {});
+      if (generation !== readGeneration) return;
       view = next;
       lastCurrent = next.mainline.current;
       const craft = globals.molisCraft;
       const applyVisual = () => {
+        if (view !== next) return;
         paint();
         closeCorner();
         announce(next, prev, firstEntry);
@@ -468,7 +475,10 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
     }
   });
 
-  document.addEventListener("molis-work:language-changed", () => mountShell());
+  document.addEventListener("molis-work:language-changed", () => {
+    mountShell();
+    if (hydrated) void refresh(true);
+  });
   document.addEventListener("molis-work:plugins-changed", () => { if (hydrated) void refresh(true); });
   window.addEventListener("molis:placement-changed", () => { if (hydrated) void refresh(true); });
 

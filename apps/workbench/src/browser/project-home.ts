@@ -4,7 +4,6 @@ import { homeButton, homeReadAt, homeWord, isPlacementControl, renderHome, rende
 import { createPositionCorrections } from "./project-position-corrections.js";
 import { positionMenuKey } from "./project-position-menu.js";
 import { createPositionPeek } from "./project-position-peek.js";
-import { mountHomePageFrame } from "./plugin-frame/home-page-document.js";
 import type { mountHomePages } from "./project-home-pages.js";
 
 import { renderCheckSummary, renderCompareAdoptBar, renderEditConflict } from "@molis-ai/molis-work-design-system/home-page-adoption";
@@ -426,7 +425,7 @@ export function mountHome(host: HomeHost) {
   const homePages =
     host.projectKey && host.projectKey !== "personal" && mountPages
       ? mountPages({
-          root, mountFrame: mountHomePageFrame,
+          root,
           projectKey: host.projectKey,
           routePrefix: host.routePrefix ?? `/projects/${encodeURIComponent(host.projectKey)}`,
           api: <T>(path: string, method: "POST" | "DELETE", body?: unknown, signal?: AbortSignal) =>

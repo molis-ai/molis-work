@@ -154,7 +154,7 @@ function extractCssDeclarationValues(css: string, visit: (selector: string, prop
  */
 export function inspectHomePageDesign(
   files: readonly HomePageFile[],
-  options: { readonly actionsValid?: boolean; readonly actionIssueReason?: string; readonly palettes?: readonly UiTokenMap[] } = {},
+  options: { readonly actionsValid?: boolean; readonly actionIssueReason?: string; readonly entry?: string; readonly palettes?: readonly UiTokenMap[] } = {},
 ): HomePageDesignCheckReport {
   const sandboxIssues: HomePageDesignIssue[] = [];
   const scopeIssues: HomePageDesignIssue[] = [];
@@ -239,7 +239,7 @@ export function inspectHomePageDesign(
       if (amberMisused) designIssues.push({ code: "amber_usage", path: file.path, severity: "error", reason: "琥珀色只用于等你确认的内容" });
       for (const { ink, paper } of colors.values()) {
         // The DOM pass resolves colors inherited from other rules. A CSS-only design sample has the default canvas.
-        if ((ink && paper || !files.some(item => item.media_type === "text/html")) && lowContrast(ink ?? "ink", paper ?? "paper", options.palettes)) {
+        if (!files.some(item => item.media_type === "text/html") && lowContrast(ink ?? "ink", paper ?? "paper", options.palettes)) {
           designIssues.push({ code: "low_contrast", path: file.path, severity: "error", reason: "文字与背景的对比度不足 4.5:1" });
           break;
         }
@@ -265,7 +265,7 @@ export function inspectHomePageDesign(
 
   const actionsOk = options.actionsValid !== false;
   if (!designIssues.some(issue => issue.code === "low_contrast")) {
-    const path = unreadablePage(files, options.palettes);
+    const path = unreadablePage(files, options.palettes, options.entry);
     if (path) designIssues.push({ code: "low_contrast", path, severity: "error", reason: "文字与背景的对比度不足 4.5:1" });
   }
   const checks: HomePageCheckItem[] = [

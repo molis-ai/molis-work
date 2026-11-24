@@ -253,6 +253,10 @@ test("SPC-10 ONB-25 ONB-26 ONB-27 WBR-26: home page lifecycle — draft save, bl
     { path: "page.css", media_type: "text/css", text: "main{background:var(--ink);color:var(--paper)}p{color:var(--ink)}" },
   ] as const;
   assert.ok(inspectHomePageDesign(nested).issues.some(issue => issue.code === "low_contrast"));
+  const onText = (css: string) => inspectHomePageDesign([nested[0], { ...nested[1], text: css }]).issues.map(issue => issue.code);
+  assert.ok(onText("body{background:var(--ink)}").includes("low_contrast"));
+  assert.deepEqual(onText(".unused{color:var(--ink);background:var(--ink)}"), []);
+  assert.deepEqual(onText("p{color:var(--ink);background:var(--ink)}main p{color:var(--paper)}"), []);
   const dirtyReport = inspectHomePageDesign([
     {
       path: "index.html",

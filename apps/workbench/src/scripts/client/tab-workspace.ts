@@ -230,6 +230,8 @@ ${TAB_WORKSPACE_DRAG_PART}
     // Only the plugin asked for: open its page, if this project offers it (its menu lists the plugins it has on).
     if (requestedPlugin && !requestedItem && !requestedRecord && (requestedPlugin === "home" || Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin))) {
       if (requestedPlugin === "home" || offeredPlugin(requestedPlugin)) {
+        if (ops.soloSide(state)) ops.toggleSolo(state);
+        column = "main";
         ops.setExclusive(state, null);
         const opened = !recall(requestedPlugin) && ops.openPlugin(state, requestedPlugin);
         if (opened && paneParams.has("openView")) ops.writeView(state, ops.focused(state).id, paneParams.get("openView"), opened.id);

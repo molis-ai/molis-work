@@ -248,9 +248,11 @@ test("B10-R3: the current version works and saved send receipts survive a real d
     authority: async () => { throw new Error("This storage check starts no model"); } }, "user");
   try {
     const work = store.create({ actor_id: "user", title: "Durable draft", scope: { kind: "personal" }, origin: null });
-    service.saveDraft(work.work_id, "Keep this draft");
+    const originalDraft = service.saveDraft(work.work_id, "Keep this draft");
     service.saveDraft(work.work_id, "");
     const view = service.saveDraft(work.work_id, "Keep this draft");
+    assert.equal(service.saveDraft(work.work_id, "", originalDraft.draft_revision).draft, "Keep this draft");
+    assert.equal(service.saveDraft(work.work_id, "", originalDraft.draft_revision).draft_revision, view.draft_revision);
     assert.equal(view.draft_revision, 4, "create plus three real draft edits, including the same-text new generation");
     assert.deepEqual(store.requests.claimRequest("user", "v1-reopen-request"), { claimed: true });
     const receipt = { work: view, outcome: "queued" as const, submission_id: "v1-reopen-content" };

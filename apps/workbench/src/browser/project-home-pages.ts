@@ -11,7 +11,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/home";
 import { escapeHtml, renderAlert, renderBadge, t as uiText } from "./mainline-ui.js";
 import { mountMergeEditor } from "./home-page-merge.js";
-import type { mountHomePageFrame, MountedHomePageFrame } from "./plugin-frame/home-page-document.js";
+import { mountHomePageFrame, type MountedHomePageFrame } from "./plugin-frame/home-page-document.js";
 import { runBusy } from "./busy.js";
 import {
   homePageRefKey,
@@ -25,7 +25,6 @@ import {
 } from "./project-home-pages-render.js";
 
 interface HomePagesUiHost {
-  readonly mountFrame: typeof mountHomePageFrame;
   readonly root: HTMLElement;
   readonly projectKey: string;
   readonly routePrefix: string;
@@ -66,6 +65,8 @@ export function mountHomePages(host: HomePagesUiHost) {
   let fallbackAlert: { title: string; body: string; retryRef?: HomePageRef } | null = null;
   let restoreNotice: { page: HomePageRef; title: string } | null = null;
   let dialogTarget: { operation: "adopt" | "restore"; version: HomePageVersionSummary; inspect: InspectResponse } | null = null;
+  let dialogGeneration = 0;
+  let nowObserver: MutationObserver | null = null;
   let syncAbort: AbortController | null = null;
   const query = new URLSearchParams(location.search);
   const sceneRef = { page_id: query.get("homePage"), version: Number(query.get("homeVersion")) };
@@ -75,8 +76,12 @@ export function mountHomePages(host: HomePagesUiHost) {
   type Intent = { operation: "adopt" | "restore" | "basic"; ref: string; actions: readonly ExactActionReference[]; request_id: string; expected_revision: string };
   let pending: Intent | null = null;
   try { pending = JSON.parse(sessionStorage.getItem(intentKey) || "null"); } catch { /* previous intent unavailable */ }
-  function decision(operation: Intent["operation"], ref: string, actions: readonly ExactActionReference[], revision: string) {
+  async function decision(operation: Intent["operation"], ref: string, actions: readonly ExactActionReference[], revision: string) {
     if (!pending || pending.operation !== operation || pending.ref !== ref || JSON.stringify(pending.actions) !== JSON.stringify(actions)) {
+      if (pending) {
+        const recovered = await recoverDecision();
+        if (recovered) throw new Error(recovered);
+      }
       const scene = operation === "adopt" && ref === sceneRef.page_id + "@" + sceneRef.version && sceneApproval;
       pending = { operation, ref, actions, request_id: scene || crypto.randomUUID(), expected_revision: revision };
       try { sessionStorage.setItem(intentKey, JSON.stringify(pending)); } catch { /* in-memory retry is still available */ }
@@ -94,14 +99,23 @@ export function mountHomePages(host: HomePagesUiHost) {
     for (const key of ["homePage", "homeVersion", "homeApproval"]) url.searchParams.delete(key);
     history.replaceState(history.state, "", url);
   }
-  async function recoverDecision(signal: AbortSignal) {
+  async function recoverDecision(signal?: AbortSignal) {
     const intent = pending;
     if (!intent) return;
     const read = await host.api<{ results: HomePageApprovalReadResult[] }>("/api/home-pages/read", "POST",
       { queries: [{ by: "approval_request", operation: intent.operation, request_id: intent.request_id }] }, signal);
-    if (pending !== intent || read.results[0]?.kind !== "receipt") return;
+    const row = read.results[0];
+    if (pending !== intent || row?.kind !== "receipt") return;
+    const receipt = row.receipt;
+    if (receipt.approval && homePageRefKey(receipt.approval.page) !== intent.ref) {
+      throw new Error(uiText.text("workbench.home-pages.receipt-target-changed"));
+    }
     if (sceneApproval === intent.request_id) finishScene();
     forgetDecision();
+    if (overview) overview = { ...overview, ...row.current };
+    const actions = (receipt.approval?.approved_actions ?? []).map(ref => dialogTarget?.inspect.actions.find(action =>
+      action.capability_id === ref.capability_id && action.version === ref.version && action.provider_id === ref.provider_id)?.title ?? ref.capability_id);
+    return uiText.text("workbench.home-pages.recovered-grants", { actions: actions.join(", ") || uiText.text("workbench.home-pages.no-granted-actions") });
   }
 
   let liveLoad = new AbortController();
@@ -113,7 +127,7 @@ export function mountHomePages(host: HomePagesUiHost) {
       signal.throwIfAborted();
       const loaded = session.loaded;
       if (!loaded || homePageRefKey(loaded.version) !== homePageRefKey(ref)) throw new Error(uiText.text("workbench.home-pages.preview-failed"));
-      return await host.mountFrame({ container, loaded, pageSessionId: session.page_session_id, isPreview: preview,
+      return await mountHomePageFrame({ container, loaded, pageSessionId: session.page_session_id, isPreview: preview,
         routePrefix: host.routePrefix, headers: host.headers, signal, onCrash });
     } catch (error) {
       void globalThis.molisWorkRequest(host.routePrefix + "/api/home-pages/session/" + encodeURIComponent(session.page_session_id),
@@ -132,6 +146,9 @@ export function mountHomePages(host: HomePagesUiHost) {
   };
 
   const disposeCompareFrames = () => {
+    ++dialogGeneration;
+    nowObserver?.disconnect();
+    nowObserver = null;
     compareLoad.abort();
     compareLoad = new AbortController();
     compareNowFrame?.dispose();
@@ -269,9 +286,17 @@ export function mountHomePages(host: HomePagesUiHost) {
         }
       } else {
         const current = host.root.querySelector("[data-home-groups]");
-        for (const section of current?.children ?? []) nowStage.append(section.cloneNode(true));
         nowStage.inert = true;
-        for (const node of nowStage.querySelectorAll("[id]")) node.removeAttribute("id");
+        if (current) {
+          const mirror = () => {
+            if (signal.aborted) return;
+            nowStage.replaceChildren(...Array.from(current.children, section => section.cloneNode(true)));
+            for (const node of nowStage.querySelectorAll("[id]")) node.removeAttribute("id");
+          };
+          mirror();
+          nowObserver = new MutationObserver(mirror);
+          nowObserver.observe(current, { subtree: true, childList: true, characterData: true, attributes: true });
+        }
       }
 
       if (!inspect.report.ok) {
@@ -348,6 +373,7 @@ export function mountHomePages(host: HomePagesUiHost) {
 
   async function openApprovalDialog(operation: "adopt" | "restore", ref: HomePageRef): Promise<void> {
     if (!dialog || !overview) return;
+    const generation = ++dialogGeneration;
     const guard = compareLoad.signal;
     if (operation === "adopt" && comparingDraft && blocker()) return;
     const target = overview.versions.find(v => v.page_id === ref.page_id && v.version === ref.version);
@@ -356,7 +382,7 @@ export function mountHomePages(host: HomePagesUiHost) {
       comparingDraft && homePageRefKey(comparingDraft) === homePageRefKey(ref) && compareInspect
         ? compareInspect
         : await host.api<InspectResponse>("/api/home-pages/inspect", "POST", ref);
-    if (guard.aborted || homePageRefKey(inspect.version) !== homePageRefKey(ref)) return;
+    if (generation !== dialogGeneration || guard.aborted || homePageRefKey(inspect.version) !== homePageRefKey(ref)) return;
     dialogTarget = { operation, version: target, inspect };
     dialog.innerHTML = renderApprovalDialogHtml({ operation, target, inspect, overview });
     if (pending?.operation === operation && pending.ref === ref.page_id + "@" + ref.version) {
@@ -389,7 +415,7 @@ export function mountHomePages(host: HomePagesUiHost) {
           page_id: version.page_id,
           version: version.version,
           approved_actions: approved,
-          ...decision(operation, version.page_id + "@" + version.version, approved, overview!.revision),
+          ...await decision(operation, version.page_id + "@" + version.version, approved, overview!.revision),
         });
         forgetDecision();
         if (sceneApproval && operation === "adopt" && version.page_id === sceneRef.page_id && version.version === sceneRef.version) {
@@ -410,6 +436,11 @@ export function mountHomePages(host: HomePagesUiHost) {
       });
     } catch (error) {
       const code = (error as { code?: string } | null)?.code;
+      if (code === "home.request_conflict") {
+        const recovered = await recoverDecision();
+        if (recovered) { host.receipt(recovered);
+          return; }
+      }
       if (code === "home.revision_conflict") {
         forgetDecision();
         dialog.close();
@@ -436,7 +467,7 @@ export function mountHomePages(host: HomePagesUiHost) {
       await runBusy(triggerBtn, async () => {
         await host.api<HomePageSelectResult>("/api/home-pages/select", "POST", {
           kind: "basic",
-          ...decision("basic", "", [], overview!.revision),
+          ...await decision("basic", "", [], overview!.revision),
         });
         forgetDecision();
         versionMenuOpen = false;
@@ -461,7 +492,8 @@ export function mountHomePages(host: HomePagesUiHost) {
     syncAbort?.abort();
     const controller = (syncAbort = new AbortController());
     try {
-      await recoverDecision(controller.signal);
+      const message = await recoverDecision(controller.signal);
+      if (message) host.receipt(message);
       const next = await host.api<HomePageOverview>("/api/home-pages/read", "POST", {}, controller.signal);
       if (controller.signal.aborted) return;
       overview = next;
@@ -634,15 +666,21 @@ export function mountHomePages(host: HomePagesUiHost) {
       renderCompareChrome();
     }
     if (dialogTarget && dialog?.open) {
+      const grants = new Map(Array.from(dialog.querySelectorAll<HTMLInputElement>("input[data-hp-grant]"), box => [box.dataset.hpGrant, box.checked]));
       dialog.innerHTML = renderApprovalDialogHtml({
         operation: dialogTarget.operation,
         target: dialogTarget.version,
         inspect: dialogTarget.inspect,
         overview,
       });
+      for (const box of dialog.querySelectorAll<HTMLInputElement>("input[data-hp-grant]")) {
+        box.checked = !box.disabled && grants.get(box.dataset.hpGrant) === true;
+      }
     }
   };
 
+  const dismissDialog = () => { ++dialogGeneration; };
+  dialog?.addEventListener("close", dismissDialog);
   host.root.addEventListener("click", onClick);
   document.addEventListener("keydown", onKeydown);
   document.addEventListener("molis-work:language-changed", onLanguageChanged);
@@ -658,6 +696,7 @@ export function mountHomePages(host: HomePagesUiHost) {
     },
     dispose() {
       syncAbort?.abort();
+      dialog?.removeEventListener("close", dismissDialog);
       host.root.removeEventListener("click", onClick);
       document.removeEventListener("keydown", onKeydown);
       document.removeEventListener("molis-work:language-changed", onLanguageChanged);

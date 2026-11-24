@@ -62,19 +62,25 @@ const tokenRole = /^var\(\s*--([\w-]+)\s*\)$/iu;
 export function unreadablePage(
   files: readonly HomePageFile[],
   palettes: readonly UiTokenMap[] = [],
+  entry?: string,
 ): string | undefined {
-  const styles = files
-    .filter((file) => file.media_type === "text/css")
-    .map((file) => {
-      try {
-        return parseCss(file.text);
-      } catch {
-        return undefined;
-      }
+  const sheetFiles = files.filter(file => file.media_type === "text/css");
+  if (!sheetFiles.length) return;
+  for (const html of files.filter(file => file.media_type === "text/html" && (!entry || file.path === entry))) {
+    const source = parseDocument(html.text);
+    const links = selectAll("link[rel=stylesheet][href]", source.children);
+    const sheets = new Set(links.map(link => link.attribs.href?.replace(/^\.\//u, "")));
+    for (const sheet of sheetFiles) sheets.add(sheet.path);
+    const styles = [...sheets].map(path => {
+      const sheet = sheetFiles.find(file => file.path === path);
+      if (!sheet) return;
+      try { return parseCss(sheet.text); } catch { return undefined; }
     });
-  if (!styles.some(Boolean)) return;
-  for (const html of files.filter((file) => file.media_type === "text/html")) {
-    const doc = parseDocument(html.text);
+    const body = selectAll("body", source.children)[0];
+    const root = selectAll("html", source.children)[0];
+    const markup = body ? DomUtils.getInnerHTML(body) : DomUtils.getOuterHTML(root?.children ?? source.children);
+    // The frame places the entry's body contents inside its own html/body wrapper.
+    const doc = parseDocument('<html><body class="immersive-workbench">' + markup + "</body></html>");
     const elements = DomUtils.findAll(() => true, doc.children);
     for (const [theme, palette] of (palettes.length ? palettes : [undefined]).entries()) {
       const rules = new Map<Node, Pair>();

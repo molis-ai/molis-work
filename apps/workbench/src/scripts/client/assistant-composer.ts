@@ -222,6 +222,15 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       read: () => later.has(id) ? Promise.resolve(later.get(id)) : going.has(id) ? Promise.resolve("")
         : worksIn.then(() => writing.get(id)?.text ?? (works.find((work) => work.work_id === id) || {}).draft ?? ""),
       // Sending reuses the saved generation; every real edit below creates a new one, including retyping the same words.
+      async settle(revision) {
+        const { work: saved } = await api("", "POST", { draft: "", expected_draft_revision: revision }, route);
+        const cached = works.find(row => row.work_id === id);
+        if (cached && !writing.has(id) && cached.draft_revision <= saved.draft_revision) {
+          cached.draft = saved.draft;
+          cached.draft_revision = saved.draft_revision;
+          cached.revision = Math.max(cached.revision, saved.revision);
+        }
+      },
       prepare(text) {
         const pending = writing.get(id), work = works.find(row => row.work_id === id);
         return pending?.text === text ? pending.promise : !pending && work?.draft === text && !unsaved
@@ -250,10 +259,12 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     try {
       const outcome = await submit(sent, before, projectOnce);
       const settleProjectSend = async () => {
-        if (!projectOnce || currentWorkItem?.id !== projectOnce.id) return;
-        itemScopeDismissed = false;
-        paintItemPill();
-        if (id && curId === id && !later.has(id) && getWork()?.draft === sent.text) await draftFor(id).write("");
+        if (!projectOnce) return;
+        if (currentWorkItem?.id === projectOnce.id) {
+          itemScopeDismissed = false;
+          paintItemPill();
+        }
+        if (id && before) await draftFor(id).settle(await before);
       };
       if (outcome.state === "sent") await settleProjectSend();
       if (projectOnce && outcome.state === "unknown") return { ...outcome, check: async () => {

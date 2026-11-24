@@ -235,6 +235,8 @@ test("S-home-page-files S-home-page-authority S-home-page-approval SPC-10 SPC-11
   await browser.evaluate(`(() => {
     const cmdBox = document.querySelector('[data-home-adopt-dialog] input[data-hp-grant="0"]');
     if (cmdBox && cmdBox.checked) cmdBox.click();
+    document.dispatchEvent(new CustomEvent("molis-work:language-changed"));
+    if (document.querySelector('[data-home-adopt-dialog] input[data-hp-grant="0"]').checked) throw Error("Language refresh granted an unchecked action");
     document.querySelector('[data-home-adopt-dialog] [data-hp-act="dialog-confirm"]').click();
   })()`);
 

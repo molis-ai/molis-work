@@ -298,9 +298,9 @@ home.pages.adopt	1	system.home	command	operation	project	write	-	user	home:write
 home.pages.diff	1	system.home	query	query	project	read	-	user	home:read	-	-	-	68accb374655	8a8c40f94aa0	-
 home.pages.drafts.save	1	system.home	command	operation	project	write	-	agent,user	home:write	-	-	-	a6b0ed6495f2	9ac46ac4a58b	5e0374458cf9
 home.pages.files.read	1	system.home	query	query	project	read	-	user	home:read	-	-	-	4ad159333bd6	7517fef855f8	-
-home.pages.preview	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	4ad159333bd6	c68cdd5488a9	-
+home.pages.preview	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	dac0689841e8	5fb22eefb968	-
 home.pages.restore	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	eb2d997c5b17	5db3a309907b	-
-home.read	1	system.home	query	query	project	read	-	agent,plugin,user	home:read	-	-	-	4f8336b9fd7e	f6dc1ed9a438	-
+home.read	1	system.home	query	query	project	read	-	agent,plugin,user	home:read	-	-	-	8528a440423e	3d17b4afa469	-
 home.recommendations.read	1	system.home	query	query	project	read	-	agent,mcp,user,workflow	home:read	-	-	-	99334726611c	1849cb2ba26c	-
 home.select	1	system.home	command	operation	project	write	-	user	home:write	-	-	-	9176d5f05ac2	e1d9a802e7f3	-
 kit.catalog.list	1	system.kit	query	query	home	read	concurrent	user	kit:read	-	-	-	d746974fa9af	62d0a2a7bd41	-

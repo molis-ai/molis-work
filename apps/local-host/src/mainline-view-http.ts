@@ -311,7 +311,12 @@ export async function handleMainlineViewHttp(
   request.once("aborted", cancel);
   response.once("close", cancel);
   try {
-    const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS, { signal: controller.signal });
+    const bound = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS, { signal: controller.signal });
+    let directory: ReturnType<BoundActionClient["discover"]> | undefined;
+    const client: BoundActionClient = {
+      invoke: bound.invoke, discoverOne: bound.discoverOne,
+      discover: () => directory ??= bound.discover(),
+    };
     const forms: ReadForms = subjects => host.mainlinePresentations(project.project_id, client, subjects, controller.signal);
     if (isItems) await handleItemsView(response, client, project.project_id, forms);
     else await handleContentsView(request, response, client, project.project_id, forms);

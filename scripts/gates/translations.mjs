@@ -407,6 +407,24 @@ function declaredIdentity(node, source, snapshot, known, seen = new Set()) {
 
 const OFFICIAL_PLUGINS = "plugins/official-integrations/";
 const CATALOG_PLUGIN = OFFICIAL_PLUGINS + "catalog/";
+const WORKBENCH_SUBPACKS = ["scene", "catalog"];
+
+function addContentPackOwners(snapshot, owners, problems) {
+  for (const file of snapshot.files.filter(file => /^plugins\/content\/[^/]+\/pack-content\.json$/u.test(file))) {
+    const manifest = readJson(snapshot, file, problems);
+    if (!manifest?.locales) continue;
+    const directory = path.posix.dirname(file) + "/locales";
+    const owner = manifest.plugin_id;
+    const { default: fallback, available } = manifest.locales;
+    if (typeof owner !== "string" || !owner || !Array.isArray(available) || !available.includes(fallback)
+      || available.some(tag => typeof tag !== "string" || !tag) || new Set(available).size !== available.length
+      || [...owners.values()].some(entry => entry.owner === owner || entry.directory === directory)) {
+      problems.push(directory + ": invalid or duplicate content pack locale declaration");
+      continue;
+    }
+    owners.set(directory, { owner, directory, languages: available, default: fallback, contentPack: true });
+  }
+}
 
 function addConnectorOwner(owners, problems, directory, owner, locales) {
   const { default: fallback, available } = locales ?? {};
@@ -470,6 +488,21 @@ function declaredOwners(snapshot, problems) {
       owners.set(row.owner, { owner: row.owner, directory: root + "/" + row.path, languages: checked.value.languages.map(row => row.tag), default: checked.value.default, platform: true });
     }
     if (!owners.has("workbench")) problems.push(`${PLATFORM_REGISTRY}: workbench locale owner missing`);
+    const workbench = owners.get("workbench");
+    if (workbench) {
+      for (const subpack of WORKBENCH_SUBPACKS) {
+        const subDir = `${workbench.directory}/${subpack}`;
+        if (!snapshot.files.some(file => file.startsWith(`${subDir}/`) && file.endsWith(".json"))) continue;
+        owners.set(`workbench/${subpack}`, {
+          owner: workbench.owner,
+          directory: subDir,
+          languages: workbench.languages,
+          default: workbench.default,
+          platform: true,
+          prefix: "workbench",
+        });
+      }
+    }
   }
   // A built-in plugin's Manifest, and a platform package's framed surface that declares one (the plugin studio, 47-1 C; user
   // 2026-11-22): each names its words' owner and the locale files beside its src/.
@@ -496,13 +529,14 @@ function declaredOwners(snapshot, problems) {
     owners.set(owner, { owner: plugin, directory: `${path.posix.dirname(path.posix.dirname(file))}/locales`, languages, default: def });
   }
   addOfficialConnectorOwners(snapshot, owners, problems);
+  addContentPackOwners(snapshot, owners, problems);
   return owners;
 }
 
 function readMessages(snapshot, definition, locale, problems) {
   const file = `${definition.directory}/${locale}.json`, raw = snapshot.read(file);
   if (raw === null) { problems.push(`${file}: declared file missing`); return null; }
-  const result = parseLocalePack(raw, { file });
+  const result = parseLocalePack(raw, { file, ...(definition.contentPack ? { contentPack: true } : {}) });
   if (!result.ok) {
     for (const issue of result.problems) problems.push(`${issue.file}:${issue.line} ${issue.path}: ${issue.code}: ${issue.reason}`);
     return null;
@@ -521,7 +555,7 @@ function inspectPacks(snapshot, problems) {
       return readMessages(snapshot, definition, tag, problems) ?? [];
     });
     for (const issue of inspectLocaleSet(packs, definition)) {
-      if (issue.blocking || ((definition.platform || issue.locale === "en") && issue.code === "ui.locale_missing_key"))
+      if (issue.blocking || issue.code === "ui.locale_missing_key")
         problems.push(`${issue.file}: ${issue.code}${issue.key ? " " + issue.key : ""}: ${issue.reason}`);
     }
     const english = packs.find(pack => pack.locale === "en");
@@ -529,10 +563,10 @@ function inspectPacks(snapshot, problems) {
     const baseline = packs.find(pack => pack.locale === definition.default);
     for (const key of Object.keys(baseline?.messages ?? {})) {
       if (all.has(key)) problems.push(`${definition.directory}: duplicate owner of ${key}`);
-      all.set(key, { prefix });
+      all.set(key, { prefix: definition.prefix ?? prefix });
     }
   }
-  for (const file of snapshot.files) if (/^(?:plugins\/native\/[^/]+|horizontal\/[^/]+|plugins\/official-integrations\/[^/]+(?:\/providers\/[^/]+)?|apps\/workbench\/resources)\/locales\/[^/]+\.json$/u.test(file)
+  for (const file of snapshot.files) if (/^(?:plugins\/native\/[^/]+|plugins\/content\/[^/]+|horizontal\/[^/]+|plugins\/official-integrations\/[^/]+(?:\/providers\/[^/]+)?|apps\/workbench\/resources)\/locales\/(?:[^/]+\/)*[^/]+\.json$/u.test(file)
     && !files.has(file)) problems.push(`${file}: no locale declaration reaches this file`);
   return { all, files };
 }

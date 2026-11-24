@@ -63,6 +63,11 @@
 - 不经 `ActionService` 的调用口已经没有了：R8 删掉了 typed 能力（`LocalHost.register` 的非动作分支），宿主项目客户端也走 `ActionService.invoke`，同样校验 schema、结算一次。
 - [系统架构 §4](ARCHITECTURE.md) 写的「owner 提交后经 Durable Outbox 发布事件」是目标，不是现状（[BL-070](../../specs/BACKLOG.md)）：现在各 owner 在自己的事务里写自己的事件日志，没有统一的发布通道，消费方靠读 owner 的动作或轮询。
 
+### 项目的第一页与当前事项（第 37 批）
+
+- **生成页。** 场景按提供方的 `adopts` 声明找到 `system.home`。首页主人保存项目的文件、版本、选择修订与本人批准回执。工作台读取精确版本并校验文件，检查通过才挂载预览。采用后，第一页正文里的沙箱经宿主会话和统一动作目录交给业务主人；结果重新向该主人读取。组合首页卡片时，宿主只传该版另外获准的、主人明确开放的本项目呈现查询。换版、撤下或离开项目撤销旧会话；回默认和恢复历史版本经本人入口更新选择，重放原请求先查回执。[页面合同](../../specs/scene-and-page-contract/spec.md) · [宿主会话](../../apps/local-host/src/home-page-authority.ts) · [呈现组合](../../horizontal/surfaces/src/home.ts)
+- **事项。** 左上切换器把选择送到项目受保护入口。服务按调用者权限执行主线动作，`horizontal/mainline` 保存事项容器、引用与排列；来源的名称、完成态和呈现由声明该来源的插件读取。工作台按项目与事项保存页签、草稿、焦点和右栏。助理以 `work_item_id` 找该事项的主对话，输入栏清除范围只改变本条发送。已开始的工作沿原会话或任务引用读回。[主线合同](../../specs/work-mainline/spec.md) · [切换器](../../apps/workbench/src/browser/mainline-switcher.ts) · [项目读取入口](../../apps/local-host/src/mainline-view-http.ts) · [助理输入](../../apps/workbench/src/scripts/client/assistant-composer.ts)
+
 ## 3. 链 2：外部 Runtime 经 MCP → 逐客户端授权 → 同一条业务路径
 
 唯一的对外 MCP 进程是 `molis-work-mcp`（`apps/desktop/launchers/mcp/server.ts`）。正式的 stdio 进程里，动作经本机网关转给同一个 Home 的常驻 Web 宿主执行；连接工具和管理工具在该进程内直接操作项目目录库和项目库（步骤 7、8）。测试和嵌入才在进程内用 `LocalHost` 直接执行动作。

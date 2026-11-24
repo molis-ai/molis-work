@@ -191,15 +191,29 @@ export function artifactTypeDeclarations(sources: readonly ArtifactProducerSourc
   return declarations;
 }
 
+/** What a platform part that takes text out of projects (Shelf) may read: the types producers mark `copy_out`, each only as its marker wrote it. */
+export interface CopyOutTypes {
+  /** The marked types, as a consumer names them. */
+  readonly artifacts: PluginManifest["artifacts"]["consumes"];
+  readonly process_items: PluginManifest["artifacts"]["consumes"];
+  /** A process item type may have several producers (BL-375): a record is copied out only when its own producer marked its type. */
+  allows(record: { readonly artifact_type_id: string; readonly producer_plugin_id: string }): boolean;
+}
+
 /**
- * The 成果 and process item types their producers let a person copy out of the project as text (`copy_out`), as consumers name types.
- * A platform part that takes text out of projects (Shelf) reads these instead of naming any plugin's types (44B review P-07).
+ * The 成果 and process item types their producers let a person copy out of the project as text (`copy_out`). Shelf reads these instead
+ * of naming any plugin's types (44B review P-07); a producer no longer in effect is not among the sources, so its types drop out.
  */
-export function copyOutTypes(sources: readonly ArtifactProducerSource[] = artifactProducerSources()): Pick<PluginManifest, "artifacts" | "process_items"> {
-  const marked = (types: ReadonlyArray<{ artifact_type_id: string; schema_version: number; copy_out?: true }> | undefined) =>
-    (types ?? []).filter(type => type.copy_out === true).map(type => ({ artifact_type_id: type.artifact_type_id, schema_version: type.schema_version }));
-  return { artifacts: { produces: [], consumes: sources.flatMap(source => marked(source.artifacts.produces)) },
-    process_items: { produces: [], consumes: sources.flatMap(source => marked(source.process_items?.produces)) } };
+export function copyOutTypes(sources: readonly ArtifactProducerSource[] = artifactProducerSources()): CopyOutTypes {
+  const marked = new Set<string>(), key = (pluginId: string, typeId: string) => `${pluginId}\u0000${typeId}`;
+  const consumed = (source: ArtifactProducerSource, types: ReadonlyArray<{ artifact_type_id: string; schema_version: number; copy_out?: true }> | undefined) =>
+    (types ?? []).filter(type => type.copy_out === true).map(type => {
+      marked.add(key(source.plugin_id, type.artifact_type_id));
+      return { artifact_type_id: type.artifact_type_id, schema_version: type.schema_version };
+    });
+  const artifacts = sources.flatMap(source => consumed(source, source.artifacts.produces));
+  const process_items = sources.flatMap(source => consumed(source, source.process_items?.produces));
+  return { artifacts, process_items, allows: record => marked.has(key(record.producer_plugin_id, record.artifact_type_id)) };
 }
 
 /** Every 成果 type the producers declare, as consumers name types (id and schema version). */

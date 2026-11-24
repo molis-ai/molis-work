@@ -3,6 +3,7 @@ import type { PluginArtifactClient, PluginManifest, PluginStartContext } from "@
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactOperations, pluginArtifactErrors, type PluginArtifactOperationsInput } from "@molis-ai/molis-work-module-artifacts";
 import { assertPluginActionCurrent, currentPluginInvocation, inPluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import type { CopyOutTypes } from "./artifact-type-registry.js";
 
 /** The 成果库 and process items of one open project, as the Host holds them; undefined while that project is not open. */
 export type HomeProjectArtifactStores = (projectId: string) => Pick<PluginArtifactOperationsInput, "api" | "process"> | undefined;
@@ -12,10 +13,11 @@ export type HomeProjectArtifactStores = (projectId: string) => Pick<PluginArtifa
  * resolved on each call, so the Home instance holds no project of its own. Only `read` and `listConsumable`, under the same rules as a
  * project instance (the Manifest's `artifacts.consumes` / `process_items.consumes`, `artifact:read`, the caller still current). A Home
  * instance pins nothing into a project: what it produces is its own Home store's. Undefined when the Manifest consumes nothing.
- * A platform part that takes text out of projects (`copyOut`, Shelf) reads, on each call, the types their producers mark `copy_out`.
+ * A platform part that takes text out of projects (`copyOut`, Shelf) consumes, on each call, the types their producers mark `copy_out`,
+ * and sees a version only when its own producer marked the type (another producer of the same process item type did not consent).
  */
 export function homePluginArtifactsFor(declared: PluginManifest, context: PluginStartContext, stores: HomeProjectArtifactStores | undefined,
-  assertActive: () => void, copyOut?: () => Pick<PluginManifest, "artifacts" | "process_items">): PluginArtifactClient | undefined {
+  assertActive: () => void, copyOut?: () => CopyOutTypes): PluginArtifactClient | undefined {
   if (!stores || !copyOut && !declared.artifacts.consumes.length && !declared.process_items?.consumes.length) return undefined;
   const forCall = () => {
     assertActive();
@@ -25,11 +27,23 @@ export function homePluginArtifactsFor(declared: PluginManifest, context: Plugin
     if (!projectId) throw new ActionError("actions.scope_mismatch", "读取项目成果需要调用方的项目");
     const open = stores(projectId);
     if (!open) throw new ActionError("actions.unavailable", "这个项目还没有打开");
-    const manifest: PluginManifest = copyOut ? { ...declared, ...copyOut() } : declared;
-    return createPluginArtifactOperations({ ...open, manifest, project_id: projectId, actor_id: scope!.caller.actor_id, assertInput: assertActionInput,
+    const copy = copyOut?.();
+    const manifest: PluginManifest = copy ? { ...declared, artifacts: { ...declared.artifacts, consumes: copy.artifacts },
+      process_items: { produces: declared.process_items?.produces ?? [], consumes: copy.process_items } } : declared;
+    const client = createPluginArtifactOperations({ ...open, manifest, project_id: projectId, actor_id: scope!.caller.actor_id, assertInput: assertActionInput,
       authorize: permission => context.requireGrant(permission), assertCallerCurrent: () => assertPluginActionCurrent(context) }).client;
+    return { client, allows: copy ? copy.allows : () => true };
   };
   const refused = (): never => { throw pluginArtifactErrors.plugin_denied("Home 插件只读取调用方项目的成果，不往项目里固定版本"); };
-  return Object.freeze<PluginArtifactClient>({ read: reference => forCall().read(reference), listConsumable: filter => forCall().listConsumable(filter),
+  return Object.freeze<PluginArtifactClient>({
+    // A version its producer did not mark reads as absent, as one of another project would.
+    read: reference => {
+      const { client, allows } = forCall(), record = client.read(reference);
+      return record && allows(record) ? record : null;
+    },
+    listConsumable: filter => {
+      const { client, allows } = forCall();
+      return client.listConsumable(filter).filter(allows);
+    },
     publish: refused, head: refused, readOwn: refused });
 }

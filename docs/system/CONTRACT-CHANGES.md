@@ -558,3 +558,6 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - **来源拉取**：`plugin-source-pull` 的请求改为 `public_feed{definition_id, address?, cursor?}`，权限 `sources:pull_feed` 改名 `sources:pull_public_feed`（只有 Feed 用，同批已改）。
   - **连接卡**：连接用途 `feed_source` 改 `source_pull`，卡片字段 `feed_available` 改 `source_available`；`connector-host` 的 `assertTarget` 服务参数放宽为 `string`，运行时仍核对连接属于该服务。
   - **删掉的**：宿主导出 `larkMcpLaunch`（改为通用的 `stdioMcpLaunch(declaration, input)`），`@molis-ai/molis-work-integration-rss/driver` 入口（改 `./drivers`），三条没有页面调用的 `/api/settings/connectors/feishu/cli/*` 路由。
+- **第 44B 批复核修复：成果与过程项可带出项目（`copy_out`）**（2026-11-24，44b.md「独立复核」P-07，用户定）。
+  - **新增** Manifest 字段：`artifacts.produces[]` 与 `process_items.produces[]` 上可写 `copy_out: true`，表示本人可以把这类成果或过程项的正文带出项目放进 Shelf。只能写 `true`，写在 `consumes` 上被拒绝。
+  - 宿主每次调用把标了的类型给 Shelf，Shelf 只看到标记方自己产出的那几份（过程项类型可以有几家产出方，BL-375）；Shelf 的 Manifest 不再消费 `coding.report.v1`、`coding.changeset.v1`。Coding 给报告与变更集标了 `copy_out`。对调用方：别的插件要让本人把自己的成果放进 Shelf，在 `produces` 上加这一项，并提供文档或预览角色。

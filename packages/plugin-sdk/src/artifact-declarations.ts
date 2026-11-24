@@ -76,7 +76,6 @@ function producedTypeProblems(type: Part, actions: ReadonlyMap<string, Part>): s
   if (type.pin !== undefined && type.compare === undefined) problems.push(`成果类型 ${key} 可以当场固定，必须声明比较动作（compare）`);
   else problems.push(...roleProblems(type, "compare", actions));
   problems.push(...searchableFieldProblems(key, type.searchable_fields));
-  if (type.copy_out !== undefined && type.copy_out !== true) problems.push(`成果类型 ${key} 的 copy_out 只能写 true`);
   return problems;
 }
 

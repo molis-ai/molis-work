@@ -231,7 +231,7 @@ export const countPlatformPluginNames = (file, text, { plugins, integrations }) 
       new RegExp(`@molis-ai/molis-work-plugin-(?:${alternatives})(?![a-z0-9-])`, "g"),
       ...(integrations.length ? [new RegExp(`@molis-ai/molis-work-integration-(?:${either(integrations)})(?![a-z0-9-])`, "g")] : []),
       new RegExp(`(["'\`])(?:${alternatives})\\1`, "g"),
-      new RegExp(`(["'\`])(?:${alternatives})[.:][a-z]`, "g"),
+      new RegExp(`(["'\`])(?:${alternatives})[.:](?:[a-z]|\\1)`, "g"),
       new RegExp(`(?<![\\w.-])\\.(?:${alternatives})-[a-z]`, "g"),
       new RegExp(`\\bdata-(?:${alternatives})-[a-z]`, "g"),
     ];

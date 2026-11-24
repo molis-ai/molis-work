@@ -36,9 +36,10 @@ export function checkGoalsManagementWiring(source, mode) {
   const guarded = !mcp && body && ts.isBlock(body) && body.statements.length === 3
     && imports.has("./home-storage-lifetime.js:ensureHomeStorageOwner")
     && imports.has("./memory/memory-initialization.js:preflightMemoryHome")
+    && imports.has("@molis-ai/molis-work-app-cli:cliText")
     && text(declarations.get("homeDatabase")?.initializer) === "databaseInHome(home,databasePath)"
     && creates.length === 0
-    && text(body.statements[0]) === 'if(!allowLocalFallback&&homeDatabase)thrownewActionError("actions.service_unavailable","当前账号宿主尚未连接，不能回退匿名业务。");'
+    && text(body.statements[0]) === 'if(!allowLocalFallback&&homeDatabase)thrownewActionError("actions.service_unavailable",cliText("workbench.cli.v1-host-disconnected"));'
     && text(body.statements[1]) === 'if(homeProject||homeDatabase)ensureHomeStorageOwner(localHost??=createMolisWorkLocalHost({homeDirectory:home}),home,preflightMemoryHome);'
     && ts.isReturnStatement(body.statements[2]) && body.statements[2].expression === call;
   const expectedHost = mcp ? "caller.localHost" : "localHost??=createMolisWorkLocalHost()";

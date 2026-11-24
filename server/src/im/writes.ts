@@ -75,11 +75,11 @@ export class ImWrites {
   }
 
   createThread(roomId: string, memberId: string, body: Record<string, unknown>, subjects: readonly ActionSubject[]): ImThreadState {
-    const title = textInput(body.title, "Thread 标题", 120);
+    const title = textInput(body.title, "话题标题", 120);
     const source = body.source_message_id ? this.reads.message(roomId, textInput(body.source_message_id, "原消息", 100)) : null;
     const firstBody = body.body === undefined && !subjects.length ? null : messageBody(body.body === undefined ? "" : body.body, subjects, "首条消息");
     if (!source && firstBody === null) throw new ImError("im.empty_thread", "写下第一条消息再创建话题");
-    if (source && source.thread_id !== null) throw new ImError("im.invalid_source", "请从群聊里的原消息开 Thread");
+    if (source && source.thread_id !== null) throw new ImError("im.invalid_source", "请从群聊里的原消息开话题");
     const id = randomUUID(), now = new Date().toISOString();
     this.db.prepare(`INSERT INTO im_threads(id, room_id, title, source_message_id, created_by, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)`).run(id, roomId, title, source?.id ?? null, memberId, now, now);
@@ -102,7 +102,7 @@ export class ImWrites {
   share(roomId: string, threadId: string, memberId: string, body: Record<string, unknown>): { message: ImMessage } {
     this.reads.thread(roomId, threadId);
     const reply = this.reads.message(roomId, textInput(body.message_id, "回复", 100));
-    if (reply.thread_id !== threadId) throw new ImError("im.invalid_reply", "这条回复不属于当前 Thread");
+    if (reply.thread_id !== threadId) throw new ImError("im.invalid_reply", "这条回复不属于当前话题");
     const note = body.body === undefined || body.body === "" ? "" : textInput(body.body, "分享说明", 12_000);
     return this.insertMessage(roomId, null, memberId, note, reply.id, []);
   }

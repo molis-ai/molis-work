@@ -110,32 +110,31 @@ export type PrologueStopCategory =
   | "stopped"
   | "model-error";
 
-export interface PrologueStopDetail {
-  readonly category: PrologueStopCategory;
-  readonly code?: string;
-  readonly safe_message?: string;
-  readonly rail?: string;
-  readonly reason?: string;
-  readonly count?: number;
-}
-
-/** Classify a Prologue error code / safe message into a stable stop category for localized UI presentation. */
-export function classifyPrologueErrorCode(code: string | undefined, message = ""): PrologueStopCategory {
-  const combined = code ? `${code}: ${message}` : message;
-  if (code === "MEMORY_SCOPE_DENIED" || /^MEMORY_SCOPE_DENIED(?:\b|:)/u.test(combined)) return "memory-permission";
-  if (code === "RUN_INTERRUPTED") return "interrupted";
-  if (code?.startsWith("CONTEXT_COMPACTION")) return "compaction-failed";
-  if (code === "MODEL_CONTEXT_OVERFLOW" || code === "CONTEXT_BUDGET_EXCEEDED" || /context.?length.?exceeded|maximum context length|prompt is too long/iu.test(combined)) return "context-overflow";
-  if (/too many tool turns|AGENT_BUDGET_EXCEEDED.*turn|maxTurns|of its \d+ turns/iu.test(combined)) return "turn-limit";
-  if (code === "MODEL_BUDGET_EXCEEDED" || code === "AGENT_BUDGET_EXCEEDED" || (/of its \d+ tokens|token/iu.test(combined) && /budget|limit|exceed|of its \d+ tokens/iu.test(combined))) return "budget";
-  if (code === "MODEL_TIMEOUT" || /wall.?clock|duration|timed.?out|ETIMEDOUT/iu.test(combined)) return "time-limit";
-  if (code === "MODEL_AUTH" || /MODEL_AUTH|invalid.?api.?key|unauthori[sz]ed/iu.test(combined) || (code === "MODEL_HTTP_ERROR" && /\b(?:401|403)\b/u.test(message))) return "auth";
-  if (code === "MODEL_RATE_LIMITED" || /429|529|rate.?limit|overloaded|too many requests/iu.test(combined)) return "rate-limit";
-  if (code === "MODEL_UNAVAILABLE" || (code === "MODEL_HTTP_ERROR" && /\b50[0234]\b/u.test(message)) || /\b50[0234]\b.*(?:unavailable|bad gateway|service|server|internal)|service.?unavailable|bad.?gateway/iu.test(combined)) return "service-unavailable";
-  if (code === "MODEL_NETWORK_FAILED" || /MODEL_NETWORK_FAILED|ECONNREFUSED|ENOTFOUND|ECONNRESET|EHOSTUNREACH|ENETUNREACH|fetch failed/iu.test(combined)) return "network";
-  if (code === "MODEL_REFUSED" || /content.?filter|safety.?refus|refused by model/iu.test(combined)) return "refused";
-  if (code === "MODEL_OUTPUT_TRUNCATED" || /output.?truncated|max_tokens/iu.test(combined)) return "output-truncated";
-  return "model-error";
+/** Classify a Prologue stop reason / error string into a stable stop category for localized UI presentation. */
+export function classifyPrologueStopReason(reason: string): PrologueStopCategory | null {
+  const trimmed = reason.trim();
+  if (!trimmed) return null;
+  if (/^MEMORY_SCOPE_DENIED(?:\b|:)/u.test(trimmed)) return "memory-permission";
+  if (/too many tool turns|AGENT_BUDGET_EXCEEDED.*turn|maxTurns|of its \d+ turns/iu.test(trimmed)) return "turn-limit";
+  if (/MODEL_CONTEXT_OVERFLOW|CONTEXT_BUDGET_EXCEEDED|context.?length.?exceeded|maximum context length|prompt is too long/iu.test(trimmed)) return "context-overflow";
+  if (/MODEL_BUDGET_EXCEEDED|AGENT_BUDGET_EXCEEDED|of its \d+ tokens|token/iu.test(trimmed) && /budget|limit|exceed|of its \d+ tokens/iu.test(trimmed)) return "budget";
+  if (/wall.?clock|duration|timed.?out|ETIMEDOUT|MODEL_TIMEOUT/iu.test(trimmed)) return "time-limit";
+  if (/MODEL_AUTH|invalid.?api.?key|unauthori[sz]ed/iu.test(trimmed) || (/\bMODEL_HTTP_ERROR\b/u.test(trimmed) && /\b(?:401|403)\b/u.test(trimmed)) || /\b(?:401|403)\b.*(?:auth|key|forbidden|unauthori[sz]ed)/iu.test(trimmed)) return "auth";
+  if (/MODEL_RATE_LIMITED|429|529|rate.?limit|overloaded|too many requests/iu.test(trimmed)) return "rate-limit";
+  if (/MODEL_UNAVAILABLE|service.?unavailable|bad.?gateway/iu.test(trimmed) || (/\bMODEL_HTTP_ERROR\b/u.test(trimmed) && /\b50[0234]\b/u.test(trimmed)) || /\b50[0234]\b.*(?:unavailable|bad gateway|service|server|internal)/iu.test(trimmed)) return "service-unavailable";
+  if (/MODEL_NETWORK_FAILED|ECONNREFUSED|ENOTFOUND|ECONNRESET|EHOSTUNREACH|ENETUNREACH|fetch failed/iu.test(trimmed)) return "network";
+  if (/MODEL_REFUSED|content.?filter|safety.?refus|refused by model/iu.test(trimmed)) return "refused";
+  if (/MODEL_OUTPUT_TRUNCATED|output.?truncated|max_tokens/iu.test(trimmed)) return "output-truncated";
+  if (/RUN_INTERRUPTED|本轮因中断结束/u.test(trimmed)) return "interrupted";
+  if (/compaction-cancelled|上下文整理已取消/u.test(trimmed)) return "compaction-cancelled";
+  if (/CONTEXT_COMPACTION|上下文整理失败/u.test(trimmed)) return "compaction-failed";
+  if (/护栏.*自身出错|guardrail.*(?:error|failed)/iu.test(trimmed)) return "guardrail-error";
+  if (/被护栏.*拦下|\bguardrail\b/iu.test(trimmed)) return "guardrail";
+  if (/circuit.?tripped|连续.*次调用都没有成功|同一个调用连续重复了|同样的话连续重复了/iu.test(trimmed)) return "circuit-breaker";
+  if (/^(?:已取消|cancelled|canceled)$/iu.test(trimmed)) return "cancelled";
+  if (/^(?:已停止|stopped)$/iu.test(trimmed)) return "stopped";
+  if (/\b(?:MODEL|AGENT|CONTEXT|RUN|TOOL|EFFECT|RUNTIME)_[A-Z0-9_]+\b/u.test(trimmed) || /运行时报告失败/u.test(trimmed)) return "model-error";
+  return null;
 }
 
 export interface PrologueStreamState {
@@ -154,8 +153,6 @@ export interface PrologueStreamState {
   /** OpenAI-style providers count cached prompt tokens inside input; Anthropic-style report them beside it. */
   prompt_includes_cache?: boolean;
   stop_reason?: string;
-  /** Structured stop metadata preserved for localized presentation without exposing raw provider/SDK codes. */
-  stop_detail?: PrologueStopDetail;
   /** Approvals the Run is stopped on. The bridge mirrors these to the Host queue. */
   awaiting_approval: PrologueApprovalWaiting[];
   /** The ledger events its supplements' receipts are projected from (prologue-inputs.ts). */
@@ -472,12 +469,6 @@ function applyCircuitTripped(state: PrologueStreamState, event: PrologueEvent, _
     : tripped.reason === "repeated-errors" ? `连续 ${count} 次调用都没有成功`
     : `连续 ${count} 次调用都没有成功${tripped.why ? `（${tripped.why}）` : ""}`;
   state.stop_reason = `${what}，这一轮先停在这里；已完成的保留，可以说明怎么调整后继续`;
-  state.stop_detail = {
-    category: "circuit-breaker",
-    ...(tripped.reason ? { reason: tripped.reason } : {}),
-    ...(typeof tripped.count === "number" ? { count: tripped.count } : {}),
-    ...(tripped.why ? { safe_message: tripped.why } : {}),
-  };
   return true;
 }
 
@@ -664,19 +655,17 @@ function applyCompactionEnded(state: PrologueStreamState, event: PrologueEvent, 
   // A failed compaction is not the round's end: the round goes on while its history fits, and says so if it stops.
   if (event.type === "compaction-cancelled") {
     state.stop_reason = message;
-    state.stop_detail = { category: "compaction-cancelled" };
   }
   return true;
 }
 
 /** The round's end: what it was streaming closes, a wait it slept in ends, and the phase says how it ended. */
-function endRound(state: PrologueStreamState, phase: AgentRunPhase, stopReason?: string, readCall?: ApprovalCallReader, stopDetail?: PrologueStopDetail): boolean {
+function endRound(state: PrologueStreamState, phase: AgentRunPhase, stopReason?: string, readCall?: ApprovalCallReader): boolean {
   closeStreaming(state);
   closeSleep(state);
   closeAwaitingApproval(state, readCall);
   state.phase = phase;
   if (stopReason !== undefined) state.stop_reason = stopReason;
-  if (stopDetail !== undefined) state.stop_detail = stopDetail;
   return true;
 }
 
@@ -685,25 +674,16 @@ function applyTripped(state: PrologueStreamState, event: PrologueEvent, _at: str
   // A guardrail stop is terminal but is not a failure of the work.
   return endRound(state, "stopped", tripped.failed === true
     ? `护栏 ${tripped.rail} 自身出错，已按绊停处理`
-    : `被护栏 ${tripped.rail} 拦下：${tripped.why}`, readCall, {
-    category: tripped.failed === true ? "guardrail-error" : "guardrail",
-    rail: tripped.rail,
-    ...(tripped.why ? { safe_message: tripped.why } : {}),
-  });
+    : `被护栏 ${tripped.rail} 拦下：${tripped.why}`, readCall);
 }
 
 function applyFailed(state: PrologueStreamState, event: PrologueEvent, _at: string | null, readCall?: ApprovalCallReader): boolean {
   const failed = event as Extract<PrologueEvent, { type: "failed"; why?: string }>;
-  const detail: PrologueStopDetail = {
-    category: classifyPrologueErrorCode(failed.error?.code, failed.error?.safeMessage ?? failed.why ?? ""),
-    ...(failed.error?.code ? { code: failed.error.code } : {}),
-    ...(failed.error?.safeMessage ? { safe_message: failed.error.safeMessage } : failed.why ? { safe_message: failed.why } : {}),
-  };
   return endRound(state, "failed", failed.error?.code === "RUN_INTERRUPTED" ? "本轮因中断结束。已核实的操作已保留，可输入新要求继续。"
     : failed.error?.code?.startsWith("CONTEXT_COMPACTION") ? "上下文整理失败，原上下文未被替换，而它已放不下模型窗口，这一轮停下了；可以点继续再整理一次。"
     : failed.error === undefined
     ? failed.why ?? "运行时报告失败"
-    : `${failed.error.code}: ${failed.error.safeMessage}`, readCall, detail);
+    : `${failed.error.code}: ${failed.error.safeMessage}`, readCall);
 }
 
 /**
@@ -731,7 +711,7 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
   tripped: applyTripped,
   completed: (state, _event, _at, readCall) => endRound(state, "completed", undefined, readCall),
   failed: applyFailed,
-  cancelled: (state, _event, _at, readCall) => endRound(state, "cancelled", "已取消", readCall, { category: "cancelled" }),
+  cancelled: (state, _event, _at, readCall) => endRound(state, "cancelled", "已取消", readCall),
   "model-response-repair": applyResponseRepair,
   "memory-recalled": applyMemoryRecalled,
   "memory-context": applyMemoryContext,

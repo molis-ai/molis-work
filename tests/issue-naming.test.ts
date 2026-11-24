@@ -13,7 +13,7 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const caller: ActionExecutionContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["issues:read", "issues:write", "model:invoke"], beforeEffect: async () => {} };
 installHostUiText();
-const issueText = <T>(locale: "zh" | "en", run: () => T): T => {
+const issueText = <T>(locale: "zh" | "en" | "ja", run: () => T): T => {
   const reader = registeredBuiltinText(issuesManifest);
   assert.ok(reader, "Issue's actual package owns the question");
   return runWithLocale(locale, () => runWithRegisteredText(reader, run));
@@ -37,7 +37,7 @@ function model(answer: (call: Call) => unknown, state: PluginModelAvailability =
   };
   return { client, calls, onValidate: (check: () => void) => { validate = check; } };
 }
-const data = (call: Call) => JSON.parse(/\nBEGIN_ISSUE_[0-9a-f]+\n(.*)\nEND_ISSUE_/s.exec(call.prompt.data)![1]!) as { description: string; page: string | null; title_language: "zh" | "en"; screenshots: { count: number; attached: boolean } };
+const data = (call: Call) => JSON.parse(/\nBEGIN_ISSUE_[0-9a-f]+\n(.*)\nEND_ISSUE_/s.exec(call.prompt.data)![1]!) as { description: string; page: string | null; title_language: "zh" | "en" | "ja"; screenshots: { count: number; attached: boolean } };
 
 async function issues(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "issue-naming-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {});
@@ -92,18 +92,20 @@ test("ISSUE-50 screenshots go to the model unless the model in use is marked as 
 
 test("FSS-36 ISSUE-50 screenshots alone for a model marked as not reading images: the model is not asked, the one fixed question comes back, nothing is written", async t => {
   const { store, drafts, count } = await issues(t);
-  for (const locale of ["zh", "en"] as const) for (const description of ["", "  \n "]) {
+  for (const locale of ["zh", "en", "ja"] as const) for (const description of ["", "  \n "]) {
     const draft_id = crypto.randomUUID(), state = { available: true as const, vision: false };
     await drafts.prepare({ draft_id, description, images: shots }, caller);
     const off = model(() => assert.fail("a model that cannot read the screenshots is not asked about nothing but screenshots"), state);
     const answer = await issueText(locale, () => drafts.name(draft_id, caller, off.client));
     assert.equal(answer.status, "needs_input");
     const question = answer.question;
-    const clues = locale === "zh" ? ["已设为不能看图", "截图未发送给模型", "补充文字说明", "设置 › 模型", "开启读图能力并保存"]
-      : ["cannot read screenshots", "Add a text note", "Settings › Models and save"];
-    for (const clue of clues) assert.ok(question.includes(clue), clue);
+    const clues = locale === "zh" ? ["已设为不能看图", "截图没有发给模型", "补充文字说明", "设置 › 模型", "开启看图能力并保存"]
+      : locale === "ja" ? ["画像入力に対応していない", "スクリーンショットは送信されませんでした", "テキストで補足", "設定 › モデル"]
+      : ["doesn’t support images", "Add a text note", "Settings › Models and save"];
+    for (const clue of clues) assert.ok(question.includes(clue), `${locale}: ${clue}`);
     assert.ok(question.length <= 200 && !/[\r\n]/.test(question));
     if (locale === "en") assert.doesNotMatch(question, /\p{Script=Han}/u);
+    if (locale === "ja") assert.match(question, /[\p{Script=Hiragana}\p{Script=Katakana}]/u);
     assert.equal(off.calls.length, 0); assert.equal(count(), 0);
     // A revoked or cancelled call gets no answer either, and a retired draft is gone.
     await assert.rejects(issueText(locale, () => drafts.name(draft_id, { ...caller, beforeEffect: async () => { throw new Error("revoked"); } }, off.client)), /revoked/);
@@ -123,9 +125,9 @@ test("FSS-36 ISSUE-50 screenshots alone for a model marked as not reading images
 
 test("ISSUE-50 ISSUE-51 the title's language is decided from the person's words and handed over as data; the instruction says to follow it", async t => {
   const { drafts } = await issues(t);
-  // English: Latin letters and no CJK. Everything else, mixed words and words with none at all included, is Chinese.
-  const languages: [string, "zh" | "en"][] = [["The save button does nothing on the Goals page", "en"], ["Export to CSV drops the last row.", "en"], ["点保存没反应", "zh"], ["保存按钮 does nothing on Goals", "zh"],
-    ["Save 按钮没反应", "zh"], ["The list is empty。", "zh"], ["保存ボタンが効かない", "zh"], ["저장 버튼이 안 눌려요", "zh"], ["111", "zh"], ["", "zh"], ["  \n", "zh"]];
+  // Japanese: Hiragana/Katakana present; English: Latin letters and no CJK; Chinese otherwise.
+  const languages: [string, "zh" | "en" | "ja"][] = [["The save button does nothing on the Goals page", "en"], ["Export to CSV drops the last row.", "en"], ["点保存没反应", "zh"], ["保存按钮 does nothing on Goals", "zh"],
+    ["Save 按钮没反应", "zh"], ["The list is empty。", "zh"], ["保存ボタンが効かない", "ja"], ["エクスポートに失敗する", "ja"], ["保存ボタン does nothing", "ja"], ["저장 버튼이 안 눌려요", "zh"], ["111", "zh"], ["", "zh"], ["  \n", "zh"]];
   for (const [description, language] of languages) assert.equal(titleLanguage(description), language, JSON.stringify(description));
   for (const [description, language] of languages.filter(([text]) => text.trim())) {
     const draft_id = crypto.randomUUID();
@@ -204,7 +206,7 @@ test("ISSUE-52 ISSUE-53 Issue's rules are written once: the naming instruction a
   // Carried by Issue's own definition, registered while it runs, so the person can read and edit it in “Prompt 与 Character” (PG-051).
   const definition = createIssuesPlugin();
   assert.deepEqual(definition.methods, issuesSkills);
-  assert.deepEqual(definition.instructions?.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}@${prompt.version}`), [`${ISSUES_PLUGIN_ID}/issues.name@3`]);
+  assert.deepEqual(definition.instructions?.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}@${prompt.version}`), [`${ISSUES_PLUGIN_ID}/issues.name@4`]);
   assert.equal(method!.version, 3);
   for (const word of ["change-reversible", "change-capability", "read-capability", "find-capabilities", "suggest-action", "ask-user", "录入草稿", "待整理记录"]) assert.ok(!method!.body.includes(word), word);
   assert.ok(method!.body.includes("issues.create"));

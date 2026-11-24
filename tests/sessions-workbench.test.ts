@@ -251,3 +251,52 @@ test("SRB-14 S-sessions-person-decides: Project Settings distinguishes tool-brou
   assert.equal(listAfter.sessions.length, 1);
   assert.equal(listAfter.sessions[0]!.attribution.state, "automatic");
 });
+
+test("sessions-http localizes external tool names across zh, en, and ja over real HTTP without falling back to Chinese in ja", { timeout: 60_000 }, async (t) => {
+  const rawRoot = await mkdtemp(path.join(os.tmpdir(), "swb-locale-"));
+  t.after(() => rm(rawRoot, { recursive: true, force: true }));
+  const root = await realpath(rawRoot);
+  const userHome = path.join(root, "user");
+  const qoderDir = path.join(userHome, ".qoder-cn", "projects", "p1");
+  await mkdir(qoderDir, { recursive: true });
+  await writeFile(
+    path.join(qoderDir, "sess-qoder.jsonl"),
+    `${JSON.stringify({ sessionId: "sess-qoder", cwd: root, timestamp: "2026-11-12T10:00:00Z", message: { role: "user", content: "Check localization" } })}\n`,
+  );
+
+  const home = await openTestHome(t, { host: { sessions: { homeRoot: userHome, env: {} } } });
+  const initialScope = await home.web.get<ScopeHttpView>("/api/sessions/scope");
+  await home.web.post<ScopeHttpView>("/api/sessions/scope", {
+    expected_revision: initialScope.scope_revision,
+    sources: [{ entry_id: "qoder-cn", allowed: true, directories: { mode: "all" } }],
+  });
+  await home.host.sessions!.service.waitForDiscoveryIdle();
+
+  const readJson = async <T>(urlPath: string, locale: "zh" | "en" | "ja"): Promise<T> => {
+    const res = await fetch(`${home.origin}${urlPath}`, { headers: { cookie: `molis_work_locale=${locale}` } });
+    assert.equal(res.status, 200, `${locale} ${urlPath}`);
+    return await res.json() as T;
+  };
+
+  for (const [locale, expectedDesktop, expectedQoder] of [
+    ["zh", "Codex 桌面", "Qoder CLI（国内）"],
+    ["en", "Codex Desktop", "Qoder CLI (CN)"],
+    ["ja", "Codex Desktop", "Qoder CLI (CN)"],
+  ] as const) {
+    const scope = await readJson<ScopeHttpView>("/api/sessions/scope", locale);
+    assert.equal(scope.tool_meta.find((m) => m.id === "codex-desktop")?.display_name, expectedDesktop, `scope tool_meta codex-desktop (${locale})`);
+    assert.equal(scope.tool_meta.find((m) => m.id === "qoder-cn")?.display_name, expectedQoder, `scope tool_meta qoder-cn (${locale})`);
+    assert.equal(scope.sources.find((s) => s.entry_id === "qoder-cn")?.display_name, expectedQoder, `scope sources qoder-cn (${locale})`);
+    const listed = await readJson<ExternalSessionListOutput>("/api/sessions/list?view=unfiled", locale);
+    assert.equal(listed.sources.find((s) => s.entry_id === "qoder-cn")?.display_name, expectedQoder, `list sources qoder-cn (${locale})`);
+    assert.equal(listed.sessions[0]?.tool.display_name, expectedQoder, `list session row qoder-cn (${locale})`);
+    if (locale !== "zh") {
+      for (const entry of scope.tool_meta) {
+        assert.doesNotMatch(entry.display_name, /\p{Script=Han}/u, `${locale} tool_meta ${entry.id}: ${entry.display_name}`);
+      }
+      for (const source of scope.sources) {
+        assert.doesNotMatch(source.display_name, /\p{Script=Han}/u, `${locale} source ${source.entry_id}: ${source.display_name}`);
+      }
+    }
+  }
+});

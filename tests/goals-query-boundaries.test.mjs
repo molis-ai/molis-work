@@ -326,7 +326,7 @@ test("RAC-1774: the CLI and MCP name no Goals contract in any file and call Goal
 // PG094-CLI-04 / T405-FULL-09: require product admission and retain every owner, mkdir, reference and signal mutation.
 test("RAC-105-S-08: the CLI fallback requires ownership before Home init and retains its single management route", () => {
   const source = read("apps/local-host/src/cli-project.ts");
-  const account = 'if(!allowLocalFallback&&homeDatabase)throw new ActionError("actions.service_unavailable","当前账号宿主尚未连接，不能回退匿名业务。");';
+  const account = 'if(!allowLocalFallback&&homeDatabase)throw new ActionError("actions.service_unavailable",cliText("workbench.cli.v1-host-disconnected"));';
   const own = "if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);";
   const bind = "bindStandaloneReviewActions(localHost ??= createMolisWorkLocalHost(), reference, options.signal)";
   const guarded = `const fallback = () => {\n    ${account}\n    ${own}\n    return ${bind};\n  };`;

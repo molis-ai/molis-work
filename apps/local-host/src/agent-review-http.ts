@@ -19,7 +19,7 @@ import { responseAbortSignal, webEntryDoor, webEntryProvider } from "./web-entry
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { webEffectControl } from "./authorization-settings-control.js";
 import { webManagementAuthenticated } from "./web-sessions.js";
-import { reviewProposalVersion } from "@molis-ai/molis-work-service-agent-host";
+import { reviewPresentation, reviewProposalVersion } from "@molis-ai/molis-work-service-agent-host";
 
 /**
  * The Host's review queue over HTTP.
@@ -174,6 +174,45 @@ const STATUSES: readonly AgentReviewStatus[] = [
   "pending", "approved", "rejected", "cancelled", "expired",
 ];
 
+const REVIEW_FIELD_KEY_PREFIX = "workbench.assistant-review.field.";
+const INTERNAL_REVIEW_FIELD_KEYS: Readonly<Record<string, string>> = {
+  "网站": "site",
+  "注意": "warning",
+  "应用": "app",
+  "动作": "action",
+  "详情": "detail",
+  "子任务角色": "subtask-role",
+  "本次完整参数": "exact-arguments",
+  "完整参数": "exact-arguments",
+};
+
+function toolOperationFieldKey(
+  document: Extract<AgentReviewRequest["document"], { kind: "tool-operation" }>,
+  index: number,
+  field: { readonly key?: string; readonly label: string },
+): string | undefined {
+  if (typeof field.key === "string" && field.key) return field.key;
+  const presented = reviewPresentation(document)?.fields?.[index]?.label;
+  if (presented) {
+    for (const part of presented) {
+      if (typeof part !== "string" && "key" in part && part.key.startsWith(REVIEW_FIELD_KEY_PREFIX)) {
+        return part.key.slice(REVIEW_FIELD_KEY_PREFIX.length);
+      }
+    }
+  }
+  return INTERNAL_REVIEW_FIELD_KEYS[field.label];
+}
+
+function projectReviewRowForWire(row: AgentReviewRow): AgentReviewRow {
+  const document = row.request.document;
+  if (document.kind !== "tool-operation") return row;
+  const fields: Array<{ label: string; value: string; key?: string }> = document.fields.map((field, index) => {
+    const key = toolOperationFieldKey(document, index, field);
+    return key ? { ...field, key } : field;
+  });
+  return { ...row, request: { ...row.request, document: { ...document, fields } } };
+}
+
 export async function handleAgentReviewHttp(
   request: IncomingMessage,
   response: ServerResponse,
@@ -264,9 +303,12 @@ export async function handleAgentReviewHttp(
     const open = (row: typeof matched[number]) => !row.receipt || row.receipt.status === "pending" || row.receipt.status === "approved" && !row.receipt.effect_settled && !row.receipt.effect_error;
     const settled = matched.filter(row => !open(row));
     const kept = limit === undefined ? null : new Set(settled.sort((a, b) => b.request.requested_at.localeCompare(a.request.requested_at)).slice(0, limit));
-    const rows = (kept ? matched.filter(row => open(row) || kept.has(row)) : matched).map(row =>
-      row.decisions.approve.available && ports.agentHost.reviews.hasExactPermission(row.request.review_id)
-        ? { ...row, work_permission_available: true as const } : row);
+    const rows = (kept ? matched.filter(row => open(row) || kept.has(row)) : matched).map(row => {
+      const projectedRow = projectReviewRowForWire(row);
+      return projectedRow.decisions.approve.available && ports.agentHost.reviews.hasExactPermission(projectedRow.request.review_id)
+        ? { ...projectedRow, work_permission_available: true as const }
+        : projectedRow;
+    });
     const html = renderAgentReviewSurface({ rows, primitives: {
       escape: value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!),
       icon, formatDate: value => format.date(value, "datetime-with-seconds"),

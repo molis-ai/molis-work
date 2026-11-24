@@ -10,6 +10,7 @@ import { GOALS_PAGE_ROUTES } from "./page-routes.js";
 import { GOALS_STAGE_CONTRIBUTION_ID, GOALS_UI_HELP } from "./page/workbench-stage.js";
 
 import { GOALS_PLUGIN_ID } from "./identity.js";
+import { localizeManifestActions } from "./manifest-action-text.js";
 import { ACCEPTANCE_READ_PERMISSION, ACCEPTANCE_REPORT_PERMISSION, acceptanceActions } from "@molis-ai/molis-work-contracts/modules/acceptance";
 export { GOALS_PLUGIN_ID };
 /** What the project database stores for this Plugin. */
@@ -64,29 +65,30 @@ export const goalsManifest: PluginManifest = {
   // this list to); the rest are what Goals asks of the platform's services: its own tables, the journal, Attention, the Context Ledger,
   // and other plugins' actions as the caller.
   permissions: [
-    { permission: "goals:read", required: true, reason: "按调用者授权读取、推进和决定项目目标" },
-    { permission: "goals:write", required: true, reason: "按调用者授权读取、推进和决定项目目标" },
-    { permission: "artifacts:read", required: true, reason: "按调用者授权读取、推进和决定项目目标" },
-    { permission: "goals:decide", required: true, reason: "按调用者授权读取、推进和决定项目目标" },
-    { permission: "storage:private", required: true, reason: "读写 Goals 自己在项目库里的表" },
-    { permission: PROJECT_JOURNAL_PERMISSION, required: true, reason: "把目标的事件和幂等记录写进项目日志" },
-    { permission: PLUGIN_ATTENTION_READ_PERMISSION, required: true, reason: "读取待决定目标的提醒" },
-    { permission: PLUGIN_ATTENTION_WRITE_PERMISSION, required: true, reason: "为待决定的目标开启、完成提醒" },
-    { permission: PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, required: true, reason: "读取目标的交付物和输入引用" },
-    { permission: PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION, required: true, reason: "记下目标的交付物和输入引用" },
-    { permission: "actions:delegate", required: true, reason: "以调用者的身份读取成果版本、请成果的所有者固定对象" },
-    { permission: "actions:invoke", required: true, reason: "读写平台上的目标要求与认可" },
-    { permission: ACCEPTANCE_READ_PERMISSION, required: true, reason: "Goal 的要求挂在平台认可上" },
-    { permission: ACCEPTANCE_REPORT_PERMISSION, required: true, reason: "Goal 的要求挂在平台认可上" },
+    { permission: "goals:read", required: true, reason: "读取项目里的目标、进展、关系与历史记录", reason_text: { key: "goals.permission.goals-read.reason" } },
+    { permission: "goals:write", required: true, reason: "新建、更新和推进项目里的目标", reason_text: { key: "goals.permission.goals-write.reason" } },
+    { permission: "artifacts:read", required: true, reason: "读取与目标关联的成果版本", reason_text: { key: "goals.permission.artifacts-read.reason" } },
+    { permission: "goals:decide", required: true, reason: "记录你对目标事项或结构提案的决定", reason_text: { key: "goals.permission.goals-decide.reason" } },
+    { permission: "storage:private", required: true, reason: "在项目库里保存目标、关系、进展与提案记录", reason_text: { key: "goals.permission.storage-private.reason" } },
+    { permission: PROJECT_JOURNAL_PERMISSION, required: true, reason: "把目标的关键事件和操作记录写进项目历史", reason_text: { key: "goals.permission.journal-project.reason" } },
+    { permission: PLUGIN_ATTENTION_READ_PERMISSION, required: true, reason: "读取等待你决定的目标提醒", reason_text: { key: "goals.permission.attention-read.reason" } },
+    { permission: PLUGIN_ATTENTION_WRITE_PERMISSION, required: true, reason: "为等待决定的目标创建或完成提醒", reason_text: { key: "goals.permission.attention-write.reason" } },
+    { permission: PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, required: true, reason: "读取目标的交付物和输入资料引用", reason_text: { key: "goals.permission.context-ledger-read.reason" } },
+    { permission: PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION, required: true, reason: "记下目标的交付物和输入资料引用", reason_text: { key: "goals.permission.context-ledger-write.reason" } },
+    { permission: "actions:delegate", required: true, reason: "按你的权限读取成果版本，并请原插件把资料固定为成果", reason_text: { key: "goals.permission.actions-delegate.reason" } },
+    { permission: "actions:invoke", required: true, reason: "读写目标挂在系统里的要求与认可记录", reason_text: { key: "goals.permission.actions-invoke.reason" } },
+    { permission: ACCEPTANCE_READ_PERMISSION, required: true, reason: "读取目标关联的要求与认可状态", reason_text: { key: "goals.permission.acceptance-read.reason" } },
+    { permission: ACCEPTANCE_REPORT_PERMISSION, required: true, reason: "同步目标的要求与验证汇报", reason_text: { key: "goals.permission.acceptance-report.reason" } },
   ],
   // A Goal's requirements are the platform's (contract-design §10.3): Goals reads them, and hangs a new Goal's, as the subject's provider.
   capabilities: { provides: [], consumes: [acceptanceActions.read.capability_id, acceptanceActions.set.capability_id] },
   demo_seed: { capability_id: goalsDemoSeedAction.capability_id, version: goalsDemoSeedAction.version },
-  actions: [...GOALS_ACTIONS, goalsWorkPromptAction, goalsDemoSeedAction, ...goalsPresentationActions],
+  actions: localizeManifestActions([...GOALS_ACTIONS, goalsWorkPromptAction, goalsDemoSeedAction, ...goalsPresentationActions]),
   presentation: goalsPresentation,
   work_terminals: [{ subject_kind: "goal", prompt_action: goalsWorkPromptAction.capability_id }],
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
-  read_groups: [{ group_id: "goals", title: "目标", description: "目标的状态、正文、进展记录、关系与资料",
+  read_groups: [{ group_id: "goals", title: "目标", title_text: { key: "goals.read-group.goals.title" },
+    description: "目标的状态、正文、进展记录、关系与资料", description_text: { key: "goals.read-group.goals.description" },
     actions: ["goals.list", "goals.state.read", "goals.directory.read", "goals.document.read", "goals.collection.read", "goals.snapshot.read", "goals.subject.read",
       "goals.search.entries", "goals.contract.read", "goals.events.list", "goals.events.latest", "goals.events.read", "goals.timeline.list", "goals.history.list",
       "goals.history.read", "goals.relations.list", "goals.inputs.list", "goals.deliverables.list", "goals.artifact_inputs.list"] }],

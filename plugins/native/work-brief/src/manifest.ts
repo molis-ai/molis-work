@@ -3,6 +3,7 @@ import { workBriefActions, workBriefPersonalActions } from "./actions.js";
 import { WORK_BRIEF_DATABASE } from "./database.js";
 import { briefArtifactPreview } from "./fix.js";
 import { BRIEF_ARTIFACT_SCHEMA_VERSION, BRIEF_ARTIFACT_TYPE_ID, WORK_BRIEF_PLUGIN_ID } from "./identity.js";
+import { localizeManifestActions } from "./manifest-action-text.js";
 import { workBriefSync } from "./replication.js";
 import { WORK_BRIEF_VIEW_ID, workBriefPresentation, workBriefPresentationActions } from "./presentation.js";
 import { WORK_BRIEF_UI_CONTRIBUTION_ID } from "./ui.js";
@@ -27,19 +28,20 @@ export const workBriefManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-work-brief-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
-    { permission: "work-brief:read", required: true, reason: "读取简报、它的版本与依据" },
-    { permission: "work-brief:write", required: true, reason: "保存、刷新、修改和固定简报" },
-    { permission: "storage:private", required: true, reason: "简报的正文、版本、人工修改与下一步的处置" },
-    { permission: "actions:delegate", required: true, reason: "以当前调用者的身份读各来源的概况与每条依据，并在本人点下一步时执行那个动作" },
-    { permission: "artifact:write", required: true, reason: "把固定的版本发成成果" },
-    { permission: "artifact:read", required: true, reason: "核对固定版本对应的成果" },
-    { permission: "projects:reach", required: false, reason: "在个人简报里汇总你各个项目的简报里要你处理的事；不给时个人简报只有个人范围的事项" },
+    { permission: "work-brief:read", required: true, reason: "读取简报、历史版本与引用依据", reason_text: { key: "work-brief.permission.work-brief-read.reason" } },
+    { permission: "work-brief:write", required: true, reason: "保存、刷新、修改和固定简报", reason_text: { key: "work-brief.permission.work-brief-write.reason" } },
+    { permission: "storage:private", required: true, reason: "保存简报正文、历史版本、人工修改与下一步处理记录", reason_text: { key: "work-brief.permission.storage-private.reason" } },
+    { permission: "actions:delegate", required: true, reason: "按你的权限读取各来源概况与依据，并在你点击下一步时执行对应操作", reason_text: { key: "work-brief.permission.actions-delegate.reason" } },
+    { permission: "artifact:write", required: true, reason: "把固定下来的简报版本存为成果", reason_text: { key: "work-brief.permission.artifact-write.reason" } },
+    { permission: "artifact:read", required: true, reason: "核对固定简报版本对应的成果", reason_text: { key: "work-brief.permission.artifact-read.reason" } },
+    { permission: "projects:reach", required: false, reason: "在个人简报里汇总各个项目需要你处理的事；关闭时只包含个人范围事项", reason_text: { key: "work-brief.permission.projects-reach.reason" } },
   ],
   presentation: workBriefPresentation,
   // Runs in the Home, and also as each project's instance (the registration says so). Each instance redeems only the actions it owns.
   runtime: { scope: "home" },
-  actions: [...PROJECT_ACTIONS, ...HOME_ACTIONS],
-  read_groups: [{ group_id: "work-brief", title: "简报", description: "项目的简报、它的版本与依据",
+  actions: localizeManifestActions([...PROJECT_ACTIONS, ...HOME_ACTIONS]),
+  read_groups: [{ group_id: "work-brief", title: "简报", title_text: { key: "work-brief.read-group.work-brief.title" },
+    description: "项目的简报、它的版本与依据", description_text: { key: "work-brief.read-group.work-brief.description" },
     actions: [workBriefActions.list.capability_id, workBriefActions.get.capability_id, "work-brief.subject.read", "work-brief.search.entries"] }],
   databases: { home: WORK_BRIEF_DATABASE },
   sync: workBriefSync,

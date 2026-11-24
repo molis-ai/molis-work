@@ -2,6 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { RISK_READ, riskActions } from "./actions.js";
 import { RISK_PROJECT_DATABASE } from "./database.js";
 import { RISK_PLUGIN_ID } from "./identity.js";
+import { localizeManifestActions } from "./manifest-action-text.js";
 import { riskMethods } from "./methods.js";
 import { riskPresentation, riskPresentationActions } from "./presentation.js";
 import { riskSync } from "./replication.js";
@@ -28,15 +29,16 @@ export const riskManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-risk-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
-    ...ACTION_PERMISSIONS.map(permission => ({ permission, required: false, reason: "按调用者授权使用风险能力" })),
-    { permission: "storage:private", required: true, reason: "项目里的风险、关联与进展" },
-    { permission: "actions:delegate", required: true, reason: "替当前调用者核对要关联的对象，并在 Schedule 里安排与归档风险的复查" },
+    ...ACTION_PERMISSIONS.map(permission => ({ permission, required: false, reason: "按你的权限读取或管理项目里的风险", reason_text: { key: "risk.permission.action.reason" } })),
+    { permission: "storage:private", required: true, reason: "保存这个项目里的风险、关联对象和进展记录", reason_text: { key: "risk.permission.storage-private.reason" } },
+    { permission: "actions:delegate", required: true, reason: "按你的权限核对要关联的对象，并在 Schedule 里安排或归档风险复查", reason_text: { key: "risk.permission.actions-delegate.reason" } },
   ],
   presentation: riskPresentation,
-  actions: RISK_ACTIONS,
+  actions: localizeManifestActions(RISK_ACTIONS),
   methods: riskMethods.map(({ body: _body, body_by_locale: _localized, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
-  read_groups: [{ group_id: "risk", title: "风险", description: "项目里的风险、它们的关联与进展",
+  read_groups: [{ group_id: "risk", title: "风险", title_text: { key: "risk.read-group.risk.title" },
+    description: "项目里的风险、它们的关联与进展", description_text: { key: "risk.read-group.risk.description" },
     actions: [riskActions.list.capability_id, riskActions.get.capability_id, riskSearchActions.subject.capability_id, riskSearchActions.entries.capability_id] }],
   databases: { project: RISK_PROJECT_DATABASE },
   sync: riskSync,

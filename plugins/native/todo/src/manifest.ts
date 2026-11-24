@@ -2,6 +2,7 @@ import { todoSync } from "./replication.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID } from "./contract.js";
 import { TODO_ACTIONS, TODO_ACTION_PERMISSIONS } from "./actions.js";
+import { localizeManifestActions } from "./manifest-action-text.js";
 import { TODO_UI_CONTRIBUTION_ID } from "./ui.js";
 import { todoAgentManifest, todoSkills } from "./roles.js";
 import { TODO_DATABASE } from "./database.js";
@@ -23,15 +24,16 @@ export const todoManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-todo-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
-    { permission: "storage:private", required: true, reason: "本机待办库与修改记录" },
-    ...TODO_ACTION_PERMISSIONS.map(permission => ({ permission, required: permission === "todo:read", reason: "按每项能力的授权读取或修改待办" })),
-    { permission: "projects:reach", required: false, reason: "在你自己的待办页里看到并整理你各个项目里的待办；不给时只处理当前项目里的待办" },
+    { permission: "storage:private", required: true, reason: "在本机保存待办事项和修改记录", reason_text: { key: "todo.permission.storage-private.reason" } },
+    ...TODO_ACTION_PERMISSIONS.map(permission => ({ permission, required: permission === "todo:read", reason: "按你的权限读取、新建或整理待办", reason_text: { key: "todo.permission.action.reason" } })),
+    { permission: "projects:reach", required: false, reason: "在个人待办页查看并整理各项目里的待办；关闭时只显示当前项目", reason_text: { key: "todo.permission.projects-reach.reason" } },
   ],
   capabilities: { provides: [], consumes: ["assistant.works.related"] },
   artifacts: { produces: [], consumes: [] },
-  actions: [...TODO_ACTIONS], sync:todoSync,
+  actions: localizeManifestActions([...TODO_ACTIONS]), sync:todoSync,
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
-  read_groups: [{ group_id: "todo", title: "待办", description: "待办事项、它们的日期与到期提醒",
+  read_groups: [{ group_id: "todo", title: "待办", title_text: { key: "todo.read-group.todo.title" },
+    description: "待办事项、它们的日期与到期提醒", description_text: { key: "todo.read-group.todo.description" },
     actions: ["todo.items.list", "todo.items.get", "todo.item.subject.read", "todo.search.project_entries", "todo.reminders.due", "todo.events"] }],
   // Fixed paths before `/items/:id`, and each mapped to the action of the same name in ./plugin.ts.
   runtime: { scope: "home" },

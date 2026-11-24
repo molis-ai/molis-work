@@ -241,10 +241,11 @@ connectors.local.prepare	1	system.connectors	command	operation	home	write	-	agen
 connectors.methods.read	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	-	-	df77d647cdc2	a2c799262a3c	-
 connectors.plugin_slot.bind	1	system.connectors	command	operation	home	write	-	user	connectors:management:write	connector	-	-	0b94d016af9b	270f9a44cee9	-
 connectors.plugin_slot.read	1	system.connectors	query	query	home	read	-	user	connectors:management:read	connector	-	-	e5d56f4d9e32	270f9a44cee9	-
-connectors.plugin_slot.record.bind	1	system.connectors	command	operation	project	write	-	user	connectors:management:write	connector	-	-	0e03f7e7c5db	270f9a44cee9	-
+connectors.plugin_slot.record.bind	1	system.connectors	command	operation	project	write	-	user	connectors:management:write	connector	-	-	eb62e7768225	270f9a44cee9	-
 connectors.plugin_slot.record.read	1	system.connectors	query	query	project	read	-	user	connectors:management:read	connector	-	-	94a9c7599306	270f9a44cee9	-
 connectors.plugin_slot.switch	1	system.connectors	command	operation	home	write	-	user	connectors:management:write	connector	molis.connector-usages-switch.input.v1	molis.connector-usages-switch.output.v1	ac6205c46996	c699e9a1cb27	-
 connectors.plugin_slot.usages	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	molis.connector-usages.input.v1	molis.connector-usages.output.v1	a343ab264882	6bcb6c85f884	-
+connectors.project_mcp.usages	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	molis.connector-usages.input.v1	molis.connector-usages.output.v1	a343ab264882	6bcb6c85f884	-
 connectors.records.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:records:read	connector	-	-	97cfc8b8a1f8	93b85e782320	-
 connectors.setup.execute	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	-
 connectors.setup.prepare	1	system.connectors	command	operation	home	write	-	agent,mcp,user	connectors:management:write	connector	-	-	61775206790e	8cc5c5adc1fa	-

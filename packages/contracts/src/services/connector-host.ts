@@ -300,6 +300,7 @@ export type ConnectorConnectionView = Pick<ConnectorConnectionRecord,
     /** The signed package a connection for its service was made for, and only it may use (T-134); none for a built-in or platform service. */
     readonly declared_by?: { readonly plugin_id: string; readonly title: string };
     readonly mcp_endpoint?: string;
+    readonly mcp_authentication?: "oauth" | "bearer" | "none";
     readonly agent_available?: boolean;
   };
 

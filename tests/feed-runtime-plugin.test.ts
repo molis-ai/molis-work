@@ -877,7 +877,7 @@ async function connecting(t: TestContext, options: { sync?: (binding: Integratio
       VALUES (?, ?, 'github', 'github', 'github', 'GitHub', '', 'active', 1, 0, 'molis_work', '{}', '{"mode":"manual"}', NULL, NULL, NULL, NULL, NULL, ?, ?)`).run(DEMO_PROJECT_ID, sourceId, now, now);
     const scope = pluginBindingScope({ install_id: f.installId(), project_id: DEMO_PROJECT_ID, record_key: sourceId });
     return { sourceId,
-      bind: (connectionId: string) => withConnectorConnections(f.home, store => store.bind({ scopeId: scope, pluginId: feedManifest.plugin_id, slotId: "github", serviceId: "github", connectionId })),
+      bind: (connectionId: string, expectedConnectionId?: string) => withConnectorConnections(f.home, store => store.bind({ expectedConnectionId, scopeId: scope, pluginId: feedManifest.plugin_id, slotId: "github", serviceId: "github", connectionId })),
       bound: () => withConnectorConnections(f.home, store => store.binding(scope, feedManifest.plugin_id, "github")),
       sync: (key: string, who = caller(SYNC)) => f.client.invoke(who.context, feedSourceActions.sync, { source_id: sourceId, idempotency_key: key }) as Promise<{ created: number; replayed: boolean; run: { phase: string; outcome: string } }>,
       items: () => f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", sourceId),
@@ -1028,7 +1028,7 @@ test("RAC-1026 an account the person changes while a pull is running ends the pu
   f.bind(account.connection_id);
   const snapshot = () => JSON.stringify(["feed_items", "feed_source_runs", "events", "listener_deliveries", "inbox_entries"].map(table => f.store.db.prepare(`SELECT * FROM ${table}`).all()));
   let before = "";
-  swap = () => { before = snapshot(); f.bind(other.connection_id); };
+  swap = () => { before = snapshot(); f.bind(other.connection_id, account.connection_id); };
   await assert.rejects(f.sync("swap-sync-key"), { code: "feed.source_connection_changed" });
   assert.equal(f.calls.length, 1);
   assert.equal(f.items(), 0);
@@ -1603,7 +1603,7 @@ test("RAC-1037 a connection change wakes the job: an account that stops working 
   assert.equal(paused.row().status, "paused", "a source the person paused stays paused");
   // The person connects an account again and binds it: the source is usable, and the next change says so.
   const again = f.connect("Again");
-  f.bind(again.connection_id);
+  f.bind(again.connection_id, account.connection_id);
   await connectionChanged(f);
   await until(() => f.row().status === "active", "the source is back");
   assert.equal(f.row().last_error_code, null);
@@ -1812,8 +1812,8 @@ for (const { service, fault } of CURRENT_CONNECTOR_FAULTS) test(`RAC-2863 RAC-28
   const token = `fixture-t396-${service}-${fault}-current`, otherToken = `fixture-t396-${service}-${fault}-other`;
   const account = withConnectorConnections(f.home, store => store.createToken({ serviceId: service, displayName: "Current", token }));
   const other = withConnectorConnections(f.home, store => store.createToken({ serviceId: service, displayName: "Other", token: otherToken }));
-  const bind = async (sourceId: string, connectionId: string | null) => client.invoke(await person(), connectorPluginSlotActions.bindRecord,
-    { install_id: install.install_id, plugin_id: FEED_PLUGIN_ID, slot_id: service, record_key: sourceId, service_id: service, connection_id: connectionId });
+  const bind = async (sourceId: string, connectionId: string | null, expectedConnectionId?: string) => client.invoke(await person(), connectorPluginSlotActions.bindRecord,
+    { install_id: install.install_id, plugin_id: FEED_PLUGIN_ID, slot_id: service, record_key: sourceId, service_id: service, connection_id: connectionId, ...(expectedConnectionId ? { expected_connection_id: expectedConnectionId } : {}) });
   const source = async (name: string) => {
     let sourceId: string;
     if (service === "google-drive") {
@@ -1855,7 +1855,11 @@ for (const { service, fault } of CURRENT_CONNECTOR_FAULTS) test(`RAC-2863 RAC-28
   try {
     await Promise.race([entered.promise, pending.then(error => { throw new Error(`Connector ended before its response gate: ${error?.code}`); })]);
     let expected = await read();
-    if (fault === "swap" || fault === "unbind") { await bind(negative, fault === "swap" ? other.connection_id : null); expected = await read(); }
+    if (fault === "swap" || fault === "unbind") {
+      if (fault === "swap") await bind(negative, other.connection_id, account.connection_id);
+      else await bind(negative, null);
+      expected = await read();
+    }
     if (fault === "cancel") abort.abort(new ActionError("actions.cancelled", "调用已取消"));
     if (fault === "grant") {
       // Required grants are changed only after stopping the real activation; no copied context or fake control revokes this pull.

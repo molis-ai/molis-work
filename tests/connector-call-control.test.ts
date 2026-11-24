@@ -73,8 +73,8 @@ async function gmailRuntime(t: TestContext, transport: typeof fetch) {
   assert.deepEqual(started.failed, []);
   const install = platform.runtime.list().find(row => row.plugin_id === id)!;
   stop = async () => { await platform.closeCoordination(); if (platform.runtime.get(install.install_id)?.state === "running") await platform.runtime.stop(install.install_id); };
-  const bind = (connectionId: string, record_key = "source-a") => withConnectorConnections(home, store => store.bind({
-    scopeId: pluginBindingScope({ install_id: install.install_id, project_id: reference.project_id, record_key }), pluginId: id, slotId: "gmail", serviceId: "gmail", connectionId }));
+  const bind = (connectionId: string, record_key = "source-a", expectedConnectionId?: string) => withConnectorConnections(home, store => store.bind({
+    scopeId: pluginBindingScope({ install_id: install.install_id, project_id: reference.project_id, record_key }), pluginId: id, slotId: "gmail", serviceId: "gmail", connectionId, expectedConnectionId }));
   const connect = () => withConnectorConnections(home, store => store.createToken({ serviceId: "gmail", displayName: "Fixture account", token: `fixture-${randomUUID()}` }));
   const pull = (record_key = "source-a", signal?: AbortSignal) => client.invoke({ actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: PERMISSIONS, signal } satisfies ActionCallContext, action, { record_key }) as Promise<ConnectorPullReceipt>;
   return { home, platform, install, bind, connect, pull, settled: () => Promise.all(polls), delivered: () => delivered };
@@ -122,7 +122,8 @@ test("S-97 FI-C-01/02: a Gmail binding ABA stops the old HTTP continuation and l
   const kept = f.pull("source-b");
   try {
     await other.reached;
-    f.bind(b.connection_id); f.bind(a.connection_id);
+    f.bind(b.connection_id, "source-a", a.connection_id);
+    f.bind(a.connection_id, "source-a", b.connection_id);
   } finally { first.release(); other.release(); }
   await rejection;
   await f.settled();

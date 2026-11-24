@@ -322,23 +322,33 @@ function sealEnvelope(plaintext: string, key: Buffer, aad?: Buffer): string {
   return Buffer.from(JSON.stringify(sealed)).toString("base64");
 }
 
-function openEnvelope(sealed: string, key: Buffer, aad?: Buffer): string | null {
+const secretEntryErrors = defineErrorCodes("storage", {
+  secret_entry_invalid: "invalid", secret_entry_decryption_failed: "invalid",
+});
+const invalidSecretEntry = () => secretEntryErrors.secret_entry_invalid("本机保存的凭据格式有误。请从备份恢复凭据后重试。");
+
+function readSealedEnvelope(sealed: string) {
   try {
-    const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedEnvelope;
-    if (raw.v !== /* @version format.secret-store.envelope */ 1 || raw.alg !== ALG || typeof raw.iv !== "string" || typeof raw.tag !== "string" || typeof raw.ct !== "string") {
-      return null;
+    const raw: unknown = JSON.parse(Buffer.from(sealed, "base64").toString("utf8"));
+    if (isRecord(raw) && raw.v === /* @version format.secret-store.envelope */ 1 && raw.alg === ALG
+      && typeof raw.iv === "string" && typeof raw.tag === "string" && typeof raw.ct === "string") {
+      const iv = Buffer.from(raw.iv, "base64"), tag = Buffer.from(raw.tag, "base64");
+      if (iv.length === 12 && tag.length === 16) return { iv, tag, ciphertext: raw.ct };
     }
-    const iv = Buffer.from(raw.iv, "base64");
-    const tag = Buffer.from(raw.tag, "base64");
-    const ct = Buffer.from(raw.ct, "base64");
-    if (iv.length !== 12 || tag.length !== 16) return null;
+  } catch { /* Invalid JSON is reported as an invalid envelope below. */ }
+  throw invalidSecretEntry();
+}
+
+function openEnvelope(sealed: string, key: Buffer, aad?: Buffer): string {
+  const { iv, tag, ciphertext } = readSealedEnvelope(sealed);
+  try {
     const decipher = createDecipheriv(ALG, key, iv);
     if (aad) decipher.setAAD(aad);
     decipher.setAuthTag(tag);
-    const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
+    const pt = Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64")), decipher.final()]);
     return pt.toString("utf8");
   } catch {
-    return null;
+    throw secretEntryErrors.secret_entry_decryption_failed("无法解密本机保存的凭据。请恢复原来的密钥，或重新连接。");
   }
 }
 
@@ -364,12 +374,10 @@ function parseSecretsFile(contents: string): SecretsFile {
 export const SECRET_STORE_FILE: VersionedFile<SecretsFile> = { version: FORMAT_VERSION, field: "version", upgrades: FORMAT_UPGRADES, parse: parseSecretsValue };
 
 function parseSecretsValue(parsed: unknown): SecretsFile {
-  if (!isRecord(parsed)) {
+  if (!isRecord(parsed) || !isRecord(parsed.entries)) {
     throw new Error("secrets file has invalid structure");
   }
-  if (!("entries" in parsed) || !isStringRecord(parsed.entries)) {
-    throw new Error("secrets file has invalid structure");
-  }
+  if (!isStringRecord(parsed.entries)) throw invalidSecretEntry();
   if (parsed.version !== FORMAT_VERSION) {
     throw new Error(`secrets file format ${String(parsed.version)} is not supported; only ${FORMAT_VERSION} is read`);
   }
@@ -382,8 +390,7 @@ function parseSecretsValue(parsed: unknown): SecretsFile {
   };
 }
 
-function isStringRecord(value: unknown): value is Record<string, string> {
-  if (!isRecord(value)) return false;
+function isStringRecord(value: Record<string, unknown>): value is Record<string, string> {
   return Object.values(value).every((entry) => typeof entry === "string");
 }
 
@@ -394,6 +401,11 @@ function isSecretStoreBackend(value: unknown): value is SecretStoreBackendKind {
 const snapshotErrors = defineErrorCodes("storage.secrets_snapshot", {
   invalid: "invalid", key_unavailable: "unavailable", integrity_failed: "invalid",
 });
+
+function openSnapshotEnvelope(sealed: string, key: Buffer, message: string, aad?: Buffer): string {
+  try { return openEnvelope(sealed, key, aad); }
+  catch { throw snapshotErrors.integrity_failed(message); }
+}
 
 export interface SealedSecretsSnapshotInspection {
   version: /* @version format.secret-store.map */ 1;
@@ -431,8 +443,7 @@ function openSnapshotFile(homeDirectory: string, file: SecretsFile) {
   try { master = runWithMolisWorkHome(homeDirectory, () => readExistingMasterKey(file.backend)); }
   catch { throw snapshotErrors.key_unavailable("原 Home 的凭据主密钥不可用；不会创建替代密钥"); }
   for (const [ref, sealed] of Object.entries(file.entries)) {
-    const value = openEnvelope(sealed, master.key);
-    if (value === null) throw snapshotErrors.integrity_failed("原密钥与凭据快照不匹配，或密文已损坏");
+    const value = openSnapshotEnvelope(sealed, master.key, "原密钥与凭据快照不匹配，或密文已损坏");
     opened.set(ref, value);
   }
   return { file, opened, master };
@@ -529,8 +540,7 @@ export function openExistingHomePayload(homeDirectory: string, binding: string, 
   if (payload.key_reference.location !== reference.location || payload.key_reference.sha256 !== reference.sha256) {
     throw snapshotErrors.integrity_failed("原密钥与密封数据的依赖不匹配");
   }
-  const text = openEnvelope(payload.ciphertext, master.key, homePayloadAad(home, binding));
-  if (text === null) throw snapshotErrors.integrity_failed("原密钥与密封数据不匹配，或密文已损坏");
+  const text = openSnapshotEnvelope(payload.ciphertext, master.key, "原密钥与密封数据不匹配，或密文已损坏", homePayloadAad(home, binding));
   let body: unknown;
   try { body = JSON.parse(text); } catch { throw snapshotErrors.invalid("密封数据正文格式无效"); }
   if (!isRecord(body) || body.schema_version !== /* @version format.secret-store.home-payload */ 1 || body.home !== home || body.binding !== binding || typeof body.contents !== "string") {
@@ -561,22 +571,12 @@ function saveFile(file: SecretsFile): void {
   atomicWriteFileSync(p, JSON.stringify(payload, null, 2), { mode: 0o600 });
 }
 
-/** A new seal must be a current AES-GCM envelope, never reversible encoding. */
-function assertSealedEnvelope(sealed: string): void {
-  try {
-    const raw = JSON.parse(Buffer.from(sealed, "base64").toString("utf8")) as SealedEnvelope;
-    if (raw.v === /* @version format.secret-store.envelope */ 1 && raw.alg === ALG && typeof raw.iv === "string" && typeof raw.tag === "string" && typeof raw.ct === "string"
-      && Buffer.from(raw.iv, "base64").length === 12 && Buffer.from(raw.tag, "base64").length === 16) return;
-  } catch { /* reported below */ }
-  throw new Error("secret not AES-GCM sealed");
-}
-
 /**
  * Every entry already in the file must still be a current envelope before the file is written back. `exceptRef` is the entry being
  * deleted: deleting the bad entry itself is how a vault with one gets clean again, so that one is not checked.
  */
 function assertSealedEntries(file: SecretsFile, exceptRef?: string): void {
-  for (const [ref, sealed] of Object.entries(file.entries)) if (ref !== exceptRef) assertSealedEnvelope(sealed);
+  for (const [ref, sealed] of Object.entries(file.entries)) if (ref !== exceptRef) readSealedEnvelope(sealed);
 }
 
 /** What every write finds before it changes anything: the map as this build reads it, with every entry but `exceptRef` a current envelope. */
@@ -618,9 +618,7 @@ function buildStore(master: ResolvedMaster): SecretStore {
     put(authRef, plaintext) {
       withSecretsLock(() => {
         const file = writableFile();
-        const sealed = sealEnvelope(plaintext, master.key);
-        assertSealedEnvelope(sealed);
-        file.entries[authRef] = sealed;
+        file.entries[authRef] = sealEnvelope(plaintext, master.key);
         file.backend = master.kind;
         file.version = FORMAT_VERSION;
         saveFile(file);
@@ -630,9 +628,7 @@ function buildStore(master: ResolvedMaster): SecretStore {
       const file = loadFile();
       // Presence is keyed by the entry name, not by the sealed string: "" is a legal string and a bad entry, not a missing one.
       if (!Object.hasOwn(file.entries, authRef)) return null;
-      const sealed = file.entries[authRef];
-      assertSealedEnvelope(sealed);
-      return openEnvelope(sealed, master.key);
+      return openEnvelope(file.entries[authRef], master.key);
     },
     delete(authRef) {
       withSecretsLock(() => {
@@ -646,9 +642,7 @@ function buildStore(master: ResolvedMaster): SecretStore {
       return withSecretsLock(() => {
         const file = writableFile();
         if (Object.hasOwn(file.entries, authRef)) return false;
-        const sealed = sealEnvelope(plaintext, master.key);
-        assertSealedEnvelope(sealed);
-        file.entries[authRef] = sealed;
+        file.entries[authRef] = sealEnvelope(plaintext, master.key);
         file.backend = master.kind;
         file.version = FORMAT_VERSION;
         saveFile(file);

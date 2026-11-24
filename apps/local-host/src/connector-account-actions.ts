@@ -21,7 +21,7 @@ import { connectorLocalActions, connectorLocalHandlers } from "./connector-local
 import { connectorSetupAction, connectorSetupHandler } from "./connector-setup.js";
 import { connectorSetupExecuteAction, connectorSetupExecuteHandler } from "./connector-setup-execute.js";
 import { connectorSetupIntentAction, connectorSetupIntentHandler } from "./connector-setup-intent.js";
-import { noProjectMcp, type ProjectMcpManagementPort } from "./connector-project-mcp.js";
+import { noProjectMcp, projectMcpUsages, projectMcpUsagesHandler, type ProjectMcpManagementPort } from "./connector-project-mcp.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import type { ConnectorActionInspector } from "./connector-status-view.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
@@ -110,8 +110,8 @@ export async function readConnectorAccount(home: string, connectionId: string, c
 export function connectorAccountActionProvider(home: string, remember: ConnectorMcpDirectory["remember"], projectMcp: ProjectMcpManagementPort = noProjectMcp, inspect?: ConnectorActionInspector, clientFor?: (caller: ActionCallContext) => ActionClient, pluginSlots?: PluginSlotDirectory): ActionProviderRegistration {
   return {
     provider: { provider_id: CONNECTOR_PROVIDER_ID, title: "服务连接", kind: "system" },
-    definitions: [connectorUsagesAction, modelConnectionUsages, connectorPluginSlotUsages, connectorUsagesSwitchAction, modelProviderSwitch, connectorPluginSlotSwitch, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), ...Object.values(webSearchActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions), ...Object.values(connectorPluginSlotActions)],
-    handlers: [connectorUsagesHandler(home, clientFor), modelConnectionUsagesHandler(home), connectorPluginSlotUsagesHandler(home, pluginSlots), connectorUsagesSwitchHandler(home, clientFor), modelProviderSwitchHandler(home), connectorPluginSlotSwitchHandler(home, pluginSlots), { capability_id: connectorAccountActions.read.capability_id, version: connectorAccountActions.read.version,
+    definitions: [connectorUsagesAction, projectMcpUsages, modelConnectionUsages, connectorPluginSlotUsages, connectorUsagesSwitchAction, modelProviderSwitch, connectorPluginSlotSwitch, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), ...Object.values(webSearchActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions), ...Object.values(connectorPluginSlotActions)],
+    handlers: [connectorUsagesHandler(home, clientFor), projectMcpUsagesHandler(home, projectMcp, pluginSlots?.projectNames.bind(pluginSlots)), modelConnectionUsagesHandler(home), connectorPluginSlotUsagesHandler(home, pluginSlots), connectorUsagesSwitchHandler(home, clientFor), modelProviderSwitchHandler(home), connectorPluginSlotSwitchHandler(home, pluginSlots), { capability_id: connectorAccountActions.read.capability_id, version: connectorAccountActions.read.version,
       handle: async (caller, input) => {
         const id = (input as { connection_id: string }).connection_id, row = withConnectorConnections(home, store => store.get(id), true), revision = row?.updated_at;
         // S-70: an account whose refresh was refused is not read with its old access token; the person logs in again first.

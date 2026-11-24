@@ -225,9 +225,9 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
   model_selection: { type: "object", required: ["provider_id", "model_id"], additionalProperties: false, properties: { provider_id: entryId, model_id: entryId } },
   reasoning_effort: { enum: ["low", "medium", "high"] },
   text_materials: { type: "array", maxItems: 200, items: { anyOf: [
-    { type: "object", required: ["material_id", "title", "text"], additionalProperties: false, properties: { ...materialFields, text: text(1_000_000) } },
+    { type: "object", required: ["material_id", "title", "text"], additionalProperties: false, properties: { ...materialFields, text: text(1_000_000), instruction_prompt_id: entryId } },
     { type: "object", required: ["material_id", "title", "text", "source_artifact_id", "source_version"], additionalProperties: false,
-      properties: { ...materialFields, text: text(1_000_000), ...materialSource } },
+      properties: { ...materialFields, text: text(1_000_000), instruction_prompt_id: entryId, ...materialSource } },
   ] } },
   image_materials: { type: "array", maxItems: CONVERSATION_ATTACHMENT_LIMITS.round_images, items: { type: "object", required: ["material_id", "title", "attachment", "media_type"], additionalProperties: false, properties: { material_id: entryId, title: text(2000),
     attachment: MATERIAL_REF_SCHEMA, media_type: entryId } } },

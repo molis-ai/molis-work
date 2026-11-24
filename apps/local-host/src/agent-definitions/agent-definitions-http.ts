@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import type { AgentDefinitions } from "./agent-definitions.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { agentDefinitionErrors } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { agentDisplayModel, displayAgentPrompt, displayAgentRole } from "./display-words.js";
 import { composeSimplifiedPrompt, splitPromptContract, validateFullPromptBody } from "./prompt-sections.js";
 
@@ -35,6 +36,9 @@ export async function handleAgentDefinitionsHttp(request: IncomingMessage, respo
       if (method === "POST" && path === "/prompt") {
         const mode = body.mode === "simplified" ? "simplified" : "full";
         const current = definitions.prompt(key, locale);
+        if (current.override_policy === "protected") {
+          throw agentDefinitionErrors.prompt_override_protected("这段 Prompt 受安全策略保护，不能改写", { key });
+        }
         const nextBody = mode === "simplified"
           ? composeSimplifiedPrompt(current.default_body, String(body.guidance ?? body.body ?? ""))
           : String(body.body ?? "");

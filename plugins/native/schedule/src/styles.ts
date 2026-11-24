@@ -42,8 +42,6 @@ export const SCHEDULE_STYLES = `
   .schedule-reads__area:not([data-schedule-area-placed]) { display: none; }
   /* Once shown, the area says each category and its state: Schedule's own count of them, or why it could not count, steps aside. */
   .schedule-reads[data-schedule-area="shown"] :is([data-schedule-reads-summary], [data-schedule-reads-failed]) { display: none; }
-  .schedule-reads__actions { display: flex; gap: 8px; margin-top: 4px; }
-  .schedule-reads__actions .mw-btn svg { width: 14px; height: 14px; }
   /* New and edit, in the detail pane where the task will be (no dialog). */
   .schedule-task-form { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
   .schedule-task-form .mw-form { height: auto; max-width: 640px; }

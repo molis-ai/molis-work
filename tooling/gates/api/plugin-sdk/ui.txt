@@ -912,6 +912,14 @@ export declare function renderChoice(options: {
 
 export declare function renderCodingRoundMaterials(options: MwCodingRoundMaterialsOptions): string;
 
+export declare function renderCollapsible(options: {
+    summary: string;
+    body: string;
+    open?: boolean;
+    className?: string;
+    attrs?: Record<string, AttrValue>;
+}): string;
+
 export declare function renderCommandChip(options: MwCommandChipOptions): string;
 
 export declare function renderCommandPrompt(options: {

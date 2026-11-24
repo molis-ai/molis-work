@@ -48,16 +48,37 @@ test("08-10 BL-165 SKP-01 the design and accessibility pack builds with a test p
       assert.equal(method.user_invocable, undefined, `${method.skill_id}: can be named by the person`);
     }
     assert.deepEqual(Object.fromEntries(methods.map(method => [method.skill_id, (method.resources ?? []).map(resource => [resource.path, resource.role])])), {
-      "accessibility-review": [["skills/accessibility-review/references/wcag-21-aa-checklist.md", "reference"]],
+      "accessibility-review": [
+        ["skills/accessibility-review/references/wcag-21-aa-checklist.en.md", "reference"],
+        ["skills/accessibility-review/references/wcag-21-aa-checklist.md", "reference"],
+      ],
       "design-critique": [],
-      "design-handoff": [["skills/design-handoff/references/handoff-template.md", "reference"]],
-      "design-system": [["skills/design-system/references/audit-checklist.md", "reference"]],
-      "ux-copy": [["skills/ux-copy/references/zh-en-style.md", "reference"]],
-    }, "each resource is a reference the body points to; none runs");
-    for (const { skill_id, body } of skills) {
-      assert.ok(body.split("\n").length <= SKILL_LIMITS.bodyLines && body.length <= SKILL_LIMITS.bodyChars, `${skill_id}: within the body limits`);
+      "design-handoff": [
+        ["skills/design-handoff/references/handoff-template.en.md", "reference"],
+        ["skills/design-handoff/references/handoff-template.md", "reference"],
+      ],
+      "design-system": [
+        ["skills/design-system/references/audit-checklist.en.md", "reference"],
+        ["skills/design-system/references/audit-checklist.md", "reference"],
+      ],
+      "ux-copy": [
+        ["skills/ux-copy/references/zh-en-style.en.md", "reference"],
+        ["skills/ux-copy/references/zh-en-style.md", "reference"],
+      ],
+    }, "each resource is a reference (zh + en) the matching body points to; none runs");
+    for (const method of methods) {
+      assert.deepEqual(method.locales, ["en"], `${method.skill_id}: declares English translation`);
+    }
+    for (const { skill_id, body, body_by_locale } of skills) {
+      const english = body_by_locale?.en ?? "";
+      assert.ok(english.length > 0, `${skill_id}: ships English SKILL.en.md body`);
+      assert.doesNotMatch(english, /^---/u, `${skill_id}: English translation carries no frontmatter`);
+      assert.ok(body.split("\n").length <= SKILL_LIMITS.bodyLines && body.length <= SKILL_LIMITS.bodyChars, `${skill_id}: zh within the body limits`);
+      assert.ok(english.split("\n").length <= SKILL_LIMITS.bodyLines && english.length <= SKILL_LIMITS.bodyChars, `${skill_id}: en within the body limits`);
       for (const resource of methods.find(method => method.skill_id === skill_id)?.resources ?? []) {
-        assert.ok(body.includes(resource.path.slice(`skills/${skill_id}/`.length)), `${skill_id}: the body says when to read ${resource.path}`);
+        const relative = resource.path.slice(`skills/${skill_id}/`.length);
+        const target = relative.endsWith(".en.md") ? english : body;
+        assert.ok(target.includes(relative), `${skill_id}: the matching body says when to read ${resource.path}`);
       }
     }
   } finally { await rm(out, { recursive: true, force: true }); }

@@ -5,14 +5,14 @@ import { readLocalizedMarkdown } from "@molis-ai/molis-work-plugin-sdk";
 const promptBody = (id: string) => readLocalizedMarkdown(new URL("../prompts/", import.meta.url), id, ["en"], file => readFileSync(file, "utf8"));
 const studioBody = (id: string) => { const { body, body_by_locale } = promptBody(id); return { text: body, body_by_locale }; };
 export const BUILDER_PROMPTS = {
-  experience: { version: /* @version prompt.plugin-builder.experience "experience/{version}" */ "experience/2", ...studioBody("plugin-builder.experience") },
-  review: { version: /* @version prompt.plugin-builder.ui-review "ui-review/{version}" */ "ui-review/2", ...studioBody("plugin-builder.ui-review") },
-  ui: { version: /* @version prompt.plugin-builder.ui "ui/{version}" */ "ui/2", ...studioBody("plugin-builder.ui") },
-  designer: { version: /* @version prompt.plugin-builder.designer "designer/{version}" */ "designer/4", ...studioBody("plugin-builder.designer") },
-  implement: { version: /* @version prompt.plugin-builder.implement "implement/{version}" */ "implement/2", ...studioBody("plugin-builder.implement") },
-  repair: { version: /* @version prompt.plugin-builder.repair "repair/{version}" */ "repair/2", ...studioBody("plugin-builder.repair") },
-  revise: { version: /* @version prompt.plugin-builder.revise "revise/{version}" */ "revise/2", ...studioBody("plugin-builder.revise") },
-  acceptance: { version: /* @version prompt.plugin-builder.acceptance "acceptance/{version}" */ "acceptance/2", ...studioBody("plugin-builder.acceptance") },
+  experience: { version: /* @version prompt.plugin-builder.experience "experience/{version}" */ "experience/3", ...studioBody("plugin-builder.experience") },
+  review: { version: /* @version prompt.plugin-builder.ui-review "ui-review/{version}" */ "ui-review/3", ...studioBody("plugin-builder.ui-review") },
+  ui: { version: /* @version prompt.plugin-builder.ui "ui/{version}" */ "ui/3", ...studioBody("plugin-builder.ui") },
+  designer: { version: /* @version prompt.plugin-builder.designer "designer/{version}" */ "designer/6", ...studioBody("plugin-builder.designer") },
+  implement: { version: /* @version prompt.plugin-builder.implement "implement/{version}" */ "implement/3", ...studioBody("plugin-builder.implement") },
+  repair: { version: /* @version prompt.plugin-builder.repair "repair/{version}" */ "repair/3", ...studioBody("plugin-builder.repair") },
+  revise: { version: /* @version prompt.plugin-builder.revise "revise/{version}" */ "revise/3", ...studioBody("plugin-builder.revise") },
+  acceptance: { version: /* @version prompt.plugin-builder.acceptance "acceptance/{version}" */ "acceptance/3", ...studioBody("plugin-builder.acceptance") },
 } as const;
 
 export type BuilderPromptName = keyof typeof BUILDER_PROMPTS;

@@ -40,7 +40,9 @@ description: How to add or change an AI capability in Molis Work — anything th
 - **先分清谁管什么**：理解与选择归模型；做法归方法（Skill）；这一次的事实归材料；发生了什么归工具回执；身份、权限、版本、幂等、取消、预算、恢复归代码（手册 12.1）。固定步骤只给出错代价高、又能事先写清的部分（12.3）。
 - **每样东西放在它的层里**：产品约束放 base 层，角色目的放角色提示词，有界调用的要求放登记的指令，会变的事实放每一轮的材料，用户这一次的话不由插件代写；同一条规则只写一层（13.1）。机器要读的输出写清形状并由代码校验，给人看的回复不套固定标题和条数。
 - **规则要有来由**：每句话给出一个事实或一个理由；说不出理由的「不要」，要么交给代码，要么删掉（13.1、15.6）。不为一次交付加关键词路由、固定子任务数、固定轮数判完成，也不在每次失败后追加一条禁令。
-- **回复语言由平台给**：一轮用哪种语言回复，由宿主在一处给模型（`AgentStartAuthority.reply_language`，今天只接了个人助理）；提示词、Skill、方法和插件里不写「用中文回复」，也不按语言分支（手册 13.1）。
+- **回复语言由平台给**：一轮用哪种语言回复，由宿主在一处给模型（`AgentStartAuthority.reply_language`）；提示词、Skill、方法和插件里不写「用中文回复」，也不按语言分支（手册 13.1）。有界单次调用按显式 `reply_language_policy` 区分 `"follow_locale"`（人看正文）与 `"fixed_schema"`（结构化 JSON/枚举抽取，严禁盲灌回复语言）（手册 13.6）。
+- **四类 Prompt 统一治理与受保护策略（决定 67）**：送进模型的全部文本归入 `editable`、`protected`、`platform-fixed` 或 `user-owned` 四类，零游离硬编码。`AgentDefinitions.effective()`（仅豁免 `reply-language`）与 `resolveModelPrompt()` 拒绝未登记或裸字符串调用；停用插件保留 `body_by_locale`。直接决定副作用放行权的安全门控提示词（如 `65-2` AI 低风险命令自动放行）必须零 DDL 声明 `override_policy: "protected"` 并进 `WORDING_HISTORY`，设置页只读可见，保存/重置/导入/同步一律以 `agent_definitions.prompt_override_protected` 拒绝覆盖（见 `S-protected-prompt-override`）。
+- **双缓存域五层动态拼装与模型侧工具稳定语言（决定 58、67）**：静态工具面（Zone 0，确定性排序、静态 Schema、**模型侧工具名/副作用标签/描述保持稳定语言不随 UI 切换变动**以保护 `toolsFingerprint`，仅界面展示本地化）与静态系统指令（Zone 1：`runtime:clock` 留 `developer` 层、`base`→`role`→Character→`project`→会话冻结常驻记忆→`reply_language`，断点 #1）禁止混入 UUID、毫秒时间戳、轮中易变状态或动态召回记忆；须保持 `trust: "instruction"` 守 `S-13` 的按轮条件宿主指令放入 Two-Zone `system` Dynamic 区（Zone 2，全双语、不打断点，绝不降级为 `data`）；半静态目录放 Zone 3，热态 `situation`（分钟级、排目录后锚定）/当前对象/动态召回记忆/永久锚定于 `userTask` 的 `start.attachments` 放 Zone 4；Anthropic 总断点 ≤4 且默认 `ephemeral`（禁默认 `ttl: "1h"`）。单次调用（`104-1` 起）拆 `system`（指令 + 策略化语言）与 `user`（`fencedMaterials` + 空数据安全占位）并按需开 `prompt_cache: "best-effort"`。
 - **方法（Skill）**：摘要说清适合什么，正文写做法、判断线索、资料、工具用法和什么算好；必须的过程写出理由；正文改了发新版本；方法不放大工具权限（13.2）。
 - **上下文**：给来源、版本和状态；按需取用，不预载；省略了要说出来；压缩、交接和中途补充复用已有机制（13.3）。
 - **工具**：描述写清用途、影响和常见失败；回执说真实状态和下一步，「成功」不只是收下请求；不可用要给原因和去处（13.4）。

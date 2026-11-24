@@ -46,7 +46,3 @@ Use “screenshot label · page/part: observable evidence → impact on the task
 Interpret each screenshot's state: preview has no Workbench tab strip; a Sheet opener and its inner submit can serve the same command; unselected, expanded, light and dark are not one simultaneous view. Words shared by summary and body do not prove redundancy. An uncaptured dialog, load or error state is not absent. Static images cannot prove motion timing, reduced motion, focus recovery, keyboard path or touch hit area; leave those unverified when evidence is missing.
 
 Return only the review stage's structured issues JSON. Distinguish adjustable `presentation`, `design` to revisit, `host` capability and `unverified`. Automatically revise only presentation findings tied to an actual screenshot target and a supported property. Keep other findings for confirmation. Make one concentrated revision with at most one confirmation; keep disputed suggestions instead of looping to an empty list.
-
-## Sources and choices
-
-Drawn from Impeccable 4.1.1 Operate/Read, `operate.md`, `animate.md`, `craft-floor.md` and `critique.md`: task priority, cognitive load, hierarchy, continuity, meaningful motion and evidence-led review. Adapted for Molis's continuous work surfaces and declarative renderer and shipped as a standalone standard. Runtime does not depend on local Impeccable. It does not import marketing-page tropes, fixed animation values, full scoring, interviews or subagent flows.

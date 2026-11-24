@@ -206,7 +206,8 @@ test("VUX-32 media zoom: about the point looked at, held in bounds, by pinch, tw
 
 test("VUX-22 a collapsible opens to its natural height, reverses midway, grows with its content and keeps no hidden focus", { timeout: 60_000 }, async t => {
   const body = renderCollapsible({ summary: "详情", body: `<p id="line">第一行</p><button id="inside">里面的按钮</button>` });
-  const page = await openPage(t, `<div id="host">${body}</div><p id="after">之后的段落</p>`);
+  const native = '<details class="mw-disclosure" id="native"><summary>设置</summary><p>说明</p><button>修改</button></details>';
+  const page = await openPage(t, `<div id="host">${body}</div><p id="after">之后的段落</p>${native}`);
   if (!page) return;
   // The room the body takes in the page: the fold's height below its summary (the clipped row, not the body's own box).
   const ROOM = `(() => { const d = document.querySelector(".mw-collapsible"); return d.getBoundingClientRect().height - d.querySelector("summary").getBoundingClientRect().height; })()`;
@@ -236,11 +237,25 @@ test("VUX-22 a collapsible opens to its natural height, reverses midway, grows w
   await sleep(350);
   assert.equal(await page.evaluate<boolean>(`(() => { const inside = document.getElementById("inside"); inside.focus(); return document.activeElement === inside; })()`), false, "a closed body takes no focus");
 
+  // BL-1061: native disclosures can have several direct children. The pseudo-element itself
+  // takes its natural height, so the last control fits and the content box can grow while open.
+  const nativeBox = `getComputedStyle(document.getElementById("native"), "::details-content")`;
+  await page.click("#native > summary");
+  await page.wait(`parseFloat(${nativeBox}.blockSize) >= document.querySelector("#native > button").offsetHeight && !document.getElementById("native").getAnimations({subtree:true}).length`);
+  assert.match(await page.evaluate<string>(`${nativeBox}.transitionProperty`), /block-size/);
+  const short = await page.evaluate<number>(`parseFloat(${nativeBox}.blockSize)`);
+  await page.evaluate('document.querySelector("#native > p").append(document.createElement("br"), "第二行", document.createElement("br"), "第三行")');
+  assert.ok(await page.evaluate<number>(`parseFloat(${nativeBox}.blockSize)`) > short);
+
   // Reduced motion: it opens at once.
   await page.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
   await page.evaluate(`document.querySelector(".mw-collapsible").open = true`);
   await sleep(30);
   assert.ok(await height() > full, "reduced motion: open at once");
+  await page.click("#native > summary");
+  assert.equal(await page.evaluate(`parseFloat(${nativeBox}.blockSize)`), 0);
+  assert.equal(await page.evaluate(`parseFloat(${nativeBox}.transitionDuration)`), 0);
+  assert.equal(await page.evaluate('document.querySelector("#native > button").focus(); document.activeElement.matches("#native > button")'), false);
 });
 
 test("VUX-22 the segmented thumb follows the current option when its pane resizes or its labels change, without a window resize", { timeout: 60_000 }, async t => {

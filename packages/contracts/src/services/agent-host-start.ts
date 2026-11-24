@@ -92,6 +92,12 @@ export type AgentTextMaterial = {
   title: string;
   /** Verbatim text the model may read. Frozen before the Run starts. */
   text: string;
+  /**
+   * Optional registered instruction prompt ID owned by the calling plugin (`request.plugin_id`). When set, the Agent
+   * Host resolves the effective prompt (user override or localized default) at run start, prepends it ahead of `text`
+   * (taking the first line as `title` when multi-line), and records one prompt use once the run is accepted.
+   */
+  instruction_prompt_id?: string;
 } & AgentMaterialSource & AgentMaterialOrigin;
 
 /**

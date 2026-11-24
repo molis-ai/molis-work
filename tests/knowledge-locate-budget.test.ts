@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { KnowledgeService, locateSections, type KnowledgeLocateDraftInput } from "@molis-ai/molis-work-service-knowledge";
+import { KnowledgeService, knowledgeLocateData, locateSections, type KnowledgeLocateDraftInput } from "@molis-ai/molis-work-service-knowledge";
 import { knowledgeActions, type KnowledgeOutline, type KnowledgeSection } from "@molis-ai/molis-work-contracts/services/knowledge";
 import * as modelPrompts from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
@@ -24,7 +24,7 @@ async function locate(trees: KnowledgeOutline[], question = "库房着火第一�
   const found = await locateSections({ question, subjects: trees.map(item => item.subject) },
     async subject => trees.find(item => item.subject.id === subject.id)!, async input => { shown.push(input); return { sections: [] }; });
   assert.equal(shown.length, 1);
-  return { found, shown: shown[0]!, data: JSON.stringify(shown[0]) };
+  return { found, shown: shown[0]!, data: knowledgeLocateData(shown[0]!, "0".repeat(16)) };
 }
 // What one more section of a piece would add to the data: its JSON, and a comma when the piece already has one.
 const cost = (input: KnowledgeLocateDraftInput, piece: number, section: KnowledgeSection) =>

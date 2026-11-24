@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GUARDED_TOOL_NAMES, actedThisRound, emptyRoundFacts, endingClaims, internalIdsHeld, mentionsInternalIds, noteRoundEvent, writesToolCallAsText } from "../horizontal/agent-host/src/adapters/announce-guard.js";
+import { GUARDED_TOOL_NAMES, actedThisRound, emptyRoundFacts, endingClaims, internalIdsHeld, memoryHeld, mentionsInternalIds, noteRoundEvent, writesToolCallAsText } from "../horizontal/agent-host/src/adapters/announce-guard.js";
 
 test("a reply that writes a tool call out as text is recognised; talking about capabilities in words is not", () => {
   // Seen from MiniMax-M3 when asked for buttons: our own call syntax, which the Host can see by itself.
@@ -84,4 +84,10 @@ test("the guards know every tool a business round can be given, the side panel's
   assert.equal(writesToolCallAsText("[surface-act]\naction: click\n[/surface-act]"), true);
   // Words about the browser are not identifiers.
   assert.deepEqual(mentionsInternalIds("我在侧栏浏览器里查看了这个网页，还没有点任何按钮。", []), []);
+});
+
+test("M3: MEMORY_OFF_HELD is neutral English with no hardcoded Chinese UI path", () => {
+  const held = memoryHeld({ off: true, without: { keep: true, forget: true } }, "keep");
+  assert.match(held, /switched off forming memories/u);
+  assert.doesNotMatch(held, /\p{Script=Han}/u, "no Chinese UI path leaks into English hold prompt");
 });

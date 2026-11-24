@@ -47,4 +47,4 @@ Model calls in automated checks and acceptance are stand-ins. They prove wiring,
 
 ## Signed role material and methods
 
-A signed app may declare role material and methods with no execution rights (see [authoring](authoring.md#签名-app-包的文字资料)). Host presents them as attributed, untrusted JSON. Text cannot gain `agent:run`, directories, MCP, tools or subagents, or be placed into system/role prompts or inlineMethods. Verify normal work and malicious material with a real model separately. Stand-ins prove only the delivery and refusals they exercise.
+A signed app may declare role material and methods with no execution rights (see [authoring.md](authoring.md)). Host presents them as attributed, untrusted JSON. Text cannot gain `agent:run`, directories, MCP, tools or subagents, or be placed into system/role prompts or inlineMethods. Verify normal work and malicious material with a real model separately. Stand-ins prove only the delivery and refusals they exercise.

@@ -169,6 +169,8 @@
 
 ## 梳理记录
 
+- 2026-11-24：[插件折叠、连接动效与日程重试](archive/shared-ui-folds/spec.md)归档。负责人 Codex。SCF-01 至 SCF-03 的插件入口与组件板验证见需求书。
+
 - 2026-11-23：[测试集合审查与 CI 用时](archive/test-suite-audit/spec.md)归档（已实现，负责人 Codex）。逐文件清单用 `node scripts/test-inventory.mjs` 生成，执行结果与已知失败见 [#2281](https://github.com/molis-ai/molis-work/pull/2281)。
 
 - 2026-11-23：[第 42 批 Skill 创作余项](archive/bl-b42-followups/spec.md)归档（已实现，负责人 Codex）。工程验证见 #2271，真实供应商和本人试用见 BL-b42-acceptance。

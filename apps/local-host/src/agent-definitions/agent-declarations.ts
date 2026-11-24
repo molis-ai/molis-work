@@ -17,8 +17,24 @@ CREATE TABLE install_declarations (
 /** This store in the Home's store registry (W4-11). */
 export const AGENT_DECLARATIONS_HOME_STORE: HomeStoreDeclaration = { path: AGENT_DECLARATIONS_STORE, library: { baseline: AGENT_DECLARATIONS_BASELINE } };
 
-function shippedDefault<T extends { body_by_locale?: Readonly<Record<string, string>> }>({ body_by_locale, ...declaration }: T): Omit<T, "body_by_locale"> {
-  return declaration;
+function normalizeBodyByLocale(bodyByLocale?: Readonly<Record<string, string>>): Record<string, string> | undefined {
+  if (!bodyByLocale) {
+    return undefined;
+  }
+  const localized: Record<string, string> = {};
+  for (const [locale, body] of Object.entries(bodyByLocale)) {
+    const tag = locale.trim();
+    if (tag && typeof body === "string" && body.trim()) {
+      localized[tag] = body;
+    }
+  }
+  return Object.keys(localized).length > 0 ? localized : undefined;
+}
+
+function shippedDefault<T extends { body_by_locale?: Readonly<Record<string, string>> }>(declaration: T): Omit<T, "body_by_locale"> & { body_by_locale?: Record<string, string> } {
+  const { body_by_locale, ...rest } = declaration;
+  const localized = normalizeBodyByLocale(body_by_locale);
+  return localized ? { ...rest, body_by_locale: localized } : rest;
 }
 
 export class AgentDeclarations {

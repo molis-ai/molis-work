@@ -104,6 +104,8 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 ## 界面文字与语言文件
 
+插件折叠明细从 `@molis-ai/molis-work-plugin-sdk/ui` 调用 `renderCollapsible({ summary, body })`。标题传纯文本，正文传已渲染的 HTML，默认收起。
+
 平台语言目录由 `apps/workbench/resources/languages.json` 驱动（当前并行支持 `zh` / `en` / `ja` 三语，结构面向 N 语种扩展，禁止在业务或界面代码中写二元 `zh`/`en` 分支）。插件的界面文字写在自己的语言文件里，每种语言一个 `locales/<语言>.json`，在 Manifest 的 `ui.locales` 声明（`{ "default": "en", "available": ["en", "zh", "ja"] }`）；代码里用 SDK `/ui` 的 `t("<plugin_id 最后一段>.<位置>.<元素>", 参数)`、`format`、`dateArg`、`numberArg`、`dateTimeLocale()` 与 `htmlLang()`，语言由平台给。五条校准语感标尺（温和友好、克制不聒噪、精准、中性、克制信息暴露）、中/英/日三语写作准则、黑话禁词表、符号与英文 Sentence case / 日语 `です・ます` 规范统一见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)。`create` 生成的样例已默认带 `en`/`zh`/`ja` 三语词包。
 
 **原地切换与存盘引用。** 浏览器客户端动态渲染的文本必须响应 `molis-work:language-changed` 事件重绘；禁止在闭包里缓存初次渲染的译文字符串，也禁止裸拼接半句（如 `t("prefix") + kind` 须改为带 `{kind}` 的整句键）或写死中文顿号 `.join("、")`、固定区域 `Intl.DateTimeFormat("zh-CN")` / `.toLocaleString("en-US")` 与 `<html lang="zh-CN">`。存下来稍后显示的通知、状态或错误记录使用 `OwnedTextRef`（键 + 参数），不在业务表或逻辑中存储/比较译文。

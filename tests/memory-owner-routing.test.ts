@@ -14,6 +14,7 @@ import { codingProductHost, type CodingProviderRequest } from "./fixtures/coding
 import { cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { endingReviewAnswer } from "./fixtures/ending-review.js";
 import { isKnowledgeOrganize } from "./fixtures/knowledge-organize.js";
+import { extractFencedMaterials } from "./fixtures/fenced-materials.js";
 import { toolField, untilSetup } from "./fixtures/connector-assistant-model.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
@@ -47,10 +48,8 @@ async function ownerFixture(t: TestContext) {
     // Automatic extraction has its own registered structured prompt; no incidental learning is scripted here.
     const last = request.messages.at(-1)?.content;
     const text = typeof last === "string" ? last : JSON.stringify(last ?? "");
-    try {
-      const data = JSON.parse(text.slice(text.lastIndexOf("\n\n") + 2));
-      if (Array.isArray(data.sources) && Array.isArray(data.destinations)) return cogniaScriptedResponse(undefined, JSON.stringify({ drafts: [] }));
-    } catch { /* Ordinary task messages are not extraction requests. */ }
+    const fenced = extractFencedMaterials(text)?.data as { sources?: unknown; destinations?: unknown } | undefined;
+    if (fenced && Array.isArray(fenced.sources) && Array.isArray(fenced.destinations)) return cogniaScriptedResponse(undefined, JSON.stringify({ drafts: [] }));
     seen.push(request);
     const step = script.shift(); assert.ok(step, "only the declared main-task Provider calls may run");
     try {

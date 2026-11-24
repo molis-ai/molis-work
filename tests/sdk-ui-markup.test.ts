@@ -37,7 +37,7 @@ import {
   type MwButtonVariant,
   type MwTone,
 } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { listedIconNames, registeredIconNames, renderComposerAddMenu, renderComposerDeliveryMenu, renderComposerPick, renderComposerRestore, renderComposerStrip } from "@molis-ai/molis-work-design-system";
+import { listedIconNames, registeredIconNames, renderComposerAddMenu, renderComposerDeliveryMenu, renderCollapsible as designCollapsible, renderComposerPick, renderComposerRestore, renderComposerStrip } from "@molis-ai/molis-work-design-system";
 import { renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 import { COMPOSER_AI_LABELS, COMPOSER_PLAIN_LABELS } from "./fixtures/composer-labels.js";
 
@@ -68,6 +68,7 @@ function samples(): readonly string[] {
     renderSpinner({ label: "加载" }),
     renderSkeleton(),
     renderProgress({ value: 3, max: 10, label: "进度" }),
+    sdkUi.renderCollapsible({ summary: "详情", body: "<p>正文</p>" }),
     renderSidebar({ body: "<p>目录</p>", header: "<b>头</b>", footer: "<i>尾</i>" }),
     renderSidebar({ body: "", variant: "rail" }),
     renderDirectoryHeading("最近"),
@@ -193,6 +194,11 @@ function sourceFiles(directory: string): string[] {
 
 // RAC-554
 test("the design system has no second copy of a part the SDK's /ui publishes", () => {
+  // SCF-01 / BL-1055: the existing design-system entry and the plugin entry share their renderer.
+  assert.equal(sdkUi.renderCollapsible, designCollapsible);
+  const fold = sdkUi.renderCollapsible({ summary: "<x> & y", body: "<p>body</p>", open: true, attrs: { id: 'a"b' } });
+  assert.match(fold, / open id="a&quot;b"><summary>&lt;x&gt; &amp; y<\/summary>/);
+  assert.ok(fold.includes('<div class="mw-collapsible__body"><p>body</p></div>'));
   const published = Object.entries(sdkUi).filter(([, value]) => typeof value === "function").map(([name]) => name);
   assert.ok(published.length > 40, `read ${published.length} published functions`);
   const copies: string[] = [];

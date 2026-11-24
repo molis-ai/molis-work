@@ -70,7 +70,7 @@ Goal Prompt 写了本批的界面要求。写「先定样」的部分，按下�
 - 开工前检查 15 项（需求开发流程第 4 节）。全局最优是把方案放到插件、平台、助理、各类平台能力和后续开发五个场景里逐个看，选全局最优；只算已有和已排定的使用者，不为猜测造抽象。
 - 平台能力检查（需求开发流程第 4.1 节）：这件事别的插件会不会也要做、平台里有没有现成的、是不是插件之间怎样协作的问题、第三方插件能不能同样做到、助理和 Agent 能不能调用。该收进平台的不在插件或宿主里写私有的一份；碰到[平台能力通用化审查](../../../docs/reviews/platform-capability-audit-2026-11-14.md)里分给本批的项，按审查给的方向收。
 - `AGENTS.md` 的硬约束。
-- `docs/prompts/repository-systematic-review.md` 第 3～12 节。
+- `docs/prompts/repository-systematic-review.md` 第 3～12 节（凡触及模型调用、Prompt、Skill、工具描述或动态上下文装配的，第 8 节须逐项核对四类 Prompt 登记与版本/双语、`override_policy: "protected"` 安全门控、双缓存域五层 KV-Cache 稳定性、单次双通道与 `fencedMaterials`、`OBSERVATION_COVERAGE_PLAN` 同步及模型侧工具描述语言稳定，见[决定 67](decisions.md#decision-67)）。
 - 对抗式审查台账 N42～N56 的调用次数：一次操作发几个请求、每个请求做几遍目录发现和授权核对、开几次库；不重复读、不按条目逐个请求。
 - 门禁数字只许变小（`node scripts/check-health-gates.mjs --base origin/main`）：巨大单元不变大，混了几件事的按职责拆，合理的大单元登记理由。
 - 代码本身：平台已有的能力不另写一份；不留死代码和重复代码；写法优雅（需求开发流程第 8.3 节）；安全边界的改动配上断言「拒绝」本身的测试。
@@ -81,7 +81,7 @@ Goal Prompt 写了本批的界面要求。写「先定样」的部分，按下�
 ## 八、验证
 
 - 每项按原需求的验收编号验：用 `node scripts/affected-tests.mjs` 挑相关用例，`node scripts/run-tests.mjs` 跑；测试一律 `--jobs 1`、走机器槽位（并行开发第 5 节）；全量交给 CI，本机不跑全量。
-- 测一次：子分支途中只跑刚写的用例确认写对了；每个子分支合回前跑一次 `node scripts/check-health-gates.mjs --base origin/main`，门禁数字的问题当场改。全批写完后同步最新 main，统一构建，按全批改动挑用例，加上各包 README 的改动后必跑，一次跑完，不抽样；脚本不提示的也要跑（动共用样式跑 `pnpm visual:compare`，改文案/界面跑 `node scripts/gates/translations.mjs --missing` 与 `node scripts/audit-ui-copy.mjs --strict`，改创作台 Skill 或 Prompt 跑 `pnpm studio:replay` 及隔离 `smoke`）；页面资源按全批合计。每个验收编号都要有证据，PR 描述按编号列明，缺一项不合。
+- 测一次：子分支途中只跑刚写的用例确认写对了；每个子分支合回前跑一次 `node scripts/check-health-gates.mjs --base origin/main`，门禁数字的问题当场改。全批写完后同步最新 main，统一构建，按全批改动挑用例，加上各包 README 的改动后必跑，一次跑完，不抽样；脚本不提示的也要跑（动共用样式跑 `pnpm visual:compare`，改文案/界面跑 `node scripts/gates/translations.mjs --missing` 与 `node scripts/audit-ui-copy.mjs --strict`，改创作台 Skill 或 Prompt 跑 `pnpm studio:replay` 及隔离 `smoke`，动模型调用、Prompt、Skill 或动态上下文装配跑 `node scripts/run-tests.mjs --jobs 1 tests/prompt-registration.test.ts tests/content-versions.test.ts tests/agent-definitions.test.ts` 及对应安全/缓存/观测用例）；页面资源按全批合计。每个验收编号都要有证据，PR 描述按编号列明，缺一项不合。
 - 证据分三级：工程通过、实操、本人验收，分开记。行为和工程类的实操由你在隔离 Home 里走一遍；要在真实界面里走的，用 dev 模式起 Auth 和 Molis Work 两个服务，用测试账号登录（[开发手册「本机登录测试」](../../../docs/cli-and-development.md#local-login-test)）；界面与体验类以我本人看实物为准，列进 BACKLOG「待你验收」，不代我验收。
 - 失败先分清产品回归、预期变化、测试缺陷、环境与时序；是不是本批引入的，对照 main 的夜间全量（第九节）和干净基线工作树（并行开发第 8 节）。
 

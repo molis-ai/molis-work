@@ -8,7 +8,7 @@ import { SKILL_TABLES_SQL, SkillSettingsStore } from "./skill-settings.js";
 import { SKILL_WORK_TABLES_SQL, SkillDraftStore } from "./skill-drafts.js";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { agentBodyIn, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { agentBodyIn, type InstructionPrompt, type PromptOverridePolicy } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { hostLog } from "../host-log.js";
 import { cloneAgentRegistration, rememberComposedRoles } from "./display-words.js";
 import { promptConfigJournal } from './prompt-overrides-replica.js';
@@ -71,6 +71,8 @@ export interface SignedRoleView {
 interface Override { default_ref: string | null; key: string; revision: number; base_version: number; body: string; updated_at: string; actor_id: string }
 
 const keyOf = (ownerId: string, promptId: string) => `${ownerId}/${promptId}`;
+const isProtectedPrompt = (prompt: { override_policy?: PromptOverridePolicy }): boolean => prompt.override_policy === "protected";
+const PLATFORM_FIXED_UNREGISTERED_PROMPTS: ReadonlySet<string> = new Set(["reply-language"]);
 
 const storedRef = (value: string | null | undefined): SignedAgentReference | undefined => value ? JSON.parse(value) as SignedAgentReference : undefined;
 const sameRef = (left: SignedAgentReference | undefined, right: SignedAgentReference | undefined) => left?.kind === right?.kind && left?.entry_id === right?.entry_id
@@ -108,6 +110,9 @@ export class AgentDefinitions {
       if (ids.has(prompt.prompt_id)) throw agentDefinitionsErrors.invalid(`${registration.owner_id} 重复登记了 ${prompt.prompt_id}`);
       ids.add(prompt.prompt_id);
       if (!prompt.body.trim()) throw agentDefinitionsErrors.invalid(`${registration.owner_id}/${prompt.prompt_id} 没有正文`);
+      if (prompt.override_policy !== undefined && prompt.override_policy !== "editable" && prompt.override_policy !== "protected") {
+        throw agentDefinitionsErrors.invalid(`${registration.owner_id}/${prompt.prompt_id} 的覆盖策略无效`);
+      }
     }
     for (const role of registration.roles) {
       const missing = role.prompt_ids.filter(id => !ids.has(id));
@@ -175,11 +180,14 @@ export class AgentDefinitions {
 
   private view(owner: AgentDefinitionRegistration, prompt: AgentPromptRegistration, locale?: string): AgentPromptView {
     const key = keyOf(owner.owner_id, prompt.prompt_id);
-    const edited = this.override(key), body = agentBodyIn(prompt, locale);
+    const edited = isProtectedPrompt(prompt) ? null : this.override(key);
+    const body = agentBodyIn(prompt, locale);
     const [used] = this.uses.list(key, 1);
     return {
       key, owner_id: owner.owner_id, source: structuredClone(owner.source), prompt_id: prompt.prompt_id, kind: prompt.kind,
-      ...(prompt.layer ? { layer: prompt.layer } : {}), title: prompt.title, purpose: prompt.purpose, used_by: [...prompt.used_by],
+      ...(prompt.layer ? { layer: prompt.layer } : {}),
+      ...(prompt.override_policy ? { override_policy: prompt.override_policy } : {}),
+      title: prompt.title, purpose: prompt.purpose, used_by: [...prompt.used_by],
       ...(prompt.default_ref ? { default_ref: structuredClone(prompt.default_ref) } : {}),
       default_version: prompt.version, default_body: body,
       effective: edited ? "user" : "default", body: edited?.body ?? body,
@@ -226,7 +234,7 @@ export class AgentDefinitions {
     const role = owner.roles.find(item => item.role_id === ref.entry_id);
     const prompt = role && owner.prompts.find(item => role.prompt_ids.includes(item.prompt_id) && sameRef(item.default_ref, ref));
     if (!prompt) throw agentDefinitionsErrors.not_found("没有登记这个角色资料版本");
-    const edited = this.override(keyOf(owner.owner_id, prompt.prompt_id));
+    const edited = isProtectedPrompt(prompt) ? null : this.override(keyOf(owner.owner_id, prompt.prompt_id));
     return { default_ref: structuredClone(ref), effective: edited ? "user" : "default", user_revision: edited?.revision ?? null, body: edited?.body ?? agentBodyIn(prompt, locale) };
   }
 
@@ -240,9 +248,13 @@ export class AgentDefinitions {
   roles(): AgentRoleView[] {
     return [...this.owners.values()].flatMap(owner => owner.roles.map(role => {
       const prompt_keys = role.prompt_ids.map(id => keyOf(owner.owner_id, id));
+      const edited = role.prompt_ids.some(id => {
+        const prompt = owner.prompts.find(item => item.prompt_id === id);
+        return Boolean(prompt && !isProtectedPrompt(prompt) && this.override(keyOf(owner.owner_id, id)) !== null);
+      });
       return { key: keyOf(owner.owner_id, `role:${role.role_id}`), owner_id: owner.owner_id, source: structuredClone(owner.source), role_id: role.role_id,
         version: role.version, name: role.name, purpose: role.purpose, execution: role.execution, workspace: role.workspace, subagent: Boolean(role.subagent),
-        prompt_keys, edited: prompt_keys.some(key => this.override(key) !== null) };
+        prompt_keys, edited };
     }));
   }
 
@@ -255,6 +267,9 @@ export class AgentDefinitions {
   /** Save the person's version. `expected` is the revision they edited (null when they edited the default). */
   save(key: string, body: string, expected: number | null, actorId: string, locale?: string): AgentPromptView {
     const { owner, prompt } = this.registered(key);
+    if (isProtectedPrompt(prompt)) {
+      throw agentDefinitionErrors.prompt_override_protected("这段 Prompt 受安全策略保护，不能改写", { key });
+    }
     if (typeof body !== "string" || !body.trim()) throw agentDefinitionsErrors.invalid("Prompt 不能为空；要回到原来的文字请用“恢复默认”");
     if (body.length > AGENT_PROMPT_MAX_CHARS) throw agentDefinitionsErrors.invalid(`Prompt 最长 ${AGENT_PROMPT_MAX_CHARS} 字`);
     const current = this.override(key);
@@ -272,6 +287,9 @@ export class AgentDefinitions {
   /** Back to the shipped default. The person's versions stay in the history. */
   reset(key: string, expected: number | null, actorId: string, locale?: string): AgentPromptView {
     const { owner, prompt } = this.registered(key);
+    if (isProtectedPrompt(prompt)) {
+      throw agentDefinitionErrors.prompt_override_protected("这段 Prompt 受安全策略保护，不能改写或重置", { key });
+    }
     const current = this.override(key);
     if (!current) return this.view(owner, prompt, locale);
     if (current.revision !== expected) throw agentDefinitionsErrors.conflict("这段 Prompt 已在别处修改，请刷新后再改");
@@ -283,11 +301,15 @@ export class AgentDefinitions {
     return this.view(owner, prompt, locale);
   }
 
-  /** The Agent Host's resolver: the text a registered prompt runs with now. Unregistered prompts run as given. */
+  /** The Agent Host's resolver: the text a registered prompt runs with now. Only documented platform-fixed prompts (reply-language) pass through unregistered. */
   effective(ownerId: string, declaration: AgentPromptText, locale?: string): AgentPromptText {
-    const prompt = selectedBody(declaration, locale), key = keyOf(ownerId, prompt.prompt_id);
-    if (!this.hasPrompt(ownerId, prompt.prompt_id)) return prompt;
-    const edited = this.override(key);
+    const prompt = selectedBody(declaration, locale);
+    if (PLATFORM_FIXED_UNREGISTERED_PROMPTS.has(prompt.prompt_id)) {
+      return prompt;
+    }
+    const key = keyOf(ownerId, prompt.prompt_id);
+    const { prompt: registered } = this.registered(key);
+    const edited = isProtectedPrompt(registered) ? null : this.override(key);
     this.uses.record({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller: `agent:${ownerId}`, at: this.now().toISOString() });
     return edited ? { ...prompt, body: edited.body, user_revision: edited.revision } : prompt;
   }
@@ -302,13 +324,24 @@ export class AgentDefinitions {
    * Host-selected release declaration, never a prompt body supplied by a model action's business input. With `deferUse` the caller records the use
    * when the call it was read for is dispatched; a retried dispatch hook records one use, and a call refused before dispatch records none.
    */
-  instructionForDeclaration(ownerId: string, prompt: Pick<AgentPromptRegistration, "prompt_id" | "version" | "kind" | "body" | "body_by_locale">, caller: string, locale?: string, deferUse?: (record: () => void) => void): { body: string; version: number; user_revision: number | null } {
+  instructionForDeclaration(ownerId: string, prompt: Pick<AgentPromptRegistration, "prompt_id" | "version" | "kind" | "body" | "body_by_locale" | "override_policy">, caller: string, locale?: string, deferUse?: (record: () => void) => void): { body: string; version: number; user_revision: number | null } {
     if (prompt.kind !== "instruction") throw agentDefinitionsErrors.invalid("这段 Prompt 不是模型调用的指令");
-    const key = keyOf(ownerId, prompt.prompt_id), edited = this.override(key);
+    const key = keyOf(ownerId, prompt.prompt_id);
+    const registered = this.owners.get(ownerId)?.prompts.find(item => item.prompt_id === prompt.prompt_id);
+    const protectedPrompt = isProtectedPrompt(prompt) || Boolean(registered && isProtectedPrompt(registered));
+    const edited = protectedPrompt ? null : this.override(key);
     const selected = { body: edited?.body ?? agentBodyIn(prompt, locale), version: prompt.version, user_revision: edited?.revision ?? null };
     let recorded = false;
-    const record = () => { if (recorded) return; recorded = true; this.uses.record({ key, version: selected.version, user_revision: selected.user_revision, caller, at: this.now().toISOString() }); };
-    if (deferUse) deferUse(record); else record();
+    const record = () => {
+      if (recorded) return;
+      recorded = true;
+      this.uses.record({ key, version: selected.version, user_revision: selected.user_revision, caller, at: this.now().toISOString() });
+    };
+    if (deferUse) {
+      deferUse(record);
+    } else {
+      record();
+    }
     return selected;
   }
 
@@ -486,7 +519,9 @@ export function withInstructions(registrations: readonly AgentDefinitionRegistra
 /** One instruction as its owner registers it, with the role it works for when it names one. */
 export function instructionRegistration(instruction: InstructionPrompt): AgentPromptRegistration {
   return { prompt_id: instruction.prompt_id, version: instruction.version, kind: "instruction", title: instruction.title, purpose: instruction.purpose,
-    used_by: [...instruction.used_by], ...(instruction.role_id ? { role_id: instruction.role_id } : {}), body: instruction.body,
+    used_by: [...instruction.used_by], ...(instruction.role_id ? { role_id: instruction.role_id } : {}),
+    ...(instruction.override_policy ? { override_policy: instruction.override_policy } : {}),
+    body: instruction.body,
     ...(instruction.body_by_locale ? { body_by_locale: instruction.body_by_locale } : {}) };
 }
 

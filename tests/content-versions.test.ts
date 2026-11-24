@@ -35,7 +35,7 @@ test("content versions: covers horizontal prompts, modules prompts (including la
   ) => {
     const before = new Map<string, string>([["tooling/versions.json", JSON.stringify({ versions: versionsBefore })], ...Object.entries(beforeFiles)]);
     const after = new Map<string, string>([["tooling/versions.json", JSON.stringify({ versions: versionsAfter })], ...Object.entries(afterFiles)]);
-    return contentVersionChanges({ files: changedPaths, read: path => after.get(path) }, path => before.get(path));
+    return contentVersionChanges({ files: changedPaths, read: (path: string) => after.get(path) }, (path: string) => before.get(path));
   };
 
   // horizontal/plugin-studio/prompts/*.md & *.en.md

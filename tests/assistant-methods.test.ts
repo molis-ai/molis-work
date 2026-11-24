@@ -9,6 +9,8 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, resolveSkillHan
 import { ActionError, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SKILLS_PERMISSIONS, SKILLS_PROVIDER_ID, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import type { AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AssistantMaterial } from "@molis-ai/molis-work-contracts/services/assistant";
 import { AssistantService, AssistantStore, assistantAuthority, assistantServiceFor, homeAgentDefinitions, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { registerPluginAgentDefinitions } from "../apps/local-host/dist/plugin-instructions.js";
 import { createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
@@ -249,7 +251,11 @@ test("M3: per-round skill handle translation, 37/37 visibility, cold-to-hot orde
     provider: { provider_id: SKILLS_PROVIDER_ID, title: "技能", kind: "system" }, availability: { available: true },
     action: { title: "读取技能正文", description: "按精确引用读技能正文", kind: "query", scope: "project", audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object" } },
   }];
-  const first = await service.materials.roundMaterials(work, [], null, offered, [], false, true);
+  const roundMaterials = async (
+    materials: AssistantMaterial[],
+  ): Promise<{ materials: AgentTextMaterial[]; skillHandles?: ReadonlyMap<string, SkillRef> }> =>
+    service["materials"].roundMaterials(work, materials, null, offered, [], false, true);
+  const first = await roundMaterials([]);
   // All 37 auto skills appear (no .slice(0, 20) truncation); manual skill never gets a handle.
   assert.equal(first.skillHandles?.size, 37, "every auto skill gets a compact handle");
   assert.ok([...first.skillHandles!.values()].every(ref => ref.skill_id !== "manual-only"), "manual skills never get a handle");
@@ -268,11 +274,11 @@ test("M3: per-round skill handle translation, 37/37 visibility, cold-to-hot orde
   const firstSituation = first.materials[sitIndex]!.text;
   assert.doesNotMatch(firstSituation, /2026-11-23T09:15:12/, "no ISO second/ms timestamp in situation");
   clock = new Date("2026-11-23T09:15:58.999Z");
-  const second = await service.materials.roundMaterials(work, [], null, offered, [], false, true);
+  const second = await roundMaterials([]);
   assert.equal(second.materials.find(m => m.material_id === "situation")!.text, firstSituation, "situation stays cache-identical within the same minute");
   // Decision 58: 35 dynamic materials still never truncate pinned `situation` under the 30-item cap.
   const flood = Array.from({ length: 35 }, (_, i) => ({ material_id: `extra-${i}`, kind: "text" as const, title: `材料 ${i}`, explicit: true, text: `正文 ${i}` }));
-  const capped = await service.materials.roundMaterials(work, flood, null, offered, [], false, true);
+  const capped = await roundMaterials(flood);
   assert.equal(capped.materials.length, 30, "total materials stay within the 30-item cap");
   assert.ok(capped.materials.some(m => m.material_id === "situation"), "situation is pinned and never truncated");
 

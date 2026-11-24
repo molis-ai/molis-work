@@ -227,7 +227,7 @@ test("S-protected-prompt-override: override import preview/confirm and personal 
   const syncDefinitions = homeAgentDefinitions(syncHome);
   syncDefinitions.register(protectedRegistration("protected"));
 
-  let promptSelection: { owner_kind: "platform"; owner_id: string; collection_id: string; collection_version: number } | undefined;
+  let promptSelection: ReturnType<typeof personalConfigRegistrations>[number]["selection"] | undefined;
   const registrations = personalConfigRegistrations({
     home: syncHome,
     spaceId,
@@ -238,7 +238,7 @@ test("S-protected-prompt-override: override import preview/confirm and personal 
   });
   const promptReplica = registrations.find(entry => entry.selection.collection_id === "prompt_overrides");
   assert.ok(promptReplica, "prompt_overrides sync registration must exist");
-  promptSelection = promptReplica.selection as typeof promptSelection;
+  promptSelection = promptReplica.selection;
 
   const remotePutEvent = {
     revision: 1,
@@ -314,8 +314,8 @@ test("S-protected-prompt-override: unregistered prompts and raw strings are refu
   let savedBody = "";
   await goldenWriteAgentDefinitions({
     tag: "v1-protected-test",
-    home: home,
     projectId: "proj-1",
+    call: async () => { throw new Error("call unused"); },
     http: async (route, options) => {
       if (route === "/api/agent-definitions/prompts" && options?.method === "GET") {
         return {

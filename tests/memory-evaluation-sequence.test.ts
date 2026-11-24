@@ -135,8 +135,8 @@ test("MEM-36: partial SDK formation remains failed while preserving committed it
       ? [message.content] : message.content.map(part => part.text ?? "")).join("\n");
     const data = parseFencedMaterials<{ sources: Array<{ id: string; text: string }>; destinations: Array<{ scope: string; replacement?: string; slots: Record<string, string> }> }>(prompt);
     // Two drafts for the same destination: the model names its one ID twice, and the extractor gives each its own SDK slot.
-    const id = data.destinations.find((group: { scope: string; replacement?: string }) => group.scope === "project" && !group.replacement).slots.convention;
-    assert.equal(typeof id, "string");
+    const id = data.destinations.find((group: { scope: string; replacement?: string }) => group.scope === "project" && !group.replacement)?.slots.convention;
+    assert.ok(typeof id === "string");
     const slots = [id, id];
     const text = JSON.stringify({ drafts: slots.map((slot_id: string) => ({ slot_id, text: data.sources[0].text, suggested_basis: "inferred",
       evidence: [{ source_id: data.sources[0].id, quote: data.sources[0].text }] })) });

@@ -785,7 +785,7 @@ test('with an image service each proposal gets one picture (never a second try);
   // Registered mockup.generate instruction flows through ports.instruction and honors English locale.
   const enHarness = harness([PROPOSALS]);
   const enDraws: string[] = [];
-  enHarness.ports.designLanguages = () => ({ current: 'en', other: 'zh', currentLabel: 'English', otherLabel: 'Chinese' });
+  enHarness.ports.designLanguages = () => ({ current: 'en', available: [{ tag: 'en', name: 'English' }, { tag: 'zh', name: '中文' }] });
   enHarness.ports.instruction = prompt => prompt.prompt_id === 'mockup.generate' ? 'CUSTOM EN UI mockup instructions.' : prompt.body;
   enHarness.ports.mockups = { available: async () => true, async draw(request) { enDraws.push(request.prompt); return { jobId: 'j-en', imageId: 'img-en' }; } };
   const enWorkflow = new AgentBuilderWorkflow(memoryStorage(), enHarness.ports);
@@ -800,7 +800,7 @@ test('with an image service each proposal gets one picture (never a second try);
   // Without ports.instruction override, English locale falls back to BUILDER_MOCKUP.body_by_locale.en.
   const defaultEnHarness = harness([PROPOSALS]);
   const defaultEnDraws: string[] = [];
-  defaultEnHarness.ports.designLanguages = () => ({ current: 'en', other: 'zh', currentLabel: 'English', otherLabel: 'Chinese' });
+  defaultEnHarness.ports.designLanguages = () => ({ current: 'en', available: [{ tag: 'en', name: 'English' }, { tag: 'zh', name: '中文' }] });
   defaultEnHarness.ports.mockups = { available: async () => true, async draw(request) { defaultEnDraws.push(request.prompt); return { jobId: 'j-en-2', imageId: 'img-en-2' }; } };
   const defaultEnWorkflow = new AgentBuilderWorkflow(memoryStorage(), defaultEnHarness.ports);
   try {

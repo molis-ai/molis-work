@@ -329,8 +329,9 @@ function inspectModelCallSites(filePath: string, sourceText: string): { calls: s
     const unit = getUnit(entry.id, entry.exported);
     const shadowed = new Set<string>();
     if (ts.isFunctionDeclaration(entry.node) || ts.isClassDeclaration(entry.node)) {
+      const unitName = entry.node.name;
       ts.forEachChild(entry.node, child => {
-        if (child !== entry.node.name) collectLocalBindingNames(child, shadowed);
+        if (child !== unitName) collectLocalBindingNames(child, shadowed);
       });
     } else {
       collectLocalBindingNames(entry.node, shadowed);

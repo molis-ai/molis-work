@@ -80,7 +80,7 @@ export function assistantPermissionCaller(caller: ActionExecutionContext, page?:
 }
 
 /** A Stop acknowledgement can precede the Run's terminal event. Keep the work's ending barrier until the owner settles it. */
-export async function stopOriginalRun(adapter: AgentRuntimeAdapter, run: AgentRunRef, control: AgentActionReviewControl): Promise<void> {
+export async function stopOriginalRun(adapter: AgentRuntimeAdapter, run: AgentRunRef, control: AgentActionReviewControl, timeoutMs = 10_000): Promise<void> {
   // The SDK can commit the Run's end while its original dispatched effect still needs reconciliation.
   const ended = (view: AgentRunView) => isTerminalAgentPhase(view.phase) || (view.phase === "reconcile-required" && view.ended_at !== null);
   const before = await adapter.read(run);
@@ -89,14 +89,16 @@ export async function stopOriginalRun(adapter: AgentRuntimeAdapter, run: AgentRu
   let unsubscribe: (() => void) | undefined;
   try {
     let settle!: () => void;
+    let fail!: (error: Error) => void;
+    let done = false;
     const settled = new Promise<void>((resolve, reject) => {
-      settle = resolve;
-      timer = setTimeout(() => before.phase === "running" ? resolve() : reject(assistantErrors.state("原轮停止回执尚未到达，请重试停止")),
-        before.phase === "running" ? 50 : 10_000);
-      unsubscribe = adapter.observe(run, view => { if (ended(view)) resolve(); });
+      settle = () => { if (!done) { done = true; resolve(); } };
+      fail = (error: Error) => { if (!done) { done = true; reject(error); } };
+      unsubscribe = adapter.observe(run, view => { if (ended(view)) settle(); });
     });
     await inAssistantWorkEffect(adapter, control, () => adapter.control(run, { kind: "stop" }));
     if (ended(await adapter.read(run))) settle();
+    else if (!done) timer = setTimeout(() => fail(assistantErrors.state("原轮停止回执尚未到达，请重试停止")), timeoutMs);
     await settled;
   } finally { clearTimeout(timer); unsubscribe?.(); }
 }

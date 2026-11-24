@@ -113,7 +113,7 @@ export class AssistantOutcomes {
     if (!review || review.run?.session_id !== session || review.project_id !== ownerOf(work)
       || subtaskRun && (review.run.run_id !== subtaskRun.run_id || review.run.session_id !== subtaskRun.session_id)) throw assistantErrors.scope("这项确认不属于这项工作");
     if (!["approve", "reject"].includes(input.decision)) throw assistantErrors.invalid("请选择允许或拒绝");
-    await host.reviews.respond({ review_id: review.review_id, version: input.version, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: cutHead(String(input.note), 2000) } : {}) }, {
+    const receipt = await host.reviews.respond({ review_id: review.review_id, version: input.version, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: cutHead(String(input.note), 2000) } : {}) }, {
       beforeEffect: boundary?.beforeEffect,
       assertCurrent: request => {
         const current = this.store.get(this.actorId, workId);
@@ -123,6 +123,9 @@ export class AssistantOutcomes {
         return boundary?.assertCurrent?.(request);
       },
     });
+    if (receipt.delivery_error) {
+      throw assistantErrors.state(`决定已保存，但送达执行方失败，结果待核对：${receipt.delivery_error}`);
+    }
     // The runtime tells the round only that policy blocked the change; the round must know the person declined it.
     if (!subtaskRun && input.decision === "reject" && work.executor.kind !== "plugin" && review.run) {
       const latest = await this.link.latestRun(host, work).catch(() => null);

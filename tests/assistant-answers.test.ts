@@ -9,10 +9,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ASSISTANT_PERSONAL_OWNER } from "@molis-ai/molis-work-contracts/services/assistant";
 import { installHostUiText, LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { stopOriginalRun } from "../apps/local-host/dist/assistant/assistant-work-permissions.js";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -93,4 +96,91 @@ test("an answered question shows what was asked and what the person answered, wh
   assert.deepEqual([written!.verb, written!.target, written!.answer], ["ask", "截止日期定在哪天？", "下周一"]);
   assert.equal(picked!.answer, "本项目；等我回来再定");
   assert.equal(open!.answer, undefined, "not answered yet");
+});
+
+test("stopOriginalRun holds the ending barrier past 50ms for running rounds and rejects when no terminal event arrives", async () => {
+  const run = { session_id: "s-stop", run_id: "r-stop" };
+  const control = { beforeEffect: async () => {}, assertCurrent() {} };
+  const listeners = new Set<(view: { phase: string; ended_at: string | null }) => void>();
+  let phase: "running" | "stopped" = "running";
+  let endedAt: string | null = null;
+  let stopTimer: ReturnType<typeof setTimeout> | undefined;
+  const adapter = {
+    read: async () => ({ ref: run, phase, ended_at: endedAt }),
+    observe: (_ref: unknown, listener: (view: { phase: string; ended_at: string | null }) => void) => {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+    control: async () => {
+      stopTimer = setTimeout(() => {
+        phase = "stopped";
+        endedAt = new Date().toISOString();
+        for (const listener of listeners) listener({ phase, ended_at: endedAt });
+      }, 150);
+    },
+  };
+  const startedAt = Date.now();
+  await stopOriginalRun(adapter as never, run, control, 2_000);
+  const elapsed = Date.now() - startedAt;
+  assert.equal(phase, "stopped", "stopOriginalRun only resolves after the run reaches a terminal phase");
+  assert.ok(elapsed >= 120, `expected stopOriginalRun to wait for real stop (~150ms), not resolve at 50ms (got ${elapsed}ms)`);
+  clearTimeout(stopTimer);
+
+  // If the run never settles within timeoutMs, stopOriginalRun must reject rather than falsely resolve.
+  phase = "running";
+  endedAt = null;
+  const hungAdapter = {
+    read: async () => ({ ref: run, phase, ended_at: endedAt }),
+    observe: () => () => {},
+    control: async () => {},
+  };
+  await assert.rejects(
+    stopOriginalRun(hungAdapter as never, run, control, 120),
+    (error: unknown) => error instanceof ActionError && error.code === "assistant.state",
+    "a running round that never settles must reject stopOriginalRun",
+  );
+});
+
+test("AssistantOutcomes.decide surfaces delivery_error instead of returning 200 or sending a false rejection steer", async () => {
+  const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store }), host = new AgentHost({ reviews: queue });
+  const run = { session_id: "session-deliv", run_id: "run-deliv" };
+  const steers: string[] = [];
+  host.register({
+    descriptor: { runtime_id: "prologue", title: "Prologue", capabilities: { pause: true, stop: true, cancel: true, steer: true } },
+    openSession: async () => ({ ref: { session_id: run.session_id }, title: "t", workspace: "none", owner: { project_id: "home", plugin_id: "assistant" }, runs: [run] }),
+    start: async () => { throw new Error("unused"); },
+    read: async () => ({ ref: run, phase: "awaiting-review", turns: [], activity: [], awaiting_input: [], command_outputs: [], usage: { tokens: { input: 0, output: 0, cached_input: 0, cache_creation: 0 } }, frozen: { title: "t", role_id: "assistant", directory: null }, started_at: new Date().toISOString(), ended_at: null }),
+    observe: () => () => {},
+    control: async () => {},
+    inputs: { send: async (_ref, input) => { steers.push(input.text); return { input_id: "i-1", accepted_at: new Date().toISOString() }; } },
+    close: async () => {},
+  } as never);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const created = store.create({ actor_id: "web-user", title: "Deliv", scope: { kind: "personal" }, origin: null });
+  const work = store.update("web-user", created.work_id, null, { session_id: run.session_id }, false);
+  store.addRound(work.work_id, { run_id: run.run_id, text: "do", materials: [], context: null, started_at: new Date().toISOString() });
+  const review = queue.request({
+    review_id: "rev-deliv",
+    reference: { owner: { kind: "agent-review", project_id: ASSISTANT_PERSONAL_OWNER, plugin_id: "assistant", install_id: "assistant" }, id: "rev-deliv", version: "v1" },
+    project_id: ASSISTANT_PERSONAL_OWNER, plugin_id: "assistant", kind: "text-edit", run,
+    requested_at: new Date().toISOString(), expires_at: null,
+    document: { kind: "text-edit", target_path: "a.md", exists: true, before_text: "a", after_text: "b" },
+  });
+  queue.registerDecisionHandler(review.review_id, async (_input, commit) => {
+    await commit();
+    return queue.deliveryFailed(review.review_id, "执行方连接中断");
+  });
+  const service = new AssistantService(store, {
+    pages: async () => ["home"], host: async () => host,
+    authority: async () => { throw new Error("unused"); }, projectTitle: async () => null,
+  }, "web-user");
+  try {
+    await assert.rejects(
+      service.outcomes.decide(work.work_id, { review_id: review.review_id, version: "v1", decision: "reject", note: "别改" }),
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.state" && error.message.includes("执行方连接中断"),
+    );
+    assert.deepEqual(steers, [], "delivery_error must not emit a false rejection steer");
+  } finally {
+    service.continuations.close();
+  }
 });

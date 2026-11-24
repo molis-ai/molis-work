@@ -130,7 +130,7 @@ Issue 与 Home Runtime 最初为新库，无历史盖版本；Home Runtime 当�
 
 实验插件的私有库 `plugins/experiments/private.sqlite` 随插件在 2026-10-10 删除（`specs/archive/repository-anti-corruption/spec.md` §1）；已有 Home 里的 `plugins/experiments/` 由维护六移出（`docs/releases/CHECKLIST.md` 第 4 节）。
 
-旧炼金术士（Alchemist）随第 44B 批删除（决定 66）：它的 `alchemist/` 目录（每个项目的 `studio.sqlite`、`search.sqlite`、`search-content/`）不再登记，也没有代码打开；已有 Home 里留下的这个目录由维护时整个搬开，不删、不迁移；搬开之前，这个 Home 的快照与恢复会因「Home 有未登记的条目」（`unknown_data`）被拒，所以要先搬再备份。
+旧炼金术士（Alchemist）随第 44B 批删除（决定 66）：它的 `alchemist/` 目录（每个项目的 `studio.sqlite`、`search.sqlite`、`search-content/`）不再登记，也没有代码打开；已有 Home 里留下的这个目录由维护时整个搬开，不删、不迁移；搬开之前，这个 Home 的快照与恢复会因「Home 有未登记的条目」（`unknown_data`）被拒，所以要先搬再备份。开发机本机的真实 Home 里这个目录已由用户 2026-11-24 定直接删除（日常不用，V15）。
 
 server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_projects`、`mw_access`、`mw_codes`、`mw_commands`、`mw_events`（`server/src/database.ts`），以及 IM 的 `im_rooms`、`im_members`、`im_threads`、`im_messages`、`im_thread_context`、`im_receipts`、`im_read_positions`（`server/src/im/schema.ts`）。
 
@@ -393,7 +393,7 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 | `catalog.db`、`molis-work.db`（Home 根目录） | 各 0 字节，2026-09-17 | 目录库在 `projects/catalog.db`（`apps/local-host/src/project-catalog.ts:246`），项目库在 `projects/<id>/`。[推断] `molis-work.db` 来自相对当前目录的默认库路径 `.molis-work/molis-work.db`，在 `$HOME` 下运行时正好落在这里。这个默认值已删（W2-04）：CLI 的 `--db` 与管理 MCP 的 `database_path`（或环境变量 `MOLIS_WORK_DATABASE`）必须明确给出，没给就报错，不再按当前目录猜；这两个 0 字节文件本身仍在真实 Home 里，要等真实 Home 的清理（决定 #21）。根目录的 `catalog.db` 来源没有查清 |
 | `maintenance-3-replaced/` | 约 1.9 GB，2026-10-07；`home/`、`projects/`、`alchemist/`、`maintenance3-report.json`；`home/` 下有 `assistant`、`connectors`、`form`、`memory`、`config`、`sessions`、`feed`、`functions` 的副本 | 2026-10-07 真实 Home 维护留下的被换下的库，不是产品功能。它在 Home 里面，所以任何整份拷贝都会带上它，包括其中 `feed` 的副本 |
 | `agent-drafts/` | 空目录，2026-09-25 | 写它的代码在 `8074b30c`（2026-09-28）删除 |
-| `alchemist/alchemist.db` | 约 40 KB，2026-09-22 | 旧的 Alchemist 演示库，没有代码打开；整个 `alchemist/` 目录在第 44B 批之后都没有 owner，维护时搬开 |
+| `alchemist/alchemist.db` | 约 40 KB，2026-09-22 | 旧的 Alchemist 演示库，没有代码打开；整个 `alchemist/` 目录在第 44B 批之后都没有 owner。2026-11-24 已按用户决定删除（V15） |
 | `images/.runner-lock.db` | 一个文件 | 旧版 Images 的锁文件；`b98cf812` 加入，`703bf122`（2026-10-05）删除 |
 | `images/runners/` 里的文件 | 92 个 `.db` 加 92 个 `-journal`，合计约 46 KB，2026-09-25 到 09-27 | 目录有 owner（`plugins/native/images/src/store.ts:53`），当时文件没人回收：`releaseLocks` 只删 `.db`，`recoverInterrupted` 只回收“有 running 任务的 owner”的文件。W2-04 已改：`recoverInterrupted` 现在连 `-journal` 一起删（实际遗留的是空 `.db`，SQLite 自己在加锁探测时就丢掉它的 journal；`.db` 里有数据而 journal 头是零的那种，只有这一步删得掉），启动时再扫一遍整个目录（`reclaimRunnerFiles`，`:88`）。这些遗留文件会在真实 Home 的 Images 服务装上新构建后的第一次启动时被清掉，不需要手工处理 |
 | `cognia/runtime/runs/<uuid>/` | 9 个，各有 `records/`、`leases/`、`storage.key`，2026-09-24 | 以前每次 Cognia 运行一个 Prologue 存储根；代码在 `8074b30c` 删除。每个里有一个 `storage.key`，是没有 owner 的密钥材料 |

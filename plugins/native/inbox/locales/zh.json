@@ -64,7 +64,7 @@
     "inbox.ui.history": "历史",
     "inbox.ui.ignore": "忽略",
     "inbox.ui.instructions": "处理要求",
-    "inbox.ui.judgment-incomplete-review-manually-retry": "判断还没完成，请手动查看或重试",
+    "inbox.ui.judgment-incomplete-review-manually-retry": "判断未完成，请人工复核或重试",
     "inbox.ui.make-todo": "转为待办",
     "inbox.ui.mark-handled": "标记已处理",
     "inbox.ui.next": "下一步",

@@ -17,13 +17,10 @@ export interface GoalHistoryIndexItem {
   received_at: string;
   title: string;
   type_label: string;
-  type_key?: string | null;
-  system_operation?: string | null;
   lane: GoalHistoryLane;
   actor_id: string;
   actor_kind: "user" | "runtime" | null;
   status_label: string | null;
-  status_key?: string | null;
   relation?: { type: string; label: string; from_id: string; from_title: string; to_id: string; to_title: string; removed: boolean };
 }
 
@@ -56,8 +53,6 @@ export function indexItemFromTimeline(item: GoalEventTimelineItem): GoalHistoryI
     received_at: item.received_at,
     title: item.title,
     type_label: workTypeLabel(item),
-    type_key: workTypeKey(item),
-    system_operation: item.system_operation ?? null,
     lane: item.lane ?? workLane(item),
     actor_id: item.actor_id,
     actor_kind: item.actor_kind,
@@ -81,38 +76,6 @@ function workTypeLabel(item: GoalEventTimelineItem): string {
   if (item.kind === "configuration") return "配置";
   return SYSTEM_TYPE_LABELS[item.system_operation ?? ""] ?? "系统记录";
 }
-
-function workTypeKey(item: GoalEventTimelineItem): string | null {
-  if (item.kind === "report") return item.type_name ? null : "goals.history.type.report";
-  if (item.kind === "configuration") return "goals.history.type.configuration";
-  return SYSTEM_TYPE_KEYS[item.system_operation ?? ""] ?? "goals.history.type.system";
-}
-
-const SYSTEM_TYPE_KEYS: Record<string, string> = {
-  progress_summary: "goals.history.type.progress-summary",
-  observation_note: "goals.history.type.observation-note",
-  concern_opened: "goals.history.type.concern-opened",
-  concern_resolved: "goals.history.type.concern-resolved",
-  concern_accepted: "goals.history.type.concern-accepted",
-  concern_overturned: "goals.history.type.concern-overturned",
-  decision_requested: "goals.history.type.decision-requested",
-  user_decision: "goals.history.type.user-decision",
-  decision_cited: "goals.history.type.decision-cited",
-  agreement_set: "goals.history.type.agreement-set",
-  closure_submitted: "goals.history.type.closure-submitted",
-  completion_reopened: "goals.history.type.completion-reopened",
-  work_resumed: "goals.history.type.work-resumed",
-  event_owner_continued: "goals.history.type.event-owner-continued",
-  input_acknowledged: "goals.history.type.input-acknowledged",
-};
-
-const JOURNAL_TYPE_KEYS: Record<string, string> = {
-  "goal.created": "goals.history.journal.created",
-  "goal.updated": "goals.history.journal.updated",
-  "goal.accepted": "goals.history.journal.accepted",
-  "relation.added": "goals.history.journal.relation-added",
-  "relation.deactivated": "goals.history.journal.relation-deactivated",
-};
 
 const SYSTEM_TYPE_LABELS: Record<string, string> = {
   progress_summary: "当前进展",
@@ -167,12 +130,10 @@ export function mapJournalHistoryItems(
       received_at: event.at,
       title: relation ? `${relation.from_title} → ${relation.label} → ${relation.to_title}` : event.reason?.trim() || JOURNAL_TYPE_LABELS[event.type] || "记录",
       type_label: JOURNAL_TYPE_LABELS[event.type] ?? "记录",
-      type_key: JOURNAL_TYPE_KEYS[event.type] ?? "goals.history.type.record",
       lane: "other" as const,
       actor_id: event.actor_id,
       actor_kind: null,
       status_label: relation ? relation.removed ? "已解除" : "已建立" : null,
-      status_key: relation ? relation.removed ? "goals.history.status.removed" : "goals.history.status.created" : null,
       ...(relation ? { relation } : {}),
     }];
   });

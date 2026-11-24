@@ -94,7 +94,7 @@
     "schedule.reads.count": "已选 {count} 类",
     "schedule.reads.created": "任务建好了。选好它能读的数据，下一次运行就能读到。",
     "schedule.reads.failed": "暂时读不到这个任务能读什么",
-    "schedule.reads.failed-body": "暂时无法读取授权，可重试读取。任务到点会重新检查；如果那时仍读不到，那一轮会停止并提示。",
+    "schedule.reads.failed-body": "暂时读不到授权，可重试读取。任务到点会再查，届时仍读不到则本轮失败。",
     "schedule.reads.needs-confirmation": "有一类多了读取能力，或者读法变了：重新确认之前，这一类读不到。",
     "schedule.reads.none": "还没选，只读项目文件",
     "schedule.reads.nothing-readable": "选了的几类现在都读不到。到点照常运行，结果里会写明读不到什么。",

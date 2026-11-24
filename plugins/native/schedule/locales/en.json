@@ -94,7 +94,7 @@
     "schedule.reads.count": "{count} chosen",
     "schedule.reads.created": "Task created. Choose what it can read and the next run can use it.",
     "schedule.reads.failed": "Can’t show what this task can read right now",
-    "schedule.reads.failed-body": "Permissions can’t be read right now. Try reading them again. The task checks again when due; if it still can’t read them, that run stops and reports why.",
+    "schedule.reads.failed-body": "Permissions can’t be read right now. You can retry reading them. The task checks again when due; if it still can’t read them, that run fails.",
     "schedule.reads.needs-confirmation": "One category can read more, or reads differently now. It can’t be read until you confirm it again.",
     "schedule.reads.none": "None chosen; reads project files only",
     "schedule.reads.nothing-readable": "None of the chosen categories can be read right now. It still runs when due and reports what it couldn’t read.",

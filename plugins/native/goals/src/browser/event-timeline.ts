@@ -10,13 +10,42 @@ export interface TimelineItem {
   readonly received_at?: string;
   readonly title?: string;
   readonly type_label?: string;
-  readonly type_key?: string | null;
-  readonly system_operation?: string | null;
   readonly actor_id?: string;
   readonly status_label?: string;
-  readonly status_key?: string | null;
   readonly relation?: unknown;
 }
+
+const HISTORY_TYPE_KEYS: Record<string, string> = {
+  "当前进展": "goals.history.type.progress-summary",
+  "补充说明": "goals.history.type.observation-note",
+  "提出问题": "goals.history.type.concern-opened",
+  "解决问题": "goals.history.type.concern-resolved",
+  "接受风险": "goals.history.type.concern-accepted",
+  "撤销问题": "goals.history.type.concern-overturned",
+  "请求决定": "goals.history.type.decision-requested",
+  "用户决定": "goals.history.type.user-decision",
+  "引用决定": "goals.history.type.decision-cited",
+  "调整约定": "goals.history.type.agreement-set",
+  "提交收尾": "goals.history.type.closure-submitted",
+  "继续推进": "goals.history.type.completion-reopened",
+  "重新继续": "goals.history.type.work-resumed",
+  "继续目标": "goals.history.type.event-owner-continued",
+  "回应笔记": "goals.history.type.input-acknowledged",
+  "工作汇报": "goals.history.type.report",
+  "记录配置": "goals.history.type.configuration",
+  "系统记录": "goals.history.type.system",
+  "建立目标": "goals.history.journal.created",
+  "更新目标": "goals.history.journal.updated",
+  "确认目标": "goals.history.journal.accepted",
+  "建立关系": "goals.history.journal.relation-added",
+  "解除关系": "goals.history.journal.relation-deactivated",
+  "记录": "goals.history.type.record",
+};
+
+const HISTORY_STATUS_KEYS: Record<string, string> = {
+  "已建立": "goals.history.status.created",
+  "已解除": "goals.history.status.removed",
+};
 
 export const escapeText = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 
@@ -60,11 +89,10 @@ export const appendTimelineItems = (nav: HTMLElement, items: readonly TimelineIt
     button.setAttribute("aria-expanded", "false");
     applyLaneFilter(button, reading.filter);
     const time = validDate ? pad(date.getHours()) + ":" + pad(date.getMinutes()) : "--:--";
-    const isDecisionRequest = item.system_operation === "decision_requested";
-    const typeLabel = item.type_key ? globalThis.t.text(item.type_key) : (item.type_label || "");
-    const status = isDecisionRequest
+    const typeLabel = item.type_label && HISTORY_TYPE_KEYS[item.type_label] ? globalThis.t.text(HISTORY_TYPE_KEYS[item.type_label]!) : (item.type_label || "");
+    const status = item.type_label === "请求决定"
       ? pending.has(item.event_id || "") ? globalThis.t.text("goals.event-document-client.needs-decision") : globalThis.t.text("goals.event-document-client.handled")
-      : item.status_key ? globalThis.t.text(item.status_key) : item.status_label;
+      : item.status_label && HISTORY_STATUS_KEYS[item.status_label] ? globalThis.t.text(HISTORY_STATUS_KEYS[item.status_label]!) : item.status_label;
     button.innerHTML = "<time></time><span class=timeline-dot aria-hidden=true><span class=timeline-mark>" + markOf(item) + "</span></span><span class=timeline-copy><strong>" + escapeText(item.title || "") + "</strong><small><b class=timeline-type>" + escapeText(typeLabel) + "</b> <span class=timeline-actor>" + escapeText(item.actor_id || "") + "</span></small>" + (status ? "<em class=history-state>" + escapeText(status) + "</em>" : "") + "</span>";
     const stamp = button.querySelector("time");
     if (stamp) {

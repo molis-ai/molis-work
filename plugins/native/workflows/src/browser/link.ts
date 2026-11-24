@@ -11,13 +11,14 @@ import type { Ready } from "./types.js";
 const uiText = globalThis.t;
 
 /** The words a function link's rule can take from the content handed over (internal syntax -> display label key). */
-const TOKENS: readonly [string, string][] = [
-  ["标题", "workflows.field.title"],
-  ["正文", "workflows.field.body"],
-  ["来源", "workflows.field.source"],
-  ["链接", "workflows.field.link"],
-  ["日期", "workflows.field.date"],
-];
+const TOKENS = ["标题", "正文", "来源", "链接", "日期"] as const;
+const TOKEN_LABEL_KEYS: Record<(typeof TOKENS)[number], string> = {
+  "标题": "workflows.field.title",
+  "正文": "workflows.field.body",
+  "来源": "workflows.field.source",
+  "链接": "workflows.field.link",
+  "日期": "workflows.field.date",
+};
 /** Outcome-first order (PF-A13): direct pass-through first, then AI organize, explicit user decision, and rule filter. */
 const KINDS: readonly WorkflowLinkKind[] = ["function", "ai", "manual", "judgment"];
 
@@ -36,7 +37,7 @@ export function linkView(page: WorkflowsPage, link: WorkflowLink) {
       + `<div class="mw-collapsible__body">`
       + field("title_template", uiText.text("workflows.rule.title"), link.title_template, 1, uiText.text("workflows.rule.title-placeholder", { title: "{标题}" }))
       + field("body_template", uiText.text("workflows.rule.body"), link.body_template, 5, uiText.text("workflows.rule.body-placeholder", { source: "{来源}", link: "{链接}", body: "{正文}" }))
-      + `<p class="wf-tokens"><span>${esc(uiText.text("workflows.rule.insert"))}</span>` + TOKENS.map(([token, key]) => `<button type="button" class="wf-token" data-wf-token="{${token}}" title="${esc(uiText.text("workflows.rule.insert-into-body"))}">${esc(uiText.text(key))}</button>`).join("") + "</p>"
+      + `<p class="wf-tokens"><span>${esc(uiText.text("workflows.rule.insert"))}</span>` + TOKENS.map((token) => `<button type="button" class="wf-token" data-wf-token="{${token}}" title="${esc(uiText.text("workflows.rule.insert-into-body"))}">${esc(uiText.text(TOKEN_LABEL_KEYS[token]))}</button>`).join("") + "</p>"
       + `<p class="wf-hint">${esc(uiText.text("workflows.rule.title-empty-note"))}</p>`
       + "</div></details>";
   }

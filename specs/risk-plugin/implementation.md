@@ -85,7 +85,7 @@ Manifest：`permissions` 含 `actions:delegate`（转调 Schedule、读取器核
 
 方法 `risk-review`（Skill）：见 §3「助理」。风险插件不登记指令、不声明 Agent。
 
-同步：本批不进个人空间同步（风险是新对象，同步集合与便携格式要单独设计与验收）；记 [BL-risk-sync](../backlog/BL-risk-sync.md)，主人风险插件。
+同步：本批不进个人空间同步（风险是新对象，同步集合与便携格式要单独设计与验收）；记 [BL-risk-sync](../../docs/backlog-removed.md#bl-risk-sync)，主人风险插件。
 
 ### 4.2 Goals：顾虑引用对象
 

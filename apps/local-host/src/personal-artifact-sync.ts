@@ -40,13 +40,11 @@ function assertSystemMaterialsProducer(item: PortableProcessItem): void {
   }
 }
 
-type PluginSyncReferenceLookup = (projectId: string, reference: { owner: string; collectionId?: string; assetId: string; version?: number }) => boolean;
-
 /** Both fixed stores come from the same plugin catalog, with different journals and explicit opt-in collections. */
-export function createPersonalFixedVersionBindings(home: string, spaceId: string, userId: string, check: () => void, withCatalog: LocalWebCatalogRunner, hasPluginReference?: PluginSyncReferenceLookup) {
+export function createPersonalFixedVersionBindings(home: string, spaceId: string, userId: string, check: () => void, withCatalog: LocalWebCatalogRunner) {
   const bindings = fixedVersionBindings().map(binding => ({
     store: binding.store,
-    ...createVersionRegistration(home, spaceId, userId, check, withCatalog, binding, hasPluginReference),
+    ...createVersionRegistration(home, spaceId, userId, check, withCatalog, binding),
   }));
   const artifacts = bindings.find(binding => binding.store === 'library');
   if (!artifacts) throw errors.version_sync_invalid('成果同步 owner 未登记');
@@ -57,7 +55,7 @@ export function createPersonalArtifactRegistration(home: string, spaceId: string
   return createVersionRegistration(home, spaceId, userId, check, withCatalog, libraryBinding());
 }
 
-function createVersionRegistration(home: string, spaceId: string, userId: string, check: () => void, withCatalog: LocalWebCatalogRunner, declared: FixedVersionBinding, hasPluginReference?: PluginSyncReferenceLookup) {
+function createVersionRegistration(home: string, spaceId: string, userId: string, check: () => void, withCatalog: LocalWebCatalogRunner, declared: FixedVersionBinding) {
   check();
   const space = ensureStorageSpace(home), library = declared.store === 'library';
   if (space.kind !== 'personal' || space.spaceId !== spaceId || space.ownerUserId !== userId) throw errors.version_sync_scope('固定版本同步空间不匹配');
@@ -134,9 +132,8 @@ function createVersionRegistration(home: string, spaceId: string, userId: string
   return {
     registration,
     hasReference(projectId: string, reference: { owner: string; collectionId?: string; assetId: string; version?: number }): boolean {
-      check(); const project = projects.get(projectId);
-      if (!project || reference.owner === 'artifacts' && !project.enabled) return false;
-      if (reference.owner !== 'artifacts') { const found = hasPluginReference?.(projectId, reference) ?? false; check(); return found; }
+      check();
+      if (reference.owner !== 'artifacts' || !projects.get(projectId)?.enabled) return false;
       return withProject(projectId, store => reference.version !== undefined && !!openProjectVersionStores(store).artifacts.query.getArtifactVersion(projectId,{artifact_id:reference.assetId,version:reference.version}), true);
     },
   };

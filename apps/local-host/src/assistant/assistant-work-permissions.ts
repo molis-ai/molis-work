@@ -29,7 +29,7 @@ export function assistantWorkEnding(host: AgentHost, work: StoredWork) {
     async begin(reason: string, control: AgentActionReviewControl) {
       const current = await store.read(subject);
       const ending = await store.beginEnd(subject, current?.epoch ?? null, reason, control);
-      return () => store.finishEnd(subject, ending.epoch, control);
+      return (finishControl: AgentActionReviewControl = control) => store.finishEnd(subject, ending.epoch, finishControl);
     },
   };
 }
@@ -55,12 +55,16 @@ export async function inAssistantWorkEffect<T>(adapter: AgentRuntimeAdapter, con
 
 /** The first failed child leaves a durable ending to resume, with no other child still writing in the background. */
 export async function beginAssistantWorkEnds(host: AgentHost, store: AssistantStore, works: readonly StoredWork[], reason: string, caller?: AgentActionReviewControl) {
-  const endings: Array<() => Promise<unknown>> = [];
+  const endings: Array<{ readonly work: StoredWork; readonly finish: (control?: AgentActionReviewControl) => Promise<unknown> }> = [];
   for (const work of works) {
     const finish = await assistantWorkEnding(host, work)?.begin(reason, assistantEndControl(store, work, caller));
-    if (finish) endings.push(finish);
+    if (finish) endings.push({ work, finish });
   }
-  return async () => { for (const finish of endings) await finish(); };
+  return async (withCaller = true) => {
+    for (const { work, finish } of endings) {
+      await finish(withCaller ? undefined : assistantEndControl(store, work));
+    }
+  };
 }
 
 export function assistantEndControl(store: Pick<AssistantStore, "get">, work: StoredWork, caller?: AgentActionReviewControl): AgentActionReviewControl {
@@ -79,24 +83,85 @@ export function assistantPermissionCaller(caller: ActionExecutionContext, page?:
     assertCurrent: () => { caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.()); page?.assertCurrent(); } };
 }
 
-/** A Stop acknowledgement can precede the Run's terminal event. Keep the work's ending barrier until the owner settles it. */
-export async function stopOriginalRun(adapter: AgentRuntimeAdapter, run: AgentRunRef, control: AgentActionReviewControl): Promise<void> {
-  // The SDK can commit the Run's end while its original dispatched effect still needs reconciliation.
-  const ended = (view: AgentRunView) => isTerminalAgentPhase(view.phase) || (view.phase === "reconcile-required" && view.ended_at !== null);
+const originalRunEnded = (view: AgentRunView): boolean =>
+  isTerminalAgentPhase(view.phase) || (view.phase === "reconcile-required" && view.ended_at !== null);
+
+/**
+ * Stops an original Run and waits for its terminal receipt.
+ * When `deferRunningSettlement` is true and the Run was actively executing (`phase === "running"`, e.g. unwinding an
+ * in-flight tool), returns `false` after `runningWaitMs` instead of blocking the HTTP stop call for 10s, while keeping
+ * its observer attached to call `onSettled` once the Run reaches a terminal phase; callers MUST NOT call `finishEnd`
+ * before settlement.
+ */
+export async function stopOriginalRunWithSettlement(
+  adapter: AgentRuntimeAdapter,
+  run: AgentRunRef,
+  control: AgentActionReviewControl,
+  options: { readonly timeoutMs?: number; readonly deferRunningSettlement?: boolean; readonly runningWaitMs?: number; readonly onSettled?: () => void } = {},
+): Promise<boolean> {
+  const timeoutMs = options.timeoutMs ?? 10_000;
+  const deferRunning = options.deferRunningSettlement === true;
+  const runningWaitMs = options.runningWaitMs ?? 50;
   const before = await adapter.read(run);
-  if (ended(before)) return;
+  if (originalRunEnded(before)) return true;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let unsubscribe: (() => void) | undefined;
+  let handedOff = false;
+  let settledByEvent = false;
   try {
-    let settle!: () => void;
-    const settled = new Promise<void>((resolve, reject) => {
-      settle = resolve;
-      timer = setTimeout(() => before.phase === "running" ? resolve() : reject(assistantErrors.state("原轮停止回执尚未到达，请重试停止")),
-        before.phase === "running" ? 50 : 10_000);
-      unsubscribe = adapter.observe(run, view => { if (ended(view)) resolve(); });
+    let settle!: (completed: boolean) => void;
+    let fail!: (error: Error) => void;
+    let done = false;
+    const notifySettled = () => {
+      if (settledByEvent) return;
+      settledByEvent = true;
+      unsubscribe?.();
+      unsubscribe = undefined;
+      if (handedOff) options.onSettled?.();
+      else settle(true);
+    };
+    const waiting = new Promise<boolean>((resolve, reject) => {
+      settle = (completed: boolean) => {
+        if (done) return;
+        done = true;
+        resolve(completed);
+      };
+      fail = (error: Error) => {
+        if (done) return;
+        done = true;
+        reject(error);
+      };
+      unsubscribe = adapter.observe(run, view => { if (originalRunEnded(view)) notifySettled(); });
     });
     await inAssistantWorkEffect(adapter, control, () => adapter.control(run, { kind: "stop" }));
-    if (ended(await adapter.read(run))) settle();
-    await settled;
-  } finally { clearTimeout(timer); unsubscribe?.(); }
+    if (originalRunEnded(await adapter.read(run))) {
+      notifySettled();
+    } else if (!done) {
+      if (deferRunning && before.phase === "running") {
+        timer = setTimeout(() => {
+          if (done || settledByEvent) return;
+          settle(false);
+        }, runningWaitMs);
+      } else {
+        timer = setTimeout(() => fail(assistantErrors.state("原轮停止回执尚未到达，请重试停止")), timeoutMs);
+      }
+    }
+    const settled = await waiting;
+    if (settled || settledByEvent) return true;
+    const after = await adapter.read(run);
+    if (settledByEvent || originalRunEnded(after)) {
+      settledByEvent = true;
+      return true;
+    }
+    handedOff = true;
+    return false;
+  } finally {
+    clearTimeout(timer);
+    if (!handedOff) unsubscribe?.();
+  }
+}
+
+/** A Stop acknowledgement can precede the Run's terminal event. Keep the work's ending barrier until the owner settles it. */
+export async function stopOriginalRun(adapter: AgentRuntimeAdapter, run: AgentRunRef, control: AgentActionReviewControl, timeoutMs = 10_000): Promise<void> {
+  await stopOriginalRunWithSettlement(adapter, run, control, { timeoutMs });
 }

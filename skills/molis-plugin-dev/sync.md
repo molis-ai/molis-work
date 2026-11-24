@@ -1,6 +1,6 @@
 # 插件同步接入（个人空间本机联调阶段）
 
-`SyncReplicaAdapter.hasProjectChanges(projectId)` 是 owner 对指定项目未结算内容的只读判断，覆盖待提交变化、冻结上传及保留冲突（包括等待依赖）；删除后的键仍须可判定归属，其他项目不能误计。缺少此端口或归属不可知必须报告不支持/不可用，不能返回 false 冒充已同步；它不确认上传，也不授权回收。SQLite owner 通过可信 `belongsToProject(key,projectId)` 投影现有日志键的业务归属，共同 Storage 不猜键、不跨 owner 查表，查询不受上传启用筛选影响。当前 Aggregate、Pages、Images、Workflows 及已有项目分区已兑现；分区映射由可信组合根显式提供，不从输入猜测，失效分区拒绝观察。Todo 已按当前/删除后归属及未确认保留内容判断；Work 已按 work.project 关系及未确认保留内容判断，交接目标不作为归属；Home 文档以 owner 明确的当前/保留内容归属判断；未启用原分区可被动读取，未知归属继续拒绝。常驻项目生命周期已通过实际组合的本地隔离用例，真实云端另行验收。
+`SyncReplicaAdapter.hasProjectChanges(projectId)` 是 owner 对指定项目未结算内容的只读判断，覆盖待提交变化、冻结上传及保留冲突（包括等待依赖）；删除后的键仍须可判定归属，其他项目不能误计。缺少此端口或归属不可知必须报告不支持/不可用，不能返回 false 冒充已同步；它不确认上传，也不授权回收。SQLite owner 通过可信 `belongsToProject(key,projectId)` 投影现有日志键的业务归属，共同 Storage 不猜键、不跨 owner 查表，查询不受上传启用筛选影响。当前 Aggregate、Pages、Images、Workflows 及已有项目分区已兑现；分区映射由可信组合根显式提供，不从输入猜测，失效分区拒绝观察。Todo 已按当前/删除后归属及未确认保留内容判断；Home 文档以 owner 明确的当前/保留内容归属判断；未启用原分区可被动读取，未知归属继续拒绝。常驻项目生命周期已通过实际组合的本地隔离用例，真实云端另行验收。
 
 当前有公共契约、内置 owner 增量适配、Runtime 发现接线、SQLite 持久队列、空间配置页，以及 Rust Worker/D1/R2 隔离实测链路。默认关闭；可信 Host 可配置规范 HTTPS 来源，或显式启用固定 localhost 联调。Worker 的结构化记录与 R2 预留共用 100 MB 原子配额，但尚未部署公网。不要把 Manifest 声明当成上线承诺。
 
@@ -26,7 +26,7 @@ SDK 导出 `PluginSyncSnapshotAdapter`、`PluginSyncSnapshot`、`parsePluginSync
 
 contracts 只保存同步类型和 schema；声明解析/依赖展开归 SDK，空间策略解析归 sync-replication。失败使用 owner 的 `defineErrorCodes` 与共同 `ActionError`，不得新建跨层 Error 子类。需要等待关联资产时，在错误 details 中给出 `sync_waiting: true`，协调器不猜其他 owner 的错误码。
 
-私密内容还要保护本机技术记录：contracts 的 `SyncLocalProtection` 是可信组合根提供的同步字节保护端口，不是网络字段，不携带密钥。SQLite owner 可通过 `createSqliteReplica` 的 `protection` 同时密封待发送、冲突和恢复正文；稳定键/用途绑定由 Storage 提供，Home/空间/集合绑定与密钥生命周期由提供方负责。保护模式拒绝明文及解码失败，不降级读取。owner 必须把此选择固定在当前库格式中；这项端口本身不表示 Work 会话、下载缓存或真实密钥管理已接入。
+私密内容还要保护本机技术记录：contracts 的 `SyncLocalProtection` 是可信组合根提供的同步字节保护端口，不是网络字段，不携带密钥。SQLite owner 可通过 `createSqliteReplica` 的 `protection` 同时密封待发送、冲突和恢复正文；稳定键/用途绑定由 Storage 提供，Home/空间/集合绑定与密钥生命周期由提供方负责。保护模式拒绝明文及解码失败，不降级读取。owner 必须把此选择固定在当前库格式中。集合需要保护共同下载缓存时，同一提供方还要通过 `SyncRegistration.protection` 交给协调器。
 
 读取完整 JSON owner 内容时，已知的暂时字节不可用用 `kind: unavailable` 明确拒绝。共同文档工具将其转为不带原路径/私密诊断的 `plugin.sync_unavailable` 与确切资产键，不清日志、不冻结半份内容，也不永久隔离；本轮其他健康资产继续，下轮重试。未知异常和语法错误仍按格式失败处理，不能把所有失败都冒充临时状态。
 
@@ -34,9 +34,11 @@ SQLite 的比较指纹通过 contracts 的 `SyncConflictState` 端口由可信�
 
 原数据在 Runtime 私有 KV 中的 owner 不直接读取 `plugin_private_values`。通过 `PrivateValueReplicationOwner` 描述可信固定前缀/key、数组及身份字段，以及逐对象 JSON 的投影、校验、护栏和恢复。Runtime 的 `installPrivateValueReplicationJournal` 在原 KV CAS 事务记录真实变化的独立对象，`privateValueReplicaOwner` 接到共同 Storage replica，不另存业务文档。源文档虽然一个 key，独立创作仍分别记账、隔离与冲突；其他私有 key 不选取，坏对象不能堵住健康对象。`validatePrivateValueReplication` 的纯校验先于项目创建和文件暂存；恢复及墓碑只改变所指对象，保留其他对象和目标本机高水位，不复活执行或安装批准。这些端口本身不注册目录、启动实例或授予权限，实际 Host 仍需完整装配及字节验证。
 
-可携带的跨对象关系仍归 Ledger。可信 owner 可经 contracts 的 `ContextHistoryReplication` 注入其公开 `createContextHistoryReplication`：明确来源、分区及允许的关系/目标类型，完整校验同源连续历史后在同连接事务替换该来源。不能让插件读写 Ledger SQL、重放普通绑定动作或借历史恢复执行授权；冲突确认、未采用分支和恢复前提仍由调用方 replica 保证。该端口本身不表示 Work 会话同步完成。
+可携带的跨对象关系仍归 Ledger。可信 owner 可经 contracts 的 `ContextHistoryReplication` 注入其公开 `createContextHistoryReplication`：明确来源、分区及允许的关系/目标类型，完整校验同源连续历史后在同连接事务替换该来源。不能让插件读写 Ledger SQL、重放普通绑定动作或借历史恢复执行授权；冲突确认、未采用分支和恢复前提仍由调用方 replica 保证。关系历史适配端口随实际登记的集合使用。
 
-Work 会话是系统 Module，不制造插件 Manifest。Host 用其现有 Module 合同身份作为传输归属（协议字段仍名为 `plugin_id`），单独登记默认未选的“工作会话与交接”集合；同一保护提供方覆盖 owner 队列/历史与共同下载缓存/延迟事件，同一 JSON/R2 codec 传完整聚合。会话被动恢复不携带本机绑定，不运行交接或补发消息；历史引用保留未知定位，不制造被引用的 Goal。此接线仍须实际 Host/Worker 和设备验收，不能把声明或双临时 Home 的 owner 用例当成上线。
+旧 Work 会话及其交接同步已随主线移除，当前 Host 的个人空间同步目录里没有「工作会话与交接」集合。项目是否有待同步内容，只由当前登记的各数据主人判断。 [发布记录](../../docs/releases/CHANGELOG.md)
+
+外部 AI 会话由 `horizontal/sessions` 管理。读取范围、项目 AI 许可、索引与归属记录保存在本机；有权的调用方从工具的原始记录按需读取正文。正文不写入会话库或全文索引，外部 AI 会话也不在个人空间同步目录中。 [外部 AI 会话手册](../../docs/horizontal/sessions.md)
 
 快照用完整的 `spaceId + projectId + plugin_id + publisher_id + publisher_signature + collection_id + schema_version` 定位，`source_revision` 只在源设备上有效。`apply(snapshot, expectedRevision)` 的前提须来自目标设备的 `read`，不能传源版本代替。插件自己解释 payload，不导出 SQL、Home 路径、密钥或运行中任务。
 
@@ -44,7 +46,7 @@ Work 会话是系统 Module，不制造插件 Manifest。Host 用其现有 Modul
 
 已选集合缺失、停用或更换格式时，整轮明确未完成且不更新上次成功时间；失效 owner 不打开，其余健康集合继续同步。用户原选择保留，不自动以新格式替代；恢复原实例或明确复核选择后才可完成后续轮次。
 
-Storage 的 `createLocalPayloadProtection` 使用可信组合根给出的固定 SecretStore、密钥引用、作用域和完整已存数据检查，复用既有 AEAD 字节实现。密钥与独立身份指纹通过 `createIfAbsent` 初始化；读操作不生成密钥，密钥身份指纹仍在，或仍有受保护数据时，丢失或替换密钥均拒绝读写、不降级或覆盖原数据。仅当密钥和指纹均不存在且没有任何受保护数据时，才可作为全新状态初始化。可信 Host 可在 `SyncRegistration.protection` 提供相同的本机保护端口：共同协调器按集合固定模式，下载分块与延迟事件同时密封；撤掉端口或更换模式拒绝，下载缓存按集合分区、仅在对应 owner 接收后释放。`hasProtectedSyncPayloads` 供密钥 owner 检查共同库中是否仍有受保护数据，不创建缺失的库。业务 owner 自己的正文、队列和历史仍须固定同样的保护；这不表示 Work 会话已接入。
+Storage 的 `createLocalPayloadProtection` 使用可信组合根给出的固定 SecretStore、密钥引用、作用域和完整已存数据检查，复用既有 AEAD 字节实现。密钥与独立身份指纹通过 `createIfAbsent` 初始化；读操作不生成密钥，密钥身份指纹仍在，或仍有受保护数据时，丢失或替换密钥均拒绝读写、不降级或覆盖原数据。仅当密钥和指纹均不存在且没有任何受保护数据时，才可作为全新状态初始化。可信 Host 可在 `SyncRegistration.protection` 提供相同的本机保护端口：共同协调器按集合固定模式，下载分块与延迟事件同时密封；撤掉端口或更换模式拒绝，下载缓存按集合分区、仅在对应 owner 接收后释放。`hasProtectedSyncPayloads` 供密钥 owner 检查共同库中是否仍有受保护数据，不创建缺失的库。业务 owner 自己的正文、队列和历史仍须固定同样的保护。
 
 Host 从同一 Manifest 派生 `SyncRegistration.dependencies` 的完整发布者/集合/格式身份。保存配置前验证所选依赖闭包，缺失或未接入时拒绝，不替用户自动勾选。接收的共享策略即使缺失依赖也只阻止对应消费者，其他集合继续；不能用同名但不同发布者或格式的选择冒充依赖。
 

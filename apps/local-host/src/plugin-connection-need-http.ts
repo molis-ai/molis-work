@@ -106,10 +106,10 @@ function assertUsable(home: string, target: Resolved & { kind: "slot" }, connect
   if (!usable) throw connectionNeedErrors.account_unusable("这个账号现在不能用在这里");
 }
 
-async function slotBind(client: BoundActionClient, target: Resolved & { kind: "slot" }, connection_id: string) {
+async function slotBind(client: BoundActionClient, target: Resolved & { kind: "slot" }, connection_id: string, expected_connection_id?: string) {
   const slot = { install_id: target.install_id, plugin_id: target.plugin_id, slot_id: target.slot.slot_id, service_id: target.slot.service_id, connection_id };
   if (target.record_key === undefined) await client.invoke(connectorPluginSlotActions.bind, slot);
-  else await client.invoke(connectorPluginSlotActions.bindRecord, { ...slot, record_key: target.record_key });
+  else await client.invoke(connectorPluginSlotActions.bindRecord, { ...slot, record_key: target.record_key, ...(expected_connection_id ? { expected_connection_id } : {}) });
 }
 
 /**
@@ -118,7 +118,7 @@ async function slotBind(client: BoundActionClient, target: Resolved & { kind: "s
  * record is moved by binding it alone (`connectors.plugin_slot.record.bind@1`, S-71); the other records keep their account.
  */
 async function slotSwitch(client: BoundActionClient, target: Resolved & { kind: "slot" }, from: string, to: string) {
-  if (target.record_key !== undefined) { await slotBind(client, target, to); return; }
+  if (target.record_key !== undefined) { await slotBind(client, target, to, from); return; }
   const usage_id = JSON.stringify([target.install_id, target.plugin_id, target.slot.slot_id, null]);
   const result = await client.invoke(connectorPluginSlotSwitch, { from_connection_id: from, to_connection_id: to, usage_ids: [usage_id] });
   if (!result.switched.includes(usage_id)) throw connectionNeedErrors.switch_refused(`没有换过去（${result.refused[0]?.code ?? "unknown"}）`);
@@ -194,8 +194,8 @@ export async function pageConnectionNeed(context: WebRequestContext, reference: 
     case "bind": {
       if (current && current.connection_id === chosen && current.state === "connected") return respond(home, client, target);
       // A working account is changed with `switch`; an image target whose key no longer works may take another.
-      if (current && (target.kind === "slot" || current.state === "connected")) throw connectionNeedErrors.account_bound("这里已经接着一个账号；要换，用「换一个」");
       if (target.kind === "slot") assertUsable(home, target, chosen!);
+      if (current && (target.kind === "slot" || current.state === "connected")) throw connectionNeedErrors.account_bound("这里已经接着一个账号；要换，用「换一个」");
       await page.beforeEffect();
       if (target.kind === "slot") await slotBind(client, target, chosen!);
       else { page.assertCurrent(); createPluginImageGenerationPort(home, target.namespace).bind(target.image, chosen!); }

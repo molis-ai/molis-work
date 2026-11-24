@@ -133,12 +133,16 @@ export function assertRecordedVersions(storage, manifest, home, locations = PERS
   }
 }
 
+const manifestPrefix = `${GOLDEN_HOMES_DIRECTORY}/`;
+const manifestSuffix = "/manifest.json";
+export const isGoldenManifestPath = file => file.startsWith(manifestPrefix) && file.endsWith(manifestSuffix)
+  && file.slice(manifestPrefix.length).split("/").length === 2;
+
 /** Each golden under tests/fixtures/golden-homes/ and its manifest, or null for one that cannot be read; a gate treats that as holding nothing. */
 export function goldenManifests({ files, read }) {
-  const prefix = `${GOLDEN_HOMES_DIRECTORY}/`;
-  return files.filter(file => file.startsWith(prefix) && file.endsWith("/manifest.json") && file.slice(prefix.length).split("/").length === 2).map(file => {
+  return files.filter(isGoldenManifestPath).map(file => {
     let manifest = null;
     try { manifest = JSON.parse(read(file) ?? "null"); } catch { manifest = null; }
-    return { golden: file.slice(prefix.length, -"/manifest.json".length), manifest: manifest && typeof manifest === "object" ? manifest : null };
+    return { golden: file.slice(manifestPrefix.length, -manifestSuffix.length), manifest: manifest && typeof manifest === "object" ? manifest : null };
   });
 }

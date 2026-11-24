@@ -148,7 +148,7 @@ test("S-upgrade-too-new-untouched: a vault one version ahead, damaged or holding
   const vaults = [
     ["storage.store_too_new", JSON.stringify({ version: SECRET_STORE_FILE.version + 1, backend: "aes-gcm-file", entries: {} }), { code: "storage.store_too_new" }],
     ["storage.schema_version_mismatch", "{", { code: "storage.schema_version_mismatch" }],
-    ["an entry that is not sealed", JSON.stringify({ version: SECRET_STORE_FILE.version, backend: "aes-gcm-file", entries: { "another-owner:entry": "not-sealed" } }), /not AES-GCM sealed/u],
+    ["an entry that is not sealed", JSON.stringify({ version: SECRET_STORE_FILE.version, backend: "aes-gcm-file", entries: { "another-owner:entry": "not-sealed" } }), { code: "storage.secret_entry_invalid" }],
   ] as const;
   for (const [label, contents, refused] of vaults) await t.test(label, async t => {
     const home = homeOf(t), remote = github(t), vault = join(home, "security", "secrets.json");

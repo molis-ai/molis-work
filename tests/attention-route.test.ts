@@ -9,7 +9,7 @@ import { setTimeout as pause } from "node:timers/promises";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { attentionChanged, DEMO_PROJECT_ID, handleAttentionHttp, LocalProjectDatabase, onAttentionChange, openPluginProjectLibrary, seedDemoBoard, type AttentionSources } from "@molis-ai/molis-work-app-local-host";
+import { attentionChanged, captureHostLog, DEMO_PROJECT_ID, handleAttentionHttp, LocalProjectDatabase, onAttentionChange, openPluginProjectLibrary, seedDemoBoard, type AttentionSources, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { CODING_FILE_CHANGED_EVENT, CodingSessionStore, codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { LOCAL_JOURNAL_SCHEMA_SQL, LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { SqlitePluginEventsRepository, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -155,6 +155,8 @@ test("W4-10-01 QA-022 a reader that fails nulls only its own part of the attenti
   // N42: the task panel's table is the one the line was placed with; one read of the line answers both.
   assert.equal(lineReads, 1, "the line is read once for the line and the task panel");
   assert.deepEqual((await read()).notices, told(null), "no surface asked about is the Home's notices");
+  const logs: HostLogEntry[] = [];
+  t.after(captureHostLog(logs));
   for (const part of (Object.keys(exact) as Array<keyof Attention>).filter(name => name !== "tasks")) {
     for (const rejects of part === "board_cursor" ? [false] : [false, true]) {
       failing.current = part; failing.rejects = rejects;
@@ -162,6 +164,8 @@ test("W4-10-01 QA-022 a reader that fails nulls only its own part of the attenti
       assert.deepEqual(await read("/api/attention?surface=todo"), { ...exact, [part]: null, ...(part === "line" ? { tasks: null } : {}) }, `${part} ${rejects ? "rejected" : "threw"}: only it is null`);
     }
   }
+  const partLogs = logs.filter(entry => entry.area === "attention" && entry.event === "part_failed");
+  assert.deepEqual(partLogs.map(entry => entry.fields?.part).sort(), ["background_tasks", "board_cursor", "line", "notices", "plugin_events_pending"], "each failing attention reader logs once until it recovers");
   failing.current = null;
   assert.deepEqual(await read("/api/attention?surface=todo"), exact, "a reader that answers again is read again");
 });

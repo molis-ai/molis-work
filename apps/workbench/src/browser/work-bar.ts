@@ -776,6 +776,7 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     const { line: read, tasks: table, started, sequence } = (event as CustomEvent<{ line?: WorkLineReadResult | null; tasks?: BackgroundTasksReadResult | null; started?: number; sequence?: number }>).detail;
     const before = read ? adopt(read) : events;
     const wasChecking = line.hasAttribute("data-checking");
+    let enteredChecking = false;
     if (read) {
       checking(null, false);
       knownAt = new Date().toISOString();
@@ -785,6 +786,11 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
       } catch {
         /* a convenience of this tab */
       }
+    } else if (read === null) {
+      // Server-side mainline read failed on a project page (GET /api/attention returned line: null): keep what was last shown, marked as checking (WLN-05).
+      checking(knownAt ?? "", false);
+      tasks.offline(knownAt ? format.date(knownAt, "time") : "");
+      enteredChecking = !wasChecking;
     }
     // A page restored with the layout: the conversation follows the event whose page is in front, once the line is read.
     if (read && !followed) {
@@ -794,8 +800,8 @@ export function installWorkBar(host: WorkBarHost): WorkBarHandle | undefined {
     const resumed = table ? tasks.offline(null) : false;
     const tasksChanged = table ? tasks.take(table, started ?? 0, sequence) : false;
     const lineDrawn = read ? draw(read, before) : false;
-    if (!lineDrawn && (tasksChanged || resumed || (read && wasChecking))) {
-      if (tasksChanged || resumed) list.draw();
+    if (!lineDrawn && (tasksChanged || resumed || (read && wasChecking) || enteredChecking)) {
+      if (tasksChanged || resumed || enteredChecking) list.draw();
       cardStack.paint();
     }
     cards.paint();

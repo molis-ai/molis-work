@@ -14,7 +14,7 @@ import { createPersonalAccountHttp } from './personal-http.js';
 import { createPersonalNativeSession } from './personal-native-session.js';
 import { personalCloudConfig } from './personal-auth.js';
 import { resolveWebControlToken, sendWebHealth } from './web-control-token.js';
-import { authorizeLocalWebRequest, refuseForeignRequest, refuseLocalWebRequest, requestHost, sendLocalWebJson, respondLocalWebRefusal, type LocalMutationState } from './web-http.js';
+import { authorizeLocalWebRequest, finalizeLocalMutation, refuseForeignRequest, refuseLocalWebRequest, requestHost, sendLocalWebJson, respondLocalWebRefusal, type LocalMutationState } from './web-http.js';
 import type { WebServerOptions } from './web-types.js';
 import { ACCOUNT_CONNECT_PATH } from './resident-account-connection.js';
 import { MCP_CONTEXT_PATH } from './mcp-context-envelope.js';
@@ -535,6 +535,8 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
           else sendLocalWebJson(response,503,{code:'space.unavailable',error:'账号环境尚未就绪，请重试。'});
         }
         else response.destroy();
+      }finally{
+        finalizeLocalMutation(response,mutations);
       }
     }));
   }));

@@ -240,7 +240,7 @@ export { draftIntake, type DraftInput, type DraftModel, type DraftPorts } from "
 export type { DraftTarget } from "./drafting/draft-data.js";
 export { scheduleServiceFor } from "./project-clock.js";
 
-export { sendLocalWebJson, sendUnhandledWebError, readLocalWebBody, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
+export { sendLocalWebJson, sendUnhandledWebError, readLocalWebBody, authorizeLocalWebRequest, markMutationResponseFailed, finalizeLocalMutation, type LocalMutationState } from "./web-http.js";
 export { createLocalWebAssets } from "./web-assets.js";
 
 export { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
@@ -333,6 +333,7 @@ export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "
 export { raiseConnectionNotice } from "./assistant/assistant-connection-notices.js";
 export { assistantConnectionCard } from "./assistant/assistant-connection-card.js";
 export { AssistantService } from "./assistant/assistant-service.js";
+export { stopOriginalRun, stopOriginalRunWithSettlement } from "./assistant/assistant-work-permissions.js";
 export { AssistantReportRounds, AssistantTaskReports, reportOnlyAuthority, type TaskReport } from "./assistant/assistant-task-reports.js";
 export { reportTurn } from "./assistant/assistant-dispatch.js";
 export { ASSISTANT_AGENT, ASSISTANT_REPORT_ROLE_ID } from "./assistant/assistant-agent.js";

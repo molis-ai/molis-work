@@ -48,7 +48,7 @@ export const workflowsManifest: PluginManifest = {
     { route_id: "workflows.instance_start", method: "POST", path: "/workflows/:id/instances", max_body_bytes: WORKFLOWS_BODY_BYTES },
   ],
   artifacts: { produces: [], consumes: [] },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

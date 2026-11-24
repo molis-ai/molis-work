@@ -6,9 +6,9 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
-| BL-921 | 分支已实现 | 记录槽在存储层拒绝普通换绑，明确换用核对原账号。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
-| BL-1050 | 分支已实现 | 连接页经项目 MCP 目录汇总 Coding 配置的用途，自动换用另属 BL-1045。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
-| BL-1051 | 分支已实现 | 自定义 MCP 重登预填认证方式，令牌和客户端密钥框留空。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
+| BL-921 | 已完成并删除 | 记录槽在存储层拒绝普通换绑，明确换用核对原账号。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
+| BL-1050 | 已完成并删除 | 连接页经项目 MCP 目录汇总 Coding 配置的用途，自动换用另属 BL-1045。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
+| BL-1051 | 已完成并删除 | 自定义 MCP 重登预填认证方式，令牌和客户端密钥框留空。[实现与回归](../specs/archive/record-bindings-and-mcp-relogin/spec.md) |
 | BL-1000 | 已完成并删除 | 2026-11-23：修复模型和 HTTP 替身的逐块 UTF-8 转换，真实 HTTP 分别切开中文和 emoji，逐字核对收到的正文。[验收记录](../specs/archive/test-fixture-utf8-linux-head/spec.md#bl-1000) |
 | BL-linux-repro-source-head | 已完成并删除 | 2026-11-23：Linux 回归取源、检出失败即停，在构建和测试前核对并记录实际提交。[验收记录](../specs/archive/test-fixture-utf8-linux-head/spec.md#验收记录) |
 | BL-1040 | 已完成并删除 | 第 27 批 [#2010](https://github.com/molis-ai/molis-work/pull/2010) 已在没有远端时隐藏「建 PR…」，三种 Git 状态提示均为普通文字。2026-11-23 在隔离 Home 复验并补上无远端时中英文无障碍树都没有 PR 入口、已有暂存文件仍可本地提交的断言（`tests/git-source-controls.e2e.test.ts`）。 |

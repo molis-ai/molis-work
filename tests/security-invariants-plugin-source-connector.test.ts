@@ -294,12 +294,15 @@ test("S-97 RAC-1022: an account changed in the middle of a pull is refused, and 
   let swap: (() => void) | undefined;
   const f = await hostRig(t, { sync: () => swap?.() }), first = f.connect(), second = f.connect();
   f.bind(first.connection_id);
+  // BL-921: retrying the current account with a precondition leaves its in-flight pull alive.
+  swap = () => f.switchAccount(first.connection_id, first.connection_id);
+  await f.port.pull(f.target, f.request, f.run);
   swap = () => f.switchAccount(first.connection_id, second.connection_id);
   await assert.rejects(f.port.pull(f.target, f.request, f.run), /账号连接槽已改变/u);
   // A disconnect aborts the requests in flight on that account itself, before the platform's own recheck.
   swap = () => withConnectorConnections(f.home, store => store.disconnect(second.connection_id));
   await assert.rejects(f.port.pull(f.target, f.request, f.run), /连接已改变/u);
-  assert.equal(f.syncs.length, 2);
+  assert.equal(f.syncs.length, 3);
 });
 
 function pullBarrier() {

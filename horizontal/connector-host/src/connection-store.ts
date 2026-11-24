@@ -372,12 +372,16 @@ export class ConnectorConnectionStore {
     if (this.state(connection) !== "connected") throw connectorErrors["connector.connection.disconnected"]("连接不可用，请先重新授权");
     // A plugin's scope is written only by `pluginBindingScope` (plugin-binding-scopes.ts, where the encoding is described):
     // `plugin-installation:<install>`, or `…/project:<project>/record:<key>` for a `per_record` slot. One that does not read back is refused.
-    const scope = requiredText(input.scopeId, "作用域", 512);
+    const scope = typeof input.scopeId === "string" && isPluginBindingScope(input.scopeId) ? input.scopeId : requiredText(input.scopeId, "作用域", 512);
     const target = parsePluginBindingScope(scope);
     if (isPluginBindingScope(scope) && !target) throw pluginBindingErrors.scope_invalid("插件连接槽的作用域无效");
     const plugin = requiredText(input.pluginId, "插件", 160, "characters");
     const slot = requiredText(input.slotId, "用途", 160, "characters");
     const now = this.now().toISOString();
+    if (input.expectedConnectionId === connection.connection_id) {
+      if (this.binding(scope, plugin, slot)?.connection_id === connection.connection_id) return;
+      throw pluginBindingErrors.account_bound("这里原先选择的账号已改变，请刷新后再换");
+    }
     if (input.expectedConnectionId !== undefined) {
       const updated = this.db.prepare(`UPDATE connector_bindings SET connection_id=?, updated_at=?
         WHERE scope_id=? AND plugin_id=? AND slot_id=? AND connection_id=?`).run(connection.connection_id, now, scope, plugin, slot, input.expectedConnectionId);

@@ -206,11 +206,14 @@ test('FSS-74 BL-1049 BL-1057 a generated notebook publishes its words and icon, 
       const selector = control(name);
       await frame.waitFor(`document.querySelector('${part} [role="note"]')`);
       await frame.evaluate(`document.querySelector('${part} [role="note"]').scrollIntoView({block:'center',behavior:'instant'})`);
-      await browser.waitFor(`document.querySelector('${selector}')`);
-      await browser.evaluate(`(async () => {
-        document.querySelector('${selector}').focus({preventScroll:true});
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      // The shell can mount a control before the frame reports its visible position.
+      await browser.waitFor(`(() => {
+        const button = document.querySelector('${selector}');
+        if (!button?.checkVisibility() || button.closest('[inert], [data-unready]')) return false;
+        button.focus({ preventScroll: true });
+        return document.activeElement === button;
       })()`);
+      await browser.evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
       await browser.waitFor(`document.activeElement?.matches('${selector}:not([aria-disabled])') && !document.querySelector('${card}').hasAttribute('data-unready')`);
       for (const type of ['keyDown', 'keyUp']) await browser.command('Input.dispatchKeyEvent', {
         type, key: ' ', code: 'Space', windowsVirtualKeyCode: 32, ...(type === 'keyDown' ? { text: ' ' } : {}),

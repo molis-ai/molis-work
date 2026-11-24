@@ -71,8 +71,9 @@ test("S-upgrade-too-new-untouched: an entry in the vault that is not sealed stop
     const vault = join(directory, "security", "secrets.json"), file = JSON.parse(readFileSync(vault, "utf8")) as { entries: Record<string, string> };
     writeFileSync(vault, JSON.stringify({ ...file, entries: { ...file.entries, "another-owner:entry": "not-sealed" } }));
     const before = readFileSync(vault, "utf8");
-    await assert.rejects(completeApiOAuth(directory, callback(b.authorization_url), counted(transport("account-b"))), /not AES-GCM sealed/u);
-    await assert.rejects(resolveApiOAuthToken(directory, a.connection_id, connectorControl(), true, counted(transport("account-a"))), /not AES-GCM sealed/u);
+    const refusal = { code: "storage.secret_entry_invalid", message: /凭据格式/u };
+    await assert.rejects(completeApiOAuth(directory, callback(b.authorization_url), counted(transport("account-b"))), refusal);
+    await assert.rejects(resolveApiOAuthToken(directory, a.connection_id, connectorControl(), true, counted(transport("account-a"))), refusal);
     assert.equal(sent, 0, "neither the code nor the refresh token reached the service");
     assert.equal(readFileSync(vault, "utf8"), before);
     assert.equal(connectorProtocolSecrets(directory, a.connection_id).get("access"), "access-account-a", "a read still finds the connection's own entry");

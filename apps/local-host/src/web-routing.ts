@@ -1,6 +1,6 @@
 import type { ServerResponse } from "node:http";
-import type { MolisWorkProjectRecord } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import { projectOrNull } from "./catalog-lookup.js";
 import { projectNavigation } from "./web-project-presentation.js";
 import type { WebServerOptions, ResolvedWebBoardOptions, ResolvedWebRequest } from "./web-types.js";
 
@@ -66,15 +66,8 @@ export async function resolveWebRequest(
     } catch {
       return { kind: "project_not_found" };
     }
-    let project: MolisWorkProjectRecord;
-    try {
-      project = catalog.getProject(projectId);
-    } catch (error) {
-      // Only the catalog's own word that it holds no such project is a missing project (BL-attention-404-by-code): an open page stops
-      // reading it on that. Any other failure (the catalog cannot be read while the Host restarts, say) is not a 404.
-      if ((error as { code?: unknown } | null)?.code === "catalog.project_not_found") return { kind: "project_not_found", gone: true };
-      throw error;
-    }
+    const project = projectOrNull(catalog, projectId);
+    if (!project) return { kind: "project_not_found", gone: true };
     return {
       kind: "board",
       pathname: match[2] || "/",

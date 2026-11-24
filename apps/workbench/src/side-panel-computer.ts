@@ -157,7 +157,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     lastMode=mode;lastWork=work;
     if(!reviewTimer&&(mode!=='idle'))void pollReviews();
   };
-  const isAppField=(field)=>Boolean(field&&(field.key==='app'||field.label===globalThis.t.text("workbench.assistant-review.field.app")||field.label==='应用'||field.label==='App'||field.label==='アプリ'));
+  const isAppField=(field)=>Boolean(field&&field.key==='app');
   const pollReviews=async()=>{
     clearTimeout(reviewTimer);reviewTimer=null;
     let rows=[];
@@ -216,7 +216,9 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       const outcome=record.outcome==='completed'?globalThis.t.text("common.control.done"):record.outcome==='failed'?globalThis.t.text("workbench.side-panel-computer.failed"):record.outcome==='stopped'?globalThis.t.text("workbench.side-panel-computer.stopped"):globalThis.t.text("workbench.side-panel-computer.progress");
       const lines=[record.goal?globalThis.t.text("workbench.side-panel-computer.goal-goal",{goal:record.goal}):'',globalThis.t.text("workbench.side-panel-computer.result-outcome",{outcome}),record.conclusion?record.conclusion:'',
         '',globalThis.t.text("workbench.side-panel-computer.steps-n",{n:record.steps.length}),...record.steps.slice(-40).map(step=>'- '+(step.app?('『'+step.app.name+'』'):'')+step.summary)].filter(Boolean);
-      const title=(record.goal?record.goal.slice(0,40):globalThis.t.text("workbench.side-panel-computer.computer-operation"))+globalThis.t.text("common.punctuation.in-parens", { value: new Date(record.started_at).toLocaleString(document.documentElement.lang || undefined) });
+      const startedAt=new Date(record.started_at);
+      const startedText=Number.isNaN(startedAt.getTime())?String(record.started_at):globalThis.format.date(startedAt.toISOString(),'datetime');
+      const title=(record.goal?record.goal.slice(0,40):globalThis.t.text("workbench.side-panel-computer.computer-operation"))+globalThis.t.text("common.punctuation.in-parens", { value: startedText });
       await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id)+'/shelf',{body:{title,text:lines.join('\n')},fallback:globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf")});
       env.say(globalThis.t.text("workbench.side-panel-computer.added-shelf"));
     }catch(error){env.sayError(error,globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf"));}

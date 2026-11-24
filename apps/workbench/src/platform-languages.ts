@@ -89,12 +89,8 @@ export function catalogInlinePageText(tag: UiLanguageTag): { readonly slot: stri
   return { slot: "catalog:workbench", producer: owner, packs: [pack.locale === matched ? pack : { ...pack, locale: matched }] };
 }
 
-const localeByEnvTitle = new Map<string, string>(
-  WORKBENCH_LANGUAGES.languages.flatMap(({ tag }) => {
-    const marker = workbenchPlatformText.pack(tag)?.messages["workbench.env.title"];
-    return typeof marker === "string" ? [[marker, tag] as const] : [];
-  }),
-);
+const UI_TEXT_PROVIDER = Symbol.for("molis.work.ui-text.v1");
+
 const catalogOnlyReaders = new Map(
   WORKBENCH_LANGUAGES.languages.map(({ tag }) => {
     const selected = catalogPackFor(tag);
@@ -102,6 +98,17 @@ const catalogOnlyReaders = new Map(
     return [tag, createTextReader({ locale: tag, packs: set })] as const;
   }),
 );
+const catalogDefaultMessages = catalogPackFor(WORKBENCH_LANGUAGES.default).messages;
+
+function activeCatalogLocale(): UiLanguageTag {
+  const provider = Reflect.get(globalThis, UI_TEXT_PROVIDER) as { locale?(): string | null } | undefined;
+  const current = provider?.locale?.();
+  if (typeof current === "string" && current) {
+    return WORKBENCH_LANGUAGES.languages.find(row => row.tag === current || row.html_lang === current)?.tag
+      ?? matchLocale(current, catalogLocales, WORKBENCH_LANGUAGES.default);
+  }
+  return WORKBENCH_LANGUAGES.default;
+}
 
 /** Plain-text catalog reader for standalone specimen renders (such as unit tests outside `/__ui/catalog` HTTP). */
 export function catalogBoardSay(tag: UiLanguageTag): (key: string, values?: Readonly<Record<string, string | number>>) => string {
@@ -114,12 +121,10 @@ export function catalogBoardSay(tag: UiLanguageTag): (key: string, values?: Read
   };
 }
 
-registerCatalogBoardText((key, values, probe) => {
-  if (!key.startsWith("workbench.catalog-board.")) return null;
-  let marker = "";
-  try { marker = probe(); } catch { /* default locale */ }
-  const tag = localeByEnvTitle.get(marker) ?? WORKBENCH_LANGUAGES.default;
+registerCatalogBoardText((key, values) => {
+  if (!Object.hasOwn(catalogDefaultMessages, key)) return null;
+  const tag = activeCatalogLocale();
   const reader = catalogOnlyReaders.get(tag) ?? catalogOnlyReaders.get(WORKBENCH_LANGUAGES.default)!;
   const args = values ? textArgs(values) : undefined;
-  return reader({ owner, key, ...(args?.length ? { args } : {}) });
+  return reader.text({ owner, key, ...(args?.length ? { args } : {}) });
 });

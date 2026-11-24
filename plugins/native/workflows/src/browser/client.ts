@@ -62,6 +62,8 @@ export function workflowsClient(host: WorkflowsHost) {
   wireToast(page);
   restoreDrafts(page);
   document.addEventListener("molis-work:model-ready", () => { onModelReady(page).catch((error) => toast(page, messageOf(error), "error")); });
+  const languageAbort = new AbortController();
+  window.addEventListener("pagehide", () => languageAbort.abort(), { once: true });
   document.addEventListener("molis-work:language-changed", () => {
     if (!page.started) return;
     drawList(page);
@@ -72,7 +74,7 @@ export function workflowsClient(host: WorkflowsHost) {
     } else if (root.dataset.wfMode === "instance" && page.ui.instance) {
       drawRun(page);
     }
-  });
+  }, { signal: languageAbort.signal });
   wireClicks(page);
   wirePopover(page);
   wireRoot(page);

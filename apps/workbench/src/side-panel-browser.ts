@@ -246,8 +246,8 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     if(!reviewTimer&&(mode!=='person'||changed||!reviewing&&!polled)){polled=true;void pollReviews();}
     else if(changed&&reviewRow)renderApproval(reviewRow);
   };
-  const isSiteField=(field)=>Boolean(field&&(field.key==='site'||field.label===globalThis.t.text("workbench.assistant-review.field.site")||field.label==='网站'||field.label==='Site'));
-  const isWarningField=(field)=>Boolean(field&&(field.key==='warning'||field.label===globalThis.t.text("workbench.assistant-review.field.warning")||field.label==='注意'||field.label==='Warning'));
+  const isSiteField=(field)=>Boolean(field&&field.key==='site');
+  const isWarningField=(field)=>Boolean(field&&field.key==='warning');
   const pollReviews=async()=>{
     clearTimeout(reviewTimer);reviewTimer=null;
     let rows;

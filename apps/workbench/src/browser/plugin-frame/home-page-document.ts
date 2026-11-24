@@ -1,9 +1,10 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePageFile, HomePageFilesResult } from "@molis-ai/molis-work-contracts/services/home";
-import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as escape, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { appearanceRef, type AppearanceProjection } from "../appearance-view.js";
 
 const encoder = new TextEncoder();
+const say = (key: string, args?: Record<string, string | number>): string => uiText.text(key, args);
 
 function bytesToHex(bytes: Uint8Array): string {
   let out = "";
@@ -33,18 +34,18 @@ export async function sha256CspHash(text: string): Promise<string> {
  */
 export async function verifyHomePageFiles(loaded: HomePageFilesResult): Promise<void> {
   if (loaded.files.length !== loaded.version.files.length) {
-    throw new Error("页面文件数量与清单不一致");
+    throw new Error(say("workbench.home-pages.file-count-mismatch"));
   }
   const byPath = new Map<string, HomePageFile>(loaded.files.map(file => [file.path, file]));
   for (const meta of loaded.version.files) {
     const file = byPath.get(meta.path);
     if (!file || file.media_type !== meta.media_type) {
-      throw new Error(`缺少或类型不符的页面文件：${meta.path}`);
+      throw new Error(say("workbench.home-pages.file-missing-or-type", { path: meta.path }));
     }
     const bytes = encoder.encode(file.text).byteLength;
     const digest = await sha256Hex(file.text);
     if (bytes !== meta.bytes || digest !== meta.sha256) {
-      throw new Error(`页面文件校验失败：${meta.path}`);
+      throw new Error(say("workbench.home-pages.file-verify-failed", { path: meta.path }));
     }
   }
 }
@@ -63,7 +64,16 @@ function escapeInlineStyle(css: string): string {
 
 /** Fixed platform bridge injected into every generated-page opaque `srcdoc` frame (hashed into `script-src`). */
 function buildBridgeScript(challenge: string, page: { page_id: string; version: number }, isPreview: boolean): string {
-  const info = JSON.stringify({ challenge, page, mode: isPreview ? "preview" : "live" });
+  const info = JSON.stringify({
+    challenge,
+    page,
+    mode: isPreview ? "preview" : "live",
+    err: {
+      action: say("workbench.home-pages.action-failed"),
+      script: say("workbench.home-pages.script-error"),
+      async: say("workbench.home-pages.async-error"),
+    },
+  });
   return `(() => {
   const cfg = ${info};
   let port = null;
@@ -97,7 +107,7 @@ function buildBridgeScript(challenge: string, page: { page_id: string; version: 
         pending.delete(msg.id);
         if (msg.ok) waiter.resolve(msg.result);
         else {
-          const err = new Error(msg.message || "动作调用失败");
+          const err = new Error(msg.message || cfg.err.action);
           err.code = msg.code || "actions.execution_failed";
           waiter.reject(err);
         }
@@ -118,11 +128,11 @@ function buildBridgeScript(challenge: string, page: { page_id: string; version: 
     port.postMessage({ type: "ready" });
   });
   window.addEventListener("error", (event) => {
-    const message = event.message || "页面脚本发生错误";
+    const message = event.message || cfg.err.script;
     if (port) port.postMessage({ type: "crash", message });
   });
   window.addEventListener("unhandledrejection", (event) => {
-    const reason = event.reason && event.reason.message ? event.reason.message : String(event.reason || "页面异步执行出错");
+    const reason = event.reason && event.reason.message ? event.reason.message : String(event.reason || cfg.err.async);
     if (port) port.postMessage({ type: "crash", message: reason });
   });
   Object.defineProperty(window, "molisHomePage", {
@@ -158,7 +168,7 @@ export async function buildHomePageSrcdoc(options: {
   const filesByPath = new Map<string, HomePageFile>(options.loaded.files.map(file => [file.path, file]));
   const entryFile = filesByPath.get(options.loaded.version.entry);
   if (!entryFile || entryFile.media_type !== "text/html") {
-    throw new Error("入口文件不是声明的 HTML 文件");
+    throw new Error(say("workbench.home-pages.entry-not-html"));
   }
 
   const parsed = new DOMParser().parseFromString(entryFile.text, "text/html");
@@ -341,7 +351,7 @@ export async function mountHomePageFrame(options: {
       return;
     }
     if (msg.type === "crash") {
-      options.onCrash?.(typeof msg.message === "string" ? msg.message : "页面在隔离中出错停下");
+      options.onCrash?.(typeof msg.message === "string" ? msg.message : say("workbench.home-pages.crashed-in-sandbox"));
       return;
     }
     if ((msg.type === "invokeAction" || msg.type === "actionAvailability") && typeof msg.id === "number") {
@@ -367,7 +377,7 @@ export async function mountHomePageFrame(options: {
             id: msg.id,
             ok: false,
             code: typeof data.code === "string" ? data.code : "actions.execution_failed",
-            message: typeof data.error === "string" ? data.error : typeof data.message === "string" ? data.message : "动作调用被拒",
+            message: typeof data.error === "string" ? data.error : typeof data.message === "string" ? data.message : say("workbench.home-pages.action-denied"),
           });
         } else {
           channel.port1.postMessage({ type: "reply", id: msg.id, ok: true, result: data });
@@ -379,7 +389,7 @@ export async function mountHomePageFrame(options: {
             id: msg.id,
             ok: false,
             code: "actions.execution_failed",
-            message: error instanceof Error ? error.message : "动作请求失败",
+            message: error instanceof Error ? error.message : say("workbench.home-pages.action-request-failed"),
           });
         }
       }

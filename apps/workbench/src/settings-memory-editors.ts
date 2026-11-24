@@ -20,7 +20,8 @@ export const MEMORY_EDITORS_CLIENT_SCRIPT = String.raw`({ L, el, button, paint, 
 
   const classificationText = classification => classification
     ? classification.scenes.map(sceneText).concat(globalThis.t.text(CLASS[classification.lifecycle] || classification.lifecycle)).join(" · ") : globalThis.t.text("workbench.settings-memory.unclassified");
-  const expiryText = expires => expires === undefined ? globalThis.t.text("workbench.settings-memory.not-yet-decided") : expires ? new Date(expires).toLocaleString() : globalThis.t.text("workbench.settings-memory.no-fixed-expiry");
+  const formatExpiry = value => { const d = new Date(value); return Number.isNaN(d.getTime()) ? String(value) : globalThis.format.date(d.toISOString(), "datetime"); };
+  const expiryText = expires => expires === undefined ? globalThis.t.text("workbench.settings-memory.not-yet-decided") : expires ? formatExpiry(expires) : globalThis.t.text("workbench.settings-memory.no-fixed-expiry");
 
   function classificationFields(item) {
     const host = el("details", "memory-origin"), scenes = el("div", "memory-editor-fields");

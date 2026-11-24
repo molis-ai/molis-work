@@ -137,11 +137,13 @@ export function mountComments(host: CommentSideHost): void {
       commands.delete(data.request_id);clearTimeout(waiting.timeout);data.error?waiting.reject(new Error(data.error)):waiting.resolve(data);
     }
   });
+  const languageAbort = new AbortController();
+  window.addEventListener('pagehide', () => languageAbort.abort(), { once: true });
   document.addEventListener('molis-work:language-changed', () => {
     q('title').textContent = context?.object_ref.title || uiText.text('pages.comments.pick-doc');
     if (!context) return;
     paint();
     if (mode === 'notes') void notes();
-  });
+  }, { signal: languageAbort.signal });
   host.messages.send({type:'molis:side-ready'});
 }

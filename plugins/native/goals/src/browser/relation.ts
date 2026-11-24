@@ -80,9 +80,11 @@ export function relationClient(host: RelationHost) {
   const updateAllRelationFormPreviews = () => {
     document.querySelectorAll<HTMLFormElement>("[data-relation-form]").forEach(updateRelationFormPreview);
   };
+  const languageAbort = new AbortController();
+  window.addEventListener("pagehide", () => languageAbort.abort(), { once: true });
   document.addEventListener("molis-work:language-changed", () => {
     document.querySelectorAll<HTMLFormElement>("[data-relation-form]").forEach(paintRelationFormPreview);
-  });
+  }, { signal: languageAbort.signal });
 
   const handleGoalRelationChange = (changed: Element) => {
     const relationForm = changed.closest<HTMLFormElement>("[data-relation-form]");

@@ -56,6 +56,8 @@ const listen = (page: FormPage) => {
     reloadList();
   });
   document.addEventListener("molis-work:model-ready", reloadList);
+  const languageAbort = new AbortController();
+  window.addEventListener("pagehide", () => languageAbort.abort(), { once: true });
   document.addEventListener("molis-work:language-changed", () => {
     renderList(page);
     if (!page.sel) return;
@@ -63,7 +65,7 @@ const listen = (page: FormPage) => {
     retitleQuestions(page);
     if (page.tab === "results") void loadResults(page);
     else if (page.tab === "preview" && !page.dirty) renderPreview(page, page.sel);
-  });
+  }, { signal: languageAbort.signal });
   window.addEventListener("beforeunload", (event) => {
     if (page.sel && hasUnsaved(page)) {
       event.preventDefault(); event.returnValue = "";

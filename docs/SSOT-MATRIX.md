@@ -96,6 +96,8 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 `packages/contracts/modules`、`services`、`platform` 是同一个发布包的 subpath 分区，不是三个独立 npm package。
 
+随系统发行的技能内容在 [packages/system-skills](../packages/system-skills/README.md)，由宿主构建打包。这个目录没有独立的 workspace 包。
+
 ## 5. Modules
 
 | 目标 package | 事实 owner | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
@@ -141,8 +143,9 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `horizontal/placement` | 放在哪里：对象的位置、访问范围、按插件 `placement_relation` 声明的通用挂接关联与移动后的位置索引 | `PlacementService`；系统动作 `placement.describe/spaces/related/locate/link/unlink/move/copy/convert/attach.*` 由 Host 装配；关系写 Home 级 Context Ledger（`placement.db`）；对象事实总向所有者读；移动/复制经插件放置协议 | `production` | `specs/archive/work-placement/spec.md`；第 44 批 44-1 | 横向服务：@yijunw0212 |
 | `horizontal/surfaces` | 确定呈现组合与本人的位置纠正 | 第 15 批已交：组合只引用主人字段和动作，纠正表在项目库，本人持久纠正可选同步，Host 装配与拒绝路径，项目首页、插件挂载位、讨论与「等你」接入；还缺「接着做」（第 21／28 批）、助理组合（第 64 批）与 `task` 规则，见对应批次与 [BL-surface-composition-review-followups](../specs/backlog/BL-surface-composition-review-followups.md)；本人验收见 [BL-surface-home-acceptance](../specs/backlog/BL-surface-home-acceptance.md)，IUI-20 复测见 [BL-surface-home-performance](../specs/backlog/BL-surface-home-performance.md) | `slice` | `specs/surface-composition/spec.md` §2、§3、§14 | 横向服务：@yijunw0212 |
 | `horizontal/sessions` | 外部会话：在用户打开的读取范围内发现本机与已连接远端 AI 开发工具的会话，只读历史正文、归属到项目、供个人搜索与个人助理单轮受控读取，不导入正文、不发消息、不托管运行 | `SessionsService`；系统动作 `sessions.*`（`system.sessions`）由 Host 装配；自己的库 `<Home>/external-sessions/external-sessions.db` 只存索引、目录缓存、读取范围、项目 AI 读取开关、归属决定与归属建议；不存对话全文，标题/建议短引文除外；十个来源适配器（Codex、Claude Code、Gemini CLI、Pi、GitHub Copilot Coding Agent、Droid、Qwen Code、Qoder、Kimi Code、MiniMax Code），其余登记表条目如实报未实现或工具未提供；本人验收见 [BL-b34-sessions-acceptance](../specs/backlog/BL-b34-sessions-acceptance.md) | `slice` | `specs/sessions-rebuild/spec.md`；`specs/sessions-rebuild/contract-design.md` | 横向服务：@yijunw0212 |
+| `horizontal/plugin-studio` | 插件创作台：从一句需求生成插件；平台能力，不是插件（第 47 批 47-1 C，用户 2026-11-22），后续作为平台场景组装能力的创作入口（2026-10-27） | 见下文「插件创作工作台」；不进插件目录与项目插件成员，外壳按平台宿主界面名单画它，草稿与发布版本原地不迁；缺片：整体体验与端到端交付（用户 2026-10-27 反馈至今未完整跑通），包含新能力创作与手动／个人助理组合已有插件，Alchemist 为落地场景；后续：BL-377 | `slice` | `specs/plugin-builder-upgrade/spec.md`（旧实现证据：`specs/archive/plugin-builder/work-items/studio-v3/spec.md`） | 横向服务：@yijunw0212 |
 
-本节 19 个包分两类（见[系统架构 §3](system/ARCHITECTURE.md)）：`connector-host`、`scheduler`、`runtime-host`、`agent-host`、`account` 是 5 个横向运行服务，保存 cursor、lease、retry 等可恢复的技术状态；`agent-host` 另外保存下面列出的 Agent 配置、工作授权和审查决定。`memory`、`placement`、`search`、`knowledge`、`surfaces`、`kit`、`mainline`、`appearance`、`observation`、`blueprints`、`evaluation`、`sessions`、`automation-recommender`、`project-approvals` 按职责属于 14 个「平台产品服务」（目录暂留在 `horizontal/` 下），可以持有跨插件的策略和本服务自己的机制记录（放置的关联与来源、记忆的开关、候选与撤销、可重建的搜索索引、采集层的记录与覆盖登记、场景包草稿与采用回执、端到端评测的冻结样本与判定记录、外部会话的读取范围与归属决定、项目自动化建议偏好、平台可信决定与项目审批规则）。情境排序（`packages/kernel` 的 `contextual.ts`）同属平台产品服务，代码位置不变。两类都不拥有 Goal、Signal、Action 等插件或 Module 的业务事实；外部会话的正文与运行状态始终归原外部工具。
+本节 21 个包包括横向运行服务、平台产品服务与插件创作台（见[系统架构 §3](system/ARCHITECTURE.md)）：`connector-host`、`scheduler`、`runtime-host`、`agent-host`、`account` 是 5 个横向运行服务，保存 cursor、lease、retry 等可恢复的技术状态；`agent-host` 另外保存下面列出的 Agent 配置、工作授权和审查决定。`memory`、`placement`、`search`、`knowledge`、`surfaces`、`kit`、`mainline`、`appearance`、`observation`、`blueprints`、`evaluation`、`sessions`、`automation-recommender`、`project-approvals`、`home` 按职责属于 15 个「平台产品服务」（目录暂留在 `horizontal/` 下），可以持有跨插件的策略和本服务自己的机制记录（放置的关联与来源、记忆的开关、候选与撤销、可重建的搜索索引、采集层的记录与覆盖登记、场景包草稿与采用回执、端到端评测的冻结样本与判定记录、外部会话的读取范围与归属决定、项目自动化建议偏好、平台可信决定与项目审批规则）。第 21 个包 `plugin-studio` 拥有创作台自己的草稿、构建与发布记录。情境排序（`packages/kernel` 的 `contextual.ts`）同属平台产品服务，代码位置不变。两类都不拥有 Goal、Signal、Action 等插件或 Module 的业务事实；外部会话的正文与运行状态始终归原外部工具。
 
 **观测采集层与评测服务已登记在上表**（`horizontal/observation` 与 `horizontal/evaluation`，成熟度均为 `slice`）：`observation` 只拥有观察记录本身、证据快照、覆盖登记与缺口、用途与保留设置及样本留存，原始业务内容、正式状态及对象身份仍归对应插件或服务；历史证据不产生第二份可编辑事实，清理只删记录与无引用快照、不连带删业务内容。第 28 批已随 #2059 合入写入面，第 29 批接入历史查询与证据读取、用途与跨项目边界（S-74）、暂停／恢复、自动与手动清理、空间占用与容量提醒以及全局设置「个人 → 工作记录」界面；第 30 批接入评测样本留存（`observation.holds.*@1`）与独立评测服务（`horizontal/evaluation`）。评测与主动助理经公开能力消费同一事实，分别负责效果判断和工作建议，不各建采集链；实施沿后续演进计划 C 轨。
 
@@ -173,7 +176,6 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `plugins/native/jelly` | 个人日历与笔记（收想法在灵光） | Home Runtime 独占原库；模型及配置经有限服务 | `production` | `specs/archive/jelly-plugin/` | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `plugins/native/cognia` | 个人知识库（现行 native 版） | 见下文「Cognia 个人知识库」；Cognia 2（生成插件方向）需求书未实施 | `production` | `specs/archive/cognia-plugin/spec.md`；`specs/archive/cognia-plugin/v2/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/workflows` | 工作流程：内容站交接、模板转换、AI 整理、判断规则、动作步骤 | 站点与步骤从动作目录发现；交接幂等、中断复用原结果；由 Plugin Runtime 装配（每个项目一份），经 `actions:delegate` 以调用者本人的身份调站点与步骤，不放宽调用者的授权 | `production` | `specs/action-architecture/spec.md` 工作流程节；`specs/archive/repository-anti-corruption/spec.md` W5-01-WORKFLOWS | 内置插件：@yijunw0212 |
-| `horizontal/plugin-studio` | 插件创作台：从一句需求生成插件；平台能力，不是插件（第 47 批 47-1 C，用户 2026-11-22），后续作为平台场景组装能力的创作入口（2026-10-27） | 见下文「插件创作工作台」；不进插件目录与项目插件成员，外壳按平台宿主界面名单画它，草稿与发布版本原地不迁；缺片：整体体验与端到端交付（用户 2026-10-27 反馈至今未完整跑通），包含新能力创作与手动／个人助理组合已有插件，Alchemist 为落地场景；后续：BL-377 | `slice` | `specs/plugin-builder-upgrade/spec.md`（旧实现证据：`specs/archive/plugin-builder/work-items/studio-v3/spec.md`） | 横向服务：@yijunw0212 |
 | `plugins/official-integrations/catalog` | 连接器目录与文档导入 Provider | 目录条目、Notion 等 OAuth 与文档导入；账号检查经 `connectors.account.read` | `production` | `specs/archive/connector-method-directory/spec.md` | 官方集成：@yijunw0212 |
 | `plugins/native/actions` | Actions 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `plugins/native/automation` | Automation 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
@@ -216,7 +218,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 技能声明和正文 | 提供技能的插件 | Manifest 的 methods 和已验签正文/资源；内置声明由原注册提供 |
 | 当前范围的目录与读取 | apps/local-host 的 Agent definitions | `system.skills` 的目录、导入与草稿/回放动作，每次投影安装、声明与授权；manual 只认宿主冻结点名 |
 | 技能自动/仅手动状态、接受后的使用记录 | apps/local-host 的 Agent definitions | `agent-definitions` 库第 2 版（#2209 升级段 `1 → 2` 将 `system:information/information.plan` 迁至 `io.molis.work.feed/feed.information-plan`）的 `skill_settings`、`skill_uses`，以及第 42 批的 `skill_drafts`、`skill_cases`、`skill_trials`、`skill_lineage`；项目与 home 分开，off 不留行；卸载删除状态、保留历史 |
-| 随系统自带的技能包 | 宿主构建产物 | `plugins/content/<包>/pack-content.json` 的 `system`；构建产物 `apps/local-host/dist/system-skills/`；不安装、不验签、不固定发布者，和安装包共用同一目录 |
+| 随系统自带的技能包 | 宿主构建产物 | `packages/system-skills/<包>/pack-content.json` 的 `system`；构建产物 `apps/local-host/dist/system-skills/`；不安装、不验签、不固定发布者，和安装包共用同一目录 |
 | 自己写的技能 | 每范围一个内容包 + 已装记录的发布者签名 | `my-skills.project`／`.home`；正文与声明在签名内容包，`skill_settings` 只存状态；认主只看已装记录的发布者签名 |
 
 助理和 Coding 都只读这一份目录（第 09 批）：Coding 旧的方法发现、安装和 Prologue 存储里的 `molis-coding-method` 已删，不迁移。

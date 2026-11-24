@@ -27,7 +27,7 @@ Molis Work 是本地优先的 **Agent OS**、**人机与团队协作工作台**�
 <!-- 2026-10-07 按代码现状改写（用户更正：产品是插件基座加多插件，Goals 是其中一个内置插件）；2026-11-19 第 44 批收口插件同等地位。只写已从代码核实的事实。 -->
 
 - **一个 Home，一个常驻宿主。** `~/.molis-work` 下只有一个执行进程，管项目数据库、插件、动作目录和 AI 运行时。浏览器和 macOS App 打开同一个 loopback 工作台；CLI 与 MCP 入口不自己执行，转发给常驻宿主。
-- **项目按插件组织。** 当前登记 23 个，以各包 `src/registration.ts` 为准（`apps/workbench/src/builtin-plugins.ts` 由它们生成），分两类：
+- **项目按插件组织。** 当前登记 20 个，以各包 `src/registration.ts` 为准（`apps/workbench/src/builtin-plugins.ts` 由它们生成），分两类：
   - 项目插件 9 个，都在项目里按需添加或移除（移除后数据保留，重新添加恢复）：Goals（拥有 Goal 的事实；新项目不默认装，与其余项目插件同等地位）、Inbox、Feed、Schedule、风险、Work Brief（双实例：项目一半在项目里，个人简报那一半由 Home 装配），以及 Coding 一族（Coding、Git、Diff）。原来的参考插件 Text stats 已退役删除，插件作者的样板是 `examples/plugin-sample`，平台端口连线的测试用 `tests/fixtures/` 下的夹具。项目文件夹的浏览、阅读和固定快照、选区是平台的资料服务（侧栏与主区的「资料」），不是插件；原来的 Files 插件第 06 批退役。
   - 个人插件 11 个，对每个项目都开着，项目可以隐藏：Cognia、图片、Jelly、灵光、待办、Issue、Pages、Forms、Dataset、PPT、工作流程。成果库、插件创作台与置物架 Shelf 是平台能力（Shelf 第 44B 批起是平台部件，入口在右栏）；角色（Character）是设置里的一节。
 - **每项事实一个主人。** 项目指导归平台项目服务（`modules/projects`），可信用户决定与项目审批规则归平台审批服务（`horizontal/project-approvals`），要求/证据/逐项认可归平台认可模块（`modules/acceptance`），对象工作终端服务归宿主装配（`apps/local-host/src/work-terminal-service.ts`，底层 PTY 宿主归 `horizontal/runtime-host`）；Goal、关系和工作事件历史归 Goals，来源配置归来源（Sources）、信息流条目归 Feed、需要用户介入的事项归 Inbox，固定版本的成果归成果库；个人插件各管自己的内容（日历与笔记归 Jelly，待办归待办插件，知识库归 Cognia，文档归 Pages，演示稿归 PPT，等等），内容放在 Home 级的库里。其他插件不复制这些事实；完整归属与成熟度以 `docs/SSOT-MATRIX.md` 为准。

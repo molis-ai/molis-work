@@ -147,7 +147,7 @@
 7. **当前保留机制**见下节：它们属于现行功能或依赖，不是兼容窗口，不允许据此增加历史格式读取。
 8. **破坏性变更要在升级须知里写一条。** 装新版本的人要动手的合同变更（MCP 工具名变了、固定的引用要重选、动作升了版本），在 `docs/releases/CHANGELOG.md` 的 `[Unreleased]`「升级须知」里写一条：谁要动什么；发布时它随版本发出去。PR 描述照第 2 条列消费者，升级须知是给用户看的，两处都要。
 
-**第 47 批独立复核修复。** 新增 `plugins.installed.repair@1` 与 `plugins.home.installed.repair@1`，由宿主的安装提供方登记。仅相应范围的本人设置入口可调用，输入固定到安装身份、代次、版本和 Manifest 摘要，可附原签名包；沿用安装原批准。安装单的错误在 `details.install_phase` 给出 `check`／`install`／`start`，由外壳本地化。插件和现有安装调用方的合同及库格式不变。见[修复需求书](../../specs/batch-47-review-fixes/spec.md)。
+**第 47 批独立复核修复。** 新增 `plugins.installed.repair@1` 与 `plugins.home.installed.repair@1`，由宿主的安装提供方登记。仅相应范围的本人设置入口可调用，输入固定到安装身份、代次、版本和 Manifest 摘要，可附原签名包；沿用安装原批准。安装单的错误在 `details.install_phase` 给出 `check`／`install`／`start`，由外壳本地化。插件和现有安装调用方的合同及库格式不变。见[修复需求书](../../specs/archive/batch-47-review-fixes/spec.md)。
 
 ### 当前保留机制
 

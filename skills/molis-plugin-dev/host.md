@@ -55,7 +55,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 在 Manifest 里声明 `owner_files: { store_name, entries, read_permission, write_permission }`（和 `databases.home` 一样，宿主条目上不再写），其中 entries 固定顶层文件或目录，根须已登记归该插件所有；根可以同时放这个插件自己 Manifest 声明的库（`databases.home` 同一个 store），条目不能叫库文件（`<库名>.db*`）或分区目录 `projects`，别的插件的库不行。声明了却不在宿主启动名单上的定义启动被拒（`plugin.declaration_invalid`）；项目插件不能声明，双实例插件在项目里的那一半与 Home 那一半共用 Manifest、不拿服务。`services.ownerFiles` 提供 `stat/read/list` 与 `await write(writer => …)`；写回调同步完成，动作之内每个原语重查原动作和原调用者的权限，不能保存 writer 或跨 await 使用；动作之外（`start`、`start` 里设的定时器、路由）凭这个安装当前的授权（`storage:private` 加文件权限）决定，撤权、停用、卸载后拒绝，别的实例的动作里和场景里一律拒绝。Writer 支持 mkdir、独占 create/copy、存在文件 replace、原子替换、树删除与固定访问模式（只读 0o400/0o500、读写 0o600/0o700，不留组和其他人的位），接受 Unicode 相对路径但拒绝链接、硬链接和特殊节点。声明目录顶层不能删除。
 
-没有启动钩子：初始文件由插件在自己的 `start` 里用 `await services.ownerFiles.write(…)` 写（写 grant 有效才写）。写回调同步完成，失败不回滚已写入的字节。原子替换在 rename 前失败保留原文件，树删除先预检；没有多文件事务或抵御同 OS 用户并发替换父目录的承诺。自报 id、project、sandbox 和升级预检不能取得此服务。Shelf 用它：Home 实例在自己的 `start` 里放一次首次示例（`createHomeShelfPlugin` 里 `files.write(initializeShelfFiles)`）；Images 用它存生成的图片（`images:files:write`），在自己的 `start` 里回收没人引用的图片。详情见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-主人的私有文件树)。
+没有启动钩子：初始文件由插件在自己的 `start` 里用 `await services.ownerFiles.write(…)` 写（写 grant 有效才写）。写回调同步完成，失败不回滚已写入的字节。原子替换在 rename 前失败保留原文件，树删除先预检；没有多文件事务或抵御同 OS 用户并发替换父目录的承诺。自报 id、project、sandbox 和升级预检不能取得此服务。Images 用它存生成的图片（`images:files:write`），在自己的 `start` 里回收没人引用的图片。详情见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-主人的私有文件树)。
 
 ### Home 模型配置与生图
 
@@ -111,7 +111,7 @@ Agent 会话等平台审批时，任务行用 `held_reviews: { session_id, ids }
    对照 Feed/Inbox 各自 `src/registration.ts` 的 `clientFactory` 与 `src/browser/factory.ts`，客户端已在插件包里；贡献经 Runtime 与通用声明挂载通道呈现，不新增 `ui-composition.ts` / `renderer.ts` 的插件专名分支。样式随登记按第 4 步装配。上述 Feed/Inbox 去向对应 T118 的冻结父候选，最终父修复、验收与实际采用另行结算，不能据此签 PG-060 完成。
 6. **项目实例**：同一份 `registration` 写 `project_runtime: { create: createXPlugin, package_name: "@molis-ai/molis-work-plugin-x", factory_export: "createXPlugin" }`（包名与工厂名写字面量，门禁按语法读），重新生成。每个项目的监督器（`apps/local-host/src/project-plugins.ts`）按登记的顺序启动它，给 `trust: HOST_BUILD_TRUST` 与 `nativePluginReleaseArtifact`，那个文件不为新插件改（PG-067）。工厂不收宿主端口：要宿主的东西走平台服务或 Manifest 声明的动作（平台资料服务读项目的目录用 `projects.directories.get`，BL-616）。`trust: HOST_BUILD_TRUST` 让内置插件随宿主版本升级，不写 `upgrade_compatibility`。`start()` 要兑现 Manifest 的每一条（见下面「app 一等」一节）。
 7. **门禁名单**：不用改。`tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED` 从生成的登记读 `project_runtime`，再核包真的导出那个工厂、工厂给出登记的 Manifest；`project-plugins.ts` 不手写启动任何插件，也不点名插件包（RAC-571）。
-8. **HTTP**：写 Manifest `routes`，由 Plugin Runtime 挂在 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作；不写 Host 文件，也不要往 `web-request.ts` 的路由表加条目；宿主的 `*-native-plugin-http.ts` 只属于批过的构建期例外（`tests/builtin-plugin-assembly-gate.test.ts` 的 `NATIVE_PLUGIN_HTTP_FILES`），不再新增条目。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。舞台通过 Manifest `views`、`stage_data` 与 `registration.workbench.contributions` 声明，Runtime 从运行中的实例绘制，外壳按贡献描述通用挂载（同第 5 步），不再以手写 `render<X>Contribution` 作为新增插件步骤。要把内容放进别的插件的页面，就在它的描述符里声明 `slots`，被嵌入的插件在 Manifest `ui.embedded_plugins` 里列出，并用 `target_slot_id` 指向那个槽（Coding 的目录与阅读器里的 Git、Diff）。
+8. **HTTP**：写 Manifest `routes`，由 Plugin Runtime 挂在 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作；不写 Host 文件，也不要往 `web-request.ts` 的路由表加条目；构建期 HTTP 例外表 `NATIVE_PLUGIN_HTTP_FILES` 已清空。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。舞台通过 Manifest `views`、`stage_data` 与 `registration.workbench.contributions` 声明，Runtime 从运行中的实例绘制，外壳按贡献描述通用挂载（同第 5 步），不再以手写 `render<X>Contribution` 作为新增插件步骤。要把内容放进别的插件的页面，就在它的描述符里声明 `slots`，被嵌入的插件在 Manifest `ui.embedded_plugins` 里列出，并用 `target_slot_id` 指向那个槽（Coding 的目录与阅读器里的 Git、Diff）。
 9. **界面语言**：插件以 Manifest 的 `ui.locales` 声明 `locales/<语言>.json`。用 SDK 的 `t`、`say` 和 `format` 取字。页面与客户端从同一准确来源读取；插件不能借同名安装或接管平台词。
 10. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。
 11. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（插件切换/常驻/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
@@ -124,7 +124,7 @@ Agent 会话等平台审批时，任务行用 `held_reviews: { session_id, ids }
 
 `APPROVED_BUILD_TIME_EXCEPTIONS` 第 44B 批起为空：插件创作台第 47 批起是平台能力，最后一个构建期例外（旧炼金术士，连同它的 `alchemist-native-plugin-http.ts`）在第 44B 批删除。新插件只走 Plugin Runtime。
 
-- Shelf 不属于这一份：它已由监督器启动（在 `RUNTIME_ASSEMBLED`，不是构建期例外），路由从 Shelf S3 起是 Manifest 声明的插件路由（`/api/platform/shelf/…`），宿主里已没有 Shelf 名下的文件（Shelf S4：演示数据的示例由常驻宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回），新插件不照抄。
+- 置物架归平台模块 `modules/shelf`，入口是 `/api/platform/shelf/…`。
 - `project_id` 同样由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 
 ### 按需
@@ -204,7 +204,7 @@ Inbox 的 `GET/POST /api/plugins/io.molis.work.inbox/pages` 由 Plugin Runtime �
 
 已注册到当前项目 Runtime 的路由按 Manifest 和实际 contribution 自动分发，Web 外层和内部适配器均不再维护插件 ID 白名单。业务 HTTP 使用 `bindPluginActionRoute` 转调统一动作；生命周期仍由 supervisor 管理。新实例追加注册不应覆盖已有路由；停用后的请求不得重新启用实例。内置项目启用检查、控制令牌、origin 与一次性请求键继续生效。`/restart`、`/release-quarantine`、`/upgrade` 保留给 Host 生命周期，业务路由避开这些路径；不要在 Host 为新插件增加同名字段的结果加工。
 
-`kind: "app"` 必须真的经 Plugin Runtime `start()`。今天：Coding、Git、Diff（Shelf 是 `native`，同样由监督器启动）。启动按各自登记的 `project_runtime`；Coding 族的工作面由 `project-plugin-stages.ts` 按声明画（Shelf 的由 workbench 渲染）；`/api/plugins/<plugin_id>/` 由 `project-plugin-http.ts` 的 `handleProjectPluginHttp` 转给运行中的插件，它不认识任何插件，也不接受调用方塞进路由前后的步骤；工作区的变化（含项目设置里换目录）经 `host.workspace.changed@1` 广播给订阅的插件，Git 收到后重新确认要看的文件夹。插件跑没跑起来，按插件从监督器读（`projectPluginProblem`）。
+`kind: "app"` 必须真的经 Plugin Runtime `start()`。今天：Coding、Git、Diff。启动按各自登记的 `project_runtime`；Coding 族的工作面由 `project-plugin-stages.ts` 按声明画；`/api/plugins/<plugin_id>/` 由 `project-plugin-http.ts` 的 `handleProjectPluginHttp` 转给运行中的插件，它不认识任何插件，也不接受调用方塞进路由前后的步骤；工作区的变化（含项目设置里换目录）经 `host.workspace.changed@1` 广播给订阅的插件，Git 收到后重新确认要看的文件夹。插件跑没跑起来，按插件从监督器读（`projectPluginProblem`）。
 
 `start(context)` 返回 `kind: "app"`，并且：
 
@@ -246,7 +246,7 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 | --- | --- |
 | Goal / 注意力 / Feed 消息 | 对应 Module，插件只调公开 API |
 | 可同步、可打开的结果 | Artifact |
-| 本机文档/问卷/表/置物架/灵光 | `{home}/<id>/<id>.db`，按 `project_id` 分区；不要冒充 Module |
+| 本机文档/问卷/表/灵光 | `{home}/<id>/<id>.db`，按 `project_id` 分区；不要冒充 Module |
 | 凭据 | secret 引用 |
 | 给别的插件的瞬时协调 | 事件总线（仅经 Plugin Runtime 启动的插件，≤16 KiB） |
 

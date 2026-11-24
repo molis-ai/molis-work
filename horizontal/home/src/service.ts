@@ -37,6 +37,7 @@ import { inspectHomePageDesign } from "./design-check.js";
 import { actionKey, type HomePagesStore } from "./store.js";
 
 export interface HomePagesPorts {
+  readonly palettes?: readonly import("@molis-ai/molis-work-contracts/platform/ui").UiTokenMap[];
   open(projectId: string): HomePagesStore;
   discover(caller: ActionCallContext, mode: "save" | "approve"): Promise<readonly ActionView[]>;
   openPreviewSession(caller: ActionExecutionContext, version: HomePageVersion): { page_session_id: string };
@@ -243,7 +244,7 @@ export async function previewHomePage(
   assertDirectUserOnly(caller, "只有本人可以打开生成首页草稿的试用会话");
   const store = ports.open(projectId);
   const verified = store.readFilesVerified(input);
-  const designReport = inspectHomePageDesign(verified.files);
+  const designReport = inspectHomePageDesign(verified.files, { palettes: ports.palettes });
   if (!designReport.ok) {
     const reasons = designReport.issues.filter(item => item.severity === "error").map(item => `${item.path}: ${item.reason}`);
     throw homeErrors.draft_invalid(reasons.join("；") || "页面未通过安全与样式检查，不能进入预览", {
@@ -266,9 +267,12 @@ export async function approveHomePage<Op extends HomePageApprovalOperation>(
   const projectId = requireProjectId(caller);
   assertTopLevelUserApproval(caller, ports);
   const store = ports.open(projectId);
+  const decision = { ...input, operation, actor_id: caller.actor_id };
+  // The store verifies the original request contents on replay. No new approval or selection is made.
+  if (store.readApprovalReceipt(caller.actor_id, operation, input.request_id)) return store.approveAndSelect(decision).receipt;
   // Ensure the target version exists and its stored files pass SHA-256 integrity before approving.
   const verified = store.readFilesVerified({ page_id: input.page_id, version: input.version });
-  const designReport = inspectHomePageDesign(verified.files);
+  const designReport = inspectHomePageDesign(verified.files, { palettes: ports.palettes });
   if (!designReport.ok) {
     const reasons = designReport.issues.filter(item => item.severity === "error").map(item => `${item.path}: ${item.reason}`);
     throw homeErrors.draft_invalid(reasons.join("；") || "页面未通过安全与样式检查，不能采用", {
@@ -286,15 +290,7 @@ export async function approveHomePage<Op extends HomePageApprovalOperation>(
   requireSynchronous(caller.assert_authority_current?.(), "首页批准前必须完成同步授权检查");
   caller.signal?.throwIfAborted();
 
-  const { receipt, changed } = store.approveAndSelect({
-    operation,
-    actor_id: caller.actor_id,
-    page_id: input.page_id,
-    version: input.version,
-    approved_actions: input.approved_actions,
-    request_id: input.request_id,
-    expected_revision: input.expected_revision,
-  });
+  const { receipt, changed } = store.approveAndSelect(decision);
   if (changed) ports.onSelectionChanged?.(projectId);
   return receipt;
 }
@@ -340,7 +336,7 @@ export async function readHomePageFiles(
   return ports.open(projectId).readFilesVerified(input);
 }
 
-/** Reads the currently adopted generated homepage version, verified files, and approved actions for opening a live session. */
+/** Reads the selected version and grants. The shell route obtains verified bytes through the owner action and rechecks selection before issuing a session. */
 export function readAdoptedHomePageSessionTarget(
   ports: Pick<HomePagesPorts, "open">,
   projectId: string,
@@ -351,12 +347,12 @@ export function readAdoptedHomePageSessionTarget(
     throw homeErrors.page_not_found("当前项目使用的是基础首页，没有已采用的生成首页");
   }
   const ref: HomePageRef = { page_id: state.selection.page_id, version: state.selection.version };
-  const verified = store.readFilesVerified(ref);
   const detail = store.readVersion(ref);
+  if (!detail) throw homeErrors.version_not_found("当前采用的版本已不存在");
   return {
     ref,
-    version: verified.version,
-    approved_actions: detail?.approval?.approved_actions ?? [],
+    version: detail.version,
+    approved_actions: detail.approval?.approved_actions ?? [],
   };
 }
 

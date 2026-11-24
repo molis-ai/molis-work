@@ -331,6 +331,7 @@ export async function mountHomePageFrame(options: {
   readonly routePrefix: string;
   readonly headers: () => Record<string, string>;
   readonly appearance?: AppearanceProjection;
+  readonly signal?: AbortSignal;
   readonly onCrash?: (reason: string) => void;
   readonly onReady?: () => void;
 }): Promise<MountedHomePageFrame> {
@@ -343,6 +344,7 @@ export async function mountHomePageFrame(options: {
     appearance: options.appearance,
   });
 
+  options.signal?.throwIfAborted();
   const iframe = document.createElement("iframe");
   iframe.className = "home-generated-frame";
   iframe.setAttribute("sandbox", "allow-scripts allow-forms");
@@ -474,7 +476,7 @@ export async function mountHomePageFrame(options: {
       try { channel.port1.close(); } catch { /* ignore */ }
       iframe.remove();
       void fetch(`${options.routePrefix}/api/home-pages/session/${encodeURIComponent(options.pageSessionId)}`, {
-        method: "DELETE",
+        method: "DELETE", keepalive: true,
         headers: options.headers(),
       }).catch(() => undefined);
     },

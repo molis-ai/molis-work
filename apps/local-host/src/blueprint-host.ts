@@ -8,6 +8,9 @@ import { resolveEffectiveSetting } from "@molis-ai/molis-work-plugin-sdk";
 import { blueprintProvider, type AdoptionProgress, type DiscoveredSetting, type SettingBinding, type SettingsAccess } from "@molis-ai/molis-work-service-blueprints";
 import { projectRuntimeSettingOwner, runtimeSettingSnapshot } from "./project-runtime-setting-actions.js";
 import { restrictLocalCallerToHome } from "./local-web-actions.js";
+import { homePageOwner } from "./home-actions.js";
+import type { ContentAdoptionResult } from "@molis-ai/molis-work-contracts/platform/blueprints";
+import type { HomePageReadResult } from "@molis-ai/molis-work-contracts/services/home";
 import { systemSettingOwners } from "./system-setting-owners.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -126,7 +129,33 @@ export function hostBlueprints(home: string, host: MolisWorkLocalHost, catalog: 
       assertOwner(candidate);
       return result;
     };
+    const owner = homePageOwner.provider_id;
+    // A new project's preview can name the system owner before the project exists. Execution always discovers it in that project.
+    const registered = directory.find(view => view.provider.kind === "system" && view.provider.provider_id === owner
+      && view.provider.project_id === project && view.provider.adopts?.some(entry => entry.type === homePageOwner.adopts.type));
+    const declaration = registered?.provider.adopts?.find(entry => entry.type === homePageOwner.adopts.type) ?? homePageOwner.adopts;
+    const readPage = { ...declaration.read, provider_id: owner };
+    const savePage = { ...declaration.adopt, provider_id: owner };
+    const declared = [readPage, savePage].every(action => directory.some(v => v.provider.kind === "system"
+      && v.provider.provider_id === owner && v.capability_id === action.capability_id && v.version === action.version && v.availability.available));
     return {
+      ...(registered && declared && project || preview?.kind === "new_project" ? { homePage: {
+        declaration, owner,
+        save: async input => await client.invoke(nested, savePage, input) as ContentAdoptionResult,
+        saved: async request_id => {
+          const result = await client.invoke(nested, readPage, { queries: [{ by: "request", operation: "adopt", request_id }] }) as HomePageReadResult;
+          const row = "results" in result && result.results[0];
+          if (!row || row.kind !== "receipt" || !("outcome" in row.receipt)) return undefined;
+          const { outcome, subject, revision } = row.receipt;
+          return outcome === "created" || outcome === "reused" || outcome === "modified" ? { outcome, subject, revision } : undefined;
+        },
+        approved: async (request_id, page, version) => {
+          const result = await client.invoke(nested, readPage, { queries: [{ by: "approval_request", operation: "adopt", request_id }] }) as HomePageReadResult;
+          const row = "results" in result && result.results[0];
+          return Boolean(row && row.kind === "receipt" && "approval" in row.receipt && row.receipt.operation === "adopt"
+            && row.receipt.selection.page_id === page && row.receipt.selection.version === version);
+        },
+      } } : {}),
       discover: async () => discovered,
       read: async (owner, keys) => defaults && owner.provider_id === projectRuntimeSettingOwner.provider_id
         ? keys.map(key => resolveEffectiveSetting(runtimeSettingSnapshot(key, undefined, defaults))) : (await invoke(owner, owner.read, { keys })).values,

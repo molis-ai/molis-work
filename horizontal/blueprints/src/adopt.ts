@@ -123,6 +123,35 @@ export class AdoptionExecution {
       let result: BlueprintApplyStep;
       if (!selected.has(step.part_id)) result = { ...base, state: "skipped", reason: "not_selected" };
       else if (part.decision === "skip") result = { ...base, state: "skipped", reason: part.reason };
+      else if (part.proposal.kind === "content" && part.decision === "create") {
+        const page = access.homePage;
+        const action = part.candidates.find(candidate => candidate.kind === "owner")?.action;
+        const request = adoptionId + ":" + step.part_id;
+        if (!page || page.declaration.type !== part.proposal.type || action?.provider_id !== page.owner)
+          result = step.apply.state === "pending_verification" || step.apply.state === "needs_approval" ? step.apply : { ...base, state: "skipped", reason: "owner_unavailable" };
+        else {
+          try {
+            if (step.apply.state === "not_started" || step.apply.state === "failed")
+              await this.change(caller, record, step, { ...base, state: "pending_verification", request_id: request }, "apply");
+            let receipt = await page.saved(request);
+            if (!receipt) {
+              await beforeWrite(caller);
+              await page.save({ request_id: request, blueprint: { source: preview.source, part_id: step.part_id },
+                selection: { kind: "create" }, body: part.proposal.body });
+              receipt = await page.saved(request);
+            }
+            if (!receipt || typeof receipt.revision !== "number") continue;
+            const approval = { page_id: receipt.subject.id, version: receipt.revision, approval_request_id: request + ":approve" };
+            result = await page.approved(approval.approval_request_id, approval.page_id, approval.version)
+              ? { ...base, state: "applied", outcome: receipt.outcome, receipt: { action, subject: receipt.subject, revision: receipt.revision }, approval }
+              : { ...base, state: "needs_approval", ...approval };
+          } catch (error) {
+            assertCurrent(caller);
+            const failure = knownFailure(error);
+            result = failure ? { ...base, state: "failed", error: failure } : { ...base, state: "pending_verification", request_id: request };
+          }
+        }
+      }
       else if (!plan) result = { ...base, state: "skipped", reason: "unsupported" };
       else if (unavailable) {
         result = step.apply.state === "pending_verification" ? step.apply : { ...base, state: "skipped", reason: "owner_unavailable" };

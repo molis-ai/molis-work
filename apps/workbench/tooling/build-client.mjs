@@ -95,15 +95,35 @@ const BROWSER_BUNDLES = [
     target: "es2022",
     outfile: "dist/language-client.js",
   },
-  {
-    ...DEFAULT_BROWSER,
-    entryPoints: ["src/browser/mainline-entry.ts"],
-    globalName: "molisWorkMainline",
-    target: "es2022",
-    legalComments: "none",
-    outfile: "dist/mainline-client.js",
-  },
 ];
+
+// The shell already loads mainline before workbench. Let esbuild find shared modules once, then
+// keep the two existing classic-script assets and their loading order (including framed workbenches).
+async function buildWorkbenchPair() {
+  const result = await build({ ...DEFAULT_BROWSER, entryPoints: {
+    mainline: "src/browser/mainline-entry.ts", home: "src/browser/project-home.ts",
+  }, outdir: "dist", format: "esm", splitting: true, chunkNames: "shared", target: "es2022", write: false, metafile: true });
+  const sources = new Map(result.outputFiles.map(file => [file.path.split("/").at(-1), file.text]));
+  const exports = result.metafile.outputs["dist/shared.js"].exports;
+  async function wrap(entry, globalName) {
+    const first = entry === "mainline";
+    const wrapped = await build({ ...DEFAULT_BROWSER, target: "es2022", write: false, globalName,
+      stdin: { contents: `export * from "./${entry}.js";` + (first ? 'export * as shared from "./shared.js";' : "") },
+      plugins: [{ name: "workbench-pair", setup(builder) {
+        builder.onResolve({ filter: /^\.\/(home|mainline|shared)\.js$/ }, ({ path }) => ({ path: path.slice(2), namespace: "pair" }));
+        builder.onLoad({ filter: /.*/, namespace: "pair" }, ({ path }) => ({
+          contents: path === "shared.js" && !first
+            ? exports.map(name => `export const ${name} = globalThis.molisWorkMainline.shared.${name};`).join("\n")
+            : sources.get(path),
+        }));
+      } }],
+    });
+    return wrapped.outputFiles[0].text;
+  }
+  const mainline = await wrap("mainline", "molisWorkMainline");
+  writeFileSync(new URL("../dist/mainline-client.js", import.meta.url), mainline);
+  return wrap("home", "molisWorkHomeView");
+}
 
 // Phase 1: build all browser bundles + in-memory composite bundles concurrently in one esbuild service.
 const [, frameResult, homeResult, subtaskResult] = await Promise.all([
@@ -114,14 +134,7 @@ const [, frameResult, homeResult, subtaskResult] = await Promise.all([
     outfile: "dist/plugin-frame-client.js",
     write: false,
   }),
-  build({
-    ...DEFAULT_BROWSER,
-    entryPoints: [new URL("../src/browser/project-home.ts", import.meta.url).pathname],
-    globalName: "molisWorkHomeView",
-    target: "es2022",
-    legalComments: "none",
-    write: false,
-  }),
+  buildWorkbenchPair(),
   build({
     ...DEFAULT_BROWSER,
     entryPoints: ["src/browser/assistant-subtasks.ts"],
@@ -160,7 +173,7 @@ writeFileSync(mainline, compactClientScript(readFileSync(mainline, "utf8")));
 
 const source = workbenchClientSource();
 if (!source.startsWith(UI_REQUEST_CLIENT_SCRIPT)) throw new Error("Workbench request bootstrap must be first");
-const home = homeResult.outputFiles[0].text;
+const home = homeResult;
 const body = compactClientScript(source.slice(UI_REQUEST_CLIENT_SCRIPT.length));
 writeFileSync(
   new URL("../dist/workbench-client.js", import.meta.url),

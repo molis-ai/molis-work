@@ -16,7 +16,7 @@ function renderEventGlyph(ev: WorkLineEvent): string {
   return `<i class="work-dg" data-g="next" aria-hidden="true"></i>`;
 }
 
-export const WORK_ITEM_SYSTEM_OWNER = "work-item";
+const WORK_ITEM_SYSTEM_OWNER = "work-item";
 
 export interface WorkItemPageHost {
   route(path: string): string;

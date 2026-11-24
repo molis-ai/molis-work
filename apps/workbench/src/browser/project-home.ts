@@ -4,6 +4,7 @@ import { homeButton, homeReadAt, homeWord, isPlacementControl, renderHome, rende
 import { createPositionCorrections } from "./project-position-corrections.js";
 import { positionMenuKey } from "./project-position-menu.js";
 import { createPositionPeek } from "./project-position-peek.js";
+import { mountHomePageFrame } from "./plugin-frame/home-page-document.js";
 import type { mountHomePages } from "./project-home-pages.js";
 
 interface HomeHost {
@@ -399,6 +400,8 @@ export function mountHome(host: HomeHost) {
 
   /** The visit ends: when it ended is kept for 「自你上次来」, and the page is taken off. */
   const leave = () => {
+    homePages?.suspend();
+    needsRead = true;
     visit.end();
     showAll = false;
     cancel(true);
@@ -415,7 +418,7 @@ export function mountHome(host: HomeHost) {
   const homePages =
     host.projectKey && host.projectKey !== "personal" && mountPages
       ? mountPages({
-          root,
+          root, mountFrame: mountHomePageFrame,
           projectKey: host.projectKey,
           routePrefix: host.routePrefix ?? `/projects/${encodeURIComponent(host.projectKey)}`,
           api: <T>(path: string, method: "POST" | "DELETE", body?: unknown, signal?: AbortSignal) =>
@@ -444,7 +447,6 @@ export function mountHome(host: HomeHost) {
   });
   return {
     sync: syncAll,
-    openCompare: (ref: { page_id: string; version: number }) => homePages?.openCompare(ref),
     dispose() {
       unwatch();
       primary.stop();

@@ -239,6 +239,15 @@ test("SPC-10 ONB-25 ONB-26 ONB-27 WBR-26: home page lifecycle — draft save, bl
   // 8. Design-language check catches violations and passes clean token-based files.
   const cleanReport = inspectHomePageDesign(sampleDraft("干净页面").files);
   assert.equal(cleanReport.ok, true);
+  // B37R-2: a readable light palette cannot mask an unreadable dark palette.
+  const contrast = (css: string, ...palettes: Record<string, string>[]) => inspectHomePageDesign(
+    [{ path: "page.css", media_type: "text/css", text: css }], { palettes }).issues.map(issue => issue.code);
+  const bodyColors = "p{color:var(--ink);background:var(--paper)}";
+  assert.deepEqual(contrast(bodyColors, { ink: "#767676", paper: "#ffffff" }), []);
+  assert.ok(contrast(bodyColors, { ink: "#000000", paper: "#ffffff" }, { ink: "#777777", paper: "#ffffff" }).includes("low_contrast"));
+  assert.ok(contrast("p{color:var(--ink);background-color:var(--ink)}").includes("low_contrast"));
+  assert.ok(contrast(".heading{color:var(--amber)}").includes("amber_usage"));
+  assert.deepEqual(contrast(".waiting{color:var(--amber)}"), []);
   const dirtyReport = inspectHomePageDesign([
     {
       path: "index.html",

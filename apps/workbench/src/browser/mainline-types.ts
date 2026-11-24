@@ -8,6 +8,7 @@ export interface MainlineResolvedItem {
   readonly title: string;
   readonly light: boolean;
   readonly source: ActionSubject | null;
+  readonly presentation?: { readonly markup: string; readonly done: boolean };
   readonly plugin_title: string | null;
   readonly open: OpenTarget | null;
 }
@@ -31,6 +32,7 @@ export interface MainlineContentEntryView {
   readonly state: "ok" | "missing" | "denied";
   readonly title: string;
   readonly kind_label: string;
+  readonly presentation?: { readonly markup: string; readonly done: boolean };
   readonly plugin_title: string | null;
   readonly open: { readonly surface: string; readonly id: string; readonly title: string } | null;
 }
@@ -100,7 +102,7 @@ export function buildWorkItemSummaries(view: MainlineViewResponse): WorkItemSumm
       name: itemDisplayTitle(res, item.name),
       state: res?.state ?? "ok",
       group_id: groupOf.get(item.item_id) ?? null,
-      completed: doneSet.has(item.item_id),
+      completed: doneSet.has(item.item_id) || Boolean(res?.presentation?.done),
       waiting: counts.waiting,
       running: counts.running,
       source: item.source ?? null,

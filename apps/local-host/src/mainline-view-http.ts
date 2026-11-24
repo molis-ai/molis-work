@@ -9,6 +9,8 @@ import {
   type WorkItem,
 } from "@molis-ai/molis-work-contracts/services/mainline";
 import { placementActions, type PlacementDescription } from "@molis-ai/molis-work-contracts/services/placement";
+import { PRESENTATION_LIMITS } from "@molis-ai/molis-work-contracts/platform/presentation";
+import { renderPresentationForm, stateRingFamily } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { homePageRequestBound } from "./home-page-authority.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -137,36 +139,6 @@ async function sourceDisplayLabels(
   }));
 }
 
-async function collectTaskItems(
-  client: BoundActionClient,
-  items: readonly MainlineItemDisplay[],
-  openIds: ReadonlySet<string>,
-): Promise<Record<string, { item_id: string; name: string }>> {
-  const map: Record<string, { item_id: string; name: string }> = {};
-  const active = items.filter((item) => openIds.has(item.item_id) && item.state === "ok" && item.title);
-  await Promise.all(active.map(async (item) => {
-    if (item.source) {
-      map[subjectKey(item.source)] = { item_id: item.item_id, name: item.title };
-    }
-    try {
-      const contents = await client.invoke(mainlineItemActions.contents, { item_id: item.item_id });
-      for (const held of contents.held) {
-        map[subjectKey(held)] = { item_id: item.item_id, name: item.title };
-      }
-      for (const group of contents.related) {
-        for (const subject of group.subjects) {
-          if (!map[subjectKey(subject)]) {
-            map[subjectKey(subject)] = { item_id: item.item_id, name: item.title };
-          }
-        }
-      }
-    } catch {
-      /* Ignore unreadable contents during best-effort task attribution. */
-    }
-  }));
-  return map;
-}
-
 async function describeEntry(
   client: BoundActionClient,
   projectId: string,
@@ -197,7 +169,7 @@ async function describeEntry(
       removable: origin === "held",
       state: "ok",
       title: desc.title,
-      kind_label: desc.plugin?.title ?? subject.kind,
+      kind_label: subject.kind,
       plugin_title: desc.plugin?.title ?? null,
       open,
     };
@@ -231,23 +203,54 @@ async function describeEntry(
   }
 }
 
+type ItemForm = { markup: string; done: boolean };
+type ReadForms = (subjects: ActionSubject[]) => Promise<Map<string, ItemForm>>;
+
+function itemForms(host: MolisWorkLocalHost, project: LocalHostProjectReference, signal: AbortSignal): ReadForms {
+  return async subjects => {
+    const rows = new Map<string, ItemForm>();
+    for (let i = 0; i < subjects.length; i += PRESENTATION_LIMITS.values_subjects) {
+      const selection = { slot: { kind: "side" as const }, subjects: subjects.slice(i, i + PRESENTATION_LIMITS.values_subjects) };
+      await host.surfacePosition(project, selection, "/projects/" + encodeURIComponent(project.project_id), signal, undefined, async access => {
+        const { display } = await access.display();
+        for (const row of display.rows) {
+          const ownerDisplay = display.owners[row.owner];
+          if (!ownerDisplay || row.fallback || row.read.state !== "ok") continue;
+          const status = row.declaration.status;
+          const raw = status && row.read.values?.[status.field];
+          const ring = status && typeof raw === "string" && Object.hasOwn(status.map, raw) ? status.map[raw]?.ring : undefined;
+          const markup = renderPresentationForm(row.declaration, "row", { locale: null, ownerDisplay, read: row.read, actions: [] });
+          rows.set(subjectKey(row.subject), { markup, done: Boolean(ring && stateRingFamily(ring) === "done") });
+        }
+        access.current();
+      });
+    }
+    return rows;
+  };
+}
+
 async function handleItemsView(
   response: ServerResponse,
   client: BoundActionClient,
   projectId: string,
+  forms: ReadForms,
 ): Promise<void> {
   const result = await client.invoke(mainlineItemActions.read, { counts: true });
   const [resolved, sources] = await Promise.all([
     Promise.all(result.mainline.items.map((item) => resolveSourceItem(client, projectId, item))),
     sourceDisplayLabels(client, result.sources),
   ]);
-  const openIds = new Set(result.mainline.groups.flatMap((group) => group.items.map((entry) => entry.item_id)));
-  const taskItems = await collectTaskItems(client, resolved, openIds);
+  const presentations = await forms(resolved.flatMap(item => item.source && item.state === "ok" ? [item.source] : []));
+  const byId = new Map(resolved.map(item => [item.item_id, item]));
+  const taskItems = Object.fromEntries((result.counts?.task_items ?? []).flatMap(({ subject, item_id }) => {
+    const item = byId.get(item_id);
+    return item?.state === "ok" ? [[subjectKey(subject), { item_id, name: item.title }]] : [];
+  }));
   sendLocalWebJson(response, 200, {
     mainline: result.mainline,
     sources,
     counts: result.counts ?? { items: {}, groups: {} },
-    resolved: Object.fromEntries(resolved.map((entry) => [entry.item_id, entry])),
+    resolved: Object.fromEntries(resolved.map(entry => [entry.item_id, entry.source && entry.state === "ok" ? { ...entry, presentation: presentations.get(subjectKey(entry.source)) } : entry])),
     task_items: taskItems,
   });
 }
@@ -257,6 +260,7 @@ async function handleContentsView(
   response: ServerResponse,
   client: BoundActionClient,
   projectId: string,
+  forms: ReadForms,
 ): Promise<void> {
   const body = await readLocalWebBody(request, 16_000);
   const itemId = typeof body.item_id === "string" ? body.item_id.trim() : "";
@@ -300,7 +304,9 @@ async function handleContentsView(
     }
   }
   const entries = await Promise.all(queued.map(({ subject, origin }) => describeEntry(client, projectId, subject, origin)));
-  sendLocalWebJson(response, 200, { item_id: itemId, entries, issues: contents.issues });
+  const rows = await forms(entries.filter(entry => entry.state === "ok").map(entry => entry.subject));
+  sendLocalWebJson(response, 200, { item_id: itemId, entries: entries.map(entry =>
+    ({ ...entry, presentation: rows.get(subjectKey(entry.subject)) })), issues: contents.issues });
 }
 
 /**
@@ -325,13 +331,17 @@ export async function handleMainlineViewHttp(
     sendLocalWebJson(response, 403, { error: "forbidden", message: "插件页面不能代本人读取主线事项" });
     return true;
   }
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  request.once("aborted", cancel); response.once("close", cancel);
   try {
-    const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS);
-    if (isItems) await handleItemsView(response, client, project.project_id);
-    else await handleContentsView(request, response, client, project.project_id);
+    const forms = itemForms(host, project, controller.signal);
+    const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS, { signal: controller.signal });
+    if (isItems) await handleItemsView(response, client, project.project_id, forms);
+    else await handleContentsView(request, response, client, project.project_id, forms);
   } catch (error) {
     const failure = actionErrorResponse(error);
     sendLocalWebJson(response, failure.status, failure.body);
-  }
+  } finally { request.off("aborted", cancel); response.off("close", cancel); }
   return true;
 }

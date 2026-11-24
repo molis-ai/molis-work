@@ -217,6 +217,9 @@ test("MLN-01 MLN-02 MLN-03 MLN-04 MLN-05 MLN-06 MLN-07 MLN-08 MLN-09 MLN-10 MLN-
   // 5. Reload persistence (active item, Recent, collapsed group) + search auto-expand collapsed group (MLN-23).
   await evaluate("document.querySelector('[data-top-corner-toggle]').click()");
   await waitFor("!document.querySelector('[data-top-corner-list]').hidden", WAIT_MS);
+  assert.equal(await evaluate("document.querySelector('[data-ml-group-toggle]')?.getAttribute('aria-expanded')"), "false", "MLN-23: groups start folded on first use");
+  await evaluate("document.querySelector('[data-ml-group-toggle]')?.click()");
+  await waitFor("document.querySelector('[data-ml-group-toggle]')?.getAttribute('aria-expanded') === 'true'", WAIT_MS);
   await evaluate("document.querySelector('[data-ml-group-toggle]')?.click()");
   await waitFor("document.querySelector('[data-ml-group-toggle]')?.getAttribute('aria-expanded') === 'false'", WAIT_MS);
   await navigate(() => command("Page.reload", {}, sessionId));

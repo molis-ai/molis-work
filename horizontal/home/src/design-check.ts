@@ -1,3 +1,4 @@
+import type { UiTokenMap } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { HomePageFile } from "@molis-ai/molis-work-contracts/services/home";
 
 export interface HomePageDesignIssue {
@@ -10,6 +11,8 @@ export interface HomePageDesignIssue {
     | "dynamic_eval"
     | "nested_embed"
     | "literal_color"
+    | "low_contrast"
+    | "amber_usage"
     | "pill_radius";
   readonly path: string;
   readonly severity: "error" | "warning";
@@ -43,7 +46,8 @@ const CROSS_PROJECT_PATH_RE = /\/projects\/[^/\s"']+\//u;
  * Extracts CSS declaration values (the part after `:` inside rule blocks, skipping selectors and nested at-rule preludes)
  * so ID selectors like `#feed`, `#cafe`, or `#fade` are never misclassified as literal hex colors.
  */
-function extractCssDeclarationValues(css: string): string[] {
+function extractCssDeclarationValues(css: string, visit: (selector: string, property: string, value: string) => void): string[] {
+  const selectors: string[] = [];
   const values: string[] = [];
   let i = 0;
   let depth = 0;
@@ -54,7 +58,9 @@ function extractCssDeclarationValues(css: string): string[] {
     if (colonAt >= 0 && colonAt < end) {
       const prop = css.slice(tokenStart, colonAt).trim();
       if (prop && !prop.includes("{") && !prop.includes("}") && !prop.startsWith("@")) {
-        values.push(css.slice(colonAt + 1, end));
+        const value = css.slice(colonAt + 1, end);
+        values.push(value);
+        visit(selectors.at(-1) ?? "", prop.toLowerCase(), value);
       }
     }
     tokenStart = end + 1;
@@ -77,11 +83,13 @@ function extractCssDeclarationValues(css: string): string[] {
       continue;
     }
     if (ch === "{") {
+      selectors.push(css.slice(tokenStart, i).trim());
       depth++;
       tokenStart = i + 1;
       colonAt = -1;
     } else if (ch === "}") {
       if (depth > 0) flushDecl(i);
+      selectors.pop();
       depth = Math.max(0, depth - 1);
       tokenStart = i + 1;
       colonAt = -1;
@@ -95,6 +103,18 @@ function extractCssDeclarationValues(css: string): string[] {
   return values;
 }
 
+function luminance(role: string, palette: UiTokenMap): number | undefined {
+  const visited = new Set<string>();
+  let value = palette[role];
+  while (value && typeof value === "object" && "role" in value && !visited.has(value.role)) {
+    visited.add(value.role); value = palette[value.role];
+  }
+  if (typeof value !== "string" || !/^#[0-9a-f]{6}$/iu.test(value)) return undefined;
+  const channels = [1, 3, 5].map(i => parseInt(value.slice(i, i + 2), 16) / 255)
+    .map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
+}
+
 /**
  * Inspects generated-page files against the Batch 37 isolation and Soft Workbench design-language rules:
  * - Zero inline `style=` attributes or `on*=` event handlers (strict hash-only CSP without `'unsafe-inline'`).
@@ -104,7 +124,7 @@ function extractCssDeclarationValues(css: string): string[] {
  */
 export function inspectHomePageDesign(
   files: readonly HomePageFile[],
-  options: { readonly actionsValid?: boolean; readonly actionIssueReason?: string } = {},
+  options: { readonly actionsValid?: boolean; readonly actionIssueReason?: string; readonly palettes?: readonly UiTokenMap[] } = {},
 ): HomePageDesignCheckReport {
   const sandboxIssues: HomePageDesignIssue[] = [];
   const scopeIssues: HomePageDesignIssue[] = [];
@@ -175,7 +195,28 @@ export function inspectHomePageDesign(
           reason: "样式不能引用外部网络资源（url 或 @import），所有资源必须声明在页面清单内",
         });
       }
-      const declValues = extractCssDeclarationValues(stripped);
+      const colors = new Map<string, { ink?: string; paper?: string }>();
+      let amberMisused = false;
+      const declValues = extractCssDeclarationValues(stripped, (selector, prop, value) => {
+        if (prop !== "color" && prop !== "background" && prop !== "background-color") return;
+        const role = /^\s*var\(\s*--([a-z0-9-]+)\s*\)\s*(?:!important)?\s*$/iu.exec(value)?.[1];
+        if (!role) return;
+        if (/^amber(?:-|$)/u.test(role) && !/attention|waiting|approval|question|decision|ask|danger/iu.test(selector)) amberMisused = true;
+        const pair = colors.get(selector) ?? {};
+        if (prop === "color") pair.ink = role; else pair.paper = role;
+        colors.set(selector, pair);
+      });
+      if (amberMisused) designIssues.push({ code: "amber_usage", path: file.path, severity: "error", reason: "琥珀色只用于等你确认的内容" });
+      for (const { ink = "ink", paper = "paper" } of colors.values()) {
+        const fails = ink === paper || options.palettes?.some(palette => {
+          const fg = luminance(ink, palette), bg = luminance(paper, palette);
+          return fg !== undefined && bg !== undefined && (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05) < 4.5;
+        });
+        if (fails) {
+          designIssues.push({ code: "low_contrast", path: file.path, severity: "error", reason: "文字与背景的对比度不足 4.5:1" });
+          break;
+        }
+      }
       if (declValues.some(val => LITERAL_COLOR_VALUE_RE.test(val))) {
         designIssues.push({
           code: "literal_color",

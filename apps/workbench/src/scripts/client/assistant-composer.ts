@@ -244,11 +244,23 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   };
   /** One Send from the composer: the work it is for is the one in front now, whatever the person opens while it is on its way. */
   const sendNow = async (sent) => {
-    const id = curId, mine = { text: sent.text, mount: mountedFor };
+    const id = curId, projectOnce = itemScopeDismissed && currentWorkItem, mine = { text: sent.text, mount: mountedFor };
     const before = id ? draftFor(id).prepare(sent.text) : undefined;
     sending += 1; inFlight = mine; if (id) going.set(id, mine);
     try {
-      const outcome = await submit(sent, before);
+      const outcome = await submit(sent, before, projectOnce);
+      const settleProjectSend = async () => {
+        if (!projectOnce || currentWorkItem?.id !== projectOnce.id) return;
+        itemScopeDismissed = false;
+        paintItemPill();
+        if (id && curId === id && !later.has(id) && getWork()?.draft === sent.text) await draftFor(id).write("");
+      };
+      if (outcome.state === "sent") await settleProjectSend();
+      if (projectOnce && outcome.state === "unknown") return { ...outcome, check: async () => {
+        const state = await outcome.check();
+        if (state === "sent") await settleProjectSend();
+        return state;
+      } };
       return outcome;
     } finally {
       sending -= 1; if (inFlight === mine) inFlight = null;
@@ -282,7 +294,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   /* 「在：事项名 ×」 pill in the composer's bottom row (MLN-16, BL-dialog-info-column-prototype-gaps #4):
      shows the active work item; pressing × clears it so the next Send goes to the whole project instead. */
   var currentWorkItem = null, itemScopeDismissed = false;
-  function activeWorkItem() { return !itemScopeDismissed && currentWorkItem ? currentWorkItem : null; }
+  function activeWorkItem() { return currentWorkItem || null; }
   const pillXSvg = ${JSON.stringify(icon("x"))};
   const pill = document.createElement("span");
   pill.className = "work-item-pill";
@@ -298,19 +310,12 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   pillClear.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    const carried = String(input.value || "");
     itemScopeDismissed = true;
-    fresh = false;
     paintItemPill();
-    void switchTo(null).then(() => {
-      syncComposer();
-      drawHead();
-      if (carried && !String(input.value || "").trim()) setWords(carried);
-      input.focus();
-    });
+    input.focus();
   });
   function paintItemPill() {
-    const wi = !boundPage && project ? activeWorkItem() : null;
+    const wi = !boundPage && project && !itemScopeDismissed ? activeWorkItem() : null;
     const clearText = readText("workbench.assistant-composer.clear-work-item");
     pillClear.setAttribute("aria-label", clearText);
     pillClear.title = clearText;
@@ -386,13 +391,13 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     paintItemPill();
   }
   const asOutcome = (res, id) => res.consumed === false ? { state: "failed", message: readText("workbench.assistant-composer.the-original-send-is-confirmed-the-draft-here") } : ({ state: "sent", ...(res.elsewhere ? { elsewhere: true } : {}),...(res.outcome === "repeated" || res.outcome === "queued" ? { receipt: { input_id: "send." + id, replayed: res.outcome === "repeated", delivered: res.outcome === "queued" ? "queued" : "run" } } : {}) });
-  async function submit(sent, before) {
-    const text = sent.text.trim(), into = curId && receipts.into(), fill = into && fills.get(into.pending_id);
+  async function submit(sent, before, projectOnce) {
+    const text = sent.text.trim(), into = !projectOnce && curId && receipts.into(), fill = into && fills.get(into.pending_id);
     if (fill && sent.materials.length) return { state: "failed", message: readText("workbench.assistant-composer.this-questionnaire-field-accepts-text-only-remove-the") };
     if (fill) return Promise.resolve(before).then(revision => fill(into.draft_from_composer, text, revision)).then(() => { host.showToast?.(readText("workbench.assistant-send.written-into-form-goes-back-only-when-press")); return { state: "sent" }; }, (error) => ({ state: "failed", message: error.message }));
     const { materials, over, positions } = upload.take(sent.materials);
     if (over.length) return { state: "failed", message: over[0].reason, unreadable: over };
-    const asked = { request_id: sent.request_id, delivery: sent.delivery, materials, ...(before ? { before } : {}) };
+    const asked = { projectOnce, request_id: sent.request_id, delivery: sent.delivery, materials, ...(before ? { before } : {}) };
     const outcome = (error) => ["ui_host.outcome_unknown", "assistant.pending_request"].includes(error.code) ? { state: "unknown", check: () => { sending += 1;
       return error.checkSend().finally(() => { sending -= 1; setTimeout(syncComposer, 0); }); } }
       : { state: "failed", message: error.message, unreadable: (error.body?.details?.unreadable || []).flatMap(one => positions.has(one.material_id) ? [{ index: positions.get(one.material_id), reason: one.reason }] : []) };

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePageDraft, HomePageOverview, HomePageVersion } from "@molis-ai/molis-work-contracts/services/home";
 import { HOME_PAGES_BASELINE, HOME_PAGES_HOME_STORE } from "@molis-ai/molis-work-service-home";
@@ -400,4 +401,51 @@ test("S-home-page-files S-home-page-authority S-home-page-approval SPC-10 SPC-11
   assert.equal(afterTamper.liveHidden, true, "tampered generated page MUST NOT remain mounted");
   assert.equal(afterTamper.tamperedRan, false, "tampered script MUST NEVER execute");
   assert.equal(afterTamper.defaultStillVisible, true, "shell falls back cleanly to default 36A First Page");
+});
+
+test("B37R-1 ONB-27: editing a merge starts with the person's text and approves only the saved new version", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  assert.ok(browser);
+  const project = browser.projectId;
+  assert.ok(project);
+  const route = "/projects/" + project;
+  const web = new LocalHostHttpClient({ origin: browser.origin, controlToken: browser.controlToken });
+  const api = route + "/api/home-pages/";
+  const draft = (text: string): HomePageDraft => ({
+    title: "Review", entry: "index.html", actions: [],
+    files: [{ path: "index.html", media_type: "text/html", text: "<main>" + text + "</main>" }],
+  });
+  const { version: first } = await web.post<{ version: HomePageVersion }>(api + "drafts/save", { draft: draft("My notes") });
+  const overview = () => web.post<HomePageOverview>(api + "read", {});
+  await web.post(api + "adopt", { page_id: first.page_id, version: 1, approved_actions: [], request_id: "original", expected_revision: (await overview()).revision });
+  const reference = molisWorkHostProjectReference({ projectId: project, databasePath: browser.databasePath });
+  await browser.localHost.actionClient(reference).invoke({ actor_id: "editor", audience: "agent", project_id: project, permissions: ["home:write", "home:read"] },
+    { capability_id: "home.pages.drafts.save", version: 1 }, { draft: draft("Proposed notes"), page_id: first.page_id, expected_version: 1, based_on: 1 });
+  const visit = () => browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + route + "/" }, browser.sessionId));
+  const compare = async () => {
+    const banner = '[data-home-draft-banner] [data-hp-act="compare"]';
+    await browser.waitFor("!!document.querySelector(" + JSON.stringify(banner) + ")");
+    await browser.click(banner);
+    await browser.waitFor("!!document.querySelector('[data-hp-pick=mine]')");
+  };
+  await visit();
+  await compare();
+  await browser.click("[data-hp-pick=mine]");
+  await browser.click("[data-hp-act=open-adopt]");
+  assert.deepEqual((await overview()).selection, { kind: "page", page_id: first.page_id, version: 1 });
+  await visit();
+  await compare();
+  await browser.click("[data-hp-pick=merge]");
+  await browser.waitFor("document.querySelector('[data-hp-merge] textarea')?.value === '<main>My notes</main>'");
+  await browser.evaluate("document.querySelector('[data-hp-merge] textarea').value = '<main>My notes and proposed notes</main>'");
+  await browser.click("[data-hp-merge-save]");
+  await browser.waitFor("!!document.querySelector('[data-hp-act=open-adopt]:enabled') && !document.querySelector('[data-hp-merge]')");
+  assert.deepEqual((await overview()).selection, { kind: "page", page_id: first.page_id, version: 1 });
+  await browser.click("[data-hp-act=open-adopt]");
+  await browser.click("[data-hp-act=dialog-confirm]");
+  await browser.waitFor("!!document.querySelector('[data-home-generated-body] iframe')");
+  assert.deepEqual((await overview()).selection, { kind: "page", page_id: first.page_id, version: 3 });
+  const read = (version: number) => web.post<{ files: Array<{ text: string }> }>(api + "files/read", { page_id: first.page_id, version });
+  assert.equal((await read(3)).files[0]?.text, "<main>My notes and proposed notes</main>");
+  assert.equal((await read(1)).files[0]?.text, "<main>My notes</main>");
 });

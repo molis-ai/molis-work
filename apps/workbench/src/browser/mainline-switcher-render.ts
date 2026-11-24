@@ -14,6 +14,7 @@ export interface SwitcherRenderState {
 
 function itemDot(resolved: MainlineResolvedItem | undefined, waiting: number): string {
   const state = resolved?.state ?? "ok";
+  if (resolved?.presentation?.done) return icon("check");
   return `<span class="top-corner-item-dot" data-waiting="${waiting > 0}" data-state="${state}" aria-hidden="true"></span>`;
 }
 
@@ -50,10 +51,11 @@ function renderItemRow(
     }
     const pinLabel = uiText.text(pinned ? "workbench.mainline.unpin" : "workbench.mainline.pin");
     acts.push(`<button class="ml-icon-btn" type="button" data-ml-pin="${e(itemId)}" data-ml-group="${e(groupId)}" data-ml-pinned="${pinned}" aria-label="${e(pinLabel)}" title="${e(pinLabel)}">${icon("pin")}</button>`);
-    acts.push(`<button class="ml-icon-btn" type="button" data-ml-done="${e(itemId)}" aria-label="${e(uiText.text("workbench.mainline.mark-done"))}" title="${e(uiText.text("workbench.mainline.mark-done"))}">${icon("check")}</button>`);
+    const completionLabel = uiText.text(res?.presentation?.done ? "workbench.mainline.archive-done" : "workbench.mainline.mark-done");
+    acts.push(`<button class="ml-icon-btn" type="button" data-ml-done="${e(itemId)}" aria-label="${e(completionLabel)}" title="${e(completionLabel)}">${icon("check")}</button>`);
   }
   return `<div class="ml-item-row" data-ml-row="${e(itemId)}" data-current="${current}" data-state="${state}">`
-    + `<button class="ml-item-pick" type="button" data-ml-pick="${e(itemId)}" data-state="${state}"${current ? ' aria-current="page"' : ""}>${itemDot(res, count.waiting)}<span class="ml-item-title">${e(title)}</span>${pinGlyph}${sub}${badge}</button>`
+    + `<button class="ml-item-pick" type="button" data-ml-pick="${e(itemId)}" data-state="${state}"${current ? ' aria-current="page"' : ""}>${itemDot(res, count.waiting)}<span class="ml-item-title">${res?.presentation?.markup || e(title)}</span>${pinGlyph}${sub}${badge}</button>`
     + `<span class="ml-item-acts">${acts.join("")}</span></div>`;
 }
 

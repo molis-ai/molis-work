@@ -20,6 +20,7 @@ export function positionFor(slot: SurfaceSlot, plugins: readonly SurfacePlugin[]
   switch (slot.kind) {
     case "conversation":
     case "discussion": return conversation;
+    case "side": return fixed(["row", "chip"]);
     case "attention": return attention;
     case "home": return home;
     case "plugin-slot": {

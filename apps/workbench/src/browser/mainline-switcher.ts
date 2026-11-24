@@ -77,6 +77,8 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
   let completedExpanded = false;
   let lastCurrent: string | null | undefined;
   const collapsedGroups = readStoredSet(GROUPS_KEY);
+  let needsGroupDefaults = true;
+  try { needsGroupDefaults = localStorage.getItem(GROUPS_KEY) === null; } catch { /* use defaults */ }
   const visited = readStoredSet(VISITED_KEY);
   let exampleDismissed = (() => { try { return localStorage.getItem(DISMISSED_KEY) === "1"; } catch { return false; } })();
 
@@ -199,6 +201,10 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
       const next = await api<MainlineViewResponse>("/api/mainline/items/view", {});
       const prev = lastCurrent === undefined ? null : lastCurrent;
       const changed = lastCurrent !== undefined && lastCurrent !== next.mainline.current;
+      if (needsGroupDefaults) {
+        for (const group of next.mainline.groups) collapsedGroups.add(group.group_id);
+        needsGroupDefaults = false;
+      }
       view = next;
       hydrated = true;
       if (selectedKind && !next.sources.some((s) => s.kind === selectedKind && s.create)) selectedKind = "";

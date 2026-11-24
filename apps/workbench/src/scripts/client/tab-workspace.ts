@@ -741,6 +741,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   });
   // Per-item PFG-22 workspace state layer (specs/work-mainline §4.3, MLN-05, MLN-06): switching work items saves
   // the current item's panes/tabs/side/scroll and restores the target item's (or opens its First Page + 「这件事的东西」).
+  let itemSwitch = 0;
   if (!embedded) document.addEventListener("molis-work:work-item-changed", (event) => {
     const detail = event.detail || {};
     const nextId = typeof detail.item_id === "string" && detail.item_id ? detail.item_id : null;
@@ -760,6 +761,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     }
     for (const node of collectMounted()) if (!node.hidden) rememberScroll(node);
     persist();
+    const switchNumber = ++itemSwitch;
     currentWorkItemId = nextId;
     try {
       if (nextId) localStorage.setItem(activeItemStorageKey, nextId);
@@ -782,6 +784,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       return;
     }
     state = ops.create();
+    sidePane?.restore();
     apply();
     if (nextId) {
       const contentsBtn = document.querySelector('[data-side-tab="item-contents"]');
@@ -790,7 +793,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       if (detail.source) {
         void molisWorkRequest(host.route("/api/mainline/open"), { body: { subject: detail.source } }).then((found) => {
           const to = found && found.target;
-          if (!to) return;
+          if (switchNumber !== itemSwitch || !to) return;
           if (to.kind === "surface" || !to.id) openPlugin(to.surface);
           else openItem(to.surface, to.id, to.title);
         }).catch(() => {});

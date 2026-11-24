@@ -10,12 +10,18 @@ import { judgmentRecommendationKeys, subjectOfferCompatibilityReason } from "@mo
 import { ActionError, exactActionView, requireSynchronous, ACTION_SUBJECT_SCHEMA, resolveActionSubject, type ActionSubject, retainActionAuthority, type ActionExecutionContext, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference,
   type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOME_DOCK_SCENE_ID, INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { homePageActions } from "@molis-ai/molis-work-contracts/services/home";
+import { HOME_PAGE_CONTENT_TYPE, HOME_PAGE_DRAFT_SCHEMA, homePageActions } from "@molis-ai/molis-work-contracts/services/home";
 import { homePageActionHandlers, type HomePagesPorts } from "@molis-ai/molis-work-service-home";
 import { publishedFunctionAction, publishedFunctionKey, type FunctionsActionPorts } from "@molis-ai/molis-work-module-judgment-rules";
 import { withFunctionsService, type FunctionsHostOptions } from "./judgment-rules-host.js";
 
 export const HOME_PROVIDER_ID = "system.home";
+const actionRef = ({ capability_id, version }: ActionDefinition) => ({ capability_id, version });
+export const homePageOwner = {
+  provider_id: HOME_PROVIDER_ID,
+  adopts: { type: HOME_PAGE_CONTENT_TYPE, schema: HOME_PAGE_DRAFT_SCHEMA, title: { key: "common.home" },
+    adopt: actionRef(homePageActions.saveDraft), read: actionRef(homePageActions.read) },
+};
 
 type HomeSubject = ActionSubject;
 interface HomeSubjectContext extends HomeSubject { content: string; revision: string; reader: ActionReference }
@@ -188,7 +194,8 @@ export function homeActionProvider(home: string, projectId: string, services: Ho
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     ...definition, handle: (caller, input) => handle(input as I, caller),
   });
-  return { provider: { provider_id: HOME_PROVIDER_ID, title: "首页", kind: "system", project_id: projectId },
+  return { provider: { provider_id: homePageOwner.provider_id, title: "首页", kind: "system", project_id: projectId,
+      ...(services.homePages && { adopts: [homePageOwner.adopts] }) },
     definitions: [...Object.values(homeActions), ...(services.homePages ? Object.values(homePageActions) : []), ...(services.pageDrafts ? Object.values(draftReferenceActions) : [])], scenes: [homeDockScene], scene_handlers: [handler], handlers: [
       ...(services.homePages ? homePageActionHandlers(services.homePages) : []),
       ...(services.pageDrafts?.handlers() ?? []),

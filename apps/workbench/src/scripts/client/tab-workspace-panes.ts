@@ -441,7 +441,7 @@ ${TAB_WORKSPACE_CLONES_PART}
     }
   };
   const landAtProjectRoot = () => {
-    if (pluginRequestedOnLoad) return;
+    if (pluginRequestedOnLoad || currentWorkItemId) return;
     ops.landAtProjectRoot(state);
     apply();
     persist();

@@ -331,7 +331,7 @@ mainline.items.remove	1	system.mainline	command	operation	project	write	concurre
 mainline.items.rename	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:arrange	-	-	-	5d3d5bdd8f5e	93d87603519b	-
 mainline.line.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	b52cab3beee0	b31da0b313db	-
 mainline.place	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:place	-	-	-	ba18f726ac6a	aef3a8191520	-
-mainline.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	6fa80a88b0fe	2364515194bb	-
+mainline.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,user,workflow	mainline:read	-	-	-	6fa80a88b0fe	c7c221441192	-
 mainline.subject.read	1	system.mainline	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	mainline:read	work_item	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	3c18e4478c29	-
 mainline.switch	1	system.mainline	command	operation	project	write	concurrent	agent,mcp,user	mainline:arrange	-	-	-	2d7fb5085ddc	93d87603519b	-
 materials.capture	1	system.materials	command	operation	project	write	concurrent	plugin,user	artifact:read,artifact:write,storage:private,workspace:read	file,workspace	-	-	b382d3d61ebf	d010bc81b325	1cc35ff17bf8

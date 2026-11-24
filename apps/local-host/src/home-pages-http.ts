@@ -6,7 +6,7 @@ import { homeErrors, homePageActions, type HomePageFilesResult, type HomePageRef
 import { inspectHomePageDesign, readAdoptedHomePageSessionTarget, readPrunedHomePageVersions } from "@molis-ai/molis-work-service-home";
 import { actionErrorResponse, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { homePageRequestBound } from "./home-page-authority.js";
-import { homePagesStorePort } from "./home-pages-actions.js";
+import { homePagePalettes, homePagesStorePort } from "./home-pages-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { withProtectedHostAction } from "./plugin-consent-settings-entry.js";
@@ -88,9 +88,18 @@ export async function handleHomePagesHttp(
     // 3. Open a live `home-page` session for the project's currently adopted version (trusted outer shell only).
     if (suffix === "session" && method === "POST") {
       refuseIfFramedPage(request, "生成页面不能直接开启新的首页会话");
-      const target = readAdoptedHomePageSessionTarget(homePagesStorePort(homeDirectory), project.project_id);
+      const store = homePagesStorePort(homeDirectory);
+      const selected = () => readAdoptedHomePageSessionTarget(store, project.project_id);
+      const original = selected();
+      const action = Object.freeze({ source: "web" as const, conversation_ref: `web:${project.project_id}`, message_ref: `web:${randomUUID()}` });
+      const client = bindLocalWebActions(host, project, LOCAL_OWNER_PERMISSIONS, { signal: controller.signal, user_action: () => action });
+      const loaded = await withProtectedHostAction(action, () => client.invoke<HomePageRef, HomePageFilesResult>(homePageActions.readFiles, original.ref));
+      const target = selected();
+      if (target.ref.page_id !== original.ref.page_id || target.ref.version !== original.ref.version)
+        throw homeErrors.revision_conflict("首页已更换，请重新打开");
+      controller.signal.throwIfAborted();
       const { page_session_id } = pages.openLive(project.project_id, LOCAL_PERSON_ACTOR_ID, target.version, target.approved_actions);
-      sendLocalWebJson(response, 200, { page: target.ref, page_session_id, approved_actions: target.approved_actions });
+      sendLocalWebJson(response, 200, { page: target.ref, page_session_id, loaded, approved_actions: target.approved_actions });
       return true;
     }
 
@@ -151,6 +160,7 @@ export async function handleHomePagesHttp(
       const pruned = readPrunedHomePageVersions(homePagesStorePort(homeDirectory), project.project_id, pageId);
       const forbiddenAction = actions.find(item => item.audience_denied);
       const report = inspectHomePageDesign(loaded.files, {
+        palettes: homePagePalettes,
         actionsValid: !forbiddenAction,
         actionIssueReason: forbiddenAction?.unavailable_reason ?? undefined,
       });

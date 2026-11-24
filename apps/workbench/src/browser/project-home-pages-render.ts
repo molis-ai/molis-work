@@ -50,6 +50,8 @@ const DESIGN_ISSUE_KEYS: Readonly<Record<string, string>> = {
   action_not_public: "workbench.home-pages.issue-action-not-public",
   dynamic_eval: "workbench.home-pages.issue-dynamic-eval",
   nested_embed: "workbench.home-pages.issue-nested-embed",
+  low_contrast: "workbench.home-pages.issue-low-contrast",
+  amber_usage: "workbench.home-pages.issue-amber",
   literal_color: "workbench.home-pages.issue-literal-color",
   pill_radius: "workbench.home-pages.issue-pill-radius",
 };

@@ -91,6 +91,12 @@ async function makeSource(caller: ActionExecutionContext, client: ActionClient, 
 
 // ---- reading -----------------------------------------------------------------------------------------------------------------------
 
+export function taskBelongsToItem(task: { subject: ActionSubject; serves: readonly ActionSubject[] }, itemId: string, subjects: ReadonlySet<string>): boolean {
+  const explicit = task.serves.filter(s => s.kind === WORK_ITEM_KIND);
+  if (explicit.length) return explicit.some(s => s.id === itemId);
+  return subjects.has(subjectKey(task.subject)) || task.serves.some(served => subjects.has(subjectKey(served)));
+}
+
 /** `mainline.read@1`: one store read; the sources from one discovery; with `counts`, one task table read for every item and group. */
 export async function readMainline(caller: ActionExecutionContext, client: ActionClient, ports: MainlineItemPorts, request: MainlineReadRequest,
   taskTable?: (directory: readonly ActionView[]) => Promise<{ tasks: Array<{ subject: ActionSubject; serves: ActionSubject[]; waiting: boolean; running: boolean }> }>): Promise<MainlineReadResult> {
@@ -108,15 +114,25 @@ export async function readMainline(caller: ActionExecutionContext, client: Actio
 /** Each task once per item: one the item holds, or one that serves the item's source or something it holds. */
 function countsOf(mainline: Mainline, held: ReadonlyMap<string, ActionSubject[]>, tasks: Array<{ subject: ActionSubject; serves: ActionSubject[]; waiting: boolean; running: boolean }>): MainlineCounts {
   const counts: MainlineCounts = { items: {}, groups: {} };
+  const open = new Set(mainline.groups.flatMap(g => g.items.map(i => i.item_id)));
+  const owners = new Map<string, string | null>();
   for (const item of mainline.items) {
     const inside = new Set([...(held.get(item.item_id) ?? []), ...(item.source ? [item.source] : [])].map(subjectKey));
-    const mine = tasks.filter(task => inside.has(subjectKey(task.subject)) || task.serves.some(served => inside.has(subjectKey(served))));
+    const mine = tasks.filter(task => taskBelongsToItem(task, item.item_id, inside));
+    if (open.has(item.item_id)) for (const task of mine) {
+      const key = subjectKey(task.subject);
+      owners.set(key, owners.has(key) ? null : item.item_id);
+    }
     counts.items[item.item_id] = { waiting: mine.filter(task => task.waiting).length, running: mine.filter(task => task.running).length };
   }
   for (const group of mainline.groups) {
     counts.groups[group.group_id] = group.items.reduce((sum, entry) => ({ waiting: sum.waiting + (counts.items[entry.item_id]?.waiting ?? 0),
       running: sum.running + (counts.items[entry.item_id]?.running ?? 0) }), { waiting: 0, running: 0 });
   }
+  if (owners.size) counts.task_items = tasks.flatMap(task => {
+    const item_id = owners.get(subjectKey(task.subject));
+    return item_id ? [{ subject: task.subject, item_id }] : [];
+  });
   return counts;
 }
 
@@ -278,6 +294,7 @@ export async function itemLineScope(caller: ActionCallContext, client: ActionCli
   const [item, held] = await withStore(caller, ports, store => [store.item(itemId), store.item(itemId) ? store.held(itemId) : []] as const);
   if (!item) throw mainlineErrors.item_missing("主线上没有这件事项");
   const subjects = new Set([...held, ...(item.source ? [item.source] : [])].map(subjectKey)), issues: MainlineIssue[] = [];
+  subjects.add(subjectKey({ kind: WORK_ITEM_KIND, id: item.item_id }));
   const declarations = await ports.declarations(caller);
   const source = item.source ? (await itemSources(caller, client, ports, directory, declarations)).find(candidate => candidate.kind === item.source!.kind) : undefined;
   const reader: ActionCallContext = { ...caller, query_only: true };

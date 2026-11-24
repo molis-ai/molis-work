@@ -4,13 +4,13 @@ import type {
   HomePageDiffResult,
   HomePageFilesResult,
   HomePageOverview,
-  HomePagePreviewResult,
   HomePageRef,
   HomePageSelectResult,
   HomePageVersionSummary,
 } from "@molis-ai/molis-work-contracts/services/home";
 import { escapeHtml, renderAlert, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { mountHomePageFrame, type MountedHomePageFrame } from "./plugin-frame/home-page-document.js";
+import { mountMergeEditor } from "./home-page-merge.js";
+import type { mountHomePageFrame, MountedHomePageFrame } from "./plugin-frame/home-page-document.js";
 import {
   homePageRefKey,
   localizeDesignIssueReason,
@@ -23,6 +23,7 @@ import {
 } from "./project-home-pages-render.js";
 
 interface HomePagesUiHost {
+  readonly mountFrame: typeof mountHomePageFrame;
   readonly root: HTMLElement;
   readonly projectKey: string;
   readonly routePrefix: string;
@@ -69,8 +70,45 @@ export function mountHomePages(host: HomePagesUiHost) {
   let restoreNotice: { page: HomePageRef; title: string } | null = null;
   let dialogTarget: { operation: "adopt" | "restore"; version: HomePageVersionSummary; inspect: InspectResponse } | null = null;
   let syncAbort: AbortController | null = null;
+  const query = new URLSearchParams(location.search);
+  const sceneRef = { page_id: query.get("homePage"), version: Number(query.get("homeVersion")) };
+  let sceneApproval = query.get("homeApproval");
+  let sceneOpened = false;
+  const intentKey = "molis.home.decision:" + host.projectKey;
+  function decision(operation: string, ref: string, actions: readonly ExactActionReference[], revision: string) {
+    const signature = JSON.stringify([operation, ref, actions]);
+    try {
+      const old = JSON.parse(sessionStorage.getItem(intentKey) || "null");
+      if (old?.signature === signature) return { request_id: String(old.request_id), expected_revision: String(old.expected_revision) };
+    } catch { /* local persistence unavailable */ }
+    const request_id = operation === "adopt" && ref === sceneRef.page_id + "@" + sceneRef.version && sceneApproval
+      ? sceneApproval : crypto.randomUUID();
+    const next = { request_id, expected_revision: revision };
+    try { sessionStorage.setItem(intentKey, JSON.stringify({ signature, ...next })); } catch { /* storage unavailable */ }
+    return next;
+  }
+  const forgetDecision = () => { try { sessionStorage.removeItem(intentKey); } catch { /* storage unavailable */ } };
 
+  let liveLoad = new AbortController();
+  let compareLoad = new AbortController();
+  type Session = { page_session_id: string; loaded?: HomePageFilesResult };
+  async function mountVersion(ref: HomePageRef, container: HTMLElement, preview: boolean, signal: AbortSignal, onCrash?: (reason: string) => void) {
+    const session = await host.api<Session>(preview ? "/api/home-pages/preview" : "/api/home-pages/session", "POST", preview ? ref : {});
+    try {
+      signal.throwIfAborted();
+      const loaded = session.loaded ?? await host.api<HomePageFilesResult>("/api/home-pages/files/read", "POST", ref, signal);
+      if (homePageRefKey(loaded.version) !== homePageRefKey(ref)) throw new Error(uiText.text("workbench.home-pages.preview-failed"));
+      return await host.mountFrame({ container, loaded, pageSessionId: session.page_session_id, isPreview: preview,
+        routePrefix: host.routePrefix, headers: host.headers, signal, onCrash });
+    } catch (error) {
+      void fetch(host.routePrefix + "/api/home-pages/session/" + encodeURIComponent(session.page_session_id),
+        { method: "DELETE", keepalive: true, headers: host.headers() }).catch(() => undefined);
+      throw error;
+    }
+  }
   const disposeLive = () => {
+    liveLoad.abort();
+    liveLoad = new AbortController();
     liveFrame?.dispose();
     liveFrame = null;
     liveMountedKey = null;
@@ -79,6 +117,8 @@ export function mountHomePages(host: HomePagesUiHost) {
   };
 
   const disposeCompareFrames = () => {
+    compareLoad.abort();
+    compareLoad = new AbortController();
     compareNowFrame?.dispose();
     compareNowFrame = null;
     compareDraftFrame?.dispose();
@@ -88,7 +128,8 @@ export function mountHomePages(host: HomePagesUiHost) {
   const hasManualConflict = (): boolean => {
     if (!comparingDraft || !overview || !compareDiff || comparingDraft.based_on == null) return false;
     const base = overview.versions.find(v => v.page_id === comparingDraft!.page_id && v.version === comparingDraft!.based_on);
-    return Boolean(base && base.author === "person" && comparingDraft.author === "assistant" && compareDiff.files.length > 0);
+    return Boolean(base && base.author === "person" && comparingDraft.author === "assistant" && (compareDiff.files.length || compareDiff.actions.added.length || compareDiff.actions.removed.length
+      || compareDiff.entry.before !== compareDiff.entry.after || comparingDraft.title !== base.title));
   };
 
   const blocker = (): "check" | "conflict" | null => {
@@ -167,6 +208,7 @@ export function mountHomePages(host: HomePagesUiHost) {
     if (!draft) return;
     disposeLive();
     disposeCompareFrames();
+    const { signal } = compareLoad;
     comparingDraft = draft;
     conflictChoice = null;
     checksOpen = false;
@@ -181,9 +223,10 @@ export function mountHomePages(host: HomePagesUiHost) {
       const [inspect, diff] = await Promise.all([
         host.api<InspectResponse>("/api/home-pages/inspect", "POST", ref),
         draft.based_on != null
-          ? host.api<HomePageDiffResult>("/api/home-pages/diff", "POST", { page_id: draft.page_id, from_version: draft.based_on, to_version: draft.version }).catch(() => null)
+          ? host.api<HomePageDiffResult>("/api/home-pages/diff", "POST", { page_id: draft.page_id, from_version: draft.based_on, to_version: draft.version }, signal)
           : Promise.resolve(null),
       ]);
+      signal.throwIfAborted();
       compareInspect = inspect;
       compareDiff = diff;
       const activeLabel = activeRef
@@ -196,23 +239,15 @@ export function mountHomePages(host: HomePagesUiHost) {
       const draftStage = compareHost!.querySelector<HTMLElement>("[data-hp-draft-stage]")!;
       if (activeRef) {
         try {
-          const [liveSession, liveFiles] = await Promise.all([
-            host.api<{ page_session_id: string }>("/api/home-pages/session", "POST", {}),
-            host.api<HomePageFilesResult>("/api/home-pages/files/read", "POST", activeRef),
-          ]);
-          compareNowFrame = await mountHomePageFrame({
-            container: nowStage,
-            loaded: liveFiles,
-            pageSessionId: liveSession.page_session_id,
-            isPreview: false,
-            routePrefix: host.routePrefix,
-            headers: host.headers,
-          });
+          compareNowFrame = await mountVersion(activeRef, nowStage, true, signal);
         } catch {
           nowStage.innerHTML = `<p class="hp-quiet-note">${escapeHtml(uiText.text("workbench.home-pages.now-unavailable-in-compare"))}</p>`;
         }
       } else {
-        nowStage.innerHTML = `<p class="hp-quiet-note">${escapeHtml(uiText.text("workbench.home-pages.now-is-default"))}</p>`;
+        const current = host.root.querySelector("[data-home-groups]");
+        for (const section of current?.children ?? []) nowStage.append(section.cloneNode(true));
+        nowStage.inert = true;
+        for (const node of nowStage.querySelectorAll("[id]")) node.removeAttribute("id");
       }
 
       if (!inspect.report.ok) {
@@ -225,29 +260,19 @@ export function mountHomePages(host: HomePagesUiHost) {
           body: firstReason,
         });
       } else {
-        const [preview, draftFiles] = await Promise.all([
-          host.api<HomePagePreviewResult>("/api/home-pages/preview", "POST", ref),
-          host.api<HomePageFilesResult>("/api/home-pages/files/read", "POST", ref),
-        ]);
-        compareDraftFrame = await mountHomePageFrame({
-          container: draftStage,
-          loaded: draftFiles,
-          pageSessionId: preview.page_session_id,
-          isPreview: true,
-          routePrefix: host.routePrefix,
-          headers: host.headers,
-          onCrash: reason => {
+        compareDraftFrame = await mountVersion(ref, draftStage, true, signal, reason => {
             draftStage.innerHTML = renderAlert({
               tone: "warning",
               title: uiText.text("workbench.home-pages.preview-crashed-title"),
               body: reason,
             });
-          },
         });
       }
+      signal.throwIfAborted();
       renderCompareChrome();
       renderChrome();
     } catch (error) {
+      if (signal.aborted) return;
       exitCompare();
       host.receipt(error instanceof Error ? error.message : uiText.text("workbench.home-pages.preview-failed"));
     }
@@ -268,23 +293,12 @@ export function mountHomePages(host: HomePagesUiHost) {
       return;
     }
     disposeLive();
+    const { signal } = liveLoad;
     try {
-      const [session, files] = await Promise.all([
-        host.api<{ page_session_id: string }>("/api/home-pages/session", "POST", {}),
-        host.api<HomePageFilesResult>("/api/home-pages/files/read", "POST", targetRef),
-      ]);
-      if (comparingDraft) return;
       liveHost!.hidden = false;
       liveMountedKey = key;
       fallbackAlert = null;
-      liveFrame = await mountHomePageFrame({
-        container: liveHost!,
-        loaded: files,
-        pageSessionId: session.page_session_id,
-        isPreview: false,
-        routePrefix: host.routePrefix,
-        headers: host.headers,
-        onCrash: reason => {
+      liveFrame = await mountVersion(targetRef, liveHost!, false, signal, reason => {
           disposeLive();
           fallbackAlert = {
             title: uiText.text("workbench.home-pages.load-failed-title", { v: targetRef.version }),
@@ -293,10 +307,10 @@ export function mountHomePages(host: HomePagesUiHost) {
           };
           renderChrome();
           craft()?.turn?.(host.root, true);
-        },
       });
       renderChrome();
     } catch (error) {
+      if (signal.aborted) return;
       disposeLive();
       fallbackAlert = {
         title: uiText.text("workbench.home-pages.load-failed-title", { v: targetRef.version }),
@@ -341,9 +355,15 @@ export function mountHomePages(host: HomePagesUiHost) {
           page_id: version.page_id,
           version: version.version,
           approved_actions: approved,
-          request_id: `ui-${operation}-${crypto.randomUUID()}`,
-          expected_revision: overview!.revision,
+          ...decision(operation, version.page_id + "@" + version.version, approved, overview!.revision),
         });
+        forgetDecision();
+        if (sceneApproval && operation === "adopt" && version.page_id === sceneRef.page_id && version.version === sceneRef.version) {
+          sceneApproval = null;
+          const url = new URL(location.href);
+          for (const key of ["homePage", "homeVersion", "homeApproval"]) url.searchParams.delete(key);
+          history.replaceState(history.state, "", url);
+        }
         dialog.close();
         dialogTarget = null;
         restoreNotice = null;
@@ -360,6 +380,9 @@ export function mountHomePages(host: HomePagesUiHost) {
     } catch (error) {
       const code = (error as { code?: string } | null)?.code;
       if (code === "home.revision_conflict") {
+        forgetDecision();
+        dialog.close();
+        dialogTarget = null;
         await sync();
       }
       host.receipt(error instanceof Error ? error.message : uiText.text("workbench.home-pages.adopt-failed"));
@@ -382,9 +405,9 @@ export function mountHomePages(host: HomePagesUiHost) {
       await runBusy(triggerBtn, async () => {
         await host.api<HomePageSelectResult>("/api/home-pages/select", "POST", {
           kind: "basic",
-          request_id: `ui-basic-${crypto.randomUUID()}`,
-          expected_revision: overview!.revision,
+          ...decision("basic", "", [], overview!.revision),
         });
+        forgetDecision();
         versionMenuOpen = false;
         fallbackAlert = null;
         if (comparingDraft) exitCompare();
@@ -395,7 +418,7 @@ export function mountHomePages(host: HomePagesUiHost) {
       });
     } catch (error) {
       const code = (error as { code?: string } | null)?.code;
-      if (code === "home.revision_conflict") await sync();
+      if (code === "home.revision_conflict") { forgetDecision(); await sync(); }
       host.receipt(error instanceof Error ? error.message : uiText.text("workbench.home-pages.switch-failed"));
     } finally {
       mutating = false;
@@ -410,7 +433,10 @@ export function mountHomePages(host: HomePagesUiHost) {
       if (controller.signal.aborted) return;
       overview = next;
       renderChrome();
-      await ensureLiveMounted();
+      if (!sceneOpened && sceneRef.page_id && next.versions.some(v => v.page_id === sceneRef.page_id && v.version === sceneRef.version)) {
+        sceneOpened = true;
+        await enterCompare({ page_id: sceneRef.page_id, version: sceneRef.version });
+      } else await ensureLiveMounted();
     } catch {
       if (!controller.signal.aborted) host.onModeChange(false);
     }
@@ -455,6 +481,22 @@ export function mountHomePages(host: HomePagesUiHost) {
         const pick = actEl.dataset.hpPick;
         conflictChoice = pick === "mine" || pick === "new" || pick === "merge" ? pick : null;
         renderCompareChrome();
+        compareHost.querySelector("[data-hp-merge]")?.remove();
+        if (pick === "merge" && comparingDraft?.based_on) {
+          const draft = comparingDraft;
+          const { signal } = compareLoad;
+          void Promise.all([draft.based_on, draft.version].map(version =>
+            host.api<HomePageFilesResult>("/api/home-pages/files/read", "POST", { page_id: draft.page_id, version }, signal))).then(([mine, next]) => {
+            if (!mine || !next || signal.aborted || conflictChoice !== "merge") return;
+            mountMergeEditor(compareHost, mine, next, async merged => {
+              const saved = await host.api<{ version: HomePageVersionSummary }>("/api/home-pages/drafts/save", "POST", {
+                draft: merged, page_id: draft.page_id, expected_version: draft.version, based_on: draft.version,
+              });
+              await sync();
+              await enterCompare(saved.version);
+            }, error => host.receipt(error instanceof Error ? error.message : uiText.text("workbench.home-pages.preview-failed")));
+          }).catch(error => { if (!signal.aborted) host.receipt(error.message); });
+        }
         return;
       }
       if (act === "open-adopt" && comparingDraft && !blocker()) {
@@ -549,7 +591,14 @@ export function mountHomePages(host: HomePagesUiHost) {
   document.addEventListener("molis-work:language-changed", onLanguageChanged);
   return {
     sync,
-    openCompare: (ref: HomePageRef) => enterCompare(ref),
+    suspend() {
+      syncAbort?.abort();
+      disposeCompareFrames();
+      comparingDraft = null;
+      compareHost.replaceChildren();
+      compareHost.hidden = true;
+      disposeLive();
+    },
     dispose() {
       syncAbort?.abort();
       host.root.removeEventListener("click", onClick);

@@ -1,9 +1,12 @@
+import { BASELINE_SKIN } from "@molis-ai/molis-work-design-system";
 import type { ActionCallContext, ActionExecutionContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePageVersion } from "@molis-ai/molis-work-contracts/services/home";
 import { HOME_PAGES_BASELINE, HOME_PAGES_HOME_STORE, HomePagesStore, type HomePagesPorts } from "@molis-ai/molis-work-service-home";
 import { heldHomeSqlite } from "@molis-ai/molis-work-storage";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
+
+export const homePagePalettes = [BASELINE_SKIN.light, BASELINE_SKIN.dark];
 
 /** Store-only port for `horizontal/home` service reads inside `apps/local-host` HTTP routes. */
 export function homePagesStorePort(
@@ -32,7 +35,7 @@ export function homePagesPorts(
 ): HomePagesPorts {
   const { open } = homePagesStorePort(homeDirectory, clock);
   return {
-    open,
+    open, palettes: homePagePalettes,
     discover: async (caller: ActionCallContext, mode: "save" | "approve") => {
       const permissions = mode === "save" ? [...new Set([...LOCAL_OWNER_PERMISSIONS, ...caller.permissions])] : caller.permissions;
       return await inspectActions({

@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { readdir } from "node:fs/promises";
 import { availableParallelism } from "node:os";
 import { relative, resolve } from "node:path";
@@ -138,6 +138,15 @@ if (options.shard) {
   const mine = plan.executionOrder[index];
   if (!mine.length) { console.log(`run-tests: shard ${index + 1}/${count} of ${targets.length} files has no file`); process.exit(0); }
   targets.splice(0, targets.length, ...mine);
+}
+
+// CIP-17: the Linux Full runner has a host Rust compiler, but the native gate also compiles scratch crates for WASM.
+// Use the selected files after filtering and sharding, including an explicitly requested file on a manual dispatch.
+const nativeToolchain = process.env.MOLIS_WORK_FULL_NATIVE_TOOLCHAIN;
+if (nativeToolchain && targets.some(file => relative(root, resolve(file)) === "tests/native-checks.test.mjs")) {
+  console.log(`run-tests: preparing Rust ${nativeToolchain} for native-checks.test.mjs`);
+  execFileSync("rustup", ["toolchain", "install", nativeToolchain, "--profile", "minimal", "--component", "clippy", "--component", "rustfmt", "--target", "wasm32-unknown-unknown"], { stdio: "inherit" });
+  process.env.RUSTUP_TOOLCHAIN = nativeToolchain;
 }
 
 // A one-file shard, or a single file with an explicit timeout or retries, still needs the coordinator's timeout, retries and timed summary.

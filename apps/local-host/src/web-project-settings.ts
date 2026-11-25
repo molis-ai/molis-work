@@ -47,8 +47,9 @@ async function renameProjectFromHttp(request: IncomingMessage, response: ServerR
 
 export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner, diagnostics?: WebServerOptions["installationDiagnostics"]) {
   const handleProjectDeletion = createProjectDeletionHttp(withMolisWorkProjectCatalog);
+  /** The person's projects: the settings list and the settings landing. The personal space cannot be renamed or deleted and is not among them. */
   async function settingsProjects(homeDirectory: string | undefined): Promise<WebSettingsProject[]> {
-    return withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listPartitions().map(settingsProject));
+    return withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjects().map(settingsProject));
   }
 
   /** `demoSamples` puts the demo's samples in Home plugins back through their own actions once the demo is made or rebuilt. */

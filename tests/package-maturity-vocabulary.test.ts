@@ -46,8 +46,9 @@ test("W5-15-03 the registry rejects any maturity word outside the vocabulary, wi
   // The quality audit retires the inactive experimental WebQuery integration package. #2243 retires the production reference plugin
   // plugins/native/text-stats. Batch 47 moves plugins/native/plugin-builder to horizontal/plugin-studio, a slice either way.
   // 44B retires the slice plugins/native/alchemist, folds the production integration-youtube into rss, and moves the slice
-  // plugins/native/shelf into the platform part modules/shelf; batch 37 adds the horizontal/home slice.
-  assert.deepEqual(counts, { production: 45, experimental: 3, slice: 25 });
+  // plugins/native/shelf into the platform part modules/shelf; batch 37 adds the horizontal/home slice. Batch 106 adds the slices
+  // horizontal/evidence and horizontal/person-settings.
+  assert.deepEqual(counts, { production: 45, experimental: 3, slice: 27 });
   assert.deepEqual(
     WORKSPACE_PACKAGES.filter((item: { path: string; maturity: string }) => item.path === "horizontal/home")
       .map((item: { path: string; maturity: string }) => item.maturity),

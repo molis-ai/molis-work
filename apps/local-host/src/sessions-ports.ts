@@ -480,7 +480,8 @@ export function createHostSessionsPorts(
         return runner({ homeDirectory }, catalog =>
           operation({
             directories: catalog.listWorkspaceDirectory(),
-            projects: catalog.listPartitions().map(project => ({ project_id: project.project_id, display_name: project.display_name })),
+            // The person's projects only: filing a session into the personal space comes with its interface (batch 111).
+            projects: catalog.listProjects().map(project => ({ project_id: project.project_id, display_name: project.display_name })),
             bindings: catalog.listRuntimeContextBindings(),
           }),
         );

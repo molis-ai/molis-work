@@ -25,13 +25,15 @@
 | `apps/local-host/src/demo-project-lifecycle.ts`、`plugin-demo-seed.ts`、`examples/seed-demo.mts` | `listProjects` | 示例项目查找 |
 | `apps/local-host/src/mcp-context-gateway.ts` | 两个都转发 | 网关原样转出目录 |
 | `apps/local-host/src/project-catalog.ts` | 两个都提供；`ensurePersonalPartition` 读 `listPartitions` | 目录本身 |
-| `apps/mcp/src/runtime-context-tools.ts` | `listPartitions` | 外部工具选项目时可以选个人空间 |
+| `apps/mcp/src/runtime-context-tools.ts` | `listProjects` | 外部工具绑到个人空间随 110 批的 `S-mcp-personal-binding` 一起放开，本批不变 |
 | `apps/local-host/src/personal-project-provisioner.ts`、`managed-project-files.ts` | `listPartitions` | 建分区前查重 |
 | `apps/local-host/src/runtime-sync-discovery.ts`、`personal-plugin-sync.ts`、`personal-catalog-sync.ts`、`personal-artifact-sync.ts`、`project-sync-catalog.ts` | `listPartitions` | 同步要遍历全部分区 |
 | `apps/local-host/src/observation-host.ts` | `listPartitions` | 工作记录要遍历全部分区 |
 | `apps/local-host/src/web-project-schedulers.ts` | `listPartitions` | 调度要遍历全部分区 |
 | `apps/local-host/src/home-restore-projects.ts` | `listPartitions` | 恢复时核对目录里的每个分区库都在快照里 |
-| `apps/local-host/src/project-deletion-service.ts`、`project-reach.ts`、`plugin-projects-service.ts`、`plugin-directory-http.ts`、`authorization-management-http.ts`、`management-action-client.ts`、`sessions-ports.ts`、`system-agent-service.ts`、`assistant/assistant-pages.ts`、`web-project-settings.ts`、`project-host.ts` | `listPartitions` | 平台按 id 找分区、或遍历全部分区 |
+| `apps/local-host/src/project-deletion-service.ts`、`project-reach.ts`、`plugin-projects-service.ts`、`plugin-directory-http.ts`、`authorization-management-http.ts`、`management-action-client.ts`、`system-agent-service.ts`、`assistant/assistant-pages.ts`、`web-project-settings.ts` 的插件启用页、`project-host.ts` | `listPartitions` | 平台按 id 找分区、或遍历全部分区 |
+| `apps/local-host/src/web-project-settings.ts` 的 `settingsProjects` | `listProjects` | 设置里的项目列表和设置页落到哪个项目只对用户项目；个人空间不能改名、删除 |
+| `apps/local-host/src/sessions-ports.ts` | `listProjects` | 外部会话归入个人空间随 111 批的界面一起做，本批不变 |
 | `modules/private-work-context/src/project-resolution.ts` | `listPartitions` | 工作上下文可以落在个人空间 |
 | `scripts/golden/populate.mjs` | `listPartitions` | 金样要覆盖全部分区 |
 

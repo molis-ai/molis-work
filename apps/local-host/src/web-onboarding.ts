@@ -1,5 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PERSONAL_SPACE_PROJECT_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindLocalWebAction, bindLocalWebActions, bindLocalWebProjectAiActions } from "./local-web-actions.js";
 import { SESSIONS_HISTORY_PERMISSION, SESSIONS_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/sessions";
 import { onboardingTakers, type OnboardingMaterialKind } from "./onboarding-takers.js";
@@ -61,7 +61,8 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
     if (request.method === "POST" && url.pathname === "/api/onboarding/personal") {
       if (refusedBeforeMaking(response, homeDirectory)) return true;
       try {
-        const space = await ports.withCatalog({ homeDirectory }, catalog => catalog.ensurePersonalSpace());
+        // Every Home has the personal space from the catalog's first open (batch 106): this reads it, never makes it.
+        const space = await ports.withCatalog({ homeDirectory }, catalog => catalog.getProject(PERSONAL_SPACE_PROJECT_ID));
         completeMolisWorkOnboarding(homeDirectory, space.project_id);
         sendJson(response, 200, { project: projectNavigation(space), path: `/projects/${encodeURIComponent(space.project_id)}/` });
       } catch (error) {

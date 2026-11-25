@@ -17,6 +17,7 @@ test("a 成果 version lists the Assistant work that started from it, and opens 
   const version = `/projects/${projectId}/artifacts/pages-brief/versions/1`;
   await navigate(() => command("Page.navigate", { url: `${b.origin}${version}` }, sessionId));
   await waitFor("Boolean(document.querySelector('[data-artifact-links]'))", 15_000);
+  await waitFor("document.querySelector('[data-artifact-no-references]')?.hidden === false", 15_000);
   // No work refers to it yet: the list stays out of the way.
   assert.equal(await evaluate("document.querySelector('[data-artifact-works]').hidden"), true);
   // The version is named every way a work can hold it: by its subject (side panel, search) and by its tab's path, with the
@@ -37,10 +38,33 @@ test("a 成果 version lists the Assistant work that started from it, and opens 
   assert.equal(related.length, 1);
   assert.equal(related[0]!.relation, "origin");
 
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `{
+    const get = window.fetch.bind(window); let blocked = true;
+    window.fetch = (input, init) => {
+      const url = new URL(String(input), location.href);
+      if (blocked && url.pathname.endsWith("/assistant/related") && url.searchParams.get("id").startsWith("[")) {
+        blocked = false; return Promise.resolve(Response.json({}, {status:503}));
+      }
+      return get(input, init);
+    };
+  }` }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${b.origin}${version}` }, sessionId));
+  await waitFor("document.querySelector('[data-artifact-works-status] button') && document.querySelector('[data-artifact-works]')?.hidden === false", 15_000);
+  assert.equal(await evaluate("document.querySelector('[data-artifact-no-references]')?.hidden"), true);
+  // QRF-06: another window changes the language while a partial reference result is still visible.
+  await evaluate(`(async () => {
+    await molisWorkRequest("/api/ui/locale", { control: true, body: { preference: "ja" } });
+    const changes = new BroadcastChannel("molis-work-ui-language");
+    changes.postMessage(null);
+    changes.close();
+  })()`);
+  await waitFor("document.documentElement.lang === 'ja' && document.querySelector('[data-artifact-works-status]')?.textContent.includes('一部を読み込めませんでした')", 20_000);
+  assert.match(await evaluate<string>("document.querySelector('[data-artifact-works]').textContent"), /把需求说明整理成清单[\s\S]*このバージョンから開始/);
+  await b.click("[data-artifact-works-status] button");
+  await waitFor("!document.querySelector('[data-artifact-works-status]')?.textContent");
   await waitFor("document.querySelector('[data-artifact-works]')?.hidden === false", 15_000);
   assert.equal(await evaluate("document.querySelectorAll('[data-artifact-open-work]').length"), 1);
-  assert.match(await evaluate<string>("document.querySelector('[data-artifact-works]').innerText"), /把需求说明整理成清单[\s\S]*从这一版开始/);
+  assert.match(await evaluate<string>("document.querySelector('[data-artifact-works]').innerText"), /把需求说明整理成清单[\s\S]*このバージョンから開始/);
 
   // Opening it shows that work in the Assistant.
   await evaluate("document.querySelector('[data-artifact-open-work]').click()");

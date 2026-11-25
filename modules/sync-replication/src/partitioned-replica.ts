@@ -30,7 +30,7 @@ export function partitionedReplica(options:{home:string;namespace:string;authori
       db(d=>d.prepare('INSERT INTO sync_partition_cursors VALUES (?,?) ON CONFLICT(namespace) DO UPDATE SET cursor=MAX(cursor,excluded.cursor)').run(options.namespace,event.revision));
     },
     counts(){return options.partitions().reduce((sum,id)=>{options.authorize();const c=options.withPartition(id,p=>p.counts(),true);return {pending:sum.pending+c.pending,conflicts:sum.conflicts+c.conflicts};},{pending:0,conflicts:0});},
-    conflicts(){return options.partitions().flatMap(id=>{options.authorize();return options.withPartition(id,p=>p.conflicts());}).slice(0,100);},
+    conflicts(){return options.partitions().flatMap(id=>{options.authorize();return options.withPartition(id,p=>p.conflicts());});},
     retryWaiting(){for(const id of options.partitions()){options.authorize();options.withPartition(id,p=>p.retryWaiting?.());}},
     resolve(key,choice,revision,state){options.authorize();options.withPartition(options.partition(key),p=>p.resolve(key,choice,revision,state));},
     inspectConflict(key){options.authorize();return options.withPartition(options.partition(key),p=>p.inspectConflict?.(key)??null);},

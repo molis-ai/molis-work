@@ -8277,6 +8277,8 @@
     "workbench.unavailable-plugin-stage.view-plugin-status": "View plugin status",
     "workbench.works-client.assistant-work": "Assistant work",
     "workbench.works-client.material": "As material",
+    "workbench.works-client.reading-references": "Loading work references…",
+    "workbench.works-client.references-incomplete": "Some work references could not be loaded.",
     "workbench.works-client.started-version": "Started from this version",
     "workbench.works-client.work-result": "Work result",
     "workbench.write-checkers-section.add-checker": "Add checker",

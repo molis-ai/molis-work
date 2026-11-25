@@ -1,3 +1,4 @@
+import { liveObservation } from "./observation-live.js";
 import { randomUUID } from "node:crypto";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, bindActionHandler, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext,
@@ -51,6 +52,15 @@ const assertCurrent = (caller: ActionExecutionContext) => {
   caller.signal?.throwIfAborted();
   requireSynchronous(caller.assert_authority_current?.());
 };
+
+function recordSkillDecision(home: string, caller: ActionExecutionContext, workId: string | undefined,
+  adoptionId: string, skill: AdoptedSkill, stage: "adopted" | "undone") {
+  if (!workId) return;
+  liveObservation(home)?.sink("automation").bind(caller).record({ fact: "automation.adoption", stage, outcome: "succeeded",
+    work: { work_ref: workId }, subjects: [{ kind: "skill", id: skill.skill_id, version: skill.revision }],
+    detail: { receipt_id: adoptionId, install_id: skill.install_id }, evidence: [{ role: "receipt", ref: { kind: "content", media_type: "application/json",
+      text: JSON.stringify({ adoption_id: adoptionId, install_id: skill.install_id, skill_id: skill.skill_id, adopted_revision: skill.revision, stage }) } }] });
+}
 
 async function adopt(ports: AutomationAdoptionPorts, input: AutomationAdoptInput, caller: ActionExecutionContext): Promise<AutomationAdoptResult> {
   const decision = takeAutomationCardDecision(caller, { capability_id: actions.adopt.capability_id, version: actions.adopt.version, provider_id: AUTOMATION_ADOPTION_PROVIDER_ID }, input);
@@ -115,12 +125,14 @@ async function adopt(ports: AutomationAdoptionPorts, input: AutomationAdoptInput
   } catch (error) {
     if (!adopted.length && !prepared?.created) throw error;
     let needsSkillUndo = adopted.length > 0;
+    const retained = new Set(adopted);
     try {
       await caller.beforeEffect();
       for (const skill of [...adopted].reverse()) {
         try {
           await client.invoke(caller, setStateRef, { scope: "project", install_id: skill.install_id, skill_id: skill.skill_id,
             state: "off", expected_revision: skill.revision });
+          retained.delete(skill);
         } catch (restoreError) {
           if (!(restoreError instanceof ActionError) || !["skills.settings_conflict", "skills.not_found"].includes(restoreError.code)) throw restoreError;
         }
@@ -133,12 +145,14 @@ async function adopt(ports: AutomationAdoptionPorts, input: AutomationAdoptInput
       }
       if (prepared?.created) await client.invoke(caller, cancelSetupRef, { authorization_id: prepared.authorization_id, expected_status: "prepared" });
     } catch {
+      if (needsSkillUndo) for (const skill of retained) recordSkillDecision(ports.home, caller, decision.work_id, adoptionId, skill, "adopted");
       const key = needsSkillUndo ? "workbench.automation-adoption.reconcile-skills" : "workbench.automation-adoption.reconcile-connection";
       const message = error instanceof Error ? error.message : String(error);
       throw new ActionError(error instanceof ActionError ? error.code : "actions.outcome_unknown", `${message} ${uiText.text(key)}`);
     }
     throw error;
   }
+  for (const skill of adopted) recordSkillDecision(ports.home, caller, decision.work_id, adoptionId, skill, "adopted");
   const enabled = current.filter(({ row }) => row.state === "off").map(({ item }) => ({ id: item.id, title: item.title }));
   const alreadyOn = current.filter(({ row }) => row.state !== "off").map(({ item }) => item.title);
   const parts = [
@@ -152,7 +166,7 @@ async function adopt(ports: AutomationAdoptionPorts, input: AutomationAdoptInput
 }
 
 async function undo(ports: AutomationAdoptionPorts, input: { adoption_id: string }, caller: ActionExecutionContext): Promise<AutomationUndoResult> {
-  takeAutomationCardDecision(caller, { capability_id: actions.undo.capability_id, version: actions.undo.version, provider_id: AUTOMATION_ADOPTION_PROVIDER_ID }, input);
+  const decision = takeAutomationCardDecision(caller, { capability_id: actions.undo.capability_id, version: actions.undo.version, provider_id: AUTOMATION_ADOPTION_PROVIDER_ID }, input);
   const subject = await subjectOf(ports, caller);
   const adoption = readOfferRecord(ports.home, subject).adoptions.find(row => row.adoption_id === input.adoption_id);
   if (!adoption) throw new ActionError("actions.missing", "找不到这次开启");
@@ -168,6 +182,7 @@ async function undo(ports: AutomationAdoptionPorts, input: { adoption_id: string
     try {
       await client.invoke(caller, setStateRef, { scope: "project", install_id: skill.install_id, skill_id: skill.skill_id, state: "off", expected_revision: skill.revision });
       restored.push(skill.title);
+      recordSkillDecision(ports.home, caller, decision.work_id, adoption.adoption_id, skill, "undone");
     } catch (error) {
       if (!(error instanceof ActionError)) throw error;
       if (error.code === "skills.settings_conflict") kept.push({ title: skill.title, reason: uiText.text("workbench.automation-adoption.changed-since") });

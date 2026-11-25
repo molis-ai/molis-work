@@ -7718,6 +7718,8 @@
     "workbench.unavailable-plugin-stage.view-plugin-status": "查看插件状态",
     "workbench.works-client.assistant-work": "助理工作",
     "workbench.works-client.material": "作为材料",
+    "workbench.works-client.reading-references": "正在读取工作引用…",
+    "workbench.works-client.references-incomplete": "部分工作引用未能读出。",
     "workbench.works-client.started-version": "从这一版开始",
     "workbench.works-client.work-result": "工作结果",
     "workbench.write-checkers-section.add-checker": "添加检查器",

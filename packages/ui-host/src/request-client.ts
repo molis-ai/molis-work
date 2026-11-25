@@ -118,7 +118,7 @@ export function createUiRequest(ports: UiRequestPorts, codes: typeof UI_HOST_CLI
       if (as !== "response") answer = await response.text();
     } catch (error) {
       if ((error as { name?: string } | null)?.name === "AbortError") throw error;
-      throw read
+      throw read || init.readOnly
         ? failure(ports.readText("common.request-client.can-t-reach-molis-work-service-try-again"), codes.unreachable, 0, null, null)
         : failure(ports.readText("common.request-client.we-can-t-tell-whether-finished-refresh-page"), codes.outcomeUnknown, 0, null, null);
     }

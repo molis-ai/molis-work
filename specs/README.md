@@ -16,6 +16,7 @@
 
 ## 在做的
 
+- [系统质量复查修复](system-quality-fixes/spec.md)。Codex 负责评测、留存、同步、采用统计、工作台、插件作者和发行反例。
 - [创作台生成插件的图标与原处连接卡](studio-icon-connection/spec.md)。Codex 负责 BL-1049、BL-1057 的实现与验证。
 - [11 月 19 日 main 合入复查修复](main-review-1119/spec.md)：Codex，附件、交付评估、会话发现、子任务读取、CI 和角色编辑回归。
 

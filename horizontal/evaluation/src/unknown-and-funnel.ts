@@ -48,57 +48,57 @@ const UNDONE_OR_REWORKED_FACTS = new Set([
   "ui.action.undone",
 ]);
 
-export function computeFunnelCounts(records: readonly ObservationQueriedRecord[]): EvaluationFunnelCounts {
-  let presented = 0;
-  let viewed = 0;
-  let selected = 0;
-  const executed = new Set<string>();
-  const completed = new Set<string>();
-  let adopted = 0;
-  let modifiedAfterAdoption = 0;
-  let undoneOrReworked = 0;
-  for (const record of records) {
-    if (PRESENTED_FACTS.has(record.fact) || record.stage === "presented") presented += 1;
-    if (VIEWED_FACTS.has(record.fact) || record.stage === "viewed") viewed += 1;
-    if (SELECTED_FACTS.has(record.fact) || record.stage === "selected") selected += 1;
-    // Only the business owner's explicit stage can attest a unit. A gateway receipt or Agent event describes the machinery.
-    const businessOwner = record.owner.kind === "plugin" || (record.owner.kind === "service" && record.owner.id === "assistant");
-    if (businessOwner && record.work.work_ref && (record.stage === "executed" || record.stage === "completed")) {
-      const key = JSON.stringify([record.project_id, record.install_id, record.owner.kind, record.owner.id, record.work.work_ref]);
-      if (record.outcome === "succeeded" || record.stage === "executed" && record.outcome === "failed") executed.add(key);
-      if (record.stage === "completed" && record.outcome === "succeeded") completed.add(key);
-    }
-    if (ADOPTED_FACTS.has(record.fact) || record.stage === "adopted" || record.detail.adopted === true) {
-      adopted += 1;
-    }
-    if (
-      MODIFIED_AFTER_ADOPTION_FACTS.has(record.fact)
-      || record.stage === "modified_after_adoption"
-      || record.detail.modified_after_adoption === true
-    ) {
-      modifiedAfterAdoption += 1;
-    }
-    if (
-      UNDONE_OR_REWORKED_FACTS.has(record.fact)
-      || record.stage === "undone"
-      || record.stage === "reworked"
-      || record.detail.undone === true
-      || record.detail.reworked === true
-    ) {
-      undoneOrReworked += 1;
-    }
-  }
+export type FunnelStage = Exclude<keyof EvaluationFunnelCounts, "execution_basis">;
+export type FunnelKeys = Readonly<Record<FunnelStage, readonly string[]>>;
+
+export function emptyFunnelSets(): Record<FunnelStage, Set<string>> {
   return {
-    presented,
-    viewed,
-    selected,
-    execution_basis: "owner_work",
-    executed: executed.size,
-    completed: completed.size,
-    adopted,
-    modified_after_adoption: modifiedAfterAdoption,
-    undone_or_reworked: undoneOrReworked,
+    presented: new Set(), viewed: new Set(), selected: new Set(), executed: new Set(),
+    completed: new Set(), adopted: new Set(), modified_after_adoption: new Set(), undone_or_reworked: new Set(),
   };
+}
+
+export function funnelCounts(sets: Record<FunnelStage, Set<string>>): EvaluationFunnelCounts {
+  return {
+    execution_basis: "owner_work", presented: sets.presented.size, viewed: sets.viewed.size,
+    selected: sets.selected.size, executed: sets.executed.size, completed: sets.completed.size,
+    adopted: sets.adopted.size, modified_after_adoption: sets.modified_after_adoption.size,
+    undone_or_reworked: sets.undone_or_reworked.size,
+  };
+}
+
+export function collectFunnel(records: readonly ObservationQueriedRecord[]): { counts: EvaluationFunnelCounts; keys: FunnelKeys } {
+  const stages = emptyFunnelSets();
+  for (const record of records) {
+    const owner = [record.project_id, record.install_id, record.owner.kind, "id" in record.owner ? record.owner.id : null];
+    const work = record.work.work_ref;
+    const businessOwner = record.owner.kind === "plugin" || (record.owner.kind === "service" && record.owner.id === "assistant");
+    if (businessOwner && work && (record.stage === "executed" || record.stage === "completed")) {
+      const key = JSON.stringify([...owner, work]);
+      if (record.outcome === "succeeded" || record.stage === "executed" && record.outcome === "failed") stages.executed.add(key);
+      if (record.stage === "completed" && record.outcome === "succeeded") stages.completed.add(key);
+    }
+    if (record.outcome !== "succeeded" && record.outcome !== "waiting") continue;
+    const stageKeys = record.subjects.length ? record.subjects.map(s => [s.kind, s.id, s.version]) : [null];
+    const add = (stage: FunnelStage) => {
+      if (!work && !record.detail.receipt_id) {
+        stages[stage].add(record.record_id);
+        return;
+      }
+      for (const subject of stageKeys) {
+        stages[stage].add(JSON.stringify([...owner, work, record.detail.receipt_id ?? null, subject]));
+      }
+    };
+    if (PRESENTED_FACTS.has(record.fact) || record.stage === "presented") add("presented");
+    if (VIEWED_FACTS.has(record.fact) || record.stage === "viewed") add("viewed");
+    if (record.outcome !== "succeeded") continue;
+    if (SELECTED_FACTS.has(record.fact) || record.stage === "selected" || (record.fact === "ui.candidates" && record.stage === "chosen")) add("selected");
+    if (ADOPTED_FACTS.has(record.fact) || record.stage === "adopted" || record.detail.adopted === true) add("adopted");
+    if (MODIFIED_AFTER_ADOPTION_FACTS.has(record.fact) || record.stage === "modified_after_adoption" || record.detail.modified_after_adoption === true) add("modified_after_adoption");
+    if (UNDONE_OR_REWORKED_FACTS.has(record.fact) || record.stage === "undone" || record.stage === "reworked" || record.detail.undone === true || record.detail.reworked === true) add("undone_or_reworked");
+  }
+  const keys = Object.fromEntries(Object.entries(stages).map(([stage, ids]) => [stage, [...ids]])) as Record<FunnelStage, string[]>;
+  return { counts: funnelCounts(stages), keys };
 }
 
 export function extractObservedConditions(records: readonly ObservationQueriedRecord[]): EvaluationObservedConditions {
@@ -158,7 +158,12 @@ export function deriveRunCoverageUnknowns(
       limitations.push(`观察窗口尚未结束（需至 ${sample.window.observation_cutoff_at}）`);
     }
   }
-  if (coverage.recording.state === "paused") {
+  const since = sample.query.since ?? sample.window?.since;
+  const until = sample.query.until ?? sample.window?.until;
+  const untilMs = until && /^\d{4}-\d{2}-\d{2}$/u.test(until) ? Date.parse(until + "T23:59:59.999Z") : Date.parse(until ?? evaluatedAt);
+  const pausedAt = coverage.recording.paused_at;
+  if (coverage.recording.state === "paused" && (!pausedAt || Date.parse(pausedAt) <= untilMs)
+      && (!since || Date.parse(since) <= Date.parse(evaluatedAt))) {
     reasons.add("coverage_gap_paused");
     limitations.push("工作记录当前处于暂停状态");
   }

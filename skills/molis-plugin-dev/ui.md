@@ -49,7 +49,7 @@
   - 创建入口带 `start: { title, hint, title_text?, hint_text?, icon?, open? }` 的，是项目首页当天没有事件时给的一个起点，放在这个插件的第一个 `navigator` 或 `island` 视图上；`icon` 不写就用视图的 `icon`；`open: { view_id, panel }` 写了就在本插件的舞台上打开那张表单，不写就直接调用这个动作。概况的 `presentation.overview.start` 只写 `{ capability_id, version }`，指向带 `start` 的动作。
   - 签名 app 包与创作台的包在 `contract.json` 的命令操作上写 `start: { item_kind, title, hint, title_text?, hint_text?, icon?, open? }`：SDK 把它投影成这条命令的空白创建入口，`intake_id` 是操作 id（小写字母、数字、`_ . -`，最多 50），`title` 同时是入口名称和按钮文字（最多 40 字），`hint` 是说明。只有命令能写；查询、固定读取协议上写了合同当场拒绝。
 
-写错的（不认识的组、视图上写 `creates` 或 `start`、起点缺 `title` 或 `hint`、`open` 不是两项）`parsePluginManifest` 当场拒绝（`molis-work-plugin validate` 同一套检查），每一种都有拒绝用例（`tests/view-placement-declarations.test.ts`）。工作台读这些声明的函数在 `apps/workbench/src/plugin-catalog.ts`。
+写错的（不认识的组、视图上写 `creates` 或 `start`、起点缺 `title` 或 `hint`、`open` 不是两项）`parsePluginManifest` 当场拒绝（`molis-work plugin validate` 同一套检查），每一种都有拒绝用例（`tests/view-placement-declarations.test.ts`）。工作台读这些声明的函数在 `apps/workbench/src/plugin-catalog.ts`。
 
 这些声明对运行时装进项目的插件和随宿主发布的插件**同样生效**：宿主每次读页面时，从项目 Runtime（与 Home 级插件）里运行中的 Manifest 现取 `ui.views` 的 `slot`、`group`、`icon`、`order`、`accepts_objects`，连同动作上的空白创建入口与起点，写进页面的插件目录（`plugin_directory`），外壳（插件切换列表、目标里的「新建」、项目首页的起点、按对象开标签）都读它。停用、卸载或撤回同意的插件下一次读页面就没有入口。插件的名称和这些视图文字是你写的文字：页面一律当文本转义显示，名称和标题只取一行（名称、标题与起点名称 80 字，创建入口名称 40 字，起点提示 200 字），视图的 `icon` 在 Manifest 读取时就限平台图标集（集合外整份清单被拒），所以这里读到的总是集合内的名字；`start.icon` 只认设计系统里登记的名字，URL、SVG 或别的写法都用默认图标；不是由项目的插件选择决定的插件（运行时装的），列在它 `group` 的位置或「更多」，只有「常驻 Dock」，没有添加或移除按钮。
 
@@ -67,7 +67,7 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 - Home Runtime 插件的侧栏使用 `/plugins/<project_plugin_id>?side=<view_id>`，仅接受 Manifest 声明的 `side` 视图，并从正在运行的 contribution 渲染。首页和项目共用同一 Home 实例；首页侧栏只放 Home 工具。客户端同样收到 `side: true`，可决定初次进入时的内容，不决定侧栏位置。
 - 位置、宽度、打开与收起归 Host：插件不能自己定位、不能改侧栏尺寸，也不能借侧栏拿到别的权限。要让侧栏切到自己的标签，页面发 `molis:side-open { tab: "plugin", view: "<project_plugin_id>/<view_id>" }`（同源 iframe 用 `postMessage` 同名消息）。
 - 只想让侧栏的“文件”标签列出你的文件，不需要 `side` 视图：声明一个文件来源即可，见 [files.md](files.md)。
-- 插件的工作要在侧栏浏览器里打开或操作某些网站，就在 `permissions` 里声明 `{ permission: "surface:browser", required, reason, origins: ["https://shop.example.com"] }`。`origins` 必须是完整来源，不带路径、查询串或片段，否则 Manifest 当场被拒；其他权限不能带 `origins`。声明会出现在插件市场的卡片上（「会在侧栏浏览器里使用：…」），`molis-work-plugin validate` 的输出里也会列出 `browser_sites`。声明只是告诉用户，不代替每一步的确认：动手仍按侧栏浏览器的规则逐步确认，上传文件永远要确认。
+- 插件的工作要在侧栏浏览器里打开或操作某些网站，就在 `permissions` 里声明 `{ permission: "surface:browser", required, reason, origins: ["https://shop.example.com"] }`。`origins` 必须是完整来源，不带路径、查询串或片段，否则 Manifest 当场被拒；其他权限不能带 `origins`。声明会出现在插件市场的卡片上（「会在侧栏浏览器里使用：…」），`molis-work plugin validate` 的输出里也会列出 `browser_sites`。声明只是告诉用户，不代替每一步的确认：动手仍按侧栏浏览器的规则逐步确认，上传文件永远要确认。
 - 门禁：`inspectManifest` 拒绝未知槽和未声明的 contribution；`tests/side-panel-platform.test.ts` 用一个未知插件只靠声明接入、停用后撤下。
 
 `settings-page` 只能挂 `workbench.settings`。设置页要自己的数据时，在 `settings` view 上写 `settings_data: { action: "<本 Manifest 里只读、面向 user 的查询>" }`；宿主用一条通用路调它，连同固定的平台上下文（`SettingsPageModel`：`context` 是项目、打开设置的项目、Agent 运行时，`data` 是动作的结果）交给你的 `render`，不为某个插件写分支。**目前设置贡献与 `settings_data` 的宿主接线只覆盖内置目录；已安装的 Runtime 插件虽会经过声明校验，设置贡献发现与数据动作调用尚未接入，写了声明也不会在全局设置中生效。** 来源账号、Inbox 列表仍是插件内容，不进全局设置。 设置分类是一张表（`apps/workbench/src/settings-sections.ts`）：`settings` view 的 `order` 决定位置（宿主 10 界面与语言、20 模型、30 助理、35 角色、40 提示词、50 AI 与执行工具、60 能力、90 诊断；不写为 100，进「插件」组）。宿主的一节自己渲染成工作面时（角色，`apps/workbench/src/characters/ui.ts`；Characters 不是插件），根元素标 `data-settings-page="<id>"`，工作台设置覆盖层直接挂载它；页面里指向 `/settings/*` 的链接一律在覆盖层里打开，不离开外壳。

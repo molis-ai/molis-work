@@ -177,6 +177,7 @@ export interface EvaluationMetricsSummary {
         readonly since: string | null;
         readonly until: string | null;
     };
+    readonly selected_sample_count: number;
     readonly sample_count: number;
     readonly denominator: number;
     readonly evaluable_count: number;
@@ -186,6 +187,7 @@ export interface EvaluationMetricsSummary {
     readonly work_outcome_counts: Readonly<Partial<Record<ObservationOutcome, number>>>;
     readonly funnel_totals: EvaluationFunnelCounts & {
         readonly excluded_execution_runs: number;
+        readonly unattributed_interactions: Omit<EvaluationFunnelCounts, "execution_basis" | "executed" | "completed">;
     };
     readonly by_work_mode: readonly {
         readonly work_mode: EvaluationWorkMode;

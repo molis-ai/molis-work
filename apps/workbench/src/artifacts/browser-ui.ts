@@ -216,8 +216,8 @@ function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, route
   // own store, so the 成果 client reads them once the detail shows. A version is named by its subject or, from a tab, its path
   // (with the project's prefix when the tab came from a direct link).
   const subjects = p.escape(JSON.stringify([...new Set([artifactSubjectId(artifact), artifactVersionPath(artifact), routePrefix + artifactVersionPath(artifact)])]));
-  const works = `<div class="artifact-links-works" data-artifact-works="${subjects}" hidden><h3>${uiText("workbench.browser-ui.assistant-work")}</h3><ul></ul></div>`;
-  return `<section class="artifact-links" data-artifact-links><h2>${uiText("workbench.browser-ui.referenced")}</h2>${linked}${!linked && !referrers ? `<p>${uiText("workbench.browser-ui.nothing-refers-version-yet")}</p>` : ""}${referrers ? `<h3 class="artifact-links-heading">${uiText("workbench.browser-ui.page")}</h3><ul data-artifact-referrers>${referrers}</ul>` : ""}${works}${other}${asInput}</section>`;
+  const works = `<div class="artifact-links-works" data-artifact-works="${subjects}" hidden><h3>${uiText("workbench.browser-ui.assistant-work")}</h3><ul></ul></div><div data-artifact-works-status role="status"></div>`;
+  return `<section class="artifact-links" data-artifact-links><h2>${uiText("workbench.browser-ui.referenced")}</h2>${linked}${!linked && !referrers && !other ? `<p data-artifact-no-references hidden>${uiText("workbench.browser-ui.nothing-refers-version-yet")}</p>` : ""}${referrers ? `<h3 class="artifact-links-heading">${uiText("workbench.browser-ui.page")}</h3><ul data-artifact-referrers>${referrers}</ul>` : ""}${works}${other}${asInput}</section>`;
 }
 
 function renderArtifactFrameBlock(model: ArtifactBrowserUiModel): string {

@@ -122,6 +122,27 @@ test("CI-MCP-PIPE-01 a real closed launcher input returns false without an unhan
   });
 });
 
+test("QRF-09 a protocol refusal settles immediately at the matching handshake step", { timeout: 8000 }, async () => {
+  await withFixture(async fixture => {
+    for (const [id, step] of [[1, "initialize"], [2, "tools/list"]] as const) {
+      const reply = JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32603, message: "sign in" } });
+      const script = join(fixture.directory, "refuse-" + id + ".mjs");
+      await writeFile(script, `import {createInterface} from "node:readline";
+for await (const line of createInterface({input:process.stdin})) {
+  const req=JSON.parse(line);
+  if (req.id===${id}) console.log(${JSON.stringify(reply)});
+  else if(req.id===1) console.log(JSON.stringify({jsonrpc:"2.0",id:1,result:{protocolVersion:"2024-11-05"}}));
+}`);
+      await writeFile(fixture.launcher, `#!/bin/sh\nexec ${shellArgument(process.execPath)} ${shellArgument(script)}\n`, { mode: 0o755 });
+      const errors: [string, number][] = [];
+      const result = await validateMolisWorkMcpLauncher({ runtime_id: "codex", launcher_path: fixture.launcher,
+        home_directory: fixture.home, plan_id: "denied", onProtocolError: (method, code) => errors.push([method, code]) });
+      assert.equal(result, false);
+      assert.deepEqual(errors, [[step, -32603]]);
+    }
+  });
+});
+
 test("CI-MCP-PIPE-01 a settled failure ignores a later initialize reply in the same real stdout chunk", async () => {
   await withFixture(async fixture => {
     const methods = join(fixture.directory, "stdin-methods"), done = join(fixture.directory, "launcher-done");

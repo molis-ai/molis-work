@@ -49,7 +49,7 @@ import {retainConflict} from './conflict-retention.js';
 import {decodeContent} from './decode-content.js';
 import {cloudHistory} from './cloud-history.js';
 import {parseSyncRound} from './round.js';
-import {syncProgress} from './progress.js';
+import {conflictPage, syncProgress} from './progress.js';
 import {syncScheduler} from './scheduler.js';
 import {isTransportBackoff,syncTransportBackoff} from './transport-backoff.js';
 import {syncTransport} from './transport.js';
@@ -296,8 +296,8 @@ export class PersonalSync {
       const namespace = syncNamespace(r.selection);
       const group = r.group ?? 'plugin';
       return selected.has(namespace)
-        ? { selection: r.selection, title: r.title, group, ...r.withReplica(a => a.counts()), conflicts: r.withReplica(a => a.conflicts()), failures: syncItemFailures(this.options.home, () => this.assert()).list(namespace) }
-        : { selection: r.selection, title: r.title, group, pending: 0, conflicts: [], failures: [] };
+        ? { selection: r.selection, title: r.title, group, ...r.withReplica(a => ({ pending: a.counts().pending, ...conflictPage(a.conflicts()) })), failures: syncItemFailures(this.options.home, () => this.assert()).list(namespace) }
+        : { selection: r.selection, title: r.title, group, pending: 0, ...conflictPage([]), failures: [] };
     });
     const running=this.isRunning,progress=syncProgress({policy,collections,running,error:this.error,lastSuccess:this.lastSuccess});
     this.lastProgress=progress;
@@ -353,6 +353,9 @@ export class PersonalSync {
     await this.run();
   }
   private selected(namespace:string){this.assert();const registration=this.registry.current().find(r=>syncNamespace(r.selection)===namespace);if(!registration||!this.policy().selections.some(s=>syncNamespace(s)===namespace))throw syncError('scope','此同步集合已关闭或不存在');return registration;}
+  listConflicts(namespace: string, after?: import('./progress.js').ConflictCursor) {
+    return this.selected(namespace).withReplica(replica => conflictPage(replica.conflicts(), after));
+  }
   inspectConflict(namespace:string,key:string){const registration=this.selected(namespace),view=registration.withReplica(r=>r.inspectConflict?.(key)??null);return view?{...view,location:registration.locate?.(key)??registration.withReplica(r=>r.locate?.(key)??null)}:null;}
   recoveries(namespace:string){return this.selected(namespace).withReplica(r=>r.recoveries?.()??[]);}
   inspectRecovery(namespace:string,id:string){const registration=this.selected(namespace),view=registration.withReplica(r=>r.inspectRecovery?.(id)??null);return view?{...view,location:registration.locate?.(view.key)??registration.withReplica(r=>r.locate?.(view.key)??null)}:null;}

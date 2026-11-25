@@ -383,6 +383,9 @@ export interface EvaluationMetricsSummarizeInput {
 export interface EvaluationMetricsSummary {
   readonly purpose: EvaluationSamplePurpose;
   readonly window: { readonly since: string | null; readonly until: string | null };
+  /** Registered samples available by the end of the window, plus any since-removed samples attempted in it. */
+  readonly selected_sample_count: number;
+  /** Distinct samples attempted in this window. denominator and verdict counts refer to attempts. */
   readonly sample_count: number;
   readonly denominator: number;
   readonly evaluable_count: number;
@@ -390,7 +393,11 @@ export interface EvaluationMetricsSummary {
   readonly verdict_counts: Readonly<Record<EvaluationVerdict, number>>;
   readonly unknown_reason_counts: Readonly<Partial<Record<EvaluationUnknownReason, number>>>;
   readonly work_outcome_counts: Readonly<Partial<Record<ObservationOutcome, number>>>;
-  readonly funnel_totals: EvaluationFunnelCounts & { readonly excluded_execution_runs: number };
+  readonly funnel_totals: EvaluationFunnelCounts & {
+    readonly excluded_execution_runs: number;
+    /** Portion of the six interaction totals lacking identities for cross-run deduplication. */
+    readonly unattributed_interactions: Omit<EvaluationFunnelCounts, "execution_basis" | "executed" | "completed">;
+  };
   readonly by_work_mode: readonly {
     readonly work_mode: EvaluationWorkMode;
     readonly denominator: number;

@@ -222,7 +222,11 @@ export async function handleHoldsPut(
 
   db.exec("BEGIN IMMEDIATE");
   try {
-    const existing = db.prepare("SELECT created_at FROM evaluation_holds WHERE hold_id = ?").get(input.hold_id) as { created_at: string } | undefined;
+    const existing = db.prepare("SELECT created_at, owner, sample_id FROM evaluation_holds WHERE hold_id = ?")
+      .get(input.hold_id) as Pick<StoredHoldRow, "created_at" | "owner" | "sample_id"> | undefined;
+    if (input.require_same_identity && existing && (existing.owner !== owner || existing.sample_id !== input.sample_id)) {
+      throw observationErrors.invalid_query("留存标识已属于其他主人或样本版本");
+    }
     const createdAt = existing?.created_at ?? nowIso;
     db.prepare(`
       INSERT INTO evaluation_holds (hold_id, owner, sample_id, project_id, created_at, updated_at, expires_at, note)
@@ -261,8 +265,8 @@ export function handleHoldsRelease(
   input: ObservationHoldReleaseInput,
 ): ObservationHoldReleaseResult {
   assertPersonCaller(caller);
-  if (input.hold_id === undefined && input.sample_id === undefined) {
-    throw observationErrors.invalid_query("释放留存需要提供 hold_id 或 sample_id");
+  if (input.hold_id === undefined && input.sample_id === undefined && input.targets === undefined) {
+    throw observationErrors.invalid_query("释放留存需要指定保留标识、样本或确切的保留对象");
   }
   const db = openForHolds(deps.writer);
   const where: string[] = [];
@@ -276,21 +280,26 @@ export function handleHoldsRelease(
     params.push(input.sample_id);
   }
 
-  const targets = rowsAs<{ hold_id: string }>(
-    db.prepare(`SELECT hold_id FROM evaluation_holds WHERE ${where.join(" AND ")} ORDER BY hold_id`).all(...params),
-  );
-  if (targets.length === 0) {
-    return { released_hold_ids: [], released_record_count: 0 };
+  if (input.targets !== undefined) {
+    where.push(`(hold_id, owner, sample_id) IN (
+      SELECT json_extract(value, '$.hold_id'), json_extract(value, '$.owner'), json_extract(value, '$.sample_id')
+      FROM json_each(?)
+    )`);
+    params.push(JSON.stringify(input.targets));
   }
-
   let released_record_count = 0;
+  const released_hold_ids: string[] = [];
   db.exec("BEGIN IMMEDIATE");
   try {
+    const targets = rowsAs<{ hold_id: string }>(
+      db.prepare(`SELECT hold_id FROM evaluation_holds WHERE ${where.join(" AND ")} ORDER BY hold_id`).all(...params),
+    );
     const delRecs = db.prepare("DELETE FROM evaluation_hold_records WHERE hold_id = ?");
     const delHold = db.prepare("DELETE FROM evaluation_holds WHERE hold_id = ?");
     for (const target of targets) {
       released_record_count += Number(delRecs.run(target.hold_id).changes);
       delHold.run(target.hold_id);
+      released_hold_ids.push(target.hold_id);
     }
     db.exec("COMMIT");
   } catch (error) {
@@ -299,7 +308,7 @@ export function handleHoldsRelease(
   }
 
   return {
-    released_hold_ids: targets.map((target) => target.hold_id),
+    released_hold_ids,
     released_record_count,
   };
 }

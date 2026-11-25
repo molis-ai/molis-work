@@ -48,6 +48,11 @@ export async function serveSpaceSync(input:{request:IncomingMessage;response:Ser
         case '/api/sync':
           if(query.get('view')==='indicator'){value={available:true,...service.indicatorStatus()};break;}
           await service.refreshCatalog();value={available:true,...service.status(),device_label:hostname()};break;
+        case '/api/sync/conflicts': {
+          const after = query.get('after');
+          value = service.listConflicts(namespace, after === null ? undefined : { key: after, waiting: query.get('waiting') === 'true', snapshot: query.get('snapshot') ?? '' });
+          break;
+        }
         case '/api/sync/conflict':value=service.inspectConflict(namespace,key);break;
         case '/api/sync/recoveries':value={items:service.recoveries(namespace)};break;
         case '/api/sync/recovery':value=service.inspectRecovery(namespace,query.get('id')??'');break;

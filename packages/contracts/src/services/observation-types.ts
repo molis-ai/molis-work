@@ -51,6 +51,7 @@ export const OBSERVATION_QUERY_FIELDS = {
   invocation_id: observationToken,
   runtime_session_id: observationToken,
   run_id: observationToken,
+  replay_id: observationToken,
   subject: closedObjectSchema({ kind: observationToken, id: observationToken, version: observationVersion }, ["kind"]),
   fact: { type: "string", minLength: 1, maxLength: OBSERVATION_LIMITS.fact_name },
   owner_kind: { enum: ["plugin", "service", "shell"] },

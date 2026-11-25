@@ -29,7 +29,7 @@ export function evaluationForHome(
   const service = new EvaluationService({
     home,
     clientFor: (caller) => currentClientFor(caller),
-    runInReplayScope: (fn) => withObservationSource("replay", fn),
+    runInReplayScope: (fn, replayId) => withObservationSource("replay", fn, replayId),
   });
   const disposeProjectOwner = projectDeletedHooksFor(home).register({
     ...EVALUATION_OWNER,

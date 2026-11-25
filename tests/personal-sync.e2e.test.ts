@@ -12,7 +12,7 @@ test('PCSYNC-27 sync progress distinguishes unfinished work from a past successf
     window.fetch=async(url,init)=>{
       if(new URL(String(url),location.href).pathname!=='/api/sync')return original(url,init);
       if(window.failSyncStatus)return Response.json({error:'synthetic status unavailable'},{status:503});
-      return Response.json({available:true,device_label:'测试Mac',device:{automatic:false},policy:{spaceId:window.syncSpace||'progress-space',revision:1,selections:[selection]},running:false,error:null,lastSuccess:'2026-10-19T00:00:00.000Z',progress:window.syncProgress,collections:[{selection,title:'文档与文件夹',pending:2,conflicts:[],failures:[]}],unavailable:[]});
+      return Response.json({available:true,device_label:'测试Mac',device:{automatic:false},policy:{spaceId:window.syncSpace||'progress-space',revision:1,selections:[selection]},running:false,error:null,lastSuccess:'2026-10-19T00:00:00.000Z',progress:window.syncProgress,collections:[{selection,title:'文档与文件夹',pending:2,decisionCount:0,waitingCount:0,conflicts:[],failures:[]}],unavailable:[]});
     };
   })();`},b.sessionId);
   await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/settings/sync'},b.sessionId));
@@ -68,8 +68,8 @@ test('sync settings: failed save retains selection and retry saves it',{timeout:
         policy={...JSON.parse(init.body),revision:policy.revision+1};window.savedSyncPolicy=policy;
       }
       if(String(url).endsWith('/device'))automatic=JSON.parse(init.body).automatic;
-      const extra=[['goals','project_goals','目标、关系与工作记录'],['artifacts','versions','成果及固定版本'],['form','forms','问卷与答卷'],['dataset','datasets','数据表与保存版本'],['ppt','presentations','演示稿'],['lingguang','ideas','灵光与对话']].map(([id,collection_id,title])=>({selection:{plugin_id:'io.molis.work.'+id,publisher_id:'molis',publisher_signature:'official-'+id+'-binding',collection_id,schema_version:1},title,pending:0,conflicts:[]}));
-      return Response.json({available:true,device:{automatic},policy,running:false,error:null,lastSuccess:null,progress:{selected:policy.selections.length,pending:0,conflicts:0,waiting:0,failures:0,unavailable:0,complete:false},collections:[{selection,title:'文档与文件夹',pending:0,conflicts:[]},...extra],unavailable:[]});
+      const extra=[['goals','project_goals','目标、关系与工作记录'],['artifacts','versions','成果及固定版本'],['form','forms','问卷与答卷'],['dataset','datasets','数据表与保存版本'],['ppt','presentations','演示稿'],['lingguang','ideas','灵光与对话']].map(([id,collection_id,title])=>({selection:{plugin_id:'io.molis.work.'+id,publisher_id:'molis',publisher_signature:'official-'+id+'-binding',collection_id,schema_version:1},title,pending:0,decisionCount:0,waitingCount:0,conflicts:[]}));
+      return Response.json({available:true,device:{automatic},policy,running:false,error:null,lastSuccess:null,progress:{selected:policy.selections.length,pending:0,conflicts:0,waiting:0,failures:0,unavailable:0,complete:false},collections:[{selection,title:'文档与文件夹',pending:0,decisionCount:0,waitingCount:0,conflicts:[]},...extra],unavailable:[]});
     };
   })();`},b.sessionId);
   await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/settings/sync'},b.sessionId));
@@ -112,7 +112,7 @@ test('waiting linked assets offers retry, not destructive conflict choices',{tim
     window.fetch=async(url,init)=>{
       if(!new URL(String(url),location.href).pathname.startsWith('/api/sync'))return original(url,init);
       if(String(url).endsWith('/run'))waiting=false;
-      return Response.json({available:true,device:{automatic:false},policy:{spaceId:'synthetic-only',revision:1,selections:[selection]},running:false,error:null,lastSuccess:null,progress:{selected:1,pending:0,conflicts:0,waiting:waiting?1:0,failures:0,unavailable:0,complete:false},collections:[{selection,title:'文档与文件夹',pending:0,conflicts:waiting?[{key:'["project","document","page"]',reason:'关联成果版本尚未到达',waiting:true}]:[]}],unavailable:[]});
+      return Response.json({available:true,device:{automatic:false},policy:{spaceId:'synthetic-only',revision:1,selections:[selection]},running:false,error:null,lastSuccess:null,progress:{selected:1,pending:0,conflicts:0,waiting:waiting?1:0,failures:0,unavailable:0,complete:false},collections:[{selection,title:'文档与文件夹',pending:0,decisionCount:0,waitingCount:waiting?1:0,conflicts:waiting?[{key:'["project","document","page"]',reason:'关联成果版本尚未到达',waiting:true}]:[]}],unavailable:[]});
     };
   })();`},b.sessionId);
   await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/settings/sync'},b.sessionId));
@@ -135,7 +135,7 @@ test('PCSYNC-14/16/18, PCSYNC-OPT-18 and SCKP-03 sync comparison, transfer progr
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=fetch.bind(window),selection={plugin_id:'io.example.notes',publisher_id:'example',publisher_signature:'test',collection_id:'notes',schema_version:1};let conflict=true,failed=true,trash=true;
     const image=color=>{const canvas=document.createElement('canvas');canvas.width=1;canvas.height=1;const context=canvas.getContext('2d');context.fillStyle=color;context.fillRect(0,0,1,1);const data=canvas.toDataURL().split(',')[1];return{id:'image1',mime_type:'image/png',byte_length:atob(data).length,data_base64:data};};
-    const state=()=>({available:true,device:{automatic:false},policy:{spaceId:'test-space',revision:1,selections:[selection]},quota:{usedBytes:1250000,limitBytes:100000000},running:false,error:null,lastSuccess:null,progress:{selected:1,pending:0,conflicts:conflict?1:0,waiting:0,failures:failed?1:0,unavailable:0,complete:false},collections:[{selection,title:'文档与文件夹',pending:0,conflicts:conflict?[{key:'asset',reason:'两台设备修改了同一项',waiting:false}]:[],failures:failed?[{key:'broken',direction:'upload',reason:'源内容需要修复',revision:0}]:[]}],unavailable:[]});
+    const state=()=>({available:true,device:{automatic:false},policy:{spaceId:'test-space',revision:1,selections:[selection]},quota:{usedBytes:1250000,limitBytes:100000000},running:false,error:null,lastSuccess:null,progress:{selected:1,pending:0,conflicts:conflict?1:0,waiting:0,failures:failed?1:0,unavailable:0,complete:false},collections:[{selection,title:'文档与文件夹',pending:0,decisionCount:conflict?1:0,waitingCount:0,conflicts:conflict?[{key:'asset',reason:'两台设备修改了同一项',waiting:false}]:[],failures:failed?[{key:'broken',direction:'upload',reason:'源内容需要修复',revision:0}]:[]}],unavailable:[]});
     window.syncResolutionRequests=0;
     window.fetch=async(input,init={})=>{const url=new URL(String(input),location.href),path=url.pathname;if(!path.startsWith('/api/sync'))return original(input,init);
       if(path==='/api/sync/conflict')return Response.json({key:'asset',revision:7,state:'a'.repeat(64),location:'/projects/source/?openPlugin=pages&openItem=asset',local:{title:'本机正文',markdown:'same\\nlocal only',images:[image('red')]},remote:{title:'云端正文',markdown:'same\\ncloud only',images:[image('blue')]}});
@@ -204,7 +204,7 @@ test('PCSYNC-16 cloud history is discoverable without local history, paginated a
   await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{
     const original=window.fetch.bind(window),selection={plugin_id:'io.example.history',publisher_id:'example',publisher_signature:'test',collection_id:'records',schema_version:1};
     let keyReads=0,current=8;window.historyRestores=[];window.historyPurges=[];
-    const state=()=>({available:true,device:{automatic:false},policy:{spaceId:'history-space',revision:1,selections:[selection]},running:false,error:null,lastSuccess:null,progress:{selected:1,pending:0,conflicts:0,waiting:0,failures:0,unavailable:0,complete:false},collections:[{selection,title:'文档与文件夹',pending:0,conflicts:[],failures:[]}],unavailable:[]});
+    const state=()=>({available:true,device:{automatic:false},policy:{spaceId:'history-space',revision:1,selections:[selection]},running:false,error:null,lastSuccess:null,progress:{selected:1,pending:0,conflicts:0,waiting:0,failures:0,unavailable:0,complete:false},collections:[{selection,title:'文档与文件夹',pending:0,decisionCount:0,waitingCount:0,conflicts:[],failures:[]}],unavailable:[]});
     window.fetch=async(input,init={})=>{const url=new URL(String(input),location.href),path=url.pathname;if(!path.startsWith('/api/sync'))return original(input,init);
       if(path==='/api/sync/history/keys'){
         keyReads++;if(keyReads===1)return Response.json({error:'synthetic history read failure'},{status:503});
@@ -292,7 +292,7 @@ test('PCSYNC-OPT-18 grouped collections, transfer progress, and local project st
         available:true,device:{automatic:true},policy:{spaceId:'opt18-space',revision:1,selections:[platformSel,pluginSel]},
         running:true,transfer:{done:2500000,total:10000000},error:null,lastSuccess:null,
         progress:{selected:2,pending:1,conflicts:0,waiting:0,failures:0,unavailable:0,complete:false},
-        collections:[{selection:platformSel,title:'项目目录',group:'platform',pending:0,conflicts:[],failures:[]},{selection:pluginSel,title:'文档与文件夹',group:'plugin',pending:1,conflicts:[],failures:[]}],
+        collections:[{selection:platformSel,title:'项目目录',group:'platform',pending:0,decisionCount:0,waitingCount:0,conflicts:[],failures:[]},{selection:pluginSel,title:'文档与文件夹',group:'plugin',pending:1,decisionCount:0,waitingCount:0,conflicts:[],failures:[]}],
         unavailable:[],
       });
     };

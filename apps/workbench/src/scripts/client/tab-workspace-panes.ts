@@ -234,7 +234,8 @@ ${TAB_WORKSPACE_CLONES_PART}
       if (!["settings", "project-settings"].includes(document.querySelector("[data-directory-pane]")?.dataset.desktopDirectory)) {
         setDirectory(directoryOf(focusedView), false, false);
       }
-      document.title = (focusedView === "home" ? globalThis.t.text(personal ? "workbench.tab-workspace-panes.personal-home" : "workbench.tab-workspace-panes.project-home") : ops.pluginTitle(focusedView)) + " · Molis Work";
+      const place = focusedView === "home" ? globalThis.t.text(personal ? "workbench.tab-workspace-panes.personal-home" : "workbench.tab-workspace-panes.project-home") : ops.pluginTitle(focusedView);
+      document.title = [place, focusedView === "home" && !personal && document.body.dataset.projectTitle, "Molis Work"].filter(Boolean).join(" · ");
     }
     // Surfaces stay where they are while they keep showing: moving a node out and back drops its scroll and focus.
     // Hidden isolated pages stay attached: reparenting an iframe reloads its browsing context.

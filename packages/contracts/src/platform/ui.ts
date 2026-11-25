@@ -644,6 +644,8 @@ export interface UiRequestInit {
   readonly control?: boolean;
   /** Default: `POST` when there is a `body`, otherwise `GET`. */
   readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  /** A query carried by POST has no business effect. A lost reply is a read failure. HTTP credentials still follow the verb. */
+  readonly readOnly?: boolean;
   /** Sent as JSON. A `GET` carries none. */
   readonly body?: unknown;
   /**

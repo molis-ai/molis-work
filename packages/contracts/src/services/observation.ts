@@ -68,6 +68,8 @@ export const OBSERVATION_SERVICE_PREFIXES = {
   shell: "ui",
   agent: "agent",
   assistant: "assistant",
+  home: "home",
+  automation: "automation",
   scheduler: "scheduler",
   connections: "connections",
   grants: "grants",
@@ -288,6 +290,8 @@ export interface ObservationSubjectResolution {
 }
 
 export interface ObservationQueriedRecord extends ObservationRecord {
+  /** The provider which answered this action, as recorded by the Host. */
+  readonly provider_id?: string;
   readonly seq: number;
   readonly kind: ObservationRecordKind;
   readonly late: boolean;
@@ -298,6 +302,7 @@ export interface ObservationQueryInput {
   readonly use?: ObservationUse;
   readonly project_id?: string | null;
   readonly all_projects?: boolean;
+  readonly replay_id?: string;
   readonly work_ref?: string;
   readonly call_id?: string;
   readonly invocation_id?: string;

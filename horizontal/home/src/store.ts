@@ -666,7 +666,7 @@ export class HomePagesStore {
     });
   }
 
-  selectBasic(input: { actor_id: string; request_id: string; expected_revision: string }): { result: HomePageSelectResult; changed: boolean } {
+  selectBasic(input: { actor_id: string; request_id: string; expected_revision: string }): { result: HomePageSelectResult; changed: boolean; previous?: HomeSelection } {
     const fingerprint = createHash("sha256").update(canonicalJsonText({ kind: "basic" })!).digest("hex");
     return this.inTx(() => {
       const existing = this.readReceiptInTx(input.actor_id, "select", "basic", input.request_id);
@@ -688,7 +688,7 @@ export class HomePagesStore {
         .run(this.projectId, nextRevision, at);
       const result: HomePageSelectResult = { selection, revision: nextRevision, approval: null };
       this.insertReceiptInTx(input.actor_id, "select", "basic", input.request_id, fingerprint, result);
-      return { result, changed: true };
+      return { result, changed: true, previous: current.selection };
     });
   }
 

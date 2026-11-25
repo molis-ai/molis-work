@@ -221,13 +221,16 @@ export class RuntimeIntegrationService {
       return false;
     }
     const validate = this.options.validateConnection ?? validateMolisWorkMcpLauncher;
+    let problem: string | undefined;
     const valid = await validate({
       runtime_id: plan.runtime_id,
       launcher_path: prepared.artifacts.launcherPath,
       home_directory: this.homeDirectory,
       plan_id: plan.plan_id,
+      onProtocolError: (step, code) => { problem = step === "initialize" ? `启动连接时收到错误（${code}）` : `读取工具列表时收到错误（${code}），请检查当前安装是否已登录`; },
     });
     assertCurrent();
+    if (!valid && problem) throw new Error(problem);
     return Boolean(valid);
   }
 

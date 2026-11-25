@@ -38,8 +38,10 @@ import { compareEvaluationRuns, summarizeEvaluationMetrics } from "./comparison-
 import { evaluationErrors } from "./errors.js";
 import {
   commitEvaluationSampleHold,
+  readSampleHold,
   releaseEvaluationSampleHolds,
   resolveSampleHoldRecordIds,
+  sampleHoldTarget,
 } from "./observation-bridge.js";
 import type { EvaluationReplayScenario } from "./replay.js";
 import { isPluginDeliveryRole } from "./rules.js";
@@ -49,7 +51,7 @@ import { EvaluationStore } from "./store.js";
 export interface EvaluationServiceOptions {
   readonly home: string;
   readonly clientFor: (caller: ActionCallContext) => ActionClient;
-  readonly runInReplayScope?: <T>(fn: () => Promise<T>) => Promise<T>;
+  readonly runInReplayScope?: <T>(fn: () => Promise<T>, replayId: string) => Promise<T>;
   readonly now?: () => Date;
 }
 
@@ -118,6 +120,7 @@ function validateMetricsWindow(input: EvaluationMetricsSummarizeInput): void {
 
 export class EvaluationService {
   private readonly store: EvaluationStore;
+  private readonly sampleWrites = new Map<string, Promise<void>>();
   private readonly scenarios = new Map<string, EvaluationReplayScenario>();
 
   constructor(private readonly options: EvaluationServiceOptions) {
@@ -135,27 +138,41 @@ export class EvaluationService {
     return (this.options.now ? this.options.now() : new Date()).toISOString();
   }
 
-  /**
-   * A hold and the evaluation row live in two SQLite files, so they cannot share a transaction. If the parent action
-   * is cancelled after the nested hold write and before the row write, remove the hold this same action just made.
-   * This is a best-effort compensation (the caller's own revocation may also refuse the release); the action still
-   * rethrows the original cancellation, and no evaluation sample/run is written.
-   */
-  private async releaseHoldBestEffort(
-    client: ActionClient,
-    caller: ActionExecutionContext,
-    origin: ActionReference,
-    holdId: string,
-  ): Promise<void> {
+  /** A sample can be deleted while a replay is collecting evidence. Serialize only its final writes. */
+  private async writeSample<T>(id: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.sampleWrites.get(id) ?? Promise.resolve();
+    const next = previous.then(operation);
+    const settled = next.then(() => {}, () => {});
+    this.sampleWrites.set(id, settled);
+    try { return await next; }
+    finally { if (this.sampleWrites.get(id) === settled) this.sampleWrites.delete(id); }
+  }
+
+  private async commitWithHold<T>(
+    caller: ActionExecutionContext, origin: ActionReference, sample: EvaluationSampleInput, ids: readonly string[],
+    commit: (hold: { holdId: string | null; heldCount: number }) => T,
+  ): Promise<T> {
+    const client = this.options.clientFor(caller);
+    const previous = ids.length ? await readSampleHold(client, retainActionAuthority(caller, origin), sample) : undefined;
+    caller.signal?.throwIfAborted();
+    await caller.beforeEffect();
+    caller.signal?.throwIfAborted();
+    if (!ids.length) return commit({ holdId: null, heldCount: 0 });
+    const held = await commitEvaluationSampleHold(client, retainActionAuthority(caller, origin, caller.beforeEffect), sample,
+      [...new Set([...(previous?.record_ids ?? []), ...ids])]);
     try {
-      const cleanup = {
-        ...retainActionAuthority(caller, origin),
-        signal: undefined,
-        beforeEffect: async () => {},
-      };
-      await releaseEvaluationSampleHolds(client, cleanup, [holdId]);
-    } catch {
-      // The original cancellation/error is the result; a failed compensation must not hide it.
+      caller.signal?.throwIfAborted();
+      await caller.beforeEffect();
+      caller.signal?.throwIfAborted();
+      return commit(held);
+    } catch (error) {
+      // Undo only this operation's hold delta, preserving any earlier run's retained facts and expiry.
+      const cleanup = { ...retainActionAuthority(caller, origin), signal: undefined, beforeEffect: async () => {} };
+      try {
+        if (previous) await commitEvaluationSampleHold(client, cleanup, { ...sample, hold_expires_at: previous.expires_at }, previous.record_ids);
+        else if (held.holdId) await releaseEvaluationSampleHolds(client, cleanup, [sampleHoldTarget(sample.sample_id, sample.version, held.holdId)]);
+      } catch { /* Keep the triggering error. Removal can retry with the deterministic hold ID. */ }
+      throw error;
     }
   }
 
@@ -166,56 +183,39 @@ export class EvaluationService {
     caller.signal?.throwIfAborted();
     this.store.assertSampleImmutable(input);
     const origin = originOf(caller, evaluationActions.samplesPut);
-    const client = this.options.clientFor(caller);
-    const holdId = input.hold_records ? `eval:${input.sample_id}:v${input.version}` : null;
-    const existingSample = this.store.getSample(input.sample_id, input.version);
-    let holdWritten = false;
-    try {
-      const holdRecordIds = input.hold_records
-        ? await resolveSampleHoldRecordIds(client, retainActionAuthority(caller, origin), input)
-        : undefined;
-      caller.signal?.throwIfAborted();
-      await caller.beforeEffect();
+    const ids = input.hold_records
+      ? await resolveSampleHoldRecordIds(this.options.clientFor(caller), retainActionAuthority(caller, origin), input)
+      : [];
+    return this.writeSample(input.sample_id, () => {
       this.store.assertSampleImmutable(input);
-      let hold: { readonly holdId: string | null; readonly heldCount: number } = { holdId: null, heldCount: 0 };
-      if (input.hold_records && holdRecordIds && holdRecordIds.length > 0) {
-        const writeNested = retainActionAuthority(caller, origin, caller.beforeEffect);
-        hold = await commitEvaluationSampleHold(client, writeNested, input, holdRecordIds);
-        holdWritten = true;
-        caller.signal?.throwIfAborted();
-        await caller.beforeEffect();
-      }
-      return this.store.putSample(input, hold, this.nowIso());
-    } catch (error) {
-      // Only a hold this call actually wrote (and only if the sample had none before) is ours to remove. A failed
-      // idempotent put over an existing held sample must not delete that earlier retention.
-      if (holdWritten && holdId && (!existingSample || existingSample.hold_id === null)) {
-        await this.releaseHoldBestEffort(client, caller, origin, holdId);
-      }
-      throw error;
-    }
+      return this.commitWithHold(caller, origin, input, ids, hold => this.store.putSample(input, hold, this.nowIso()));
+    });
   }
 
   async removeSample(caller: ActionExecutionContext, input: EvaluationSampleRemoveInput): Promise<EvaluationSampleRemoveOutput> {
     assertPersonCaller(caller);
+    return this.writeSample(input.sample_id, () => this.removeSampleVersions(caller, input));
+  }
+
+  private async removeSampleVersions(caller: ActionExecutionContext, input: EvaluationSampleRemoveInput): Promise<EvaluationSampleRemoveOutput> {
     caller.signal?.throwIfAborted();
     const pending = this.store.inspectSampleRemoval(input.sample_id, input.version);
     await caller.beforeEffect();
     caller.signal?.throwIfAborted();
-    if (pending.versions.length === 0) {
+    if (!pending.versions.length && !pending.targets.length) {
       return { removed_versions: [], released_hold_ids: [] };
     }
-    const releasedHoldIds = input.release_holds !== false && pending.holdIds.length > 0
+    const releasedHoldIds = input.release_holds !== false && pending.targets.length > 0
       ? await releaseEvaluationSampleHolds(
           this.options.clientFor(caller),
           retainActionAuthority(caller, originOf(caller, evaluationActions.samplesRemove), caller.beforeEffect),
-          pending.holdIds,
+          pending.targets,
         )
       : [];
     // The first beforeEffect is the commit point for release + delete. Rechecking after the release would strand the
     // sample without its hold if the caller cancelled in between; a cancelled call therefore stops before either write.
-    const { removedVersions } = this.store.removeSample(input.sample_id, input.version);
-    return { removed_versions: removedVersions, released_hold_ids: releasedHoldIds };
+    if (pending.versions.length) this.store.removeSample(input.sample_id, input.version);
+    return { removed_versions: pending.versions, released_hold_ids: releasedHoldIds };
   }
 
   async executeRun(caller: ActionExecutionContext, input: EvaluationRunExecuteInput): Promise<EvaluationRunView> {
@@ -231,29 +231,24 @@ export class EvaluationService {
     }
     validateDeliverySources(sample);
     const origin = originOf(caller, evaluationActions.runsExecute);
-    const holdId = input.hold_records ? `eval:${sample.sample_id}:v${sample.version}` : null;
-    let holdCommitted = false;
-    try {
-      const { runView, outcomeCounts } = await executeSampleEvaluationRun({
-        caller,
-        origin,
-        clientFor: (c) => this.options.clientFor(c),
-        sample,
-        input,
-        scenarios: this.scenarios,
-        ...(this.options.runInReplayScope ? { runInReplayScope: this.options.runInReplayScope } : {}),
-        nowIso: () => this.nowIso(),
-        onHoldCommitted: () => { holdCommitted = true; },
+    const { runView, outcomeCounts, funnelKeys, holdRecordIds } = await executeSampleEvaluationRun({
+      caller, origin, clientFor: this.options.clientFor, sample, input, scenarios: this.scenarios,
+      runInReplayScope: this.options.runInReplayScope, nowIso: () => this.nowIso(),
+    });
+    return this.writeSample(sample.sample_id, async () => {
+      const checkSample = () => {
+        const current = this.store.getSample(sample.sample_id, sample.version);
+        if (current?.frozen_digest !== sample.frozen_digest || current.created_at !== sample.created_at) {
+          throw evaluationErrors.not_found("评测期间样本已移除或替换，请重新选择样本");
+        }
+      };
+      checkSample();
+      return this.commitWithHold(caller, origin, sample, holdRecordIds, hold => {
+        checkSample();
+        this.store.insertRun(runView, { ...outcomeCounts, funnel_keys: funnelKeys }, hold);
+        return runView;
       });
-      caller.signal?.throwIfAborted();
-      this.store.insertRun(runView, outcomeCounts);
-      return runView;
-    } catch (error) {
-      if (holdCommitted && holdId && sample.hold_id === null) {
-        await this.releaseHoldBestEffort(this.options.clientFor(caller), caller, origin, holdId);
-      }
-      throw error;
-    }
+    });
   }
 
   async recordReview(caller: ActionExecutionContext, input: EvaluationReviewRecordInput): Promise<EvaluationReviewRecordOutput> {

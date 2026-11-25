@@ -7,7 +7,8 @@
 | 要做的事 | 从这里开始 | 按需继续 |
 | --- | --- | --- |
 | 使用产品、连接 Runtime | [产品介绍](../README.zh.md)（[English](../README.md)）→ [安装与维护](installation.md)（[English](installation.en.md)） | [Runtime 协议](runtime.md)（[English](runtime.en.md)）、[MCP 接入](mcp.md)（[English](mcp.en.md)） |
-| 开发或修改插件 | [插件开发 Skill](../skills/molis-plugin-dev/SKILL.md) → [插件开发手册](platform/PLUGIN-DEVELOPMENT.md) | Skill 给开发步骤，手册解释本地运行、动作录取与打包签名；[动作基本合同](../specs/action-architecture/spec.md)规定注册、调用与授权；具体包的边界和验证看包 README |
+| 在仓库外写插件 | [安装版作者入门](../skills/molis-plugin-dev/authoring.md#安装版开发入口) · [制作技能内容包](../skills/molis-plugin-dev/skills-and-kits.md) | [开发 Skill](../skills/molis-plugin-dev/SKILL.md) · [开发手册](platform/PLUGIN-DEVELOPMENT.md) |
+| 维护随产品构建的内置插件 | [宿主装配](../skills/molis-plugin-dev/host.md) | [动作合同](../specs/action-architecture/spec.md) · 对应包 README |
 | 定义公开状态或插件对象的状态机 | [平台词表](platform/STATE-VOCABULARY.md) · [插件状态机 Skill](../skills/molis-plugin-dev/state-machine.md) | [状态机合同](../specs/state-machine-platform/spec.md)与[插件手册](platform/PLUGIN-DEVELOPMENT.md#状态与状态机) |
 | 设计或修改任何界面、组件、皮肤、字体、设置页与动效 | [设计与前端工程 Skill](../skills/molis-design-ui/SKILL.md) → [DESIGN](../DESIGN.md) | 覆盖 4 套皮肤令牌、F1 Sans+中文排版、`mw-*` 原语与共用机制、设置页 P5、一变一动动效、反馈闭环、组件板 `/__ui/catalog` 与防回归门禁；文案与双语写法见 [文字与外观](../skills/molis-plugin-dev/text-and-appearance.md) |
 | 写界面文字、语言文件，或用颜色、字体变量 | [文字与外观](../skills/molis-plugin-dev/text-and-appearance.md)（现行写法与共同约定；旧写法已删） | 平台一侧见 [UI Platform](platform/UI-PLATFORM.md#5-界面文字语言与外观)；规则的来由见[字体、皮肤与语言设计稿](../specs/font-and-skin-system/a-section-contract.md)第 1、16 节 |

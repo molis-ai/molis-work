@@ -1,7 +1,8 @@
-import type {
-  ActionCallContext,
-  ActionClient,
-  ActionReference,
+import {
+  actionResultSubject,
+  type ActionCallContext,
+  type ActionClient,
+  type ActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   EVALUATION_PROVIDER_ID,
@@ -15,6 +16,7 @@ import {
   type ObservationEvidenceGetOutput,
   type ObservationEvidenceItemView,
   type ObservationHoldPutResult,
+  type ObservationHoldView,
   type ObservationHoldListOutput,
   type ObservationHoldReleaseResult,
   type ObservationQueriedRecord,
@@ -85,6 +87,45 @@ export async function fetchObservationEvidenceMap(
   return map;
 }
 
+export interface CommandReceipt {
+  readonly kind: string;
+  readonly id: string;
+  readonly revision: string;
+  readonly previousRevision?: number;
+}
+
+function jsonEvidence(items: readonly ObservationEvidenceItemView[], role: string): unknown {
+  const item = items.find(entry => entry.role === role);
+  if (item?.status !== "available" || item.redacted || item.media_type !== "application/json") return;
+  try { return JSON.parse(item.text); } catch { return; }
+}
+
+/** Interpret only an already retained success against its own provider's versioned result declaration. */
+export async function readRetryReceipts(clientFor: (caller: ActionCallContext) => ActionClient, caller: ActionCallContext,
+  records: readonly ObservationQueriedRecord[], evidenceByRecord: ReadonlyMap<string, readonly ObservationEvidenceItemView[]>): Promise<Map<string, CommandReceipt>> {
+  const receipts = new Map<string, CommandReceipt>();
+  const commands = records.filter(r => r.owner.kind === "service" && r.owner.id === "gateway" && r.fact === "action.call" && r.detail.operation === "command");
+  const failures = commands.filter(r => r.outcome === "failed" || r.outcome === "refused");
+  for (const record of commands) {
+    if (record.outcome !== "succeeded" || !record.provider_id || !failures.some(failed => failed.project_id === record.project_id
+      && failed.work.call_id === record.work.call_id && failed.detail.action === record.detail.action && failed.provider_id === record.provider_id)) continue;
+    const action = typeof record.detail.action === "string" && /^(.+)@(\d+)$/u.exec(record.detail.action);
+    if (!action) continue;
+    const scoped = { ...caller, project_id: record.project_id };
+    const reference = { capability_id: action[1]!, version: Number(action[2]), provider_id: record.provider_id };
+    const view = await clientFor(scoped).discoverOne(scoped, reference);
+    if (!view?.action.result_subject) continue;
+    const items = evidenceByRecord.get(record.record_id) ?? [];
+    const result = actionResultSubject(view.action, undefined, jsonEvidence(items, "result"));
+    if (!result?.revision) continue;
+    const input = jsonEvidence(items, "input");
+    const previousRevision = typeof input === "object" && input && "id" in input && input.id === result.subject.id
+      && "expected_revision" in input && typeof input.expected_revision === "number" ? input.expected_revision : undefined;
+    receipts.set(record.record_id, { ...result.subject, revision: result.revision, previousRevision });
+  }
+  return receipts;
+}
+
 export async function readObservationCoverage(
   client: ActionClient,
   nestedCaller: ActionCallContext,
@@ -99,8 +140,8 @@ export async function readObservationCoverage(
         : sample.query.project_id !== undefined
           ? { project_id: sample.query.project_id }
           : { all_projects: true }),
-    ...(sample.window?.since ?? sample.query.since ? { since: sample.window?.since ?? sample.query.since } : {}),
-    ...(sample.window?.until ?? sample.query.until ? { until: sample.window?.until ?? sample.query.until } : {}),
+    ...(sample.query.since ?? sample.window?.since ? { since: sample.query.since ?? sample.window?.since } : {}),
+    ...(sample.query.until ?? sample.window?.until ? { until: sample.query.until ?? sample.window?.until } : {}),
   };
   return await client.invoke(nestedCaller, obsRef(observationActions.coverageGet), coverageInput) as ObservationCoverageGetOutput;
 }
@@ -120,6 +161,18 @@ export async function resolveSampleHoldRecordIds(
   return records.map((r) => r.record_id);
 }
 
+export const sampleHoldTarget = (sampleId: string, version: number, holdId = `eval:${sampleId}:v${version}`) => ({
+  hold_id: holdId, owner: EVALUATION_PROVIDER_ID, sample_id: `${sampleId}@${version}`,
+});
+
+export async function readSampleHold(client: ActionClient, caller: ActionCallContext, sample: Pick<EvaluationSampleView, "sample_id" | "version">): Promise<ObservationHoldView | undefined> {
+  const target = sampleHoldTarget(sample.sample_id, sample.version);
+  const result = await client.invoke(caller, obsRef(observationActions.holdsList), {
+    sample_id: target.sample_id, include_expired: true,
+  }) as ObservationHoldListOutput;
+  return result.holds.find(hold => hold.owner === target.owner && hold.hold_id === target.hold_id);
+}
+
 export async function commitEvaluationSampleHold(
   client: ActionClient,
   nestedCaller: ActionCallContext,
@@ -129,11 +182,9 @@ export async function commitEvaluationSampleHold(
   if (recordIds.length === 0) {
     return { holdId: null, heldCount: 0 };
   }
-  const holdId = `eval:${sample.sample_id}:v${sample.version}`;
   const result = await client.invoke(nestedCaller, obsRef(observationActions.holdsPut), {
-    hold_id: holdId,
-    sample_id: `${sample.sample_id}@${sample.version}`,
-    owner: EVALUATION_PROVIDER_ID,
+    ...sampleHoldTarget(sample.sample_id, sample.version),
+    require_same_identity: true,
     note: `评测样本留存：${sample.title}`,
     ...(sample.project_id !== undefined ? { project_id: sample.project_id } : {}),
     ...(sample.hold_expires_at !== undefined ? { expires_at: sample.hold_expires_at } : {}),
@@ -148,21 +199,14 @@ export async function sampleHasActiveHold(
   nestedCaller: ActionCallContext,
   sample: Pick<EvaluationSampleView, "sample_id" | "version">,
 ): Promise<boolean> {
-  const result = await client.invoke(nestedCaller, obsRef(observationActions.holdsList), {
-    sample_id: `${sample.sample_id}@${sample.version}`,
-  }) as ObservationHoldListOutput;
-  return result.holds.length > 0;
+  return ((await readSampleHold(client, nestedCaller, sample))?.active_record_count ?? 0) > 0;
 }
 
 export async function releaseEvaluationSampleHolds(
   client: ActionClient,
   nestedCaller: ActionCallContext,
-  holdIds: readonly string[],
+  targets: readonly ReturnType<typeof sampleHoldTarget>[],
 ): Promise<readonly string[]> {
-  const releasedHoldIds: string[] = [];
-  for (const holdId of holdIds) {
-    const res = await client.invoke(nestedCaller, obsRef(observationActions.holdsRelease), { hold_id: holdId }) as ObservationHoldReleaseResult;
-    releasedHoldIds.push(...res.released_hold_ids);
-  }
-  return releasedHoldIds;
+  const result = await client.invoke(nestedCaller, obsRef(observationActions.holdsRelease), { targets }) as ObservationHoldReleaseResult;
+  return result.released_hold_ids;
 }

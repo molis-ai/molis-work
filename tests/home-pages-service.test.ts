@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { observationActions, type ObservationQueryOutput } from "@molis-ai/molis-work-contracts/services/observation";
 import { HOME_PAGE_SESSION_HEADER, HomePageSessionRegistry, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import {
   ActionError,
@@ -235,6 +236,14 @@ test("SPC-10 ONB-25 ONB-26 ONB-27 WBR-26: home page lifecycle — draft save, bl
   const restoreReceipt = (await restoreRes.json()) as HomePageApprovalReceipt<"restore">;
   assert.equal(restoreReceipt.operation, "restore");
   assert.deepEqual(restoreReceipt.selection, { kind: "page", page_id: v1.page_id, version: 1 });
+
+  const viewer = await f.host.localPersonContext();
+  const observed = await f.host.homeActionClient().invoke(viewer, observationActions.recordsQuery, {
+    project_id: project.project_id, use: "evaluation", work_ref: v1.page_id, fact: "home.selection",
+  }) as ObservationQueryOutput;
+  assert.deepEqual(observed.records.map(row => [row.stage, row.subjects[0]?.version, row.detail.receipt_id]), [
+    ["adopted", 1, receipt1.revision], ["undone", 1, basicResult.revision], ["restored", 1, restoreReceipt.revision],
+  ], "QRF-04: only committed selection changes count, including the original page on return to basic");
 
   // 8. Design-language check catches violations and passes clean token-based files.
   const cleanReport = inspectHomePageDesign(sampleDraft("干净页面").files);

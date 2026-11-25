@@ -7,6 +7,8 @@ export interface ObservationHoldPutInput {
   readonly hold_id: string;
   readonly sample_id: string;
   readonly owner?: string;
+  /** If the ID already exists, only update a hold with the same owner and exact sample reference. */
+  readonly require_same_identity?: boolean;
   readonly project_id?: string | null;
   readonly record_ids: readonly string[];
   readonly expires_at?: string | null;
@@ -35,6 +37,8 @@ export interface ObservationHoldPutResult {
 }
 
 export interface ObservationHoldReleaseInput {
+  /** Release only these (owner, sample, ID) triples, together in one transaction. */
+  readonly targets?: readonly Pick<ObservationHoldView, "owner" | "sample_id" | "hold_id">[];
   readonly hold_id?: string;
   readonly sample_id?: string;
 }
@@ -77,6 +81,7 @@ export const observationHoldActions = {
         hold_id: token,
         sample_id: token,
         owner: token,
+        require_same_identity: { type: "boolean" },
         project_id: nullableToken,
         record_ids: { type: "array", minItems: 1, maxItems: 500, items: token },
         expires_at: nullableToken,
@@ -105,6 +110,7 @@ export const observationHoldActions = {
       permissions: [],
       subject_kinds: [],
       input_schema: inputSchemaFor<ObservationHoldReleaseInput>()(closedObjectSchema({
+        targets: { type: "array", items: closedObjectSchema({ owner: token, sample_id: token, hold_id: token }) },
         hold_id: token,
         sample_id: token,
       }, [])),

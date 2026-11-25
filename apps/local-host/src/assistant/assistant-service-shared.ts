@@ -58,7 +58,7 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   /** The person's own client in a work's project, to drive the plugin that carries it as its page would; a dispatch's (a Send, a follow-up's round) is its own. */
   personActions?(work: Pick<StoredWork, "project_ref">, use?: "dispatch", handed?: ExecutorHanded, executorPluginId?: string): Promise<BoundActionClient>;
   /** The person's own actions in a work's scope. An effect carries the current workbench decision. */
-  scopeActions?(work: Pick<StoredWork, "project_ref">, decision?: AssistantPersonDecision): Promise<PersonActions>;
+  scopeActions?(work: Pick<StoredWork, "project_ref"> & Partial<Pick<StoredWork, "work_id">>, decision?: AssistantPersonDecision): Promise<PersonActions>;
   prepareConnectionAnswer?(work: StoredWork, questions: readonly AgentQuestion[], answers: readonly AgentQuestionAnswer[] | undefined): Promise<() => void>;
   /**
    * A file of the project's folders, or a version the platform's materials service fixed, read back as the person through

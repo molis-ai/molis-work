@@ -54,6 +54,8 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   { owner: "service:scheduler", fact: "scheduler.wakeup", entries: ["schedule"], state: "complete" },
   // Each panel write on an Assistant work, joined to that work; the call's content is the exit's, the rounds it started are the agent's.
   { owner: "service:assistant", fact: "assistant.work", entries: ["workbench"], state: "complete" },
+  { owner: "service:home", fact: "home.selection", entries: ["workbench"], state: "complete" },
+  { owner: "service:automation", fact: "automation.adoption", entries: ["workbench"], state: "complete" },
   // Grants whose owner keeps no history: a folder grant's row is deleted, an MCP grant is written over. Given by the person (in Settings, at the
   // folder chooser, through a task's categories) or taken by the Host after an uninstall or a folder that changed.
   { owner: "service:grants", fact: "grants.directory", entries: ["workbench", "host"], state: "complete" },

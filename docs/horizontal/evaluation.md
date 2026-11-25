@@ -14,6 +14,8 @@
 4. **未知与失败分离（`OCL-08`、`OCL-14`、`PWA-55`、`PWA-56`）**：覆盖缺口（到期清理、暂停、清除、丢失）、证据缺失、窗口未结束、未曝光与待人工复查统一归入 `unknown` 并记录结构化原因，不冒充通过或失败。
 5. **隔离回放（`PWA-53`、`OCL-13`、`EC-18`）**：`isolated_replay` 在 `source_class: "replay"` 作用域内运行，拦截外部连接器／发送类副作用，回放记录不混入真实工作统计。
 
+执行与完成按主人确认的工作身份去重，`excluded_execution_runs` 统计缺少这项依据的运行。其余六个互动阶段分别按保存的身份去重。某阶段只有数量时，汇总按该轮保存的次数累加，并在 `funnel_totals.unattributed_interactions` 单列这部分。各阶段的总数减去这部分，就是有身份依据且已跨运行去重的数量。
+
 ## 隔离 Home 可复现评测命令（`BL-328`）
 
 仓库根脚本 `pnpm eval:run`（[`scripts/run-evaluation.mts`](../../scripts/run-evaluation.mts)）提供最小隔离 Home 评测运行入口：

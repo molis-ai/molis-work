@@ -1,6 +1,6 @@
 # 接入：外部世界
 
-Integration Plugin 把外部协议变成 Connector + Signal。Host 不写 GitHub/Gmail 分支。Feed 只消费已经变成 Item 的结果。账号设置可挂 `workbench.settings`；来源任务、立刻拉取、token、计划留在 Feed，不进 `feed.capture`。
+可安装的沙箱集成通过清单声明连接服务、可选来源及允许的接入方式。平台按已启用的清单呈现对应入口；账号设置仍有提供方专用行为。内置集成可随宿主从官方目录装配 `./drivers`，签名包使用公开沙箱合同。Feed 只消费已经变成 Item 的结果。账号设置可挂 `workbench.settings`；来源任务、立刻拉取、token、计划留在 Feed，不进 `feed.capture`。
 
 ## 形态
 
@@ -24,7 +24,7 @@ export function createGithubIntegrationPlugin(input: { providerFor(binding: Inte
 
 ## 声明：服务和集成
 
-Manifest 的 `connection_services` 写插件接触的服务和设置页上的卡（标题、分组、`auth_kind`、`auth.methods`、能力、`setup_links`、`auth_help`）；`integrations` 写对每个服务做什么：`kind: "source"`（Feed 拉取）或 `"document_import"`（成果库读文档，另写 `document_source`，和 `connection_methods`：它能用哪几种接入方式的连接读，如 `["token", "oauth"]`；成果库只收接入方式在这里面的连接）。`integrations[].service_id` 必须是同一份 Manifest 声明过的服务。平台按已装插件的声明拼出每个 Home 的登记；登记、设置页的目录卡、文档导入的来源名都从它来，宿主不再认任何服务名。
+Manifest 的 `connection_services` 写插件接触的服务和设置页上的卡（标题、分组、`auth_kind`、`auth.methods`、能力、`setup_links`、`auth_help`）；`integrations` 写对每个服务做什么：`kind: "source"`（Feed 拉取）或 `"document_import"`（成果库读文档，另写 `document_source`，和 `connection_methods`：它能用哪几种接入方式的连接读，如 `["token", "oauth"]`；成果库只收接入方式在这里面的连接）。`integrations[].service_id` 必须是同一份 Manifest 声明过的服务。平台按已装插件的声明拼出每个 Home 的登记；登记、设置页的目录卡、文档导入的来源名都从它来，来源消费按已启用的声明匹配。
 
 - 一个 id 先到先得：后装的插件声明已被占的 `service_id` 或 `integration_id`，启用失败（`plugin.integration_declaration_conflict`，写明 id 与持有者），已登记的不受影响。平台自己的卡先于插件。
 - 声明不给连接权：有卡不等于能读这个服务已有的连接与凭据；要读连接走 `services.connections`，按安装逐个授权。

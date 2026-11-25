@@ -129,6 +129,7 @@ test("B27-AC03: first use explains a missing project name and can create the cor
   const added = after.filter(project => !before.some(old => old.id === project.id));
   assert.deepEqual(added.map(project => project.name), ["秋季内容计划"]);
   assert.equal(await evaluate("decodeURIComponent(location.pathname.split('/')[2])"), added[0]?.id);
+  assert.equal(await evaluate("new URL(location.href).searchParams.has('openItem')"), false, "QRF-07: a pure blank start lands at the project home");
 
   await command("Network.setCookie", { name: "molis_work_locale", value: "en", url: origin }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/onboarding?mode=new-project&start=blank` }, sessionId));

@@ -41,26 +41,25 @@
    - 正文：严格 UTF-8、非空白，至多 500 行、20,000 个 UTF-16 单元。正文写步骤和边界，不写死对象标识；要改数据的步骤照常经 `change-capability`，由本人确认。
    - 正文变了就升 `version`：宿主按 `skill_id` 加版本认一份技能，同一版本两份正文会被当成同一份。
 
-3. **发布身份**：生成一对 Ed25519 密钥，取公钥的身份。
+3. **发布身份**。用 Node 24.15.x 在空的作者目录生成 Ed25519 密钥，把公钥经可信渠道交给核验方。已有发布者使用自己的密钥。
 
    ```bash
-   openssl genpkey -algorithm ed25519 -out key.pem
+   molis_cli="$HOME/.molis-work/bin/molis-work"
+   mkdir -p author receiver
+   node --input-type=module <<'JS'
+   import { generateKeyPairSync } from "node:crypto";
+   import { writeFileSync } from "node:fs";
+   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+   writeFileSync("author/key.pem", privateKey.export({ type: "pkcs8", format: "pem" }), { flag: "wx", mode: 0o600 });
+   writeFileSync("receiver/trusted.pem", publicKey.export({ type: "spki", format: "pem" }), { flag: "wx" });
+   JS
+   binding="$("$molis_cli" plugin identity receiver/trusted.pem | node -pe 'JSON.parse(require("node:fs").readFileSync(0,"utf8")).publisher_identity')"
    ```
-
-   ```bash
-   openssl pkey -in key.pem -pubout -out public.pem
-   ```
-
-   ```bash
-   molis-work-plugin identity public.pem
-   ```
-
-   输出的 `publisher_identity`（`ed25519:sha256:…`）就是下一步的 `--publisher-key-id`。私钥只留在你自己手里。
 
 4. **打包**：`plugin_id` 用你自己的反向域名（如 `com.acme.meeting-skills`），`io.molis.work.` 只给随宿主发布的包，用了会被拒；版本是 SemVer；范围 `--scope project`（默认）或 `home`（个人空间的技能，跨项目都在）。
 
    ```bash
-   molis-work-plugin pack-content my-skills weekly.json --plugin-id com.example.weekly --name 每周回顾 --version 1.0.0 --publisher-id example --publisher-key-id ed25519:sha256:… --scope home
+   "$molis_cli" plugin pack-content my-skills author/weekly.json --plugin-id com.example.weekly --name 每周回顾 --version 1.0.0 --publisher-id example --publisher-key-id "$binding" --scope home
    ```
 
    打包时就过 Manifest 与技能声明的全部检查，不过就不写输出（符号链接、别处的文件、超上限都拒绝，不会悄悄丢掉）。附带文件的大小与 SHA-256 由命令算好写进声明。
@@ -68,16 +67,16 @@
 5. **签名与核验**：
 
    ```bash
-   molis-work-plugin sign weekly.json key.pem weekly.signed.json
+   "$molis_cli" plugin sign author/weekly.json author/key.pem receiver/weekly.signed.json
    ```
 
    ```bash
-   molis-work-plugin verify weekly.signed.json public.pem
+   "$molis_cli" plugin verify receiver/weekly.signed.json receiver/trusted.pem
    ```
 
-   想单独看生成的 Manifest，把包里的 `payload.manifest` 存成 `manifest.json`，跑 `molis-work-plugin validate manifest.json`。
+   想单独看生成的 Manifest，把包里的 `payload.manifest` 存成 `manifest.json`，跑 `"$molis_cli" plugin validate manifest.json`。
 
-6. **安装**：在 Molis Work 的「设置 › 插件」里「安装插件」选这个文件，或 `molis-work plugin install weekly.signed.json <project-id> --pin-as <发布者名称> --confirm`（先不带 `--confirm` 看预览）。确认里列出每个技能的用途、给助理还是 Coding、会不会执行脚本、用到的连接器类别；第一次见这个发布者要给它取个名字（固定发布者）。
+6. **安装**：在 Molis Work 的「设置 › 插件」里「安装插件」选这个文件，或 `molis-work plugin install receiver/weekly.signed.json <project-id> --pin-as <发布者名称> --confirm`（先不带 `--confirm` 看预览）。确认里列出每个技能的用途、给助理还是 Coding、会不会执行脚本、用到的连接器类别；第一次见这个发布者要给它取个名字（固定发布者）。
 
 本人也可以不打包：「设置 › 能力包 › 从本机导入」把本机 Agent（Claude Code、Codex 等）已有的 Skills 文件夹导进来。它用的是同一个打包函数（SDK 的 `skillFromFolder`、`contentPackagePayload`），签名用这个 Home 自己的发布身份。
 
@@ -88,7 +87,7 @@
 你的插件本来就有代码，也可以把本领域的做法给助理和 Coding 用（例如 Pages 的「会议纪要整理」）：
 
 - 内置插件与按源码装的插件：Manifest 的 `methods` 写声明（同上面 frontmatter 的字段，外加 `skill_id`、`version`、`name`、`summary`、`tools`），正文放在 `PluginDefinition.methods`（`AgentSkillDefinition[]`），标识与版本和声明一致；插件启动时登记，停用、卸载时收回。
-- 签名沙箱包：`methods` 每项必须写 `body: "skills/<skill_id>/SKILL.md"`，`tools` 必须是空列表；`molis-work-plugin pack-sandbox … --methods <JSON>`。
+- 签名沙箱包：`methods` 每项必须写 `body: "skills/<skill_id>/SKILL.md"`，`tools` 必须是空列表；`"$molis_cli" plugin pack-sandbox … --methods <JSON>`。
 - `tools` 只能写 `SKILL_TOOLS` 里的名字（能力网关和不碰目录的业务工具）。它永远不扩大角色的工具：一轮开始时宿主只取「技能写的 ∩ 角色有的」。
 - 与 `agent.skills` 的区别：`agent.skills` 是你自己的 Agent 用的；`methods` 给别的 Agent 用。
 

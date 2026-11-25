@@ -4,6 +4,7 @@ import { hasProtectedWebAction } from "./plugin-consent-settings-entry.js";
 
 interface CardDecision {
   readonly project_id: string;
+  readonly work_id?: string;
   readonly action: ExactActionReference;
   readonly input: unknown;
   assertCurrent(): void;

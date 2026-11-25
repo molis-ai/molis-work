@@ -23,7 +23,7 @@ export function assistantPersonActions(localHost: MolisWorkLocalHost,
     context.catch(() => { if (contexts.get(key)?.context === context) contexts.delete(key); });
     return context;
   };
-  const personClient = (reference: LocalHostProjectReference | undefined, decision?: AssistantPersonDecision): PersonActions => {
+  const personClient = (reference: LocalHostProjectReference | undefined, decision?: AssistantPersonDecision, workId?: string): PersonActions => {
     const client = reference ? localHost.actionClient(reference) : localHost.homeActionClient();
     if (decision) {
       const context = makeContext(reference, decision);
@@ -35,7 +35,7 @@ export function assistantPersonActions(localHost: MolisWorkLocalHost,
           await decision.beforeEffect();
           if (action.provider_id !== AUTOMATION_ADOPTION_PROVIDER_ID) return client.invoke(caller, action, input);
           assertPersonDecisionProject(caller.project_id, decision);
-          return withAutomationCardDecision(decision.entry!, { project_id: caller.project_id!, action, input,
+          return withAutomationCardDecision(decision.entry!, { project_id: caller.project_id!, work_id: workId, action, input,
             assertCurrent: decision.assertCurrent, receipt: decision.receipt }, () => client.invoke(caller, action, input));
         },
       };

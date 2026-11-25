@@ -1,4 +1,4 @@
-import {completeInstallationLogin} from './installation-login.js';
+import {completeInstallationLogin} from './installation-login.ts';
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";

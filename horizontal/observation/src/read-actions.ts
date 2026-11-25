@@ -195,6 +195,10 @@ export async function handleRecordsQuery(
   }
   if (sinceIso !== undefined) { baseWhere.push("occurred_at >= ?"); baseParams.push(sinceIso); }
   if (untilIso !== undefined) { baseWhere.push("occurred_at <= ?"); baseParams.push(untilIso); }
+  if (input.replay_id !== undefined) {
+    baseWhere.push("source_class = 'replay' AND json_extract(detail, '$.evaluation_replay_id') = ?");
+    baseParams.push(input.replay_id);
+  }
   if (input.platform_version !== undefined) {
     baseWhere.push("json_extract(conditions, '$.platform_version') = ?");
     baseParams.push(input.platform_version);
@@ -276,6 +280,7 @@ export async function handleRecordsQuery(
     }
     records.push({
       ...item.base,
+      ...(item.row.provider_id ? { provider_id: item.row.provider_id } : {}),
       seq: item.row.seq,
       kind: item.kind,
       late: item.late,

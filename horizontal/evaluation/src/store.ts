@@ -15,7 +15,9 @@ import type {
   EvaluationVerdict,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
 import type { ObservationOutcome } from "@molis-ai/molis-work-contracts/services/observation";
-import { homeSqlitePath, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openBaselineHomeSqlite, rollbackPreservingError } from "@molis-ai/molis-work-storage";
+import { sampleHoldTarget } from "./observation-bridge.js";
+import type { FunnelKeys } from "./unknown-and-funnel.js";
 import { evaluationErrors } from "./errors.js";
 import { EVALUATION_BASELINE, EVALUATION_STORE } from "./schema.js";
 
@@ -63,7 +65,7 @@ interface StoredReviewRow {
 
 export interface StoredRunWithOutcomes {
   readonly view: EvaluationRunView;
-  readonly outcomeCounts: Readonly<Partial<Record<ObservationOutcome, number>>>;
+  readonly outcomeCounts: Readonly<Partial<Record<ObservationOutcome, number>>> & { readonly funnel_keys?: FunnelKeys };
 }
 
 function rowsAs<T>(rows: readonly Record<string, SQLOutputValue>[]): T[] {
@@ -315,33 +317,49 @@ export class EvaluationStore {
     return latest;
   }
 
-  inspectSampleRemoval(sampleId: string, version?: number): { readonly versions: readonly number[]; readonly holdIds: readonly string[] } {
+  inspectSampleRemoval(sampleId: string, version?: number): { readonly versions: readonly number[]; readonly targets: readonly ReturnType<typeof sampleHoldTarget>[] } {
     if (!this.db && !existsSync(homeSqlitePath(this.home, EVALUATION_STORE))) {
-      return { versions: [], holdIds: [] };
+      return { versions: [], targets: [] };
     }
     const db = this.open();
     const rows = version !== undefined
       ? rowsAs<StoredSampleRow>(db.prepare("SELECT * FROM evaluation_samples WHERE sample_id = ? AND version = ?").all(sampleId, version))
       : rowsAs<StoredSampleRow>(db.prepare("SELECT * FROM evaluation_samples WHERE sample_id = ? ORDER BY version ASC").all(sampleId));
-    if (rows.length === 0) return { versions: [], holdIds: [] };
-    const holdIds = Array.from(new Set(rows.flatMap((row) => (row.hold_id ? [row.hold_id] : []))));
-    return { versions: rows.map((row) => Number(row.version)), holdIds };
+    // Run-time holds in older samples were committed to observation but omitted from the sample row.
+    // Historical runs survive deleting a sample and identify versions for an explicit retry of cleanup.
+    const versionRuns = db.prepare("SELECT DISTINCT sample_version FROM evaluation_runs WHERE sample_id = ? AND (? IS NULL OR sample_version = ?)").all(sampleId, version ?? null, version ?? null);
+    const targets = new Map<number, ReturnType<typeof sampleHoldTarget>>();
+    for (const run of versionRuns) {
+      const runVersion = Number(run.sample_version);
+      targets.set(runVersion, sampleHoldTarget(sampleId, runVersion));
+    }
+    for (const row of rows) {
+      if (row.hold_id) targets.set(row.version, sampleHoldTarget(sampleId, row.version, row.hold_id));
+    }
+    return { versions: rows.map(row => row.version), targets: [...targets.values()] };
   }
 
-  removeSample(sampleId: string, version?: number): { readonly removedVersions: readonly number[]; readonly holdIds: readonly string[] } {
+  removeSample(sampleId: string, version?: number): void {
     const db = this.open();
-    const rows = version !== undefined
-      ? rowsAs<StoredSampleRow>(db.prepare("SELECT * FROM evaluation_samples WHERE sample_id = ? AND version = ?").all(sampleId, version))
-      : rowsAs<StoredSampleRow>(db.prepare("SELECT * FROM evaluation_samples WHERE sample_id = ? ORDER BY version ASC").all(sampleId));
-    if (rows.length === 0) return { removedVersions: [], holdIds: [] };
     if (version !== undefined) db.prepare("DELETE FROM evaluation_samples WHERE sample_id = ? AND version = ?").run(sampleId, version);
     else db.prepare("DELETE FROM evaluation_samples WHERE sample_id = ?").run(sampleId);
-    const holdIds = Array.from(new Set(rows.flatMap((row) => (row.hold_id ? [row.hold_id] : []))));
-    return { removedVersions: rows.map((row) => Number(row.version)), holdIds };
   }
 
-  insertRun(run: EvaluationRunView, outcomeCounts: Readonly<Partial<Record<ObservationOutcome, number>>>): void {
+  insertRun(run: EvaluationRunView, outcomeCounts: StoredRunWithOutcomes["outcomeCounts"], hold: { holdId: string | null; heldCount: number }): void {
     const db = this.open();
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      if (hold.holdId) db.prepare("UPDATE evaluation_samples SET hold_id = ?, held_record_count = ? WHERE sample_id = ? AND version = ?")
+        .run(hold.holdId, hold.heldCount, run.sample_id, run.sample_version);
+      this.writeRun(db, run, outcomeCounts);
+      db.exec("COMMIT");
+    } catch (error) {
+      rollbackPreservingError(error, () => db.exec("ROLLBACK"));
+      throw error;
+    }
+  }
+
+  private writeRun(db: DatabaseSync, run: EvaluationRunView, outcomeCounts: StoredRunWithOutcomes["outcomeCounts"]): void {
     db.prepare(
       `INSERT INTO evaluation_runs (
         run_id, sample_id, sample_version, sample_purpose, work_mode, project_id, execution_kind,
@@ -436,11 +454,27 @@ export class EvaluationStore {
     const reviewsByRun = this.loadReviewsByRunIds(db, rows.map((row) => row.run_id));
     const runs = rows.map((row) => ({
       view: applyReviewsToRun(JSON.parse(row.run_json) as EvaluationRunView, reviewsByRun.get(row.run_id) ?? []),
-      outcomeCounts: JSON.parse(row.outcome_counts) as Readonly<Partial<Record<ObservationOutcome, number>>>,
+      outcomeCounts: JSON.parse(row.outcome_counts) as StoredRunWithOutcomes["outcomeCounts"],
     }));
-    // The sample count is the distinct samples represented by the runs inside the same purpose/project/work-mode/window
-    // filter. Counting every stored sample instead makes a sample with no run in the window look evaluable (PWA-55).
-    return { runs, sampleCount: new Set(rows.map((row) => row.sample_id)).size };
+    const selectedClauses = ["purpose = ?"];
+    const selectedParams: SQLInputValue[] = [filter.purpose];
+    if (filter.project_id === null) selectedClauses.push("project_id IS NULL");
+    else if (filter.project_id !== undefined) {
+      selectedClauses.push("project_id = ?");
+      selectedParams.push(filter.project_id);
+    }
+    if (filter.work_mode) {
+      selectedClauses.push("work_mode = ?");
+      selectedParams.push(filter.work_mode);
+    }
+    if (filter.until) {
+      selectedClauses.push("created_at <= ?");
+      selectedParams.push(filter.until);
+    }
+    const selected = db.prepare(`SELECT DISTINCT sample_id FROM evaluation_samples WHERE ${selectedClauses.join(" AND ")}`).all(...selectedParams);
+    const ids = new Set(rows.map(row => row.sample_id));
+    for (const row of selected) ids.add(String(row.sample_id));
+    return { runs, sampleCount: ids.size };
   }
 
   appendReview(review: EvaluationHumanReview): EvaluationRunView {

@@ -7563,6 +7563,8 @@
     "workbench.unavailable-plugin-stage.view-plugin-status": "プラグインの状態を見る",
     "workbench.works-client.assistant-work": "アシスタントワーク",
     "workbench.works-client.material": "資料として",
+    "workbench.works-client.reading-references": "この成果を参照しているワークを読み込み中です…",
+    "workbench.works-client.references-incomplete": "この成果を参照しているワークの一部を読み込めませんでした。",
     "workbench.works-client.started-version": "このバージョンから開始",
     "workbench.works-client.work-result": "ワークの結果",
     "workbench.write-checkers-section.add-checker": "チェッカーを追加",

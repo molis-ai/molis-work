@@ -6,7 +6,7 @@ export const CONTEXT_ONBOARDING_BLANK_NAME_PART = String.raw`
     const preview = briefPreview(title || globalThis.t.text("workbench.context-onboarding.new-project"), '', {title:readText("workbench.project-brief.next"), body:'<p class="mw-brief__quiet">' + globalThis.t.text("workbench.context-onboarding.when-plugin-has-something-move-confirm-will-show") + '</p>'}, globalThis.t.text("workbench.context-onboarding.just-now") + ' · ' + globalThis.t.text(materialsOnly ? "workbench.context-onboarding.bring-materials-already-read" : "workbench.context-onboarding.blank-project"));
     const left = question(globalThis.t.text("workbench.context-onboarding.name-new-project-2"), globalThis.t.text(materialsOnly ? "workbench.context-onboarding.imported-materials-come-project-summary-can-be-written" : "workbench.context-onboarding.start-space-materials-next-steps-can-follow"))
       + '<form id="cx-blank-form" class="ob-name"><label class="ob-label" for="cx-blank-name">' + globalThis.t.text("workbench.context-onboarding.project-name") + '</label>'
-      + '<input class="mw-input ob-name__input" id="cx-blank-name" required aria-describedby="cx-blank-name-error" autocomplete="off" data-plain-field placeholder="' + esc(globalThis.t.text("workbench.context-onboarding.example-autumn-content-plan")) + '" value="' + esc(blankName) + '">'
+      + '<input class="mw-input ob-name__input" id="cx-blank-name" ' + (busy ? 'readonly ' : '') + 'required aria-describedby="cx-blank-name-error" autocomplete="off" data-plain-field placeholder="' + esc(globalThis.t.text("workbench.context-onboarding.example-autumn-content-plan")) + '" value="' + esc(blankName) + '">'
       + '<p id="cx-blank-name-error" class="cx-error ob-error" role="alert">' + esc(failureText(error)) + '</p></form>'
       + (materialsOnly ? '' : '<p class="ob-quiet">' + globalThis.t.text("workbench.context-onboarding.not-sure-what-project-yet") + ' ' + btn({variant:'link', size:'sm', label:globalThis.t.text("workbench.context-onboarding.start-personal-space"), attrs:{'data-action':'personal', disabled:busy}}) + '</p>');
     return {kind:'onboard', view:'blank', step:'sources', left, right:preview,
@@ -36,7 +36,9 @@ export const CONTEXT_ONBOARDING_BLANK_NAME_PART = String.raw`
   async function submitBlankName(event) {
     if (event.target.id !== 'cx-blank-form') return;
     event.preventDefault();
-    busy = true;
+    if (busy) return;
+    blankName = document.getElementById('cx-blank-name').value;
+    busy = true; render();
     try { await adopt(true); }
     catch (failure) { error = keepFailure(failure); }
     finally { busy = false; render(blank && error ? 'cx-blank-name' : undefined); }

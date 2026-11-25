@@ -17,12 +17,12 @@ function memorySecrets() {
   return { values, get: (key: string) => values.get(key) ?? null, createIfAbsent: (key: string, value: string) => { if (values.has(key)) return false; values.set(key, value); return true; } };
 }
 
-function fixture(t: test.TestContext, options: { demo?: string[]; now?: () => Date } = {}) {
+function fixture(t: test.TestContext, options: { demo?: string[]; now?: () => Date; batchRows?: number } = {}) {
   const home = mkdtempSync(join(tmpdir(), "observation-layer-"));
   const secrets = memorySecrets(), projects = new Set(["p1", "p2", ...(options.demo ?? [])]);
   const env: ObservationEnvironment = { platformVersion: "0.test", now: options.now ?? (() => new Date()),
     projectClass: id => projects.has(id) ? (options.demo?.includes(id) ? "regenerable_demo" : "user") : undefined };
-  const open = () => new ObservationLayer({ home, env, keys: has => observationKeys(secrets, has), flushDelayMs: 5 });
+  const open = () => new ObservationLayer({ home, env, keys: has => observationKeys(secrets, has), flushDelayMs: 5, batchRows: options.batchRows });
   let layer = open();
   t.after(() => { layer.close(); rmSync(home, { recursive: true, force: true }); });
   const db = () => layer.writer.database()!.db;
@@ -48,6 +48,15 @@ const read: ExitAction = { capability_id: "notes.list", version: 1, provider_id:
 const write: ExitAction = { capability_id: "notes.create", version: 1, provider_id: "notes-install", operation: "command" };
 const done = (input: unknown, result: unknown, extra: Partial<ExitObservation> = {}): ExitObservation =>
   ({ invocation_id: `inv-${Math.random()}`, started_at: Date.now() - 5, ended_at: Date.now(), handler_started: true, input, result, outcome: { ok: true }, aborted: false, ...extra });
+
+test("QRF-10: reaching the observation batch limit releases the action before writing the batch", async t => {
+  const f = fixture(t, { batchRows: 1 });
+  const db = f.db();
+  f.layer.observed(person(), write, done({}, { saved: true }));
+  assert.equal(readRecords(db).length, 0);
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(readRecords(db).length, 1);
+});
 
 test("OCL-11: a call refused before its handler keeps only who, what and the code; a failure once the handler began keeps no content (S-12, S-18)", t => {
   const f = fixture(t);

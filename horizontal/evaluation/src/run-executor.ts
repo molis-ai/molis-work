@@ -21,17 +21,18 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/observation";
 import { evaluationErrors } from "./errors.js";
 import {
-  commitEvaluationSampleHold,
   effectiveQueryForSample,
   fetchObservationEvidenceMap,
   queryAllObservationRecords,
   readObservationCoverage,
+  readRetryReceipts,
   sampleHasActiveHold,
 } from "./observation-bridge.js";
 import { executeIsolatedReplay, type EvaluationReplayScenario } from "./replay.js";
 import { evaluateExpectation } from "./rules.js";
 import {
-  computeFunnelCounts,
+  collectFunnel,
+  type FunnelKeys,
   countWorkOutcomes,
   deriveRunCoverageUnknowns,
   extractObservedConditions,
@@ -44,10 +45,9 @@ export interface RunExecutionContext {
   readonly sample: EvaluationSampleView;
   readonly input: EvaluationRunExecuteInput;
   readonly scenarios: ReadonlyMap<string, EvaluationReplayScenario>;
-  readonly runInReplayScope?: <T>(fn: () => Promise<T>) => Promise<T>;
+  readonly runInReplayScope?: <T>(fn: () => Promise<T>, replayId: string) => Promise<T>;
   readonly nowIso: () => string;
-  /** Lets the action owner compensate exactly when this run committed the nested hold and then failed. */
-  readonly onHoldCommitted?: () => void;
+
 }
 
 async function collectEvaluationRecords(
@@ -67,13 +67,6 @@ async function collectEvaluationRecords(
     if (!scenario || !ctx.runInReplayScope) {
       throw evaluationErrors.replay_unavailable(`隔离回放场景 ${scenarioId} 未登记或当前环境未启用回放作用域`);
     }
-    const priorReplay = await queryAllObservationRecords(client, readNested, {
-      ...(sample.project_id !== undefined ? { project_id: sample.project_id } : { all_projects: true }),
-      include_simulated: true,
-      source_classes: ["replay"],
-      limit: 500,
-    });
-    const maxSeqBefore = priorReplay.reduce((max, r) => (r.seq > max ? r.seq : max), 0);
     const replayId = `replay-${randomUUID()}`;
     const executed = await executeIsolatedReplay({
       replayId,
@@ -88,7 +81,7 @@ async function collectEvaluationRecords(
       client,
       readNested,
       effectiveQueryForSample(sample, {
-        after_seq: maxSeqBefore,
+        replay_id: replayId,
         include_simulated: true,
         source_classes: ["replay"],
       }),
@@ -127,6 +120,8 @@ async function collectEvaluationRecords(
 
 export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Promise<{
   readonly runView: EvaluationRunView;
+  readonly holdRecordIds: readonly string[];
+  readonly funnelKeys: FunnelKeys;
   readonly outcomeCounts: Readonly<Partial<Record<ObservationOutcome, number>>>;
 }> {
   const { caller, origin, clientFor, sample, input } = ctx;
@@ -147,15 +142,14 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
 
   const evaluatedAt = ctx.nowIso();
   const baseCoverage = deriveRunCoverageUnknowns(coverage, sample, evaluatedAt);
-  const hasCoverageGapReason = baseCoverage.unknownReasons.some((r) => r.startsWith("coverage_gap_"));
-  const runCoverageUnknowns: readonly EvaluationUnknownReason[] = missingPinnedCount > 0 && !hasCoverageGapReason
+  const runCoverageUnknowns: readonly EvaluationUnknownReason[] = missingPinnedCount > 0
     ? Array.from(new Set<EvaluationUnknownReason>([...baseCoverage.unknownReasons, "evidence_missing"]))
     : baseCoverage.unknownReasons;
   const limitations = missingPinnedCount > 0
     ? [...baseCoverage.limitations, `样本固定的 ${missingPinnedCount} 条工作记录在采集层已缺失`]
     : [...baseCoverage.limitations];
 
-  const funnel = computeFunnelCounts(records);
+  const { counts: funnel, keys: funnelKeys } = collectFunnel(records);
   if (records.length && !funnel.completed) {
     limitations.push("本次未读到业务主人确认完成的工作。完成数只计有据可查的交付。");
   }
@@ -169,10 +163,13 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
     }
     return count;
   }, 0);
+  const retryReceipts = sample.expectations.some(exp => exp.source === "deterministic" && exp.rule.check === "no_self_certifying_success")
+    ? await readRetryReceipts(clientFor, readNested, records, evidenceByRecord) : undefined;
   const expectationResults = sample.expectations.map((expectation) =>
     evaluateExpectation(expectation, {
       records,
       evidenceByRecord,
+      retryReceipts,
       funnel,
       runCoverageUnknowns,
       sampleAllowedVariations: sample.allowed_variations ?? [],
@@ -189,8 +186,7 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
   // Lost/paused gaps are not protected by a hold and still propagate, as does every gap for an unheld sample. Ask the
   // observation layer whether the hold is still active instead of trusting the sample row's cached hold count.
   const hasRetentionGap = runCoverageUnknowns.some((reason) => reason === "coverage_gap_expired" || reason === "coverage_gap_purged");
-  const holdProtectsRetention = hasRetentionGap && sample.hold_id !== null && sample.held_record_count > 0
-    && await sampleHasActiveHold(client, readNested, sample);
+  const holdProtectsRetention = hasRetentionGap && missingPinnedCount === 0 && await sampleHasActiveHold(client, readNested, sample);
   const propagatedCoverageUnknowns = holdProtectsRetention
     ? runCoverageUnknowns.filter((reason) => reason !== "coverage_gap_expired" && reason !== "coverage_gap_purged")
     : runCoverageUnknowns;
@@ -205,22 +201,6 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
     : finalUnknowns.length > 0 || expectationResults.some((r) => r.automated_verdict === "unknown")
       ? "unknown"
       : "passed";
-
-  caller.signal?.throwIfAborted();
-  await caller.beforeEffect();
-
-  if (input.hold_records && records.length > 0) {
-    const writeNested = retainActionAuthority(caller, origin, caller.beforeEffect);
-    await commitEvaluationSampleHold(
-      client,
-      writeNested,
-      sample,
-      records.map((r) => r.record_id),
-    );
-    ctx.onHoldCommitted?.();
-    caller.signal?.throwIfAborted();
-    await caller.beforeEffect();
-  }
 
   const durationMs = Math.max(0, Date.now() - startedMs);
   const runView: EvaluationRunView = {
@@ -247,5 +227,5 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
     duration_ms: durationMs,
   };
 
-  return { runView, outcomeCounts };
+  return { runView, outcomeCounts, funnelKeys, holdRecordIds: input.hold_records ? records.map(record => record.record_id) : [] };
 }

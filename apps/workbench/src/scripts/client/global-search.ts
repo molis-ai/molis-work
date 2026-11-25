@@ -72,7 +72,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   let lastTrigger = null;
   const emptyResults = (query = "") => ({ query, status: query ? "loading" : "idle", hits: [], sources: [], next: null, error: "" });
   let remote = emptyResults();
-  let requestSeq = 0;
+  let requestSeq = 0, opening = 0;
   let debounce = null;
   let retry = null;
   let retries = 0;
@@ -172,7 +172,9 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const content = remoteGroups();
     // Work items first in ⌘K (specs/work-mainline §4.1), then content hits, then tools.
     const ordered = [...itemGroup, ...content, ...groups];
-    const noContent = query && !content.length && remote.status === "done";
+    const incomplete = remote.status === "error" || remote.sources.some(source => ["failed","stale","unavailable","indexing"].includes(source.state));
+    const retryButton = incomplete && remote.status !== "loading" ? '<button type="button" class="mw-btn mw-btn--ghost" data-global-search-retry>' + escapeHtml(globalThis.t.text("common.control.retry")) + '</button>' : "";
+    const noContent = query && !content.length && remote.status === "done" && !incomplete;
     // Asking the Assistant is a separate, explicit button: it is not a result, and Enter on no results starts nothing.
     const ask = noContent && typeof askAssistant === "function"
       ? '<button class="mw-btn mw-btn--ghost global-search-ask" type="button" data-global-search-ask>' + escapeHtml(globalThis.t.text("workbench.global-search.ask-assistant-about", { query: query.trim() })) + "</button>" : "";
@@ -190,7 +192,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     paintScopes();
     if (!ordered.length) {
       const waiting = query && remote.status === "loading";
-      results.innerHTML = waiting ? "" : '<p class="global-search-empty">' + escapeHtml(globalThis.t.text("workbench.global-search.no-matching-items")) + "</p>" + ask;
+      results.innerHTML = waiting || incomplete ? retryButton : '<p class="global-search-empty">' + escapeHtml(globalThis.t.text("workbench.global-search.no-matching-items")) + "</p>" + ask;
       input.removeAttribute("aria-activedescendant");
       return;
     }
@@ -207,7 +209,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
         return html;
       }).join("");
       return '<section class="global-search-group"><h3>' + escapeHtml(group.label) + "</h3>" + rows + "</section>";
-    }).join("") + (remote.next ? '<button class="mw-btn mw-btn--ghost global-search-more" type="button" data-global-search-more>' + escapeHtml(globalThis.t.text("workbench.global-search.show-more-results")) + "</button>" : "")
+    }).join("") + retryButton + (remote.next ? '<button class="mw-btn mw-btn--ghost global-search-more" type="button" data-global-search-more>' + escapeHtml(globalThis.t.text("workbench.global-search.show-more-results")) + "</button>" : "")
       // Tools matched but content did not: say so about content only, not as if nothing matched.
       + (ask ? '<p class="global-search-empty">' + escapeHtml(globalThis.t.text("workbench.global-search.no-content-matches")) + "</p>" + ask : "");
     paintSelection();
@@ -218,7 +220,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     if (!keepSelection) { selected = 0; explicit = false; }
     render();
   };
-  const request=(path,body)=>molisWorkRequest(route(path),{body,fallback:globalThis.t.text("workbench.global-search.search-unavailable-right-now-try-again-shortly")});
+  const request=(path,body)=>molisWorkRequest(route(path),{body,readOnly:true,fallback:globalThis.t.text("workbench.global-search.search-unavailable-right-now-try-again-shortly")});
   const search = async (append = false) => {
     const { query } = remote;
     clearTimeout(retry);
@@ -242,12 +244,12 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       }
     } catch (error) {
       if (seq !== requestSeq || !dialog.open) return;
-      remote = { ...remote, status: "error", error };
+      remote = { ...remote, status: "error", error, failedAppend: append };
       render();
     }
   };
   const resetQuery = () => {
-    clearTimeout(debounce); clearTimeout(retry); requestSeq += 1;
+    clearTimeout(debounce); clearTimeout(retry); requestSeq += 1; opening += 1;
     selected = 0; explicit = false;
     pointerOnHit = false;
     retries = 0; notice = "";
@@ -333,6 +335,8 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   };
   const activate = async (item) => {
     if (!item) return;
+    const attempt = ++opening;
+    const current = () => attempt === opening && dialog.open;
     const chosen = interaction, subject = chosen ? subjectOf(item) : null;
     chose = true; chosen?.chosen(subject, hits.indexOf(item));
     if (item.kind === "work_item") {
@@ -351,6 +355,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     try {
       // The owner confirms the object still exists and this person may read it before anything opens.
       const opened = await request("/api/search/open", { hit_id: hit.hit_id });
+      if (!current()) return;
       if (opened.state !== "ok") {
         chosen?.locate("refused", subject, "failed", { state: opened.state });
         notice = opened.state === "missing" ? globalThis.t.text("workbench.global-search.item-was-deleted-archived-has-been-removed-results") : (globalThis.t.text("workbench.global-search.can-t-open-reason", { reason: opened.reason }));
@@ -370,6 +375,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
           (stage) => chosen?.locate(stage, subject, stage === "failed" ? "failed" : undefined, { surface: target.surface }));
       });
     } catch (error) {
+      if (!current()) return;
       notice=error;
       render();
     }
@@ -422,6 +428,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   results.addEventListener("mousedown", aim);
   results.addEventListener("mouseleave", () => releasePointer());
   results.addEventListener("click", (event) => {
+    if (event.target.closest("[data-global-search-retry]")) { event.preventDefault(); input.focus(); void search(remote.failedAppend === true); return; }
     if (event.target.closest("[data-global-search-more]")) { event.preventDefault(); void search(true); return; }
     if (event.target.closest("[data-global-search-ask]")) { event.preventDefault(); const words = input.value.trim(); close(); askAssistant?.(words); return; }
     const hit = event.target.closest("[data-global-search-hit]");

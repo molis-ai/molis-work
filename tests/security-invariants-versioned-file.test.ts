@@ -102,7 +102,7 @@ test("S-upgrade-too-new-untouched: `config/onboarding.json` one version ahead or
     assert.deepEqual(temporaryFiles(file), [], `${code}: and no temporary file`);
   }
   const projects = await host.configurePersonalPlanning(home, withMolisWorkProjectCatalog)({ homeDirectory: home }, catalog => catalog.listProjects().map(project => project.project_id));
-  assert.deepEqual(projects, [], "no project and no personal space");
+  assert.deepEqual(projects, [], "no project was made (the personal space is the Home's own, never in this list)");
 });
 
 test("S-upgrade-too-new-untouched: `security/secrets.json` one version ahead, unreadable or holding an entry that is not sealed: a login is refused before it sends anything or spends its code", async t => {

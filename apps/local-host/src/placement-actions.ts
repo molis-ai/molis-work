@@ -21,7 +21,6 @@ interface PlacementHostPorts {
   registry: ActionRegistryPort;
   /** Every project in this Home's catalog, the personal space included once it exists; null before the catalog is configured. */
   projects(): Promise<readonly PlacementProjectRecord[] | null>;
-  /** Make the personal space if it does not exist yet. */
   /** Open (when needed) the runtime of one project and return its reference. */
   open(record: PlacementProjectRecord): Promise<LocalHostProjectReference>;
   projectClient(reference: LocalHostProjectReference): ActionClient;

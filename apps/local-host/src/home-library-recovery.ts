@@ -13,6 +13,7 @@ import { partitionLibraryPath } from "./partition-plugin-assembly.js";
 import { homeLibraryRollbackSidecars, assertArtifactProjectIdentity, wrongArtifactSpace } from "./artifact-row-storage-policy.js";
 import { assertSqliteLibraryReady, pendingSqliteRecovery } from "@molis-ai/molis-work-storage";
 import { homeStores } from "./home-stores.js";
+import { partitionOfDatabasePath } from "@molis-ai/molis-work-module-projects";
 import { projectDatabases } from "./platform-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
@@ -62,7 +63,7 @@ export function recoverHomeLibraryTransactions(home: string, owner: StorageOwner
   });
   const projects: RollbackLibrary[] = projectDatabases(root, space).map(relative => {
     const path = join(root, relative), id = partitionOfDatabasePath(path)?.partitionId;
-    if (id === undefined) throw pendingSqliteRecovery();
+    if (!id) throw pendingSqliteRecovery();
     return { path, kind: "project", version: PROJECT_DATABASE_BASELINE.version, baseline: PROJECT_DATABASE_BASELINE, inspect(db: SqliteDatabase, peer?: RollbackLibrary) {
       assertArtifactProjectIdentity(db, space, id);
       if (!peer) return;

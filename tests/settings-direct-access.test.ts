@@ -89,3 +89,16 @@ test("with no project yet, a global settings page is shown as it is", async t =>
   assert.equal(page.status, 200);
   assert.match(page.text, /<body class="settings-page/);
 });
+
+// Batch 106: every Home has the personal space. Pages opened from it resolve and label it; the person's own project list does not show it.
+test("the personal space is a place settings pages name and show, but not a row of the person's project list", async t => {
+  const { open } = await server(t, 0);
+  const library = await open(`/capabilities/library?project=${PERSONAL_SPACE_PROJECT_ID}`, {});
+  assert.equal(library.status, 200);
+  assert.match(library.text, new RegExp(`<option value="${PERSONAL_SPACE_PROJECT_ID}" selected>`), "the scope picker keeps the personal space chosen");
+  const projects = await open("/settings/projects", {});
+  assert.equal(projects.status, 200);
+  assert.doesNotMatch(projects.text, new RegExp(`data-project-row="${PERSONAL_SPACE_PROJECT_ID}"`), "the personal space is not one of the person's projects");
+  assert.match(projects.text, /data-project-pane="create" aria-labelledby/, "with no project of their own, creating one is what the page shows");
+  assert.match(projects.text, /data-demo-action="create"/);
+});

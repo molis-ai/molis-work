@@ -172,6 +172,9 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   const contextProject = contextProjectId
     ? projects.find((project) => project.project_id === contextProjectId) ?? null
     : null;
+  // The view keeps every partition (a page opened from the personal space resolves and labels it); the installation counts the
+  // person's projects only (S-personal-partition-reserved).
+  const personProjects = projects.filter((project) => project.project_id !== PERSONAL_SPACE_PROJECT_ID);
   if (capabilitySection && capabilitySection !== "access" && contextProjectId && !contextProject) {
     sendJson(response, 404, { error: "找不到所选项目，请返回能力库重新选择。" });
     return true;
@@ -236,7 +239,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     projects,
     web_service: await webService.detect(),
     ...(section === "update" && serverOptions.homeDirectory ? { update: settingsUpdateView(serverOptions.homeDirectory) } : {}),
-    diagnostics: composition.installationDiagnostics(projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
+    diagnostics: composition.installationDiagnostics(personProjects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
   }, controlToken, isDesktopShellRequest(request, url)));
   return true;
 }
@@ -284,6 +287,9 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
   const contextProject = contextProjectId
     ? projects.find((project) => project.project_id === contextProjectId) ?? null
     : null;
+  // The view keeps every partition (a page opened from the personal space resolves and labels it); the installation counts the
+  // person's projects only (S-personal-partition-reserved).
+  const personProjects = projects.filter((project) => project.project_id !== PERSONAL_SPACE_PROJECT_ID);
   const dynamicPlugins = await discoverDynamicSettingsPlugins(localHost, contextProject, await projectShownJudge(composition, serverOptions.homeDirectory, contextProject));
   const dynamicTarget = pluginSettings ? undefined : dynamicPlugins.find(item => item.section_id === pluginSettingsSlug || item.plugin_id === pluginSettingsSlug);
   if (!pluginSettings && !dynamicTarget) return false;
@@ -327,7 +333,7 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
     runtimes: [],
     projects,
     web_service: await webService.detect(),
-    diagnostics: composition.installationDiagnostics(projects.length),
+    diagnostics: composition.installationDiagnostics(personProjects.length),
   }, controlToken, isDesktopShellRequest(request, url)));
   return true;
 }

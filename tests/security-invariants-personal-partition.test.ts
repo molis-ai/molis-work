@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
@@ -8,7 +9,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectMolisWorkProjectCatalogSnapshot, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createHomeSnapshot, restoreHomeSnapshot, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
+import { createHomeSnapshot, MolisWorkLocalHost, restoreHomeSnapshot, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
 import { restoreFixture } from "./fixtures/home-restore.js";
 import { homeBusinessTree } from "./fixtures/home-storage-files.js";
 import { createProjectsSchema, partitionDatabasePath, partitionRoot, ProjectsModule } from "@molis-ai/molis-work-module-projects";
@@ -95,6 +96,35 @@ test("UPP-33 a restore refuses a personal space main database whose root is anot
   Object.assign(entry, { size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") });
   writeFileSync(manifestPath, JSON.stringify(manifest));
   const before = homeBusinessTree(f.home);
-  await assert.rejects(restoreHomeSnapshot({ homeDirectory: f.home, source: f.snapshot, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot }));
+  await assert.rejects(restoreHomeSnapshot({ homeDirectory: f.home, source: f.snapshot, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot }),
+    { code: "host.home_restore.invalid" }, "refused as an invalid restore (the only change is the personal space's root)");
   assert.deepEqual(homeBusinessTree(f.home), before);
 });
+
+// A write to a main database cut off by a crash leaves its rollback journal; the next normal start replays it. The personal space's main
+// database lives at personal-space/, so its partition is read from the layout (`partitionOfDatabasePath`), not from the directory name —
+// otherwise its root ("personal") never matched "personal-space" and the Home could not start again.
+test("UPP-01 a crash in the middle of a personal space write leaves a journal that the next start replays, as for any project", { timeout: 60_000 }, async () => withHome(async home => {
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  for (const which of [PERSONAL_SPACE_PROJECT_ID, "project"] as const) {
+    const database = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => which === PERSONAL_SPACE_PROJECT_ID
+      ? catalog.getProject(PERSONAL_SPACE_PROJECT_ID).database_path
+      : (await catalog.createProject({ display_name: "A", actor_id: "local-person" })).database_path);
+    const crash = spawnSync(process.execPath, ["--input-type=module", "-e", `
+      import { DatabaseSync } from "node:sqlite";
+      const db = new DatabaseSync(process.argv[1]);
+      db.exec("PRAGMA journal_mode=DELETE"); db.exec("BEGIN IMMEDIATE"); db.exec("CREATE TABLE IF NOT EXISTS crash_probe (x)");
+      for (let i = 0; i < 50; i++) db.prepare("INSERT INTO crash_probe VALUES (randomblob(100000))").run();
+      process.kill(process.pid, "SIGKILL");`, database], { encoding: "utf8" });
+    assert.equal(crash.signal, "SIGKILL", crash.stderr);
+    assert.equal(existsSync(database + "-journal"), true, `${which}: the cut-off write left its journal`);
+    await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+    assert.equal(existsSync(database + "-journal"), false, `${which}: the next start replayed it`);
+    const db = new DatabaseSync(database, { readOnly: true });
+    try {
+      assert.equal(db.prepare("SELECT count(*) AS n FROM sqlite_schema WHERE name = 'crash_probe'").get()!.n, 0, `${which}: the cut-off write is gone`);
+    } finally { db.close(); }
+    const partitions = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listPartitions().map(row => row.project_id));
+    assert.equal(partitions[0], PERSONAL_SPACE_PROJECT_ID, `${which}: the catalog opens, the personal space first`);
+  }
+}));

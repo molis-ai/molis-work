@@ -2197,6 +2197,8 @@
     "workbench.browser-ui.proposed-input": "提案された入力",
     "workbench.browser-ui.published": "公開日時",
     "workbench.browser-ui.record-input": "入力として記録",
+    "workbench.browser-ui.reference-source-failed": "{source}からの参照を読み込めませんでした。",
+    "workbench.browser-ui.reference-links-failed": "一部の参照を読み込めませんでした。",
     "workbench.browser-ui.referenced": "参照元",
     "workbench.browser-ui.result-type": "成果種別",
     "workbench.browser-ui.scope": "スコープ",

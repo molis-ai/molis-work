@@ -10,6 +10,13 @@ const typeIdLabel = (typeId: string) => typeId.split(".").filter(Boolean).at(-1)
 
 export const ARTIFACT_BROWSER_UI_CONTRIBUTION_ID = "io.molis.work.native.artifacts.browser.v1";
 
+/** Each current reference reader reports its own answer for this version. The key addresses that reader for a retry. */
+export type ArtifactReferenceSource = { key: string } & (
+  | { state: "failed"; title?: string }
+  | { state: "links"; plugins: ReadonlyArray<{ plugin_id: string; plugin_title: string; objects: ReadonlyArray<{ id: string; title: string; role: "input" | "output"; proposal: boolean; open: { surface: string; id: string } }> }>; other: number }
+  | { state: "objects"; title: string; referrers: ReadonlyArray<{ title: string; open: { surface: string; id: string } }> }
+);
+
 export interface ArtifactBrowserUiModel {
   readonly view: ArtifactBrowserView;
   readonly routePrefix: string;
@@ -25,10 +32,7 @@ export interface ArtifactBrowserUiModel {
   readonly continuers?: ReadonlyArray<{ plugin_id: string; plugin_title: string }>;
   /** Work-executor plugins currently available in this project to receive this version as material (PEQ-09). */
   readonly handoffExecutors?: ReadonlyArray<{ id: string; plugin_id: string; title: string }>;
-  /** Who refers to the selected version (A4b, 「被谁引用」), read by the host through `artifacts.links`: by the plugin that declares the link (BL-646). */
-  readonly links?: { readonly plugins: ReadonlyArray<{ plugin_id: string; plugin_title: string; objects: ReadonlyArray<{ id: string; title: string; role: "input" | "output"; proposal: boolean; open: { surface: string; id: string } }> }>; readonly other: number;
-    /** Objects of other plugins that link to the version (a Pages document), each opening in its plugin (五.1). */
-    readonly referrers?: ReadonlyArray<{ title: string; open: { surface: string; id: string }; plugin_title: string }> };
+  readonly links?: readonly ArtifactReferenceSource[];
   /** False when the project has no Goals (RAC-400): there is no Goal to take the selected version as an input, so the form is not offered. */
   readonly attachTarget?: boolean;
   /** Plugin input ports that take the selected version's type, and what they read now (artifact-positioning, 2026-10-04). */
@@ -198,16 +202,30 @@ function handoffActions(artifact: NonNullable<ArtifactBrowserView["selected"]>, 
 }
 
 const LINK_ROLES = { input: "workbench.browser-ui.inputs", output: "workbench.browser-ui.deliverable", proposed_input: "workbench.browser-ui.proposed-input", proposed_output: "workbench.browser-ui.proposed-deliverable" } as const;
-/**
- * 「被谁引用」: under each plugin that declares the link, its objects that use this version, each opening in the workbench; the
- * Assistant's works, and how many other links there are.
- */
-function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, routePrefix: string, p: ArtifactBrowserUiModel["primitives"], artifact: NonNullable<ArtifactBrowserView["selected"]>, attachTarget = true, languagePreview = false): string {
+/** Shared by the initial detail and a retry of one authorized source. */
+export function referenceSources(sources: readonly ArtifactReferenceSource[], p: ArtifactBrowserUiModel["primitives"], languagePreview = false): string {
   const open = (target: { surface: string; id: string }, title: string) => languagePreview ? "" : `<a href="#" data-workbench-item-plugin="${p.escape(target.surface)}" data-workbench-item-id="${p.escape(target.id)}" data-workbench-item-title="${p.escape(title)}" translate="no">${p.escape(title)}</a>`;
-  const linked = links.plugins.map(group => `<h3 class="artifact-links-heading">${p.escape(group.plugin_title)}</h3><ul data-artifact-linked-plugin="${p.escape(group.plugin_id)}">${group.objects
-    .map(link => `<li>${open(link.open, link.title)}<span>${uiText(LINK_ROLES[link.proposal ? (link.role === "input" ? "proposed_input" : "proposed_output") : link.role])}</span></li>`).join("")}</ul>`).join("");
-  const referrers = (links.referrers ?? []).map(row => `<li>${open(row.open, row.title)}<span>${p.escape(row.plugin_title)} · ${uiText("workbench.browser-ui.links-version")}</span></li>`).join("");
-  const other = links.other ? `<p class="artifact-links-other">${uiText("workbench.browser-ui.other-references")} · ${links.other}</p>` : "";
+  return sources.map(source => {
+    let content: string;
+    if (source.state === "failed") {
+      const message = source.title ? uiText("workbench.browser-ui.reference-source-failed", { source: source.title }) : uiText("workbench.browser-ui.reference-links-failed");
+      content = `<span role="status" data-artifact-source-error="${p.escape(source.title ?? "")}">${message}</span> <button type="button" class="mw-btn mw-btn--ghost" data-artifact-reference-retry data-artifact-work-word="retry">${uiText("common.control.retry")}</button>`;
+    } else if (source.state === "objects") {
+      if (!source.referrers.length) return "";
+      const rows = source.referrers.map(row => `<li>${open(row.open, row.title)}<span>${p.escape(source.title)} · ${uiText("workbench.browser-ui.links-version")}</span></li>`).join("");
+      content = `<h3 class="artifact-links-heading">${p.escape(source.title)}</h3><ul data-artifact-referrers>${rows}</ul>`;
+    } else {
+      const groups = source.plugins.map(group => `<h3 class="artifact-links-heading">${p.escape(group.plugin_title)}</h3><ul data-artifact-linked-plugin="${p.escape(group.plugin_id)}">${group.objects
+        .map(link => `<li>${open(link.open, link.title)}<span>${uiText(LINK_ROLES[link.proposal ? (link.role === "input" ? "proposed_input" : "proposed_output") : link.role])}</span></li>`).join("")}</ul>`).join("");
+      const other = source.other ? `<p class="artifact-links-other">${uiText("workbench.browser-ui.other-references")} · ${source.other}</p>` : "";
+      content = groups + other;
+      if (!content) return "";
+    }
+    return `<div data-artifact-reference-source="${p.escape(source.key)}">${content}</div>`;
+  }).join("");
+}
+
+function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, routePrefix: string, p: ArtifactBrowserUiModel["primitives"], artifact: NonNullable<ArtifactBrowserView["selected"]>, attachTarget = true, languagePreview = false): string {
   // 「作为 Goal 的输入」 (A4b): only a version people can still use is offered.
   const usable = artifact.availability === "available" && artifact.lifecycle_state !== "archived";
   const reference = p.escape(JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version }));
@@ -217,7 +235,7 @@ function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, route
   // (with the project's prefix when the tab came from a direct link).
   const subjects = p.escape(JSON.stringify([...new Set([artifactSubjectId(artifact), artifactVersionPath(artifact), routePrefix + artifactVersionPath(artifact)])]));
   const works = `<div class="artifact-links-works" data-artifact-works="${subjects}" hidden><h3>${uiText("workbench.browser-ui.assistant-work")}</h3><ul></ul></div><div data-artifact-works-status role="status"></div>`;
-  return `<section class="artifact-links" data-artifact-links><h2>${uiText("workbench.browser-ui.referenced")}</h2>${linked}${!linked && !referrers && !other ? `<p data-artifact-no-references hidden>${uiText("workbench.browser-ui.nothing-refers-version-yet")}</p>` : ""}${referrers ? `<h3 class="artifact-links-heading">${uiText("workbench.browser-ui.page")}</h3><ul data-artifact-referrers>${referrers}</ul>` : ""}${works}${other}${asInput}</section>`;
+  return `<section class="artifact-links" data-artifact-links><h2 tabindex="-1">${uiText("workbench.browser-ui.referenced")}</h2>${referenceSources(links, p, languagePreview)}<p data-artifact-no-references hidden>${uiText("workbench.browser-ui.nothing-refers-version-yet")}</p>${works}${asInput}</section>`;
 }
 
 function renderArtifactFrameBlock(model: ArtifactBrowserUiModel): string {

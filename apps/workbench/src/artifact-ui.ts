@@ -1,5 +1,6 @@
 import type { UiDeclaredMountHost } from "@molis-ai/molis-work-ui-host";
 import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, type ArtifactBrowserUiModel, type SubjectArtifactEmbed } from "./artifacts/index.js";
+import { referenceSources } from "./artifacts/browser-ui.js";
 import { FILE_PREVIEW_STYLES } from "@molis-ai/molis-work-design-system";
 
 export const ARTIFACT_EMBED_STYLES = `
@@ -76,6 +77,7 @@ export function createArtifactWorkbenchRenderer(host: UiDeclaredMountHost) {
     contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, surface, model,
   }).html;
   return {
+    referenceSources,
     fragments: (model: ArtifactBrowserUiModel, surface: "detail" | "frame-block" = "detail", language?: string): string =>
       `<div data-artifact-directory>${mount("directory", model)}</div><div data-artifact-detail${language ? ` data-artifact-fragment-language="${model.primitives.escape(language)}"` : ""}>${surface === "frame-block" ? mount("frame-block", model) : mount("detail", model)}</div>`,
     embed: (model: ArtifactBrowserUiModel): string => mount("embed", model),

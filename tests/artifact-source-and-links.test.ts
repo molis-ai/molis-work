@@ -29,8 +29,8 @@ test("a pinned document shows when the original changed or was deleted, and whic
     assert.ok(response.ok, `${path}: ${response.status} ${await response.clone().text()}`);
     return await response.json() as Record<string, any>;
   };
-  const detail = async (artifactId: string, version: number) => await (await fetchProject(`${origin}/artifacts/${encodeURIComponent(artifactId)}/versions/${version}`,
-    { headers: { "x-molis-work-fragment": "artifact-workbench" } })).text();
+  const detail = async (artifactId: string, version: number, source?: string) => await (await fetchProject(`${origin}/artifacts/${encodeURIComponent(artifactId)}/versions/${version}`,
+    { headers: source ? { "x-molis-work-fragment": "artifact-reference-source", "x-molis-work-reference-source": source } : { "x-molis-work-fragment": "artifact-workbench" } })).text();
 
   const created = (await post("/api/plugins/io.molis.work.pages/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
   const pinned = (await post("/api/plugins/io.molis.work.pages/pages/" + created.id + "/promote", { expected_version: created.version })).artifact as { artifact_id: string; version: number };
@@ -81,6 +81,34 @@ test("a pinned document shows when the original changed or was deleted, and whic
   assert.ok(cited.includes(`data-workbench-item-plugin="pages" data-workbench-item-id="${citing.id}" data-workbench-item-title="周报" translate="no">周报</a><span>Pages · 链接了这一版</span>`),
     "the document that links to this version, opening in Pages");
   assert.doesNotMatch(cited, /别的版本/);
+
+  // QRF-06: a real ledger row that cannot be decoded must not hide the document or its open action.
+  const updateTarget = store.db.prepare("UPDATE context_edges SET target_json = ? WHERE edge_key = 'input-fixture'");
+  const { target_json: target } = store.db.prepare("SELECT target_json FROM context_edges WHERE edge_key = 'input-fixture'").get() as { target_json: string };
+  try {
+    updateTarget.run("{");
+    const partial = await detail(pinned.artifact_id, pinned.version);
+    assert.ok(partial.includes(`data-workbench-item-id="${citing.id}"`), "the Pages reference still opens while the ledger fails");
+    assert.match(partial, /data-artifact-reference-source="ledger"[^>]*>[\s\S]*?data-artifact-reference-retry/);
+  } finally { updateTarget.run(target); }
+  assert.ok((await detail(pinned.artifact_id, pinned.version)).includes(goalLink("PLATFORM", platform)));
+
+  // A source key from a previous detail gives no access after the project removes Pages.
+  const source = cited.match(/data-artifact-reference-source="([^"]+)"><h3 class="artifact-links-heading">Pages<\/h3>/)?.[1];
+  assert.ok(source);
+  const membership = (show: boolean) => withCatalog({ homeDirectory: served.home }, catalog => {
+    const setting = { project_id: DEMO_PROJECT_ID, plugin_id: "pages", actor_id: "test" };
+    if (show) catalog.addProjectPlugin(setting);
+    else catalog.removeProjectPlugin(setting);
+  });
+  await membership(false);
+  try {
+    const hidden = await detail(pinned.artifact_id, pinned.version, source);
+    assert.match(hidden, /data-artifact-reference-response/);
+    assert.doesNotMatch(hidden, /周报|data-artifact-reference-retry/);
+    assert.ok((await detail(pinned.artifact_id, pinned.version)).includes(goalLink("PLATFORM", platform)));
+  } finally { await membership(true); }
+  assert.ok((await detail(pinned.artifact_id, pinned.version, source)).includes(`data-workbench-item-id="${citing.id}"`));
 
   // Deleting the document leaves the version, says so, and no longer offers to open the original.
   await post("/api/plugins/io.molis.work.pages/pages/" + created.id + "/delete", {});

@@ -1,4 +1,4 @@
-import { requireSynchronous, type ActionCallContext, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionCallContext, type ActionReference, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -6,7 +6,7 @@ import { type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { builtinPluginByManifestId, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "./plugin-registry.js";
 import { observeReviewSettlements } from "./review-settlement-events.js";
 import { agentContinuationStarts } from "./agent-continuation-starts.js";
-import { bindLocalWebActions, bindWebEntryActions, localWebActionContext, type LocalWebEntry } from "./local-web-actions.js";
+import { bindLocalWebActions, bindWebEntryActions, localWebActionContext, type LocalWebActionClient, type LocalWebEntry } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { molisWorkHostProjectReference, type MolisWorkProjectRuntime } from "./project-host.js";
 import { projectPluginEpoch } from "./project-catalog.js";
@@ -30,7 +30,7 @@ export interface ProjectRequestContext extends WebRequestContext {
    * The person's calls for one surface, capped by the permissions it names: a Host-registered provider by what the person holds over
    * it, a Runtime plugin's by its installation's grants alone (PG-008, `bindLocalWebActions`); `entry` is the file an import handed in.
    */
-  readonly userActions: (permissions: readonly string[], entry?: LocalWebEntry) => BoundActionClient;
+  readonly userActions: (permissions: readonly string[], entry?: LocalWebEntry) => LocalWebActionClient;
   /** The plugins this project's page shows: personal ones included unless the person hid them here. */
   readonly shownPlugins: (projectId: string) => Promise<string[]>;
   /**

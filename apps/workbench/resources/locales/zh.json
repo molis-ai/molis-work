@@ -2207,6 +2207,8 @@
     "workbench.browser-ui.proposed-input": "提议的输入",
     "workbench.browser-ui.published": "发布时间",
     "workbench.browser-ui.record-input": "记为输入",
+    "workbench.browser-ui.reference-source-failed": "未能读取{source}的引用。",
+    "workbench.browser-ui.reference-links-failed": "部分引用未能读出。",
     "workbench.browser-ui.referenced": "被谁引用",
     "workbench.browser-ui.result-type": "结果类型",
     "workbench.browser-ui.scope": "范围",

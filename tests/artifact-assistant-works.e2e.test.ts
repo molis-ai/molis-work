@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
@@ -27,6 +28,23 @@ test("a 成果 version lists the Assistant work that started from it, and opens 
   // The Assistant names the open version by its title, not its address; only on show, it is offered, not added (context-program §21.5).
   await evaluate("document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: {} }))");
   await waitFor("(document.querySelector('[data-assistant-context-strip]:not([hidden]) .is-optional')?.textContent || '').includes('正在看：需求说明没加入')", 10_000);
+
+  // QRF-06: the active Pages reader actually fails on its stored document. All other sources are empty.
+  const { document: citing } = await b.web.post<{ document: { id: string } }>(`/projects/${projectId}/api/plugins/io.molis.work.pages/pages`, {
+    title: "引用需求的周报", markdown: `本周见[需求说明](${b.origin}${version})。`,
+  });
+  const pages = openHomeSqliteDatabase(b.homeDirectory, "pages");
+  t.after(() => pages.close());
+  const original = String(pages.prepare("SELECT body_json FROM pages WHERE id = ?").get(citing.id)!.body_json);
+  const saveBody = (value: string) => pages.prepare("UPDATE pages SET body_json = ? WHERE id = ?").run(value, citing.id);
+  const pagesLink = await fetch(b.origin + version, { headers: { "x-molis-work-fragment": "artifact-workbench" } });
+  assert.ok((await pagesLink.text()).includes(`data-workbench-item-id="${citing.id}"`), "the stored document links to this exact version before the fault");
+  saveBody("{");
+  await navigate(() => command("Page.navigate", { url: `${b.origin}${version}` }, sessionId));
+  await waitFor("document.querySelector('[data-artifact-works]') && !document.querySelector('[data-artifact-works-status]')?.textContent");
+  assert.ok(await evaluate("Boolean(document.querySelector('[data-artifact-reference-retry]'))"), "the active Pages source can be retried");
+  assert.equal(await evaluate("document.querySelector('[data-artifact-no-references]')?.hidden"), true);
+  await b.web.post(`/projects/${projectId}/api/plugins/io.molis.work.goals/goals/V1/deliverables`, { reference: { artifact_id: "pages-brief", version: 1 }, delivered: true });
 
   // The person asks the Assistant while this version's tab is open (here from a direct link, so the tab holds the prefixed
   // address): the work starts from it. Without a model the round does not run, but the work and where it started are kept.
@@ -59,6 +77,7 @@ test("a 成果 version lists the Assistant work that started from it, and opens 
     changes.close();
   })()`);
   await waitFor("document.documentElement.lang === 'ja' && document.querySelector('[data-artifact-works-status]')?.textContent.includes('一部を読み込めませんでした')", 20_000);
+  assert.match(await evaluate<string>("document.querySelector('[data-artifact-source-error]').textContent"), /Pagesからの参照を読み込めませんでした/);
   assert.match(await evaluate<string>("document.querySelector('[data-artifact-works]').textContent"), /把需求说明整理成清单[\s\S]*このバージョンから開始/);
   await b.click("[data-artifact-works-status] button");
   await waitFor("!document.querySelector('[data-artifact-works-status]')?.textContent");
@@ -66,8 +85,48 @@ test("a 成果 version lists the Assistant work that started from it, and opens 
   assert.equal(await evaluate("document.querySelectorAll('[data-artifact-open-work]').length"), 1);
   assert.match(await evaluate<string>("document.querySelector('[data-artifact-works]').innerText"), /把需求说明整理成清单[\s\S]*このバージョンから開始/);
 
+  // A Pages-only retry preserves the Assistant and ledger DOM, reads the real repaired document in Japanese,
+  // and leaves keyboard focus on its newly available open action.
+  await evaluate(`(window.keptReferences = [document.querySelector('[data-artifact-open-work]'), document.querySelector('[data-artifact-linked-plugin] a')])`);
+  assert.ok(await evaluate("window.keptReferences.every(Boolean)"));
+  saveBody(original);
+  await evaluate("document.querySelector('[data-artifact-reference-retry]').focus(); document.activeElement.click()");
+  await waitFor(`document.querySelector('[data-artifact-referrers] a')?.dataset.workbenchItemId === ${JSON.stringify(citing.id)}`);
+  assert.equal(await evaluate("document.activeElement === document.querySelector('[data-artifact-referrers] a')"), true);
+  assert.ok(await evaluate("window.keptReferences.every(row => row.isConnected)"));
+  assert.equal(await evaluate("document.querySelector('[data-artifact-works-status]').textContent"), "");
+  assert.equal(await evaluate("document.querySelector('[data-artifact-no-references]')?.hidden"), true);
+
   // Opening it shows that work in the Assistant.
   await evaluate("document.querySelector('[data-artifact-open-work]').click()");
   await waitFor(`document.querySelector('[data-assistant-work-title]')?.textContent?.includes('把需求说明整理成清单')`, 10_000);
   assert.equal(await evaluate("document.querySelector('[data-artifact-open-work]').dataset.artifactOpenWork"), related[0]!.work_id);
+  // Hold a real Pages retry after the server has answered, then leave the version and focus the list.
+  saveBody("{");
+  await navigate(() => command("Page.navigate", { url: `${b.origin}${version}` }, sessionId));
+  await waitFor("Boolean(document.querySelector('[data-artifact-reference-retry]'))");
+  saveBody(original);
+  await evaluate(`(() => {
+    const get = window.fetch.bind(window);
+    window.referenceRequests = 0;
+    window.fetch = async (input, init) => {
+      const reply = await get(input, init);
+      if (new Headers(init?.headers).get("x-molis-work-fragment") === "artifact-reference-source") {
+        window.referenceRequests++;
+        await new Promise(resolve => { window.releaseReference = resolve; });
+      }
+      return reply;
+    };
+    const retry = document.querySelector('[data-artifact-reference-retry]');
+    window.oldReference = retry.closest('[data-artifact-reference-source]');
+    retry.focus(); retry.click(); retry.click();
+  })()`);
+  await waitFor("typeof window.releaseReference === 'function'");
+  await b.click("[data-artifact-collapse]");
+  await waitFor("!document.querySelector('[data-artifact-detail] article[data-artifact-id]') && document.querySelector('[data-artifact-directory] a[data-frame-asset]')?.checkVisibility()");
+  await evaluate("window.newFocus = document.querySelector('[data-artifact-directory] a[data-frame-asset]'); window.newFocus.focus(); window.releaseReference()");
+  await waitFor("!window.oldReference.hasAttribute('aria-busy')");
+  assert.equal(await evaluate("window.referenceRequests"), 1);
+  assert.equal(await evaluate("document.activeElement === window.newFocus && !document.querySelector('[data-artifact-detail] [data-artifact-referrers]')"), true);
+
 });

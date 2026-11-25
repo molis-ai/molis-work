@@ -2329,6 +2329,8 @@
     "workbench.browser-ui.proposed-input": "Proposed input",
     "workbench.browser-ui.published": "Published",
     "workbench.browser-ui.record-input": "Record as input",
+    "workbench.browser-ui.reference-source-failed": "References from {source} could not be loaded.",
+    "workbench.browser-ui.reference-links-failed": "Some references could not be loaded.",
     "workbench.browser-ui.referenced": "Referenced by",
     "workbench.browser-ui.result-type": "Result type",
     "workbench.browser-ui.scope": "Scope",

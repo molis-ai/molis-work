@@ -51,7 +51,10 @@ export async function handleProjectPluginHttp(request: IncomingMessage, response
   }
   const pluginId = pluginRoute![1]!, platform = projectPluginPlatform(record, pluginId);
   // A plugin with a library in each partition answers from its own instance here; one that did not start is unavailable, not unknown.
-  if (!platform) { sendLocalWebJson(response, 503, { error: record.partitions?.failure(pluginId) ?? "插件已停止" }); return true; }
+  if (!platform) {
+    sendLocalWebJson(response, 503, { error: record.partitions?.failure(pluginId) ?? "插件已停止" });
+    return true;
+  }
   await announceProjectOpened(platform, ports);
   const abort = new AbortController(), pageAuthority = pluginPageRequest(request);
   const stop = () => abort.abort(new ActionError("actions.cancelled", "这次调用已结束"));

@@ -96,7 +96,10 @@ type DeclaredOwner = ProjectDeletedOwner & { order?: number };
 
 /** Removes a directory only when nothing is in it; false when it holds something or is not there. */
 async function removeIfEmpty(directory: string): Promise<boolean> {
-  try { await rmdir(directory); return true; } catch (error) {
+  try {
+    await rmdir(directory);
+    return true;
+  } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
     if ((error as NodeJS.ErrnoException).code === "ENOTEMPTY" || (error as NodeJS.ErrnoException).code === "EEXIST") return false;
     throw error;

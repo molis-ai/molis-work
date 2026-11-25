@@ -153,7 +153,8 @@ export class LingguangStore {
    */
   exportRecord(id: string): PlacementExport {
     const current = this.get(id);
-    const talks = (this.db.all("SELECT * FROM conversations", []) as unknown as ConversationRow[])
+    const talks = this.db.all("SELECT id, spark_ids_json, created_at, updated_at FROM conversations", [])
+      .map(row => ({ id: String(row.id), spark_ids_json: String(row.spark_ids_json), created_at: String(row.created_at), updated_at: String(row.updated_at) }))
       .filter(row => (JSON.parse(row.spark_ids_json) as string[]).includes(id));
     const shared = talks.some(row => (JSON.parse(row.spark_ids_json) as string[]).length > 1);
     const conversations = talks.map(row => JSON.stringify({ id: row.id, created_at: row.created_at, updated_at: row.updated_at,

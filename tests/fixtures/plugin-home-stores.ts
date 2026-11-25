@@ -1,5 +1,5 @@
 import { openPartitionPluginLibrary, partitionPluginScope, PLATFORM_PLUGIN_REGISTRATIONS, pluginSyncDatabaseDeclaration } from "@molis-ai/molis-work-app-local-host";
-import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { applySqliteBaseline, homeSqlitePath, openBaselineHomeSqlite, openHomeSqliteDatabase, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { COGNIA_DATABASE, CogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 import { DATASET_DATABASE, DatasetStore } from "@molis-ai/molis-work-plugin-dataset";
@@ -42,8 +42,9 @@ function openPartition(home: string, partition: string, declaration: { store_nam
   if (!manifest?.databases?.partition) throw new Error(`没有申报分区库 ${declaration.store_name} 的内置插件`);
   const scope = partitionPluginScope(home, partition, manifest.plugin_id, `${manifest.plugin_id}-test`);
   const library = openPartitionPluginLibrary(scope, home, pluginSyncDatabaseDeclaration(manifest, manifest.databases.partition));
-  library.reader.close();
-  const db = library.writer as unknown as DatabaseSync;
+  // Opened with its baseline and space by the Host's own path, then handed to the store as a plain connection to the same file.
+  library.close();
+  const db = new DatabaseSync(scope.libraryPath(declaration.store_name));
   // The journal mode stays the Host's: a partition library joins the project database in one rollback-journal commit (pin and promote).
   db.exec("PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;");
   return { db, file: scope.libraryPath(declaration.store_name) };

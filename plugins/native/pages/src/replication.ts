@@ -19,9 +19,18 @@ export function pagesCollection(projectId: string): PluginSyncCollectionDefiniti
     return [parts[1],parts[2]] as ['folder'|'document',string];
   };
   return {
-    authorizeKey(key){ decode(key); caller.project(projectId); },
-    belongsToProject:(key,target)=>{ decode(key); return target===projectId; },
-    canUpload:key=>{ decode(key); return caller.canUploadProject?.(projectId)!==false; },
+    authorizeKey(key){
+      decode(key);
+      caller.project(projectId);
+    },
+    belongsToProject:(key,target)=>{
+      decode(key);
+      return target===projectId;
+    },
+    canUpload:key=>{
+      decode(key);
+      return caller.canUploadProject?.(projectId)!==false;
+    },
     read(key){
       const [kind,id]=decode(key),project=caller.project(projectId);
       const record=readRecord(db,kind,id);
@@ -37,7 +46,8 @@ export function pagesCollection(projectId: string): PluginSyncCollectionDefiniti
         ||db.prepare("SELECT 1 FROM page_generations WHERE json_extract(record_json,'$.status')='running' LIMIT 1").get())throw syncError('busy','请先完成或恢复文档生成、成果发布');
       if(value===null){
         if(kind==='folder'&&db.prepare('SELECT 1 FROM pages WHERE folder_id=? LIMIT 1').get(id))throw syncError('dependencies','等待文件夹内文档更新');
-        db.prepare('DELETE FROM '+table+' WHERE id=?').run(id);return;
+        db.prepare('DELETE FROM '+table+' WHERE id=?').run(id);
+        return;
       }
       limit(value);
       if(typeof value!=='object'||Array.isArray(value)||!value||Object.keys(value).sort().join(',')!=='project,record')throw syncError('invalid','文档同步格式不合法');

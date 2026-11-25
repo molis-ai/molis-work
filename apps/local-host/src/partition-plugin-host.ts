@@ -56,7 +56,10 @@ const canonical = (home: string) => { try { return realpathSync(home); } catch {
 export function partitionPluginHostFor(home: string, startInstance: StartInstance): PartitionPluginHost {
   const key = canonical(home);
   let host = hosts.get(key);
-  if (!host || host.closed) { host = new PartitionPluginHost(key, startInstance); hosts.set(key, host); }
+  if (!host || host.closed) {
+    host = new PartitionPluginHost(key, startInstance);
+    hosts.set(key, host);
+  }
   return host;
 }
 
@@ -230,7 +233,10 @@ export class PartitionPluginHost {
         try {
           const lease = await this.assembly.acquire(pluginId, partitionId, "open");
           // Closed while it started: the lease goes with the partition.
-          if (this.open.get(partitionId) !== opened) { lease.release(); continue; }
+          if (this.open.get(partitionId) !== opened) {
+            lease.release();
+            continue;
+          }
           opened.leases.set(pluginId, lease);
           this.failures.delete(key);
         } catch (error) {

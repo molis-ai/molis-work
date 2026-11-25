@@ -295,7 +295,10 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       const title = document.title || "未命名文档";
       return fileContentOf({ subject: input.subject, revision: String(document.version), title, media_type: "text/markdown", text: `# ${title}\n\n${nodesToMarkdown(nodes).trim()}\n` });
     })),
-    bind(pagesActions.placementExport, (input, caller) => { project(caller); return ports.read(store => store.exportRecord(input.subject.id)); }),
+    bind(pagesActions.placementExport, (input, caller) => {
+      project(caller);
+      return ports.read(store => store.exportRecord(input.subject.id));
+    }),
     bind(pagesActions.placementPut, (input, caller) => {
       if (input.kind !== PAGES_SUBJECT_KIND) throw pagesErrors.invalid("这里只能放文档");
       return ports.write(caller, store => {
@@ -316,11 +319,20 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       return { document, change_id: store.keepChange(before, document) };
     })),
     bind(pagesActions.revert, (input, caller) => ports.write(caller, store => ({ document: store.revertChange(input.change_id) }))),
-    bind(pagesActions.delete, (input, caller) => ports.write(caller, store => { store.delete(input.id); return { ok: true }; })),
-    bind(pagesActions.discard, (input, caller) => ports.write(caller, store => { store.discard(input.id, input.expected_version); return { ok: true }; })),
+    bind(pagesActions.delete, (input, caller) => ports.write(caller, store => {
+      store.delete(input.id);
+      return { ok: true };
+    })),
+    bind(pagesActions.discard, (input, caller) => ports.write(caller, store => {
+      store.discard(input.id, input.expected_version);
+      return { ok: true };
+    })),
     bind(pagesActions.createFolder, (input, caller) => ports.write(caller, store => ({ folder: store.createFolder(input) }))),
     bind(pagesActions.updateFolder, (input, caller) => ports.write(caller, store => ({ folder: store.updateFolder(input.id, input) }))),
-    bind(pagesActions.deleteFolder, (input, caller) => ports.write(caller, store => { store.deleteFolder(input.id); return { ok: true }; })),
+    bind(pagesActions.deleteFolder, (input, caller) => ports.write(caller, store => {
+      store.deleteFolder(input.id);
+      return { ok: true };
+    })),
     bind(pagesActions.previewImport, (input, caller) => prepareImport(input.files, caller)),
     bind(pagesActions.import, async (input, caller) => {
       const prepared = await prepareImport(input.files, caller);

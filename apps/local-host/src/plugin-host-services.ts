@@ -1,4 +1,3 @@
-import { partitionPluginScope } from "./partition-plugin-assembly.js";
 import { realpathSync } from "node:fs";
 import { installHostUiText } from "./ui-text-provider.js";
 import { combinePluginSyncLibraries } from './plugin-sync-library.js';
@@ -224,14 +223,17 @@ export function pluginTextViews(contribution: PluginContribution, activation: Pl
  */
 function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
   if (definition.manifest.databases?.partition) {
-    // One instance per (plugin, partition), each with its own partition's library (§4.2 第 2 条): the partition is the project this platform
-    // runs for, the one the per-partition assembly's scope names when it starts the instance, never a value from the plugin.
-    if (!options.home) throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 在每个分区有自己的库，这个插件平台没有 Home`);
-    const scope = options.partitionScope ?? partitionPluginScope(options.home.directory, options.project_id, definition.manifest.plugin_id, context.install_id);
-    if (scope.plugin_id !== definition.manifest.plugin_id || scope.install_id !== context.install_id || scope.partition_id !== options.project_id) {
-      throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 的分区库与它运行的分区或安装不一致`);
+    // Only the per-partition assembly starts such a plugin, one instance per (plugin, partition), each with its own partition's library
+    // (§4.2 第 2 条): the partition is the one the assembly's scope names, never a value from the plugin, and a project platform refuses it.
+    const scope = options.partitionScope;
+    if (!scope || !options.home || scope.plugin_id !== definition.manifest.plugin_id || scope.install_id !== context.install_id || scope.partition_id !== options.project_id) {
+      throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 在每个分区有自己的库，只能由分区装配按分区启动`);
     }
-    return openPartitionPluginDatabase(scope, options.home.directory, definition.manifest, permission => { assertActive(); context.requireGrant(permission); }, context);
+    const authorize = (permission: string) => {
+      assertActive();
+      context.requireGrant(permission);
+    };
+    return openPartitionPluginDatabase(scope, options.home.directory, definition.manifest, authorize, context);
   }
   // A sandboxed package's library in the Home is the Home Runtime's (`openSandboxHomeLibrary`): a project's platform has no process to run its statements in.
   if (definition.execution === "sandbox" && definition.manifest.databases?.home) {

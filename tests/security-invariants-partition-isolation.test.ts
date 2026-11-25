@@ -7,9 +7,9 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  existingPartitionPluginHost, LocalProjectDatabase, MolisWorkLocalHost, openHomePluginStore, openPartitionPluginLibrary, openProjectVersionStores,
+  ensureProjectPlugins, existingPartitionPluginHost, LocalProjectDatabase, MolisWorkLocalHost, openHomePluginStore, openPartitionPluginLibrary, openProjectVersionStores,
   PartitionPlatformServices, PartitionPluginAssembly, partitionInstallRecords, partitionOverviewLibraries, partitionPluginScope, projectPluginPlatform,
-  refreshRunningProjectPlugins, runningProjectPluginState, startPartitionPluginInstance, type PartitionPluginScope,
+  refreshRunningProjectPlugins, releaseProjectPlugins, runningProjectPluginState, startPartitionPluginInstance, type PartitionPluginScope,
 } from "@molis-ai/molis-work-app-local-host";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
 import { installIdentity, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -158,6 +158,25 @@ function partitionNotes(): PluginDefinition {
 
 // Batch 107: the Host runs the six plugins with a library in each partition as one instance per (plugin, partition). The partition is the one
 // the instance runs for, never one a call names (S-31), and a deleted project's library does not come back from a call begun before (S-18, S-52).
+test("UPP-06 S-partition-isolation the old project platform refuses to run a plugin with a library in each partition", async () => withPartitions(async (home, a) => {
+  // Since batch 107 such a plugin is the per-partition assembly's (above); handed to a project platform anyway, the platform itself refuses it.
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const store = new LocalProjectDatabase(partitionRoot(home, a) + "/molis-work.db");
+  const definition = partitionNotes();
+  const ports = { store, ...openProjectVersionStores(store), projectId: a, actorId: "local-person", homeDirectory: home, actions: pluginActions(store, a),
+    escapeHtml: String, translate: (value: string) => value, installedByHand: new Set([definition]) };
+  try {
+    const { platform } = await ensureProjectPlugins(ports);
+    assert.ok(platform);
+    const report = await platform.start([{ definition }]);
+    assert.equal(report.running.includes(PLUGIN), false, JSON.stringify(report));
+    const refusedState = platform.supervisor.state(PLUGIN)!;
+    assert.equal(platform.runtime.get(refusedState.install_id!)?.last_error_code, "plugin.declaration_invalid", "refused for its declaration, before any library");
+    // Opening the partition starts its built-in per-partition plugins with their libraries; this one has none there.
+    assert.equal(existsSync(partitionLibraryFile(home, a, declaration.store_name)), false, "no library was opened for it");
+  } finally { await releaseProjectPlugins(store, a); store.close(); }
+}));
+
 test("UPP-06 S-31 S-partition-isolation the project platform gives a plugin with a library in each partition the library of the project it runs in; a call naming another project or none is refused and makes no library", async t => {
   const f = await serveHomeRuntime(t);
   const a = await f.project("分区 A"), b = await f.project("分区 B");

@@ -210,7 +210,11 @@ export class PlacementService {
     if (carried) {
       await carryMove(this.ports, object, from, to, carried, text => placementText(this.ports, text));
       await settleMove(this.ports, () => writeProjectLocation(this.ports, object, from, to),
-        async () => { const back = await carryTools(this.ports, object, to, from, true); if (!back) throw notMovable(this.ports); await carryMove(this.ports, object, to, from, back, text => placementText(this.ports, text), true); });
+        async () => {
+          const back = await carryTools(this.ports, object, to, from, true);
+          if (!back) throw notMovable(this.ports);
+          await carryMove(this.ports, object, to, from, back, text => placementText(this.ports, text), true);
+        });
       this.ports.ledger.commands.remove(ACCESS, carryingKey(object.kind, object.id), "placement.carried");
       const moved = { ...object, project_id: to };
       return { object: moved, location: placementLocation(this.ports, to, spaces), open: await this.openOf(moved) };
@@ -359,7 +363,12 @@ async function settleMove(ports: PlacementPorts, write: () => void, back: () => 
     write();
   } catch (error) {
     let undone = true, why: unknown;
-    try { await back(); } catch (failure) { undone = false; why = failure; }
+    try {
+      await back();
+    } catch (failure) {
+      undone = false;
+      why = failure;
+    }
     if (!undone && leased) { try { write(); } catch { /* the plugin kept the new place */ } }
     // Why it did not come back rides on the refusal, so an object the plugin kept is not left without a trace.
     if (!undone && error instanceof Error && error.cause === undefined) error.cause = why;
@@ -480,7 +489,10 @@ async function settleCarry(ports: PlacementPorts, edge: ContextEdge): Promise<"s
   try { [from, revision] = JSON.parse(edge.cause.slice("placement.carry:".length)) as [string, string]; } catch { return "unsettled"; }
   if (typeof from !== "string" || typeof revision !== "string") return "unsettled";
   const object: PlacedObject = { kind, id, project_id: from };
-  const done = (cause: string) => { ports.ledger.commands.remove(ACCESS, edge.key, cause); return "settled" as const; };
+  const done = (cause: string) => {
+    ports.ledger.commands.remove(ACCESS, edge.key, cause);
+    return "settled" as const;
+  };
   const target = await exportedAt(ports, { ...object, project_id: to }, to, from);
   if (!target?.exported) return done("placement.carry_not_put");
   const source = await exportedAt(ports, object, from, to);

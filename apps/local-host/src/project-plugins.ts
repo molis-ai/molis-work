@@ -166,7 +166,10 @@ export async function refreshRunningProjectPlugins(store: LocalProjectDatabase, 
 export async function releaseProjectPlugins(store: LocalProjectDatabase, projectId: string): Promise<void> {
   const boards = started.get(store);
   const opening = boards?.get(projectId);
-  if (!opening) { await releasePartitionPlugins(store, projectId); return; }
+  if (!opening) {
+    await releasePartitionPlugins(store, projectId);
+    return;
+  }
   boards!.delete(projectId);
   noteProjectReleased(opening);
   const record = await opening.ready;
@@ -268,7 +271,8 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     const settlements = reviewSettlementForwarder(platform.hostEvents), continuations = continuationForwarder(platform.hostEvents);
     record.updateObservers = () => {
       if (closed) return;
-      settlements.update(ports.observeReviewSettlements); continuations.update(ports.observeContinuations);
+      settlements.update(ports.observeReviewSettlements);
+      continuations.update(ports.observeContinuations);
       for (const pluginId of existingPartitionPluginHost(ports.homeDirectory)?.plugins() ?? []) {
         existingPartitionPluginHost(ports.homeDirectory)?.assembly.started(pluginId, ports.projectId)?.updateObservers();
       }
@@ -343,8 +347,16 @@ export async function startPartitionPluginInstance(ports: ProjectPluginPorts, sc
   // The same forwarders the project platform has: the instance's installation hears its settled reviews and continuations (X-6).
   const settlements = reviewSettlementForwarder(platform.hostEvents), continuations = continuationForwarder(platform.hostEvents);
   let closed = false;
-  const updateObservers = () => { if (!closed) { settlements.update(ports.observeReviewSettlements); continuations.update(ports.observeContinuations); } };
-  const stopObservers = () => { closed = true; settlements.stop(); continuations.stop(); };
+  const updateObservers = () => {
+    if (closed) return;
+    settlements.update(ports.observeReviewSettlements);
+    continuations.update(ports.observeContinuations);
+  };
+  const stopObservers = () => {
+    closed = true;
+    settlements.stop();
+    continuations.stop();
+  };
   updateObservers();
   try {
     const report = await platform.start([{ ...entry, enabled: true }]);
@@ -356,7 +368,11 @@ export async function startPartitionPluginInstance(ports: ProjectPluginPorts, sc
     await stopProjectPlugins(platform, ports.projectId).catch(() => {});
     throw error;
   }
-  return { platform, updateObservers, stop: () => { stopObservers(); return stopProjectPlugins(platform, ports.projectId); } };
+  const stop = () => {
+    stopObservers();
+    return stopProjectPlugins(platform, ports.projectId);
+  };
+  return { platform, updateObservers, stop };
 }
 
 /**

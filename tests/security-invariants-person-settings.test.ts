@@ -101,7 +101,7 @@ test("UPP-15 S-person-settings-private an incoming portable preference with an u
   const cases: Array<[string, (value: Record<string, unknown>) => void]> = [
     ["an unknown field", value => { value.foreign = "unrecognized"; }],
     ["a value past its limit", value => { (value.data as { value: unknown }).value = { provider: "x".repeat(1024 * 1024) }; }],
-    ["a path on this machine", value => { (value.data as { value: unknown }).value = { folder: "/private/tmp/only-on-source" }; }],
+    ["a path on this machine", value => { (value.data as { value: unknown }).value = { provider: "/private/tmp/only-on-source" }; }],
     ["a value that looks like a credential", value => { (value.data as { value: unknown }).value = { provider: ["token", "dummy-payload-value"].join("=") }; }],
   ];
   for (const [index, [label, change]] of cases.entries()) {

@@ -73,7 +73,6 @@ export class HomePluginExecutor implements PluginExecutor {
     ownerFiles(definition: PluginDefinition): PluginOwnerFilesBinding | undefined;
     modelConfiguration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration | undefined;
     imageGeneration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration | undefined;
-    providerFor(definition: PluginDefinition, installId: string): string;
     /** The Host's start list said this is the Home half of a dual-instance plugin (specs/archive/dual-instance-plugins). */
     dualInstance(definition: PluginDefinition): boolean;
     storage: SqlitePluginPrivateStorage;
@@ -186,8 +185,7 @@ export class HomePluginExecutor implements PluginExecutor {
       terminal = pluginTerminalFor({ home: this.options.home, manifest, context: authorized, ownerFiles: ownerFiles?.client, assertActive });
       const hosted: PluginStartContext = Object.freeze({ ...authorized, ...(home.startedAt ? { host_started_at: home.startedAt } : {}), actor_id: this.options.actorId, sync: syncActivation(this.options.home, manifest, authorized, assertActive), copy: copyActivation(this.options.home, manifest, authorized, assertActive), services: Object.freeze({
         ui: ui.client, ...(database?.sync ? {sync: database.sync} : {}), interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(sandboxLibrary ? { database_statements: sandboxLibrary.statements } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(localTools ? { localTools } : {}), ...(projects ? { projects } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}), ...(installations ? { installations } : {}), ...(evidenceCollector ? { evidenceCollector } : {}), ...(artifacts ? { artifacts } : {}),
-        actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
-          providerId: this.options.providerFor(definition, context.install_id) }),
+        actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller }),
       }) });
       // What a connection card binds an image target under (§13.5 C2): the namespace this instance's own image service binds under, nothing when it has none.
       const image_generation = !imageGeneration ? undefined : definition.execution === "sandbox" ? sandboxImageDeclaration(context.install_id) : manifest.image_generation;
@@ -195,7 +193,7 @@ export class HomePluginExecutor implements PluginExecutor {
       withdrawPages = pluginPagesFor(this.options.home).connect({ manifest, install_id: context.install_id, instance: context, project_id: null, actor_id: this.options.actorId, image_generation,
         release: record && submit ? installedPageRelease(record) : undefined, componentForm: submit?.form,
         resolveFiles: owned ? pluginPageFiles(this.options.home, owned.declaration, authorize) : undefined,
-        invoke: pluginPageActions(manifest, authorized, { client: this.options.client, actions: hosted.services?.actions, caller, provider: this.options.providerFor(definition, context.install_id), submit }),
+        invoke: pluginPageActions(manifest, authorized, { client: this.options.client, actions: hosted.services?.actions, caller, provider: context.provider_id, submit }),
         assertCurrent: permission => permission ? authorize(permission) : assertActive() });
       const given = servicesUntilStopped(hosted, () => stopped, this.stoppedCalls);
       const contribution = await runWithPluginText(context, () => background ? background.starting(() => definition.start(given)) : definition.start(given));

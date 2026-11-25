@@ -19,7 +19,6 @@ export type PluginProjectReach = (manifest: PluginManifest, context: ActionCallC
 export interface PluginRuntimeActions {
   registry: ActionRegistryPort;
   project_id?: string;
-  providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string;
   projectReach?: PluginProjectReach;
   register?(definition: PluginDefinition, contribution: PluginContribution, record: PluginInstanceRecord, registration: ActionProviderRegistration): (() => void) | undefined;
 }
@@ -27,8 +26,8 @@ export interface PluginRuntimeActions {
 /**
  * What a running Plugin offers the action service: the actions and scenes its Manifest declares, each available only while
  * the install runs and holds the grants that action needs. `state` reads the install as it is at the moment of each call.
- * `providerId` is the id the registration carries: the installation id unless the Host says otherwise (a plugin that ships
- * with the Host registers under its plugin_id); `plugin_install_id` always names the installation whose grants it reads.
+ * `providerId` is the id the registration carries (`resolveActionProviderId`); `plugin_install_id` always names the installation whose
+ * grants it reads.
  * `instance` is the activation's record as it started: its calls run as that instance, and only its services serve them.
  */
 export function pluginActionProvider(manifest: PluginManifest, contribution: PluginContribution, instance: PluginInstance, providerId: string, projectId: string | undefined,

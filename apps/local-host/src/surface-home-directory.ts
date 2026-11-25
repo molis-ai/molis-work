@@ -7,7 +7,7 @@ import { PLUGIN_ICON_NAMES, type PresentationFormValues } from "@molis-ai/molis-
 import { presentationOwnerHue } from "@molis-ai/molis-work-design-system";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import type { SurfaceHomePlugin, SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
-import { currentReadCheckGeneration, currentTurn } from "@molis-ai/molis-work-plugin-runtime";
+import { currentReadCheckGeneration, currentTurn, resolveActionProviderId } from "@molis-ai/molis-work-plugin-runtime";
 import { currentHomeStageHalves } from "./home-plugin-http.js";
 import type { HomePluginHost } from "./home-plugins.js";
 import { currentInstalledPluginHost } from "./installed-plugin-host.js";
@@ -102,7 +102,7 @@ function formsFor(ports: DirectoryPorts, record: PluginInstanceRecord, scope: Su
       && surface.target_slot_id === "workbench.overlay" && surface.format === "declarative-html")) {
       const target = manifest?.actions?.find(item => item.capability_id === declaration.capability_id && item.version === declaration.version && item.action.scope === scope);
       if (target) action = { capability_id: target.capability_id, version: target.version,
-        provider_id: record.publisher_trust === "host" ? record.plugin_id : record.install_id };
+        provider_id: resolveActionProviderId(record) };
     }
     return action ? [{ ...open, action }] : [];
   });

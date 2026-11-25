@@ -109,7 +109,7 @@ test("a plugin query does not discover every action on each read; a command conf
     discover: async (who) => { discovered++; return client.discover(who); },
     discoverOne: async (who, target) => { discoveredOne++; return client.discoverOne!(who, target); },
   }, () => caller);
-  const context: PluginStartContext = { install_id: "fixture", installation_generation: "1", plugin_id: "com.example.reads", version: "1.0.0", deployment: "local", grants: [], actor_id: caller.actor_id,
+  const context: PluginStartContext = { install_id: "fixture", installation_generation: "1", provider_id: "fixture", plugin_id: "com.example.reads", version: "1.0.0", deployment: "local", grants: [], actor_id: caller.actor_id,
     services: { actions: { ...actions, availability: () => ({ available: true }), invokeQuery: async () => { throw new Error("No query delegation expected"); } },
       artifacts: { read: () => { throw new Error("No Artifact reads expected"); }, publish: () => { throw new Error("No Artifact writes expected"); } },
       ui: { register: () => { throw new Error("No UI expected"); }, unregister: () => {} } },

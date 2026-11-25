@@ -95,7 +95,7 @@ test("PG061-GIT-01 Git's own pages read again after a delivery or a settled oper
   // G2b: so is the Host's settlement port; a settled operation arrives as the host event `host.review.settled@1` (PG-044, S-54).
   let invalidated = 0, refusal: Error | null = null;
   const published: unknown[] = [];
-  const context: PluginStartContext = { install_id: "git-invalidate", installation_generation: "1", plugin_id: gitManifest.plugin_id, version: gitManifest.version,
+  const context: PluginStartContext = { install_id: "git-invalidate", installation_generation: "1", provider_id: "git-invalidate", plugin_id: gitManifest.plugin_id, version: gitManifest.version,
     deployment: "local", grants: gitManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user",
     requireGrant: () => {}, services: {
       ui: { register: () => {}, unregister: () => {}, invalidate: () => { if (refusal) throw refusal; invalidated++; } },
@@ -151,7 +151,7 @@ test("BL-379 any person-approved workspace operation makes Git's pages read agai
   assert.ok(gitManifest.permissions.some(item => item.permission === "workspace:read" && item.required), "and declares the permission it is broadcast under");
   let invalidated = 0;
   const published: unknown[] = [];
-  const context: PluginStartContext = { install_id: "git-changed", plugin_id: gitManifest.plugin_id, version: gitManifest.version,
+  const context: PluginStartContext = { install_id: "git-changed", provider_id: "git-changed", plugin_id: gitManifest.plugin_id, version: gitManifest.version,
     deployment: "local", grants: gitManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user",
     requireGrant: () => {}, services: {
       ui: { register: () => {}, unregister: () => {}, invalidate: () => { invalidated++; } },

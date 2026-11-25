@@ -145,8 +145,8 @@ export interface PluginStartContext {
    * `install_id` and differ here, and the Host's services refuse a call from the other half (specs/archive/dual-instance-plugins U3).
    */
   readonly installation_generation: string;
-  /** Trusted action identity; Home built-ins use plugin_id, project installs use install_id. */
-  readonly provider_id?: string;
+  /** The provider this installation's actions are registered under, as the Runtime works it out from the install record. */
+  readonly provider_id: string;
   plugin_id: string;
   /** Executing implementation version; a compatible implementation may be newer than the persisted install. */
   version: string;

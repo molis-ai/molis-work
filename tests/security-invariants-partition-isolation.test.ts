@@ -399,7 +399,7 @@ test("UPP-06 UPP-21 two partitions sharing Home plugin-runtime.db isolate instan
         })],
       };
     },
-    stop(context) { stopped.push(context.project_id!); },
+    async stop(context) { stopped.push(context.project_id!); },
   };
   const actionsA = pluginActions(storeA, a);
   const actionsB = pluginActions(storeB, b);

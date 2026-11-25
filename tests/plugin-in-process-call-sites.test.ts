@@ -95,7 +95,7 @@ function checkSite(site: { file: string; node: ts.Node; kind: "runtime" | "platf
   const { file, node, kind, source } = site;
   const location = `${file}:${source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1}`;
   const call = node as ts.NewExpression | ts.CallExpression;
-  const options = (call.arguments ?? []).filter(ts.isObjectLiteralExpression);
+  const options = [...(call.arguments ?? [])].filter(ts.isObjectLiteralExpression);
   const spread = options.flatMap(value => spreadPropertiesNamed(value, "inProcess"));
   if (spread.length > 0) {
     return { failure: `${location}: ${kind === "runtime" ? "new PluginRuntime" : "createPluginPlatform"} must pass inProcess as a direct unconditional property, never inside a spread or conditional branch` };

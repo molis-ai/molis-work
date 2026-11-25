@@ -73,6 +73,7 @@ test("UPP-31 R22 SkillImportService refuses scope: project in personal space and
     scan: () => ({
       root: "/tmp/fake-claude",
       skills: [{
+        id: "weekly",
         name: "weekly",
         description: "写周报",
         path: "/tmp/nonexistent-not-a-symlink",

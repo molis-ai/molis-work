@@ -99,6 +99,8 @@ test("UPP G3 path half definition: a platform source counts direct listings of p
   assert.equal(countPartitionPathScans(file, "for (const partition of catalog.listPartitions()) open(partitionRoot(home, partition.project_id)); const shown = catalog.listProjects();"), 0);
   assert.equal(countPartitionPathScans(file, 'readdirSync(join(home, "plugin-files")); readdirSync(projectRoot);'), 0, "another directory, or one project's own root");
   assert.equal(countPartitionPathScans("plugins/native/todo/src/a.ts", 'readdirSync(join(home, "projects"));'), 0, "a plugin is not a platform source");
+  assert.equal(countPartitionPathScans("modules/projects/src/project-paths.ts", 'readdirSync(projects, { withFileTypes: true });'), 0, "the owner of the partition layout is where it is listed");
+  assert.equal(countPartitionPathScans("modules/projects/src/project-catalog.ts", 'readdirSync(projects, { withFileTypes: true });'), 1, "only that one file, not its package");
 });
 
 before(() => {

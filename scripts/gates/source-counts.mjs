@@ -252,8 +252,10 @@ const PARTITION_PATH_PATTERNS = [
   /\bfor\s*\((?:const|let|var)\s[^;)]*?\sof\s[^)]*?\blistProjects\(\s*\)/g,
   /\blistProjects\(\s*\)\s*\.(?:forEach|map|flatMap|filter|some|every|reduce)\(/g,
 ];
+// The owner of the partition layout (`partitionRoot()`, `listPartitions()`, `partitionRootsOnDisk()`) is the one file that lists `projects/`.
+const PARTITION_LAYOUT_OWNER = "modules/projects/src/project-paths.ts";
 export const countPartitionPathScans = (file, text) => {
-  if (!PLATFORM_SOURCE.test(file) || typeof text !== "string") return 0;
+  if (!PLATFORM_SOURCE.test(file) || file === PARTITION_LAYOUT_OWNER || typeof text !== "string") return 0;
   return PARTITION_PATH_PATTERNS.reduce((count, pattern) => count + (text.match(pattern) ?? []).length, 0);
 };
 const measurePartitionPathScans = (snapshot, { isSource }) => {

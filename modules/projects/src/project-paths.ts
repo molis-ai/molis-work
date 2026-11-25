@@ -107,7 +107,7 @@ export function partitionRootsOnDisk(homeDirectory: string): string[] {
   if (existsSync(personal)) roots.push(personal);
   const projects = path.join(homeDirectory, PROJECTS_DIRECTORY);
   if (existsSync(projects)) for (const entry of readdirSync(projects, { withFileTypes: true })) {
-    if ((entry.isDirectory() || entry.isSymbolicLink()) ) roots.push(path.join(projects, entry.name));
+    if (entry.isDirectory() || entry.isSymbolicLink()) roots.push(path.join(projects, entry.name));
   }
   return roots;
 }

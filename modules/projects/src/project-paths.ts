@@ -40,15 +40,17 @@ export const PARTITION_PATTERN = "<partition>";
 /** Whether a Home-relative path matches a pattern whose `*` is one directory name and whose `<partition>` is any partition's root. */
 export function matchesPartitionPattern(pattern: string, relativePath: string): boolean {
   const escape = (part: string) => part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const ordinaryProject = `${escape(PROJECTS_DIRECTORY)}/(?!${escape(PERSONAL_SPACE_PROJECT_ID)}(?:/|$))(?!\\.)[^/]+`;
   const source = pattern.split(PARTITION_PATTERN).map(piece => piece.split("*").map(escape).join("[^/]+"))
-    .join(`(?:${escape(PERSONAL_SPACE_DIRECTORY)}|${escape(PROJECTS_DIRECTORY)}/[^/]+)`);
+    .join(`(?:${escape(PERSONAL_SPACE_DIRECTORY)}|${ordinaryProject})`);
   return new RegExp(`^${source}$`, "u").test(relativePath);
 }
 
 /** The partition a Home-relative path is under, or none. */
 export function partitionOfRelativePath(relativePath: string): string | null {
   if (relativePath === PERSONAL_SPACE_DIRECTORY || relativePath.startsWith(`${PERSONAL_SPACE_DIRECTORY}/`)) return PERSONAL_SPACE_PROJECT_ID;
-  return new RegExp(`^${PROJECTS_DIRECTORY}/([^/]+)/`, "u").exec(relativePath)?.[1] ?? null;
+  const id = new RegExp(`^${PROJECTS_DIRECTORY}/([^/]+)/`, "u").exec(relativePath)?.[1];
+  return id && id !== PERSONAL_SPACE_PROJECT_ID && !id.startsWith(".") ? id : null;
 }
 
 /**

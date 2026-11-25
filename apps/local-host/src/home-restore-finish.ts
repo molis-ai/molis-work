@@ -1,5 +1,7 @@
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PERSONAL_SPACE_DIRECTORY } from "@molis-ai/molis-work-module-projects";
 import { journalStorageSpace } from "./home-restore-space.js";
 import { readStorageSpace, inspectSnapshotSqlite } from "@molis-ai/molis-work-storage";
 import { assertRestoreDigest } from "./home-restore-archive.js";
@@ -9,7 +11,7 @@ import { inspectRestoreNode, sameRestoreInode } from "./home-restore-files.js";
 import { invalidRestore } from "./home-restore-input.js";
 import type { HomeRestoreJournal } from "./home-restore-journal-input.js";
 import { assertPreservedRestoreNode, assertRestoreTreeMembers } from "./home-restore-policy.js";
-import { inspectRestoreProjectDatabase, inspectRestoreProjectReferences, restorePersonalSpaceDatabase } from "./home-restore-projects.js";
+import { inspectRestoreProjectDatabase, inspectRestoreProjectReferences, isForbiddenPersonalProjectPath, restorePersonalSpaceDatabase, restorePersonalSpaceLibrary } from "./home-restore-projects.js";
 import { assertHomeRestoreOriginalsAvailable, flushRestoreDirectories } from "./home-restore-rollback.js";
 import { snapshotDatabaseOptions } from "./home-snapshot-inventory.js";
 import type { HomeSnapshotStoreRegistry } from "./home-store-snapshot.js";
@@ -19,6 +21,9 @@ import { readManagedConnectorTool } from "./connector-tool-install.js";
 export function verifyCommittedHomeRestore(journal: HomeRestoreJournal, registry: HomeSnapshotStoreRegistry,
   inspectCatalog: HomeRestoreCatalogInspector, control: HomeRestoreControl): void {
   const home = journal.home_directory, incoming = new Set(journal.files.map(file => file.path));
+  for (const node of [...journal.files, ...journal.directories]) {
+    if (isForbiddenPersonalProjectPath(node.path)) throw invalidRestore();
+  }
   const space = journalStorageSpace(journal);
   assertRestoreDependencies(home, registry, journal.dependencies); assertHomeRestoreOriginalsAvailable(journal);
   for (const file of journal.files) {
@@ -37,13 +42,17 @@ export function verifyCommittedHomeRestore(journal: HomeRestoreJournal, registry
       } };
       else if (store.path === "projects") {
         const project = /^([^/]+)\/molis-work\.db$/u.exec(relative);
+        const library = /^([^/]+)\/libraries\/[^/]+\.db$/u.exec(relative);
         // A partition's own plugin library (`<id>/libraries/<store>.db`) is the plugin's, not the project database: it is checked as a
         // SQLite file like any other, and its partition was already required to be among the restored projects.
-        if (!project && !/^[^/]+\/libraries\/[^/]+\.db$/u.test(relative)) throw invalidRestore();
+        const partition = project?.[1] ?? library?.[1];
+        if (!partition || partition === PERSONAL_SPACE_PROJECT_ID || partition.startsWith(".")) throw invalidRestore();
         if (project) options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, file.path, project[1]!) };
       } else {
         const personal = restorePersonalSpaceDatabase(store.path, relative);
+        const personalLibrary = restorePersonalSpaceLibrary(store.path, relative);
         if (personal) options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, file.path, personal) };
+        else if (!personalLibrary && store.path === PERSONAL_SPACE_DIRECTORY) throw invalidRestore();
       }
       if (!isDeepStrictEqual(inspectSnapshotSqlite(path, { ...options, space, signal: control.signal }), file.sqlite)) throw invalidRestore();
     }

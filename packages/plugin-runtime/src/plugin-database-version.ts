@@ -16,7 +16,7 @@ export function installedDatabaseChange(current: PluginInstanceRecord, target: P
     throw pluginErrors.upgrade_validation_failed("缺少当前安装的已验证清单，不能核对插件库");
   }
   let changes = false;
-  for (const scope of ["project", "home"] as const) {
+  for (const scope of ["project", "home", "partition"] as const) {
     const old = previous.databases?.[scope], next = target.databases?.[scope];
     if (!old || next && sameDatabase(old, next)) continue;
     if (rollback || !migratable || !next || old.store_name !== next.store_name || old.version >= next.version) {

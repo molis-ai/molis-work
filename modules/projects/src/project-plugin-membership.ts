@@ -36,9 +36,13 @@ export class ProjectPluginMembershipService {
    */
   setMany(partitionId: string, actorId: string, input: SetPartitionPluginsInput): VersionedPartitionPluginMembership {
     const changes = Array.isArray(input?.changes) ? input.changes : [];
-    const ids = changes.map(change => change?.plugin_id);
+    const normalized = changes.map(change => ({
+      plugin_id: typeof change?.plugin_id === "string" ? change.plugin_id.trim() : "",
+      enabled: change?.enabled,
+    }));
+    const ids = normalized.map(change => change.plugin_id);
     if (!changes.length || changes.length > PARTITION_PLUGIN_CHANGES_MAX || new Set(ids).size !== ids.length
-      || changes.some(change => typeof change?.plugin_id !== "string" || !change.plugin_id.trim() || typeof change.enabled !== "boolean")) {
+      || normalized.some(change => !change.plugin_id || typeof change.enabled !== "boolean")) {
       throw new ActionError("actions.input_invalid", `一次要改 1～${PARTITION_PLUGIN_CHANGES_MAX} 个不重复的插件`);
     }
     return this.repository.db.transaction(() => {
@@ -47,7 +51,7 @@ export class ProjectPluginMembershipService {
       if (current.revision !== input.expected_revision) {
         throw new ActionError("actions.conflict", "这里启用的插件已经变了，请刷新后再改");
       }
-      for (const change of changes) {
+      for (const change of normalized) {
         const one = { project_id: id, actor_id: actorId, plugin_id: change.plugin_id };
         if (change.enabled) this.records.addPlugin(one);
         else this.records.removePlugin(one);

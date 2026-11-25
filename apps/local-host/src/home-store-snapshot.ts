@@ -1,5 +1,5 @@
 import { join, relative } from "node:path";
-import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineErrorCodes, PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { listPluginProjectDatabases } from "@molis-ai/molis-work-plugin-runtime";
 import { verifyPrologueNodeStorageContents } from "@molis-ai/molis-work-service-agent-host";
 import { HOME_SECURITY_DIRNAME, inspectSealedSecretsSnapshot, LocalCatalogMetadata, readSnapshotFile, type HomeStore, type HomeStoreRegistry, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
@@ -53,8 +53,10 @@ export const projectSnapshot: HomeStoreSnapshotPolicy = {
       if (owner !== CATALOG_OWNER || version !== CATALOG_SCHEMA_VERSION) throw homeSnapshotErrors.invalid("目录库不是本版本的现行 owner/schema，未生成快照");
       return { owner, schema_version: version };
     } };
-    if (/^[^/]+\/molis-work\.db$/u.test(file)) return partitionDatabaseSnapshot;
-    if (/^[^/]+\/libraries\/[^/]+\.db$/u.test(file)) return partitionLibrarySnapshot;
+    const project = /^([^/]+)\/molis-work\.db$/u.exec(file);
+    if (project && project[1] !== PERSONAL_SPACE_PROJECT_ID && !project[1]!.startsWith(".")) return partitionDatabaseSnapshot;
+    const library = /^([^/]+)\/libraries\/[^/]+\.db$/u.exec(file);
+    if (library && library[1] !== PERSONAL_SPACE_PROJECT_ID && !library[1]!.startsWith(".")) return partitionLibrarySnapshot;
     return undefined;
   },
 };

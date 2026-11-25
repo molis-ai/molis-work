@@ -1,3 +1,4 @@
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { SkillState } from "@molis-ai/molis-work-contracts/services/skills";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -55,15 +56,20 @@ export function skillUseVersionKey({ install_id, skill_id, version }: Pick<Skill
   return `${install_id}\0${skill_id}\0${version}`;
 }
 
+/** Personal space reads and writes the global `"home"` skill settings layer directly (R22), never a separate `"personal"` row. */
+const normalizedScopeRef = (scopeRef: string): string => scopeRef === PERSONAL_SPACE_PROJECT_ID ? "home" : scopeRef;
+
 export class SkillSettingsStore {
   constructor(private readonly db: DatabaseSync, private readonly now: () => Date) {}
 
   setting(scopeRef: string, installId: string, skillId: string): SkillSetting | undefined {
-    return this.db.prepare("SELECT * FROM skill_settings WHERE scope_ref = ? AND install_id = ? AND skill_id = ?").get(scopeRef, installId, skillId) as SkillSetting | undefined;
+    const scope = normalizedScopeRef(scopeRef);
+    return this.db.prepare("SELECT * FROM skill_settings WHERE scope_ref = ? AND install_id = ? AND skill_id = ?").get(scope, installId, skillId) as SkillSetting | undefined;
   }
 
   settings(scopeRef: string): SkillSetting[] {
-    return this.db.prepare("SELECT * FROM skill_settings WHERE scope_ref = ?").all(scopeRef) as SkillSetting[];
+    const scope = normalizedScopeRef(scopeRef);
+    return this.db.prepare("SELECT * FROM skill_settings WHERE scope_ref = ?").all(scope) as SkillSetting[];
   }
 
   /**
@@ -72,16 +78,17 @@ export class SkillSettingsStore {
    * SQLite allocates the new revision before the upsert, so a removed setting never reuses an active revision.
    */
   set(scopeRef: string, installId: string, skillId: string, state: SkillState, expected: number, actorId: string, keepOff = false): "ok" | "conflict" {
-    const current = this.setting(scopeRef, installId, skillId);
+    const scope = normalizedScopeRef(scopeRef);
+    const current = this.setting(scope, installId, skillId);
     if ((current?.revision ?? 0) !== expected) return "conflict";
     if (state === "off" && !keepOff) {
-      this.db.prepare("DELETE FROM skill_settings WHERE scope_ref = ? AND install_id = ? AND skill_id = ?").run(scopeRef, installId, skillId);
+      this.db.prepare("DELETE FROM skill_settings WHERE scope_ref = ? AND install_id = ? AND skill_id = ?").run(scope, installId, skillId);
       return "ok";
     }
     const at = this.now().toISOString();
     this.db.prepare(`INSERT INTO skill_settings(scope_ref,install_id,skill_id,state,enabled_at,enabled_by,updated_at,actor_id) VALUES (?,?,?,?,?,?,?,?)
       ON CONFLICT(scope_ref,install_id,skill_id) DO UPDATE SET state=excluded.state, revision=excluded.revision, updated_at=excluded.updated_at, actor_id=excluded.actor_id`)
-      .run(scopeRef, installId, skillId, state, current?.enabled_at ?? at, current?.enabled_by ?? actorId, at, actorId);
+      .run(scope, installId, skillId, state, current?.enabled_at ?? at, current?.enabled_by ?? actorId, at, actorId);
     return "ok";
   }
 
@@ -91,29 +98,33 @@ export class SkillSettingsStore {
 
   /** An installation's version declares only these Skills: the settings of any other leave with it (an upgrade that removed it). */
   keep(scopeRef: string, installId: string, skillIds: readonly string[]): void {
+    const scope = normalizedScopeRef(scopeRef);
     const kept = new Set(skillIds);
-    for (const row of this.db.prepare("SELECT skill_id FROM skill_settings WHERE scope_ref = ? AND install_id = ?").all(scopeRef, installId) as Array<{ skill_id: string }>) {
-      if (!kept.has(row.skill_id)) this.db.prepare("DELETE FROM skill_settings WHERE scope_ref = ? AND install_id = ? AND skill_id = ?").run(scopeRef, installId, row.skill_id);
+    for (const row of this.db.prepare("SELECT skill_id FROM skill_settings WHERE scope_ref = ? AND install_id = ?").all(scope, installId) as Array<{ skill_id: string }>) {
+      if (!kept.has(row.skill_id)) this.db.prepare("DELETE FROM skill_settings WHERE scope_ref = ? AND install_id = ? AND skill_id = ?").run(scope, installId, row.skill_id);
     }
   }
 
   /** An uninstalled installation's settings leave with it: installing again starts from `off`. Its uses stay. */
   forget(scopeRef: string, installId: string): void {
-    this.db.prepare("DELETE FROM skill_settings WHERE scope_ref = ? AND install_id = ?").run(scopeRef, installId);
+    const scope = normalizedScopeRef(scopeRef);
+    this.db.prepare("DELETE FROM skill_settings WHERE scope_ref = ? AND install_id = ?").run(scope, installId);
   }
 
   /** Records a use the round accepted. A use that fails to record never stops the round. */
   recordUse(use: SkillUse): void {
     try {
+      const scope = normalizedScopeRef(use.scope_ref);
       this.db.prepare("INSERT INTO skill_uses(install_id,skill_id,version,name,ref,scope_ref,caller,run_ref,at) VALUES (?,?,?,?,?,?,?,?,?)")
-        .run(use.ref.install_id, use.ref.skill_id, use.ref.version, use.name, JSON.stringify(use.ref), use.scope_ref, use.caller, use.run_ref ?? null, use.at);
+        .run(use.ref.install_id, use.ref.skill_id, use.ref.version, use.name, JSON.stringify(use.ref), scope, use.caller, use.run_ref ?? null, use.at);
       this.db.prepare("DELETE FROM skill_uses WHERE install_id = ? AND skill_id = ? AND rowid NOT IN (SELECT rowid FROM skill_uses WHERE install_id = ? AND skill_id = ? ORDER BY at DESC LIMIT ?)")
         .run(use.ref.install_id, use.ref.skill_id, use.ref.install_id, use.ref.skill_id, USES_KEPT);
     } catch (error) { hostLog.warn("agents", "skill_use_unrecorded", error, { install_id: use.ref.install_id, skill_id: use.ref.skill_id }); }
   }
 
   latestUses(scopeRef: string): Map<string, SkillUse> {
-    const rows = this.db.prepare("SELECT ref, name, scope_ref, caller, run_ref, at FROM skill_uses WHERE scope_ref = ? ORDER BY at DESC").all(scopeRef) as Array<{ ref: string; name: string; scope_ref: string; caller: SkillUseCaller; run_ref: string | null; at: string }>;
+    const scope = normalizedScopeRef(scopeRef);
+    const rows = this.db.prepare("SELECT ref, name, scope_ref, caller, run_ref, at FROM skill_uses WHERE scope_ref = ? ORDER BY at DESC").all(scope) as Array<{ ref: string; name: string; scope_ref: string; caller: SkillUseCaller; run_ref: string | null; at: string }>;
     const result = new Map<string, SkillUse>();
     for (const { ref: encoded, run_ref, ...row } of rows) {
       const ref = JSON.parse(encoded) as SkillRef, key = `${ref.install_id}\0${ref.skill_id}`;
@@ -124,7 +135,8 @@ export class SkillSettingsStore {
 
   /** How many kept uses each entry made of each version in this scope: one read for a whole list. */
   usesByCaller(scopeRef: string): Map<string, Record<SkillUseCaller, number>> {
-    const rows = this.db.prepare("SELECT install_id, skill_id, version, caller, COUNT(*) AS count FROM skill_uses WHERE scope_ref = ? GROUP BY install_id, skill_id, version, caller").all(scopeRef) as Array<{ install_id: string; skill_id: string; version: number; caller: SkillUseCaller; count: number }>;
+    const scope = normalizedScopeRef(scopeRef);
+    const rows = this.db.prepare("SELECT install_id, skill_id, version, caller, COUNT(*) AS count FROM skill_uses WHERE scope_ref = ? GROUP BY install_id, skill_id, version, caller").all(scope) as Array<{ install_id: string; skill_id: string; version: number; caller: SkillUseCaller; count: number }>;
     const result = new Map<string, Record<SkillUseCaller, number>>();
     for (const row of rows) {
       const key = skillUseVersionKey(row);

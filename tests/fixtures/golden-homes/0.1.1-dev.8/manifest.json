@@ -1237,7 +1237,7 @@
         "plugin_private_values": 0,
         "plugin_project_databases": 6,
         "plugin_runtime_installs": 15,
-        "plugin_runtime_release_artifacts": 26,
+        "plugin_runtime_release_artifacts": 15,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -1345,8 +1345,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "7f1edb7f92eba3a10f32986c91023016673f1f2c7d04844bc97d7e443e6de0c6",
-      "expanded_sha256": "3eb303dee724505bc3a21e3dc6d7aa8b41b0f2e31b616cbaf936ef5ff85eb7fa"
+      "sha256": "badf91411f2ff098baefdf17bc41b6c3a905713c525c7867479f58ec34ba81e1",
+      "expanded_sha256": "cf8dfd3978fba691d93104e36d3ff3cfecb90c25dac685d401dda9a2965e7321"
     },
     {
       "path": "projects/molis-work-v1-demo/molis-work.db",
@@ -1456,7 +1456,7 @@
         "plugin_private_values": 1,
         "plugin_project_databases": 6,
         "plugin_runtime_installs": 15,
-        "plugin_runtime_release_artifacts": 26,
+        "plugin_runtime_release_artifacts": 15,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -1564,8 +1564,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "1736e8374909af8bf2bd5057dfc032a038690c0727a6b95b0619ecfa28ae39df",
-      "expanded_sha256": "774a32f01d9e32d23821c2a7b2b7e77323e9bd89cb1abf929bbea8fb32a49279"
+      "sha256": "58c4fe8f3ebf5071b4160712e423571663ba807f7e7e23f5b76be9bb5c98ae8f",
+      "expanded_sha256": "155a34dfacabb184eec8b162f5aa358a9fc1be39e237e626728a5ba060c5131d"
     },
     {
       "path": "personal-space/molis-work.db",
@@ -1894,7 +1894,7 @@
         "plugin_private_values": 2,
         "plugin_project_databases": 6,
         "plugin_runtime_installs": 16,
-        "plugin_runtime_release_artifacts": 26,
+        "plugin_runtime_release_artifacts": 15,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -2002,8 +2002,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "a90bd90a271491451004f7b5cb6f0635b9076183bbf0b9ee8b45b1ac98a6b3ac",
-      "expanded_sha256": "7051be1def37f4508c028c573922225dbf821760678ac150d2bd00c4d94cb587"
+      "sha256": "e0a83cb771e07f3eb544d5b55a6d1077b159dc7df6f11288d756b86b939447c0",
+      "expanded_sha256": "0beda1c0b6cf54ba4ba4ded97c867a77433a0971e824b858a331df67a197e55b"
     },
     {
       "path": "sbxdb-07ba5a137b9c31eb32d2afc59b67135f/sbxdb-07ba5a137b9c31eb32d2afc59b67135f.db",
@@ -2908,7 +2908,7 @@
         "plugin_private_values": 0,
         "plugin_project_databases": 6,
         "plugin_runtime_installs": 15,
-        "plugin_runtime_release_artifacts": 26,
+        "plugin_runtime_release_artifacts": 15,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -3016,8 +3016,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "a4bdcad39c02f41f8f5efe8bba5b7d411d199df33edf2076240580844b0b2051",
-      "expanded_sha256": "448a3ed322ae97063c1260f44db7d5796733416c3d61ed6cdbde91442a428b6c"
+      "sha256": "fb337198d931e04a86d4bf2b970503460cef58a6494d32d8f210ce5186de469e",
+      "expanded_sha256": "239c709c62c32646994b3b7aad01705c87988cc8625062567913954caf5cb7d0"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
@@ -3739,11 +3739,6 @@
       "bytes": 40861
     },
     {
-      "digest": "4065fbadd2f63838815e8b18c7403360a56115cedbea50dd0a932743164a4258",
-      "payload": "files/release-manifests/4065fbadd2f63838815e8b18c7403360a56115cedbea50dd0a932743164a4258.br",
-      "bytes": 101726
-    },
-    {
       "digest": "434f0a0526079a52ce09dcd71a4f1c32be64c0ba9a76db4a0b7a35049ba9217f",
       "payload": "files/release-manifests/434f0a0526079a52ce09dcd71a4f1c32be64c0ba9a76db4a0b7a35049ba9217f.br",
       "bytes": 20869
@@ -3752,21 +3747,6 @@
       "digest": "450b530bede496f51b06d245041fdbf195d6efcd675c29163ea1397991f0a3b7",
       "payload": "files/release-manifests/450b530bede496f51b06d245041fdbf195d6efcd675c29163ea1397991f0a3b7.br",
       "bytes": 50022
-    },
-    {
-      "digest": "4ff035b0b8cd04635934fa8df5378bda165e104e1ee1d1ae9b4a61378f53d679",
-      "payload": "files/release-manifests/4ff035b0b8cd04635934fa8df5378bda165e104e1ee1d1ae9b4a61378f53d679.br",
-      "bytes": 463757
-    },
-    {
-      "digest": "545312f92502e9450714e2c8c59303d42b3a77862a75435fc41351f788d9671a",
-      "payload": "files/release-manifests/545312f92502e9450714e2c8c59303d42b3a77862a75435fc41351f788d9671a.br",
-      "bytes": 33675
-    },
-    {
-      "digest": "599de795ab7e8147202a42f121d3bd0dfe219fff3b437e2a9ff9eb1ce9e7f2a2",
-      "payload": "files/release-manifests/599de795ab7e8147202a42f121d3bd0dfe219fff3b437e2a9ff9eb1ce9e7f2a2.br",
-      "bytes": 50713
     },
     {
       "digest": "59c2c9d251e80761d6f50fb6fccaef02823e709591121cd3a52d01eda963472e",
@@ -3779,19 +3759,9 @@
       "bytes": 26998
     },
     {
-      "digest": "66809ee5242ef39555b5ef89c00869b7a6675d66d2a5b0ae8a15d7397b881fec",
-      "payload": "files/release-manifests/66809ee5242ef39555b5ef89c00869b7a6675d66d2a5b0ae8a15d7397b881fec.br",
-      "bytes": 41238
-    },
-    {
       "digest": "7feb43b220d5cb51657f3bf52a853d4173932e4db70db4e7387d023525baab06",
       "payload": "files/release-manifests/7feb43b220d5cb51657f3bf52a853d4173932e4db70db4e7387d023525baab06.br",
       "bytes": 101577
-    },
-    {
-      "digest": "8ac6331c50648c61d47c61c88b917ab95d126a8a2df340a222aa4e278fe6d071",
-      "payload": "files/release-manifests/8ac6331c50648c61d47c61c88b917ab95d126a8a2df340a222aa4e278fe6d071.br",
-      "bytes": 40173
     },
     {
       "digest": "99ba23f5493130a14fcac0f1fdf84179959495294172c31fa91506b024b63a1c",
@@ -3812,16 +3782,6 @@
       "digest": "a5c7f5ea592f0cd6f974b48ed57d00e5bd9ac653d960eba331b27c513443a1cf",
       "payload": "files/release-manifests/a5c7f5ea592f0cd6f974b48ed57d00e5bd9ac653d960eba331b27c513443a1cf.br",
       "bytes": 41191
-    },
-    {
-      "digest": "ab6f6e68245242fc19f8118571b955551cadb4ffc1a3800588aeb624075ace7a",
-      "payload": "files/release-manifests/ab6f6e68245242fc19f8118571b955551cadb4ffc1a3800588aeb624075ace7a.br",
-      "bytes": 20888
-    },
-    {
-      "digest": "b5ea9baf8e62ead9edf75167b56a60da3ad7ca154203d180ab2cd29e11cbc54a",
-      "payload": "files/release-manifests/b5ea9baf8e62ead9edf75167b56a60da3ad7ca154203d180ab2cd29e11cbc54a.br",
-      "bytes": 98654
     },
     {
       "digest": "b7de25c35b82d54a4b554b80e2b79058a8350473e18dce84c39d749e318eaf2b",
@@ -3854,24 +3814,9 @@
       "bytes": 50798
     },
     {
-      "digest": "e80f69d6733b6de55a1302365a38fc5209ff2326b3e5bc551d0abe5da3c7a767",
-      "payload": "files/release-manifests/e80f69d6733b6de55a1302365a38fc5209ff2326b3e5bc551d0abe5da3c7a767.br",
-      "bytes": 50037
-    },
-    {
-      "digest": "e82eb0e767240e6243974b7dac15fa1fbc8c3b630339de86406822aec7135edf",
-      "payload": "files/release-manifests/e82eb0e767240e6243974b7dac15fa1fbc8c3b630339de86406822aec7135edf.br",
-      "bytes": 50817
-    },
-    {
       "digest": "ed6f6cf2e3f6cac020959289fd4f07b12aa8fb0bea4baed80df44fd4fdb25e17",
       "payload": "files/release-manifests/ed6f6cf2e3f6cac020959289fd4f07b12aa8fb0bea4baed80df44fd4fdb25e17.br",
       "bytes": 146973
-    },
-    {
-      "digest": "efabba5ef50fccc4c3c65478316102ab7868108fddf219d8477ceb662798358e",
-      "payload": "files/release-manifests/efabba5ef50fccc4c3c65478316102ab7868108fddf219d8477ceb662798358e.br",
-      "bytes": 89485
     },
     {
       "digest": "f2e18f6e93cc394896103e1bdc66d72425278448d93fca8ec5b62e4c81772888",

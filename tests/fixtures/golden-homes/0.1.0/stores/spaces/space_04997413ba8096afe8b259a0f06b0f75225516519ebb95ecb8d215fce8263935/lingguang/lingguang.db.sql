@@ -42,10 +42,10 @@ CREATE TABLE sync_764756c5c01e4432072de4c80de9_replica_outbox (key TEXT PRIMARY 
 CREATE TABLE sync_764756c5c01e4432072de4c80de9_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
 CREATE TABLE sync_764756c5c01e4432072de4c80de9_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935','{"spaceId":"space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935","kind":"personal","ownerUserId":"golden-person","teamId":null,"issuer":"https://golden.invalid","applicationId":"io.molis.work.golden"}');
-INSERT INTO "sparks"("id","project_id","title","body","source_kind","status","created_at","updated_at") VALUES('9807c6b1-dc1e-48df-b79e-0b111c529243','project-308fe670-0345-4052-886a-23b38c1213f4','金样灵光 seed 已改','合成的灵光正文','manual','inbox','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.001Z');
+INSERT INTO "sparks"("id","project_id","title","body","source_kind","status","created_at","updated_at") VALUES('9807c6b1-dc1e-48df-b79e-0b111c529243','project-adcfbd21-e22e-44f4-af64-38851fbc840c','金样灵光 seed 已改','合成的灵光正文','manual','inbox','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.001Z');
 INSERT INTO "sync_764756c5c01e4432072de4c80de9_context"("id","project_id") VALUES(1,NULL);
-INSERT INTO "sync_764756c5c01e4432072de4c80de9_replica_changes"("seq","key") VALUES(1,'["project-308fe670-0345-4052-886a-23b38c1213f4","spark","9807c6b1-dc1e-48df-b79e-0b111c529243"]');
-INSERT INTO "sync_764756c5c01e4432072de4c80de9_replica_changes"("seq","key") VALUES(2,'["project-308fe670-0345-4052-886a-23b38c1213f4","spark","9807c6b1-dc1e-48df-b79e-0b111c529243"]');
+INSERT INTO "sync_764756c5c01e4432072de4c80de9_replica_changes"("seq","key") VALUES(1,'["project-adcfbd21-e22e-44f4-af64-38851fbc840c","spark","9807c6b1-dc1e-48df-b79e-0b111c529243"]');
+INSERT INTO "sync_764756c5c01e4432072de4c80de9_replica_changes"("seq","key") VALUES(2,'["project-adcfbd21-e22e-44f4-af64-38851fbc840c","spark","9807c6b1-dc1e-48df-b79e-0b111c529243"]');
 INSERT INTO "sync_764756c5c01e4432072de4c80de9_replica_state"("id","device","cursor","applying") VALUES(1,'ebe3fc8723ce35e8257eb69cd0d4185e',0,0);
 DELETE FROM sqlite_sequence;
 INSERT INTO sqlite_sequence(name,seq) VALUES('sync_764756c5c01e4432072de4c80de9_replica_changes',2);

@@ -244,7 +244,7 @@ export async function startPartitionPluginInstance(ports: ProjectPluginPorts, sc
     capturePrivateData: installId => storage.snapshotInstallationData(installId),
     restorePrivateData: (installId, snapshot) => storage.restoreInstallationData(installId, snapshot as ReturnType<typeof storage.snapshotInstallationData>),
     ...(ports.dependencyCheck ? { dependencyCheck: ports.dependencyCheck } : {}),
-    ...(ports.installedByHand ? { inProcess: fixtureAdmission([], ports.installedByHand) } : {}),
+    inProcess: fixtureAdmission([], ports.installedByHand),
     actions: ports.actions, home: ports.homeDirectory ? pluginHomeFor(ports.homeDirectory) : null,
     installDatabase, partitionScope: scope,
   });

@@ -139,7 +139,7 @@ export function pluginUpgradeSteps(declaration: PluginDatabaseDeclaration): read
 
 /** At install and at a version change. Reads declarations and refuses illegal statement shapes before any SQL runs. */
 export function assertPluginUpgradeSteps(manifest: PluginManifest): void {
-  const declarations = [manifest.databases?.project, manifest.databases?.home];
+  const declarations = [manifest.databases?.project, manifest.databases?.home, manifest.databases?.partition];
   for (const declaration of declarations) if (declaration) pluginUpgradeSteps(declaration);
 }
 

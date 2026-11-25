@@ -89,9 +89,10 @@ export interface OverviewRowByKind {
   brief: OverviewBriefRow;
 }
 
-/** `overview_projection` in the Manifest: which kinds the plugin keeps, and the name the overview shows for them. No columns, no SQL. */
+/** `overview_projection` in the Manifest: which kinds the plugin keeps, and an optional static one-line label for the overview. No columns, no SQL. */
 export interface PluginOverviewProjectionDeclaration {
   readonly kinds: readonly OverviewKind[];
+  /** Optional static one-line label shown in the overview (checked with the same TextRef rules as other Manifest directory titles). */
   readonly title_text?: TextRef;
 }
 

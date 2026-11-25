@@ -59,9 +59,9 @@ async function shutdownStop(platform: ClosingPlatform, installId: string, failur
   try { if (shutdownStops(platform, installId)) await platform.runtime.stop(installId, { preserve_enabled: true }); } catch (error) { failures.push(error); }
 }
 
-/** Whether a close stops this installation: one that is running, or one whose record is gone (the stop lets its instance go). */
+/** Whether a close stops this installation: one that is running, holds a live instance in this process, or whose record is gone (the stop lets its instance go). */
 function shutdownStops(platform: ClosingPlatform, installId: string): boolean {
-  try { return platform.runtime.get(installId).state === "running"; } catch (error) {
+  try { return platform.runtime.get(installId).state === "running" || platform.runtime.contribution(installId) !== null; } catch (error) {
     if ((error as { code?: unknown }).code === "plugin.definition_missing") return true;
     throw error;
   }

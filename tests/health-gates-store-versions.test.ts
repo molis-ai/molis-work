@@ -200,16 +200,67 @@ expectAfterOrigin("UPG1-i-store-04: going down fails even with a row for it", ()
   put(CHECKLIST, checklist(1, "", REGISTERED));
   put(SPEC, spec([PROJECT_ROW, rowFor(2, 1, pointer(2, 1))]));
 }, 1, [/went from 2 to 1; after the unified origin a version does not go down/]);
-// V7 (batch 106, user 2026-11-24): a one-time reset to v1 passes with the reset file's entry for this 位置 and these versions, and its row in prose.
+// V7 (batch 106, user 2026-11-24): a one-time reset to v1 passes only when the reset file names this 位置 and these versions,
+// `row.store` is actually tracked in tooling/gates/schemas/stores.tsv on both head and merge-base (so store-schemas.mjs pins its exact
+// structure hashes), and its row is in prose. Non-SQLite formats or missing stores.tsv cannot bypass downgrade checks.
 const RESET_FILE = "tooling/gates/schemas/v1-reset-exceptions.json";
+const SCHEMAS_FILE = "tooling/gates/schemas/stores.tsv";
+const schemasTable = (rows: string[]) => ["store\towner\tversion\tstructure\tupgrades", ...rows, ""].join("\n");
 const RESET_ROW = { store: "pages/pages.db", place: "pages/pages.db", from_version: 2, to_version: 1, from_structure: "0123456789abcdef", to_structure: "fedcba9876543210",
   approved: "用户 2026-11-24 弹窗批准一次全复位", reason: "a one-time reset of this library to a clean v1 baseline" };
 const RESET_PROSE = rowFor(2, 1, "第 106 批 V7 一次全复位，删除升级段");
-expectAfterOrigin("UPG1-i-store-04 V7: an approved one-time reset to v1 with its row passes", () => {
-  put(CHECKLIST, checklist(1, "", REGISTERED));
-  put(SPEC, spec([PROJECT_ROW, RESET_PROSE]));
-  put(RESET_FILE, JSON.stringify([RESET_ROW]));
-}, 0);
+test("UPG1-i-store-04 V7: an approved one-time reset to v1 passes only when row.store is tracked in stores.tsv on both sides", () => {
+  const runCase = (name: string, baseSchemas: string | null, mutate: () => void) => {
+    git("checkout", "-q", "-f", "main");
+    git("clean", "-fdq");
+    git("checkout", "-q", "-B", `v7-base-${name}`);
+    put(CHECKLIST, checklist(2, "", REGISTERED));
+    put(PAGES_FILE, baseline(2, 'upgrades: [{ from: 1, sql: "SELECT 1" }]'));
+    if (baseSchemas !== null) put(SCHEMAS_FILE, baseSchemas);
+    commit(`v7 base ${name}`);
+    git("checkout", "-q", "-B", `v7-head-${name}`);
+    mutate();
+    commit(`v7 head ${name}`);
+    return gate("--base", `v7-base-${name}`);
+  };
+  const baseStore = schemasTable(["pages/pages.db\tio.molis.work.pages\t2\t0123456789abcdef\t1"]);
+  const headStore = schemasTable(["pages/pages.db\tio.molis.work.pages\t1\tfedcba9876543210\t-"]);
+  const ok = runCase("ok", baseStore, () => {
+    put(CHECKLIST, checklist(1, "", REGISTERED));
+    put(SPEC, spec([PROJECT_ROW, RESET_PROSE]));
+    put(SCHEMAS_FILE, headStore);
+    put(RESET_FILE, JSON.stringify([RESET_ROW]));
+  });
+  assert.equal(ok.code, 0, ok.out);
+
+  // Missing stores.tsv cannot authorize a downgrade via v1-reset-exceptions.json.
+  const noSchemas = runCase("no-schemas", null, () => {
+    put(CHECKLIST, checklist(1, "", REGISTERED));
+    put(SPEC, spec([PROJECT_ROW, RESET_PROSE]));
+    put(RESET_FILE, JSON.stringify([RESET_ROW]));
+  });
+  assert.equal(noSchemas.code, 1, noSchemas.out);
+  assert.match(noSchemas.out, /went from 2 to 1; after the unified origin a version does not go down/);
+
+  // A reset entry pointing at a store not present in stores.tsv (e.g. trying to reset a non-SQLite JSON format) is refused.
+  const untrackedStore = runCase("untracked-store", schemasTable(["memory/memory.db\tpackages/storage\t1\t0123456789abcdef\t-"]), () => {
+    put(CHECKLIST, checklist(1, "", REGISTERED));
+    put(SPEC, spec([PROJECT_ROW, RESET_PROSE]));
+    put(SCHEMAS_FILE, schemasTable(["memory/memory.db\tpackages/storage\t1\t0123456789abcdef\t-"]));
+    put(RESET_FILE, JSON.stringify([RESET_ROW]));
+  });
+  assert.equal(untrackedStore.code, 1, untrackedStore.out);
+  assert.match(untrackedStore.out, /went from 2 to 1; after the unified origin a version does not go down/);
+
+  // An approved reset still requires its maintenance list row.
+  const noRow = runCase("no-row", baseStore, () => {
+    put(CHECKLIST, checklist(1, "", REGISTERED));
+    put(SCHEMAS_FILE, headStore);
+    put(RESET_FILE, JSON.stringify([RESET_ROW]));
+  });
+  assert.equal(noRow.code, 1, noRow.out);
+  assert.match(noRow.out, /went from 2 to 1; add the row `pages\/pages\.db` \| 2 → 1/);
+});
 for (const [what, other] of [["another place", { place: "todo/todo.db" }], ["another old version", { from_version: 3 }]] as const) {
   expectAfterOrigin(`UPG1-i-store-04 V7: a reset entry for ${what} does not let a version go down`, () => {
     put(CHECKLIST, checklist(1, "", REGISTERED));
@@ -217,10 +268,22 @@ for (const [what, other] of [["another place", { place: "todo/todo.db" }], ["ano
     put(RESET_FILE, JSON.stringify([{ ...RESET_ROW, ...other }]));
   }, 1, [/went from 2 to 1; after the unified origin a version does not go down/]);
 }
-expectAfterOrigin("UPG1-i-store-04 V7: an approved reset still needs its row", () => {
-  put(CHECKLIST, checklist(1, "", REGISTERED));
-  put(RESET_FILE, JSON.stringify([RESET_ROW]));
-}, 1, [/went from 2 to 1; add the row `pages\/pages\.db` \| 2 → 1/]);
+expectAfterOrigin("UPG1-i-store-04 rename: renaming a 位置 cell with the same 定义处 cannot hide a version change", () => {
+  put(CHECKLIST, checklist(2, "", REGISTERED).replace("`pages/pages.db`", "`<partition>/libraries/pages.db`"));
+}, 0);
+expectAfterOrigin("UPG1-i-store-04 rename: renaming a 位置 cell while lowering its version still fails after the unified origin", () => {
+  put(CHECKLIST, checklist(1, "", REGISTERED).replace("`pages/pages.db`", "`<partition>/libraries/pages.db`"));
+  put(SPEC, spec([PROJECT_ROW, "| `<partition>/libraries/pages.db` | 2 → 1 | 本 PR | 重命名夹带降版 |"]));
+}, 1, [/`<partition>\/libraries\/pages\.db` went from 2 to 1; after the unified origin a version does not go down/]);
+expectAfterOrigin("UPG1-i-store-05 rename: renaming a 位置 cell while raising its version still needs a row, pointer and step", () => {
+  put(CHECKLIST, checklist(3, "", REGISTERED).replace("`pages/pages.db`", "`<partition>/libraries/pages.db`"));
+  put(PAGES_FILE, baseline(3, STEPS_TO_3));
+}, 1, [/`<partition>\/libraries\/pages\.db` went from 2 to 3; add the row `<partition>\/libraries\/pages\.db` \| 2 → 3/]);
+expectAfterOrigin("UPG1-i-store-05 rename: renaming a 位置 cell while raising its version passes with its row, pointer and step", () => {
+  put(CHECKLIST, checklist(3, "", REGISTERED).replace("`pages/pages.db`", "`<partition>/libraries/pages.db`"));
+  put(PAGES_FILE, baseline(3, STEPS_TO_3));
+  put(SPEC, spec([PROJECT_ROW, `| \`<partition>/libraries/pages.db\` | 2 → 3 | 本 PR | ${pointer(2, 3)} |`]));
+}, 0);
 expectAfterOrigin("UPG1-i-store-05: a raise without a row fails and names the pointer to write", () => {
   put(CHECKLIST, checklist(3, "", REGISTERED));
   put(PAGES_FILE, baseline(3, STEPS_TO_3));

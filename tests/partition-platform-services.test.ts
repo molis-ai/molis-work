@@ -1,17 +1,25 @@
 // The platform services batch 106 adds for the unified partitions (specs/unified-partition-plugins §4.1, §5, §6.1): the due registry with
 // 95-3's seven-day expiry, the evidence ledger, and how both follow a partition's and an installation's lifecycle.
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
-import { RUN_MISSED_KEPT_MS } from "@molis-ai/molis-work-contracts/platform/actions";
-import { forgetInstallationPlatformRecords, forgetPartitionPlatformRecords } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID, RUN_MISSED_KEPT_MS, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { OVERVIEW_EVENT_WINDOW_DAYS, OVERVIEW_TABLE, OVERVIEW_TABLE_SQL, type PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import {
+  forgetInstallationPlatformRecords, forgetPartitionPlatformRecords, openPartitionPluginLibrary, PartitionPlatformServices, partitionOverviewLibraries, partitionPluginScope,
+} from "@molis-ai/molis-work-app-local-host";
 import { DUE_ENTRY_LIMIT, openDueRegistry } from "@molis-ai/molis-work-service-scheduler";
 import { EVIDENCE_COLLECT_PERMISSION, openEvidenceLedger } from "@molis-ai/molis-work-service-evidence";
-import { homeSqlitePath } from "@molis-ai/molis-work-storage";
-import { checkOverviewRow, overviewColumns } from "@molis-ai/molis-work-plugin-sdk";
+import { openPersonSettings } from "@molis-ai/molis-work-service-person-settings";
+import { overviewReaderKind } from "@molis-ai/molis-work-service-search";
+import { createEvidenceContentStore, homeSqlitePath, openOverviewIndex, type SecretStore } from "@molis-ai/molis-work-storage";
+import {
+  checkOverviewRow, overviewColumns, overviewEventWindowEnd, overviewRows, parsePluginManifest, partitionDeclarationProblems, type PartitionDeclarationFields,
+} from "@molis-ai/molis-work-plugin-sdk";
+import { directoryPackProblems } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const A = { install_id: "todo-install", plugin_id: "io.molis.work.todo", partition_id: "personal" };
 const B = { ...A, partition_id: "project-b" };
@@ -74,6 +82,8 @@ test("UPP-34 a reminder read from the overview table rings once, also after the 
     assert.deepEqual(due.entries().map(entry => [entry.source, entry.entry_key, entry.due_at]),
       [["overview", "task:1", "2026-11-24T10:45:00.000Z"], ["plugin", "own", "2026-11-24T12:00:00.000Z"]], "a new time is a new reminder; task:2 left the table");
     assert.throws(() => due.replaceOverview(A, Array.from({ length: DUE_ENTRY_LIMIT + 1 }, (_, i) => ({ entry_key: `k${i}`, due_at: now.toISOString() }))), { code: "actions.input_invalid" });
+    assert.throws(() => due.replaceOverview(A, [{ entry_key: "", due_at: now.toISOString() }]), { code: "actions.input_invalid" }, "empty entry_key refused cleanly");
+    assert.throws(() => due.replaceOverview(A, [{ entry_key: "x".repeat(201), due_at: now.toISOString() }]), { code: "actions.input_invalid" }, "oversized entry_key refused cleanly");
   } finally { due.close(); }
 }));
 
@@ -134,6 +144,7 @@ test("UPP-34 one overview row check: what the SDK refuses to write is what the p
     ["task", { ...base, status: "open", priority: 4 }, "a priority past 3"],
     ["task", { ...base, status: "open", tags: Array.from({ length: 17 }, (_, i) => `t${i}`) }, "too many tags"],
     ["event", { ...base, starts_at: at, ends_at: "2026-11-23T09:00:00.000Z" }, "an end before the start"],
+    ["event", { ...base, starts_at: at, time_zone: "Mars/Phobos" }, "an unknown IANA time zone"],
     ["notification", { ...base, level: "loud", occurred_at: at }, "a level the platform does not know"],
     ["brief", { ...base, summary: "x".repeat(2_001) }, "a summary past its limit"],
     ["brief", { row_id: "r1", updated_at: at }, "no title"],
@@ -142,4 +153,302 @@ test("UPP-34 one overview row check: what the SDK refuses to write is what the p
     assert.ok("problem" in checkOverviewRow(kind, row), why);
     assert.throws(() => overviewColumns(kind as "task", row as never), { code: "actions.input_invalid" }, why);
   }
+  assert.ok("columns" in checkOverviewRow("event", { ...base, starts_at: at, time_zone: "Asia/Shanghai" }), "valid IANA time zone");
+  const windowBase = new Date("2026-11-24T00:00:00.000Z");
+  assert.equal(overviewEventWindowEnd(windowBase).getTime() - windowBase.getTime(), OVERVIEW_EVENT_WINDOW_DAYS * 24 * 60 * 60 * 1000, "90-day recurring event window");
+});
+
+const TODO_PLUGIN = "io.molis.work.sample-todo";
+const todoDb: PluginDatabaseDeclaration = {
+  store_name: "todo",
+  version: 1,
+  schema: `CREATE TABLE todos (id TEXT PRIMARY KEY);\n${OVERVIEW_TABLE_SQL}`,
+  read_permission: "todo:read",
+  write_permission: "todo:write",
+};
+const todoManifest = { plugin_id: TODO_PLUGIN, databases: { partition: todoDb }, overview_projection: { kinds: ["task"] } } satisfies PartitionDeclarationFields;
+const localPerson = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", actor_kind: "user", permissions: [], project_id: null } as ActionCallContext;
+const personalAssistant = { ...localPerson, audience: "agent", actor_kind: "runtime", audit_actor_id: "assistant:work-1" } as ActionCallContext;
+
+function ensurePartition(home: string, partitionId: string): void {
+  mkdirSync(partitionId === "personal" ? join(home, "personal-space") : join(home, "projects", partitionId), { recursive: true });
+}
+
+function writeOverviewTasks(home: string, partitionId: string, rows: readonly { id: string; title: string; due_at?: string | null; remind_at?: string | null }[]): void {
+  ensurePartition(home, partitionId);
+  const library = openPartitionPluginLibrary(partitionPluginScope(home, partitionId, TODO_PLUGIN, A.install_id), home, todoDb);
+  try {
+    const db = library.writer;
+    const tx = {
+      get: (sql: string, values: readonly unknown[] = []) => (db.prepare(sql).get(...(values as never[])) ?? null) as never,
+      all: (sql: string, values: readonly unknown[] = []) => db.prepare(sql).all(...(values as never[])) as never,
+      run: (sql: string, values: readonly unknown[] = []) => db.prepare(sql).run(...(values as never[])),
+      savepoint: () => { throw new Error("unused"); },
+    };
+    db.exec("BEGIN");
+    for (const row of rows) {
+      overviewRows(tx as never).upsert("task", {
+        row_id: row.id,
+        title: row.title,
+        status: "open",
+        due_at: row.due_at === undefined ? null : row.due_at,
+        remind_at: row.remind_at === undefined ? null : row.remind_at,
+        updated_at: "2026-11-24T09:00:00.000Z",
+      });
+    }
+    db.exec("COMMIT");
+  } finally { library.close(); }
+}
+
+test("UPP-34 V11 partitionChanged immediately refreshes synced reminders read-only into due-registry without opening overview or waking plugins", async () => withHome(async home => {
+  ensurePartition(home, "project-a");
+  ensurePartition(home, "project-b");
+  writeOverviewTasks(home, "project-a", [{ id: "synced-1", title: "同步提醒", remind_at: "2026-11-24T10:05:00.000Z" }]);
+  const libraries = partitionOverviewLibraries(home, ["project-a", "project-b"].map(partition_id => ({
+    partition_id, plugins: [{ install_id: A.install_id, manifest: todoManifest }],
+  })));
+  let now = new Date("2026-11-24T10:00:00.000Z");
+  const woken: string[] = [];
+  const services = new PartitionPlatformServices({
+    home,
+    now: () => now,
+    libraries: partitionId => libraries.filter(lib => lib.partition_id === partitionId),
+    assembly: {
+      acquire: async (pluginId, partitionId) => {
+        woken.push(`${pluginId}@${partitionId}`);
+        return { release() {} } as never;
+      },
+    },
+  });
+  try {
+    // Without ever calling readOverview, partitionChanged reads project-a read-only (zero wakes) and registers its reminder in due-registry.
+    services.partitionChanged("project-a");
+    assert.deepEqual(woken, [], "partitionChanged never wakes any plugin instance");
+    assert.deepEqual(services.due.entries().map(entry => [entry.partition_id, entry.entry_key, entry.due_at]),
+      [["project-a", "task:synced-1", "2026-11-24T10:05:00.000Z"]], "synced reminder is immediately registered and armed");
+    now = new Date("2026-11-24T10:06:00.000Z");
+    await services.timer.fire();
+    assert.deepEqual(woken, [`${TODO_PLUGIN}@project-a`], "due timer wakes only the changed partition's plugin instance");
+  } finally { services.close(); }
+}));
+
+test("UPP-31 Home-level uninstall (partitionId = null) clears due entries, overview rows and evidence holds across every partition", async () => withHome(home => {
+  writeOverviewTasks(home, "personal", [{ id: "p1", title: "个人待办", remind_at: "2026-12-01T08:00:00.000Z" }]);
+  writeOverviewTasks(home, "project-a", [{ id: "a1", title: "项目 A 待办", remind_at: "2026-12-01T09:00:00.000Z" }]);
+  writeOverviewTasks(home, "project-b", [{ id: "b1", title: "项目 B 待办", remind_at: "2026-12-01T10:00:00.000Z" }]);
+  const libraries = partitionOverviewLibraries(home, ["personal", "project-a", "project-b"].map(partition_id => ({
+    partition_id, plugins: [{ install_id: A.install_id, manifest: todoManifest }],
+  })));
+  const services = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("unused"); } } });
+  try {
+    assert.equal(services.readOverview(localPerson, libraries, () => ({ readable: ["personal", "project-a", "project-b"], grants: [] })).length, 3);
+    assert.equal(services.due.entries().length, 3);
+  } finally { services.close(); }
+  const ledger = openEvidenceLedger(home), settings = openPersonSettings(home);
+  try {
+    ledger.hold({ partition_id: "personal", owner_install: A.install_id, holder_key: "k" }, [ref(10)]);
+    ledger.hold({ partition_id: "project-a", owner_install: A.install_id, holder_key: "k" }, [ref(11)]);
+    ledger.hold({ partition_id: "project-b", owner_install: A.install_id, holder_key: "k" }, [ref(12)]);
+    settings.set(localPerson, { install_id: A.install_id, plugin_id: TODO_PLUGIN }, { keys: [{ key: "pref", kind: "preference" }] }, "pref", "v");
+  } finally { ledger.close(); settings.close(); }
+
+  forgetInstallationPlatformRecords(home, A.install_id, null, { dataGoes: true, installedElsewhere: false });
+
+  const dueAfter = openDueRegistry(home), ledgerAfter = openEvidenceLedger(home), indexAfter = openOverviewIndex({ homeDirectory: home }), settingsAfter = openPersonSettings(home);
+  try {
+    assert.deepEqual(dueAfter.entries(), [], "all partitions' due entries cleared");
+    assert.deepEqual(indexAfter.rows({ partitions: ["personal", "project-a", "project-b"], kinds: ["task"], limit: 10 }), [], "all partitions' overview rows cleared");
+    assert.equal(ledgerAfter.isHeld(ref(10)), false);
+    assert.equal(ledgerAfter.isHeld(ref(11)), false);
+    assert.equal(ledgerAfter.isHeld(ref(12)), false);
+    assert.deepEqual(settingsAfter.list(localPerson, A.install_id), [], "person settings cleared when last installation goes");
+  } finally { dueAfter.close(); ledgerAfter.close(); indexAfter.close(); settingsAfter.close(); }
+}));
+
+test("UPP-06 overview-readers enforces assistant audit_actor_id, calling_plugin_id, authorized-only dirty refresh, empty-field row suppression and UTC sort_at order", async () => withHome(home => {
+  assert.equal(overviewReaderKind(localPerson), "person");
+  assert.equal(overviewReaderKind(personalAssistant), "assistant");
+  for (const [label, forged] of [
+    ["assistant missing audit_actor_id", { ...localPerson, audience: "agent", actor_kind: "runtime" }],
+    ["assistant empty work id", { ...localPerson, audience: "agent", actor_kind: "runtime", audit_actor_id: "assistant:" }],
+    ["project agent runtime audit_actor_id", { ...localPerson, audience: "agent", actor_kind: "runtime", audit_actor_id: "agent:rt:s1" }],
+    ["person with calling_plugin_id", { ...localPerson, calling_plugin_id: TODO_PLUGIN }],
+    ["assistant with calling_plugin_id", { ...personalAssistant, calling_plugin_id: TODO_PLUGIN }],
+  ] as const) {
+    assert.equal(overviewReaderKind(forged as ActionCallContext), null, label);
+  }
+
+  // Write two tasks in project-a with different timezones (+08:00 is 02:00Z, earlier than 05:00Z), and one task without due_at; plus a task with a reminder in project-b.
+  writeOverviewTasks(home, "project-a", [
+    { id: "later-z", title: "UTC 05:00", due_at: "2026-12-01T05:00:00.000Z" },
+    { id: "earlier-plus8", title: "+08:00 10:00 (02:00Z)", due_at: "2026-12-01T10:00:00+08:00" },
+    { id: "no-due", title: "无截止时间", due_at: null },
+  ]);
+  writeOverviewTasks(home, "project-b", [{ id: "b1", title: "B 机密", remind_at: "2026-12-02T09:00:00.000Z" }]);
+  const libraries = partitionOverviewLibraries(home, ["project-a", "project-b"].map(partition_id => ({
+    partition_id, plugins: [{ install_id: A.install_id, manifest: todoManifest }],
+  })));
+  const services = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("never woken"); } } });
+  try {
+    // Assistant only granted project-a's due_at: project-b must NOT be refreshed or opened, and row `no-due` (empty allowed fields) must be dropped without leaking row_id!
+    const rows = services.readOverview(personalAssistant, libraries, () => ({ readable: ["project-a", "project-b"], grants: [{ partition_id: "project-a", fields: ["due_at"] }] }));
+    assert.deepEqual(rows.map(row => row.row_id), ["earlier-plus8", "later-z"], "UTC chronological order across timezones, and empty-fields row `no-due` suppressed");
+    assert.deepEqual(services.due.entries(), [], "unauthorized partition project-b was never refreshed by assistant read");
+    // Now person reads both partitions: project-b is finally refreshed.
+    const all = services.readOverview(localPerson, libraries, () => ({ readable: ["project-a", "project-b"], grants: [] }));
+    assert.equal(all.length, 4);
+    assert.deepEqual(services.due.entries().map(entry => entry.partition_id), ["project-b"]);
+  } finally { services.close(); }
+}));
+
+test("UPP-34 overview index preserves rows on non-ENOENT read errors, clears only on ENOENT, and self-heals a corrupt search.db", async () => withHome(home => {
+  writeOverviewTasks(home, "project-a", [{ id: "keep-me", title: "保留", remind_at: "2026-12-01T08:00:00.000Z" }]);
+  const libraries = partitionOverviewLibraries(home, [{ partition_id: "project-a", plugins: [{ install_id: A.install_id, manifest: todoManifest }] }]);
+  const services = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("unused"); } } });
+  try {
+    assert.equal(services.readOverview(localPerson, libraries, () => ({ readable: ["project-a"], grants: [] })).length, 1);
+    assert.equal(services.due.entries().length, 1);
+    // Corrupt the partition library file (non-ENOENT failure): refresh must return null, keep existing rows & reminders, and stay dirty.
+    writeFileSync(libraries[0]!.path, "not-a-valid-sqlite-file");
+    services.partitionChanged("project-a");
+    assert.equal(services.overview.refresh(libraries[0]!), null, "corrupt library returns null instead of wiping rows");
+    assert.equal(services.readOverview(localPerson, [], () => ({ readable: ["project-a"], grants: [] })).length, 1, "existing indexed row preserved");
+    assert.equal(services.due.entries().length, 1, "existing reminder preserved");
+    // Remove the library file (genuine ENOENT): refresh clears rows and reminders.
+    rmSync(libraries[0]!.path, { force: true });
+    assert.equal(services.overview.refresh(libraries[0]!), 0, "missing library (ENOENT) treated as empty");
+    assert.equal(services.due.entries().length, 0);
+  } finally { services.close(); }
+
+  // Corrupt search/search.db: openOverviewIndex recovers cleanly instead of failing.
+  const searchPath = homeSqlitePath(home, "search");
+  mkdirSync(dirname(searchPath), { recursive: true });
+  writeFileSync(searchPath, "corrupted-search-db-bytes");
+  const healed = openOverviewIndex({ homeDirectory: home });
+  try {
+    assert.deepEqual(healed.rows({ partitions: ["project-a"], kinds: ["task"], limit: 10 }), []);
+  } finally { healed.close(); }
+}));
+
+test("UPP-34 overviewRows remove/removePrefix and real EvidenceContentStore disk collection", async () => withHome(home => {
+  ensurePartition(home, "project-a");
+  const library = openPartitionPluginLibrary(partitionPluginScope(home, "project-a", TODO_PLUGIN, A.install_id), home, todoDb);
+  try {
+    const db = library.writer;
+    const tx = {
+      get: (sql: string, values: readonly unknown[] = []) => (db.prepare(sql).get(...(values as never[])) ?? null) as never,
+      all: (sql: string, values: readonly unknown[] = []) => db.prepare(sql).all(...(values as never[])) as never,
+      run: (sql: string, values: readonly unknown[] = []) => db.prepare(sql).run(...(values as never[])),
+      savepoint: () => { throw new Error("unused"); },
+    };
+    const helper = overviewRows(tx as never);
+    const at = "2026-11-24T09:00:00.000Z";
+    helper.upsert("event", { row_id: "series-1/2026-12-01", title: "周会", starts_at: at, time_zone: "UTC", updated_at: at });
+    helper.upsert("event", { row_id: "series-1/2026-12-08", title: "周会", starts_at: at, time_zone: "UTC", updated_at: at });
+    helper.upsert("event", { row_id: "single-1", title: "单次", starts_at: at, time_zone: "UTC", updated_at: at });
+    helper.removePrefix("event", "series-1/");
+    assert.deepEqual(db.prepare(`SELECT row_id FROM ${OVERVIEW_TABLE} ORDER BY row_id`).all().map(r => r.row_id), ["single-1"]);
+    helper.remove("event", "single-1");
+    assert.deepEqual(db.prepare(`SELECT row_id FROM ${OVERVIEW_TABLE}`).all(), []);
+    assert.throws(() => helper.removePrefix("event", ""), { code: "actions.input_invalid" });
+  } finally { library.close(); }
+
+  // Real disk blob pool via createEvidenceContentStore + EvidenceLedger.
+  const secrets = new Map<string, string>();
+  const secretStore: SecretStore = {
+    put: (k, v) => { secrets.set(k, v); },
+    get: k => secrets.get(k) ?? null,
+    delete: k => { secrets.delete(k); },
+    createIfAbsent: (k, v) => { if (secrets.has(k)) return false; secrets.set(k, v); return true; },
+    deleteIfPresent: k => secrets.delete(k),
+    backend: () => ({ kind: "env-key+aes-gcm", label: "memory", masterKeyExternal: true, formatVersion: 1 }),
+  };
+  const contentStore = createEvidenceContentStore({ rootDirectory: join(home, "evidence-blobs"), secretStore });
+  const bodyA = contentStore.write("第一段证据正文").contentRef;
+  const bodyB = contentStore.write("第二段跨分区证据正文").contentRef;
+  const ledger = openEvidenceLedger(home);
+  try {
+    ledger.hold({ partition_id: "project-a", owner_install: A.install_id, holder_key: "doc:1" }, [bodyA, bodyB]);
+    ledger.hold({ partition_id: "project-b", owner_install: A.install_id, holder_key: "doc:2" }, [bodyB]);
+    const freed = ledger.releasePartition("project-a");
+    const result = ledger.collect({ permissions: [EVIDENCE_COLLECT_PERMISSION] }, contentStore, freed);
+    assert.deepEqual(result, { deleted: [bodyA], kept: [bodyB] });
+    assert.equal(contentStore.has(bodyA), false, "unreferenced blob removed from disk");
+    assert.equal(contentStore.has(bodyB), true, "blob still held in project-b kept on disk");
+    assert.equal(contentStore.read(bodyB), "第二段跨分区证据正文");
+  } finally { ledger.close(); }
+}));
+
+test("UPP-34 parsePluginManifest validates databases.partition SQL safety, overview_projection.title_text, market, dependencies and push", () => {
+  const base = (extra: Record<string, unknown> = {}) => ({
+    schema_version: 1,
+    host_api_version: 1,
+    plugin_id: TODO_PLUGIN,
+    version: "1.0.0",
+    name: "Sample Todo",
+    kind: "app",
+    publisher: { publisher_id: "pub-1", signature: "sig-1" },
+    entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [
+      { permission: "todo:read", required: true, reason: "read todos" },
+      { permission: "todo:write", required: true, reason: "write todos" },
+    ],
+    capabilities: { provides: [], consumes: [] },
+    artifacts: { produces: [], consumes: [] },
+    ui: { contributions: [], locales: { default: "zh", available: ["zh", "en"] } },
+    databases: { partition: todoDb },
+    ...extra,
+  });
+
+  // Valid unified partition manifest with literal/own-key title_text, market, and dependencies (enable_with).
+  const parsed = parsePluginManifest(base({
+    overview_projection: { kinds: ["task", "event"], title_text: { key: "sample-todo.overview.title" } },
+    market: { category: "plan" },
+    dependencies: [{ plugin_id: "io.molis.work.helper", enable_with: true, reason: "提供日程同步" }],
+  }));
+  assert.equal(parsed.market?.category, "plan");
+  assert.deepEqual(parsed.overview_projection?.title_text, { key: "sample-todo.overview.title" });
+  assert.doesNotThrow(() => parsePluginManifest(base({ overview_projection: { kinds: ["task"], title_text: { literal: "待办" } } })), "literal TextRef accepted consistently");
+  assert.doesNotThrow(() => parsePluginManifest(base({ overview_projection: { kinds: ["task"], title_text: { key: "common.control.confirm" } } })), "common key accepted");
+
+  // directoryPackProblems enforces default-locale presence for overview_projection.title_text.
+  const missingKey = directoryPackProblems(parsed, { format_version: 1, owner: TODO_PLUGIN, locale: "zh", messages: {} }, "locales/zh.json");
+  assert.equal(missingKey.length, 1);
+  assert.equal(missingKey[0]!.key, "sample-todo.overview.title");
+  assert.deepEqual(directoryPackProblems(parsed, { format_version: 1, owner: TODO_PLUGIN, locale: "zh", messages: { "sample-todo.overview.title": "待办" } }, "locales/zh.json"), []);
+
+  // Invalid overview_projection.title_text rejected uniformly.
+  assert.throws(() => parsePluginManifest(base({ ui: { contributions: [] }, overview_projection: { kinds: ["task"], title_text: { key: "sample-todo.overview.title" } } })), /ui\.locales/u);
+  assert.throws(() => parsePluginManifest(base({ overview_projection: { kinds: ["task"], title_text: { key: "other.overview.title" } } })), /本插件的键/u);
+  assert.throws(() => parsePluginManifest(base({ overview_projection: { kinds: ["task"], title_text: { key: "sample-todo.overview.title", args: [{ name: "n", kind: "number", number: 1 }] } } })), /不接收参数/u);
+  assert.throws(() => parsePluginManifest(base({ overview_projection: { kinds: ["task"], title_text: { key: "sample-todo.overview.title", fallback: "备选" } } })), /不接收参数或另一份后备文字/u);
+  assert.throws(() => parsePluginManifest(base({ overview_projection: { kinds: ["task"], title_text: { literal: "多行\n标题" } } })), /必须为一行/u);
+
+  // databases.partition mutual exclusion with databases.home and SQL safety validation.
+  assert.throws(() => parsePluginManifest(base({ databases: { partition: todoDb, home: todoDb } })), /不能同时声明/u);
+  for (const [why, badSql] of [
+    ["DROP TABLE", "CREATE TABLE todos (id TEXT PRIMARY KEY); DROP TABLE other;"],
+    ["ATTACH DATABASE", "ATTACH DATABASE ':memory:' AS x; CREATE TABLE todos (id TEXT PRIMARY KEY);"],
+    ["PRAGMA", "PRAGMA foreign_keys = OFF; CREATE TABLE todos (id TEXT PRIMARY KEY);"],
+    ["CREATE TRIGGER", "CREATE TABLE todos (id TEXT PRIMARY KEY); CREATE TRIGGER t AFTER INSERT ON todos BEGIN SELECT 1; END;"],
+    ["db-qualified table", "CREATE TABLE main.todos (id TEXT PRIMARY KEY);"],
+    ["CREATE TABLE AS SELECT", "CREATE TABLE todos AS SELECT 1 AS id;"],
+    ["unclosed comment", "/* unclosed CREATE TABLE todos (id TEXT PRIMARY KEY);"],
+  ] as const) {
+    assert.throws(() => parsePluginManifest(base({ databases: { partition: { ...todoDb, schema: badSql } } })), /databases\.partition\.schema/u, why);
+  }
+
+  // market, dependencies, and push checks.
+  assert.throws(() => parsePluginManifest(base({ market: { category: "unknown" } })), /market/u);
+  assert.throws(() => parsePluginManifest(base({ dependencies: [{ plugin_id: TODO_PLUGIN, reason: "self" }] })), /不能写插件自己/u);
+  assert.throws(() => parsePluginManifest(base({ dependencies: [{ plugin_id: "io.molis.work.helper", reason: "   " }] })), /reason/u);
+  const pushBase = { plugin_id: TODO_PLUGIN, actions: [{ capability_id: "todo.push.export" }, { capability_id: "todo.push.put" }] as never };
+  assert.deepEqual(partitionDeclarationProblems({
+    ...pushBase,
+    push: { kinds: [{ kind: "todo", export_action: "todo.push.export", put_action: "todo.push.put", revision: "/revision", local_refs: [{ path: "/folder_id", on_push: "strip" }], children: ["subtask"] }] },
+  }), []);
+  assert.ok(partitionDeclarationProblems({
+    ...pushBase,
+    push: { kinds: [{ kind: "todo", export_action: "todo.missing", put_action: "todo.push.put", revision: "bad-pointer" }] },
+  }).length >= 2);
 });

@@ -4,6 +4,7 @@ import type { PluginExecutionControl } from "@molis-ai/molis-work-contracts/plat
 import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginDatabaseDeclaration, PluginDatabaseVersionSwitch, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest, PluginPrivateStorage, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import { StoppedServiceCalls, type PluginEventBus, type PluginHostEvents, type PluginInputGraph, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
@@ -254,7 +255,17 @@ export class PluginHostExecutor implements PluginExecutor {
   }
 
   async commitDatabaseUpgrade(definition: PluginDefinition, change: PluginDatabaseVersionSwitch): Promise<void> {
-    const { home, projectLibrary, project_id: projectId } = this.options;
+    const { home, projectLibrary, project_id: projectId, partitionScope } = this.options;
+    if (definition.manifest.databases?.partition || change.previous.databases?.partition) {
+      if (!home || !partitionScope || partitionScope.plugin_id !== definition.manifest.plugin_id || partitionScope.install_id !== change.current.install_id) {
+        throw new ActionError("actions.service_unavailable", "分区插件库升级缺少当前 Home 或分区作用域");
+      }
+      // Per-partition libraries upgrade lazily per partition through the dedicated partition upgrade channel (specs/unified-partition-plugins R5), never through a single project's molis-work.db worker.
+      throw pluginErrors.upgrade_required("已安装分区插件库升级尚未接入分区惰性升级通道，不能走项目主库升级路径");
+    }
+    if (!definition.manifest.databases?.project) {
+      throw pluginErrors.upgrade_validation_failed("当前升级目标未声明项目库，不能走项目库升级通道");
+    }
     if (!home || !projectLibrary?.path) throw new ActionError("actions.service_unavailable", "项目库升级缺少当前 Home 或项目");
     const { assertCurrent, ...expected } = change;
     await commitInstalledDatabaseUpgrade({

@@ -17,13 +17,17 @@ const STEP_FIELDS = new Set(["from", "sql", "reduces_rows"]);
 const HOME_FIELDS = new Set([...DECLARATION_FIELDS, "partition", "project_rows", "snapshot_exclusions"]);
 const EXCLUSION_FIELDS = new Set(["path", "reason", "restore"]);
 const EXCLUSION_PATH = /^[a-z0-9][a-z0-9._-]*$/u;
+const PARTITION_SCHEMA_LIMITS = { bytes: 256 * 1024, statements: 128 } as const;
+const SQL_NAME = String.raw`(?:Q|[A-Za-z_\u0080-\u{10FFFF}][\w$\u0080-\u{10FFFF}]*)`;
+const PARTITION_CREATE_TABLE = new RegExp(String.raw`^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?${SQL_NAME}\s*\(`, "iu");
+const PARTITION_CREATE_INDEX = new RegExp(String.raw`^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?${SQL_NAME}\s+ON\s+${SQL_NAME}\s*\(`, "iu");
 
 /** `ownerFiles`: the Manifest's `owner_files`, whose directories a library's `project_rows.files` may name. */
 export function databaseDeclarationProblems(value: unknown, permissions: ReadonlySet<string>, ownerFiles?: unknown): string[] {
   if (value === undefined) return [];
   if (!isRecord(value)) return ["databases 必须为对象"];
   const scopes = Object.keys(value).filter(scope => !(SCOPES as readonly string[]).includes(scope));
-  if (scopes.length > 0) return [`databases 只能声明 project（项目库）、home（Home 库）和 partition（分区独立库），不认 ${scopes.join("、")}`];
+  if (scopes.length > 0) return [`databases 只能声明 project（项目库）、home（Home 库）和 partition（分区独立库），不认 ${scopes.join(", ")}`];
   const problems = SCOPES.flatMap(scope => value[scope] === undefined ? [] : declarationProblems(scope, value[scope], permissions, ownerFiles));
   // A library of its own in each partition replaces the Home library partitioned by project; one plugin does not declare both (§4.2 第 2 条).
   if (value.partition !== undefined && value.home !== undefined) problems.push("databases.partition 与 databases.home 不能同时声明：分区独立库就是这个插件在每个分区自己的库");
@@ -44,6 +48,7 @@ function declarationProblems(scope: (typeof SCOPES)[number], declaration: unknow
     problems.push(`${path}.version 必须是正整数`);
   }
   if (typeof declaration.schema !== "string" || declaration.schema.trim().length === 0) problems.push(`${path}.schema 必须写出建表语句`);
+  else if (scope === "partition") problems.push(...partitionSchemaProblems(path, declaration.schema));
   for (const field of ["read_permission", "write_permission"] as const) {
     const permission = declaration[field];
     if (typeof permission !== "string" || !permissions.has(permission)) problems.push(`${path}.${field} 必须是这份 Manifest 在 permissions 里声明的权限`);
@@ -100,5 +105,74 @@ function upgradeStepsProblems(path: string, steps: unknown, version: unknown): s
       problems.push(`${at}.reduces_rows 必须是表名的数组`);
     }
   });
+  return problems;
+}
+
+/** Pure lexical SQL safety check for `databases.partition.schema` (mirrors plugin-runtime's `assertPluginHomeSchema`). */
+function partitionSchemaProblems(path: string, schema: string): string[] {
+  if (new TextEncoder().encode(schema).byteLength > PARTITION_SCHEMA_LIMITS.bytes) {
+    return [`${path}.schema 最多 ${PARTITION_SCHEMA_LIMITS.bytes} 个 UTF-8 字节`];
+  }
+  const found: Array<{ text: string; masked: string }> = [];
+  let masked = "";
+  let start = 0;
+  let index = 0;
+  const end = (at: number) => {
+    if (masked.trim()) {
+      found.push({ text: schema.slice(start, at).trim(), masked: masked.replace(/\s+/gu, " ").trim() });
+    }
+    masked = "";
+    start = at + 1;
+  };
+  while (index < schema.length) {
+    const char = schema[index];
+    const next = schema[index + 1];
+    if (char === "-" && next === "-") {
+      const line = schema.indexOf("\n", index);
+      index = line < 0 ? schema.length : line + 1;
+      masked += " ";
+    } else if (char === "/" && next === "*") {
+      const close = schema.indexOf("*/", index + 2);
+      if (close < 0) return [`${path}.schema 里有没闭合的注释`];
+      index = close + 2;
+      masked += " ";
+    } else if (char === "'" || char === "\"" || char === "`" || char === "[") {
+      const closing = char === "[" ? "]" : char;
+      let close = schema.indexOf(closing, index + 1);
+      while (close >= 0 && closing !== "]" && schema[close + 1] === closing) {
+        close = schema.indexOf(closing, close + 2);
+      }
+      if (close < 0) return [`${path}.schema 里有没闭合的引号`];
+      index = close + 1;
+      masked += char === "'" ? "''" : "Q";
+    } else if (char === ";") {
+      end(index);
+      index += 1;
+    } else {
+      masked += char;
+      index += 1;
+    }
+  }
+  end(schema.length);
+  if (found.length === 0) return [`${path}.schema 没有建表语句`];
+  if (found.length > PARTITION_SCHEMA_LIMITS.statements) {
+    return [`${path}.schema 最多 ${PARTITION_SCHEMA_LIMITS.statements} 条显式 CREATE TABLE 或 CREATE INDEX 语句`];
+  }
+  const problems: string[] = [];
+  for (const part of found) {
+    let depth = 0;
+    let ok = true;
+    for (const char of part.masked) {
+      if (char === "(") {
+        depth += 1;
+      } else if (char === ")" && --depth < 0) {
+        ok = false;
+        break;
+      }
+    }
+    if (!ok || depth !== 0 || !(PARTITION_CREATE_TABLE.test(part.masked) || PARTITION_CREATE_INDEX.test(part.masked)) || /\bAS\s+SELECT\b/iu.test(part.masked)) {
+      problems.push(`${path}.schema 只能建表和索引，名字不带库名，不能从查询建表：${part.text.slice(0, 80)}`);
+    }
+  }
   return problems;
 }

@@ -6,7 +6,7 @@ import type {ProjectDeletionPorts} from './project-deletion-service.js';
 
 /** No owner write precedes commit. The receiver, not admission, owns the final CAS and lifecycle transaction. */
 export async function admitProjectSync<T>(withCatalog:LocalWebCatalogRunner,ports:ProjectDeletionPorts,home:string,projectId:string,recycled:boolean,check:()=>void,assertChildrenSettled:()=>void,commit:()=>T):Promise<T> {
- check();if(projectId===PERSONAL_SPACE_PROJECT_ID)throw catalogErrors.personal_space('个人空间不能回收');
+ check();if(typeof projectId==='string'&&projectId.trim()===PERSONAL_SPACE_PROJECT_ID)throw catalogErrors.personal_space('个人空间不能回收');
  return withCatalog({homeDirectory:home},async catalog=>{
   const observe=()=>{try{return catalog.recycle.inspect(projectId);}catch(error){if(error&&typeof error==='object'&&'code' in error&&error.code==='catalog.recycle_missing')return null;throw error;}};
   check();const observed=observe();

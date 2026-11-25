@@ -52,6 +52,8 @@ export interface PartitionPlatformServicesOptions {
   readonly assembly: { acquire(pluginId: string, partitionId: string, reason: "due"): Promise<PartitionPluginLease> };
   /** Hands the due entry to the woken instance; batch 108 gives the plugins their handler. Without it, waking the instance is the whole of it. */
   readonly deliverDue?: (lease: PartitionPluginLease, entry: DueEntryRecord) => Promise<void>;
+  /** Resolves read-only overview libraries for a changed partition so synced reminder times arm the due timer without waking any plugin (V11). */
+  readonly libraries?: (partitionId: string, installId?: string) => readonly OverviewLibrary[];
   readonly expired?: (entries: readonly DueExpiredRecord[]) => void;
   readonly failed?: (entry: DueEntryRecord, error: unknown) => void;
   readonly now?: () => Date;
@@ -61,9 +63,11 @@ export class PartitionPlatformServices {
   readonly due: DueRegistry;
   readonly timer: DueTimer;
   readonly overview: OverviewService;
+  private readonly resolveLibraries?: PartitionPlatformServicesOptions["libraries"];
 
   constructor(options: PartitionPlatformServicesOptions) {
     const now = options.now ?? (() => new Date());
+    this.resolveLibraries = options.libraries;
     this.due = openDueRegistry(options.home, { now });
     this.timer = new DueTimer(this.due, {
       now,
@@ -101,19 +105,29 @@ export class PartitionPlatformServices {
     return removed;
   }
 
-  /** A synchronized write or a restore reached a partition: its overview is read again on the next open, and nothing is started now. */
-  partitionChanged(partitionId: string, installId?: string): void {
+  /**
+   * A synchronized write or a restore reached a partition: mark its overview dirty, and when read-only libraries are supplied (either on
+   * this call or via options.libraries), read them immediately on a read-only connection without waking any plugin so synced reminders
+   * update the due registry and arm the timer right away (V11).
+   */
+  partitionChanged(partitionId: string, installId?: string, libraries?: readonly OverviewLibrary[]): void {
     this.overview.markDirty(partitionId, installId);
+    const source = libraries ?? this.resolveLibraries?.(partitionId, installId);
+    if (!source?.length) return;
+    const matched = source.filter(library => library.partition_id === partitionId && (installId === undefined || library.install_id === installId));
+    if (matched.length > 0) this.overview.refreshDirty(matched);
   }
 
   /**
-   * The overview for `caller`: reads the dirty libraries among `libraries` first (read-only, starting nothing), then answers what the caller
-   * may see. `now` is asked before the read and again before the rows are handed over (`overview-readers`).
+   * The overview for `caller`: checks what the caller may read now, refreshes only dirty libraries among those allowed partitions
+   * (read-only, starting nothing), then answers what the caller may see. `now` is asked before the read and again before the rows are
+   * handed over (`overview-readers`).
    */
   readOverview(caller: ActionCallContext, libraries: readonly OverviewLibrary[], now: () => { readonly readable: readonly string[]; readonly grants: readonly OverviewGrant[] },
     query: { readonly kinds?: readonly OverviewKind[]; readonly limit?: number } = {}): OverviewIndexRow[] {
-    overviewReach(caller, now());
-    this.overview.refreshDirty(libraries);
+    const initial = overviewReach(caller, now());
+    const allowed = new Set(initial.map(entry => entry.partition_id));
+    this.overview.refreshDirty(libraries.filter(library => allowed.has(library.partition_id)));
     return this.overview.read(() => overviewReach(caller, now()), query);
   }
 
@@ -137,23 +151,25 @@ function ifStore(home: string, store: string, work: () => void): void {
 }
 
 /**
- * An installation was removed from one partition (`partitionId`), or from the Home altogether: its due entries and overview rows there go,
- * always (they are the platform's, like an authorization). Its evidence holds there go with its data (`dataGoes`). Its person settings go when
- * its data goes and no other place still has it installed (`installedElsewhere` false): they follow the person, not one partition.
+ * An installation was removed from one partition (`partitionId`), or from the Home altogether (`null`/`undefined`, clearing every
+ * partition): its due entries and overview rows go, always (they are the platform's, like an authorization). Its evidence holds go with
+ * its data (`dataGoes`). Its person settings go when its data goes and no other place still has it installed (`installedElsewhere` false):
+ * they follow the person, not one partition.
  */
-export function forgetInstallationPlatformRecords(home: string, installId: string, partitionId: string, options: { readonly dataGoes: boolean; readonly installedElsewhere: boolean }): void {
+export function forgetInstallationPlatformRecords(home: string, installId: string, partitionId: string | null | undefined, options: { readonly dataGoes: boolean; readonly installedElsewhere: boolean }): void {
+  const partition = partitionId ?? undefined;
   ifStore(home, DUE_REGISTRY_STORE, () => {
     const due = openDueRegistry(home);
-    try { due.clearInstall(installId, partitionId); } finally { due.close(); }
+    try { due.clearInstall(installId, partition); } finally { due.close(); }
   });
   ifStore(home, TEXT_SEARCH_STORE, () => {
     const index = new OverviewService(openOverviewIndex({ homeDirectory: home }));
-    try { index.removeInstall(installId, partitionId); } finally { index.close(); }
+    try { index.removeInstall(installId, partition); } finally { index.close(); }
   });
   if (!options.dataGoes) return;
   ifStore(home, EVIDENCE_STORE, () => {
     const ledger = openEvidenceLedger(home);
-    try { ledger.releaseInstall(installId, partitionId); } finally { ledger.close(); }
+    try { ledger.releaseInstall(installId, partition); } finally { ledger.close(); }
   });
   if (options.installedElsewhere) return;
   ifStore(home, PERSON_SETTINGS_STORE, () => {
@@ -178,10 +194,16 @@ export function forgetPartitionPlatformRecords(home: string, partitionId: string
   });
 }
 
-/** The installation of a plugin in the Home's install table, with the person settings its Manifest declares, for sync (`personSettingsConfigReplica`). */
-export function personSettingsInstallations(installations: () => readonly { readonly install_id: string; readonly manifest: Pick<PluginManifest, "plugin_id" | "person_settings"> }[]): PersonSettingsInstallation {
+/**
+ * The active installation of a plugin in the Home's install table, with the person settings its Manifest declares, for sync
+ * (`personSettingsConfigReplica`). Uninstalled rows are ignored; if more than one active installation shares a plugin id, returns null
+ * rather than guessing which installation owns synced preferences.
+ */
+export function personSettingsInstallations(installations: () => readonly { readonly install_id: string; readonly state?: string; readonly manifest: Pick<PluginManifest, "plugin_id" | "person_settings"> }[]): PersonSettingsInstallation {
   return pluginId => {
-    const found = installations().find(entry => entry.manifest.plugin_id === pluginId);
-    return found ? { install_id: found.install_id, declarations: found.manifest.person_settings as PluginPersonSettingsDeclaration | undefined } : null;
+    const active = installations().filter(entry => entry.state !== "uninstalled" && entry.manifest.plugin_id === pluginId);
+    if (active.length !== 1) return null;
+    const found = active[0]!;
+    return { install_id: found.install_id, declarations: found.manifest.person_settings as PluginPersonSettingsDeclaration | undefined };
   };
 }

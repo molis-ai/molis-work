@@ -850,3 +850,87 @@ test("S-home-page-approval SPC-11 ONB-27: adopt and restore refuse agents, plugi
   const ovAfter = (await (await f.request(`/projects/${proj.project_id}/api/home-pages/read`, { method: "POST", body: {} })).json()) as HomePageOverview;
   assert.deepEqual(ovAfter.selection, { kind: "basic" });
 });
+
+test("UPP-06 #home-pages-owner: real project deletion preserves personal space home page, onboarding does not overwrite it, and cross-partition page_id/receipt access is refused", { timeout: 120_000 }, async t => {
+  const f = await serveHomeRuntime(t);
+  const projectA = await f.project("Home Pages E2E Delete");
+  const post = (partitionId: string, path: string, body: unknown) =>
+    f.request(`/projects/${partitionId}${path}`, { method: "POST", body });
+  const reread = (partitionId: string) => {
+    const db = openHomePagesDatabase(f.home);
+    try { return new HomePagesStore(db, partitionId).readOverview(); } finally { db.close(); }
+  };
+
+  // 1. Save + adopt distinct home pages in both `personal` and `projectA`.
+  const personalDraft1 = (await (await post(PERSONAL_SPACE_PROJECT_ID, "/api/home-pages/drafts/save", { draft: sampleDraft("个人主页一") })).json()) as { version: HomePageVersion };
+  await post(PERSONAL_SPACE_PROJECT_ID, "/api/home-pages/drafts/save", {
+    draft: sampleDraft("个人主页二"), page_id: personalDraft1.version.page_id, expected_version: 1, based_on: 1,
+  });
+  const personalInit = (await (await post(PERSONAL_SPACE_PROJECT_ID, "/api/home-pages/read", {})).json()) as HomePageOverview;
+  const personalAdoptReqId = "personal-adopt-isolated-v1";
+  const personalAdopted = await post(PERSONAL_SPACE_PROJECT_ID, "/api/home-pages/adopt", {
+    page_id: personalDraft1.version.page_id, version: 1, approved_actions: [QUERY_ACTION],
+    request_id: personalAdoptReqId, expected_revision: personalInit.revision,
+  });
+  assert.equal(personalAdopted.status, 200, await personalAdopted.clone().text());
+
+  const projectDraft1 = (await (await post(projectA.project_id, "/api/home-pages/drafts/save", { draft: sampleDraft("项目 A 主页一") })).json()) as { version: HomePageVersion };
+  await post(projectA.project_id, "/api/home-pages/drafts/save", {
+    draft: sampleDraft("项目 A 主页二"), page_id: projectDraft1.version.page_id, expected_version: 1, based_on: 1,
+  });
+  const projectInit = (await (await post(projectA.project_id, "/api/home-pages/read", {})).json()) as HomePageOverview;
+  const projectAdoptReqId = "project-a-adopt-isolated-v1";
+  const projectAdopted = await post(projectA.project_id, "/api/home-pages/adopt", {
+    page_id: projectDraft1.version.page_id, version: 1, approved_actions: [QUERY_ACTION],
+    request_id: projectAdoptReqId, expected_revision: projectInit.revision,
+  });
+  assert.equal(projectAdopted.status, 200, await projectAdopted.clone().text());
+
+  const personalChoice = { kind: "page", page_id: personalDraft1.version.page_id, version: 1 };
+  const projectChoice = { kind: "page", page_id: projectDraft1.version.page_id, version: 1 };
+  assert.deepEqual(reread(PERSONAL_SPACE_PROJECT_ID).selection, personalChoice);
+  assert.deepEqual(reread(projectA.project_id).selection, projectChoice);
+
+  // 2. Cross-partition `page_id` & `approval_request` receipt isolation in both directions.
+  const personalCurrent = (await (await post(PERSONAL_SPACE_PROJECT_ID, "/api/home-pages/read", {})).json()) as HomePageOverview;
+  const projectCurrent = (await (await post(projectA.project_id, "/api/home-pages/read", {})).json()) as HomePageOverview;
+  for (const [callerPartition, foreignPageId, callerRevision, foreignReqId] of [
+    [projectA.project_id, personalDraft1.version.page_id, projectCurrent.revision, personalAdoptReqId],
+    [PERSONAL_SPACE_PROJECT_ID, projectDraft1.version.page_id, personalCurrent.revision, projectAdoptReqId],
+  ] as const) {
+    assert.equal((await post(callerPartition, "/api/home-pages/files/read", { page_id: foreignPageId, version: 1 })).status, 404);
+    assert.equal((await post(callerPartition, "/api/home-pages/preview", { page_id: foreignPageId, version: 1 })).status, 404);
+    assert.equal((await post(callerPartition, "/api/home-pages/diff", { page_id: foreignPageId, from_version: 1, to_version: 2 })).status, 404);
+    assert.equal((await post(callerPartition, "/api/home-pages/adopt", {
+      page_id: foreignPageId, version: 1, approved_actions: [QUERY_ACTION], request_id: foreignReqId, expected_revision: callerRevision,
+    })).status, 404);
+    assert.equal((await post(callerPartition, "/api/home-pages/restore", {
+      page_id: foreignPageId, version: 1, approved_actions: [QUERY_ACTION], request_id: `cross-restore-${callerPartition}`, expected_revision: callerRevision,
+    })).status, 404);
+    const receiptProbe = (await (await post(callerPartition, "/api/home-pages/read", {
+      queries: [{ by: "approval_request", operation: "adopt", request_id: foreignReqId }],
+    })).json()) as Extract<HomePageReadResult, { results: unknown }>;
+    assert.equal(receiptProbe.results[0]?.kind, "missing", `${callerPartition} cannot read another partition's approval receipt`);
+  }
+
+  // 3. U11 first-run blank start (`/api/onboarding/personal`) never overwrites an existing personal home page selection.
+  const onboarding = await f.request("/api/onboarding/personal", { method: "POST", body: {} });
+  assert.equal(onboarding.status, 200, await onboarding.clone().text());
+  const personalAfterOnboarding = reread(PERSONAL_SPACE_PROJECT_ID);
+  assert.deepEqual(personalAfterOnboarding.selection, personalChoice, "onboarding leaves personal space home page choice untouched");
+  assert.deepEqual(personalAfterOnboarding.versions.find(v => v.version === 1)?.approval?.approved_actions, [QUERY_ACTION]);
+
+  // 4. End-to-end deletion via the real HTTP project deletion service clears projectA's rows while keeping personal intact.
+  const deleted = await f.request(`/api/settings/projects/${encodeURIComponent(projectA.project_id)}/delete`, {
+    method: "POST",
+    body: { delete_confirmed: true, idempotency_key: "home-pages-e2e-delete-project-a", output_files: "keep" },
+  });
+  assert.equal(deleted.status, 200, await deleted.clone().text());
+  const projectAfterDelete = reread(projectA.project_id);
+  assert.deepEqual(projectAfterDelete.selection, { kind: "basic" }, "deleted project's home page selection is cleared");
+  assert.deepEqual(projectAfterDelete.versions, [], "deleted project's home page versions are cleared");
+  const personalAfterDelete = reread(PERSONAL_SPACE_PROJECT_ID);
+  assert.deepEqual(personalAfterDelete.selection, personalChoice, "real project deletion leaves personal space home page selection intact");
+  assert.deepEqual(personalAfterDelete.versions.find(v => v.version === 1)?.approval?.approved_actions, [QUERY_ACTION],
+    "real project deletion leaves personal space approval intact");
+});

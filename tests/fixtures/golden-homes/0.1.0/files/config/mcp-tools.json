@@ -3,7 +3,7 @@
   "action_grants": [
     {
       "client_id": "agent:prologue",
-      "project_id": "project-038fd99d-87df-4cdb-9de0-56838f641ed7",
+      "project_id": "project-ae076f4f-3257-40a5-be48-38652812f188",
       "capability_id": "goals.create",
       "version": 1,
       "provider_id": "io.molis.work.goals",

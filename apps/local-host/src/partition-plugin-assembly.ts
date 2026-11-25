@@ -77,6 +77,8 @@ interface Running {
   readonly scope: PartitionPluginScope;
   readonly ready: Promise<PartitionPluginHandle>;
   leases: number;
+  /** Callers currently awaiting `ready`: `sweep()` never treats an instance with pending waiters as idle. */
+  pending: number;
   lastUsed: number;
 }
 
@@ -112,13 +114,18 @@ export class PartitionPluginAssembly {
     if (!entry) {
       const scope = partitionPluginScope(this.options.home, partitionId, pluginId, record.install_id);
       const ready = this.options.start(scope, reason);
-      entry = { key, scope, ready, leases: 0, lastUsed: this.now() };
+      entry = { key, scope, ready, leases: 0, pending: 0, lastUsed: this.now() };
       this.running.set(key, entry);
       ready.catch(() => {
         if (this.running.get(key) === entry) this.running.delete(key);
       });
     }
-    await entry.ready;
+    entry.pending += 1;
+    try {
+      await entry.ready;
+    } finally {
+      entry.pending -= 1;
+    }
     // Stopped while it was starting (disabled, uninstalled, its partition gone): no lease on an instance that is no longer running.
     if (this.running.get(key) !== entry) throw new ActionError("actions.plugin_unavailable", "这个插件在这里刚停下");
     entry.leases += 1;
@@ -138,37 +145,46 @@ export class PartitionPluginAssembly {
     return [...this.running.values()].map(entry => ({ plugin_id: entry.scope.plugin_id, partition_id: entry.scope.partition_id }));
   }
 
-  /** Stops every instance with no lease whose last use is older than the idle time; returns how many stopped. */
+  /** Stops every instance with no lease or pending waiter whose last use is older than the idle time; returns how many stopped. */
   async sweep(): Promise<number> {
-    const due = [...this.running.values()].filter(entry => entry.leases === 0 && this.now() - entry.lastUsed >= this.idleMs);
-    await this.stopEntries(due);
-    return due.length;
+    const due = [...this.running.values()].filter(entry => entry.leases === 0 && entry.pending === 0 && this.now() - entry.lastUsed >= this.idleMs);
+    return this.stopEntries(due);
   }
 
   /** Stops this plugin's instances (it was disabled there, or uninstalled), in one partition or in all of them. */
-  stopPlugin(pluginId: string, partitionId?: string): Promise<void> {
-    return this.stopEntries([...this.running.values()].filter(entry => entry.scope.plugin_id === pluginId && (partitionId === undefined || entry.scope.partition_id === partitionId)));
+  async stopPlugin(pluginId: string, partitionId?: string): Promise<void> {
+    await this.stopEntries([...this.running.values()].filter(entry => entry.scope.plugin_id === pluginId && (partitionId === undefined || entry.scope.partition_id === partitionId)));
   }
 
   /** Stops every instance in a partition, before the partition is deleted or recycled. */
-  stopPartition(partitionId: string): Promise<void> {
-    return this.stopEntries([...this.running.values()].filter(entry => entry.scope.partition_id === partitionId));
+  async stopPartition(partitionId: string): Promise<void> {
+    await this.stopEntries([...this.running.values()].filter(entry => entry.scope.partition_id === partitionId));
   }
 
   async close(): Promise<void> { await this.stopEntries([...this.running.values()]); }
 
-  private async stopEntries(entries: readonly Running[]): Promise<void> {
+  private async stopEntries(entries: readonly Running[]): Promise<number> {
     const failures: unknown[] = [];
+    let stopped = 0;
     for (const entry of entries) {
       if (this.running.get(entry.key) !== entry) continue;
       this.running.delete(entry.key);
+      let handle: PartitionPluginHandle;
       try {
-        await (await entry.ready).stop();
+        handle = await entry.ready;
+      } catch {
+        // Start failed before producing an instance: nothing to stop here; callers awaiting `acquire()` still receive the start error.
+        continue;
+      }
+      stopped += 1;
+      try {
+        await handle.stop();
       } catch (error) {
         failures.push(error);
       }
     }
     if (failures.length) throw new AggregateError(failures, "分区插件实例停止失败");
+    return stopped;
   }
 }
 

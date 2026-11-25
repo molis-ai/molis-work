@@ -35,11 +35,11 @@ CREATE TABLE workflows (
   );
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_golden_root_home','{"spaceId":"space_golden_root_home","kind":"local","ownerUserId":null,"teamId":null,"issuer":null,"applicationId":null}');
 INSERT INTO "sync_b1502527af2ce1127314acbe774c_context"("id","project_id") VALUES(1,NULL);
-INSERT INTO "sync_b1502527af2ce1127314acbe774c_replica_changes"("seq","key") VALUES(1,'["project-038fd99d-87df-4cdb-9de0-56838f641ed7","workflow","6bbbe8ed-73d6-4304-a781-328c044facd5"]');
-INSERT INTO "sync_b1502527af2ce1127314acbe774c_replica_changes"("seq","key") VALUES(2,'["project-038fd99d-87df-4cdb-9de0-56838f641ed7","workflow","6bbbe8ed-73d6-4304-a781-328c044facd5"]');
+INSERT INTO "sync_b1502527af2ce1127314acbe774c_replica_changes"("seq","key") VALUES(1,'["project-ae076f4f-3257-40a5-be48-38652812f188","workflow","6bbbe8ed-73d6-4304-a781-328c044facd5"]');
+INSERT INTO "sync_b1502527af2ce1127314acbe774c_replica_changes"("seq","key") VALUES(2,'["project-ae076f4f-3257-40a5-be48-38652812f188","workflow","6bbbe8ed-73d6-4304-a781-328c044facd5"]');
 INSERT INTO "sync_b1502527af2ce1127314acbe774c_replica_state"("id","device","cursor","applying") VALUES(1,'8264e0d9f1bab2f2e0e506c8cc7b3a5f',0,0);
-INSERT INTO "workflow_editor_versions"("workflow_id","project_id","revision") VALUES('6bbbe8ed-73d6-4304-a781-328c044facd5','project-038fd99d-87df-4cdb-9de0-56838f641ed7',2);
-INSERT INTO "workflows"("workflow_id","project_id","title","chain_json","revision","created_at","updated_at","deleted") VALUES('6bbbe8ed-73d6-4304-a781-328c044facd5','project-038fd99d-87df-4cdb-9de0-56838f641ed7','金样流程 seed 已改','{"stations":[],"links":[]}',2,'2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z',0);
+INSERT INTO "workflow_editor_versions"("workflow_id","project_id","revision") VALUES('6bbbe8ed-73d6-4304-a781-328c044facd5','project-ae076f4f-3257-40a5-be48-38652812f188',2);
+INSERT INTO "workflows"("workflow_id","project_id","title","chain_json","revision","created_at","updated_at","deleted") VALUES('6bbbe8ed-73d6-4304-a781-328c044facd5','project-ae076f4f-3257-40a5-be48-38652812f188','金样流程 seed 已改','{"stations":[],"links":[]}',2,'2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z',0);
 DELETE FROM sqlite_sequence;
 INSERT INTO sqlite_sequence(name,seq) VALUES('sync_b1502527af2ce1127314acbe774c_replica_changes',2);
 CREATE INDEX instances_workflow ON instances (workflow_id, created_at);

@@ -502,12 +502,15 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   private async stopOnce(installId: string, preserveEnabled = false): Promise<PluginLifecycleReceipt> {
     const current = this.repository.get(installId) ?? await releaseUnrecorded(this.contexts.get(installId), this.executor, () => this.revokeContext(installId));
-    if (current.state === "disabled") return this.receipt("stop", current, true);
+    // A per-partition runtime shares Home's install record: if Home already disabled or uninstalled the installation while this
+    // partition still holds a live instance, a shutdown stop must release the live session without overwriting Home's durable state.
+    const externallyClosed = preserveEnabled && (current.state === "disabled" || current.state === "uninstalled") && this.hasLiveInstance(installId);
+    if (current.state === "disabled" && !externallyClosed) return this.receipt("stop", current, true);
     // Nothing runs in a crashed or never-started install; the person's stop still switches it off. A shutdown stop (preserve_enabled)
     // of one is refused, since it would erase the crash or decide for the person, and so is any stop of a quarantine: only an explicit
     // release lifts that.
     const idle = current.state === "crashed" || current.state === "installed";
-    if (current.state !== "running" && !(idle && !preserveEnabled)) {
+    if (current.state !== "running" && !(idle && !preserveEnabled) && !externallyClosed) {
       throw pluginErrors.state_invalid(`Plugin 当前状态 ${current.state} 不能停止`);
     }
     // Nothing in this process was activated. Do not grant a context just to stop it.
@@ -530,6 +533,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       if (live) await outsidePluginAction(() => this.executor.stop(definition, live));
     } catch (error) {
       this.contributions.delete(installId);
+      if (externallyClosed) throw pluginErrors.executor_failed("Plugin 停止失败");
       const crashed = {
         ...current,
         state: "crashed" as const,
@@ -540,6 +544,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       throw pluginErrors.executor_failed("Plugin 停止失败，已记录为 crashed");
     }
     this.contributions.delete(installId);
+    if (externallyClosed) return this.receipt("stop", current, false);
     const updated = {
       ...current,
       state: preserveEnabled ? "installed" as const : "disabled" as const,

@@ -44,6 +44,7 @@ CREATE TABLE skill_uses (
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935','{"spaceId":"space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935","kind":"personal","ownerUserId":"golden-person","teamId":null,"issuer":"https://golden.invalid","applicationId":"io.molis.work.golden"}');
 INSERT INTO "personal_prompt_overrides_replica_state"("id","device","cursor","applying") VALUES(1,'3510c6f34aaae398cad5a0b868f321c2',0,0);
 DELETE FROM sqlite_sequence;
+INSERT INTO sqlite_sequence(name,seq) VALUES('personal_prompt_overrides_replica_changes',0);
 CREATE INDEX personal_prompt_overrides_replica_changes_key ON personal_prompt_overrides_replica_changes(key);
 CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);
 CREATE INDEX skill_cases_by_owner ON skill_cases(owner_ref, created_at);

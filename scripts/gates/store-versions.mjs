@@ -41,12 +41,13 @@
 // of which carry PACKAGE-BOUNDARIES.md for its package table) is not gated. The origin line follows the same rule on the head: no
 // line, two lines, or a line in another shape exits 2. A merge-base from before the line existed counts as not registered.
 //
-// KNOWN GAPS. A 位置 renamed in the same PR reads as one row gone and one new row, so it passes. It compares with the
+// KNOWN GAPS. A row whose 位置 is renamed while its 定义处 stays the same is matched by 定义处 so a version change cannot hide behind a
+// 位置 rename; renaming both 位置 and 定义处 in one PR still reads as one row gone and one new row. It compares with the
 // merge-base, not with the build installed in a Home: several PRs' changes add up, and that comparison is the first item of
 // CHECKLIST §4.3, done by hand before a release. It does not check that the maintenance the row describes was done.
 import ts from "typescript";
 import { VERSION_FIELD } from "../version-source.mjs";
-import { parseV1ResetExceptions, V1_RESET_FILE } from "./store-schemas.mjs";
+import { baseStoreRow, parseStoreSchemas, parseV1ResetExceptions, SCHEMAS_FILE, V1_RESET_FILE } from "./store-schemas.mjs";
 import { constantsIn, stepFroms, unwrapExpression, upgradesNameFor } from "./upgrade-steps.mjs";
 
 export const CHECKLIST_FILE = "docs/releases/CHECKLIST.md";
@@ -103,9 +104,11 @@ export function checklistVersions(text, where = CHECKLIST_FILE) {
 }
 
 /** The 定义处 of each library in the checklist's §3 table, keyed by its 位置 cell, without the backticks. */
-function checklistDefinitions(text) {
-  const { header, rows } = checklistTable(text, CHECKLIST_FILE);
-  const place = column(header, "位置", `${CHECKLIST_FILE} §3`), definition = column(header, "定义处", `${CHECKLIST_FILE} §3`);
+function checklistDefinitions(text, where = CHECKLIST_FILE, optional = false) {
+  const { header, rows } = checklistTable(text, where);
+  const place = column(header, "位置", `${where} §3`);
+  const definition = optional ? header.indexOf("定义处") : column(header, "定义处", `${where} §3`);
+  if (definition < 0) return new Map();
   return new Map(rows.map((row) => [row.cells[place], (row.cells[definition] ?? "").replace(/`/g, "")]));
 }
 
@@ -216,18 +219,46 @@ export function storeVersionProblems({ read, readBase }) {
   const base = checklistVersions(baseChecklist, `merge-base:${CHECKLIST_FILE}`);
   const baseOrigin = originRegistered(baseChecklist, `merge-base:${CHECKLIST_FILE}`, () => false);
   const afterOrigin = headOrigin || baseOrigin;
-  const definitions = afterOrigin ? checklistDefinitions(checklist) : null;
+  const definitions = checklistDefinitions(checklist, CHECKLIST_FILE, !afterOrigin);
+  const baseDefinitions = checklistDefinitions(baseChecklist, `merge-base:${CHECKLIST_FILE}`, true);
+  // Match a row whose 位置 was renamed in this PR (gone from head under the old 位置, present under the new 位置 with the same unique 定义处).
+  const renamedFromBase = new Map();
+  for (const [baseCell, def] of baseDefinitions) {
+    if (!def || head.has(baseCell)) continue;
+    const baseVersion = base.get(baseCell);
+    if (baseVersion === undefined) continue;
+    if (renamedFromBase.has(def)) renamedFromBase.set(def, null);
+    else renamedFromBase.set(def, baseVersion);
+  }
   const problems = [];
   // A one-time reset to v1 the user approved (V7, batch 106) is the entry of store-schemas.mjs's reset file with this 位置 and these two
-  // versions; the structure hashes it is pinned to are checked there. It still needs its row in the list, in prose: there is no step to point at.
+  // versions, and whose `store` is tracked in tooling/gates/schemas/stores.tsv on both head and merge-base so store-schemas.mjs pins its exact
+  // structure hashes (non-SQLite formats in CHECKLIST.md cannot bypass downgrade checks through v1-reset-exceptions.json). It still needs its
+  // row in the list, in prose: there is no step to point at.
   const resets = parseV1ResetExceptions(read(V1_RESET_FILE));
   if (resets.why) problems.push(resets.why);
-  const approvedReset = (place, before, version) => !resets.why && resets.rows.some(row => row.place === place && row.from_version === before && row.to_version === version);
+  const headSchemasText = read(SCHEMAS_FILE);
+  const baseSchemasText = readBase(SCHEMAS_FILE);
+  const headSchemas = headSchemasText === null ? null : parseStoreSchemas(headSchemasText, SCHEMAS_FILE);
+  const baseSchemas = baseSchemasText === null ? null : parseStoreSchemas(baseSchemasText, `merge-base:${SCHEMAS_FILE}`);
+  const storeTrackedInSchemas = (store, before, version) => {
+    if (!headSchemas || headSchemas.why || !baseSchemas || baseSchemas.why) return false;
+    const nowRow = headSchemas.rows.get(store);
+    const prevRow = baseStoreRow(headSchemas.rows, baseSchemas.rows, store);
+    return Boolean(nowRow && prevRow && prevRow.version === before && nowRow.version === version);
+  };
+  const approvedReset = (place, before, version) => !resets.why && resets.rows.some(row =>
+    row.place === place && row.from_version === before && row.to_version === version && storeTrackedInSchemas(row.store, before, version));
   if (baseOrigin && !headOrigin) {
     problems.push(`${CHECKLIST_FILE} §4: the merge-base has the unified origin registered; it cannot go back to 未登记`);
   }
   for (const [cell, version] of head) {
-    const before = base.get(cell);
+    let before = base.get(cell);
+    if (before === undefined) {
+      const def = definitions.get(cell);
+      const renamed = def ? renamedFromBase.get(def) : undefined;
+      if (typeof renamed === "number") before = renamed;
+    }
     if (before === undefined || before === version) {
       continue;
     }

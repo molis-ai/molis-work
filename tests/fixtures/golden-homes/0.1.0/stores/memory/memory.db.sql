@@ -44,7 +44,7 @@ INSERT INTO "memory_prefs"("actor_id","key","body") VALUES('web-user','personal'
 INSERT INTO "memory_prefs"("actor_id","key","body") VALUES('web-user','project-default','{"enabled":true,"task_recall":true,"form":true,"auto":false,"learn_from_work":true,"learn_from_ui":true,"consumers":{"assistant":true,"agent":true,"ui":true,"plugin":true,"mcp":true},"plugins":{},"class_restrictions":[]}');
 INSERT INTO "memory_revisions"("memory_id","version","body") VALUES('once.user.8.web-user.84b2216a-324b-47ba-a19a-293ef4c3e346_3aappend',1,'{"version":1,"change":"created","by":"person","at":"2026-01-15T09:00:00.000Z"}');
 INSERT INTO "memory_revisions"("memory_id","version","body") VALUES('once.user.8.web-user.84b2216a-324b-47ba-a19a-293ef4c3e346_3aappend',2,'{"version":2,"change":"edited","by":"person","at":"2026-01-15T09:00:00.000Z"}');
-INSERT INTO "memory_uses"("memory_id","receipt_id","at","work_id","state","body") VALUES('once.user.8.web-user.84b2216a-324b-47ba-a19a-293ef4c3e346_3aappend','memory-b-9lkt7:task','2026-01-15T09:00:00.000Z','work-852018a6-eca3-4c72-85be-8ea8f41302f7','response-observed','{"memory_id":"once.user.8.web-user.84b2216a-324b-47ba-a19a-293ef4c3e346_3aappend","memory_version":2,"receipt_id":"memory-b-9lkt7:task","at":"2026-01-15T09:00:00.000Z","time_basis":"run-start","consumer":"assistant","title":"工作「金样对话 seed」","work_id":"work-852018a6-eca3-4c72-85be-8ea8f41302f7","source":"run-context","run":{"run_id":"d-252ot","session_id":"3-6gu5w"},"evidence_call_id":"call-1","state":"response-observed"}');
+INSERT INTO "memory_uses"("memory_id","receipt_id","at","work_id","state","body") VALUES('once.user.8.web-user.84b2216a-324b-47ba-a19a-293ef4c3e346_3aappend','memory-a-3kmap:task','2026-01-15T09:00:00.000Z','work-9f12d495-866c-423b-a8bd-4e2e11ed50a3','response-observed','{"memory_id":"once.user.8.web-user.84b2216a-324b-47ba-a19a-293ef4c3e346_3aappend","memory_version":2,"receipt_id":"memory-a-3kmap:task","at":"2026-01-15T09:00:00.000Z","time_basis":"run-start","consumer":"assistant","title":"工作「金样对话 seed」","work_id":"work-9f12d495-866c-423b-a8bd-4e2e11ed50a3","source":"run-context","run":{"run_id":"c-252ot","session_id":"3-6gu5w"},"evidence_call_id":"call-1","state":"response-observed"}');
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_golden_root_home','{"spaceId":"space_golden_root_home","kind":"local","ownerUserId":null,"teamId":null,"issuer":null,"applicationId":null}');
 CREATE INDEX memory_candidates_actor ON memory_candidates(actor_id);
 CREATE INDEX memory_changes_actor ON memory_changes(actor_id, at);
@@ -52,5 +52,5 @@ CREATE INDEX memory_changes_memory ON memory_changes(memory_id);
 CREATE INDEX memory_signal_key ON memory_signal_events(actor_id, key);
 CREATE INDEX memory_uses_receipt ON memory_uses(receipt_id);
 CREATE INDEX memory_uses_work ON memory_uses(work_id);
-PRAGMA user_version=2;
+PRAGMA user_version=1;
 COMMIT;

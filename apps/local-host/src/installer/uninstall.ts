@@ -174,7 +174,7 @@ export class MolisWorkUninstallService {
       home_directory: this.homeDirectory,
       purge_user_data: plan.purge_user_data,
       preserved_projects: catalogInspection.projects
-        .filter((project) => project.data_class !== "regenerable_demo")
+        .filter((project) => project.data_class !== "regenerable_demo" && project.project_id !== PERSONAL_SPACE_PROJECT_ID)
         .map((project) => ({ project_id: project.project_id, display_name: project.display_name, data_class: project.data_class })),
       completed_steps: [],
       removed_paths: [],

@@ -7,7 +7,16 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 先想清楚人盯着什么、那一时刻能做什么，再声明 Manifest，再按 kind 接到产品或 Runtime。不要从 MCP、事件或判断函数起笔。
 
-两种插件，一套标准：**官方插件**由人或编码 Agent 手写、接进产品；**生成插件**由插件创作台从一句需求做出来，后端跑在沙箱里、界面由平台用 UI 目录画。两种都走同一个交付流程（[process.md](process.md)）、守同一条质量线（[ui.md](ui.md#质量线所有插件)）、用同一个能力目录（[capabilities.md](capabilities.md)）。插件创作台按阶段读取本目录的指定章节，各阶段使用的内容由宿主的 `CHAPTERS` 清单决定。
+第一次写插件时，先选择要交付的东西。
+
+| 要交付的东西 | 第一步 |
+| --- | --- |
+| 自己信任、需要本机试跑的 JavaScript | 用应用的 `plugin create` 建立轮询样例，再用 `plugin dev` 保存并读回一版。[安装版开发入口](authoring.md#安装版开发入口) |
+| 用户可以安装的沙箱应用或集成 | 准备相应的沙箱文件，用发布者签名分发，接收方以信任的公钥核验。[打包与签名](authoring.md#打包与签名) · [集成的接入面](integrations.md) |
+| 供助理或 Coding 使用的方法 | 写 `SKILL.md`，用应用的 `plugin pack-content` 制作只有声明的内容包。[从空目录做内容包](skills-and-kits.md#只做技能只有声明的插件) |
+| 随产品构建的内置插件 | 在自己的包里登记，再由宿主装配。[宿主接线](host.md) |
+
+官方、个人、第三方和创作台生成的插件共用动作目录与质量要求。来源和签名说明由谁交付，Manifest 的 `kind` 说明包提供什么。[交付流程](process.md) · [界面质量线](ui.md#质量线所有插件) · [动作与能力](capabilities.md)
 
 命令原文、MCP 登记细则、动作四问判例、打包签名：仓库 `docs/platform/PLUGIN-DEVELOPMENT.md`。合同第一次可用的批次同步更新对应作者章节与 SDK 用例，写清谁能调用、成功结果和拒绝条件。命令、打包机制变动在手册维护；影响生成插件时核对[实际挂载章节](../../apps/local-host/src/plugin-builder/skill.ts)并按[回放和冒烟约定](../../docs/platform/STUDIO-SKILL-REPLAY.md)验证。
 
@@ -56,6 +65,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | `native` | 一等产品入口。内置插件在自己的登记中声明 `project_runtime` 或 `runtime`，由 Plugin Runtime 监督器启动 | 装配步骤、已退役的构建期例外和样例以[宿主接线](host.md)为准 |
 | `app` | Plugin Runtime **真的** `start()`，兑现 views/routes/actions | Coding、Git、Diff |
 | `integration` | 外部世界 → Connector / Signal | GitHub、Gmail、RSS（也读 YouTube 频道）、Catalog |
+| `content` | 只有技能等声明，安装后通过技能目录启用 | 每周回顾内容包 |
 
 没跑在 Runtime 里就不要标 `app`。插件不 import 另一个插件的 implementation。
 
@@ -74,7 +84,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 ## 按这个顺序写
 
-不要跳。用不到的块省略，不要预埋。
+下面列出仓库内维护插件时经常需要的模块。外部作者按上表选择源码、沙箱或内容包；宿主登记和工作台构建步骤由内置插件维护者处理。
 
 1. 对象与时刻（上面四问）。
 2. Manifest 身份：`schema_version`（现行格式为 1）、`host_api_version`、`plugin_id`、`name`、`version`、`kind`、`publisher`、`entrypoints`、`permissions`（每条带 reason；要用侧栏浏览器的网站，写 `surface:browser` 并列出 `origins`，见 [ui.md](ui.md) 侧栏标签一节）、`requires`（每条同时写入 `capabilities.consumes`）。权限只写真会用的。
@@ -124,7 +134,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 - **内置插件**：workspace 包，包里 `src/registration.ts` 写目录条目（manifest、personal、summary、workbench pack；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`），项目级的在同一份登记写 `project_runtime: { create, package_name, factory_export }`，再 `node scripts/generate-plugin-registry.mjs` 生成 `builtin-plugins.ts` 与宿主的 `plugin-registry.generated.ts`（都不手改）；项目监督器按登记启动它（`trust: HOST_BUILD_TRUST` + `nativePluginReleaseArtifact` 由宿主给），`apps/local-host/src/project-plugins.ts` 与 `tests/builtin-plugin-assembly-gate.test.ts` 都不用改（+ i18n），在 `docs/system/PACKAGE-BOUNDARIES.md`「现行包清单」里补一行（`node scripts/gates/package-inventory.mjs --table` 核对机器列，保留原包的人工深度/审查与证据；缺行或状态与登记不符，`pnpm health:check` 变红）。构建期 Native 的 Host HTTP 与动作装配已冻结，只许减少。清单：[host.md](host.md)。
 - **Runtime 插件**（登记上有 `project_runtime` 或 `runtime` 的内置插件，如 Coding、Images）：`createXPlugin` 加监督器 `start()`。`start()` 必须兑现 Manifest 每一条 view、route、action、action_scene，以及 commands、events.subscribes、ports.inputs 对应的处理器。
 - **integration**：`definePollingIntegrationPlugin` + Connector Host；OAuth/secret 见 [integrations.md](integrations.md)。
-- **第三方 / 本地样例**：`molis-work plugin create` → `validate` → `dev` → `pack`。`molis-work` 是 Molis Work 本体的命令，不在 contracts、SDK 两个包里：今天在仓库里写 `node dist/cli/main.js plugin …`，装过 Home 的写 `~/.molis-work/bin/molis-work plugin …`（不在 PATH 上）；独立的 `molis-work-plugin` 不能 `dev`（报 `plugin.host_required`），细节见 [text-and-appearance.md](text-and-appearance.md) 第 4 步。今天脚手架是 integration 样例，不是产品一级入口插件。
+- **第三方 / 本地样例**：安装版应用提供 `plugin create`、`validate`、`dev`、`pack`、`sign` 和 `verify`。解包获取公开依赖、试跑和签验见[安装版开发入口](authoring.md#安装版开发入口)。
 
 ## 禁止
 

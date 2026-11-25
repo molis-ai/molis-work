@@ -1,28 +1,8 @@
 # 本地 Plugin 开发
 
-统一输入`ComposerOutcome.failed`可声明`feedback: "page"`，表示调用页面已经完整显示该失败和恢复操作；平台保留未受理草稿及材料，继续标记unreadable，不重复错误/通用重试。没有恢复区域时保留普通failed；未知结果仍用unknown，不能返回sent或空错误冒充处理。工作台框桥与直接composer相同，Coding长期材料恢复卡为实际采用方。
+仓库外的作者可以从完整产品 npm 归档取得公开两包，试跑样例、准备签名副本并独立验签。只交技能可直接制作内容包。随产品构建的内置插件另有宿主装配步骤。[安装版作者入门](../../skills/molis-plugin-dev/authoring.md#安装版开发入口) · [技能内容包](../../skills/molis-plugin-dev/skills-and-kits.md) · [内置插件接线](../../skills/molis-plugin-dev/host.md)
 
-同步恢复后，正常只读动作须能返回没有本机执行绑定的已保存内容，不能补造连接或传递密钥来通过校验。Images 的 `images.jobs.list/get/cancel@1` 和 `images.jobs.start@1` 允许终态结果的 `connection_id` 为空，运行中结果与新生成输入仍要求非空连接；生成继续核对本机服务及当前授权。后台状态查询使用 get v1；按主线统一起点，调用方须核对现行形状。恢复测试应通过公共动作读取记录与原件，不仅检查底层库。
-
-个人内容的来源设备不是撤销权限边界。Todo 接收时将历史修订与当前项一起映射到目标高水位，保留版本间隙，按修订而非设备时钟排列历史；用户可经正常动作撤销其他设备的最新修改，但后续编辑、重复撤销、旧页面版本及作用域越界仍拒绝。规则不改变库和传输格式，回归见 `tests/todo-replication.test.ts`。
-
-`SyncReplicaAdapter.hasProjectChanges(projectId)` 是 owner 对指定项目未结算内容的只读判断，覆盖待提交变化、冻结上传及保留冲突（包括等待依赖）；删除后的键仍须可判定归属，其他项目不能误计。缺少此端口或归属不可知必须报告不支持/不可用，不能返回 false 冒充已同步；它不确认上传，也不授权回收。SQLite owner 通过可信 `belongsToProject(key,projectId)` 投影现有日志键的业务归属，共同 Storage 不猜键、不跨 owner 查表，查询不受上传启用筛选影响。当前 Aggregate、Pages、Images、Workflows 及已有项目分区已兑现；分区映射由可信组合根显式提供，不从输入猜测，失效分区拒绝观察。Todo 已按当前/删除后归属及未确认保留内容判断；Work 已按 work.project 关系及未确认保留内容判断，交接目标不作为归属；Home 文档和未启用分区的完整被动读取尚待接线，项目云端生命周期仍未因此启用。
-
-SQLite 冲突确认由可信组合根把 SDK 的 `createSyncConflictState` 通过 contracts `SyncConflictState` 端口传入 owner Context；Storage 只使用这个端口，不增加工作区依赖，也不复制公共算法。缺少端口明确拒绝用户比较和带指纹确认，原内容与队列保留。
-
-公共 JSON 文档 owner 读取原始完整内容时，明确的 `unavailable` 类别会转成隐去原路径/诊断的临时拒绝，并保留资产键与待上传事实；同轮跳过该键，健康项继续，下一轮重试。语法错误及未知异常不采用这条临时路径，原格式校验保持。
-
-个人同步的 Runtime 实现通过 `PluginAppContribution.sync` 兑现已声明集合。可信个人 Home 激活注入 `context.sync` 的空间与活动检查，本地空间和裸执行器不提供；插件不从请求参数构造身份。`bindRuntimeSyncCollection` 按当前 Supervisor/安装世代、版本、发布者、授权和运行实例包装增量及附件调用，停用或等待中撤权后旧句柄拒绝继续。声明但未实现的集合保持不可用。Web 空间用现有唯一 Host 的 Home 与项目 Runtime 生成动态目录，复用完整项目端口，不初始化外部 MCP、草稿或模型任务；固定 owner 优先，未知集合与格式不自动加入策略。同名本机键按实际作用域分区，内容需匹配空间和项目。独立作者样例见 `examples/personal-sync-plugin`；本机隔离回归不代表已经正式上线。
-
-个人同步的设备控制统一归 sync-replication/Host：`SpaceSyncPolicy` 仍是共享集合配置，`SyncDevicePreference` 是本机账号选择。立即同步不启动后台轮询；插件只提供资产适配，不另写设备计时器或把本机开关上传为云端策略。
-
-云端来源仅由可信 Host 的 `MOLIS_WORK_SYNC_ORIGIN` 注入，插件不选择上传地址。`SyncQuotaStatus` 是服务端逻辑容量；公共 `SyncReplicaAdapter.next` 的 `deletionsOnly` 筛选让满额设备继续发送独立删除，正向队列必须保留，分区包装也要透传。D1 当前基线和实际覆盖见 `apps/sync-worker/README.md`，不要把结构化配额称为已完成 R2/回收站容量。
-
-个人同步接入详见 [同步作者规范](../../skills/molis-plugin-dev/sync.md)。Form、Dataset、PPT、Lingguang 使用 owner 声明的 `AggregateDefinition` 与原 Store 事务日志，Host 注册实际适配器后才显示可选集合；不通过扫描数据库或只加 Manifest 来宣称支持同步。该链路仍是本机联调，不含公网发布、附件或运行中任务迁移。
-
-内置 owner 在 `BUILTIN_PLUGIN_CATALOG` 同一条目的 `sync` 工厂接线；Host 通用装配复用目录，不另加硬编码插件清单。文件 Home owner 可声明 `home-document` 与固定相对路径，由可信 Host 注入原子文件 CAS。平台置物架在[平台入口](../../apps/local-host/src/host-surface-list.ts)登记同类同步工厂，Shelf 目录是实际消费者，正常动作与同步共用同一目录，文件先保存不可变版本再提交业务与日志，设置、剪贴板和在途执行留在设备。SQLite 日志表由 Storage 提供基线 SQL/队列端口，随 owner 当前 schema 建库，业务插件不直接访问 replica 表。声明解析从 SDK、空间配置解析从 sync-replication 公开入口取；错误归各 owner 的 `ActionError`。细则和验收命令见同步作者规范。
-
-写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 选择开发路径并依次交付。本文件维护命令、MCP 登记、动作录取与打包机制；交付步骤与质量线在 Skill 中维护，关键约束保留自包含，供编码 Agent 与创作台使用。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
+本手册解释动作录取、MCP 和包格式。具体场景的写法由对应章节维护。[界面及输入失败恢复](../../skills/molis-plugin-dev/ui.md) · [个人同步与恢复](../../skills/molis-plugin-dev/sync.md) · [按交付物选择开发路径](../../skills/molis-plugin-dev/SKILL.md)
 
 新的内置插件按仓库 `AGENTS.md` 只走 Plugin Runtime：项目级的在插件自己 `src/registration.ts` 的 `registration` 上声明 `project_runtime: { create, package_name, factory_export }`，由每个项目的监督器按登记装配（`apps/local-host/src/project-plugins.ts` 不为新插件改），Home 级的（个人数据跨项目一致、没有项目也能用）Manifest 写 `runtime: { scope: "home" }`、在同一份 `registration` 上给出 `runtime: { create, package_name, factory_export, … }`，由宿主的 Home 监督器装配（写法见 `skills/molis-plugin-dev/host.md`）；不再手接 `ui-composition.ts` → `renderer.ts` → `shell-page-renderer.ts`，也不再新增构建期（旧路径）条目或 `<插件>-native-plugin-http.ts`。Runtime 装配仍有两处接线：一是目录里要有它的条目：写在插件包的 `src/registration.ts`（导出 `registration: PluginRegistration`，Manifest、`summary`、`workbench` 次序与客户端资源都在里面；`package.json` 声明 `exports["./registration"]` 与 `"molis-work": { "registration": "./registration" }`），运行 `node scripts/generate-plugin-registry.mjs` 生成 `apps/workbench/src/builtin-plugins.ts`（不手改，`pnpm health:check` 跑它的 `--check`），它在登记表里的那一条是自己 `package.json` 的 `molis-work` 块，两个应用与根 `package.json` 里对它的依赖也由生成器写，再跑 `pnpm install`（PG-069，包外不手改一个文件）（`tests/builtin-plugin-assembly-gate.test.ts` 从生成的登记读 Runtime 装配的 id，不用改）；二是主区由 Host 经 `plugin_stages` 按插件 Manifest 的 `views` 与 `stage_data` 通用渲染（`apps/local-host/src/project-plugin-stages.ts` 与 `installedPluginStages`，已无插件专用读取文件，原 `web-goals-read.ts` 已随第 44 批删除）。
 
@@ -94,7 +74,7 @@ node dist/cli/main.js plugin validate "$plugin_dev_dir/sample/manifest.json"
 node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state" storage:private,artifact:write,artifact:read,ui:register --allow-unsigned-development
 ```
 
-`node dist/cli/main.js` 就是 Molis Work 本体的命令 `molis-work`，contracts、SDK 两个包里没有它。装过 Home 的（见[安装](../installation.md)）也可以写 `~/.molis-work/bin/molis-work plugin …`，参数一样，它不在 PATH 上；公开安装包还没发布。仓库里的独立工具 `molis-work-plugin`（`tooling/plugin-cli`）能 `validate`、`create`、`pack`、签名，但今天装不到仓库外面（[BL-plugin-cli-standalone-install](../../specs/backlog/BL-plugin-cli-standalone-install.md)），也没有 Host：`dev`、`install` 在它上面报 `plugin.host_required`，要换成 `molis-work plugin …`。插件代码跑在 `molis-work` 的进程里，Node 版本跟它走（24.15.x，仓库的 `.nvmrc`）。
+`node dist/cli/main.js` 就是 Molis Work 本体的命令 `molis-work`，contracts、SDK 两个包里没有它。装过 Home 的（见[安装](../installation.md)）也可以写 `~/.molis-work/bin/molis-work plugin …`，参数一样。安装 npm 产品包的项目可用 `npx --no-install molis-work` 调同一个入口。仓库里的独立工具 `molis-work-plugin`（`tooling/plugin-cli`）能 `validate`、`create`、`pack`、签名，但今天装不到仓库外面（[BL-plugin-cli-standalone-install](../../specs/backlog/BL-plugin-cli-standalone-install.md)），也没有 Host：`dev`、`install` 在它上面报 `plugin.host_required`，要换成 `molis-work plugin …`。插件代码跑在 `molis-work` 的进程里，Node 版本跟它走（24.15.x，仓库的 `.nvmrc`）。
 
 `dev` 会真实安装、启动、检查连接、poll 一次、渲染已注册 UI（声明了 `ui.locales` 的，用 `--locale <语言>` 选语言，见下一节），最后卸载运行实例并撤销 UI/授权上下文。输出 JSON 包含健康状态、poll 结果、各个 Artifact 版本、渲染 HTML 和最终安装记录；退出码 0 表示该次健康检查与 poll 成功。它不打开浏览器，也不把 HTML 渲染成功称为用户交互已验收。
 
@@ -129,12 +109,12 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 - **显示名与多语言 `title_text`**：每个产出类型有非空的 `title`，成果库用它给人看；可同时声明本插件的 `title_text`（`{ "key": "<前缀>.artifacts.type-title" }`，默认语言须提供不超过 80 字的无参单行短句，多语言缺词时按默认语言优雅回退，规则见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md#目录和连接服务的文字)）。
 - **预览**：每个产出类型有 `preview`，指向本 Manifest 里用 `defineArtifactPreviewAction` 定义的预览查询，并用 `bindArtifactPreview` 绑定处理器（Runtime 要求 Manifest 声明的动作都有处理器）。
 - **固定与比较**：对象可以当场固定成新一版的类型写 `pin`，指向 `defineArtifactPinAction` 定义的命令，且只对一种对象（`subject_kinds` 恰好一个）；写了 `pin` 就必须同时写 `compare`（`defineArtifactCompareAction` 的查询），成果库才能告诉人「原文已改」。
-- **继续**：能从一版新建自己的工作对象的插件写 `continue`（`defineArtifactContinueAction` 的命令）；产出的类型和只读的类型（`artifacts.consumes`）上都可以写。
-- **能继续哪些导入的文件**：成果库把导入的文件列给「从这一版继续」时，名单是登记表里该类型的续写者，再按续写者声明的 `consumes[].file` 过滤：`extensions` 是它能读的小写、带点的扩展名（非空、不重复），`stored_text: true` 表示导入时只存了正文的文件（原件过大）只要正文非空也算；没写 `file` 就收所有文件，写了 `file` 必须同时写 `continue`。声明只决定列不列，续写动作仍走动作授权，声明扩展名的插件也拿不到文件正文；宿主里不点名任何插件的文件类型。过滤在 `apps/local-host/src/artifact-type-registry.ts` 的 `continuerReadsFile`，形状检查在 `packages/plugin-sdk/src/artifact-declarations.ts`。成果类型登记表由全部有效安装的 Manifest 派生，类型 id 与链接种类在整个 Home 里只有一个属主（S-81、S-82）。
+- **继续**：能从一版成果新建对象的插件，用动作的 `intake.accepts` 声明 `kind: "artifact"` 和具体 `artifact_types`，并兑现动作的业务写入。
+- **导入文件**：继续入口在该 `accepts` 条目的 `file` 中声明可读扩展名和已保存的正文要求。匹配结果决定哪些入口可见，执行时仍需动作授权。
 - **都在本插件里**：这些引用只认本 Manifest 的 `actions`，同时核对种类与 `operation`（预览、比较是查询，固定、继续是命令）；指向别的插件的动作、不存在的动作、种类不对的动作都被拒绝。
 - **成果要有预览**：现行 Manifest 的 `schema_version` 和 `host_api_version` 都是 1。产出成果类型的插件在同一份声明里提供预览动作。只在插件之间交换数据、不需要人留存的，声明成 `process_items`（过程项），不进成果库，也就不要名称和预览。
 
-跨插件的规则（一种类型一个 owner、一种对象至多一个固定者、哪些类型可以没有「继续」）仍只对内置插件，由 `tests/artifact-type-gate.test.ts` 守。2026-10-18 改：插件不分官方与第三方、待遇一样，这条「只对内置」的做法要在防腐线里改成对所有插件一致，见 `specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。校验的测试在 `tests/action-artifact-references.test.ts`。
+`plugin validate` 用 SDK 检查当前清单的类型和预览动作声明。安装时，Runtime 另查整个 Home 内各安装持有的成果类型和链接种类；已停用或卸载但保留数据的安装继续持有名字，其他主人登记相同名字会被拒绝。仓库的内置目录门禁额外检查每个对象种类的固定者和续写覆盖。新插件用自己的插件 ID 命名成果类型，并在保存、消费和预览时引用同一份清单。[安装规则](../../packages/plugin-runtime/src/install-rules.ts) · [内置目录检查](../../tests/artifact-type-gate.test.ts)
 
 ## 作者 API 与公共测试入口
 
@@ -480,7 +460,7 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 - 声明写在 Manifest 的 `methods`（`PluginMethodDeclaration`）：`skill_id`、`version`、`name`、`summary`、`tools`、`description`（什么时候用）和 `applies_to`（`assistant`／插件在 Manifest `memory_scene` 申报的场景名，如 Coding 的 `coding`／`both`）必填，可选 `when_to_use`、`when_not_to_use`、`user_invocable`、`argument_hint`、`native_only_reason`、`resources`、`connector_categories`；声明之外的键点名拒绝。内置插件、沙箱包、只有声明的插件写的是同一种，过 SDK 的同一个检查（`parsePluginManifest` 里那一份）。
 - `tools` 只能是 `SKILL_TOOLS`（能力网关 find/read/change-capability、suggest-action，加上 ask-user、update-todo 等不碰目录的工具），而且只是说明：一轮开始时宿主只取「技能写的 ∩ 角色有的」，技能永远不扩大角色的工具。
 - 正文：内置插件与按源码装的插件放在 `PluginDefinition.methods`（`AgentSkillDefinition[]`），标识、版本与 Manifest 一致，插件启动时登记、停用和卸载时收回、升级后登记新版本（`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，用例 `tests/plugin-methods-runtime.test.ts`）。签名包（沙箱包、内容包）的正文是包里的 `skills/<skill_id>/SKILL.md`，由 SDK 的 `readPackagedSkills` 读。声明了却没有正文的不登记，开发者诊断里会说明；主人是平台自己登记的（助理、插件创作台）时，定义被拒绝启动。
-- 只做技能、不带代码的，打成只有声明的插件的内容包：`molis-work-plugin pack-content`（见[沙箱包格式与安装](#沙箱包格式与安装)与 [CLI 文档](../../tooling/plugin-cli/README.md#内容包)），frontmatter 的读法是 SDK 的 `skillDeclarationFromFrontmatter`。
+- 只做技能、不带代码的，打成只有声明的插件的内容包：`"$molis_cli" plugin pack-content`（见[沙箱包格式与安装](#沙箱包格式与安装)与 [CLI 文档](../../tooling/plugin-cli/README.md#内容包)），frontmatter 的读法是 SDK 的 `skillDeclarationFromFrontmatter`。
 - 与 `agent.skills` 的区别：`agent.skills` 是插件自己的 Agent 用的方法；`methods` 给别的 Agent 用。
 - 装上以后进这个范围的技能目录（`system.skills`：`skills.catalog.list@1`、`skills.body.read@1`、`skills.settings.set@1` 等），每项带精确引用 `SkillRef`。默认关，本人在「设置 › 能力包」里选自动（助理、Coding 按适用条件自己选用，只把名称和说明放进每轮）或仅手动（只有本人点名那一轮用：助理里 `/`，Coding 里「选择方法」）。开轮时宿主按 `SkillRef` 冻结这一版正文；升级、停用、卸载后要重选，不自动换新版本。助理交活给 Coding 时，这一轮点名的技能随委派带过去。
 - 技能 `scripts/` 里的脚本今天不执行（[BL-skill-scripts-sandbox](../../specs/backlog/BL-skill-scripts-sandbox.md)）。
@@ -546,6 +526,8 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 ## 打包与签名
 
+用 `molis_cli="$HOME/.molis-work/bin/molis-work"` 指向安装版应用。可复制的开发与发布副本、Ed25519 密钥和独立验签命令见[随包签名配方](../../skills/molis-plugin-dev/authoring.md#打包与签名)。
+
 `molis-work plugin pack <source> <bundle.json>` 只包含 package.json 的显式 files 以及 package.json/manifest.json，拒绝目录跳转和符号链接；不执行安装脚本、不自动收集依赖。样例运行依赖同版本的公开 SDK 分发包，bundle 本身不是独立安装器。JSON bundle 上限 64 MiB，输出文件不覆盖已有文件。
 
 对真正要签名的包，先用 `molis-work plugin identity <public.pem>` 取得 Ed25519 公钥绑定身份，作为 create 的 binding-signature；再 pack。`sign <bundle.json> <private.pem> <signed.json>` 必须显式指定私钥文件，身份须与 Manifest 一致。`verify <signed.json> <trusted-public.pem>` 使用调用者信任的公钥校验全部包内文件与 Manifest；没有签名、内容被改、发布者不符都会失败。也可用 Runtime 的 `PluginPackageSigner` 对接发布环境，避免把密钥暴露给应用。
@@ -556,9 +538,9 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 上面 `pack` 打的是在 Host 进程之外自己运行的插件源码包。另一种包在 Home 里跑在**沙箱**里：代码是一个入口文件，界面由 Host 按声明画，不带任何页面脚本。它是公开格式，任何作者都可以做：创作台发布只是其中一个作者，Host 读它的代码里没有创作台的任何实现。类型在 `@molis-ai/molis-work-contracts/platform/plugin`（`SANDBOX_PACKAGE_FILES`、`SandboxPackageManifest`、`SandboxPackageInterface`、`SandboxPackagePrompt`），沙箱合同的类型在 `platform/plugin-sandbox`。
 
-作者可用 `molis-work-plugin pack-sandbox <源目录> <输出.json> --name <名称> --version <版本> --publisher-id <发布者> --publisher-key-id <指纹> [--scope home]` 生成 wire 清单和未签名包，再沿既有 `sign` / `verify` 签验。可选图标、兼容版本和文字声明参数见 [CLI 文档](../../tooling/plugin-cli/README.md#沙箱包)。SDK 的 `sandboxPluginManifest`、`sandboxIntegrationManifest` 和 `effectsFromContract` 是 Host、CLI 与创作台共用的生成实现；作者只需 contracts 和 plugin-sdk。
+作者可用 `"$molis_cli" plugin pack-sandbox <源目录> <输出.json> --name <名称> --version <版本> --publisher-id <发布者> --publisher-key-id <指纹> [--scope home]` 生成 wire 清单和未签名包，再沿既有 `sign` / `verify` 签验。可选图标、兼容版本和文字声明参数见 [CLI 文档](../../tooling/plugin-cli/README.md#沙箱包)。SDK 的 `sandboxPluginManifest`、`sandboxIntegrationManifest` 和 `effectsFromContract` 是 Host、CLI 与创作台共用的生成实现；作者只需 contracts 和 plugin-sdk。
 
-只带技能、不带代码的插件（只有声明的插件，`kind: "content"`）用 `molis-work-plugin pack-content <技能目录> <输出.json> --plugin-id <id> --name <名称> --version <版本> --publisher-id <发布者> --publisher-key-id <指纹> [--scope home]` 打成内容包，同样用 `sign` / `verify` 签验，见 [CLI 文档](../../tooling/plugin-cli/README.md#内容包)。打包函数是 SDK 的 `skillFromFolder` / `contentPackagePayload`，宿主「从本机导入技能」（`skills.import.preview`／`confirm`）用的是同一个，签名用这个 Home 的发布身份。内容包装上后已声明、不启动：没有执行进程，技能由宿主按声明登记。
+只带技能、不带代码的插件（只有声明的插件，`kind: "content"`）用 `"$molis_cli" plugin pack-content <技能目录> <输出.json> --plugin-id <id> --name <名称> --version <版本> --publisher-id <发布者> --publisher-key-id <指纹> [--scope home]` 打成内容包，同样用 `sign` / `verify` 签验，见 [CLI 文档](../../tooling/plugin-cli/README.md#内容包)。打包函数是 SDK 的 `skillFromFolder` / `contentPackagePayload`，宿主「从本机导入技能」（`skills.import.preview`／`confirm`）用的是同一个，签名用这个 Home 的发布身份。内容包装上后已声明、不启动：没有执行进程，技能由宿主按声明登记。
 
 创作台首次发布前可选择项目或个人空间。切换范围会作废旧范围的通过结果，并按新范围重新检查已有源码和界面；不会为重验调用模型。首份发布固定该草稿的范围。发布在原五文件旁保存独立签名分发包，下载后在插件设置中导入，查看指纹、范围和权限，再由本人命名固定并确认；本机生成不等于已经信任。已有 agent-built 项目安装沿用原身份和数据，签名包不自动替换它。每个 Home 的签名私钥归现有 SecretStore，公开身份记录在 `config/plugin-publisher.json`；删除项目和普通卸载保留，显式 Home purge 才移除。身份缺失、不匹配或已撤销时拒绝发布，不能自动换钥绕过。
 
@@ -572,7 +554,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 | `interface.json` | `{ parts, nodes, presentation?, acceptance?, ui? }`：界面零件（`parts`，1–100 个）、每个零件选用的组件（`nodes`）、可选的整体呈现、验收步骤和对象挂载位；零件读写的操作必须是合同里有的 |
 | `prompts.json` | 数组（可为空，至多 64 项），每项 `{ id, title, purpose, body }`，`id` 为小写字母数字与连字符，`body` 不超过 8000 字 |
 
-沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限包含 `storage:private` 以及合同声明的项目存在性、模型和生图服务所派生的可选权限，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher`、`upgrade_compatibility`、`runtime`（只能写 `{ scope: "home" }`，见下）、文字数组 `agent`、方法声明 `methods` 和 stage 视图的 `icon`（取值限平台图标集，即 SDK `/ui` 的 `PLUGIN_ICON_NAMES`；不写就画 `package`，写了集合外的名字，签名和预览都以 `plugin.declaration_invalid` 拒绝）。所以沙箱包不能声明默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
+应用型沙箱包用 `kind: "app"`，入口为 `./plugin.mjs`。SDK 从操作的实际效果派生权限，平台提供 `POST /call` 及声明的界面。作者可以提供发布身份、版本、名称和摘要的翻译、兼容来源、作用域、图标、个人库或项目库、状态机、角色资料与方法。四个 app 源文件和选项见 `"$molis_cli" plugin --help` 与[打包器](../../tooling/plugin-cli/src/pack-sandbox.ts)；三文件集成包使用下文的集成合同和 SDK 的 `sandboxIntegrationManifest`。
 
 可选的 `interface.ui` 只收 `slots`。同一贡献派生方法用于项目或个人空间的原 stage；运行时从已验证的签名发行物登记，未声明挂载位的包沿用原页。挂载位的读操作提供引用，真实值及操作由工作台父区域处理；隔离页只得预留结果。完整部件与节点写法见[插件界面开发说明](../../skills/molis-plugin-dev/ui.md#生成插件的页面组合)。
 

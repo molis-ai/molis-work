@@ -10,7 +10,18 @@ test('GSYNC-04 GSYNC-05 offline archive/trash, lost receipts, restart and explic
   f.offline();
   f.edit(0, app => app.goals.lifecycle.setArchived(p, { goal_id: 'goal-main', archived: true, reason: '离线归档' }, { actor_id: 'alice', idempotency_key: 'archive' }));
   await f.clients[0]!.run(); assert.match(f.clients[0]!.status().error!, /test_offline/);
-  f.online(); f.drop(); await f.clients[0]!.run(); await f.run();
+  f.online(); f.drop(); await f.clients[0]!.run();
+  // QRF-10: the server applied this operation, but the sender did not receive its receipt.
+  const frozen = f.replica(0, replica => replica.next());
+  assert.ok(frozen);
+  assert.equal(f.events.filter(event => event.operationId === frozen.operationId).length, 1);
+  f.restart(0);
+  assert.equal(f.replica(0, replica => replica.next())?.operationId, frozen.operationId);
+  await f.run();
+  const delivered = f.events.length;
+  await f.run();
+  assert.equal(f.events.length, delivered);
+  assert.equal(f.events.filter(event => event.operationId === frozen.operationId).length, 1);
   assert.equal(f.edit(1, app => app.goalQueries.getGoal(p, 'goal-main')!.archived_at !== null), true);
   for (const i of [0, 1]) f.edit(i, app => app.goalEvents.createIntent({ project_id: p, goal_id: `extra-${i}`, title: `并发 ${i}`, actor_id: 'runtime-1', actor_kind: 'runtime', idempotency_key: `extra-${i}` }));
   await f.run(); const conflict = f.replica(1, r => r.conflicts()[0]); assert.ok(conflict);

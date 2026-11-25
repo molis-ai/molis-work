@@ -1,7 +1,8 @@
 import { openSelectedHomePage, readPrunedHomePageVersions } from "@molis-ai/molis-work-service-home";
 import { BASELINE_SKIN } from "@molis-ai/molis-work-design-system";
 import type { ActionCallContext, ActionExecutionContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HomePageVersion } from "@molis-ai/molis-work-contracts/services/home";
+import { liveObservation } from "./observation-live.js";
+import { HOME_PAGE_SUBJECT_KIND, type HomePageVersion } from "@molis-ai/molis-work-contracts/services/home";
 import { HOME_PAGES_BASELINE, HOME_PAGES_HOME_STORE, HomePagesStore, type HomePagesPorts } from "@molis-ai/molis-work-service-home";
 import { heldHomeSqlite } from "@molis-ai/molis-work-storage";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -59,6 +60,14 @@ export function homePagesPorts(
     openPreviewSession: (caller: ActionExecutionContext, version: HomePageVersion) => {
       const { page_session_id } = pluginPagesFor(homeDirectory).homePages.openPreview(caller.project_id!, caller.actor_id, version);
       return { page_session_id };
+    },
+    recordSelection: (caller, stage, page, revision, requestId) => {
+      liveObservation(homeDirectory)?.sink("home").bind(caller).record({
+        fact: "home.selection", stage, outcome: "succeeded", work: { work_ref: page.page_id },
+        subjects: [{ kind: HOME_PAGE_SUBJECT_KIND, id: page.page_id, version: page.version }],
+        detail: { receipt_id: revision }, evidence: [{ role: "receipt", ref: { kind: "content", media_type: "application/json",
+          text: JSON.stringify({ stage, request_id: requestId, page_id: page.page_id, version: page.version, revision }) } }],
+      });
     },
     onSelectionChanged: (projectId: string) => {
       pluginPagesFor(homeDirectory).homePages.revokeLiveProject(projectId);

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 // specs/artifact-positioning A4b: in a 成果 version's detail, choose a Goal and record the version as its input.
@@ -15,8 +16,18 @@ for (const width of [1440, 390]) {
       producer: { plugin_id: "io.molis.work.pages", plugin_version: "1.0.0", binding_signature: "official-pages-binding" },
       content: { kind: "inline", payload: { title: "需求说明", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "范围与验收" }] }] } } },
       ...pinnedArtifact("需求说明", { kind: "pages_document", id: "brief" }, "1") });
-    await navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/artifacts/pages-brief/versions/1` }, sessionId));
-    await waitFor("document.body.dataset.desktopSurface === 'artifacts' && Boolean(document.querySelector('[data-artifact-attach-target] summary'))", 15_000);
+    // QRF-06: the Goal form is available even while a real Assistant reference response is still on its way.
+    const subject = encodeURIComponent(JSON.stringify(["pages-brief", 1]));
+    const barrier = await sendBarrier(b, [{ urlPattern: `*/api/assistant/related*id=${subject}`, requestStage: "Response" }]);
+    try {
+      await navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/artifacts/pages-brief/versions/1` }, sessionId));
+      await waitFor("document.body.dataset.desktopSurface === 'artifacts' && Boolean(document.querySelector('[data-artifact-attach-target] summary'))", 15_000);
+      const held = await barrier.next();
+      assert.equal(held.responseStatusCode, 200);
+      assert.equal(await evaluate("document.querySelector('[data-artifact-no-references]').hidden"), true);
+      await barrier.release(held);
+    } finally { await barrier.close(); }
+    await waitFor("document.querySelector('[data-artifact-no-references]')?.checkVisibility()", 15_000);
     assert.match(await evaluate<string>("document.querySelector('[data-artifact-links]').innerText"), /还没有引用这一版的对象/);
 
     await click("[data-artifact-attach-target] summary");

@@ -167,6 +167,8 @@
 
 ## 梳理记录
 
+- 2026-11-24：[系统质量复查修复](archive/system-quality-fixes/spec.md)归档。负责人 Codex。10 组反例及评审补充用例见 [PR #2315](https://github.com/molis-ai/molis-work/pull/2315)。
+
 - 2026-11-24：[架构复核整改与验收证据](archive/review-evidence-maintenance/spec.md)归档（已实现，负责人 Codex）。创作台答卷与刷新、验收编号报告及其回归已随 [#2306](https://github.com/molis-ai/molis-work/pull/2306) 合入 `main`。
 
 - 2026-11-24：[插件折叠、连接动效与日程重试](archive/shared-ui-folds/spec.md)归档。负责人 Codex。SCF-01 至 SCF-03 的插件入口与组件板验证见需求书。

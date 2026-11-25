@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
+import { fileIndex, headingAnchors, markdownLinks, readMarkdown } from "../scripts/gates/markdown.mjs";
 import { createMolisWorkNpmPackageDirectory } from "@molis-ai/molis-work-app-local-host";
 
 const exec = promisify(execFile);
@@ -15,7 +16,8 @@ test("npm staging packs workspace assets without host binaries or modifying the 
   const manifestBefore = await readFile(path.join(source, "package.json"));
   try {
     const output = path.join(temporary, "package");
-    await createMolisWorkNpmPackageDirectory({ sourceDirectory: source, destinationDirectory: output });
+    const revision = (await exec("git", ["rev-parse", "HEAD"], { cwd: source })).stdout.trim();
+    await createMolisWorkNpmPackageDirectory({ sourceDirectory: source, destinationDirectory: output, sourceRevision: revision });
     assert.deepEqual(await readFile(path.join(source, "package.json")), manifestBefore);
     const published = await readFile(path.join(output, "package.json"));
     // The Feishu/Lark connector's package travels as a registry dependency at the exact version Local Host pins. The workspace's
@@ -70,6 +72,43 @@ test("npm staging packs workspace assets without host binaries or modifying the 
     assert.ok(files.has("skills/molis-plugin-dev/host.md"));
     assert.ok(files.has("skills/molis-plugin-dev/authoring.md"));
     assert.ok(files.has("skills/molis-plugin-dev/integrations.md"));
+    // QRF-08: follow the shipped author's guide offline. For optional source references,
+    // check the original tracked target and anchor at the exact commit linked by the packager.
+    const archiveRoot = path.join(extracted, "package");
+    const blob = `https://github.com/molis-ai/molis-work/blob/${revision}/`;
+    const tree = `https://github.com/molis-ai/molis-work/tree/${revision}/`;
+    const paths = fileIndex([...files]);
+    for (const name of files) {
+      if (!name.startsWith("skills/molis-plugin-dev/") || !name.endsWith(".md")) continue;
+      const text = await readFile(path.join(archiveRoot, name), "utf8");
+      for (const { target } of markdownLinks(readMarkdown(text).prose)) {
+        const [destination = "", fragment] = target.split("#");
+        if (destination.startsWith(blob) || destination.startsWith(tree)) {
+          const sourcePath = decodeURIComponent(destination.replace(blob, "").replace(tree, ""));
+          const object = `${revision}:${sourcePath}`;
+          const type = (await exec("git", ["cat-file", "-t", object], { cwd: source })).stdout.trim();
+          assert.equal(type, destination.startsWith(tree) ? "tree" : "blob", `${name} → ${target}`);
+          if (fragment && sourcePath.endsWith(".md")) {
+            const { stdout: committed } = await exec("git", ["show", object], { cwd: source, maxBuffer: 8 * 1024 * 1024 });
+            assert.ok(headingAnchors(committed).has(decodeURIComponent(fragment)), `${name} → ${target}`);
+          }
+          continue;
+        }
+        if (/^[a-z]+:/iu.test(destination)) {
+          if (destination.startsWith("https://github.com/molis-ai/molis-work/")) {
+            assert.doesNotMatch(destination, /\/(?:blob|tree)\//u, `${name} must link to the source revision of this archive: ${target}`);
+          }
+          continue;
+        }
+        const relative = destination ? path.posix.normalize(path.posix.join(path.posix.dirname(name), destination)) : name;
+        assert.ok(paths.has(relative), `${name} → ${target}`);
+        const filename = path.join(archiveRoot, relative);
+        await stat(filename);
+        if (fragment && filename.endsWith(".md")) {
+          assert.ok(headingAnchors(await readFile(filename, "utf8")).has(decodeURIComponent(fragment)), `${name} → ${target}`);
+        }
+      }
+    }
     assert.ok(files.has("vendor/search-evidence-layer/sbom.cdx.json"));
     assert.ok(files.has("vendor/prologue-sdk/README.md"));
     assert.ok(files.has("node_modules/@prologue/sdk/package.json"));

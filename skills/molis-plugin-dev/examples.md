@@ -54,7 +54,7 @@ Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `r
 
 ## Sessions / Shelf / Artifacts / Goals
 
-- Sessions：已下线（SC-4），重做见 BL-177；终端传输留在 Host，由终端工作区使用。
+- 旧 Sessions 插件已退役。当前外部 AI 会话接入由平台的 `horizontal/sessions` 服务负责，终端传输归宿主。第三方插件可参照本页的插件样例。
 - Shelf：平台模块 `modules/shelf`，管理置物架文件与摘录。
 - Artifacts：打开已保存成果和版本。
 - Goals：树、画布、提案、决定。采用/退回是对象处置，同样先不要塞进 Feed/Inbox 池。

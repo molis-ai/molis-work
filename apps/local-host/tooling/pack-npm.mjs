@@ -10,8 +10,12 @@ const outputDirectory = path.resolve(process.argv[2] ?? path.join(sourceDirector
 await mkdir(outputDirectory, { recursive: true });
 const temporary = await mkdtemp(path.join(tmpdir(), "molis-work-npm-pack-"));
 try {
+  let sourceRevision;
+  try {
+    sourceRevision = execFileSync("git", ["rev-parse", "--verify", "HEAD"], { cwd: sourceDirectory, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch { /* Staging a source export can still identify source-only references by path. */ }
   const { directory } = await createMolisWorkNpmPackageDirectory({
-    sourceDirectory, destinationDirectory: path.join(temporary, "package"),
+    sourceDirectory, sourceRevision, destinationDirectory: path.join(temporary, "package"),
   });
   const output = execFileSync("npm", ["pack", "--ignore-scripts", "--json", "--cache", path.join(temporary, "cache"),
     "--pack-destination", outputDirectory], { cwd: directory, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });

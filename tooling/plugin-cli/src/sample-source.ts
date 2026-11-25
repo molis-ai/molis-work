@@ -3,9 +3,8 @@ import type { PluginPermissionDeclaration, StateMachineDeclaration } from "@moli
 import { defineArtifactPreviewAction } from "@molis-ai/molis-work-plugin-sdk";
 
 /** The 成果 type the sample pins, and the name and preview action every pinned type must declare (specs/artifact-positioning A1/A7). */
-export const SAMPLE_ARTIFACT_TYPE_ID = "com.example.note";
 export function sampleArtifactType(pluginId: string): { artifact_type_id: string; schema_version: number; title: string; preview: { capability_id: string; version: number } } {
-  return { artifact_type_id: SAMPLE_ARTIFACT_TYPE_ID, schema_version: 1, title: "Sample result", preview: { capability_id: `${pluginId}.results.preview`, version: 1 } };
+  return { artifact_type_id: `${pluginId}.result`, schema_version: 1, title: "Sample result", preview: { capability_id: `${pluginId}.results.preview`, version: 1 } };
 }
 
 /** Permissions declared by the generated local sample, each with a localized `reason_text` key. */
@@ -58,6 +57,7 @@ import manifest from "./manifest.json" with { type: "json" };
 
 /** Where the sample says its results come from. */
 const SAMPLE_SOURCE = "Tom's R&D notes";
+const resultType = manifest.artifacts.produces[0];
 const resultMachine = defineStateMachine({
   ...manifest.state_machines[0],
   transitions: { save: { from: ["empty", "saved"], to: "saved" } },
@@ -88,7 +88,7 @@ export default definePlugin({
       resultMachine.assert(count === 0 ? "empty" : "saved", "save");
       const version = count + 1;
       services.artifacts.publish({
-        artifact_id: artifactId, version, artifact_type_id: "com.example.note", schema_version: 1,
+        artifact_id: artifactId, version, artifact_type_id: resultType.artifact_type_id, schema_version: resultType.schema_version,
         content: { kind: "inline", payload: { title: "Local sample result", sequence: version } },
         // A 成果 says what it pins, what it is called and what its content is.
         origin: { kind: "pinned", subject: { kind: "counter", id: "sample" }, revision: String(version) },
@@ -129,7 +129,7 @@ export default definePlugin({
       bindOwnerPluginAction(context, readAction, () => { const count = savedCount(); return { count, latest: count ? resultAt(count) : null }; }),
       bindOwnerPluginAction(context, publishAction, () => publishResult()),
       // The owner's half of the preview the 成果库 and the side panel show: this plugin's own type, as text.
-      bindArtifactPreview(previewAction, "com.example.note", artifact => ({
+      bindArtifactPreview(previewAction, resultType.artifact_type_id, artifact => ({
         media_type: "text/markdown", text: "# " + artifact.payload.title + "\\n\\nResult " + artifact.payload.sequence + "\\n",
       })),
     ] };

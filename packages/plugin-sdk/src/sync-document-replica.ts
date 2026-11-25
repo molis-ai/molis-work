@@ -24,7 +24,7 @@ export function documentReplica<T>(access: DocumentAccess<T>): SyncReplicaAdapte
       });
     }),
     counts: () => inspect(state => ({ pending: new Set([...state.changes.map(row => row.key),...state.outbox.map(row=>row.operation.key)]).size, conflicts: state.conflicts.length })),
-    conflicts: () => inspect(state => state.conflicts.slice(0, 100).filter(row=>documentKeyVisible(access,state,row.event.key,row.event.value)).map(row => ({ key: row.event.key, reason: row.reason, waiting: row.waiting }))),
+    conflicts: () => inspect(state => state.conflicts.filter(row => documentKeyVisible(access, state, row.event.key) && documentKeyVisible(access, state, row.event.key, row.event.value)).map(row => ({ key: row.event.key, reason: row.reason, waiting: row.waiting }))),
     next: options => transaction(state => {
       const eligible = (key: string) => !options?.excludeKeys?.includes(key) && !state.conflicts.some(row => row.event.key === key) && owner.canUpload?.(state.data, key) !== false;
       const frozen = state.outbox.find(row => eligible(row.operation.key) && (!options?.deletionsOnly || row.operation.value === null));

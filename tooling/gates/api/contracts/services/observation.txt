@@ -59,6 +59,8 @@ export declare const OBSERVATION_SERVICE_PREFIXES: {
     readonly shell: "ui";
     readonly agent: "agent";
     readonly assistant: "assistant";
+    readonly home: "home";
+    readonly automation: "automation";
     readonly scheduler: "scheduler";
     readonly connections: "connections";
     readonly grants: "grants";
@@ -290,6 +292,8 @@ export interface ObservationHoldPutInput {
     readonly hold_id: string;
     readonly sample_id: string;
     readonly owner?: string;
+    readonly require_same_identity?: boolean;
+    readonly append_records?: boolean;
     readonly project_id?: string | null;
     readonly record_ids: readonly string[];
     readonly expires_at?: string | null;
@@ -303,6 +307,12 @@ export interface ObservationHoldPutResult {
 }
 
 export interface ObservationHoldReleaseInput {
+    readonly targets?: readonly Pick<ObservationHoldView, "owner" | "sample_id" | "hold_id">[];
+    readonly version_series?: {
+        readonly owner: string;
+        readonly sample_id_prefix: string;
+        readonly hold_id_prefix: string;
+    };
     readonly hold_id?: string;
     readonly sample_id?: string;
 }
@@ -318,6 +328,7 @@ export interface ObservationHoldView {
     readonly sample_id: string;
     readonly project_id: string | null;
     readonly record_ids: readonly string[];
+    readonly missing_record_ids?: readonly string[];
     readonly active_record_count: number;
     readonly bytes: number;
     readonly created_at: string;
@@ -363,6 +374,7 @@ export interface ObservationOwnerVersionRef {
 }
 
 export interface ObservationQueriedRecord extends ObservationRecord {
+    readonly provider_id?: string;
     readonly seq: number;
     readonly kind: ObservationRecordKind;
     readonly late: boolean;
@@ -370,9 +382,11 @@ export interface ObservationQueriedRecord extends ObservationRecord {
 }
 
 export interface ObservationQueryInput {
+    readonly record_ids?: readonly string[];
     readonly use?: ObservationUse;
     readonly project_id?: string | null;
     readonly all_projects?: boolean;
+    readonly replay_id?: string;
     readonly work_ref?: string;
     readonly call_id?: string;
     readonly invocation_id?: string;

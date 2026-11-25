@@ -1,3 +1,5 @@
+import { newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
+import { createHash, randomUUID } from "node:crypto";
 import {v2AccountPeer} from './fixtures/v2-account-peer.js';
 import {completeInstallationLogin} from './fixtures/installation-login.js';
 import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
@@ -79,11 +81,27 @@ test('ASR-02/03/06 shipped stdio and CLI explicitly connect current A/B/A while 
   const caller={actor_id:'runtime:account-process-test',project_id:null,audience:'mcp' as const,permissions:[]};
   const oldGateway=new LocalActionGatewayClient({url:origin,homeDirectory:attached.homeDirectory,credentialHomeDirectory:home,clientId:caller.actor_id,projectId:null});await oldGateway.discover(caller);
   const oldA=await stdio();assert.ok((await projects(oldA)).some(project=>project.project_id===a.project_id));await snapshot(a);
+  // QRF-08/09 S-84: keep the personal Home and credential a CLI received from the resident installation.
+  const packageFile = join(home, 'signed-package.json');
+  const bundle = signedPackage(newPublisher());
+  writeFileSync(packageFile, JSON.stringify(bundle));
+  const homeId = createHash('sha256').update(attached.homeDirectory).digest('hex');
+  const previousInstall = () => fetch(origin + '/api/internal/plugin-install', { method: 'POST',
+   headers: { Origin: origin, 'content-type': 'application/json', 'x-molis-work-home-id': homeId,
+    'x-molis-work-control-token': attached.controlToken, 'x-molis-work-idempotency-key': randomUUID() },
+   body: JSON.stringify({ home_id: homeId, project_id: a.project_id, bundle }) });
+  assert.equal((await previousInstall()).status, 200, 'the original attachment can preview its own package');
   await login('bob');const b=(await json('/api/settings/projects',{display_name:'Bob process project',user_confirmed:true})).project;await request('/projects/'+b.project_id);
   assert.equal((await oldA.callTool({name:'molis_work_v1_context_list_projects',arguments:{}})).isError,true);
+  assert.equal((await previousInstall()).status, 403, 'after switching, the original installation attachment can no longer preview');
+  await assert.rejects(cli(['plugin', 'install', packageFile, a.project_id, '--pin-as', 'Example', '--confirm']),
+   (error: unknown) => error instanceof Error && 'stderr' in error
+    && JSON.parse(String(error.stderr).trim().split('\n').at(-1)!).code === 'actions.scope_mismatch',
+   'a fresh CLI attaches to B and cannot install in the real project owned by A');
   const currentB=await stdio(),bProjects=await projects(currentB);assert.ok(bProjects.some(project=>project.project_id===b.project_id));assert.ok(!bProjects.some(project=>project.project_id===a.project_id));
   await assert.rejects(snapshot(a));await snapshot(b);
   await login('alice');
+  assert.equal((await previousInstall()).status, 403, 'returning to the same Home does not renew its retired CLI attachment');
   await assert.rejects(oldGateway.discover(caller),{code:'host.request_refused'},'the old direct client never rereads the renewed A token');
   assert.equal((await oldA.callTool({name:'molis_work_v1_context_list_projects',arguments:{}})).isError,true,'the old shipped process cannot reattach when A returns');
   assert.equal((await currentB.callTool({name:'molis_work_v1_context_list_projects',arguments:{}})).isError,true);

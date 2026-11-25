@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { homeAgentDefinitions, homeConnectorDirectory, homeIntegrationRegistry, offerProjectAutomation, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { observationActions, type ObservationQueryOutput } from "@molis-ai/molis-work-contracts/services/observation";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { AUTOMATION_ADOPTION_PROVIDER_ID, automationAdoptionActions, type AutomationOfferResult, type AutomationReport } from "@molis-ai/molis-work-contracts/services/automation-recommender";
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
@@ -133,6 +134,16 @@ test("§7 AUT-06 AUT-07 AUT-08: the Assistant's card is said once, runs as the p
   assert.ok((await skills()).every(row => row.state === "off"), "nothing turned on is left behind");
   assert.equal((await read()).undoable?.find(row => row.undo_id === undoable.undo_id)?.state, "undone");
 
+  const actor = await fixture.host.localPersonContext();
+  const steps = await fixture.host.homeActionClient().invoke(actor, observationActions.recordsQuery,
+    { use: "evaluation", project_id: project.project_id, work_ref: first.work_id, fact: "automation.adoption" }) as ObservationQueryOutput;
+  const enabled = after.find(row => row.name === on.label)!;
+  assert.deepEqual(steps.records.map(row => [row.stage, row.subjects[0]?.id, row.subjects[0]?.version, row.detail.install_id]), [
+    ["adopted", enabled.ref.skill_id, enabled.settings_revision, enabled.ref.install_id],
+    ["undone", enabled.ref.skill_id, enabled.settings_revision, enabled.ref.install_id],
+  ], "QRF-04: hiding a candidate does not count as adopting it");
+  assert.equal(steps.records[0]!.detail.receipt_id, steps.records[1]!.detail.receipt_id);
+
   // The person's switch: off, the Assistant says nothing in any project.
   assert.deepEqual(await fixture.web.post(recommendations(project) + "/offers", { enabled: false }), { enabled: false });
   await forgetLastLook(fixture.home);
@@ -220,6 +231,10 @@ test("SCAF-02 SCAF-03 an interrupted adoption leaves an undo receipt which a fre
     const saved = await fixture.web.post<AssistantWorkView>(sample.path + "/undo/" + undo.undo_id, {});
     assert.equal(saved.undoable?.find(row => row.undo_id === undo.undo_id)?.state, "undone");
     assert.deepEqual(skills(), []);
+    const viewer = await fixture.host.localPersonContext();
+    const records = await fixture.host.homeActionClient().invoke(viewer, observationActions.recordsQuery,
+      { use: "evaluation", project_id: project.project_id, fact: "automation.adoption" }) as ObservationQueryOutput;
+    assert.deepEqual(records.records.map(row => row.stage), ["adopted","undone"], "the committed partial change and its later reversal remain attributable");
   }
 });
 

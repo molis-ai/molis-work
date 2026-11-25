@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstalledView, PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { HomeConsentLedger } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
+import { installedAccountAuth } from "./fixtures/installed-account.js";
+import { isolatedMcpResident } from "./fixtures/isolated-mcp-resident.js";
 import { residentManagement } from "./fixtures/resident-management.js";
 
 // S-84 (ac-trust T2), the command line's side: `molis-work plugin install` is made to the Home's resident Host, which runs the same two
@@ -23,6 +28,12 @@ const run = promisify(execFile);
 /** The command prints one JSON line; Node may print warnings before it. */
 const json = (text: string) => JSON.parse(text.trim().split("\n").at(-1)!);
 
+function installCli(home: string, origin: string, args: string[]) {
+  return run(process.execPath, ["--import", "tsx", launcher, "plugin", "install", ...args],
+    { env: { ...process.env, MOLIS_WORK_HOME: home, MOLIS_WORK_WEB_URL: origin }, timeout: 120_000 }).then(
+    ok => ({ code: 0, stdout: ok.stdout, stderr: ok.stderr }), (error: { code: number; stdout: string; stderr: string }) => ({ code: error.code, stdout: error.stdout, stderr: error.stderr }));
+}
+
 async function setup(t: Parameters<typeof residentManagement>[0]) {
   const env = await residentManagement(t, { completeText: null });
   const homeId = createHash("sha256").update(resolve(env.home)).digest("hex");
@@ -35,9 +46,7 @@ async function setup(t: Parameters<typeof residentManagement>[0]) {
     assert.deepEqual(new HomeConsentLedger(env.home).publishers(), [], "no publisher was pinned");
     assert.deepEqual(await records(), [], "nothing was installed");
   };
-  const cli = (args: string[], url = env.origin) => run(process.execPath, ["--import", "tsx", launcher, "plugin", "install", ...args],
-    { env: { ...process.env, MOLIS_WORK_HOME: env.home, MOLIS_WORK_WEB_URL: url }, timeout: 120_000 }).then(
-    ok => ({ code: 0, stdout: ok.stdout, stderr: ok.stderr }), (error: { code: number; stdout: string; stderr: string }) => ({ code: error.code, stdout: error.stdout, stderr: error.stderr }));
+  const cli = (args: string[]) => installCli(env.home, env.origin, args);
   return { ...env, homeId, send, records, nothingWritten, cli };
 }
 
@@ -103,4 +112,59 @@ test("RAC-382 S-84 molis-work plugin install previews without --confirm and inst
   const alone = await env.cli([file, env.project.project_id, "--confirm", "--pin-as", "Example"]);
   assert.equal(alone.code, 1);
   assert.equal(json(alone.stderr).code, "actions.service_unavailable");
+});
+
+test("QRF-08 QRF-09 S-84 plugin install attaches to the signed-in installation and installs only in its selected project after confirmation", mac, async t => {
+  const home = await mkdtemp(join(tmpdir(), "installed-plugin-cli-"));
+  const { origin } = await isolatedMcpResident(home);
+  const auth = await installedAccountAuth(home, origin);
+  const previous = process.env;
+  process.env = { ...previous, ...auth.environment };
+  const server = createDesktopWebHost({ ptyClientFilePath: () => "/unused" })({ homeDirectory: home });
+  t.after(async () => {
+    try { await new Promise<void>((done, reject) => server.close(error => error ? reject(error) : done())); }
+    finally {
+      process.env = previous;
+      await auth.close();
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+  await new Promise<void>(done => server.listen(Number(new URL(origin).port), "127.0.0.1", done));
+  const publisher = newPublisher();
+  const file = join(home, "weekly.signed.json");
+  await writeFile(file, JSON.stringify(signedPackage(publisher)));
+  const confirm = ["--pin-as", "CLI Publisher", "--confirm"];
+  const unknownProject = randomUUID();
+  const anonymous = await installCli(home, origin, [file, unknownProject, ...confirm]);
+  assert.equal(anonymous.code, 1);
+  const refusal = json(anonymous.stderr);
+  assert.equal(refusal.installed, false);
+  assert.match(refusal.message, /登录|sign in|ログイン/i);
+
+  const rootToken = (await readFile(join(home, "config/web-control-token"), "utf8")).trim();
+  const account = await auth.login(home, rootToken);
+  const created = await account.request("/api/settings/projects", { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ display_name: "Author's receiver", user_confirmed: true }) });
+  assert.equal(created.status, 201, await created.clone().text());
+  const { project } = await created.json() as { project: { project_id: string } };
+  const overview = async () => {
+    const response = await account.request(`/projects/${encodeURIComponent(project.project_id)}/api/plugin-trust/overview`);
+    assert.equal(response.status, 200, await response.clone().text());
+    return await response.json() as { plugins: PluginInstalledView[]; publishers: PluginPublisherPin[] };
+  };
+  const outside = await installCli(home, origin, [file, unknownProject, ...confirm]);
+  assert.equal(outside.code, 1);
+  assert.equal(json(outside.stderr).code, "actions.scope_mismatch");
+  const preview = await installCli(home, origin, [file, project.project_id, "--pin-as", "CLI Publisher"]);
+  assert.equal(preview.code, 0, preview.stderr);
+  assert.deepEqual([json(preview.stdout).installed, json(preview.stdout).preview.publisher.key_id], [false, publisher.identity]);
+  const before = await overview();
+  assert.equal(before.plugins.some(row => row.plugin_id === PACKAGE_PLUGIN_ID), false);
+  assert.equal(before.publishers.some(row => row.key_id === publisher.identity), false);
+  const confirmed = await installCli(home, origin, [file, project.project_id, ...confirm]);
+  assert.equal(confirmed.code, 0, confirmed.stderr);
+  assert.deepEqual(json(confirmed.stdout).installed, { plugin_id: PACKAGE_PLUGIN_ID, version: "1.0.0", publisher_key_id: publisher.identity });
+  const rows = (await overview()).plugins.filter(row => row.plugin_id === PACKAGE_PLUGIN_ID);
+  assert.deepEqual(rows.map(row => [row.version, row.trust, row.publisher_signature, row.publisher_label, row.state]),
+    [["1.0.0", "pinned", publisher.identity, "CLI Publisher", "running"]]);
 });

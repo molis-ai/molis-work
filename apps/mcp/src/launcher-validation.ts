@@ -6,6 +6,7 @@ export interface McpLauncherValidationContext {
   launcher_path: string;
   home_directory: string;
   plan_id: string;
+  onProtocolError?(step: "initialize" | "tools/list", code: number): void;
 }
 
 // Includes the launcher handshake and the resident's existing 20-second cold start budget.
@@ -26,6 +27,7 @@ export async function validateMolisWorkMcpLauncher(context: McpLauncherValidatio
     });
     let settled = false;
     let buffer = "";
+    let expected = 1;
     const finish = (valid: boolean) => {
       if (settled) return;
       settled = true;
@@ -46,11 +48,19 @@ export async function validateMolisWorkMcpLauncher(context: McpLauncherValidatio
       for (const line of lines.filter(Boolean)) {
         if (settled) break;
         try {
-          const message = JSON.parse(line) as { id?: number; result?: { tools?: unknown[] } };
-          if (message.id === 1) {
+          const message = JSON.parse(line) as { id?: number; result?: { tools?: unknown[] }; error?: { code: number } };
+          if (message.id !== expected) continue;
+          if (message.error || !message.result || typeof message.result !== "object") {
+            finish(false);
+            if (Number.isInteger(message.error?.code)) context.onProtocolError?.(expected === 1 ? "initialize" : "tools/list", message.error!.code);
+            break;
+          }
+          if (expected === 1) {
+            expected = 2;
+            child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
             child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })}\n`);
-          } else if (message.id === 2 && Array.isArray(message.result?.tools)) {
-            finish(true);
+          } else {
+            finish(Array.isArray(message.result.tools));
           }
         } catch {
           finish(false);

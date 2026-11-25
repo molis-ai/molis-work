@@ -66,7 +66,7 @@ export async function executeIsolatedReplay(options: {
   readonly caller: ActionExecutionContext;
   readonly origin: ActionReference;
   readonly clientFor: (caller: ActionCallContext) => ActionClient;
-  readonly runInReplayScope: <T>(fn: () => Promise<T>) => Promise<T>;
+  readonly runInReplayScope: <T>(fn: () => Promise<T>, replayId: string) => Promise<T>;
 }): Promise<{
   readonly blockedExternalEffects: EvaluationReplayReceipt["blocked_external_effects"];
 }> {
@@ -100,7 +100,7 @@ export async function executeIsolatedReplay(options: {
           `隔离回放禁止触发外部副作用动作 ${action.capability_id}（${blockReason}）`,
         );
       }
-      return options.runInReplayScope(() => options.clientFor(ctx).invoke(ctx, action, input));
+      return options.runInReplayScope(() => options.clientFor(ctx).invoke(ctx, action, input), options.replayId);
     },
   };
 
@@ -110,7 +110,7 @@ export async function executeIsolatedReplay(options: {
       sample: options.sample,
       caller: retainedCaller,
       client: guardedClient,
-    }),
+    }), options.replayId,
   );
 
   return { blockedExternalEffects: blocked };

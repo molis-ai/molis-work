@@ -6,7 +6,7 @@ import {
   type ObservationFactInput, type ObservationMissingInput, type ObservationOwner, type ObservationOwnerVersionRef, type ObservationSourceClass, type ObservationSubject,
   type ObservationSubjectResolutionStatus,
 } from "@molis-ai/molis-work-contracts/services/observation";
-import { currentObservationSource } from "./source-scope.js";
+import { currentEvaluationReplayId, currentObservationSource } from "./source-scope.js";
 
 /** What the Host tells the observation layer about where it runs. Nothing here is read from a writer. */
 export interface ObservationEnvironment {
@@ -110,12 +110,15 @@ export const factOwned = (owner: ObservationOwner, fact: string): boolean => fac
 const cut = (value: unknown, max: number): string => String(value).slice(0, max);
 
 /** Detail as the contract bounds it; what does not fit is dropped and counted as a truncation of this record. */
-function boundedDetail(detail: ObservationDetail | undefined): { value: ObservationDetail; cut: boolean } {
-  if (!detail) return { value: {}, cut: false };
-  const all = Object.entries(detail), kept = all.filter(([, value]) => ["string", "number", "boolean"].includes(typeof value));
-  let dropped = kept.length !== all.length || kept.length > OBSERVATION_LIMITS.detail_keys;
-  const value: Record<string, string | number | boolean> = {};
-  for (const [key, item] of kept.slice(0, OBSERVATION_LIMITS.detail_keys)) {
+function boundedDetail(detail: ObservationDetail | undefined, replayId?: string): { value: ObservationDetail; cut: boolean } {
+  // Reserve one slot for Host-issued replay identity. A caller's free-form detail cannot supply it.
+  const value: Record<string, string | number | boolean> = replayId ? { evaluation_replay_id: replayId } : {};
+  if (!detail) return { value, cut: false };
+  const limit = OBSERVATION_LIMITS.detail_keys - (replayId ? 1 : 0);
+  const all = Object.entries(detail).filter(([key]) => key !== "evaluation_replay_id");
+  const kept = all.filter(([, entry]) => ["string", "number", "boolean"].includes(typeof entry));
+  let dropped = kept.length !== all.length || kept.length > limit;
+  for (const [key, item] of kept.slice(0, limit)) {
     if (typeof item === "string" && item.length > OBSERVATION_LIMITS.detail_text) dropped = true;
     // Detail is short facts kept as written, not sealed like evidence; a writer's free text (an error message) still loses credential shapes.
     value[cut(key, OBSERVATION_LIMITS.ref_text)] = typeof item === "string" ? redactSecrets(item.slice(0, OBSERVATION_LIMITS.detail_text)) : item;
@@ -148,8 +151,9 @@ export function pendingRecord(env: ObservationEnvironment, owner: ObservationOwn
   const background = isBackground(origin) ? origin : undefined, context = background ? undefined : origin as ActionCallContext;
   const projectId = origin.project_id;
   const own = owner.kind !== "shell" && input.source_class && (OBSERVATION_OWNER_SOURCE_CLASSES as readonly string[]).includes(input.source_class) ? input.source_class : undefined;
-  const source: ObservationSourceClass = projectId && env.projectClass(projectId) === "regenerable_demo" ? "demo" : call.source_class ?? currentObservationSource() ?? own ?? "real";
-  const detail = boundedDetail(input.detail);
+  const replayId = currentEvaluationReplayId();
+  const source: ObservationSourceClass = replayId ? "replay" : projectId && env.projectClass(projectId) === "regenerable_demo" ? "demo" : call.source_class ?? currentObservationSource() ?? own ?? "real";
+  const detail = boundedDetail(input.detail, replayId);
   const subjects: ObservationSubject[] = (input.subjects ?? []).slice(0, OBSERVATION_LIMITS.subjects).map(subject => ({ kind: cut(subject.kind, OBSERVATION_LIMITS.ref_text),
     id: cut(subject.id, OBSERVATION_LIMITS.ref_text), ...(subject.version !== undefined ? { version: subject.version } : {}) }));
   const evidence: PendingEvidence[] = call.evidence ? [...call.evidence] : (input.evidence ?? []).slice(0, OBSERVATION_LIMITS.evidence).map(item => item.ref.kind === "content"
@@ -169,5 +173,5 @@ export function pendingRecord(env: ObservationEnvironment, owner: ObservationOwn
   };
   const dropped = detail.cut || (input.subjects?.length ?? 0) > OBSERVATION_LIMITS.subjects || (input.evidence?.length ?? 0) > OBSERVATION_LIMITS.evidence;
   return { row, evidence, coverage: { owner: ownerName(owner), fact: input.fact, entry, project_id: projectId ?? "" }, cut: dropped,
-    ...(call.coalesce_key ? { coalesce_key: call.coalesce_key } : {}) };
+    ...(call.coalesce_key ? { coalesce_key: replayId ? JSON.stringify([replayId, call.coalesce_key]) : call.coalesce_key } : {}) };
 }

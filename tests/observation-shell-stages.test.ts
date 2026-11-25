@@ -19,6 +19,10 @@ function page() {
   const document = Object.assign(new EventTarget(), { visibilityState: "visible", hasFocus: () => true });
   const window = new EventTarget();
   const context = vm.createContext({ document, crypto: globalThis.crypto, Date, console,
+    // This bare page has no recommendation card. A real in-view card is exercised by the Workbench browser test.
+    IntersectionObserver: class {
+      observe() { assert.fail("the shell tried to observe a candidate on a page with no card"); }
+    },
     addEventListener: window.addEventListener.bind(window),
     setInterval: (run: () => void) => { interval = run; return 1; },
     setTimeout: (run: () => void) => { timers.push(run); return timers.length; }, clearTimeout: () => undefined,

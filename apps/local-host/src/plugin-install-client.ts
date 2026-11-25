@@ -5,6 +5,7 @@ import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { actionGatewayHomeId } from "./action-gateway.js";
 import { PLUGIN_INSTALL_PATH } from "./plugin-install-gateway.js";
 import { resolveConfiguredHome } from "./product-home.js";
+import { connectResidentAccount } from "./resident-account-connection.js";
 import { RESIDENT_HOST_URL_ENV, postToResidentHost, residentHostAddress, residentHostOrigin } from "./resident-host-request.js";
 
 export interface LocalPluginInstallInput {
@@ -28,9 +29,12 @@ export async function runLocalPluginInstall(input: LocalPluginInstallInput): Pro
   let bundle: unknown;
   try { bundle = JSON.parse(await readFile(input.bundle_path, "utf8")); }
   catch { throw pluginErrors.package_invalid(`读不了插件包文件：${input.bundle_path}`); }
-  const answer = await postToResidentHost({ origin: residentHostOrigin(address), homeDirectory: home, path: PLUGIN_INSTALL_PATH,
+  const connection = await connectResidentAccount(home, address);
+  const homeId = actionGatewayHomeId(connection.homeDirectory);
+  const answer = await postToResidentHost({ origin: residentHostOrigin(address), homeDirectory: connection.homeDirectory,
+    controlToken: connection.controlToken, homeId, path: PLUGIN_INSTALL_PATH,
     retryHint: "先不带 --confirm 再运行一次，看这个包是否已经装上",
-    body: { home_id: actionGatewayHomeId(home), project_id: input.project_id, bundle, ...(input.confirm ? { confirm: true } : {}),
+    body: { home_id: homeId, project_id: input.project_id, bundle, ...(input.confirm ? { confirm: true } : {}),
       ...(input.pin_label !== undefined ? { pin_label: input.pin_label } : {}) } });
   if (!answer) throw new ActionError("actions.service_unavailable", `这个 Home 的常驻服务没有响应（${address}）；安装只交给它来做。先打开 Molis Work；它不在这个地址时用环境变量 ${RESIDENT_HOST_URL_ENV} 指定`);
   if (!answer.ok) throw actionErrorFromResponse(answer.status, answer.body);

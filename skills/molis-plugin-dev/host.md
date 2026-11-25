@@ -1,5 +1,8 @@
 # 接到本仓库产品
 
+本章供仓库维护者接线随产品构建的插件。仓库外的作者可直接使用应用 CLI、签名包和公开 SDK。[安装版开发入口](authoring.md#安装版开发入口)
+
+
 Manifest 写完不等于底栏插件切换里有入口：内置插件还要在自己包里写 `registration`（目录条目）和 Plugin Runtime 监督器条目（见「内置插件：经 Plugin Runtime 装配」）；第三方插件看 [authoring.md](authoring.md)。构建期例外第 44B 批起已没有，不要新写短名 HTTP。
 
 

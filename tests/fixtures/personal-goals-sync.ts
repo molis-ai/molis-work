@@ -86,14 +86,15 @@ export async function fixture(t: TestContext) {
       : stream(namespace).filter(e => e.revision > Number(url.searchParams.get('after')));
     return Response.json({ events: rows.slice(0, 2), more: rows.length > 2 });
   };
-  const peers = homes.map((home, i) => {
+  const createPeer = (home: string, i: number) => {
     const runtime = runtimes[i]!;
     const approvals = createProjectApprovalSyncRegistration(home, space.spaceId, check, runtime.withCatalog, runtime.readCatalog, () => client.policy());
     const client: PersonalSync = new PersonalSync({ home, spaceId: space.spaceId, endpoint: 'http://127.0.0.1:8788',
       authority: { signal: new AbortController().signal, assertCurrent: check, accessToken: async () => 'test-only' },
       registrations: [approvals, registrations[i]!], fetch: transport });
     return { client, approvals };
-  });
+  };
+  const peers = homes.map(createPeer);
   const clients = peers.map(peer => peer.client);
   runtimes.forEach((runtime,index)=>runtime.setPolicy(()=>clients[index]!.policy()));
   const paths = [project.database_path, targetProject.database_path];
@@ -114,7 +115,12 @@ export async function fixture(t: TestContext) {
   const replica = <T>(i: number, fn: (r: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncReplicaAdapter) => T) => registrations[i]!.withReplica(fn);
   const approvalReplica = <T>(i: number, fn: (r: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncReplicaAdapter) => T) => peers[i]!.approvals.withReplica(fn);
   t.after(() => { clients.forEach(c => c.close()); });
-  return { homes, space, project, host: runtimes[0]!.host, clients, events, approvalEvents, edit, run, enable, replica, approvalReplica,
+  const restart = (index: number) => {
+    clients[index]!.close();
+    peers[index] = createPeer(homes[index]!, index);
+    clients[index] = peers[index]!.client;
+  };
+  return { homes, space, project, restart, host: runtimes[0]!.host, clients, events, approvalEvents, edit, run, enable, replica, approvalReplica,
     offline: () => { online = false; }, online: () => { online = true; }, drop: () => { drop = true; }, revoke: () => { active = false; } };
 }
 

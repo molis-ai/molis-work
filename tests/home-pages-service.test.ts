@@ -3,11 +3,14 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { evaluationActions } from "@molis-ai/molis-work-contracts/services/evaluation";
+import { observationActions, type ObservationQueryOutput } from "@molis-ai/molis-work-contracts/services/observation";
 import { HOME_PAGE_SESSION_HEADER, HomePageSessionRegistry, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import {
   ActionError,
   LOCAL_PERSON_ACTOR_ID,
   bindActionHandler,
+  bindActionClient,
   type ActionCallContext,
   type ActionDefinition,
   type ExactActionReference,
@@ -235,6 +238,27 @@ test("SPC-10 ONB-25 ONB-26 ONB-27 WBR-26: home page lifecycle — draft save, bl
   const restoreReceipt = (await restoreRes.json()) as HomePageApprovalReceipt<"restore">;
   assert.equal(restoreReceipt.operation, "restore");
   assert.deepEqual(restoreReceipt.selection, { kind: "page", page_id: v1.page_id, version: 1 });
+
+  const viewer = await f.host.localPersonContext();
+  const observed = await f.host.homeActionClient().invoke(viewer, observationActions.recordsQuery, {
+    project_id: project.project_id, use: "evaluation", work_ref: v1.page_id, fact: "home.selection",
+  }) as ObservationQueryOutput;
+  assert.deepEqual(observed.records.map(row => [row.stage, row.subjects[0]?.version, row.detail.receipt_id]), [
+    ["adopted", 1, receipt1.revision], ["undone", 1, basicResult.revision], ["restored", 1, restoreReceipt.revision],
+  ], "QRF-04: only committed selection changes count, including the original page on return to basic");
+
+  const evaluator = bindActionClient(f.host.homeActionClient(), () => viewer);
+  const sample = { sample_id: "home-selection", version: 1, title: "首页采用及撤回", purpose: "validation", work_mode: "mixed",
+    project_id: project.project_id, initial_intent: "核对本人采用首页、撤回及恢复的结果",
+    query: { project_id: project.project_id, work_ref: v1.page_id, fact: "home.selection" },
+    expectations: [{ expectation_id: "adoption", stage: "delivery", source: "deterministic", description: "首页采用回执",
+      rule: { check: "funnel_stage_separation", min_count: 1 } }] } as const;
+  await evaluator.invoke(evaluationActions.samplesPut, sample);
+  await evaluator.invoke(evaluationActions.runsExecute, { sample_id: sample.sample_id });
+  await evaluator.invoke(evaluationActions.runsExecute, { sample_id: sample.sample_id });
+  const { denominator, funnel_totals: totals } = await evaluator.invoke(evaluationActions.metricsSummarize, { purpose: "validation", project_id: project.project_id });
+  assert.deepEqual([denominator, totals.adopted, totals.undone_or_reworked, totals.unattributed_interactions.adopted,
+    totals.unattributed_interactions.undone_or_reworked], [2, 1, 1, 0, 0]);
 
   // 8. Design-language check catches violations and passes clean token-based files.
   const cleanReport = inspectHomePageDesign(sampleDraft("干净页面").files);

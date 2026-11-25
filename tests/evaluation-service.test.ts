@@ -4,16 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   EVALUATION_PROVIDER_ID,
   evaluationActions,
   type EvaluationSampleInput,
   type EvaluationRunView,
-  type EvaluationRunComparison,
-  type EvaluationMetricsSummary,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
-import { observationActions, type ObservationQueryOutput } from "@molis-ai/molis-work-contracts/services/observation";
+import { observationActions, type ObservationQueryOutput, type ObservationFactInput } from "@molis-ai/molis-work-contracts/services/observation";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { installHostUiText, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { TODO_ACTION_PERMISSIONS, todoActions } from "@molis-ai/molis-work-plugin-todo";
@@ -66,19 +64,20 @@ const pluginCaller = (pluginId: string, projectId: string | null = "p1"): Action
     },
   });
 
-function createEvaluationFixture(t: test.TestContext) {
+function createEvaluationFixture(t: test.TestContext, resolveSubject?: ObservationEnvironment["resolveSubject"]) {
   const home = mkdtempSync(join(tmpdir(), "evaluation-svc-"));
   const secrets = memorySecrets();
   let currentNow = new Date("2026-11-15T10:00:00.000Z");
   let currentPlatformVersion = "0.30.0";
-  const projects = new Set(["p1", "p2"]);
+  const projects = new Set(["p1", "p2", "demo-fixture"]);
   const env: ObservationEnvironment = {
     get platformVersion() {
       return currentPlatformVersion;
     },
     now: () => currentNow,
-    projectClass: (id) => (projects.has(id) ? "user" : undefined),
+    projectClass: (id) => id === "demo-fixture" ? "regenerable_demo" : projects.has(id) ? "user" : undefined,
     readableProjects: async () => [...projects],
+    resolveSubject,
   };
 
   let shellPass = false;
@@ -103,7 +102,7 @@ function createEvaluationFixture(t: test.TestContext) {
   const evaluation = new EvaluationService({
     home,
     clientFor: () => service,
-    runInReplayScope: (fn) => withObservationSource("replay", fn),
+    runInReplayScope: (fn, replayId) => withObservationSource("replay", fn, replayId),
     now: () => currentNow,
   });
   service.registerProvider(evaluation.provider());
@@ -129,6 +128,7 @@ function createEvaluationFixture(t: test.TestContext) {
     evaluation,
     service,
     reportShell,
+    user: bindActionClient(service, person),
     setNow: (iso: string) => {
       currentNow = new Date(iso);
     },
@@ -227,6 +227,13 @@ test("PWA-51 EC-01 EC-02: end-to-end sample evaluates multi-version object evolu
       outcome: { ok: false, code: "todo.invalid" },
       aborted: false,
     },
+  );
+  // QRF-01: the independent write is real evidence for another capability only.
+  fx.layer.observed(
+    person({ project_id: "p1", call_id: "call-bad" }),
+    { capability_id: "todo.update", version: 1, provider_id: "io.molis.work.todo", operation: "command" },
+    { invocation_id: "other-write", started_at: 130, ended_at: 140, handler_started: true,
+      input: { id: "other" }, result: { item: { id: "other", revision: 2 } }, outcome: { ok: true }, aborted: false },
   );
   fx.layer.sink("agent").bind({
     kind: "background",
@@ -454,7 +461,10 @@ test("EC-16 OCL-12 OCL-14 PWA-54 PWA-55: sample holds survive cleanup while unhe
   });
   fx.layer.flush();
 
+  const basis = await fx.user.invoke(observationActions.recordsQuery, { project_id: "p1", work_ref: "held-work", use: "evaluation" });
+  assert.equal(basis.records.length, 1);
   const putHeld = await fx.service.invoke(person(), evaluationActions.samplesPut, {
+    pinned_record_ids: basis.records.map(record => record.record_id),
     sample_id: "ec-16-held",
     version: 1,
     title: "EC-16 加留存的历史样本",
@@ -1263,45 +1273,72 @@ test("PWA-52 OCL-17: scoring cannot use reasoning or borrowed aliases to establi
   }
 });
 
-test("PWA-54 PWA-55 OCL-17: count confirmed owner work once, preserve legacy runs and disclose their exclusion from work totals", async t => {
+test("QRF-04 PWA-54 OCL-17: v1 history attributes only observed owner work across repeated attempts and keeps unresolved interactions", async t => {
   const fx = createEvaluationFixture(t);
   const work = { work_ref: "work-unit-1" };
-  await fx.service.invoke(pluginCaller("pages"), observationActions.report, { facts: [
-    { fact: "pages.save", outcome: "succeeded", stage: "executed", work },
+  const report = (facts: readonly ObservationFactInput[]) =>
+    fx.service.invoke(pluginCaller("pages"), observationActions.report, { facts });
+  await report([
     { fact: "pages.save", outcome: "succeeded", stage: "completed", work },
     { fact: "pages.save", outcome: "succeeded", stage: "completed", work },
-    { fact: "pages.save", outcome: "refused", stage: "executed", work: { work_ref: "never-started" } },
-    { fact: "pages.save", outcome: "succeeded", stage: "completed" },
-  ] });
-  const agent = fx.layer.sink("agent").bind({ kind: "background", actor_id: "agent:assistant", project_id: "p1", entry: "agent", call_id: "model-unit" });
-  agent.record({ fact: "agent.run", stage: "completed", outcome: "succeeded", work: { work_ref: "agent-technical" } });
+    { fact: "pages.choices", outcome: "succeeded", stage: "presented", work },
+  ]);
   fx.layer.flush();
-  await fx.service.invoke(person(), evaluationActions.samplesPut, {
-    sample_id: "work-units", title: "按业务记录归集", version: 1, purpose: "validation", work_mode: "manual_plugin",
-    project_id: "p1", initial_intent: "核对主人保存的操作", query: { project_id: "p1" },
+  const sample = workEvaluationSample("work-units", { project_id: "p1", work_ref: work.work_ref }, {
     expectations: [{ expectation_id: "save", source: "deterministic", stage: "execution", description: "已保存",
       rule: { check: "record_count", fact: "pages.save", min_count: 1 } }],
   });
-  const execute = () => fx.service.invoke(person(), evaluationActions.runsExecute, { sample_id: "work-units" }) as Promise<EvaluationRunView>;
-  const legacy = await execute();
-  // Model the actual persisted pre-upgrade JSON; exercise both public history reads and aggregation.
-  const { execution_basis: ignored, ...oldFunnel } = legacy.funnel;
-  assert.equal(ignored, "owner_work");
+  await fx.user.invoke(evaluationActions.samplesPut, sample);
+  const execute = () => fx.user.invoke(evaluationActions.runsExecute, { sample_id: sample.sample_id });
+  const first = await execute(), second = await execute();
+  // Reopen v1 from disk through a fresh evaluation provider. All observation reads still use the registered action service.
+  fx.evaluation.close();
+  const reopened = new EvaluationService({ home: fx.home, clientFor: () => fx.service });
+  const historyService = new ActionService();
+  historyService.registerProvider(reopened.provider());
+  const history = bindActionClient(historyService, person);
+  const summarize = () => history.invoke(evaluationActions.metricsSummarize, { purpose: sample.purpose, project_id: "p1" });
   const db = new DatabaseSync(join(fx.home, "evaluation", "evaluation.db"));
   try {
-    db.prepare("UPDATE evaluation_runs SET run_json = ? WHERE run_id = ?").run(JSON.stringify({
-      ...legacy, funnel: { ...oldFunnel, executed: 9, completed: 9 },
-    }), legacy.run_id);
-  } finally { db.close(); }
-  const current = await execute();
-  assert.deepEqual([current.funnel.executed, current.funnel.completed], [1, 1]);
-  const history = await fx.service.invoke(person(), evaluationActions.runsGet, { run_id: legacy.run_id }) as EvaluationRunView;
-  assert.equal(history.funnel.completed, 9);
-  const metrics = await fx.service.invoke(person(), evaluationActions.metricsSummarize, { purpose: "validation", project_id: "p1" }) as EvaluationMetricsSummary;
-  assert.equal(metrics.denominator, 2);
-  assert.deepEqual([metrics.funnel_totals.executed, metrics.funnel_totals.completed, metrics.funnel_totals.excluded_execution_runs], [1, 1, 1]);
-  const comparison = await fx.service.invoke(person(), evaluationActions.runsCompare, { baseline_run_id: legacy.run_id, candidate_run_id: current.run_id }) as EvaluationRunComparison;
-  assert.equal(comparison.comparable, false);
+    const counts = JSON.parse(String(db.prepare("SELECT outcome_counts FROM evaluation_runs WHERE run_id=?").get(first.run_id)!.outcome_counts));
+    assert.deepEqual(counts, { succeeded: 3 }, "v1 stores only the original outcome counts");
+    assert.deepEqual([...new Set(first.expectation_results[0]!.evidence_refs.map(ref => ref.fact))], ["pages.save"]);
+    const summary = await summarize();
+    assert.deepEqual([summary.denominator, summary.funnel_totals.executed, summary.funnel_totals.completed, summary.funnel_totals.excluded_execution_runs], [2, 1, 1, 0]);
+    assert.equal(summary.funnel_totals.presented, 2);
+    assert.equal(summary.funnel_totals.unattributed_interactions.presented, 2);
+    await history.invoke(evaluationActions.reviewsRecord, { run_id: first.run_id, verdict: "failed", rationale: "需要人工复查" });
+    const reread = await history.invoke(evaluationActions.runsGet, { run_id: first.run_id });
+    assert.deepEqual([reread.automated_verdict, reread.effective_verdict, reread.human_reviews.length], ["passed", "failed", 1]);
+
+    // A new record in the identical project/work, even at the identical timestamp, did not belong to either attempt.
+    await report([{ fact: "pages.save", outcome: "succeeded", stage: "completed", work: { work_ref: "other-work" } }]);
+    await history.invoke(evaluationActions.samplesRemove, { sample_id: sample.sample_id });
+    const later = (await fx.user.invoke(observationActions.recordsQuery, { use: "evaluation", project_id: "p1", work_ref: "other-work" }) as ObservationQueryOutput).records;
+    await history.invoke(evaluationActions.samplesPut, { ...sample, pinned_record_ids: later.map(record => record.record_id), query: { project_id: "p1" } });
+    assert.deepEqual((await summarize()).funnel_totals, summary.funnel_totals);
+
+    await history.invoke(evaluationActions.samplesPut, workEvaluationSample("unattempted", { work_ref: "another" }));
+    // Pre-owner-count v1 saved only totals. Its verdict and raw funnel stay exactly as they were.
+    const legacyCounts = { presented: 5, viewed: 4, selected: 3, adopted: 2, modified_after_adoption: 1, undone_or_reworked: 2 };
+    db.prepare("UPDATE evaluation_runs SET run_json=json_set(run_json, '$.funnel', json(?), '$.expectation_results', json('[]')) WHERE run_id=?")
+      .run(JSON.stringify({ ...legacyCounts, executed: 9, completed: 9 }), second.run_id);
+    const partial = await summarize();
+    assert.deepEqual([partial.selected_sample_count, partial.sample_count, partial.denominator, partial.evaluable_count], [2, 1, 2, 2]);
+    assert.deepEqual([partial.funnel_totals.executed, partial.funnel_totals.completed, partial.funnel_totals.excluded_execution_runs], [1, 1, 1]);
+    assert.deepEqual(partial.funnel_totals.unattributed_interactions, { ...legacyCounts, presented: 6 });
+    for (const [stage, count] of Object.entries(legacyCounts)) {
+      assert.equal(partial.funnel_totals[stage as keyof typeof legacyCounts], count + (stage === "presented" ? 1 : 0));
+    }
+    assert.equal((await history.invoke(evaluationActions.runsGet, { run_id: second.run_id })).funnel.completed, 9);
+    assert.equal((await history.invoke(evaluationActions.runsCompare, { baseline_run_id: second.run_id, candidate_run_id: first.run_id })).comparable, false);
+    await fx.user.invoke(observationActions.settingsSet, { uses: { evaluation: false } });
+    await assert.rejects(summarize, (error: unknown) => (error as { code?: string }).code === "observation.use_disabled");
+    await fx.user.invoke(observationActions.settingsSet, { uses: { evaluation: true } });
+    fx.layer.purgePlugin({ plugin_id: "pages", install_ids: ["pages-install"], provider_ids: ["pages"], project_id: "p1" });
+    const purged = await summarize();
+    assert.deepEqual([purged.funnel_totals.completed, purged.funnel_totals.excluded_execution_runs, purged.verdict_counts.failed], [0, 2, 1]);
+  } finally { reopened.close(); db.close(); }
 });
 
 test("MR19-03 plugin delivery accepts only the plugin's output, including unrestricted queries and frozen samples", async t => {
@@ -1348,4 +1385,454 @@ test("MR19-03 plugin delivery accepts only the plugin's output, including unrest
   await assert.rejects(run("query-only"), /output/);
   const historical = await fx.service.invoke(person(), evaluationActions.runsGet, { run_id: judged.run_id }) as EvaluationRunView;
   assert.equal(historical.effective_verdict, "failed");
+});
+
+function workEvaluationSample(id: string, query: EvaluationSampleInput["query"], changes: Partial<EvaluationSampleInput> = {}): EvaluationSampleInput {
+  return {
+    sample_id: id, version: 1, title: id, purpose: "validation", work_mode: "assistant", project_id: "p1",
+    initial_intent: "核对指定工作的真实结果", query: { project_id: "p1", ...query },
+    expectations: [{ expectation_id: "work", stage: "execution", source: "deterministic", description: "工作有主人记录",
+      rule: { check: "record_count", min_count: 1 } }], ...changes,
+  };
+}
+
+test("QRF-01: empty and overlapping replays use only their Host-issued records past page 500", async t => {
+  const fx = createEvaluationFixture(t);
+  const recorder = fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" });
+  const sample = workEvaluationSample("replay", { fact: "assistant.work", work_ref: "same-work" });
+  await fx.user.invoke(evaluationActions.samplesPut, sample);
+  const add = (scenario: string) => recorder.record({ fact: "assistant.work", stage: "completed", outcome: "succeeded",
+    work: { work_ref: "same-work", run_id: "owner-run" }, detail: { scenario, evaluation_replay_id: "forged" } });
+  const run = (id: string) => fx.user.invoke(evaluationActions.runsExecute, {
+    sample_id: sample.sample_id, execution_kind: "isolated_replay", replay_scenario_id: id,
+  });
+  fx.evaluation.registerReplayScenario("bulk", async () => { for (let i = 0; i < 501; i++) add("bulk"); });
+  fx.evaluation.registerReplayScenario("empty", async () => {});
+  const bulk = await run("bulk");
+  assert.equal(bulk.replay?.replay_record_ids.length, 501);
+  const empty = await run("empty");
+  assert.deepEqual(empty.replay?.replay_record_ids, []);
+  assert.equal(empty.effective_verdict, "unknown");
+
+  const entered = Promise.withResolvers<void>();
+  const resume = Promise.withResolvers<void>();
+  fx.evaluation.registerReplayScenario("a", async () => { add("a"); entered.resolve(); await resume.promise; add("a"); });
+  fx.evaluation.registerReplayScenario("b", async () => { add("b"); });
+  const pending = run("a");
+  await entered.promise;
+  let b: EvaluationRunView;
+  try { b = await run("b"); } finally { resume.resolve(); }
+  const a = await pending;
+  const observed = await fx.user.invoke(observationActions.recordsQuery, {
+    ...sample.query, source_classes: ["replay"], run_id: "owner-run", after_seq: 500, use: "evaluation",
+  });
+  const ids = (scenario: string) => observed.records.filter(r => r.detail.scenario === scenario).map(r => r.record_id);
+  assert.equal(ids("a").length, 2);
+  assert.equal(ids("b").length, 1);
+  assert.deepEqual(a.replay?.replay_record_ids, ids("a"));
+  assert.deepEqual(b.replay?.replay_record_ids, ids("b"));
+  const forged = await fx.user.invoke(observationActions.recordsQuery, {
+    ...sample.query, source_classes: ["replay"], replay_id: "forged", use: "evaluation",
+  });
+  assert.deepEqual(forged.records, []);
+});
+
+test("QRF-04: a replay with no matching expectation pointers counts only the records in its receipt", async t => {
+  const fx = createEvaluationFixture(t);
+  const sink = fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" });
+  await fx.user.invoke(evaluationActions.samplesPut, workEvaluationSample("receipt", {}, { expectations: [{
+    expectation_id: "reply", stage: "delivery", source: "deterministic", description: "仅核对模型的回复",
+    rule: { check: "evidence_text", fact: "agent.reply", contains_all: ["答复"] },
+  }] }));
+  const add = (work_ref: string) => sink.record({ fact: "assistant.work", stage: "completed", outcome: "succeeded", work: { work_ref } });
+  await withObservationSource("replay", async () => add("other"));
+  fx.evaluation.registerReplayScenario("receipt", async () => {
+    for (let i = 0; i < 501; i++) add("selected-" + i);
+  });
+  const run = await fx.user.invoke(evaluationActions.runsExecute, { sample_id: "receipt", execution_kind: "isolated_replay" });
+  assert.deepEqual(run.expectation_results[0]!.evidence_refs, []);
+  assert.equal(run.replay?.replay_record_ids.length, 501);
+  const { funnel_totals } = await fx.user.invoke(evaluationActions.metricsSummarize, { project_id: "p1", purpose: "validation" });
+  assert.deepEqual([funnel_totals.completed, funnel_totals.excluded_execution_runs], [501, 0]);
+});
+
+test("QRF-01: an identified replay in a demo project includes its nested trial records only", async t => {
+  const fx = createEvaluationFixture(t);
+  const project_id = "demo-fixture";
+  const call_id = "demo-trial";
+  const caller = person({ project_id, call_id });
+  const query = { project_id, call_id };
+  const write = () => {
+    const now = Date.parse("2026-11-15T10:00:00Z");
+    fx.layer.observed(caller, { capability_id: "demo.read", version: 1, operation: "query", provider_id: "system.demo", source_class: "trial" }, {
+      invocation_id: "inv-demo", started_at: now, ended_at: now, handler_started: true,
+      input: { id: "demo-item" }, result: { id: "demo-item", name: "example" }, outcome: { ok: true }, aborted: false,
+    });
+  };
+  write();
+  const sample = workEvaluationSample("demo-trial", query, { project_id });
+  await fx.user.invoke(evaluationActions.samplesPut, sample);
+  fx.evaluation.registerReplayScenario("demo", async () => { await withObservationSource("trial", write); });
+  const execute = () => fx.user.invoke(evaluationActions.runsExecute, { sample_id: sample.sample_id, execution_kind: "isolated_replay", replay_scenario_id: "demo" });
+  const a = await execute();
+  const b = await execute();
+  assert.equal(a.replay?.replay_record_ids.length, 1);
+  assert.equal(b.replay?.replay_record_ids.length, 1);
+  assert.notEqual(a.replay?.replay_record_ids[0], b.replay?.replay_record_ids[0]);
+  const observed = await fx.user.invoke(observationActions.recordsQuery, { ...query, include_simulated: true, use: "evaluation" });
+  assert.deepEqual(observed.records.map(r => r.source_class), ["demo", "replay", "replay"]);
+  assert.deepEqual(observed.records.map(r => r.detail.evaluation_replay_id), [undefined, a.replay?.replay_id, b.replay?.replay_id]);
+});
+
+test("QRF-02: run holds survive re-audit and release by sample version, including an old missing receipt", async t => {
+  const fx = createEvaluationFixture(t);
+  const recorder = fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" });
+  recorder.record({ fact: "assistant.work", stage: "completed", outcome: "succeeded", occurred_at: "2026-10-20T11:00:00Z", work: { work_ref: "retained-work" } });
+  const sample = workEvaluationSample("held", { work_ref: "retained-work" });
+  await fx.user.invoke(evaluationActions.samplesPut, sample);
+  await fx.user.invoke(evaluationActions.runsExecute, { sample_id: "held", hold_records: true });
+  const read = () => fx.user.invoke(observationActions.recordsQuery, { ...sample.query, use: "evaluation" });
+  const receipt = (await fx.user.invoke(evaluationActions.samplesList, { sample_id: "held" })).samples[0]!;
+  assert.equal(receipt.held_record_count, 1);
+  assert.ok(receipt.hold_id);
+  // Both samples protect the same owner fact. Model the original version which omitted its local hold receipt.
+  await fx.user.invoke(evaluationActions.samplesPut, { ...sample, sample_id: "also-held", hold_records: true });
+  const db = new DatabaseSync(join(fx.home, "evaluation", "evaluation.db"));
+  try { db.prepare("UPDATE evaluation_samples SET hold_id=NULL, held_record_count=0 WHERE sample_id=?").run("held"); }
+  finally { db.close(); }
+  const removed = await fx.user.invoke(evaluationActions.samplesRemove, { sample_id: "held" });
+  assert.deepEqual(removed.released_hold_ids, [receipt.hold_id]);
+  const cleanup = () => fx.user.invoke(observationActions.cleanupApply, { project_id: "p1", time_range: "before_7d" });
+  await cleanup();
+  assert.equal((await read()).records.length, 1);
+  await fx.user.invoke(evaluationActions.samplesRemove, { sample_id: "also-held" });
+  await cleanup();
+  assert.equal((await read()).records.length, 0);
+
+  const entered = Promise.withResolvers<void>();
+  const resume = Promise.withResolvers<void>();
+  await fx.user.invoke(evaluationActions.samplesPut, { ...sample, sample_id: "in-flight" });
+  fx.evaluation.registerReplayScenario("remove-during-run", async () => {
+    recorder.record({ fact: "assistant.work", outcome: "succeeded", work: { work_ref: "retained-work" } });
+    entered.resolve(); await resume.promise;
+  });
+  const run = fx.user.invoke(evaluationActions.runsExecute, {
+    sample_id: "in-flight", hold_records: true, execution_kind: "isolated_replay", replay_scenario_id: "remove-during-run",
+  });
+  await entered.promise;
+  try { await fx.user.invoke(evaluationActions.samplesRemove, { sample_id: "in-flight" }); }
+  finally { resume.resolve(); }
+  await assert.rejects(run, (error: Error & { code?: string }) => error.code === "evaluation.not_found");
+  assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds, []);
+  assert.deepEqual((await fx.user.invoke(evaluationActions.runsList, { sample_id: "in-flight" })).runs, []);
+});
+
+test("QRF-02: an old replay cannot commit to an identical sample recreated in the same millisecond", async t => {
+  const fx = createEvaluationFixture(t);
+  const sample = workEvaluationSample("recreated", { fact: "assistant.work" });
+  const { sample: original } = await fx.user.invoke(evaluationActions.samplesPut, sample);
+  const entered = Promise.withResolvers<void>();
+  const resume = Promise.withResolvers<void>();
+  fx.evaluation.registerReplayScenario(sample.sample_id, async () => {
+    fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" })
+      .record({ fact: "assistant.work", outcome: "succeeded" });
+    entered.resolve();
+    await resume.promise;
+  });
+  const run = fx.user.invoke(evaluationActions.runsExecute, {
+    sample_id: sample.sample_id, execution_kind: "isolated_replay", hold_records: true,
+  });
+  await entered.promise;
+  try {
+    await fx.user.invoke(evaluationActions.samplesRemove, { sample_id: sample.sample_id, version: 1 });
+    const { sample: replacement } = await fx.user.invoke(evaluationActions.samplesPut, sample);
+    assert.deepEqual(replacement, original);
+  } finally { resume.resolve(); }
+  await assert.rejects(run, (error: Error & { code?: string }) => error.code === "evaluation.not_found");
+  assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds, []);
+  assert.deepEqual((await fx.user.invoke(evaluationActions.runsList, { sample_id: sample.sample_id })).runs, []);
+  const valid = await fx.user.invoke(evaluationActions.runsExecute, {
+    sample_id: sample.sample_id, execution_kind: "isolated_replay", hold_records: true,
+  });
+  assert.equal(valid.replay?.replay_record_ids.length, 1);
+  assert.equal((await fx.user.invoke(observationActions.holdsList, {})).holds[0]?.active_record_count, 1);
+});
+
+test("QRF-02: large replay holds across runs roll back completely and release by version", async t => {
+  const fx = createEvaluationFixture(t);
+  const sample = workEvaluationSample("bulk-hold", {}, { project_id: undefined, query: { all_projects: true, fact: "assistant.work" } });
+  const recorders = ["p1", "p2"].map(project_id => fx.layer.sink("assistant")
+    .bind({ kind: "background", actor_id: "assistant", entry: "background", project_id }));
+  for (const version of [1, 2, 3]) await fx.user.invoke(evaluationActions.samplesPut, { ...sample, version });
+  for (const count of [260, 501]) fx.evaluation.registerReplayScenario(String(count), async () => {
+    for (let i = 0; i < count; i++) recorders[i % 2]!.record({ fact: "assistant.work", outcome: "succeeded" });
+  });
+  const run = (version: number, count: number) => fx.user.invoke(evaluationActions.runsExecute, {
+    sample_id: sample.sample_id, sample_version: version, execution_kind: "isolated_replay", replay_scenario_id: String(count), hold_records: true,
+  });
+  const held = async (version: number) => (await fx.user.invoke(observationActions.holdsList, { sample_id: `bulk-hold@${version}` })).holds;
+  const first = await run(1, 260);
+  const observationDb = fx.layer.writer.database()!.db;
+  observationDb.exec(`CREATE TEMP TRIGGER keep_prior_memberships BEFORE DELETE ON evaluation_hold_records
+    WHEN OLD.hold_id='eval:bulk-hold:v1' BEGIN SELECT RAISE(ABORT, 'rewrote retained records'); END`);
+  const second = await run(1, 260);
+  observationDb.exec("DROP TRIGGER keep_prior_memberships");
+  const expected = [...first.replay!.replay_record_ids, ...second.replay!.replay_record_ids];
+  assert.deepEqual([first.replay!.replay_record_ids.length, second.replay!.replay_record_ids.length, new Set(expected).size], [260, 260, 520]);
+  const before = await held(1);
+  assert.deepEqual(new Set(before.flatMap(h => h.record_ids)), new Set(expected));
+  const db = new DatabaseSync(join(fx.home, "evaluation", "evaluation.db"));
+  try {
+    db.exec("CREATE TRIGGER refuse_run BEFORE INSERT ON evaluation_runs BEGIN SELECT RAISE(ABORT, 'run interrupted'); END");
+    await assert.rejects(run(1, 501), /run interrupted/);
+    assert.deepEqual(await held(1), before);
+    assert.equal((await fx.user.invoke(evaluationActions.runsList, { sample_id: sample.sample_id })).runs.length, 2);
+    db.exec("DROP TRIGGER refuse_run");
+  } finally { db.close(); }
+  observationDb.exec(`CREATE TEMP TRIGGER refuse_second_batch BEFORE INSERT ON evaluation_hold_records
+    WHEN NEW.hold_id='eval:bulk-hold:v3' AND (SELECT COUNT(*) FROM evaluation_hold_records WHERE hold_id=NEW.hold_id) >= 500
+    BEGIN SELECT RAISE(ABORT, 'second batch interrupted'); END`);
+  await assert.rejects(run(3, 501), /second batch interrupted/);
+  assert.deepEqual(await held(3), []);
+  assert.equal((await fx.user.invoke(evaluationActions.runsList, { sample_id: sample.sample_id })).runs.length, 2);
+  observationDb.exec("DROP TRIGGER refuse_second_batch");
+  const other = await run(2, 501);
+  assert.equal(other.replay!.replay_record_ids.length, 501);
+  assert.deepEqual(new Set((await held(2)).flatMap(h => h.record_ids)), new Set(other.replay!.replay_record_ids));
+  const { released_hold_ids } = await fx.user.invoke(evaluationActions.samplesRemove, { sample_id: sample.sample_id, version: 1 });
+  assert.deepEqual(new Set(released_hold_ids), new Set(before.map(h => h.hold_id)));
+  assert.deepEqual(await held(1), []);
+  assert.deepEqual(new Set((await held(2)).flatMap(h => h.record_ids)), new Set(other.replay!.replay_record_ids));
+});
+
+test("QRF-02 QRF-05: a dynamic work query stays unknown after a matching late record is cleaned up", async t => {
+  const fx = createEvaluationFixture(t);
+  const recorder = fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" });
+  const record = () => recorder.record({ fact: "assistant.work", outcome: "succeeded", work: { work_ref: "late-count" },
+    occurred_at: "2026-10-01T10:00:00Z" });
+  record();
+  const sample = workEvaluationSample("late-count", { work_ref: "late-count" }, {
+    expectations: [{ expectation_id: "count", stage: "execution", source: "deterministic", description: "恰有一条",
+      rule: { check: "record_count", min_count: 1, max_count: 1 } }],
+  });
+  await fx.user.invoke(evaluationActions.samplesPut, sample);
+  const run = (hold_records = false) => fx.user.invoke(evaluationActions.runsExecute, { sample_id: sample.sample_id, hold_records });
+  assert.equal((await run(true)).effective_verdict, "passed");
+  record();
+  assert.equal((await run()).effective_verdict, "failed");
+  assert.equal((await fx.user.invoke(observationActions.cleanupApply, { project_id: "p1", time_range: "before_30d" })).deleted_records, 1);
+  const after = await run();
+  assert.equal(after.observed_conditions.record_count, 1);
+  assert.equal(after.effective_verdict, "unknown");
+  assert.ok(after.unknown_reasons.includes("coverage_gap_expired"));
+  assert.equal(after.expectation_results[0]?.automated_verdict, "unknown");
+});
+
+test("QRF-02: deleting a sample after authority returns clears an interrupted run's first hold", async t => {
+  const fx = createEvaluationFixture(t);
+  const sample = workEvaluationSample("interrupted", { fact: "assistant.work" });
+  await fx.user.invoke(evaluationActions.samplesPut, sample);
+  fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" })
+    .record({ fact: "assistant.work", outcome: "succeeded" });
+  const [record] = (await fx.user.invoke(observationActions.recordsQuery, { ...sample.query, use: "evaluation" })).records;
+  const foreign = (await fx.user.invoke(observationActions.holdsPut, {
+    hold_id: "another-retention", owner: "another.owner", sample_id: "interrupted@1", record_ids: [record!.record_id],
+  })).hold;
+  const db = fx.layer.writer.database()!.db;
+  const caller = person({ validate_authority: () => {
+    if (db.prepare("SELECT 1 FROM evaluation_holds WHERE hold_id='eval:interrupted:v1'").get()) throw new Error("authority revoked");
+  } });
+  await assert.rejects(fx.service.invoke(caller, evaluationActions.runsExecute, { sample_id: sample.sample_id, hold_records: true }), /authority revoked/);
+  assert.deepEqual((await fx.user.invoke(evaluationActions.runsList, { sample_id: sample.sample_id })).runs, []);
+  assert.equal((await fx.user.invoke(evaluationActions.samplesList, { sample_id: sample.sample_id })).samples[0]?.hold_id, null);
+  assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds.map(h => h.hold_id).sort(), ["another-retention", "eval:interrupted:v1"]);
+  const removed = await fx.user.invoke(evaluationActions.samplesRemove, { sample_id: sample.sample_id });
+  assert.deepEqual(removed.released_hold_ids, ["eval:interrupted:v1"]);
+  assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds, [foreign]);
+});
+
+test("QRF-02: recovering first-put holds by exact version or all versions also works without a sample row", async t => {
+  const fx = createEvaluationFixture(t);
+  const sample_id = "first@percent%_";
+  const remove = (version?: number) => fx.user.invoke(evaluationActions.samplesRemove, { sample_id, version });
+  const evalDb = join(fx.home, "evaluation", "evaluation.db");
+  const obsDb = join(fx.home, "observation", "observation.db");
+  for (const version of [undefined, 1]) assert.deepEqual(await remove(version), { removed_versions: [], released_hold_ids: [] });
+  assert.equal(existsSync(evalDb), false);
+  assert.equal(existsSync(obsDb), false);
+  fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" })
+    .record({ fact: "assistant.work", outcome: "succeeded" });
+  const [record] = (await fx.user.invoke(observationActions.recordsQuery, { project_id: "p1", fact: "assistant.work", use: "evaluation" })).records;
+  const sample = workEvaluationSample(sample_id, { fact: "assistant.work" }, { hold_records: true, pinned_record_ids: [record!.record_id] });
+  const holdId = (version: number | string) => `eval:${sample_id}:v${version}`;
+  const db = fx.layer.writer.database()!.db;
+  const revokeAfterHold = async (version: number) => {
+    const caller = person({ validate_authority: () => {
+      if (db.prepare("SELECT 1 FROM evaluation_holds WHERE hold_id=?").get(holdId(version))) throw new Error("first put revoked");
+    } });
+    await assert.rejects(fx.service.invoke(caller, evaluationActions.samplesPut, { ...sample, version }), /first put revoked/);
+  };
+  await revokeAfterHold(1);
+  assert.equal(existsSync(evalDb), false);
+  assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds.map(h => h.hold_id), [holdId(1)]);
+  assert.deepEqual(await remove(1), { removed_versions: [], released_hold_ids: [holdId(1)] });
+  assert.equal(existsSync(evalDb), false);
+  assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds, []);
+  for (const version of [2, 4]) await revokeAfterHold(version);
+  await fx.user.invoke(evaluationActions.samplesPut, { ...sample, version: 3 });
+  const untouched = [
+    [holdId(5), "different.owner", `${sample_id}@5`],
+    [holdId(6), EVALUATION_PROVIDER_ID, `${sample_id}@7`],
+    [holdId("08"), EVALUATION_PROVIDER_ID, `${sample_id}@08`],
+    [`eval:${sample_id}more:v9`, EVALUATION_PROVIDER_ID, `${sample_id}more@9`],
+  ] as const;
+  for (const [hold_id, owner, sampleRef] of untouched) await fx.user.invoke(observationActions.holdsPut, {
+    hold_id, owner, sample_id: sampleRef, project_id: "p1", record_ids: [record!.record_id],
+  });
+  await fx.user.invoke(observationActions.settingsSet, { uses: { evaluation: false } });
+  assert.deepEqual(await remove(), { removed_versions: [3], released_hold_ids: [holdId(2), holdId(3), holdId(4)] });
+  await fx.user.invoke(observationActions.settingsSet, { uses: { evaluation: true } });
+  assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds.map(h => h.hold_id).sort(), untouched.map(row => row[0]).sort());
+});
+
+test("QRF-02: exact hold identities survive a collision, and a late failure rolls back every release", async t => {
+  const fx = createEvaluationFixture(t);
+  const recorder = fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" });
+  recorder.record({ fact: "assistant.work", outcome: "succeeded", work: { work_ref: "collision" } });
+  const sample = workEvaluationSample("collision", { work_ref: "collision" });
+  const record = (await fx.user.invoke(observationActions.recordsQuery, { ...sample.query, use: "evaluation" })).records[0]!;
+  const list = () => fx.user.invoke(observationActions.holdsList, { project_id: "p1" });
+  for (const [version, owner, sampleRef] of [[1, "different.owner", "collision@1"], [2, EVALUATION_PROVIDER_ID, "another-sample@2"]] as const) {
+    await fx.user.invoke(evaluationActions.samplesPut, { ...sample, version });
+    await fx.user.invoke(evaluationActions.runsExecute, { sample_id: sample.sample_id, sample_version: version });
+    const foreign = (await fx.user.invoke(observationActions.holdsPut, {
+      hold_id: `eval:collision:v${version}`, owner, sample_id: sampleRef, project_id: "p1", record_ids: [record.record_id], expires_at: null,
+    })).hold;
+    await assert.rejects(fx.user.invoke(evaluationActions.runsExecute, {
+      sample_id: sample.sample_id, sample_version: version, hold_records: true,
+    }), /留存标识/);
+    const removed = await fx.user.invoke(evaluationActions.samplesRemove, { sample_id: sample.sample_id, version });
+    assert.deepEqual(removed.released_hold_ids, []);
+    assert.deepEqual((await list()).holds.find(h => h.hold_id === foreign.hold_id), foreign);
+  }
+  for (const version of [1, 2]) await fx.user.invoke(evaluationActions.samplesPut, {
+    ...sample, sample_id: "two-versions", version, hold_records: true,
+  });
+  const before = await list();
+  const observationDb = fx.layer.writer.database()!.db;
+  // Interrupt the second actual DELETE after the first version's hold and children have been removed.
+  observationDb.exec(`CREATE TEMP TRIGGER interrupt_release BEFORE DELETE ON evaluation_holds
+    WHEN OLD.hold_id = 'eval:two-versions:v2' BEGIN SELECT RAISE(ABORT, 'release interrupted'); END`);
+  const remove = () => fx.user.invoke(evaluationActions.samplesRemove, { sample_id: "two-versions" });
+  await assert.rejects(remove(), /release interrupted/);
+  assert.deepEqual(await list(), before);
+  const versions = await fx.user.invoke(evaluationActions.samplesList, { sample_id: "two-versions", all_versions: true });
+  assert.deepEqual(versions.samples.map(s => s.version).sort(), [1, 2]);
+  observationDb.exec("DROP TRIGGER interrupt_release");
+  assert.deepEqual((await remove()).released_hold_ids, ["eval:two-versions:v1", "eval:two-versions:v2"]);
+  assert.deepEqual((await list()).holds.map(h => h.hold_id).sort(), ["eval:collision:v1", "eval:collision:v2"]);
+});
+
+test("QRF-02: a live hold on one pinned record cannot cover the second record's deletion", async t => {
+  const fx = createEvaluationFixture(t);
+  const agent = fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" });
+  for (const work_ref of ["keep", "purge"]) agent.record({ fact: "assistant.work", outcome: "succeeded",
+    work: { work_ref }, occurred_at: "2026-10-01T10:00:00Z" });
+  const read = () => fx.user.invoke(observationActions.recordsQuery, { project_id: "p1", fact: "assistant.work", use: "evaluation" });
+  const ids = (await read()).records.map(r => r.record_id);
+  assert.equal(ids.length, 2);
+  const sample = workEvaluationSample("partial-pin", { fact: "assistant.work" }, { pinned_record_ids: ids });
+  await fx.user.invoke(evaluationActions.samplesPut, sample);
+  await fx.user.invoke(observationActions.holdsPut, { hold_id: "eval:partial-pin:v1", sample_id: "partial-pin@1",
+    owner: EVALUATION_PROVIDER_ID, project_id: "p1", record_ids: [ids[0]!] });
+  await fx.user.invoke(observationActions.cleanupApply, { project_id: "p1", time_range: "before_30d" });
+  assert.deepEqual((await read()).records.map(r => r.record_id), [ids[0]]);
+  const run = await fx.user.invoke(evaluationActions.runsExecute, { sample_id: sample.sample_id });
+  assert.equal(run.effective_verdict, "unknown");
+  assert.ok(run.unknown_reasons.includes("evidence_missing"));
+  assert.ok(run.unknown_reasons.includes("coverage_gap_expired"));
+});
+
+test("QRF-01: a same-action retry is attributed to the frozen target and its owner's changed revision", async t => {
+  const fixture = await openTestHome(t);
+  const project = await fixture.createProject("核对目标写入", ["todo"]);
+  const project_id = project.project_id;
+  const caller = person({ project_id, permissions: TODO_ACTION_PERMISSIONS, readable_project_ids: [project_id] });
+  const client = fixture.host.actionClient(project.reference);
+  const author = bindActionClient(client, () => caller);
+  const create = (title: string) => author.invoke(todoActions.create, { title, placement: "project" });
+  const a = (await create("目标 A")).item;
+  const b = (await create("另一个 B")).item;
+  for (const [label, actualTarget, expected] of [["different", b, "failed"], ["same", a, "passed"]] as const) {
+    const call_id = `reassess-${label}`;
+    const work = bindActionClient(client, () => ({ ...caller, call_id }));
+    await assert.rejects(work.invoke(todoActions.update, { id: a.id, expected_revision: a.revision + 50, title: "目标修改" }));
+    const accepted = await work.invoke(todoActions.update, { id: actualTarget.id, expected_revision: actualTarget.revision, title: "目标修改" });
+    assert.equal(accepted.item.id, actualTarget.id);
+    assert.equal((await author.invoke(todoActions.get, { id: a.id })).item.revision, a.revision + (label === "same" ? 1 : 0));
+    assert.ok(fixture.host.observation);
+    fixture.host.observation.sink("agent").bind({ kind: "background", entry: "agent", actor_id: "test-agent", project_id, call_id })
+      .record({ fact: "agent.reply", outcome: "succeeded", evidence: [{ role: "reply", ref: { kind: "content", media_type: "text/plain", text: "已完成目标修改" } }] });
+    const criterion = { expectation_id: "verify-target", stage: "delivery", description: "核对目标", source: "deterministic", required_evidence: true } as const;
+    const sample = workEvaluationSample(label, { project_id, call_id }, { project_id,
+      expectations: [{ ...criterion, rule: { check: "no_self_certifying_success", subject_kind: "todo_item", subject_id: a.id } }] });
+    await author.invoke(evaluationActions.samplesPut, sample);
+    const result = await author.invoke(evaluationActions.runsExecute, { sample_id: label });
+    const judgment = result.expectation_results[0]!;
+    assert.equal(judgment.effective_verdict, expected);
+    const proof = judgment.evidence_refs.find(ref => ref.fact === "action.call" && ref.outcome === "succeeded" && ref.role === "result" && ref.snapshot);
+    assert.ok(proof);
+    const evidence = await author.invoke(observationActions.evidenceGet, { record_id: proof.record_id, use: "evaluation", role: "result" });
+    const snapshot = evidence.items[0];
+    assert.ok(snapshot?.status === "available");
+    const receipt = JSON.parse(snapshot.text).item;
+    assert.deepEqual([receipt.id, receipt.revision], [actualTarget.id, actualTarget.revision + 1]);
+    await author.invoke(evaluationActions.samplesPut, { ...sample, sample_id: label + "-untargeted",
+      expectations: [{ ...criterion, rule: { check: "no_self_certifying_success" } }] });
+    assert.equal((await author.invoke(evaluationActions.runsExecute, { sample_id: label + "-untargeted" })).effective_verdict, "unknown");
+  }
+});
+
+test("QRF-01 QRF-05: required owner versions, delayed stages and pause intervals have independent evidence", async t => {
+  const publicVersions = new Map([["real", 3]]);
+  const fx = createEvaluationFixture(t, (_project, subject) =>
+    subject.id === "unavailable" ? "unverified" : publicVersions.get(subject.id) === subject.version ? "resolved" : "missing");
+  const agent = fx.layer.sink("agent").bind({ kind: "background", actor_id: "agent", entry: "agent", project_id: "p1" });
+  for (const [id, verdict] of [["real", "passed"], ["absent", "unknown"], ["unavailable", "unknown"]] as const) {
+    agent.record({ fact: "agent.reply", outcome: "succeeded", work: { work_ref: id },
+      evidence: [{ role: "delivery", ref: { kind: "owner", owner: "document", id, version: 3 } }] });
+    const sample = workEvaluationSample(id, { work_ref: id });
+    await fx.user.invoke(evaluationActions.samplesPut, { ...sample,
+      expectations: [{ ...sample.expectations[0]!, required_evidence: true }] });
+    const judged = await fx.user.invoke(evaluationActions.runsExecute, { sample_id: id });
+    assert.deepEqual([judged.effective_verdict, judged.expectation_results[0]?.automated_verdict], [verdict, verdict]);
+  }
+  const work = { work_ref: "late" };
+  agent.record({ fact: "agent.reply", outcome: "succeeded", work, occurred_at: "2026-11-10T10:00:00Z" });
+  agent.record({ fact: "agent.instructions", outcome: "succeeded", work, occurred_at: "2026-11-10T09:00:00Z" });
+  await fx.service.invoke(pluginCaller("pages"), observationActions.report, { facts: [
+    { fact: "pages.unlinked", outcome: "succeeded", work, occurred_at: "2026-11-10T09:30:00Z" },
+  ] });
+  const sequence = (facts: string[]) => [{ expectation_id: "order", stage: "execution" as const, source: "deterministic" as const,
+    description: "准备在交付之前", rule: { check: "stage_sequence" as const, facts } }];
+  const sample = workEvaluationSample("closed", { work_ref: "late", until: "2026-11-11" }, {
+    expectations: sequence(["agent.instructions", "agent.reply"]),
+  });
+  const run = (id: string) => fx.user.invoke(evaluationActions.runsExecute, { sample_id: id });
+  await fx.user.invoke(evaluationActions.samplesPut, sample);
+  assert.equal((await run("closed")).effective_verdict, "passed");
+  await fx.user.invoke(evaluationActions.samplesPut, { ...sample, sample_id: "cross",
+    expectations: sequence(["agent.instructions", "pages.unlinked"]) });
+  assert.equal((await run("cross")).effective_verdict, "unknown");
+  await fx.user.invoke(evaluationActions.samplesPut, { ...sample, sample_id: "reverse",
+    expectations: sequence(["agent.reply", "agent.instructions"]) });
+  assert.equal((await run("reverse")).effective_verdict, "failed");
+  await fx.user.invoke(evaluationActions.samplesPut, { ...sample, sample_id: "open", query: { project_id: "p1", work_ref: "late" } });
+  await fx.user.invoke(observationActions.settingsSet, { paused: true });
+  assert.equal((await run("closed")).effective_verdict, "passed");
+  assert.ok((await run("open")).unknown_reasons.includes("coverage_gap_paused"));
+  fx.setNow("2026-11-15T11:00:00Z");
+  await fx.user.invoke(observationActions.settingsSet, { paused: false });
+  assert.ok((await run("open")).unknown_reasons.includes("coverage_gap_paused"));
+  assert.equal((await run("closed")).effective_verdict, "passed");
 });

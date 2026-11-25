@@ -15,10 +15,12 @@ import type {
   ObservationEvidenceItemView,
   ObservationQueriedRecord,
 } from "@molis-ai/molis-work-contracts/services/observation";
+import type { CommandReceipt } from "./observation-bridge.js";
 import { buildEvidencePointers, unknownReasonForMissingEvidence } from "./unknown-and-funnel.js";
 
 export interface RuleEvaluationContext {
   readonly records: readonly ObservationQueriedRecord[];
+  readonly retryReceipts?: ReadonlyMap<string, CommandReceipt>;
   readonly evidenceByRecord: ReadonlyMap<string, readonly ObservationEvidenceItemView[]>;
   readonly funnel: EvaluationFunnelCounts;
   readonly runCoverageUnknowns: readonly EvaluationUnknownReason[];
@@ -88,29 +90,54 @@ function noCheckableMatchVerdict(ctx: RuleEvaluationContext, description: string
   return { verdict: "unknown", unknownReasons: ["no_matching_records"], rationale: `没有可核对的工作记录：${description}`, pointers: [] };
 }
 
+/** Ingestion seq only resolves a tie for facts timed at arrival by the same writer. */
+function stagePrecedes(before: ObservationQueriedRecord, after: ObservationQueriedRecord): boolean | undefined {
+  if (before.record_id === after.record_id || before.project_id !== after.project_id) return false;
+  if (before.work.invocation_id && before.work.invocation_id === after.work.parent_invocation_id) return true;
+  if (after.work.invocation_id && after.work.invocation_id === before.work.parent_invocation_id) return false;
+  if (before.clock_adjusted || after.clock_adjusted) return undefined;
+  const sameWriter = before.owner.kind === after.owner.kind && ("id" in before.owner ? before.owner.id : null) === ("id" in after.owner ? after.owner.id : null)
+    && before.install_id === after.install_id && before.actor.actor_id === after.actor.actor_id;
+  if (!sameWriter) {
+    // A downstream writer citing the same version in the same work can be joined to its upstream event.
+    const linkedVersion = before.work.work_ref && before.work.work_ref === after.work.work_ref
+      && before.subjects.some(subject => subject.version !== undefined && after.subjects.some(other =>
+        other.kind === subject.kind && other.id === subject.id && other.version === subject.version));
+    if (!linkedVersion) return undefined;
+  }
+  if (before.occurred_at !== after.occurred_at) return before.occurred_at < after.occurred_at;
+  return sameWriter && before.received_at === before.occurred_at && after.received_at === after.occurred_at
+    ? before.seq < after.seq : undefined;
+}
+
 function evalStageSequence(rule: EvaluationDeterministicRule, ctx: RuleEvaluationContext): RawVerdict {
   const sequence = rule.facts ?? (rule.fact ? [rule.fact] : []);
   if (sequence.length === 0) return { verdict: "passed", unknownReasons: [], rationale: "空阶段序列无需匹配", pointers: [] };
   if (ctx.records.length === 0) return absentVerdict(ctx, sequence.join(" -> "));
-  const matched: ObservationQueriedRecord[] = [];
-  let cursor = 0;
-  for (const record of ctx.records) {
-    if (record.fact === sequence[cursor]) {
-      if (!rule.outcomes || rule.outcomes.includes(record.outcome)) {
-        matched.push(record);
-        cursor += 1;
-        if (cursor >= sequence.length) break;
-      }
+  const eligible = filterRecords(ctx.records, rule);
+  const layers = sequence.map(fact => eligible.filter(record => record.fact === fact));
+  let paths = layers[0]!.map(record => [record]);
+  let ambiguous = false;
+  for (const layer of layers.slice(1)) {
+    const next: ObservationQueriedRecord[][] = [];
+    for (const record of layer) {
+      const path = paths.find(prior => {
+        if (prior.includes(record)) return false;
+        const precedes = stagePrecedes(prior[prior.length - 1]!, record);
+        if (precedes === undefined) ambiguous = true;
+        return precedes;
+      });
+      if (path) next.push([...path, record]);
     }
+    paths = next;
   }
-  if (cursor >= sequence.length) {
-    return { verdict: "passed", unknownReasons: [], rationale: `按序观察到全部 ${sequence.length} 个阶段事实`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
+  if (paths.length) return { verdict: "passed", unknownReasons: [], rationale: `按序观察到全部 ${sequence.length} 个阶段事实`, pointers: pointersFor(paths[0]!, ctx.evidenceByRecord) };
+  const pointers = pointersFor(eligible, ctx.evidenceByRecord);
+  if (ctx.runCoverageUnknowns.length) return { verdict: "unknown", unknownReasons: ctx.runCoverageUnknowns, rationale: "阶段顺序存在覆盖缺口", pointers };
+  if (ambiguous && layers.every(layer => layer.length > 0)) {
+    return { verdict: "unknown", unknownReasons: ["evidence_missing"], rationale: "记录缺少能确定阶段先后的时间或因果依据", pointers };
   }
-  const missingFact = sequence[cursor]!;
-  if (ctx.runCoverageUnknowns.length > 0) {
-    return { verdict: "unknown", unknownReasons: ctx.runCoverageUnknowns, rationale: `阶段事实 ${missingFact} 处于覆盖缺口内`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
-  }
-  return { verdict: "failed", unknownReasons: [], rationale: `阶段序列在 ${missingFact} 中断（已完成 ${cursor}/${sequence.length}）`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
+  return { verdict: "failed", unknownReasons: [], rationale: "工作记录未按预期顺序完成全部阶段", pointers };
 }
 
 function evalDistinctVersions(rule: EvaluationDeterministicRule, matched: readonly ObservationQueriedRecord[], ctx: RuleEvaluationContext): RawVerdict {
@@ -125,7 +152,11 @@ function evalDistinctVersions(rule: EvaluationDeterministicRule, matched: readon
     }
     for (const item of ctx.evidenceByRecord.get(record.record_id) ?? []) {
       if (item.status === "owner_ref") {
-        if (item.owner_resolvable === "missing") missingReasons.add("evidence_missing");
+        if ((rule.subject_kind && rule.subject_kind !== item.ref.owner) || (rule.subject_id && rule.subject_id !== item.ref.id)) continue;
+        if (item.owner_resolvable !== "resolved") {
+          missingReasons.add("evidence_missing");
+          continue;
+        }
         versions.add(`${item.ref.owner}:${item.ref.id}@${String(item.ref.version)}`);
       } else if (item.status === "missing") {
         missingReasons.add(unknownReasonForMissingEvidence(item.reason));
@@ -194,22 +225,60 @@ function evalEvidenceText(rule: EvaluationDeterministicRule, matched: readonly O
   return { verdict: "passed", unknownReasons: [], rationale: "证据快照内容符合预期约束", pointers: pointersFor(matched, ctx.evidenceByRecord) };
 }
 
-function evalNoSelfCertifyingSuccess(ctx: RuleEvaluationContext, matched: readonly ObservationQueriedRecord[]): RawVerdict {
+function evalNoSelfCertifyingSuccess(rule: EvaluationDeterministicRule, ctx: RuleEvaluationContext, matched: readonly ObservationQueriedRecord[]): RawVerdict {
   if (ctx.records.length === 0) return noCheckableMatchVerdict(ctx, "模型自证成功检查");
-  const failedCalls = new Set(
-    ctx.records.filter((r) => r.fact === "action.call" && (r.outcome === "failed" || r.outcome === "refused") && r.work.call_id).map((r) => r.work.call_id!),
-  );
-  const succeededWrites = new Set(
-    ctx.records.filter((r) => r.fact === "action.call" && r.outcome === "succeeded" && r.detail.operation === "command" && r.work.call_id).map((r) => r.work.call_id!),
-  );
-  const offenders = ctx.records.filter(
-    (r) => r.detail.self_certified === true
-      || (r.fact.startsWith("agent.") && r.outcome === "succeeded" && r.work.call_id !== null && failedCalls.has(r.work.call_id) && !succeededWrites.has(r.work.call_id)),
-  );
-  if (offenders.length > 0) {
-    return { verdict: "failed", unknownReasons: [], rationale: "发现模型或流程在底层动作失败且无落库变更时自证成功", pointers: pointersFor(offenders, ctx.evidenceByRecord) };
+  const commands = ctx.records.filter(record => record.owner.kind === "service" && record.owner.id === "gateway" && record.fact === "action.call" && record.detail.operation === "command" && record.work.call_id);
+  const failures = commands.filter(record => record.outcome === "failed" || record.outcome === "refused");
+  const reported = ctx.records.filter(record => record.detail.self_certified === true || (record.outcome === "succeeded"
+    && (record.fact === "agent.reply" || record.fact === "agent.round_completed" || record.fact === "agent.run" && record.stage === "completed")));
+  const unverified: ObservationQueriedRecord[] = [];
+  const verified = new Set<ObservationQueriedRecord>();
+  for (const claim of reported) {
+    if (claim.detail.self_certified === true) return {
+      verdict: "failed", unknownReasons: [], rationale: "发现明确标记的模型自证成功", pointers: pointersFor([claim], ctx.evidenceByRecord),
+    };
+    for (const failed of failures.filter(record => record.work.call_id === claim.work.call_id && record.project_id === claim.project_id && record.seq < claim.seq)) {
+      const retries = commands.filter(record => record.outcome === "succeeded" && record.project_id === failed.project_id
+        && record.work.call_id === failed.work.call_id && record.detail.action === failed.detail.action && record.provider_id === failed.provider_id
+        && record.seq > failed.seq && record.seq < claim.seq);
+      if (!retries.length) return {
+        verdict: "failed", unknownReasons: [], rationale: "模型报告完成，但目标写入被拒绝或失败，未见该动作成功重试",
+        pointers: pointersFor([failed, claim], ctx.evidenceByRecord),
+      };
+      // A successful retry of the same capability can still have changed another object. Failed calls
+      // intentionally have no input snapshots. Only an identified target with a successor version suffices.
+      const declared = rule.subject_id ? { id: rule.subject_id, kind: rule.subject_kind } : failed.subjects.find(subject => subject.kind !== "action");
+      if (declared) {
+        const before = failed.subjects.find(subject => subject.kind === declared.kind && subject.id === declared.id)?.version;
+        let allOtherTargets = true;
+        let recovered: ObservationQueriedRecord | undefined;
+        for (const retry of retries) {
+          const receipt = ctx.retryReceipts?.get(retry.record_id);
+          if (receipt && (receipt.id !== declared.id || (declared.kind && receipt.kind !== declared.kind))) continue;
+          allOtherTargets = false;
+          const previous = receipt?.previousRevision ?? before;
+          if (receipt && previous !== undefined && Number(receipt.revision) > Number(previous)) {
+            recovered = retry;
+            break;
+          }
+        }
+        if (recovered) {
+          verified.add(failed).add(recovered).add(claim);
+          continue;
+        }
+        if (allOtherTargets) return {
+          verdict: "failed", unknownReasons: [], rationale: "目标写入失败，同一动作的成功回执只属于其他对象",
+          pointers: pointersFor([failed, ...retries, claim], ctx.evidenceByRecord),
+        };
+      }
+      unverified.push(failed, ...retries, claim);
+    }
   }
-  return { verdict: "passed", unknownReasons: [], rationale: "不存在脱离真实结果证据的模型自证成功", pointers: pointersFor(matched, ctx.evidenceByRecord) };
+  if (unverified.length) return {
+    verdict: "unknown", unknownReasons: ["evidence_missing"], rationale: "无法核对成功重试的目标对象和新版本",
+    pointers: pointersFor([...new Set(unverified)], ctx.evidenceByRecord),
+  };
+  return { verdict: "passed", unknownReasons: [], rationale: "不存在脱离真实结果证据的模型自证成功", pointers: pointersFor(verified.size ? [...verified] : matched, ctx.evidenceByRecord) };
 }
 
 function evalDeterministic(rule: EvaluationDeterministicRule, stage: EvaluationExpectation["stage"], ctx: RuleEvaluationContext): RawVerdict {
@@ -234,6 +303,9 @@ function evalDeterministic(rule: EvaluationDeterministicRule, stage: EvaluationE
           };
         }
         return { verdict: "failed", unknownReasons: [], rationale: `匹配记录 ${matched.length} 条，少于预期 ${min} 条`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
+      }
+      if (rule.max_count !== undefined && ctx.runCoverageUnknowns.length) {
+        return { verdict: "unknown", unknownReasons: ctx.runCoverageUnknowns, rationale: "记录不完整，无法核对数量上限", pointers: pointersFor(matched, ctx.evidenceByRecord) };
       }
       return { verdict: "passed", unknownReasons: [], rationale: `匹配记录 ${matched.length} 条，满足数量范围`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
     }
@@ -290,7 +362,7 @@ function evalDeterministic(rule: EvaluationDeterministicRule, stage: EvaluationE
       return { verdict: "failed", unknownReasons: [], rationale: "调用链缺少共享 call_id 或合法的 parent_invocation_id", pointers: pointersFor(matched, ctx.evidenceByRecord) };
     }
     case "no_self_certifying_success":
-      return evalNoSelfCertifyingSuccess(ctx, matched);
+      return evalNoSelfCertifyingSuccess(rule, ctx, matched);
     case "funnel_stage_separation": {
       const f = ctx.funnel;
       if (ctx.records.length === 0) return absentVerdict(ctx, "呈现至采用漏斗核对");
@@ -529,7 +601,7 @@ function evalEvaluatorRule(rule: EvaluationEvaluatorRule, stage: EvaluationExpec
 
 function hasResolvedEvidence(pointers: readonly EvaluationEvidencePointer[]): boolean {
   return pointers.some(
-    (ptr) => ptr.snapshot !== undefined || (ptr.owner_ref !== undefined && ptr.owner_resolvable !== "missing"),
+    (ptr) => ptr.snapshot !== undefined || (ptr.owner_ref !== undefined && ptr.owner_resolvable === "resolved"),
   );
 }
 

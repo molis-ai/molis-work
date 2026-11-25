@@ -13,6 +13,7 @@ import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { addProjectPlugin, createProject, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
+import { pressWhileSettling } from "./fixtures/steady-press.js";
 
 const WIDE = 396, NARROW = 468;
 const AREA = "[data-task-grants-area]";
@@ -246,29 +247,30 @@ test("S-task-grants-area TGA-02 TGA-03 TGA-04 TGA-05 TGA-10 TGA-15 TGA-18 TGA-19
   await p.settle();
   const none = await p.records();
 
-  // TGA-02: the page moves its element 100 ms before the press, so the switch comes under the pointer.
+  // TGA-02: the page moves its element, so the switch comes under the pointer; until it has held still the area is not ready.
   await child.evaluate(`document.getElementById("tga").style.left = "64px"`);
   await new Promise(resolve => setTimeout(resolve, 100));
   assert.equal(await unready(), true, "TGA-02 a moved area is not ready");
   assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(toggle)}).getAttribute("aria-disabled")`), "true", "its controls fade");
-  await p.press(toggle);
+  // The press itself: the area moved again just before it, provably within the steady time however slow the runner.
+  const toggleControl = `document.querySelector(${JSON.stringify(toggle)})`;
+  await pressWhileSettling(browser, { surface: AREA, locate: toggleControl,
+    scene: async attempt => { await p.ready(); await child.evaluate(`document.getElementById("tga").style.left = ${JSON.stringify(attempt % 2 ? "64px" : "24px")}`); } });
   await p.settle(250);
   assert.equal(await writes(), 0, "TGA-02 a press on a moved area does not write");
   assert.equal(await p.line(), "刚移动过，请再拨一次");
 
   // TGA-03: the outer layout moves the frame (a pane being resized) while the page reports the same place; pressed at once.
-  await p.ready();
-  await browser.evaluate(`document.querySelector("iframe[data-plugin-frame=schedule]").style.translate = "30px 0"`);
-  await new Promise(resolve => setTimeout(resolve, 80));
-  await p.press(toggle);
+  await pressWhileSettling(browser, { surface: AREA, locate: toggleControl,
+    scene: async attempt => { await p.ready(); await browser.evaluate(`document.querySelector("iframe[data-plugin-frame=schedule]").style.translate = ${JSON.stringify(attempt % 2 ? "0px 0" : "30px 0")}`); } });
   await p.settle(250);
   assert.equal(await writes(), 0, "TGA-03 an area the shell moved does not act at once, though the page reported no move");
   await browser.evaluate(`document.querySelector("iframe[data-plugin-frame=schedule]").style.translate = ""`);
   // TGA-03: an area pressed as soon as it is shown.
-  await p.place("fresh", "fresh", "left:640px;top:24px;width:320px");
+  await pressWhileSettling(browser, { surface: AREA, locate: `${holders}[1]?.querySelector('[data-framed-control^="switch:"]')`,
+    scene: () => p.place("fresh", "fresh", "left:640px;top:24px;width:320px"),
+    reset: async () => { await child.evaluate(`document.getElementById("fresh").remove()`); await browser.waitFor(`${holders}.length === 1`); } });
   assert.equal(await p.placed("fresh"), "shown");
-  const fresh = await browser.evaluate<{ x: number; y: number }>(`(() => { const box = ${holders}[1].querySelector('[data-framed-control^="switch:"]').getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 }; })()`);
-  await p.press("", fresh);
   await p.settle(250);
   assert.equal(await writes(), 0, "TGA-03 an area just shown does not act");
   await child.evaluate(`document.getElementById("fresh").remove()`);

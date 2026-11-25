@@ -207,6 +207,7 @@ flowchart LR
   B105 -.4 层防注入护栏.-> HB
   B44B0["44B-0 保留官方前缀与插件命名放开"] --> B44B["44B 特殊逻辑平民化"]
   B44B --> UPP["106～111 统一工作分区<br/>(底座→四波迁移→推送与界面)"]
+  B44B --> B44C["44C 平民化收尾"]
   UPP --> CUI
   UPP --> UXP
   UPP --> B104
@@ -589,6 +590,7 @@ flowchart LR
   B44B0["44B-0 P0 安全前缀"] --> B44B["44B 特殊逻辑平民化<br/>(Shelf 纯平台/删 Alchemist/连接器驱动)"]
   INF["在途 PR #2239/#2258/#2253~2260"] --> B44B
   B44B --> B106["106 UPP-A 分区底座"]
+  B44B --> B44C["44C 平民化收尾<br/>(提供方身份/集成驱动清零/签名样例)"]
   B106 --> B107["107 UPP-B1 独立库 6 插件"]
   B107 --> B108["108 UPP-B2 原 Home 5 插件+总览"]
   B108 --> B109["109 UPP-B3 主库去列+双实例归零+Git 迁入"]
@@ -604,6 +606,7 @@ flowchart LR
 | --- | --- | --- |
 | `44B-0` | 无前置，立即可单独切安全小 PR：全局保留 `io.molis.work.` 前缀（`S-reserved-host-prefix`）与修两处第三方正则 | [44B](batches/44b.md#batch-44b-item-0) |
 | `44B` | 等 `44B-0` 与在途 `#2239`/`#2258`/`#2253`～`#2255`/`#2257`/`#2250`/`#2260`：Shelf 收归纯平台 `modules/shelf`（`always_on=0`、免重写 3,150 行 Rust）、删旧 Alchemist 与 `better-sqlite3`、D5 Clean v1 拍平、官方集成驱动化（`youtube`→`rss`、`planning-methods`→`packages/system-skills/`）、修 `#2231` Inbox 劫持、上线 G1 | [44B](batches/44b.md) |
+| `44C` | 等 `44B`（#2308）：统一 `resolveActionProviderId`、`RuntimePluginDirectory`、`PLATFORM_SETTINGS_REGISTRY`，M15，集成注册表并入统一运行时与厂商分支、集成包导入清零，PSD-03 签名样例，G1 终点；范围以 44B 记录末尾两节为准（用户 2026-11-24 定）；与 `106` 并行 | [44C](batches/44c.md) |
 | `106`（UPP-A） | 等 `44B`：只加不删建分区根、单张安装表、`partition_plugins`/`partitions.plugins.set@1`、`person-settings`/`evidence`/到期登记/平台定格式总览表 `overview_projection`（到期提醒从中取）、materials 全分区、IM/双层 Skill 底座 | [106](batches/106.md) |
 | `107`（UPP-B1） | 等 `106`：6 个独立库插件迁 `databases.partition`，删 `databases.home.partition` 复用器（`project_rows`、`artifact_join` 归 `109`） | [107](batches/107.md) |
 | `108`（UPP-B2） | 等 `107`：原 Home 5 插件迁分区，个人空间总览上线（承接原 `64-3` 跨项目视图）+ G4，删 `personal:true`/`hidden`/`project_reach`（`scope:"home"` 与 `outsideBuild` 链归 `109`） | [108](batches/108.md) |

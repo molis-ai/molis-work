@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { markProjectOpened, pruneProjectArrival } from "./project-arrival.js";
 import { isTopLevelNavigation } from "./web-http.js";
 import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
@@ -49,8 +50,10 @@ export async function redirectSettingsAddress(request: IncomingMessage, response
   if (!homeDirectory || !isTopLevelNavigation(request) || !GLOBAL_SETTINGS_PATH.test(url.pathname)) return false;
   const known = await projects();
   const last = pruneProjectArrival(homeDirectory, new Set(known.map((project) => project.project_id))).last_project_id;
+  // A named place or the one last opened may be the personal space; with neither, the first of the person's projects (batch 106: every
+  // Home has the personal space, and one nobody opened yet is not where a settings page lands).
   const target = known.find((project) => project.project_id === url.searchParams.get("project"))
-    ?? known.find((project) => project.project_id === last) ?? known[0];
+    ?? known.find((project) => project.project_id === last) ?? known.find((project) => project.project_id !== PERSONAL_SPACE_PROJECT_ID);
   if (!target) return false;
   sendToWorkbench(response, `/projects/${encodeURIComponent(target.project_id)}`, "", new URL(url), desktop);
   return true;

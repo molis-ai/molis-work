@@ -3,6 +3,7 @@ import { once } from "node:events";
 import { createServer } from "node:http";
 import test from "node:test";
 import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { openBoardBrowser } from "./fixtures/board-browser.js";
@@ -176,6 +177,10 @@ test("07-2a N54 WLN-27: a stream of what waits on the person that never answers 
 test("07-2a N53 request counts: loading the chooser and a project page, switching a tab and opening the side", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { command, sessionId, navigate, waitFor, click, origin, projectId } = browser;
+  // Every Home has the personal space (batch 106). b51cb696d1 measured a Home whose places had all been read; reading the personal
+  // space once first keeps it so, instead of the chooser's first load also waiting for the personal space's background read.
+  await browser.web.get(`/projects/${PERSONAL_SPACE_PROJECT_ID}/api/attention`);
+  await new Promise(resolve => setTimeout(resolve, 1_000));
   await command("Network.enable", {}, sessionId);
   const seen: Array<{ phase: string; method: string; path: string; status?: number; id: string; frame: string; type: string }> = [];
   let phase = "chooser";
@@ -221,9 +226,7 @@ test("07-2a N53 request counts: loading the chooser and a project page, switchin
   // measured, in an isolated Home with the seeded demo project on a local Mac, one step each: chooser 15 requests, the first project
   // page (Todo) 39, the project page coming back with two tabs (Goals) 31, a tab switch 10, opening the side 10. The allowance covers
   // CI timing; the ceilings are call budgets, so a duplicate read or a whole page read again lands above them.
-  // Batch 106: every Home has the personal space, which the Host has not read yet when the chooser first loads; the Home answers what
-  // it has and reads attention once more when the personal space's background read lands (S-49 B103-01, `resting.changed`). One read.
-  const MEASURED = { chooser: 16, todo: 39, project: 31, tab: 10, side: 10 };
+  const MEASURED = { chooser: 15, todo: 39, project: 31, tab: 10, side: 10 };
   const CALL_SLACK = 3;
   // Batch 16 adds one selected language script per document, words per authorized frame, and one appearance subscription.
   const LANGUAGE_SCRIPT = /^\/assets\/locale\/workbench\.(zh|en)\.[a-f0-9]{24}\.js$/u;

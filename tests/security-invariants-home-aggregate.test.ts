@@ -712,6 +712,8 @@ test("S-49 unopenable closed projects do not thrash background wakes until their
     "shutdown with active plugin work does not persist a stale resting snapshot");
   assert.equal(existsSync(restingCacheFile(home, corrupt.storage_key)), true,
     "idle open projects without active work still persist on clean shutdown");
+  const personal = molisWorkHostProjectReference({ projectId: PERSONAL_SPACE_PROJECT_ID, databasePath: join(home, "personal-space", "molis-work.db") });
+  assert.equal(existsSync(restingCacheFile(home, personal.storage_key)), false, "the personal space, only read in the background here, left no resting snapshot");
 
   // Fresh Host opens `active` quietly instead of serving a stale snapshot, while idle projects serve with zero opens.
   const opened2: string[] = [];
@@ -729,8 +731,8 @@ test("S-49 unopenable closed projects do not thrash background wakes until their
     "project shut down with active work is not served as resting after restart");
   assert.ok(afterRestart.answers.some(answer => answer.project_id === corrupt.project_id && answer.resting === true));
   await ports2.resting!.readings.pass;
-  // The personal space was only read quietly in the background before (no resting snapshot is kept for that), so after the restart it is
-  // a partition not read yet and is opened once to be read, like any project (B103-01).
+  // The personal space left no resting snapshot (asserted above), so the new Host has not read it yet and opens it once to read it,
+  // like any project (B103-01). Batch 108's zero-wake budget for the personal overview (G4) is where its restarts are measured.
   assert.deepEqual(opened2.sort(), [PERSONAL_SPACE_PROJECT_ID, active.project_id].sort(), "only the project shut down with active work wakes quietly");
 });
 

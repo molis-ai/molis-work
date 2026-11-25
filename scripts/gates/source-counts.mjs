@@ -246,7 +246,8 @@ export const countPlatformPluginNames = (file, text, { plugins, integrations }) 
 // `listPartitions()` (the personal space first, its root from `partitionRoot()`), never by listing the `projects/` directory itself or by
 // iterating `listProjects()`, which leaves the personal space out. Counted per platform source, so each file may only fall: a direct
 // `readdir`/`readdirSync` of a `projects…` path, and a `for … of …listProjects()` or `listProjects().forEach/map/flatMap/filter/some/every/reduce`.
-// A list the person sees (their projects, without the personal space) is the one use of `listProjects()` that stays. Exported for tests.
+// A list the person sees (their projects, without the personal space) is the one use of `listProjects()` that stays; it reads the same as
+// a loop, so it is counted too and may only not grow in its file. Exported for tests.
 const PARTITION_PATH_PATTERNS = [
   /\breaddir(?:Sync)?\(\s*(?:(?:path\.)?join\([^)]*?)?(?:\bprojects\w*\b|(["'`])projects\1)/g,
   /\bfor\s*\((?:const|let|var)\s[^;)]*?\sof\s[^)]*?\blistProjects\(\s*\)/g,

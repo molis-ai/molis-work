@@ -26,9 +26,10 @@ for (const service of ["asana", "gmail", "notion"]) test(`ASC-08 ASC-20 ASC-35: 
   await cancel(home, request.authorization_id);
   assert.equal((await status(home, request.authorization_id)).status, "cancelled");
   assert.equal(readSecret(`connector-authorization:${request.authorization_id}:presentation`), null);
-  // The work records keep their own keys here too (the Home always has the personal space, so they are on); none of the connector's stay.
+  // The work records keep their own keys in the same file once they are on; none of the connector's stay.
   const left = runWithMolisWorkHome(home.home, () => Object.keys((JSON.parse(readFileSync(readSecretsFileMeta().path, "utf8")) as { entries: object }).entries));
-  assert.deepEqual(left.filter(ref => !ref.startsWith("system:observation:")), [], "staged client and PKCE secrets are deleted");
+  assert.deepEqual(left.sort(), ["system:observation:digest:v1", "system:observation:evidence:v1", "system:observation:evidence:v1:identity"],
+    "staged client and PKCE secrets are deleted; only the work records' own keys stay");
   let externalCalls = 0;
   const realFetch = globalThis.fetch;
   t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {

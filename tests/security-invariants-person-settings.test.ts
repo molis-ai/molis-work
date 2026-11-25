@@ -90,3 +90,30 @@ test("UPP-15 S-person-settings-private sync carries only the portable preference
   }
   assert.doesNotThrow(() => replica.authorizeKey!(`${PLUGIN}/default_service`));
 }));
+
+test("UPP-15 S-person-settings-private an incoming portable preference with an unknown field, too large, naming a path or looking like a credential is refused and nothing is kept", async () => withSettings(settings => {
+  settings.set(owner, declarations, "default_service", { provider: "fal" });
+  const installed = (pluginId: string) => pluginId === PLUGIN ? { install_id: INSTALL, declarations } : null;
+  const replica = personSettingsConfigReplica(settings.db, "space-1", () => {}, installed);
+  const mutation = replica.next();
+  assert.ok(mutation?.value);
+  const before = JSON.stringify(settings.list(INSTALL));
+  const cases: Array<[string, (value: Record<string, unknown>) => void]> = [
+    ["an unknown field", value => { value.foreign = "unrecognized"; }],
+    ["a value past its limit", value => { (value.data as { value: unknown }).value = { provider: "x".repeat(1024 * 1024) }; }],
+    ["a path on this machine", value => { (value.data as { value: unknown }).value = { folder: "/private/tmp/only-on-source" }; }],
+    ["a value that looks like a credential", value => { (value.data as { value: unknown }).value = { provider: ["token", "dummy-payload-value"].join("=") }; }],
+  ];
+  for (const [index, [label, change]] of cases.entries()) {
+    const value = structuredClone(mutation.value) as Record<string, unknown>;
+    change(value);
+    assert.throws(() => replica.receive({ ...mutation, value, revision: index + 2, operationId: `invalid-${index}` }), label);
+    assert.equal(JSON.stringify(settings.list(INSTALL)), before, `${label}: nothing kept`);
+    assert.equal(replica.counts().conflicts, 0, `${label}: not even held as a conflict`);
+  }
+  // The same event with a plain preference is taken: the refusals above are about the value, not the event.
+  const plain = structuredClone(mutation.value) as Record<string, unknown>;
+  (plain.data as { value: unknown }).value = { provider: "replicate" };
+  replica.receive({ ...mutation, value: plain, revision: cases.length + 2, operationId: "plain" });
+  assert.equal(replica.counts().conflicts, 1, "a plain preference meeting this device's unsent change is held as a conflict to choose");
+}));

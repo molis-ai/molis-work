@@ -50,7 +50,8 @@ test("W5-01-CODING-03 a fixed change set is answered as each file's reviewed tex
 });
 
 // DEL-08 (batch 99; handed on by 44B when Shelf stopped reading change sets through the project test rig): a file a confirmed subtask
-// integration deleted reads as deleted, with its text before and no text after; the text holds the change set's files and no other.
+// integration deleted reads as deleted, with its text before and no text after. Which files a change set holds (only what a confirmed
+// integration brought back, nothing a command or an unknown outcome may have) is decided where it is made: coding-changeset-http.test.ts.
 test("DEL-08 a deleted file in a fixed change set reads as deleted, with its text before and nothing after", async () => {
   const deleted = { path: "src/gone.ts", kind: "deleted" as const, added_lines: 0, removed_lines: 2, diff: "",
     review: { review_id: "review-gone", before_text: "was\nhere\n", after_text: "", decision: "approved" as const, execution: "applied" as const } };
@@ -58,7 +59,6 @@ test("DEL-08 a deleted file in a fixed change set reads as deleted, with its tex
     origin: { session_id: "session-a", runtime_session_id: "runtime-1", workspace_id: "workspace-1", workspace_name: "demo" }, files: [deleted] } });
   const { markdown } = await ask(fakePlatform({ processItems: [change] }, CODING_TYPES), CHANGESET_REFERENCE) as { markdown: string };
   assert.equal(markdown, "## 修改 1 · src/gone.ts\n\n批准决定：已批准；保存时执行状态：已执行\n原审查：review-gone\n\n修改前：\n```\nwas\nhere\n\n```\n\n修改后：文件已删除");
-  assert.equal(markdown.match(/^## 修改 /gmu)?.length, 1, "only the change set's own file, nothing the round did not confirm");
 });
 
 test("W5-01-CODING-04 archived, other-project, other-kind, forged and unavailable versions are refused in Coding's own code", async () => {

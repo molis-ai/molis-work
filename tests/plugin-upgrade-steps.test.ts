@@ -229,7 +229,7 @@ test("AC-M1-01 AC-M1-02 upgrading saved v1 data seeds each new personal journal 
     db.exec(readFileSync(join(golden, entry.payload), "utf8"));
     return { file, db };
   };
-  const riskLibrary = restore("/projects/personal/molis-work.db", "personal-project.db");
+  const riskLibrary = restore("/personal-space/molis-work.db", "personal-project.db");
   const briefLibrary = restore("/work-brief/work-brief.db", "work-brief.db");
   const space = readDatabaseSpace(briefLibrary.db);
   assert.equal(space?.kind, "personal");

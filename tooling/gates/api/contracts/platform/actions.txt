@@ -3345,10 +3345,6 @@ export declare const PLACEMENT_EXPORT_INPUT_SCHEMA: {
     readonly additionalProperties: false;
 };
 
-export declare const PLACEMENT_EXPORT_INPUT_TYPE = "molis.placement.export.input.v1";
-
-export declare const PLACEMENT_EXPORT_OUTPUT_TYPE = "molis.placement.export.output.v1";
-
 export declare const PLACEMENT_EXPORT_SCHEMA: {
     type: string;
     properties: {
@@ -3438,10 +3434,6 @@ export declare const PLACEMENT_PUT_INPUT_SCHEMA: {
     readonly required: readonly ["kind", "record", "request_id"];
     readonly additionalProperties: false;
 };
-
-export declare const PLACEMENT_PUT_INPUT_TYPE = "molis.placement.put.input.v1";
-
-export declare const PLACEMENT_PUT_OUTPUT_TYPE = "molis.placement.put.output.v1";
 
 export declare const PLACEMENT_RELATION_LIMITS: {
     readonly targets: 500;
@@ -3547,6 +3539,14 @@ export declare const PLACEMENT_RESULT_SCHEMA: {
     required: string[];
     additionalProperties: boolean;
 };
+
+export declare const PUSH_EXPORT_INPUT_TYPE = "molis.push.export.input.v1";
+
+export declare const PUSH_EXPORT_OUTPUT_TYPE = "molis.push.export.output.v1";
+
+export declare const PUSH_PUT_INPUT_TYPE = "molis.push.put.input.v1";
+
+export declare const PUSH_PUT_OUTPUT_TYPE = "molis.push.put.output.v1";
 
 export interface PersonIntake extends DestinationDeclaration {
     readonly intake_id: string;
@@ -6489,6 +6489,8 @@ export declare function runIsMissed(dueAt: string | number, now: number): boolea
 export declare function runsExpiryBounds(window: RunsWindow): RunsExpiryBounds;
 
 export declare function sameArtifactFields(payload: unknown, object: unknown, fields: readonly string[]): boolean;
+
+export declare function sameCarriedRecord(here: PlacementRecord, carried: PlacementRecord): boolean;
 
 export declare function sceneConfigurationActions(scene: ActionSceneDefinition): {
     targets: ActionDefinition<{

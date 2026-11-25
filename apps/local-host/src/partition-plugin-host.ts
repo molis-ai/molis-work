@@ -4,6 +4,7 @@ import { PERSONAL_SPACE_DIRECTORY, partitionRootsOnDisk } from "@molis-ai/molis-
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
 import { openHomePluginStore } from "./home-plugin-store.js";
+import { hostLog } from "./host-log.js";
 import { assembledPerPartition, PartitionPluginAssembly, type PartitionPluginLease, type PartitionWakeReason } from "./partition-plugin-assembly.js";
 import { notePartitionInstalls } from "./plugin-install-records.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
@@ -234,6 +235,9 @@ export class PartitionPluginHost {
           this.failures.delete(key);
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
+          // Which plugin in which partition, and the platform's code for why: never the plugin's own words.
+          const code = error instanceof ActionError ? (error.details as { code?: unknown } | undefined)?.code ?? error.code : undefined;
+          hostLog.warn("plugins", "partition_plugin_start_failed", error, { plugin_id: pluginId, partition_id: partitionId, code: typeof code === "string" ? code : null });
           this.failures.set(key, reason);
           unfinished.push({ plugin_id: pluginId, desired_enabled: true, reason });
         }

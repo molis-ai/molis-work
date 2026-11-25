@@ -134,7 +134,7 @@ test("UPP-21 a use waiting for an instance that is stopped while it starts gets 
   let started!: () => void;
   const stopped: string[] = [];
   const assembly = new PartitionPluginAssembly({ home, library: () => "notes", members: () => [PLUGIN], installation: () => record,
-    start: scope => new Promise(resolve => { started = () => resolve({ async stop() { stopped.push(scope.partition_id); } }); }) });
+    start: scope => new Promise<{ stop(): Promise<void> }>(resolve => { started = () => resolve({ async stop() { stopped.push(scope.partition_id); } }); }) });
   const waiting = assembly.acquire(PLUGIN, a, "open");
   await new Promise(resolve => setImmediate(resolve));
   const stopping = assembly.stopPlugin(PLUGIN, a);
@@ -171,7 +171,7 @@ test("UPP-06 S-31 S-partition-isolation the project platform gives a plugin with
   await assert.rejects(f.host.homeActionClient().invoke({ ...caller, project_id: null }, datasetActions.create, { title: "不在任何项目" }), { code: "actions.scope_mismatch" },
     "a call in no project reaches no project's instance");
   assert.equal(existsSync(bLibrary), before, "B's library was not made by A's call");
-  if (before) assert.deepEqual((await f.host.actionClient(b.reference).invoke(runtimePerson(DATASET_ACTION_PERMISSIONS, b.project_id), datasetActions.list, {})).datasets, [], "and holds nothing of A's");
+  if (before) assert.deepEqual((await f.host.actionClient(b.reference).invoke(runtimePerson(DATASET_ACTION_PERMISSIONS, b.project_id), datasetActions.list, {}) as { datasets: unknown[] }).datasets, [], "and holds nothing of A's");
   assert.equal(existsSync(join(f.home, "dataset")), false, "nor a library in the Home");
   assert.equal(existsSync(partitionLibraryFile(f.home, PERSONAL_SPACE_PROJECT_ID, "dataset")), false, "nor in the personal space");
 });
@@ -186,7 +186,7 @@ test("UPP-06 S-18 S-52 deleting a project stops its plugin's instance and remove
   } });
   const gone = await f.project("要删的项目"), kept = await f.project("留下的项目");
   const client = f.host.actionClient(gone.reference), caller = runtimePerson(DATASET_ACTION_PERMISSIONS, gone.project_id);
-  const { dataset } = await client.invoke(caller, datasetActions.create, {});
+  const { dataset } = await client.invoke(caller, datasetActions.create, {}) as { dataset: { id: string } };
   await f.host.actionClient(kept.reference).invoke(runtimePerson(DATASET_ACTION_PERMISSIONS, kept.project_id), datasetActions.create, { title: "留下" });
   const library = partitionLibraryFile(f.home, gone.project_id, "dataset");
   assert.equal(existsSync(library), true);

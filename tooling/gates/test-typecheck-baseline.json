@@ -1,6 +1,6 @@
 {
   "note": "Recorded per-file TypeScript diagnostics for tooling/types/tsconfig.tests.json (Batch 100-2). May only shrink; update with `node scripts/gates/test-typecheck.mjs --update --base origin/main`.",
-  "total": 4123,
+  "total": 4116,
   "files": {
     "apps/workbench/src/browser/characters/action-client.ts": 8,
     "scripts/memory-evaluation/baseline.mts": 2,
@@ -571,7 +571,6 @@
     "tests/plugin-composition.e2e.test.ts": 1,
     "tests/plugin-context-declarations.test.ts": 37,
     "tests/plugin-contract-ownership.test.ts": 1,
-    "tests/plugin-database-partition.test.ts": 1,
     "tests/plugin-directory-marks.test.ts": 1,
     "tests/plugin-directory-notices.e2e.test.ts": 2,
     "tests/plugin-durable-coordination.test.ts": 1,
@@ -579,7 +578,7 @@
     "tests/plugin-frame-readiness.e2e.test.ts": 2,
     "tests/plugin-global-settings.test.ts": 15,
     "tests/plugin-home-artifact-declaration.test.ts": 1,
-    "tests/plugin-home-artifact-host-recovery.test.ts": 5,
+    "tests/plugin-home-artifact-host-recovery.test.ts": 4,
     "tests/plugin-home-artifact-join.test.ts": 6,
     "tests/plugin-host-executor.test.ts": 9,
     "tests/plugin-host-services.test.ts": 15,
@@ -786,7 +785,6 @@
     "tests/security-invariants-position-offers.test.ts": 3,
     "tests/security-invariants-project-copy-journal.test.ts": 7,
     "tests/security-invariants-project-copy-preview.test.ts": 1,
-    "tests/security-invariants-project-copy.test.ts": 3,
     "tests/security-invariants-project-instructions.test.ts": 2,
     "tests/security-invariants-project-metadata-sync.test.ts": 4,
     "tests/security-invariants-project-reach.test.ts": 12,

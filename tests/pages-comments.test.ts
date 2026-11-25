@@ -59,7 +59,10 @@ test("PAS-08 PAS-10: real action dispatcher refuses forged authorship, wrong tar
     assert.match(context.text, /用户明确附上的未保存草稿/);assert.match(context.text, /未保存内容/);
     assert.doesNotMatch(context.text, /可定位的原文/);assert.deepEqual(store.get(page.id).body, body(true));
     await assert.rejects(service.invoke(caller, pagesCommentActions.context, { ...contextInput, draft: { ...contextInput.draft, revision: "99" } }), /正文已改变/);
-    await assert.rejects(service.invoke({ ...caller, project_id: "b" }, pagesCommentActions.context, contextInput), /不存在|找不到/);
+    // Another partition is another library (batch 107): the host hands partition b its own store, where this thread does not exist.
+    const other = openPagesStore(home, "b"), elsewhere = new ActionService(new CapabilityRegistry<ActionCallContext>());
+    elsewhere.registerProvider({ provider: { provider_id: "io.molis.work.pages", kind: "plugin", title: "Pages" }, definitions: Object.values(pagesCommentActions), handlers: createPagesCommentHandlers(ownPagesStores(run => run(other))) });
+    try { await assert.rejects(elsewhere.invoke({ ...caller, project_id: "b" }, pagesCommentActions.context, contextInput), /不存在|找不到/); } finally { other.close(); }
     await assert.rejects(service.invoke(caller, pagesCommentActions.reply, target), /只能由宿主/);
     const delivery = { target: { provider_id: "io.molis.work.pages", subject_kind: "pages_document", ...target, title: "原评论" }, message_id: thread.messages[0]!.message_id, request_id: "send", work_id: "work", run_id: "run", body: "助理回答" };
     await assert.rejects(service.invoke({ ...caller, assistant_reply: { ...delivery, target: { ...delivery.target, thread_id: "wrong" } } }, pagesCommentActions.reply, target), /只能由宿主/);

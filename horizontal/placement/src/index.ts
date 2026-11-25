@@ -389,7 +389,10 @@ const notMovable = (ports: PlacementPorts) => new ActionError("placement.not_mov
  */
 async function carryTools(ports: PlacementPorts, object: PlacedObject, from: string, to: string, revert = false): Promise<CarryTools | null> {
   const open = revert ? ports.revert ?? ports.scope : ports.scope;
-  const source = await open(from), here = await source.client.discover(source.caller);
+  const source = await open(from);
+  let here: readonly ActionView[];
+  // A directory that cannot be read here offers no carry, as it offers no mover (`placementTools`): the move is refused as not movable.
+  try { here = await source.client.discover(source.caller); } catch { return null; }
   const exporter = carryToolOf(ports, here, object.kind, isObjectExporter);
   if (!exporter) return null;
   const target = await open(to);

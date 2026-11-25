@@ -1,10 +1,10 @@
 [
   {
-    "store": "projects/catalog.db",
+    "store": "projects/*/molis-work.db",
     "version": 1,
-    "from": "f704641f25a9cbb2",
-    "to": "0691cb9c32e88862",
-    "approved": "user 2026-11-24 (Batch 106 goal prompt: same-version-exceptions registration; U13 Clean v1: old values are deleted, no migration)",
-    "reason": "Batch 106 renames project_plugins to partition_plugins(partition_id, plugin_id, enabled_at, enabled_by) in the clean pre-release v1 catalog (specs/unified-partition-plugins §4.1); the goldens' catalog dumps are rewritten in place, and the entry goes in the next PR that touches this file."
+    "from": "ef7b23560ff7e149",
+    "to": "212a41a3d10ab1be",
+    "approved": "user 2026-11-24 (Batch 107 roadmap: each batch carries its same-version-exceptions entry, V7; U13 Clean v1: old values are deleted, no migration)",
+    "reason": "Batch 107 adds plugin_partition_runtime(install_id, state, recovery_count, last_error_code, updated_at) to the clean pre-release v1 partition database: a per-partition plugin's lifecycle is kept per (installation, partition) while its install facts stay in the Home install table; the goldens' partition databases are rewritten in place. The batch 106 catalog entry matched nothing once it was on main and is cleared here."
   }
 ]

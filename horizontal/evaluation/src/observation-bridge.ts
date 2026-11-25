@@ -11,6 +11,7 @@ import {
   type EvaluationSampleView,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
 import {
+  OBSERVATION_LIMITS,
   OBSERVATION_PROVIDER_ID,
   observationActions,
   type ObservationCoverageGetOutput,
@@ -182,9 +183,14 @@ export async function resolveSampleHoldRecordIds(
   return records.map((r) => r.record_id);
 }
 
-export const sampleHoldTarget = (sampleId: string, version: number, holdId = `eval:${sampleId}:v${version}`) => ({
-  hold_id: holdId, owner: EVALUATION_PROVIDER_ID, sample_id: `${sampleId}@${version}`,
-});
+function sampleHoldSeries(sampleId: string) {
+  return { owner: EVALUATION_PROVIDER_ID, sample_id_prefix: `${sampleId}@`, hold_id_prefix: `eval:${sampleId}:v` };
+}
+
+export function sampleHoldTarget(sampleId: string, version: number, holdId?: string) {
+  const series = sampleHoldSeries(sampleId);
+  return { hold_id: holdId ?? series.hold_id_prefix + version, owner: series.owner, sample_id: series.sample_id_prefix + version };
+}
 
 export async function readSampleHold(client: ActionClient, caller: ActionCallContext, sample: Pick<EvaluationSampleView, "sample_id" | "version">): Promise<ObservationHoldView | undefined> {
   const target = sampleHoldTarget(sample.sample_id, sample.version);
@@ -215,7 +221,17 @@ export async function releaseEvaluationSampleHolds(
   client: ActionClient,
   nestedCaller: ActionCallContext,
   targets: readonly ReturnType<typeof sampleHoldTarget>[],
+  sample?: { readonly sample_id: string; readonly version?: number },
 ): Promise<readonly string[]> {
-  const result = await client.invoke(nestedCaller, obsRef(observationActions.holdsRelease), { targets }) as ObservationHoldReleaseResult;
+  const series = sample && sample.version === undefined ? sampleHoldSeries(sample.sample_id) : undefined;
+  // A valid sample ID can be longer than the observation ID would allow after adding its version.
+  const fits = (id: string) => Array.from(id).length <= OBSERVATION_LIMITS.ref_text;
+  const exact = sample?.version === undefined ? targets : [...targets, sampleHoldTarget(sample.sample_id, sample.version)];
+  const validTargets = exact.filter(target => fits(target.hold_id) && fits(target.sample_id));
+  const versionSeries = series && fits(series.hold_id_prefix + "1") && fits(series.sample_id_prefix + "1") ? series : undefined;
+  if (!validTargets.length && !versionSeries) return [];
+  const result = await client.invoke(nestedCaller, obsRef(observationActions.holdsRelease), {
+    targets: validTargets, ...(versionSeries ? { version_series: versionSeries } : {}),
+  }) as ObservationHoldReleaseResult;
   return result.released_hold_ids;
 }

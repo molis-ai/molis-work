@@ -43,6 +43,8 @@ export interface ObservationHoldPutResult {
 export interface ObservationHoldReleaseInput {
   /** Release only these (owner, sample, ID) triples, together in one transaction. */
   readonly targets?: readonly Pick<ObservationHoldView, "owner" | "sample_id" | "hold_id">[];
+  /** Also release this owner's pairs whose two literal prefixes are followed by the same canonical positive integer. */
+  readonly version_series?: { readonly owner: string; readonly sample_id_prefix: string; readonly hold_id_prefix: string };
   readonly hold_id?: string;
   readonly sample_id?: string;
 }
@@ -116,6 +118,7 @@ export const observationHoldActions = {
       subject_kinds: [],
       input_schema: inputSchemaFor<ObservationHoldReleaseInput>()(closedObjectSchema({
         targets: { type: "array", items: closedObjectSchema({ owner: token, sample_id: token, hold_id: token }) },
+        version_series: closedObjectSchema({ owner: token, sample_id_prefix: token, hold_id_prefix: token }),
         hold_id: token,
         sample_id: token,
       }, [])),

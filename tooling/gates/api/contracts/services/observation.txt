@@ -308,6 +308,11 @@ export interface ObservationHoldPutResult {
 
 export interface ObservationHoldReleaseInput {
     readonly targets?: readonly Pick<ObservationHoldView, "owner" | "sample_id" | "hold_id">[];
+    readonly version_series?: {
+        readonly owner: string;
+        readonly sample_id_prefix: string;
+        readonly hold_id_prefix: string;
+    };
     readonly hold_id?: string;
     readonly sample_id?: string;
 }

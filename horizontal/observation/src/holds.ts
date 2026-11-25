@@ -267,15 +267,28 @@ export async function handleHoldsPut(
   };
 }
 
+function holdsInVersionSeries(db: DatabaseSync, series: NonNullable<ObservationHoldReleaseInput["version_series"]>) {
+  const rows = rowsAs<Pick<StoredHoldRow, "owner" | "sample_id" | "hold_id">>(db.prepare(`
+    SELECT owner, sample_id, hold_id FROM evaluation_holds
+    WHERE owner = ? AND instr(sample_id, ?) = 1 AND instr(hold_id, ?) = 1
+  `).all(series.owner, series.sample_id_prefix, series.hold_id_prefix));
+  return rows.filter(row => {
+    const suffix = row.sample_id.slice(series.sample_id_prefix.length);
+    const version = Number(suffix);
+    return Number.isInteger(version) && version > 0 && String(version) === suffix && row.hold_id === series.hold_id_prefix + suffix;
+  });
+}
+
 export function handleHoldsRelease(
   deps: HoldActionDeps,
   caller: ActionCallContext,
   input: ObservationHoldReleaseInput,
 ): ObservationHoldReleaseResult {
   assertPersonCaller(caller);
-  if (input.hold_id === undefined && input.sample_id === undefined && input.targets === undefined) {
+  if (input.hold_id === undefined && input.sample_id === undefined && input.targets === undefined && input.version_series === undefined) {
     throw observationErrors.invalid_query("释放留存需要指定保留标识、样本或确切的保留对象");
   }
+  if (!deps.writer.hasDatabase()) return { released_hold_ids: [], released_record_count: 0 };
   const db = openForHolds(deps.writer);
   const where: string[] = [];
   const params: string[] = [];
@@ -288,17 +301,18 @@ export function handleHoldsRelease(
     params.push(input.sample_id);
   }
 
-  if (input.targets !== undefined) {
-    where.push(`(hold_id, owner, sample_id) IN (
-      SELECT json_extract(value, '$.hold_id'), json_extract(value, '$.owner'), json_extract(value, '$.sample_id')
-      FROM json_each(?)
-    )`);
-    params.push(JSON.stringify(input.targets));
-  }
   let released_record_count = 0;
   const released_hold_ids: string[] = [];
   db.exec("BEGIN IMMEDIATE");
   try {
+    if (input.targets !== undefined || input.version_series) {
+      const seriesTargets = input.version_series ? holdsInVersionSeries(db, input.version_series) : [];
+      where.push(`(hold_id, owner, sample_id) IN (
+        SELECT json_extract(value, '$.hold_id'), json_extract(value, '$.owner'), json_extract(value, '$.sample_id')
+        FROM json_each(?)
+      )`);
+      params.push(JSON.stringify([...(input.targets ?? []), ...seriesTargets]));
+    }
     const targets = rowsAs<{ hold_id: string }>(
       db.prepare(`SELECT hold_id FROM evaluation_holds WHERE ${where.join(" AND ")} ORDER BY hold_id`).all(...params),
     );

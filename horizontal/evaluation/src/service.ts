@@ -218,14 +218,11 @@ export class EvaluationService {
     const pending = this.store.inspectSampleRemoval(input.sample_id, input.version);
     await caller.beforeEffect();
     caller.signal?.throwIfAborted();
-    if (!pending.versions.length && !pending.targets.length) {
-      return { removed_versions: [], released_hold_ids: [] };
-    }
-    const releasedHoldIds = input.release_holds !== false && pending.targets.length > 0
+    const releasedHoldIds = input.release_holds !== false
       ? await releaseEvaluationSampleHolds(
           this.options.clientFor(caller),
           retainActionAuthority(caller, originOf(caller, evaluationActions.samplesRemove), caller.beforeEffect),
-          pending.targets,
+          pending.targets, input,
         )
       : [];
     // The first beforeEffect is the commit point for release + delete. Rechecking after the release would strand the

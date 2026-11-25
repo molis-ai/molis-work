@@ -1651,6 +1651,50 @@ test("QRF-02: deleting a sample after authority returns clears an interrupted ru
   assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds, [foreign]);
 });
 
+test("QRF-02: recovering first-put holds by exact version or all versions also works without a sample row", async t => {
+  const fx = createEvaluationFixture(t);
+  const sample_id = "first@percent%_";
+  const remove = (version?: number) => fx.user.invoke(evaluationActions.samplesRemove, { sample_id, version });
+  const evalDb = join(fx.home, "evaluation", "evaluation.db");
+  const obsDb = join(fx.home, "observation", "observation.db");
+  for (const version of [undefined, 1]) assert.deepEqual(await remove(version), { removed_versions: [], released_hold_ids: [] });
+  assert.equal(existsSync(evalDb), false);
+  assert.equal(existsSync(obsDb), false);
+  fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" })
+    .record({ fact: "assistant.work", outcome: "succeeded" });
+  const [record] = (await fx.user.invoke(observationActions.recordsQuery, { project_id: "p1", fact: "assistant.work", use: "evaluation" })).records;
+  const sample = workEvaluationSample(sample_id, { fact: "assistant.work" }, { hold_records: true, pinned_record_ids: [record!.record_id] });
+  const holdId = (version: number | string) => `eval:${sample_id}:v${version}`;
+  const db = fx.layer.writer.database()!.db;
+  const revokeAfterHold = async (version: number) => {
+    const caller = person({ validate_authority: () => {
+      if (db.prepare("SELECT 1 FROM evaluation_holds WHERE hold_id=?").get(holdId(version))) throw new Error("first put revoked");
+    } });
+    await assert.rejects(fx.service.invoke(caller, evaluationActions.samplesPut, { ...sample, version }), /first put revoked/);
+  };
+  await revokeAfterHold(1);
+  assert.equal(existsSync(evalDb), false);
+  assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds.map(h => h.hold_id), [holdId(1)]);
+  assert.deepEqual(await remove(1), { removed_versions: [], released_hold_ids: [holdId(1)] });
+  assert.equal(existsSync(evalDb), false);
+  assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds, []);
+  for (const version of [2, 4]) await revokeAfterHold(version);
+  await fx.user.invoke(evaluationActions.samplesPut, { ...sample, version: 3 });
+  const untouched = [
+    [holdId(5), "different.owner", `${sample_id}@5`],
+    [holdId(6), EVALUATION_PROVIDER_ID, `${sample_id}@7`],
+    [holdId("08"), EVALUATION_PROVIDER_ID, `${sample_id}@08`],
+    [`eval:${sample_id}more:v9`, EVALUATION_PROVIDER_ID, `${sample_id}more@9`],
+  ] as const;
+  for (const [hold_id, owner, sampleRef] of untouched) await fx.user.invoke(observationActions.holdsPut, {
+    hold_id, owner, sample_id: sampleRef, project_id: "p1", record_ids: [record!.record_id],
+  });
+  await fx.user.invoke(observationActions.settingsSet, { uses: { evaluation: false } });
+  assert.deepEqual(await remove(), { removed_versions: [3], released_hold_ids: [holdId(2), holdId(3), holdId(4)] });
+  await fx.user.invoke(observationActions.settingsSet, { uses: { evaluation: true } });
+  assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds.map(h => h.hold_id).sort(), untouched.map(row => row[0]).sort());
+});
+
 test("QRF-02: exact hold identities survive a collision, and a late failure rolls back every release", async t => {
   const fx = createEvaluationFixture(t);
   const recorder = fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" });

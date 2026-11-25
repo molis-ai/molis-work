@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import type { DatabaseSync, StatementSync } from "node:sqlite";
-import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { OBSERVATION_LIMITS, type ObservationCoverageState } from "@molis-ai/molis-work-contracts/services/observation";
 import { collectUnreferenced, resolveEvidence } from "./evidence.js";
 import type { ObservationKeys } from "./keys.js";
@@ -218,6 +219,10 @@ export class ObservationWriter {
     } catch {
       return undefined;
     }
+  }
+
+  hasDatabase(): boolean {
+    return this.db !== undefined || existsSync(homeSqlitePath(this.options.home, OBSERVATION_STORE));
   }
 
   /** The library for reads and the lifecycle hooks; undefined when it cannot be opened. */

@@ -41,7 +41,7 @@ test("a 成果 version lists the Assistant work that started from it, and opens 
   assert.ok((await pagesLink.text()).includes(`data-workbench-item-id="${citing.id}"`), "the stored document links to this exact version before the fault");
   saveBody("{");
   await navigate(() => command("Page.navigate", { url: `${b.origin}${version}` }, sessionId));
-  await waitFor("document.querySelector('[data-artifact-works]') && !document.querySelector('[data-artifact-works-status]')?.textContent");
+  await waitFor("document.querySelector('[data-artifact-works]')?.dataset.complete === 'true'");
   assert.ok(await evaluate("Boolean(document.querySelector('[data-artifact-reference-retry]'))"), "the active Pages source can be retried");
   assert.equal(await evaluate("document.querySelector('[data-artifact-no-references]')?.hidden"), true);
   await b.web.post(`/projects/${projectId}/api/plugins/io.molis.work.goals/goals/V1/deliverables`, { reference: { artifact_id: "pages-brief", version: 1 }, delivered: true });
@@ -80,7 +80,7 @@ test("a 成果 version lists the Assistant work that started from it, and opens 
   assert.match(await evaluate<string>("document.querySelector('[data-artifact-source-error]').textContent"), /Pagesからの参照を読み込めませんでした/);
   assert.match(await evaluate<string>("document.querySelector('[data-artifact-works]').textContent"), /把需求说明整理成清单[\s\S]*このバージョンから開始/);
   await b.click("[data-artifact-works-status] button");
-  await waitFor("!document.querySelector('[data-artifact-works-status]')?.textContent");
+  await waitFor("document.querySelector('[data-artifact-works]')?.dataset.complete === 'true'");
   await waitFor("document.querySelector('[data-artifact-works]')?.hidden === false", 15_000);
   assert.equal(await evaluate("document.querySelectorAll('[data-artifact-open-work]').length"), 1);
   assert.match(await evaluate<string>("document.querySelector('[data-artifact-works]').innerText"), /把需求说明整理成清单[\s\S]*このバージョンから開始/);
@@ -123,7 +123,9 @@ test("a 成果 version lists the Assistant work that started from it, and opens 
   })()`);
   await waitFor("typeof window.releaseReference === 'function'");
   await b.click("[data-artifact-collapse]");
-  await waitFor("!document.querySelector('[data-artifact-detail] article[data-artifact-id]') && document.querySelector('[data-artifact-directory] a[data-frame-asset]')?.checkVisibility()");
+  // The loading message removes the old article before the Host replaces its directory links.
+  await waitFor(`document.querySelector('[data-artifact-detail]')?.dataset.artifactFragmentPath === ${JSON.stringify(`/projects/${projectId}/artifacts`)}
+    && document.querySelector('[data-artifact-directory] a[data-frame-asset]')?.checkVisibility()`);
   await evaluate("window.newFocus = document.querySelector('[data-artifact-directory] a[data-frame-asset]'); window.newFocus.focus(); window.releaseReference()");
   await waitFor("!window.oldReference.hasAttribute('aria-busy')");
   assert.equal(await evaluate("window.referenceRequests"), 1);

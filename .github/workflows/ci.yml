@@ -12,6 +12,11 @@ on:
   # with main by hand before it merges.
   merge_group:
   workflow_dispatch:
+    inputs:
+      compare_nine_security_shards:
+        description: Compare nine security shards and five product shards on this manual run
+        type: boolean
+        default: false
   # Nightly on main to run the full CI gate matrix and refresh main-branch caches.
   schedule:
     - cron: "0 19 * * *"
@@ -797,8 +802,8 @@ jobs:
   # capability that widens. The real web host and the real launcher are started on loopback; the Seatbelt sandbox cases need macOS and
   # run locally (the document lists which). The table's own rule (every row names tests that exist) runs in the health gates.
   # Blocking (decision #14): after its observation period, one of Verify's required test results.
-  # CIP-06: eight independent runners, four test workers and one browser slot each. PR selections can use fewer runners.
-  # Whole lists and failed selections use all eight; only successful documentation-only groups skip runtime checks.
+  # CIP-06: default to eight runners, with four workers and one browser slot per runner. PR selections can use fewer.
+  # The manual timing comparison runs the complete list on nine. A selector failure uses the default complete matrix.
   security-invariants:
     name: Security invariants (${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [test-selection, queue-check, build]
@@ -810,7 +815,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'some' && needs.test-selection.outputs.security_shards || '[1, 2, 3, 4, 5, 6, 7, 8]') }}
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.security_mode == 'some' && needs.test-selection.outputs.security_shards || github.event_name == 'workflow_dispatch' && github.event.inputs.compare_nine_security_shards == 'true' && '[1, 2, 3, 4, 5, 6, 7, 8, 9]' || '[1, 2, 3, 4, 5, 6, 7, 8]') }}
     env:
       MOLIS_WORK_TEST_JOBS: 4
       MOLIS_WORK_TEST_BROWSER_JOBS: 1
@@ -963,7 +968,7 @@ jobs:
           if [ "$HISTORY" != "latest" ]; then set -- --all; fi
           node scripts/ci-golden-replay.mjs "$@"
 
-  # Six disjoint shards cover the same full list once, dealt out by duration and serial browser capacity (tests/ci-shard-weights.json; with every
+  # Six disjoint shards (five in the manual timing comparison) cover the full list once, dealt out by duration and serial browser capacity (tests/ci-shard-weights.json; with every
   # second file the legs took 2527 s and 1336 s of test time in run 42023765782); each keeps the phase/attempt limits above.
   # fail-fast is off so one failed shard does not hide the other shard's results.
   # Non-document merge groups run the full list on six shards. PR some runs selected files; whole or a selector fault runs
@@ -975,7 +980,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'some' && needs.test-selection.outputs.product_shards || '[1, 2, 3, 4, 5, 6]') }}
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'some' && needs.test-selection.outputs.product_shards || github.event_name == 'workflow_dispatch' && github.event.inputs.compare_nine_security_shards == 'true' && '[1, 2, 3, 4, 5]' || '[1, 2, 3, 4, 5, 6]') }}
     # The same condition as `security-invariants`, with this job's mode.
     if: ${{ !cancelled() && needs.build.result == 'success' && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'none') }}
     runs-on: ubuntu-latest

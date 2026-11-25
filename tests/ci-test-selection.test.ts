@@ -283,6 +283,9 @@ test("RAC-1763 end to end: a summary that cannot be written fails nothing, and a
 
 // ---- the workflow ------------------------------------------------------------------------------------------------------------------
 test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untrusted selections run the complete list", () => {
+  const comparisonInput = /^      compare_nine_security_shards:\n((?:        .+\n)+)/m.exec(workflow)?.[1] ?? "";
+  assert.match(comparisonInput, /^        type: boolean$/m);
+  assert.match(comparisonInput, /^        default: false$/m, "the manual comparison requires an explicit opt-in");
   const selection = jobBlock("test-selection");
   assert.match(selection, /^    if: \$\{\{ github\.event_name == 'pull_request' \|\| github\.event_name == 'merge_group' \}\}$/m, "a pull request, and the merge queue for the macOS checks alone: a push, the nightly and manual runs run the whole lists");
   assert.match(selection, /^    timeout-minutes: \d+$/m);
@@ -299,7 +302,11 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
     const job = jobBlock(name);
     assert.match(job, /^    needs: \[test-selection, queue-check, build\]$/m, name);
     assert.ok(job.includes(`    if: \${{ !cancelled() && needs.build.result == 'success' && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || (github.event_name == 'merge_group' && needs.test-selection.outputs.documentation_mode == 'only')) && needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_mode == 'none') }}`), `${name}: only successful none skips on a PR; all other selections run after build succeeds, except a trusted verified push`);
-    assert.ok(job.includes(`shard: \${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_mode == 'some' && needs.test-selection.outputs.${key}_shards || '${key === "security" ? "[1, 2, 3, 4, 5, 6, 7, 8]" : "[1, 2, 3, 4, 5, 6]"}') }}`), `${name}: every leg unless a selection that succeeded said fewer`);
+    const selected = `github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.${key}_mode == 'some' && needs.test-selection.outputs.${key}_shards`;
+    const manual = "github.event_name == 'workflow_dispatch' && github.event.inputs.compare_nine_security_shards == 'true'";
+    const regular = key === "security" ? "[1, 2, 3, 4, 5, 6, 7, 8]" : "[1, 2, 3, 4, 5, 6]";
+    const comparison = key === "security" ? "[1, 2, 3, 4, 5, 6, 7, 8, 9]" : "[1, 2, 3, 4, 5]";
+    assert.ok(job.includes(`shard: \${{ fromJSON(${selected} || ${manual} && '${comparison}' || '${regular}') }}`), `${name}: use selected PR shards or the complete matrix`);
     assert.doesNotMatch(job, /^    continue-on-error:/m, `${name} blocks: a red run turns Verify red (decision #14, 2026-10-31)`);
     assert.ok(job.includes("${{ matrix.shard }}/${{ strategy.job-total }}"), `${name}: the shard is counted out of the legs that run`);
   }
@@ -346,14 +353,21 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
     const expression = (pattern: RegExp) => { const found = pattern.exec(job)?.[1]; assert.ok(found, `${name}: ${pattern}`); return found; };
     const condition = expression(/^    if: \$\{\{ (.*) \}\}$/m);
     const matrix = expression(/^        shard: \$\{\{ (.*) \}\}$/m);
+    const trialShards = key === "security" ? [1, 2, 3, 4, 5, 6, 7, 8, 9] : [1, 2, 3, 4, 5];
     const list = expression(new RegExp(`^          ${env}: \\$\\{\\{ (.*) \\}\\}$`, "m"));
     for (const [event, result, outputs, expectedJobs] of cases) {
       const expected = expectedJobs[key];
       const scope = { event, result, outputs };
       const what = `${name} on ${event}, test-selection ${result}, outputs ${JSON.stringify(outputs)}`;
       assert.equal(Boolean(evaluate(condition, scope)), expected.runs, `${what}: runs`);
+      const trial = { ...scope, compareNineSecurityShards: "true" };
+      assert.equal(Boolean(evaluate(condition, trial)), expected.runs, `${what}: comparison preserves job selection`);
       if (!expected.runs) continue;
       assert.deepEqual(evaluate(matrix, scope), expected.shards, `${what}: shards`);
+      assert.deepEqual(evaluate(matrix, trial), event === "workflow_dispatch" ? trialShards : expected.shards, `${what}: explicit comparison`);
+      if (event === "workflow_dispatch") {
+        assert.deepEqual(evaluate(matrix, { ...scope, compareNineSecurityShards: "false" }), expected.shards, `${what}: comparison disabled`);
+      }
       assert.equal(evaluate(list, scope), expected.list === "some" ? SOME[key === "security" ? "security_files" : "product_only"] : expected.list, `${what}: the files`);
     }
   }
@@ -367,9 +381,17 @@ test("RAC-1764 ci.yml: only a successful none skips a PR job; whole and untruste
  * did not find the commit verified by the merge queue (it was skipped: not a push, or a push of its own); the skip it allows is
  * tests/ci-queue-verified.test.ts.
  */
-function evaluate(expression: string, scope: { event: string; result: string; outputs: Record<string, string> }): unknown {
+function evaluate(expression: string, scope: { event: string; result: string; outputs: Record<string, string>; compareNineSecurityShards?: string }): unknown {
   const outputs = Object.fromEntries(Object.entries({ documentation_mode: "code", ...scope.outputs }).map(([name, value]) => [`needs.test-selection.outputs.${name}`, value]));
-  return evaluateExpression(expression, { "github.event_name": scope.event, "needs.build.result": "success", "needs.test-selection.result": scope.result, "needs.queue-check.result": "skipped", "needs.queue-check.outputs.verified": "", ...outputs });
+  return evaluateExpression(expression, {
+    "github.event_name": scope.event,
+    "github.event.inputs.compare_nine_security_shards": scope.compareNineSecurityShards ?? "",
+    "needs.build.result": "success",
+    "needs.test-selection.result": scope.result,
+    "needs.queue-check.result": "skipped",
+    "needs.queue-check.outputs.verified": "",
+    ...outputs,
+  });
 }
 
 test("RAC-1765 ci.yml: every output the script writes is passed on by the job, and the jobs read only those", () => {

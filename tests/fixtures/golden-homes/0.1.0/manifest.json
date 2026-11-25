@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "golden_version": "0.1.0",
-  "commit": "e90a8b22113e297019d008f2510e2d514bc9d0ea",
+  "commit": "1ff4ff5c18e6f8581a58a73b6cba8d2aab40fd98",
   "node": "v24.15.0",
   "third_party": "generated-list",
   "home_library": "golden-home-library",
@@ -24,8 +24,8 @@
       },
       "projects": {
         "primary": {
-          "project_id": "project-ae076f4f-3257-40a5-be48-38652812f188",
-          "database": "projects/project-ae076f4f-3257-40a5-be48-38652812f188/molis-work.db"
+          "project_id": "project-038fd99d-87df-4cdb-9de0-56838f641ed7",
+          "database": "projects/project-038fd99d-87df-4cdb-9de0-56838f641ed7/molis-work.db"
         },
         "demo": {
           "project_id": "molis-work-v1-demo",
@@ -49,8 +49,8 @@
       },
       "projects": {
         "primary": {
-          "project_id": "project-adcfbd21-e22e-44f4-af64-38851fbc840c",
-          "database": "projects/project-adcfbd21-e22e-44f4-af64-38851fbc840c/molis-work.db"
+          "project_id": "project-308fe670-0345-4052-886a-23b38c1213f4",
+          "database": "projects/project-308fe670-0345-4052-886a-23b38c1213f4/molis-work.db"
         }
       }
     }
@@ -167,6 +167,10 @@
       "mode": 448
     },
     {
+      "path": "computer",
+      "mode": 448
+    },
+    {
       "path": "config",
       "mode": 493
     },
@@ -247,6 +251,10 @@
       "mode": 448
     },
     {
+      "path": "personal-space",
+      "mode": 493
+    },
+    {
       "path": "placement",
       "mode": 448
     },
@@ -307,11 +315,7 @@
       "mode": 493
     },
     {
-      "path": "projects/personal",
-      "mode": 493
-    },
-    {
-      "path": "projects/project-ae076f4f-3257-40a5-be48-38652812f188",
+      "path": "projects/project-038fd99d-87df-4cdb-9de0-56838f641ed7",
       "mode": 493
     },
     {
@@ -463,6 +467,10 @@
       "mode": 448
     },
     {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space",
+      "mode": 493
+    },
+    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/placement",
       "mode": 448
     },
@@ -491,11 +499,7 @@
       "mode": 493
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/personal",
-      "mode": 493
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-adcfbd21-e22e-44f4-af64-38851fbc840c",
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-308fe670-0345-4052-886a-23b38c1213f4",
       "mode": 493
     },
     {
@@ -547,10 +551,10 @@
       "payload": "stores/agent-declarations/agent-declarations.db.sql",
       "schema_version": 1,
       "tables": {
-        "install_declarations": 13,
+        "install_declarations": 14,
         "molis_storage_space": 1
       },
-      "sha256": "63e5a4e97827880781f173eb57cba2fcfc9fc318016e7b38ed4cac2497dd1931"
+      "sha256": "4e568648222f0795f7f6a9d1b85e76ba100208d0126303731908d9e41692184b"
     },
     {
       "path": "agent-definitions/agent-definitions.db",
@@ -560,6 +564,12 @@
       "schema_version": 1,
       "tables": {
         "molis_storage_space": 1,
+        "personal_prompt_overrides_replica_changes": 1,
+        "personal_prompt_overrides_replica_conflicts": 0,
+        "personal_prompt_overrides_replica_heads": 0,
+        "personal_prompt_overrides_replica_outbox": 0,
+        "personal_prompt_overrides_replica_resolutions": 0,
+        "personal_prompt_overrides_replica_state": 1,
         "prompt_history": 1,
         "prompt_overrides": 1,
         "prompt_uses": 7,
@@ -569,9 +579,9 @@
         "skill_settings": 0,
         "skill_trials": 0,
         "skill_uses": 0,
-        "sqlite_sequence": 0
+        "sqlite_sequence": 1
       },
-      "sha256": "565bbdc276dc0fa5fb5bd36fcdfa193d3590ae3c3ece4528dadb9fdcdd840f83"
+      "sha256": "b9516419722e1957eccb7209326f17b03f5b2db741f2d760cc8e057051eaa7be"
     },
     {
       "path": "agent-runtime/records.sqlite",
@@ -582,7 +592,7 @@
       "tables": {
         "records": 1
       },
-      "sha256": "a94a6493544e78972308ef490940151d9dcaa5a12456585f48020362fd9ce7c0"
+      "sha256": "dad2def77749fda5fff19722e1e193b560a8c3bdec945b502936595136f229bc"
     },
     {
       "path": "assistant/assistant.db",
@@ -605,7 +615,7 @@
         "context_edges": 0,
         "molis_storage_space": 1
       },
-      "sha256": "e0c83c1f29158c945ef47f7ef74f44205f33b31696178bd6166840d64af28424"
+      "sha256": "1095fac7bf44c5999968eae3c2c44758eee28064a721f5541e1028369f019d49"
     },
     {
       "path": "characters/characters.sqlite",
@@ -657,7 +667,7 @@
         "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
         "sync_9c148ae77e23da148100ce206111_replica_state": 1
       },
-      "sha256": "4b3d0df32b677a9c3eb7db34fc53da57c726ec2f0b65035fbefcf2eae2597cdf"
+      "sha256": "9b200cd20f0e2b9dd88e78f69ccc7a66ce90b73570aab4eb756379cd9c40005c"
     },
     {
       "path": "connectors/connectors.db",
@@ -676,7 +686,7 @@
         "connector_protocols": 0,
         "molis_storage_space": 1
       },
-      "sha256": "162cfdd72c16b674e434a7736b785b2d0feb5e80a72cf0e03c591ac577906438"
+      "sha256": "ac23d76c984d9e1878e6a57881350aa6e91f8d284a532396c265a5f43cfa70d7"
     },
     {
       "path": "context-onboarding/context-onboarding.db",
@@ -688,7 +698,7 @@
         "journeys": 1,
         "molis_storage_space": 1
       },
-      "sha256": "684a0b5caf55b36ae8488d857b0d2c7eed6a0641a664eb887bfded7349daf1c2"
+      "sha256": "b249c779f0ba4f28d9d0d2ba58d07cc986cd92132f78eb2af043866634d64905"
     },
     {
       "path": "conversation-attachments/conversation-attachments.db",
@@ -700,7 +710,7 @@
         "attachments": 1,
         "molis_storage_space": 1
       },
-      "sha256": "a0933f78d65ea8db953d409291281bf1926cc4c6621f313b7d96125808e53c57"
+      "sha256": "8bbd28535664a3800d6de0c32f73c897f65351ce7484f0de4e12520a7f4d3d78"
     },
     {
       "path": "dataset/dataset.db",
@@ -710,6 +720,7 @@
       "schema_version": 1,
       "tables": {
         "dataset_receipts": 0,
+        "dataset_source_bindings": 0,
         "dataset_versions": 0,
         "datasets": 1,
         "molis_storage_space": 1,
@@ -723,7 +734,7 @@
         "sync_aa98c46361f294dbb01ea79b1b42_replica_resolutions": 0,
         "sync_aa98c46361f294dbb01ea79b1b42_replica_state": 1
       },
-      "sha256": "08bd526d5bf436ab982b6c32b648179bd2c7d85f8860371e91664f6705d802a7"
+      "sha256": "abc7e1625747b6d4e2fb261cbc332e8d4aaa38233cb096dbc3aa0f332a9b39db"
     },
     {
       "path": "external-sessions/external-sessions.db",
@@ -742,7 +753,7 @@
         "session_sources": 0,
         "session_suggestions": 0
       },
-      "sha256": "1397ebe9e6104151eb1d7788d8af6a56a6487a3d5da809c32602120b1accc688"
+      "sha256": "fd3508666c220797139bb8bde1170790388fae30bb07105348587843d6381df2"
     },
     {
       "path": "feed-content/feed-content.db",
@@ -777,7 +788,7 @@
         "sync_1299cb8ea8bacadaced737bb64d2_replica_resolutions": 0,
         "sync_1299cb8ea8bacadaced737bb64d2_replica_state": 1
       },
-      "sha256": "b467ffb9ffcf3720bebb05f591b6068039a6f48c4849f8405a7173ba73643e49"
+      "sha256": "0797446f2c7f09e43a9494f66b99aba0666c0df594642540f0adc77496043e60"
     },
     {
       "path": "functions/functions.db",
@@ -789,9 +800,16 @@
         "function_judgments": 0,
         "function_scene_bindings": 0,
         "functions": 4,
-        "molis_storage_space": 1
+        "molis_storage_space": 1,
+        "personal_judgment_rules_replica_changes": 2,
+        "personal_judgment_rules_replica_conflicts": 0,
+        "personal_judgment_rules_replica_heads": 0,
+        "personal_judgment_rules_replica_outbox": 0,
+        "personal_judgment_rules_replica_resolutions": 0,
+        "personal_judgment_rules_replica_state": 1,
+        "sqlite_sequence": 1
       },
-      "sha256": "6eb9fb8b62020537b181daf18c4842bc847f8c5b0730736053b56867562bdcc9"
+      "sha256": "42c09a327128cd5a0cb40b7cacba6b22b538dff86c83d4e339b5986d865479ae"
     },
     {
       "path": "images/images.db",
@@ -860,7 +878,7 @@
         "sync_fdf2cac8555825a37edee87d5d45_replica_resolutions": 0,
         "sync_fdf2cac8555825a37edee87d5d45_replica_state": 1
       },
-      "sha256": "fede48cf66738bd62722df41dd1799e654d1c291e8388060b1f2a6626e44172a"
+      "sha256": "2e8e8f08490d7603ff2f02a0b8773043aa73b701506ee7a6e99d5859af24d20d"
     },
     {
       "path": "knowledge/knowledge.db",
@@ -869,12 +887,12 @@
       "payload": "stores/knowledge/knowledge.db.sql",
       "schema_version": 1,
       "tables": {
-        "knowledge_cards": 66,
+        "knowledge_cards": 65,
         "knowledge_receipts": 0,
         "knowledge_usage": 0,
         "molis_storage_space": 1
       },
-      "sha256": "1fce891e4150e5e174ff31ea7fa9916afd7da563c29b1de6f244c90cbf9caa5e"
+      "sha256": "9618ecc7c399a600fcd18e9b7ee191ebd38c7df754f64ca5f332ab10c8fb4c62"
     },
     {
       "path": "lingguang/lingguang.db",
@@ -898,7 +916,7 @@
         "sync_764756c5c01e4432072de4c80de9_replica_resolutions": 0,
         "sync_764756c5c01e4432072de4c80de9_replica_state": 1
       },
-      "sha256": "a5ab706d58abbd239f88e84f6f9b25c947cca3cbfc6cf592156ca434c73ce771"
+      "sha256": "d3e22cc284f8a72c053617bc30ab18950dcc1930fe84923e784f9dd8583f8a34"
     },
     {
       "path": "mainline/mainline.db",
@@ -912,14 +930,14 @@
         "mainline_items": 1,
         "molis_storage_space": 1
       },
-      "sha256": "a8a37dbc596687592d71f2fdc89ba9b93743bd17acf6dc481d1f8fbbd5bc552b"
+      "sha256": "bc8b19b313d7cce1d92503d0dff9b86a135f31233bcd7312ddb96e0deae7b4e7"
     },
     {
       "path": "memory/memory.db",
       "owner": "packages/storage",
       "mode": 384,
       "payload": "stores/memory/memory.db.sql",
-      "schema_version": 1,
+      "schema_version": 2,
       "tables": {
         "memory_candidates": 0,
         "memory_changes": 2,
@@ -932,7 +950,7 @@
         "memory_uses": 1,
         "molis_storage_space": 1
       },
-      "sha256": "ddd3a4f1c38d909101f8c72a3ba70c3fb5620d446c82f97e72dd6f4253301d26"
+      "sha256": "4d0f1164100e959f6c73c03a791e00f45f4f3babf8ef22e60bf7dac60697a522"
     },
     {
       "path": "observation/observation.db",
@@ -979,7 +997,226 @@
         "sync_32ffaf99782a7333c6784e247a81_replica_resolutions": 0,
         "sync_32ffaf99782a7333c6784e247a81_replica_state": 1
       },
-      "sha256": "4188c7f87aea80f32e02dce6cdf81d4203943d76f01efbcb7abfd06bcb0b661b"
+      "sha256": "0933d01037c0da7cade9d0e1b53b2d1fc176864879083c62f1b90f12988090f8"
+    },
+    {
+      "path": "personal-space/molis-work.db",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/personal-space/molis-work.db.sql",
+      "schema_version": 1,
+      "plugin_tables": {
+        "io.molis.work.coding": 1,
+        "io.molis.work.feed": 1,
+        "io.molis.work.goals": 1,
+        "io.molis.work.inbox": 1,
+        "io.molis.work.risk": 1,
+        "io.molis.work.schedule": 1
+      },
+      "tables": {
+        "acceptance_checks": 0,
+        "acceptance_criteria": 0,
+        "acceptance_decisions": 0,
+        "acceptance_deliveries": 0,
+        "acceptance_replica_changes": 0,
+        "acceptance_replica_conflicts": 0,
+        "acceptance_replica_heads": 0,
+        "acceptance_replica_outbox": 0,
+        "acceptance_replica_resolutions": 0,
+        "acceptance_replica_state": 1,
+        "acceptance_requirements": 0,
+        "acceptance_subjects": 0,
+        "acceptance_sync_resolving": 0,
+        "artifacts_replica_changes": 0,
+        "artifacts_replica_conflicts": 0,
+        "artifacts_replica_heads": 0,
+        "artifacts_replica_outbox": 0,
+        "artifacts_replica_resolutions": 0,
+        "artifacts_replica_state": 1,
+        "attention_entries": 0,
+        "attention_events": 0,
+        "attention_replica_changes": 0,
+        "attention_replica_conflicts": 0,
+        "attention_replica_heads": 0,
+        "attention_replica_outbox": 0,
+        "attention_replica_resolutions": 0,
+        "attention_replica_state": 1,
+        "boards": 0,
+        "builder_replica_changes": 0,
+        "builder_replica_conflicts": 0,
+        "builder_replica_heads": 0,
+        "builder_replica_outbox": 0,
+        "builder_replica_resolutions": 0,
+        "builder_replica_state": 1,
+        "coding_input_versions": 0,
+        "coding_inputs": 0,
+        "coding_plan_drafts": 0,
+        "coding_plan_versions": 0,
+        "coding_saved_history": 0,
+        "coding_sessions": 0,
+        "context_edges": 0,
+        "events": 0,
+        "feed_item_events": 0,
+        "feed_items": 0,
+        "feed_materials": 0,
+        "feed_missed_pulls": 0,
+        "feed_out_rules": 0,
+        "feed_source_runs": 0,
+        "feed_sources": 0,
+        "goal_event_agreements": 0,
+        "goal_event_applied_decisions": 0,
+        "goal_event_closures": 0,
+        "goal_event_concerns": 0,
+        "goal_event_config_versions": 0,
+        "goal_event_configs": 0,
+        "goal_event_decision_requests": 0,
+        "goal_event_progress_summaries": 0,
+        "goal_event_requirement_bindings": 0,
+        "goal_event_state_owners": 0,
+        "goal_event_types": 0,
+        "goal_event_work_status": 0,
+        "goal_relations": 0,
+        "goal_requirement_links": 0,
+        "goal_trash_records": 0,
+        "goal_trash_relation_records": 0,
+        "goal_tree_item_effects": 0,
+        "goal_tree_proposal_items": 0,
+        "goal_tree_proposals": 0,
+        "goal_work_events": 0,
+        "goals": 0,
+        "guidance_entries": 0,
+        "guidance_revisions": 0,
+        "idempotency_records": 0,
+        "inbox_scene_bindings": 0,
+        "input_bindings": 0,
+        "library_artifact_versions": 0,
+        "library_artifacts": 0,
+        "listener_deliveries": 0,
+        "listener_instances": 0,
+        "material_recent_uses": 0,
+        "molis_storage_space": 1,
+        "opaque_blobs": 0,
+        "plugin_event_cursors": 0,
+        "plugin_event_resolutions": 0,
+        "plugin_events": 0,
+        "plugin_input_groups": 0,
+        "plugin_notifications": 0,
+        "plugin_port_artifact_bindings": 0,
+        "plugin_port_bindings": 0,
+        "plugin_port_outputs": 0,
+        "plugin_private_values": 0,
+        "plugin_project_databases": 6,
+        "plugin_runtime_installs": 7,
+        "plugin_runtime_release_artifacts": 7,
+        "process_item_versions": 0,
+        "process_items": 0,
+        "process_items_replica_changes": 0,
+        "process_items_replica_conflicts": 0,
+        "process_items_replica_heads": 0,
+        "process_items_replica_outbox": 0,
+        "process_items_replica_resolutions": 0,
+        "process_items_replica_state": 1,
+        "project_approval_rules": 0,
+        "project_approvals_replica_changes": 0,
+        "project_approvals_replica_conflicts": 0,
+        "project_approvals_replica_heads": 0,
+        "project_approvals_replica_outbox": 0,
+        "project_approvals_replica_resolutions": 0,
+        "project_approvals_replica_state": 1,
+        "project_guidance_replica_changes": 0,
+        "project_guidance_replica_conflicts": 0,
+        "project_guidance_replica_heads": 0,
+        "project_guidance_replica_outbox": 0,
+        "project_guidance_replica_resolutions": 0,
+        "project_guidance_replica_state": 1,
+        "project_review_decisions": 0,
+        "project_root": 1,
+        "project_runtime_setting_receipts": 0,
+        "project_runtime_settings": 0,
+        "risk_editor_versions": 0,
+        "risk_events": 0,
+        "risk_items": 0,
+        "risk_links": 0,
+        "schedule_action_bindings": 0,
+        "schedule_conversation_tasks": 0,
+        "schedule_conversation_turns": 0,
+        "schedule_jobs": 0,
+        "schedule_missed_runs": 0,
+        "schedule_operation_occurrences": 0,
+        "schedule_operations": 0,
+        "schedule_plugin_reminders": 0,
+        "schedule_wakeups": 0,
+        "signal_events": 0,
+        "signal_revisions": 0,
+        "signals": 0,
+        "source_events": 0,
+        "sqlite_sequence": 0,
+        "surface_corrections": 0,
+        "surface_corrections_replica_changes": 0,
+        "surface_corrections_replica_conflicts": 0,
+        "surface_corrections_replica_heads": 0,
+        "surface_corrections_replica_outbox": 0,
+        "surface_corrections_replica_resolutions": 0,
+        "surface_corrections_replica_state": 1,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_conflicts": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_heads": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_conflicts": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_heads": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
+        "sync_57fe6903aad21582fd1bfbdd6011_aggregate_editor_versions": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_context": 1,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_changes": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_conflicts": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_heads": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_outbox": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_resolutions": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_state": 1,
+        "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_context": 1,
+        "sync_daec9cf494e58d382d6262de3af9_replica_changes": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_conflicts": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_heads": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_outbox": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_resolutions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_state": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_aggregate_editor_versions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_context": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_changes": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_conflicts": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_heads": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_outbox": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_resolutions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_state": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_aggregate_editor_versions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_context": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_conflicts": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_heads": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_outbox": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_resolutions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_aggregate_editor_versions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_context": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_changes": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_conflicts": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_heads": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_outbox": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
+      },
+      "sha256": "b30b4b275260bef5ad1900b4c97d0fbfdad266c1fede575cbeed58ee900afcea",
+      "expanded_sha256": "45ef9c1f12eb4e072c27461324bf35fbef4bf7876db154569b721a7b677212b9"
     },
     {
       "path": "placement/placement.db",
@@ -992,7 +1229,7 @@
         "molis_storage_space": 1,
         "placement_titles": 4
       },
-      "sha256": "1b26c2e21414e84e62e7b0217bb88650d84085eb5d66e8bb249e957f38139d3b"
+      "sha256": "c4df5a5bc639a68f873c7da4d2eb98343d46230fa18ead00f8f37516ba07b400"
     },
     {
       "path": "plugin-directories/plugin-directories.db",
@@ -1043,11 +1280,11 @@
         "plugin_consents": 5,
         "plugin_private_values": 1,
         "plugin_publishers": 2,
-        "plugin_runtime_installs": 8,
-        "plugin_runtime_release_artifacts": 7
+        "plugin_runtime_installs": 9,
+        "plugin_runtime_release_artifacts": 8
       },
-      "sha256": "e24ec65301b51763990e2e784e286fe0e7cc0f77e8f5c3f6e9593a9dfe8f0096",
-      "expanded_sha256": "abf9da6cfd10d5a2ffe558958cd36985ae8d53c6f78c4e22240afbbcec90fee9"
+      "sha256": "98b12ea987c5c7ed5e077824e56594b6ae598aa51bc320432200493b8edabf2e",
+      "expanded_sha256": "45e50689d1c7ff5c4c1d1e8211aa9f095d4e60ed74ad4b48f262392b9f349d5c"
     },
     {
       "path": "ppt/ppt.db",
@@ -1069,7 +1306,7 @@
         "sync_4c235c6e5ce01f475d0e44c40a33_replica_resolutions": 0,
         "sync_4c235c6e5ce01f475d0e44c40a33_replica_state": 1
       },
-      "sha256": "86ad101287879ce6042309f4ef9c8d4f4e9c70a0dc3a7e020558ee10f4d5110d"
+      "sha256": "bd394fc0fd37ff1f6921afbe01be5573ead0b52c1254b164591a8c1c15741c87"
     },
     {
       "path": "projects/catalog.db",
@@ -1109,7 +1346,7 @@
         "workspace_source_links": 0,
         "workspaces": 4
       },
-      "sha256": "dddb986a6a6049d1b050e6a723d86d79fda9e8240ea2c24394f7f6559f2ec181"
+      "sha256": "c6cc201bacad9721ebf1bc91dbb412577a024b7593a3733df421997f0d29a3d0"
     },
     {
       "path": "projects/goalboard-v1-demo/molis-work.db",
@@ -1147,6 +1384,12 @@
         "artifacts_replica_state": 1,
         "attention_entries": 0,
         "attention_events": 0,
+        "attention_replica_changes": 0,
+        "attention_replica_conflicts": 0,
+        "attention_replica_heads": 0,
+        "attention_replica_outbox": 0,
+        "attention_replica_resolutions": 0,
+        "attention_replica_state": 1,
         "boards": 1,
         "builder_replica_changes": 0,
         "builder_replica_conflicts": 0,
@@ -1239,13 +1482,14 @@
         "project_root": 1,
         "project_runtime_setting_receipts": 0,
         "project_runtime_settings": 0,
+        "risk_editor_versions": 0,
         "risk_events": 0,
         "risk_items": 0,
         "risk_links": 0,
-        "schedule_action_bindings": 1,
+        "schedule_action_bindings": 0,
         "schedule_conversation_tasks": 0,
         "schedule_conversation_turns": 0,
-        "schedule_jobs": 1,
+        "schedule_jobs": 0,
         "schedule_missed_runs": 0,
         "schedule_operation_occurrences": 0,
         "schedule_operations": 0,
@@ -1255,8 +1499,14 @@
         "signal_revisions": 0,
         "signals": 0,
         "source_events": 0,
-        "sqlite_sequence": 5,
+        "sqlite_sequence": 7,
         "surface_corrections": 0,
+        "surface_corrections_replica_changes": 0,
+        "surface_corrections_replica_conflicts": 0,
+        "surface_corrections_replica_heads": 0,
+        "surface_corrections_replica_outbox": 0,
+        "surface_corrections_replica_resolutions": 0,
+        "surface_corrections_replica_state": 1,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 0,
@@ -1273,6 +1523,14 @@
         "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
+        "sync_57fe6903aad21582fd1bfbdd6011_aggregate_editor_versions": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_context": 1,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_changes": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_conflicts": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_heads": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_outbox": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_resolutions": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_state": 1,
         "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
         "sync_daec9cf494e58d382d6262de3af9_context": 1,
         "sync_daec9cf494e58d382d6262de3af9_replica_changes": 0,
@@ -1306,8 +1564,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "3ea3f3ec3af6210afb69f485a4e0f356c359f8f67920fc5c1c1c072d0a2564af",
-      "expanded_sha256": "9b63390ac05349244df51d350a84e3fc37e8ae73528b47ab625353c1d6cb292d"
+      "sha256": "de9b128736c1c84f570af7fefb6a5d9faa032a196afcdcad54b7a1c47be675ca",
+      "expanded_sha256": "b8f43c69156539bdac215cadf721a888c5b88fdc20ed0ed3694b537e21e9d5ef"
     },
     {
       "path": "projects/molis-work-v1-demo/molis-work.db",
@@ -1345,6 +1603,12 @@
         "artifacts_replica_state": 1,
         "attention_entries": 5,
         "attention_events": 7,
+        "attention_replica_changes": 14,
+        "attention_replica_conflicts": 0,
+        "attention_replica_heads": 0,
+        "attention_replica_outbox": 0,
+        "attention_replica_resolutions": 0,
+        "attention_replica_state": 1,
         "boards": 1,
         "builder_replica_changes": 0,
         "builder_replica_conflicts": 0,
@@ -1408,7 +1672,7 @@
         "plugin_port_artifact_bindings": 0,
         "plugin_port_bindings": 4,
         "plugin_port_outputs": 0,
-        "plugin_private_values": 0,
+        "plugin_private_values": 1,
         "plugin_project_databases": 6,
         "plugin_runtime_installs": 15,
         "plugin_runtime_release_artifacts": 15,
@@ -1437,13 +1701,14 @@
         "project_root": 1,
         "project_runtime_setting_receipts": 0,
         "project_runtime_settings": 0,
+        "risk_editor_versions": 0,
         "risk_events": 0,
         "risk_items": 0,
         "risk_links": 0,
-        "schedule_action_bindings": 1,
+        "schedule_action_bindings": 0,
         "schedule_conversation_tasks": 0,
         "schedule_conversation_turns": 0,
-        "schedule_jobs": 1,
+        "schedule_jobs": 0,
         "schedule_missed_runs": 0,
         "schedule_operation_occurrences": 0,
         "schedule_operations": 0,
@@ -1453,8 +1718,14 @@
         "signal_revisions": 0,
         "signals": 0,
         "source_events": 5,
-        "sqlite_sequence": 8,
+        "sqlite_sequence": 10,
         "surface_corrections": 0,
+        "surface_corrections_replica_changes": 0,
+        "surface_corrections_replica_conflicts": 0,
+        "surface_corrections_replica_heads": 0,
+        "surface_corrections_replica_outbox": 0,
+        "surface_corrections_replica_resolutions": 0,
+        "surface_corrections_replica_state": 1,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 10,
@@ -1471,6 +1742,14 @@
         "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
+        "sync_57fe6903aad21582fd1bfbdd6011_aggregate_editor_versions": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_context": 1,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_changes": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_conflicts": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_heads": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_outbox": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_resolutions": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_state": 1,
         "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
         "sync_daec9cf494e58d382d6262de3af9_context": 1,
         "sync_daec9cf494e58d382d6262de3af9_replica_changes": 1,
@@ -1504,212 +1783,14 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "96333ad648dd6856fd105567bf2323ba59c47bd2cb19a3eca304a997bb31cbf0",
-      "expanded_sha256": "bd065b936d868b85dc04250ec6af8e7ff9bce5827d08b453bfe94a11d613d681"
+      "sha256": "0a74c44b46853bc009a9aee7ccb6db21aaccbc268fc89bee4aba9946d0d2c766",
+      "expanded_sha256": "ae5e3b7a937dfd059d79f0d5384469561eaf7c33edc56c6214d5bb2bee7b78cf"
     },
     {
-      "path": "projects/personal/molis-work.db",
+      "path": "projects/project-038fd99d-87df-4cdb-9de0-56838f641ed7/molis-work.db",
       "owner": "apps/local-host",
       "mode": 420,
-      "payload": "stores/projects/personal/molis-work.db.sql",
-      "schema_version": 1,
-      "plugin_tables": {
-        "io.molis.work.coding": 1,
-        "io.molis.work.feed": 1,
-        "io.molis.work.goals": 1,
-        "io.molis.work.inbox": 1,
-        "io.molis.work.risk": 1,
-        "io.molis.work.schedule": 1
-      },
-      "tables": {
-        "acceptance_checks": 0,
-        "acceptance_criteria": 0,
-        "acceptance_decisions": 0,
-        "acceptance_deliveries": 0,
-        "acceptance_replica_changes": 0,
-        "acceptance_replica_conflicts": 0,
-        "acceptance_replica_heads": 0,
-        "acceptance_replica_outbox": 0,
-        "acceptance_replica_resolutions": 0,
-        "acceptance_replica_state": 1,
-        "acceptance_requirements": 0,
-        "acceptance_subjects": 0,
-        "acceptance_sync_resolving": 0,
-        "artifacts_replica_changes": 0,
-        "artifacts_replica_conflicts": 0,
-        "artifacts_replica_heads": 0,
-        "artifacts_replica_outbox": 0,
-        "artifacts_replica_resolutions": 0,
-        "artifacts_replica_state": 1,
-        "attention_entries": 0,
-        "attention_events": 0,
-        "boards": 0,
-        "builder_replica_changes": 0,
-        "builder_replica_conflicts": 0,
-        "builder_replica_heads": 0,
-        "builder_replica_outbox": 0,
-        "builder_replica_resolutions": 0,
-        "builder_replica_state": 1,
-        "coding_input_versions": 0,
-        "coding_inputs": 0,
-        "coding_plan_drafts": 0,
-        "coding_plan_versions": 0,
-        "coding_saved_history": 0,
-        "coding_sessions": 0,
-        "context_edges": 0,
-        "events": 0,
-        "feed_item_events": 0,
-        "feed_items": 0,
-        "feed_materials": 0,
-        "feed_missed_pulls": 0,
-        "feed_out_rules": 0,
-        "feed_source_runs": 0,
-        "feed_sources": 0,
-        "goal_event_agreements": 0,
-        "goal_event_applied_decisions": 0,
-        "goal_event_closures": 0,
-        "goal_event_concerns": 0,
-        "goal_event_config_versions": 0,
-        "goal_event_configs": 0,
-        "goal_event_decision_requests": 0,
-        "goal_event_progress_summaries": 0,
-        "goal_event_requirement_bindings": 0,
-        "goal_event_state_owners": 0,
-        "goal_event_types": 0,
-        "goal_event_work_status": 0,
-        "goal_relations": 0,
-        "goal_requirement_links": 0,
-        "goal_trash_records": 0,
-        "goal_trash_relation_records": 0,
-        "goal_tree_item_effects": 0,
-        "goal_tree_proposal_items": 0,
-        "goal_tree_proposals": 0,
-        "goal_work_events": 0,
-        "goals": 0,
-        "guidance_entries": 0,
-        "guidance_revisions": 0,
-        "idempotency_records": 0,
-        "inbox_scene_bindings": 0,
-        "input_bindings": 0,
-        "library_artifact_versions": 0,
-        "library_artifacts": 0,
-        "listener_deliveries": 0,
-        "listener_instances": 0,
-        "material_recent_uses": 0,
-        "molis_storage_space": 1,
-        "opaque_blobs": 0,
-        "plugin_event_cursors": 0,
-        "plugin_event_resolutions": 0,
-        "plugin_events": 0,
-        "plugin_input_groups": 0,
-        "plugin_notifications": 0,
-        "plugin_port_artifact_bindings": 0,
-        "plugin_port_bindings": 0,
-        "plugin_port_outputs": 0,
-        "plugin_private_values": 0,
-        "plugin_project_databases": 6,
-        "plugin_runtime_installs": 7,
-        "plugin_runtime_release_artifacts": 7,
-        "process_item_versions": 0,
-        "process_items": 0,
-        "process_items_replica_changes": 0,
-        "process_items_replica_conflicts": 0,
-        "process_items_replica_heads": 0,
-        "process_items_replica_outbox": 0,
-        "process_items_replica_resolutions": 0,
-        "process_items_replica_state": 1,
-        "project_approval_rules": 0,
-        "project_approvals_replica_changes": 0,
-        "project_approvals_replica_conflicts": 0,
-        "project_approvals_replica_heads": 0,
-        "project_approvals_replica_outbox": 0,
-        "project_approvals_replica_resolutions": 0,
-        "project_approvals_replica_state": 1,
-        "project_guidance_replica_changes": 0,
-        "project_guidance_replica_conflicts": 0,
-        "project_guidance_replica_heads": 0,
-        "project_guidance_replica_outbox": 0,
-        "project_guidance_replica_resolutions": 0,
-        "project_guidance_replica_state": 1,
-        "project_review_decisions": 0,
-        "project_root": 1,
-        "project_runtime_setting_receipts": 0,
-        "project_runtime_settings": 0,
-        "risk_events": 0,
-        "risk_items": 0,
-        "risk_links": 0,
-        "schedule_action_bindings": 0,
-        "schedule_conversation_tasks": 0,
-        "schedule_conversation_turns": 0,
-        "schedule_jobs": 0,
-        "schedule_missed_runs": 0,
-        "schedule_operation_occurrences": 0,
-        "schedule_operations": 0,
-        "schedule_plugin_reminders": 0,
-        "schedule_wakeups": 0,
-        "signal_events": 0,
-        "signal_revisions": 0,
-        "signals": 0,
-        "source_events": 0,
-        "sqlite_sequence": 0,
-        "surface_corrections": 0,
-        "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
-        "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
-        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 0,
-        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_conflicts": 0,
-        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_heads": 0,
-        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
-        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
-        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
-        "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
-        "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
-        "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 0,
-        "sync_522a4260e0bcbee35d4d9f85406c_replica_conflicts": 0,
-        "sync_522a4260e0bcbee35d4d9f85406c_replica_heads": 0,
-        "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
-        "sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions": 0,
-        "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
-        "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
-        "sync_daec9cf494e58d382d6262de3af9_context": 1,
-        "sync_daec9cf494e58d382d6262de3af9_replica_changes": 0,
-        "sync_daec9cf494e58d382d6262de3af9_replica_conflicts": 0,
-        "sync_daec9cf494e58d382d6262de3af9_replica_heads": 0,
-        "sync_daec9cf494e58d382d6262de3af9_replica_outbox": 0,
-        "sync_daec9cf494e58d382d6262de3af9_replica_resolutions": 0,
-        "sync_daec9cf494e58d382d6262de3af9_replica_state": 1,
-        "sync_dd6dd4054975ce4abcd1e12268d3_aggregate_editor_versions": 0,
-        "sync_dd6dd4054975ce4abcd1e12268d3_context": 1,
-        "sync_dd6dd4054975ce4abcd1e12268d3_replica_changes": 0,
-        "sync_dd6dd4054975ce4abcd1e12268d3_replica_conflicts": 0,
-        "sync_dd6dd4054975ce4abcd1e12268d3_replica_heads": 0,
-        "sync_dd6dd4054975ce4abcd1e12268d3_replica_outbox": 0,
-        "sync_dd6dd4054975ce4abcd1e12268d3_replica_resolutions": 0,
-        "sync_dd6dd4054975ce4abcd1e12268d3_replica_state": 1,
-        "sync_ebbb9ae341b34cbb8aedd65a41e6_aggregate_editor_versions": 0,
-        "sync_ebbb9ae341b34cbb8aedd65a41e6_context": 1,
-        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes": 0,
-        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_conflicts": 0,
-        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_heads": 0,
-        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_outbox": 0,
-        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_resolutions": 0,
-        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state": 1,
-        "sync_fc44281fa4e6ae1ad919f15bea63_aggregate_editor_versions": 0,
-        "sync_fc44281fa4e6ae1ad919f15bea63_context": 1,
-        "sync_fc44281fa4e6ae1ad919f15bea63_replica_changes": 0,
-        "sync_fc44281fa4e6ae1ad919f15bea63_replica_conflicts": 0,
-        "sync_fc44281fa4e6ae1ad919f15bea63_replica_heads": 0,
-        "sync_fc44281fa4e6ae1ad919f15bea63_replica_outbox": 0,
-        "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
-        "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
-      },
-      "sha256": "67dbca3e9b7d965623de260989ec0844fee258f3bc9570ff1c305f80b4cf56e1",
-      "expanded_sha256": "99f84fb5e430f932cbfe2daaa7687ba2974983a5a46589057003186618d06b82"
-    },
-    {
-      "path": "projects/project-ae076f4f-3257-40a5-be48-38652812f188/molis-work.db",
-      "owner": "apps/local-host",
-      "mode": 420,
-      "payload": "stores/projects/project-ae076f4f-3257-40a5-be48-38652812f188/molis-work.db.sql",
+      "payload": "stores/projects/project-038fd99d-87df-4cdb-9de0-56838f641ed7/molis-work.db.sql",
       "schema_version": 1,
       "plugin_tables": {
         "io.molis.work.coding": 1,
@@ -1741,6 +1822,12 @@
         "artifacts_replica_state": 1,
         "attention_entries": 0,
         "attention_events": 0,
+        "attention_replica_changes": 0,
+        "attention_replica_conflicts": 0,
+        "attention_replica_heads": 0,
+        "attention_replica_outbox": 0,
+        "attention_replica_resolutions": 0,
+        "attention_replica_state": 1,
         "boards": 1,
         "builder_replica_changes": 0,
         "builder_replica_conflicts": 0,
@@ -1833,13 +1920,14 @@
         "project_root": 1,
         "project_runtime_setting_receipts": 0,
         "project_runtime_settings": 0,
+        "risk_editor_versions": 0,
         "risk_events": 0,
         "risk_items": 0,
         "risk_links": 0,
-        "schedule_action_bindings": 2,
+        "schedule_action_bindings": 1,
         "schedule_conversation_tasks": 1,
         "schedule_conversation_turns": 1,
-        "schedule_jobs": 2,
+        "schedule_jobs": 1,
         "schedule_missed_runs": 0,
         "schedule_operation_occurrences": 0,
         "schedule_operations": 0,
@@ -1851,6 +1939,12 @@
         "source_events": 0,
         "sqlite_sequence": 9,
         "surface_corrections": 0,
+        "surface_corrections_replica_changes": 0,
+        "surface_corrections_replica_conflicts": 0,
+        "surface_corrections_replica_heads": 0,
+        "surface_corrections_replica_outbox": 0,
+        "surface_corrections_replica_resolutions": 0,
+        "surface_corrections_replica_state": 1,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 0,
@@ -1867,6 +1961,14 @@
         "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
+        "sync_57fe6903aad21582fd1bfbdd6011_aggregate_editor_versions": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_context": 1,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_changes": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_conflicts": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_heads": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_outbox": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_resolutions": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_state": 1,
         "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
         "sync_daec9cf494e58d382d6262de3af9_context": 1,
         "sync_daec9cf494e58d382d6262de3af9_replica_changes": 2,
@@ -1900,8 +2002,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "9203e07eaff9f66cd3758e8f54b54a9de36cc32e1f9e495c5318061d0bedce62",
-      "expanded_sha256": "71471e1f5f1a33c599b098df6b88c8fa3564c8c940b9e2aaee1b3dc117dfb1a8"
+      "sha256": "8952e1a41aaee2428e0b0e0d3b81b4b4daa7a65a5548f7254bf0b7986d379a84",
+      "expanded_sha256": "21cdf1736e216257d5773d98c41e8446e070cb99acce4db49d6b7335f4c52f06"
     },
     {
       "path": "sbxdb-07ba5a137b9c31eb32d2afc59b67135f/sbxdb-07ba5a137b9c31eb32d2afc59b67135f.db",
@@ -1939,7 +2041,7 @@
         "mw_sessions": 1,
         "sqlite_sequence": 2
       },
-      "sha256": "c1c6a0ae017d71f4ea0f41665fa3cec5101630a8d1eb4a919f127e142aec5830"
+      "sha256": "4d358f0bfe43f7911aa5849dc46c05170bd8b4ff928b1cc8f75a2ef22dc65a34"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-declarations/agent-declarations.db",
@@ -1948,10 +2050,10 @@
       "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-declarations/agent-declarations.db.sql",
       "schema_version": 1,
       "tables": {
-        "install_declarations": 13,
+        "install_declarations": 14,
         "molis_storage_space": 1
       },
-      "sha256": "6a35d1eaf4be93546f50967a26773b4942e8c4fffd70fdfa081f0103d4f0ccb9"
+      "sha256": "35f6bffb2d1e251ce249923162863035a15b644462b8c871a60405def5af77e6"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-definitions/agent-definitions.db",
@@ -1961,6 +2063,12 @@
       "schema_version": 1,
       "tables": {
         "molis_storage_space": 1,
+        "personal_prompt_overrides_replica_changes": 0,
+        "personal_prompt_overrides_replica_conflicts": 0,
+        "personal_prompt_overrides_replica_heads": 0,
+        "personal_prompt_overrides_replica_outbox": 0,
+        "personal_prompt_overrides_replica_resolutions": 0,
+        "personal_prompt_overrides_replica_state": 1,
         "prompt_history": 0,
         "prompt_overrides": 0,
         "prompt_uses": 0,
@@ -1972,7 +2080,7 @@
         "skill_uses": 0,
         "sqlite_sequence": 0
       },
-      "sha256": "12dbe276233177a40b8d58b24404d186f9d46a6a606a746156173ad008bdd881"
+      "sha256": "a3f75361242f2816742d3957e71884e29a26392bfc8037b8ed0dd6767c0bae38"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records.sqlite",
@@ -1983,7 +2091,7 @@
       "tables": {
         "records": 1
       },
-      "sha256": "3fcda004f45ad8c90262c788f231f831a241de74b205ea04beca62923f94527d"
+      "sha256": "3b836bc83b0e75d571752b96e2d8679baccf923e8a9d008e994ad4fe1c9e86ed"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/characters/characters.sqlite",
@@ -2035,7 +2143,7 @@
         "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
         "sync_9c148ae77e23da148100ce206111_replica_state": 1
       },
-      "sha256": "40862e5bbba7cc96d7a4dea4d1f9fe7c779d5189e80e1b8a1e857ee26eab679e"
+      "sha256": "221023585c8e0afbc2aaf686a848b12b028eba63a9b46386c0e2377866f89028"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/connectors/connectors.db",
@@ -2054,7 +2162,7 @@
         "connector_protocols": 0,
         "molis_storage_space": 1
       },
-      "sha256": "a6c0394512878d261397653150fcbbda647ee7df39c38019a55a448235d2b609"
+      "sha256": "31a7d26b0d9e17da5ff396f2b299846638f32889398083e480aa1377f3416c40"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/dataset/dataset.db",
@@ -2064,6 +2172,7 @@
       "schema_version": 1,
       "tables": {
         "dataset_receipts": 0,
+        "dataset_source_bindings": 0,
         "dataset_versions": 0,
         "datasets": 1,
         "molis_storage_space": 1,
@@ -2077,7 +2186,7 @@
         "sync_aa98c46361f294dbb01ea79b1b42_replica_resolutions": 0,
         "sync_aa98c46361f294dbb01ea79b1b42_replica_state": 1
       },
-      "sha256": "c3fae4d41d9314088270ad43485d39dd770f7e83bdbf69d9c0b2d6e16feed1c2"
+      "sha256": "f626b0d9fa3e60c17242306637cfc9e94ed42fcbe206fd540eb718fe64b5b82e"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/external-sessions/external-sessions.db",
@@ -2096,7 +2205,7 @@
         "session_sources": 0,
         "session_suggestions": 0
       },
-      "sha256": "90b2cdc86c31b04416f4dfaaf25d7fbe986671e12ef43b378139a8a57ca2b3b2"
+      "sha256": "986adc703f2bf0bf2a3a76f0d8b8309328eff8cb3fcef77289ee8f695c0a7381"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/feed-content/feed-content.db",
@@ -2131,7 +2240,7 @@
         "sync_1299cb8ea8bacadaced737bb64d2_replica_resolutions": 0,
         "sync_1299cb8ea8bacadaced737bb64d2_replica_state": 1
       },
-      "sha256": "103ae8f4b7a1bdabb690bce9b34629238a42659f27ec64ad4b1e04751cc86664"
+      "sha256": "9804d8eb2d4d57c025f87b452ec92a18f20cf6d98d5207507002b0b3517e9698"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/functions/functions.db",
@@ -2143,9 +2252,16 @@
         "function_judgments": 0,
         "function_scene_bindings": 0,
         "functions": 4,
-        "molis_storage_space": 1
+        "molis_storage_space": 1,
+        "personal_judgment_rules_replica_changes": 2,
+        "personal_judgment_rules_replica_conflicts": 0,
+        "personal_judgment_rules_replica_heads": 0,
+        "personal_judgment_rules_replica_outbox": 0,
+        "personal_judgment_rules_replica_resolutions": 0,
+        "personal_judgment_rules_replica_state": 1,
+        "sqlite_sequence": 1
       },
-      "sha256": "c63f5d8db87c1192318eb8b89e6d15e849e015a4971873952d86735c69cf8555"
+      "sha256": "99cc39c72a290e23eb6c4329998ce5b7e54d4dd4f944585c1991f6e9a23779c8"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/images/images.db",
@@ -2214,7 +2330,7 @@
         "sync_fdf2cac8555825a37edee87d5d45_replica_resolutions": 0,
         "sync_fdf2cac8555825a37edee87d5d45_replica_state": 1
       },
-      "sha256": "1e0da7fd4f85b051e51e2ec1cc48546916211ac42aed91fff86c6c70a72b569e"
+      "sha256": "b8e54f49a4d9bd9f11934b4bcf58933fa0c35c59b63de2df80072252f3eb1b6f"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/knowledge/knowledge.db",
@@ -2223,12 +2339,12 @@
       "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/knowledge/knowledge.db.sql",
       "schema_version": 1,
       "tables": {
-        "knowledge_cards": 14,
+        "knowledge_cards": 13,
         "knowledge_receipts": 0,
         "knowledge_usage": 0,
         "molis_storage_space": 1
       },
-      "sha256": "d6b3e7c1b660d3760bfb5973476a0142e56339b53de2ca3a2504ce113ad781ed"
+      "sha256": "95745a046e3cb910e39f044eeeb9b659b9a098ed76f67f29254597bd09879d19"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/lingguang/lingguang.db",
@@ -2252,7 +2368,7 @@
         "sync_764756c5c01e4432072de4c80de9_replica_resolutions": 0,
         "sync_764756c5c01e4432072de4c80de9_replica_state": 1
       },
-      "sha256": "be3c0b31d6b8508f4cb44f385848ab9c06a82ad646e43986debe6cce36219a33"
+      "sha256": "fc04bf56d143966780a52393235297e27204bba5b248004746625dfa03f803d4"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/mainline/mainline.db",
@@ -2266,14 +2382,14 @@
         "mainline_items": 1,
         "molis_storage_space": 1
       },
-      "sha256": "df86437269dbcd9ba622dc6d9610852273cfb558c2383306c0d0b48633cb89bb"
+      "sha256": "caba57135e3d7a72d03f72def878ddd4a9715f909a55b8698c7459e251dc12c3"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/memory/memory.db",
       "owner": "packages/storage",
       "mode": 384,
       "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/memory/memory.db.sql",
-      "schema_version": 1,
+      "schema_version": 2,
       "tables": {
         "memory_candidates": 0,
         "memory_changes": 2,
@@ -2286,7 +2402,7 @@
         "memory_uses": 0,
         "molis_storage_space": 1
       },
-      "sha256": "11f733a75465b8364044e4a6abaf7ab726f705236d2a3d26a1e87ba43c839e62"
+      "sha256": "06a62aa7f2b05d82833fcdb6c3a524f506b63aa03fca7d42e5b9a7009224c9ba"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/observation/observation.db",
@@ -2333,143 +2449,13 @@
         "sync_32ffaf99782a7333c6784e247a81_replica_resolutions": 0,
         "sync_32ffaf99782a7333c6784e247a81_replica_state": 1
       },
-      "sha256": "04f0e2404344a6bd7d7e3eba4eafd5f535d3a463c2b1a394fa464c73357cd94f"
+      "sha256": "8bcaedd3f49aeaf2f774760c7815d03c7de0e7f06fbe97a69f9fdaa07a6240bf"
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/placement/placement.db",
-      "owner": "apps/local-host",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/placement/placement.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "context_edges": 7,
-        "molis_storage_space": 1,
-        "placement_titles": 3
-      },
-      "sha256": "bc138aad16c50ec59cec71c13df16006c79c1618bcb24a6646ec74f5268a5abe"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-directories/plugin-directories.db",
-      "owner": "apps/local-host",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-directories/plugin-directories.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "molis_storage_space": 1,
-        "plugin_directory_grants": 0,
-        "plugin_directory_reads": 0,
-        "sqlite_sequence": 0
-      },
-      "sha256": "eff48523a9843096891409a58b1508522eff2dbcf04228741c76d1b0f16e9250"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-libraries/plugin-libraries.db",
-      "owner": "apps/local-host",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-libraries/plugin-libraries.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "molis_storage_space": 1,
-        "plugin_home_libraries": 0
-      },
-      "sha256": "d703dc1502e4c284ead87bee4bd15c5bdc98f7b81856fbf27cba6c1d4e199ec4"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-originals/plugin-originals.db",
-      "owner": "apps/local-host",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-originals/plugin-originals.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "molis_storage_space": 1,
-        "plugin_original_files": 0
-      },
-      "sha256": "7cc088dc88a766ab735b0396c703c71a30c2369f04ca961fcabbdfaa1a5cc58f"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-runtime/plugin-runtime.db",
-      "owner": "apps/local-host",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-runtime/plugin-runtime.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "molis_storage_space": 1,
-        "plugin_consents": 5,
-        "plugin_private_values": 0,
-        "plugin_publishers": 0,
-        "plugin_runtime_installs": 7,
-        "plugin_runtime_release_artifacts": 7
-      },
-      "sha256": "0f10490b8300e4e7f3a266c4f9048baf78d05982015dcc1e41978fc6a630fcc0",
-      "expanded_sha256": "1aa63ed0e41d8f09d46f694c3c01f5696628710ba967b0ee86a1c859bbbfca9d"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/ppt/ppt.db",
-      "owner": "io.molis.work.ppt",
-      "mode": 384,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/ppt/ppt.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "molis_storage_space": 1,
-        "presentation_copies": 0,
-        "presentations": 1,
-        "sqlite_sequence": 1,
-        "sync_4c235c6e5ce01f475d0e44c40a33_aggregate_editor_versions": 1,
-        "sync_4c235c6e5ce01f475d0e44c40a33_context": 1,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_changes": 2,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_conflicts": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_heads": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_outbox": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_resolutions": 0,
-        "sync_4c235c6e5ce01f475d0e44c40a33_replica_state": 1
-      },
-      "sha256": "e1b4b140a44894ff317ec68d3b897e12bc1b4fbb9d9f07223bcd96d82ed42978"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/catalog.db",
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/molis-work.db",
       "owner": "apps/local-host",
       "mode": 420,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/catalog.db.sql",
-      "schema_version": 1,
-      "tables": {
-        "catalog_meta": 2,
-        "context_edges": 0,
-        "model_providers": 0,
-        "molis_storage_space": 1,
-        "partition_plugins": 10,
-        "plugin_terminal_panel_aliases": 0,
-        "plugin_terminal_panels": 0,
-        "project_catalog_replica_changes": 10,
-        "project_catalog_replica_conflicts": 0,
-        "project_catalog_replica_heads": 0,
-        "project_catalog_replica_outbox": 0,
-        "project_catalog_replica_resolutions": 0,
-        "project_catalog_replica_state": 1,
-        "project_deletion_steps": 0,
-        "project_deletions": 0,
-        "project_events": 10,
-        "project_instruction_settings": 0,
-        "project_plugin_exclusions": 0,
-        "project_portable_plugins": 10,
-        "project_recycle": 0,
-        "project_recycle_receipts": 0,
-        "projects": 2,
-        "runtime_context_binding_events": 0,
-        "runtime_context_bindings": 0,
-        "runtime_context_setup_requests": 0,
-        "runtime_context_suggestion_rejections": 0,
-        "sqlite_sequence": 1,
-        "workspace_project_memberships": 2,
-        "workspace_source_links": 0,
-        "workspaces": 2
-      },
-      "sha256": "fe0bf52e2e772385d5744a2720eb2cc580f30453c0d545b46393fcafe4dc8f97"
-    },
-    {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/personal/molis-work.db",
-      "owner": "apps/local-host",
-      "mode": 420,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/personal/molis-work.db.sql",
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/personal-space/molis-work.db.sql",
       "schema_version": 1,
       "plugin_tables": {
         "io.molis.work.coding": 1,
@@ -2501,6 +2487,12 @@
         "artifacts_replica_state": 1,
         "attention_entries": 0,
         "attention_events": 0,
+        "attention_replica_changes": 0,
+        "attention_replica_conflicts": 0,
+        "attention_replica_heads": 0,
+        "attention_replica_outbox": 0,
+        "attention_replica_resolutions": 0,
+        "attention_replica_state": 1,
         "boards": 0,
         "builder_replica_changes": 0,
         "builder_replica_conflicts": 0,
@@ -2593,6 +2585,7 @@
         "project_root": 1,
         "project_runtime_setting_receipts": 0,
         "project_runtime_settings": 0,
+        "risk_editor_versions": 0,
         "risk_events": 0,
         "risk_items": 0,
         "risk_links": 0,
@@ -2611,6 +2604,12 @@
         "source_events": 0,
         "sqlite_sequence": 0,
         "surface_corrections": 0,
+        "surface_corrections_replica_changes": 0,
+        "surface_corrections_replica_conflicts": 0,
+        "surface_corrections_replica_heads": 0,
+        "surface_corrections_replica_outbox": 0,
+        "surface_corrections_replica_resolutions": 0,
+        "surface_corrections_replica_state": 1,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 0,
@@ -2627,6 +2626,14 @@
         "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
+        "sync_57fe6903aad21582fd1bfbdd6011_aggregate_editor_versions": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_context": 1,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_changes": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_conflicts": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_heads": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_outbox": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_resolutions": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_state": 1,
         "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
         "sync_daec9cf494e58d382d6262de3af9_context": 1,
         "sync_daec9cf494e58d382d6262de3af9_replica_changes": 0,
@@ -2660,14 +2667,144 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "668ee5d7abb812c1baa0ddfc4191bac1c65df7c00816b40dc6e5121d144085fd",
-      "expanded_sha256": "4613ddf83d3fc1f18687c2173dc93aedfbe24278190e500dce02fae42df3e041"
+      "sha256": "9046500790e0cedd4710a229b98418991cc8f7de13690f0f418dfda44fd94b0e",
+      "expanded_sha256": "c6d9756abab0ba2fb1fa9e0d106c912a1ad42ebab5bf84e9163a7e7a49aa5141"
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-adcfbd21-e22e-44f4-af64-38851fbc840c/molis-work.db",
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/placement/placement.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/placement/placement.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "context_edges": 7,
+        "molis_storage_space": 1,
+        "placement_titles": 3
+      },
+      "sha256": "2fd880cba97b47260018f4246782d4b12f05bbf83667cb436a942b4fbb2a024f"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-directories/plugin-directories.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-directories/plugin-directories.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "plugin_directory_grants": 0,
+        "plugin_directory_reads": 0,
+        "sqlite_sequence": 0
+      },
+      "sha256": "eff48523a9843096891409a58b1508522eff2dbcf04228741c76d1b0f16e9250"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-libraries/plugin-libraries.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-libraries/plugin-libraries.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "plugin_home_libraries": 0
+      },
+      "sha256": "d703dc1502e4c284ead87bee4bd15c5bdc98f7b81856fbf27cba6c1d4e199ec4"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-originals/plugin-originals.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-originals/plugin-originals.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "plugin_original_files": 0
+      },
+      "sha256": "7cc088dc88a766ab735b0396c703c71a30c2369f04ca961fcabbdfaa1a5cc58f"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-runtime/plugin-runtime.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-runtime/plugin-runtime.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "plugin_consents": 5,
+        "plugin_private_values": 0,
+        "plugin_publishers": 0,
+        "plugin_runtime_installs": 8,
+        "plugin_runtime_release_artifacts": 8
+      },
+      "sha256": "e9c339582570d10ecb0bcfe8ebf096db0abf821b80b24ccb568bb921a7cd2207",
+      "expanded_sha256": "d5fd823b0db0e9ce88230be2e31fd5a0452981628d67525055002d02d6d3a121"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/ppt/ppt.db",
+      "owner": "io.molis.work.ppt",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/ppt/ppt.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "presentation_copies": 0,
+        "presentations": 1,
+        "sqlite_sequence": 1,
+        "sync_4c235c6e5ce01f475d0e44c40a33_aggregate_editor_versions": 1,
+        "sync_4c235c6e5ce01f475d0e44c40a33_context": 1,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_changes": 2,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_conflicts": 0,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_heads": 0,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_outbox": 0,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_resolutions": 0,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_state": 1
+      },
+      "sha256": "444680b467c83ddcd5684489b2dc60b152186d08c0aa0c03deb36426f49b0cc6"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/catalog.db",
       "owner": "apps/local-host",
       "mode": 420,
-      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-adcfbd21-e22e-44f4-af64-38851fbc840c/molis-work.db.sql",
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/catalog.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "catalog_meta": 2,
+        "context_edges": 0,
+        "model_providers": 0,
+        "molis_storage_space": 1,
+        "partition_plugins": 10,
+        "plugin_terminal_panel_aliases": 0,
+        "plugin_terminal_panels": 0,
+        "project_catalog_replica_changes": 9,
+        "project_catalog_replica_conflicts": 0,
+        "project_catalog_replica_heads": 0,
+        "project_catalog_replica_outbox": 0,
+        "project_catalog_replica_resolutions": 0,
+        "project_catalog_replica_state": 1,
+        "project_deletion_steps": 0,
+        "project_deletions": 0,
+        "project_events": 10,
+        "project_instruction_settings": 0,
+        "project_plugin_exclusions": 0,
+        "project_portable_plugins": 10,
+        "project_recycle": 0,
+        "project_recycle_receipts": 0,
+        "projects": 2,
+        "runtime_context_binding_events": 0,
+        "runtime_context_bindings": 0,
+        "runtime_context_setup_requests": 0,
+        "runtime_context_suggestion_rejections": 0,
+        "sqlite_sequence": 1,
+        "workspace_project_memberships": 2,
+        "workspace_source_links": 0,
+        "workspaces": 2
+      },
+      "sha256": "ebe7905b869c32b9802f9d13d060430b8e8ed190dac6dc81f9b61c5014f05ac8"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-308fe670-0345-4052-886a-23b38c1213f4/molis-work.db",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-308fe670-0345-4052-886a-23b38c1213f4/molis-work.db.sql",
       "schema_version": 1,
       "plugin_tables": {
         "io.molis.work.coding": 1,
@@ -2699,6 +2836,12 @@
         "artifacts_replica_state": 1,
         "attention_entries": 0,
         "attention_events": 0,
+        "attention_replica_changes": 0,
+        "attention_replica_conflicts": 0,
+        "attention_replica_heads": 0,
+        "attention_replica_outbox": 0,
+        "attention_replica_resolutions": 0,
+        "attention_replica_state": 1,
         "boards": 1,
         "builder_replica_changes": 0,
         "builder_replica_conflicts": 0,
@@ -2791,13 +2934,14 @@
         "project_root": 1,
         "project_runtime_setting_receipts": 0,
         "project_runtime_settings": 0,
+        "risk_editor_versions": 0,
         "risk_events": 0,
         "risk_items": 0,
         "risk_links": 0,
-        "schedule_action_bindings": 2,
+        "schedule_action_bindings": 1,
         "schedule_conversation_tasks": 1,
         "schedule_conversation_turns": 1,
-        "schedule_jobs": 2,
+        "schedule_jobs": 1,
         "schedule_missed_runs": 0,
         "schedule_operation_occurrences": 0,
         "schedule_operations": 0,
@@ -2809,6 +2953,12 @@
         "source_events": 0,
         "sqlite_sequence": 8,
         "surface_corrections": 0,
+        "surface_corrections_replica_changes": 0,
+        "surface_corrections_replica_conflicts": 0,
+        "surface_corrections_replica_heads": 0,
+        "surface_corrections_replica_outbox": 0,
+        "surface_corrections_replica_resolutions": 0,
+        "surface_corrections_replica_state": 1,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
         "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 0,
@@ -2825,6 +2975,14 @@
         "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions": 0,
         "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
+        "sync_57fe6903aad21582fd1bfbdd6011_aggregate_editor_versions": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_context": 1,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_changes": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_conflicts": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_heads": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_outbox": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_resolutions": 0,
+        "sync_57fe6903aad21582fd1bfbdd6011_replica_state": 1,
         "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
         "sync_daec9cf494e58d382d6262de3af9_context": 1,
         "sync_daec9cf494e58d382d6262de3af9_replica_changes": 2,
@@ -2858,15 +3016,15 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "e3923504509128ec9b787c95449c0ff4c1d22e6613106ca115f34f3abf52831c",
-      "expanded_sha256": "2c81ff1c4c8d4975346838edf053fef796a4ef40c58d618a99421be8a8dbff06"
+      "sha256": "9bea3b2a10e3d6836ba0d3c2d7e41cfe8002dd234c70fe74d440d7399acbd7ec",
+      "expanded_sha256": "02f3ec0c82d769bf9e0e4398c7e78e04ee9c565d16367579f09a9bc444aebcfb"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
       "owner": "modules/sync-replication",
       "mode": 384,
       "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db.sql",
-      "schema_version": 2,
+      "schema_version": 1,
       "tables": {
         "molis_storage_space": 1,
         "sync_blob_parts": 0,
@@ -2877,7 +3035,7 @@
         "sync_policy": 0,
         "sync_stream_cursors": 0
       },
-      "sha256": "a962254f546b520cb0f931c29bd856178b238e3861276d201c8cdfea0d05345d"
+      "sha256": "bcbc8bae65e14388555dacc7e3cab910cfbd294a456ba703de3f52dbd628a4ab"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/todo/todo.db",
@@ -2905,7 +3063,7 @@
         "todo_requests": 0,
         "todo_source_memory": 0
       },
-      "sha256": "70fc5b27747c7ae9d41f19bd58f6dd8a38844ce096e912a1bbe3b3c5d81e084a"
+      "sha256": "b9e83d384281ed97ff20643a47d89c42074eb19b8b8cfa551ef51e46dd930fad"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/web-search/web-search.db",
@@ -2927,15 +3085,25 @@
       "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/work-brief/work-brief.db.sql",
       "schema_version": 1,
       "tables": {
+        "brief_editor_versions": 0,
         "brief_edits": 0,
         "brief_next_marks": 0,
         "brief_proposals": 0,
         "brief_requests": 0,
         "brief_versions": 0,
         "briefs": 0,
-        "molis_storage_space": 1
+        "molis_storage_space": 1,
+        "sqlite_sequence": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_aggregate_editor_versions": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_context": 1,
+        "sync_99b05d64d7577ed2f59d3aae7365_replica_changes": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_replica_conflicts": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_replica_heads": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_replica_outbox": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_replica_resolutions": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_replica_state": 1
       },
-      "sha256": "33db946b6980b2a2fb38d4f63cfdff5165f5d3544f75b58b9e5ce7d1ba07d4f7"
+      "sha256": "cdf82ec6028b5330678e7ffb1bf5b5bb888252ff066189b5a6a9716f2fd73f38"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/workflows/workflows.db",
@@ -2959,7 +3127,7 @@
         "workflow_imported_instances": 0,
         "workflows": 1
       },
-      "sha256": "ecfc6275051a481c3a9d57de4a4280449d63ec217d05e09a0ebc219f28a40f02"
+      "sha256": "84410b26e59909134f91a2c9e036e64d38c2e20ddc97b29685bae3e8da1b9c0c"
     },
     {
       "path": "todo/todo.db",
@@ -2987,7 +3155,7 @@
         "todo_requests": 0,
         "todo_source_memory": 0
       },
-      "sha256": "2ea33d26abd3db17ab6fd2e2c4634edf8773c40333c62f820613c49573f32cc3"
+      "sha256": "5b45dc95f9d8d7e361f8143ead0798b1712201c2c8c8a8c65098506849d021c5"
     },
     {
       "path": "web-search/web-search.db",
@@ -3009,15 +3177,25 @@
       "payload": "stores/work-brief/work-brief.db.sql",
       "schema_version": 1,
       "tables": {
+        "brief_editor_versions": 0,
         "brief_edits": 0,
         "brief_next_marks": 0,
         "brief_proposals": 0,
         "brief_requests": 0,
         "brief_versions": 0,
         "briefs": 0,
-        "molis_storage_space": 1
+        "molis_storage_space": 1,
+        "sqlite_sequence": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_aggregate_editor_versions": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_context": 1,
+        "sync_99b05d64d7577ed2f59d3aae7365_replica_changes": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_replica_conflicts": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_replica_heads": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_replica_outbox": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_replica_resolutions": 0,
+        "sync_99b05d64d7577ed2f59d3aae7365_replica_state": 1
       },
-      "sha256": "bffffa91ad16f07487082d9a82811a71143597eec9437a4515c965204cf9aceb"
+      "sha256": "885204cd519ba8e23f70ae75e508fa0d43ed2240d62ba6fdab86b0096acdddd4"
     },
     {
       "path": "workflows/workflows.db",
@@ -3041,73 +3219,81 @@
         "workflow_imported_instances": 0,
         "workflows": 1
       },
-      "sha256": "e75da4aae5f190a9b13f6b2162d8ffc7ea9b3af34bf14c9f0aedeee75e896334"
+      "sha256": "7f2a95b3c28bbf4a64caf52d84e7fa9e4192016dd8f21ef1c8c031735924204e"
     }
   ],
   "files": [
     {
-      "path": "agent-runtime/records/io.molis.work~idempotency/v2.11.agent-start.molis-work-3-6gu5w-e71eb0c8-4260-486c-984e-88e17e981507.json",
+      "path": "agent-runtime/records/io.molis.work~idempotency/v2.11.agent-start.molis-work-3-6gu5w-a1da3dd0-734b-422a-8c97-387233f9c792.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
-      "payload": "files/agent-runtime/records/io.molis.work~idempotency/v2.11.agent-start.molis-work-3-6gu5w-e71eb0c8-4260-486c-984e-88e17e981507.json",
-      "size": 1649,
-      "sha256": "30379b95c8113a8598d8358abc5962adec36cb608174f0030f5991cff4288aaf"
+      "payload": "files/agent-runtime/records/io.molis.work~idempotency/v2.11.agent-start.molis-work-3-6gu5w-a1da3dd0-734b-422a-8c97-387233f9c792.json",
+      "size": 1721,
+      "sha256": "c6aa054eafcf301aaa35b22a231a5750997920c95dc0d1d8fc20c68db43cd8fa"
     },
     {
       "path": "agent-runtime/records/io.molis.work~lineage/graph.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~lineage/graph.json",
-      "size": 160,
-      "sha256": "465f2c536013c9a26c0473a0f1fa49f379173ecf3b2dcedb90f1c9817bee0d67"
+      "size": 170,
+      "sha256": "fc9f1fb35bef51d7e56c42cef4f0731d23bb374b17f72c4c5985dabaeeefad69"
     },
     {
-      "path": "agent-runtime/records/io.molis.work~policy-snapshot/a1c8b54f.json",
+      "path": "agent-runtime/records/io.molis.work~policy-snapshot/e8a90022.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
-      "payload": "files/agent-runtime/records/io.molis.work~policy-snapshot/a1c8b54f.json",
-      "size": 6549,
-      "sha256": "6fa9938260b431ecc136b57d8b069d023c3665b2cdab4b21a5ee86f79c59144f"
+      "payload": "files/agent-runtime/records/io.molis.work~policy-snapshot/e8a90022.json",
+      "size": 6634,
+      "sha256": "44f02791c297b62442ce04e702e9a198c9b53aa218795e48ebaf3447b305a3e2"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource-chunk/5-uqqq-0.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/5-uqqq-0.json",
-      "size": 509,
-      "sha256": "b3563a908e8791b57fd4fa49471b4ed8bc4e410b4e2a5421fba98fff47edefc5"
+      "size": 9613,
+      "sha256": "9e0fd8d1486aca01dc1a02d1daa88558267ceedb8230e36c501b7e9c5704ff56"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource-chunk/6-6bqww-0.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/6-6bqww-0.json",
-      "size": 9357,
-      "sha256": "9980191f644b1e9f4cc54630c353e0c590462cc190c1b5ff8b389e36c02cbea4"
+      "size": 24749,
+      "sha256": "354d8d2b8e7334cb9b3f476d76eae172786b5b6782e0077808c7004df1a33e00"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource-chunk/7-6yijf-0.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/7-6yijf-0.json",
-      "size": 23425,
-      "sha256": "7cd3e226250c406921179ffbc5ec4754627aa73b105e08cb71844857db07c8ea"
+      "size": 349,
+      "sha256": "d63e06e8820782d6f07c9217c6d88434cd06b13bdfd515c0eea29c38781bd876"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource-chunk/8-552u4-0.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/8-552u4-0.json",
-      "size": 17673,
-      "sha256": "3e48cff1c33d7ab70f3a40a5d87d3bf92c59873c96072404cdd72dd90d0a6fa8"
+      "size": 473,
+      "sha256": "097671944ad2b31be728b3fa6129c549c67d4994e433affa71609e7327460eae"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource-chunk/9-bauz-0.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/9-bauz-0.json",
-      "size": 21317,
-      "sha256": "13bff892f5435077cb4b855ae7865893e419fa73786427e71305ac23e6540d3c"
+      "size": 11809,
+      "sha256": "34e351723dd897fd17dbdb68f72acf353fbe02d0ec292354052ab01e97b77231"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~published-resource-chunk/a-708lc-0.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/a-708lc-0.json",
+      "size": 14785,
+      "sha256": "2052811b4a3adff26b53a66d73437884c1ec4eaf0848bcd229127f2724359127"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource/5-uqqq.json",
@@ -3115,7 +3301,7 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource/5-uqqq.json",
       "size": 181,
-      "sha256": "c90ecf38c27418373d8dbce915deb5f32bd12833caa87650a9225054bc113ac0"
+      "sha256": "2128f9b72e300612cab6dc7ba50d501417f5a4e5e52f0aadc3ee3138489c54e2"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource/6-6bqww.json",
@@ -3123,47 +3309,55 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource/6-6bqww.json",
       "size": 182,
-      "sha256": "8e73afc514956032af3db7d97664412dc0e35af3c6129e65072e2ee21a7beeab"
+      "sha256": "7fa544b06ab2770148b2ca01ce3d23e5d9925b7a393e3b93d208ffda453a8b80"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource/7-6yijf.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource/7-6yijf.json",
-      "size": 183,
-      "sha256": "85fa003a037b4c069cdc8c52c2c4abce1f690a88c49f9c10f39f900d94a11c06"
+      "size": 180,
+      "sha256": "704f828db29fd2dcde7a0b499f35c5fe0eadce2c3c0aed00e9fdb1e9d2fa2b2b"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource/8-552u4.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource/8-552u4.json",
-      "size": 185,
-      "sha256": "3a3d4e9f0d0eed0e2e95460b278575185f2110f20128c81197e88e966aa9225a"
+      "size": 180,
+      "sha256": "1b63d34958aa0fd865f1f0962219312ba8f22327606deb07bed1f14ace64a178"
     },
     {
       "path": "agent-runtime/records/io.molis.work~published-resource/9-bauz.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~published-resource/9-bauz.json",
+      "size": 184,
+      "sha256": "0fbe90a4864e68d9ce87452f47ff7c298b1241c991beabd500b920a2a1777309"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~published-resource/a-708lc.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~published-resource/a-708lc.json",
       "size": 185,
-      "sha256": "aac91187036480fb5f5ba8efa0499fe7b35d604998aaf5c9440dc2436b825e7b"
+      "sha256": "87684fd0c9dd66ea1383a29ef2a7ed6862e033ae4ac5d3fb867e2149ec1531c5"
     },
     {
-      "path": "agent-runtime/records/io.molis.work~queued-tasks/global.2-3kn7e.v1.json",
+      "path": "agent-runtime/records/io.molis.work~queued-tasks/global.2-4gvaa.v1.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
-      "payload": "files/agent-runtime/records/io.molis.work~queued-tasks/global.2-3kn7e.v1.json",
+      "payload": "files/agent-runtime/records/io.molis.work~queued-tasks/global.2-4gvaa.v1.json",
       "size": 485,
-      "sha256": "c4d024d6d5ae0f030ce9987adc2697a93bb4ddf4b437fc35969dd907724069fb"
+      "sha256": "efdd4fa09f3cf83e0d0789c4cffbc120b84ad9b5d8884d4f8abbf05ef4949972"
     },
     {
-      "path": "agent-runtime/records/io.molis.work~runs/3-6gu5w.c-252ot.json",
+      "path": "agent-runtime/records/io.molis.work~runs/3-6gu5w.d-252ot.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
-      "payload": "files/agent-runtime/records/io.molis.work~runs/3-6gu5w.c-252ot.json",
+      "payload": "files/agent-runtime/records/io.molis.work~runs/3-6gu5w.d-252ot.json",
       "size": 3339,
-      "sha256": "69b2749982057fdde6710d5e4fb75d98963bde94f5ff83b2c3a3dcb1d31f5c43"
+      "sha256": "923bdd4d197abe89b5526a19ef7adb18e160a18053ede93fe72bf1c2ac2835b3"
     },
     {
       "path": "agent-runtime/records/io.molis.work~sessions/1-p6tv.json",
@@ -3179,15 +3373,15 @@
       "mode": 384,
       "payload": "files/agent-runtime/records/io.molis.work~sessions/3-6gu5w.json",
       "size": 233,
-      "sha256": "ba396c00ab27d753a49bda6ade1f4ec5745bf22a8c1e907c1c81c55c70ad2d1b"
+      "sha256": "1fb3203f3c138d05d365a3b168eb13be13e046e3c00bc8dc6a636f0dec0b90a0"
     },
     {
-      "path": "agent-runtime/records/io.molis.work~taskboards/global.4-3ozdu.v1.json",
+      "path": "agent-runtime/records/io.molis.work~taskboards/global.4-4io2a.v1.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
-      "payload": "files/agent-runtime/records/io.molis.work~taskboards/global.4-3ozdu.v1.json",
+      "payload": "files/agent-runtime/records/io.molis.work~taskboards/global.4-4io2a.v1.json",
       "size": 1245,
-      "sha256": "5692b7ea2033cf60b7168ccda0e924ae645a23ca893694ddea6a13d6b838706d"
+      "sha256": "eace30addd95090172c0e8f265700296746ae849c27d1d2afa80dc08c7034ad6"
     },
     {
       "path": "agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/1-p6tv.json",
@@ -3202,16 +3396,16 @@
       "owner": "horizontal/agent-host",
       "mode": 384,
       "payload": "files/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/3-6gu5w.json",
-      "size": 21630,
-      "sha256": "49ab8f759f6d55546a84001659bb61249f648dee93c03e3d96bb8d304ed85843"
+      "size": 15822,
+      "sha256": "a57aab1c4afd04b8a02f09f6e9300796db4c2e714ecfc24d97863bf477f37bed"
     },
     {
-      "path": "agent-runtime/records/molis-work-delegation-022e733141b0e17b8feffad3/2a8f858b8f74baacaba725940596a44185a475642a011bda3c2dc2ba05c1e4db.json",
+      "path": "agent-runtime/records/molis-work-delegation-022e733141b0e17b8feffad3/e850f74ed4fe267438a60672203c3c1974d1392f99fe59db0f8cd1452b027f8d.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
-      "payload": "files/agent-runtime/records/molis-work-delegation-022e733141b0e17b8feffad3/2a8f858b8f74baacaba725940596a44185a475642a011bda3c2dc2ba05c1e4db.json",
-      "size": 850,
-      "sha256": "963b431183b4e24378592f073fbd3a74aeb051a16a9198fce3a62e5e86247ddd"
+      "payload": "files/agent-runtime/records/molis-work-delegation-022e733141b0e17b8feffad3/e850f74ed4fe267438a60672203c3c1974d1392f99fe59db0f8cd1452b027f8d.json",
+      "size": 834,
+      "sha256": "34e1ed19b2903ee77c6fb6bdd18cce1c5cd94685233c27ae144c2d1e7aa948c9"
     },
     {
       "path": "agent-runtime/storage.key",
@@ -3231,12 +3425,20 @@
       "sha256": "5f40974f88602004ef14d6357120b23af0af4286ca6a017a8175d398a62e4091"
     },
     {
+      "path": "computer/settings.json",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "files/computer/settings.json",
+      "size": 189,
+      "sha256": "a4f56acc110f4e307a95caf9e7b909661decb62a56d69795ee1f85357c9594ba"
+    },
+    {
       "path": "config/mcp-tools.json",
       "owner": "apps/local-host",
       "mode": 420,
       "payload": "files/config/mcp-tools.json",
       "size": 402,
-      "sha256": "36c67983294693e738e6624e56e984171d31e5380844d7464472a306c365a450"
+      "sha256": "c69fd3b6947d3f2ad2fb05c7540d445f5dc89443290fc7e751d59c4031268d6e"
     },
     {
       "path": "config/onboarding.json",
@@ -3252,7 +3454,7 @@
       "mode": 384,
       "payload": "files/config/project-arrival.json",
       "size": 254,
-      "sha256": "73565591a5190a1aa002766d419d573cb26c3650d0867ef88b4a5e0a743a5f72"
+      "sha256": "076f6f2d387aab3387d294117a7eacb1beb086f21159e6773815179776c32422"
     },
     {
       "path": "config/ui-locale.json",
@@ -3275,8 +3477,8 @@
       "owner": "horizontal/appearance",
       "mode": 384,
       "payload": "files/interface/state.json",
-      "size": 1374,
-      "sha256": "49af661e6620c8b302d380e5ddecb4c97fb58d013a9c84201e8a5424d4c010d5"
+      "size": 1390,
+      "sha256": "04a9d52e77a7c527b6697f6d910415523f8ae782e3b53e2ca47c56b3f9c6d0a9"
     },
     {
       "path": "jelly/preferences.json",
@@ -3284,7 +3486,7 @@
       "mode": 384,
       "payload": "files/jelly/preferences.json",
       "size": 1033,
-      "sha256": "b512f5d4b31dd139c410d49b9a5aefd5ac850a59ee3fe3536a6f63c2c6a610a7"
+      "sha256": "e2c729e7b29464ef02ad6953a1ab182dd1168b460ff7ce1fdf8aafd1d4e44af1"
     },
     {
       "path": "memory-forgetting-v2.json",
@@ -3352,7 +3554,7 @@
     },
     {
       "path": "shelf/catalog.json",
-      "owner": "io.molis.work.shelf",
+      "owner": "system.shelf",
       "mode": 384,
       "payload": "files/shelf/catalog.json",
       "size": 2440,
@@ -3360,7 +3562,7 @@
     },
     {
       "path": "shelf/files/item_mkf7y5c0_4bd4a7a8/试用示例.pdf",
-      "owner": "io.molis.work.shelf",
+      "owner": "system.shelf",
       "mode": 384,
       "payload": "files/shelf/files/item_mkf7y5c0_4bd4a7a8/试用示例.pdf",
       "size": 646,
@@ -3368,7 +3570,7 @@
     },
     {
       "path": "shelf/files/item_mkf7y5c0_a2387209/versions/696af09bf599009e7f30496ec0b592af39f169a3e783169360a4606b20ba012c/金样条目 seed.md",
-      "owner": "io.molis.work.shelf",
+      "owner": "system.shelf",
       "mode": 384,
       "payload": "files/shelf/files/item_mkf7y5c0_a2387209/versions/696af09bf599009e7f30496ec0b592af39f169a3e783169360a4606b20ba012c/金样条目 seed.md",
       "size": 30,
@@ -3376,19 +3578,19 @@
     },
     {
       "path": "shelf/files/item_mkf7y5c0_a2387209/金样条目 seed.md",
-      "owner": "io.molis.work.shelf",
+      "owner": "system.shelf",
       "mode": 384,
       "payload": "files/shelf/files/item_mkf7y5c0_a2387209/金样条目 seed.md",
       "size": 23,
       "sha256": "9df8b8bf267c86a66bed0096abf5536ef9cd560b3bf20bafac4c8ccb73efcf1e"
     },
     {
-      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~queued-tasks/global.2-7l311.v1.json",
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~queued-tasks/global.2-5h5mw.v1.json",
       "owner": "horizontal/agent-host",
       "mode": 384,
-      "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~queued-tasks/global.2-7l311.v1.json",
+      "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~queued-tasks/global.2-5h5mw.v1.json",
       "size": 485,
-      "sha256": "7764e7c2775074c8fb490495380d22b6efafd53b340207860b80af0544f2fad8"
+      "sha256": "92d8f7dc83c7f7a0dad5b7337c3b46689aa1010e8621319d48b9bbe896620014"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~sessions/1-1j98g.json",
@@ -3420,8 +3622,8 @@
       "owner": "horizontal/appearance",
       "mode": 384,
       "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/interface/state.json",
-      "size": 1374,
-      "sha256": "49af661e6620c8b302d380e5ddecb4c97fb58d013a9c84201e8a5424d4c010d5"
+      "size": 1029,
+      "sha256": "b21b01af213d0da3745cfe07694c226ec8d9bff4f1600475923421cbd35aacb4"
     },
     {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/memory-forgetting-v2.json",
@@ -3498,6 +3700,10 @@
       "reason": "Agent temporary state"
     },
     {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/interface/state.json.lock.sqlite",
+      "reason": "Appearance write lock"
+    },
+    {
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/logs",
       "reason": "Diagnostic logs"
     },
@@ -3531,233 +3737,112 @@
     }
   ],
   "product_version": "0.1.0",
-  "module_sources": [
-    {
-      "digest": "0103d37d0c30c48896bdc2f6901df0bf69a8af48fb3fcb31522df4e265018247",
-      "payload": "files/module-sources/0103d37d0c30c48896bdc2f6901df0bf69a8af48fb3fcb31522df4e265018247.br",
-      "bytes": 1377198
-    },
-    {
-      "digest": "03538c421415ea518132efcd28dab5f117345954e9e34363cf646bf63913746f",
-      "payload": "files/module-sources/03538c421415ea518132efcd28dab5f117345954e9e34363cf646bf63913746f.br",
-      "bytes": 220884
-    },
-    {
-      "digest": "0b16b01949416c7d9b21d846ec191efd659b4155a1dc0ec6b7bc03b1ba59f983",
-      "payload": "files/module-sources/0b16b01949416c7d9b21d846ec191efd659b4155a1dc0ec6b7bc03b1ba59f983.br",
-      "bytes": 381417
-    },
-    {
-      "digest": "28aae3d85531f925b3c82d6368ee7647422afeb4ef0023f3db3c0fb2b41c3d1e",
-      "payload": "files/module-sources/28aae3d85531f925b3c82d6368ee7647422afeb4ef0023f3db3c0fb2b41c3d1e.br",
-      "bytes": 161728
-    },
-    {
-      "digest": "351d3eeb14341371bfc558d917aab9548483996d21cdb602c9c116d1125bf8be",
-      "payload": "files/module-sources/351d3eeb14341371bfc558d917aab9548483996d21cdb602c9c116d1125bf8be.br",
-      "bytes": 1320350
-    },
-    {
-      "digest": "3fcec1888dfa5f8328a4f7cc25330b173dcf6ab410ff04c0b5096be7ed20b088",
-      "payload": "files/module-sources/3fcec1888dfa5f8328a4f7cc25330b173dcf6ab410ff04c0b5096be7ed20b088.br",
-      "bytes": 125243
-    },
-    {
-      "digest": "42c73cc09f41ad108eb566fd9dec25f59e5b55dfcd6cf614fbc7cb1c88ea7280",
-      "payload": "files/module-sources/42c73cc09f41ad108eb566fd9dec25f59e5b55dfcd6cf614fbc7cb1c88ea7280.br",
-      "bytes": 122156
-    },
-    {
-      "digest": "7abbfb4262515291851485f4ee357b5a051879e2d08c09000800df5c3b035f4f",
-      "payload": "files/module-sources/7abbfb4262515291851485f4ee357b5a051879e2d08c09000800df5c3b035f4f.br",
-      "bytes": 147845
-    },
-    {
-      "digest": "7ee0db03f099d0255d9c89651241d062fdd0b935804876975171b08896b7fe4a",
-      "payload": "files/module-sources/7ee0db03f099d0255d9c89651241d062fdd0b935804876975171b08896b7fe4a.br",
-      "bytes": 190797
-    },
-    {
-      "digest": "8278198c7f1921c86f41747c67820aa6ddbba4759e2a0685ece0e79d374dba3f",
-      "payload": "files/module-sources/8278198c7f1921c86f41747c67820aa6ddbba4759e2a0685ece0e79d374dba3f.br",
-      "bytes": 235194
-    },
-    {
-      "digest": "89b7df4a05453b0aacdb09843887a68b902ef874ba419c6e7ae4024809d3619d",
-      "payload": "files/module-sources/89b7df4a05453b0aacdb09843887a68b902ef874ba419c6e7ae4024809d3619d.br",
-      "bytes": 164557
-    },
-    {
-      "digest": "9d0c2b3a6dc504bb9f0614a3bfe1c405e45dd2c46924a12ad4bfa8e746c238b6",
-      "payload": "files/module-sources/9d0c2b3a6dc504bb9f0614a3bfe1c405e45dd2c46924a12ad4bfa8e746c238b6.br",
-      "bytes": 468057
-    },
-    {
-      "digest": "a3aca2fc1c6fadbbb17f6f0834aa7fc1530c3365186f6a8a02df07b62ba0d270",
-      "payload": "files/module-sources/a3aca2fc1c6fadbbb17f6f0834aa7fc1530c3365186f6a8a02df07b62ba0d270.br",
-      "bytes": 122435
-    },
-    {
-      "digest": "a4f3fa3dfaaae39a2b8fdb79320b89c08b3c6b2324e9ff7000d743d5104b441f",
-      "payload": "files/module-sources/a4f3fa3dfaaae39a2b8fdb79320b89c08b3c6b2324e9ff7000d743d5104b441f.br",
-      "bytes": 234385
-    },
-    {
-      "digest": "ab330492e519e3939b5be57941ce78652f1c685e9b0fc1a861b1b50d7ae008fc",
-      "payload": "files/module-sources/ab330492e519e3939b5be57941ce78652f1c685e9b0fc1a861b1b50d7ae008fc.br",
-      "bytes": 231038
-    },
-    {
-      "digest": "bb79ba05b06a859ae3524943688a594b4a81d9d97698697d460ccdc3d9f957ca",
-      "payload": "files/module-sources/bb79ba05b06a859ae3524943688a594b4a81d9d97698697d460ccdc3d9f957ca.br",
-      "bytes": 296573
-    },
-    {
-      "digest": "c19e5ff6f8b80850e81c5a9e301dbe12183945d536eae0e75f3a0e77f444ea6f",
-      "payload": "files/module-sources/c19e5ff6f8b80850e81c5a9e301dbe12183945d536eae0e75f3a0e77f444ea6f.br",
-      "bytes": 819460
-    },
-    {
-      "digest": "d311847682cfa063f26cd1339bc3768031e8a858cb238ba82083e3717c317168",
-      "payload": "files/module-sources/d311847682cfa063f26cd1339bc3768031e8a858cb238ba82083e3717c317168.br",
-      "bytes": 174583
-    },
-    {
-      "digest": "dabb5517e5badb7c1bbe48b421a9356d1faa0b69d3c578f3c9802c97142337c0",
-      "payload": "files/module-sources/dabb5517e5badb7c1bbe48b421a9356d1faa0b69d3c578f3c9802c97142337c0.br",
-      "bytes": 192277
-    },
-    {
-      "digest": "de4e9bac183062f82adc7c7311b41b361b0c3629d9c2dc5413942a9557ea6419",
-      "payload": "files/module-sources/de4e9bac183062f82adc7c7311b41b361b0c3629d9c2dc5413942a9557ea6419.br",
-      "bytes": 190332
-    },
-    {
-      "digest": "e0f46b1f47ec0bee58e26025558194cb2fd233349be19258a43cafad08851113",
-      "payload": "files/module-sources/e0f46b1f47ec0bee58e26025558194cb2fd233349be19258a43cafad08851113.br",
-      "bytes": 2225544
-    },
-    {
-      "digest": "e27fca0b2df5da60004fa4003cb9e2e3f43b60bd3edb5f4ec82846f0c5ee526c",
-      "payload": "files/module-sources/e27fca0b2df5da60004fa4003cb9e2e3f43b60bd3edb5f4ec82846f0c5ee526c.br",
-      "bytes": 176633
-    },
-    {
-      "digest": "e98117e4fd6d1de012f86545a2f17e0f96d2c6cd9fd8624960d157edbbdcec78",
-      "payload": "files/module-sources/e98117e4fd6d1de012f86545a2f17e0f96d2c6cd9fd8624960d157edbbdcec78.br",
-      "bytes": 216660
-    },
-    {
-      "digest": "f14fdb267e018070d9e63b6c28a81adb7f482a7353bdaa732ea20a359c00da7c",
-      "payload": "files/module-sources/f14fdb267e018070d9e63b6c28a81adb7f482a7353bdaa732ea20a359c00da7c.br",
-      "bytes": 280362
-    }
-  ],
+  "module_sources": [],
   "release_manifests": [
     {
-      "digest": "013634833e40bde90d15aec1d7213e18b4cd3471d3c83cb052b681cc9a16aed6",
-      "payload": "files/release-manifests/013634833e40bde90d15aec1d7213e18b4cd3471d3c83cb052b681cc9a16aed6.br",
-      "bytes": 47316
+      "digest": "159d36b4ee53d960ecd966616ca722521f112133b5b2d60af8b78ad27ecb3d96",
+      "payload": "files/release-manifests/159d36b4ee53d960ecd966616ca722521f112133b5b2d60af8b78ad27ecb3d96.br",
+      "bytes": 54504
     },
     {
-      "digest": "1a133252276273c2f0aa0c393bfa55cab87a8912d091f5ef1d065e665478f613",
-      "payload": "files/release-manifests/1a133252276273c2f0aa0c393bfa55cab87a8912d091f5ef1d065e665478f613.br",
-      "bytes": 94639
+      "digest": "24147603a9953ee21e741ab718b4413608b93fa7208b77b40493b88cc91e4dbb",
+      "payload": "files/release-manifests/24147603a9953ee21e741ab718b4413608b93fa7208b77b40493b88cc91e4dbb.br",
+      "bytes": 28942
     },
     {
-      "digest": "219d918a32baaba20d98186277c824b3b868f61d816a5e10edc1e84e45c13077",
-      "payload": "files/release-manifests/219d918a32baaba20d98186277c824b3b868f61d816a5e10edc1e84e45c13077.br",
-      "bytes": 453526
+      "digest": "300417a0fea5b7218ab29fa89235bdc9f1f3766fedccf516c406c86e59ed3de0",
+      "payload": "files/release-manifests/300417a0fea5b7218ab29fa89235bdc9f1f3766fedccf516c406c86e59ed3de0.br",
+      "bytes": 110365
     },
     {
-      "digest": "2dba509415cdb6be660ff2e98f09ed0c736362c4157aa994cc97049de9b2ea48",
-      "payload": "files/release-manifests/2dba509415cdb6be660ff2e98f09ed0c736362c4157aa994cc97049de9b2ea48.br",
-      "bytes": 49593
+      "digest": "5822c59f5286b123395f62b645d00f4f29789d4566589ea5e336b2c3dd4758d4",
+      "payload": "files/release-manifests/5822c59f5286b123395f62b645d00f4f29789d4566589ea5e336b2c3dd4758d4.br",
+      "bytes": 151032
     },
     {
-      "digest": "37c3c00f96c2cfd9283ec7921ff1ecc4f92e6ceb97f8fa05303d4027128b6cfc",
-      "payload": "files/release-manifests/37c3c00f96c2cfd9283ec7921ff1ecc4f92e6ceb97f8fa05303d4027128b6cfc.br",
-      "bytes": 33030
+      "digest": "5daa70cb6c677ba42b12237af8b0f47dd1b3e1ddb212de2cd21c108f0e6f8e15",
+      "payload": "files/release-manifests/5daa70cb6c677ba42b12237af8b0f47dd1b3e1ddb212de2cd21c108f0e6f8e15.br",
+      "bytes": 23338
     },
     {
-      "digest": "3db5a436aed34f0027753481b459bf77e7c386b4511a0d3ffbaac465020ccccb",
-      "payload": "files/release-manifests/3db5a436aed34f0027753481b459bf77e7c386b4511a0d3ffbaac465020ccccb.br",
-      "bytes": 146378
+      "digest": "5e09a765291a045203a8e1d4278d50d9cce0cc34ae1d68d99b2084a316d57ef1",
+      "payload": "files/release-manifests/5e09a765291a045203a8e1d4278d50d9cce0cc34ae1d68d99b2084a316d57ef1.br",
+      "bytes": 373309
     },
     {
-      "digest": "54d8412a4eddd19e85f59ea614275dc1144ae7ac57b0ab2f5c3e5e9a72d60f39",
-      "payload": "files/release-manifests/54d8412a4eddd19e85f59ea614275dc1144ae7ac57b0ab2f5c3e5e9a72d60f39.br",
-      "bytes": 49315
+      "digest": "610c0c779f77a56471068f9c6637416bca3b7bab76327c65f8116740e060ae01",
+      "payload": "files/release-manifests/610c0c779f77a56471068f9c6637416bca3b7bab76327c65f8116740e060ae01.br",
+      "bytes": 96145
     },
     {
-      "digest": "5d213316fdfa3c0f87d275b681deb6b1de62b0d3086702783aae8ecd2f8c8335",
-      "payload": "files/release-manifests/5d213316fdfa3c0f87d275b681deb6b1de62b0d3086702783aae8ecd2f8c8335.br",
-      "bytes": 26410
+      "digest": "645dd6188694cafebe22d92a760c828c3fb4afe6f1be3ea7cef20475a5ab894c",
+      "payload": "files/release-manifests/645dd6188694cafebe22d92a760c828c3fb4afe6f1be3ea7cef20475a5ab894c.br",
+      "bytes": 43098
     },
     {
-      "digest": "61a47cf5c0546fd62f907e4c1001e25b98c2922b62e22972598bcd2c916a5984",
-      "payload": "files/release-manifests/61a47cf5c0546fd62f907e4c1001e25b98c2922b62e22972598bcd2c916a5984.br",
-      "bytes": 365618
+      "digest": "73ff482120c6f36535936c1a580177616afba4c1ccd6c7624a5d4ae75d9c964d",
+      "payload": "files/release-manifests/73ff482120c6f36535936c1a580177616afba4c1ccd6c7624a5d4ae75d9c964d.br",
+      "bytes": 38333
     },
     {
-      "digest": "678f99bed85fb6e1f8040b8c50040bc8155ebec05ab9e49a931630db3f0ab4f0",
-      "payload": "files/release-manifests/678f99bed85fb6e1f8040b8c50040bc8155ebec05ab9e49a931630db3f0ab4f0.br",
-      "bytes": 7080
+      "digest": "7cbbdcb9a5312185e1a8407fce7bbc118553bfd4605875d278e4dc34649f28b9",
+      "payload": "files/release-manifests/7cbbdcb9a5312185e1a8407fce7bbc118553bfd4605875d278e4dc34649f28b9.br",
+      "bytes": 474769
     },
     {
-      "digest": "6c8e18724988f773ecb7906e13a660dcd69f16059223da6806954eca4752a92f",
-      "payload": "files/release-manifests/6c8e18724988f773ecb7906e13a660dcd69f16059223da6806954eca4752a92f.br",
-      "bytes": 95948
+      "digest": "82d7d5d8c4ce86acecdb75c96d3632487e14ac05cba13305139c224c83a37288",
+      "payload": "files/release-manifests/82d7d5d8c4ce86acecdb75c96d3632487e14ac05cba13305139c224c83a37288.br",
+      "bytes": 28558
     },
     {
-      "digest": "6cf955cb74846ff73923039507d7760ab2056157bb5e67625dff0cb9b04c5a61",
-      "payload": "files/release-manifests/6cf955cb74846ff73923039507d7760ab2056157bb5e67625dff0cb9b04c5a61.br",
-      "bytes": 50071
+      "digest": "8f861ef7e0b726664c710a658b81ca32564d4d38d600392baa3481a444fbb265",
+      "payload": "files/release-manifests/8f861ef7e0b726664c710a658b81ca32564d4d38d600392baa3481a444fbb265.br",
+      "bytes": 51887
     },
     {
-      "digest": "7e286decafcce3a7d5503b349f3634bd8a8d059691de13dcb1e384292c898917",
-      "payload": "files/release-manifests/7e286decafcce3a7d5503b349f3634bd8a8d059691de13dcb1e384292c898917.br",
-      "bytes": 40603
+      "digest": "93f1b8f809c00f250c0cf00a672e59a4598c67dfe994401e865bf95d7285774c",
+      "payload": "files/release-manifests/93f1b8f809c00f250c0cf00a672e59a4598c67dfe994401e865bf95d7285774c.br",
+      "bytes": 43459
     },
     {
-      "digest": "80c2aa5f2bad6404ef415b799ab13a16fb18fa15e59fc9f0ec66b70070fc57d8",
-      "payload": "files/release-manifests/80c2aa5f2bad6404ef415b799ab13a16fb18fa15e59fc9f0ec66b70070fc57d8.br",
-      "bytes": 34946
+      "digest": "9caecbd6aa68bbb926bd1bb0dfb6d53b408afeda31dcca61c6a42584477eb01d",
+      "payload": "files/release-manifests/9caecbd6aa68bbb926bd1bb0dfb6d53b408afeda31dcca61c6a42584477eb01d.br",
+      "bytes": 44442
     },
     {
-      "digest": "93003fb77352dac1154f7e435fcca6ae51575549517bd81c061ab7384cb43816",
-      "payload": "files/release-manifests/93003fb77352dac1154f7e435fcca6ae51575549517bd81c061ab7384cb43816.br",
-      "bytes": 34032
+      "digest": "9de8b3419f98e20d91d9b8d31a585ccadcc0ec60dbe577ac35ead294e8d5b106",
+      "payload": "files/release-manifests/9de8b3419f98e20d91d9b8d31a585ccadcc0ec60dbe577ac35ead294e8d5b106.br",
+      "bytes": 43828
     },
     {
-      "digest": "bf4628a1759b1d738848cfa09578c6836ff6272ccd8544b6cb9d012c546753cf",
-      "payload": "files/release-manifests/bf4628a1759b1d738848cfa09578c6836ff6272ccd8544b6cb9d012c546753cf.br",
-      "bytes": 34562
+      "digest": "b43f08c7d30a3435c8103b331c1c8bffe3a1d0cc656e7b03114d3f137bdc0c10",
+      "payload": "files/release-manifests/b43f08c7d30a3435c8103b331c1c8bffe3a1d0cc656e7b03114d3f137bdc0c10.br",
+      "bytes": 105103
     },
     {
-      "digest": "c1dac934a37db83a8a24174790ed39710b1b137f7b4e73f3fedf2c21ff288a3b",
-      "payload": "files/release-manifests/c1dac934a37db83a8a24174790ed39710b1b137f7b4e73f3fedf2c21ff288a3b.br",
-      "bytes": 41929
+      "digest": "ba6a0573c3e25a236b9be4b96072ac54f0b55b63cd54620c35664ab74566be81",
+      "payload": "files/release-manifests/ba6a0573c3e25a236b9be4b96072ac54f0b55b63cd54620c35664ab74566be81.br",
+      "bytes": 46117
     },
     {
-      "digest": "d3e5359ef562345509a052ff18878898393528958d986509e3bbf27adf7b4400",
-      "payload": "files/release-manifests/d3e5359ef562345509a052ff18878898393528958d986509e3bbf27adf7b4400.br",
-      "bytes": 26760
+      "digest": "c900ffd68c6b8be8751a7281515457a5744b759e15506ad20655177c53edf7f1",
+      "payload": "files/release-manifests/c900ffd68c6b8be8751a7281515457a5744b759e15506ad20655177c53edf7f1.br",
+      "bytes": 53557
     },
     {
-      "digest": "d59196e74ad15461033c769f1ddaaa4d079c0202a688bddd32a8fa2a5a6a7194",
-      "payload": "files/release-manifests/d59196e74ad15461033c769f1ddaaa4d079c0202a688bddd32a8fa2a5a6a7194.br",
-      "bytes": 83286
+      "digest": "e25fed5c0cde93b34a20e0fbf32a16dd0ba95c5ddf8bfc864cbd628793362992",
+      "payload": "files/release-manifests/e25fed5c0cde93b34a20e0fbf32a16dd0ba95c5ddf8bfc864cbd628793362992.br",
+      "bytes": 7960
     },
     {
-      "digest": "d5ee7a73ca5c152fc3913b9f9a51212547e9d5bba4346ae2bc9e2ab6bdd2cd88",
-      "payload": "files/release-manifests/d5ee7a73ca5c152fc3913b9f9a51212547e9d5bba4346ae2bc9e2ab6bdd2cd88.br",
-      "bytes": 20239
+      "digest": "e3ffcaee9c64a9585e897bef37d4c70f7c3ad53a16acc4b0bb92d1b8dfdab095",
+      "payload": "files/release-manifests/e3ffcaee9c64a9585e897bef37d4c70f7c3ad53a16acc4b0bb92d1b8dfdab095.br",
+      "bytes": 36842
     },
     {
-      "digest": "e2024806ae3d5b1ba771fecd4e9d912aee0757b806973a010ed0a643863005d6",
-      "payload": "files/release-manifests/e2024806ae3d5b1ba771fecd4e9d912aee0757b806973a010ed0a643863005d6.br",
-      "bytes": 35071
+      "digest": "ef9e28f79469e57588134e6ddaecc6eea48a394b06918ffefda60a6ea7ab54da",
+      "payload": "files/release-manifests/ef9e28f79469e57588134e6ddaecc6eea48a394b06918ffefda60a6ea7ab54da.br",
+      "bytes": 54178
     }
   ],
   "formats": [
@@ -3784,16 +3869,21 @@
     {
       "entry": "database.memory_ledger_baseline",
       "path": "memory/memory.db",
-      "version": 1
+      "version": 2
     },
     {
       "entry": "database.memory_ledger_baseline",
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/memory/memory.db",
-      "version": 1
+      "version": 2
     },
     {
       "entry": "format.browser.site-decisions",
       "path": "browser/sites.json",
+      "version": 1
+    },
+    {
+      "entry": "format.computer.settings",
+      "path": "computer/settings.json",
       "version": 1
     },
     {
@@ -3844,12 +3934,12 @@
     {
       "entry": "format.ui.appearance-state",
       "path": "interface/state.json",
-      "version": 1
+      "version": 2
     },
     {
       "entry": "format.ui.appearance-state",
       "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/interface/state.json",
-      "version": 1
+      "version": 2
     },
     {
       "entry": "format.ui.last-locale",

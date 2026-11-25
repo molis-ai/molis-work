@@ -51,5 +51,5 @@ CREATE INDEX memory_changes_memory ON memory_changes(memory_id);
 CREATE INDEX memory_signal_key ON memory_signal_events(actor_id, key);
 CREATE INDEX memory_uses_receipt ON memory_uses(receipt_id);
 CREATE INDEX memory_uses_work ON memory_uses(work_id);
-PRAGMA user_version=1;
+PRAGMA user_version=2;
 COMMIT;

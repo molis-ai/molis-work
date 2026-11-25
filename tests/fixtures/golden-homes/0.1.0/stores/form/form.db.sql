@@ -35,12 +35,12 @@ CREATE TABLE sync_1299cb8ea8bacadaced737bb64d2_replica_heads (key TEXT PRIMARY K
 CREATE TABLE sync_1299cb8ea8bacadaced737bb64d2_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
 CREATE TABLE sync_1299cb8ea8bacadaced737bb64d2_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
 CREATE TABLE sync_1299cb8ea8bacadaced737bb64d2_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-INSERT INTO "forms"("id","title","description","status","share_id","questions_json","created_at","updated_at","version","project_id","artifact_id","artifact_version","publication_pending_json") VALUES('d2e3070b-3728-4172-8c99-8115191a9b21','金样表单 seed','','draft',NULL,'[{"id":"8dd44a59-f400-4e1c-be79-049df5c82fbc","type":"text","title":"金样问题 seed","required":false,"order":1}]','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z',2,'project-ae076f4f-3257-40a5-be48-38652812f188','',0,NULL);
+INSERT INTO "forms"("id","title","description","status","share_id","questions_json","created_at","updated_at","version","project_id","artifact_id","artifact_version","publication_pending_json") VALUES('d2e3070b-3728-4172-8c99-8115191a9b21','金样表单 seed','','draft',NULL,'[{"id":"8dd44a59-f400-4e1c-be79-049df5c82fbc","type":"text","title":"金样问题 seed","required":false,"order":1}]','2026-01-15T09:00:00.000Z','2026-01-15T09:00:00.000Z',2,'project-038fd99d-87df-4cdb-9de0-56838f641ed7','',0,NULL);
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_golden_root_home','{"spaceId":"space_golden_root_home","kind":"local","ownerUserId":null,"teamId":null,"issuer":null,"applicationId":null}');
-INSERT INTO "sync_1299cb8ea8bacadaced737bb64d2_aggregate_editor_versions"("key","version") VALUES('["project-ae076f4f-3257-40a5-be48-38652812f188","form","d2e3070b-3728-4172-8c99-8115191a9b21"]',2);
+INSERT INTO "sync_1299cb8ea8bacadaced737bb64d2_aggregate_editor_versions"("key","version") VALUES('["project-038fd99d-87df-4cdb-9de0-56838f641ed7","form","d2e3070b-3728-4172-8c99-8115191a9b21"]',2);
 INSERT INTO "sync_1299cb8ea8bacadaced737bb64d2_context"("id","project_id") VALUES(1,NULL);
-INSERT INTO "sync_1299cb8ea8bacadaced737bb64d2_replica_changes"("seq","key") VALUES(1,'["project-ae076f4f-3257-40a5-be48-38652812f188","form","d2e3070b-3728-4172-8c99-8115191a9b21"]');
-INSERT INTO "sync_1299cb8ea8bacadaced737bb64d2_replica_changes"("seq","key") VALUES(2,'["project-ae076f4f-3257-40a5-be48-38652812f188","form","d2e3070b-3728-4172-8c99-8115191a9b21"]');
+INSERT INTO "sync_1299cb8ea8bacadaced737bb64d2_replica_changes"("seq","key") VALUES(1,'["project-038fd99d-87df-4cdb-9de0-56838f641ed7","form","d2e3070b-3728-4172-8c99-8115191a9b21"]');
+INSERT INTO "sync_1299cb8ea8bacadaced737bb64d2_replica_changes"("seq","key") VALUES(2,'["project-038fd99d-87df-4cdb-9de0-56838f641ed7","form","d2e3070b-3728-4172-8c99-8115191a9b21"]');
 INSERT INTO "sync_1299cb8ea8bacadaced737bb64d2_replica_state"("id","device","cursor","applying") VALUES(1,'65cd4a64036700f6bab9021c4488d6d9',0,0);
 DELETE FROM sqlite_sequence;
 INSERT INTO sqlite_sequence(name,seq) VALUES('sync_1299cb8ea8bacadaced737bb64d2_replica_changes',2);

@@ -183,6 +183,7 @@ export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
 export { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
 export { artifactActionProvider, artifactLinkSubjectsPort } from "./artifact-actions.js";
+export { artifactPluginInputs, bindArtifactPluginInput } from "./artifact-plugin-inputs.js";
 export { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";

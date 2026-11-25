@@ -34,12 +34,23 @@ export interface RunRecord {
   timingReady?: boolean;
   timingError?: string;
   observedEndAt?: string;
+  /** Streamed text waiting to reach the listeners: deltas are handed on at most once per `STREAM_NOTIFY_MS`. */
+  notifyTimer?: ReturnType<typeof setTimeout>;
   memory_context?: Pick<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory, "consumer" | "usage"> & Partial<Pick<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory, "class_restrictions" | "current_scene">>;
 }
 
 /**
- * The adapter's sessions and runs as this process holds them: restored once from the runtime, followed while live, and
- * published to their observers as views.
+ * How long a session nobody has read stays in memory once nothing in it is live. The runtime keeps the session's ledger, so
+ * the next read restores it exactly as after a restart; a resident Host otherwise holds every round it ever followed.
+ */
+export const IDLE_SESSION_MS = 5 * 60_000;
+
+/** Streamed text reaches the listeners at most this often; any other change (a phase, a tool, a question) goes at once. */
+export const STREAM_NOTIFY_MS = 50;
+
+/**
+ * The adapter's sessions and runs as this process holds them: restored from the runtime, followed while live, published to
+ * their observers as views, and let go again once a session has rested for `IDLE_SESSION_MS`.
  */
 export class PrologueRunStore {
   readonly #sessions = new Map<string, SessionRecord>();
@@ -49,6 +60,8 @@ export class PrologueRunStore {
   /** Sessions starting a round, closing an interrupted one or preparing a rewind: one at a time each. */
   readonly #startingSessions = new Set<string>();
   readonly #restoring = new Map<string, Promise<SessionRecord>>();
+  /** When each held session was last read or written (ms), for letting a rested one go. */
+  readonly #touched = new Map<string, number>();
   readonly #runtime: PrologueRuntimePort;
   readonly #approvals: PrologueApprovalBridge | undefined;
   readonly now: () => Date;
@@ -76,11 +89,13 @@ export class PrologueRunStore {
 
   rememberSession(sessionId: string, session: SessionRecord): void {
     this.#sessions.set(sessionId, session);
+    this.#touch(sessionId);
   }
 
   rememberRun(session: SessionRecord, record: RunRecord): void {
     this.#runs.set(record.view.ref.run_id, record);
     session.runs.push(record.view.ref);
+    this.#touch(record.view.ref.session_id);
   }
 
   /** The caller has just checked its original busy conditions; hold until all of its work has settled. */
@@ -92,6 +107,7 @@ export class PrologueRunStore {
 
   invalidateSession(sessionId: string): void {
     this.#sessions.delete(sessionId);
+    this.#touched.delete(sessionId);
   }
 
   reloadSession(sessionId: string): Promise<SessionRecord> {
@@ -107,18 +123,24 @@ export class PrologueRunStore {
   requireSession(sessionId: string): SessionRecord {
     const record = this.#sessions.get(sessionId);
     if (!record) throw agentErrors.session_unknown("找不到这条会话");
+    this.#touch(sessionId);
     return record;
   }
 
   requireRun(runId: string): RunRecord {
     const record = this.#runs.get(runId);
     if (!record) throw agentErrors.run_unknown("找不到这次执行");
+    this.#touch(record.view.ref.session_id);
     return record;
   }
 
   async loadSession(sessionId: string): Promise<SessionRecord> {
+    this.#releaseRested(sessionId);
     const existing = this.#sessions.get(sessionId);
-    if (existing) return existing;
+    if (existing) {
+      this.#touch(sessionId);
+      return existing;
+    }
     const held = this.#restoring.get(sessionId);
     if (held) return held;
     const loading = this.#restoreSession(sessionId);
@@ -142,7 +164,35 @@ export class PrologueRunStore {
       this.publish(record.view.ref.run_id, false);
     }
     this.#sessions.set(sessionId, session);
+    this.#touch(sessionId);
     return session;
+  }
+
+  #touch(sessionId: string): void {
+    this.#touched.set(sessionId, this.now().getTime());
+  }
+
+  /**
+   * Let go of sessions nobody has read for `IDLE_SESSION_MS` and that hold nothing live: every round ended and saved, no one
+   * following a round, no start or restore under way. Only a runtime that can restore a session from its ledger gets this;
+   * `keep` is the session being read now.
+   */
+  #releaseRested(keep: string): void {
+    if (!this.#runtime.sessions.restore) return;
+    const cutoff = this.now().getTime() - IDLE_SESSION_MS;
+    for (const [sessionId, session] of this.#sessions) {
+      if (sessionId === keep || (this.#touched.get(sessionId) ?? 0) > cutoff) continue;
+      if (this.#startingSessions.has(sessionId) || this.#restoring.has(sessionId)) continue;
+      const records = session.runs.map(ref => this.#runs.get(ref.run_id));
+      if (!records.every(record => record && isEnded(record.state.phase) && isEnded(record.view.phase) && record.listeners.size === 0
+        && (!record.timingCommit || record.timingReady) && !record.notifyTimer && !this.#requests.has(record.view.ref.run_id))) continue;
+      for (const record of records) {
+        record!.unsubscribe();
+        this.#runs.delete(record!.view.ref.run_id);
+      }
+      this.#sessions.delete(sessionId);
+      this.#touched.delete(sessionId);
+    }
   }
 
   /**
@@ -181,7 +231,7 @@ export class PrologueRunStore {
       // anything else happens. Failing to mirror it must not look like the
       // effect was allowed, so the failure is recorded on the run instead.
       if (isAwaitingApproval(event)) void this.#mirror(ref, event);
-      this.publish(ref.run_id);
+      this.publish(ref.run_id, true, event.type === "text-delta" || event.type === "reasoning-delta");
       if (event.type === "memory-context") void this.memoryUsage.record(record, this.requireSession(ref.session_id).owner).then(() => this.publish(ref.run_id));
       releaseIfSettled();
     });
@@ -210,7 +260,7 @@ export class PrologueRunStore {
    * Prologue has committed the session ledger. Never expose a terminal control
    * state before that event: the next Run would read incomplete history.
    */
-  publish(runId: string, stampTerminal = true): void {
+  publish(runId: string, stampTerminal = true, streamed = false): void {
     const record = this.#runs.get(runId);
     if (!record) return;
     const controlPhase = prologuePhaseOf(record.control.state);
@@ -275,8 +325,23 @@ export class PrologueRunStore {
         ? { ended_at: record.observedEndAt ?? this.now().toISOString() }
         : {}),
     });
-    const snapshot = structuredClone(record.view);
-    for (const listener of record.listeners) listener(structuredClone(snapshot));
+    // Each listener gets its own copy; streamed text is gathered for `STREAM_NOTIFY_MS` so a long answer is not copied per delta.
+    if (record.listeners.size === 0) {
+      clearTimeout(record.notifyTimer);
+      record.notifyTimer = undefined;
+      return;
+    }
+    if (streamed) {
+      record.notifyTimer ??= setTimeout(() => {
+        record.notifyTimer = undefined;
+        notify(record);
+      }, STREAM_NOTIFY_MS);
+      record.notifyTimer.unref?.();
+      return;
+    }
+    clearTimeout(record.notifyTimer);
+    record.notifyTimer = undefined;
+    notify(record);
   }
 
   async #mirror(run: AgentRunRef, event: AwaitingApproval): Promise<void> {
@@ -304,6 +369,12 @@ export class PrologueRunStore {
       }
     }
   }
+}
+
+/** Every listener reads the same published view, each in a copy of its own. */
+function notify(record: RunRecord): void {
+  const snapshot = structuredClone(record.view), only = record.listeners.size === 1;
+  for (const listener of [...record.listeners]) listener(only ? snapshot : structuredClone(snapshot));
 }
 
 /** The open catch-all branch in `PrologueEvent` means narrowing needs a real guard. */

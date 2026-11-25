@@ -95,3 +95,76 @@ test("status reads only the latest projection and keeps full history available o
     await assert.rejects(adapter.control(runs[0]!.ref, { kind: "resume" }), /历史执行没有活动控制句柄/);
   } finally { await adapter.close(); }
 });
+
+test("a session nobody has read for a while is let go and restored from the ledger on the next read", async () => {
+  let clock = Date.parse("2026-11-25T00:00:00Z"), restores = 0;
+  const sessionRuns = (id: string) => [{ ref: { session_id: id, run_id: id + "-run" }, frozen, task: "保存的任务", started_at: "2026-11-25T00:00:00Z", terminal: true,
+    events: [{ type: "text-delta", text: "保存的正文 " + id }, { type: "completed" }] as PrologueEvent[] }];
+  const adapter = new PrologueAgentAdapter({ now: () => new Date(clock), modelConfiguration: async () => { throw new Error("passive read"); }, runtime: {
+    sessions: { create: async () => { throw new Error("unused"); }, restore: async id => { restores++; return { title: id, owner, runs: sessionRuns(id) }; },
+      readStatus: async id => ({ owner, latest: sessionRuns(id).at(-1) }) },
+    startAgentRun: async () => { throw new Error("no dispatch"); }, shutdown: async () => {},
+  } });
+  const [a, b, c] = ["rest-a", "rest-b", "rest-c"].map(session_id => ({ session_id, runtime_id: "prologue" }));
+  try {
+    await adapter.readSession(a!); await adapter.readSession(b!);
+    assert.equal(restores, 2);
+    // Read recently, or followed by someone: kept.
+    clock += 4 * 60_000;
+    await adapter.readSession(c!); await adapter.readSession(a!);
+    assert.equal(restores, 3);
+    const stop = adapter.observe({ session_id: "rest-c", run_id: "rest-c-run" }, () => {});
+    clock += 5 * 60_000 + 1;
+    await adapter.readSession(c!);
+    assert.equal(restores, 3, "the session being read is kept");
+    await adapter.readSession(b!);
+    assert.equal(restores, 4, "b rested past the limit, was let go and is restored from the ledger");
+    await adapter.readSession(c!);
+    assert.equal(restores, 4, "c is followed, so it stays");
+    stop();
+    // Once no one follows it, c goes too; a went with b and reads back the same history as before.
+    clock += 5 * 60_000 + 1;
+    await adapter.readSession(b!);
+    const again = await adapter.readSession(a!);
+    assert.equal(restores, 5);
+    assert.equal(again.latest_run?.phase, "completed");
+    assert.equal((await adapter.read({ session_id: "rest-a", run_id: "rest-a-run" })).turns.find(turn => turn.kind === "assistant")?.text, "保存的正文 rest-a");
+    assert.equal((await adapter.readSessionStatus(c!)).status.latest_phase, "completed");
+  } finally { await adapter.close(); }
+});
+
+test("streamed text reaches a follower gathered, while a phase change goes at once", async () => {
+  let emit: (event: PrologueEvent) => void = () => {};
+  const adapter = new PrologueAgentAdapter({
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://fixture.invalid/messages", model: "fixture", credential_ref: "fixture" }),
+    runtime: {
+      sessions: { create: async () => ({ ref: { id: "stream-session" } }) },
+      startAgentRun: async () => ({
+        run: { ref: { id: "stream-run" }, subscribe: listener => { emit = listener; return () => {}; }, cancel: async () => {} },
+        control: { state: "running", stop: () => {}, pause: () => {}, resume: () => {}, steer: () => {}, subscribe: () => () => {} },
+      }),
+      shutdown: async () => {},
+    },
+  });
+  try {
+    const directory = { canonical_path: "/tmp/stream-notify", realpath_verified: true };
+    const session = await adapter.createSession({ ...owner, title: "Stream", directory });
+    const handle = await adapter.start({ ...owner, session, directory, task: "Answer", role_id: "reader",
+      role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [] } });
+    const seen: string[] = [];
+    const stop = adapter.observe(handle.ref, view => { seen.push(`${view.phase}:${view.turns.at(-1)?.text ?? ""}`); });
+    assert.equal(seen.length, 1);
+    for (let i = 0; i < 20; i++) emit({ type: "text-delta", text: "字" });
+    assert.equal(seen.length, 1, "deltas are gathered");
+    await new Promise(resolve => setTimeout(resolve, 80));
+    assert.equal(seen.length, 2);
+    assert.match(seen[1]!, /字{20}$/);
+    emit({ type: "text-delta", text: "尾" });
+    emit({ type: "completed" });
+    assert.equal(seen.length, 3, "the ending goes at once, with the text before it");
+    assert.match(seen[2]!, /^completed:.*尾$/);
+    await new Promise(resolve => setTimeout(resolve, 80));
+    assert.equal(seen.length, 3, "nothing left over after the ending");
+    stop();
+  } finally { await adapter.close(); }
+});

@@ -268,7 +268,11 @@ test("W5-01-CODING-36 the Home lists what any plugin declares for it: another pl
 test("W5-01-CODING-37, WLN-34 a plugin's answer is checked before the page draws it: a row that is not well formed draws nothing, and a command that is not the answering provider's own action is not offered", { timeout: 60_000 }, async t => {
   const plugin = backgroundPlugin(() => ({ source: SOURCE, tasks: [] }));
   const rig = await backgroundRig(t, plugin, ["A"]);
-  const ask = async (answer: unknown) => { plugin.state.answer = () => answer; return (await homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog)).tasks; };
+  // Only project A answers: the Home also reads the personal space (batch 106), where the same plugin has nothing running.
+  const ask = async (answer: unknown) => {
+    plugin.state.answer = projectId => projectId === rig.project("A").project_id ? answer : { source: SOURCE, tasks: [] };
+    return (await homeBackgroundTasks(homeAggregatePorts(rig.host), rig.catalog)).tasks;
+  };
 
   assert.deepEqual(await ask({ source: { ...SOURCE, surface: "../elsewhere" }, tasks: [fixtureTask()] }), [], "a surface that is not a plain name draws nothing");
   assert.deepEqual(await ask({ source: SOURCE, tasks: "none" }), [], "tasks that are not a list draw nothing");

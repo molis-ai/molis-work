@@ -2,7 +2,7 @@ import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { ASSISTANT_RULES_PROVIDER } from "@molis-ai/molis-work-app-local-host";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PERSONAL_SPACE_PROJECT_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantRule } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openTestHome, type TestHome } from "./fixtures/test-home.js";
 
@@ -26,6 +26,9 @@ async function setup(t: TestContext) {
     home, installed, addRule,
     install: async (pluginId: string) => home.web.post(pluginsPath, { plugin_id: pluginId, expected_revision: await projectPluginRevision(home.web, project.project_id) }),
     remove: async (pluginId: string) => home.web.delete(pluginsPath, { plugin_id: pluginId, expected_revision: await projectPluginRevision(home.web, project.project_id) }),
+    // The personal space is a partition of its own (batch 106): a page it still shows can still be named.
+    removePersonal: async (pluginId: string) => home.web.delete(`/api/settings/projects/${PERSONAL_SPACE_PROJECT_ID}/plugins`,
+      { plugin_id: pluginId, expected_revision: await projectPluginRevision(home.web, PERSONAL_SPACE_PROJECT_ID) }),
   };
 }
 
@@ -111,9 +114,11 @@ test("PG-036: after the plugin is taken out of every project its page is refused
 });
 
 test("PG-036: a personal plugin the person hid from every project drops out of the pages a rule may name", async t => {
-  const { installed, addRule, remove } = await setup(t);
+  const { installed, addRule, remove, removePersonal } = await setup(t);
   assert.ok((await installed()).includes("jelly"));
   await remove("jelly");
+  assert.ok((await installed()).includes("jelly"), "the personal space still shows it");
+  await removePersonal("jelly");
   assert.ok(!(await installed()).includes("jelly"));
   await assert.rejects(addRule(quiet(["jelly"])), /jelly/);
 });

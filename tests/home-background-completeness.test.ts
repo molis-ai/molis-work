@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { backgroundPlugin } from "./fixtures/home-background-plugin.js";
 import { startProjectPlugins } from "./fixtures/plugin-callers.js";
@@ -12,6 +12,10 @@ const answer = (project: string) => ({ source, tasks: [{ subject: { kind: "homeb
 
 test("QEA-14/16 Home attention keeps partial failure, invalid-answer and timeout evidence until a real read recovers", { timeout: 90_000 }, async t => {
   const plugin = backgroundPlugin(answer);
+  // Nothing runs in the personal space, which the Home reads too (batch 106): every answer set below is the projects'.
+  let projectAnswer = plugin.state.answer;
+  Object.defineProperty(plugin.state, "answer", { get: () => (project: string) => project === PERSONAL_SPACE_PROJECT_ID ? { source, tasks: [] } : projectAnswer(project),
+    set: (next: typeof projectAnswer) => { projectAnswer = next; } });
   const home = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { project: [plugin.definition] } } });
   const a = await home.createProject("Alpha"), b = await home.createProject("Beta");
   await startProjectPlugins(home.host, a.reference);
@@ -53,7 +57,7 @@ test("QEA-14/16 Home attention keeps partial failure, invalid-answer and timeout
   const chooser = await home.web.get<{ background_tasks: HomeBackgroundTasksReadResult; line: null; tasks: null }>(`/projects/${a.project_id}/api/attention?view=home`);
   assert.deepEqual(chooser.background_tasks, recovered, "Home keeps every open project's tasks when a project is selected");
   assert.deepEqual([chooser.line, chooser.tasks], [null, null], "Home does not read a project line it never renders");
-  assert.deepEqual(plugin.state.calls.slice(beforeHomeView).map(call => call.project).sort(), [a.project_id, b.project_id].sort(), "each provider is read only once, without a second Mainline read");
+  assert.deepEqual(plugin.state.calls.slice(beforeHomeView).map(call => call.project).sort(), [PERSONAL_SPACE_PROJECT_ID, a.project_id, b.project_id].sort(), "each provider is read only once, without a second Mainline read");
   assert.equal((await home.web.get<{ background_tasks: null }>(`/projects/${a.project_id}/api/attention`)).background_tasks, null, "the ordinary project page still has no Home aggregate");
   plugin.state.answer = () => ({ source, tasks: [] });
   assert.deepEqual(await read(), { tasks: [], issues: [] }, "only a complete empty read means no background work");

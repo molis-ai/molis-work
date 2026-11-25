@@ -194,7 +194,8 @@ test("FSS-24 FSS-27 refuse future or unreadable state and an interface directory
 
 test('M1-B2 upgrades the checked-in v1 appearance golden and preserves the exact selection and undo receipt', async t => {
   const setup = await isolatedHome(t);
-  const golden = fs.readFileSync(new URL('./fixtures/golden-homes/0.1.0/files/interface/state.json', import.meta.url), 'utf8');
+  // 0.1.0-dev.1 still holds the v1 appearance state; 0.1.0 was regenerated at the current versions by batch 106's V7 reset.
+  const golden = fs.readFileSync(new URL('./fixtures/golden-homes/0.1.0-dev.1/files/interface/state.json', import.meta.url), 'utf8');
   const old = JSON.parse(golden);
   assert.equal(old.schema_version, 1);
   fs.mkdirSync(dirname(setup.path), { recursive: true });

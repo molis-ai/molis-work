@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { captureHostLog, LocalProjectDatabase, seedDemoGoals, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, LocalProjectDatabase, seedDemoGoals, type HostLogEntry, type MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -96,7 +96,7 @@ test("a pinned document shows when the original changed or was deleted, and whic
   // A source key from a previous detail gives no access after the project removes Pages.
   const source = cited.match(/data-artifact-reference-source="([^"]+)"><h3 class="artifact-links-heading">Pages<\/h3>/)?.[1];
   assert.ok(source);
-  const membership = (show: boolean) => withCatalog({ homeDirectory: served.home }, catalog => {
+  const membership = (show: boolean) => withHostCatalog({ homeDirectory: served.home }, (catalog: MolisWorkProjectCatalog) => {
     const setting = { project_id: DEMO_PROJECT_ID, plugin_id: "pages", actor_id: "test" };
     if (show) catalog.addProjectPlugin(setting);
     else catalog.removeProjectPlugin(setting);

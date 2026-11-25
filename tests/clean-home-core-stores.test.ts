@@ -11,7 +11,8 @@ import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { openMainlineDatabase } from "@molis-ai/molis-work-service-mainline";
 
 const cases = [
-  { name: "functions", version: 2, file: "functions/functions.db", table: "function_scene_bindings",
+  // V7 (batch 106, user 2026-11-24): functions.db was reset to its v1 baseline.
+  { name: "functions", version: 1, file: "functions/functions.db", table: "function_scene_bindings",
     seed: "INSERT INTO function_scene_bindings VALUES ('scene', 'project', '{}', 'revision', 'time')",
     open: (home: string) => { const service = createFunctionsService({ home, credential: () => null }); return () => service.close(); } },
   { name: "assistant", version: 1, file: "assistant/assistant.db", table: "assistant_settings",

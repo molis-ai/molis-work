@@ -6,7 +6,7 @@
 //
 //   - a library whose structure hash changed while its version stayed: the statements changed and a Home in use keeps the old ones, so it
 //     fails (the open-time check compares tables, not triggers, and a same-version store is never repaired in place);
-//   - a version that went down fails;
+//   - a version that went down fails, unless it is a one-time reset to a clean v1 the user approved (V1_RESET_FILE, exact hashes);
 //   - a version that went up needs a step with each `from` from the old version to the new one minus 1, as the product reports them;
 //   - and a golden Home under tests/fixtures/golden-homes/ that holds the library at the old version, so the golden replay has an old store
 //     to bring up (the replay itself is the `golden-replay` job, which `Verify` requires, so it blocks the merge). A golden records each
@@ -67,6 +67,25 @@ export function parseExceptions(text) {
   return valid ? { rows } : { why: `${EXCEPTIONS_FILE}: each entry is { store, version, from, to (16-digit hashes), approved, reason }` };
 }
 
+/**
+ * One-time resets of a library to a clean v1 the user approved (V7, batch 106, 2026-11-24), each pinned to the merge-base's exact version and
+ * structure and the head's exact v1 structure with no steps; `place` is the checklist §3 位置, which store-versions.mjs reads the same entry by. Once the reset is on main its base is at 1, so the entry matches nothing again; it
+ * is cleared in the next PR that touches this gate, as the batch-44 reset file was (#2201).
+ */
+export const V1_RESET_FILE = "tooling/gates/schemas/v1-reset-exceptions.json";
+export function parseV1ResetExceptions(text) {
+  if (text === null) return { rows: [] };
+  let rows;
+  try { rows = JSON.parse(text); } catch { return { why: `${V1_RESET_FILE} is not JSON` }; }
+  const hash = value => typeof value === "string" && /^[0-9a-f]{16}$/u.test(value);
+  const valid = Array.isArray(rows) && rows.every(row => row && typeof row === "object"
+    && Object.keys(row).sort().join(",") === "approved,from_structure,from_version,place,reason,store,to_structure,to_version"
+    && typeof row.store === "string" && typeof row.place === "string" && row.place.length > 0 && Number.isInteger(row.from_version) && row.from_version > 1 && row.to_version === 1
+    && hash(row.from_structure) && hash(row.to_structure)
+    && typeof row.approved === "string" && row.approved.length >= 10 && typeof row.reason === "string" && row.reason.length >= 20);
+  return valid ? { rows } : { why: `${V1_RESET_FILE}: each entry is { store, place (the checklist §3 位置), from_version (>1), to_version (1), from_structure, to_structure (16-digit hashes), approved, reason }` };
+}
+
 /** Whether a golden's store entry holds `store` at `version`: the library's own version, or for `<library>#<plugin_id>` that plugin's tables. */
 export function goldenHolds(store, version) {
   const matches = goldenPathMatcher(store), plugin = store.split("#")[1];
@@ -98,6 +117,11 @@ export function storeSchemaProblems(tree, baseTree) {
     return [exceptions.why];
   }
   const excepted = (store, version, from, to) => exceptions.rows.some(row => row.store === store && row.version === version && row.from === from && row.to === to);
+  const resets = parseV1ResetExceptions(tree.read(V1_RESET_FILE));
+  if (resets.why) return [resets.why];
+  // A reset leaves the library at 1 with no steps: nothing is brought up from the old version, so there is no step or golden to keep for it.
+  const reset = (store, before, now) => !now.froms.length && resets.rows.some(row => row.store === store && row.from_version === before.version
+    && row.to_version === now.version && row.from_structure === before.structure && row.to_structure === now.structure);
   for (const [store, now] of head.rows) {
     const before = base.rows.get(store);
     if (!before) continue;
@@ -111,7 +135,7 @@ export function storeSchemaProblems(tree, baseTree) {
       continue;
     }
     if (now.version < before.version) {
-      problems.push(`UPG-01 ${store}: its version went down, ${before.version} → ${now.version}; a version never goes down`);
+      if (!reset(store, before, now)) problems.push(`UPG-01 ${store}: its version went down, ${before.version} → ${now.version}; a version never goes down`);
       continue;
     }
     const missing = [];

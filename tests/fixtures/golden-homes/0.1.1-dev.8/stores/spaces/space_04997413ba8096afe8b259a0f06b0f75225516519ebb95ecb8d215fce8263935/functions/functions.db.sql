@@ -70,5 +70,5 @@ CREATE INDEX personal_judgment_rules_replica_changes_key ON personal_judgment_ru
 CREATE TRIGGER personal_judgment_rules_delete AFTER DELETE ON functions BEGIN INSERT INTO personal_judgment_rules_replica_changes(key) SELECT OLD.id WHERE (SELECT applying FROM personal_judgment_rules_replica_state WHERE id=1)=0 AND (OLD.id NOT LIKE 'declared:%'); END;
 CREATE TRIGGER personal_judgment_rules_insert AFTER INSERT ON functions BEGIN INSERT INTO personal_judgment_rules_replica_changes(key) SELECT NEW.id WHERE (SELECT applying FROM personal_judgment_rules_replica_state WHERE id=1)=0 AND (NEW.id NOT LIKE 'declared:%'); END;
 CREATE TRIGGER personal_judgment_rules_update AFTER UPDATE ON functions BEGIN INSERT INTO personal_judgment_rules_replica_changes(key) SELECT NEW.id WHERE (SELECT applying FROM personal_judgment_rules_replica_state WHERE id=1)=0 AND (NEW.id NOT LIKE 'declared:%'); END;
-PRAGMA user_version=2;
+PRAGMA user_version=1;
 COMMIT;

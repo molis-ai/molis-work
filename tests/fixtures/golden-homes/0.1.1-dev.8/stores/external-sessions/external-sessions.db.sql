@@ -105,5 +105,5 @@ CREATE INDEX session_attributions_project_idx
     ON session_attributions (project_id);
 CREATE INDEX session_directories_project_idx
     ON session_directories (derived_project_id);
-PRAGMA user_version=2;
+PRAGMA user_version=1;
 COMMIT;

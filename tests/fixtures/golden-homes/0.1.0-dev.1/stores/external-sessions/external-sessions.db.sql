@@ -15,7 +15,7 @@ CREATE TABLE external_sessions (
     reported_project_id TEXT,
     last_activity_at TEXT NOT NULL,
     forked_from TEXT,
-    gone_at TEXT,
+    gone_at TEXT, subagent INTEGER NOT NULL DEFAULT 0,
     UNIQUE (entry_id, location_key, native_id)
   );
 CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL);

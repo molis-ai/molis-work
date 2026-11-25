@@ -104,7 +104,9 @@ export class PartitionPluginAssembly {
       const ready = this.options.start(scope, reason);
       entry = { key, scope, ready, leases: 0, lastUsed: this.now() };
       this.running.set(key, entry);
-      ready.catch(() => { if (this.running.get(key) === entry) this.running.delete(key); });
+      ready.catch(() => {
+        if (this.running.get(key) === entry) this.running.delete(key);
+      });
     }
     await entry.ready;
     entry.leases += 1;
@@ -148,7 +150,11 @@ export class PartitionPluginAssembly {
     for (const entry of entries) {
       if (this.running.get(entry.key) !== entry) continue;
       this.running.delete(entry.key);
-      try { await (await entry.ready).stop(); } catch (error) { failures.push(error); }
+      try {
+        await (await entry.ready).stop();
+      } catch (error) {
+        failures.push(error);
+      }
     }
     if (failures.length) throw new AggregateError(failures, "分区插件实例停止失败");
   }
@@ -184,8 +190,9 @@ function resolveExisting(candidate: string): string {
   const rest: string[] = [];
   let at = absolute;
   for (;;) {
-    try { return path.join(realpathSync(at), ...rest.reverse()); }
-    catch (error) {
+    try {
+      return path.join(realpathSync(at), ...rest.reverse());
+    } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       const parent = path.dirname(at);
       if (parent === at) return absolute;
@@ -211,9 +218,20 @@ export function openPartitionPluginLibrary(scope: PartitionPluginScope, home: st
   try {
     applySqliteBaseline(writer, file, declaration);
     bindDatabaseSpace(writer, ensureStorageSpace(home));
-    try { chmodSync(file, 0o600); } catch { /* Mode is best-effort on this volume. */ }
+    try {
+      chmodSync(file, 0o600);
+    } catch { /* Mode is best-effort on this volume. */ }
     reader = new DatabaseSync(file, { readOnly: true });
-  } catch (error) { writer.close(); throw error; }
+  } catch (error) {
+    writer.close();
+    throw error;
+  }
   let closed = false;
-  return { writer, reader, close: () => { if (closed) return; closed = true; reader!.close(); writer.close(); } };
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    reader!.close();
+    writer.close();
+  };
+  return { writer, reader, close };
 }

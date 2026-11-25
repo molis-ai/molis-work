@@ -14,11 +14,11 @@ const stepsOf = (descriptor: HomeUpgradeDescriptor) => "file" in descriptor ? de
   : "tables" in descriptor ? Array.from({ length: descriptor.tables.version - 1 }, (_, index) => index + 1).filter(from => descriptor.tables.problem(from) === undefined)
   : (descriptor.baseline.upgrades ?? []).map(step => step.from);
 
-/** What the checklist says upgrades, on its own line, a plugin's tables in a project store (`…#<store>`) among them; an account Home holds the same stores as any other. */
+/** What the checklist says upgrades, on its own line (`<partition>` is any partition's root, as in the descriptors, batch 106), a plugin's tables in a project store (`…#<store>`) among them; an account Home holds the same stores as any other. */
 const checklistUpgrades = () => readFileSync(new URL("../docs/releases/CHECKLIST.md", import.meta.url), "utf8").split("\n")
   .filter(line => line.startsWith("| ") && /低版本升级/.test(line))
   .map(line => /^\| [^|]+\| `([^`]+)`/.exec(line)?.[1]).filter((place): place is string => place !== undefined)
-  .map(place => place.replace(/^spaces\/<spaceId>\//, "").replace(/<[^>]+>/g, "*"));
+  .map(place => place.replace(/^spaces\/<spaceId>\//, "").replace(/<(?!partition>)[^>]+>/g, "*"));
 
 test("UPG1-12: every registered store and file has its steps in a row: `from` runs from 1 to version - 1, each once", () => {
   const descriptors = homeUpgradeDescriptors();

@@ -22,7 +22,7 @@
 // either「未登记」or the date and the main commit. Until it is registered the rule above is all there is: Homes are rebuilt, versions
 // may be reset, and a row's 维护 cell is free text. Once it is registered, on the head or on the merge-base, a library's version comes
 // with a way up:
-//   - a version never goes down, whatever the list says;
+//   - a version never goes down, whatever the list says, except a one-time reset to v1 the user approved (V1_RESET_FILE of store-schemas.mjs);
 //   - the row of a version that went up has `定义处#<old>→<new>` in its 维护 cell, in backticks: the checklist row's 定义处 and the
 //     two numbers of the 版本 cell;
 //   - that file's upgrades literal has `from: n` for each n from old to new - 1. When 定义处 is a baseline constant that means the
@@ -46,6 +46,7 @@
 // CHECKLIST §4.3, done by hand before a release. It does not check that the maintenance the row describes was done.
 import ts from "typescript";
 import { VERSION_FIELD } from "../version-source.mjs";
+import { parseV1ResetExceptions, V1_RESET_FILE } from "./store-schemas.mjs";
 import { constantsIn, stepFroms, unwrapExpression, upgradesNameFor } from "./upgrade-steps.mjs";
 
 export const CHECKLIST_FILE = "docs/releases/CHECKLIST.md";
@@ -217,6 +218,11 @@ export function storeVersionProblems({ read, readBase }) {
   const afterOrigin = headOrigin || baseOrigin;
   const definitions = afterOrigin ? checklistDefinitions(checklist) : null;
   const problems = [];
+  // A one-time reset to v1 the user approved (V7, batch 106) is the entry of store-schemas.mjs's reset file with this 位置 and these two
+  // versions; the structure hashes it is pinned to are checked there. It still needs its row in the list, in prose: there is no step to point at.
+  const resets = parseV1ResetExceptions(read(V1_RESET_FILE));
+  if (resets.why) problems.push(resets.why);
+  const approvedReset = (place, before, version) => !resets.why && resets.rows.some(row => row.place === place && row.from_version === before && row.to_version === version);
   if (baseOrigin && !headOrigin) {
     problems.push(`${CHECKLIST_FILE} §4: the merge-base has the unified origin registered; it cannot go back to 未登记`);
   }
@@ -226,15 +232,16 @@ export function storeVersionProblems({ read, readBase }) {
       continue;
     }
     const place = cell.replace(/^`|`$/g, "");
-    if (afterOrigin && version < before) {
+    const reset = version < before && approvedReset(place, before, version);
+    if (afterOrigin && version < before && !reset) {
       problems.push(`${CHECKLIST_FILE}: ${cell} went from ${before} to ${version}; after the unified origin a version does not go down`);
       continue;
     }
     const found = entries.filter((entry) => entry.place === place && entry.from === before && entry.to === version);
     if (found.length === 0) {
-      const maintenance = afterOrigin ? `its upgrade step as \`${definitions.get(cell)}#${before}→${version}\`` : "which commit changed it, how a Home in use is brought to it";
+      const maintenance = afterOrigin && !reset ? `its upgrade step as \`${definitions.get(cell)}#${before}→${version}\`` : "which commit changed it, how a Home in use is brought to it";
       problems.push(`${CHECKLIST_FILE}: ${cell} went from ${before} to ${version}; add the row \`${place}\` | ${before} → ${version} to the 库版本维护清单 in ${SPEC_FILE}「存储版本变更登记」(${maintenance})`);
-    } else if (afterOrigin) {
+    } else if (afterOrigin && !reset) {
       // The list keeps history, so the same numbers can have an older row in prose: one row that holds up is enough, and a row
       // that points somewhere says more about what is wrong than an old one that does not.
       const pointing = found.filter((entry) => UPGRADE_POINTER.test(entry.maintenance));

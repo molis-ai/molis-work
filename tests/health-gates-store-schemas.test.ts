@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { EXCEPTIONS_FILE, goldenPathMatcher, parseStoreSchemas, SCHEMAS_FILE, storeSchemaProblems } from "../scripts/gates/store-schemas.mjs";
+import { EXCEPTIONS_FILE, goldenPathMatcher, parseStoreSchemas, SCHEMAS_FILE, storeSchemaProblems, V1_RESET_FILE } from "../scripts/gates/store-schemas.mjs";
 
 // UPG-01 (specs/upgrade-continuity/golden-replay-design.md §5, U2-d): a library's creation statements do not change under the same version,
 // a raised version comes with its steps and with a golden Home that holds the old version. The rules are checked on in-memory trees, and
@@ -68,6 +68,22 @@ test("UPG-01 a same-version change passes only for the exact pair of hashes the 
 
 test("UPG-01 a version that goes down fails", () => {
   assert.match(problems({ [SCHEMAS_FILE]: table(CATALOG(), MEMORY(), PLUGIN(), PROJECT()) }, table(MEMORY(2))).join("\n"), /memory\/memory\.db: its version went down, 2 → 1/u);
+});
+
+// V7 (batch 106, user 2026-11-24): a one-time reset to a clean v1 passes only for the exact store, old version and both structures approved,
+// and only when the head carries no steps; anything else is still a version that went down.
+test("UPG-01 V7 a reset to v1 passes only for the exact approved pair, and a malformed reset file fails", () => {
+  const approve = (rows: object[]) => JSON.stringify(rows);
+  const row = { store: "memory/memory.db", place: "memory/memory.db", from_version: 3, to_version: 1, from_structure: HASH, to_structure: OTHER, approved: "用户 2026-11-24 弹窗批准一次全复位", reason: "a one-time reset of this library to a clean v1 baseline" };
+  const base = table(CATALOG(), MEMORY(3, HASH, "1,2"), PLUGIN(), PROJECT()), head = table(CATALOG(), MEMORY(1, OTHER), PLUGIN(), PROJECT());
+  const check = (file: string, to = head) => problems({ [SCHEMAS_FILE]: to, [V1_RESET_FILE]: file }, base);
+  assert.deepEqual(check(approve([row])), []);
+  for (const other of [{ ...row, store: "projects/*/molis-work.db" }, { ...row, from_version: 2 }, { ...row, from_structure: OTHER }, { ...row, to_structure: "00000000000000aa" }])
+    assert.match(check(approve([other])).join("\n"), /memory\/memory\.db: its version went down, 3 → 1/u);
+  assert.match(check(approve([row]), table(CATALOG(), MEMORY(1, OTHER, "1"), PLUGIN(), PROJECT())).join("\n"), /went down/u, "a reset keeps no steps");
+  assert.match(problems({ [SCHEMAS_FILE]: head }, base).join("\n"), /went down, 3 → 1/u, "no reset file, no reset");
+  for (const broken of ["not json", approve([{ ...row, to_version: 2 }]), approve([{ ...row, from_version: 1 }]), approve([{ ...row, approved: "" }]), approve([{ ...row, reason: "short" }]), approve([{ ...row, extra: 1 }]), approve([{ ...row, place: "" }])])
+    assert.match(check(broken).join("\n"), /v1-reset-exceptions\.json/u, broken);
 });
 
 test("UPG-01 a raised version needs each step from the old version and a golden that holds the library at the old version", () => {

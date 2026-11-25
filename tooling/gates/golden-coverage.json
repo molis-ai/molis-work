@@ -101,6 +101,9 @@
         "schedule.ts"
       ]
     },
+    "personal-space/molis-work.db": {
+      "none": "第 106 批只由 Home 初始化建出个人空间的空库（与项目库同一份基线）；个人空间里的插件写入从第 109 批搬入 IM、待办等起才有，届时在 tests/golden-writes/ 补写入用例"
+    },
     "assistant/assistant.db": {
       "cases": [
         "assistant.ts"

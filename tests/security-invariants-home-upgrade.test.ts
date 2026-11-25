@@ -110,7 +110,8 @@ test("S-upgrade-lock-only: listing a Home's projects with no lock leaves no side
   const f = await catalogHome(t), before = readdirSync(dirname(f.catalog)).sort();
   assert.equal(before.some(name => name.endsWith("-wal") || name.endsWith("-shm")), false);
   raiseProjectBaseline(t);
-  assert.equal(pendingUpgradeUnits(f.home), 1);
+  // The kept project and the personal space: since batch 106 `personal-space/molis-work.db` is a partition library too.
+  assert.equal(pendingUpgradeUnits(f.home), 2);
   assert.deepEqual(readdirSync(dirname(f.catalog)).sort(), before);
 });
 

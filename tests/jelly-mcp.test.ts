@@ -10,7 +10,8 @@ import { openTestHome, type TestHome } from "./fixtures/test-home.js";
 import { residentMcpGrants } from "./fixtures/resident-mcp-grants.js";
 
 // RAC-105-A-16: each Home has one resident; the independent stdio clients may reconnect without taking its owner.
-test("standard MCP clients share Jelly facts, preserve permissions and recover previews across client restart", { timeout: 45_000 }, async t => {
+// 90 s: the loaded Linux full-suite runner took 45.8 s on main (#2315) and timed out at 45 s twice on batch 106; 14 s on a development machine.
+test("standard MCP clients share Jelly facts, preserve permissions and recover previews across client restart", { timeout: 90_000 }, async t => {
   const homes = await Promise.all([openTestHome(t), openTestHome(t)]);
   const clients: Client[] = [];
   const grant = residentMcpGrants();

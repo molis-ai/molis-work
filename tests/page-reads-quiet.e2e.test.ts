@@ -221,7 +221,9 @@ test("07-2a N53 request counts: loading the chooser and a project page, switchin
   // measured, in an isolated Home with the seeded demo project on a local Mac, one step each: chooser 15 requests, the first project
   // page (Todo) 39, the project page coming back with two tabs (Goals) 31, a tab switch 10, opening the side 10. The allowance covers
   // CI timing; the ceilings are call budgets, so a duplicate read or a whole page read again lands above them.
-  const MEASURED = { chooser: 15, todo: 39, project: 31, tab: 10, side: 10 };
+  // Batch 106: every Home has the personal space, which the Host has not read yet when the chooser first loads; the Home answers what
+  // it has and reads attention once more when the personal space's background read lands (S-49 B103-01, `resting.changed`). One read.
+  const MEASURED = { chooser: 16, todo: 39, project: 31, tab: 10, side: 10 };
   const CALL_SLACK = 3;
   // Batch 16 adds one selected language script per document, words per authorized frame, and one appearance subscription.
   const LANGUAGE_SCRIPT = /^\/assets\/locale\/workbench\.(zh|en)\.[a-f0-9]{24}\.js$/u;

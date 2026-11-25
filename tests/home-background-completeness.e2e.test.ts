@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { backgroundPlugin } from "./fixtures/home-background-plugin.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -13,6 +13,8 @@ import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 test("QEA-15/16 QEA-169 Home keeps partial background work visible and retries only the read, in both languages and themes", { timeout: 180_000 }, async t => {
   let mode: "failed" | "partial" | "complete" | "empty" = "failed", healthyProject = "", otherProject = "";
   const plugin = backgroundPlugin(project => {
+    // Nothing runs in the personal space, which the Home reads too (batch 106): the rows below are the two projects'.
+    if (project === PERSONAL_SPACE_PROJECT_ID) return { source: { surface: "example", title: "Example", icon: "list" }, tasks: [] };
     if (mode === "failed" || mode === "partial" && project !== healthyProject) throw new ActionError("example.read_failed", "private-provider-diagnostic");
     return { source: { surface: "example", title: "Example", icon: "list" }, tasks: mode === "empty" ? [] : [{
       subject: { kind: "homebg_task", id: project }, title: "Export customer notes", state: "running", details: [], waiting: false,

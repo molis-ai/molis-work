@@ -16,7 +16,6 @@
 
 ## 在做的
 
-- [系统质量复查修复](system-quality-fixes/spec.md)。Codex 负责评测、留存、同步、采用统计、工作台、插件作者和发行反例。
 - [创作台生成插件的图标与原处连接卡](studio-icon-connection/spec.md)。Codex 负责 BL-1049、BL-1057 的实现与验证。
 - [11 月 19 日 main 合入复查修复](main-review-1119/spec.md)：Codex，附件、交付评估、会话发现、子任务读取、CI 和角色编辑回归。
 
@@ -167,6 +166,8 @@
 **现行规范** 不归档。规则变了就改原文；一份规范被新 spec 整体取代时，新 spec 成为现行规范，旧的按上面的规则归档。
 
 ## 梳理记录
+
+- 2026-11-24：[系统质量复查修复](archive/system-quality-fixes/spec.md)归档。负责人 Codex。10 组反例及评审补充用例见 [PR #2315](https://github.com/molis-ai/molis-work/pull/2315)。
 
 - 2026-11-24：[架构复核整改与验收证据](archive/review-evidence-maintenance/spec.md)归档（已实现，负责人 Codex）。创作台答卷与刷新、验收编号报告及其回归已随 [#2306](https://github.com/molis-ai/molis-work/pull/2306) 合入 `main`。
 

@@ -389,7 +389,7 @@ observation.cleanup.preview	1	system.observation	query	query	home	read	-	user	-	
 observation.coverage.get	1	system.observation	query	query	home	read	-	agent,mcp,plugin,user,workflow	-	-	-	-	d169d8f10a55	801d69e1cca6	-
 observation.evidence.get	1	system.observation	query	query	home	read	-	agent,mcp,plugin,user,workflow	-	-	-	-	1dca006bd12e	078f139a0992	-
 observation.holds.list	1	system.observation	query	query	home	read	-	user	-	-	-	-	814623c6d0a4	c9fc92c80ac9	-
-observation.holds.put	1	system.observation	command	operation	home	write	-	user	-	-	-	-	9737521dd916	bcb38438feb1	-
+observation.holds.put	1	system.observation	command	operation	home	write	-	user	-	-	-	-	03e2acd55ae8	bcb38438feb1	-
 observation.holds.release	1	system.observation	command	operation	home	write	-	user	-	-	-	-	f180d4949635	befa352c4966	-
 observation.preferences.read	1	system.observation	query	query	home	read	-	agent,plugin,user	-	-	molis.settings.read.request.v1	molis.settings.values.v1	169508f33c70	e1302800e8b3	-
 observation.preferences.write	1	system.observation	command	operation	home	write	-	user	-	-	molis.settings.write.request.v1	molis.settings.values.v1	c737fddc8897	e1302800e8b3	-

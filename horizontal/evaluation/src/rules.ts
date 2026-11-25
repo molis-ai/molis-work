@@ -304,6 +304,9 @@ function evalDeterministic(rule: EvaluationDeterministicRule, stage: EvaluationE
         }
         return { verdict: "failed", unknownReasons: [], rationale: `匹配记录 ${matched.length} 条，少于预期 ${min} 条`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
       }
+      if (rule.max_count !== undefined && ctx.runCoverageUnknowns.length) {
+        return { verdict: "unknown", unknownReasons: ctx.runCoverageUnknowns, rationale: "记录不完整，无法核对数量上限", pointers: pointersFor(matched, ctx.evidenceByRecord) };
+      }
       return { verdict: "passed", unknownReasons: [], rationale: `匹配记录 ${matched.length} 条，满足数量范围`, pointers: pointersFor(matched, ctx.evidenceByRecord) };
     }
     case "stage_sequence":

@@ -9,6 +9,8 @@ export interface ObservationHoldPutInput {
   readonly owner?: string;
   /** If the ID already exists, only update a hold with the same owner and exact sample reference. */
   readonly require_same_identity?: boolean;
+  /** Add this bounded batch to the same owner's exact sample hold. The default replaces its membership. */
+  readonly append_records?: boolean;
   readonly project_id?: string | null;
   readonly record_ids: readonly string[];
   readonly expires_at?: string | null;
@@ -21,6 +23,8 @@ export interface ObservationHoldView {
   readonly sample_id: string;
   readonly project_id: string | null;
   readonly record_ids: readonly string[];
+  /** Members whose original records have been removed or were already missing at registration. */
+  readonly missing_record_ids?: readonly string[];
   readonly active_record_count: number;
   readonly bytes: number;
   readonly created_at: string;
@@ -82,6 +86,7 @@ export const observationHoldActions = {
         sample_id: token,
         owner: token,
         require_same_identity: { type: "boolean" },
+        append_records: { type: "boolean" },
         project_id: nullableToken,
         record_ids: { type: "array", minItems: 1, maxItems: 500, items: token },
         expires_at: nullableToken,

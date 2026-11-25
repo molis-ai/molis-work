@@ -112,7 +112,14 @@ export async function runCanonicalEvaluationInHome(
       (await rawHomeClient.invoke(await env.homeCaller(), action, input)) as Output;
 
     for (const item of suite) {
-      await invokeHome(evaluationActions.samplesPut, item.sample);
+      const sample = item.sample;
+      if (sample.hold_records) {
+        const basis = await invokeHome(observationActions.recordsQuery, { ...sample.query, use: "evaluation" });
+        if (basis.has_more || !basis.records.length) throw new Error(`无法冻结 ${sample.sample_id} 的完整记录编号`);
+        await invokeHome(evaluationActions.samplesPut, { ...sample, pinned_record_ids: basis.records.map(record => record.record_id) });
+      } else {
+        await invokeHome(evaluationActions.samplesPut, sample);
+      }
     }
 
     await invokeHome(observationActions.cleanupApply, {

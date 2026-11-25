@@ -293,6 +293,7 @@ export interface ObservationHoldPutInput {
     readonly sample_id: string;
     readonly owner?: string;
     readonly require_same_identity?: boolean;
+    readonly append_records?: boolean;
     readonly project_id?: string | null;
     readonly record_ids: readonly string[];
     readonly expires_at?: string | null;
@@ -322,6 +323,7 @@ export interface ObservationHoldView {
     readonly sample_id: string;
     readonly project_id: string | null;
     readonly record_ids: readonly string[];
+    readonly missing_record_ids?: readonly string[];
     readonly active_record_count: number;
     readonly bytes: number;
     readonly created_at: string;

@@ -334,7 +334,8 @@ export class EvaluationStore {
       targets.set(runVersion, sampleHoldTarget(sampleId, runVersion));
     }
     for (const row of rows) {
-      if (row.hold_id) targets.set(row.version, sampleHoldTarget(sampleId, row.version, row.hold_id));
+      // Revocation may stop both the first receipt and its compensation. The live version still owns that exact hold.
+      targets.set(row.version, sampleHoldTarget(sampleId, row.version, row.hold_id ?? undefined));
     }
     return { versions: rows.map(row => row.version), targets: [...targets.values()] };
   }

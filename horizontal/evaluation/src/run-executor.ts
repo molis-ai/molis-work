@@ -26,7 +26,7 @@ import {
   queryAllObservationRecords,
   readObservationCoverage,
   readRetryReceipts,
-  sampleHasActiveHold,
+  readSampleHold,
 } from "./observation-bridge.js";
 import { executeIsolatedReplay, type EvaluationReplayScenario } from "./replay.js";
 import { evaluateExpectation } from "./rules.js";
@@ -142,13 +142,26 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
 
   const evaluatedAt = ctx.nowIso();
   const baseCoverage = deriveRunCoverageUnknowns(coverage, sample, evaluatedAt);
-  const runCoverageUnknowns: readonly EvaluationUnknownReason[] = missingPinnedCount > 0
+  let runCoverageUnknowns: readonly EvaluationUnknownReason[] = missingPinnedCount > 0
     ? Array.from(new Set<EvaluationUnknownReason>([...baseCoverage.unknownReasons, "evidence_missing"]))
     : baseCoverage.unknownReasons;
   const limitations = missingPinnedCount > 0
     ? [...baseCoverage.limitations, `样本固定的 ${missingPinnedCount} 条工作记录在采集层已缺失`]
     : [...baseCoverage.limitations];
 
+  // Only a frozen, fully retained selection proves that a project-wide cleanup affected other records.
+  const pinned = sample.pinned_record_ids;
+  const retentionGap = (reason: EvaluationUnknownReason) => reason === "coverage_gap_expired" || reason === "coverage_gap_purged";
+  if (executionKind !== "isolated_replay" && pinned?.length && missingPinnedCount === 0 && runCoverageUnknowns.some(retentionGap)) {
+    const hold = await readSampleHold(client, readNested, sample);
+    if (hold && !hold.expired) {
+      const members = new Set(hold.record_ids);
+      const missing = new Set(hold.missing_record_ids);
+      if (hold.active_record_count === members.size - missing.size && pinned.every(id => members.has(id) && !missing.has(id))) {
+        runCoverageUnknowns = runCoverageUnknowns.filter(reason => !retentionGap(reason));
+      }
+    }
+  }
   const { counts: funnel, keys: funnelKeys } = collectFunnel(records);
   if (records.length && !funnel.completed) {
     limitations.push("本次未读到业务主人确认完成的工作。完成数只计有据可查的交付。");
@@ -181,18 +194,9 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
   const failedStages = Array.from(
     new Set(expectationResults.filter((r) => r.automated_verdict === "failed").map((r) => r.stage)),
   );
-  // A sample whose records are under a live evaluation hold has its own basis retained. A project-wide expired/purged
-  // gap can belong to another work in the same project (EC-16 held vs unheld); do not turn the held run unknown for it.
-  // Lost/paused gaps are not protected by a hold and still propagate, as does every gap for an unheld sample. Ask the
-  // observation layer whether the hold is still active instead of trusting the sample row's cached hold count.
-  const hasRetentionGap = runCoverageUnknowns.some((reason) => reason === "coverage_gap_expired" || reason === "coverage_gap_purged");
-  const holdProtectsRetention = hasRetentionGap && missingPinnedCount === 0 && await sampleHasActiveHold(client, readNested, sample);
-  const propagatedCoverageUnknowns = holdProtectsRetention
-    ? runCoverageUnknowns.filter((reason) => reason !== "coverage_gap_expired" && reason !== "coverage_gap_purged")
-    : runCoverageUnknowns;
   const finalUnknowns = Array.from(
     new Set<EvaluationUnknownReason>([
-      ...propagatedCoverageUnknowns,
+      ...runCoverageUnknowns,
       ...expectationResults.flatMap((r) => (r.automated_verdict === "unknown" ? r.unknown_reasons : [])),
     ]),
   );

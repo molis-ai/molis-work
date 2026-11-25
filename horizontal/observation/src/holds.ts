@@ -155,6 +155,7 @@ function buildHoldView(db: DatabaseSync, row: StoredHoldRow, nowIso: string): Ob
   `).all(row.hold_id));
 
   const liveSeqs = recRows.map((item) => item.live_seq).filter((seq): seq is number => typeof seq === "number");
+  const missingIds = recRows.filter(item => item.live_seq === null).map(item => item.record_id);
   const expired = row.expires_at !== null && row.expires_at <= nowIso;
   return {
     hold_id: row.hold_id,
@@ -162,6 +163,7 @@ function buildHoldView(db: DatabaseSync, row: StoredHoldRow, nowIso: string): Ob
     sample_id: row.sample_id,
     project_id: row.project_id,
     record_ids: recRows.map((item) => item.record_id),
+    ...(missingIds.length ? { missing_record_ids: missingIds } : {}),
     active_record_count: expired ? 0 : liveSeqs.length,
     bytes: measureSeqsBytes(db, liveSeqs),
     created_at: row.created_at,
@@ -191,7 +193,6 @@ export async function handleHoldsPut(
   const expiresAt = normalizeExpiresAt(input.expires_at, now);
   const owner = (input.owner ?? "system.evaluation").trim();
   const recordIds = [...new Set(input.record_ids)];
-
   const findRecord = db.prepare("SELECT seq, project_id FROM records WHERE record_id = ?");
   const held_record_ids: string[] = [];
   const missing_record_ids: string[] = [];
@@ -216,17 +217,23 @@ export async function handleHoldsPut(
     resolvedRecords.push({ record_id: recordId, seq: found.seq });
   }
 
-  const resolvedProjectId: string | null = input.project_id !== undefined
-    ? input.project_id
-    : (seenProjects.size === 1 ? [...seenProjects][0]! : null);
-
   db.exec("BEGIN IMMEDIATE");
   try {
-    const existing = db.prepare("SELECT created_at, owner, sample_id FROM evaluation_holds WHERE hold_id = ?")
-      .get(input.hold_id) as Pick<StoredHoldRow, "created_at" | "owner" | "sample_id"> | undefined;
-    if (input.require_same_identity && existing && (existing.owner !== owner || existing.sample_id !== input.sample_id)) {
+    const existing = db.prepare("SELECT created_at, owner, sample_id, project_id FROM evaluation_holds WHERE hold_id = ?")
+      .get(input.hold_id) as Pick<StoredHoldRow, "created_at" | "owner" | "sample_id" | "project_id"> | undefined;
+    if ((input.require_same_identity || input.append_records) && existing && (existing.owner !== owner || existing.sample_id !== input.sample_id)) {
       throw observationErrors.invalid_query("留存标识已属于其他主人或样本版本");
     }
+    if (input.append_records && existing) {
+      if (existing.project_id !== null && readable && !readable.has(existing.project_id)) {
+        throw observationErrors.forbidden("留存所属项目已删除或正在关闭");
+      }
+      if (input.project_id !== undefined && existing.project_id !== input.project_id) {
+        throw observationErrors.forbidden("追加的记录不能改变留存的指定项目范围");
+      }
+      seenProjects.add(existing.project_id);
+    }
+    const resolvedProjectId = input.project_id !== undefined ? input.project_id : seenProjects.size === 1 ? [...seenProjects][0]! : null;
     const createdAt = existing?.created_at ?? nowIso;
     db.prepare(`
       INSERT INTO evaluation_holds (hold_id, owner, sample_id, project_id, created_at, updated_at, expires_at, note)
@@ -240,8 +247,9 @@ export async function handleHoldsPut(
         note = excluded.note
     `).run(input.hold_id, owner, input.sample_id, resolvedProjectId, createdAt, nowIso, expiresAt, input.note ?? null);
 
-    db.prepare("DELETE FROM evaluation_hold_records WHERE hold_id = ?").run(input.hold_id);
-    const insertRec = db.prepare("INSERT INTO evaluation_hold_records (hold_id, record_id, seq) VALUES (?, ?, ?)");
+    if (!input.append_records) db.prepare("DELETE FROM evaluation_hold_records WHERE hold_id = ?").run(input.hold_id);
+    const insertRec = db.prepare(`INSERT INTO evaluation_hold_records (hold_id, record_id, seq) VALUES (?, ?, ?)
+      ON CONFLICT(hold_id, record_id) DO UPDATE SET seq = excluded.seq WHERE seq IS NOT excluded.seq`);
     for (const item of resolvedRecords) {
       insertRec.run(input.hold_id, item.record_id, item.seq);
     }

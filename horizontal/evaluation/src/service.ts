@@ -31,6 +31,7 @@ import {
   type EvaluationSamplePutOutput,
   type EvaluationSampleRemoveInput,
   type EvaluationSampleRemoveOutput,
+  type EvaluationSampleView,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
 import { OBSERVATION_SERVICE_PREFIXES } from "@molis-ai/molis-work-contracts/services/observation";
 import { defineAction } from "@molis-ai/molis-work-plugin-sdk";
@@ -120,6 +121,7 @@ function validateMetricsWindow(input: EvaluationMetricsSummarizeInput): void {
 
 export class EvaluationService {
   private readonly store: EvaluationStore;
+  private readonly collectingRuns = new Set<EvaluationSampleView>();
   private readonly sampleWrites = new Map<string, Promise<void>>();
   private readonly scenarios = new Map<string, EvaluationReplayScenario>();
 
@@ -158,20 +160,33 @@ export class EvaluationService {
     await caller.beforeEffect();
     caller.signal?.throwIfAborted();
     if (!ids.length) return commit({ holdId: null, heldCount: 0 });
-    const held = await commitEvaluationSampleHold(client, retainActionAuthority(caller, origin, caller.beforeEffect), sample,
-      [...new Set([...(previous?.record_ids ?? []), ...ids])]);
+    const target = sampleHoldTarget(sample.sample_id, sample.version);
+    const nested = retainActionAuthority(caller, origin, caller.beforeEffect);
+    const details = { project_id: sample.project_id, expires_at: sample.hold_expires_at, note: `评测样本留存：${sample.title}` };
+    let written = false;
+    let heldCount = 0;
     try {
+      for (let offset = 0; offset < ids.length; offset += 500) {
+        const hold = await commitEvaluationSampleHold(client, nested, target, details, ids.slice(offset, offset + 500), true);
+        written = true;
+        heldCount = hold.active_record_count;
+      }
       caller.signal?.throwIfAborted();
       await caller.beforeEffect();
       caller.signal?.throwIfAborted();
-      return commit(held);
+      return commit({ holdId: target.hold_id, heldCount });
     } catch (error) {
-      // Undo only this operation's hold delta, preserving any earlier run's retained facts and expiry.
+      if (!written) throw error;
       const cleanup = { ...retainActionAuthority(caller, origin), signal: undefined, beforeEffect: async () => {} };
-      try {
-        if (previous) await commitEvaluationSampleHold(client, cleanup, { ...sample, hold_expires_at: previous.expires_at }, previous.record_ids);
-        else if (held.holdId) await releaseEvaluationSampleHolds(client, cleanup, [sampleHoldTarget(sample.sample_id, sample.version, held.holdId)]);
-      } catch { /* Keep the triggering error. Removal can retry with the deterministic hold ID. */ }
+      if (previous) {
+        const { note, expires_at, record_ids } = previous;
+        for (let offset = 0; offset < record_ids.length; offset += 500) {
+          await commitEvaluationSampleHold(client, cleanup, target, { note, project_id: sample.project_id, expires_at },
+            record_ids.slice(offset, offset + 500), offset > 0);
+        }
+      } else {
+        await releaseEvaluationSampleHolds(client, cleanup, [target]);
+      }
       throw error;
     }
   }
@@ -214,7 +229,12 @@ export class EvaluationService {
       : [];
     // The first beforeEffect is the commit point for release + delete. Rechecking after the release would strand the
     // sample without its hold if the caller cancelled in between; a cancelled call therefore stops before either write.
-    if (pending.versions.length) this.store.removeSample(input.sample_id, input.version);
+    if (pending.versions.length) {
+      this.store.removeSample(input.sample_id, input.version);
+      for (const sample of this.collectingRuns) {
+        if (sample.sample_id === input.sample_id && pending.versions.includes(sample.version)) this.collectingRuns.delete(sample);
+      }
+    }
     return { removed_versions: pending.versions, released_hold_ids: releasedHoldIds };
   }
 
@@ -230,6 +250,12 @@ export class EvaluationService {
       );
     }
     validateDeliverySources(sample);
+    this.collectingRuns.add(sample);
+    try { return await this.evaluateAndCommit(caller, input, sample); }
+    finally { this.collectingRuns.delete(sample); }
+  }
+
+  private async evaluateAndCommit(caller: ActionExecutionContext, input: EvaluationRunExecuteInput, sample: EvaluationSampleView): Promise<EvaluationRunView> {
     const origin = originOf(caller, evaluationActions.runsExecute);
     const { runView, outcomeCounts, funnelKeys, holdRecordIds } = await executeSampleEvaluationRun({
       caller, origin, clientFor: this.options.clientFor, sample, input, scenarios: this.scenarios,
@@ -238,7 +264,7 @@ export class EvaluationService {
     return this.writeSample(sample.sample_id, async () => {
       const checkSample = () => {
         const current = this.store.getSample(sample.sample_id, sample.version);
-        if (current?.frozen_digest !== sample.frozen_digest || current.created_at !== sample.created_at) {
+        if (!this.collectingRuns.has(sample) || current?.frozen_digest !== sample.frozen_digest || current.created_at !== sample.created_at) {
           throw evaluationErrors.not_found("评测期间样本已移除或替换，请重新选择样本");
         }
       };
@@ -326,6 +352,9 @@ export class EvaluationService {
 
   clearProject(projectId: string): void {
     this.store.clearProject(projectId);
+    for (const sample of this.collectingRuns) {
+      if (sample.project_id === projectId) this.collectingRuns.delete(sample);
+    }
   }
 
   close(): void {

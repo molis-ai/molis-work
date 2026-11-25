@@ -463,7 +463,10 @@ test("EC-16 OCL-12 OCL-14 PWA-54 PWA-55: sample holds survive cleanup while unhe
   });
   fx.layer.flush();
 
+  const basis = await fx.user.invoke(observationActions.recordsQuery, { project_id: "p1", work_ref: "held-work", use: "evaluation" });
+  assert.equal(basis.records.length, 1);
   const putHeld = await fx.service.invoke(person(), evaluationActions.samplesPut, {
+    pinned_record_ids: basis.records.map(record => record.record_id),
     sample_id: "ec-16-held",
     version: 1,
     title: "EC-16 加留存的历史样本",
@@ -1497,6 +1500,130 @@ test("QRF-02: run holds survive re-audit and release by sample version, includin
   await assert.rejects(run, (error: Error & { code?: string }) => error.code === "evaluation.not_found");
   assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds, []);
   assert.deepEqual((await fx.user.invoke(evaluationActions.runsList, { sample_id: "in-flight" })).runs, []);
+});
+
+test("QRF-02: an old replay cannot commit to an identical sample recreated in the same millisecond", async t => {
+  const fx = createEvaluationFixture(t);
+  const sample = workEvaluationSample("recreated", { fact: "assistant.work" });
+  const { sample: original } = await fx.user.invoke(evaluationActions.samplesPut, sample);
+  const entered = Promise.withResolvers<void>();
+  const resume = Promise.withResolvers<void>();
+  fx.evaluation.registerReplayScenario(sample.sample_id, async () => {
+    fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" })
+      .record({ fact: "assistant.work", outcome: "succeeded" });
+    entered.resolve();
+    await resume.promise;
+  });
+  const run = fx.user.invoke(evaluationActions.runsExecute, {
+    sample_id: sample.sample_id, execution_kind: "isolated_replay", hold_records: true,
+  });
+  await entered.promise;
+  try {
+    await fx.user.invoke(evaluationActions.samplesRemove, { sample_id: sample.sample_id, version: 1 });
+    const { sample: replacement } = await fx.user.invoke(evaluationActions.samplesPut, sample);
+    assert.deepEqual(replacement, original);
+  } finally { resume.resolve(); }
+  await assert.rejects(run, (error: Error & { code?: string }) => error.code === "evaluation.not_found");
+  assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds, []);
+  assert.deepEqual((await fx.user.invoke(evaluationActions.runsList, { sample_id: sample.sample_id })).runs, []);
+  const valid = await fx.user.invoke(evaluationActions.runsExecute, {
+    sample_id: sample.sample_id, execution_kind: "isolated_replay", hold_records: true,
+  });
+  assert.equal(valid.replay?.replay_record_ids.length, 1);
+  assert.equal((await fx.user.invoke(observationActions.holdsList, {})).holds[0]?.active_record_count, 1);
+});
+
+test("QRF-02: large replay holds across runs roll back completely and release by version", async t => {
+  const fx = createEvaluationFixture(t);
+  const sample = workEvaluationSample("bulk-hold", {}, { project_id: undefined, query: { all_projects: true, fact: "assistant.work" } });
+  const recorders = ["p1", "p2"].map(project_id => fx.layer.sink("assistant")
+    .bind({ kind: "background", actor_id: "assistant", entry: "background", project_id }));
+  for (const version of [1, 2, 3]) await fx.user.invoke(evaluationActions.samplesPut, { ...sample, version });
+  for (const count of [260, 501]) fx.evaluation.registerReplayScenario(String(count), async () => {
+    for (let i = 0; i < count; i++) recorders[i % 2]!.record({ fact: "assistant.work", outcome: "succeeded" });
+  });
+  const run = (version: number, count: number) => fx.user.invoke(evaluationActions.runsExecute, {
+    sample_id: sample.sample_id, sample_version: version, execution_kind: "isolated_replay", replay_scenario_id: String(count), hold_records: true,
+  });
+  const held = async (version: number) => (await fx.user.invoke(observationActions.holdsList, { sample_id: `bulk-hold@${version}` })).holds;
+  const first = await run(1, 260);
+  const observationDb = fx.layer.writer.database()!.db;
+  observationDb.exec(`CREATE TEMP TRIGGER keep_prior_memberships BEFORE DELETE ON evaluation_hold_records
+    WHEN OLD.hold_id='eval:bulk-hold:v1' BEGIN SELECT RAISE(ABORT, 'rewrote retained records'); END`);
+  const second = await run(1, 260);
+  observationDb.exec("DROP TRIGGER keep_prior_memberships");
+  const expected = [...first.replay!.replay_record_ids, ...second.replay!.replay_record_ids];
+  assert.deepEqual([first.replay!.replay_record_ids.length, second.replay!.replay_record_ids.length, new Set(expected).size], [260, 260, 520]);
+  const before = await held(1);
+  assert.deepEqual(new Set(before.flatMap(h => h.record_ids)), new Set(expected));
+  const db = new DatabaseSync(join(fx.home, "evaluation", "evaluation.db"));
+  try {
+    db.exec("CREATE TRIGGER refuse_run BEFORE INSERT ON evaluation_runs BEGIN SELECT RAISE(ABORT, 'run interrupted'); END");
+    await assert.rejects(run(1, 501), /run interrupted/);
+    assert.deepEqual(await held(1), before);
+    assert.equal((await fx.user.invoke(evaluationActions.runsList, { sample_id: sample.sample_id })).runs.length, 2);
+    db.exec("DROP TRIGGER refuse_run");
+  } finally { db.close(); }
+  observationDb.exec(`CREATE TEMP TRIGGER refuse_second_batch BEFORE INSERT ON evaluation_hold_records
+    WHEN NEW.hold_id='eval:bulk-hold:v3' AND (SELECT COUNT(*) FROM evaluation_hold_records WHERE hold_id=NEW.hold_id) >= 500
+    BEGIN SELECT RAISE(ABORT, 'second batch interrupted'); END`);
+  await assert.rejects(run(3, 501), /second batch interrupted/);
+  assert.deepEqual(await held(3), []);
+  assert.equal((await fx.user.invoke(evaluationActions.runsList, { sample_id: sample.sample_id })).runs.length, 2);
+  observationDb.exec("DROP TRIGGER refuse_second_batch");
+  const other = await run(2, 501);
+  assert.equal(other.replay!.replay_record_ids.length, 501);
+  assert.deepEqual(new Set((await held(2)).flatMap(h => h.record_ids)), new Set(other.replay!.replay_record_ids));
+  const { released_hold_ids } = await fx.user.invoke(evaluationActions.samplesRemove, { sample_id: sample.sample_id, version: 1 });
+  assert.deepEqual(new Set(released_hold_ids), new Set(before.map(h => h.hold_id)));
+  assert.deepEqual(await held(1), []);
+  assert.deepEqual(new Set((await held(2)).flatMap(h => h.record_ids)), new Set(other.replay!.replay_record_ids));
+});
+
+test("QRF-02 QRF-05: a dynamic work query stays unknown after a matching late record is cleaned up", async t => {
+  const fx = createEvaluationFixture(t);
+  const recorder = fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" });
+  const record = () => recorder.record({ fact: "assistant.work", outcome: "succeeded", work: { work_ref: "late-count" },
+    occurred_at: "2026-10-01T10:00:00Z" });
+  record();
+  const sample = workEvaluationSample("late-count", { work_ref: "late-count" }, {
+    expectations: [{ expectation_id: "count", stage: "execution", source: "deterministic", description: "恰有一条",
+      rule: { check: "record_count", min_count: 1, max_count: 1 } }],
+  });
+  await fx.user.invoke(evaluationActions.samplesPut, sample);
+  const run = (hold_records = false) => fx.user.invoke(evaluationActions.runsExecute, { sample_id: sample.sample_id, hold_records });
+  assert.equal((await run(true)).effective_verdict, "passed");
+  record();
+  assert.equal((await run()).effective_verdict, "failed");
+  assert.equal((await fx.user.invoke(observationActions.cleanupApply, { project_id: "p1", time_range: "before_30d" })).deleted_records, 1);
+  const after = await run();
+  assert.equal(after.observed_conditions.record_count, 1);
+  assert.equal(after.effective_verdict, "unknown");
+  assert.ok(after.unknown_reasons.includes("coverage_gap_expired"));
+  assert.equal(after.expectation_results[0]?.automated_verdict, "unknown");
+});
+
+test("QRF-02: deleting a sample after authority returns clears an interrupted run's first hold", async t => {
+  const fx = createEvaluationFixture(t);
+  const sample = workEvaluationSample("interrupted", { fact: "assistant.work" });
+  await fx.user.invoke(evaluationActions.samplesPut, sample);
+  fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" })
+    .record({ fact: "assistant.work", outcome: "succeeded" });
+  const [record] = (await fx.user.invoke(observationActions.recordsQuery, { ...sample.query, use: "evaluation" })).records;
+  const foreign = (await fx.user.invoke(observationActions.holdsPut, {
+    hold_id: "another-retention", owner: "another.owner", sample_id: "interrupted@1", record_ids: [record!.record_id],
+  })).hold;
+  const db = fx.layer.writer.database()!.db;
+  const caller = person({ validate_authority: () => {
+    if (db.prepare("SELECT 1 FROM evaluation_holds WHERE hold_id='eval:interrupted:v1'").get()) throw new Error("authority revoked");
+  } });
+  await assert.rejects(fx.service.invoke(caller, evaluationActions.runsExecute, { sample_id: sample.sample_id, hold_records: true }), /authority revoked/);
+  assert.deepEqual((await fx.user.invoke(evaluationActions.runsList, { sample_id: sample.sample_id })).runs, []);
+  assert.equal((await fx.user.invoke(evaluationActions.samplesList, { sample_id: sample.sample_id })).samples[0]?.hold_id, null);
+  assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds.map(h => h.hold_id).sort(), ["another-retention", "eval:interrupted:v1"]);
+  const removed = await fx.user.invoke(evaluationActions.samplesRemove, { sample_id: sample.sample_id });
+  assert.deepEqual(removed.released_hold_ids, ["eval:interrupted:v1"]);
+  assert.deepEqual((await fx.user.invoke(observationActions.holdsList, {})).holds, [foreign]);
 });
 
 test("QRF-02: exact hold identities survive a collision, and a late failure rolls back every release", async t => {

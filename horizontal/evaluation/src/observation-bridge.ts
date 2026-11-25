@@ -176,30 +176,18 @@ export async function readSampleHold(client: ActionClient, caller: ActionCallCon
 export async function commitEvaluationSampleHold(
   client: ActionClient,
   nestedCaller: ActionCallContext,
-  sample: Pick<EvaluationSampleInput, "sample_id" | "version" | "title" | "project_id" | "hold_expires_at">,
+  target: ReturnType<typeof sampleHoldTarget>,
+  details: Partial<Pick<ObservationHoldView, "note" | "project_id" | "expires_at">>,
   recordIds: readonly string[],
-): Promise<{ readonly holdId: string | null; readonly heldCount: number }> {
-  if (recordIds.length === 0) {
-    return { holdId: null, heldCount: 0 };
-  }
+  append: boolean,
+): Promise<ObservationHoldView> {
   const result = await client.invoke(nestedCaller, obsRef(observationActions.holdsPut), {
-    ...sampleHoldTarget(sample.sample_id, sample.version),
-    require_same_identity: true,
-    note: `评测样本留存：${sample.title}`,
-    ...(sample.project_id !== undefined ? { project_id: sample.project_id } : {}),
-    ...(sample.hold_expires_at !== undefined ? { expires_at: sample.hold_expires_at } : {}),
-    record_ids: recordIds,
+    ...target, require_same_identity: true, append_records: append, record_ids: recordIds,
+    ...(details.note !== undefined ? { note: details.note } : {}),
+    ...(details.project_id !== undefined ? { project_id: details.project_id } : {}),
+    ...(details.expires_at !== undefined ? { expires_at: details.expires_at } : {}),
   }) as ObservationHoldPutResult;
-  return { holdId: result.hold.hold_id, heldCount: result.hold.active_record_count };
-}
-
-/** Whether the sample's hold is still active, so a project-wide expired/purged gap may belong to other work. */
-export async function sampleHasActiveHold(
-  client: ActionClient,
-  nestedCaller: ActionCallContext,
-  sample: Pick<EvaluationSampleView, "sample_id" | "version">,
-): Promise<boolean> {
-  return ((await readSampleHold(client, nestedCaller, sample))?.active_record_count ?? 0) > 0;
+  return result.hold;
 }
 
 export async function releaseEvaluationSampleHolds(

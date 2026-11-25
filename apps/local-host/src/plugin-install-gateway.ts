@@ -4,7 +4,11 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { actionGatewayHomeId } from "./action-gateway.js";
 import { pluginInstallActions } from "./plugin-install-actions.js";
 import type { PluginInstallPreviewResult } from "./plugin-install-service.js";
-import type { MolisWorkLocalHost } from "./project-host.js";
+import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
+import { projectOrNull } from "./catalog-lookup.js";
+import { localWebActionContext } from "./local-web-actions.js";
+import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
+import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 
 export const PLUGIN_INSTALL_PATH = "/api/internal/plugin-install";
@@ -18,7 +22,8 @@ const ref = (action: { capability_id: string; version: number }): ActionReferenc
  * the Host only previews; with it the Host previews and confirms in this one call, so what was confirmed is what was checked.
  * Mounted only after the resident service's Origin/token/one-time-key gate.
  */
-export async function handlePluginInstallHttp(request: IncomingMessage, response: ServerResponse, url: URL, home: string, host: MolisWorkLocalHost): Promise<boolean> {
+export async function handlePluginInstallHttp(request: IncomingMessage, response: ServerResponse, url: URL, home: string,
+  host: MolisWorkLocalHost, withCatalog: LocalWebCatalogRunner, accountCurrent?: () => void): Promise<boolean> {
   if (url.pathname !== PLUGIN_INSTALL_PATH) return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "只支持本机 POST 调用" }); return true; }
   const controller = new AbortController();
@@ -33,12 +38,14 @@ export async function handlePluginInstallHttp(request: IncomingMessage, response
       throw new ActionError("actions.input_invalid", "安装传输参数无效");
     }
     if (body.home_id !== actionGatewayHomeId(home)) throw new ActionError("actions.home_mismatch", "安装调用属于另一个 Home");
-    const reference = host.projects().find(row => row.project_id === body.project_id);
-    if (!reference) throw new ActionError("actions.scope_mismatch", "这个 Home 里没有这个项目");
+    const projectId = body.project_id;
+    const project = await withCatalog({ homeDirectory: home }, catalog => projectOrNull(catalog, projectId));
+    if (!project) throw new ActionError("actions.scope_mismatch", "这个 Home 里没有这个项目");
+    const reference = molisWorkHostProjectReference({ projectId, databasePath: project.database_path });
     const client = host.actionClient(reference, false);
     // The person at this computer, by the command they ran: the Host fixes who acts and where it came from. One context serves the
     // whole call (N42); the steps differ only in the provenance stamped on each, and every call still checks the authority it holds.
-    const context = await host.localPersonContext(reference, controller.signal);
+    const context = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS, controller.signal, { assertCurrent: accountCurrent });
     const person = (step: string) => ({ ...context,
       user_action: { source: "management" as const, conversation_ref: `management:${reference.project_id}`, message_ref: `management:plugin-install:${step}` } });
     const preview = await client.invoke(person("preview"), ref(pluginInstallActions.preview), { bundle: body.bundle }) as PluginInstallPreviewResult;

@@ -32,7 +32,7 @@
 | `apps/local-host/src/web-project-schedulers.ts` | `listPartitions` | 调度要遍历全部分区 |
 | `apps/local-host/src/home-restore-projects.ts` | `listPartitions` | 恢复时核对目录里的每个分区库都在快照里 |
 | `apps/local-host/src/project-deletion-service.ts`、`project-reach.ts`、`plugin-projects-service.ts`、`plugin-directory-http.ts`、`authorization-management-http.ts`、`management-action-client.ts`、`system-agent-service.ts`、`assistant/assistant-pages.ts`、`web-project-settings.ts` 的插件启用页、`project-host.ts` | `listPartitions` | 平台按 id 找分区、或遍历全部分区 |
-| `apps/local-host/src/web-project-settings.ts` 的 `personProjects`（`GET /api/settings/projects`） | `listProjects` | 设置里的项目列表只对用户项目；个人空间不能改名、删除。`settingsProjects` 仍用 `listPartitions`：设置与能力页按 `?project=` 解析时个人空间也在；没点名也没打开过时，设置页落到第一个用户项目（`web-settings-arrival.ts`） |
+| `apps/local-host/src/web-project-settings.ts` 的 `personProjects`（`GET /api/settings/projects`） | `listProjects` | 设置里的项目列表只对用户项目；个人空间不能改名、删除。`settingsProjects` 仍用 `listPartitions`：设置与能力页按 `?project=` 解析时个人空间也在；没点名也没打开过时，设置页落到第一个用户项目（`web-settings-arrival.ts`）；设置页、插件设置页渲染的项目列表与选择器、MCP 访问页的项目、安装诊断的项目数也只算用户项目（`web-catalog-settings.ts` 的 `personProjects`） |
 | `apps/local-host/src/sessions-ports.ts` | `listProjects` | 外部会话归入个人空间随 111 批的界面一起做，本批不变 |
 | `modules/private-work-context/src/project-resolution.ts` | `listProjects` | 外部工具的项目建议与 MCP 项目列表一致，本批不建议个人空间；随 110 批 `S-mcp-personal-binding` 一起放开 |
 | `scripts/golden/populate.mjs` | `listPartitions` | 金样要覆盖全部分区 |

@@ -23,7 +23,7 @@
 
 插件只声明搜索来源动作与对象读取器即可接入，Host 与本服务都不改。索引是派生缓存：可删除重建，不作为任何业务事实。
 
-工作区依赖：`@molis-ai/molis-work-contracts`。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。
 
 `SearchService.indexedCatalog` 为可信消费者提供同项目索引目录快照：同一 source/reader 规则过滤当前可用且同步成功的来源，缺 reader 时不交正文；返回的同步原授权检查须跨消费者的异步等待保留。提供方变化后旧快照拒绝，不由重新登记恢复；`unsettled()` 列出主人现在登记、但索引里还没有完整一遍的来源（Home 恢复或重建后的空索引、首遍未完、同步失败），目录里缺它们的条目不说明主人删了什么；知识目录仍归 Knowledge。
 
@@ -41,9 +41,10 @@ pnpm --filter @molis-ai/molis-work-service-search build
 - 负责：搜索来源发现、索引首次构建与增量比对、删除清理、失败与重启恢复、查询排序去重与聚合、按调用者权限过滤、打开前核对。
 - 不负责：插件的存储与业务规则、对象正文的解释、权限的授予、可信身份的来源、会话与助理交互。
 - 公开入口：`@molis-ai/molis-work-service-search`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/search`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（总览行与插件写入用同一份 `checkOverviewRow` 再核）。方向：只依赖合同、SDK 与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 只经动作目录调用插件声明的动作，不读取插件私有库；来源由协议声明发现，不维护名单。
+  - 只经动作目录调用插件声明的动作，不读取插件私有库；来源由协议声明发现，不维护名单。唯一例外是总览索引（`src/overview.ts`，统一工作分区 §6.1，第 106 批）：它以只读连接（`SQLITE_OPEN_READONLY`）读插件在分区库里申报的总览表 `molis_overview_rows`，不起插件也不起分区的监督器；分区与安装由平台从读的位置盖章，插件写不了；同步写入或恢复只把那个库标为待读，打开总览时只读待读的库。
+  - 总览谁能读是平台的规则（`overview-readers`）：本机本人读他现在能读的分区；个人助理只读本人授给它的分区与摘要字段，且与它此刻能读的取交集；项目 Agent、MCP、工作流、插件和委托调用一律拒。读前、交付前各问一次，交付只留两次都允许的分区与字段（`tests/security-invariants-partition-isolation.test.ts`）。总览表提醒列的时间交给到期登记表（`horizontal/scheduler`）。
   - 查询结果与摘要只来自调用者当前可用的来源；正文由读取器提供的种类还要求调用者能用该读取器。 等待索引之后、披露正文与定位信息之前，异步复核并同步尾检本次原 source/reader 授权；重新授权或新 reader 不救活旧请求（ACA005），个人空间仍核其原 owner 的 scope。
   - 建索引用 Host 提供的本机用户上下文，结果不随提问者变化；被停用的插件不在索引里留内容。
   - 一次同步失败不删除已有条目；删除只在完整列出之后发生。
@@ -51,7 +52,7 @@ pnpm --filter @molis-ai/molis-work-service-search build
   - 请求取消只结束本次等待及私有读取。由 Search owner 持有、按来源合并的索引同步继续完成并可被下一次查询复用，不随某个 HTTP 请求断开而中止。HTTP 入口由 Host 绑定请求信号，正常响应完成不取消调用。
   - 索引可以整个删掉重建，重建后结果与删前一致。
   - 可引用的候选与提交前的复核用同一次读取：调用者的权限、对象主人的读取器（`resolveActionSubject`），索引里的条目、页面或模型给的标题都不算数；只给调用者自己项目里的与 Home 范围的对象。
-- 改动后必跑：`node scripts/run-tests.mjs tests/system-search.test.ts tests/search-references.test.ts tests/security-invariants-object-references.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/system-search.test.ts tests/search-references.test.ts tests/security-invariants-object-references.test.ts tests/security-invariants-partition-isolation.test.ts`
 - 相关手册：[docs/horizontal/search.md](../../docs/horizontal/search.md)、[specs/archive/system-search/spec.md](../../specs/archive/system-search/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

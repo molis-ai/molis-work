@@ -1567,7 +1567,6 @@
  "tests/prologue-write-checkers.test.ts": 10,
  "tests/prologue-writer-authority.test.ts": 69,
  "tests/prompt-commands.test.ts": 1,
- "tests/prompt-owner-move-upgrade.test.ts": 5,
  "tests/prompt-registration.test.ts": 7,
  "tests/prompt-use-dispatch.test.ts": 8,
  "tests/proposal-entry-chain.test.ts": 14,

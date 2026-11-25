@@ -8,6 +8,8 @@ import type { HomeSnapshotStoreRegistry } from "../home-store-snapshot.js";
 import { resolveConfiguredHome } from "../product-home.js";
 import { homeStores } from "../home-stores.js";
 import { hostLog } from "../host-log.js";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PERSONAL_SPACE_DIRECTORY } from "@molis-ai/molis-work-module-projects";
 import { RuntimeIntegrationService } from "./runtime-integration.js";
 import { SUPPORTED_RUNTIME_IDS } from "./runtime-integration-contract.js";
 import { MolisWorkWebServiceManager } from "./web-service.js";
@@ -55,7 +57,8 @@ export class MolisWorkUninstallService {
       ...(webPlan.status === "conflict" ? [webPlan.message] : []),
     ];
     const demos = catalog.projects.filter((project) => project.data_class === "regenerable_demo");
-    const userProjects = catalog.projects.filter((project) => project.data_class !== "regenerable_demo");
+    // The personal space is part of the Home, not one of the person's projects: it is not counted in "N projects" (C2).
+    const userProjects = catalog.projects.filter((project) => project.data_class !== "regenerable_demo" && project.project_id !== PERSONAL_SPACE_PROJECT_ID);
     const purgeDataPaths = purgeUserData
       // Every store the Home's registry lists (W4-11): its owners declare them, so a new store is purged without a list here; and the
       // libraries installed plugins made, which the ledger in `plugin-libraries` names (PG-022 P1b).
@@ -87,7 +90,7 @@ export class MolisWorkUninstallService {
     ];
     const preservedPaths = purgeUserData
       ? [agentRuntimeDirectory(this.homeDirectory)]
-      : [path.join(this.homeDirectory, "projects"), path.join(this.homeDirectory, "backups"), path.join(this.homeDirectory, "logs")];
+      : [path.join(this.homeDirectory, "projects"), path.join(this.homeDirectory, PERSONAL_SPACE_DIRECTORY), path.join(this.homeDirectory, "backups"), path.join(this.homeDirectory, "logs")];
     const status = conflicts.length > 0 ? "conflict" : changes.length > 0 ? "ready" : "no_change";
     const plan: MolisWorkUninstallPlan = {
       plan_id: `uninstall-plan-${randomUUID()}`,

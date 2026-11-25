@@ -238,7 +238,8 @@ test('AC-M1-05 all six adapters reject unknown fields, oversize, physical paths 
     return personalConfigRegistrations({ home: side.home, actor: owner, spaceId: space.spaceId, authorize: noop,
       catalog: side.withCatalog, readCatalog: side.readCatalog, selected: () => ({ revision: 1, selections }) });
   };
-  const origins = make(source);
+  // The six adapters M1-B2 added; the person settings of batch 106 have their own refusals (security-invariants-person-settings).
+  const origins = make(source).filter(row => configIds.includes(row.selection.collection_id));
   const attention = origins.find(row => row.selection.collection_id === 'attention')!;
   const project = source.project();
   const sourceOnlyPath = '/private/tmp/only-on-source';
@@ -290,7 +291,7 @@ test('AC-M1-06 local space, another account, and a revoked account cannot read o
     [source.home, owner, () => { throw new Error('TEST_LEASE_REVOKED'); }]] as const) {
     const registrations = personalConfigRegistrations({ home, actor, spaceId: space.spaceId, authorize, catalog: source.withCatalog,
       readCatalog: source.readCatalog, selected: () => ({ revision: 1, selections }) });
-    assert.equal(registrations.length, 6);
+    assert.equal(registrations.length, 7, "the six of M1-B2 and the person settings of batch 106");
     for (const registration of registrations) {
       await assert.rejects(registration.refresh(), /不属于当前个人空间|TEST_LEASE_REVOKED/);
       assert.throws(() => registration.withReplica(replica => replica.counts()), /不属于当前个人空间|TEST_LEASE_REVOKED/);

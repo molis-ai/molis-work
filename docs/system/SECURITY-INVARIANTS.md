@@ -10,7 +10,7 @@
 
 ## 1. 独立记录
 
-子任务重启接续的授权边界见 [S-subtask-resume-original-directory](security-invariants/S-subtask-resume-original-directory.md)；受保护安全门控提示词防覆盖及未登记提示词拒绝边界见 [S-protected-prompt-override](security-invariants/S-protected-prompt-override.md)。
+子任务重启接续的授权边界见 [S-subtask-resume-original-directory](security-invariants/S-subtask-resume-original-directory.md)；受保护安全门控提示词防覆盖及未登记提示词拒绝边界见 [S-protected-prompt-override](security-invariants/S-protected-prompt-override.md)。统一工作分区的保留分区与分区隔离见 [S-personal-partition-reserved](security-invariants/S-personal-partition-reserved.md)、[S-partition-isolation](security-invariants/S-partition-isolation.md)，跨分区读与提醒不叫醒不相干的分区见 [S-partition-wake-scope](security-invariants/S-partition-wake-scope.md)，随本人设置不出本机见 [S-person-settings-private](security-invariants/S-person-settings-private.md)。
 
 每条不变量独立放在 [security-invariants/](security-invariants/)。旧 ID 保留；新增使用 `S-<语义名称>.md`，例如 `S-plugin-route-origin.md`，不再争用连续编号。文件里保留一行五列记录；修改只触及该不变量的文件。跨边界同一事实仍须共同评审，不能通过拆文件放宽断言。
 

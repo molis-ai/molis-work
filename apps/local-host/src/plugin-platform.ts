@@ -130,6 +130,13 @@ export interface PluginPlatformOptions {
   scopeKey?: string | null;
   /** Protected Host review seam for a plugin's `demo_seed` when its sample needs accepted requirements. */
   acceptDemoRequirements?: (items: readonly DemoAcceptanceRequest[]) => Promise<void>;
+  /**
+   * Where the installation records are. A per-partition instance's platform reads the Home's one install table (`plugin-runtime.db`,
+   * specs/unified-partition-plugins §4.2 第 1 条); absent: the records in `db`, as the old assemblies keep them until batch 109 deletes them.
+   */
+  installDatabase?: import("@molis-ai/molis-work-plugin-runtime").PluginRuntimeDatabase;
+  /** The (plugin, partition) instance's scope when this platform runs one plugin for the per-partition assembly; its libraries are the scope's. */
+  partitionScope?: import("./partition-plugin-assembly.js").PartitionPluginScope;
 }
 
 export interface PluginPlatform {
@@ -250,7 +257,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const identity = pluginEntryIdentity();
   const providerFor = identity.providerFor;
   const consents = options.consents ?? options.home?.consents ?? null;
-  const records = pluginInstallRecords(options.db);
+  const records = pluginInstallRecords(options.installDatabase ?? options.db);
   let closed = false;
   const views = new PluginViewRevisions(id => !closed && supervisor.state(id)?.status === "running");
   const { invalidateView, viewRevision, waitForView } = views;
@@ -261,6 +268,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     installations: installations.client, record: installId => records.get(installId), invalidateView,
     providerFor, localePacks: identity.localePacks, databaseFor: identity.databaseFor, dualInstance: isDualDefinition,
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
+    ...(options.partitionScope ? { partitionScope: options.partitionScope } : {}),
     ...(options.projects ? { projects: options.projects } : {}),
     ...(options.sourcePullFetch ? { sourcePullFetch: options.sourcePullFetch } : {}),
     ...(options.sourcePullGit ? { sourcePullGit: options.sourcePullGit } : {}),

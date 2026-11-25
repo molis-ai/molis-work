@@ -26,7 +26,7 @@ export function pluginProjectsPort(home: string): PluginProjectsPort {
       const catalog = pluginCatalogFor(home);
       if (!catalog) throw new ActionError("actions.unavailable", "项目目录暂时读不到");
       try {
-        const present = await catalog({ homeDirectory: home }, projects => new Set(projects.listProjects().map(project => project.project_id)));
+        const present = await catalog({ homeDirectory: home }, projects => new Set(projects.listPartitions().map(project => project.project_id)));
         return new Set(ids.filter(id => present.has(id)));
       } catch (error) {
         // The preflight diagnostic carries internal schema details. Treat it like an unreadable database and keep it in the Host log.

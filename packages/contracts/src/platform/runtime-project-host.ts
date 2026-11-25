@@ -38,6 +38,8 @@ export interface MolisWorkRuntimeConnection {
 export interface RuntimeProjectApplicationApi {
   resolveRuntimeContext(context: RuntimeWorkContext, clues?: readonly RuntimeProjectSuggestionClue[]): MolisWorkRuntimeContextResolution;
   listProjects(): ProjectRecord[];
+  /** Every live partition, the personal space included. */
+  listPartitions(): ProjectRecord[];
   bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution;
   unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult;
   rejectRuntimeContextSuggestion(input: RejectRuntimeContextSuggestionInput): MolisWorkRuntimeContextSuggestionRejectionResult;

@@ -49,3 +49,14 @@ test("S-skill-authoring a foreign package of the same id and version is not the 
   (error: { code?: string }) => error.code === "skills.authored_unknown");
   assert.deepEqual([signed, removed], [0, 0], "nothing was signed or taken off");
 });
+
+test("UPP-31 R22 the personal space has no project layer of own Skills: saving or removing one there is refused before anything is read", async () => {
+  const untouched = new Proxy({}, { get: (_target, name) => () => { throw new Error(`port ${String(name)} must not be reached`); } });
+  const service = new SkillAuthoringService(untouched as never);
+  const who = { project_id: "personal", actor_id: "local-person" };
+  const caller = {} as never;
+  const refusedScope = (error: unknown) => (error as { code?: string; details?: { field?: string } }).code === "skills.authored_invalid"
+    && (error as { details?: { field?: string } }).details?.field === "scope";
+  await assert.rejects(service.save({ name: "周报", description: "写周报时用。", applies_to: "assistant", body: "先问清楚。", scope: "project" }, who, caller), refusedScope);
+  await assert.rejects(service.remove({ scope: "project", skill_id: "weekly", expected_version: 1 }, who, caller), refusedScope);
+});

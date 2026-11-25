@@ -614,7 +614,8 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     for (const entry of recorded.stores as Store[]) assert.ok(Number.isInteger(entry.schema_version) && entry.schema_version >= 1, `${entry.path} records a real version, not 0`);
     for (const prefix of ["", `${account}/`]) assert.equal((recorded.stores as Store[]).find(entry => entry.path === `${prefix}projects/catalog.db`)?.schema_version, CATALOG_SCHEMA_VERSION, `${prefix}the catalog's catalog_meta`);
     const project = (recorded.stores as Store[]).find(entry => entry.path === `projects/${recorded.homes[0].projects.primary.project_id}/molis-work.db`);
-    assert.deepEqual(project?.plugin_tables, { "io.molis.work.coding": 1, "io.molis.work.feed": 1, "io.molis.work.goals": 1, "io.molis.work.inbox": 1, "io.molis.work.risk": 2,
+    // V7 (batch 106, user 2026-11-24): risk's tables were reset to their v1 baseline with the rest of the nine libraries.
+    assert.deepEqual(project?.plugin_tables, { "io.molis.work.coding": 1, "io.molis.work.feed": 1, "io.molis.work.goals": 1, "io.molis.work.inbox": 1, "io.molis.work.risk": 1,
       "io.molis.work.schedule": 1 });
     type Format = { entry: string; path: string; version: number };
     const formats = recorded.formats as Format[];

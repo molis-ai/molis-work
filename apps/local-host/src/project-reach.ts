@@ -65,7 +65,7 @@ export function homeProjectReach(home: string, currentProjects: () => LocalHostS
     const entry = reachEntry(home, manifest.plugin_id), outsideBuild = homePluginsOutsideBuild(home);
     return catalog({ homeDirectory: home }, projects => {
       const closing = new Set(currentProjects().filter(project => project.state === "closing").map(project => project.project_id));
-      return projects.listProjects()
+      return projects.listPartitions()
         .filter(project => !closing.has(project.project_id) && (!entry || pluginReachable(entry, projectReachablePlugins(projects, project.project_id, outsideBuild))))
         .map(project => project.project_id);
     });

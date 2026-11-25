@@ -1,6 +1,14 @@
 PRAGMA foreign_keys=OFF;
 BEGIN;
 CREATE TABLE dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
+CREATE TABLE dataset_source_bindings (
+    project_id TEXT NOT NULL,
+    source_key TEXT NOT NULL,
+    dataset_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, source_key)
+  );
 CREATE TABLE dataset_versions (
     id TEXT PRIMARY KEY,
     dataset_id TEXT NOT NULL,

@@ -28,7 +28,6 @@ const hostCatalogErrors = defineErrorCodes("catalog", {
   demo_confirmation_required: "invalid",
   demo_not_found: "invalid",
   not_demo: "invalid",
-  personal_space: "invalid",
   personal_deletion_unavailable: "unavailable",
 });
 export const catalogErrors = {
@@ -37,6 +36,7 @@ export const catalogErrors = {
   project_not_found: projectCatalogErrors.project_not_found,
   plugin_not_found: projectCatalogErrors.plugin_not_found,
   project_storage_invalid: projectCatalogErrors.project_storage_invalid,
+  personal_space: projectCatalogErrors.personal_space,
 };
 
 /** A catalog newer than this build, in the words the MCP reader shows: upgrade Molis Work (one already upgraded restarts the service and opens a new Session), and nothing may roll the catalog back. */

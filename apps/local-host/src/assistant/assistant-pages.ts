@@ -24,7 +24,7 @@ const RAIL_PAGES = new Set<string>([ARTIFACTS_PROJECT_PLUGIN_ID, ...PLATFORM_PLU
 export function installedPagesPort(withCatalog: LocalWebCatalogRunner, homeDirectory: string): () => Promise<readonly string[]> {
   return () => withCatalog({ homeDirectory }, catalog => {
     const pages = new Set<string>([PROJECT_HOME_PAGE]);
-    for (const project of catalog.listProjects()) {
+    for (const project of catalog.listPartitions()) {
       const { plugins, hidden } = catalog.projectPluginMembership(project.project_id);
       for (const id of shownProjectPlugins(plugins, hidden)) {
         if (RAIL_PAGES.has(id)) pages.add(id);

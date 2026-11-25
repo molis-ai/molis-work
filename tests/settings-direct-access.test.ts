@@ -1,4 +1,5 @@
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { request } from "node:http";
@@ -65,6 +66,9 @@ test("a global settings page opened directly opens the named project's workbench
   const { projects: [first, second], open } = await server(t, 2);
   assert.deepEqual(landing(await open(`/settings/appearance?project=${second!.project_id}&desktop=1`)),
     { pathname: `/projects/${second!.project_id}/`, settingsPath: "/settings/appearance", desktop: "1" });
+  // The personal space every Home has (batch 106) is a place a settings page may name too; one nobody named or opened is not the landing.
+  assert.deepEqual(landing(await open(`/settings/appearance?project=${PERSONAL_SPACE_PROJECT_ID}`)),
+    { pathname: `/projects/${PERSONAL_SPACE_PROJECT_ID}/`, settingsPath: "/settings/appearance", desktop: null });
   const unnamed = landing(await open("/settings/runtimes"));
   assert.equal(unnamed.settingsPath, "/settings/runtimes", "a global page stays global inside the project's workbench");
   assert.ok([first, second].some((project) => unnamed.pathname === `/projects/${project!.project_id}/`));

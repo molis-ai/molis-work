@@ -296,6 +296,27 @@ test("only the typed Host connection bridge forwards a plugin declaration; other
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
 });
 
+test("batch 106: the per-partition library opener forwards a plugin declaration only in its own exact form", () => {
+  put("apps/local-host/package.json", JSON.stringify({ name: "host", version: "0.0.0", private: true }));
+  const file = "apps/local-host/src/partition-plugin-assembly.ts";
+  const opener = "export function openPartitionPluginLibrary(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration) { applySqliteBaseline(writer, file, declaration); }";
+  put(file, opener); assert.equal(run().code, 0, run().out);
+  put(file, opener.replace("openPartitionPluginLibrary", "openPartitionLibrary"));
+  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
+  put(file, opener.replace("declaration: PluginDatabaseDeclaration", "declaration: unknown"));
+  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
+  put(file, opener.replace("(writer, file, declaration)", "(writer, other, declaration)"));
+  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
+  put(file, opener.replace("applySqliteBaseline", "openBaselineHomeSqlite"));
+  failsWith(run(), `${file}: openBaselineHomeSqlite is called with declaration`);
+  put(file, opener + "\napplySqliteBaseline(db, path, { version: 1, schema: `` });");
+  failsWith(run(), `${file}: applySqliteBaseline is called with an inline baseline`);
+  put(file, opener);
+  put("apps/alpha/src/opener.ts", opener);
+  failsWith(run(), "apps/alpha/src/opener.ts: applySqliteBaseline is called with declaration");
+  rmSyncFile("apps/alpha/src/opener.ts");
+});
+
 test("a baseline declared with satisfies or as, or handed over inline, cannot hide from the table", () => {
   put("apps/alpha/src/more.ts", "export const MORE_BASELINE = { version: 1, schema: `` } satisfies SqliteBaseline;\n");
   failsWith(run(), "apps/alpha/src/more.ts#MORE_BASELINE is a SqliteBaseline the 各库版本表 does not list");

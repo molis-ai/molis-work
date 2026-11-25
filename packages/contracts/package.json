@@ -242,6 +242,14 @@
       "types": "./dist/services/scheduler.d.ts",
       "import": "./dist/services/scheduler.js"
     },
+    "./services/evidence": {
+      "types": "./dist/services/evidence.d.ts",
+      "import": "./dist/services/evidence.js"
+    },
+    "./services/person-settings": {
+      "types": "./dist/services/person-settings.d.ts",
+      "import": "./dist/services/person-settings.js"
+    },
     "./services/automation-recommender": {
       "types": "./dist/services/automation-recommender.d.ts",
       "import": "./dist/services/automation-recommender.js"

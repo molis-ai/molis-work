@@ -6,7 +6,7 @@
  * with every other Skill as it was; taking the last one away takes the package off. Only text: no resources, no scripts.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
-import { ActionError, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, PERSONAL_SPACE_PROJECT_ID, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import { fencedMaterials, instructed, composeInstructedPrompt, type InstructedPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import { CONTENT_PACKAGE_FILES, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
@@ -39,6 +39,16 @@ export interface SkillAuthoringPorts extends Pick<SkillImportPorts, 'installed' 
   uninstall(scope: SkillScope, who: Who, caller: ActionExecutionContext): Promise<void>;
   /** The publisher signature the scope's installed package of own Skills is recorded under; absent when none is installed. */
   installedPublisher(scope: SkillScope, projectId: string): Promise<string | undefined>;
+}
+
+/**
+ * Own Skills keep two layers (specs/unified-partition-plugins R22): the person's own, usable in every partition, and a project's. The personal
+ * space reads and writes the person's own directly; it has no project layer of its own, so a second set there is refused.
+ */
+function assertScopeInPartition(scope: SkillScope, who: Who): void {
+  if (scope === 'project' && who.project_id === PERSONAL_SPACE_PROJECT_ID) {
+    throw skillErrors.authored_invalid('在个人空间写的技能每个项目都能用，这里没有「只在这个项目」', { field: 'scope' });
+  }
 }
 
 const bodyPath = (skillId: string) => `${CONTENT_PACKAGE_FILES.skills}/${skillId}/${CONTENT_PACKAGE_FILES.body}`;
@@ -128,6 +138,7 @@ export class SkillAuthoringService {
    * version adopted elsewhere in between is followed by the next one, not refused.
    */
   async save(input: SkillSave, who: Who, caller: ActionExecutionContext, complete?: (skillId: string) => void): Promise<SkillAuthoredSaveResult> {
+    assertScopeInPartition(input.scope, who);
     const fields = checkedFields(input);
     const active = this.ports.activeScenes ? await this.ports.activeScenes(input.scope, who.project_id, caller.locale) : builtinActiveSkillScenes();
     if (!skillAudienceActive(fields.applies_to, active)) {
@@ -153,6 +164,7 @@ export class SkillAuthoringService {
 
   /** Takes one of the person's own Skills away: the package's next version without it, or the package itself when it was the last. */
   async remove(input: SkillAuthoredRemoveRequest, who: Who, caller: ActionExecutionContext): Promise<SkillAuthoredRemoveResult> {
+    assertScopeInPartition(input.scope, who);
     const installed = await this.ports.installed(SKILL_AUTHORED_PLUGIN_IDS[input.scope], input.scope, who.project_id), held = this.held(installed);
     const current = held.find(skill => skill.declaration.skill_id === input.skill_id)?.declaration;
     if (!current) throw skillErrors.authored_unknown('这个范围里没有你写的这个技能');

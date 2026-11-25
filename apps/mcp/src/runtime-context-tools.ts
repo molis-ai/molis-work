@@ -52,6 +52,7 @@ async function listRuntimeProjects(ports: McpRuntimeContextPorts, callContext: M
         next_action: current.next_action,
         current_project: current.project,
         suggested_projects: current.suggested_projects,
+        // The person's projects only: binding an external tool to the personal space comes with S-mcp-personal-binding (batch 110).
         projects: catalog.listProjects().map((project) => ({
           project_id: project.project_id,
           display_name: project.display_name,

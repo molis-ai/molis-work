@@ -64,5 +64,5 @@ CREATE INDEX skill_uses_by_skill ON skill_uses(install_id, skill_id, at);
 CREATE TRIGGER personal_prompt_overrides_delete AFTER DELETE ON prompt_overrides BEGIN INSERT INTO personal_prompt_overrides_replica_changes(key) SELECT OLD.key WHERE (SELECT applying FROM personal_prompt_overrides_replica_state WHERE id=1)=0 AND (1=1); END;
 CREATE TRIGGER personal_prompt_overrides_insert AFTER INSERT ON prompt_overrides BEGIN INSERT INTO personal_prompt_overrides_replica_changes(key) SELECT NEW.key WHERE (SELECT applying FROM personal_prompt_overrides_replica_state WHERE id=1)=0 AND (1=1); END;
 CREATE TRIGGER personal_prompt_overrides_update AFTER UPDATE ON prompt_overrides BEGIN INSERT INTO personal_prompt_overrides_replica_changes(key) SELECT NEW.key WHERE (SELECT applying FROM personal_prompt_overrides_replica_state WHERE id=1)=0 AND (1=1); END;
-PRAGMA user_version=3;
+PRAGMA user_version=1;
 COMMIT;

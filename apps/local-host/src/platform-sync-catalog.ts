@@ -7,9 +7,9 @@ export interface PlatformSyncCollection {
   readonly selection: SyncSelection;
   readonly title: string;
   readonly owner: "artifacts" | "characters" | "project-approvals" | "project-guidance" | "acceptance"
-    | 'appearance' | 'surfaces' | 'prompt-overrides' | 'blueprints' | 'judgment-rules' | 'attention';
+    | 'appearance' | 'surfaces' | 'prompt-overrides' | 'blueprints' | 'judgment-rules' | 'person-settings' | 'attention';
   readonly store: "library" | "process" | "characters" | "approvals" | "guidance" | "acceptance"
-    | 'appearance' | 'surfaces' | 'prompt-overrides' | 'blueprints' | 'judgment-rules' | 'attention';
+    | 'appearance' | 'surfaces' | 'prompt-overrides' | 'blueprints' | 'judgment-rules' | 'person-settings' | 'attention';
 }
 export const projectApprovalSyncSelection = { plugin_id: "system.project-approvals", publisher_id: "molis",
   publisher_signature: "official-project-approvals-binding", collection_id: "approvals",
@@ -17,7 +17,7 @@ export const projectApprovalSyncSelection = { plugin_id: "system.project-approva
 /** The person's waiting list ("等你") and its history: the platform's own project collection, whichever plugin shows it (44B). */
 export const attentionSyncSelection = { plugin_id: "system.attention", publisher_id: "molis", publisher_signature: "official-attention-binding",
   collection_id: "attention", schema_version: /* @version sync.collection.platform.attention */ 1 } satisfies SyncSelection;
-function personalConfiguration(owner: 'appearance' | 'surfaces' | 'prompt-overrides' | 'blueprints' | 'judgment-rules',
+function personalConfiguration(owner: 'appearance' | 'surfaces' | 'prompt-overrides' | 'blueprints' | 'judgment-rules' | 'person-settings',
   id: string, title: string, version: number): PlatformSyncCollection {
   return { owner, store: owner, title, selection: { plugin_id: 'system.' + owner, publisher_id: 'molis',
     publisher_signature: 'official-' + owner + '-binding', collection_id: id, schema_version: version } };
@@ -39,6 +39,7 @@ export const PLATFORM_SYNC_COLLECTIONS: readonly PlatformSyncCollection[] = [
   personalConfiguration('prompt-overrides', 'prompt_overrides', '我的提示词改写', /* @version sync.collection.platform.prompt_overrides */ 1),
   personalConfiguration('blueprints', 'blueprints', '个人蓝图草稿', /* @version sync.collection.platform.blueprints */ 1),
   personalConfiguration('judgment-rules', 'judgment_rules', '个人判断规则', /* @version sync.collection.platform.judgment_rules */ 1),
+  personalConfiguration('person-settings', 'person_settings', '插件里随本人走的偏好', /* @version sync.collection.platform.person_settings */ 1),
   { owner: 'attention', store: 'attention', title: '注意事项与处理历史', selection: attentionSyncSelection },
 ];
 

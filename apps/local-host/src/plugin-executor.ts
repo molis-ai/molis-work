@@ -52,6 +52,11 @@ export interface PluginHostExecutorOptions {
    * refused in a project's platform before this is asked, unless it is a dual project half (`openDeclaredLibrary`). Needs `home`.
    */
   databaseFor?(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
+  /**
+   * The (plugin, partition) instance this executor runs for the per-partition assembly: a plugin that declares `databases.partition` gets its
+   * library at the scope's `<partition root>/libraries/<store>.db` and nowhere else (S-partition-isolation). Absent: such a plugin does not start.
+   */
+  partitionScope?: import("./partition-plugin-assembly.js").PartitionPluginScope;
   /** The Host's checked start list identifies a dual project half; absent Home services are not redeemed for that half. */
   dualInstance?(definition: PluginDefinition): boolean;
   /**

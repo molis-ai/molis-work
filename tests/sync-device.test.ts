@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {setImmediate} from 'node:timers/promises';
 import {PersonalSync,SYNC_STORE_BASELINE,syncNamespace} from '@molis-ai/molis-work-module-sync-replication';
-import {ensureStorageSpace,homeSqlitePath,personalStorageSpace,runSqliteUpgrade} from '@molis-ai/molis-work-storage';
+import {ensureStorageSpace,homeSqlitePath,personalStorageSpace} from '@molis-ai/molis-work-storage';
 import {DatabaseSync} from 'node:sqlite';
 
 function fixture(t:TestContext){
@@ -107,7 +107,8 @@ test('PCSYNC-02 a copied or malformed preference is rejected instead of enabling
   assert.throws(()=>f.create(),/本机同步设置无效/);
 });
 
-test('PCSYNC-OPT-13 v1 deferred events survive upgrade and retry deadlines survive reopening the store',async t=>{
+// V7 (batch 106, user 2026-11-24): sync.db's one step was reset; its v1 structure has the retry columns, so the event is written into it directly.
+test('PCSYNC-OPT-13 a stored deferred event survives reopening the store and retry deadlines survive it too',async t=>{
   const f=fixture(t),{home,sync}=f.create();
   const selection={plugin_id:'io.example.details',publisher_id:'example',publisher_signature:'example-key',collection_id:'docs',schema_version:1};
   const namespace=syncNamespace(selection),spaceId=sync.policy().spaceId;
@@ -116,10 +117,9 @@ test('PCSYNC-OPT-13 v1 deferred events survive upgrade and retry deadlines survi
   const db=new DatabaseSync(path);
   const event={operationId:'original',key:'pending',base:0,value:{title:'Original'},revision:3};
   try{
-    db.exec('ALTER TABLE sync_failures DROP COLUMN next_retry_at; ALTER TABLE sync_failures DROP COLUMN attempts; PRAGMA user_version=1');
-    db.prepare('INSERT INTO sync_failures VALUES (?,?,?,?,?,?,?)').run(namespace,event.key,'download',JSON.stringify(event),'waiting',event.revision,1);
+    db.prepare('INSERT INTO sync_failures VALUES (?,?,?,?,?,?,?,0,0)').run(namespace,event.key,'download',JSON.stringify(event),'waiting',event.revision,1);
     db.prepare('INSERT INTO sync_stream_cursors VALUES (?,?)').run(namespace,event.revision);
-    assert.deepEqual(runSqliteUpgrade(db,path,SYNC_STORE_BASELINE),{from:1,to:2});
+    assert.equal(db.prepare('PRAGMA user_version').get()!.user_version,SYNC_STORE_BASELINE.version);
   }finally{db.close();}
   let attempts=0,dependencyReady=false;
   const coordinator=new PersonalSync({home,spaceId,endpoint:'http://127.0.0.1:8788',
@@ -129,7 +129,7 @@ test('PCSYNC-OPT-13 v1 deferred events survive upgrade and retry deadlines survi
       async prepare(){attempts++;if(!dependencyReady)throw new Error('Waiting for dependency');},
       withReplica:run=>run({cursor:()=>3,next:()=>null,receive(){},acknowledge(){},counts:()=>({pending:0,conflicts:0}),conflicts:()=>[],resolve(){}})}]});
   t.after(()=>coordinator.close());
-  await coordinator.run();assert.equal(attempts,1,'the migrated event still replays');
+  await coordinator.run();assert.equal(attempts,1,'the stored event still replays');
   await coordinator.run();assert.equal(attempts,1,'retry cooldown is honored by every round');
   t.mock.timers.tick(15_000);
   await coordinator.run();assert.equal(attempts,2);

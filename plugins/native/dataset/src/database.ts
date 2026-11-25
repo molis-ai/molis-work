@@ -52,6 +52,5 @@ const DATASET_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "data
   { table: "dataset_source_bindings", column: "project_id" },
 ] };
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const DATASET_DATABASE: HomePluginDatabaseDeclaration = { project_rows: DATASET_PROJECT_ROWS, store_name: "dataset", version: /* @version database.dataset_database */ 2,
-  upgrades: [{ from: 1, sql: SOURCE_BINDINGS_SCHEMA }],
+export const DATASET_DATABASE: HomePluginDatabaseDeclaration = { project_rows: DATASET_PROJECT_ROWS, store_name: "dataset", version: /* @version database.dataset_database */ 1,
   read_permission: "dataset:read", write_permission: "dataset:write", schema: DATASET_SCHEMA };

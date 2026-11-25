@@ -1,5 +1,6 @@
 import { forgetAutomationOffers, forgetAutomationPreferences } from "@molis-ai/molis-work-service-automation-recommender";
 import { shippedParts } from "./plugin-registry.js";
+import { forgetPartitionPlatformRecords } from "./partition-platform-services.js";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { artifactsProjectData } from "@molis-ai/molis-work-module-artifacts";
 import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
@@ -175,6 +176,8 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "automation-recommendations", label: null, clear: projectId => { forgetAutomationPreferences(home, projectId); forgetAutomationOffers(home, projectId); } },
     { ...OBSERVATION_OWNER, clear: projectId => { clearObservationProjectFile(home, projectId); } },
     { id: "blueprints", label: null, clear: projectId => new AdoptionStore(home).clearProject(projectId) },
+    // The platform's records of the partition (batch 106): its due entries, its overview rows and its evidence holds; the bodies stay in the pool.
+    { id: "partition-platform", label: null, clear: projectId => { forgetPartitionPlatformRecords(home, projectId); } },
     { ...EVALUATION_OWNER, clear: projectId => { clearEvaluationProjectFile(home, projectId); } },
     { ...EXTERNAL_SESSIONS_OWNER, clear: projectId => { clearExternalSessionsProjectFile(home, projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).

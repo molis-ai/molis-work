@@ -46,7 +46,8 @@ test("RAC-1116 BL-088 removing Pages from a project takes it out of the project'
   await home.web.delete(projectPlugins, { plugin_id: "pages", expected_revision: await projectPluginRevision(home.web, project.project_id) });
   const removed = await search();
   assert.deepEqual(pagesHits(removed), [], "a removed plugin's documents are not found in that project");
-  const sources = removed.sources.filter(source => source.plugin_id === PAGES);
+  // The personal space's own Pages (every Home has it since batch 106) is a source of its own and stays; this project's is the one turned off.
+  const sources = removed.sources.filter(source => source.plugin_id === PAGES && source.scope === "project");
   assert.ok(sources.length > 0 && sources.every(source => source.state === "disabled"), JSON.stringify(sources));
   const assistantViews = await pagesViews(assistant);
   assert.deepEqual(assistantViews.filter(view => view.availability.available).map(view => view.capability_id), [], "the assistant is offered no Pages action there");

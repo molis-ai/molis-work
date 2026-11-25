@@ -89,3 +89,24 @@ export const schedulerErrors = defineErrorCodes("scheduler", {
   interval_too_short: "invalid",
   path_refused: "invalid",
 });
+
+/**
+ * The due registry (`horizontal/scheduler`, specs/unified-partition-plugins §4.1, batch 106): whose entry it is, as the Host stamps it from
+ * the trusted context. The plugin names only its entry's key and time.
+ */
+export interface DueEntryOwner {
+  readonly install_id: string;
+  readonly plugin_id: string;
+  readonly partition_id: string;
+}
+/** `plugin`: the plugin registered it; `overview`: the overview index read it from the plugin's overview table (a reminder time). */
+export type DueEntrySource = "plugin" | "overview";
+export interface DueEntryRecord extends DueEntryOwner {
+  readonly entry_key: string;
+  readonly due_at: string;
+  readonly source: DueEntrySource;
+}
+/** An entry reached seven days after its time (batch 95-3's rule for missed runs): kept, never run. */
+export interface DueExpiredRecord extends DueEntryRecord {
+  readonly expired_at: string;
+}

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { SetProjectPluginInput, VersionedProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
+import { PARTITION_PLUGIN_CHANGES_MAX, type SetPartitionPluginsInput, type SetProjectPluginInput, type VersionedPartitionPluginMembership, type VersionedProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectService } from "./project-service.js";
 import type { ProjectsRepository } from "./repository.js";
@@ -28,6 +28,37 @@ export class ProjectPluginMembershipService {
       else this.records.removePlugin(change);
       return this.readSnapshot(id);
     }).immediate();
+  }
+
+  /**
+   * `partitions.plugins.set@1`: every change in one immediate transaction, from one observation, in the order given, each with its companions as
+   * one `set` would. The personal space is a partition here like any project. A repeated plugin or an empty list is refused before anything is read.
+   */
+  setMany(partitionId: string, actorId: string, input: SetPartitionPluginsInput): VersionedPartitionPluginMembership {
+    const changes = Array.isArray(input?.changes) ? input.changes : [];
+    const ids = changes.map(change => change?.plugin_id);
+    if (!changes.length || changes.length > PARTITION_PLUGIN_CHANGES_MAX || new Set(ids).size !== ids.length
+      || changes.some(change => typeof change?.plugin_id !== "string" || !change.plugin_id.trim() || typeof change.enabled !== "boolean")) {
+      throw new ActionError("actions.input_invalid", `一次要改 1～${PARTITION_PLUGIN_CHANGES_MAX} 个不重复的插件`);
+    }
+    return this.repository.db.transaction(() => {
+      const id = partitionId.trim();
+      const current = this.readSnapshot(id);
+      if (current.revision !== input.expected_revision) {
+        throw new ActionError("actions.conflict", "这里启用的插件已经变了，请刷新后再改");
+      }
+      for (const change of changes) {
+        const one = { project_id: id, actor_id: actorId, plugin_id: change.plugin_id };
+        if (change.enabled) this.records.addPlugin(one);
+        else this.records.removePlugin(one);
+      }
+      return { partition_id: id, ...this.readSnapshot(id) };
+    }).immediate();
+  }
+
+  getPartition(partitionId: string): VersionedPartitionPluginMembership {
+    const id = partitionId.trim();
+    return { partition_id: id, ...this.get(id) };
   }
 
   private readSnapshot(projectId: string): VersionedProjectPluginMembership {

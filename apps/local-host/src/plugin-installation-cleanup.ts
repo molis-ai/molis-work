@@ -10,6 +10,8 @@ import { forgetSandboxImageBindings } from "./sandbox-image-generation.js";
 import { removeSandboxOwnerFiles, type SandboxOwnerFilesScope } from "./plugin-sandbox-owner-files.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import { noteRetained } from "./uninstall-retained.js";
+import { forgetInstallationPlatformRecords } from "./partition-platform-services.js";
+import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 
 /**
  * An installation's authorization in this project (or its Home-level activation): original-file registrations, and in a project the
@@ -22,13 +24,19 @@ export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record:
   if (!scope.home) return;
   reconcileSkillSettings(scope.home.directory, scope.project_id ?? "home", record.install_id, null);
   if (scope.project_id === null) new HomeConsentLedger(scope.home.directory).revokeProjectReach({ install_id: record.install_id }, new Date().toISOString());
-  forgetInstallationOriginalFiles(scope.home.directory, record.plugin_id, record.install_id, scope.project_id ?? "");
+  forgetInstallationOriginalFiles(scope.home.directory, record.plugin_id, record.install_id, scope.project_id ?? null);
   forgetInstallationConnections(scope.home.directory, record.install_id, scope.project_id ? { kind: "project", project_id: scope.project_id } : { kind: "home" });
   if (dataGoes) forgetInstallationRules(scope.home.directory, record, scope.project_id ?? null);
   // What the person brought into its conversations is its data: it goes only when the data goes.
   if (dataGoes) void forgetInstallationAttachments(scope.home.directory, record.plugin_id, record.install_id, scope.project_id ?? null).catch(error => hostLog.warn("plugins", "attachments_not_removed", error));
   // The judgments it recorded in this project are its data too (S-90); a Home-level activation records none.
   if (dataGoes && scope.project_id) forgetInstallJudgmentsIn(scope.home.directory, record.install_id, scope.project_id);
+  // The platform's records of it in this partition (batch 106). Its person settings follow the person: they go only with its last place, and
+  // a Home that cannot be read through keeps them (a setting left is unused; one taken from an installation still in use is lost).
+  const scopeKind: InstallScope = scope.project_id ? { kind: "project", project_id: scope.project_id } : { kind: "home" };
+  const installed = dataGoes ? installedIdentities(scope.home.directory, { scope: scopeKind, install_id: record.install_id }) : null;
+  forgetInstallationPlatformRecords(scope.home.directory, record.install_id, scope.project_id ?? PERSONAL_SPACE_PROJECT_ID,
+    { dataGoes, installedElsewhere: !installed || installed.has(record.install_id) });
 }
 
 /**

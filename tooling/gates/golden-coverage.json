@@ -84,6 +84,18 @@
     {
       "path": "home-pages/home-pages.db",
       "reason": "第 37 批新增的项目生成首页 Home 库（按 project_id 分区，首次保存草稿或读写首页版本时按需建库）；现有 0.1.0 金样未保存生成首页，建库、SHA-256 核验、批准恢复、离线快照与删项目由 tests/home-pages-service.test.ts、tests/home-pages-security.e2e.test.ts、tests/home-store-baselines.test.ts 与库结构快照覆盖。"
+    },
+    {
+      "path": "due-registry/due-registry.db",
+      "reason": "第 106 批新建的到期登记表；插件登记到期项与总览提醒的入口随第 108 批接上，之前没有写入方，现存金样都早于它。下一份金样经各自的写入入口写一条"
+    },
+    {
+      "path": "evidence/evidence.db",
+      "reason": "第 106 批新建的证据持有账；第 109 批 Feed 迁入后才有持有写入，之前没有写入方，现存金样都早于它。下一份金样经各自的写入入口写一条"
+    },
+    {
+      "path": "person-settings/person-settings.db",
+      "reason": "第 106 批新建的随本人设置；插件侧 services.personSettings 随第 108 批接上，之前没有写入方，现存金样都早于它。下一份金样经各自的写入入口写一条"
     }
   ],
   "writes": {
@@ -100,6 +112,9 @@
         "feed.ts",
         "schedule.ts"
       ]
+    },
+    "personal-space/molis-work.db": {
+      "none": "第 106 批只由 Home 初始化建出个人空间的空库（与项目库同一份基线）；个人空间里的插件写入从第 109 批搬入 IM、待办等起才有，届时在 tests/golden-writes/ 补写入用例"
     },
     "assistant/assistant.db": {
       "cases": [
@@ -260,6 +275,15 @@
       "cases": [
         "conversation-attachments.ts"
       ]
+    },
+    "due-registry/due-registry.db": {
+      "none": "第 106 批新建的到期登记表；插件登记到期项与总览提醒的入口随第 108 批接上，之前没有写入方，现存金样都早于它；接上写入口的那一批在 tests/golden-writes/ 补写入用例"
+    },
+    "evidence/evidence.db": {
+      "none": "第 106 批新建的证据持有账；第 109 批 Feed 迁入后才有持有写入，之前没有写入方，现存金样都早于它；接上写入口的那一批在 tests/golden-writes/ 补写入用例"
+    },
+    "person-settings/person-settings.db": {
+      "none": "第 106 批新建的随本人设置；插件侧 services.personSettings 随第 108 批接上，之前没有写入方，现存金样都早于它；接上写入口的那一批在 tests/golden-writes/ 补写入用例"
     }
   },
   "other_writes": {

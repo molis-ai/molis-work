@@ -107,7 +107,7 @@ test("BL-feed-precise-wakeup a Feed project idles to sleep with manual or far-fu
   const schedulers = startWebProjectSchedulers({
     localHost: host,
     homeDirectory: home,
-    withCatalog: async (_options, operation) => operation({ listProjects: async () => [{ database_path: database, project_id: DEMO_PROJECT_ID }] } as never),
+    withCatalog: async (_options, operation) => operation({ listPartitions: async () => [{ database_path: database, project_id: DEMO_PROJECT_ID }] } as never),
     fixture: null,
     periodic: { every(task: { run(): Promise<void> }) { runRound = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
     changed() {},

@@ -4,13 +4,15 @@ import { lstat, open, realpath, stat, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOriginalFileKey } from "@molis-ai/molis-work-plugin-runtime";
+import { activationPartition } from "./activation-partition.js";
 import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 /**
  * The original files plugins may read again: for each plugin installation, the project its activation runs in and its own record key,
  * the real path of the file the person gave the Host's entry in an import (material-original-entry.ts). A plugin never names a path;
- * the Host records the one it was handed. An installation's id is the same in every project, so `project_id` keeps one project's
- * registrations from another's; it is '' for a Home-level activation, whose registrations every project shares. A project's rows go
+ * the Host records the one it was handed. An installation's id is the same in every partition, so `project_id` keeps one partition's
+ * registrations from another's: a project's id, or `personal` for the personal space, which is also where a Home-level activation's rows are
+ * (specs/unified-partition-plugins §4.1: every partition alike, no '' for "shared by every project"). A project's rows go
  * with the project (`forgetProjectOriginalFiles`); an installation's go on every uninstall, even when its data is kept (`forgetInstallationOriginalFiles`).
  * Reading is read-only and re-resolves the path first: a path that now leads somewhere else (a symlink put in its place, a directory
  * swapped) is refused, a directory is never listed, and nothing here writes to the file or its folder.
@@ -45,7 +47,7 @@ function withStore<T>(home: string, use: (db: ReturnType<typeof openBaselineHome
   const db = openBaselineHomeSqlite(home, ORIGINAL_FILES_HOME_STORE.path, ORIGINAL_FILES_BASELINE);
   try { return use(db); } finally { db.close(); }
 }
-const identity = (key: PluginOriginalFileKey) => [key.plugin_id, key.install_id, key.project_id ?? "", key.record_key];
+const identity = (key: PluginOriginalFileKey) => [key.plugin_id, key.install_id, activationPartition(key.project_id), key.record_key];
 
 /**
  * Keeps the real path of the file the Host's entry offered, under this plugin installation's own key (replacing an earlier one for the
@@ -73,10 +75,10 @@ export function forgetProjectOriginalFiles(home: string, projectId: string): voi
   withStore(home, db => db.prepare("DELETE FROM plugin_original_files WHERE project_id = ?").run(projectId));
 }
 
-/** One installation's registrations in one project ('' for its Home-level activation), when it is uninstalled or its data dropped (BL-356). */
-export function forgetInstallationOriginalFiles(home: string, pluginId: string, installId: string, projectId: string): void {
+/** One installation's registrations in one partition (`personal` for its Home-level activation), when it is uninstalled or its data dropped (BL-356). */
+export function forgetInstallationOriginalFiles(home: string, pluginId: string, installId: string, projectId: string | null): void {
   if (!existsSync(homeSqlitePath(home, ORIGINAL_FILES_HOME_STORE.path))) return;
-  withStore(home, db => db.prepare("DELETE FROM plugin_original_files WHERE plugin_id = ? AND install_id = ? AND project_id = ?").run(pluginId, installId, projectId));
+  withStore(home, db => db.prepare("DELETE FROM plugin_original_files WHERE plugin_id = ? AND install_id = ? AND project_id = ?").run(pluginId, installId, activationPartition(projectId)));
 }
 
 /** The path must still lead to exactly what was registered: the same real path, with no link anywhere along it. */

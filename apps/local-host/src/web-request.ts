@@ -28,7 +28,7 @@ import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host
 import { cachedMolisWorkWebView, type MolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { ensureProjectPlugins } from "./project-plugins.js";
-import { handleSurfaceHomeHttp, isSurfaceHomePath } from "./surface-home-http.js";
+import { handleSurfaceHomeHttp } from "./surface-home-http.js";
 import { handleSurfaceAttentionHttp } from "./surface-position-http.js";
 import { handleSurfaceSlotHttp } from "./surface-slot-http.js";
 import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
@@ -85,11 +85,6 @@ export async function handleMolisWorkWebRequest(
     const context: WebRequestContext = { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, webViewCache, projectSchedules,
       ptyHost, webUrl, localHost, composition, agentHost, agentReady };
     if (await homePluginsRoute.handle(context)) return;
-    // The personal space always exists for the person; it is made the first time anyone opens it.
-    const personal = /^\/projects\/personal(?=\/|$)/u.exec(url.pathname);
-    if (personal && !serverOptions.databasePath && request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined && !isSurfaceHomePath(url.pathname.slice(personal[0].length))) {
-      await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.ensurePersonalSpace());
-    }
     const resolved = await resolveOrChooser(context);
     if (!resolved || redirectFunctionsPage(request.method, response, url, resolved)) return;
     // Every registered prompt and role, and the person's edits of them: one register per Home, whichever page asks.
@@ -99,7 +94,7 @@ export async function handleMolisWorkWebRequest(
     if (url.pathname.startsWith("/api/kit/") && await handleKitSettingsHttp(request, response, url, localHost)) return;
     if (resolved.kind === "catalog_index") {
       const assistant = serverOptions.homeDirectory ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady) : null;
-      await withOwnerUnavailablePage(context, null, () => dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, assistant }));
+      await withOwnerUnavailablePage(context, null, () => dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, projectCount: resolved.projectCount, assistant }));
       return;
     }
     if (resolved.kind === "project_not_found") {
@@ -140,7 +135,7 @@ async function resolveOrChooser(context: WebRequestContext): Promise<ResolvedWeb
   } catch (error) {
     const owner = refusedOwner(serverOptions.homeDirectory, error);
     if (owner?.block.kind === "projects") {
-      if (url.pathname !== "/" && isCatalogIndexPath(url.pathname)) return { kind: "catalog_index", projects: [] };
+      if (url.pathname !== "/" && isCatalogIndexPath(url.pathname)) return { kind: "catalog_index", projects: [], projectCount: 0 };
       if (request.method !== "GET" || url.pathname.includes("/api/")) throw error;
       sendOwnerUnavailablePage(context, ownerUnavailableCard(owner, null, url.pathname + url.search, null), null);
       return null;

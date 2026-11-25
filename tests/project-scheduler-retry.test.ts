@@ -27,7 +27,7 @@ test("LOGIC-01 a project that will not open is skipped: the ones after it open, 
       schedulers.runtimes.set(paths[reference.project_id === "a" ? 0 : 1]!, { schedule: { tick: async () => { rounds += 1; return {}; } } } as never);
     } } as never,
     homeDirectory: home,
-    withCatalog: async (_options, operation) => operation({ listProjects: async () => [
+    withCatalog: async (_options, operation) => operation({ listPartitions: async () => [
       { database_path: paths[0], project_id: "a" },
       { database_path: paths[1], project_id: "b" },
     ] } as never),
@@ -69,7 +69,7 @@ test("LOGIC-01 stopping the host finishes while an open is still failing", async
   const schedulers = startWebProjectSchedulers({
     localHost: { projects: () => [], inspectActions: () => new Promise((_resolve, reject) => { rejectOpen = reject; markEntered(); }) } as never,
     homeDirectory: home,
-    withCatalog: async (_options, operation) => operation({ listProjects: async () => [{ database_path: path, project_id: "a" }] } as never),
+    withCatalog: async (_options, operation) => operation({ listPartitions: async () => [{ database_path: path, project_id: "a" }] } as never),
     fixture: null,
     periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
     changed() {},
@@ -115,7 +115,7 @@ test("B103-01 a pending wakeup does not hold ready clocks or another due project
       },
     } as never,
     homeDirectory: home,
-    withCatalog: async (_options, operation) => operation({ listProjects: () => [
+    withCatalog: async (_options, operation) => operation({ listPartitions: () => [
       { database_path: pending, project_id: "pending" },
       { database_path: due, project_id: "due" },
     ] } as never),
@@ -163,7 +163,7 @@ test("101-2: stop() awaits in-flight schedule ticks before resolving and suppres
   const schedulers = startWebProjectSchedulers({
     localHost: { projects: () => [], inspectActions: async () => undefined } as never,
     homeDirectory: home,
-    withCatalog: async (_options, operation) => operation({ listProjects: async () => [{ database_path: dbPath, project_id: "a" }] } as never),
+    withCatalog: async (_options, operation) => operation({ listPartitions: async () => [{ database_path: dbPath, project_id: "a" }] } as never),
     fixture: null,
     periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
     changed(path) { changedPaths.push(path); },
@@ -214,7 +214,7 @@ test("B103-01 a closed project is opened only when its clock has something due",
   const schedulers = startWebProjectSchedulers({
     localHost: { projects: () => [], async inspectActions(_caller: unknown, reference: { project_id: string }) { opened.push(reference.project_id); } } as never,
     homeDirectory: home,
-    withCatalog: async (_options, operation) => operation({ listProjects: async () => Object.entries(paths).map(([project_id, database_path]) => ({ project_id, database_path })) } as never),
+    withCatalog: async (_options, operation) => operation({ listPartitions: async () => Object.entries(paths).map(([project_id, database_path]) => ({ project_id, database_path })) } as never),
     fixture: null,
     periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
     changed() {},
@@ -248,7 +248,7 @@ test("B103-01 after a round an open project is offered to sleep unless its clock
       async sleepIfIdle(reference: { project_id: string }, idleMs: number) { offered.push({ project_id: reference.project_id, idleMs }); return true; },
     } as never,
     homeDirectory: home,
-    withCatalog: async (_options, operation) => operation({ listProjects: async () => [] } as never),
+    withCatalog: async (_options, operation) => operation({ listPartitions: async () => [] } as never),
     fixture: null,
     periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
     changed() {},
@@ -282,7 +282,7 @@ test("MR21-01: a long wakeup in one project does not hold the next round for the
       async sleepIfIdle(reference: { project_id: string }) { offered.push(reference.project_id); return false; },
     } as never,
     homeDirectory: home,
-    withCatalog: async (_options, operation) => operation({ listProjects: async () => [
+    withCatalog: async (_options, operation) => operation({ listPartitions: async () => [
       { database_path: slow, project_id: "slow" }, { database_path: quick, project_id: "quick" },
     ] } as never),
     fixture: null,
@@ -341,7 +341,7 @@ test("B103-01 stop() waits for an in-flight sleep pass and offerSleep skips acti
       },
     } as never,
     homeDirectory: home,
-    withCatalog: async (_options, operation) => operation({ listProjects: async () => [] } as never),
+    withCatalog: async (_options, operation) => operation({ listPartitions: async () => [] } as never),
     fixture: null,
     periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
     changed() {},

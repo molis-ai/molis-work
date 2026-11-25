@@ -6,7 +6,9 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import {
   PROJECT_WORKSPACE_PROVIDER_ID,
+  partitionPluginActions,
   projectPluginActions,
+  type VersionedPartitionPluginMembership,
   type ProjectPluginRegistry,
   type VersionedProjectPluginMembership,
 } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -265,7 +267,7 @@ test("BL-project-membership-revision-read lists and hidden rules match the unver
   check(projectId, "stored members with a companion and a hidden personal plugin");
   // Rows a sync can leave: a stored member that is also marked hidden, and ids whose byte order differs from a case-insensitive one.
   const at = "2026-11-08T02:00:00.000Z";
-  f.db.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, 'goals', ?), (?, 'Zeta', ?)").run(projectId, at, projectId, at);
+  f.db.prepare("INSERT INTO partition_plugins (partition_id, plugin_id, enabled_at, enabled_by) VALUES (?, 'goals', ?, ?), (?, 'Zeta', ?, ?)").run(projectId, at, actorId, projectId, at, actorId);
   f.db.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'goals', ?), (?, 'Alpha', ?)").run(projectId, at, projectId, at);
   check(projectId, "a stored member that is also marked hidden");
   assert.deepEqual(get().plugins, ["Zeta", "feed", "goals", "inbox"]);
@@ -294,4 +296,52 @@ test("BL-project-membership-revision-read adding a plugin and removing it again 
   }
   assert.deepEqual(f.events(), events);
   assert.deepEqual(f.get(), back);
+});
+
+test("UPP-21 partitions.plugins.set@1 changes several members of one partition at once, the personal space too, against one revision", async t => {
+  const f = fixture(t);
+  f.projects.lifecycle.register(f.projects.lifecycle.prepareRecord({ project_id: "personal", display_name: "个人空间", data_class: "user", reserved_partition: true }),
+    "project.created", actorId);
+  const { get, set } = partitionPluginActions;
+  const service = new ActionService();
+  const dispose = service.registerProvider({
+    provider: { provider_id: PROJECT_WORKSPACE_PROVIDER_ID, title: "分区插件成员", kind: "system" },
+    definitions: [get, set],
+    handlers: [
+      bindActionHandler(get, (_, caller) => f.projects.query.partitionPluginMembership(caller.project_id!)),
+      bindActionHandler(set, async (input, caller) => {
+        await caller.beforeEffect();
+        return f.projects.commands.setPartitionPlugins(caller.project_id!, caller.actor_id, input);
+      }),
+    ],
+  });
+  t.after(dispose);
+  const person: ActionCallContext = { project_id: "personal", actor_id: actorId, audience: "user", permissions: ["projects:settings"] };
+  const before = await service.invoke(person, get, {}) as VersionedPartitionPluginMembership;
+  assert.equal(before.partition_id, "personal");
+  const project = f.get();
+  for (const audience of ["plugin", "agent", "workflow", "mcp"] as const) {
+    await assert.rejects(service.invoke({ ...person, audience }, set, { changes: [{ plugin_id: "pages", enabled: true }], expected_revision: before.revision }), { code: "actions.forbidden" });
+  }
+  for (const changes of [[], [{ plugin_id: "pages", enabled: true }, { plugin_id: "pages", enabled: false }],
+    Array.from({ length: 33 }, (_, index) => ({ plugin_id: `plugin-${index}`, enabled: true }))]) {
+    await assert.rejects(service.invoke(person, set, { changes, expected_revision: before.revision }), { code: "actions.input_invalid" }, "empty, repeated or over-long lists are refused");
+  }
+  assert.deepEqual(f.events(), [], "no refused call wrote anything");
+
+  const saved = await service.invoke(person, set, { changes: [{ plugin_id: "pages", enabled: true }, { plugin_id: "goals", enabled: true }], expected_revision: before.revision }) as VersionedPartitionPluginMembership;
+  assert.deepEqual([...saved.plugins].sort(), ["goals", "pages"]);
+  assert.equal(saved.partition_id, "personal");
+  assert.deepEqual(await service.invoke(person, get, {}), saved);
+  assert.deepEqual(f.get(), project, "another partition is untouched");
+  const stored = f.db.prepare("SELECT plugin_id, enabled_by FROM partition_plugins WHERE partition_id = 'personal' ORDER BY plugin_id").all();
+  assert.deepEqual(JSON.parse(JSON.stringify(stored)), [{ plugin_id: "goals", enabled_by: actorId }, { plugin_id: "pages", enabled_by: actorId }], "who enabled each is recorded");
+
+  await assert.rejects(service.invoke(person, set, { changes: [{ plugin_id: "pages", enabled: false }], expected_revision: before.revision }), { code: "actions.conflict" },
+    "a stale revision changes nothing");
+  await assert.rejects(service.invoke(person, set, { changes: [{ plugin_id: "goals", enabled: false }, { plugin_id: "unknown", enabled: true }], expected_revision: saved.revision }),
+    { code: "catalog.plugin_not_found" });
+  assert.deepEqual(await service.invoke(person, get, {}), saved, "one bad change leaves the whole batch unapplied");
+  const after = await service.invoke(person, set, { changes: [{ plugin_id: "goals", enabled: false }, { plugin_id: "feed", enabled: true }], expected_revision: saved.revision }) as VersionedPartitionPluginMembership;
+  assert.deepEqual([...after.plugins].sort(), ["feed", "inbox", "pages"], "a companion comes with its plugin");
 });

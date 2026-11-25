@@ -3,7 +3,7 @@ import { blueprintConfigJournal } from './replication.js';
 
 export const BLUEPRINTS_STORE = "blueprints";
 export const BLUEPRINTS_BASELINE: SqliteBaseline = {
-  version: /* @version database.blueprints_baseline */ 2,
+  version: /* @version database.blueprints_baseline */ 1,
   schema: `
     CREATE TABLE blueprint_drafts (
       draft_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, project_id TEXT, revision INTEGER NOT NULL,
@@ -23,6 +23,5 @@ export const BLUEPRINTS_BASELINE: SqliteBaseline = {
       PRIMARY KEY (preview_id, part_id)
     );
   ` + blueprintConfigJournal.schema,
-  upgrades: [{ from: 1, sql: blueprintConfigJournal.upgrade }],
 };
 export const BLUEPRINTS_HOME_STORE: HomeStoreDeclaration = { path: BLUEPRINTS_STORE, library: { baseline: BLUEPRINTS_BASELINE } };

@@ -70,7 +70,14 @@ export type DirectoryTarget = {
     default_output: true;
 };
 
+export declare const PARTITION_PLUGIN_CHANGES_MAX = 32;
+
 export declare const PROJECT_WORKSPACE_PROVIDER_ID = "system.project-workspaces";
+
+export interface PartitionPluginChange {
+    plugin_id: ProjectPluginId;
+    enabled: boolean;
+}
 
 export interface ProjectDataDeclaration {
     readonly label: string | TextRef;
@@ -198,6 +205,7 @@ export interface ProjectsCommandApi {
     addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[];
     removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership;
     setProjectPlugin(projectId: string, actorId: string, input: SetProjectPluginInput): VersionedProjectPluginMembership;
+    setPartitionPlugins(partitionId: string, actorId: string, input: SetPartitionPluginsInput): VersionedPartitionPluginMembership;
     renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): ProjectRecord;
     addWorkspaceProject(input: AddWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
     changeDirectories(input: ChangeDirectoriesInput): ProjectDirectories;
@@ -208,9 +216,11 @@ export interface ProjectsQueryApi {
     storedProjectPluginMembership(projectId: string): ProjectPluginMembership;
     projectPluginMembership(projectId: string): ProjectPluginMembership;
     projectPluginMembershipWithRevision(projectId: string): VersionedProjectPluginMembership;
+    partitionPluginMembership(partitionId: string): VersionedPartitionPluginMembership;
     listProjectPlugins(projectId: string): ProjectPluginId[];
     listHiddenPlugins(projectId: string): ProjectPluginId[];
     listProjects(): ProjectRecord[];
+    listPartitions(): ProjectRecord[];
     getProject(projectId: string): ProjectRecord;
     selections(): ProjectSelection[];
     listWorkspaceMemberships(): ProjectWorkspaceMembership[];
@@ -241,6 +251,11 @@ export interface RunDirectories {
     };
 }
 
+export interface SetPartitionPluginsInput {
+    changes: PartitionPluginChange[];
+    expected_revision: string;
+}
+
 export interface SetProjectPluginInput {
     plugin_id: ProjectPluginId;
     enabled: boolean;
@@ -248,6 +263,10 @@ export interface SetProjectPluginInput {
 }
 
 export type SourceKind = "folder" | "former_default_output" | "other_default_output";
+
+export interface VersionedPartitionPluginMembership extends VersionedProjectPluginMembership {
+    partition_id: string;
+}
 
 export interface VersionedProjectPluginMembership extends ProjectPluginMembership {
     revision: string;
@@ -280,6 +299,11 @@ export declare const modulesProjectsContract: {
     readonly ssot: "docs/modules/projects.md";
 };
 
+export declare const partitionPluginActions: {
+    readonly get: ActionDefinition<Record<string, never>, VersionedPartitionPluginMembership>;
+    readonly set: ActionDefinition<SetPartitionPluginsInput, VersionedPartitionPluginMembership>;
+};
+
 export declare const projectCatalogErrors: {
     user_confirmation_required: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     workspace_membership_not_found: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
@@ -289,6 +313,7 @@ export declare const projectCatalogErrors: {
     project_not_found: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     project_storage_invalid: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     project_name_conflict: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
+    personal_space: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
 };
 
 export declare const projectDirectoryActions: {

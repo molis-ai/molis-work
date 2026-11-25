@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { syncBuiltinESMExports } from "node:module";
 import test from "node:test";
-import { existsSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { MolisWorkLocalHost, connectorSetupAction, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -26,7 +26,10 @@ for (const service of ["asana", "gmail", "notion"]) test(`ASC-08 ASC-20 ASC-35: 
   await cancel(home, request.authorization_id);
   assert.equal((await status(home, request.authorization_id)).status, "cancelled");
   assert.equal(readSecret(`connector-authorization:${request.authorization_id}:presentation`), null);
-  assert.equal(runWithMolisWorkHome(home.home, () => readSecretsFileMeta().entryCount), 0, "staged client and PKCE secrets are deleted");
+  // The work records keep their own keys in the same file once they are on; none of the connector's stay.
+  const left = runWithMolisWorkHome(home.home, () => Object.keys((JSON.parse(readFileSync(readSecretsFileMeta().path, "utf8")) as { entries: object }).entries));
+  assert.deepEqual(left.sort(), ["system:observation:digest:v1", "system:observation:evidence:v1", "system:observation:evidence:v1:identity"],
+    "staged client and PKCE secrets are deleted; only the work records' own keys stay");
   let externalCalls = 0;
   const realFetch = globalThis.fetch;
   t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {

@@ -7,7 +7,7 @@ import { projectRowsProblems } from "./project-rows-declarations.js";
 
 /** The name a plugin's store goes by, the same rule as a library in the Home. */
 const STORE_NAME = /^[a-z][a-z0-9-]*$/u;
-const SCOPES = ["project", "home"] as const;
+const SCOPES = ["project", "home", "partition"] as const;
 const DECLARATION_FIELDS = new Set(["store_name", "version", "schema", "read_permission", "write_permission", "upgrades"]);
 const STEP_FIELDS = new Set(["from", "sql", "reduces_rows"]);
 /**
@@ -23,8 +23,11 @@ export function databaseDeclarationProblems(value: unknown, permissions: Readonl
   if (value === undefined) return [];
   if (!isRecord(value)) return ["databases 必须为对象"];
   const scopes = Object.keys(value).filter(scope => !(SCOPES as readonly string[]).includes(scope));
-  if (scopes.length > 0) return [`databases 只能声明 project（项目库）和 home（Home 库），不认 ${scopes.join("、")}`];
-  return SCOPES.flatMap(scope => value[scope] === undefined ? [] : declarationProblems(scope, value[scope], permissions, ownerFiles));
+  if (scopes.length > 0) return [`databases 只能声明 project（项目库）、home（Home 库）和 partition（分区独立库），不认 ${scopes.join("、")}`];
+  const problems = SCOPES.flatMap(scope => value[scope] === undefined ? [] : declarationProblems(scope, value[scope], permissions, ownerFiles));
+  // A library of its own in each partition replaces the Home library partitioned by project; one plugin does not declare both (§4.2 第 2 条).
+  if (value.partition !== undefined && value.home !== undefined) problems.push("databases.partition 与 databases.home 不能同时声明：分区独立库就是这个插件在每个分区自己的库");
+  return problems;
 }
 
 function declarationProblems(scope: (typeof SCOPES)[number], declaration: unknown, permissions: ReadonlySet<string>, ownerFiles: unknown): string[] {

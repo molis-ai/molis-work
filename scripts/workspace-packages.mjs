@@ -224,6 +224,9 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-service-observation",
       "@molis-ai/molis-work-service-project-approvals",
       "@molis-ai/molis-work-service-evaluation",
+      // Batch 106 (specs/unified-partition-plugins §5, §6.1): the evidence ledger and the settings that follow the person.
+      "@molis-ai/molis-work-service-evidence",
+      "@molis-ai/molis-work-service-person-settings",
       "@molis-ai/molis-work-service-home",
       "@molis-ai/molis-work-service-knowledge",
       "@molis-ai/molis-work-service-mainline",
@@ -464,11 +467,26 @@ export const WORKSPACE_PACKAGES = [
   entry("horizontal/scheduler", "@molis-ai/molis-work-contracts/services/scheduler", {
     maturity: "production",
     capabilities: [
-      "scheduler.wakeup.v1"
+      "scheduler.wakeup.v1",
+      "scheduler.due-registry.v1"
     ],
     extraWorkspaceDependencies: [
-      "@molis-ai/molis-work-plugin-sdk"
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-storage"
     ]
+  }),
+  // Batch 106 (specs/unified-partition-plugins §5): which bodies of evidence a plugin in a partition still holds, and the platform's one
+  // collection path; the bodies stay the content store's.
+  entry("horizontal/evidence", "@molis-ai/molis-work-contracts/services/evidence", {
+    maturity: "slice",
+    capabilities: ["evidence.holds.v1"],
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-storage"],
+  }),
+  // Batch 106 (specs/unified-partition-plugins §4.1, §11 S-person-settings-private): the settings a plugin declares to follow the person.
+  entry("horizontal/person-settings", "@molis-ai/molis-work-contracts/services/person-settings", {
+    maturity: "slice",
+    capabilities: ["person-settings.values.v1"],
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-storage"],
   }),
   entry("horizontal/observation", "@molis-ai/molis-work-contracts/services/observation", {
     maturity: "slice",
@@ -528,7 +546,8 @@ export const WORKSPACE_PACKAGES = [
     capabilities: [
       "search.query.v1",
       "search.index.v1"
-    ]
+    ],
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"]
   }),
   entry("horizontal/appearance", "@molis-ai/molis-work-contracts/platform/ui", {
     maturity: "slice",

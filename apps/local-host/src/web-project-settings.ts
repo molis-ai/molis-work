@@ -47,7 +47,12 @@ async function renameProjectFromHttp(request: IncomingMessage, response: ServerR
 
 export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner, diagnostics?: WebServerOptions["installationDiagnostics"]) {
   const handleProjectDeletion = createProjectDeletionHttp(withMolisWorkProjectCatalog);
+  /** Every partition, the personal space first: what a settings or 能力 page resolves a `?project=` it was given against. */
   async function settingsProjects(homeDirectory: string | undefined): Promise<WebSettingsProject[]> {
+    return withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listPartitions().map(settingsProject));
+  }
+  /** The person's projects, the list settings shows: the personal space cannot be renamed or deleted and is not among them. */
+  async function personProjects(homeDirectory: string | undefined): Promise<WebSettingsProject[]> {
     return withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjects().map(settingsProject));
   }
 
@@ -56,7 +61,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
     setProjectPlugin: SetProjectPluginFromWeb, demoSamples?: () => Promise<void>): Promise<boolean> {
     if (await handlePluginSettings(withMolisWorkProjectCatalog, request, response, url, homeDirectory, setProjectPlugin)) return true;
     if (request.method === "GET" && url.pathname === "/api/settings/projects") {
-      sendJson(response, 200, { projects: await settingsProjects(homeDirectory) });
+      sendJson(response, 200, { projects: await personProjects(homeDirectory) });
       return true;
     }
     if (request.method === "POST" && url.pathname === "/api/settings/projects") {
@@ -135,7 +140,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
 
 async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalogRunner, request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, setProjectPlugin: SetProjectPluginFromWeb): Promise<boolean> {
   if (request.method === "GET" && url.pathname === "/api/settings/project-plugins") {
-    const projects = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.listProjects().map(project => ({
+    const projects = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.listPartitions().map(project => ({
       project_id: project.project_id, display_name: project.display_name,
       ...projectPluginMembershipForPage(catalog, project.project_id),
     })));

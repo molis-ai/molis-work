@@ -9,7 +9,7 @@ import { inspectRestoreNode, sameRestoreInode } from "./home-restore-files.js";
 import { invalidRestore } from "./home-restore-input.js";
 import type { HomeRestoreJournal } from "./home-restore-journal-input.js";
 import { assertPreservedRestoreNode, assertRestoreTreeMembers } from "./home-restore-policy.js";
-import { inspectRestoreProjectDatabase, inspectRestoreProjectReferences } from "./home-restore-projects.js";
+import { inspectRestoreProjectDatabase, inspectRestoreProjectReferences, restorePersonalSpaceDatabase } from "./home-restore-projects.js";
 import { assertHomeRestoreOriginalsAvailable, flushRestoreDirectories } from "./home-restore-rollback.js";
 import { snapshotDatabaseOptions } from "./home-snapshot-inventory.js";
 import type { HomeSnapshotStoreRegistry } from "./home-store-snapshot.js";
@@ -37,8 +37,13 @@ export function verifyCommittedHomeRestore(journal: HomeRestoreJournal, registry
       } };
       else if (store.path === "projects") {
         const project = /^([^/]+)\/molis-work\.db$/u.exec(relative);
-        if (!project) throw invalidRestore();
-        options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, file.path, project[1]!) };
+        // A partition's own plugin library (`<id>/libraries/<store>.db`) is the plugin's, not the project database: it is checked as a
+        // SQLite file like any other, and its partition was already required to be among the restored projects.
+        if (!project && !/^[^/]+\/libraries\/[^/]+\.db$/u.test(relative)) throw invalidRestore();
+        if (project) options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, file.path, project[1]!) };
+      } else {
+        const personal = restorePersonalSpaceDatabase(store.path, relative);
+        if (personal) options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, file.path, personal) };
       }
       if (!isDeepStrictEqual(inspectSnapshotSqlite(path, { ...options, space, signal: control.signal }), file.sqlite)) throw invalidRestore();
     }

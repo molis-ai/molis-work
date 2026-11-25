@@ -9,7 +9,8 @@ const selection={plugin_id:'example.plugin',publisher_id:'example',publisher_sig
 function fixture(){
  let active=true,revision=1,selected=true,release:()=>void=()=>{};
  const home='/tmp/authority-only',spaceId='personal-test';
- const catalog={listProjects:()=>[{project_id:'current',display_name:'Current',database_path:'/unused'}],projectPluginMembership:()=>({plugins:[],hidden:[]}),recycle:{list:()=>[]}};
+ const projects=[{project_id:'current',display_name:'Current',database_path:'/unused'}];
+ const catalog={listProjects:()=>projects,listPartitions:()=>projects,projectPluginMembership:()=>({plugins:[],hidden:[]}),recycle:{list:()=>[]}};
  const withCatalog:LocalWebCatalogRunner=async(_options,read)=>read(catalog as Parameters<typeof read>[0]);
  const current=()=>pluginSyncAuthority(home,selection);
  const source:SyncRegistration={selection,title:'Items',refresh:async()=>{},prepare:async()=>{},

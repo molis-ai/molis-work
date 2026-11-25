@@ -3,6 +3,7 @@ import { once } from "node:events";
 import { createServer } from "node:http";
 import test from "node:test";
 import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { openBoardBrowser } from "./fixtures/board-browser.js";
@@ -176,6 +177,10 @@ test("07-2a N54 WLN-27: a stream of what waits on the person that never answers 
 test("07-2a N53 request counts: loading the chooser and a project page, switching a tab and opening the side", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { command, sessionId, navigate, waitFor, click, origin, projectId } = browser;
+  // Every Home has the personal space (batch 106). b51cb696d1 measured a Home whose places had all been read; reading the personal
+  // space once first keeps it so, instead of the chooser's first load also waiting for the personal space's background read.
+  await browser.web.get(`/projects/${PERSONAL_SPACE_PROJECT_ID}/api/attention`);
+  await new Promise(resolve => setTimeout(resolve, 1_000));
   await command("Network.enable", {}, sessionId);
   const seen: Array<{ phase: string; method: string; path: string; status?: number; id: string; frame: string; type: string }> = [];
   let phase = "chooser";

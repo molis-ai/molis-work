@@ -6,7 +6,7 @@ import path from "node:path";
 import { projectCatalogErrors as catalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
-import { projectDirectoryPath } from "./project-paths.js";
+import { plainSegment } from "./project-paths.js";
 import type { Row } from "./sqlite.js";
 
 /** What these functions need of a connection: the catalog's, or the upgrade step's (`SqliteBaselineDatabase`). */
@@ -73,7 +73,7 @@ export function insertProjectOutput(db: ProjectOutputDatabase, projectId: string
 
 /** `<outputs>/<project_id>`: the project id has to be one plain path segment, by the same rule as its database directory. */
 export function projectOutputDirectoryPath(outputsDirectory: string, projectId: string): string {
-  return projectDirectoryPath(outputsDirectory, projectId);
+  return path.join(outputsDirectory, plainSegment(projectId));
 }
 
 /**

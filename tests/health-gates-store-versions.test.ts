@@ -200,6 +200,27 @@ expectAfterOrigin("UPG1-i-store-04: going down fails even with a row for it", ()
   put(CHECKLIST, checklist(1, "", REGISTERED));
   put(SPEC, spec([PROJECT_ROW, rowFor(2, 1, pointer(2, 1))]));
 }, 1, [/went from 2 to 1; after the unified origin a version does not go down/]);
+// V7 (batch 106, user 2026-11-24): a one-time reset to v1 passes with the reset file's entry for this 位置 and these versions, and its row in prose.
+const RESET_FILE = "tooling/gates/schemas/v1-reset-exceptions.json";
+const RESET_ROW = { store: "pages/pages.db", place: "pages/pages.db", from_version: 2, to_version: 1, from_structure: "0123456789abcdef", to_structure: "fedcba9876543210",
+  approved: "用户 2026-11-24 弹窗批准一次全复位", reason: "a one-time reset of this library to a clean v1 baseline" };
+const RESET_PROSE = rowFor(2, 1, "第 106 批 V7 一次全复位，删除升级段");
+expectAfterOrigin("UPG1-i-store-04 V7: an approved one-time reset to v1 with its row passes", () => {
+  put(CHECKLIST, checklist(1, "", REGISTERED));
+  put(SPEC, spec([PROJECT_ROW, RESET_PROSE]));
+  put(RESET_FILE, JSON.stringify([RESET_ROW]));
+}, 0);
+for (const [what, other] of [["another place", { place: "todo/todo.db" }], ["another old version", { from_version: 3 }]] as const) {
+  expectAfterOrigin(`UPG1-i-store-04 V7: a reset entry for ${what} does not let a version go down`, () => {
+    put(CHECKLIST, checklist(1, "", REGISTERED));
+    put(SPEC, spec([PROJECT_ROW, RESET_PROSE]));
+    put(RESET_FILE, JSON.stringify([{ ...RESET_ROW, ...other }]));
+  }, 1, [/went from 2 to 1; after the unified origin a version does not go down/]);
+}
+expectAfterOrigin("UPG1-i-store-04 V7: an approved reset still needs its row", () => {
+  put(CHECKLIST, checklist(1, "", REGISTERED));
+  put(RESET_FILE, JSON.stringify([RESET_ROW]));
+}, 1, [/went from 2 to 1; add the row `pages\/pages\.db` \| 2 → 1/]);
 expectAfterOrigin("UPG1-i-store-05: a raise without a row fails and names the pointer to write", () => {
   put(CHECKLIST, checklist(3, "", REGISTERED));
   put(PAGES_FILE, baseline(3, STEPS_TO_3));
@@ -308,8 +329,9 @@ test("UPG1-i-store-12: every real row at 1 can go to 2 by the rule, and cannot w
     const raised = withVersion(row, 2);
     const listed = realSpec.replace("| 位置 | 版本 | 改版本的提交 | 维护 |\n| --- | --- | --- | --- |\n", match => `${match}| ${row.place} | 1 → 2 | 本 PR | \`${row.definition}#1→2\` |\n`);
     assert.notEqual(listed, realSpec);
+    // The rule is checked without the one-time V7 reset entries (batch 106), which store-04 V7 covers on their own.
     const gateWith = (checklistText: string, specText: string, sourceText: string | null, baseText = realChecklist) => storeVersionProblems({
-      read: (wanted: string) => wanted === CHECKLIST ? checklistText : wanted === SPEC ? specText : wanted === file ? sourceText : real(wanted),
+      read: (wanted: string) => wanted === CHECKLIST ? checklistText : wanted === SPEC ? specText : wanted === file ? sourceText : wanted === RESET_FILE ? null : real(wanted),
       readBase: (wanted: string) => wanted === CHECKLIST ? baseText : real(wanted),
     }) as string[];
     const stepped = withStep(real(file)!, name);

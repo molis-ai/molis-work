@@ -105,8 +105,8 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     // runtime. The lazy binding every Host with a Home gets in its constructor, all a forwarding stdio MCP has, does not.
     const memory = registerMemoryHost({ localHost, homeDirectory: storageHome, storageOwner, agentHost: service.agentHost, ready: () => service.ready, started: () => service.started,
       executes: () => owner.withCatalog !== undefined, projectReference,
-      projects: async () => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().map(project => project.project_id)) : [],
-      projectExists: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().some(project => project.project_id === projectId)) : null,
+      projects: async () => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listPartitions().map(project => project.project_id)) : [],
+      projectExists: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listPartitions().some(project => project.project_id === projectId)) : null,
       projectTitle: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null) : null });
     const unbind = bindPrologueInference(storageHome, service.inference);
     const unbindBuilder = bindPrologueBuilder(storageHome, service.createBuilderAgent);

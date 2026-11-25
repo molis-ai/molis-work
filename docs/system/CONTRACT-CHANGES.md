@@ -193,22 +193,31 @@
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
 | `memory/memory.db` | 1 → 2 | 2026-11-24 架构审查修复（用户确认补齐 `b3429bd1cc` 显式升级段）：将 `memory_markers` 中 `b3429bd1cc` 之前内置 Coding 会话清理计划补齐精确 `plugin_id` 与 `provider_id`，避免旧已完成记录永久误报 `needs-reconcile`，普通打开只认 v2 | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE#1→2` |
-| `projects/<project_id>/molis-work.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#1→2` |
-| `projects/<project_id>/molis-work.db` | 2 → 3 | 第 44B 批 PR3：「等你」同步改用平台身份 `system.attention`、脱离 Inbox（44b.md 用户 2026-11-23 定的 2→3）；升级段只建平台自己的同步流水并把已有注意事项登记为待同步，不改业务表 | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#2→3` |
-| `agent-definitions/agent-definitions.db` | 2 → 3 | 个人同步 M1-B2，用户 2026-11-22 批准。创建提示词改写同步流水，将已有改写按现行键登记为待同步。保留 #2209 的 1 → 2，两条升级路径均在隔离 Home 回放 | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#2→3` |
-| `blueprints/blueprints.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `horizontal/blueprints/src/schema.ts#BLUEPRINTS_BASELINE#1→2` |
-| `functions/functions.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `modules/judgment-rules/src/store-schema.ts#FUNCTIONS_STORE_BASELINE#1→2` |
+| `projects/<project_id>/molis-work.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
+| `projects/<project_id>/molis-work.db` | 2 → 3 | 第 44B 批 PR3：「等你」同步改用平台身份 `system.attention`、脱离 Inbox（44b.md 用户 2026-11-23 定的 2→3）；升级段只建平台自己的同步流水并把已有注意事项登记为待同步，不改业务表 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
+| `agent-definitions/agent-definitions.db` | 2 → 3 | 个人同步 M1-B2，用户 2026-11-22 批准。创建提示词改写同步流水，将已有改写按现行键登记为待同步。保留 #2209 的 1 → 2，两条升级路径均在隔离 Home 回放 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
+| `blueprints/blueprints.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
+| `functions/functions.db` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
 | `interface/state.json` | 1 → 2 | 个人同步 M1-B2，用户已批准在隔离 Home 验证 | `horizontal/appearance/src/state.ts#APPEARANCE_STATE_VERSION#1→2` |
-| `projects/<project_id>/molis-work.db#risk` | 1 → 2 | 个人同步 M1-B1，经确认新增同步日志和编辑版本表，保留风险、引用和历史 | `plugins/native/risk/src/database.ts#RISK_PROJECT_DATABASE#1→2` |
-| `work-brief/work-brief.db` | 1 → 2 | 个人同步 M1-B1，经确认新增同步日志和编辑版本表，保留简报与操作记录 | `plugins/native/work-brief/src/database.ts#WORK_BRIEF_DATABASE#1→2` |
-| `dataset/dataset.db` | 1 → 2 | 2026-11-20 修复计划 AC-T2，用户确认新增空绑定表并保留现有数据 | `plugins/native/dataset/src/database.ts#DATASET_DATABASE#1→2` |
-| `spaces/<spaceId>/sync/sync.db` | 1 → 2 | 个人同步优化 PCSYNC-OPT-13，新增重放次数和下次重试时间，保留原始失败事件、游标、设备同意及附件暂存 | `modules/sync-replication/src/database.ts#SYNC_STORE_BASELINE#1→2` |
+| `projects/<project_id>/molis-work.db#risk` | 1 → 2 | 个人同步 M1-B1，经确认新增同步日志和编辑版本表，保留风险、引用和历史 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
+| `work-brief/work-brief.db` | 1 → 2 | 个人同步 M1-B1，经确认新增同步日志和编辑版本表，保留简报与操作记录 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
+| `dataset/dataset.db` | 1 → 2 | 2026-11-20 修复计划 AC-T2，用户确认新增空绑定表并保留现有数据 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
+| `spaces/<spaceId>/sync/sync.db` | 1 → 2 | 个人同步优化 PCSYNC-OPT-13，新增重放次数和下次重试时间，保留原始失败事件、游标、设备同意及附件暂存 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
 | `shelf/catalog.json` | 1 → 2 | 第 38 批，一骏 2026-11-18 确认；保留本机目录或原个人同步状态，补入设备设置修订与回执 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `jelly/preferences.json、plugin-files/<install_id>/.model-settings/preference.json` | 1 → 2 | 第 38 批，一骏 2026-11-18 确认；保留每一份已有选择与权限，接续回执由原主人保存 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
-| `agent-definitions/agent-definitions.db` | 1 → 2 | BL-b44-information-plan-to-feed（用户 2026-11-21 弹窗确认）：信息处理方案的提示词改动、历史与使用记录搬到 Feed 的键，结构不变 | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#1→2` |
+| `agent-definitions/agent-definitions.db` | 1 → 2 | BL-b44-information-plan-to-feed（用户 2026-11-21 弹窗确认）：信息处理方案的提示词改动、历史与使用记录搬到 Feed 的键，结构不变 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
 | `images/images.db` | 1 → 2 | ARF-4 生图配置与凭据绑定 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
 | `agent-definitions/agent-definitions.db` | 1 → 2 | 第08批 #1984；2026-11-06 已授权新增空表 | 已随 2026-11-19 发布前 v1 复位清理删除历史升级段，保留现行完整基线结构。 |
-| `external-sessions/external-sessions.db` | 1 → 2 | 第 103 批 103-2（用户 2026-11-21 弹窗同意）：`external_sessions` 加 `subagent INTEGER NOT NULL DEFAULT 0`，Claude Code 子代理轨迹记在所属会话下（`forked_from`），列表与搜索不显示；已有行都是普通会话，升级段只有这一句 SQL，无读取兼容，0.1.0 v1 金样经它回放 | `horizontal/sessions/src/schema.ts#EXTERNAL_SESSIONS_BASELINE#1→2` |
+| `external-sessions/external-sessions.db` | 1 → 2 | 第 103 批 103-2（用户 2026-11-21 弹窗同意）：`external_sessions` 加 `subagent INTEGER NOT NULL DEFAULT 0`，Claude Code 子代理轨迹记在所属会话下（`forked_from`），列表与搜索不显示；已有行都是普通会话，升级段只有这一句 SQL，无读取兼容，0.1.0 v1 金样经它回放 | 已随第 106 批 V7 一次全复位（用户 2026-11-24）删除升级段，现行结构即 v1 基线。 |
+| `<partition>/molis-work.db` | 3 → 1 | 第 106 批 V7（用户 2026-11-24 弹窗定「106 一次全复位」）；位置同批改为分区根（`projects/<project_id>/` 或 `personal-space/`） | 删除 1 → 2、2 → 3 两段，呈现组合与「等你」同步流水并入 v1 基线；保留的开发金样就地改写为 v1；一次性白名单 `tooling/gates/schemas/v1-reset-exceptions.json` 按确切哈希登记，下一个碰门禁的 PR 清退。 |
+| `<partition>/molis-work.db#risk` | 2 → 1 | 同上 | 同上（风险编辑版本表并入 v1） |
+| `agent-definitions/agent-definitions.db` | 3 → 1 | 同上 | 同上（删除 Feed 提示词换键与同步流水两段） |
+| `blueprints/blueprints.db` | 2 → 1 | 同上 | 同上 |
+| `functions/functions.db` | 2 → 1 | 同上 | 同上 |
+| `spaces/<spaceId>/sync/sync.db` | 2 → 1 | 同上 | 同上（重放次数与下次重试时间并入 v1） |
+| `external-sessions/external-sessions.db` | 2 → 1 | 同上 | 同上（子代理标记并入 v1） |
+| `dataset/dataset.db` | 2 → 1 | 同上 | 同上（来源绑定表并入 v1） |
+| `work-brief/work-brief.db` | 2 → 1 | 同上 | 同上（简报编辑版本表并入 v1） |
 
 | `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |
 | `projects/<project_id>/molis-work.db#coding` | 3 → 1 | 同上 | 同上 |
@@ -575,3 +584,10 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - **第 44B 批复核修复：成果与过程项可带出项目（`copy_out`）**（2026-11-24，44b.md「独立复核」P-07，用户定）。
   - **新增** Manifest 字段：`artifacts.produces[]` 与 `process_items.produces[]` 上可写 `copy_out: true`，表示本人可以把这类成果或过程项的正文带出项目放进 Shelf。只能写 `true`，写在 `consumes` 上被拒绝。
   - 宿主每次调用把标了的类型给 Shelf，Shelf 只看到标记方自己产出的那几份（过程项类型可以有几家产出方，BL-375）；Shelf 的 Manifest 不再消费 `coding.report.v1`、`coding.changeset.v1`。Coding 给报告与变更集标了 `copy_out`。对调用方：别的插件要让本人把自己的成果放进 Shelf，在 `produces` 上加这一项，并提供文档或预览角色。
+- **第 106 批：统一工作分区批 A——分区底座、单套装配与总览/到期基础设施**（[106.md](../../specs/post-anticorruption-roadmap/reference/batches/106.md)、[统一工作分区](../../specs/unified-partition-plugins/spec.md)；V1「只加不删」，现有插件与入口不变；没有读取兼容，旧数据按 U13 直接删）。
+  - **分区**：`personal` 是保留分区（`catalog.personal_space` 拒绝新建、占用、改名、回收与删除，`S-personal-partition-reserved`）；项目目录合同新增 `listPartitions()`（个人空间在前）、`partitionPluginMembership()`、`setPartitionPlugins()` 与动作 `partitions.plugins.get@1`、`partitions.plugins.set@1`（`SetPartitionPluginsInput`，全落或全不落）。`listProjects()` 不再含个人空间。
+  - **Manifest 新增字段**（全部可选，现有插件无需改）：`databases.partition`（每个分区一份插件库，`<分区根>/libraries/<库名>.db`）、`overview_projection`（`kinds` 与可选 `title_text`；要求分区库的结构里有 `OVERVIEW_TABLE_SQL`）、`push`、`market`（8 类）、`dependencies`（`enable_with` 随启用，最多 16 条）、`person_settings`（只有 `preference` 能标 `portable`）。SDK 的 `partitionDeclarationProblems` 在安装时检查，类型 `PartitionDeclarationFields` 是它读的字段。
+  - **SDK 新增**：`overviewRows(tx)`（`upsert`／`remove`／`removePrefix`，在插件自己的事务里维护总览表，逐行按种类校验格式与上限）、`overviewColumns`、`overviewEventWindowEnd`。
+  - **新公开合同子路径**：`@molis-ai/molis-work-contracts/services/evidence`（`EVIDENCE_COLLECT_PERMISSION`、持有记录）、`@molis-ai/molis-work-contracts/services/person-settings`（`PersonSettingRecord`）；`services/scheduler` 增加到期登记类型（`DueEntryOwner`、`DueEntryRecord`、`DueExpiredRecord`），`services/search` 增加总览索引端口（`OverviewIndexPort` 等）；`platform/plugin` 增加总览与分区声明的常量与类型。
+  - **新库**（均从版本 1 起，见检查清单第 3 节）：`due-registry`、`evidence`、`person-settings`；`search/search.db` 里另加可重建的总览表（`overview_meta`）；个人配置同步新增集合 `person-settings`（`sync.collection.platform.person_settings` = 1）。插件侧的 `services.personSettings` 绑定与到期投递处理随第 108 批，第 106 批没有插件写入这些库。
+  - 动作快照只多 `partitions.plugins.get@1` 与 `partitions.plugins.set@1`（`system.project-workspaces`）；API 快照在 `tooling/gates/api/`（`contracts/platform/plugin.txt`、`contracts/services/{evidence,person-settings,scheduler,search}.txt`、`plugin-sdk/index.txt`）。

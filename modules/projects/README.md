@@ -42,7 +42,7 @@ Host 通过 `ProjectsModuleOptions` 注入数据库与目录：`projects_directo
 
 项目身份和关联规则属于此处；Session 事实、Panel UI 和 Runtime 进程不属于此处。卸载检查只提供项目目录事实，不自行删除用户文件。
 
-`projectReplicationOwner` 提供当前项目名称、时间和可携带插件清单；`validatePortableProject` 在准备目录前完整验证。`project_portable_plugins` 表示跨设备所需的插件，不等同于本机 `project_plugins` 启用状态。接收只保存清单，不安装、激活或授予权限；`projectPluginRequirements` 返回本机可用/启用投影，供入口呈现缺失插件。后续本机重命名不会丢失尚未安装插件的要求。本机添加/移除仍由同一 ProjectService 更新清单并在事务内记事件；被动准备项目不生成上传，路径、目录关联及执行状态不进入可携带内容。
+`projectReplicationOwner` 提供当前项目名称、时间和可携带插件清单；`validatePortableProject` 在准备目录前完整验证。`project_portable_plugins` 表示跨设备所需的插件，不等同于本机 `partition_plugins` 启用状态。接收只保存清单，不安装、激活或授予权限；`projectPluginRequirements` 返回本机可用/启用投影，供入口呈现缺失插件。后续本机重命名不会丢失尚未安装插件的要求。本机添加/移除仍由同一 ProjectService 更新清单并在事务内记事件；被动准备项目不生成上传，路径、目录关联及执行状态不进入可携带内容。
 
 项目资料当前拒绝直接接收空删除；完整删除/恢复仍须接入唯一 Host 删除服务，不能把资料同步通过记作项目生命周期已完成。错版的目录在打开可写连接前拒绝，不就地补表或改写真实 Home。
 

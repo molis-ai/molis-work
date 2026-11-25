@@ -39,10 +39,9 @@ test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no
 // schema-only real-Home records; connectors, Pages, Form, Issues, Memory and Characters now freeze current DDL (the work records, new in batch 28, from the start),
 // without claiming another real-Home inspection. The independently frozen Runtime schema is checked by its Host test below.
 // Changing a baseline means a new version and a new fixture, never a silent drift.
-const HOME_STORE_FIXTURE_VERSIONS = new Map([
-  ["agent-definitions", 3], ["blueprints", 2], ["dataset", 2], ["external-sessions", 2],
-  ["functions", 2], ["memory", 2], ["sync", 2], ["work-brief", 2],
-]);
+// V7 (batch 106, user 2026-11-24 「106 一次全复位」): agent-definitions, blueprints, dataset, external-sessions, functions, sync and work-brief
+// went back to version 1 with their current schema (tooling/gates/schemas/v1-reset-exceptions.json); the memory ledger was not in that reset.
+const HOME_STORE_FIXTURE_VERSIONS = new Map([["memory", 2]]);
 for (const [name, baseline] of libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name) && name !== "plugin-runtime")) {
   test(`N41-PERSONAL-01 the ${name} store has its declared version and complete frozen schema`, () => {
     assert.equal(baseline.version, HOME_STORE_FIXTURE_VERSIONS.get(name) ?? 1);

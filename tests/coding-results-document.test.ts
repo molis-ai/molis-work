@@ -49,6 +49,18 @@ test("W5-01-CODING-03 a fixed change set is answered as each file's reviewed tex
   assert.equal(none.markdown, "这一轮没有可读取的文本改动审查；命令及外部操作请查看下方执行记录。");
 });
 
+// DEL-08 (batch 99; handed on by 44B when Shelf stopped reading change sets through the project test rig): a file a confirmed subtask
+// integration deleted reads as deleted, with its text before and no text after; the text holds the change set's files and no other.
+test("DEL-08 a deleted file in a fixed change set reads as deleted, with its text before and nothing after", async () => {
+  const deleted = { path: "src/gone.ts", kind: "deleted" as const, added_lines: 0, removed_lines: 2, diff: "",
+    review: { review_id: "review-gone", before_text: "was\nhere\n", after_text: "", decision: "approved" as const, execution: "applied" as const } };
+  const change = changeSetRecord({ payload: { scope: "run-frozen", run_id: "run-1", applied: true, coverage: "text-reviews",
+    origin: { session_id: "session-a", runtime_session_id: "runtime-1", workspace_id: "workspace-1", workspace_name: "demo" }, files: [deleted] } });
+  const { markdown } = await ask(fakePlatform({ processItems: [change] }, CODING_TYPES), CHANGESET_REFERENCE) as { markdown: string };
+  assert.equal(markdown, "## 修改 1 · src/gone.ts\n\n批准决定：已批准；保存时执行状态：已执行\n原审查：review-gone\n\n修改前：\n```\nwas\nhere\n\n```\n\n修改后：文件已删除");
+  assert.equal(markdown.match(/^## 修改 /gmu)?.length, 1, "only the change set's own file, nothing the round did not confirm");
+});
+
 test("W5-01-CODING-04 archived, other-project, other-kind, forged and unavailable versions are refused in Coding's own code", async () => {
   const code = "coding.shelf_material_invalid";
   const held = (over: Parameters<typeof reportRecord>[0]) => fakePlatform({ artifacts: [reportRecord(over)] }, CODING_TYPES);

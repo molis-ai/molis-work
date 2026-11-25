@@ -101,11 +101,11 @@ test("S-surface-composition SCS-07 SCS-08 protected HTTP does not start a cold p
   const f = await fixture(t);
   assert.equal((await f.request(f.prefix + route, { method: "POST", body: {}, authorized: false })).status, 403);
   const before = f.counts();
-  const personalProjects = () => f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).read(catalog =>
-    catalog.listProjects().filter(project => project.project_id === "personal"));
-  assert.deepEqual(personalProjects(), []);
-  await json(await f.request("/projects/personal" + route, { method: "POST", body: {} }), 404);
-  assert.deepEqual(personalProjects(), [], "a read does not provision an unopened personal project");
+  // The personal space exists from Home initialization (UPP-01) and is never in the person's project list; a protected read still does not start it.
+  const personalOpen = () => f.host.projects().some(project => project.project_id === "personal");
+  assert.equal(personalOpen(), false);
+  await json(await f.request("/projects/personal" + route, { method: "POST", body: {} }), 503);
+  assert.equal(personalOpen(), false, "a read does not start the unopened personal space");
   assert.equal(f.host.projects().some(project => project.project_id === f.project.project_id), false);
   await json(await f.post(route), 503);
   assert.equal(f.host.projects().some(project => project.project_id === f.project.project_id), false);

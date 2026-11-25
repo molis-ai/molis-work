@@ -118,6 +118,10 @@ function guardedContextCatalog(catalog: Parameters<Parameters<LocalWebCatalogRun
   return {
     resolveRuntimeContext: (...input) => { check(); return catalog.resolveRuntimeContext(...input); },
     listProjects: () => { check(); return catalog.listProjects(); },
+    listPartitions: () => {
+      check();
+      return catalog.listPartitions();
+    },
     bindRuntimeContext: input => { check(); return catalog.bindRuntimeContext(input); },
     unbindRuntimeContext: input => { check(); return catalog.unbindRuntimeContext(input); },
     rejectRuntimeContextSuggestion: input => { check(); return catalog.rejectRuntimeContextSuggestion(input); },

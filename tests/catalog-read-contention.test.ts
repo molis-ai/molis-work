@@ -193,7 +193,7 @@ test("live-stamped projectActionAvailability and web-catalog-access reuse snapsh
   // External SQLite write to catalog.db immediately invalidates the stamp via PRAGMA data_version.
   const external = openTestSqlite(join(home, "projects", "catalog.db"));
   try {
-    external.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, 'pages', '2026-11-22T00:00:00Z')").run(project.project_id);
+    external.prepare("INSERT INTO partition_plugins (partition_id, plugin_id, enabled_at, enabled_by) VALUES (?, 'pages', '2026-11-22T00:00:00Z', 'local-person')").run(project.project_id);
   } finally { external.close(); }
   assert.equal((await availability(caller, pagesAction)).available, true, "external catalog.db write invalidates snapshot immediately");
   assert.equal(membershipReads, 3);

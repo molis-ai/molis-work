@@ -20,7 +20,7 @@ import { isSandboxOwnerSegment } from "./plugin-sandbox-owner-files.js";
 import { MODEL_PREFERENCE_FILE } from "./model-configuration.js";
 import { ONBOARDING_FILE } from "./onboarding.js";
 import { PROJECT_ARRIVAL_FILE } from "./project-arrival.js";
-import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
+import { listProjectDatabasePaths, PARTITION_PATTERN } from "@molis-ai/molis-work-module-projects";
 import { assertCatalogOwner, CATALOG_BASELINE, catalogBaselineFor } from "./catalog-schema.js";
 import { assertSqliteDatabaseFiles, HOME_SECURITY_DIRNAME } from "@molis-ai/molis-work-storage";
 import { homeStores, platformModelPreferences } from "./home-stores.js";
@@ -29,7 +29,7 @@ import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { shippedParts } from "./plugin-registry.js";
 import { projectDatabasePlugins, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 
-const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = join("projects", "*", "molis-work.db");
+const CATALOG = join("projects", "catalog.db"), PROJECT_LIBRARY = `${PARTITION_PATTERN}/molis-work.db`;
 
 /**
  * Every project, recycled ones too, since they can come back: `listProjects` leaves those out (§2.3). Read only, at whatever version the

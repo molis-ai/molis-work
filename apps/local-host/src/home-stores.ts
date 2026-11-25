@@ -1,3 +1,6 @@
+import { DUE_REGISTRY_HOME_STORE } from "@molis-ai/molis-work-service-scheduler";
+import { EVIDENCE_HOME_STORE } from "@molis-ai/molis-work-service-evidence";
+import { PERSON_SETTINGS_HOME_STORE } from "@molis-ai/molis-work-service-person-settings";
 import { MCP_CLIENT_CREDENTIAL_DIRECTORY } from "./mcp-client-credentials.js";
 import { basename, dirname, join } from "node:path";
 import { HOME_SECURITY_DIRNAME, readStorageSpace } from "@molis-ai/molis-work-storage";
@@ -38,7 +41,8 @@ import type { HomeStoreSnapshotExclusion } from "@molis-ai/molis-work-contracts/
 import { DIRECTORY_GRANTS_HOME_STORE } from "./plugin-directory-store.js";
 import { DISCUSSION_HOME_STORE } from "./im-server.js";
 import { PLACEMENT_HOME_STORE } from "./placement-actions.js";
-import { ordinarySnapshot, omittedSnapshot, projectSnapshot, agentSnapshot, securitySnapshot, managedToolsSnapshot, builderSnapshot,
+import { PERSONAL_SPACE_DIRECTORY } from "@molis-ai/molis-work-module-projects";
+import { ordinarySnapshot, omittedSnapshot, personalSpaceSnapshot, projectSnapshot, agentSnapshot, securitySnapshot, managedToolsSnapshot, builderSnapshot,
   browserSnapshot, directoryAccessSnapshot, runtimeBackupSnapshot, excluded, type HomeStoreSnapshotPolicy, type HomeSnapshotStore, type HomeSnapshotStoreRegistry } from "./home-store-snapshot.js";
 
 type Declaration = HomeStoreDeclaration & { readonly snapshot?: HomeStoreSnapshotPolicy };
@@ -72,6 +76,8 @@ export const platformModelPreferences = (): readonly { readonly owner: string; r
 export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
   const registered = registry ??= Object.assign(homeStoreRegistry([
     ...owned("apps/local-host", { path: "projects", snapshot: projectSnapshot }, { path: "logs", snapshot: omittedSnapshot("Diagnostic logs", "preserve") }),
+    // The personal space's partition root (specs/unified-partition-plugins §4.1, `partitionRoot`): kept like a project's, made at Home initialization.
+    ...owned("apps/local-host", { path: PERSONAL_SPACE_DIRECTORY, snapshot: personalSpaceSnapshot }),
     // Each project's default output directory, `outputs/<project_id>/` (specs/shared-sources-and-surfaces §3): the person's own files, made
     // the first time something writes or runs there. A snapshot carries none of it and a restore leaves it as it is (SSC-23); purge clears it.
     ...owned("modules/projects", { path: "outputs", snapshot: omittedSnapshot("Files in each project's default output directory stay where they are", "preserve") }),
@@ -89,6 +95,9 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
       CONNECTORS_HOME_STORE, WEB_SEARCH_HOME_STORE, { ...CONNECTOR_TOOLS_HOME_STORE, snapshot: managedToolsSnapshot }, CONTEXT_ONBOARDING_HOME_STORE,
       ORIGINAL_FILES_HOME_STORE, CONVERSATION_ATTACHMENTS_HOME_STORE, MATERIALS_HOME_STORE, DIRECTORY_GRANTS_HOME_STORE),
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),
+    ...owned("horizontal/scheduler", DUE_REGISTRY_HOME_STORE),
+    ...owned("horizontal/evidence", EVIDENCE_HOME_STORE),
+    ...owned("horizontal/person-settings", PERSON_SETTINGS_HOME_STORE),
     ...owned("modules/artifacts", ARTIFACTS_HOME_STORE),
     ...owned("modules/characters", CHARACTERS_HOME_STORE),
     ...owned("packages/storage", MEMORY_LEDGER_HOME_STORE,

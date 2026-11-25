@@ -322,7 +322,7 @@ export class MolisWorkLocalHost {
         projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, this.plugins, projectId => this.catalogRunner ? this.catalogRunner({ homeDirectory: options.homeDirectory }, async catalog => {
         const project = catalog.getProject(projectId);
         return project ? molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }) : null;
-      }) : Promise.resolve(null), options.completeText, options.systemSkillsDirectory), withConnectorsKitReport(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), { manifest: (installId, pluginId, projectId) => installedPluginManifestFor(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === projectId)), projectNames: async () => new Map(this.catalogRunner ? await this.catalogRunner({ homeDirectory: options.homeDirectory }, catalog => catalog.listProjects().map(project => [project.project_id, project.display_name] as const)) : []) }), options.homeDirectory, this.plugins)] : []),
+      }) : Promise.resolve(null), options.completeText, options.systemSkillsDirectory), withConnectorsKitReport(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), { manifest: (installId, pluginId, projectId) => installedPluginManifestFor(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === projectId)), projectNames: async () => new Map(this.catalogRunner ? await this.catalogRunner({ homeDirectory: options.homeDirectory }, catalog => catalog.listPartitions().map(project => [project.project_id, project.display_name] as const)) : []) }), options.homeDirectory, this.plugins)] : []),
     ];
     if (home) platform.push(hostBlueprints(home, this, () => this.catalogRunner, callerClient,
       async () => (await readyAgentHost(this.plugins))?.descriptors() ?? [], options.clock ?? (() => new Date())));
@@ -344,10 +344,10 @@ export class MolisWorkLocalHost {
         ownerContext,
         // A project is gone only when the catalog no longer has it and no runtime of it is open (deletion closes it first).
         knownProjects: async () => this.catalogRunner
-          ? [...await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects().map(project => project.project_id)),
+          ? [...await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listPartitions().map(project => project.project_id)),
             ...this.host.projects().map(project => project.project_id)] : null,
         openPersonalSpace: async () => {
-          const space = this.catalogRunner ? await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects().find(project => isPersonalSpace(project))) : undefined;
+          const space = this.catalogRunner ? await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listPartitions().find(project => isPersonalSpace(project))) : undefined;
           if (!space) return undefined;
           const value = molisWorkHostProjectReference({ databasePath: space.database_path, projectId: space.project_id });
           await this.withProject(value, () => undefined);
@@ -356,11 +356,7 @@ export class MolisWorkLocalHost {
         onError: logSearchIndexFailure });
       const reference = (project: PlacementProjectRecord) => molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       this.placement = createPlacementHost({ homeDirectory: home, registry: this.host.actionRegistry(),
-        projects: async () => this.catalogRunner ? this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects()) : null,
-        ensurePersonalSpace: async () => {
-          if (!this.catalogRunner) throw hostErrors.catalog_unavailable("项目目录尚未就绪，请稍后重试");
-          return this.catalogRunner({ homeDirectory: home }, catalog => catalog.ensurePersonalSpace());
-        },
+        projects: async () => this.catalogRunner ? this.catalogRunner({ homeDirectory: home }, catalog => catalog.listPartitions()) : null,
         open: async project => { const value = reference(project); await this.withProject(value, () => undefined); return value; },
         projectClient: value => this.actionClient(value), homeClient: () => this.homeActionClient(),
         ownerContext });
@@ -591,7 +587,7 @@ export class MolisWorkLocalHost {
     const home = this.personalPlanningHome;
     if (!home || !this.catalogRunner) return [];
     const open = new Set(this.host.projects().filter(project => project.state !== "closing").map(project => project.storage_key));
-    const rows = await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects());
+    const rows = await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listPartitions());
     return rows.map(row => molisWorkHostProjectReference({ databasePath: row.database_path, projectId: row.project_id }))
       .filter(reference => !open.has(reference.storage_key) && fs.existsSync(reference.storage_key));
   }
@@ -616,7 +612,7 @@ export class MolisWorkLocalHost {
     if (!homeAggregateStoresStamp) return new Map(references.map(reference => [reference.storage_key, null]));
     try {
       return await this.catalogRunner({ homeDirectory: home }, catalog => {
-        const byId = new Map(catalog.listProjects().map(project => [project.project_id, project]));
+        const byId = new Map(catalog.listPartitions().map(project => [project.project_id, project]));
         const result = new Map<string, string | null>();
         for (const reference of references) {
           const project = byId.get(reference.project_id);

@@ -62,5 +62,5 @@ CREATE TRIGGER sync_aa98c46361f294dbb01ea79b1b42_datasets_aggregate_insert AFTER
 CREATE TRIGGER sync_aa98c46361f294dbb01ea79b1b42_datasets_aggregate_update AFTER UPDATE ON datasets BEGIN INSERT INTO sync_aa98c46361f294dbb01ea79b1b42_replica_changes(key) SELECT json_array(NEW.project_id,'dataset',NEW.id) WHERE (SELECT applying FROM sync_aa98c46361f294dbb01ea79b1b42_replica_state WHERE id=1)=0 AND (1=1);
       INSERT INTO sync_aa98c46361f294dbb01ea79b1b42_aggregate_editor_versions VALUES (json_array(NEW.project_id,'dataset',NEW.id),NEW.version) ON CONFLICT(key) DO UPDATE SET version=MAX(version,excluded.version);
       INSERT INTO sync_aa98c46361f294dbb01ea79b1b42_replica_changes(key) SELECT json_array(OLD.project_id,'dataset',OLD.id) WHERE (SELECT applying FROM sync_aa98c46361f294dbb01ea79b1b42_replica_state WHERE id=1)=0 AND (OLD.project_id<>NEW.project_id); END;
-PRAGMA user_version=2;
+PRAGMA user_version=1;
 COMMIT;

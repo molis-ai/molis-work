@@ -292,6 +292,14 @@ export type PluginProjectRowsTable =
 export interface PluginManifestDatabases {
   readonly project?: PluginDatabaseDeclaration;
   readonly home?: HomePluginDatabaseDeclaration;
+  /**
+   * A library of the plugin's own in every partition it is enabled in, the personal space as well as each project
+   * (specs/unified-partition-plugins §5, U2): `<partition root>/libraries/<store_name>.db`, given to the (plugin, partition) instance as
+   * `services.database`. Each instance reaches only its own partition's file (S-partition-isolation); deleting a partition deletes the file
+   * with its directory, so there is no `project_rows`. A plugin that declares it is run by the per-partition assembly
+   * (`apps/local-host/src/partition-plugin-assembly.ts`), never by the old ones, and does not also declare `home`.
+   */
+  readonly partition?: PluginDatabaseDeclaration;
 }
 
 /**

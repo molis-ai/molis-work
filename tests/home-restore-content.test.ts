@@ -3,7 +3,8 @@ import { randomBytes } from "node:crypto";
 import { chmodSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { createHomeSnapshot, homeStores, restoreHomeSnapshot, MolisWorkLocalHost, LocalProjectDatabase, molisWorkHostProjectReference, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
+import { createHomeSnapshot, homeStores, restoreHomeSnapshot, MolisWorkLocalHost, LocalProjectDatabase, molisWorkHostProjectReference, openPartitionPluginLibrary, partitionPluginScope, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
+import { openDueRegistry } from "@molis-ai/molis-work-service-scheduler";
 import { inspectMolisWorkProjectCatalogSnapshot, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { AdoptionStore } from "@molis-ai/molis-work-service-blueprints";
 import { blueprintActions } from "@molis-ai/molis-work-contracts/services/blueprints";
@@ -220,4 +221,33 @@ test("personal restore preserves device state and never exports other spaces or 
   assert.equal((await restore()).status, "restored");
   for (const path of preserved) assert.equal(readFileSync(join(f.home, path), "utf8"), "current device");
   assert.deepEqual(readFileSync(marker), originalScope);
+});
+
+test("UPP-33 the personal space and each partition's own libraries are snapshotted offline and restored; later writes are replaced by what was captured", async t => {
+  const f = await restoreFixture(t);
+  const projectA = await withMolisWorkProjectCatalog({ homeDirectory: f.home }, async catalog => (await catalog.createProject({ display_name: "项目 A", actor_id: LOCAL_PERSON_ACTOR_ID })).project_id);
+  const declaration = { store_name: "notes", version: 1, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL);", read_permission: "notes:read", write_permission: "notes:write" };
+  const write = (partition: string, body: string) => {
+    const library = openPartitionPluginLibrary(partitionPluginScope(f.home, partition, "com.example.notes", "notes-install"), f.home, declaration);
+    try { library.writer.prepare("INSERT INTO notes (id, body) VALUES ('n1', ?) ON CONFLICT (id) DO UPDATE SET body = excluded.body").run(body); } finally { library.close(); }
+  };
+  const read = (partition: string) => {
+    const library = openPartitionPluginLibrary(partitionPluginScope(f.home, partition, "com.example.notes", "notes-install"), f.home, declaration);
+    try { return library.reader.prepare("SELECT body FROM notes WHERE id = 'n1'").get()?.body; } finally { library.close(); }
+  };
+  write("personal", "个人空间里记下的");
+  write(projectA, "项目 A 里记下的");
+  const due = openDueRegistry(f.home);
+  try { due.register({ install_id: "notes-install", plugin_id: "com.example.notes", partition_id: "personal" }, { entry_key: "r", due_at: "2026-12-01T00:00:00.000Z" }); }
+  finally { due.close(); }
+  await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
+  const manifest = JSON.parse(readFileSync(join(f.snapshot, "manifest.json"), "utf8")) as HomeSnapshotManifest;
+  assert.ok(manifest.stores.some(store => store.path === "due-registry"), "the due registry is part of the snapshot");
+  write("personal", "之后改的");
+  write(projectA, "之后改的");
+  assert.equal((await restoreHomeSnapshot({ homeDirectory: f.home, source: f.snapshot, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot })).status, "restored");
+  assert.equal(read("personal"), "个人空间里记下的", "the personal space's own library comes back");
+  assert.equal(read(projectA), "项目 A 里记下的", "and project A's");
+  const restored = openDueRegistry(f.home);
+  try { assert.deepEqual(restored.entries().map(entry => [entry.partition_id, entry.entry_key]), [["personal", "r"]]); } finally { restored.close(); }
 });

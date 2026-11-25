@@ -22,7 +22,6 @@ interface PlacementHostPorts {
   /** Every project in this Home's catalog, the personal space included once it exists; null before the catalog is configured. */
   projects(): Promise<readonly PlacementProjectRecord[] | null>;
   /** Make the personal space if it does not exist yet. */
-  ensurePersonalSpace(): Promise<PlacementProjectRecord>;
   /** Open (when needed) the runtime of one project and return its reference. */
   open(record: PlacementProjectRecord): Promise<LocalHostProjectReference>;
   projectClient(reference: LocalHostProjectReference): ActionClient;
@@ -54,7 +53,6 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
     authorize: access => access.actor_id === PLACEMENT_LEDGER_ACCESS.actor_id && access.scope.kind === "personal" && access.scope.id === PLACEMENT_LEDGER_ACCESS.scope.id,
   });
   const record = async (projectId: string): Promise<PlacementProjectRecord> => {
-    if (projectId === PERSONAL_SPACE_PROJECT_ID) return ports.ensurePersonalSpace();
     const found = (await ports.projects())?.find(project => project.project_id === projectId);
     if (!found) throw new ActionError("placement.project_missing", uiText.text("workbench.placement-actions.project-not-found"));
     return found;

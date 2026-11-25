@@ -18,12 +18,12 @@ async createProject(input: CreateMolisWorkProjectInput, synced=false, beforeEffe
     const actorId = this.validation.requiredActorId(input.actor_id);
     if (input.project_id) {
       if (!(synced ? /^project-(?:onboarding-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u : /^project-onboarding-[0-9a-f]{8}-[0-9a-f-]{27}$/u).test(input.project_id)) throw new Error("无效的恢复项目标识");
-      const existing = this.projects.query.listProjects().find(p => p.project_id === input.project_id);
+      const existing = this.projects.query.listPartitions().find(p => p.project_id === input.project_id);
       if (existing) return existing;
     }
     return this.provisionCreatedProject({ displayName: input.display_name, actorId, projectId: input.project_id }, (record) => {
       // Another connection may have recovered the promoted database while this one waited for its write lock.
-      const existing = this.projects.query.listProjects().find(p => p.project_id === record.project_id);
+      const existing = this.projects.query.listPartitions().find(p => p.project_id === record.project_id);
       if (existing) return existing;
       beforeEffect();
       this.projects.lifecycle.register(record, synced ? "project.sync_prepared" : "project.created", actorId);
@@ -32,7 +32,7 @@ async createProject(input: CreateMolisWorkProjectInput, synced=false, beforeEffe
   }
 
 async provisionCreatedProject<T>(
-    input: { displayName: string; actorId: string; projectId?: string },
+    input: { displayName: string; actorId: string; projectId?: string; reserved?: true },
     commit: (record: MolisWorkProjectRecord) => T,
     beforeEffect: () => void = () => undefined,
   ): Promise<T> {
@@ -41,6 +41,7 @@ async provisionCreatedProject<T>(
       project_id: input.projectId,
       display_name: input.displayName,
       data_class: "user",
+      ...(input.reserved ? { reserved_partition: true as const } : {}),
     });
     const stagingDirectory = path.join(this.projectsDirectory, `.staging-${record.project_id}-${randomUUID()}`);
     const projectDirectory = path.dirname(record.database_path);
@@ -67,6 +68,8 @@ async provisionCreatedProject<T>(
       try {
         await fs.rename(stagingDirectory, projectDirectory);
         promoted = true;
+        // Opened at its partition root it is bound to this Home's space at once, so a snapshot taken before any Host opens it accepts it.
+        validateManagedProject(record.database_path, record.project_id);
       } catch (error) {
         if (!input.projectId || !["EEXIST", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
         // A competing stable request owns the promoted directory. Adopt only its validated database.

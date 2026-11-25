@@ -26,7 +26,7 @@ const WORK_BRIEF_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "w
  * writes these tables. Versions are append-only; a brief's `version` is its row revision (the artifact join's compare-and-set).
  */
 export const WORK_BRIEF_DATABASE: HomePluginDatabaseDeclaration = { project_rows: WORK_BRIEF_PROJECT_ROWS, store_name: "work-brief",
-  version: /* @version database.work_brief_database */ 2, upgrades: [{ from: 1, sql: BRIEF_EDITOR_VERSIONS }],
+  version: /* @version database.work_brief_database */ 1,
   read_permission: "work-brief:read", write_permission: "work-brief:write", schema: `
   CREATE TABLE briefs (
     id TEXT PRIMARY KEY,

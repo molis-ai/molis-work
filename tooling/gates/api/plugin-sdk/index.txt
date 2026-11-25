@@ -280,6 +280,12 @@ export type { MissedRun } from "@molis-ai/molis-work-contracts/platform/actions"
 export type { ObjectLinkPlace } from "@molis-ai/molis-work-contracts/platform/object-link";
 export type { OpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export type OverviewRowCheck = {
+    readonly columns: Readonly<Record<string, PluginSqlValue>>;
+} | {
+    readonly problem: string;
+};
+
 export declare const PAGE_ROUTE_LIMITS: Readonly<{
     routes: 32;
     segments: 8;
@@ -327,6 +333,8 @@ export interface PageRouteMatch {
         readonly reason: "encoding" | "too_long";
     };
 }
+
+export type PartitionDeclarationFields = Pick<PluginManifest, "plugin_id"> & Partial<Pick<PluginManifest, "databases" | "overview_projection" | "market" | "dependencies" | "person_settings" | "actions" | "push">>;
 
 export type { PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PersonMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -783,6 +791,8 @@ export declare function cardSubject(view: Pick<ActionView, "action" | "operation
     id: string;
 } | null;
 
+export declare function checkOverviewRow(kind: unknown, row: unknown): OverviewRowCheck;
+
 export declare function checkedSourcePresentation(value: unknown): SourcePresentation;
 
 export declare function checkedSourcePresentationInput(value: unknown): SourcePresentationInput;
@@ -978,6 +988,16 @@ export declare function objectSchema<const P extends Readonly<Record<string, unk
     additionalProperties: false;
 };
 
+export declare function overviewColumns<K extends OverviewKind>(kind: K, row: OverviewRowByKind[K]): Record<string, PluginSqlValue>;
+
+export declare function overviewEventWindowEnd(now: Date): Date;
+
+export declare function overviewRows(tx: PluginDatabaseTransaction): {
+    upsert<K extends OverviewKind>(kind: K, row: OverviewRowByKind[K]): void;
+    remove(kind: OverviewKind, rowId: string): void;
+    removePrefix(kind: OverviewKind, prefix: string): void;
+};
+
 export declare function pageRouteProblems(manifest: PluginManifest): string[];
 
 export declare function parseConnectionSlots(value: unknown, used: readonly string[]): PluginConnectionsDeclaration | undefined;
@@ -1001,6 +1021,8 @@ export declare function parseSyncAggregates(value: unknown): readonly SyncAggreg
 export declare function parseSyncDocumentValue<T>(value: unknown, spaceId: string, validate: (value: unknown) => T): DocumentState<T>;
 
 export declare function parseSyncTracking(value: unknown): readonly SyncTrackedTable[];
+
+export declare function partitionDeclarationProblems(manifest: PartitionDeclarationFields): string[];
 
 export declare function pollingIntegrationBinding({ manifest, provider, presentAccount, now }: {
     manifest: PluginManifest;

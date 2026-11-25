@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { activeLocale, collectHomeAggregate, homeAggregatePorts, homeBackgroundTasks, HomeAggregateInputEach, HomeConsentLedger, LocalHost, molisWorkHostProjectReference, MolisWorkLocalHost, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type BackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, BACKGROUND_TASKS_OUTPUT_TYPE, PERSONAL_SPACE_PROJECT_ID, type ActionDefinition, type ActionExecutionContext, type ActionSchema, type BackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { inspectActionDeclarations, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
@@ -203,7 +203,8 @@ test("S-49 PG-043 a home_aggregate declaration that writes, calls a model, costs
 });
 
 // AAP-03 SYS-05: real Host queries with one non-cooperating provider; timeout does not withhold other projects or accept late results.
-test("SYS-05 a stalled Home provider is cancelled, other projects return, and a later retry works", { timeout: 15_000 }, async t => {
+// 30 s: the two full reads with their deadlines sat right at 15 s on the loaded Linux runner (batch 106 CI); the deadlines themselves are unchanged.
+test("SYS-05 a stalled Home provider is cancelled, other projects return, and a later retry works", { timeout: 30_000 }, async t => {
   const { host, plugin, a, b } = await rig(t);
   for (const ref of [a, b]) await startProjectPlugins(host, ref);
   const release = Promise.withResolvers<void>();
@@ -222,7 +223,7 @@ test("SYS-05 a stalled Home provider is cancelled, other projects return, and a 
   assert.equal(result.answers.length, 1, "a late result cannot mutate the returned partial snapshot");
 });
 
-test("SYS-05 Home discovery has a deadline and cancelling the caller rejects the whole read", { timeout: 15_000 }, async t => {
+test("SYS-05 Home discovery has a deadline and cancelling the caller rejects the whole read", { timeout: 30_000 }, async t => {
   const { host, plugin, a, b } = await rig(t);
   for (const ref of [a, b]) await startProjectPlugins(host, ref);
   const ports = openOnly(host), held = Promise.withResolvers<void>();
@@ -255,7 +256,10 @@ test("S-49 B103-01 the Home answers a sleeping project from its last read, opens
   const { host, plugin, a, b, closed, open } = await rig(t);
   await startProjectPlugins(host, a);
   const ports = homeAggregatePorts(host), pass = () => ports.resting!.readings.pass;
+  // The personal space is one more partition the Home reads (batch 106); these checks follow the projects set up here, and it is checked once on its own.
+  let personalAnswered = false;
   const read = async () => (await collectHomeAggregate<{ project: string }>(ports, TYPE, {})).answers
+    .filter(answer => answer.project_id === PERSONAL_SPACE_PROJECT_ID ? (personalAnswered = true, false) : true)
     .map(answer => `${answer.project_id === a.project_id ? "a" : answer.project_id === b.project_id ? "b" : answer.project_id === closed.project_id ? "closed" : "other"}${answer.resting ? ":resting" : ""}`).sort();
   assert.deepEqual(await read(), ["a"], "only the open project answers now; the others are read in the background");
   await pass();
@@ -263,6 +267,7 @@ test("S-49 B103-01 the Home answers a sleeping project from its last read, opens
   assert.ok(plugin.calls.filter(call => call.project === closed.project_id).every(call => call.query_only), "with the same read-only call");
   assert.equal(host.projectRest(closed.storage_key).usedAt, 0, "opening it to read it did not count as using it");
   assert.deepEqual(await read(), ["a", "b", "closed"]);
+  assert.ok(personalAnswered, "the personal space, not read yet either, was read in the same background pass");
   // Closed on purpose: neither read nor opened again.
   assert.equal(await host.closeProject(b), true);
   assert.deepEqual(await read(), ["a", "closed"]);
@@ -300,6 +305,11 @@ test("S-49 resting readings persist across Host restarts with zero project opens
   };
   const p1 = await create("SleptProject");
   const p2 = await create("OpenOnShutdown");
+  // The personal space is a partition the Home reads too (batch 106); where everything resting is invalidated, it goes with them.
+  const personal = await withCatalog({ homeDirectory: home }, catalog => {
+    const row = catalog.listPartitions().find(project => project.project_id === PERSONAL_SPACE_PROJECT_ID)!;
+    return molisWorkHostProjectReference({ projectId: row.project_id, databasePath: row.database_path });
+  });
   const startHost = (plugin: ReturnType<typeof aggregatePlugin>, opened: string[]) => {
     const host = new MolisWorkLocalHost({
       homeDirectory: home,
@@ -312,7 +322,7 @@ test("S-49 resting readings persist across Host restarts with zero project opens
     return { host, withHostCatalog };
   };
   const labelOf = (answers: ReadonlyArray<{ project_id: string; resting?: true }>) =>
-    answers.map(answer => `${answer.project_id === p1.project_id ? "p1" : "p2"}${answer.resting ? ":resting" : ""}`).sort();
+    answers.filter(answer => answer.project_id !== PERSONAL_SPACE_PROJECT_ID).map(answer => `${answer.project_id === p1.project_id ? "p1" : "p2"}${answer.resting ? ":resting" : ""}`).sort();
 
   // Host 1: read both projects for both plain and keyed queries; sleep p1, leave p2 open until clean shutdown.
   const plugin1 = aggregatePlugin();
@@ -379,18 +389,20 @@ test("S-49 resting readings persist across Host restarts with zero project opens
   const afterPin = await collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
   assert.deepEqual(afterPin.answers, [], "Home trust change invalidates all resting snapshots");
   await ports2.resting!.readings.pass;
-  assert.deepEqual(opened2.sort(), [p1.project_id, p2.project_id].sort());
+  assert.deepEqual(opened2.sort(), [PERSONAL_SPACE_PROJECT_ID, p1.project_id, p2.project_id].sort(), "the personal space's snapshot goes too");
   assert.equal(await host2.sleepIfIdle(p1, 0), true);
   assert.equal(await host2.sleepIfIdle(p2, 0), true);
+  assert.equal(await host2.sleepIfIdle(personal, 0), true);
 
   ledger.revokePublisher("resting-test-key", new Date().toISOString());
   opened2.length = 0;
   const afterRevoke = await collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
   assert.deepEqual(afterRevoke.answers, [], "publisher revocation invalidates sleeping snapshots immediately");
   await ports2.resting!.readings.pass;
-  assert.deepEqual(opened2.sort(), [p1.project_id, p2.project_id].sort());
+  assert.deepEqual(opened2.sort(), [PERSONAL_SPACE_PROJECT_ID, p1.project_id, p2.project_id].sort());
   assert.equal(await host2.sleepIfIdle(p1, 0), true);
   assert.equal(await host2.sleepIfIdle(p2, 0), true);
+  assert.equal(await host2.sleepIfIdle(personal, 0), true);
 
   // Non-always-on / project-scoped consent grant and revocation in Home's plugin_consents invalidate sleeping snapshots immediately.
   const [projectConsent] = ledger.record({
@@ -406,16 +418,17 @@ test("S-49 resting readings persist across Host restarts with zero project opens
   const afterProjectConsentGrant = await collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
   assert.deepEqual(afterProjectConsentGrant.answers, [], "project-scoped plugin consent grant invalidates sleeping snapshots immediately");
   await ports2.resting!.readings.pass;
-  assert.deepEqual(opened2.sort(), [p1.project_id, p2.project_id].sort());
+  assert.deepEqual(opened2.sort(), [PERSONAL_SPACE_PROJECT_ID, p1.project_id, p2.project_id].sort());
   assert.equal(await host2.sleepIfIdle(p1, 0), true);
   assert.equal(await host2.sleepIfIdle(p2, 0), true);
+  assert.equal(await host2.sleepIfIdle(personal, 0), true);
 
   ledger.revoke(projectConsent.consent_id, new Date().toISOString());
   opened2.length = 0;
   const afterProjectConsentRevoke = await collectHomeAggregate<{ project: string }>(ports2, TYPE, {});
   assert.deepEqual(afterProjectConsentRevoke.answers, [], "project-scoped plugin consent revocation invalidates sleeping snapshots immediately");
   await ports2.resting!.readings.pass;
-  assert.deepEqual(opened2.sort(), [p1.project_id, p2.project_id].sort());
+  assert.deepEqual(opened2.sort(), [PERSONAL_SPACE_PROJECT_ID, p1.project_id, p2.project_id].sort());
 
   // Concurrent sleep-to-persist race: pausing persistence after ProjectLine marks p1 asleep must not wipe or immediately re-wake p1.
   let enteredPersist!: () => void;
@@ -463,7 +476,7 @@ test("S-49 resting readings persist across Host restarts with zero project opens
   key = "k2";
   assert.deepEqual((await collectHomeAggregate<{ project: string }>(ports3, TYPE, each)).answers, [], "changed keyOf invalidates persisted snapshot");
   await ports3.resting!.readings.pass;
-  assert.deepEqual(opened3.sort(), [p1.project_id, p2.project_id].sort());
+  assert.deepEqual(opened3.sort(), [PERSONAL_SPACE_PROJECT_ID, p1.project_id, p2.project_id].sort());
   assert.equal(await host3.sleepIfIdle(p1, 0), true);
   assert.equal(existsSync(restingCacheFile(home, p1.storage_key)), true);
 
@@ -700,6 +713,8 @@ test("S-49 unopenable closed projects do not thrash background wakes until their
     "shutdown with active plugin work does not persist a stale resting snapshot");
   assert.equal(existsSync(restingCacheFile(home, corrupt.storage_key)), true,
     "idle open projects without active work still persist on clean shutdown");
+  const personal = molisWorkHostProjectReference({ projectId: PERSONAL_SPACE_PROJECT_ID, databasePath: join(home, "personal-space", "molis-work.db") });
+  assert.equal(existsSync(restingCacheFile(home, personal.storage_key)), false, "the personal space, only read in the background here, left no resting snapshot");
 
   // Fresh Host opens `active` quietly instead of serving a stale snapshot, while idle projects serve with zero opens.
   const opened2: string[] = [];
@@ -717,7 +732,9 @@ test("S-49 unopenable closed projects do not thrash background wakes until their
     "project shut down with active work is not served as resting after restart");
   assert.ok(afterRestart.answers.some(answer => answer.project_id === corrupt.project_id && answer.resting === true));
   await ports2.resting!.readings.pass;
-  assert.deepEqual(opened2, [active.project_id], "only the project shut down with active work wakes quietly");
+  // The personal space left no resting snapshot (asserted above), so the new Host has not read it yet and opens it once to read it,
+  // like any project (B103-01). Batch 108's zero-wake budget for the personal overview (G4) is where its restarts are measured.
+  assert.deepEqual(opened2.sort(), [PERSONAL_SPACE_PROJECT_ID, active.project_id].sort(), "only the project shut down with active work wakes quietly");
 });
 
 test("S-49 resting snapshots invalidate on Home aggregate DB writes, restart-bound waiting tasks, expired reported failures, and locale switch", { timeout: 60_000 }, async t => {
@@ -754,7 +771,9 @@ test("S-49 resting snapshots invalidate on Home aggregate DB writes, restart-bou
         kind: "app", views: [],
         actions: [{
           ...bgAction,
-          handle(): BackgroundTaskCollection {
+          handle(caller: ActionExecutionContext): BackgroundTaskCollection {
+            // Nothing runs in the personal space, which the Home reads too (batch 106): the tasks below are the project's.
+            if (caller.project_id === PERSONAL_SPACE_PROJECT_ID) return { source: { surface: "bgsemantics", title: "Probe", icon: "code" }, tasks: [] };
             const locale = activeLocale() ?? "zh";
             const nowIso = new Date().toISOString();
             const expiredIso = new Date(Date.now() - 15 * 60_000).toISOString();

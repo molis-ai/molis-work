@@ -37,7 +37,7 @@ export function validatePortableProject(key:string,value:unknown,options:Project
 /** Projects owns the portable projection; Storage supplies only its ordinary journal/transaction machinery. */
 export function projectReplicationOwner(db:ProjectsSqliteDatabase,options:ProjectReplicationOptions){
   options.authorize();
-  for(const sql of ['SELECT project_id,display_name,created_at,updated_at,data_class FROM projects LIMIT 0','SELECT project_id,plugin_id FROM project_portable_plugins LIMIT 0','SELECT project_id,plugin_id FROM project_plugins LIMIT 0'])db.prepare(sql).all();
+  for(const sql of ['SELECT project_id,display_name,created_at,updated_at,data_class FROM projects LIMIT 0','SELECT project_id,plugin_id FROM project_portable_plugins LIMIT 0','SELECT partition_id,plugin_id FROM partition_plugins LIMIT 0'])db.prepare(sql).all();
   return {authorize:options.authorize,
     belongsToProject(key:string,projectId:string){options.authorize();return key===projectId;},
     canUpload(key:string){options.authorize();const p=db.prepare('SELECT data_class FROM projects WHERE project_id=?').get(key) as {data_class:string}|undefined;return !options.excludedProjectIds.includes(key)&&(!p||p.data_class==='user');},
@@ -65,14 +65,14 @@ export function projectReplicationOwner(db:ProjectsSqliteDatabase,options:Projec
       db.prepare('UPDATE projects SET display_name=?,created_at=?,updated_at=? WHERE project_id=?').run(v.project.title,v.project.created_at,v.project.updated_at,key);
       db.prepare('DELETE FROM project_portable_plugins WHERE project_id=?').run(key);
       for(const plugin of v.plugins)db.prepare('INSERT INTO project_portable_plugins(project_id,plugin_id) VALUES(?,?)').run(key,plugin);
-      // Do not change project_plugins, exclusions, local paths, bindings, authorizations or execution state.
+      // Do not change partition_plugins, exclusions, local paths, bindings, authorizations or execution state.
     },
   };
 }
 
 /** Local availability is a separate observation. Unknown independent plugins remain visible without being installed. */
 export function projectPluginRequirements(db:ProjectsSqliteDatabase,projectId:string,installed:(id:string)=>boolean){
-  const active=new Set((db.prepare('SELECT plugin_id FROM project_plugins WHERE project_id=?').all(projectId) as {plugin_id:string}[]).map(p=>p.plugin_id));
+  const active=new Set((db.prepare('SELECT plugin_id FROM partition_plugins WHERE partition_id=?').all(projectId) as {plugin_id:string}[]).map(p=>p.plugin_id));
   return (db.prepare('SELECT plugin_id FROM project_portable_plugins WHERE project_id=? ORDER BY plugin_id').all(projectId) as {plugin_id:string}[])
     .map(p=>({plugin_id:p.plugin_id,installed:installed(p.plugin_id),active:active.has(p.plugin_id)}));
 }

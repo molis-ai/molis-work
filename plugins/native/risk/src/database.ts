@@ -9,8 +9,7 @@ const RISK_EDITOR_VERSIONS = "CREATE TABLE risk_editor_versions (risk_id TEXT PR
  */
 export const RISK_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "risk",
-  version: /* @version database.risk_project_database */ 2,
-  upgrades: [{ from: 1, sql: RISK_EDITOR_VERSIONS }],
+  version: /* @version database.risk_project_database */ 1,
   schema: `
     CREATE TABLE IF NOT EXISTS risk_items (
       risk_id TEXT PRIMARY KEY,

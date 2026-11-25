@@ -15,6 +15,8 @@ const projectErrors = defineErrorCodes("catalog", {
   project_not_found: "not_found",
   project_storage_invalid: "invalid",
   project_name_conflict: "conflict",
+  /** `personal` is the reserved personal-space partition (S-personal-partition-reserved): no entry may create, take, rename, recycle or delete it. */
+  personal_space: "invalid",
 });
 const workspaceErrors = defineErrorCodes("catalog.context", {
   user_confirmation_required: "invalid",
@@ -98,6 +100,27 @@ export interface SetProjectPluginInput {
   plugin_id: ProjectPluginId;
   enabled: boolean;
   expected_revision: string;
+}
+
+/** One plugin to turn on or off in the call's partition (`partitions.plugins.set@1`); its companions follow it as with one change. */
+export interface PartitionPluginChange {
+  plugin_id: ProjectPluginId;
+  enabled: boolean;
+}
+
+/**
+ * Several plugins turned on or off in the call's partition at once, the personal space as well as a project
+ * (specs/unified-partition-plugins §4.1, V6): what a scene adoption and the assistant's configuration preview send after the person confirms.
+ * All of them land, or none does.
+ */
+export interface SetPartitionPluginsInput {
+  changes: PartitionPluginChange[];
+  expected_revision: string;
+}
+
+/** A partition's plugin members, with the revision a later write names. The partition is the call's, never the input's. */
+export interface VersionedPartitionPluginMembership extends VersionedProjectPluginMembership {
+  partition_id: string;
 }
 
 export interface ProjectWorkspaceRef {
@@ -305,9 +328,14 @@ export interface ProjectsQueryApi {
   projectPluginMembership(projectId: string): ProjectPluginMembership;
   /** The membership observation used to prepare a `projects.plugins.set@1` write. */
   projectPluginMembershipWithRevision(projectId: string): VersionedProjectPluginMembership;
+  /** The membership observation `partitions.plugins.set@1` writes from; the partition may be the personal space. */
+  partitionPluginMembership(partitionId: string): VersionedPartitionPluginMembership;
   listProjectPlugins(projectId: string): ProjectPluginId[];
   listHiddenPlugins(projectId: string): ProjectPluginId[];
+  /** The person's projects, without the personal space (C2): what a project list, a count or a project picker shows. */
   listProjects(): ProjectRecord[];
+  /** Every live partition, the personal space first: what a platform loop walks. A loop over partitions never uses `listProjects()` (G3). */
+  listPartitions(): ProjectRecord[];
   getProject(projectId: string): ProjectRecord;
   selections(): ProjectSelection[];
   listWorkspaceMemberships(): ProjectWorkspaceMembership[];
@@ -335,6 +363,8 @@ export interface ProjectsCommandApi {
   removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership;
   /** Project and actor are supplied by the trusted entry. A stale observation fails with `actions.conflict`. */
   setProjectPlugin(projectId: string, actorId: string, input: SetProjectPluginInput): VersionedProjectPluginMembership;
+  /** Every change in one transaction, from the revision the caller read; the personal space is a partition like any project here. */
+  setPartitionPlugins(partitionId: string, actorId: string, input: SetPartitionPluginsInput): VersionedPartitionPluginMembership;
   /** expectedDisplayName is the name observed by the editor, not a fresh server read. */
   renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): ProjectRecord;
   addWorkspaceProject(input: AddWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
@@ -480,6 +510,58 @@ export const projectPluginActions = {
       output_schema: projectPluginMembershipSchema, output_type: "project.plugin_membership",
     },
   } as ActionDefinition<SetProjectPluginInput, VersionedProjectPluginMembership>,
+} as const;
+
+const partitionPluginMembershipSchema: ActionSchema = {
+  type: "object",
+  properties: { partition_id: { type: "string", minLength: 1 }, plugins: membershipPluginIds, hidden: membershipPluginIds, revision: expectedRevision },
+  required: ["partition_id", "plugins", "hidden", "revision"],
+  additionalProperties: false,
+};
+
+/** The most changes one `partitions.plugins.set@1` call carries: a scene declares a handful of plugins, never the whole directory. */
+export const PARTITION_PLUGIN_CHANGES_MAX = 32;
+
+/**
+ * The partition's plugin members (specs/unified-partition-plugins §4.1, V6; scene-and-page-contract P-3a widened to every partition). The call
+ * context gives the partition, `personal` included, and the actor; scene adoption and the assistant's configuration both write through `set`,
+ * the assistant only after the person confirms its preview (audience `user`).
+ */
+export const partitionPluginActions = {
+  get: {
+    capability_id: "partitions.plugins.get",
+    version: /* @version action.partitions.plugins.get */ 1,
+    operation: "query",
+    action: {
+      title: "分区插件成员",
+      description: "读取当前分区（个人空间或项目）启用了哪些插件，返回保存时要核对的版本",
+      kind: "query", scope: "project", audiences: ["user", "plugin", "agent"], permissions: [], subject_kinds: ["project"],
+      input_schema: inputSchemaFor<Record<string, never>>()({ type: "object", properties: {}, additionalProperties: false }),
+      output_schema: partitionPluginMembershipSchema, output_type: "partition.plugin_membership",
+    },
+  } as ActionDefinition<Record<string, never>, VersionedPartitionPluginMembership>,
+  set: {
+    capability_id: "partitions.plugins.set",
+    version: /* @version action.partitions.plugins.set */ 1,
+    operation: "command",
+    action: {
+      title: "更改分区插件成员",
+      description: "按读取时的版本，在当前分区（个人空间或项目）一次启用或移除几个插件，随行插件一起调整；要么全部生效，要么都不生效",
+      kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
+      input_schema: inputSchemaFor<SetPartitionPluginsInput>()({
+        type: "object",
+        properties: {
+          changes: { type: "array", minItems: 1, maxItems: PARTITION_PLUGIN_CHANGES_MAX, items: {
+            type: "object", properties: { plugin_id: { type: "string", minLength: 1 }, enabled: { type: "boolean" } },
+            required: ["plugin_id", "enabled"], additionalProperties: false } },
+          expected_revision: expectedRevision,
+        },
+        required: ["changes", "expected_revision"],
+        additionalProperties: false,
+      }),
+      output_schema: partitionPluginMembershipSchema, output_type: "partition.plugin_membership",
+    },
+  } as ActionDefinition<SetPartitionPluginsInput, VersionedPartitionPluginMembership>,
 } as const;
 
 /** A person's and a plugin's recent materials in this project; the caller and the project come from the call context (§2.1). */

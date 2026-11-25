@@ -9,5 +9,5 @@ CREATE TABLE sync_payload_modes(namespace TEXT PRIMARY KEY,protected INTEGER NOT
 CREATE TABLE sync_policy(id INTEGER PRIMARY KEY CHECK(id=1),json TEXT NOT NULL);
 CREATE TABLE sync_stream_cursors(namespace TEXT PRIMARY KEY,cursor INTEGER NOT NULL);
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935','{"spaceId":"space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935","kind":"personal","ownerUserId":"golden-person","teamId":null,"issuer":"https://golden.invalid","applicationId":"io.molis.work.golden"}');
-PRAGMA user_version=2;
+PRAGMA user_version=1;
 COMMIT;

@@ -12,7 +12,7 @@ export const EXTERNAL_SESSIONS_STORE = "external-sessions";
  * foreign key so filing decisions survive index rebuilds, and its `revision` never resets to 0 on `clear`.
  */
 export const EXTERNAL_SESSIONS_BASELINE: SqliteBaseline = {
-  version: /* @version database.external_sessions_database */ 2,
+  version: /* @version database.external_sessions_database */ 1,
   schema: `
   CREATE TABLE external_sessions (
     session_key TEXT PRIMARY KEY,
@@ -115,10 +115,6 @@ export const EXTERNAL_SESSIONS_BASELINE: SqliteBaseline = {
     value TEXT NOT NULL
   );
 `,
-  upgrades: [
-    // 1 → 2: subagent trajectories are recorded with their session and left out of the list. Every row so far is a session.
-    { from: 1, sql: "ALTER TABLE external_sessions ADD COLUMN subagent INTEGER NOT NULL DEFAULT 0;" },
-  ],
 };
 
 export const EXTERNAL_SESSIONS_HOME_STORE: HomeStoreDeclaration = {

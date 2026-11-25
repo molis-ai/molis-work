@@ -293,8 +293,9 @@ function callArguments(text, open) {
 // named, declared constant. An inline object or a name no package declares is a database the table cannot list. The file that
 // defines the two functions is exempt: it only passes its own parameter on. `runSqliteUpgrade(db, path, baseline)` forwards what
 // a store's descriptor carries (specs/upgrade-continuity/upgrade-chain-design.md §2.3), so there, and only there, a property is
-// fine too. Nothing else is exempt: the aggregate copy openers and their file were deleted with U1-d, so the rule reads these
-// three entries and no others.
+// fine too. The two typed plugin-declaration bridges below are the only other exemptions (the Host connection bridge, and since
+// batch 106 the per-partition library opener); the aggregate copy openers and their file were deleted with U1-d, so the rule
+// reads these three entries and no others.
 function checkBaselineCalls(directories, declaredNames) {
   for (const directory of directories) {
     for (const file of sourceFiles(directory)) {
@@ -309,6 +310,11 @@ function checkBaselineCalls(directories, declaredNames) {
         if (file === "apps/local-host/src/plugin-database.ts" && match[1] === "openBaselineHomeSqlite"
           && args.join(",") === "home,declaration.store_name,declaration,partition?.project_id"
           && /function openPluginDatabaseConnection\(home: string, declaration: PluginDatabaseDeclaration,/.test(text)) continue;
+        // The per-partition opener of an instance's own library (`<partition root>/libraries/<store>.db`, batch 106, U2) forwards
+        // the same trusted plugin declaration the same way (user 2026-11-24): this file, this call, these arguments, this function.
+        if (file === "apps/local-host/src/partition-plugin-assembly.ts" && match[1] === "applySqliteBaseline"
+          && args.join(",") === "writer,file,declaration"
+          && /function openPartitionPluginLibrary\(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration\)/.test(text)) continue;
         const unnamed = `declare the baseline as a named constant so the 各库版本表 can list it`;
         if (baseline === undefined) problem(`${file}: ${match[1]} is called without a baseline`);
         else if (match[1] === "runSqliteUpgrade" && /^\w+(?:\.\w+)+$/.test(baseline)) continue;

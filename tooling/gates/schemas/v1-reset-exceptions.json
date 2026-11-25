@@ -1,0 +1,92 @@
+[
+  {
+    "store": "agent-definitions/agent-definitions.db",
+    "place": "agent-definitions/agent-definitions.db",
+    "from_version": 3,
+    "to_version": 1,
+    "from_structure": "abad6100076206e5",
+    "to_structure": "abad6100076206e5",
+    "approved": "user 2026-11-24 (Batch 106 AskUserQuestion V7: 「106 一次全复位」; U13 Clean v1: old values are deleted, no migration)",
+    "reason": "V7 one-time reset: the library's upgrade steps are deleted and its current structure becomes the clean v1 baseline; the kept goldens are rewritten at v1 (specs/plugin-specials-demotion/implementation-plan.md V7)."
+  },
+  {
+    "store": "blueprints/blueprints.db",
+    "place": "blueprints/blueprints.db",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "303892485f7fee88",
+    "to_structure": "303892485f7fee88",
+    "approved": "user 2026-11-24 (Batch 106 AskUserQuestion V7: 「106 一次全复位」; U13 Clean v1: old values are deleted, no migration)",
+    "reason": "V7 one-time reset: the library's upgrade steps are deleted and its current structure becomes the clean v1 baseline; the kept goldens are rewritten at v1 (specs/plugin-specials-demotion/implementation-plan.md V7)."
+  },
+  {
+    "store": "dataset/dataset.db",
+    "place": "dataset/dataset.db",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "905c710557501bb4",
+    "to_structure": "905c710557501bb4",
+    "approved": "user 2026-11-24 (Batch 106 AskUserQuestion V7: 「106 一次全复位」; U13 Clean v1: old values are deleted, no migration)",
+    "reason": "V7 one-time reset: the library's upgrade steps are deleted and its current structure becomes the clean v1 baseline; the kept goldens are rewritten at v1 (specs/plugin-specials-demotion/implementation-plan.md V7)."
+  },
+  {
+    "store": "external-sessions/external-sessions.db",
+    "place": "external-sessions/external-sessions.db",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "eabec6a25b46795b",
+    "to_structure": "eabec6a25b46795b",
+    "approved": "user 2026-11-24 (Batch 106 AskUserQuestion V7: 「106 一次全复位」; U13 Clean v1: old values are deleted, no migration)",
+    "reason": "V7 one-time reset: the library's upgrade steps are deleted and its current structure becomes the clean v1 baseline; the kept goldens are rewritten at v1 (specs/plugin-specials-demotion/implementation-plan.md V7)."
+  },
+  {
+    "store": "functions/functions.db",
+    "place": "functions/functions.db",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "e8e455da5a281ae8",
+    "to_structure": "e8e455da5a281ae8",
+    "approved": "user 2026-11-24 (Batch 106 AskUserQuestion V7: 「106 一次全复位」; U13 Clean v1: old values are deleted, no migration)",
+    "reason": "V7 one-time reset: the library's upgrade steps are deleted and its current structure becomes the clean v1 baseline; the kept goldens are rewritten at v1 (specs/plugin-specials-demotion/implementation-plan.md V7)."
+  },
+  {
+    "store": "projects/*/molis-work.db",
+    "place": "<partition>/molis-work.db",
+    "from_version": 3,
+    "to_version": 1,
+    "from_structure": "ef7b23560ff7e149",
+    "to_structure": "ef7b23560ff7e149",
+    "approved": "user 2026-11-24 (Batch 106 AskUserQuestion V7: 「106 一次全复位」; U13 Clean v1: old values are deleted, no migration)",
+    "reason": "V7 one-time reset: the library's upgrade steps are deleted and its current structure becomes the clean v1 baseline; the kept goldens are rewritten at v1 (specs/plugin-specials-demotion/implementation-plan.md V7)."
+  },
+  {
+    "store": "projects/*/molis-work.db#io.molis.work.risk",
+    "place": "<partition>/molis-work.db#risk",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "2598fbcecb5c9e39",
+    "to_structure": "2598fbcecb5c9e39",
+    "approved": "user 2026-11-24 (Batch 106 AskUserQuestion V7: 「106 一次全复位」; U13 Clean v1: old values are deleted, no migration)",
+    "reason": "V7 one-time reset: the library's upgrade steps are deleted and its current structure becomes the clean v1 baseline; the kept goldens are rewritten at v1 (specs/plugin-specials-demotion/implementation-plan.md V7)."
+  },
+  {
+    "store": "sync/sync.db",
+    "place": "spaces/<spaceId>/sync/sync.db",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "4ffa2f326552fc84",
+    "to_structure": "4ffa2f326552fc84",
+    "approved": "user 2026-11-24 (Batch 106 AskUserQuestion V7: 「106 一次全复位」; U13 Clean v1: old values are deleted, no migration)",
+    "reason": "V7 one-time reset: the library's upgrade steps are deleted and its current structure becomes the clean v1 baseline; the kept goldens are rewritten at v1 (specs/plugin-specials-demotion/implementation-plan.md V7)."
+  },
+  {
+    "store": "work-brief/work-brief.db",
+    "place": "work-brief/work-brief.db",
+    "from_version": 2,
+    "to_version": 1,
+    "from_structure": "c065145ca5603109",
+    "to_structure": "c065145ca5603109",
+    "approved": "user 2026-11-24 (Batch 106 AskUserQuestion V7: 「106 一次全复位」; U13 Clean v1: old values are deleted, no migration)",
+    "reason": "V7 one-time reset: the library's upgrade steps are deleted and its current structure becomes the clean v1 baseline; the kept goldens are rewritten at v1 (specs/plugin-specials-demotion/implementation-plan.md V7)."
+  }
+]

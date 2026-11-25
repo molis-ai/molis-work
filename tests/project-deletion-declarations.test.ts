@@ -33,10 +33,11 @@ test("RAC-563 a plugin's project data is what it declares, and the confirmation 
   installHostUiText();
   await withFreshHome(async home => {
     const owners = projectDeletedHooksFor(home).owners();
-    // The ids are the receipt's stable names, so a change here orphans the steps of receipts that are still pending.
+    // The ids are the receipt's stable names, so a change here orphans the steps of receipts that are still pending. Batch 106 adds
+    // `partition-platform`: the due entries, overview rows and evidence holds the platform keeps for a partition.
     assert.deepEqual(owners.map(owner => owner.id), [
       "pages", "form", "dataset", "ppt", "work-brief", "workflows", "todo", "functions", "lingguang", "images",
-      "characters", "artifacts", "plugin-builder", "assistant", "mainline", "home-pages", "knowledge", "plugin-originals", "conversation-attachments", "plugin-connections", "plugin-project-reach", "task-grants", "automation-recommendations", "observation", "blueprints", "evaluation", "external-sessions", "memory", "search",
+      "characters", "artifacts", "plugin-builder", "assistant", "mainline", "home-pages", "knowledge", "plugin-originals", "conversation-attachments", "plugin-connections", "plugin-project-reach", "task-grants", "automation-recommendations", "observation", "blueprints", "partition-platform", "evaluation", "external-sessions", "memory", "search",
     ]);
     assert.deepEqual(runWithLocale("zh", () => owners.flatMap(owner => owner.label ? [ownerLabel(owner)] : [])), [
       "Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "Dataset 数据表", "PPT 演示稿", "简报、它的版本与修改", "工作流程及其运行记录", "放在这个项目里的待办",

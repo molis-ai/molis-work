@@ -1,8 +1,9 @@
 import { projectReplicationTriggers } from "./project-replication-triggers.js";
 import { projectPluginPlatformExtension } from "./project-plugin-databases.js";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { PLATFORM_PLUGIN_REGISTRATIONS, BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
-import { ProjectsModule, projectDatabasePath, listProjectRoots } from "@molis-ai/molis-work-module-projects";
+import { ProjectsModule, listProjectRoots, matchesPartitionPattern, PARTITION_PATTERN, partitionDatabasePath, partitionOfRelativePath, PERSONAL_SPACE_DIRECTORY } from "@molis-ai/molis-work-module-projects";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectPluginProjectDatabaseSet, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteSchema, listSqliteObjects, LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
@@ -22,6 +23,14 @@ function platformTables(): string[] {
 }
 
 /** No project provisioning or Plugin Runtime activation: all readers use the already validated archive connection. */
+/**
+ * The personal space's main database (`personal-space/molis-work.db`) gets the same check as a project's: one root, its own id, and only the
+ * registered plugins' tables. Its store is not `projects`, so the caller asks here; `null` for any other file of the store.
+ */
+export function restorePersonalSpaceDatabase(storePath: string, relativePath: string): string | null {
+  return storePath === PERSONAL_SPACE_DIRECTORY && relativePath === "molis-work.db" ? PERSONAL_SPACE_PROJECT_ID : null;
+}
+
 export function inspectRestoreProjectDatabase(db: SqliteDatabase, file: string, projectId: string): Readonly<Record<string, string | number>> {
   const roots = listProjectRoots(db);
   if (roots.length !== 1 || roots[0]!.project_id !== projectId) throw invalidRestore();
@@ -36,18 +45,18 @@ export function inspectRestoreProjectDatabase(db: SqliteDatabase, file: string, 
 
 /** Catalog identities are absolute references to this original Home, never destinations chosen by manifest text. */
 export function inspectRestoreProjectReferences(db: SqliteDatabase, home: string, incomingPaths: ReadonlySet<string>): ReadonlySet<string> {
-  const projects = new ProjectsModule({ db, projects_directory: join(home, "projects"), outputs_directory: join(home, "outputs"), plugins: BUILTIN_PLUGIN_REGISTRY }).query.listProjects();
+  const projects = new ProjectsModule({ db, projects_directory: join(home, "projects"), outputs_directory: join(home, "outputs"), plugins: BUILTIN_PLUGIN_REGISTRY }).query.listPartitions();
   const ids = new Set<string>();
   for (const project of projects) {
     const id = project.project_id;
     if (typeof id !== "string" || !id.length || id.includes("/") || id.includes("\\") || id === "." || id === ".." || ids.has(id)) throw invalidRestore();
-    const file = "projects/" + id + "/molis-work.db";
-    if (projectDatabasePath(join(home, "projects"), id) !== join(home, file) || !incomingPaths.has(file)) throw invalidRestore();
+    const file = relative(home, partitionDatabasePath(home, id)).split(sep).join("/");
+    if (!incomingPaths.has(file)) throw invalidRestore();
     ids.add(id);
   }
   for (const file of incomingPaths) {
-    const match = /^projects\/([^/]+)\/molis-work\.db$/u.exec(file);
-    if (match && !ids.has(match[1]!)) throw invalidRestore();
+    const partition = matchesPartitionPattern(`${PARTITION_PATTERN}/molis-work.db`, file) ? partitionOfRelativePath(file) : null;
+    if (partition !== null && !ids.has(partition)) throw invalidRestore();
   }
   return ids;
 }

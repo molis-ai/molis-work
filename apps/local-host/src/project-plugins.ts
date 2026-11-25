@@ -9,7 +9,7 @@ import type { DemoAcceptanceRequest } from "./plugin-demo-seed.js";
 import { closePlugin, supervisedInstall } from "./plugin-platform-close.js";
 import { noteProjectOpened, noteProjectReleased } from "./running-project-platforms.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { HOST_BUILD_TRUST, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, installIdentity, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { consentRevision } from "./consent-revision.js";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
@@ -21,6 +21,8 @@ import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-p
 import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
 import { continuationForwarder, type ObserveContinuations } from "./agent-continuation-starts.js";
 import { projectRuntimeDeclarations } from "./plugin-registry.js";
+import { assembledPerPartition, type PartitionPluginHandle, type PartitionPluginScope } from "./partition-plugin-assembly.js";
+import type { PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 
 export interface ProjectPluginPorts {
   /** Settled person-reviewed plugin operations, sent to the installation that asked as `host.review.settled@1` (X-6). */
@@ -173,7 +175,9 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     // Scope and trust belong to the complete declaration list, before either library refusals or absent Home services filter it.
     const fixtures = projectFixtureEntries(ports.homeDirectory);
     const scoped = projectScopeEntries([...projectPluginEntries(), ...fixtures], ports.homeDirectory);
-    const entries = scoped.filter(entry => ports.homeDirectory !== undefined || !entry.definition.manifest.databases?.home || entry.dual_instance);
+    // A plugin with a library in each partition is the per-partition assembly's (`partition-plugin-assembly.ts`), never this platform's.
+    const entries = scoped.filter(entry => !assembledPerPartition(entry.definition.manifest))
+      .filter(entry => ports.homeDirectory !== undefined || !entry.definition.manifest.databases?.home || entry.dual_instance);
     record.plugins = entries.map(entry => entry.definition.manifest.plugin_id);
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
     // The only definitions that run in the Host's process without `host` trust are the Host's test fixtures, admitted as the objects they are (S-75 ⑥); a product Host is given none.
@@ -220,6 +224,40 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.error = error instanceof Error ? error.message : "项目插件平台启动失败";
   }
   return record;
+}
+
+/**
+ * The per-partition assembly's starter (`partition-plugin-assembly.ts`): a platform of its own for one plugin in one partition, over that
+ * partition's main library, with installation records from the Home's one install table and the plugin's libraries under the partition root.
+ * Stopping it stops only that instance. Nothing of the old project platform is read: its records, its plugin list and its observers are not used.
+ */
+export async function startPartitionPluginInstance(ports: ProjectPluginPorts, scope: PartitionPluginScope, entry: PluginPlatformEntry,
+  installDatabase: PluginRuntimeDatabase): Promise<PartitionPluginHandle> {
+  if (entry.definition.manifest.plugin_id !== scope.plugin_id || scope.partition_id !== ports.projectId || scope.install_id !== installIdentity(entry.definition.manifest)) {
+    throw new Error("分区插件实例的插件、安装或分区与入口不一致");
+  }
+  const storage = new SqlitePluginPrivateStorage(ports.store.db);
+  const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db, { home: ports.homeDirectory, projectId: ports.projectId }),
+    project_id: ports.projectId, actor_id: ports.actorId, db: ports.store.db, journal: ports.store, artifacts: ports.artifacts, processItems: ports.processItems,
+    ui: new UiHost(), privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),
+    deleteInstallationData: installId => storage.deleteInstallationData(installId),
+    capturePrivateData: installId => storage.snapshotInstallationData(installId),
+    restorePrivateData: (installId, snapshot) => storage.restoreInstallationData(installId, snapshot as ReturnType<typeof storage.snapshotInstallationData>),
+    ...(ports.dependencyCheck ? { dependencyCheck: ports.dependencyCheck } : {}),
+    ...(ports.installedByHand ? { inProcess: fixtureAdmission([], ports.installedByHand) } : {}),
+    actions: ports.actions, home: ports.homeDirectory ? pluginHomeFor(ports.homeDirectory) : null,
+    installDatabase, partitionScope: scope,
+  });
+  try {
+    const report = await platform.start([{ ...entry, enabled: true }]);
+    // A start the platform recorded as failed is no instance: the assembly forgets it and the next use tries again.
+    const failed = report.failed.find(item => item.plugin_id === scope.plugin_id) ?? report.blocked.find(item => item.plugin_id === scope.plugin_id);
+    if (failed || !report.running.includes(scope.plugin_id)) throw new ActionError("actions.plugin_unavailable", "这个插件在这里没能启动", { details: { plugin_id: scope.plugin_id, code: failed?.code ?? null } });
+  } catch (error) {
+    await stopProjectPlugins(platform, ports.projectId).catch(() => {});
+    throw error;
+  }
+  return { stop: () => stopProjectPlugins(platform, ports.projectId) };
 }
 
 /**

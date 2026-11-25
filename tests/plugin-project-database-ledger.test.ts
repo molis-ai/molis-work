@@ -152,7 +152,7 @@ test("PLIB-03 RAC-300 the Manifest's databases declare a project library and a H
   assert.equal(parsePluginManifest(manifest(undefined)).databases, undefined);
   for (const [databases, mentions] of [
     [[], /databases 必须为对象/u],
-    [{ global: NOTES }, /只能声明 project（项目库）和 home（Home 库），不认 global/u],
+    [{ global: NOTES }, /只能声明 project（项目库）、home（Home 库）和 partition（分区独立库），不认 global/u],
     [{ project: NOTES, plugin: NOTES }, /不认 plugin/u],
     [{ home: "notes" }, /databases\.home 必须为对象/u],
     [{ home: { ...NOTES, tables: ["notes_items"] } }, /databases\.home 不认这些字段：tables/u],

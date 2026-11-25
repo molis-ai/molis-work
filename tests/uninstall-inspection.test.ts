@@ -42,7 +42,7 @@ test("RAC-113: missing releases and registered data still produce read-only unin
       assert.equal(plan.conflicts.length, 1);
       assert.match(plan.conflicts[0]!, /kept\.txt/u);
     } else assert.deepEqual(plan.conflicts, []);
-    assert.deepEqual(plan.preserved_paths, purge_user_data ? [join(home, "agent-runtime")] : [join(home, "projects"), join(home, "backups"), join(home, "logs")]);
+    assert.deepEqual(plan.preserved_paths, purge_user_data ? [join(home, "agent-runtime")] : [join(home, "projects"), join(home, "personal-space"), join(home, "backups"), join(home, "logs")]);
   }
   await unchanged();
 });

@@ -44,6 +44,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 外部世界、OAuth、secret | [integrations.md](integrations.md) |
 | 同一件工作在助理、插件页面和手动操作之间连续：对象读取、版本前提、页面声明、通知 | [continuity.md](continuity.md) |
 | 放在哪里：个人空间与项目、用于项目、移动/复制/转成、位置条与完成提示 | [placement.md](placement.md) |
+| 每个分区一份数据（分区存储）、个人空间总览与到期提醒（总览表）、从个人空间推到项目（推送声明）、市场类别与随启用（依赖） | [partitions.md](partitions.md) |
 | 用户选中一段字或拿起一样东西时，你的插件能给出什么下一步、能接什么：选区动作、创建入口、放进已有对象 | [contextual.md](contextual.md) |
 | 抄哪个现有插件 | [examples.md](examples.md) |
 
@@ -169,6 +170,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 - 对象上下文读取、`result_subject`、版本前提、`data-assistant-context` 与助理通知（[continuity.md](continuity.md)）
 - 选区动作（`fragment_offer_choices`）、创建入口 `intake`、追加 `attach`、选项的 `places`、侧栏视图的 `objects`（[contextual.md](contextual.md)）
 - 技能声明（`methods`、`SKILL.md` frontmatter）、内容包打包、技能目录的三档，以及能力包的条目、上报与导出导回（[skills-and-kits.md](skills-and-kits.md)）
+- 统一工作分区的 Manifest 字段：`databases.partition`、`overview_projection` 与 SDK `overviewRows`、`push`、`market`、`dependencies`、`person_settings`（[partitions.md](partitions.md)）
 
 只改实现、合同没变：不必改 Skill。合同变了只改代码：任务没完。
 

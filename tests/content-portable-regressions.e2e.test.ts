@@ -38,8 +38,8 @@ async function assertQuestionNames(b: Browser, nativeSelect = false, child?: Awa
 test("W2-18-FORM-ANSWER-01 / W2-18-FORM-LABEL-01: exported HTML creates an importable 4000 answer once; oversized text/multichoice retain input without a file, with browser question names", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
   const child = await pluginFrameBrowser(t,b,"form");
-  const store = openFormStore(b.homeDirectory);
-  const form = (() => { try { return store.receive(b.projectId!, "portable-form", "Portable answers", [
+  const store = openFormStore(b.homeDirectory, b.projectId!);
+  const form = (() => { try { return store.receive("portable-form", "Portable answers", [
     { id: "words", title: "Required words", type: "text", required: true },
     { id: "one", title: "Choose one", type: "singleChoice", required: true, options: [{ id: "a", label: "Alpha" }, { id: "b", label: "Beta" }] },
     { id: "several", title: "Choose several", type: "multiChoice", options: Array.from({ length: 21 }, (_, index) => ({ id: `o${index}`, label: String(index).padStart(2, "0") + "x".repeat(198) })) },
@@ -81,15 +81,15 @@ test("W2-18-FORM-ANSWER-01 / W2-18-FORM-LABEL-01: exported HTML creates an impor
   const importAnswer = () => child.evaluate(`(() => { const data=new DataTransfer();data.items.add(new File([${JSON.stringify(answer.content)}],${JSON.stringify(answer.name)},{type:'application/json'}));const input=document.querySelector('[data-form-import-files]');input.files=data.files;input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
   await importAnswer(); await child.waitFor("document.querySelector('[data-form-note]').textContent.includes('导入 1 份')");
   await importAnswer(); await child.waitFor("document.querySelector('[data-form-note]').textContent.includes('已导入过')");
-  const after = openFormStore(b.homeDirectory);
-  try { const submissions = after.listSubmissions(form.id, b.projectId!); assert.equal(submissions.length, 1); assert.deepEqual(submissions[0]!.answers, parsed.answers); } finally { after.close(); }
+  const after = openFormStore(b.homeDirectory, b.projectId!);
+  try { const submissions = after.listSubmissions(form.id); assert.equal(submissions.length, 1); assert.deepEqual(submissions[0]!.answers, parsed.answers); } finally { after.close(); }
 });
 
 test("W2-18-PAGES-EXPORT-01: real Markdown/HTML download and print-frame document preserve independent rich facts", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
   const child = await pluginFrameBrowser(t,b,"pages");
-  const store = openPagesStore(b.homeDirectory);
-  const page = (() => { try { return store.create({ project_id: b.projectId!, title: "Rich portable page", body: { type: "doc", content: [
+  const store = openPagesStore(b.homeDirectory, b.projectId!);
+  const page = (() => { try { return store.create({ title: "Rich portable page", body: { type: "doc", content: [
     { type: "table", content: [{ type: "table_row", content: [{ type: "table_cell", content: [paragraph("Cell first"), paragraph("Cell second")] }] }] },
     { type: "task_card", attrs: { title: "Call Alice", description: "Keep details", status: "doing", due: "2026-11-03" } },
     { type: "event_card", attrs: { title: "Launch meeting", at: "2026-11-05" } },
@@ -110,14 +110,14 @@ test("W2-18-PAGES-EXPORT-01: real Markdown/HTML download and print-frame documen
   const printed = await b.evaluate<string>("window.contentPrint");
   for (const fact of expected) assert.ok(printed.includes(fact), `print frame: ${fact}`);
   await b.evaluate("window.restoreContentDownloads();window.restoreContentPrint()");
-  const after = openPagesStore(b.homeDirectory); try { assert.deepEqual(after.get(page.id, b.projectId!), page); } finally { after.close(); }
+  const after = openPagesStore(b.homeDirectory, b.projectId!); try { assert.deepEqual(after.get(page.id), page); } finally { after.close(); }
 });
 
 test("W2-18-PAGES-SOURCES-01: actual multi-selection focus and Host prepare keep the 1500 prefixes marked as excerpts", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, async () => "# Combined\nAdopted evidence."); if (!b) return;
   const child = await pluginFrameBrowser(t,b,"pages");
-  const store = openPagesStore(b.homeDirectory);
-  const pages = (() => { try { return ["A", "B"].map(letter => store.create({ project_id: b.projectId!, title: `Page ${letter}`, body: { type: "doc", content: [paragraph(`Prefix ${letter} ` + letter.repeat(1700) + ` OMITTED_${letter}`)] } })); } finally { store.close(); } })();
+  const store = openPagesStore(b.homeDirectory, b.projectId!);
+  const pages = (() => { try { return ["A", "B"].map(letter => store.create({ title: `Page ${letter}`, body: { type: "doc", content: [paragraph(`Prefix ${letter} ` + letter.repeat(1700) + ` OMITTED_${letter}`)] } })); } finally { store.close(); } })();
   await open(b, "pages", pages[0]!.id, child);
   // D24 the Pages list picks several (aria-multiselectable), so the plugin tab group leaves this Ctrl-click to it.
   await b.evaluate("document.addEventListener('molis:surface-focus',event=>window.contentObjectsFocus=event.detail)");
@@ -133,7 +133,7 @@ test("W2-18-PAGES-SOURCES-01: actual multi-selection focus and Host prepare keep
   const prepared = await b.evaluate<{ input: { inputs: { body: string; provenance: { truncated: boolean; snapshot_scope: string; id: string }[] }[] } }>(`(async()=>{const request={pane_id:'content-sources',focus:window.contentObjectsFocus};const post=async(path,body)=>{const response=await fetch('/projects/${b.projectId}/api/contextual/'+path,{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify(body)});const result=await response.json();if(!response.ok)throw Error(JSON.stringify(result));return result;};const candidates=await post('candidates',request);const candidate=candidates.plan.candidates.find(item=>item.offer_id==='synthesize');if(!candidate)throw Error('Missing actual synthesis offer');return post('prepare',{...request,key:candidate.key,request_id:'content-sources-confirmed'});})()`);
   assert.equal(prepared.input.inputs.length, 2);
   for (const source of prepared.input.inputs) { assert.equal(source.provenance[0]!.truncated, true); assert.equal(source.provenance[0]!.snapshot_scope, "selection"); assert.ok(pages.some(page => page.id === source.provenance[0]!.id)); assert.doesNotMatch(source.body, /OMITTED_/); }
-  const after = openPagesStore(b.homeDirectory); try { for (const page of pages) assert.deepEqual(after.get(page.id, b.projectId!), page); assert.equal(after.list(b.projectId!).length, 2); } finally { after.close(); }
+  const after = openPagesStore(b.homeDirectory, b.projectId!); try { for (const page of pages) assert.deepEqual(after.get(page.id), page); assert.equal(after.list().length, 2); } finally { after.close(); }
 });
 
 test("RAC-1699: the exported fill page counts an answer's length in characters like the form does: 4000 emoji go in, 4001 do not", { timeout: 90_000 }, async t => {
@@ -141,8 +141,8 @@ test("RAC-1699: the exported fill page counts an answer's length in characters l
   // The input's maxLength counts units too, so the answers are set by script, as the "4001" part of W2-18-FORM-ANSWER-01 does.
   const wide = (count: number) => "🟢".repeat(count);
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
-  const store = openFormStore(b.homeDirectory);
-  const form = (() => { try { return store.receive(b.projectId!, "emoji-answer", "Emoji answers", [{ id: "words", title: "Words", type: "text" }]); } finally { store.close(); } })();
+  const store = openFormStore(b.homeDirectory, b.projectId!);
+  const form = (() => { try { return store.receive("emoji-answer", "Emoji answers", [{ id: "words", title: "Words", type: "text" }]); } finally { store.close(); } })();
   await b.navigate(() => b.command("Page.navigate", { url: "data:text/html;charset=utf-8," + encodeURIComponent(formFillPageHtml(form)) }, b.sessionId));
   await b.waitFor("document.querySelector('#qs input[name=words]')"); await captureDownloads(b);
   const submit = (count: number) => b.evaluate<string>(`(() => { document.querySelector('input[name=words]').value='🟢'.repeat(${count});document.querySelector('#f').requestSubmit();return document.querySelector('#e').textContent; })()`);
@@ -152,10 +152,10 @@ test("RAC-1699: the exported fill page counts an answer's length in characters l
   await b.waitFor("window.contentDownloads[0]?.content && document.querySelector('#ok').classList.contains('on')");
   const answer = (await downloads(b))[0]!;
   assert.equal((JSON.parse(answer.content) as { answers: Record<string, string> }).answers.words, wide(4000), "the file carries the whole answer");
-  const after = openFormStore(b.homeDirectory);
+  const after = openFormStore(b.homeDirectory, b.projectId!);
   try {
-    assert.equal(after.importAnswers(form.id, [answer], b.projectId!).imported, 1, "the form takes in what the page let out");
-    assert.equal(after.listSubmissions(form.id, b.projectId!)[0]!.answers.words, wide(4000));
+    assert.equal(after.importAnswers(form.id, [answer]).imported, 1, "the form takes in what the page let out");
+    assert.equal(after.listSubmissions(form.id)[0]!.answers.words, wide(4000));
   } finally { after.close(); }
 });
 
@@ -165,8 +165,8 @@ test("RAC-1981: an exported file is named after the title cut at 80 characters, 
   const long = "a" + "🟢".repeat(79);
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
   const child = await pluginFrameBrowser(t, b, "pages");
-  const store = openPagesStore(b.homeDirectory);
-  const pages = (() => { try { return [long, "Q3 plan/draft: v2"].map(title => store.create({ project_id: b.projectId!, title, body: { type: "doc", content: [paragraph("Body")] } })); } finally { store.close(); } })();
+  const store = openPagesStore(b.homeDirectory, b.projectId!);
+  const pages = (() => { try { return [long, "Q3 plan/draft: v2"].map(title => store.create({ title, body: { type: "doc", content: [paragraph("Body")] } })); } finally { store.close(); } })();
   // The page is opened again for each document, which reloads the browser page, so the download sink is captured again each time.
   const exportedNames = async (page: { id: string }, formats: string[]) => {
     await open(b, "pages", page.id, child); await captureDownloads(b);
@@ -185,8 +185,8 @@ test("RAC-1982: the excerpts of several picked documents go to the Assistant cut
   const wide = (count: number) => "🟢".repeat(count);
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
   const child = await pluginFrameBrowser(t, b, "pages");
-  const store = openPagesStore(b.homeDirectory);
-  const pages = (() => { try { return [{ title: "Cut", lead: "x" }, { title: "Fit", lead: "yy" }].map(({ title, lead }) => store.create({ project_id: b.projectId!, title, body: { type: "doc", content: [paragraph(lead + wide(1000))] } })); } finally { store.close(); } })();
+  const store = openPagesStore(b.homeDirectory, b.projectId!);
+  const pages = (() => { try { return [{ title: "Cut", lead: "x" }, { title: "Fit", lead: "yy" }].map(({ title, lead }) => store.create({ title, body: { type: "doc", content: [paragraph(lead + wide(1000))] } })); } finally { store.close(); } })();
   await open(b, "pages", pages[0]!.id, child);
   await b.evaluate("document.addEventListener('molis:surface-focus',event=>window.contentObjectsFocus=event.detail)");
   await child.evaluate(`(() => { document.querySelector('button[data-page-id="${pages[1]!.id}"]').dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:true}));})()`);

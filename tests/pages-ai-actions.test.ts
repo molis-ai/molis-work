@@ -37,10 +37,10 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
           await entered;
           if (mode === "cancel") controller.abort();
           else {
-            const store = openPagesStore(home);
+            const store = openPagesStore(home, "a");
             try {
-              if (mode === "edit") store.update(document.id, { body: body("Concurrent edit") }, "a");
-              else store.delete(document.id, "a");
+              if (mode === "edit") store.update(document.id, { body: body("Concurrent edit") });
+              else store.delete(document.id);
             } finally { store.close(); }
           }
           release();

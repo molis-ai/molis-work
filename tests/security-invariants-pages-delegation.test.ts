@@ -17,7 +17,7 @@ function fixture() {
   const reads: string[] = [];
   const sql: PagesSql = { get: (text, args = []) => { reads.push(text); return db.prepare(text).get(...args); },
     all: (text, args = []) => { reads.push(text); return db.prepare(text).all(...args); }, run: (text, args = []) => db.prepare(text).run(...args) };
-  const store = new PagesStore(sql, new Map(), run => {
+  const store = new PagesStore(sql, "a", new Map(), run => {
     if (db.isTransaction) return run();
     db.exec("BEGIN IMMEDIATE");
     try { const result = run(); db.exec("COMMIT"); return result; } catch (error) { db.exec("ROLLBACK"); throw error; }
@@ -101,8 +101,8 @@ test("APR-07/08: indirect publication and historical restoration require confirm
   }
   assert.deepEqual(extractActionDelegation(pagesActions.get.action, { id: "doc" }), { state: "confirmation-required", reason: "undeclared" });
   const unit = fixture(); t.after(() => unit.close());
-  const original = unit.store.create({ project_id: "a", title: "Original", goal_id: "original-goal" });
-  const after = unit.store.update(original.id, { title: "Later", goal_id: "" }, "a");
+  const original = unit.store.create({ title: "Original", goal_id: "original-goal" });
+  const after = unit.store.update(original.id, { title: "Later", goal_id: "" });
   const change_id = unit.store.keepChange(original, after);
   const restored = (await unit.bound.invoke(pagesActions.revert, { change_id })).document;
   assert.equal(restored.title, "Original"); assert.equal(restored.goal_id, "original-goal");
@@ -117,9 +117,9 @@ test("APR-07/08: indirect publication and historical restoration require confirm
 
 test("APR-08: Pages presentation reads names once, excludes bodies and other projects, and retains current permissions", async t => {
   const f = fixture(); t.after(() => f.close());
-  const documents = Array.from({ length: 25 }, (_, i) => f.store.create({ project_id: "a", title: `Draft ${i}`, body: body("Secret body") }));
-  const folders = Array.from({ length: 25 }, (_, i) => f.store.createFolder({ project_id: "a", title: `Folder ${i}` }));
-  const foreign = f.store.create({ project_id: "b", title: "Secret foreign title" });
+  const documents = Array.from({ length: 25 }, (_, i) => f.store.create({ title: `Draft ${i}`, body: body("Secret body") }));
+  const folders = Array.from({ length: 25 }, (_, i) => f.store.createFolder({ title: `Folder ${i}` }));
+  const foreign = f.store.create({ title: "Secret foreign title" });
   const subjects = [...documents.map(row => ({ kind: PAGES_SUBJECT_KIND, id: row.id })), ...folders.map(row => ({ kind: PAGES_FOLDER_KIND, id: row.id }))];
   f.reads.length = 0;
   const result = await f.bound.invoke(pagesActions.presentation, { subjects, fields: ["title", "body"] });
@@ -131,7 +131,7 @@ test("APR-08: Pages presentation reads names once, excludes bodies and other pro
   await assert.rejects(f.service.invoke({ ...caller, permissions: [] }, pagesActions.presentation, { subjects: [subjects[0]!], fields: ["title"] }), { code: "actions.forbidden" });
   await assert.rejects(f.service.invoke({ ...caller, project_id: "b" }, pagesActions.presentation, { subjects: [subjects[0]!], fields: ["title"] }), { code: "actions.scope_mismatch" });
   assert.equal(f.reads.length, 0, "rejected calls do not read the library");
-  f.store.update(documents[0]!.id, { title: "New title" }, "a"); f.store.delete(documents[1]!.id, "a");
+  f.store.update(documents[0]!.id, { title: "New title" }); f.store.delete(documents[1]!.id);
   const current = await f.bound.invoke(pagesActions.presentation, { subjects: [subjects[0]!, subjects[1]!, { kind: PAGES_SUBJECT_KIND, id: foreign.id }, { kind: "alien", id: foreign.id }], fields: ["title"] });
   assert.deepEqual(current.items.map(item => item.state), ["ok", "deleted", "deleted", "forbidden"]);
   assert.deepEqual(current.items[0]!.values, { title: "New title" });
@@ -158,16 +158,16 @@ test("APR-07/08: publication cannot apply a stale association, and a current exp
 test("APR-07/08: actual Pages writes still reject wrong targets, stale versions and undeclared fields without side effects", async t => {
   const f = fixture(); t.after(() => f.close());
   const document = (await f.bound.invoke(pagesActions.create, { title: "Original", markdown: "Original" })).document;
-  const foreignFolder = f.store.createFolder({ project_id: "b", title: "Private" });
+  const foreignFolder = f.store.createFolder({ title: "Private" });
   for (const input of [
     { id: document.id, folder_id: foreignFolder.id }, { id: document.id, folder_id: "removed" },
   ]) await assert.rejects(f.bound.invoke(pagesActions.update, input), { code: "pages.not_found" });
   await assert.rejects(f.service.invoke(caller, pagesActions.update, { id: document.id, markdown: "bad", extra: "not declared" }), { code: "actions.input_invalid" });
-  assert.deepEqual(f.store.get(document.id, "a"), document);
+  assert.deepEqual(f.store.get(document.id), document);
   const edited = (await f.bound.invoke(pagesActions.update, { id: document.id, markdown: "Later body", expected_version: document.version })).document;
-  const persisted = f.store.get(document.id, "a");
+  const persisted = f.store.get(document.id);
   await assert.rejects(f.bound.invoke(pagesActions.update, { id: document.id, markdown: "Must not overwrite", expected_version: document.version }), { code: "pages.conflict" });
-  assert.deepEqual(f.store.get(document.id, "a"), persisted);
+  assert.deepEqual(f.store.get(document.id), persisted);
   assert.deepEqual(persisted.body, { type: "doc", content: [{ type: "paragraph", attrs: { note: "" }, content: [{ type: "text", text: "Later body" }] }] });
   assert.equal(persisted.version, edited.version);
 });

@@ -2,10 +2,11 @@ import {openDatasetCopyOwner, openDatasetStore, openFormCopyOwner, openFormStore
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {randomUUID} from 'node:crypto';
-import {mkdtempSync,readFileSync,rmSync,readdirSync,renameSync,symlinkSync} from 'node:fs';
+import {mkdtempSync,readFileSync,rmSync,readdirSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
-import {ensureStorageSpace,personalStorageSpace,homeSqlitePath,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
+import {dirname,join} from 'node:path';
+import {partitionLibraryFile} from './fixtures/plugin-home-stores.js';
+import {ensureStorageSpace,personalStorageSpace,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
 
 
 
@@ -21,47 +22,47 @@ function homes(t:import('node:test').TestContext){
 }
 
 for(const [name,open] of [['form',openFormStore],['dataset',openDatasetStore],['ppt',openPptStore],['lingguang',openLingguangStore]] as const)test('project copy '+name+' uses the local owner, independent IDs, stable retry and rejects an edited target',t=>{
- const f=homes(t),source=open(f.source),target=open(f.target);t.after(()=>{source.close();target.close();});const original=source.create({project_id:'original',title:'Original'});source.create({project_id:'unselected',title:'Must stay local'});
- source.update(original.id,{title:'Keep literal source ID '+original.id},'original');
- const a=source.copy(f.context('source')),b=target.copy(f.context('target')),before=readFileSync(homeSqlitePath(f.source,name));assert.throws(()=>source.replica(f.context('source')),/同步空间不匹配/,'copy does not enable personal sync on a local Home');
+ const f=homes(t),source=open(f.source,'original'),target=open(f.target,'copied');t.after(()=>{source.close();target.close();});const original=source.create({title:'Original'});source.create({title:'Must stay local'});
+ source.update(original.id,{title:'Keep literal source ID '+original.id});
+ const a=source.copy(f.context('source')),b=target.copy(f.context('target')),before=readFileSync(partitionLibraryFile(f.source,'original',name));assert.throws(()=>source.replica(f.context('source')),/同步空间不匹配/,'copy does not enable personal sync on a local Home');
  const exported=a.snapshot('original');assert.equal(exported.length,1);assert.throws(()=>a.snapshot('unselected'),/FOREIGN_PROJECT/);const copied=a.fork(exported[0]!,f.identity),again=a.fork(exported[0]!,f.identity);assert.deepEqual(copied,again);const wire=copied.value as Wire;
- assert.notEqual(wire.record.id,original.id);assert.equal(wire.record.project_id,'copied');assert.equal(wire.spaceId,f.identity.targetSpaceId);assert.equal(wire.record.title,'Keep literal source ID '+original.id,'text is not searched/replaced for IDs');
- b.apply(copied);b.apply(copied);assert.equal(target.list('copied').length,1);assert.equal(target.get(String(wire.record.id),'copied').title,wire.record.title);assert.deepEqual(readFileSync(homeSqlitePath(f.source,name)),before,'source database bytes do not change');
- assert.throws(()=>a.apply(copied));assert.throws(()=>b.apply(exported[0]!));target.update(String(wire.record.id),{title:'Independent later edit'},'copied');assert.throws(()=>b.apply(copied),/目标副本已经变化/);assert.equal(target.get(String(wire.record.id),'copied').title,'Independent later edit');
+ assert.notEqual(wire.record.id,original.id);assert.equal('project_id' in wire.record,false,'a partition library row names no project');assert.equal(wire.project.id,'copied');assert.equal(wire.spaceId,f.identity.targetSpaceId);assert.equal(wire.record.title,'Keep literal source ID '+original.id,'text is not searched/replaced for IDs');
+ b.apply(copied);b.apply(copied);assert.equal(target.list().length,1);assert.equal(target.get(String(wire.record.id)).title,wire.record.title);assert.deepEqual(readFileSync(partitionLibraryFile(f.source,'original',name)),before,'source database bytes do not change');
+ assert.throws(()=>a.apply(copied));assert.throws(()=>b.apply(exported[0]!));target.update(String(wire.record.id),{title:'Independent later edit'});assert.throws(()=>b.apply(copied),/目标副本已经变化/);assert.equal(target.get(String(wire.record.id)).title,'Independent later edit');
  f.revoke();assert.throws(()=>a.snapshot('original'),/REVOKED/);assert.throws(()=>b.apply(copied),/REVOKED/);
 });
 
 test('project copy preserves captured form answers and all Dataset saved versions, with new child identities',t=>{
- const f=homes(t),form=openFormStore(f.source),targetForm=openFormStore(f.target),dataset=openDatasetStore(f.source),targetDataset=openDatasetStore(f.target);t.after(()=>{form.close();targetForm.close();dataset.close();targetDataset.close();});
- const record=form.create({project_id:'original',title:'Questionnaire'}),withQuestion=form.update(record.id,{questions:[{id:'question-original',type:'text',title:'Question',required:false}]},'original');
- const answer=form.submit(record.id,{'question-original':'Full original answer'},'original',{requestId:'captured-request',expectedVersion:withQuestion.version});
+ const f=homes(t),form=openFormStore(f.source,'original'),targetForm=openFormStore(f.target,'copied'),dataset=openDatasetStore(f.source,'original'),targetDataset=openDatasetStore(f.target,'copied');t.after(()=>{form.close();targetForm.close();dataset.close();targetDataset.close();});
+ const record=form.create({title:'Questionnaire'}),withQuestion=form.update(record.id,{questions:[{id:'question-original',type:'text',title:'Question',required:false}]});
+ const answer=form.submit(record.id,{'question-original':'Full original answer'},{requestId:'captured-request',expectedVersion:withQuestion.version});
  const a=form.copy(f.context('source')),copied=a.fork(a.snapshot('original')[0]!,f.identity),wire=copied.value as Wire;assert.equal(wire.children.submissions!.length,1);assert.notEqual(wire.children.submissions![0]!.id,answer.id);assert.equal(wire.children.submissions![0]!.form_id,wire.record.id);assert.match(String(wire.children.submissions![0]!.answers_json),/Full original answer/);targetForm.copy(f.context('target')).apply(copied);
- const table=dataset.create({project_id:'original',title:'Saved table'});dataset.saveVersion(table.id,'First complete snapshot','original');dataset.update(table.id,{title:'Later table'},'original');dataset.saveVersion(table.id,'Second complete snapshot','original');
+ const table=dataset.create({title:'Saved table'});dataset.saveVersion(table.id,'First complete snapshot');dataset.update(table.id,{title:'Later table'});dataset.saveVersion(table.id,'Second complete snapshot');
  const d=dataset.copy(f.context('source')),copy=d.fork(d.snapshot('original')[0]!,f.identity),result=copy.value as Wire;assert.equal(result.children.dataset_versions!.length,2);for(const version of result.children.dataset_versions!){const snapshot=JSON.parse(String(version.snapshot_json));assert.equal(snapshot.id,result.record.id);assert.equal(snapshot.project_id,'copied');assert.equal(version.dataset_id,result.record.id);}
- targetDataset.copy(f.context('target')).apply(copy);assert.equal(targetDataset.listVersions(String(result.record.id),'copied').length,2);assert.equal(dataset.listVersions(table.id,'original').length,2);
+ targetDataset.copy(f.context('target')).apply(copy);assert.equal(targetDataset.listVersions(String(result.record.id)).length,2);assert.equal(dataset.listVersions(table.id).length,2);
  const malformed=structuredClone(copy) as ProjectCopyAsset;const bad=malformed.value as Wire;bad.children.dataset_versions![0]!.dataset_id='foreign';assert.throws(()=>targetDataset.copy(f.context('target')).apply(malformed));
 });
 
 test('project copy keeps completed Lingguang conversations and explicitly remaps every spark and message reference',t=>{
- const f=homes(t),source=openLingguangStore(f.source),target=openLingguangStore(f.target);t.after(()=>{source.close();target.close();});
- const spark=source.create({project_id:'original',title:'Saved spark',body:'Full saved body'}),opened=source.openConversation([spark.id],'original');const state=source.conversation(opened.conversation.id,'original');const original=source.addReply(opened.conversation.id,'Original question','Complete original reply','original',state);
+ const f=homes(t),source=openLingguangStore(f.source,'original'),target=openLingguangStore(f.target,'copied');t.after(()=>{source.close();target.close();});
+ const spark=source.create({title:'Saved spark',body:'Full saved body'}),opened=source.openConversation([spark.id]);const state=source.conversation(opened.conversation.id);const original=source.addReply(opened.conversation.id,'Original question','Complete original reply',state);
  const a=source.copy(f.context('source')),b=target.copy(f.context('target')),snapshots=a.snapshot('original');assert.equal(snapshots.length,2);const conversation=snapshots.find(asset=>(asset.value as Wire).children.messages)!;assert.deepEqual(a.references(conversation),[{kind:'io.molis.work.lingguang:spark',id:spark.id,projectId:'original'}]);
  const copies=snapshots.map(asset=>a.fork(asset,f.identity));for(const asset of copies)b.apply(asset);
- const received=target.conversation(f.identity.id('io.molis.work.lingguang:conversation',opened.conversation.id),'copied');assert.deepEqual(received.conversation.spark_ids,[f.identity.id('io.molis.work.lingguang:spark',spark.id)]);assert.equal(received.messages.length,2);assert.equal(received.messages[1]!.body,'Complete original reply');assert.ok(received.messages.every(message=>!original.messages.some(source=>source.id===message.id)),'copied messages receive independent identities');assert.equal(source.conversation(opened.conversation.id,'original').messages.length,2);
+ const received=target.conversation(f.identity.id('io.molis.work.lingguang:conversation',opened.conversation.id));assert.deepEqual(received.conversation.spark_ids,[f.identity.id('io.molis.work.lingguang:spark',spark.id)]);assert.equal(received.messages.length,2);assert.equal(received.messages[1]!.body,'Complete original reply');assert.ok(received.messages.every(message=>!original.messages.some(source=>source.id===message.id)),'copied messages receive independent identities');assert.equal(source.conversation(opened.conversation.id).messages.length,2);
 });
 
 
 for(const [name,open] of [['form',openFormStore],['dataset',openDatasetStore],['ppt',openPptStore],['lingguang',openLingguangStore]] as const)test('project copy '+name+' rolls back the content and journal together on final authority refusal',t=>{
- const f=homes(t),source=open(f.source),target=open(f.target);t.after(()=>{source.close();target.close();});source.create({project_id:'original',title:'Unique original'});const a=source.copy(f.context('source')),asset=a.fork(a.snapshot('original')[0]!,f.identity);let checks=0,inspecting=false,observed=false,armed=false;
- const context=f.context('target'),b=target.copy({...context,authorize(){context.authorize();if(armed&&!inspecting){inspecting=true;try{if(b.snapshot('copied').length){observed=true;throw new Error('LATE_REVOKED');}}finally{inspecting=false;}}}});checks=0;armed=true;assert.throws(()=>b.apply(asset),/LATE_REVOKED/);assert.equal(observed,true,'final check observed the inserted content on its own transaction');assert.equal(target.list('copied').length,0);assert.equal(target.replica(f.context('target')).counts().pending,0);
+ const f=homes(t),source=open(f.source,'original'),target=open(f.target,'copied');t.after(()=>{source.close();target.close();});source.create({title:'Unique original'});const a=source.copy(f.context('source')),asset=a.fork(a.snapshot('original')[0]!,f.identity);let inspecting=false,observed=false,armed=false;
+ const context=f.context('target'),b=target.copy({...context,authorize(){context.authorize();if(armed&&!inspecting){inspecting=true;try{if(b.snapshot('copied').length){observed=true;throw new Error('LATE_REVOKED');}}finally{inspecting=false;}}}});armed=true;assert.throws(()=>b.apply(asset),/LATE_REVOKED/);assert.equal(observed,true,'final check observed the inserted content on its own transaction');assert.equal(target.list().length,0);assert.equal(target.replica(f.context('target')).counts().pending,0);
 });
 
 
 for(const [name,open,factory] of [['form',openFormStore,openFormCopyOwner],['dataset',openDatasetStore,openDatasetCopyOwner],['ppt',openPptStore,openPptCopyOwner],['lingguang',openLingguangStore,openLingguangCopyOwner]] as const)test('project copy '+name+' preview uses an existing read-only source and closed handles cannot write',t=>{
- const f=homes(t),ctx=f.context('source'),entries=readdirSync(f.source);assert.equal(factory(f.source,ctx),null);assert.deepEqual(readdirSync(f.source),entries,'preview cannot initialize a missing source store');
- const store=open(f.source),saved=store.create({project_id:'original',title:'Keep every original byte'});store.close();const filename=homeSqlitePath(f.source,name),before=readFileSync(filename),files=readdirSync(join(f.source,name));
- const inherited=Object.create(ctx) as AggregateCopyContext,port=factory(f.source,inherited)!;assert.ok(port);t.after(()=>port.close());const assets=port.owner.snapshot('original');assert.equal(assets.length,1);assert.equal((assets[0]!.value as Wire).record.id,saved.id);
+ const f=homes(t),ctx=f.context('source'),entries=readdirSync(f.source);assert.equal(factory(f.source,'original',ctx),null);assert.deepEqual(readdirSync(f.source),entries,'preview cannot initialize a missing source store');
+ const store=open(f.source,'original'),saved=store.create({title:'Keep every original byte'});store.close();const filename=partitionLibraryFile(f.source,'original',name),before=readFileSync(filename),files=readdirSync(dirname(partitionLibraryFile(f.source,'original',name)));
+ const inherited=Object.create(ctx) as AggregateCopyContext,port=factory(f.source,'original',inherited)!;assert.ok(port);t.after(()=>port.close());const assets=port.owner.snapshot('original');assert.equal(assets.length,1);assert.equal((assets[0]!.value as Wire).record.id,saved.id);
  ctx.direction='target';ctx.spaceId=f.identity.targetSpaceId;assert.equal((port.owner.snapshot('original')[0]!.value as Wire).spaceId,f.identity.sourceSpaceId,'opened scope does not follow a reused mutable context');
- port.close();port.close();assert.throws(()=>port.owner.snapshot('original'),/原复制接口已关闭/);assert.throws(()=>port.owner.apply(assets[0]!),/原复制接口已关闭/);assert.deepEqual(readFileSync(filename),before);assert.deepEqual(readdirSync(join(f.source,name)),files);
+ port.close();port.close();assert.throws(()=>port.owner.snapshot('original'),/原复制接口已关闭/);assert.throws(()=>port.owner.apply(assets[0]!),/原复制接口已关闭/);assert.deepEqual(readFileSync(filename),before);assert.deepEqual(readdirSync(dirname(partitionLibraryFile(f.source,'original',name))),files);
  // Production source binding is passive and tested via openRuntimeProjectCopyDirectory; there is no source pathname opener.
 });

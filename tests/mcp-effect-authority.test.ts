@@ -21,8 +21,8 @@ const wrapper: ActionDefinition = { ...peer, capability_id: "fixture.form.wrappe
 } };
 
 function facts(home: string, projectId: string, formId: string) {
-  const store = openFormStore(home);
-  try { return { form: store.get(formId, projectId), forms: store.list(projectId), submissions: store.listSubmissions(formId, projectId) }; }
+  const store = openFormStore(home, projectId);
+  try { return { form: store.get(formId), forms: store.list(), submissions: store.listSubmissions(formId) }; }
   finally { store.close(); }
 }
 

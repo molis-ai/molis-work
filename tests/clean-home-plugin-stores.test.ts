@@ -19,7 +19,7 @@ const instance = { install_id: "isolated-current", installation_generation: "1" 
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
 for (const { declaration, manifest, table, seed } of cases) {
   const baseline = pluginSyncDatabaseDeclaration(manifest, declaration);
-  const open = (home: string, authorize: (permission: string) => void) => openPluginDatabase(home, baseline, authorize, instance, undefined, manifest);
+  const open = (home: string, authorize: (permission: string) => void) => openPluginDatabase(home, baseline, authorize, instance, manifest);
   const name = declaration.store_name, sql = readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8");
   test(`RAC-2368 ${name} opens and reopens its current complete declared schema at 1`, () => {
     const home = mkdtempSync(join(tmpdir(), `clean-home-${name}-`)), file = join(home, name, `${name}.db`), permissions: string[] = [];

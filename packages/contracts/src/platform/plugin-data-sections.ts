@@ -64,7 +64,10 @@ function fallbackDataSections(
   manifest: Pick<PluginManifest, "plugin_id" | "name" | "databases" | "owner_files" | "runtime">,
   files: readonly string[],
 ): PluginDataSectionDeclaration[] {
-  const scopes = (["project", "home"] as const).flatMap(scope => manifest.databases?.[scope] ? [[scope, manifest.databases[scope]!] as const] : []);
+  // A partition's own library is that project's data, exported with the project like its main library's.
+  const partition = manifest.databases?.partition;
+  const scopes = [...(["project", "home"] as const).flatMap(scope => manifest.databases?.[scope] ? [[scope, manifest.databases[scope]!] as const] : []),
+    ...partition ? [["project", partition] as const] : []];
   if (scopes.length > 0) {
     return scopes.map(([scope, db]) => ({ plugin_id: manifest.plugin_id, section_id: db.store_name, title: manifest.name, scope, schema_version: db.version, tables: [], files }));
   }
@@ -82,7 +85,7 @@ export function pluginDataSectionsFromManifest(
   if (collections.length === 0) return fallbackDataSections(manifest, files);
   return collections.map(collection => ({
     plugin_id: manifest.plugin_id, section_id: collection.id, title: collection.title,
-    scope: collection.database ?? defaultScope(manifest), schema_version: collection.schema_version,
+    scope: collection.database === "partition" ? "project" : collection.database ?? defaultScope(manifest), schema_version: collection.schema_version,
     tables: collectionTables(collection), files,
   }));
 }

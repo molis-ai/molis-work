@@ -58,8 +58,8 @@ for (const mode of ["stop", "revoke", "restart", "caller-revoke"] as const) {
       assert.throws(() => progress!({ type: "text-delta", text: "迟到的文字" }));
       release.resolve(); await refused;
       assert.deepEqual(seen, ["预览"]);
-      const reopened = openLingguangStore(f.home);
-      try { assert.deepEqual(reopened.conversation(conversation.id, f.project.project_id).messages, []); assert.equal(reopened.get(spark.id).body, "保留的想法"); }
+      const reopened = openLingguangStore(f.home, f.project.project_id);
+      try { assert.deepEqual(reopened.conversation(conversation.id).messages, []); assert.equal(reopened.get(spark.id).body, "保留的想法"); }
       finally { reopened.close(); }
       if (mode === "stop") assert.equal((await platform.supervisor.restart(plugin)).status, "running");
       if (mode === "revoke") assert.equal((await platform.supervisor.enable(plugin)).status, "running");
@@ -97,8 +97,8 @@ test("RAC-34 Lingguang HTTP disconnect cancels model preview and saves no partia
     release.resolve();
     const recovered = await f.bound.invoke(lingguangActions.message, { id: conversation.id, body: "重新提问" });
     assert.deepEqual(recovered.messages.map(row => [row.role, row.body]), [["user", "重新提问"], ["assistant", "完整回复"]]);
-    const reopened = openLingguangStore(f.home);
-    try { assert.deepEqual(reopened.conversation(conversation.id, f.project.project_id).messages, recovered.messages); }
+    const reopened = openLingguangStore(f.home, f.project.project_id);
+    try { assert.deepEqual(reopened.conversation(conversation.id).messages, recovered.messages); }
     finally { reopened.close(); }
   } finally { release.resolve(); abort.abort(); }
 });

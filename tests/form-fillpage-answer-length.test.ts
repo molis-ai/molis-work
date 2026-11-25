@@ -248,9 +248,9 @@ const textQuestion = (): FormQuestion => ({ id: "words", title: "备注", type: 
 test("RAC-2725 the shipped fill page handlers and the workbench fields cap the same answers by characters", async t => {
   const home = await mkdtemp(join(tmpdir(), "form-fillpage-cap-"));
   t.after(() => rm(home, { recursive: true, force: true }));
-  const store = openFormStore(home);
+  const store = openFormStore(home, "a");
   let form: FormRecord;
-  try { form = store.receive("a", "fillpage-cap", "长度", [textQuestion()]); }
+  try { form = store.receive("fillpage-cap", "长度", [textQuestion()]); }
   finally { store.close(); }
 
   const page = runFillPage(form);
@@ -284,9 +284,9 @@ test("RAC-2725 the shipped fill page handlers and the workbench fields cap the s
 test("RAC-2725 the fill page does not cap during an input method composition and caps once it ends", async t => {
   const home = await mkdtemp(join(tmpdir(), "form-fillpage-compose-"));
   t.after(() => rm(home, { recursive: true, force: true }));
-  const store = openFormStore(home);
+  const store = openFormStore(home, "a");
   let form: FormRecord;
-  try { form = store.receive("a", "fillpage-compose", "组词", [textQuestion()]); }
+  try { form = store.receive("fillpage-compose", "组词", [textQuestion()]); }
   finally { store.close(); }
   const page = runFillPage(form), input = page.input, error = page.error;
   const limit = Number(/每题回答最多 (\d+) 个字/u.exec(page.html)?.[1]);
@@ -322,18 +322,18 @@ test("RAC-2725 the fill page does not cap during an input method composition and
 test("RAC-2725 an answer file over 400,000 UTF-8 bytes is refused, even when its UTF-16 units are under the limit", async t => {
   const home = await mkdtemp(join(tmpdir(), "form-import-bytes-"));
   t.after(() => rm(home, { recursive: true, force: true }));
-  const store = openFormStore(home);
+  const store = openFormStore(home, "a");
   try {
-    const form = store.receive("a", "bytes-answer", "大小", [{ id: "q", title: "备注", type: "text" }]);
+    const form = store.receive("bytes-answer", "大小", [{ id: "q", title: "备注", type: "text" }]);
     const answer = (answerId: string, pad: string) => ({ name: `${answerId}.molis-answer.json`, content: JSON.stringify({ format: FORM_ANSWER_FORMAT,
       form_id: form.id, form_version: form.version, answer_id: answerId, submitted_at: "2026-10-31T00:00:00.000Z", questions: form.questions,
       answers: { q: "好" }, pad }) });
     const small = answer("bytes-answer-01", "");
-    assert.equal(store.importAnswers(form.id, [small], "a").imported, 1, "a small answer imports");
+    assert.equal(store.importAnswers(form.id, [small]).imported, 1, "a small answer imports");
     const multibyte = answer("bytes-answer-02", "汉".repeat(140_000));
     assert.ok(multibyte.content.length < 400_000 && Buffer.byteLength(multibyte.content) > 400_000,
       `${multibyte.content.length} UTF-16 units but ${Buffer.byteLength(multibyte.content)} UTF-8 bytes`);
-    const refused = store.importAnswers(form.id, [multibyte], "a");
+    const refused = store.importAnswers(form.id, [multibyte]);
     assert.deepEqual([refused.imported, refused.rejected.length], [0, 1], "the file is refused, not imported");
     assert.match(refused.rejected[0]!.reason, /文件过大/u, "and named as too large");
   } finally { store.close(); }

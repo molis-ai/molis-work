@@ -296,9 +296,9 @@ test("RAC-1855 pages parts stay counted in UTF-16 units and back off a pair the 
   const { dir, id, run, ready } = await journeyOver(t, [["long.md", "🟢".repeat(250_000)]]);
   const adopted = await adoptContextJourney(dir, id, { title: "Pages parts", body: ready.summary!.body, keep: [] }, run);
   assert.equal(adopted.phase, "complete", adopted.error ?? "");
-  const pages = openPagesStore(dir);
+  const pages = openPagesStore(dir, adopted.project_id);
   try {
-    const parts = pages.list(adopted.project_id).filter(document => document.id !== adopted.summary_open!.id).sort((a, b) => a.title.localeCompare(b.title, "en", { numeric: true }));
+    const parts = pages.list().filter(document => document.id !== adopted.summary_open!.id).sort((a, b) => a.title.localeCompare(b.title, "en", { numeric: true }));
     assert.deepEqual(parts.map(part => part.title.replace(/^\[S\d+\] /u, "")), ["long · 第 1 / 2 部分", "long · 第 2 / 2 部分"]);
     const body = parts.map(part => JSON.stringify(pages.get(part.id).body)).join("");
     assert.equal(body.split("🟢").length - 1, 250_000, "no 🟢 is split between the parts");

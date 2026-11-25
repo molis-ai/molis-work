@@ -30,10 +30,10 @@ const waitForModel = (entered: Promise<void>, pending: Promise<unknown>) => Prom
 const errorCode = (code: string) => (error: unknown) => !!error && typeof error === "object" && "code" in error && error.code === code;
 
 test("same public provider replacement during Form model wait cannot commit to the original SQLite store", async t => {
-  const home = await mkdtemp(join(tmpdir(), "form-provider-effect-")), store = openFormStore(home);
+  const home = await mkdtemp(join(tmpdir(), "form-provider-effect-")), store = openFormStore(home, "a");
   t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
   const service = new ActionService(), entered = gate(), release = gate();
-  const original = store.create({ project_id: "a", title: "Original" });
+  const original = store.create({ title: "Original" });
   let models = 0;
   const register = () => service.registerProvider({ provider: { provider_id: "same-install", title: "Form", kind: "plugin", project_id: "a" },
     definitions: Object.values(formActions), handlers: createFormActionHandlers({ ...ownFormStores(run => run(store)), modelAvailability: () => ({ available: true }),
@@ -45,10 +45,10 @@ test("same public provider replacement during Form model wait cannot commit to t
     await entered.promise;
     dispose(); dispose = register(); release.resolve();
     await rejected;
-    assert.deepEqual(store.get(original.id, "a"), original);
+    assert.deepEqual(store.get(original.id), original);
     const result = await service.invoke(caller, formActions.draft, { id: original.id, prompt: "Question" }) as { form: typeof original };
     assert.equal(result.form.questions.length, 1);
-    assert.deepEqual(store.get(original.id, "a"), JSON.parse(JSON.stringify(result.form)), "original JSON storage preserves every serialized result field");
+    assert.deepEqual(store.get(original.id), JSON.parse(JSON.stringify(result.form)), "original JSON storage preserves every serialized result field");
     assert.equal(models, 2);
   } finally { release.resolve(); dispose(); }
 });
@@ -110,12 +110,12 @@ async function prepare(kind: Kind, client: ReturnType<typeof bindActionClient>):
 }
 
 function persisted(home: string, kind: Kind, input: Record<string, unknown>) {
-  if (kind === "form") { const store = openFormStore(home); try { return store.get(input.id as string, "a"); } finally { store.close(); } }
-  if (kind === "dataset") { const store = openDatasetStore(home); try { return store.get(input.id as string, "a"); } finally { store.close(); } }
-  if (kind === "lingguang") { const store = openLingguangStore(home); try { return store.conversation(input.id as string, "a"); } finally { store.close(); } }
-  if (kind === "ppt") { const store = openPptStore(home); try { return store.get(input.id as string, "a"); } finally { store.close(); } }
+  if (kind === "form") { const store = openFormStore(home, "a"); try { return store.get(input.id as string); } finally { store.close(); } }
+  if (kind === "dataset") { const store = openDatasetStore(home, "a"); try { return store.get(input.id as string); } finally { store.close(); } }
+  if (kind === "lingguang") { const store = openLingguangStore(home, "a"); try { return store.conversation(input.id as string); } finally { store.close(); } }
+  if (kind === "ppt") { const store = openPptStore(home, "a"); try { return store.get(input.id as string); } finally { store.close(); } }
   if (kind === "cognia") { const store = openCogniaStore(home); try { return { drafts: store.drafts(), materials: store.materials() }; } finally { store.close(); } }
-  const store = openPagesStore(home); try { return { documents: store.list("a"), record: store.generation("a", input.request_id as string) }; } finally { store.close(); }
+  const store = openPagesStore(home, "a"); try { return { documents: store.list(), record: store.generation(input.request_id as string) }; } finally { store.close(); }
 }
 
 for (const kind of ["form", "dataset", "lingguang", "pages", "cognia", "ppt"] as const) for (const mode of ["revoked", "disabled", "cancelled"] as const) {
@@ -147,16 +147,16 @@ for (const kind of ["form", "dataset", "lingguang", "pages", "cognia", "ppt"] as
       assert.deepEqual(persisted(home, kind, input), before, "neither generated content nor failure bookkeeping may change after rejection");
       allowed = true; enabled = true;
       if (kind === "pages") {
-        const store = openPagesStore(home);
+        const store = openPagesStore(home, "a");
         // The refused call wrote nothing; only this process knows its attempt ended, so a new call here takes it over
         // at once instead of waiting out the lease (other processes' attempts keep it: see pages-generation-lease).
-        try { assert.equal(store.generation("a", "request-1")!.status, "running"); assert.equal(store.list("a").length, 0); } finally { store.close(); }
+        try { assert.equal(store.generation("request-1")!.status, "running"); assert.equal(store.list().length, 0); } finally { store.close(); }
       }
       const restored = await client.invoke(context, actions[kind], input);
       assert.notDeepEqual(persisted(home, kind, input), before);
       if (kind === "pages") {
-        const store = openPagesStore(home);
-        try { assert.equal(store.list("a").length, 1); assert.equal(store.generation("a", "request-1")!.status, "completed"); } finally { store.close(); }
+        const store = openPagesStore(home, "a");
+        try { assert.equal(store.list().length, 1); assert.equal(store.generation("request-1")!.status, "completed"); } finally { store.close(); }
         assert.equal((await client.invoke(context, actions[kind], input) as { replayed: boolean }).replayed, true);
       }
       assert.ok(restored);

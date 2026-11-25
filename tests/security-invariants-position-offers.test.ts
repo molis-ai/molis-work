@@ -292,9 +292,9 @@ test("S-protected-position-commands IUI-07 IUI-08 IUI-10 IUI-13: a discussion ca
     await read(await surfaces(issue(held, "Pages")), 409);
   }
   swap("same");
-  const pages = openPagesStore(f.home);
+  const pages = openPagesStore(f.home, project.project_id);
   t.after(() => pages.close());
-  assert.deepEqual(pages.list(project.project_id), [], "same-ref re-registration or changed consequences cannot create a document");
+  assert.deepEqual(pages.list(), [], "same-ref re-registration or changed consequences cannot create a document");
   const calls: { action: string; state: string }[] = [], log = f.host.callLog!, record = log.record;
   log.record = function (caller, action, outcome) {
     if (action.capability_id.startsWith("pages.") || action.capability_id.startsWith("placement.") || action.capability_id.includes("goal.subject"))
@@ -304,11 +304,11 @@ test("S-protected-position-commands IUI-07 IUI-08 IUI-10 IUI-13: a discussion ca
   t.after(() => { log.record = record; });
   const selected = await prepare("hand_off"), unrelatedStation = extraStation("dataset-extra");
   const converted = await read<{ result: PlacementConvertResponse; title: string; request_id: string }>(await surfaces(issue(selected, "Pages")))
-    .catch(cause => { throw new Error(JSON.stringify({ calls, stored: pages.list(project.project_id).map(page => page.id) }), { cause }); })
+    .catch(cause => { throw new Error(JSON.stringify({ calls, stored: pages.list().map(page => page.id) }), { cause }); })
     .finally(unrelatedStation);
   assert.equal(converted.result.location.project_id, project.project_id);
   assert.equal(converted.result.title, "Original goal for the card");
-  assert.ok(converted.result.open && converted.request_id && pages.list(project.project_id).some(page => page.id === converted.result.object.id));
+  assert.ok(converted.result.open && converted.request_id && pages.list().some(page => page.id === converted.result.object.id));
   assert.ok(edits().edges.some(edge => edge.type === CONTEXT_RELATION_TYPES.derived_from
     && edge.key === JSON.stringify(["derived_from", converted.result.object.kind, converted.result.object.id])));
   const unchanged = await read<SurfaceHomeDisplay>(await surfaces(request));
@@ -317,7 +317,7 @@ test("S-protected-position-commands IUI-07 IUI-08 IUI-10 IUI-13: a discussion ca
   let receivedRequest = "";
   swap(input => {
     receivedRequest = (input as { request_id: string }).request_id;
-    assert.equal(pages.list(project.project_id).length, 2, "the receiver has already written its second document");
+    assert.equal(pages.list().length, 2, "the receiver has already written its second document");
     serverDb.db.prepare("UPDATE im_messages SET quote_id=? WHERE id=?").run(unrelated.id, quote.id);
   });
   const late = issue(await prepare("hand_off"), "Pages");
@@ -326,5 +326,5 @@ test("S-protected-position-commands IUI-07 IUI-08 IUI-10 IUI-13: a discussion ca
   assert.match(receivedRequest, /^placement:[a-f0-9-]{36}$/u);
   serverDb.db.prepare("UPDATE im_messages SET quote_id=? WHERE id=?").run(message.id, quote.id);
   await read(await surfaces(late), 409);
-  assert.equal(pages.list(project.project_id).length, 2, "an already committed receive was not invoked again");
+  assert.equal(pages.list().length, 2, "an already committed receive was not invoked again");
 });

@@ -43,8 +43,8 @@ test("W4-04-03 the page reaches Forms through the project's Runtime routes: edit
   assert.deepEqual(listed.forms.map(item => item.title), ["周报"]);
 
   // The data stays where it was: the Home's form library, at its one baseline.
-  const store = openFormStore(home.home);
-  try { assert.equal(store.analyze(form.id, project.project_id).submission_count, 1); } finally { store.close(); }
+  const store = openFormStore(home.home, project.project_id);
+  try { assert.equal(store.analyze(form.id).submission_count, 1); } finally { store.close(); }
   // The Host's hand-written Form routes are gone.
   await assert.rejects(home.web.get(`/projects/${project.project_id}/api/form`), { status: 404 });
 });

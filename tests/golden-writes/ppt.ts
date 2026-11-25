@@ -1,6 +1,6 @@
 import { field, readsBack, type GoldenWriteContext } from "../fixtures/golden-write.ts";
 
-/** ppt/ppt.db */
+/** projects/<project_id>/libraries/ppt.db (the primary project's partition library) */
 export default async function ({ call, tag }: GoldenWriteContext) {
   const created = await call("ppt.create", { title: `金样演示 ${tag}` });
   await call("ppt.update", { id: field(created, "id"), title: `金样演示 ${tag} 已改` });

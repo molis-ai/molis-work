@@ -28,9 +28,9 @@ test("PAGESCTX-05: real unsaved long drafts keep their context through the child
   }});`);
   const pages = await pluginFrameBrowser(t, browser, "pages");
   const documentOf = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
-  const store = openPagesStore(homeDirectory);
-  const a = store.create({ project_id: projectId!, title: '长稿"上下文', body: documentOf("已保存原稿") });
-  const b = store.create({ project_id: projectId!, title: "另一个文档", body: documentOf("另一篇正文") });store.close();
+  const store = openPagesStore(homeDirectory, projectId!);
+  const a = store.create({ title: '长稿"上下文', body: documentOf("已保存原稿") });
+  const b = store.create({ title: "另一个文档", body: documentOf("另一篇正文") });store.close();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${a.id}` }, sessionId));
   await pages.waitFor("window.contextBudgetEditor?.view && document.querySelector('[data-pages-title]')?.value === " + JSON.stringify(a.title));
   const parent = `JSON.parse(document.querySelector('[data-work-surface="pages"]')?.getAttribute('data-assistant-context')||'null')`;
@@ -68,9 +68,9 @@ test("PAGESCTX-05: real unsaved long drafts keep their context through the child
     await pages.evaluate(`document.querySelector('button[data-page-id="${a.id}"]').click()`);
     await waitFor(`(${parent})?.object?.id===${JSON.stringify(a.id)} && (${parent}).object.version===${savedVersion} && !('draft_text' in (${parent}))`);
     assert.equal(await pages.evaluate("window.contextBudgetEditor.view.state.doc.textContent"), short);
-    const waitingStore = openPagesStore(homeDirectory);
+    const waitingStore = openPagesStore(homeDirectory, projectId!);
     const waiting = (() => {
-      try { return waitingStore.create({ project_id: projectId!, title: "延迟打开的文档", body: documentOf("读取完成才显示的正文") }); }
+      try { return waitingStore.create({ title: "延迟打开的文档", body: documentOf("读取完成才显示的正文") }); }
       finally { waitingStore.close(); }
     })();
     assert.equal(await pages.evaluate(`!!document.querySelector('button[data-page-id="${waiting.id}"]')`), false, "the directory has not read this new document");
@@ -145,19 +145,19 @@ for (const width of [1440, 390]) {
     await browser.evaluate(`[...document.querySelectorAll('.mw-ctx-menu button')].find(button => button.querySelector('span').textContent.trim() === '总结').click()`);
     await waitFor("document.querySelector('.pages-pop textarea')?.value.includes('整理后的文稿')");
     assert.equal(prompts.length, 1); assert.match(prompts[0]!, /今天讨论了动作服务/);
-    const store = openPagesStore(homeDirectory);
+    const store = openPagesStore(homeDirectory, projectId!);
     try {
-      const page = store.list(projectId!)[0]!;
+      const page = store.list()[0]!;
       assert.equal(page.title, "项目讨论记录");
       assert.match(JSON.stringify(page.body), /今天讨论/);
       assert.doesNotMatch(JSON.stringify(page.body), /整理后的文稿/, "candidate requires user confirmation");
     } finally { store.close(); }
     await evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === "插到后面").click()`);
     await waitFor("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('整理后的文稿') && document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
-    const saved = openPagesStore(homeDirectory);
+    const saved = openPagesStore(homeDirectory, projectId!);
     const savedPage = (() => {
       try {
-        const page = saved.list(projectId!)[0]!;
+        const page = saved.list()[0]!;
         assert.match(JSON.stringify(page.body), /整理后的文稿/);
         return { id: page.id, version: page.version };
       } finally { saved.close(); }
@@ -183,15 +183,15 @@ for (const width of [1440, 390]) {
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
     const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
     await writeFile(new URL(`pages-actions-${width}.png`, output), Buffer.from((await command<{data:string}>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
-    const other = openPagesStore(homeDirectory);
-    try { const page = other.list(projectId!)[0]!; other.update(page.id, { title: "另一窗口的新标题" }, projectId!); } finally { other.close(); }
+    const other = openPagesStore(homeDirectory, projectId!);
+    try { const page = other.list()[0]!; other.update(page.id, { title: "另一窗口的新标题" }); } finally { other.close(); }
     await evaluate(`(() => { const title = document.querySelector('[data-pages-title]'); title.value = '当前未保存的草稿'; title.dispatchEvent(new InputEvent('input', {bubbles:true})); })()`);
     await waitFor("document.querySelector('[data-pages-note]').textContent.includes('其他窗口修改')");
     assert.equal(await evaluate("document.querySelector('[data-pages-title]').value"), "当前未保存的草稿");
     await click('[data-pages-back]');
     assert.equal(await evaluate("document.querySelector('[data-pages-stage-workspace]').hidden"), false);
-    const final = openPagesStore(homeDirectory);
-    try { assert.equal(final.list(projectId!)[0]!.title, "另一窗口的新标题"); } finally { final.close(); }
+    const final = openPagesStore(homeDirectory, projectId!);
+    try { assert.equal(final.list()[0]!.title, "另一窗口的新标题"); } finally { final.close(); }
   });
 }
 
@@ -204,8 +204,8 @@ test("the open page never saves over what it cannot show or has not seen: change
   const paragraph = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
   // Seen with MiniMax-M3 before writes were checked: another editor's node names, stored as they were.
   const foreign = { type: "doc" as const, content: [{ type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "原来的要点" }] }] }] }] };
-  const setup = openPagesStore(homeDirectory);
-  const [shown, unreadable] = (() => { try { return [setup.create({ project_id: projectId!, title: "别处会改的文档", body: paragraph("第一版正文") }), setup.create({ project_id: projectId!, title: "结构不对的文档", body: foreign })]; } finally { setup.close(); } })();
+  const setup = openPagesStore(homeDirectory, projectId!);
+  const [shown, unreadable] = (() => { try { return [setup.create({ title: "别处会改的文档", body: paragraph("第一版正文") }), setup.create({ title: "结构不对的文档", body: foreign })]; } finally { setup.close(); } })();
   const open = async (id: string) => {
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${id}` }, sessionId));
     await waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')`);
@@ -224,8 +224,8 @@ test("the open page never saves over what it cannot show or has not seen: change
   await pastFallback();
   assert.equal(await evaluate(namesItself("别处会改的文档", shown.version)), true, "shown again, the document keeps Pages' own naming");
   // Another window saves a new version; coming back to this one shows it instead of keeping the old text under it.
-  const other = openPagesStore(homeDirectory);
-  const changed = (() => { try { return other.update(shown.id, { body: paragraph("另一个窗口的第二版"), expected_version: shown.version }, projectId!); } finally { other.close(); } })();
+  const other = openPagesStore(homeDirectory, projectId!);
+  const changed = (() => { try { return other.update(shown.id, { body: paragraph("另一个窗口的第二版"), expected_version: shown.version }); } finally { other.close(); } })();
   await evaluate("window.dispatchEvent(new Event('focus'))");
   await waitFor("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('另一个窗口的第二版')");
   await waitFor(namesItself("别处会改的文档", changed.version));
@@ -233,9 +233,9 @@ test("the open page never saves over what it cannot show or has not seen: change
   await open(unreadable.id);
   await waitFor("/暂无法在编辑器中显示/.test(document.querySelector('[data-pages=workbench]').textContent) && document.querySelector('[data-pages-editor] .ProseMirror').getAttribute('contenteditable') === 'false'");
   await new Promise(resolve => setTimeout(resolve, 1200));
-  const after = openPagesStore(homeDirectory);
+  const after = openPagesStore(homeDirectory, projectId!);
   try {
-    const stored = after.get(unreadable.id, projectId!);
+    const stored = after.get(unreadable.id);
     assert.equal(stored.version, unreadable.version, "never saved");
     assert.match(JSON.stringify(stored.body), /原来的要点/);
   } finally { after.close(); }

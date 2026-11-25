@@ -1,6 +1,6 @@
-import { dirname, join, relative, sep } from "node:path";
+import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { HOME_SECURITY_DIRNAME, readStorageSpace, homeSqlitePartitionDirectory, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, readSnapshotFile } from "@molis-ai/molis-work-storage";
+import { HOME_SECURITY_DIRNAME, readStorageSpace, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, readSnapshotFile } from "@molis-ai/molis-work-storage";
 import type { HomeRestoreArchive } from "./home-restore-archive.js";
 import type { HomeRestoreCatalogInspector, HomeRestoreControl, HomeRestoreInputs } from "./home-restore-contract.js";
 import { invalidRestore } from "./home-restore-input.js";
@@ -22,17 +22,6 @@ function dependenciesEqual(expected: readonly SnapshotKeyDependency[], actual: r
     return [...values].sort(([a], [b]) => a.localeCompare(b));
   };
   if (!isDeepStrictEqual(grouped(expected), grouped(actual))) throw invalidRestore();
-}
-
-function inspectPartitionReferences(home: string, inputs: RestoreStoreInputs, projectIds: ReadonlySet<string>): void {
-  for (const file of inputs.archiveFiles) {
-    if (!file.database) continue;
-    const store = file.store;
-    if (store.library?.partition === "project") {
-      const allowed = new Set([...projectIds].map(id => relative(home, homeSqlitePartitionDirectory(home, store.path, id)).split(sep).join("/")));
-      if (!allowed.has(dirname(file.entry.path))) throw invalidRestore();
-    }
-  }
 }
 
 /** The same owner policy authenticates archived inputs and committed outputs against the original Home dependencies. */
@@ -85,7 +74,6 @@ export async function inspectRestoreArchiveContents(home: string, archive: HomeR
     }
   }
   if (!incomingPaths.has("projects/catalog.db") && [...incomingPaths].some(path => /^projects\/[^/]+\/molis-work\.db$/u.test(path))) throw invalidRestore();
-  inspectPartitionReferences(home, inputs, projectIds);
   if (partitionLibraries.some(partition => !projectIds.has(partition))) throw invalidRestore();
   const vaultPath = `${HOME_SECURITY_DIRNAME}/secrets.json`, vault = files.has(vaultPath) ? readSnapshotFile(join(archive.root, "data", vaultPath), 32 * 1024 * 1024).toString("utf8") : undefined;
   if (vault !== undefined) {

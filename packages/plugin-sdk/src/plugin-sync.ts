@@ -20,10 +20,10 @@ export function parsePluginSyncDeclaration(value: unknown): PluginSyncDeclaratio
       || row.requires.some(id => typeof id !== "string") || new Set(row.requires).size !== row.requires.length) {
       fail("同步集合的身份、版本或依赖不合法");
     }
-    if (row.database !== undefined && row.database !== "home" && row.database !== "project") fail("同步集合的数据库归属无效");
+    if (row.database !== undefined && row.database !== "home" && row.database !== "project" && row.database !== "partition") fail("同步集合的数据库归属无效");
     ids.add(row.id);
     const sections = row.sections !== undefined ? parseSyncSections(row.sections) : undefined;
-    return Object.freeze({ ...(row.database !== undefined ? {database: row.database as "home" | "project"} : {}), id: row.id, title: row.title, schema_version: Number(row.schema_version), requires: Object.freeze([...row.requires]) as readonly string[], ...(sections ? {sections} : {}), ...(row.tracking !== undefined ? {tracking: parseSyncTracking(row.tracking)} : {}), ...(row.aggregates !== undefined ? {aggregates: parseSyncAggregates(row.aggregates)} : {}), ...(row.approval_outcomes !== undefined ? {approval_outcomes: parseApprovalOutcomes(row.approval_outcomes, sections)} : {}) });
+    return Object.freeze({ ...(row.database !== undefined ? {database: row.database as "home" | "project" | "partition"} : {}), id: row.id, title: row.title, schema_version: Number(row.schema_version), requires: Object.freeze([...row.requires]) as readonly string[], ...(sections ? {sections} : {}), ...(row.tracking !== undefined ? {tracking: parseSyncTracking(row.tracking)} : {}), ...(row.aggregates !== undefined ? {aggregates: parseSyncAggregates(row.aggregates)} : {}), ...(row.approval_outcomes !== undefined ? {approval_outcomes: parseApprovalOutcomes(row.approval_outcomes, sections)} : {}) });
   });
   const result = Object.freeze({ protocol_version: /* @version sync.protocol */ 1, collections: Object.freeze(collections) });
   // Validate every node, including currently unselected collections.

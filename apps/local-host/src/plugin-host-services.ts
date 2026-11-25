@@ -1,5 +1,4 @@
-import { openPartitionPluginLibrary, type PartitionPluginScope } from "./partition-plugin-assembly.js";
-import { pluginDatabaseClient } from "./plugin-database-client.js";
+import { partitionPluginScope } from "./partition-plugin-assembly.js";
 import { realpathSync } from "node:fs";
 import { installHostUiText } from "./ui-text-provider.js";
 import { combinePluginSyncLibraries } from './plugin-sync-library.js';
@@ -16,7 +15,7 @@ import { installedComponentSubmit } from "./installed-action-registration.js";
 import { pluginPageActions } from "./plugin-page-actions.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { pluginErrors, type PluginDatabase, type PluginDatabaseDeclaration, type PluginDefinition, type PluginManifest, type PluginModelClient, type PluginProjectDatabase, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors, type PluginDatabase, type PluginDefinition, type PluginManifest, type PluginModelClient, type PluginProjectDatabase, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-module-artifacts";
@@ -32,7 +31,7 @@ import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { outsidePluginAction, pluginActivationOpen, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
-import { openPluginDatabase } from "./plugin-home-database-client.js";
+import { openPartitionPluginDatabase, openPluginDatabase } from "./plugin-home-database-client.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { openPluginProjectLibrary } from "./plugin-project-library.js";
@@ -224,18 +223,15 @@ export function pluginTextViews(contribution: PluginContribution, activation: Pl
  * nothing, its own `stop` hook included.
  */
 function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
-  const partitionDeclaration = definition.manifest.databases?.partition;
-  if (partitionDeclaration) {
-    // Only the per-partition assembly starts such a plugin, one instance per partition, each with its own partition's library (§4.2 第 2 条).
-    const scope = options.partitionScope;
-    if (!scope || scope.plugin_id !== definition.manifest.plugin_id || scope.install_id !== context.install_id || !options.home) {
-      throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 在每个分区有自己的库，只能由分区装配按分区启动`);
+  if (definition.manifest.databases?.partition) {
+    // One instance per (plugin, partition), each with its own partition's library (§4.2 第 2 条): the partition is the project this platform
+    // runs for, the one the per-partition assembly's scope names when it starts the instance, never a value from the plugin.
+    if (!options.home) throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 在每个分区有自己的库，这个插件平台没有 Home`);
+    const scope = options.partitionScope ?? partitionPluginScope(options.home.directory, options.project_id, definition.manifest.plugin_id, context.install_id);
+    if (scope.plugin_id !== definition.manifest.plugin_id || scope.install_id !== context.install_id || scope.partition_id !== options.project_id) {
+      throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 的分区库与它运行的分区或安装不一致`);
     }
-    const authorize = (permission: string) => {
-      assertActive();
-      context.requireGrant(permission);
-    };
-    return openPartitionLibrary(scope, options.home.directory, partitionDeclaration, authorize, context);
+    return openPartitionPluginDatabase(scope, options.home.directory, definition.manifest, permission => { assertActive(); context.requireGrant(permission); }, context);
   }
   // A sandboxed package's library in the Home is the Home Runtime's (`openSandboxHomeLibrary`): a project's platform has no process to run its statements in.
   if (definition.execution === "sandbox" && definition.manifest.databases?.home) {
@@ -247,23 +243,8 @@ function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: Plu
   if (library === undefined) return undefined;
   if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);
   const { directory, stores } = options.home;
-  const open = () => openPluginDatabase(directory, library.declaration, permission => { assertActive(); context.requireGrant(permission); }, context, undefined, definition.manifest);
+  const open = () => openPluginDatabase(directory, library.declaration, permission => { assertActive(); context.requireGrant(permission); }, context, definition.manifest);
   return library.installed ? openInstalledPluginLibrary(directory, library.installed, library.declaration, stores, open) : open();
-}
-
-/** `services.database` of a per-partition instance: its own partition's library, through the same client rules as any plugin library. */
-function openPartitionLibrary(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void,
-  instance: PluginStartContext): { client: PluginDatabase; close(): void } {
-  authorize("storage:private");
-  const connections = openPartitionPluginLibrary(scope, home, declaration);
-  let closed = false;
-  const client = pluginDatabaseClient({ reader: connections.reader, writer: connections.writer, inTransaction: () => connections.writer.isTransaction },
-    declaration, authorize, instance, () => closed);
-  const close = () => {
-    closed = true;
-    connections.close();
-  };
-  return { client, close };
 }
 
 /**

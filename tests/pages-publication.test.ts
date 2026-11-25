@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { pagesActions, pagesManifest, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
 import type { ProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION, type PagesRecord } from "@molis-ai/molis-work-plugin-pages/contract";
 
 import { openTestHome } from "./fixtures/test-home.js";
+import { openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 
 const body = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 /** Pages as the Home Runtime runs it in one project (W5-01-PAGES-04): the publication is the plugin's, the 成果库 the project's. */
@@ -21,7 +21,7 @@ for (const failure of ["artifact write", "root update"] as const) {
     const f = await fixture(t);
     const original = (await f.bound.invoke(pagesActions.create, { title: "Original title", body: body("Original approved body"), goal_id: "original-goal" })).document;
     const alterLibrary = (sql: string) => {
-      const db = openSqliteConnection(homeSqlitePath(f.home, "pages"), { fileMustExist: true });
+      const db = openPartitionLibraryDatabase(f.home, f.projectId, "pages");
       try { db.exec(sql); } finally { db.close(); }
     };
     const alterProject = (sql: string) => f.host.withProject(f.ref, ({ store }) => store.db.exec(sql));

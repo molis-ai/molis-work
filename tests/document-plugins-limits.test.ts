@@ -104,22 +104,22 @@ const handle = (handlers: ActionHandlerBinding[], capabilityId: string) => handl
 test("AI actions of Form, Dataset, PPT and 灵光 recheck the grant right before the model request", async t => {
   const home = await mkdtemp(join(tmpdir(), "document-plugins-dispatch-"));
   t.after(() => rm(home, { recursive: true, force: true }));
-  const forms = openFormStore(home), datasets = openDatasetStore(home), decks = openPptStore(home), sparks = openLingguangStore(home);
+  const forms = openFormStore(home, "p"), datasets = openDatasetStore(home, "p"), decks = openPptStore(home, "p"), sparks = openLingguangStore(home, "p");
   t.after(() => { forms.close(); datasets.close(); decks.close(); sparks.close(); });
-  const form = forms.create({ project_id: "p", title: "F" }), dataset = datasets.create({ project_id: "p", title: "D" }), deck = decks.create({ project_id: "p", title: "P" });
-  const spark = sparks.create({ project_id: "p", title: "S", body: "b" }), conversation = sparks.openConversation([spark.id], "p").conversation;
+  const form = forms.create({ title: "F" }), dataset = datasets.create({ title: "D" }), deck = decks.create({ title: "P" });
+  const spark = sparks.create({ title: "S", body: "b" }), conversation = sparks.openConversation([spark.id]).conversation;
   const cases: Array<{ name: string; run: (state: ReturnType<typeof newState>) => Promise<unknown>; unchanged: () => unknown }> = [
-    { name: "form.questions.draft", unchanged: () => forms.get(form.id, "p").questions.length,
+    { name: "form.questions.draft", unchanged: () => forms.get(form.id).questions.length,
       run: state => handle(createFormActionHandlers({ ...ownFormStores(run => run(forms)), modelAvailability: () => ({ available: true }),
         completeText: hostModel(state, JSON.stringify({ status: "done", questions: [{ title: "题目？", type: "text" }] })) }), formActions.draft.capability_id)
         .handle(revocable(state), { id: form.id, prompt: "加一题" }) },
-    { name: "dataset.columns.ai", unchanged: () => datasets.get(dataset.id, "p").columns.length,
+    { name: "dataset.columns.ai", unchanged: () => datasets.get(dataset.id).columns.length,
       run: state => handle(createDatasetActionHandlers({ ...ownDatasetStores(run => run(datasets)), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "列") }), datasetActions.generateAi.capability_id)
         .handle(revocable(state), { id: dataset.id, prompt: "加一列" }) },
-    { name: "ppt.outline_ai", unchanged: () => decks.get(deck.id, "p").version,
+    { name: "ppt.outline_ai", unchanged: () => decks.get(deck.id).version,
       run: state => handle(createPptActionHandlers({ ...ownPptStores(run => run(decks)), modelAvailability: () => ({ available: true }), complete: completeModel(state, "## 一页\n- 要点") }), pptActions.outlineAi.capability_id)
         .handle(revocable(state), { id: deck.id, text: "整理" }) },
-    { name: "lingguang.conversation.message", unchanged: () => sparks.conversation(conversation.id, "p").messages.length,
+    { name: "lingguang.conversation.message", unchanged: () => sparks.conversation(conversation.id).messages.length,
       run: state => handle(createLingguangActionHandlers({ ...ownLingguangStores(run => run(sparks)), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "回复") }), lingguangActions.message.capability_id)
         .handle(revocable(state, "mcp"), { id: conversation.id, body: "hi" }) },
   ];
@@ -216,7 +216,7 @@ test("an outline for a deck that already has 40 pages is refused before anything
   const { presentation } = await f.bound.invoke(pptActions.create, { title: "Deck" });
   const full = (await f.bound.invoke(pptActions.update, { id: presentation.id, slides: Array.from({ length: 40 }, (_, index) => ({ title: "S" + index, bullets: ["b"] })) })).presentation;
   const state = { revoked: false, dispatched: 0, sawBeforeDispatch: [] as unknown[] };
-  const store = openPptStore(f.home);
+  const store = openPptStore(f.home, f.ref.project_id);
   t.after(() => store.close());
   const handlers = createPptActionHandlers({ ...ownPptStores(run => run(store)), modelAvailability: () => ({ available: true }), complete: completeModel(state, "## New\n- point") });
   const caller = { ...f.caller, beforeEffect: async () => {} } as ActionExecutionContext;

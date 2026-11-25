@@ -40,7 +40,8 @@ export async function discoverRuntimeSyncCollections(home: string, spaceId: stri
           publisher_signature: binding.publisher_signature, collection_id: binding.collection.id, schema_version: binding.collection.schema_version });
         // A project activation may hold a Home library. Its journal belongs to that one library,
         // not to whichever project happened to start its current authorized instance first.
-        const homeLibrary = collection.database === 'home' || (!collection.database && manifest?.databases?.home && !manifest.databases.project);
+        // A partition's own library (`databases.partition`) is that partition's, as a project library is.
+        const homeLibrary = collection.database === 'home' || (!collection.database && manifest?.databases?.home && !manifest.databases.project && !manifest.databases.partition);
         if (incompatible.has(key)) return;
         if (homeLibrary) {
           const digest = pluginManifestDigest(manifest!), prior = homeOwners.get(key);

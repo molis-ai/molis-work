@@ -7,38 +7,39 @@ import { parseChain } from "./model.js";
 
 type Kind = "workflow" | "instance";
 type Row = Record<string, string | number | null>;
-const workflowColumns = ["workflow_id", "project_id", "title", "chain_json", "revision", "created_at", "updated_at", "deleted"] as const;
-const instanceColumns = ["instance_id", "workflow_id", "project_id", "title", "status", "current", "chain_json", "steps_json", "created_at", "updated_at"] as const;
+const workflowColumns = ["workflow_id", "title", "chain_json", "revision", "created_at", "updated_at", "deleted"] as const;
+const instanceColumns = ["instance_id", "workflow_id", "title", "status", "current", "chain_json", "steps_json", "created_at", "updated_at"] as const;
 const limit = 100000000;
 
 export function isImportedWorkflowInstance(db: PluginSyncBusinessDatabase, id: string): boolean {
   return !!db.prepare("SELECT 1 FROM workflow_imported_instances WHERE instance_id=?").get(id);
 }
 
-export const workflowsCollection: PluginSyncCollectionDefinition = {
- tracking:[
-  {table:"workflows",key:[{column:"project_id"},{literal:"workflow"},{column:"workflow_id"}],revision:{table:"workflow_editor_versions",key:[{column:"workflow_id",rowColumn:"workflow_id"},{column:"project_id",rowColumn:"project_id"}],column:"revision",rowColumn:"revision"}},
-  {table:"instances",key:[{column:"project_id"},{literal:"instance"},{column:"instance_id"}]},
- ],
- create(db,context){
+/** A workflow or a run is keyed by the partition its library belongs to (bound by the Host, never a column), its kind and its id. */
+export const workflowsTracking: PluginSyncCollectionDefinition["tracking"] = [
+  {table:"workflows",key:[{scope:"projectId"},{literal:"workflow"},{column:"workflow_id"}],revision:{table:"workflow_editor_versions",key:[{column:"workflow_id",rowColumn:"workflow_id"}],column:"revision",rowColumn:"revision"}},
+  {table:"instances",key:[{scope:"projectId"},{literal:"instance"},{column:"instance_id"}]},
+];
+
+/** The workflows and runs of one partition's library: every key names that partition, and nothing in it names another. */
+export function workflowsCollection(partition: string): PluginSyncCollectionDefinition {
+ return {tracking:workflowsTracking,create(db,context){
   const decode = (key: string): { projectId: string; kind: Kind; id: string } => {
     let parts: unknown;
     try { parts = JSON.parse(key); } catch { return invalid(); }
     if (!Array.isArray(parts) || parts.length !== 3 || parts.some(part => typeof part !== "string" || !part || part.length > 80) ||
       !["workflow", "instance"].includes(parts[1])) invalid();
+    if (parts[0] !== partition) throw syncError("scope", "流程同步标识不属于这个位置");
     return { projectId: parts[0] as string, kind: parts[1] as Kind, id: parts[2] as string };
   };
-  const local = (kind: Kind, id: string, projectId: string): Row | null => {
-    const row = db.prepare(kind === "workflow" ? "SELECT * FROM workflows WHERE workflow_id=?" : "SELECT * FROM instances WHERE instance_id=?").get(id) as Row | undefined;
-    if (row && row.project_id !== projectId) throw syncError("scope", "资产标识已属于其他项目");
-    return row ?? null;
-  };
+  const local = (kind: Kind, id: string): Row | null =>
+    (db.prepare(kind === "workflow" ? "SELECT * FROM workflows WHERE workflow_id=?" : "SELECT * FROM instances WHERE instance_id=?").get(id) as Row | undefined) ?? null;
   return {
     authorizeKey(key){context.project(decode(key).projectId);},
     belongsToProject:(key,projectId)=>decode(key).projectId===projectId,
     canUpload: key => context.canUploadProject(decode(key).projectId),
     read(key) {
-      const { projectId, kind, id } = decode(key), project = context.project(projectId), row = local(kind, id, projectId);
+      const { projectId, kind, id } = decode(key), project = context.project(projectId), row = local(kind, id);
       if (!row) return null;
       const columns = kind === "workflow" ? workflowColumns : instanceColumns;
       const record = Object.fromEntries(columns.map(column => [column, row[column]]));
@@ -50,14 +51,14 @@ export const workflowsCollection: PluginSyncCollectionDefinition = {
     apply(key, value) {
       const { projectId, kind, id } = decode(key);
       context.project(projectId);
-      const current = local(kind, id, projectId);
+      const current = local(kind, id);
       if (kind === "instance" && current?.status === "active" && !isImportedWorkflowInstance(db, id)) {
         throw syncError("busy", "本机运行中的流程实例不能被远端覆盖");
       }
       const table = kind === "workflow" ? "workflows" : "instances";
       const identity = kind === "workflow" ? "workflow_id" : "instance_id";
       if (value === null) {
-        db.prepare("DELETE FROM " + table + " WHERE " + identity + "=? AND project_id=?").run(id, projectId);
+        db.prepare("DELETE FROM " + table + " WHERE " + identity + "=?").run(id);
         return;
       }
       checkSize(value);
@@ -67,33 +68,31 @@ export const workflowsCollection: PluginSyncCollectionDefinition = {
         typeof project.title !== "string" || project.title.length > 120) invalid();
       const columns = kind === "workflow" ? workflowColumns : instanceColumns;
       const record = recordOf(envelope.record, [...columns]);
-      if (record[identity] !== id || record.project_id !== projectId) invalid();
+      if (record[identity] !== id) invalid();
       validate(kind, record);
       if (kind === "instance") {
-        const parent = db.prepare("SELECT project_id FROM workflows WHERE workflow_id=?").get(record.workflow_id as string) as { project_id: string } | undefined;
-        if (!parent) throw syncError("dependencies", "等待流程定义");
-        if (parent.project_id !== projectId) throw syncError("scope", "运行实例引用了其他项目的流程");
+        if (!db.prepare("SELECT 1 FROM workflows WHERE workflow_id=?").get(record.workflow_id as string)) throw syncError("dependencies", "等待流程定义");
         record.updated_at = new Date(Math.max(Date.now(), Date.parse(record.updated_at as string),
           current ? Date.parse(current.updated_at as string) + 1 : 0)).toISOString();
       } else {
-        const high = db.prepare("SELECT revision FROM workflow_editor_versions WHERE workflow_id=? AND project_id=?").get(id,projectId) as { revision: number } | undefined;
+        const high = db.prepare("SELECT revision FROM workflow_editor_versions WHERE workflow_id=?").get(id) as { revision: number } | undefined;
         record.revision = Math.max(Number(current?.revision ?? 0), high?.revision ?? 0) + 1;
       }
       const values = columns.map(column => record[column] as string | number | null);
       db.prepare("INSERT INTO " + table + " (" + columns.join(",") + ") VALUES (" + columns.map(() => "?").join(",") +
         ") ON CONFLICT(" + identity + ") DO UPDATE SET " + columns.filter(column => column !== identity).map(column => column + "=excluded." + column).join(","))
         .run(...values);
-      if(kind === "instance") db.prepare("INSERT OR IGNORE INTO workflow_imported_instances(instance_id,project_id) VALUES (?,?)").run(id,projectId);
+      if(kind === "instance") db.prepare("INSERT OR IGNORE INTO workflow_imported_instances(instance_id) VALUES (?)").run(id);
     },
   };
- }
-};
+ }};
+}
 
 function validate(kind: Kind, raw: Record<string, unknown>): void {
   const columns = kind === "workflow" ? workflowColumns : instanceColumns;
   if (Object.keys(raw).length !== columns.length || columns.some(column => !Object.hasOwn(raw, column)) ||
     Object.values(raw).some(value => value !== null && typeof value !== "string" && (typeof value !== "number" || !Number.isFinite(value)))) invalid();
-  if (typeof raw.project_id !== "string" || typeof raw.title !== "string" || !raw.title || raw.title.length > 120 ||
+  if (typeof raw.title !== "string" || !raw.title || raw.title.length > 120 ||
     typeof raw.created_at !== "string" || !Number.isFinite(Date.parse(raw.created_at)) ||
     typeof raw.updated_at !== "string" || !Number.isFinite(Date.parse(raw.updated_at))) invalid();
   let chain: unknown;
@@ -129,5 +128,5 @@ function invalid(): never { throw syncError("invalid", "工作流程同步数据
 
 export const workflowsSync: PluginSyncDeclaration = {
   protocol_version: /* @version sync.protocol */ 1,
-  collections: [{ id: "workflow_history", title: "工作流程与运行记录", schema_version: /* @version sync.collection.workflows.workflow_history */ 1, requires: [], tracking: workflowsCollection.tracking }],
+  collections: [{ id: "workflow_history", title: "工作流程与运行记录", schema_version: /* @version sync.collection.workflows.workflow_history */ 1, requires: [], tracking: workflowsTracking }],
 };

@@ -1,5 +1,4 @@
-import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError, type ActionExecutionContext, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   FormOption,
   FormQuestion,
@@ -18,7 +17,6 @@ export { FORM_DATABASE };
 
 type FormRow = {
   id: string;
-  project_id: string;
   title: string;
   description: string;
   status: string;
@@ -73,33 +71,31 @@ export function ownFormStores(withStore: <T>(run: (store: FormStore) => T) => T)
   return { read: withStore, async write(caller, run) { await caller.beforeEffect(); return withStore(run); } };
 }
 
+/** One partition's forms: the library is that partition's own, so a record's `project_id` is the partition this store was opened for. */
 export class FormStore {
   /** `atomically` runs a write that takes several statements as one: a transaction of its own, or nothing more inside one. */
-  constructor(private readonly db: FormSql, private readonly atomically: <T>(run: () => T) => T = run => run(), private readonly release: () => void = () => {}) {}
+  constructor(private readonly db: FormSql, readonly partition: string, private readonly atomically: <T>(run: () => T) => T = run => run(), private readonly release: () => void = () => {}) {}
 
   close(): void {
     this.release();
   }
 
-  list(projectId: string): FormRecord[] {
-    const rows = this.db.all("SELECT * FROM forms WHERE project_id = ? ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE", [projectId]) as unknown as FormRow[];
-    return rows.map(fromRow);
+  list(): FormRecord[] {
+    const rows = this.db.all("SELECT * FROM forms ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE") as unknown as FormRow[];
+    return rows.map(row => fromRow(row, this.partition));
   }
 
-  get(id: string, projectId?: string): FormRecord {
+  get(id: string): FormRecord {
     const row = this.db.get("SELECT * FROM forms WHERE id = ?", [id]) as FormRow | undefined;
     if (!row) throw formErrors.not_found("找不到这份问卷");
-    if (projectId && row.project_id !== projectId) {
-      throw formErrors.not_found("找不到这份问卷");
-    }
-    return fromRow(row);
+    return fromRow(row, this.partition);
   }
 
-  create(input: { title?: string; project_id: string }): FormRecord {
+  create(input: { title?: string }): FormRecord {
     const now = new Date().toISOString();
     const record: FormRecord = {
       id: crypto.randomUUID(),
-      project_id: input.project_id,
+      project_id: this.partition,
       title: normalizeTitle(input.title ?? "未命名问卷"),
       description: "",
       status: "draft",
@@ -111,7 +107,7 @@ export class FormStore {
       artifact_id: "",
       artifact_version: 0,
     };
-    this.db.run("INSERT INTO forms (id, project_id, title, description, status, share_id, questions_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [record.id, record.project_id, record.title, record.description, record.status, record.share_id,
+    this.db.run("INSERT INTO forms (id, title, description, status, share_id, questions_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", [record.id, record.title, record.description, record.status, record.share_id,
       JSON.stringify(record.questions), record.created_at, record.updated_at, record.version]);
     return record;
   }
@@ -121,8 +117,8 @@ export class FormStore {
     description?: string;
     questions?: readonly FormQuestionInput[];
     expected_version?: number;
-  }, projectId?: string): FormRecord {
-    const current = this.get(id, projectId);
+  }): FormRecord {
+    const current = this.get(id);
     assertFormVersion(current, patch.expected_version);
     const next: FormRecord = {
       ...current,
@@ -137,8 +133,8 @@ export class FormStore {
     return next;
   }
 
-  publish(id: string, projectId?: string, expectedVersion?: number): FormRecord {
-    const current = this.get(id, projectId);
+  publish(id: string, expectedVersion?: number): FormRecord {
+    const current = this.get(id);
     assertFormVersion(current, expectedVersion);
     const share_id = current.share_id ?? crypto.randomUUID().slice(0, 12);
     const next: FormRecord = {
@@ -154,20 +150,20 @@ export class FormStore {
   }
 
   /** A form made from a list of questions another plugin hands over; one delivery makes one form. */
-  receive(projectId: string, requestId: string, title: string, questions: readonly FormQuestionInput[]): FormRecord {
+  receive(requestId: string, title: string, questions: readonly FormQuestionInput[]): FormRecord {
     return this.atomically(() => {
-      const prior = this.db.get("SELECT target_id FROM form_copies WHERE project_id = ? AND request_id = ?", [projectId, "receive:" + requestId]) as { target_id: string } | undefined;
-      if (prior) return this.get(prior.target_id, projectId);
-      const created = this.create({ title, project_id: projectId });
-      const filled = this.update(created.id, { questions, expected_version: created.version }, projectId);
-      this.db.run("INSERT INTO form_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [projectId, "receive:" + requestId, "", filled.id, filled.updated_at]);
+      const prior = this.db.get("SELECT target_id FROM form_copies WHERE request_id = ?", ["receive:" + requestId]) as { target_id: string } | undefined;
+      if (prior) return this.get(prior.target_id);
+      const created = this.create({ title });
+      const filled = this.update(created.id, { questions, expected_version: created.version });
+      this.db.run("INSERT INTO form_copies (request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?)", ["receive:" + requestId, "", filled.id, filled.updated_at]);
       return filled;
     });
   }
 
   /** Stop collecting: the fill page says so and takes no more answers; answers already in stay. */
-  closeCollection(id: string, projectId?: string, expectedVersion?: number): FormRecord {
-    const current = this.get(id, projectId);
+  closeCollection(id: string, expectedVersion?: number): FormRecord {
+    const current = this.get(id);
     assertFormVersion(current, expectedVersion);
     const next: FormRecord = { ...current, status: "closed", updated_at: new Date().toISOString(), version: current.version + 1 };
     const result = this.db.run("UPDATE forms SET status = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?", [next.status, next.updated_at, next.version, id, current.version]);
@@ -183,10 +179,10 @@ export class FormStore {
    * default) or the audience that called. Whoever imports, what comes in is recorded as `file`. While the form is not
    * collecting, only the person imports; any other caller is refused as a whole, before a file is read.
    */
-  importAnswers(id: string, files: readonly { name: string; content: string }[], projectId?: string,
+  importAnswers(id: string, files: readonly { name: string; content: string }[],
     options: { source?: Exclude<FormSubmissionSource, "file"> } = {}): { imported: number; skipped: number; rejected: { name: string; reason: string }[] } {
     return this.atomically(() => {
-      const form = this.get(id, projectId);
+      const form = this.get(id);
       assertTakesAnswers(form, options.source ?? "preview", "import");
       let imported = 0, skipped = 0;
       const rejected: { name: string; reason: string }[] = [];
@@ -219,44 +215,71 @@ export class FormStore {
     });
   }
 
-  /** Move to another partition; the id stays and its answers go with it. Fixed versions stay with the old place. */
-  relocate(id: string, from: string, to: string): FormRecord {
+  /**
+   * One form as the record placement carries to another partition (`placement.export`): its questions, whether it collects, and every
+   * answer people gave it. Its pinned versions stay with this place's results.
+   */
+  exportRecord(id: string): PlacementExport {
+    const current = this.get(id);
+    const submissions = this.db.all("SELECT id, answers_json, submitted_at, form_version, questions_json, request_id, source FROM submissions WHERE form_id = ? ORDER BY rowid", [id])
+      .map(row => JSON.stringify(row));
+    const { title, description, status, share_id, questions, created_at, updated_at, version } = current;
+    return { subject: { kind: "form", id }, revision: String(version),
+      record: { title, description, status, share_id, questions_json: JSON.stringify(questions), created_at, updated_at, version, submissions } };
+  }
+
+  /**
+   * Writes a carried form here (`placement.put`). With `targetId` (a move) it keeps its id, version, sharing and answers, replacing what an
+   * earlier attempt of the same move put; without (a copy) it is a new draft of the same questions with no answers, and the same request
+   * makes the same one. Pinned versions belonged to where it came from, so the numbering starts again here.
+   */
+  putRecord(record: PlacementRecord, requestId: string, targetId?: string): FormRecord {
+    const carried = carriedForm(record);
     return this.atomically(() => {
-      const current = this.get(id, from);
-      if (current.publication_pending) throw formErrors.publication_pending("上次固定版本还没存完，请先在原位置恢复，再移动");
-      // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
-      const result = this.db.run("UPDATE forms SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?", [to, id, current.version]);
-      if (result.changes !== 1) throw formErrors.conflict("问卷刚被修改，请重新读取后再移动");
-      return this.get(id, to);
+      if (targetId === undefined) {
+        const prior = this.db.get("SELECT target_id FROM form_copies WHERE request_id = ?", ["copy:" + requestId]) as { target_id: string } | undefined;
+        if (prior) return this.get(prior.target_id);
+        const now = new Date().toISOString(), copyId = crypto.randomUUID();
+        this.db.run("INSERT INTO forms (id, title, description, status, share_id, questions_json, created_at, updated_at, version) VALUES (?, ?, ?, 'draft', NULL, ?, ?, ?, 1)",
+          [copyId, carried.title, carried.description, JSON.stringify(carried.questions), now, now]);
+        this.db.run("INSERT INTO form_copies (request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?)", ["copy:" + requestId, "", copyId, now]);
+        return this.get(copyId);
+      }
+      this.db.run("DELETE FROM submissions WHERE form_id = ?", [targetId]);
+      this.db.run("DELETE FROM forms WHERE id = ?", [targetId]);
+      this.db.run("INSERT INTO forms (id, title, description, status, share_id, questions_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [targetId, carried.title, carried.description, carried.status, carried.share_id, JSON.stringify(carried.questions), carried.created_at, carried.updated_at, carried.version]);
+      for (const row of carried.submissions) {
+        this.db.run("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [row.id, targetId, row.answers_json, row.submitted_at, row.form_version, row.questions_json, row.request_id, row.source]);
+      }
+      return this.get(targetId);
     });
   }
 
-  /** A copy of the questions in another partition, without answers and not collecting; the same request returns the same copy. */
-  duplicate(id: string, from: string, to: string, requestId: string): FormRecord {
+  /** Lets a form that went to another partition go from here (`placement.remove`), with its answers, only while it is still the version carried. */
+  removeCarried(id: string, revision: string): boolean {
     return this.atomically(() => {
-      const prior = this.db.get("SELECT target_id FROM form_copies WHERE project_id = ? AND request_id = ?", [to, requestId]) as { target_id: string } | undefined;
-      if (prior) return this.get(prior.target_id, to);
-      const source = this.get(id, from);
-      const now = new Date().toISOString();
-      const copy: FormRecord = { id: crypto.randomUUID(), project_id: to, title: source.title, description: source.description, status: "draft", share_id: null,
-        questions: source.questions, created_at: now, updated_at: now, version: 1, artifact_id: "", artifact_version: 0 };
-      this.db.run("INSERT INTO forms (id, project_id, title, description, status, share_id, questions_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [copy.id, copy.project_id, copy.title, copy.description, copy.status, null, JSON.stringify(copy.questions), now, now, 1]);
-      this.db.run("INSERT INTO form_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [to, requestId, id, copy.id, now]);
-      return copy;
+      const row = this.db.get("SELECT version, publication_pending_json FROM forms WHERE id = ?", [id]);
+      if (!row) return false;
+      if (row.publication_pending_json) throw formErrors.publication_pending("上次固定版本还没存完，请先在原位置恢复，再移动");
+      if (String(row.version) !== revision) throw formErrors.conflict("问卷刚被修改，请重新读取后再移动");
+      this.db.run("DELETE FROM submissions WHERE form_id = ?", [id]);
+      return this.db.run("DELETE FROM forms WHERE id = ? AND version = ?", [id, row.version as number]).changes === 1;
     });
   }
 
-  delete(id: string, projectId?: string, expectedVersion?: number): void {
+  delete(id: string, expectedVersion?: number): void {
     this.atomically(() => {
-      const current = this.get(id, projectId); assertFormVersion(current, expectedVersion);
+      const current = this.get(id); assertFormVersion(current, expectedVersion);
       if (current.publication_pending) throw formErrors.publication_pending("请先恢复上次成果发布，再删除问卷");
       this.db.run("DELETE FROM submissions WHERE form_id = ?", [id]);
       this.db.run("DELETE FROM forms WHERE id = ?", [id]);
     });
   }
 
-  generateQuestions(id: string, prompt: string, projectId?: string, expectedVersion?: number): FormRecord {
-    const current = this.get(id, projectId);
+  generateQuestions(id: string, prompt: string, expectedVersion?: number): FormRecord {
+    const current = this.get(id);
     const title = prompt.trim() || "请填写你的回答";
     if ([...title].length > 200) throw formErrors.invalid("出题提示须为 1 到 200 个字");
     const question: FormQuestion = {
@@ -266,13 +289,13 @@ export class FormStore {
       required: false,
       order: current.questions.length + 1,
     };
-    return this.update(id, { questions: [...current.questions, question], expected_version: expectedVersion ?? current.version }, projectId);
+    return this.update(id, { questions: [...current.questions, question], expected_version: expectedVersion ?? current.version });
   }
 
-  submit(id: string, answers: Readonly<Record<string, string>>, projectId?: string,
+  submit(id: string, answers: Readonly<Record<string, string>>,
     options: { expectedVersion?: number; requestId?: string; source?: Exclude<FormSubmissionSource, "file"> } = {}): FormSubmissionRecord {
     return this.atomically(() => {
-      const form = this.get(id, projectId);
+      const form = this.get(id);
       const source = options.source ?? "preview";
       assertTakesAnswers(form, source);
       if (options.requestId) {
@@ -295,14 +318,14 @@ export class FormStore {
     });
   }
 
-  listSubmissions(id: string, projectId?: string): FormSubmissionRecord[] {
-    this.get(id, projectId);
+  listSubmissions(id: string): FormSubmissionRecord[] {
+    this.get(id);
     const rows = this.db.all("SELECT * FROM submissions WHERE form_id = ? ORDER BY datetime(submitted_at) DESC", [id]) as unknown as SubmissionRow[];
     return rows.map(submissionFromRow);
   }
 
-  analyze(id: string, projectId?: string): { form_id: string; submission_count: number } {
-    this.get(id, projectId);
+  analyze(id: string): { form_id: string; submission_count: number } {
+    this.get(id);
     const row = this.db.get("SELECT COUNT(*) AS count FROM submissions WHERE form_id = ?", [id]) as { count: number };
     return { form_id: id, submission_count: Number(row.count) };
   }
@@ -313,11 +336,11 @@ export function assertFormVersion(current: FormRecord, expectedVersion?: number)
   if (expectedVersion !== undefined && expectedVersion !== current.version) throw formErrors.conflict("问卷已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
 }
 
-export function fromRow(row: FormRow): FormRecord {
+export function fromRow(row: FormRow, partition: string): FormRecord {
   const pending = row.publication_pending_json ? JSON.parse(row.publication_pending_json) as NonNullable<FormRecord["publication_pending"]> : null;
   return {
     id: row.id,
-    project_id: row.project_id ?? "",
+    project_id: partition,
     title: row.title,
     description: row.description,
     status: row.status as FormStatus,
@@ -425,5 +448,24 @@ function normalizeAnswers(
   return Object.fromEntries(next);
 }
 
-/** This plugin's store in the Home's store registry (W4-11): `form/form.db` at its one baseline. */
-export const FORM_HOME_STORE: HomeStoreDeclaration = { path: FORM_DATABASE.store_name, library: { baseline: FORM_DATABASE } };
+const SUBMISSION_SOURCES: readonly string[] = ["preview", "fill", "file", "agent", "mcp", "workflow", "plugin"];
+
+/** A carried form's record, as `exportRecord` wrote it; its questions and every answer are checked before a row is written. */
+function carriedForm(record: PlacementRecord): Omit<FormRecord, "id" | "project_id" | "artifact_id" | "artifact_version"> & { submissions: SubmissionRow[] } {
+  const { title, description, status, share_id, questions_json, created_at, updated_at, version, submissions } = record;
+  const invalid = () => formErrors.invalid("带来的问卷内容不完整");
+  if (typeof title !== "string" || typeof description !== "string" || !["draft", "published", "closed"].includes(status as string)
+    || share_id !== null && typeof share_id !== "string" || typeof questions_json !== "string" || typeof created_at !== "string" || typeof updated_at !== "string"
+    || !Number.isSafeInteger(version) || (version as number) < 1 || !Array.isArray(submissions) || submissions.some(row => typeof row !== "string")) throw invalid();
+  const parse = (text: string): unknown => { try { return JSON.parse(text); } catch { throw invalid(); } };
+  const rows = (submissions as string[]).map(text => {
+    const row = parse(text) as Partial<SubmissionRow> | null;
+    if (!row || typeof row.id !== "string" || !row.id || typeof row.answers_json !== "string" || typeof row.submitted_at !== "string"
+      || !Number.isSafeInteger(row.form_version) || typeof row.questions_json !== "string" || row.request_id !== null && typeof row.request_id !== "string"
+      || !SUBMISSION_SOURCES.includes(row.source as string)) throw invalid();
+    normalizeAnswers(normalizeQuestions(parse(row.questions_json) as FormQuestionInput[]), parse(row.answers_json) as Record<string, string>);
+    return row as SubmissionRow;
+  });
+  return { title: normalizeTitle(title), description: normalizeDescription(description), status: status as FormStatus, share_id: share_id as string | null,
+    questions: normalizeQuestions(parse(questions_json) as FormQuestionInput[]), created_at, updated_at, version: version as number, submissions: rows };
+}

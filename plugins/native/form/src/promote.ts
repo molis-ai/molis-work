@@ -5,14 +5,14 @@ import { assertFormVersion, fromRow } from "./store.js";
 import { formManifest } from "./manifest.js";
 import { formErrors } from "./error.js";
 
-export async function promoteForm(database: PluginDatabase, artifacts: PluginArtifactClient, id: string, expectedVersion?: number):
+export async function promoteForm(database: PluginDatabase, artifacts: PluginArtifactClient, partition: string, id: string, expectedVersion?: number):
   Promise<{ form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }> {
   if (!database.transactionProjectRow || !artifacts.join) throw formErrors.unavailable("当前环境不能发出成果");
   const join = artifacts.join;
   return database.transactionProjectRow(id, row => {
     const source = row.read();
     if (!source) throw formErrors.not_found("找不到这份问卷");
-    const current = fromRow(source as Parameters<typeof fromRow>[0]);
+    const current = fromRow(source as Parameters<typeof fromRow>[0], partition);
     assertFormVersion(current, expectedVersion);
     const artifactId = "form-" + id;
     return join(row, writer => {

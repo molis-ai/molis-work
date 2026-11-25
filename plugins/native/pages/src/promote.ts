@@ -7,14 +7,14 @@ import { fromPageRow, normalizeGoalId } from "./store.js";
 import { pagesManifest } from "./manifest.js";
 import { pagesErrors } from "./error.js";
 
-export async function promotePagesDocument(database: PluginDatabase, artifacts: PluginArtifactClient, id: string, expectedVersion?: number, goalId?: string):
+export async function promotePagesDocument(database: PluginDatabase, artifacts: PluginArtifactClient, partition: string, id: string, expectedVersion?: number, goalId?: string):
   Promise<{ document: PagesRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }> {
   if (!database.transactionProjectRow || !artifacts.join) throw pagesErrors.unavailable("当前环境不能发出成果");
   const join = artifacts.join;
   return database.transactionProjectRow(id, row => {
     const source = row.read();
     if (!source) throw pagesErrors.not_found("找不到这篇文档");
-    const current = fromPageRow(source);
+    const current = fromPageRow(source, partition);
     if (expectedVersion !== undefined && current.version !== expectedVersion) throw pagesErrors.conflict("文档已改变，请重新读取后保存成果");
     const artifactId = "pages-" + id;
     return join(row, writer => {

@@ -175,9 +175,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     // Scope and trust belong to the complete declaration list, before either library refusals or absent Home services filter it.
     const fixtures = projectFixtureEntries(ports.homeDirectory);
     const scoped = projectScopeEntries([...projectPluginEntries(), ...fixtures], ports.homeDirectory);
-    // A plugin with a library in each partition is the per-partition assembly's (`partition-plugin-assembly.ts`), never this platform's.
-    const entries = scoped.filter(entry => !assembledPerPartition(entry.definition.manifest))
-      .filter(entry => ports.homeDirectory !== undefined || !entry.definition.manifest.databases?.home || entry.dual_instance);
+    // A plugin with a library in each partition runs here, once per partition, and is given that partition's library (batch 107);
+    // the per-partition assembly (`partition-plugin-assembly.ts`) takes these instances over when the two assemblies merge (batch 109).
+    const entries = scoped.filter(entry => ports.homeDirectory !== undefined
+      || !entry.definition.manifest.databases?.home && !assembledPerPartition(entry.definition.manifest) || entry.dual_instance);
     record.plugins = entries.map(entry => entry.definition.manifest.plugin_id);
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
     // The only definitions that run in the Host's process without `host` trust are the Host's test fixtures, admitted as the objects they are (S-75 ⑥); a product Host is given none.

@@ -1,4 +1,4 @@
-import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, fileContentOf, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding, type FileContentInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindFileEntriesHandler, bindSearchEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, fileContentOf, searchText, subjectContext, type ActionHandlerBinding, type FileContentInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DATASET_PROJECT_PLUGIN_ID, type DatasetRecord } from "./contract.js";
 import type { DatasetStore } from "./store.js";
 import { datasetErrors } from "./error.js";
@@ -28,24 +28,23 @@ function datasetSearchContent(dataset: DatasetRecord): string {
 }
 
 export function createDatasetSearchHandlers(withStore: <T>(run: (store: DatasetStore) => T) => T): ActionHandlerBinding[] {
-  const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   return [
-    bindSearchEntriesHandler(datasetSearchActions.entries, caller => withStore(store => store.list(project(caller)).map(dataset => ({
+    bindSearchEntriesHandler(datasetSearchActions.entries, () => withStore(store => store.list().map(dataset => ({
       subject: { kind: "dataset", id: dataset.id }, revision: String(dataset.version), title: dataset.title, summary: searchText(dataset.description, 400),
       updated_at: dataset.updated_at, content: "context" as const, open: { surface: DATASET_PROJECT_PLUGIN_ID, id: dataset.id } })))),
-    bindFileEntriesHandler(datasetSearchActions.files, caller => withStore(store => store.list(project(caller)).map(dataset => ({
+    bindFileEntriesHandler(datasetSearchActions.files, () => withStore(store => store.list().map(dataset => ({
       subject: { kind: "dataset", id: dataset.id }, revision: String(dataset.version), title: `${dataset.title || "数据表"}.csv`, folder: [],
       media_type: "text/csv", size: null, updated_at: dataset.updated_at, open: { surface: DATASET_PROJECT_PLUGIN_ID, id: dataset.id } })))),
-    { ...datasetSearchActions.fileContent, handle: (caller, input) => withStore(store => {
+    { ...datasetSearchActions.fileContent, handle: (_caller, input) => withStore(store => {
       const subject = (input as FileContentInput).subject;
       let dataset: DatasetRecord;
-      try { dataset = store.get(subject.id, project(caller)); }
+      try { dataset = store.get(subject.id); }
       catch { throw datasetErrors.not_found("数据表已删除"); }
       return fileContentOf({ subject, revision: String(dataset.version), title: `${dataset.title || "数据表"}.csv`, media_type: "text/csv", text: datasetCsv(dataset) });
     }) },
-    { ...datasetSearchActions.subject, handle: (caller, input) => withStore(store => {
+    { ...datasetSearchActions.subject, handle: (_caller, input) => withStore(store => {
       let dataset: DatasetRecord;
-      try { dataset = store.get((input as { subject_id: string }).subject_id, project(caller)); }
+      try { dataset = store.get((input as { subject_id: string }).subject_id); }
       catch (error) {
         if ((error as { code?: string })?.code === "dataset.not_found") throw datasetErrors.not_found("数据表已删除");
         throw error;

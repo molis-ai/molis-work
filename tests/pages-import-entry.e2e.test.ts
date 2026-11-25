@@ -92,9 +92,9 @@ for (const width of [1440, 1024, 390]) {
     await click("[data-pages-import-open]");
     await waitFor("document.querySelector('[data-pages-import-dialog]')?.open === false && document.querySelector('[data-pages-title]')?.value === '迁移来的周报'", 15_000);
 
-    const pages = openPagesStore(homeDirectory);
+    const pages = openPagesStore(homeDirectory, projectId!);
     try {
-      const documents = pages.list(projectId!);
+      const documents = pages.list();
       assert.deepEqual(documents.map(document => document.title), ["迁移来的周报"], "the file became one Pages document");
     } finally { pages.close(); }
     assert.equal((project.db.prepare("SELECT COUNT(*) AS n FROM library_artifact_versions").get() as { n: number }).n, artifactsBefore, "Pages' import writes nothing to the 成果库");
@@ -128,8 +128,8 @@ test("Pages import: a short window keeps actions visible through long previews, 
   await capture(browser, 'long-preview-scrolled');
   await child.click('[data-pages-import-close]');
   await child.waitFor("!document.querySelector('[data-pages-import-dialog]').open");
-  const pages = openPagesStore(browser.homeDirectory);
-  try { assert.equal(pages.list(browser.projectId!).length, 0, 'cancel does not create documents'); }
+  const pages = openPagesStore(browser.homeDirectory, browser.projectId!);
+  try { assert.equal(pages.list().length, 0, 'cancel does not create documents'); }
   finally { pages.close(); }
 });
 

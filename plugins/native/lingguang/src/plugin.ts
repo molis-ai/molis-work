@@ -9,17 +9,20 @@ import { LingguangStore, type LingguangStores } from "./store.js";
 import { lingguangUiContribution } from "./ui.js";
 import { LINGGUANG_INSTRUCTIONS } from "./prompts.js";
 
-/** One instance per project, using the existing Home library and the Runtime's model, material and action services. */
+/** One instance per partition, each with that partition's own library and the Runtime's model, material and action services. */
 export function createLingguangPlugin(): PluginDefinition {
   return { manifest: lingguangManifest, instructions: LINGGUANG_INSTRUCTIONS, async start(context) {
     for (const permission of lingguangManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database, actions = context.services?.actions;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供灵光库");
     if (!actions) throw new ActionError("actions.unredeemed", "宿主未提供动作服务");
+    // One instance per partition (the personal space or a project), each with that partition's own library.
+    const partition = context.project_id;
+    if (!partition) throw new ActionError("actions.project_required", "灵光需要在个人空间或项目里打开");
     const stores: LingguangStores = {
       read: run => run(new LingguangStore({ get: (sql, parameters) => database.get(sql, parameters), all: (sql, parameters) => database.all(sql, parameters),
-        run: () => { throw new ActionError("actions.execution_failed", "灵光的读取不写入"); } })),
-      write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new LingguangStore(transaction))),
+        run: () => { throw new ActionError("actions.execution_failed", "灵光的读取不写入"); } }, partition)),
+      write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new LingguangStore(transaction, partition))),
     };
     const model = context.services?.model, materials = context.services?.materials;
     const ports: LingguangActionPorts = { ...stores,

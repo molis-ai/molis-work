@@ -50,10 +50,10 @@ test("official stdio MCP clients share Lingguang Runtime, scoped grants and pers
     const { conversation } = await call(a, "lingguang.conversation.open", { spark_ids: [spark.id] });
     const result = await call(a, "lingguang.conversation.message", { id: conversation.id, body: "Next step?" });
     assert.equal(result.messages.at(-1).role, "assistant");
-    const store = openLingguangStore(home);
+    const store = openLingguangStore(home, first.project_id);
     try {
-      assert.equal(store.get(spark.id, first.project_id).body, "Updated");
-      assert.equal(store.conversation(conversation.id, first.project_id).messages.at(-1)?.body, "MCP fixture reply");
+      assert.equal(store.get(spark.id).body, "Updated");
+      assert.equal(store.conversation(conversation.id).messages.at(-1)?.body, "MCP fixture reply");
     } finally { store.close(); }
     await Promise.all(clients.map(client => client.close()));
     await stop(); await start();

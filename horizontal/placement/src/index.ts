@@ -1,7 +1,7 @@
 import {
-  ActionError, defineErrorCodes, isObjectCopier, isObjectMover, isPlacementRelationPart, PERSONAL_SPACE_PROJECT_ID, PLACEMENT_RELATION_LIMITS,
+  ActionError, defineErrorCodes, isObjectCopier, isObjectExporter, isObjectMover, isObjectPutter, isObjectRemover, isPlacementRelationPart, PERSONAL_SPACE_PROJECT_ID, PLACEMENT_RELATION_LIMITS,
   type ActionCallContext, type ActionClient, type ActionReference, type ActionSubject, type ActionView, type PlacementRelationCandidates, type PlacementRelationResult,
-  type PlacementRelationRole, type PlacementResult,
+  type PlacementExport, type PlacementRelationRole, type PlacementRemoved, type PlacementResult,
   type WorkflowItemRef,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONTEXT_RELATION_TYPES, type ContextAccess, type ContextEdge, type ContextLedgerApi, type ContextLedgerRelationReader, type ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
@@ -11,6 +11,7 @@ import type {
   PlacementLocation, PlacementMoveResponse, PlacementOpen, PlacementRelatedItem, PlacementSpaceView,
 } from "@molis-ai/molis-work-contracts/services/placement";
 
+import { createHash } from "node:crypto";
 import { readPlacementIn, type PlacementRead } from "./subject-reader.js";
 export {previewProjectCopy,type ProjectCopyPreviewInput,type ProjectCopySource,type ProjectCopyPreview,type ProjectCopyPreviewView,type ProjectCopyPreviewEntry,type ProjectCopyBlocker} from './project-copy-preview.js';
 export {projectCopyIdentities,type ProjectCopyIdentityInput} from './project-copy-identity.js';
@@ -201,6 +202,15 @@ export class PlacementService {
     if (object.project_id === null) return this.moveHome(object, to, spaces);
     if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(this.ports, "workbench.index.couldn-t-find-where-move"));
     if (object.project_id === to) throw new ActionError("placement.same_location", placementText(this.ports, "workbench.index.s-already-here"));
+    const from = object.project_id;
+    const carried = await carryTools(this.ports, object, from, to);
+    if (carried) {
+      await carryMove(this.ports, object, from, to, carried, text => placementText(this.ports, text));
+      await settleMove(this.ports, () => writeProjectLocation(this.ports, object, from, to),
+        async () => { const back = await carryTools(this.ports, object, to, from, true); if (!back) throw notMovable(this.ports); await carryMove(this.ports, object, to, from, back, text => placementText(this.ports, text), true); });
+      const moved = { ...object, project_id: to };
+      return { object: moved, location: placementLocation(this.ports, to, spaces), open: await this.openOf(moved) };
+    }
     const { mover } = await placementTools(this.ports, object, "move");
     if (!mover) throw new ActionError("placement.not_movable", placementText(this.ports, "workbench.index.items-plugin-can-t-be-moved-yet-copy"));
     const scope = await this.ports.scope(object.project_id);
@@ -208,8 +218,7 @@ export class PlacementService {
     if (result.subject.kind !== object.kind || result.subject.id !== object.id || result.project_id !== to) {
       throw new ActionError("placement.result_mismatch", placementText(this.ports, "workbench.index.plugin-s-move-result-doesn-t-match-request"));
     }
-    const from = object.project_id;
-    await settleMove(this.ports, object, to, from, () => writeProjectLocation(this.ports, object, from, to), text => placementText(this.ports, text));
+    await settleMove(this.ports, () => writeProjectLocation(this.ports, object, from, to), () => moveBack(this.ports, object, to, from, text => placementText(this.ports, text)));
     const moved = { ...object, project_id: to };
     return { object: moved, location: placementLocation(this.ports, to, spaces), open: await this.openOf(moved) };
   }
@@ -232,11 +241,11 @@ export class PlacementService {
     if (result.subject.kind !== object.kind || result.subject.id !== object.id || result.project_id !== to) {
       throw new ActionError("placement.result_mismatch", placementText(this.ports, "workbench.index.plugin-s-move-result-doesn-t-match-request"));
     }
-    await settleMove(this.ports, object, to === PERSONAL_SPACE_PROJECT_ID ? null : to, from, () => {
+    await settleMove(this.ports, () => {
       this.remember(object);
       writeHomeBelonging(this.ports, object, from, to);
       this.rememberBelonging(object, to === PERSONAL_SPACE_PROJECT_ID ? null : to);
-    }, text => placementText(this.ports, text));
+    }, () => moveBack(this.ports, object, to === PERSONAL_SPACE_PROJECT_ID ? null : to, from, text => placementText(this.ports, text)));
     return { object, location: homePlacementLocation(this.ports, to, spaces), open: await this.openOf(object) };
   }
 
@@ -323,7 +332,8 @@ function writeHomeBelonging(ports: PlacementPorts, object: PlacedObject, from: s
 }
 
 /** The plugin has already moved the object. The lease and the ledger edge share its fate: a refusal moves it back and writes nothing; if it cannot move back after the edge was attempted, the edge is written again so the place the plugin kept is the place a later lookup finds. */
-async function settleMove(ports: PlacementPorts, object: PlacedObject, at: string | null, backTo: string, write: () => void, t: (zh: string) => string): Promise<void> {
+/** Records where a moved object went; when that is refused, the object is put back where it was (S-35) by `back`. */
+async function settleMove(ports: PlacementPorts, write: () => void, back: () => Promise<void>): Promise<void> {
   let leased = false;
   try {
     await ports.beforeEffect?.();
@@ -331,7 +341,7 @@ async function settleMove(ports: PlacementPorts, object: PlacedObject, at: strin
     write();
   } catch (error) {
     let undone = true, why: unknown;
-    try { await moveBack(ports, object, at, backTo, t); } catch (failure) { undone = false; why = failure; }
+    try { await back(); } catch (failure) { undone = false; why = failure; }
     if (!undone && leased) { try { write(); } catch { /* the plugin kept the new place */ } }
     // Why it did not come back rides on the refusal, so an object the plugin kept is not left without a trace.
     if (!undone && error instanceof Error && error.cause === undefined) error.cause = why;
@@ -347,6 +357,68 @@ async function moveBack(ports: PlacementPorts, object: PlacedObject, at: string 
   if (!mover) throw new ActionError("placement.not_movable", t("workbench.index.no-move-action-was-found-to-put"));
   const result = await scope.client.invoke(scope.caller, mover, { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
   if (result.project_id !== to || result.subject.id !== object.id) throw new ActionError("placement.result_mismatch", t("workbench.index.putting-it-back-did-not-return-the"));
+}
+
+/** An object kept in its partition's own library is carried by its owner's three parts (`export` there, `put` at the target, `remove` there). */
+interface CarryTools { source: PlacementScope; target: PlacementScope; exporter: ActionReference; putter: ActionReference; remover: ActionReference | null }
+
+const notMovable = (ports: PlacementPorts) => new ActionError("placement.not_movable", placementText(ports, "workbench.index.items-plugin-can-t-be-moved-yet-copy"));
+
+/**
+ * The owner's parts for carrying an object from one partition to another, or null when its kind has no `export` where it is (the owner
+ * moves it itself). Found by their types in each partition, never by a capability id; one that has `export` but no `put` at the target or
+ * no `remove` where it is cannot move it. `revert` opens the partitions to put an object back (the refused call does not vote again).
+ */
+async function carryTools(ports: PlacementPorts, object: PlacedObject, from: string, to: string, revert = false): Promise<CarryTools | null> {
+  const open = revert ? ports.revert ?? ports.scope : ports.scope;
+  const source = await open(from);
+  const exporter = carryToolOf(ports, await source.client.discover(source.caller), object.kind, isObjectExporter);
+  if (!exporter) return null;
+  const target = await open(to);
+  const putter = carryToolOf(ports, await target.client.discover(target.caller), object.kind, isObjectPutter);
+  const remover = carryToolOf(ports, await source.client.discover(source.caller), object.kind, isObjectRemover);
+  if (!putter) throw new ActionError("placement.target_unavailable", placementText(ports, "workbench.index.items-plugin-can-t-be-moved-yet-copy"));
+  return { source, target, exporter, putter, remover };
+}
+
+function carryToolOf(ports: PlacementPorts, views: readonly ActionView[], kind: string, protocol: (action: ActionView["action"]) => boolean): ActionReference | null {
+  const matches = views.filter(view => protocol(view.action) && view.action.subject_kinds.includes(kind) && view.availability.available);
+  if (matches.length > 1) throw new ActionError("placement.target_unavailable", placementText(ports, "workbench.index.items-plugin-can-t-be-moved-yet-copy"),
+    { kind: "conflict", details: { subject_kind: kind, actions: matches.map(ref) } });
+  return matches[0] ? ref(matches[0]) : null;
+}
+
+async function carryExport(tools: CarryTools, object: PlacedObject, t: (zh: string) => string): Promise<PlacementExport> {
+  const exported = await tools.source.client.invoke(tools.source.caller, tools.exporter, { subject: { kind: object.kind, id: object.id } }) as PlacementExport;
+  if (exported.subject.kind !== object.kind || exported.subject.id !== object.id) throw new ActionError("placement.result_mismatch", t("workbench.index.plugin-s-move-result-doesn-t-match-request"));
+  return exported;
+}
+
+/**
+ * Export where it is, put it at the target under the same id, then remove it where it was while it is still the exported revision. A remove
+ * that is refused (it changed meanwhile) takes back what was put, so the object is in exactly one partition either way. The same request
+ * (object, revision, target) puts the same thing again, so a retry after a cut finds it rather than making a second one.
+ */
+async function carryMove(ports: PlacementPorts, object: PlacedObject, from: string, to: string, tools: CarryTools, t: (zh: string) => string, back = false): Promise<void> {
+  if (!tools.remover) throw notMovable(ports);
+  const exported = await carryExport(tools, object, t);
+  const request = "move:" + createHash("sha256").update(JSON.stringify([object.kind, object.id, exported.revision, from, to])).digest("hex");
+  const put = await tools.target.client.invoke(tools.target.caller, tools.putter, { kind: object.kind, record: exported.record, request_id: request, target_id: object.id }) as PlacementResult;
+  if (put.subject.kind !== object.kind || put.subject.id !== object.id || put.project_id !== to) {
+    throw new ActionError("placement.result_mismatch", t(back ? "workbench.index.putting-it-back-did-not-return-the" : "workbench.index.plugin-s-move-result-doesn-t-match-request"));
+  }
+  try {
+    const removed = await tools.source.client.invoke(tools.source.caller, tools.remover, { subject: { kind: object.kind, id: object.id }, revision: exported.revision }) as PlacementRemoved;
+    if (!removed.removed) throw new ActionError("placement.result_mismatch", t("workbench.index.plugin-s-move-result-doesn-t-match-request"));
+  } catch (error) {
+    const undo = await carryTools(ports, object, to, from, true).catch(() => null);
+    const remover = undo?.remover ?? null;
+    try {
+      if (!undo || !remover) throw notMovable(ports);
+      await undo.source.client.invoke(undo.source.caller, remover, { subject: put.subject, revision: put.revision });
+    } catch (failure) { if (error instanceof Error && error.cause === undefined) error.cause = failure; }
+    throw error;
+  }
 }
 
 /** The ledger access this service writes as; the Host authorizes exactly this partition. */
@@ -644,10 +716,19 @@ async function copyPlacement(ports: PlacementPorts, access: PlacementInstanceAcc
   const object = access.locate(input).object;
   if (object.project_id === null) throw new ActionError("placement.not_copyable", placementText(ports, "workbench.index.kind-item-only-lives-personal-space-save-another"));
   if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(ports, "workbench.index.couldn-t-find-where-copy"));
-  const { copier } = await placementTools(ports, object, "copy");
-  if (!copier) throw new ActionError("placement.not_copyable", placementText(ports, "workbench.index.items-plugin-can-t-be-copied-elsewhere-yet"));
-  const scope = await ports.scope(object.project_id);
-  const result = await scope.client.invoke(scope.caller, copier, { subject: { kind: object.kind, id: object.id }, to_project_id: to, request_id: requestId }) as PlacementResult;
+  const t = (text: string) => placementText(ports, text);
+  const carried = await carryTools(ports, object, object.project_id, to);
+  let result: PlacementResult;
+  if (carried) {
+    // A copy is a new object at the target: the owner's `put` makes it, and the same request makes the same one again.
+    const exported = await carryExport(carried, object, t);
+    result = await carried.target.client.invoke(carried.target.caller, carried.putter, { kind: object.kind, record: exported.record, request_id: requestId }) as PlacementResult;
+  } else {
+    const { copier } = await placementTools(ports, object, "copy");
+    if (!copier) throw new ActionError("placement.not_copyable", placementText(ports, "workbench.index.items-plugin-can-t-be-copied-elsewhere-yet"));
+    const scope = await ports.scope(object.project_id);
+    result = await scope.client.invoke(scope.caller, copier, { subject: { kind: object.kind, id: object.id }, to_project_id: to, request_id: requestId }) as PlacementResult;
+  }
   if (result.project_id !== to || result.subject.kind !== object.kind) throw new ActionError("placement.result_mismatch", placementText(ports, "workbench.index.plugin-returned-copy-that-doesn-t-match-request"));
   const copy = { kind: result.subject.kind, id: result.subject.id, project_id: to };
   await ports.beforeEffect?.();

@@ -196,10 +196,11 @@ function objectVersion(object) {
   return null;
 }
 
-// PluginDatabaseDeclaration carries the same version/schema baseline through the Host-owned connection service, and
-// HomePluginDatabaseDeclaration is that with what a Home library adds (`project_rows`, `partition`). All three types,
-// including satisfies/as spellings, name databases the table has to list.
-const BASELINE_TYPES = "SqliteBaseline|PluginDatabaseDeclaration|HomePluginDatabaseDeclaration";
+// PluginDatabaseDeclaration carries the same version/schema baseline through the Host-owned connection service,
+// HomePluginDatabaseDeclaration is that with what a Home library adds (`project_rows`), and PartitionPluginDatabaseDeclaration
+// that with what a partition's own library adds (`deletion`, `pinned_rows`, batch 107). All four types, including satisfies/as
+// spellings, name databases the table has to list.
+const BASELINE_TYPES = "SqliteBaseline|PluginDatabaseDeclaration|HomePluginDatabaseDeclaration|PartitionPluginDatabaseDeclaration";
 function baselineNames(text) {
   const names = new Set();
   for (const match of text.matchAll(new RegExp(`\\bconst\\s+(\\w+)\\s*:\\s*(?:${BASELINE_TYPES})\\s*=`, "g"))) names.add(match[1]);
@@ -304,12 +305,12 @@ function checkBaselineCalls(directories, declaredNames) {
       for (const match of text.matchAll(/(?<!function\s)\b(applySqliteBaseline|openBaselineHomeSqlite|runSqliteUpgrade)\s*\(/g)) {
         const args = callArguments(text, match.index + match[0].length - 1);
         const baseline = args[2];
-        // This one typed connection bridge forwards the trusted declaration for the Host client and the SQL worker, and the
-        // project of a library partitioned by project (specs/archive/plugin-project-partition), which is not a baseline. Its declarations are counted above;
-        // no other file, inline argument, or different call in this file is exempt from named-baseline checks.
+        // This one typed connection bridge forwards the trusted declaration for the Host client and the SQL worker. Its declarations are
+        // counted above; no other file, inline argument, or different call in this file is exempt from named-baseline checks. (A Home library
+        // partitioned by project is gone since batch 107, so the bridge no longer forwards a project.)
         if (file === "apps/local-host/src/plugin-database.ts" && match[1] === "openBaselineHomeSqlite"
-          && args.join(",") === "home,declaration.store_name,declaration,partition?.project_id"
-          && /function openPluginDatabaseConnection\(home: string, declaration: PluginDatabaseDeclaration,/.test(text)) continue;
+          && args.join(",") === "home,declaration.store_name,declaration"
+          && /function openPluginDatabaseConnection\(home: string, declaration: PluginDatabaseDeclaration\)/.test(text)) continue;
         // The per-partition opener of an instance's own library (`<partition root>/libraries/<store>.db`, batch 106, U2) forwards
         // the same trusted plugin declaration the same way (user 2026-11-24): this file, this call, these arguments, this function.
         if (file === "apps/local-host/src/partition-plugin-assembly.ts" && match[1] === "applySqliteBaseline"

@@ -23,7 +23,7 @@ export async function openWorkflowsBrowser(t: TestContext, { open = true, chrome
   for (let n = 0; n < 4; n++) b = (await browser.web.post<{ workflow: Workflow }>(`${path}/${b.workflow_id}`, {
     revision: b.revision, title: b.title,
   })).workflow;
-  const store = openWorkflowsStore(browser.homeDirectory);
+  const store = openWorkflowsStore(browser.homeDirectory, browser.projectId!);
   t.after(() => store.close());
   await browser.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/` }, browser.sessionId));
@@ -33,5 +33,5 @@ export async function openWorkflowsBrowser(t: TestContext, { open = true, chrome
     await frame.click(`[data-wf-open="${a.workflow_id}"]`);
     await frame.waitFor(`document.querySelector('.wf-editor')?.dataset.id === '${a.workflow_id}'`);
   }
-  return { ...browser, frame, a: store.get(a.workflow_id, browser.projectId!), b: store.get(b.workflow_id, browser.projectId!), saved: (id: string) => store.get(id, browser.projectId!) };
+  return { ...browser, frame, a: store.get(a.workflow_id), b: store.get(b.workflow_id), saved: (id: string) => store.get(id) };
 }

@@ -186,9 +186,6 @@ export function openInstalledPluginLibrary<Opened extends { close(): void }>(hom
   declaration: HomePluginDatabaseDeclaration, reserved: HomeStoreRegistry, open: (created: boolean) => Opened, now: () => Date = () => new Date()): Opened {
   const name = declaration.store_name, who = `插件 ${owner.plugin_id} 的 Home 库 ${name}`;
   if (!INSTALLED_LIBRARY_NAME.test(name)) throw pluginErrors.declaration_invalid(`${who}：库名必须是一个目录名（小写字母开头，只含小写字母、数字和连字符）`);
-  if (declaration.partition !== undefined) {
-    throw pluginErrors.declaration_invalid(`${who}：按项目分开的库只有宿主启动名单上的插件能有，装进来的插件现在没有`);
-  }
   const holder = holderOf(name, reserved);
   if (holder) throw installedLibraryErrors.object_taken(`${who}：库名是 Home 里${holder}，装进来的插件不能用`);
   const ledger = openBaselineHomeSqlite(home, INSTALLED_LIBRARIES_HOME_STORE.path, LEDGER_BASELINE);
@@ -263,7 +260,7 @@ export function installedLibraryLedgerFile(home: string): string {
 /** Checks the attached ledger and the original owned declaration before SQLite runs a migration. */
 export function checkInstalledLibraryUpgrade(home: string, owner: InstalledLibraryOwner, previous: HomePluginDatabaseDeclaration,
   reserved: HomeStoreRegistry, database: ReturnType<typeof openHomeSqliteFile>): void {
-  if (!installedHomeLibraryName(previous.store_name, reserved) || previous.partition !== undefined) {
+  if (!installedHomeLibraryName(previous.store_name, reserved)) {
     throw installedLibraryErrors.object_taken("所选库名不属于此已安装插件");
   }
   checkInstalledLibraryEdition(database, owner, previous, INSTALLED_LIBRARY_UPGRADE_LEDGER);

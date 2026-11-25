@@ -10,8 +10,8 @@ import { promoteDataset } from "./promote.js";
 import { DATASET_INSTRUCTIONS } from "./prompts.js";
 
 /**
- * Datasets as a Plugin Runtime plugin, one instance per project (docs/system/RUNTIME-MIGRATION.md 5.3). Its library is the
- * `dataset` store its Host entry declares; the 成果 it pins, the model and the actions it routes come from the Runtime's services.
+ * Datasets as a Plugin Runtime plugin, one instance per partition (docs/system/RUNTIME-MIGRATION.md 5.3). Its library is that
+ * partition's own `dataset` library (`databases.partition`); the 成果 it pins, the model and the actions it routes come from the Runtime's services.
  */
 export function createDatasetPlugin(): PluginDefinition {
   return { manifest: datasetManifest, instructions: DATASET_INSTRUCTIONS, async start(context) {
@@ -19,15 +19,18 @@ export function createDatasetPlugin(): PluginDefinition {
     const database = context.services?.database, artifacts = context.services?.artifacts;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供数据表库");
     if (!artifacts) throw new ActionError("actions.unredeemed", "宿主未提供成果服务");
+    // One instance per partition (the personal space or a project), each with that partition's own library.
+    const partition = context.project_id;
+    if (!partition) throw new ActionError("actions.project_required", "数据表需要在个人空间或项目里打开");
     const stores: DatasetStores = {
       read: run => run(new DatasetStore({ get: (sql, parameters) => database.get(sql, parameters), all: (sql, parameters) => database.all(sql, parameters),
-        run: () => { throw new ActionError("actions.execution_failed", "数据表的读取不写入"); } })),
-      write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new DatasetStore(transaction))),
+        run: () => { throw new ActionError("actions.execution_failed", "数据表的读取不写入"); } }, partition)),
+      write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new DatasetStore(transaction, partition))),
     };
     const model = context.services?.model;
     const ports: DatasetActionPorts = { ...stores,
       ...(database.transactionProjectRow && artifacts.join ? {
-        promote: (id: string, expectedVersion?: number) => promoteDataset(database, artifacts, id, expectedVersion),
+        promote: (id: string, expectedVersion?: number) => promoteDataset(database, artifacts, partition, id, expectedVersion),
       } : {}),
       modelAvailability: (): ActionAvailability => model?.availability() ?? { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" },
       ...(model ? { completeText: async (prompt, options) => (await model.complete(prompt, { signal: options.signal })).text } : {}) };

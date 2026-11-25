@@ -35,7 +35,7 @@ export const datasetManifest: PluginManifest = {
       .map(permission => ({ permission, required: permission !== "model:invoke", reason: "数据表动作使用的读取、编辑或显式模型调用" })),
   ].map(localizePermission),
   actions: [...Object.values(datasetActions), ...Object.values(datasetContentActions)].map(localizeAction),
-  databases: { home: DATASET_DATABASE },
+  databases: { partition: DATASET_DATABASE },
   routes: [
     { route_id: "dataset.list", method: "GET", path: "/datasets" },
     { route_id: "dataset.create", method: "POST", path: "/datasets", max_body_bytes: DATASET_BODY_BYTES },

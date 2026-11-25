@@ -14,9 +14,9 @@ test("「加输入…」 on a Goal takes a document either following the origina
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = b;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const pages = openPagesStore(homeDirectory);
+  const pages = openPagesStore(homeDirectory, projectId!);
   const [fixed, followed] = (() => {
-    try { return [pages.create({ project_id: projectId!, title: "访谈纪要", body: { type: "doc", content: [] } }), pages.create({ project_id: projectId!, title: "竞品清单", body: { type: "doc", content: [] } })]; }
+    try { return [pages.create({ title: "访谈纪要", body: { type: "doc", content: [] } }), pages.create({ title: "竞品清单", body: { type: "doc", content: [] } })]; }
     finally { pages.close(); }
   })();
   const goal = `/projects/${projectId}/?openPlugin=goals&openItem=V1&openGoalView=work`;

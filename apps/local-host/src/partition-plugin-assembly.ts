@@ -13,11 +13,12 @@ type LibraryConnection = ReturnType<typeof openHomeSqliteFile>;
 // its libraries under `<partition root>/libraries/`, its plugin files under `<partition root>/plugin-files/<install>/`. Which plugins a partition
 // runs is `partition_plugins` (`partitions.plugins.set@1`); which are installed is the Home's one install table (`plugin-runtime.db`).
 //
-// It runs alongside the old assemblies until batches 107–109 move every plugin to it (V1: add, then move, then delete). Only a plugin whose
-// Manifest declares `databases.partition` is assembled here, and the old ones skip such a plugin (`assembledPerPartition`), so no plugin ever
-// has two instances on the same partition. It reads none of the old assemblies' records.
+// It runs alongside the old assemblies until batch 109 merges them (V1: add, then move, then delete). Until then a plugin whose Manifest
+// declares `databases.partition` runs in the project platform, one instance per partition already, which opens that partition's library
+// through the same scope (`partitionPluginScope`); the Home-level platform skips such a plugin (`assembledPerPartition`). No product Host
+// starts this assembly yet, so no plugin ever has two instances on the same partition. It reads none of the old assemblies' records.
 
-/** Whether a plugin is run by the per-partition assembly: its Manifest declares a library in each partition. The old assemblies skip it. */
+/** Whether a plugin keeps a library in each partition (`databases.partition`). The Home-level platform skips it. */
 export function assembledPerPartition(manifest: { readonly databases?: { readonly partition?: unknown } }): boolean {
   return manifest.databases?.partition !== undefined;
 }
@@ -187,13 +188,16 @@ export function partitionPluginScope(home: string, partitionId: string, pluginId
   };
   return Object.freeze({
     partition_id: partitionId, plugin_id: pluginId, install_id: installId, root,
-    libraryPath: (storeName: string) => {
-      if (!/^[a-z][a-z0-9-]*$/u.test(storeName)) throw new ActionError("actions.plugin_unavailable", "插件库名称必须是可信的单个目录名");
-      return path.join(root, "libraries", `${storeName}.db`);
-    },
+    libraryPath: (storeName: string) => partitionLibraryPath(root, storeName),
     ownerFilesRoot: () => path.join(root, "plugin-files", installId),
     assertOwnPath: inside,
   });
+}
+
+/** `<partition root>/libraries/<store>.db` (U2): the one place a partition's own library's path is made, from a partition root `partitionRoot` gave. */
+export function partitionLibraryPath(root: string, storeName: string): string {
+  if (!/^[a-z][a-z0-9-]*$/u.test(storeName)) throw new ActionError("actions.plugin_unavailable", "插件库名称必须是可信的单个目录名");
+  return path.join(root, "libraries", `${storeName}.db`);
 }
 
 /** The real location of a path, through the deepest part of it that exists: a link inside a partition that points elsewhere counts as elsewhere. */

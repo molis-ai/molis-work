@@ -357,9 +357,9 @@ test("ONB-43, ONB-44, ONB-45, ONB-46, C10: end-to-end code folder adoption, Codi
   assert.equal(replayed.project_id, adopted.project_id);
   assert.deepEqual(replayed.summary_open, adopted.summary_open);
 
-  const store = openPagesStore(dir);
+  const store = openPagesStore(dir, adopted.project_id);
   try {
-    const pages = store.list(adopted.project_id);
+    const pages = store.list();
     // 2 source files (package.json + src/main.ts) + 1 summary = 3 Pages documents (never duplicated on replay!)
     assert.equal(pages.length, 3);
   } finally {

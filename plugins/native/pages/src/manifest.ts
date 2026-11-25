@@ -31,7 +31,7 @@ export const pagesManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-pages-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   // Declaration order is match order: the fixed paths come before the ones that take a document id.
-  databases: { home: PAGES_DATABASE },
+  databases: { partition: PAGES_DATABASE },
   routes: [
     { route_id: "pages.comments.list", method: "GET", path: "/pages/:id/comments" },
     { route_id: "pages.comments.append", method: "POST", path: "/pages/:id/comments", max_body_bytes: PAGES_BODY_BYTES },

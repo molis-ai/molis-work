@@ -87,8 +87,8 @@ test("a workflow step runs any registered action — even one the Host never hea
     assert.equal(afterTicket.steps[1]!.result_truncated, true);
     assert.equal((afterTicket.steps[1]!.result as { truncated: boolean }).truncated, true);
     assert.deepEqual(afterTicket.steps[1]!.result_presentation, { summary: "工单已创建", text: "工单正文".repeat(1000), text_truncated: true, link: { label: "打开工单", href: `/projects/${PROJECT}/?openPlugin=tickets&openItem=1` } });
-    const reopened = openWorkflowsStore(home);
-    try { assert.deepEqual(reopened.instance(run.instance_id, PROJECT).steps[1]!.result_presentation, afterTicket.steps[1]!.result_presentation); } finally { reopened.close(); }
+    const reopened = openWorkflowsStore(home, PROJECT);
+    try { assert.deepEqual(reopened.instance(run.instance_id).steps[1]!.result_presentation, afterTicket.steps[1]!.result_presentation); } finally { reopened.close(); }
     const done = (await actions.invoke(w.continue, { id: run.instance_id })).instance;
     assert.equal(done.status, "done");
     const tasks = (await actions.invoke(scheduleActions.list, {})).tasks;
@@ -97,9 +97,9 @@ test("a workflow step runs any registered action — even one the Host never hea
     // A run that stopped while the action was being called: nothing is repeated until the person says so.
     const second = (await actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id })).instance;
     const preview = await actions.invoke(w.preview, { id: second.instance_id });
-    const store = openWorkflowsStore(home);
+    const store = openWorkflowsStore(home, PROJECT);
     try {
-      const raw = store.instance(second.instance_id, PROJECT);
+      const raw = store.instance(second.instance_id);
       store.saveInstance(raw, { ...raw, steps: raw.steps.map((step, index) => index === 0 ? { ...step, pending: { key: `${raw.instance_id}:0`, kind: "function" as const, actor: "function" as const,
         at: new Date().toISOString(), input: preview.input, output: { ...preview.input, title: "工单：导出失败" }, attempted_at: new Date().toISOString() } } : step), updated_at: new Date().toISOString() });
     } finally { store.close(); }
@@ -148,7 +148,7 @@ test("a workflow step runs any registered action — even one the Host never hea
       const pending = host.actionClient(reference).invoke({ ...caller, signal: controller.signal }, w.continue, { id: instance.instance_id });
       const rejected = assert.rejects(pending);
       await entered.promise;
-      const read = () => { const store = openWorkflowsStore(home); try { return store.instance(instance.instance_id, PROJECT); } finally { store.close(); } };
+      const read = () => { const store = openWorkflowsStore(home, PROJECT); try { return store.instance(instance.instance_id); } finally { store.close(); } };
       const before = read();
       assert.ok(before.steps[0]!.pending?.attempted_at);
       controller.abort(); failNext = fail; release.resolve();

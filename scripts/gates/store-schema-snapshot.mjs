@@ -11,7 +11,8 @@
 //
 // WHICH LIBRARIES. The project catalog and the project database; every Home library of the Host's store registry (`homeStores()`, which
 // already holds each built-in plugin's `databases.home`); each built-in plugin's project tables (`databases.project`), under the project
-// database's pattern with `#<plugin_id>`.
+// database's pattern with `#<plugin_id>`; each built-in plugin's own library in every partition (`databases.partition`), under the personal
+// space's and the projects' `libraries/`.
 // An installed plugin's library is the publisher's, not this build's, so it is not here.
 //
 // THE HASH. sha256 (first 16 digits) of what SQLite itself reports after running the statements: `describeSqliteSchema` (tables, columns,
@@ -61,12 +62,15 @@ export async function productRows() {
   const rows = [
     row("projects/catalog.db", "apps/local-host", host.CATALOG_BASELINE),
     row("projects/*/molis-work.db", "apps/local-host", host.PROJECT_DATABASE_BASELINE),
-    ...host.homeStores().stores.filter(store => store.library).map(store => {
-      const name = store.library.file ?? `${store.path}.db`;
-      return row(store.library.partition ? `${store.path}/projects/*/${name}` : `${store.path}/${name}`, store.owner, store.library.baseline);
-    }),
+    ...host.homeStores().stores.filter(store => store.library).map(store => row(`${store.path}/${store.library.file ?? `${store.path}.db`}`, store.owner, store.library.baseline)),
     ...host.PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.databases?.project).map(({ manifest }) =>
       row(`projects/*/molis-work.db#${manifest.plugin_id}`, manifest.plugin_id, manifest.databases.project)),
+    // A partition's own library (`databases.partition`) sits under each partition root, the personal space's and each project's, with the
+    // platform's sync journal tables in the same baseline the Host opens it at.
+    ...host.PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.databases?.partition).flatMap(({ manifest }) => {
+      const library = host.pluginSyncDatabaseDeclaration(manifest, manifest.databases.partition), name = `libraries/${library.store_name}.db`;
+      return [row(`personal-space/${name}`, manifest.plugin_id, library), row(`projects/*/${name}`, manifest.plugin_id, library)];
+    }),
   ];
   return rows.sort((left, right) => (left.store < right.store ? -1 : left.store > right.store ? 1 : 0));
 }

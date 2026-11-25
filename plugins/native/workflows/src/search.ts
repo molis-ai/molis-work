@@ -21,15 +21,15 @@ function workflowSearchContent(workflow: Workflow): string {
 }
 
 export function createWorkflowsSearchHandlers(projectId: string, read: WorkflowsStores["read"]): ActionHandlerBinding[] {
-  const scoped = (caller: ActionCallContext) => { if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "请求项目与流程所在项目不一致"); return projectId; };
+  const scoped = (caller: ActionCallContext) => { if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "请求项目与流程所在项目不一致"); };
   return [
-    bindSearchEntriesHandler(workflowsSearchActions.entries, caller => read(store => store.list(scoped(caller)).map(workflow => ({
+    bindSearchEntriesHandler(workflowsSearchActions.entries, caller => { scoped(caller); return read(store => store.list()).map(workflow => ({
       subject: { kind: "workflow", id: workflow.workflow_id }, revision: String(workflow.revision), title: workflow.title, summary: "",
-      updated_at: workflow.updated_at, content: "context" as const, open: { surface: WORKFLOWS_PROJECT_PLUGIN_ID, id: workflow.workflow_id } })))),
+      updated_at: workflow.updated_at, content: "context" as const, open: { surface: WORKFLOWS_PROJECT_PLUGIN_ID, id: workflow.workflow_id } })); }),
     { ...workflowsSearchActions.subject, handle: async (caller, input) => {
       const id = (input as { subject_id: string }).subject_id;
       let workflow: Workflow;
-      try { workflow = read(store => store.get(id, scoped(caller))); }
+      try { scoped(caller); workflow = read(store => store.get(id)); }
       catch (error) {
         if ((error as { code?: string })?.code === "workflows.not_found") throw workflowsErrors.not_found("流程已删除");
         throw error;

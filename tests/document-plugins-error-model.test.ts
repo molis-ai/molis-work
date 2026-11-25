@@ -311,7 +311,7 @@ test("real routes: a change made on a stale version is 409 <owner>.conflict at P
 test("real routes: a publish in an environment with no publisher is refused by the plugin's availability object: 409 <owner>.unavailable at Pages, PPT, Dataset and Form", async t => {
   // W3-02-G1-02: the owner classifies its availability refusal as conflict; Kernel and HTTP preserve it without publishing or changing the draft.
   const home = await mkdtemp(join(tmpdir(), "document-error-model-publish-"));
-  const pages = openPagesStore(home), ppt = openPptStore(home), dataset = openDatasetStore(home), form = openFormStore(home);
+  const pages = openPagesStore(home, "a"), ppt = openPptStore(home, "a"), dataset = openDatasetStore(home, "a"), form = openFormStore(home, "a");
   // Forms' routes are its Runtime ones now, and that Runtime always gives it the 成果 service: with no publisher its action is refused by the
   // same availability object, and its route answers that with the SDK's `actionErrorResponse`.
   const formPorts = formTestPorts(form, "a");
@@ -400,7 +400,7 @@ test("MCP action port: a Pages failure comes out as its own code and message, no
   // merge-base: PagesError was not an ActionError, so the port (apps/mcp action-tools.ts, which tells an ActionError's code and message and nothing else) answered
   // { code: "actions.execution_failed", message: "能力执行失败" } for every Pages failure; Form's `refusal()` wrapper existed to get one failure across it.
   const home = await mkdtemp(join(tmpdir(), "document-error-model-mcp-"));
-  const store = openPagesStore(home);
+  const store = openPagesStore(home, "a");
   t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
   const service = new ActionService();
   service.registerProvider({ provider: { provider_id: pagesManifest.plugin_id, title: "Pages", kind: "plugin", project_id: "a" }, definitions: pagesManifest.actions!,
@@ -415,7 +415,7 @@ test("MCP action port: a Pages failure comes out as its own code and message, no
     return { isError: result.isError, ...(result.isError ? JSON.parse(result.content[0]!.text) as { code: string; error: string } : {}) };
   };
   assert.deepEqual(await call(pagesActions.get, { id: "no-such-document" }), { isError: true, code: "pages.not_found", error: "找不到这篇文档" });
-  const document = store.create({ project_id: "a", title: "原稿" });
+  const document = store.create({ title: "原稿" });
   const stale = await call(pagesActions.update, { id: document.id, title: "改过", expected_version: document.version + 5 });
   assert.deepEqual([stale.isError, stale.code], [true, "pages.conflict"]);
 });
@@ -491,7 +491,7 @@ test("the owner-error check excludes browser-only modules but keeps shared, dyna
 
 // Inline browser script bodies are data; their interpolations still run on the server. In server modules, only the two
 // programming mistakes below may use bare Errors (missing Host wiring or a UI surface); a request cannot cause them.
-const PROGRAMMING_ERROR: readonly RegExp[] = [/没有 Host binding/u, /UI surface .* 不存在/u];
+const PROGRAMMING_ERROR: readonly RegExp[] = [/没有 Host binding/u, /UI surface .* 不存在/u, /^`Unknown [A-Za-z]+ UI surface: /u];
 function bareServerErrors(source: string): string[] {
   const file = ts.createSourceFile("plugin.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const errors: string[] = [];

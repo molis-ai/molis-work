@@ -23,9 +23,9 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const child=await pluginFrameBrowser(t,browser,"pages");
-  const store = openPagesStore(homeDirectory);
-  const left = store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
-  const made = store.create({ project_id: projectId!, title: "访谈纪要", body: { type: "doc", content: [paragraph("离线也要能记下想法。")] } });
+  const store = openPagesStore(homeDirectory, projectId!);
+  const left = store.create({ title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
+  const made = store.create({ title: "访谈纪要", body: { type: "doc", content: [paragraph("离线也要能记下想法。")] } });
   store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   // What the page reports, and every flash asked for and every flash line Pages draws.
@@ -166,9 +166,9 @@ test("PRR-21 QA-017 opens the side panel; W3-A3b PICK-02 on the real result card
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const child=await pluginFrameBrowser(t,browser,"pages");
-  const store = openPagesStore(homeDirectory);
-  const left = store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。")] } });
-  const made = store.create({ project_id: projectId!, title: "访谈纪要", body: { type: "doc", content: [paragraph("离线也要能记下想法。")] } });
+  const store = openPagesStore(homeDirectory, projectId!);
+  const left = store.create({ title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。")] } });
+  const made = store.create({ title: "访谈纪要", body: { type: "doc", content: [paragraph("离线也要能记下想法。")] } });
   store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   // What the page is asked and told, counted from the page's own events: the open request the title makes (a cancelable

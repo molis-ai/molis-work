@@ -9,6 +9,7 @@ import { pptActions, PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTestHome } from "./fixtures/test-home.js";
+import { PLACEMENT_READ_PERMISSION, PLACEMENT_WRITE_PERMISSION, placementActions } from "@molis-ai/molis-work-contracts/services/placement";
 
 // A document that was pinned in a project, moved away and moved back: its record starts counting fixed versions again
 // (they stay with the old project), but the project's 成果库 still holds the earlier ones. The next pin must be a new
@@ -21,20 +22,20 @@ interface Kind {
   prefix: string;
   permissions: readonly string[];
   // The plugin's own actions, loosely typed: the four plugins share this shape and differ in names and record keys.
-  create: any; update: any; get: any; promote: any; move: any;
+  create: any; update: any; get: any; promote: any;
   record: string;
   seed: (title: string) => object;
   edit: (title: string) => object;
 }
 const kinds: Kind[] = [
   { name: "Pages", slug: "pages", subject: PAGES_SUBJECT_KIND, prefix: "pages-", permissions: PAGES_ACTION_PERMISSIONS, record: "document", seed: title => ({ title, body: body("first") }),
-    edit: title => ({ title, body: body(title) }), create: pagesActions.create, update: pagesActions.update, get: pagesActions.get, promote: pagesActions.promote, move: pagesActions.move },
+    edit: title => ({ title, body: body(title) }), create: pagesActions.create, update: pagesActions.update, get: pagesActions.get, promote: pagesActions.promote },
   { name: "Form", slug: "form", subject: "form", prefix: "form-", permissions: FORM_ACTION_PERMISSIONS, record: "form", seed: title => ({ title }),
-    edit: title => ({ title }), create: formActions.create, update: formActions.update, get: formActions.get, promote: formActions.promote, move: formActions.move },
+    edit: title => ({ title }), create: formActions.create, update: formActions.update, get: formActions.get, promote: formActions.promote },
   { name: "Dataset", slug: "dataset", subject: "dataset", prefix: "dataset-", permissions: DATASET_ACTION_PERMISSIONS, record: "dataset", seed: title => ({ title }),
-    edit: title => ({ title }), create: datasetActions.create, update: datasetActions.update, get: datasetActions.get, promote: datasetActions.promote, move: datasetActions.move },
+    edit: title => ({ title }), create: datasetActions.create, update: datasetActions.update, get: datasetActions.get, promote: datasetActions.promote },
   { name: "PPT", slug: "ppt", subject: PPT_SUBJECT_KIND, prefix: "ppt-", permissions: PPT_ACTION_PERMISSIONS, record: "presentation", seed: title => ({ title }),
-    edit: title => ({ title }), create: pptActions.create, update: pptActions.update, get: pptActions.get, promote: pptActions.promote, move: pptActions.move },
+    edit: title => ({ title }), create: pptActions.create, update: pptActions.update, get: pptActions.get, promote: pptActions.promote },
 ];
 
 async function fixture(t: test.TestContext, kind: Kind) {
@@ -50,7 +51,12 @@ async function fixture(t: test.TestContext, kind: Kind) {
       permissions: [...new Set([...person.permissions, ...kind.permissions])] }));
   const a = as(refA, "owner", "user"), b = as(refB, "owner", "user"), personal = as(personalRef, "owner", "user");
   const versions = (ref: typeof refA, artifactId: string) => host.withProject(ref, runtime => runtime.artifacts.query.listArtifactVersions(ref.project_id, artifactId));
-  return { refA, refB, personalRef, a, b, personal, as, versions };
+  // A move between partitions is the placement service's (it carries the record from one partition's library to the other's), the person's own call.
+  const mover = bindActionClient(host.homeActionClient(), () => ({ ...person, project_id: null,
+    permissions: [...new Set([...person.permissions, PLACEMENT_READ_PERMISSION, PLACEMENT_WRITE_PERMISSION, ...kind.permissions])] }));
+  const move = (from: typeof refA, id: string, to: typeof refA) =>
+    mover.invoke(placementActions.move, { object: { kind: kind.subject, id, project_id: from.project_id }, to_project_id: to.project_id });
+  return { refA, refB, personalRef, a, b, personal, as, versions, move };
 }
 
 for (const kind of kinds) {
@@ -61,9 +67,9 @@ for (const kind of kinds) {
     const first = await f.a.invoke(kind.promote, { id }) as any;
     assert.deepEqual([first.artifact.version, first.recovered], [1, false]);
 
-    await f.a.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: f.refB.project_id });
-    await f.b.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: f.personalRef.project_id });
-    await f.personal.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: f.refA.project_id });
+    await f.move(f.refA, id, f.refB);
+    await f.move(f.refB, id, f.personalRef);
+    await f.move(f.personalRef, id, f.refA);
     const back = ((await f.a.invoke(kind.get, { id })) as Record<string, any>)[kind.record];
     assert.equal(back.artifact_version, 0, "the record does not claim a fixed version the move let go of");
     const edited = ((await f.a.invoke(kind.update, { id, ...kind.edit("Second"), expected_version: back.version })) as Record<string, any>)[kind.record];
@@ -92,8 +98,8 @@ for (const kind of kinds) {
     const edit = async (title: string) => (((await f.a.invoke(kind.update, { id, ...kind.edit(title), expected_version: (((await f.a.invoke(kind.get, { id })) as Record<string, any>)[kind.record]).version })) as Record<string, any>)[kind.record]);
 
     const away = async () => {
-      await f.a.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: f.refB.project_id });
-      await f.b.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: f.refA.project_id });
+      await f.move(f.refA, id, f.refB);
+      await f.move(f.refB, id, f.refA);
     };
     const pin = async (client: typeof f.a, title: string) => { const edited = await edit(title); return await client.invoke(kind.promote, { id, expected_version: edited.version }) as any; };
 
@@ -113,7 +119,7 @@ for (const kind of kinds) {
     assert.equal((await pin(workflow, "Fifth")).artifact.version, 5);
     assert.equal(await pending(), null);
     // Nothing is stuck: the document can still be moved.
-    await f.a.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: f.refB.project_id });
+    await f.move(f.refA, id, f.refB);
 
     const saved = await f.versions(f.refA, artifactId);
     assert.deepEqual(saved.map(version => version.version), [1, 2, 3, 4, 5]);
@@ -125,12 +131,12 @@ for (const kind of kinds) {
     const f = await fixture(t, kind);
     const id = ((await f.a.invoke(kind.create, kind.seed("In A"))) as Record<string, any>)[kind.record].id as string;
     await f.a.invoke(kind.promote, { id });
-    await f.a.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: f.refB.project_id });
+    await f.move(f.refA, id, f.refB);
     // B has no version of it yet: its line starts at 1, and the one in A stays in A.
     const inB = await f.b.invoke(kind.promote, { id }) as any;
     assert.deepEqual([inB.artifact.version, inB.recovered], [1, false]);
-    await f.b.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: f.refA.project_id });
-    await f.a.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: f.refB.project_id });
+    await f.move(f.refB, id, f.refA);
+    await f.move(f.refA, id, f.refB);
     // Back in B, where its version 1 already is.
     const again = await f.b.invoke(kind.promote, { id }) as any;
     assert.deepEqual([again.artifact.version, again.recovered], [2, false]);

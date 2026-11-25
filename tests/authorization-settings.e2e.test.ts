@@ -108,14 +108,14 @@ test("H1/APR-11: choose Pages permissions, narrow them in the manager, and revok
   const { origin, projectId, homeDirectory, click, evaluate, waitFor } = browser;
   assert.ok(projectId);
   const withPages = <T>(read: (store: ReturnType<typeof openPagesStore>) => T): T => {
-    const store = openPagesStore(homeDirectory);
+    const store = openPagesStore(homeDirectory, projectId);
     try { return read(store); } finally { store.close(); }
   };
   const { document, folder } = withPages(store => ({
-    document: store.create({ project_id: projectId, title: "权限测试文档" }),
-    folder: store.createFolder({ project_id: projectId, title: "原计划移入的目录" }),
+    document: store.create({ title: "权限测试文档" }),
+    folder: store.createFolder({ title: "原计划移入的目录" }),
   }));
-  const current = () => withPages(store => store.get(document.id, projectId));
+  const current = () => withPages(store => store.get(document.id));
   const projectPath = `/projects/${projectId}/`;
   const go = (path: string) => browser.navigate(() => browser.command("Page.navigate", { url: origin + path }, browser.sessionId));
   await browser.setViewport(1440, 960);

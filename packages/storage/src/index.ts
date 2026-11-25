@@ -18,7 +18,6 @@ export { acquireStorageOwner, acquireStorageOwnerForRecovery, assertStorageOwner
 export { HOME_RESTORE_JOURNAL, assertNoPendingHomeRestore } from "./adapters/home-restore-guard.js";
 
 export {
-  homeSqlitePartitionDirectory,
   homeSqlitePath,
   openHomeSqliteDatabase,
   openHomeSqliteFile,

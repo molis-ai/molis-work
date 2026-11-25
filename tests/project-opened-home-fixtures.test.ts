@@ -67,8 +67,8 @@ async function changeDirectories(f: Home, projectId: string, change: string, inp
 const outputOf = (folders: ProjectDirectories) => folders.directories.find(row => row.roles.includes("output"))!;
 
 function pagesCount(f: Home, projectId: string) {
-  const store = openPagesStore(f.home);
-  try { return store.list(projectId).length; } finally { store.close(); }
+  const store = openPagesStore(f.home, projectId);
+  try { return store.list().length; } finally { store.close(); }
 }
 
 for (const fixture of ["serveHomeRuntime", "openTestHome"] as const) {

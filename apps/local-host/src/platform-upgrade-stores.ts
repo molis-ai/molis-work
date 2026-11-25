@@ -52,13 +52,6 @@ export function projectDatabases(home: string, space?: StorageSpace): readonly s
   return paths.map(path => relative(home, path));
 }
 
-/** A library partitioned by project has one file per project. No built-in plugin declares one today; the code it would use does. */
-function partitionFiles(home: string, store: HomeStore): readonly string[] {
-  const projects = join(store.path, "projects");
-  if (!entryAt(join(home, projects))?.isDirectory()) return [];
-  return readdirSync(join(home, projects)).sort().map(project => join(projects, project, store.library!.file ?? `${store.path}.db`));
-}
-
 /** A file's name for messages, from the Home down: never the absolute path. */
 const label = (file: string, depth: number): string => (depth <= 1 ? basename(file) : join(label(dirname(file), depth - 1), basename(file)));
 
@@ -93,12 +86,12 @@ const PLATFORM_LIBRARY_BLOCKS: Readonly<Record<string, UpgradeBlock>> = {
 const HOME_BLOCK: UpgradeBlock = { kind: "home" };
 
 function libraryDescriptor(store: HomeStore): HomeUpgradeDescriptor {
-  const { baseline, partition } = store.library!, name = store.library!.file ?? `${store.path}.db`;
-  const pattern = partition ? join(store.path, "projects", "*", name) : join(store.path, name);
+  const { baseline } = store.library!, name = store.library!.file ?? `${store.path}.db`;
+  const pattern = join(store.path, name);
   const plugin = shippedParts().map(entry => entry.manifest)
     .find(manifest => manifest.plugin_id === store.owner && manifest.databases?.home?.store_name === store.path);
   const block: UpgradeBlock = plugin ? { kind: "plugin", plugin_id: plugin.plugin_id } : PLATFORM_LIBRARY_BLOCKS[store.path] ?? HOME_BLOCK;
-  return { owner: store.owner, block, pattern, baseline, open: file => openHomeSqliteFile(file), ...(partition ? { paths: (home: string) => partitionFiles(home, store) } : {}),
+  return { owner: store.owner, block, pattern, baseline, open: file => openHomeSqliteFile(file),
     ...(plugin ? { upgrade: (file: string) => upgradePluginLibraryFile(file, plugin) } : {}) };
 }
 

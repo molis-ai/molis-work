@@ -12,6 +12,7 @@ import { openHomeSqliteDatabase, runWithMolisWorkHome } from "@molis-ai/molis-wo
 import type { PagesCommentThread, PagesRecord } from "@molis-ai/molis-work-plugin-pages/contract";
 import { asideReply } from "./fixtures/ending-review.js";
 import { isKnowledgeOrganize, organizedCard } from "./fixtures/knowledge-organize.js";
+import { openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 
 interface Status { work_id: string; revision: number; state: string; error?: string }
 
@@ -221,7 +222,7 @@ test("PAS-04 PAS-05 PAS-10 BL-974: real Host and Prologue keep replies in the or
     const context = `${head}${draft}\n\n本评论线程:\nuser [${thread.messages[0]!.message_id}]: 请回答 A 的问题`;
     assert.equal(context.slice(17_999, 18_001), "🟢", "the 🟢 straddles the 18,000-unit boundary");
     const start = { target, message_id: thread.messages[0]!.message_id, draft: { text: draft, revision: String(a.version) } };
-    const db = openHomeSqliteDatabase(home, "pages");
+    const db = openPartitionLibraryDatabase(home, project.project_id, "pages");
     try {
       db.exec("CREATE TRIGGER refuse_reply BEFORE UPDATE ON page_comments BEGIN SELECT RAISE(ABORT, 'delivery fixture refuses'); END");
       const missing = await fetch(prefix + "/api/assistant/threads/start", { method: "POST", headers: { "content-type": "application/json", origin,

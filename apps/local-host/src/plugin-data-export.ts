@@ -10,7 +10,7 @@ import {
 import {
   pluginManifestDigest, SqlitePluginRuntimeReleaseArtifactRepository, SqlitePluginRuntimeRepository, type PluginRuntimeDatabase,
 } from "@molis-ai/molis-work-plugin-runtime";
-import { describeSqliteBaseline, homeSqlitePath, openReadOnlyHomeSqlite, readDatabaseSpace, readStorageSpace, snapshotFileStat, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { describeSqliteBaseline, homeSqlitePath, openHomeSqliteFile, openReadOnlyHomeSqlite, readDatabaseSpace, readStorageSpace, snapshotFileStat, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openReadOnlyHomePluginStore } from "./home-plugin-store.js";
 import { homeStores } from "./home-stores.js";
 import { installedHomeLibraryName, installedLibrarySnapshots } from "./installed-plugin-libraries.js";
@@ -19,6 +19,8 @@ import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 import { shippedParts } from "./plugin-registry.js";
 import { sandboxOwnerFilesBase } from "./plugin-sandbox-owner-files.js";
 import { LocalProjectDatabase } from "./project-database.js";
+import { partitionLibraryPath } from "./partition-plugin-assembly.js";
+import { partitionRoot } from "@molis-ai/molis-work-module-projects";
 import { SandboxPackageStore } from "./sandbox-package-store.js";
 
 const exportErrors = defineErrorCodes("host", {
@@ -301,9 +303,6 @@ function verifyInstalledHomeLibrary(
   manifest: PluginManifest,
   dbDecl: HomePluginDatabaseDeclaration,
 ): VerifiedInstalledHomeLibrary | null {
-  if (dbDecl.partition !== undefined) {
-    throw new ActionError("actions.forbidden", "第三方插件不支持按项目分区的 Home 库");
-  }
   const reserved = homeStores();
   if (!installedHomeLibraryName(dbDecl.store_name, reserved)) {
     throw new ActionError("actions.forbidden", "插件声明的 Home 库名称不在允许范围内");
@@ -340,6 +339,19 @@ function verifyInstalledHomeLibrary(
   return { file, stat, version: byPlugin.version };
 }
 
+/**
+ * The rows of a project's own library of a plugin (`databases.partition`): `<project root>/libraries/<store>.db`, read-only. The file is that
+ * project's alone, so no row is filtered by a project column; a project in which the plugin never opened has nothing to export.
+ */
+function readPartitionLibraryItems(homeDirectory: string, discovered: DiscoveredPluginData, declaration: PluginDatabaseDeclaration,
+  tables: readonly string[], projectId: string): ReturnType<typeof readTableItems> {
+  if (!discovered.builtin) throw new ActionError("actions.forbidden", "第三方插件的分区独立库暂不支持导出");
+  const file = partitionLibraryPath(partitionRoot(realpathSync(homeDirectory), projectId), declaration.store_name);
+  if (!existsSync(file)) return { items: [], truncated: false };
+  const db = openHomeSqliteFile(file, { readOnly: true });
+  try { return readTableItems(db, tables); } finally { db.close(); }
+}
+
 function readSectionSnapshot(
   homeDirectory: string,
   discovered: DiscoveredPluginData,
@@ -349,7 +361,7 @@ function readSectionSnapshot(
   projectDb: SqliteDatabase | undefined,
   budget: OwnerFileBudget | null,
 ): PluginDataSectionSnapshot {
-  const dbDecl = section.scope === "home" ? manifest.databases?.home : manifest.databases?.project;
+  const dbDecl = section.scope === "home" ? manifest.databases?.home : manifest.databases?.project ?? manifest.databases?.partition;
   const fileData = budget ? readOwnerFileSnapshots(homeDirectory, discovered, manifest, section, projectId, budget) : { files: [], truncated: false };
   const fileFields = {
     ...(fileData.files.length > 0 ? { files: fileData.files } : {}),
@@ -364,7 +376,8 @@ function readSectionSnapshot(
   const tables = (section.tables.length > 0 ? section.tables : [...permitted]).filter(table => permitted.has(table));
   if (section.scope === "project") {
     if (!projectDb || !projectId) throw exportErrors.plugin_data_project_required("导出项目级插件数据需要指定 project_id");
-    const result = readTableItems(projectDb, tables, projectId);
+    const result = manifest.databases?.project ? readTableItems(projectDb, tables, projectId)
+      : readPartitionLibraryItems(homeDirectory, discovered, dbDecl, tables, projectId);
     const truncated = result.truncated || fileData.truncated;
     return {
       plugin_id: section.plugin_id, section_id: section.section_id, schema_version: section.schema_version, title: section.title,
@@ -389,16 +402,14 @@ function readSectionSnapshot(
       };
     }
   }
-  const partitioned = homeDecl.partition === "project";
-  if (partitioned && !projectId) throw exportErrors.plugin_data_project_required("导出按项目分区的插件数据需要指定 project_id");
-  const file = homeSqlitePath(realHome, homeDecl.store_name, partitioned ? projectId! : undefined);
+  const file = homeSqlitePath(realHome, homeDecl.store_name);
   if (!existsSync(file)) {
     return {
       plugin_id: section.plugin_id, section_id: section.section_id, schema_version: section.schema_version, title: section.title,
       items: [], ...fileFields, ...(fileData.truncated ? { truncated: true } : {}),
     };
   }
-  const db = openReadOnlyHomeSqlite(realHome, homeDecl.store_name, partitioned ? projectId! : undefined);
+  const db = openReadOnlyHomeSqlite(realHome, homeDecl.store_name);
   try {
     if (verifiedInstalled) {
       const after = snapshotFileStat(verifiedInstalled.file);
@@ -418,8 +429,8 @@ function readSectionSnapshot(
     const result = readTableItems(
       db,
       tables,
-      partitioned ? undefined : projectId ?? undefined,
-      { requireProjectColumn: !partitioned && projectId !== null, pluginId: manifest.plugin_id },
+      projectId ?? undefined,
+      { requireProjectColumn: projectId !== null, pluginId: manifest.plugin_id },
     );
     const truncated = result.truncated || fileData.truncated;
     return {
@@ -512,7 +523,7 @@ export function pluginDataActionProvider(ports: PluginDataExportPorts): ActionPr
           return {
             sections: selected.flatMap(entry => discoveredSections(entry).map(({ manifest, section }) => {
               if (section.tables.length > 0) return section;
-              const dbDecl = section.scope === "home" ? manifest.databases?.home : manifest.databases?.project;
+              const dbDecl = section.scope === "home" ? manifest.databases?.home : manifest.databases?.project ?? manifest.databases?.partition;
               return dbDecl ? { ...section, tables: allowedTables(dbDecl) } : section;
             })),
           };

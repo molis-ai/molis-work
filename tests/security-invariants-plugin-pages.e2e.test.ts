@@ -188,8 +188,8 @@ test("SYS-15-U7 S-47 embedded content is host owned, confined to the page and ca
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
   const child = await pluginFrameBrowser(t,browser,"cognia");
   const embedded = await pluginFrameBrowser(t,browser,"pages",'iframe[data-plugin-embedded="pages"]');
-  const store = openPagesStore(browser.homeDirectory);
-  const page = (()=>{try{return store.create({project_id:browser.projectId!,title:"Embedded witness",body:{type:"doc",content:[{type:"paragraph",content:[{type:"text",text:"PRIVATE_EMBEDDED_WITNESS"}]}]}})}finally{store.close()}})();
+  const store = openPagesStore(browser.homeDirectory, browser.projectId!);
+  const page = (()=>{try{return store.create({title:"Embedded witness",body:{type:"doc",content:[{type:"paragraph",content:[{type:"text",text:"PRIVATE_EMBEDDED_WITNESS"}]}]}})}finally{store.close()}})();
   // Observe only the public host ports that the production plugin factory already receives.
   await pluginFrameInitScript(t, browser, `
     let factories;

@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pptActions as actions, PPT_ACTION_PERMISSIONS, pptxFilename } from "@molis-ai/molis-work-plugin-ppt";
-import { openPptStore } from "./fixtures/plugin-home-stores.js";
+import { openPptStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
 async function fixture(t: test.TestContext) {
   const { home, host, createProject } = await openTestHome(t);
@@ -39,8 +38,8 @@ test("PPT actions share records, typed slides, colors and export", async t => {
   assert.equal(exported.filename,'季度演示.json');assert.equal(exported.mime_type,'application/json');assert.deepEqual(JSON.parse(exported.content),presentation);
   const published=await invoke("promote",{id,expected_version:originalVersion});
   await f.host.withProject(f.ref,runtime=>assert.deepEqual((runtime.artifacts.query.getArtifactVersion(f.ref.project_id,published.artifact)!.payload as any).slides,slides));
-  const store=openPptStore(f.home);let foreign:string;
-  try{foreign=store.create({project_id:'b'}).id;}finally{store.close();}
+  const store=openPptStore(f.home, 'b');let foreign:string;
+  try{foreign=store.create({}).id;}finally{store.close();}
   for(const action of [actions.get,actions.export,actions.delete])await assert.rejects(f.bound.invoke(action,{id:foreign}),{code:'ppt.not_found'});
   await f.host.closeProject(f.ref); assert.deepEqual((await invoke('get',{id})).presentation,published.presentation);
   await invoke('delete',{id,expected_version:published.presentation.version}); assert.deepEqual((await invoke('list')).presentations,[]);
@@ -50,10 +49,10 @@ test("PPT actions share records, typed slides, colors and export", async t => {
 test("PPT reads a stored presentation without rewriting slides, colors or artifact references",async t=>{
   const f=await fixture(t);
   await f.bound.invoke(actions.list,{});
-  const db=openHomeSqliteDatabase(f.home,'ppt');
+  const db=openPartitionLibraryDatabase(f.home,f.ref.project_id,'ppt');
   try{
-    db.prepare(`INSERT INTO presentations (id,project_id,title,description,color_primary,color_background,color_text,slides_json,created_at,updated_at,version,artifact_id,artifact_version)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('old',f.ref.project_id,'旧演示','旧说明','#123456','#FFFFFF','#000000',JSON.stringify(slides),'2025-01-01','2025-01-02',8,'ppt-old',3);
+    db.prepare(`INSERT INTO presentations (id,title,description,color_primary,color_background,color_text,slides_json,created_at,updated_at,version,artifact_id,artifact_version)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run('old','旧演示','旧说明','#123456','#FFFFFF','#000000',JSON.stringify(slides),'2025-01-01','2025-01-02',8,'ppt-old',3);
     const record=(await f.bound.invoke(actions.get,{id:'old'})).presentation;
     assert.deepEqual(record.slides,slides);assert.equal(record.color_background,'#FFFFFF');assert.equal(record.version,8);assert.equal(record.artifact_version,3);
     assert.equal(record.created_at,'2025-01-01');assert.equal(record.publication_pending,undefined);
@@ -68,7 +67,7 @@ test("BSH-03 PPT refuses the joined row write and the next pin uses the edited d
   const { presentation } = await bound.invoke(actions.create, { title: "Initial draft" });
   const id = presentation.id, sentinel = (await bound.invoke(actions.create, { title: "Constraint fixture" })).presentation;
   await bound.invoke(actions.promote, { id: sentinel.id });
-  const db = openHomeSqliteDatabase(home, "ppt");
+  const db = openPartitionLibraryDatabase(home, ref.project_id, "ppt");
   try {
     db.exec("CREATE UNIQUE INDEX fail_publication ON presentations ((1)) WHERE artifact_version > 0");
     await assert.rejects(bound.invoke(actions.promote, { id }), /UNIQUE constraint failed/u);

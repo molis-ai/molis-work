@@ -186,9 +186,9 @@ test("一次实例按每段衔接走完 Feed → Inbox → Pages → 灵光，�
     assert.match(prompts[0]!, new RegExp(items[0]!.title));
     assert.equal(afterAi.steps[1]!.handoff?.actor, "ai");
     assert.equal(afterAi.steps[1]!.handoff?.output.title, "给 Pages 的一页");
-    const page = openPagesStore(home);
+    const page = openPagesStore(home, PROJECT);
     try {
-      const doc = page.get(afterAi.steps[2]!.item!.item_id, PROJECT);
+      const doc = page.get(afterAi.steps[2]!.item!.item_id);
       assert.equal(doc.title, "给 Pages 的一页");
       assert.match(JSON.stringify(doc.body), /结论：可以推进/);
     } finally { page.close(); }
@@ -210,9 +210,9 @@ test("一次实例按每段衔接走完 Feed → Inbox → Pages → 灵光，�
     assert.equal(done.status, "done");
     assert.equal(done.chain.links[0]!.kind, "manual", "a crossed handoff is history");
     assert.equal(done.steps[2]!.handoff?.actor, "function");
-    const spark = openLingguangStore(home);
+    const spark = openLingguangStore(home, PROJECT);
     try {
-      assert.equal(spark.get(done.steps[3]!.item!.item_id, PROJECT).title, "给 Pages 的一页 · 灵光");
+      assert.equal(spark.get(done.steps[3]!.item!.item_id).title, "给 Pages 的一页 · 灵光");
     } finally { spark.close(); }
     assert.equal((await continueFrom(done, {})).status, 400, "a finished run does not continue");
 
@@ -285,15 +285,17 @@ test("成果库里的一版可以作为一次运行的起点，带着 owner 预�
 
 test("内容站选择完整列出当前项目的文稿，不截断前 60 条或混入其他项目", async t => {
   await withProject(t, async ({ call, home, projectId: PROJECT }) => {
-    const pages = openPagesStore(home);
+    const pages = openPagesStore(home, PROJECT);
     let first = "";
     try {
       for (let index = 0; index < 65; index++) {
-        const page = pages.create({ title: `完整选择 ${index}`, project_id: PROJECT });
+        const page = pages.create({ title: `完整选择 ${index}` });
         if (!index) first = page.id;
       }
-      pages.create({ title: "另一个项目的私有文稿", project_id: "other-project" });
     } finally { pages.close(); }
+    // Another project's Pages library (U2): the station reads only the library of the project it runs in.
+    const other = openPagesStore(home, "other-project");
+    try { other.create({ title: "另一个项目的私有文稿" }); } finally { other.close(); }
     const result = await call("GET", "/workflows/stations/pages/items");
     assert.equal(result.status, 200, JSON.stringify(result.body));
     const items = result.body.items as Array<{ item_id: string; title: string }>;

@@ -208,8 +208,8 @@ test("RAC-31 RAC-32 快记、重开还在；项目隔离；丢掉后离开列表
   const kept = await f.http<{ sparks: LingguangSpark[] }>("");
   assert.equal(kept.sparks.length, 1);
   assert.equal(kept.sparks[0]?.body, "下午三点，灰尘在亮里转。");
-  const reopened = openLingguangStore(f.home);
-  try { assert.deepEqual(reopened.list(projectId), kept.sparks); assert.deepEqual(reopened.list("other"), []); } finally { reopened.close(); }
+  const reopened = openLingguangStore(f.home, f.project.project_id), other = openLingguangStore(f.home, "other");
+  try { assert.deepEqual(reopened.list(), kept.sparks); assert.deepEqual(other.list(), [], "another partition's library has none of them"); } finally { reopened.close(); other.close(); }
 });
 
 test("RAC-31 改正文会写入原库；头脑风暴使用注入模型并保存真实回复", async t => {
@@ -221,6 +221,6 @@ test("RAC-31 改正文会写入原库；头脑风暴使用注入模型并保存�
   assert.equal(opened.sparks[0]?.body, "改过的正文");
   const replied = await f.http<LingguangConversationState>(`/conversations/${opened.conversation.id}/messages`, { body: "明天试试" });
   assert.deepEqual(replied.messages.map(row => [row.role, row.body]), [["user", "明天试试"], ["assistant", "可以先记录明天窗边光线的变化。"]]);
-  const reopened = openLingguangStore(f.home);
-  try { assert.deepEqual(reopened.openConversation([spark.id], f.project.project_id).messages, replied.messages); } finally { reopened.close(); }
+  const reopened = openLingguangStore(f.home, f.project.project_id);
+  try { assert.deepEqual(reopened.openConversation([spark.id]).messages, replied.messages); } finally { reopened.close(); }
 });

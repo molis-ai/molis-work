@@ -123,7 +123,7 @@ export const WORKFLOWS_ACTIONS: readonly ActionDefinition[] = Object.values(work
 export const WORKFLOWS_ACTION_PERMISSIONS = [...new Set(WORKFLOWS_ACTIONS.flatMap(definition => definition.action.permissions))];
 
 export function createWorkflowsActionHandlers(projectId: string, ports: WorkflowsActionPorts): ActionHandlerBinding[] {
-  const runs = createWorkflowRunControls(projectId, ports.read);
+  const runs = createWorkflowRunControls(ports.read);
   type ContinueInput = (typeof workflowsActions.continue) extends ActionDefinition<infer I, unknown> ? I : never;
   const scoped = (caller: ActionExecutionContext) => {
     if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "请求项目与流程所在项目不一致");
@@ -154,8 +154,8 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     })),
   });
   const live = (store: WorkflowsStore, instanceId: string): WorkflowInstance => {
-    const current = store.instance(instanceId, projectId);
-    try { return withPendingLinks(current, store.get(current.workflow_id, projectId)); } catch { return current; }
+    const current = store.instance(instanceId);
+    try { return withPendingLinks(current, store.get(current.workflow_id)); } catch { return current; }
   };
   const changed = <T>(value: T) => { ports.changed?.(); return value; };
   /** One write: the call's `beforeEffect()` is awaited first, then its authority and signal are checked again inside the transaction, before the first SQL. */
@@ -164,22 +164,22 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
   const scope = { projectId, commit, ports };
   return [
     bind(workflowsActions.list, async (_input, content, _caller, reach) => ({
-      workflows: await Promise.all(ports.read(store => store.list(projectId)).map(row => describe(content, row, reach))),
+      workflows: await Promise.all(ports.read(store => store.list()).map(row => describe(content, row, reach))),
       stations: await content.stations(), ai_available: ports.textModel().available })),
     bind(workflowsActions.get, async (input, content, _caller, reach) => {
-      const { workflow: row, instances } = ports.read(store => ({ workflow: store.get(input.id, projectId), instances: store.instances(input.id, projectId) }));
+      const { workflow: row, instances } = ports.read(store => ({ workflow: store.get(input.id), instances: store.instances(input.id) }));
       return { workflow: await describe(content, row, reach), instances, ai_available: ports.textModel().available };
     }),
     bind(workflowsActions.create, async (input, content, caller, reach) => {
       const chainValue = await validChain(content, input.chain, reach);
-      return changed({ workflow: await commit(caller, store => store.create({ project_id: projectId, title: input.title ?? "", chain: chainValue })) });
+      return changed({ workflow: await commit(caller, store => store.create({ title: input.title ?? "", chain: chainValue })) });
     }),
     bind(workflowsActions.update, async (input, content, caller, reach) => {
       const chainValue = input.chain === undefined ? undefined : await validChain(content, input.chain, reach);
-      return changed({ workflow: await commit(caller, store => store.update(input.id, projectId, { revision: input.revision, title: input.title, chain: chainValue })) });
+      return changed({ workflow: await commit(caller, store => store.update(input.id, { revision: input.revision, title: input.title, chain: chainValue })) });
     }),
     bind(workflowsActions.delete, async (input, _content, caller) => {
-      await commit(caller, store => store.delete(input.id, projectId));
+      await commit(caller, store => store.delete(input.id));
       return changed({ ok: true as const });
     }),
     bind(workflowsActions.stationItems, async (input, content) => {
@@ -188,7 +188,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       return { items: await content.listStartItems(input.plugin), can_start_blank: info.can_start_blank };
     }),
     bind(workflowsActions.start, async (input, content, caller, reach) => {
-      const stored = ports.read(store => store.get(input.id, projectId));
+      const stored = ports.read(store => store.get(input.id));
       const current = { ...stored, ...await validChain(content, stored, reach) };
       if (current.stations.length < 2) throw workflowsErrors.invalid("流程至少要有两站才能开始");
       const first = current.stations[0]!;
@@ -219,9 +219,9 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     bind(workflowsActions.continue, createWorkflowContinuation<Reach>({ projectId, read: ports.read, write: ports.write, commit, live, changed, report: ports.report,
       prepareHandoff: (caller, content, reach, current, from, input) => prepareHandoff(scope, caller, content, reach, current, from, input),
       runActionStep: (caller, reach, current, from, pending, target, retry) => runActionStep(scope, caller, reach, current, from, pending, target, retry) })),
-    bind(workflowsActions.usages, async input => ({ usages: ports.read(store => store.list(projectId)).flatMap(flow => workflowUsages(flow, input.action)) })),
+    bind(workflowsActions.usages, async input => ({ usages: ports.read(store => store.list()).flatMap(flow => workflowUsages(flow, input.action)) })),
     bind(workflowsActions.stop, async (input, _content, caller) => {
-      const instance = await commit(caller, store => { const stopped = store.stopInstance(input.id, projectId); runs.stop(input.id); return stopped; });
+      const instance = await commit(caller, store => { const stopped = store.stopInstance(input.id); runs.stop(input.id); return stopped; });
       return changed({ instance });
     }),
     bind(workflowsActions.actionSteps, async (_input, _content, _caller, reach) => ({ actions: workflowActionChoices(await reach.all()), fields: WORKFLOW_PAYLOAD_FIELDS })),
@@ -263,5 +263,5 @@ function workflowUsages(flow: Pick<Workflow, "workflow_id" | "title" | "stations
 }
 
 function workflowTitle(store: WorkflowsStore, current: WorkflowInstance): string {
-  try { return store.get(current.workflow_id, current.project_id).title; } catch { return "已删除的流程"; }
+  try { return store.get(current.workflow_id).title; } catch { return "已删除的流程"; }
 }

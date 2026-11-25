@@ -3,8 +3,7 @@ import test from "node:test";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { openPptStore } from "./fixtures/plugin-home-stores.js";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openPptStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
@@ -15,7 +14,7 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   const browser=await openGoalBrowser(t,true,undefined,null);if(!browser)return;
   const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "ppt");
-  const read=()=>{const store=openPptStore(homeDirectory);try{return store.list(projectId!);}finally{store.close();}};
+  const read=()=>{const store=openPptStore(homeDirectory, projectId!);try{return store.list();}finally{store.close();}};
   const idle=()=>waitFor("document.querySelector('[data-ppt=workbench]').getAttribute('aria-busy') === 'false'");
   const saved=()=>waitFor("document.querySelector('[data-ppt-editor-status]').textContent.endsWith('已保存')");
   const input=async(selector:string,value:string)=>evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));})()`);
@@ -85,7 +84,7 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
     if(!exported){if(Date.now()>deadline)throw new Error('PPT JSON download missing');await new Promise(resolve=>setTimeout(resolve,50));}}
   assert.deepEqual(JSON.parse(exported),read()[0]);
   // A stale editor blocks publication/export/navigation and retains the local draft.
-  const other=openPptStore(homeDirectory);try{other.update(id,{description:'远端修改'},projectId!);}finally{other.close();}
+  const other=openPptStore(homeDirectory, projectId!);try{other.update(id,{description:'远端修改'});}finally{other.close();}
   const remoteVersion=read()[0]!.version;
   await input('[data-ppt-title]','不能丢失的本地标题');await waitFor("document.querySelector('[data-ppt-editor-status]').textContent.endsWith('保存失败')");
   for(const selector of ['[data-ppt-artifact-bar]','[data-ppt-export]','[data-ppt-back]']){if(selector==='[data-ppt-export]') await exportClick('pptx'); else await click(selector);await idle();}
@@ -97,7 +96,7 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   await moreClick('[data-ppt-reload]');await waitFor("document.querySelector('[data-ppt-confirm]').open");await click('[data-ppt-confirm] [data-confirm-ok]');await idle();
   assert.equal(await evaluate("document.querySelector('[data-ppt-description]').value"),'远端修改');
   // The root-program guard refuses this trigger before either write. This exercises the failure UI and explicit retry.
-  const db=openHomeSqliteDatabase(homeDirectory,'ppt');
+  const db=openPartitionLibraryDatabase(homeDirectory,projectId!,'ppt');
   try{db.exec("CREATE TRIGGER fail_ppt_ui BEFORE UPDATE OF artifact_version ON presentations WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
     await click('[data-ppt-artifact-bar]');await idle();assert.equal(read()[0]!.publication_pending,undefined);assert.equal(read()[0]!.artifact_version,0);db.exec('DROP TRIGGER fail_ppt_ui');
   }finally{db.close();}

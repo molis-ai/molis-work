@@ -169,8 +169,8 @@ test("SYS-15-U14 S-47 object placement uses the owner's declared scope and rejec
   const admitted = await f.request("/api/platform/shelf/items", {method:"POST",body:{text:"Personal material",title:"Personal material"}});
   assert.equal(admitted.status, 200, await admitted.clone().text());
   const item = (await admitted.json()).item;
-  const store = openPagesStore(f.home);
-  const document = store.create({project_id:project.project_id,title:"Project document"}); store.close();
+  const store = openPagesStore(f.home, project.project_id);
+  const document = store.create({title:"Project document"}); store.close();
   const describe = (headers: Record<string,string>, object: {kind:string;id:string;project_id:string|null}) =>
     f.request(prefix + "/api/placement/describe", {method:"POST",headers,body:{object}});
   const personal = {kind:"shelf_item",id:item.item_id,project_id:null};

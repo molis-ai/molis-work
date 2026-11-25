@@ -8,8 +8,7 @@ import { LocalActionGatewayClient, LocalProjectDatabase, MolisWorkLocalHost, ope
 import { createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FORM_ANSWER_FORMAT } from "@molis-ai/molis-work-plugin-form";
-import { openFormStore } from "./fixtures/plugin-home-stores.js";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openFormStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 
 // One Home has one execution owner, the resident Host (Forms runs on its Plugin Runtime, W4-04): each external tool is an MCP port whose
@@ -87,7 +86,7 @@ test("Form standard MCP preserves submissions and publications across tool proce
   assert.equal(form.questions[0].title,"MCP 题目");
   form = (await call(writer,"publish",{id,expected_version:form.version})).form;
   const share = form.share_id; assert.ok(share);
-  const db = openHomeSqliteDatabase(home,"form");
+  const db = openPartitionLibraryDatabase(home,a.project_id,"form");
   try {
     const sentinel = (await call(writer, "create", { title: "Constraint fixture" })).form;
     const fixedSentinel = (await call(writer, "promote", { id: sentinel.id, expected_version: sentinel.version })).form;
@@ -116,8 +115,8 @@ test("Form standard MCP preserves submissions and publications across tool proce
     assert.equal(payload.answers,undefined);
     assert.equal(library.artifacts.query.getArtifactVersion(a.project_id,{...recovered.artifact,version:2}),null);
   } finally {project.close();}
-  const store = openFormStore(home);
-  try {assert.deepEqual(store.get(id,a.project_id),recovered.form);assert.deepEqual(store.listSubmissions(id,a.project_id),[submission]);} finally {store.close();}
+  const store = openFormStore(home, a.project_id);
+  try {assert.deepEqual(store.get(id),recovered.form);assert.deepEqual(store.listSubmissions(id),[submission]);} finally {store.close();}
   // Collection stopped: an external tool's answer is refused again, and the one already in stays.
   const stopped = (await call(restarted,"close",{id,expected_version:recovered.form.version})).form;
   await refused(restarted,"submit",{id,expected_version:stopped.version,answers:{[stopped.questions[0].id]:"停止后"},request_id:"stopped-submission"},/已停止收集答卷/u);

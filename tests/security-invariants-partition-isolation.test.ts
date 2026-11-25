@@ -7,13 +7,16 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  ensureProjectPlugins, LocalProjectDatabase, MolisWorkLocalHost, openHomePluginStore, openPartitionPluginLibrary, openProjectVersionStores,
-  PartitionPlatformServices, PartitionPluginAssembly, partitionOverviewLibraries, partitionPluginScope, releaseProjectPlugins, startPartitionPluginInstance,
+  LocalProjectDatabase, MolisWorkLocalHost, openHomePluginStore, openPartitionPluginLibrary, openProjectVersionStores,
+  PartitionPlatformServices, PartitionPluginAssembly, partitionOverviewLibraries, partitionPluginScope, startPartitionPluginInstance,
   type PartitionPluginScope,
 } from "@molis-ai/molis-work-app-local-host";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
 import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { person as runtimePerson, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
+import { DATASET_ACTION_PERMISSIONS, datasetActions } from "@molis-ai/molis-work-plugin-dataset";
 import { LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, OVERVIEW_TABLE_SQL, type PluginDatabaseDeclaration, type PluginDefinition, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PartitionDeclarationFields } from "@molis-ai/molis-work-plugin-sdk";
@@ -151,22 +154,50 @@ function partitionNotes(): PluginDefinition {
   } as PluginDefinition;
 }
 
-test("UPP-06 S-partition-isolation the old project platform refuses to run a plugin with a library in each partition", async () => withPartitions(async (home, a) => {
-  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
-  const store = new LocalProjectDatabase(partitionRoot(home, a) + "/molis-work.db");
-  const definition = partitionNotes();
-  const ports = { store, ...openProjectVersionStores(store), projectId: a, actorId: "local-person", homeDirectory: home, actions: pluginActions(store, a),
-    escapeHtml: String, translate: (value: string) => value, installedByHand: new Set([definition]) };
-  try {
-    const { platform } = await ensureProjectPlugins(ports);
-    assert.ok(platform);
-    const report = await platform.start([{ definition }]);
-    assert.equal(report.running.includes(PLUGIN), false, JSON.stringify(report));
-    const refusedState = platform.supervisor.state(PLUGIN)!;
-    assert.equal(platform.runtime.get(refusedState.install_id!)?.last_error_code, "plugin.declaration_invalid", "refused for its declaration, before any library");
-    assert.equal(existsSync(join(partitionRoot(home, a), "libraries")), false, "no library was opened for it");
-  } finally { await releaseProjectPlugins(store, a); store.close(); }
-}));
+// Batch 107: the project platform runs the six plugins with a library in each partition, once per partition. The partition is the one the
+// instance runs for, never one a call names (S-31), and a deleted project's library does not come back from a call begun before (S-18, S-52).
+test("UPP-06 S-31 S-partition-isolation the project platform gives a plugin with a library in each partition the library of the project it runs in; a call naming another project or none is refused and makes no library", async t => {
+  const f = await serveHomeRuntime(t);
+  const a = await f.project("分区 A"), b = await f.project("分区 B");
+  const caller = runtimePerson(DATASET_ACTION_PERMISSIONS, a.project_id), inA = f.host.actionClient(a.reference);
+  await inA.invoke(caller, datasetActions.create, { title: "A 的表" });
+  const aLibrary = partitionLibraryFile(f.home, a.project_id, "dataset"), bLibrary = partitionLibraryFile(f.home, b.project_id, "dataset");
+  assert.equal(existsSync(aLibrary), true, "A's table is in A's own library");
+  const before = existsSync(bLibrary);
+  await assert.rejects(inA.invoke({ ...caller, project_id: b.project_id }, datasetActions.create, { title: "写进 B" }), { code: "actions.scope_mismatch" },
+    "A's instance never takes the partition from the call");
+  await assert.rejects(f.host.homeActionClient().invoke({ ...caller, project_id: null }, datasetActions.create, { title: "不在任何项目" }), { code: "actions.scope_mismatch" },
+    "a call in no project reaches no project's instance");
+  assert.equal(existsSync(bLibrary), before, "B's library was not made by A's call");
+  if (before) assert.deepEqual((await f.host.actionClient(b.reference).invoke(runtimePerson(DATASET_ACTION_PERMISSIONS, b.project_id), datasetActions.list, {})).datasets, [], "and holds nothing of A's");
+  assert.equal(existsSync(join(f.home, "dataset")), false, "nor a library in the Home");
+  assert.equal(existsSync(partitionLibraryFile(f.home, PERSONAL_SPACE_PROJECT_ID, "dataset")), false, "nor in the personal space");
+});
+
+test("UPP-06 S-18 S-52 deleting a project stops its plugin's instance and removes the partition library; a write begun before the deletion is refused and makes no library again", async t => {
+  const entered = Promise.withResolvers<void>();
+  const f = await serveHomeRuntime(t, { completeText: async (_prompt, options) => {
+    entered.resolve();
+    // The model answers only once the call is given up: the deletion stops the instance it runs on.
+    await new Promise<void>(resolve => { if (options?.signal?.aborted) resolve(); else options?.signal?.addEventListener("abort", () => resolve(), { once: true }); });
+    return "截止日期";
+  } });
+  const gone = await f.project("要删的项目"), kept = await f.project("留下的项目");
+  const client = f.host.actionClient(gone.reference), caller = runtimePerson(DATASET_ACTION_PERMISSIONS, gone.project_id);
+  const { dataset } = await client.invoke(caller, datasetActions.create, {});
+  await f.host.actionClient(kept.reference).invoke(runtimePerson(DATASET_ACTION_PERMISSIONS, kept.project_id), datasetActions.create, { title: "留下" });
+  const library = partitionLibraryFile(f.home, gone.project_id, "dataset");
+  assert.equal(existsSync(library), true);
+  const refused = assert.rejects(client.invoke(caller, datasetActions.generateAi, { id: dataset.id, prompt: "计划截止日期" }), (error: { code?: string; name?: string }) =>
+    error.name === "AbortError" || /^(?:actions\.(?:cancelled|missing|host_closed)|host\.project_closing)$/u.test(error.code ?? ""));
+  await entered.promise;
+  const response = await f.request(`/api/settings/projects/${gone.project_id}/delete`, { method: "POST", body: { delete_confirmed: true, idempotency_key: "upp06-delete" } });
+  assert.equal(response.status, 200, await response.clone().text());
+  assert.equal(((await response.json()) as { deletion: { cleanup_state: string } }).deletion.cleanup_state, "complete");
+  await refused;
+  for (const suffix of ["", "-journal", "-wal", "-shm"]) assert.equal(existsSync(library + suffix), false, `the deleted project's library${suffix} is gone and the call begun before made none again`);
+  assert.equal(existsSync(partitionLibraryFile(f.home, kept.project_id, "dataset")), true, "the other project's library stays");
+});
 
 test("UPP-06 S-partition-isolation the per-partition starter runs the plugin on its own partition's library, with the Home's one install table", async () => withPartitions(async (home, a, b) => {
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();

@@ -23,7 +23,7 @@ async function openOutline(t: TestContext) {
   await browser.waitFor("document.body.dataset.desktopSurface === 'ppt'");
   await click("[data-ppt-new]");
   await waitFor("document.querySelector('[data-ppt=workbench]').getAttribute('aria-busy') === 'false'");
-  const slides = () => { const store = openPptStore(homeDirectory); try { return store.list(projectId!)[0]?.slides.length ?? 0; } finally { store.close(); } };
+  const slides = () => { const store = openPptStore(homeDirectory, projectId!); try { return store.list()[0]?.slides.length ?? 0; } finally { store.close(); } };
   return {
     click,
     waitFor,

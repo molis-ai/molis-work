@@ -41,13 +41,12 @@ export function createPagesLandingHandlers(actions: ReturnType<typeof definePage
     handle: async (caller: ActionExecutionContext, value: unknown) => {
       const { id: pageId, expected_version, ...write } = value as LandingInput;
       if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目");
-      const projectId = caller.project_id;
       // Cancelled or no longer allowed: nothing is written. The read, the check and the write are one step.
       return stores.write(caller, store => {
-        const before = store.get(pageId, projectId);
+        const before = store.get(pageId);
         if (before.version !== expected_version) throw pagesErrors.conflict("文档已改变，请重新选择位置后再放进去");
         const body = landPagesText(before.body, { ...write, mode: mode as PagesLandingMode }) as PagesRecord["body"];
-        const document = store.update(pageId, { body, expected_version }, projectId);
+        const document = store.update(pageId, { body, expected_version });
         return { document, change_id: store.keepChange(before, document) };
       });
     },

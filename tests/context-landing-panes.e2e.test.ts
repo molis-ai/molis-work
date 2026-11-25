@@ -22,9 +22,9 @@ test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right 
   const child = await pluginFrameBrowser(t, browser, "pages");
   const pane = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-tab-pane].is-focused iframe[data-plugin-frame="pages"]');
   const otherPane = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-tab-pane]:not(.is-focused) iframe[data-plugin-frame="pages"]');
-  const store = openPagesStore(homeDirectory);
-  const left = store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
-  const right = store.create({ project_id: projectId!, title: "访谈记录", body: { type: "doc", content: [paragraph("用户说：离线也要能记下想法。")] } });
+  const store = openPagesStore(homeDirectory, projectId!);
+  const left = store.create({ title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
+  const right = store.create({ title: "访谈记录", body: { type: "doc", content: [paragraph("用户说：离线也要能记下想法。")] } });
   store.close();
   const capture = async (name: string) => { const directory = join(process.cwd(), `${REVIEW_EVIDENCE}/context-landing`); await mkdir(directory, { recursive: true });
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(join(directory, name + ".png"), Buffer.from(shot.data, "base64")); };
@@ -110,6 +110,6 @@ test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right 
   await pane.click(".pages-pop .mw-btn--primary");
   await pane.waitFor(`${paneText} === '先完成离线也要能记下想法核心体验。再安排发布。'`, 10_000);
   await capture("pane-2-written");
-  const saved = openPagesStore(homeDirectory);
-  try { assert.match(JSON.stringify(saved.get(left.id, projectId!).body), /先完成离线也要能记下想法核心体验。/u); } finally { saved.close(); }
+  const saved = openPagesStore(homeDirectory, projectId!);
+  try { assert.match(JSON.stringify(saved.get(left.id).body), /先完成离线也要能记下想法核心体验。/u); } finally { saved.close(); }
 });

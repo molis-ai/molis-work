@@ -2,12 +2,14 @@
 
 个人空间（`personal`）和每个项目是同构的「分区」（[统一工作分区](../../specs/unified-partition-plugins/spec.md)）。一个插件装一次（Home 一张安装表），在哪个分区启用就在那个分区有自己的一份数据。本页四节写插件怎样声明；字段都在 Manifest，类型在 `@molis-ai/molis-work-contracts/platform/plugin`，由 SDK 的 `partitionDeclarationProblems` 检查（`parsePluginManifest`／`assertManifest` 与安装都会跑它，写错了装不上）。
 
-> 现状（第 106 批，只加不删）：这些字段和 SDK 帮手已经可以写、会被检查；平台的读取方（总览界面、到期投递、推送、随启用）在第 107–111 批随插件迁移接上。新插件照本页写，不要再用旧的「个人插件 / 项目插件」两套写法。
+> 现状（第 107 批）：这些字段和 SDK 帮手已经可以写、会被检查；Pages、PPT、Form、Dataset、灵光、Workflows 已经用 `databases.partition`，由项目平台在每个分区跑一个实例（第 109 批两套装配合并后归按分区的装配）。平台的其他读取方（总览界面、到期投递、推送、随启用）在第 108–111 批随插件迁移接上。新插件照本页写，不要再用旧的「个人插件 / 项目插件」两套写法。
 
 ## 分区存储
 
 - **一份库在每个分区**：在 `databases.partition` 写一份库声明（`store_name`、`version`、`schema`、`read_permission`、`write_permission`，与 `databases.home` 同一种写法）。平台在 `<分区根>/libraries/<store_name>.db` 给每个启用你的分区开一份，分区根只由平台求（个人空间是 `<Home>/personal-space/`，项目是 `<Home>/projects/<id>/`）。
 - **你拿不到别的分区**：插件实例按（插件, 分区）起，只看得到自己分区的库和 `plugin-files/<安装>/`；路径写 `..`、链接或别的分区一律被拒（`S-partition-isolation`）。不要在输入里收 `partition_id` 或 `project_id` 来决定读哪份——分区由调用上下文给。
+- **删项目与确认框**：删项目时平台把这个分区的整份库删掉，插件不跑自己的代码；确认框里这一行写在 `databases.partition.deletion`（`label` 写无参词键或一行文字，`order` 定先后），不写就是「{插件名} 在这个项目里的数据」。
+- **跨分区移动、复制**：平台搬运，你提供 `exportRecord(id)`（出记录与版本）、`putRecord(record, requestId, targetId?)`（放进本分区，移动带原 id）与 `removeCarried(id, revision)`（移动后按版本删掉源）；不要自己去打开别的分区的库。
 - **库结构只有现行一版**：`schema` 写完整的当前结构；不写兼容读取，旧数据怎样处理先问（[CONTRACT-CHANGES](../../docs/system/CONTRACT-CHANGES.md)）。
 - **随本人走的设置不放分区库**：本人在任何分区都一样的偏好（默认服务、上次用的文件夹）声明在 `person_settings.keys`：每个键写 `key` 和 `kind`（`preference`、`secret_ref`、`connection_ref`、`local_path`）。只有 `preference` 能写 `portable: true`，跟着本人同步到他的其他设备；密钥引用、连接引用、本机路径标 `portable` 会被拒（`S-person-settings-private`）。这些设置只给本机本人和你自己的后台读写，项目 Agent、助理和别的插件都读不到。
 

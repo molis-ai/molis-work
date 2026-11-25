@@ -28,7 +28,7 @@ test("a handoff is delivered once: a lost race delivers nothing and a retry re-s
   const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller = { actor_id: "test-user", project_id: PROJECT, audience: "user" as const, permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS] };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
-  const pages = () => { const store = openPagesStore(home); try { return store.list(PROJECT).length; } finally { store.close(); } };
+  const pages = () => { const store = openPagesStore(home, PROJECT); try { return store.list().length; } finally { store.close(); } };
   try {
     const { workflow } = await actions.invoke(w.create, { title: "交接一次", chain: { stations: [{ plugin: "feed" }, { plugin: "pages" }, { plugin: "lingguang" }],
       links: [{ kind: "ai", title_template: "", body_template: "", instructions: "整理成一页" }, { kind: "function", title_template: "{标题}", body_template: "{正文}", instructions: "" }] } });
@@ -53,8 +53,8 @@ test("a handoff is delivered once: a lost race delivers nothing and a retry re-s
     const input = (await actions.invoke(w.preview, { id: crashed.instance_id })).input;
     const pending = { key: handoffKey(crashed, 0), kind: "ai" as const, actor: "ai" as const, at: new Date().toISOString(), input,
       output: { title: "崩溃前的整理稿", body: "已经送达，只是没来得及记录。", url: null, source: null }, rule: "整理成一页" };
-    const store = openWorkflowsStore(home);
-    try { const raw = store.instance(crashed.instance_id, PROJECT); store.saveInstance(raw, { ...raw, chain: previewed.chain, steps: raw.steps.map((step, index) => index === 0 ? { ...step, pending } : step), updated_at: new Date().toISOString() }); }
+    const store = openWorkflowsStore(home, PROJECT);
+    try { const raw = store.instance(crashed.instance_id); store.saveInstance(raw, { ...raw, chain: previewed.chain, steps: raw.steps.map((step, index) => index === 0 ? { ...step, pending } : step), updated_at: new Date().toISOString() }); }
     finally { store.close(); }
     const delivered = await createWorkflowContentPorts(bindActionClient(host.actionClient(reference), () => ({ ...caller, audience: "workflow" })))
       .receive("pages", pending.output, `workflow:${crashed.instance_id}:1`);
@@ -70,8 +70,8 @@ test("a handoff is delivered once: a lost race delivers nothing and a retry re-s
     const once = await lingguang.receive("lingguang", { title: "灵光", body: "只记一次" }, "workflow:retry-instance:2");
     const twice = await lingguang.receive("lingguang", { title: "灵光", body: "只记一次" }, "workflow:retry-instance:2");
     assert.equal(twice.item_id, once.item_id);
-    const sparks = openLingguangStore(home);
-    try { assert.equal(sparks.list(PROJECT).filter(spark => spark.body === "只记一次").length, 1); } finally { sparks.close(); }
+    const sparks = openLingguangStore(home, PROJECT);
+    try { assert.equal(sparks.list().filter(spark => spark.body === "只记一次").length, 1); } finally { sparks.close(); }
   } finally {
     await host.close(); db.close();
     rmSync(home, { recursive: true, force: true });
@@ -98,7 +98,7 @@ for (const stage of ["preparation", "response"] as const) test(`workflow AI revo
   const caller = { actor_id: "user", project_id: PROJECT, audience: "user" as const, permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS],
     validate_authority: () => { if (!allowed) throw new ActionError("actions.revoked", "原调用已撤权"); } };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
-  const pages = openPagesStore(home);
+  const pages = openPagesStore(home, PROJECT);
   try {
     const { workflow } = await actions.invoke(w.create, { title: "持续授权", chain: { stations: [{ plugin: "feed" }, { plugin: "pages" }],
       links: [{ kind: "ai", instructions: "整理材料", title_template: "", body_template: "" }] } });
@@ -108,13 +108,13 @@ for (const stage of ["preparation", "response"] as const) test(`workflow AI revo
     await Promise.race([entered.promise, pending]);
     allowed = false; release.resolve(); await rejected;
     assert.equal(dispatched, stage === "preparation" ? 0 : 1);
-    assert.equal(pages.list(PROJECT).length, 0);
-    const store = openWorkflowsStore(home);
-    try { assert.deepEqual(store.instance(original.instance_id, PROJECT), original, "no handoff or bookkeeping may commit after revocation"); }
+    assert.equal(pages.list().length, 0);
+    const store = openWorkflowsStore(home, PROJECT);
+    try { assert.deepEqual(store.instance(original.instance_id), original, "no handoff or bookkeeping may commit after revocation"); }
     finally { store.close(); }
     allowed = true;
     const done = (await actions.invoke(w.continue, { id: original.instance_id })).instance;
     assert.equal(done.status, "done");
-    assert.equal(pages.list(PROJECT).length, 1);
+    assert.equal(pages.list().length, 1);
   } finally { release.resolve(); pages.close(); await host.close(); db.close(); rmSync(home, { recursive: true, force: true }); }
 });

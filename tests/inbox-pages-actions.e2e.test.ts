@@ -27,13 +27,13 @@ test("RAC-2518 RAC-2519 a held Inbox compose response survives hide and same-mou
   await inbox.click(`[data-inbox-compose] input[name=entry_id][value="${entry.entry_id}"]`);
   await inbox.evaluate("(()=>{const form=document.querySelector('[data-inbox-compose-form]');form.elements.title.value='同一份可继续编辑的草稿';form.elements.instructions.value='保留原材料边界';form.dispatchEvent(new Event('input',{bubbles:true}));})()");
   const barrier=await sendBarrier(b,[{urlPattern:"*/api/plugins/io.molis.work.inbox/pages",requestStage:"Response"}]);
-  const pages=openPagesStore(b.homeDirectory);
+  const pages=openPagesStore(b.homeDirectory, projectId!);
   try{
     await inbox.click('[data-inbox-compose-submit]');
     const held=await barrier.next(),request=JSON.parse(held.request.postData!);
     assert.equal(held.responseStatusCode,200);assert.ok(request.request_id);
-    assert.equal(pages.list(projectId!).length,1,"the real server committed before its response was withheld");
-    const originalDocument=pages.generation(projectId!,request.request_id)!.document_id!;
+    assert.equal(pages.list().length,1,"the real server committed before its response was withheld");
+    const originalDocument=pages.generation(request.request_id)!.document_id!;
     assert.equal(await inbox.evaluate("document.querySelector('[data-inbox-compose-form]').elements.title.disabled"),true);
     await inbox.click('[data-inbox-compose-close]');
     await b.click('[data-plugin-strip] [data-plugin-id=home]');
@@ -61,8 +61,8 @@ test("RAC-2518 RAC-2519 a held Inbox compose response survives hide and same-mou
     await inbox.click('[data-inbox-compose-submit]');
     await pagesClient.waitFor("document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('这份文稿只来自当前材料')");
     assert.equal(calls,1,"explicit retry reuses the already committed request without another generation");
-    assert.equal(pages.list(projectId!).length,1);assert.equal(pages.generations(projectId!).length,1);
-    assert.equal(pages.generation(projectId!,request.request_id)!.document_id,originalDocument);
+    assert.equal(pages.list().length,1);assert.equal(pages.generations().length,1);
+    assert.equal(pages.generation(request.request_id)!.document_id,originalDocument);
     assert.equal(feed.getInboxEntry(projectId!,entry.entry_id).status,"open");
   }finally{await barrier.close();pages.close();}
 });
@@ -108,10 +108,10 @@ for (const width of [1440, 390]) {
     // W5-01-SHM-01: Pages asks the model through the Runtime, which shows its public failure and keeps the injected provider message private.
     await inbox.waitFor("document.querySelector('[data-inbox-compose-status]').textContent.includes('模型请求失败，请重试')");
     assert.equal(await inbox.evaluate("document.querySelector('[data-inbox-compose-status]').textContent.includes('测试模型暂时不可用')"), false);
-    const pages = openPagesStore(homeDirectory);
+    const pages = openPagesStore(homeDirectory, projectId!);
     try {
-      const failed = pages.generations(projectId!)[0]!;
-      assert.equal(failed.status, "failed"); assert.equal(failed.error, "模型请求失败，请重试"); assert.equal(failed.inputs[0]!.item_id, item.item_id); assert.equal(pages.list(projectId!).length, 0);
+      const failed = pages.generations()[0]!;
+      assert.equal(failed.status, "failed"); assert.equal(failed.error, "模型请求失败，请重试"); assert.equal(failed.inputs[0]!.item_id, item.item_id); assert.equal(pages.list().length, 0);
       await reloadPage();
       await openInbox();
       await inbox.waitFor("document.querySelector('[data-inbox-compose-results]').textContent.includes('恢复处理')");
@@ -120,13 +120,13 @@ for (const width of [1440, 390]) {
       await inbox.click('[data-inbox-compose-submit]');
       await child.waitFor("document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('全文仍待核对')", 12_000);
       assert.equal(calls, 2);
-      const record = pages.generation(projectId!, failed.request_id)!;
-      assert.equal(record.status, "completed"); assert.equal(pages.list(projectId!).length, 1);
+      const record = pages.generation(failed.request_id)!;
+      assert.equal(record.status, "completed"); assert.equal(pages.list().length, 1);
       assert.equal(feed.getInboxEntry(projectId, entry.entry_id).status, "open");
       await child.evaluate(`(() => { const title = document.querySelector('[data-pages-title]'); title.value = '人工补充后的研究草稿'; title.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
       await child.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
-      assert.equal(pages.get(record.document_id!, projectId!).title, "人工补充后的研究草稿");
-      assert.match(JSON.stringify(pages.get(record.document_id!, projectId!).body), new RegExp(`/projects/${projectId}/`));
+      assert.equal(pages.get(record.document_id!).title, "人工补充后的研究草稿");
+      assert.match(JSON.stringify(pages.get(record.document_id!).body), new RegExp(`/projects/${projectId}/`));
       assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
       await showInbox();
       await inbox.click(inboxRow);

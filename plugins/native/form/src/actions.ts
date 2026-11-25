@@ -1,7 +1,7 @@
 import { objectSchema as object, arraySchema as array, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createFormDrafting, FORM_DRAFT_INPUT_SCHEMA, formDraftOutputSchema, type FormDraftRequest, type FormDraftResult } from "./drafting.js";
-import { bindActionHandler as bind, ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler as bind, ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, defineObjectExportAction, defineObjectPutAction, defineObjectRemoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FORM_ARTIFACT_TYPE_ID, FORM_ARTIFACT_SCHEMA_VERSION, FORM_PROJECT_PLUGIN_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord, type FormSubmissionSource } from "./contract.js";
 import type { promoteForm } from "./promote.js";
 import { formErrors } from "./error.js";
@@ -60,8 +60,13 @@ export const formActions = {
     object({ id }), object({ filename: text, mime_type: { const: "text/csv" }, content: text, count: { type: "integer", minimum: 0 } })),
   fillPage: define<{ id: string }, { filename: string; mime_type: "text/html"; content: string }>("fillpage", /* @version action.form.fillpage */ 1, "导出填写页文件", "生成一个独立的 HTML 填写页：对方在自己的浏览器里填写，得到答卷文件发回；页面不上传任何内容", "query",
     object({ id }), object({ filename: text, mime_type: { const: "text/html" }, content: text })),
-  move: defineObjectMoveAction("form.placement.move", /* @version action.form.placement.move */ 1, ["form"], "问卷", write),
-  copy: defineObjectCopyAction("form.placement.copy", /* @version action.form.placement.copy */ 1, ["form"], "问卷", write),
+  /**
+   * Where a form lives (specs/archive/work-placement): each partition keeps its own library, so placement carries a form across
+   * (export here, put there, then remove here for a move); the platform rolls the carry back if a step fails.
+   */
+  placementExport: defineObjectExportAction("form.placement.export", /* @version action.form.placement.export */ 1, ["form"], "问卷", read),
+  placementPut: defineObjectPutAction("form.placement.put", /* @version action.form.placement.put */ 1, ["form"], "问卷", write),
+  placementRemove: defineObjectRemoveAction("form.placement.remove", /* @version action.form.placement.remove */ 1, ["form"], "问卷", write),
   searchEntries: formSearchActions.entries,
   subject: formSearchActions.subject,
 };
@@ -94,60 +99,61 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
     bind(formActions.list, (_, caller) => read(store => {
       const ai = ports.modelAvailability(), permitted = formActions.draft.action.permissions.every(p => caller.permissions.includes(p))
         && (!caller.allowed_capability_ids || caller.allowed_capability_ids.includes(formActions.draft.capability_id));
-      return { forms: store.list(project(caller)), ai_available: ai.available && permitted, ai_unavailable_reason: !permitted ? "当前调用方未获 AI 加题权限" : !ai.available ? ai.reason : null };
+      return { forms: store.list(), ai_available: ai.available && permitted, ai_unavailable_reason: !permitted ? "当前调用方未获 AI 加题权限" : !ai.available ? ai.reason : null };
     })),
-    bind(formActions.get, (input, caller) => read(store => ({ form: store.get(input.id, project(caller)) }))),
-    bind(formActions.create, (input, caller) => write(caller, store => ({ form: store.create({ ...input, project_id: project(caller) }) }))),
-    bind(formActions.update, (input, caller) => write(caller, store => ({ form: store.update(input.id, input, project(caller)) }))),
-    bind(formActions.publish, (input, caller) => write(caller, store => ({ form: store.publish(input.id, project(caller), input.expected_version) }))),
-    bind(formActions.delete, (input, caller) => write(caller, store => { store.delete(input.id, project(caller), input.expected_version); return { ok: true }; })),
-    bind(formActions.generate, (input, caller) => write(caller, store => ({ form: store.generateQuestions(input.id, input.prompt, project(caller), input.expected_version) }))),
+    bind(formActions.get, (input) => read(store => ({ form: store.get(input.id) }))),
+    bind(formActions.create, (input, caller) => write(caller, store => ({ form: store.create(input) }))),
+    bind(formActions.update, (input, caller) => write(caller, store => ({ form: store.update(input.id, input) }))),
+    bind(formActions.publish, (input, caller) => write(caller, store => ({ form: store.publish(input.id, input.expected_version) }))),
+    bind(formActions.delete, (input, caller) => write(caller, store => { store.delete(input.id, input.expected_version); return { ok: true }; })),
+    bind(formActions.generate, (input, caller) => write(caller, store => ({ form: store.generateQuestions(input.id, input.prompt, input.expected_version) }))),
     bind(formActions.draft, async (input, caller) => {
-      const current = read(store => store.get(input.id, project(caller)));
+      const current = read(store => store.get(input.id));
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw formErrors.conflict("问卷已改变，请重新读取后生成");
       if (!drafting) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
       const result = await drafting.draft(input, current, caller);
       if (result.status !== "drafted") return result;
-      const form = await write(caller, store => store.update(input.id, { questions: [...current.questions, ...result.questions], expected_version: current.version }, project(caller)));
+      const form = await write(caller, store => store.update(input.id, { questions: [...current.questions, ...result.questions], expected_version: current.version }));
       drafting.forget(input.interaction?.interaction_id);
       return { status: "done" as const, form };
     }, { availability: () => ports.modelAvailability() }),
-    bind(formActions.submit, (input, caller) => write(caller, store => ({ submission: store.submit(input.id, input.answers, project(caller), { expectedVersion: input.expected_version, requestId: input.request_id, source: submissionSource(caller, input.source) }) }))),
-    bind(formActions.close, (input, caller) => write(caller, store => ({ form: store.closeCollection(input.id, project(caller), input.expected_version) }))),
-    bind(formActions.importAnswers, (input, caller) => write(caller, store => store.importAnswers(input.id, input.files, project(caller), { source: submissionSource(caller) }))),
-    bind(formActions.csv, (input, caller) => read(store => {
-      const form = store.get(input.id, project(caller));
-      const submissions = store.listSubmissions(input.id, project(caller));
+    bind(formActions.submit, (input, caller) => write(caller, store => ({ submission: store.submit(input.id, input.answers, { expectedVersion: input.expected_version, requestId: input.request_id, source: submissionSource(caller, input.source) }) }))),
+    bind(formActions.close, (input, caller) => write(caller, store => ({ form: store.closeCollection(input.id, input.expected_version) }))),
+    bind(formActions.importAnswers, (input, caller) => write(caller, store => store.importAnswers(input.id, input.files, { source: submissionSource(caller) }))),
+    bind(formActions.csv, (input) => read(store => {
+      const form = store.get(input.id);
+      const submissions = store.listSubmissions(input.id);
       return { filename: formResultsCsvFilename(form.title), mime_type: "text/csv" as const, content: formResultsCsv(form, submissions), count: submissions.length };
     })),
-    bind(formActions.fillPage, (input, caller) => read(store => {
-      const form = store.get(input.id, project(caller));
+    bind(formActions.fillPage, (input) => read(store => {
+      const form = store.get(input.id);
       if (!form.questions.length) throw formErrors.invalid("还没有题目，先加题再导出填写页");
       return { filename: formFillPageFilename(form.title), mime_type: "text/html" as const, content: formFillPageHtml(form) };
     })),
-    bindObjectMoveHandler(formActions.move, (input, caller) => write(caller, store => {
-      const form = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
-      return { subject: { kind: "form", id: form.id }, project_id: form.project_id, revision: String(form.version) };
-    })),
-    bindObjectCopyHandler(formActions.copy, (input, caller) => write(caller, store => {
-      const form = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
-      return { subject: { kind: "form", id: form.id }, project_id: form.project_id, revision: String(form.version) };
-    })),
-    bind(formActions.results, (input, caller) => read(store => {
-      const submissions = store.listSubmissions(input.id, project(caller));
+    bind(formActions.placementExport, input => read(store => store.exportRecord(input.subject.id))),
+    bind(formActions.placementPut, (input, caller) => {
+      if (input.kind !== "form") throw formErrors.invalid("这里只能放问卷");
+      return write(caller, store => {
+        const form = store.putRecord(input.record, input.request_id, input.target_id);
+        return { subject: { kind: "form", id: form.id }, project_id: form.project_id, revision: String(form.version) };
+      });
+    }),
+    bind(formActions.placementRemove, (input, caller) => write(caller, store => ({ subject: input.subject, removed: store.removeCarried(input.subject.id, input.revision) }))),
+    bind(formActions.results, (input) => read(store => {
+      const submissions = store.listSubmissions(input.id);
       return { analysis: { form_id: input.id, submission_count: submissions.length }, submissions };
     })),
     bind(formActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), { availability: publishable }),
     bind(formActions.artifactPin, async (input, caller) => { const { artifact, recovered } = await promote(input.subject_id, caller); return { artifact, recovered }; }, { availability: publishable }),
     bindArtifactContinue(formActions.artifactContinue, [FORM_ARTIFACT_TYPE_ID], (artifact, caller) => write(caller, store => {
-      const payload = (artifact.payload ?? {}) as Record<string, unknown>, at = project(caller);
-      const created = store.create({ title: typeof payload.title === "string" ? payload.title : artifact.title, project_id: at });
+      const payload = (artifact.payload ?? {}) as Record<string, unknown>;
+      const created = store.create({ title: typeof payload.title === "string" ? payload.title : artifact.title });
       // A version the editor cannot take leaves no empty 问卷 behind.
-      try { store.update(created.id, Object.fromEntries(["description", "questions"].filter(field => payload[field] !== undefined).map(field => [field, payload[field]])), at); }
-      catch (error) { store.delete(created.id, at); throw error; }
+      try { store.update(created.id, Object.fromEntries(["description", "questions"].filter(field => payload[field] !== undefined).map(field => [field, payload[field]]))); }
+      catch (error) { store.delete(created.id); throw error; }
       return { surface: FORM_PROJECT_PLUGIN_ID, id: created.id, title: created.title };
     })),
-    bindArtifactCompare(formActions.artifactCompare, FORM_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => read(store => store.get(id, project(caller)))),
+    bindArtifactCompare(formActions.artifactCompare, FORM_ARTIFACT_TYPE_ID, (id) => objectOrMissing(() => read(store => store.get(id))),
       (payload, object) => sameArtifactFields(payload, object, ["title", "description", "questions"]),
       // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.
       id => read(store => objectOrMissing(() => store.get(id)) !== null)),

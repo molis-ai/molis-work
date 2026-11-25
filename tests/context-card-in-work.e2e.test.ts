@@ -21,8 +21,8 @@ test("W3-A3a: a write chosen on the page goes into the open work that holds the 
   // Tall enough that the open conversation (it rises from the bar, over the right panel too since 36A-3) leaves the top of the
   // file preview clear: a passage the conversation covers gets no toolbar (context-bar's cover rule).
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1300, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const pages = openPagesStore(homeDirectory);
-  const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: TEXTS.map(paragraph) } }); } finally { pages.close(); } })();
+  const pages = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return pages.create({ title: "发布笔记", body: { type: "doc", content: TEXTS.map(paragraph) } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(TEXTS[2])})`);
   // The same document in the right panel's file preview, beside the Assistant's panel: what is selected there is in hand.

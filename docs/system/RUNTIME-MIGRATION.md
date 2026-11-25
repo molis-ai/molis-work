@@ -68,12 +68,12 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 
 | 插件 | 目录 `personal` | 实例 | 数据在哪 | 项目分区的 Home 数据 | 宿主适配文件（行数） |
 | --- | --- | --- | --- | --- | --- |
-| Form | 是 | 每个项目一个 | `{home}/form/form.db` | 有：表带 `project_id`（`plugins/native/form/src/store.ts`） | `form-actions.ts` 29、`form-native-plugin-http.ts` 19 |
-| Dataset | 是 | 每个项目一个 | `{home}/dataset/dataset.db` | 有（`plugins/native/dataset/src/store.ts`） | 29、19 |
-| PPT | 是 | 每个项目一个 | `{home}/ppt/ppt.db` | 有（`plugins/native/ppt/src/store.ts`） | 39、19 |
-| Pages | 是 | 每个项目一个 | `{home}/pages/pages.db` | 有（`plugins/native/pages/src/store.ts`） | 39、22 |
-| 灵光 | 是 | 每个项目一个 | `{home}/lingguang/lingguang.db` | 有（`plugins/native/lingguang/src/store.ts`） | 30、38 |
-| Workflows | 是 | 每个项目一个 | `{home}/workflows/workflows.db` | 有（`plugins/native/workflows/src/store.ts`） | 30、23 |
+| Form | 是 | 每个项目一个 | 每个分区一份：`<分区根>/libraries/form.db`（第 107 批起；之前是 `{home}/form/form.db`） | 没有：表里不再有 `project_id`，删项目时整份库随分区目录删掉（`databases.partition.deletion`） | `form-actions.ts` 29、`form-native-plugin-http.ts` 19 |
+| Dataset | 是 | 每个项目一个 | 每个分区一份：`<分区根>/libraries/dataset.db`（第 107 批起；之前是 `{home}/dataset/dataset.db`） | 没有：表里不再有 `project_id`，删项目时整份库随分区目录删掉（`databases.partition.deletion`） | 29、19 |
+| PPT | 是 | 每个项目一个 | 每个分区一份：`<分区根>/libraries/ppt.db`（第 107 批起；之前是 `{home}/ppt/ppt.db`） | 没有：表里不再有 `project_id`，删项目时整份库随分区目录删掉（`databases.partition.deletion`） | 39、19 |
+| Pages | 是 | 每个项目一个 | 每个分区一份：`<分区根>/libraries/pages.db`（第 107 批起；之前是 `{home}/pages/pages.db`） | 没有：表里不再有 `project_id`，删项目时整份库随分区目录删掉（`databases.partition.deletion`） | 39、22 |
+| 灵光 | 是 | 每个项目一个 | 每个分区一份：`<分区根>/libraries/lingguang.db`（第 107 批起；之前是 `{home}/lingguang/lingguang.db`） | 没有：表里不再有 `project_id`，删项目时整份库随分区目录删掉（`databases.partition.deletion`） | 30、38 |
+| Workflows | 是 | 每个项目一个 | 每个分区一份：`<分区根>/libraries/workflows.db`（第 107 批起；之前是 `{home}/workflows/workflows.db`） | 没有：表里不再有 `project_id`，删项目时整份库随分区目录删掉（`databases.partition.deletion`） | 30、23 |
 | Todo | 是 | Home 级 | `{home}/todo/todo.db` | 有：条目与批次带可空的 `project_id`，个人待办不带项目（`plugins/native/todo/src/store.ts`） | 26、22 |
 | Jelly | 是 | Home 级 | `{home}/jelly/jelly.db` | 没有（包里没有 `project_id`） | 36、32 |
 | Cognia | 是 | Home 级 | `{home}/cognia/cognia.db` | 没有 | 21、14 |
@@ -86,7 +86,7 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 
 - **Home 级实例**：提供方今天在 Home 级登记一次的（`apps/local-host/src/project-host.ts` 第 225–237 行用 `this.host.actionRegistry()`，不带项目；其中第 237 行 Shelf 个人库的提供方属混合插件，另算）：Todo、Jelly、Cognia、Images、Alchemist，共 5 个。
 - **每个项目一个实例**：提供方今天按项目登记的（同文件第 189–206 行，`this.host.actionRegistry(reference)`）：Form、Dataset、PPT、Pages、灵光、Workflows、Inbox、Schedule、Feed，共 9 个。监督器条目放在 `project-plugins.ts` 的 `startPlatform`，和 Shelf、Coding 一族一样。
-- **用户已确认（2026-10-10，防腐 spec §1）。** Form、Dataset、PPT、Pages、灵光、Workflows 每个项目一个 Runtime 实例，原 Home 库仍按项目分区；Todo、Jelly、Cognia、Images、Alchemist 是 Home 级实例。目录的 `personal` 仍只表示每个项目都可用，不决定实例作用域。
+- **用户已确认（2026-10-10，防腐 spec §1）。** Form、Dataset、PPT、Pages、灵光、Workflows 每个项目一个 Runtime 实例，原 Home 库仍按项目分区（第 107 批起改为每个分区一份自己的库，见 `docs/system/HOME-DATA.md` §3.1）；Todo、Jelly、Cognia、Images、Alchemist 是 Home 级实例。目录的 `personal` 仍只表示每个项目都可用，不决定实例作用域。
 
 **混合插件**（在 `RUNTIME_ASSEMBLED` 里，宿主却仍留着手写文件，门禁看不出来）：名单（`tests/builtin-plugin-assembly-gate.test.ts` 的 `HYBRID_RUNTIME_PLUGINS`）现在只剩 `goals`；Coding、Git、Shelf 已不再混合。Shelf 已收拢（S4，2026-10-23）：Home 与项目两半的动作和模型调用从 Shelf S2 起是 Runtime 实例（registration 的 `runtime: { scope: "home", dual_instance }`，项目提供方 #1018 已删），路由（`/api/platform/shelf/…`）从 S3 起只由插件声明，`shelf-native-plugin-http.ts` 已删；W6-01（#1168）删了 personal 适配桥，Alchemist 的 HTTP 改由 `apps/local-host/src/web-request.ts` 显式直连；S4 删了 `shelf-actions.ts`，演示数据的示例改由常驻宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回（PG-026-S1）。宿主替 Shelf 拼设置节（`web-catalog.ts` 按贡献 id 分支）不是 Shelf 名下的文件，归 PG-072。Characters 原来也是混合插件（宿主里有 `characters-host.ts` 等文件），现在走另一条路：并进宿主（第 5.4 节；CHR-1 已做，2026-10-22）。
 

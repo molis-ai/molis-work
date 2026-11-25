@@ -15,9 +15,9 @@ test("an open record keeps a readable width when the side panel narrows the stag
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 860, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  const store = openPagesStore(homeDirectory);
+  const store = openPagesStore(homeDirectory, projectId!);
   const page = (() => { try {
-    return store.create({ project_id: projectId!, title: "发布筹备摘要", body: { type: "doc", content: [paragraph("小王周五前把新版方案发给张总。预算等小李确认后再定。")] } });
+    return store.create({ title: "发布筹备摘要", body: { type: "doc", content: [paragraph("小王周五前把新版方案发给张总。预算等小李确认后再定。")] } });
   } finally { store.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor("document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('小王周五前')");

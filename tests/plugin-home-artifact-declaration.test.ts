@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import test from "node:test";
 import { runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
-import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { probeAction, registerProbe } from "./fixtures/plugin-home-artifact-probe.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -18,5 +18,5 @@ test("BSH-02 · the real Host refuses a registered root with a mutable foreign-k
   await assert.rejects(home.host.actionClient(project.reference).invoke(caller, probeAction, {}), { code: "actions.missing" });
   assert.equal(await home.host.withProject(project.reference, runtime => runningProjectPlatform(runtime.store, project.project_id)), null);
   assert.equal(started, false);
-  assert.equal(existsSync(homeSqlitePath(home.home, "dataset")), false);
+  assert.equal(existsSync(partitionLibraryFile(home.home, project.project_id, "dataset")), false);
 });

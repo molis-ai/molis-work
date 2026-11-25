@@ -8,8 +8,7 @@ import { LocalActionGatewayClient, LocalProjectDatabase, MolisWorkLocalHost, ope
 import { createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parseCsv } from "@molis-ai/molis-work-plugin-dataset";
-import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openDatasetStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 
 // One Home has one execution owner, the resident Host (Dataset runs on its Plugin Runtime, W5-01): each external tool is an MCP
@@ -76,7 +75,7 @@ test("W5-01-DATASET-02: Dataset standard MCP preserves tables and publications a
   dataset = (await call(writer, "rollback", { id: dataset.id, version_id: version.id, expected_version: dataset.version })).dataset;
   assert.deepEqual(dataset.columns, original.columns); assert.deepEqual(dataset.rows, original.rows);
   assert.equal((await call(reader, "versions", { id: dataset.id })).versions[0].id, version.id);
-  const db = openHomeSqliteDatabase(home, "dataset");
+  const db = openPartitionLibraryDatabase(home, a.project_id, "dataset");
   try {
     const sentinel = (await call(writer, "create", { title: "Constraint fixture" })).dataset;
     const fixedSentinel = (await call(writer, "promote", { id: sentinel.id, expected_version: sentinel.version })).dataset;
@@ -103,8 +102,8 @@ test("W5-01-DATASET-02: Dataset standard MCP preserves tables and publications a
     assert.deepEqual((artifact.payload as { rows: unknown[] }).rows, original.rows);
     assert.equal(library.artifacts.query.getArtifactVersion(a.project_id, { artifact_id: recovered.artifact.artifact_id, version: 2 }), null);
   } finally { project.close(); }
-  const store = openDatasetStore(home);
-  try { assert.deepEqual(store.get(dataset.id, a.project_id), recovered.dataset); } finally { store.close(); }
+  const store = openDatasetStore(home, a.project_id);
+  try { assert.deepEqual(store.get(dataset.id), recovered.dataset); } finally { store.close(); }
   await call(writer, "delete", { id: dataset.id, expected_version: recovered.dataset.version });
   assert.deepEqual((await call(reader, "list")).datasets, []);
 });

@@ -1,7 +1,7 @@
 import { objectSchema as object, arraySchema as array, createActionDefinition, type InferActionInput } from "@molis-ai/molis-work-plugin-sdk";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createHash, randomUUID } from "node:crypto";
-import { ActionError, DOCUMENT_GENERATION_PROTOCOL, retainActionAuthority, FRAGMENT_ANY_OBJECT, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, defineArtifactReferrersAction, linksToArtifactVersion, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, DOCUMENT_GENERATION_PROTOCOL, retainActionAuthority, FRAGMENT_ANY_OBJECT, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, defineArtifactReferrersAction, linksToArtifactVersion, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectExportAction, defineObjectPutAction, defineObjectRemoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { IMPORTED_DOCUMENT_READ_TYPES, IMPORTED_DOCUMENT_TYPE, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createPagesCommentHandlers, pagesCommentActions } from "./comment-actions.js";
 import { createPagesLandingHandlers, definePagesLandingActions } from "./landing-actions.js";
@@ -143,9 +143,13 @@ export const pagesActions = {
     file: { extensions: PAGES_READABLE_EXTENSIONS, stored_text: true } }), { scheduling: "concurrent" }),
   /** 「被谁引用」 (artifact-positioning 五.1): documents whose text links to a version in the 成果库. */
   artifactReferrers: defineArtifactReferrersAction("pages.artifacts.referrers", /* @version action.pages.artifacts.referrers */ 1, "文档", read),
-  /** Where a document lives (specs/archive/work-placement): moving keeps its id; copying makes an independent document. */
-  move: defineObjectMoveAction("pages.placement.move", /* @version action.pages.placement.move */ 1, [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
-  copy: defineObjectCopyAction("pages.placement.copy", /* @version action.pages.placement.copy */ 1, [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
+  /**
+   * Where a document lives (specs/archive/work-placement): each partition keeps its own library, so placement carries a document across
+   * with these three parts. A move keeps its id; a copy is an independent document.
+   */
+  placementExport: defineObjectExportAction("pages.placement.export", /* @version action.pages.placement.export */ 1, [PAGES_SUBJECT_KIND], "文档", read),
+  placementPut: defineObjectPutAction("pages.placement.put", /* @version action.pages.placement.put */ 1, [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
+  placementRemove: defineObjectRemoveAction("pages.placement.remove", /* @version action.pages.placement.remove */ 1, [PAGES_SUBJECT_KIND], "文档", [...read, ...write]),
   list: define<Record<string, never>, { documents: PagesRecord[]; folders: PagesFolder[] }>("list", /* @version action.pages.list */ 1, "文档列表", "读取当前项目全部文档和文件夹", "query", object({}), object({ documents: array(page), folders: array(folder) }), read),
   templates: define<Record<string, never>, { templates: ReturnType<typeof pagesTemplateSummaries> }>("templates", /* @version action.pages.templates */ 1, "文档模板", "查看可以用于创建文档的内置模板", "query", object({}), object({ templates: array(object({ id, title: text, summary: text })) }), read),
   get: withAction(define<{ id: string }, { document: PagesRecord }>("get", /* @version action.pages.get */ 1, "读取文档", "读取当前项目里的一篇文档（标题、正文、所在文件夹和版本号）；只读。之后修改它时要带这里的 version", "query", object({ id }), object({ document: page }), read), DOCUMENT_GENERATION_PROTOCOL["document.get"]),
@@ -207,8 +211,8 @@ export interface PagesActionPorts extends PagesStores {
   promote?(id: string, expectedVersion?: number, goalId?: string): ReturnType<typeof promotePagesDocument>;
 }
 
-function diffFixedVersions(ports: PagesActionPorts, input: InferActionInput<typeof artifactDiffInput>, projectId: string): PagesVersionDiffResult {
-  ports.read(store => store.get(input.id, projectId));
+function diffFixedVersions(ports: PagesActionPorts, input: InferActionInput<typeof artifactDiffInput>): PagesVersionDiffResult {
+  ports.read(store => store.get(input.id));
   if (input.before_version === input.after_version) throw pagesErrors.invalid("请选择两个不同的固定版本");
   const before = ports.readFixedVersion?.(input.id, input.before_version);
   const after = ports.readFixedVersion?.(input.id, input.after_version);
@@ -252,25 +256,25 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
   };
   const publishable = () => ports.promote ? { available: true as const } : { available: false as const, code: "pages.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   return [...createPagesCommentHandlers(ports), ...createPagesLandingHandlers(pagesLandingActions, ports),
-    bindPresentationValuesHandler(pagesActions.presentation, (input, caller) => ports.read(store => store.presentationValues(project(caller), input))),
+    bindPresentationValuesHandler(pagesActions.presentation, (input) => ports.read(store => store.presentationValues(input))),
     // The whole document (整篇) is prepared from its stored text; preparing never writes.
-    bind(pagesActions.fragmentOffers, (input, caller) => ({ offers: preparePagesFragmentOffers(input, PAGES_SUBJECT_KIND, undefined, id => ports.read(store => {
-      try { return String(actionFieldValue("body", store.get(id, project(caller)).body) ?? ""); } catch { return null; }
+    bind(pagesActions.fragmentOffers, (input) => ({ offers: preparePagesFragmentOffers(input, PAGES_SUBJECT_KIND, undefined, id => ports.read(store => {
+      try { return String(actionFieldValue("body", store.get(id).body) ?? ""); } catch { return null; }
     })) })),
     bind(pagesActions.intakeOffers, input => ({ offers: preparePagesIntakeOffers(input) })),
-    bind(pagesActions.subject, (input, caller) => ports.read(store => {
+    bind(pagesActions.subject, (input) => ports.read(store => {
       let document: PagesRecord;
-      try { document = store.get(input.subject_id, project(caller)); }
+      try { document = store.get(input.subject_id); }
       catch (error) { throw (error as { code?: string }).code === "pages.not_found" ? pagesErrors.not_found("文档不存在或已删除") : error; }
       return subjectContext({ subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档",
         content: actionFieldValue("body", document.body), attached_to: document.goal_id ? [{ kind: "goal", id: document.goal_id }] : [], open: { surface: "pages", id: document.id } }, input);
     })),
-    bindSearchEntriesHandler(pagesActions.searchEntries, caller => ports.read(store => store.list(project(caller)).map(document => ({
+    bindSearchEntriesHandler(pagesActions.searchEntries, () => ports.read(store => store.list().map(document => ({
       subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档", summary: "",
       updated_at: document.updated_at, content: "context" as const, open: { surface: "pages", id: document.id } })))),
-    bindFileEntriesHandler(pagesActions.fileEntries, caller => ports.read(store => {
-      const folders = new Map(store.listFolders(project(caller)).map(folder => [folder.id, folder.title]));
-      return store.list(project(caller)).map(document => ({
+    bindFileEntriesHandler(pagesActions.fileEntries, () => ports.read(store => {
+      const folders = new Map(store.listFolders().map(folder => [folder.id, folder.title]));
+      return store.list().map(document => ({
         subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档",
         folder: document.folder_id && folders.get(document.folder_id) ? [folders.get(document.folder_id)!] : [], media_type: "text/markdown",
         size: null, updated_at: document.updated_at, open: { surface: "pages", id: document.id } }));
@@ -282,40 +286,41 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       const title = typeof payload.title === "string" && payload.title ? payload.title : artifact.title;
       return { media_type: "text/markdown", text: `# ${title}\n\n${nodesToMarkdown(nodes).trim()}\n` };
     }),
-    bind(pagesActions.fileContent, (input, caller) => ports.read(store => {
+    bind(pagesActions.fileContent, (input) => ports.read(store => {
       let document: PagesRecord;
-      try { document = store.get(input.subject.id, project(caller)); }
+      try { document = store.get(input.subject.id); }
       catch (error) { throw (error as { code?: string }).code === "pages.not_found" ? pagesErrors.not_found("文档不存在或已删除") : error; }
       const nodes: Array<Parameters<typeof nodesToMarkdown>[0][number]> = [];
       nodeFromUnknown(document.body).forEach(node => { nodes.push(node); });
       const title = document.title || "未命名文档";
       return fileContentOf({ subject: input.subject, revision: String(document.version), title, media_type: "text/markdown", text: `# ${title}\n\n${nodesToMarkdown(nodes).trim()}\n` });
     })),
-    bindObjectMoveHandler(pagesActions.move, (input, caller) => ports.write(caller, store => {
-      const document = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
-      return { subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, project_id: document.project_id, revision: String(document.version) };
-    })),
-    bindObjectCopyHandler(pagesActions.copy, (input, caller) => ports.write(caller, store => {
-      const document = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
-      return { subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, project_id: document.project_id, revision: String(document.version) };
-    })),
-    bind(pagesActions.list, (_, caller) => ports.read(store => ({ documents: store.list(project(caller)), folders: store.listFolders(project(caller)) }))),
+    bind(pagesActions.placementExport, (input, caller) => { project(caller); return ports.read(store => store.exportRecord(input.subject.id)); }),
+    bind(pagesActions.placementPut, (input, caller) => {
+      if (input.kind !== PAGES_SUBJECT_KIND) throw pagesErrors.invalid("这里只能放文档");
+      return ports.write(caller, store => {
+        const document = store.putRecord(input.record, input.request_id, input.target_id);
+        return { subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, project_id: project(caller), revision: String(document.version) };
+      });
+    }),
+    bind(pagesActions.placementRemove, (input, caller) => ports.write(caller, store => ({ subject: input.subject, removed: store.removeCarried(input.subject.id, input.revision) }))),
+    bind(pagesActions.list, (_) => ports.read(store => ({ documents: store.list(), folders: store.listFolders() }))),
     bind(pagesActions.templates, () => ({ templates: pagesTemplateSummaries() })),
-    bind(pagesActions.get, (input, caller) => ports.read(store => ({ document: store.get(input.id, project(caller)) }))),
-    bind(pagesActions.create, ({ request_id, ...rest }, caller) => ports.write(caller, store => createPagesDocument(store, { ...written(rest, caller, true), project_id: project(caller) }, request_id))),
+    bind(pagesActions.get, (input) => ports.read(store => ({ document: store.get(input.id) }))),
+    bind(pagesActions.create, ({ request_id, ...rest }, caller) => ports.write(caller, store => createPagesDocument(store, written(rest, caller, true), request_id))),
     bind(pagesActions.update, (input, caller) => ports.write(caller, store => {
       // The person's own editing (the Pages page, autosave) needs no taking back; what an agent or workflow changed does.
-      if (caller.audience === "user") return { document: store.update(input.id, written(input, caller), project(caller)), change_id: null };
-      const before = store.get(input.id, project(caller));
-      const document = store.update(input.id, written(input, caller), project(caller));
+      if (caller.audience === "user") return { document: store.update(input.id, written(input, caller)), change_id: null };
+      const before = store.get(input.id);
+      const document = store.update(input.id, written(input, caller));
       return { document, change_id: store.keepChange(before, document) };
     })),
-    bind(pagesActions.revert, (input, caller) => ports.write(caller, store => ({ document: store.revertChange(input.change_id, project(caller)) }))),
-    bind(pagesActions.delete, (input, caller) => ports.write(caller, store => { store.delete(input.id, project(caller)); return { ok: true }; })),
-    bind(pagesActions.discard, (input, caller) => ports.write(caller, store => { store.discard(input.id, input.expected_version, project(caller)); return { ok: true }; })),
-    bind(pagesActions.createFolder, (input, caller) => ports.write(caller, store => ({ folder: store.createFolder({ ...input, project_id: project(caller) }) }))),
-    bind(pagesActions.updateFolder, (input, caller) => ports.write(caller, store => ({ folder: store.updateFolder(input.id, input, project(caller)) }))),
-    bind(pagesActions.deleteFolder, (input, caller) => ports.write(caller, store => { store.deleteFolder(input.id, project(caller)); return { ok: true }; })),
+    bind(pagesActions.revert, (input, caller) => ports.write(caller, store => ({ document: store.revertChange(input.change_id) }))),
+    bind(pagesActions.delete, (input, caller) => ports.write(caller, store => { store.delete(input.id); return { ok: true }; })),
+    bind(pagesActions.discard, (input, caller) => ports.write(caller, store => { store.discard(input.id, input.expected_version); return { ok: true }; })),
+    bind(pagesActions.createFolder, (input, caller) => ports.write(caller, store => ({ folder: store.createFolder(input) }))),
+    bind(pagesActions.updateFolder, (input, caller) => ports.write(caller, store => ({ folder: store.updateFolder(input.id, input) }))),
+    bind(pagesActions.deleteFolder, (input, caller) => ports.write(caller, store => { store.deleteFolder(input.id); return { ok: true }; })),
     bind(pagesActions.previewImport, (input, caller) => prepareImport(input.files, caller)),
     bind(pagesActions.import, async (input, caller) => {
       const prepared = await prepareImport(input.files, caller);
@@ -324,13 +329,13 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       const documents = prepared.documents.filter(document => input.selected_keys.includes(document.key));
       const folder_id = input.folder_id?.trim() ?? "";
       const request_hash = createHash("sha256").update(JSON.stringify({ files: input.files, selected_keys: [...input.selected_keys].sort(), folder_id })).digest("hex");
-      return ports.write(caller, store => ({ documents: store.importDocuments({ project_id: project(caller), request_id: input.request_id.toLowerCase(), request_hash, folder_id, documents }),
+      return ports.write(caller, store => ({ documents: store.importDocuments({ request_id: input.request_id.toLowerCase(), request_hash, folder_id, documents }),
         warnings: [...new Set([...prepared.warnings, ...documents.flatMap(document => document.warnings)])] }));
     }),
     bindArtifactContinue(pagesActions.artifactContinue, [PAGES_ARTIFACT_TYPE_ID, IMPORTED_DOCUMENT_TYPE], async (artifact, caller) => {
       if (artifact.artifact_type_id === PAGES_ARTIFACT_TYPE_ID) {
         const payload = (artifact.payload ?? {}) as { title?: unknown; body?: unknown };
-        const document = await ports.write(caller, store => store.create({ project_id: project(caller), title: typeof payload.title === "string" ? payload.title : artifact.title, body: parsePagesBody(payload.body) }));
+        const document = await ports.write(caller, store => store.create({ title: typeof payload.title === "string" ? payload.title : artifact.title, body: parsePagesBody(payload.body) }));
         return { surface: "pages", id: document.id, title: document.title };
       }
       // An imported file Pages can read is parsed the way Pages imports files.
@@ -339,43 +344,42 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       const documents = prepared.documents;
       if (!documents.length) throw pagesErrors.invalid("这一版没有可以继续的正文");
       const request_hash = createHash("sha256").update(JSON.stringify({ files, selected_keys: documents.map(document => document.key).sort(), folder_id: "" })).digest("hex");
-      const [first] = await ports.write(caller, store => store.importDocuments({ project_id: project(caller), request_id: randomUUID(), request_hash, folder_id: "", documents }));
+      const [first] = await ports.write(caller, store => store.importDocuments({ request_id: randomUUID(), request_hash, folder_id: "", documents }));
       return { surface: "pages", id: first!.id, title: first!.title };
     }),
-    bind(pagesActions.artifactReferrers, (input, caller) => ports.read(store => ({ referrers: store.list(project(caller))
+    bind(pagesActions.artifactReferrers, (input) => ports.read(store => ({ referrers: store.list()
       .filter(document => linksToArtifactVersion(document.body, input.reference))
       .map(document => ({ subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, title: document.title || "未命名文档", open: { surface: "pages", id: document.id } })) }))),
     bind(pagesActions.bodyFromMarkdown, ({ markdown }) => ({ body: bodyFromMarkdown(markdown) })),
-    bind(pagesActions.importDocuments, (input, caller) => ports.write(caller, store => ({ documents: store.importDocuments({ ...input, project_id: project(caller) }) }))),
+    bind(pagesActions.importDocuments, (input, caller) => ports.write(caller, store => ({ documents: store.importDocuments(input) }))),
     bind(pagesOnboardingDocuments, (input, caller) => importOnboardingDocuments(input, { convert: bodyFromMarkdown,
-      importPart: async (request_id, request_hash, document) => (await ports.write(caller, store => store.importDocuments({ project_id: project(caller), request_id, request_hash, documents: [document] })))[0]! })),
-    bind(pagesActions.generations, (_, caller) => ports.read(store => ({ records: store.generations(project(caller)) }))),
-    bind(pagesActions.generation, (input, caller) => ports.read(store => ({ record: store.generation(project(caller), input.request_id) }))),
+      importPart: async (request_id, request_hash, document) => (await ports.write(caller, store => store.importDocuments({ request_id, request_hash, documents: [document] })))[0]! })),
+    bind(pagesActions.generations, (_) => ports.read(store => ({ records: store.generations() }))),
+    bind(pagesActions.generation, (input) => ports.read(store => ({ record: store.generation(input.request_id) }))),
     bind(pagesActions.generate, (input, caller) => {
-      const units = input.inputs.reduce((sum, item) => sum + item.body.length, 0), promptMaterials = promptMaterialsOf(input.inputs, ports.read(store => store.generation(project(caller), input.request_id)), input.request_hash);
+      const units = input.inputs.reduce((sum, item) => sum + item.body.length, 0), promptMaterials = promptMaterialsOf(input.inputs, ports.read(store => store.generation(input.request_id)), input.request_hash);
       // A character is at most two UTF-16 units, so over 200,000 units is always over 100,000 characters: only the middle band is expanded and counted.
       if (units > 200_000 || (units > 100_000 && input.inputs.reduce((sum, item) => sum + [...item.body].length, 0) > 100_000) || (promptMaterials !== null && !materialsJsonFits(promptMaterials))) throw pagesErrors.invalid("材料过长，请减少所选条目");
       const record: PagesGenerationRecord = { ...input, project_id: project(caller), status: "running", document_id: null, error: null, updated_at: new Date().toISOString() };
       return generatePagesFromMaterials(ports, caller, record, ports.complete ? prompt => ports.complete!(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect }) : undefined);
     }, () => ports.modelAvailability()),
     bind(pagesActions.ai, async (input, caller) => {
-      const snapshot = ports.read(store => store.get(input.id, project(caller)));
+      const snapshot = ports.read(store => store.get(input.id));
       if (input.expected_version !== undefined && snapshot.version !== input.expected_version) throw pagesErrors.conflict("文档已改变，请重新读取后生成");
       caller.signal?.throwIfAborted();
       const result = await runPagesAi(input, ports.complete ? async prompt => (await ports.complete!(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect })).text : undefined);
       caller.signal?.throwIfAborted();
-      const current = ports.read(store => store.get(input.id, project(caller)));
+      const current = ports.read(store => store.get(input.id));
       if (current.version !== snapshot.version) throw pagesErrors.conflict("生成期间文档已改变，请重新生成");
       return result;
     }, () => ports.modelAvailability()),
     bind(pagesActions.promote, (input, caller) => promote(input.id, caller, input.goal_id, input.expected_version), publishable),
     bind(pagesActions.artifactPin, async (input, caller) => { const { artifact, recovered } = await promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
-    bind(pagesActions.artifactDiff, (input, caller) => diffFixedVersions(ports, input, project(caller))),
-    bindArtifactCompare(pagesActions.artifactCompare, PAGES_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.read(store => store.get(id, project(caller)))),
-      (payload, object) => sameArtifactFields(payload, object, ["title", "body"]),
-      // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.
-      id => ports.read(store => objectOrMissing(() => store.get(id)) !== null)),
-    bind(pagesActions.extract, (input, caller) => ports.write(caller, store => store.extract(input.id, project(caller)))),
+    bind(pagesActions.artifactDiff, (input) => diffFixedVersions(ports, input)),
+    bindArtifactCompare(pagesActions.artifactCompare, PAGES_ARTIFACT_TYPE_ID, (id) => objectOrMissing(() => ports.read(store => store.get(id))),
+      // A document moved to another partition is not in this library: the 成果库 asks placement whether it moved (`artifact-library-http.ts`).
+      (payload, object) => sameArtifactFields(payload, object, ["title", "body"])),
+    bind(pagesActions.extract, (input, caller) => ports.write(caller, store => store.extract(input.id))),
   ];
 }
 

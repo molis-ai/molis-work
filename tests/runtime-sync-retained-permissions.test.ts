@@ -11,10 +11,10 @@ test('retained versions and conflicts cannot expose a hidden project through ano
  const projects=await withMolisWorkProjectCatalog({homeDirectory:f.homes[0]},async catalog=>[await catalog.createProject({display_name:'Hidden later',actor_id:'alice'}),await catalog.createProject({display_name:'Still visible',actor_id:'alice'})]);
  await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},async catalog=>{for(const project of projects)await catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},()=>{});});
  const source=await runtimePersonalSync(f.homes[0],f.space),target=await runtimePersonalSync(f.homes[1],f.space);f.closeWith(()=>source.close());f.closeWith(()=>target.close());
- const namespace=syncNamespace(pagesSyncSelection),pages=projects.map(project=>f.withStore(0,store=>store.create({project_id:project.project_id,title:'Base '+project.display_name})));
+ const namespace=syncNamespace(pagesSyncSelection),pages=projects.map(project=>f.withStore(0,store=>store.create({title:'Base '+project.display_name}),project.project_id));
  await source.sync.save({...source.sync.policy(),selections:[pagesSyncSelection]});await source.sync.run();await target.sync.run();
  const conflict=async(index:number)=>{
-  const page=pages[index]!;f.withStore(0,store=>store.update(page.id,{title:'Remote secret '+index}));f.withStore(1,store=>store.update(page.id,{title:'Local secret '+index}));
+  const page=pages[index]!,partition=projects[index]!.project_id;f.withStore(0,store=>store.update(page.id,{title:'Remote secret '+index}),partition);f.withStore(1,store=>store.update(page.id,{title:'Local secret '+index}),partition);
   await source.sync.run();await target.sync.run();return target.sync.status().collections.find(row=>syncNamespace(row.selection)===namespace)!.conflicts.find(row=>row.key.includes(page.id))!;
  };
  for(const index of [0,1]){const row=await conflict(index);assert.ok(row);await target.sync.resolve(namespace,row.key,'remote');}

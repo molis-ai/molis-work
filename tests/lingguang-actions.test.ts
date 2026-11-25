@@ -6,8 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { lingguangActions as actions, lingguangContentActions as content, LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
-import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openLingguangStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -54,9 +53,9 @@ test("RAC-32 all Lingguang business actions register before UI, enforce identity
     const edited = (await bound.invoke(actions.update, { id: spark.id, body: "Edited", expected_updated_at: spark.updated_at })).spark;
     await assert.rejects(bound.invoke(actions.update, { id: spark.id, body: "Lost update", expected_updated_at: spark.updated_at }), { code: "lingguang.conflict" });
     assert.equal((await bound.invoke(actions.get, { id: spark.id })).spark.body, "Edited");
-    const store = openLingguangStore(home);
+    const store = openLingguangStore(home, "b");
     let foreign: string;
-    try { foreign = store.create({ project_id: "b", body: "Another project" }).id; } finally { store.close(); }
+    try { foreign = store.create({ body: "Another project" }).id; } finally { store.close(); }
     await assert.rejects(bound.invoke(actions.discard, { ids: [spark.id, foreign] }), { code: "lingguang.not_found" });
     assert.equal((await bound.invoke(actions.get, { id: spark.id })).spark.status, "inbox", "batch failure is atomic");
     await bound.invoke(actions.discard, { ids: [received.subject.id] });
@@ -87,7 +86,7 @@ test("dialogue consumes selected sparks and history, preserves old stub rows and
     const { spark } = await bound.invoke(actions.create, { title: "Window", body: "Light at three o'clock" });
     const state = await bound.invoke(actions.openConversation, { spark_ids: [spark.id] });
     const id = state.conversation.id;
-    const db = openHomeSqliteDatabase(home, "lingguang");
+    const db = openPartitionLibraryDatabase(home, "a", "lingguang");
     try { db.prepare("INSERT INTO messages (id, conversation_id, role, body, created_at) VALUES (?, ?, ?, ?, ?)").run("legacy", id, "stub", "先记着：旧占位记录", state.conversation.created_at); } finally { db.close(); }
     const first = await bound.invoke(actions.message, { id, body: "What could I observe?" });
     assert.deepEqual(first.messages.map(row => row.role), ["stub", "user", "assistant"]);
@@ -97,9 +96,9 @@ test("dialogue consumes selected sparks and history, preserves old stub rows and
     await bound.invoke(actions.message, { id, body: "And tomorrow?" });
     const next = conversationMaterial(prompts[1]!);
     assert.deepEqual(next.history, [{ role: "user", body: "What could I observe?" }, { role: "assistant", body: "Observe the moving shadow." }]);
-    const store = openLingguangStore(home);
+    const store = openLingguangStore(home, "b");
     let otherId: string;
-    try { const other = store.create({ project_id: "b", title: "Private" }); otherId = store.openConversation([other.id], "b").conversation.id; } finally { store.close(); }
+    try { const other = store.create({ title: "Private" }); otherId = store.openConversation([other.id]).conversation.id; } finally { store.close(); }
     await assert.rejects(bound.invoke(actions.message, { id: otherId, body: "Unauthorized" }), { code: "lingguang.not_found" });
     await assert.rejects(bound.invoke(actions.message, { id, body: "   " }), { code: "actions.input_invalid" });
     await bound.invoke(actions.discard, { ids: [spark.id] });
@@ -134,11 +133,11 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "discard", 
         if (mode === "cancel") controller.abort();
         else {
           // A second connection models another Host/process editing during generation.
-          const store = openLingguangStore(home);
+          const store = openLingguangStore(home, "a");
           try {
-            if (mode === "edit") store.update(spark.id, { body: "Changed by another window" }, "a");
-            else if (mode === "discard") store.discard([spark.id], "a");
-            else store.addReply(conversation.id, "Other question", "Other reply", "a", store.conversation(conversation.id, "a"));
+            if (mode === "edit") store.update(spark.id, { body: "Changed by another window" });
+            else if (mode === "discard") store.discard([spark.id]);
+            else store.addReply(conversation.id, "Other question", "Other reply", store.conversation(conversation.id));
           } finally { store.close(); }
         }
         release();

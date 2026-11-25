@@ -20,8 +20,8 @@ async function openNotes(t: test.TestContext, content: object[] = [paragraph(FIR
   const child = await pluginFrameBrowser(t, browser, "pages");
   const { command, sessionId, navigate, waitFor, origin, projectId, homeDirectory } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const pages = openPagesStore(homeDirectory);
-  const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content } }); } finally { pages.close(); } })();
+  const pages = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return pages.create({ title: "发布笔记", body: { type: "doc", content } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(ready)})`);
   const related = () => browser.evaluate<Array<{ work_id: string; relation: string }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/related?kind=pages_document&id=' + ${JSON.stringify(page.id)}, { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => body.works)`);
@@ -244,8 +244,8 @@ test("STRIP-05: a round is told the landing once its owner reads the object agai
   for (const fact of ["左边可以放进去的位置", "对象：发布笔记", "「步骤」下，光标处", "位置之前的原文", "第二步，", "位置之后的原文", "写出离线记录的方案"]) assert.ok(asked(0).includes(fact), `the round is told ${fact}`);
 
   // The document is gone from its owner: the page still reports the landing, the Host reads nothing and tells nothing.
-  const pages = openPagesStore(homeDirectory);
-  try { pages.delete(page.id, projectId!); } finally { pages.close(); }
+  const pages = openPagesStore(homeDirectory, projectId!);
+  try { pages.delete(page.id); } finally { pages.close(); }
   await evaluate("document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { new: true } }))");
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(STRIP + " .is-optional .assistant-strip-act")}))`, 10_000);
   await evaluate(`document.querySelector(${JSON.stringify(STRIP + " .is-optional .assistant-strip-act")}).click()`);

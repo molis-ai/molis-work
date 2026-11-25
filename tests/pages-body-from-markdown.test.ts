@@ -39,11 +39,11 @@ test("RAC-615 the body the action returns is the one Pages' own Markdown reader 
 
 test("RAC-615 the action reads and writes no document", async () => {
   await fixture(async ({ as, home }) => {
-    const before = openPagesStore(home);
-    try { assert.equal(before.list("a").length, 0); } finally { before.close(); }
+    const before = openPagesStore(home, "a");
+    try { assert.equal(before.list().length, 0); } finally { before.close(); }
     await as("user").invoke(pagesActions.bodyFromMarkdown, { markdown: "# Only converted" });
-    const after = openPagesStore(home);
-    try { assert.equal(after.list("a").length, 0, "no document was made"); } finally { after.close(); }
+    const after = openPagesStore(home, "a");
+    try { assert.equal(after.list().length, 0, "no document was made"); } finally { after.close(); }
     assert.equal(pagesActions.bodyFromMarkdown.operation, "query");
     assert.deepEqual(pagesActions.bodyFromMarkdown.action.permissions, ["pages:read"]);
   });

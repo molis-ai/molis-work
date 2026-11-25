@@ -6,7 +6,7 @@ export { PPT_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 export { pptContentActions, pptMarkdown, slidesFromMarkdown, createPptContentHandlers } from "./content-actions.js";
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, pptManifest } from "./manifest.js";
-export { ownPptStores, PptStore, PPT_DATABASE, PPT_HOME_STORE } from "./store.js";
+export { ownPptStores, PptStore, PPT_DATABASE } from "./store.js";
 export { createPptPlugin } from "./plugin.js";
 export type { PptSql, PptSqlValue, PptStores } from "./store.js";
 export { pptErrors } from "./error.js";

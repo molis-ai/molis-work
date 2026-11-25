@@ -62,8 +62,8 @@ test("IUI-07 IUI-08 IUI-26: a real Home card can choose a project and a receiver
   await select(choice, "Pages");
   await b.click(dialog + ' [data-position-offer="confirm"]');
   await b.waitFor(`${q("[data-toast]")}?.textContent.includes("已转成") && !${q(dialog)}`);
-  const pages = openPagesStore(b.homeDirectory);
-  try { assert.ok(pages.list(projectId).some(page => page.title === title)); } finally { pages.close(); }
+  const pages = openPagesStore(b.homeDirectory, projectId);
+  try { assert.ok(pages.list().some(page => page.title === title)); } finally { pages.close(); }
   assert.ok(await b.evaluate(`${q(row)}?.textContent.includes(${JSON.stringify(title)})`));
   assert.deepEqual(confirms, [prefix + "/api/host/surface-home", prefix + "/api/host/surface-home"]);
 });

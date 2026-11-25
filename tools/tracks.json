@@ -1243,6 +1243,18 @@
 "status": "定",
 "basis": "tracks.md 逐项表"
 },
+"48-6": {
+"title": "创作能力经动作目录提供",
+"main": "C3",
+"also": [
+"C1",
+"A"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
 "52-1": {
 "title": "每日简报、设置与中断恢复",
 "main": "A",
@@ -3113,6 +3125,44 @@
 "C2",
 "D",
 "E",
+"F"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"44C-1": {
+"title": "统一提供方身份与平台登记",
+"main": "C1",
+"also": [
+"C3",
+"D",
+"F"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"44C-2": {
+"title": "集成驱动收尾与厂商分支清零",
+"main": "C1",
+"also": [
+"D",
+"E"
+],
+"kind": "实现",
+"occupy": true,
+"status": "定",
+"basis": "tracks.md 逐项表（决定 66）"
+},
+"44C-3": {
+"title": "签名样例、G1 终点与验证欠账",
+"main": "C1",
+"also": [
+"C3",
+"D",
 "F"
 ],
 "kind": "实现",

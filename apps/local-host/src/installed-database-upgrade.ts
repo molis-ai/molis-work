@@ -1,5 +1,5 @@
 import { lstatSync, realpathSync, type Stats } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -63,7 +63,8 @@ function upgradeProject(request: ProjectCall, publish: () => void): void {
     if (db.pragma("user_version", { simple: true }) !== request.platformVersion) throw storageRefusal();
     const roots = listProjectRoots(db);
     if (roots.length !== 1 || roots[0]?.project_id !== request.projectId) throw storageRefusal();
-    const label = `projects/${request.projectId}/${basename(file)}`;
+    // The library's place in the Home as the partition layout has it (the personal space is `personal-space/`, not `projects/personal/`).
+    const label = relative(home, file);
     const { current, previous: oldManifest } = request.change;
     const previous = oldManifest.databases!.project!, declaration = request.target.databases!.project!;
     const owner = { plugin_id: current.plugin_id, publisher_signature: current.publisher_signature };

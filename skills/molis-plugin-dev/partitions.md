@@ -2,7 +2,7 @@
 
 个人空间（`personal`）和每个项目是同构的「分区」（[统一工作分区](../../specs/unified-partition-plugins/spec.md)）。一个插件装一次（Home 一张安装表），在哪个分区启用就在那个分区有自己的一份数据。本页四节写插件怎样声明；字段都在 Manifest，类型在 `@molis-ai/molis-work-contracts/platform/plugin`，由 SDK 的 `partitionDeclarationProblems` 检查（`parsePluginManifest`／`assertManifest` 与安装都会跑它，写错了装不上）。
 
-> 现状（第 107 批）：这些字段和 SDK 帮手已经可以写、会被检查；Pages、PPT、Form、Dataset、灵光、Workflows 已经用 `databases.partition`，由项目平台在每个分区跑一个实例（第 109 批两套装配合并后归按分区的装配）。平台的其他读取方（总览界面、到期投递、推送、随启用）在第 108–111 批随插件迁移接上。新插件照本页写，不要再用旧的「个人插件 / 项目插件」两套写法。
+> 现状（第 107 批）：这些字段和 SDK 帮手已经可以写、会被检查；Pages、PPT、Form、Dataset、灵光、Workflows 已经用 `databases.partition`，由宿主的按分区装配在每个启用它们的分区各跑一个实例（安装记录在 Home 一张安装表，运行状态按「安装 × 分区」分开记）；到期定时器随宿主起停，同步写入与恢复后标记总览待重读。平台的其他读取方（总览界面、到期投递、推送、随启用）在第 108–111 批随插件迁移接上。新插件照本页写，不要再用旧的「个人插件 / 项目插件」两套写法。
 
 ## 分区存储
 

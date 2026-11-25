@@ -4,7 +4,7 @@ import { hostLog } from "./host-log.js";
 import type { PluginPlatform } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { projectCallCaller } from "./project-call-caller.js";
-import { runningProjectPlatform, type ProjectPluginPorts } from "./project-plugins.js";
+import { runningProjectPluginPlatforms, type ProjectPluginPorts } from "./project-plugins.js";
 
 /**
  * The project's folders changed (BL-521): one was added or removed as an input, made the output, repaired or named for another device's. It goes
@@ -15,8 +15,9 @@ import { runningProjectPlatform, type ProjectPluginPorts } from "./project-plugi
  */
 export async function announceWorkspaceSettingsChange(store: LocalProjectDatabase, projectId: string, workspaceId: string): Promise<void> {
   try {
-    const platform = await runningProjectPlatform(store, projectId);
-    platform?.hostEvents.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: /* @version event.host.workspace.changed */ 1, payload: { workspace_id: workspaceId, cause: "workspace-settings" } });
+    for (const platform of await runningProjectPluginPlatforms(store, projectId)) {
+      platform.hostEvents.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: /* @version event.host.workspace.changed */ 1, payload: { workspace_id: workspaceId, cause: "workspace-settings" } });
+    }
   } catch (error) { hostLog.warn("workspace-settings", "announce_failed", error, { project_id: projectId, workspace_id: workspaceId }); }
 }
 

@@ -6,7 +6,8 @@ import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registr
 import { declarationOwnersFor } from "./declaration-owners.js";
 import { bindProjectArtifacts } from "./declared-types.js";
 import { PluginViewRevisions } from "./plugin-view-revisions.js";
-import { pluginInstallRecords } from "./plugin-install-records.js";
+import { partitionInstallRecords, pluginInstallRecords } from "./plugin-install-records.js";
+import type { InstallScope } from "./plugin-holders.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
   PluginDefinition,
@@ -260,7 +261,14 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // One install table in the Home (batch 106, §4.2): a partition instance keeps its install records, install directory and signed release
   // packages there with it; only its business data is the partition's.
   const installDb = options.installDatabase ?? options.db;
-  const records = pluginInstallRecords(installDb);
+  // A per-partition instance reads the Home's one install table, and only for the partition it was started for; its lifecycle is that
+  // partition's own (`plugin_partition_runtime`), so one partition's crash or switch-off changes no other partition's instance.
+  if (options.partitionScope && (!options.installDatabase || options.installDatabase === options.db || options.partitionScope.partition_id !== options.project_id)) {
+    throw new Error("分区插件实例要用 Home 的安装表，且只在它自己的分区里运行");
+  }
+  const records = options.partitionScope ? partitionInstallRecords(installDb, options.db) : pluginInstallRecords(installDb);
+  // Where this platform's installations are kept, for the declaration and presentation checks: the Home's install table for a partition instance.
+  const installScope: InstallScope = options.partitionScope ? { kind: "home" } : { kind: "project", project_id: options.project_id };
   let closed = false;
   const views = new PluginViewRevisions(id => !closed && supervisor.state(id)?.status === "running");
   const { invalidateView, viewRevision, waitForView } = views;
@@ -283,8 +291,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const dualHomeRunning = (record: PluginInstanceRecord) => dualHomeRunningFor(options.home, isDualId, record);
   const effectiveGrants = (record: PluginInstanceRecord) => effectiveGrantsFor(runtime, isDualId, dualHomeRunning, record);
   const runtime: PluginRuntime = new PluginRuntime(records, executor,
-    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, releaseIds: RELEASE_PACKAGE_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
-      assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, { db: options.db, home: options.home?.directory, projectId: options.project_id, registry: options.actions.registry }, runtime, rollback),
+    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: installDb, scope: installScope }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, releaseIds: RELEASE_PACKAGE_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
+      assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, { db: installDb, home: options.home?.directory, projectId: options.project_id, registry: options.actions.registry }, runtime, rollback),
       permissionBound: (record, definition) => isDualDefinition(definition) ? permission => { if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用"); return options.home.capturePermission(record, permission); } : undefined,
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id),
         register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration, options.actions, {

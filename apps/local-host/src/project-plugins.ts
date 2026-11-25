@@ -21,7 +21,8 @@ import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-p
 import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
 import { continuationForwarder, type ObserveContinuations } from "./agent-continuation-starts.js";
 import { projectRuntimeDeclarations } from "./plugin-registry.js";
-import { assembledPerPartition, type PartitionPluginHandle, type PartitionPluginScope } from "./partition-plugin-assembly.js";
+import { assembledPerPartition, type PartitionPluginScope } from "./partition-plugin-assembly.js";
+import { existingPartitionPluginHost, partitionPluginHostFor, releasePartitionPlugins, type PartitionPluginInstance } from "./partition-plugin-host.js";
 import type { PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 
 export interface ProjectPluginPorts {
@@ -59,6 +60,17 @@ export interface ProjectPluginState {
   refreshEnablement?(): Promise<ProjectPluginRefreshResult | null>;
   /** The `consentRevision` this project last reconciled its default wirings at. */
   reconciledAt?: number;
+  /** This partition's view of the per-partition assembly: the plugins it runs per partition and their instances here (batch 107). */
+  partitions?: ProjectPartitionPlugins;
+}
+
+/** The plugins of a project that run as their own (plugin, partition) instance, as one project reads them. */
+export interface ProjectPartitionPlugins {
+  /** Whether this plugin runs per partition (whether or not it runs here now). */
+  runs(pluginId: string): boolean;
+  platform(pluginId: string): PluginPlatform | undefined;
+  platforms(): PluginPlatform[];
+  failure(pluginId: string): string | undefined;
 }
 
 /**
@@ -66,9 +78,33 @@ export interface ProjectPluginState {
  * state says why. Every plugin is read the same way; `reason` is null when nothing says why (the project does not run it at all).
  */
 export function projectPluginProblem(state: ProjectPluginState, store: LocalProjectDatabase, pluginId: string): { readonly reason: string | null } | null {
-  const active = state.platform?.supervisor.state(pluginId);
+  const active = projectPluginPlatform(state, pluginId)?.supervisor.state(pluginId);
   if (active?.status === "running") return null;
-  return { reason: projectPluginDatabaseRefusal(store.db, pluginId)?.message ?? active?.message ?? state.error ?? null };
+  return { reason: projectPluginDatabaseRefusal(store.db, pluginId)?.message ?? active?.message ?? state.partitions?.failure(pluginId) ?? state.error ?? null };
+}
+
+/**
+ * The platform a plugin of this project runs on: its own instance when it keeps a library in each partition (the per-partition assembly,
+ * batch 107), else the project's platform. None when it runs on neither now.
+ */
+export function projectPluginPlatform(state: Pick<ProjectPluginState, "platform" | "partitions">, pluginId: string): PluginPlatform | null {
+  if (state.partitions?.runs(pluginId)) return state.partitions.platform(pluginId) ?? null;
+  return state.platform;
+}
+
+/** A synchronous view of the state of a finished startup. */
+export const currentProjectPluginState = (store: LocalProjectDatabase, projectId: string): ProjectPluginState | null =>
+  started.get(store)?.get(projectId)?.current ?? null;
+
+/** The state of the project's plugins when they are running; never starts them. */
+export async function runningProjectPluginState(store: LocalProjectDatabase, projectId: string): Promise<ProjectPluginState | null> {
+  const opening = started.get(store)?.get(projectId);
+  return opening ? opening.ready : null;
+}
+
+/** Every platform this project's plugins run on now: the project's own, then each per-partition instance in it. */
+export function projectPluginPlatforms(state: Pick<ProjectPluginState, "platform" | "partitions">): PluginPlatform[] {
+  return [...state.platform ? [state.platform] : [], ...state.partitions?.platforms() ?? []];
 }
 
 type StartedProject = { ports: ProjectPluginPorts; ready: Promise<ProjectPluginState>; current?: ProjectPluginState };
@@ -78,6 +114,24 @@ export async function runningProjectPlatform(store: LocalProjectDatabase, projec
   const opening = started.get(store)?.get(projectId);
   return opening ? (await opening.ready).platform : null;
 }
+
+/** Every platform this project's plugins run on now (the project's, and each per-partition instance in it); never starts one. */
+export async function runningProjectPluginPlatforms(store: LocalProjectDatabase, projectId: string): Promise<PluginPlatform[]> {
+  const opening = started.get(store)?.get(projectId);
+  return opening ? projectPluginPlatforms(await opening.ready) : [];
+}
+
+/** The platform this plugin of the project runs on now, when the project's plugins are running; never starts one. */
+export async function runningPluginPlatform(store: LocalProjectDatabase, projectId: string, pluginId: string): Promise<PluginPlatform | null> {
+  const opening = started.get(store)?.get(projectId);
+  return opening ? projectPluginPlatform(await opening.ready, pluginId) : null;
+}
+
+/** A synchronous view of every platform of a finished startup. */
+export const currentProjectPluginPlatforms = (store: LocalProjectDatabase, projectId: string): PluginPlatform[] => {
+  const current = started.get(store)?.get(projectId)?.current;
+  return current ? projectPluginPlatforms(current) : [];
+};
 
 /** The action handle the project's platform registers its plugins' actions with: whoever runs plugins on it registers through the same one. */
 export const projectPlatformActions = (store: LocalProjectDatabase, projectId: string) => started.get(store)?.get(projectId)?.ports.actions;
@@ -89,12 +143,13 @@ export const currentProjectPlatform = (store: LocalProjectDatabase, projectId: s
 /** Whether the project's plugins are still starting, or one of them has work running that closing the project would end. */
 export function projectPluginsHaveWork(store: LocalProjectDatabase, projectId: string): boolean {
   const opening = started.get(store)?.get(projectId);
-  return !!opening && (!opening.current || !!opening.current.platform?.hasProjectWork(projectId));
+  return !!opening && (!opening.current || projectPluginPlatforms(opening.current).some(platform => platform.hasProjectWork(projectId)));
 }
 
 /** Synchronous count of active background executions and command-kept jobs in this project's built-in plugins. */
 export function projectPluginsActiveWorkCount(store: LocalProjectDatabase, projectId: string): number {
-  return started.get(store)?.get(projectId)?.current?.platform?.activeWorkCount() ?? 0;
+  const current = started.get(store)?.get(projectId)?.current;
+  return current ? projectPluginPlatforms(current).reduce((sum, platform) => sum + platform.activeWorkCount(), 0) : 0;
 }
 
 /** Reconcile through the project's existing queue without starting a plugin platform. */
@@ -111,13 +166,17 @@ export async function refreshRunningProjectPlugins(store: LocalProjectDatabase, 
 export async function releaseProjectPlugins(store: LocalProjectDatabase, projectId: string): Promise<void> {
   const boards = started.get(store);
   const opening = boards?.get(projectId);
-  if (!opening) return;
+  if (!opening) { await releasePartitionPlugins(store, projectId); return; }
   boards!.delete(projectId);
   noteProjectReleased(opening);
   const record = await opening.ready;
   record.stopObservers?.();
-  if (!record.platform) return;
-  await stopProjectPlugins(record.platform, projectId);
+  const failures: unknown[] = [];
+  // The partition's own instances run on this store too, so they stop before it closes, whether or not the project's platform started.
+  await releasePartitionPlugins(store, projectId).catch(error => { failures.push(error); });
+  if (record.platform) await stopProjectPlugins(record.platform, projectId).catch(error => { failures.push(error); });
+  if (failures.length === 1) throw failures[0];
+  if (failures.length) throw new AggregateError(failures, "项目插件停止失败");
 }
 
 async function stopProjectPlugins(platform: PluginPlatform, projectId: string): Promise<void> {
@@ -175,11 +234,16 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     // Scope and trust belong to the complete declaration list, before either library refusals or absent Home services filter it.
     const fixtures = projectFixtureEntries(ports.homeDirectory);
     const scoped = projectScopeEntries([...projectPluginEntries(), ...fixtures], ports.homeDirectory);
-    // A plugin with a library in each partition runs here, once per partition, and is given that partition's library (batch 107);
-    // the per-partition assembly (`partition-plugin-assembly.ts`) takes these instances over when the two assemblies merge (batch 109).
-    const entries = scoped.filter(entry => ports.homeDirectory !== undefined
-      || !entry.definition.manifest.databases?.home && !assembledPerPartition(entry.definition.manifest) || entry.dual_instance);
-    record.plugins = entries.map(entry => entry.definition.manifest.plugin_id);
+    // A plugin with a library in each partition runs as its own (plugin, partition) instance of the Home's per-partition assembly, never on
+    // this platform (batch 107); without a Home there are no partitions, so it does not run.
+    const partitioned = ports.homeDirectory === undefined ? [] : scoped.filter(entry => assembledPerPartition(entry.definition.manifest));
+    const entries = scoped.filter(entry => !assembledPerPartition(entry.definition.manifest)
+      && (ports.homeDirectory !== undefined || !entry.definition.manifest.databases?.home || entry.dual_instance));
+    record.plugins = [...entries, ...partitioned].map(entry => entry.definition.manifest.plugin_id);
+    // Before the project's platform reads any installation record: the per-partition plugins' records are the Home install table's.
+    const partitionHost = partitioned.length && ports.homeDirectory !== undefined ? partitionPluginHostFor(ports.homeDirectory, startPartitionPluginInstance) : undefined;
+    partitionHost?.declare(partitioned);
+    partitionHost?.noteStore(ports.store);
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
     // The only definitions that run in the Host's process without `host` trust are the Host's test fixtures, admitted as the objects they are (S-75 ⑥); a product Host is given none.
     const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db, { home: ports.homeDirectory, projectId: ports.projectId }), inProcess: fixtureAdmission(fixtures, ports.installedByHand ?? installedFixturesFor(ports.homeDirectory)),
@@ -202,7 +266,13 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.platform = platform;
     let closed = false;
     const settlements = reviewSettlementForwarder(platform.hostEvents), continuations = continuationForwarder(platform.hostEvents);
-    record.updateObservers = () => { if (!closed) { settlements.update(ports.observeReviewSettlements); continuations.update(ports.observeContinuations); } };
+    record.updateObservers = () => {
+      if (closed) return;
+      settlements.update(ports.observeReviewSettlements); continuations.update(ports.observeContinuations);
+      for (const pluginId of existingPartitionPluginHost(ports.homeDirectory)?.plugins() ?? []) {
+        existingPartitionPluginHost(ports.homeDirectory)?.assembly.started(pluginId, ports.projectId)?.updateObservers();
+      }
+    };
     record.stopObservers = () => { closed = true; settlements.stop(); continuations.stop(); };
     record.updateObservers();
     const enabled = await projectPluginEnablement(ports.homeDirectory, ports.projectId);
@@ -212,9 +282,29 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         const pluginId = entry.definition.manifest.plugin_id;
         return { ...entry, enabled: (enabled?.get(pluginId) ?? true) && !installationSwitchedOff(platform, pluginId) };
       }));
-    record.refreshEnablement = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId);
+    const refreshProject = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId);
+    record.refreshEnablement = refreshProject;
     record.reconciledAt = consentRevision();
     bindDeclaredDefaults(platform, ports.projectId, ports.actorId);
+    if (partitionHost) {
+      const host = partitionHost;
+      const ids = new Set(partitioned.map(entry => entry.definition.manifest.plugin_id)), partitionId = ports.projectId;
+      record.partitions = {
+        runs: pluginId => ids.has(pluginId),
+        platform: pluginId => existingPartitionPluginHost(ports.homeDirectory)?.platform(pluginId, partitionId),
+        platforms: () => existingPartitionPluginHost(ports.homeDirectory)?.platforms(partitionId) ?? [],
+        failure: pluginId => existingPartitionPluginHost(ports.homeDirectory)?.failure(pluginId, partitionId),
+      };
+      // A plugin that did not start here is unavailable on its own; the project's other plugins run.
+      await host.openPartition(ports);
+      record.refreshEnablement = async () => {
+        const project = await refreshProject();
+        const own = existingPartitionPluginHost(ports.homeDirectory);
+        if (!own) return project;
+        const partition = await own.refresh(partitionId);
+        return project === null ? (partition.length ? partition : null) : [...project, ...partition];
+      };
+    }
   } catch (error) {
     record.stopObservers?.();
     if (record.platform) {
@@ -233,7 +323,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
  * Stopping it stops only that instance. Nothing of the old project platform is read: its records, its plugin list and its observers are not used.
  */
 export async function startPartitionPluginInstance(ports: ProjectPluginPorts, scope: PartitionPluginScope, entry: PluginPlatformEntry,
-  installDatabase: PluginRuntimeDatabase): Promise<PartitionPluginHandle> {
+  installDatabase: PluginRuntimeDatabase): Promise<PartitionPluginInstance> {
   if (entry.definition.manifest.plugin_id !== scope.plugin_id || scope.partition_id !== ports.projectId || scope.install_id !== installIdentity(entry.definition.manifest)) {
     throw new Error("分区插件实例的插件、安装或分区与入口不一致");
   }
@@ -245,20 +335,28 @@ export async function startPartitionPluginInstance(ports: ProjectPluginPorts, sc
     capturePrivateData: installId => storage.snapshotInstallationData(installId),
     restorePrivateData: (installId, snapshot) => storage.restoreInstallationData(installId, snapshot as ReturnType<typeof storage.snapshotInstallationData>),
     ...(ports.dependencyCheck ? { dependencyCheck: ports.dependencyCheck } : {}),
-    ...(ports.installedByHand ? { inProcess: fixtureAdmission([], ports.installedByHand) } : {}),
+    ...(ports.acceptDemoRequirements ? { acceptDemoRequirements: ports.acceptDemoRequirements } : {}),
+    inProcess: fixtureAdmission(projectFixtureEntries(ports.homeDirectory), ports.installedByHand ?? installedFixturesFor(ports.homeDirectory)),
     actions: ports.actions, home: ports.homeDirectory ? pluginHomeFor(ports.homeDirectory) : null,
     installDatabase, partitionScope: scope,
   });
+  // The same forwarders the project platform has: the instance's installation hears its settled reviews and continuations (X-6).
+  const settlements = reviewSettlementForwarder(platform.hostEvents), continuations = continuationForwarder(platform.hostEvents);
+  let closed = false;
+  const updateObservers = () => { if (!closed) { settlements.update(ports.observeReviewSettlements); continuations.update(ports.observeContinuations); } };
+  const stopObservers = () => { closed = true; settlements.stop(); continuations.stop(); };
+  updateObservers();
   try {
     const report = await platform.start([{ ...entry, enabled: true }]);
     // A start the platform recorded as failed is no instance: the assembly forgets it and the next use tries again.
     const failed = report.failed.find(item => item.plugin_id === scope.plugin_id) ?? report.blocked.find(item => item.plugin_id === scope.plugin_id);
     if (failed || !report.running.includes(scope.plugin_id)) throw new ActionError("actions.plugin_unavailable", "这个插件在这里没能启动", { details: { plugin_id: scope.plugin_id, code: failed?.code ?? null } });
   } catch (error) {
+    stopObservers();
     await stopProjectPlugins(platform, ports.projectId).catch(() => {});
     throw error;
   }
-  return { stop: () => stopProjectPlugins(platform, ports.projectId) };
+  return { platform, updateObservers, stop: () => { stopObservers(); return stopProjectPlugins(platform, ports.projectId); } };
 }
 
 /**

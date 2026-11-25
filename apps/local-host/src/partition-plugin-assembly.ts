@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabaseDeclaration, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
 import { applySqliteBaseline, bindDatabaseSpace, ensureStorageSpace, openHomeSqliteFile } from "@molis-ai/molis-work-storage";
 
@@ -13,10 +13,9 @@ type LibraryConnection = ReturnType<typeof openHomeSqliteFile>;
 // its libraries under `<partition root>/libraries/`, its plugin files under `<partition root>/plugin-files/<install>/`. Which plugins a partition
 // runs is `partition_plugins` (`partitions.plugins.set@1`); which are installed is the Home's one install table (`plugin-runtime.db`).
 //
-// It runs alongside the old assemblies until batch 109 merges them (V1: add, then move, then delete). Until then a plugin whose Manifest
-// declares `databases.partition` runs in the project platform, one instance per partition already, which opens that partition's library
-// through the same scope (`partitionPluginScope`); the Home-level platform skips such a plugin (`assembledPerPartition`). No product Host
-// starts this assembly yet, so no plugin ever has two instances on the same partition. It reads none of the old assemblies' records.
+// It runs alongside the old assemblies until batch 109 merges them (V1: add, then move, then delete). Since batch 107 the Host builds one for
+// each Home (`partition-plugin-host.ts`): a plugin whose Manifest declares `databases.partition` runs only here, never in the project platform
+// or the Home-level one (`assembledPerPartition`). It reads none of the old assemblies' records.
 
 /** Whether a plugin keeps a library in each partition (`databases.partition`). The Home-level platform skips it. */
 export function assembledPerPartition(manifest: { readonly databases?: { readonly partition?: unknown } }): boolean {
@@ -46,7 +45,7 @@ export interface PartitionPluginHandle {
   stop(): Promise<void>;
 }
 
-export interface PartitionPluginAssemblyOptions {
+export interface PartitionPluginAssemblyOptions<Handle extends PartitionPluginHandle = PartitionPluginHandle> {
   readonly home: string;
   /**
    * The library name the plugin declares in `databases.partition`, or null when it is not assembled per partition. Two plugins enabled in one
@@ -56,9 +55,9 @@ export interface PartitionPluginAssemblyOptions {
   /** The plugins enabled in this partition, as `partition_plugins` holds them now. */
   members(partitionId: string): Promise<readonly string[]> | readonly string[];
   /** The plugin's installation in the Home's one install table, or null when it is not installed. */
-  installation(pluginId: string): PluginInstanceRecord | null;
+  installation(pluginId: string): { readonly install_id: string } | null;
   /** Starts the instance with its scope; production gives it a platform of its own over the partition's files. */
-  start(scope: PartitionPluginScope, reason: PartitionWakeReason): Promise<PartitionPluginHandle>;
+  start(scope: PartitionPluginScope, reason: PartitionWakeReason): Promise<Handle>;
   /** How long an instance with no lease stays up after its last use; the platform's policy, the same for every plugin. */
   readonly idleMs?: number;
   readonly now?: () => number;
@@ -73,22 +72,32 @@ export interface PartitionPluginLease {
 /** Ten minutes: an instance in a partition nobody looked at for that long is stopped; the next use starts it again. */
 export const PARTITION_PLUGIN_IDLE_MS = 10 * 60_000;
 
-interface Running {
+interface Running<Handle> {
   readonly key: string;
   readonly scope: PartitionPluginScope;
-  readonly ready: Promise<PartitionPluginHandle>;
+  readonly ready: Promise<Handle>;
+  /** The started instance, once `ready` settled with it. */
+  handle?: Handle;
   leases: number;
   lastUsed: number;
 }
 
+/** How often `acquire` reads the membership again when instances were stopped while it read; past that it gives up instead of racing on. */
+const MEMBERSHIP_READS = 4;
+
 const keyOf = (pluginId: string, partitionId: string) => JSON.stringify([pluginId, partitionId]);
 
-export class PartitionPluginAssembly {
-  private readonly running = new Map<string, Running>();
+export class PartitionPluginAssembly<Handle extends PartitionPluginHandle = PartitionPluginHandle> {
+  private readonly running = new Map<string, Running<Handle>>();
+  /** Instances whose stop has begun and not finished: a new instance of the same pair starts only after it (two never overlap). */
+  private readonly stopping = new Map<string, Promise<void>>();
+  /** Counts every stop request, so an `acquire` that read the membership before one knows its reading may be stale. */
+  private stops = 0;
+  private closed = false;
   private readonly idleMs: number;
   private readonly now: () => number;
 
-  constructor(private readonly options: PartitionPluginAssemblyOptions) {
+  constructor(private readonly options: PartitionPluginAssemblyOptions<Handle>) {
     this.idleMs = options.idleMs ?? PARTITION_PLUGIN_IDLE_MS;
     this.now = options.now ?? Date.now;
   }
@@ -103,25 +112,37 @@ export class PartitionPluginAssembly {
     if (library === null) throw new ActionError("actions.plugin_unavailable", "这个插件还不按分区运行");
     const record = this.options.installation(pluginId);
     if (!record) throw new ActionError("actions.plugin_unavailable", "这个插件没有安装");
-    const members = await this.options.members(partitionId);
-    if (!members.includes(pluginId)) throw new ActionError("actions.plugin_unavailable", "这个插件没有在这里启用");
-    if (members.some(other => other !== pluginId && this.options.library(other) === library)) {
-      throw new ActionError("actions.forbidden", "这里启用的另一个插件申报了同名的库，两个都不打开，免得一个读到另一个的数据");
-    }
     const key = keyOf(pluginId, partitionId);
+    for (let read = 0; ; read += 1) {
+      if (this.closed) throw new ActionError("actions.plugin_unavailable", "插件宿主已关闭");
+      // A stop asked for while the membership was read (it was switched off there) wins: read it again, or a disabled plugin would start.
+      const seen = this.stops;
+      const members = await this.options.members(partitionId);
+      if (!members.includes(pluginId)) throw new ActionError("actions.plugin_unavailable", "这个插件没有在这里启用");
+      if (members.some(other => other !== pluginId && this.options.library(other) === library)) {
+        throw new ActionError("actions.forbidden", "这里启用的另一个插件申报了同名的库，两个都不打开，免得一个读到另一个的数据");
+      }
+      // The instance being stopped finishes stopping first, so two instances of one pair never run at once.
+      const stopping = this.stopping.get(key);
+      if (stopping) await stopping.catch(() => {});
+      if (this.stops === seen && !this.closed) break;
+      if (read + 1 >= MEMBERSHIP_READS) throw new ActionError("actions.plugin_unavailable", "这个插件在这里刚被停下，请再试一次");
+    }
     let entry = this.running.get(key);
     if (!entry) {
       const scope = partitionPluginScope(this.options.home, partitionId, pluginId, record.install_id);
       const ready = this.options.start(scope, reason);
-      entry = { key, scope, ready, leases: 0, lastUsed: this.now() };
-      this.running.set(key, entry);
-      ready.catch(() => {
-        if (this.running.get(key) === entry) this.running.delete(key);
+      const created: Running<Handle> = { key, scope, ready, leases: 0, lastUsed: this.now() };
+      entry = created;
+      this.running.set(key, created);
+      ready.then(handle => { created.handle = handle; }, () => {
+        if (this.running.get(key) === created) this.running.delete(key);
       });
     }
     await entry.ready;
     // Stopped while it was starting (disabled, uninstalled, its partition gone): no lease on an instance that is no longer running.
     if (this.running.get(key) !== entry) throw new ActionError("actions.plugin_unavailable", "这个插件在这里刚停下");
+    entry.handle ??= await entry.ready;
     entry.leases += 1;
     entry.lastUsed = this.now();
     let released = false;
@@ -132,6 +153,11 @@ export class PartitionPluginAssembly {
       held.leases -= 1;
       held.lastUsed = this.now();
     } };
+  }
+
+  /** The started instance of this plugin in this partition, or none while it is not running (or still starting); never starts one. */
+  started(pluginId: string, partitionId: string): Handle | undefined {
+    return this.running.get(keyOf(pluginId, partitionId))?.handle;
   }
 
   /** The instances running now, as (plugin, partition) pairs. */
@@ -156,19 +182,30 @@ export class PartitionPluginAssembly {
     return this.stopEntries([...this.running.values()].filter(entry => entry.scope.partition_id === partitionId));
   }
 
-  async close(): Promise<void> { await this.stopEntries([...this.running.values()]); }
+  async close(): Promise<void> {
+    this.closed = true;
+    await this.stopEntries([...this.running.values()]);
+    await Promise.all([...this.stopping.values()].map(stop => stop.catch(() => {})));
+  }
 
-  private async stopEntries(entries: readonly Running[]): Promise<void> {
+  private async stopEntries(entries: readonly Running<Handle>[]): Promise<void> {
+    this.stops += 1;
     const failures: unknown[] = [];
+    const stops: Promise<void>[] = [];
     for (const entry of entries) {
       if (this.running.get(entry.key) !== entry) continue;
       this.running.delete(entry.key);
-      try {
-        await (await entry.ready).stop();
-      } catch (error) {
-        failures.push(error);
-      }
+      // Registered before anything is awaited, so an `acquire` of the same pair waits for this stop to finish.
+      const stop = (async () => {
+        let handle: Handle;
+        try { handle = await entry.ready; } catch { return; }
+        await handle.stop();
+      })();
+      const tracked = stop.finally(() => { if (this.stopping.get(entry.key) === tracked) this.stopping.delete(entry.key); });
+      this.stopping.set(entry.key, tracked);
+      stops.push(tracked.catch(error => { failures.push(error); }));
     }
+    await Promise.all(stops);
     if (failures.length) throw new AggregateError(failures, "分区插件实例停止失败");
   }
 }

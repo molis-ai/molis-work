@@ -827,6 +827,9 @@ CREATE TABLE plugin_notifications (
       last_error_code TEXT,
       UNIQUE (sender_install_id, sender_generation, key)
     );
+CREATE TABLE plugin_partition_runtime (install_id TEXT PRIMARY KEY,
+      state TEXT NOT NULL CHECK (state IN ('installed', 'running', 'disabled', 'crashed', 'quarantined')),
+      recovery_count INTEGER NOT NULL CHECK (recovery_count >= 0), last_error_code TEXT, updated_at TEXT NOT NULL);
 CREATE TABLE plugin_port_artifact_bindings (
       project_id TEXT NOT NULL,
       target_plugin_id TEXT NOT NULL,

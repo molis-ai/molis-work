@@ -7,12 +7,14 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  LocalProjectDatabase, MolisWorkLocalHost, openHomePluginStore, openPartitionPluginLibrary, openProjectVersionStores,
-  PartitionPlatformServices, PartitionPluginAssembly, partitionOverviewLibraries, partitionPluginScope, startPartitionPluginInstance,
-  type PartitionPluginScope,
+  existingPartitionPluginHost, LocalProjectDatabase, MolisWorkLocalHost, openHomePluginStore, openPartitionPluginLibrary, openProjectVersionStores,
+  PartitionPlatformServices, PartitionPluginAssembly, partitionInstallRecords, partitionOverviewLibraries, partitionPluginScope, projectPluginPlatform,
+  refreshRunningProjectPlugins, runningProjectPluginState, startPartitionPluginInstance, type PartitionPluginScope,
 } from "@molis-ai/molis-work-app-local-host";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
-import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
+import { installIdentity, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { bindActionHandler, defineSettingsActions } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { person as runtimePerson, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
@@ -154,8 +156,8 @@ function partitionNotes(): PluginDefinition {
   } as PluginDefinition;
 }
 
-// Batch 107: the project platform runs the six plugins with a library in each partition, once per partition. The partition is the one the
-// instance runs for, never one a call names (S-31), and a deleted project's library does not come back from a call begun before (S-18, S-52).
+// Batch 107: the Host runs the six plugins with a library in each partition as one instance per (plugin, partition). The partition is the one
+// the instance runs for, never one a call names (S-31), and a deleted project's library does not come back from a call begun before (S-18, S-52).
 test("UPP-06 S-31 S-partition-isolation the project platform gives a plugin with a library in each partition the library of the project it runs in; a call naming another project or none is refused and makes no library", async t => {
   const f = await serveHomeRuntime(t);
   const a = await f.project("分区 A"), b = await f.project("分区 B");
@@ -370,3 +372,151 @@ test("UPP-34 S-partition-wake-scope the due timer wakes only the (plugin, partit
     assert.equal(woken.length, 21);
   } finally { timer.close(); due.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+// Batch 107-1: the Host's per-partition assembly (`partition-plugin-host.ts`). A plugin with a library in each partition no longer runs on the
+// project platform: each partition it is enabled in has its own instance, with the installation in the Home's install table and its lifecycle
+// in the partition (`plugin_partition_runtime`).
+const DATASET = "io.molis.work.dataset";
+
+test("UPP-21 batch 107 the Host runs a plugin with a library in each partition as its own instance per partition; one crashing leaves the other and the Home's installation as they were; the Home store and the instances share no stale record", async t => {
+  const f = await serveHomeRuntime(t);
+  const a = await f.project("分区 A"), b = await f.project("分区 B");
+  for (const p of [a, b]) await f.host.actionClient(p.reference).invoke(runtimePerson(DATASET_ACTION_PERMISSIONS, p.project_id), datasetActions.create, { title: p.project_id });
+  const stateOf = (p: typeof a) => f.host.withProject(p.reference, runtime => runningProjectPluginState(runtime.store, p.project_id));
+  const inA = await stateOf(a), inB = await stateOf(b);
+  assert.ok(inA && inB);
+  assert.equal(inA.platform?.supervisor.state(DATASET) ?? null, null, "the project platform does not run it");
+  const own = projectPluginPlatform(inA, DATASET), other = projectPluginPlatform(inB, DATASET);
+  assert.ok(own && other && own !== other && own !== inA.platform, "each partition runs its own instance");
+  assert.equal(own.supervisor.state(DATASET)?.status, "running");
+  assert.deepEqual(existingPartitionPluginHost(f.home)?.assembly.instances().filter(item => item.plugin_id === DATASET).map(item => item.partition_id).sort(),
+    [a.project_id, b.project_id].sort());
+  const installId = own.supervisor.state(DATASET)!.install_id!;
+  const installs = openHomePluginStore(f.home);
+  t.after(() => installs.db.close());
+  const homeRows = new SqlitePluginRuntimeRepository(installs.db);
+  await f.host.withProject(a.reference, runtime => {
+    const records = partitionInstallRecords(installs.db, runtime.store.db);
+    records.save({ ...records.get(installId)!, state: "crashed", recovery_count: 1, last_error_code: "plugin.crashed" });
+  });
+  assert.equal((await f.host.withProject(a.reference, runtime => partitionInstallRecords(installs.db, runtime.store.db).get(installId)))?.state, "crashed");
+  assert.equal((await f.host.withProject(b.reference, runtime => partitionInstallRecords(installs.db, runtime.store.db).get(installId)))?.state, "running",
+    "B's instance is still running");
+  const facts = homeRows.get(installId);
+  assert.equal(facts?.state, "installed", "the Home row keeps what the installation is, not any partition's lifecycle");
+  assert.equal(facts?.recovery_count, 0);
+  assert.equal(facts?.last_error_code, null);
+  // The Home plugin store's connection and the instances' each read the row as it is now: a write through one is the next read through the other.
+  homeRows.save({ ...facts!, grants: [...facts!.grants, "extra:probe"] });
+  assert.ok(own.runtime.get(installId).grants.includes("extra:probe"), "an instance reads what the Home store wrote");
+  assert.ok(other.runtime.get(installId).grants.includes("extra:probe"));
+  await f.host.withProject(b.reference, runtime => {
+    const records = partitionInstallRecords(installs.db, runtime.store.db), current = records.get(installId)!;
+    records.save({ ...current, grants: current.grants.filter(grant => grant !== "extra:probe") });
+  });
+  assert.equal(homeRows.get(installId)?.grants.includes("extra:probe"), false, "and the Home store reads what an instance wrote");
+  assert.equal(own.runtime.get(installId).grants.includes("extra:probe"), false);
+  assert.equal(f.host.homePlugins?.installations().some(record => record.plugin_id === DATASET), false, "it is not listed as a Home plugin");
+});
+
+test("UPP-21 batch 107 taking a plugin out of a partition stops its instance there and drops its due entries there; the other partition keeps both", async t => {
+  const f = await serveHomeRuntime(t);
+  const a = await f.project("分区 A", ["dataset"]), b = await f.project("分区 B", ["dataset"]);
+  for (const p of [a, b]) await f.host.actionClient(p.reference).invoke(runtimePerson(DATASET_ACTION_PERMISSIONS, p.project_id), datasetActions.create, { title: p.project_id });
+  const host = existingPartitionPluginHost(f.home), services = host?.services;
+  assert.ok(host && services, "the Host started the partition services");
+  const installId = installIdentity((await import("@molis-ai/molis-work-plugin-dataset")).datasetManifest);
+  const future = new Date(Date.now() + 3_600_000).toISOString();
+  for (const p of [a, b]) services.registerDue({ install_id: installId, plugin_id: DATASET, partition_id: p.project_id }, { entry_key: "k", due_at: future });
+  const catalog = f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog);
+  await catalog.withCatalog({ homeDirectory: f.home }, value => value.commit(() => value.removeProjectPlugin({ project_id: a.project_id, plugin_id: "dataset", actor_id: "test" })));
+  const unfinished = await f.host.withProject(a.reference, runtime => refreshRunningProjectPlugins(runtime.store, a.project_id));
+  assert.deepEqual(unfinished?.filter(item => item.plugin_id === DATASET), []);
+  assert.deepEqual(host.assembly.instances().filter(item => item.plugin_id === DATASET).map(item => item.partition_id), [b.project_id], "only A's instance stopped");
+  const due = openDueRegistry(f.home);
+  try {
+    assert.deepEqual(due.entries().filter(entry => entry.install_id === installId).map(entry => entry.partition_id), [b.project_id], "A's due entry went with it, B's stays");
+  } finally { due.close(); }
+  await assert.rejects(f.host.actionClient(a.reference).invoke(runtimePerson(DATASET_ACTION_PERMISSIONS, a.project_id), datasetActions.list, {}));
+});
+
+test("UPP-21 batch 107 an instance read as enabled and switched off before it starts never starts; a new instance waits for the old one to finish stopping", async () => withPartitions(async (home, a) => {
+  // A use that read the membership before a stop reads it again: the plugin was switched off there in between.
+  let enabled = true, release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const starts: string[] = [];
+  const assembly = new PartitionPluginAssembly({ home, library: () => "notes", installation: () => record,
+    members: async () => { const answer = enabled ? [PLUGIN] : []; await gate; return answer; },
+    async start(scope) { starts.push(scope.partition_id); return { async stop() {} }; } });
+  const waiting = assembly.acquire(PLUGIN, a, "open");
+  await new Promise(resolve => setImmediate(resolve));
+  enabled = false;
+  await assembly.stopPlugin(PLUGIN, a);
+  release();
+  await assert.rejects(waiting, unavailable, "it was switched off after the first reading");
+  assert.deepEqual(starts, [], "and nothing started");
+  await assembly.close();
+
+  // The next instance of the same pair starts only once the stopping one has finished.
+  const order: string[] = [];
+  let finish!: () => void;
+  const stopped = new Promise<void>(resolve => { finish = resolve; });
+  let count = 0;
+  const twice = new PartitionPluginAssembly({ home, library: () => "notes", installation: () => record, members: () => [PLUGIN],
+    async start() { const n = ++count; order.push(`start ${n}`); return { async stop() { order.push(`stopping ${n}`); if (n === 1) await stopped; order.push(`stopped ${n}`); } }; } });
+  (await twice.acquire(PLUGIN, a, "open")).release();
+  const stopping = twice.stopPlugin(PLUGIN, a);
+  const again = twice.acquire(PLUGIN, a, "open");
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(order, ["start 1", "stopping 1"], "the new instance waits");
+  finish();
+  await stopping;
+  (await again).release();
+  assert.deepEqual(order, ["start 1", "stopping 1", "stopped 1", "start 2"]);
+  await twice.close();
+}));
+
+const SIGNED = "com.example.partition-signed";
+const SIGNED_KEY = `ed25519:sha256:${"c".repeat(64)}`;
+function signedNotes(version: "1.0.0" | "2.0.0", keys: readonly string[]): PluginDefinition {
+  const action = (operation: string) => ({ capability_id: `${SIGNED}.settings.${operation}`, version: 1, title: operation, description: operation, permissions: [] });
+  const { read, write } = defineSettingsActions({ scope: "project", read: action("read"), write: action("write") });
+  return {
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: SIGNED, version, name: "Signed partition notes", kind: "app",
+      publisher: { publisher_id: "example", signature: SIGNED_KEY }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+      permissions: [{ permission: "storage:private", required: true, reason: "分区里的笔记库" }, { permission: "notes:read", required: true, reason: "读笔记" },
+        { permission: "notes:write", required: true, reason: "写笔记" }],
+      capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, databases: { partition: declaration },
+      actions: [read, write], settings_entries: { entries: keys.map(key => ({ key, title: { key: `partition-signed.settings.${key.replace(".", "-")}` }, layers: ["project"], schema: { type: "string" } })),
+        read: { capability_id: read.capability_id, version: read.version }, write: { capability_id: write.capability_id, version: write.version } },
+      ...(version === "2.0.0" ? { upgrade_compatibility: { compatible_from_versions: ["1.0.0"] } } : {}) },
+    async start() { return { kind: "app", actions: [bindActionHandler(read, () => ({ values: [] })), bindActionHandler(write, () => ({ values: [] }))] }; },
+  } as PluginDefinition;
+}
+
+test("UPP-21 batch 107 a signed package with a library in each partition installs in its partition instance and upgrades there; the old Manifest's settings are read from the Home install table", async () => withPartitions(async (home, a) => {
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const store = new LocalProjectDatabase(partitionRoot(home, a) + "/molis-work.db");
+  const first = signedNotes("1.0.0", ["notes.style", "notes.width"]), next = signedNotes("2.0.0", ["notes.style"]);
+  const installs = openHomePluginStore(home);
+  const ports = { store, ...openProjectVersionStores(store), projectId: a, actorId: "local-person", homeDirectory: home, actions: pluginActions(store, a),
+    escapeHtml: String, translate: (value: string) => value, installedByHand: new Set([first, next]) };
+  const scope = partitionPluginScope(home, a, SIGNED, installIdentity(first.manifest));
+  const trust = { level: "pinned" as const, publisher_key_id: SIGNED_KEY };
+  try {
+    const instance = await startPartitionPluginInstance(ports, scope, { definition: first, trust, grants: ["storage:private", "notes:read", "notes:write"],
+      releaseArtifact: { capture: () => "export {};", restore: () => first } }, installs.db);
+    try {
+      assert.equal(instance.platform.supervisor.state(SIGNED)?.status, "running");
+      const homeRows = new SqlitePluginRuntimeRepository(installs.db);
+      assert.equal(homeRows.get(scope.install_id)?.publisher_trust, "pinned", "installed once, in the Home's install table, as the signed package it is");
+      // The upgrade drops a setting the old version declared: what the old version declared is read from the Home install table, where its build is.
+      const state = await instance.platform.upgrade(SIGNED, next);
+      assert.equal(state?.status, "running");
+      assert.equal(homeRows.get(scope.install_id)?.version, "2.0.0", "the installation is the new version");
+      assert.equal(homeRows.get(scope.install_id)?.state, "installed", "and the Home row still holds no lifecycle");
+      assert.equal(partitionInstallRecords(installs.db, store.db).get(scope.install_id)?.state, "running", "the partition's instance runs the new version");
+      assert.equal(existsSync(join(partitionRoot(home, a), "libraries", "notes.db")), true, "on A's own library");
+    } finally { await instance.stop(); }
+  } finally { installs.db.close(); store.close(); }
+}));

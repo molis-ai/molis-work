@@ -226,12 +226,12 @@ test('moved redirect batches stay non-claimable and batch 91/92-105 dependencies
     '91.0a', '91.0b', '91.0c', '91.1', '91.2', '91.3', '91.4', '91.5', '91B.1', '91B.2', '91B.3', '91B.4',
     '92.1', '92.2', '92.3', '93.1', '93.2', '94', '95.1', '95.2', '95.3', '96.1', '96.2', '97.1', '97.2', '98', '99',
     '100.1', '100.2', '101.1', '101.2', '102.1', '102.2', '103.1', '103.2', '104.1', '104.2', '105.1', '105.2',
-    '44B.1', '44B.2', '44B.3', '106.1', '106.2', '106.3', '107.1', '107.2', '108.1', '108.2', '108.3',
+    '44B.1', '44B.2', '44B.3', '44C.1', '44C.2', '44C.3', '106.1', '106.2', '106.3', '107.1', '107.2', '108.1', '108.2', '108.3',
     '109.1', '109.2', '109.3', '110.1', '110.2', '110.3', '111.1', '111.2', '111.3',
   ]) {
     assert.ok(nodes['90'].hard.includes(id), `90.hard missing ${id}`);
   }
-  for (const bid of ['44B', '92', '93', '94', '95', '96', '97', '98', '99', '100', '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111']) {
+  for (const bid of ['44B', '44C', '92', '93', '94', '95', '96', '97', '98', '99', '100', '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111']) {
     const b = snapshot.batches.find(x => x.id === bid);
     assert.ok(b, `missing batch ${bid}`);
     assert.notEqual(b.stage, 'S', `batch ${bid} must not be classified as server stage S`);
@@ -266,6 +266,10 @@ test('decision 66 chain 44B → 106～111 is a hard serial chain and every downs
   assert.deepEqual(nodes['44B.1'].hard, []);
   assert.deepEqual(nodes['44B.2'].hard, ['44B.1']);
   assert.deepEqual(nodes['44B.3'].hard, ['44B.2']);
+  assert.equal(snapshot.batches.find(x => x.id === '44C').items.length, 3, 'item count of 44C');
+  assert.deepEqual(nodes['44C.1'].hard, ['44B.1', '44B.2', '44B.3']);
+  assert.deepEqual(nodes['44C.2'].hard, ['44B.1', '44B.2', '44B.3']);
+  assert.deepEqual(nodes['44C.3'].hard, ['44C.1', '44C.2']);
   assert.deepEqual(nodes['110.3'].hard, ['110.1']);
   // 每批的第一项等上一批全部项
   const prevOf = { 106: ['44B.1', '44B.2', '44B.3'], 107: ['106.1', '106.2', '106.3'], 108: ['107.1', '107.2'],

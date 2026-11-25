@@ -172,6 +172,8 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   const contextProject = contextProjectId
     ? projects.find((project) => project.project_id === contextProjectId) ?? null
     : null;
+  // `?project=` may name the personal space (opened from it); the lists the person sees are their projects (batch 106, only add).
+  const personProjects = projects.filter((project) => project.project_id !== PERSONAL_SPACE_PROJECT_ID);
   if (capabilitySection && capabilitySection !== "access" && contextProjectId && !contextProject) {
     sendJson(response, 404, { error: "找不到所选项目，请返回能力库重新选择。" });
     return true;
@@ -180,7 +182,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   const capabilities = capabilitySection && serverOptions.homeDirectory ? await capabilitiesView({ section: capabilitySection, url,
     homeDirectory: serverOptions.homeDirectory, host: localHost, withCatalog: composition.withCatalog }) : undefined;
   const mcp_access = section === "mcp" && serverOptions.homeDirectory ? await mcpAccessPageModel({
-    home: serverOptions.homeDirectory, host: localHost, url, clients: runtimeIntegrations.clientDescriptors(), projects, withCatalog: composition.withCatalog,
+    home: serverOptions.homeDirectory, host: localHost, url, clients: runtimeIntegrations.clientDescriptors(), projects: personProjects, withCatalog: composition.withCatalog,
   }) : undefined;
   const runtimes = section === "runtimes" ? await runtimeIntegrations.detectAll() : [];
   const modelConnections = section === "models" && serverOptions.homeDirectory
@@ -233,10 +235,10 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     mcp_access,
     ...(section === "connectors" ? await connectorSettingsView(localHost, serverOptions.homeDirectory, url, contextProject ? molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id }) : undefined) : {}),
     ...(section === "web-search" && serverOptions.homeDirectory ? { web_search: await webSearchSettingsView(localHost) } : {}),
-    projects,
+    projects: personProjects,
     web_service: await webService.detect(),
     ...(section === "update" && serverOptions.homeDirectory ? { update: settingsUpdateView(serverOptions.homeDirectory) } : {}),
-    diagnostics: composition.installationDiagnostics(projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
+    diagnostics: composition.installationDiagnostics(personProjects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
   }, controlToken, isDesktopShellRequest(request, url)));
   return true;
 }
@@ -284,6 +286,8 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
   const contextProject = contextProjectId
     ? projects.find((project) => project.project_id === contextProjectId) ?? null
     : null;
+  // `?project=` may name the personal space (opened from it); the lists the person sees are their projects (batch 106, only add).
+  const personProjects = projects.filter((project) => project.project_id !== PERSONAL_SPACE_PROJECT_ID);
   const dynamicPlugins = await discoverDynamicSettingsPlugins(localHost, contextProject, await projectShownJudge(composition, serverOptions.homeDirectory, contextProject));
   const dynamicTarget = pluginSettings ? undefined : dynamicPlugins.find(item => item.section_id === pluginSettingsSlug || item.plugin_id === pluginSettingsSlug);
   if (!pluginSettings && !dynamicTarget) return false;
@@ -293,7 +297,7 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
     // One route for every plugin's settings page (W5-02 PR-D, PG-072): the platform's facts in one shape, and the answer of the read
     // action the page's Manifest view declares (`settings_data`). The Host knows no plugin here; the page renders what it is given.
     const context: SettingsPageContext = {
-      projects: projects.map((project) => ({ project_id: project.project_id, name: project.display_name })),
+      projects: personProjects.map((project) => ({ project_id: project.project_id, name: project.display_name })),
       project: contextProject ? { project_id: contextProject.project_id, name: contextProject.display_name, href: `/projects/${encodeURIComponent(contextProject.project_id)}/` } : null,
       runtimes: pluginSettings.settings_runtimes ? await agentRuntimes() : [],
     };
@@ -325,9 +329,9 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
     hidden_plugins: membership.hidden,
     shown_plugins: membership.shown,
     runtimes: [],
-    projects,
+    projects: personProjects,
     web_service: await webService.detect(),
-    diagnostics: composition.installationDiagnostics(projects.length),
+    diagnostics: composition.installationDiagnostics(personProjects.length),
   }, controlToken, isDesktopShellRequest(request, url)));
   return true;
 }

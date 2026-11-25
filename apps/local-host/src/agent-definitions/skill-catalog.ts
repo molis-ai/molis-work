@@ -4,7 +4,7 @@ import type { SkillDisplayWords } from "./skill-display-words.js";
 import { resolveCategoryPlaceholders, type CategoryAccounts } from "./skill-connector-categories.js";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PERSONAL_SPACE_PROJECT_ID, type ActionCallContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
@@ -47,7 +47,8 @@ export interface SkillCatalogPorts {
 }
 
 const settingKey = (install: string, skill: string) => `${install}\0${skill}`;
-const scopeOf = (caller: ActionCallContext) => caller.project_id ?? "home";
+/** Two Skill settings layers (R22): global `"home"` (used by both Home and the personal space partition) and each project's own id. */
+const scopeOf = (caller: ActionCallContext) => !caller.project_id || caller.project_id === PERSONAL_SPACE_PROJECT_ID ? "home" : caller.project_id;
 /**
  * Which Skills apply is the round's consumer, which the Host writes on its own calls only (`ActionCallContext.skill_round`,
  * specs/capability-pack/contract-design.md §2.3); the person's own view, which is no round, sees them all.
@@ -269,7 +270,11 @@ export class SkillCatalog {
   }
 
   async setState(caller: ActionExecutionContext, input: SkillSettingsSetRequest): Promise<SkillCatalogEntry> {
-    if (input.scope === "project" && !caller.project_id) throw skillErrors.scope_mismatch("需要当前项目才能设置项目技能");
+    if (input.scope === "project" && (!caller.project_id || caller.project_id === PERSONAL_SPACE_PROJECT_ID)) {
+      throw skillErrors.scope_mismatch(caller.project_id === PERSONAL_SPACE_PROJECT_ID
+        ? "个人空间的技能设置统一使用全局个人层（home），这里没有项目层"
+        : "需要当前项目才能设置项目技能");
+    }
     const scoped = input.scope === "home" ? { ...caller, project_id: null } : caller;
     // Await authority, then recheck the captured installation synchronously before committing.
     const skills = await this.ports.withSkills(scoped, skills => skills);

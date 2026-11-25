@@ -11,7 +11,7 @@
 import { builtinActiveSkillScenes, skillAudienceActive, type ActiveSkillScene } from "../memory/memory-plugin-scene.js";
 import { randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import type { ActionCallContext, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PERSONAL_SPACE_PROJECT_ID, type ActionCallContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { SandboxAgentBody } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { skillEntriesOf, SKILL_LIMITS, type PluginMethodDeclaration, type SkillAppliesTo } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -102,11 +102,16 @@ export class SkillWorkshop {
 
   private get store() { return this.ports.drafts; }
 
-  /** The scopes a call sees: the personal space, and its project when it has one. */
-  private scopes(caller: ActionCallContext): string[] { return caller.project_id ? ["home", caller.project_id] : ["home"]; }
+  /** The scopes a call sees: the global personal layer (`home`), plus its project when it is a real project (R22: personal space has no project layer). */
+  private scopes(caller: ActionCallContext): string[] {
+    return caller.project_id && caller.project_id !== PERSONAL_SPACE_PROJECT_ID ? ["home", caller.project_id] : ["home"];
+  }
 
   private scopeRef(caller: ActionCallContext, scope: SkillScope): string {
     if (scope === "home") return "home";
+    if (caller.project_id === PERSONAL_SPACE_PROJECT_ID) {
+      throw skillErrors.authored_invalid("在个人空间写的技能每个项目都能用，这里没有「只在这个项目」", { field: "scope" });
+    }
     if (!caller.project_id) throw skillErrors.scope_mismatch("需要当前项目才能写项目里的技能");
     return caller.project_id;
   }
@@ -216,7 +221,7 @@ export class SkillWorkshop {
       const source = skills.find(skill => isDeepStrictEqual(skill.ref, target.ref));
       if (!source) throw skillErrors.not_found("这个技能已经不是目录里的当前版本，请刷新后再试");
       source.assertCurrent();
-      if (scope === "home" && source.pack.scope !== "home" && !caller.project_id) throw skillErrors.scope_mismatch("这个技能在项目里");
+      if (scope === "home" && source.pack.scope !== "home" && (!caller.project_id || caller.project_id === PERSONAL_SPACE_PROJECT_ID)) throw skillErrors.scope_mismatch("这个技能在项目里");
       return { target: { kind: "custom", source: sourceOf(source) } as SkillDraftTarget, fields: input.fields ?? skillFields(source), replacements: {}, carried: [] as SkillCase[] };
     }
     const own = this.own(skills, scope, target.skill_id);
@@ -374,7 +379,7 @@ export class SkillWorkshop {
     return entries.map(entry => {
       const skill = skills.find(item => isDeepStrictEqual(item.ref, entry.ref));
       if (!skill) return entry;
-      const scopeRef = skill.pack.scope === "home" ? "home" : caller.project_id ?? "home", mine = isOwnSkill(skill);
+      const scopeRef = skill.pack.scope === "home" || !caller.project_id || caller.project_id === PERSONAL_SPACE_PROJECT_ID ? "home" : caller.project_id, mine = isOwnSkill(skill);
       const draft = drafts.find(item => item.scope_ref === scopeRef && (mine ? item.target.kind === "own" && item.target.skill_id === skill.ref.skill_id
         : item.target.kind === "custom" && sameSkill(skill, item.target.source)));
       const row = mine ? lineage.get(`${scopeRef}\0${skill.ref.skill_id}`) : undefined, source = row && skills.find(item => sameSkill(item, row.source));

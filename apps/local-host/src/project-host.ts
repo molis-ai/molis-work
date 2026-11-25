@@ -259,7 +259,7 @@ export class MolisWorkLocalHost {
           const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
           try {
             // The per-partition plugins' installation records are the Home install table's, for every reader of this partition (batch 107).
-            if (options.homeDirectory) partitionPluginHostFor(options.homeDirectory, startPartitionPluginInstance).noteStore(store);
+            if (options.homeDirectory) partitionPluginHostFor(options.homeDirectory, startPartitionPluginInstance).noteStore(store, reference.project_id);
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
             add(surfaceActionProvider({ store, reference, homeDirectory: options.homeDirectory, readCatalog,
               client: this.host.actionClient(reference),

@@ -6,14 +6,14 @@ import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registr
 import { declarationOwnersFor } from "./declaration-owners.js";
 import { bindProjectArtifacts } from "./declared-types.js";
 import { PluginViewRevisions } from "./plugin-view-revisions.js";
-import { partitionInstallRecords, pluginInstallRecords } from "./plugin-install-records.js";
-import type { InstallScope } from "./plugin-holders.js";
+import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
   PluginDefinition,
   PluginInstanceRecord,
   PluginManifest,
   PluginPrivateStorage,
+  PluginRuntimeRepository,
   PluginUpgradeContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -142,6 +142,11 @@ export interface PluginPlatformOptions {
 
 export interface PluginPlatform {
   readonly runtime: PluginRuntime;
+  /**
+   * The installation records this platform reads and writes. A per-partition instance's keep its lifecycle in memory and hand durable facts to
+   * the Home install table, so the partition's other readers read this instance's record through them (`plugin-install-records.ts`).
+   */
+  readonly installRecords: PluginRuntimeRepository;
   invokeOwnedAction<Input, Output>(expected: { actor_id: string; project_id: string; plugin_id: string; install_id: string; installation_generation: string },
     reference: import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference, input: Input,
     control: import("@molis-ai/molis-work-contracts/platform/plugin").PluginExecutionControl): Promise<Output>;
@@ -258,17 +263,17 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const identity = pluginEntryIdentity();
   const providerFor = identity.providerFor;
   const consents = options.consents ?? options.home?.consents ?? null;
-  // One install table in the Home (batch 106, §4.2): a partition instance keeps its install records, install directory and signed release
-  // packages there with it; only its business data is the partition's.
+  // One install table in the Home (batch 106, §4.2): a partition instance keeps its durable installation records, install directory
+  // and signed release packages there with it, while keeping its own per-partition runtime state (`running`/`crashed`/idle stop) in
+  // memory so stopping or crashing partition B never corrupts partition A's running state or skips A's cleanup.
   const installDb = options.installDatabase ?? options.db;
-  // A per-partition instance reads the Home's one install table, and only for the partition it was started for; its lifecycle is that
-  // partition's own (`plugin_partition_runtime`), so one partition's crash or switch-off changes no other partition's instance.
+  // A per-partition instance reads the Home's one install table, and only for the partition it was started for.
   if (options.partitionScope && (!options.installDatabase || options.installDatabase === options.db || options.partitionScope.partition_id !== options.project_id)) {
     throw new Error("分区插件实例要用 Home 的安装表，且只在它自己的分区里运行");
   }
-  const records = options.partitionScope ? partitionInstallRecords(installDb, options.db) : pluginInstallRecords(installDb);
-  // Where this platform's installations are kept, for the declaration and presentation checks: the Home's install table for a partition instance.
-  const installScope: InstallScope = options.partitionScope ? { kind: "home" } : { kind: "project", project_id: options.project_id };
+  const records = options.installDatabase && options.partitionScope
+    ? partitionInstanceInstallRecords(installDb)
+    : pluginInstallRecords(installDb);
   let closed = false;
   const views = new PluginViewRevisions(id => !closed && supervisor.state(id)?.status === "running");
   const { invalidateView, viewRevision, waitForView } = views;
@@ -291,7 +296,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const dualHomeRunning = (record: PluginInstanceRecord) => dualHomeRunningFor(options.home, isDualId, record);
   const effectiveGrants = (record: PluginInstanceRecord) => effectiveGrantsFor(runtime, isDualId, dualHomeRunning, record);
   const runtime: PluginRuntime = new PluginRuntime(records, executor,
-    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: installDb, scope: installScope }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, releaseIds: RELEASE_PACKAGE_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
+    { inProcess: options.inProcess, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: installDb, scope: options.installDatabase ? { kind: "home" } : { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, releaseIds: RELEASE_PACKAGE_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
       assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, { db: installDb, home: options.home?.directory, projectId: options.project_id, registry: options.actions.registry }, runtime, rollback),
       permissionBound: (record, definition) => isDualDefinition(definition) ? permission => { if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用"); return options.home.capturePermission(record, permission); } : undefined,
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id),
@@ -331,7 +336,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     wiring.revoke(pluginId); wiring.evaluate(pluginId); void events.resume(options.project_id);
   });
   return {
-    runtime, invokeOwnedAction: (expected, reference, input, control) => executor.invokeOwnedAction(expected, reference, input, control),
+    runtime, installRecords: records,
+    invokeOwnedAction: (expected, reference, input, control) => executor.invokeOwnedAction(expected, reference, input, control),
     supervisor, events, hostEvents, wiring, invalidateView, viewRevision, waitForView,
     stopProjectJobs: projectId => executor.stopProjectJobs(projectId),
     hasProjectWork: projectId => executor.hasProjectWork(projectId),
@@ -374,4 +380,81 @@ function projectLibraryOf(options: PluginPlatformOptions): ProjectLibrary | null
   const { db, journal } = options;
   if (typeof db.name !== "string" || typeof db.inTransaction !== "boolean") return null;
   return { db, path: db.name, ...(journal ? { journal: { project_id: options.project_id, actor_id: options.actor_id, writer: journal } } : {}) };
+}
+
+type PartitionInstanceState = Pick<PluginInstanceRecord, "installation_generation" | "version" | "manifest_digest" | "state" | "recovery_count" | "last_error_code" | "updated_at">;
+
+function durableInstallFieldsChanged(stored: PluginInstanceRecord, next: PluginInstanceRecord): boolean {
+  return stored.installation_generation !== next.installation_generation
+    || stored.plugin_id !== next.plugin_id
+    || stored.version !== next.version
+    || stored.publisher_id !== next.publisher_id
+    || stored.publisher_signature !== next.publisher_signature
+    || stored.manifest_digest !== next.manifest_digest
+    || stored.deployment !== next.deployment
+    || stored.selected_entrypoint !== next.selected_entrypoint
+    || stored.execution !== next.execution
+    || stored.publisher_trust !== next.publisher_trust
+    || stored.installed_at !== next.installed_at
+    || stored.uninstalled_at !== next.uninstalled_at
+    || stored.retain_private_data !== next.retain_private_data
+    || stored.grants.length !== next.grants.length
+    || stored.grants.some((grant, index) => grant !== next.grants[index]);
+}
+
+/**
+ * Splits durable Home installation facts (`plugin-runtime.db`) from one `(plugin, partition)` instance's ephemeral runtime state.
+ * Durable installation changes (install, upgrade, grants, uninstall) persist to Home; per-partition start/stop/crash stays local to
+ * this platform instance so another partition stopping or crashing never invalidates this instance's running state or skips cleanup.
+ * Durable Home `disabled` / `uninstalled` and generation/edition changes still take immediate effect on reads.
+ */
+function partitionInstanceInstallRecords(db: NonNullable<PluginPlatformOptions["installDatabase"]>): PluginRuntimeRepository {
+  const base = pluginInstallRecords(db);
+  const local = new Map<string, PartitionInstanceState>();
+  const project = (stored: PluginInstanceRecord | null): PluginInstanceRecord | null => {
+    if (!stored) return null;
+    if (stored.state === "uninstalled" || stored.state === "disabled") return stored;
+    const instance = local.get(stored.install_id);
+    if (instance
+      && instance.installation_generation === stored.installation_generation
+      && instance.version === stored.version
+      && instance.manifest_digest === stored.manifest_digest) {
+      return {
+        ...stored,
+        state: instance.state,
+        recovery_count: instance.recovery_count,
+        last_error_code: instance.last_error_code,
+        updated_at: instance.updated_at,
+      };
+    }
+    return stored.state === "running" ? { ...stored, state: "installed" } : stored;
+  };
+  return {
+    get: installId => project(base.get(installId)),
+    list: () => base.list().map(stored => project(stored)!),
+    save(record: PluginInstanceRecord) {
+      if (record.state === "uninstalled") {
+        local.delete(record.install_id);
+        base.save(record);
+        return;
+      }
+      const stored = base.get(record.install_id);
+      const durableChanged = !stored
+        || stored.state === "uninstalled"
+        || (stored.state === "disabled" && record.state === "running")
+        || durableInstallFieldsChanged(stored, record);
+      if (durableChanged) {
+        base.save({ ...record, state: "installed", recovery_count: 0, last_error_code: null });
+      }
+      local.set(record.install_id, {
+        installation_generation: record.installation_generation,
+        version: record.version,
+        manifest_digest: record.manifest_digest,
+        state: record.state,
+        recovery_count: record.recovery_count,
+        last_error_code: record.last_error_code,
+        updated_at: record.updated_at,
+      });
+    },
+  };
 }

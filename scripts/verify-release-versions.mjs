@@ -290,32 +290,77 @@ function callArguments(text, open) {
   return args;
 }
 
+// The two typed plugin-declaration bridges: only an exact call directly inside its named function declaration (resolved by AST, with
+// comments stripped, and at most once per file) is exempt from the named-baseline rule.
+const DECLARATION_BRIDGES = new Map([
+  ["apps/local-host/src/plugin-database.ts", {
+    callee: "openBaselineHomeSqlite",
+    functionName: "openPluginDatabaseConnection",
+    params: [{ name: "home", type: "string" }, { name: "declaration", type: "PluginDatabaseDeclaration" }],
+    exactParams: true,
+    args: ["home", "declaration.store_name", "declaration"],
+  }],
+  ["apps/local-host/src/partition-plugin-assembly.ts", {
+    callee: "applySqliteBaseline",
+    functionName: "openPartitionPluginLibrary",
+    params: [
+      { name: "scope", type: "PartitionPluginScope" },
+      { name: "home", type: "string" },
+      { name: "declaration", type: "PluginDatabaseDeclaration" },
+    ],
+    exactParams: true,
+    args: ["writer", "file", "declaration"],
+  }],
+]);
+const astPrinter = ts.createPrinter({ removeComments: true });
+const canonicalAst = (node, source) => astPrinter.printNode(ts.EmitHint.Unspecified, node, source).replace(/\s+/gu, " ").trim();
+
+function matchesBridgeFunction(fn, spec, source) {
+  if (!fn || !ts.isFunctionDeclaration(fn) || fn.name?.text !== spec.functionName) return false;
+  if (spec.exactParams ? fn.parameters.length !== spec.params.length : fn.parameters.length < spec.params.length) return false;
+  return spec.params.every((want, index) => {
+    const param = fn.parameters[index];
+    return Boolean(param && !param.dotDotDotToken && !param.questionToken && ts.isIdentifier(param.name) && param.name.text === want.name
+      && param.type && canonicalAst(param.type, source) === want.type);
+  });
+}
+
+function exemptBridgeCallOffsets(file, text) {
+  const spec = DECLARATION_BRIDGES.get(file);
+  if (!spec) return new Set();
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, scriptKind(file));
+  const offsets = [];
+  const visit = (node, enclosingFn) => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === spec.callee
+      && matchesBridgeFunction(enclosingFn, spec, source)
+      && node.arguments.length === spec.args.length
+      && spec.args.every((want, index) => canonicalAst(node.arguments[index], source) === want)) {
+      offsets.push(node.expression.getStart(source));
+    }
+    const nextFn = ts.isFunctionLike(node) ? node : enclosingFn;
+    ts.forEachChild(node, child => visit(child, nextFn));
+  };
+  visit(source, null);
+  return offsets.length === 1 ? new Set(offsets) : new Set();
+}
+
 // A baseline handed to `applySqliteBaseline(db, path, baseline)` or `openBaselineHomeSqlite(home, name, baseline)` has to be a
 // named, declared constant. An inline object or a name no package declares is a database the table cannot list. The file that
 // defines the two functions is exempt: it only passes its own parameter on. `runSqliteUpgrade(db, path, baseline)` forwards what
 // a store's descriptor carries (specs/upgrade-continuity/upgrade-chain-design.md §2.3), so there, and only there, a property is
-// fine too. The two typed plugin-declaration bridges below are the only other exemptions (the Host connection bridge, and since
+// fine too. The two typed plugin-declaration bridges above are the only other exemptions (the Host connection bridge, and since
 // batch 106 the per-partition library opener); the aggregate copy openers and their file were deleted with U1-d, so the rule
-// reads these three entries and no others.
+// reads these entries and no others.
 function checkBaselineCalls(directories, declaredNames) {
   for (const directory of directories) {
     for (const file of sourceFiles(directory)) {
       if (file === "packages/storage/src/sqlite-baseline.ts") continue;
       const text = readFileSync(path.join(root, file), "utf8");
+      const exemptOffsets = exemptBridgeCallOffsets(file, text);
       for (const match of text.matchAll(/(?<!function\s)\b(applySqliteBaseline|openBaselineHomeSqlite|runSqliteUpgrade)\s*\(/g)) {
         const args = callArguments(text, match.index + match[0].length - 1);
         const baseline = args[2];
-        // This one typed connection bridge forwards the trusted declaration for the Host client and the SQL worker. Its declarations are
-        // counted above; no other file, inline argument, or different call in this file is exempt from named-baseline checks. (A Home library
-        // partitioned by project is gone since batch 107, so the bridge no longer forwards a project.)
-        if (file === "apps/local-host/src/plugin-database.ts" && match[1] === "openBaselineHomeSqlite"
-          && args.join(",") === "home,declaration.store_name,declaration"
-          && /function openPluginDatabaseConnection\(home: string, declaration: PluginDatabaseDeclaration\)/.test(text)) continue;
-        // The per-partition opener of an instance's own library (`<partition root>/libraries/<store>.db`, batch 106, U2) forwards
-        // the same trusted plugin declaration the same way (user 2026-11-24): this file, this call, these arguments, this function.
-        if (file === "apps/local-host/src/partition-plugin-assembly.ts" && match[1] === "applySqliteBaseline"
-          && args.join(",") === "writer,file,declaration"
-          && /function openPartitionPluginLibrary\(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration\)/.test(text)) continue;
+        if (exemptOffsets.has(match.index)) continue;
         const unnamed = `declare the baseline as a named constant so the 各库版本表 can list it`;
         if (baseline === undefined) problem(`${file}: ${match[1]} is called without a baseline`);
         else if (match[1] === "runSqliteUpgrade" && /^\w+(?:\.\w+)+$/.test(baseline)) continue;

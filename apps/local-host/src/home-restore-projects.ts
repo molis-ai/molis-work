@@ -2,7 +2,7 @@ import { projectReplicationTriggers } from "./project-replication-triggers.js";
 import { projectPluginPlatformExtension } from "./project-plugin-databases.js";
 import { join, relative, sep } from "node:path";
 import { PLATFORM_PLUGIN_REGISTRATIONS, BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
-import { ProjectsModule, listProjectRoots, matchesPartitionPattern, PARTITION_PATTERN, partitionDatabasePath, partitionOfRelativePath, PERSONAL_SPACE_DIRECTORY } from "@molis-ai/molis-work-module-projects";
+import { ProjectsModule, listProjectRoots, matchesPartitionPattern, PARTITION_PATTERN, partitionDatabasePath, partitionOfRelativePath, PERSONAL_SPACE_DIRECTORY, PROJECTS_DIRECTORY } from "@molis-ai/molis-work-module-projects";
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectPluginProjectDatabaseSet, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteSchema, listSqliteObjects, LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -31,6 +31,17 @@ export function restorePersonalSpaceDatabase(storePath: string, relativePath: st
   return storePath === PERSONAL_SPACE_DIRECTORY && relativePath === "molis-work.db" ? PERSONAL_SPACE_PROJECT_ID : null;
 }
 
+/** A plugin's own library under `personal-space/libraries/<store>.db` belongs to the personal partition and must match the catalog. */
+export function restorePersonalSpaceLibrary(storePath: string, relativePath: string): string | null {
+  return storePath === PERSONAL_SPACE_DIRECTORY && /^libraries\/[^/]+\.db$/u.test(relativePath) ? PERSONAL_SPACE_PROJECT_ID : null;
+}
+
+/** The personal partition never lives under `projects/personal`; any such entry in an archive is invalid. */
+export function isForbiddenPersonalProjectPath(relativePath: string): boolean {
+  const forbidden = `${PROJECTS_DIRECTORY}/${PERSONAL_SPACE_PROJECT_ID}`;
+  return relativePath === forbidden || relativePath.startsWith(`${forbidden}/`);
+}
+
 export function inspectRestoreProjectDatabase(db: SqliteDatabase, file: string, projectId: string): Readonly<Record<string, string | number>> {
   const roots = listProjectRoots(db);
   if (roots.length !== 1 || roots[0]!.project_id !== projectId) throw invalidRestore();
@@ -55,6 +66,7 @@ export function inspectRestoreProjectReferences(db: SqliteDatabase, home: string
     ids.add(id);
   }
   for (const file of incomingPaths) {
+    if (isForbiddenPersonalProjectPath(file)) throw invalidRestore();
     const partition = matchesPartitionPattern(`${PARTITION_PATTERN}/molis-work.db`, file) ? partitionOfRelativePath(file) : null;
     if (partition !== null && !ids.has(partition)) throw invalidRestore();
   }

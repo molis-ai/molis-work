@@ -3,6 +3,7 @@ import {
   OVERVIEW_EVENT_WINDOW_DAYS, OVERVIEW_KINDS, OVERVIEW_NOTIFICATION_LEVELS, OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, OVERVIEW_TASK_STATUSES, OVERVIEW_TEXT_LIMITS,
   type OverviewKind, type OverviewRowByKind, type PluginDatabaseTransaction, type PluginSqlValue,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { isTimeZone } from "./card-values.js";
 
 /**
  * Keeps the platform's overview table (`OVERVIEW_TABLE_SQL`, which the plugin writes into its partition library schema) in the same
@@ -11,7 +12,7 @@ import {
  * to drop. The platform reads the table read-only and stamps partition and installation itself, so nothing here names either.
  *
  * ```ts
- * await services.database.transaction(tx => {
+ * await services.database.transaction(caller.beforeEffect, tx => {
  *   tx.run("UPDATE todos SET done = 1 WHERE id = ?", [id]);
  *   overviewRows(tx).upsert("task", { row_id: id, title, status: "done", updated_at: now });
  * });
@@ -109,8 +110,10 @@ export function checkOverviewRow(kind: unknown, row: unknown): OverviewRowCheck 
     const startsAt = instant(fields.starts_at, "starts_at", true), endsAt = instant(fields.ends_at, "ends_at");
     if (startsAt !== null && endsAt !== null && Date.parse(endsAt) < Date.parse(startsAt)) fail("日程的 ends_at 不能早于 starts_at");
     if (fields.all_day !== undefined && typeof fields.all_day !== "boolean") fail("日程的 all_day 只能是 true 或 false");
+    const timeZone = text(fields.time_zone, 64, "time_zone");
+    if (timeZone !== null && !isTimeZone(timeZone)) fail("日程的 time_zone 必须是合法的 IANA 时区");
     columns = { ...base, starts_at: startsAt, ends_at: endsAt, all_day: fields.all_day === undefined ? null : fields.all_day ? 1 : 0,
-      time_zone: text(fields.time_zone, 64, "time_zone"), remind_at: instant(fields.remind_at, "remind_at") };
+      time_zone: timeZone, remind_at: instant(fields.remind_at, "remind_at") };
   } else if (kind === "notification") {
     if (!(OVERVIEW_NOTIFICATION_LEVELS as readonly unknown[]).includes(fields.level)) fail("通知的 level 只能是 info、warning 或 urgent");
     columns = { ...base, level: fields.level as string, source: text(fields.source, OVERVIEW_TEXT_LIMITS.source, "source"),

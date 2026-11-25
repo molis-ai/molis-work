@@ -70,6 +70,8 @@ Manifest 里有两类声明会改变插件在别处的效果，安装预览把�
 
 市场卡片要同时有 catalog 的 `summary` 和一个 `navigator` 或 `island` 视图；没有这两种视图、页面只放在设置里的插件不进内建市场（Characters 是宿主的一节设置，不是插件，不在市场里）。
 
+> 统一工作分区过渡（第 106 批起）：上述 `personal: true`、`companions` 与「个人插件／项目插件」两套写法属于待迁出旧模型；新插件的分区独立库（`databases.partition`）、本人设置（`person_settings`）、总览表（`overview_projection`）、推送声明（`push`）、市场分类（`market`）与通用随启用依赖（`dependencies`／`enable_with`）一律以 [partitions.md](partitions.md) 为准。
+
 ## UI
 
 - `ui.locales`：`{ default, available }` 声明随包提供的语言文件（`locales/<语言>.json`，推荐覆盖 `en`/`zh`/`ja` 并向 N 语种扩展；禁止写二元 `zh`/`en` 逻辑分支），详见 [text-and-appearance.md](text-and-appearance.md)。
@@ -110,7 +112,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 方向：人/Agent → 本插件。插件对外的能力就是它声明的 `actions`：动作的 `audiences` 含 `mcp`，用户在「能力 → 对外接入」为某个客户端授权后，它就是 MCP 工具 `molis_work_v1_action_<动作>__v<版本>`。不另外登记 MCP 工具，没有按名称的开关。
 
 - 动作输入只放业务字段；`project_id`、数据库路径、Web 地址、操作者身份都由 Host 注入。
-- 个人、不绑项目也能用的动作用 `scope: "home"`；个人插件但按项目分区（Pages / Forms / Dataset / PPT）用 `scope: "project"`，`project_id` 由 Host 注入。
+- 个人、不绑项目也能用的动作用 `scope: "home"`；个人插件但按项目分区（Pages / Forms / Dataset / PPT）用 `scope: "project"`，`project_id` 由 Host 注入（统一工作分区下的分区独立库与随本人设置分工见 [partitions.md](partitions.md)）。
 
 `agent.mcp` 是反方向：插件里的 Agent 能不能调**外面**的 MCP。
 

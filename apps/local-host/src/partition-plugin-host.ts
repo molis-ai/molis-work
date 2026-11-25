@@ -25,7 +25,7 @@ import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
  * - **Idle**: an instance with no lease stops after `PARTITION_PLUGIN_IDLE_MS`; a sweep runs while the Host does.
  * - **Membership**: a plugin taken out of a partition stops there, and its due entries and overview rows there go (`pluginDisabled`).
  * - **What an instance reaches**: its own partition's library and files (S-partition-isolation), and installation records from the Home's one
- *   install table, with its lifecycle kept in its own partition (`plugin_partition_runtime`).
+ *   install table, with its lifecycle kept by that instance alone, in memory per (install, partition).
  */
 
 /** A started instance: its own platform, which serves its actions, routes and pages; nothing else runs on it. */
@@ -85,6 +85,19 @@ export function partitionChanged(home: string, partitionId: string, installId?: 
   else markPartitionChanged(home, partitionId, installId);
 }
 
+/**
+ * A membership write took a plugin out of a partition: its due entries and overview rows there go now, whether or not the partition is open
+ * (an open one also stops its instance on the refresh that follows). Nothing for a plugin that does not run per partition.
+ */
+export function partitionPluginRemoved(home: string, pluginId: string, partitionId: string): void {
+  const host = existingPartitionPluginHost(home);
+  const manifest = host?.manifestOf(pluginId) ?? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => PARTITION_BUILT_INS.includes(pluginId) && entry.manifest.plugin_id === pluginId)?.manifest;
+  if (!manifest) return;
+  const installId = installIdentity(manifest);
+  if (host?.services) host.services.pluginDisabled(installId, partitionId);
+  else forgetInstallationPlatformRecords(home, installId, partitionId, { dataGoes: false, installedElsewhere: true });
+}
+
 /** The plugins whose installation is this Home's and whose lifecycle each partition keeps: not Home plugins, though in the same install table. */
 export function perPartitionPlugins(home: string): ReadonlySet<string> {
   return existingPartitionPluginHost(home)?.partitionPlugins() ?? new Set(PARTITION_BUILT_INS);
@@ -133,6 +146,9 @@ export class PartitionPluginHost {
 
   plugins(): readonly string[] { return [...this.entries.keys()]; }
 
+  /** The Manifest of a plugin this Host runs per partition, when it was declared here. */
+  manifestOf(pluginId: string): PluginPlatformEntry["definition"]["manifest"] | undefined { return this.entries.get(pluginId)?.definition.manifest; }
+
   /**
    * Every plugin whose installation is this Home's and whose lifecycle is each partition's: the built-in ones that keep a library in each
    * partition, and any other declared here. Known before any of them started, so a partition's records read the same either way.
@@ -142,15 +158,23 @@ export class PartitionPluginHost {
   }
 
   /** A partition's database is open: its per-partition plugins' installation records are read from the Home install table from now on. */
-  noteStore(partition: LocalProjectDatabase): void {
-    notePartitionInstalls(partition.db, this.installDatabase(), () => this.partitionPlugins());
+  noteStore(partition: LocalProjectDatabase, partitionId: string): void {
+    notePartitionInstalls(partition.db, this.installDatabase(), () => this.partitionPlugins(), pluginId => this.platform(pluginId, partitionId)?.installRecords);
   }
 
   /** The Host starts the services (due timer, overview) and the idle sweep, and says how a partition that is not open is opened. */
   startServices(opener: PartitionOpener): void {
     if (this.closed) throw new Error("分区插件宿主已关闭");
     this.opener = opener;
-    this.services ??= new PartitionPlatformServices({ home: this.home, assembly: this.assembly });
+    // Until a plugin has a handler for its due entries (batch 108), a fired entry wakes its instance and is taken; nothing in this build
+    // registers one (no built-in here declares an overview, and the SDK gives no route yet), so one that fires is written down, not lost silently.
+    this.services ??= new PartitionPlatformServices({ home: this.home, assembly: this.assembly,
+      deliverDue: async (_lease, entry) => {
+        hostLog.warn("plugins", "partition_due_undelivered", undefined, { plugin_id: entry.plugin_id, partition_id: entry.partition_id, entry_key: entry.entry_key });
+      },
+      failed: (entry, error) => {
+        hostLog.warn("plugins", "partition_due_wake_failed", error, { plugin_id: entry.plugin_id, partition_id: entry.partition_id, entry_key: entry.entry_key });
+      } });
     this.sweep ??= setInterval(() => { void this.assembly.sweep().catch(() => {}); }, SWEEP_MS);
     this.sweep.unref?.();
   }
@@ -169,7 +193,7 @@ export class PartitionPluginHost {
     const entry = this.entries.get(scope.plugin_id);
     if (!entry) throw new ActionError("actions.plugin_unavailable", "这个插件还不按分区运行");
     const run = async (ports: ProjectPluginPorts) => {
-      this.noteStore(ports.store);
+      this.noteStore(ports.store, ports.projectId);
       const instance = await this.startInstance(ports, scope, entry, this.installDatabase());
       storeHosts.set(ports.store, this);
       return instance;
@@ -199,7 +223,7 @@ export class PartitionPluginHost {
   async openPartition(ports: ProjectPluginPorts): Promise<void> {
     if (this.closed) throw new ActionError("actions.plugin_unavailable", "分区插件宿主已关闭");
     const partitionId = ports.projectId;
-    this.noteStore(ports.store);
+    this.noteStore(ports.store, ports.projectId);
     const opened = this.open.get(partitionId);
     if (opened) { opened.ports = ports; } else this.open.set(partitionId, { ports, leases: new Map() });
     await this.refresh(partitionId);

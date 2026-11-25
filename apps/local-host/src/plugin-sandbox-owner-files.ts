@@ -1,5 +1,6 @@
 import { lstatSync, mkdirSync, realpathSync, rmSync } from "node:fs";
-import { dirname, join, sep } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type PluginDefinition, type PluginOwnerFilesClient, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginOwnerFilesClient } from "@molis-ai/molis-work-plugin-runtime";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
@@ -26,10 +27,51 @@ const plain = (value: string, what: string) => {
   return value;
 };
 
+/** The confinement root for one sandboxed installation's files: the partition root (`partitionRoot`), or the Home for Home Runtime (`project_id: null`). */
+function sandboxOwnerFilesRoot(homeDirectory: string, projectId: string | null): string {
+  const home = realpathSync(homeDirectory);
+  return projectId === null ? home : partitionRoot(home, plain(projectId, "项目 ID"));
+}
+
+/** The real location of a path through its deepest existing ancestor: a link inside one partition pointing elsewhere resolves outside it. */
+function resolveExisting(candidate: string): string {
+  const absolute = resolve(candidate);
+  const rest: string[] = [];
+  let at = absolute;
+  for (;;) {
+    try {
+      return join(realpathSync(at), ...rest.reverse());
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      const parent = dirname(at);
+      if (parent === at) return absolute;
+      rest.push(basename(at));
+      at = parent;
+    }
+  }
+}
+
+/** Refuses any symlink escape before creating or opening a sandboxed installation's owner-files folder (S-partition-isolation, S-64). */
+function assertOwnSandboxFilesPath(root: string, base: string): void {
+  const expectedParent = join(root, "plugin-files");
+  const resolvedParent = resolveExisting(dirname(base));
+  const resolvedBase = resolveExisting(base);
+  const baseStat = lstatSync(base, { throwIfNoEntry: false });
+  if (
+    resolvedParent !== expectedParent
+    || !(resolvedParent + sep).startsWith(root + sep)
+    || resolvedBase !== base
+    || !(resolvedBase + sep).startsWith(root + sep)
+    || baseStat?.isSymbolicLink()
+  ) {
+    throw new ActionError("actions.forbidden", "插件只能读写它所在分区的库和文件");
+  }
+}
+
 /** The directory that holds one installation's files; `store_name` (the Manifest's) is a directory inside it. */
 export function sandboxOwnerFilesBase(homeDirectory: string, projectId: string | null, installId: string): string {
-  const home = realpathSync(homeDirectory), installation = plain(installId, "安装 ID");
-  return projectId === null ? join(home, "plugin-files", installation) : join(partitionRoot(home, plain(projectId, "项目 ID")), "plugin-files", installation);
+  const installation = plain(installId, "安装 ID");
+  return join(sandboxOwnerFilesRoot(homeDirectory, projectId), "plugin-files", installation);
 }
 
 export function sandboxOwnerFilesFor(scope: SandboxOwnerFilesScope, definition: PluginDefinition,
@@ -37,8 +79,12 @@ export function sandboxOwnerFilesFor(scope: SandboxOwnerFilesScope, definition: 
   const declaration = definition.manifest.owner_files;
   if (definition.execution !== "sandbox" || declaration === undefined) return undefined;
   if (!scope.home) throw pluginErrors.declaration_invalid(`沙箱插件 ${definition.manifest.plugin_id} 声明了主人文件，但这个插件平台没有 Home`);
+  const root = sandboxOwnerFilesRoot(scope.home.directory, scope.project_id);
   const base = sandboxOwnerFilesBase(scope.home.directory, scope.project_id, context.install_id);
+  // Checked before mkdirSync (so a swapped link cannot create directories in another partition) and again after.
+  assertOwnSandboxFilesPath(root, base);
   mkdirSync(base, { recursive: true, mode: 0o700 });
+  assertOwnSandboxFilesPath(root, base);
   // No location is passed: `rootPath()` answers "unavailable", and the sandbox's broker has no method for it either way.
   return createPluginOwnerFilesClient(definition.manifest, declaration, openPluginOwnerFiles(base, declaration),
     { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: permission => context.requireGrant(permission) });
@@ -46,13 +92,18 @@ export function sandboxOwnerFilesFor(scope: SandboxOwnerFilesScope, definition: 
 
 /**
  * The platform's cleanup when a sandboxed installation is uninstalled and keeps no private data: its folder goes, and nothing else (S-64). The instance has
- * stopped by then. A name that is not a plain directory name, a folder that is not where the Host made it (the parent resolves outside the Home), and a link
+ * stopped by then. A name that is not a plain directory name, a folder that is not where the Host made it (the parent resolves outside its partition/Home), and a link
  * are never followed: a link is unlinked, never what it points at.
  */
 export function removeSandboxOwnerFiles(scope: SandboxOwnerFilesScope, installId: string): void {
   if (!scope.home) return;
+  const root = sandboxOwnerFilesRoot(scope.home.directory, scope.project_id);
   const base = sandboxOwnerFilesBase(scope.home.directory, scope.project_id, installId);
   try { lstatSync(base); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
-  if (!(realpathSync(dirname(base)) + sep).startsWith(realpathSync(scope.home.directory) + sep)) throw pluginErrors.declaration_invalid("存它文件的文件夹指向这个空间之外，为稳妥没有动；处理好后可以重试");
+  const parentReal = realpathSync(dirname(base));
+  const expectedParent = join(root, "plugin-files");
+  if (parentReal !== expectedParent || !(parentReal + sep).startsWith(root + sep)) {
+    throw pluginErrors.declaration_invalid("存它文件的文件夹指向这个空间之外，为稳妥没有动；处理好后可以重试");
+  }
   rmSync(base, { recursive: true, force: true });
 }

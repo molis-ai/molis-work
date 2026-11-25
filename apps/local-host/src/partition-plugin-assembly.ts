@@ -79,6 +79,8 @@ interface Running<Handle> {
   /** The started instance, once `ready` settled with it. */
   handle?: Handle;
   leases: number;
+  /** Callers currently awaiting `ready`: `sweep()` never treats an instance with pending waiters as idle. */
+  pending: number;
   lastUsed: number;
 }
 
@@ -132,14 +134,19 @@ export class PartitionPluginAssembly<Handle extends PartitionPluginHandle = Part
     if (!entry) {
       const scope = partitionPluginScope(this.options.home, partitionId, pluginId, record.install_id);
       const ready = this.options.start(scope, reason);
-      const created: Running<Handle> = { key, scope, ready, leases: 0, lastUsed: this.now() };
+      const created: Running<Handle> = { key, scope, ready, leases: 0, pending: 0, lastUsed: this.now() };
       entry = created;
       this.running.set(key, created);
       ready.then(handle => { created.handle = handle; }, () => {
         if (this.running.get(key) === created) this.running.delete(key);
       });
     }
-    await entry.ready;
+    entry.pending += 1;
+    try {
+      await entry.ready;
+    } finally {
+      entry.pending -= 1;
+    }
     // Stopped while it was starting (disabled, uninstalled, its partition gone): no lease on an instance that is no longer running.
     if (this.running.get(key) !== entry) throw new ActionError("actions.plugin_unavailable", "这个插件在这里刚停下");
     entry.handle ??= await entry.ready;
@@ -165,21 +172,20 @@ export class PartitionPluginAssembly<Handle extends PartitionPluginHandle = Part
     return [...this.running.values()].map(entry => ({ plugin_id: entry.scope.plugin_id, partition_id: entry.scope.partition_id }));
   }
 
-  /** Stops every instance with no lease whose last use is older than the idle time; returns how many stopped. */
+  /** Stops every instance with no lease or pending waiter whose last use is older than the idle time; returns how many stopped. */
   async sweep(): Promise<number> {
-    const due = [...this.running.values()].filter(entry => entry.leases === 0 && this.now() - entry.lastUsed >= this.idleMs);
-    await this.stopEntries(due);
-    return due.length;
+    const due = [...this.running.values()].filter(entry => entry.leases === 0 && entry.pending === 0 && this.now() - entry.lastUsed >= this.idleMs);
+    return this.stopEntries(due);
   }
 
   /** Stops this plugin's instances (it was disabled there, or uninstalled), in one partition or in all of them. */
-  stopPlugin(pluginId: string, partitionId?: string): Promise<void> {
-    return this.stopEntries([...this.running.values()].filter(entry => entry.scope.plugin_id === pluginId && (partitionId === undefined || entry.scope.partition_id === partitionId)));
+  async stopPlugin(pluginId: string, partitionId?: string): Promise<void> {
+    await this.stopEntries([...this.running.values()].filter(entry => entry.scope.plugin_id === pluginId && (partitionId === undefined || entry.scope.partition_id === partitionId)));
   }
 
   /** Stops every instance in a partition, before the partition is deleted or recycled. */
-  stopPartition(partitionId: string): Promise<void> {
-    return this.stopEntries([...this.running.values()].filter(entry => entry.scope.partition_id === partitionId));
+  async stopPartition(partitionId: string): Promise<void> {
+    await this.stopEntries([...this.running.values()].filter(entry => entry.scope.partition_id === partitionId));
   }
 
   async close(): Promise<void> {
@@ -188,17 +194,24 @@ export class PartitionPluginAssembly<Handle extends PartitionPluginHandle = Part
     await Promise.all([...this.stopping.values()].map(stop => stop.catch(() => {})));
   }
 
-  private async stopEntries(entries: readonly Running<Handle>[]): Promise<void> {
+  private async stopEntries(entries: readonly Running<Handle>[]): Promise<number> {
     this.stops += 1;
     const failures: unknown[] = [];
     const stops: Promise<void>[] = [];
+    let stopped = 0;
     for (const entry of entries) {
       if (this.running.get(entry.key) !== entry) continue;
       this.running.delete(entry.key);
       // Registered before anything is awaited, so an `acquire` of the same pair waits for this stop to finish.
       const stop = (async () => {
         let handle: Handle;
-        try { handle = await entry.ready; } catch { return; }
+        try {
+          handle = await entry.ready;
+        } catch {
+          // Start failed before producing an instance: nothing to stop here; callers awaiting `acquire()` still receive the start error.
+          return;
+        }
+        stopped += 1;
         await handle.stop();
       })();
       const tracked = stop.finally(() => { if (this.stopping.get(entry.key) === tracked) this.stopping.delete(entry.key); });
@@ -207,6 +220,7 @@ export class PartitionPluginAssembly<Handle extends PartitionPluginHandle = Part
     }
     await Promise.all(stops);
     if (failures.length) throw new AggregateError(failures, "分区插件实例停止失败");
+    return stopped;
   }
 }
 

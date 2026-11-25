@@ -267,6 +267,27 @@ test("S-35 a cut carry whose original changed since is taken back at the target;
   assert.equal(both.notes.get("q4")!.body, "目标改过", "nothing either side wrote was replaced");
 });
 
+test("S-35 a cut carry is not settled while either partition's owner cannot be reached: the record stays, both copies stay, and it is settled once the owner is back", async () => {
+  for (const unreachable of ["personal", "q4"] as const) {
+    const w = carryWorld({ remove: from => from === "personal" ? "cut" : undefined });
+    await assert.rejects(w.service().move(old, "q4"), /宿主停了/u);
+    w.restart();
+    // The partition's directory offers no carry actions right now (the plugin taken out there, switched off, or not starting), or cannot be read.
+    for (const discover of [async () => [], async () => { throw new Error("目录读不出"); }]) {
+      const ports: PlacementPorts = { ...w.ports, scope: async id => {
+        const opened = await w.ports.scope(id);
+        return id === unreachable ? { ...opened, client: { ...opened.client, invoke: opened.client.invoke.bind(opened.client), discover } as never } : opened;
+      } };
+      assert.equal(await new PlacementService(ports).settleCarries(), 1, `${unreachable} unreachable: still unsettled`);
+      assert.equal(new PlacementService(ports).pendingCarries(), 1, "the record stays");
+      assert.deepEqual([...w.notes.keys()].sort(), ["personal", "q4"], "neither copy is touched");
+      assert.deepEqual(new PlacementService(ports).locate(old), { object: old, moved: false });
+    }
+    assert.equal(await w.service().settleCarries(), 0, "the owner is back: settled");
+    assert.deepEqual([...w.notes.keys()], ["q4"]);
+  }
+});
+
 test("S-35 a put onto an object already at the target accepts only the same record again: a retried put is a replay, an edited target is a conflict", async () => {
   const w = carryWorld();
   const q4 = { client: (await w.ports.scope("q4")).client, caller: owner("q4") };

@@ -16,6 +16,8 @@ export interface CoveragePlanEntry {
  */
 /** A round's own events, recorded by agent-host from the runtime's stream (`prologue-run-observation.ts`). */
 const AGENT_FACTS = ["run", "instructions", "skill", "materials", "prompt", "reply", "tool", "compaction", "memory", "guard", "waiting", "retry", "model", "changes", "subagent"];
+/** The scheduled-clock `ObservationEntry` channel (shared across scheduler and gateway action rows). */
+const SCHEDULE_ENTRY: ObservationEntry = "schedule";
 
 export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // This covers the protected Goal source review (`goals.inputs.review_source`, `goals.inputs.review_change`),
@@ -26,7 +28,7 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // Generated connection cards use the same connector binding and component-submit action exits; Studio icon selection belongs to the designer round.
   // Connector record binding, MCP configuration usage reports and connection list reads use this same action exit.
   // The action exit also covers the work line's `background.tasks.decide` and Coding's `agent.reviews.pending-ids` and `agent.write-checks.read`.
-  { owner: "service:gateway", fact: "action.call", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin", "schedule", "host"], state: "complete" },
+  { owner: "service:gateway", fact: "action.call", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin", SCHEDULE_ENTRY, "host"], state: "complete" },
   { owner: "service:gateway", fact: "action.call.page_read_result", entries: ["workbench", "cli"], state: "by_rule", reason: "page_read_result_digest_only" },
   // A command line with no Home runs in its own process and keeps nothing (design §9 D5); the desktop shell starts no work over IPC yet.
   { owner: "service:gateway", fact: "action.call.cli_without_home", entries: ["cli"], state: "not_applicable", reason: "no_home_no_records" },
@@ -54,10 +56,21 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // actions it calls are still the exit's records.
   { owner: "service:agent", fact: "agent.subagent.events", entries: ["agent"], state: "unavailable", reason: "child_stream_not_followed" },
   // Every wakeup of a project clock, in its own operation; the action it fired is the exit's record under the same call number.
-  { owner: "service:scheduler", fact: "scheduler.wakeup", entries: ["schedule"], state: "complete" },
+  { owner: "service:scheduler", fact: "scheduler.wakeup", entries: [SCHEDULE_ENTRY], state: "complete" },
+  // Partition due-registry timer wakeups (`horizontal/scheduler/src/due-registry.ts`, batch 106; run by the Host since batch 107, which logs a
+  // fired entry it has no delivery for): delivery handlers and observation sink join in batch 108.
+  { owner: "service:scheduler", fact: "scheduler.due_wakeup", entries: [SCHEDULE_ENTRY], state: "not_connected", reason: "due_timer_sink_not_wired" },
+  // A per-partition plugin instance's start, stop, idle stop and crash (`apps/local-host/src/partition-plugin-host.ts`, batch 107): a failed
+  // start is in the Host log with the plugin, partition and code; the lifecycle joins the sink with the partition services in batch 108.
+  { owner: "service:home", fact: "home.partition_plugin_lifecycle", entries: ["host"], state: "not_connected", reason: "partition_lifecycle_sink_not_wired" },
+  // The background pass that settles a carry a cut left half done (`placement-actions.ts`, batch 107): the move that started it is the action
+  // exit's record; the pass itself writes the ledger's own history (`placement.carried`, `placement.carry_undone`) and no observation yet.
+  { owner: "service:home", fact: "home.placement_carry_settle", entries: ["background"], state: "not_connected", reason: "carry_settle_sink_not_wired" },
   // Each panel write on an Assistant work, joined to that work; the call's content is the exit's, the rounds it started are the agent's.
   { owner: "service:assistant", fact: "assistant.work", entries: ["workbench"], state: "complete" },
   { owner: "service:home", fact: "home.selection", entries: ["workbench"], state: "complete" },
+  // Portable person-settings sync channel (`horizontal/person-settings`, wired in `personal-sync.ts`): background replica sync observation sink is not wired yet.
+  { owner: "service:home", fact: "home.person_settings_sync", entries: ["background"], state: "not_connected", reason: "person_settings_sync_not_wired" },
   { owner: "service:automation", fact: "automation.adoption", entries: ["workbench"], state: "complete" },
   // Grants whose owner keeps no history: a folder grant's row is deleted, an MCP grant is written over. Given by the person (in Settings, at the
   // folder chooser, through a task's categories) or taken by the Host after an uninstall or a folder that changed.

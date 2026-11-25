@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,22 +7,23 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
-  ensureProjectPlugins, existingPartitionPluginHost, LocalProjectDatabase, MolisWorkLocalHost, openHomePluginStore, openPartitionPluginLibrary, openProjectVersionStores,
-  PartitionPlatformServices, PartitionPluginAssembly, partitionInstallRecords, partitionOverviewLibraries, partitionPluginScope, projectPluginPlatform,
-  refreshRunningProjectPlugins, releaseProjectPlugins, runningProjectPluginState, startPartitionPluginInstance, type PartitionPluginScope,
+  createPluginPlatform, ensureProjectPlugins, existingPartitionPluginHost, HomeConsentLedger, homeStores, LocalProjectDatabase, MolisWorkLocalHost, openHomePluginStore,
+  openPartitionPluginLibrary, openProjectVersionStores, PartitionPlatformServices, PartitionPluginAssembly, partitionOverviewLibraries, partitionPluginScope,
+  pluginInstallRecords, projectPluginPlatform, refreshRunningProjectPlugins, releaseProjectPlugins, runningProjectPluginState, startPartitionPluginInstance, type PartitionPluginScope,
 } from "@molis-ai/molis-work-app-local-host";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
-import { installIdentity, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { installIdentity, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { bindActionHandler, defineSettingsActions } from "@molis-ai/molis-work-plugin-sdk";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-files.js";
 import { person as runtimePerson, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { DATASET_ACTION_PERMISSIONS, datasetActions } from "@molis-ai/molis-work-plugin-dataset";
-import { LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, OVERVIEW_TABLE_SQL, type PluginDatabaseDeclaration, type PluginDefinition, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, OVERVIEW_TABLE_SQL, pluginErrors, type PluginDatabaseDeclaration, type PluginDefinition, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PartitionDeclarationFields } from "@molis-ai/molis-work-plugin-sdk";
-import { overviewRows, partitionDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk";
+import { bindActionHandler, defineSettingsActions, overviewRows, partitionDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk";
 import { DueTimer, openDueRegistry } from "@molis-ai/molis-work-service-scheduler";
 
 const PLUGIN = "com.example.partition-notes";
@@ -259,7 +260,7 @@ const overviewDeclaration: PluginDatabaseDeclaration = { store_name: "todo", ver
   read_permission: "todo:read", write_permission: "todo:write" };
 const overviewManifest = { plugin_id: OVERVIEW_PLUGIN, databases: { partition: overviewDeclaration }, overview_projection: { kinds: ["task"] } } satisfies PartitionDeclarationFields;
 const person = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", actor_kind: "user", permissions: [], project_id: null } as ActionCallContext;
-const assistant = { ...person, audience: "agent", actor_kind: "runtime" } as ActionCallContext;
+const assistant = { ...person, audience: "agent", actor_kind: "runtime", audit_actor_id: "assistant:work-1" } as ActionCallContext;
 
 /** Writes A's and B's overview tables the way a plugin would: through the SDK helper, in the plugin's own transaction. */
 function writeTasks(home: string, partition: string, tasks: readonly { id: string; title: string; remind_at?: string }[]) {
@@ -394,7 +395,7 @@ test("UPP-34 S-partition-wake-scope the due timer wakes only the (plugin, partit
 
 // Batch 107-1: the Host's per-partition assembly (`partition-plugin-host.ts`). A plugin with a library in each partition no longer runs on the
 // project platform: each partition it is enabled in has its own instance, with the installation in the Home's install table and its lifecycle
-// in the partition (`plugin_partition_runtime`).
+// kept by that instance alone (in memory, per (install, partition)).
 const DATASET = "io.molis.work.dataset";
 
 test("UPP-21 batch 107 the Host runs a plugin with a library in each partition as its own instance per partition; one crashing leaves the other and the Home's installation as they were; the Home store and the instances share no stale record", async t => {
@@ -414,13 +415,14 @@ test("UPP-21 batch 107 the Host runs a plugin with a library in each partition a
   const installs = openHomePluginStore(f.home);
   t.after(() => installs.db.close());
   const homeRows = new SqlitePluginRuntimeRepository(installs.db);
-  await f.host.withProject(a.reference, runtime => {
-    const records = partitionInstallRecords(installs.db, runtime.store.db);
-    records.save({ ...records.get(installId)!, state: "crashed", recovery_count: 1, last_error_code: "plugin.crashed" });
-  });
-  assert.equal((await f.host.withProject(a.reference, runtime => partitionInstallRecords(installs.db, runtime.store.db).get(installId)))?.state, "crashed");
-  assert.equal((await f.host.withProject(b.reference, runtime => partitionInstallRecords(installs.db, runtime.store.db).get(installId)))?.state, "running",
-    "B's instance is still running");
+  own.installRecords.save({ ...own.runtime.get(installId)!, state: "crashed", recovery_count: 1, last_error_code: "plugin.crashed" });
+  assert.equal(own.runtime.get(installId)?.state, "crashed");
+  assert.equal(other.runtime.get(installId)?.state, "running", "B's instance is still running");
+  // Every other reader of a partition's records (the person's authority over its actions included) reads that partition's instance.
+  assert.equal(await f.host.withProject(b.reference, runtime => pluginInstallRecords(runtime.store.db).get(installId)?.state), "running");
+  assert.equal(await f.host.withProject(a.reference, runtime => pluginInstallRecords(runtime.store.db).get(installId)?.state), "crashed");
+  // The crash was only written down here: A's instance is put back as running, so it stops as usual when the Home closes.
+  own.installRecords.save({ ...own.runtime.get(installId), state: "running", recovery_count: 0, last_error_code: null });
   const facts = homeRows.get(installId);
   assert.equal(facts?.state, "installed", "the Home row keeps what the installation is, not any partition's lifecycle");
   assert.equal(facts?.recovery_count, 0);
@@ -429,10 +431,8 @@ test("UPP-21 batch 107 the Host runs a plugin with a library in each partition a
   homeRows.save({ ...facts!, grants: [...facts!.grants, "extra:probe"] });
   assert.ok(own.runtime.get(installId).grants.includes("extra:probe"), "an instance reads what the Home store wrote");
   assert.ok(other.runtime.get(installId).grants.includes("extra:probe"));
-  await f.host.withProject(b.reference, runtime => {
-    const records = partitionInstallRecords(installs.db, runtime.store.db), current = records.get(installId)!;
-    records.save({ ...current, grants: current.grants.filter(grant => grant !== "extra:probe") });
-  });
+  const current = other.runtime.get(installId)!;
+  other.installRecords.save({ ...current, grants: current.grants.filter(grant => grant !== "extra:probe") });
   assert.equal(homeRows.get(installId)?.grants.includes("extra:probe"), false, "and the Home store reads what an instance wrote");
   assert.equal(own.runtime.get(installId).grants.includes("extra:probe"), false);
   assert.equal(f.host.homePlugins?.installations().some(record => record.plugin_id === DATASET), false, "it is not listed as a Home plugin");
@@ -534,8 +534,378 @@ test("UPP-21 batch 107 a signed package with a library in each partition install
       assert.equal(state?.status, "running");
       assert.equal(homeRows.get(scope.install_id)?.version, "2.0.0", "the installation is the new version");
       assert.equal(homeRows.get(scope.install_id)?.state, "installed", "and the Home row still holds no lifecycle");
-      assert.equal(partitionInstallRecords(installs.db, store.db).get(scope.install_id)?.state, "running", "the partition's instance runs the new version");
+      assert.equal(instance.platform.runtime.get(scope.install_id)?.state, "running", "the partition's instance runs the new version");
       assert.equal(existsSync(join(partitionRoot(home, a), "libraries", "notes.db")), true, "on A's own library");
     } finally { await instance.stop(); }
   } finally { installs.db.close(); store.close(); }
+}));
+
+test("UPP-06 S-75 ⑥ production startPartitionPluginInstance without installedByHand refuses non-host in-process plugin", async () => withPartitions(async (home, a) => {
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const store = new LocalProjectDatabase(partitionRoot(home, a) + "/molis-work.db");
+  const definition = partitionNotes();
+  const installs = openHomePluginStore(home);
+  const ports = { store, ...openProjectVersionStores(store), projectId: a, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: home, actions: pluginActions(store, a) };
+  const scope = partitionPluginScope(home, a, PLUGIN, installIdentity(definition.manifest));
+  try {
+    await assert.rejects(
+      startPartitionPluginInstance(ports, scope, { definition }, installs.db),
+      (error: unknown) => error instanceof ActionError && error.code === "actions.plugin_unavailable"
+        && (error.details as { code?: unknown } | undefined)?.code === "plugin.in_process_denied",
+      "omitting installedByHand must deny non-host in-process plugins (S-75 ⑥)",
+    );
+    assert.equal((installs.db.prepare("SELECT count(*) AS count FROM plugin_runtime_installs").get() as { count: number }).count, 0, "no install row persisted on refusal");
+    assert.equal(existsSync(join(partitionRoot(home, a), "libraries")), false, "no partition library created on refusal");
+  } finally { installs.db.close(); store.close(); }
+}));
+
+test("UPP-06 UPP-21 two partitions sharing Home plugin-runtime.db isolate instance runtime state: stopping or crashing B never breaks A or skips A's stop hook", async () => withPartitions(async (home, a, b) => {
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const storeA = new LocalProjectDatabase(partitionRoot(home, a) + "/molis-work.db");
+  const storeB = new LocalProjectDatabase(partitionRoot(home, b) + "/molis-work.db");
+  const installs = openHomePluginStore(home);
+  const writeNoteAction: ActionDefinition<{ id: string }, { count: number; partition: string }> = {
+    capability_id: "com.example.partition-notes.write",
+    version: 1,
+    operation: "command",
+    action: {
+      title: "写分区笔记", description: "在当前分区写入一条笔记", kind: "operation", scope: "project",
+      audiences: ["user", "plugin"], permissions: ["notes:read", "notes:write"], subject_kinds: [],
+      input_schema: { type: "object", properties: { id: { type: "string", minLength: 1 } }, required: ["id"], additionalProperties: false },
+      output_schema: { type: "object", properties: { count: { type: "integer" }, partition: { type: "string" } }, required: ["count", "partition"], additionalProperties: false },
+    },
+  };
+  const stopped: string[] = [];
+  const started: string[] = [];
+  let failStartOn: string | null = null;
+  const definition: PluginDefinition = {
+    manifest: { ...partitionNotes().manifest, actions: [writeNoteAction] },
+    async start(context) {
+      if (failStartOn === context.project_id) throw new Error("partition B start failed");
+      started.push(context.project_id!);
+      const db = context.services?.database;
+      assert.ok(db, "per-partition instance receives services.database");
+      return {
+        kind: "app",
+        views: [],
+        actions: [bindActionHandler(writeNoteAction, async (input, caller) => {
+          await db.transaction(caller.beforeEffect, tx => {
+            tx.run("INSERT INTO notes (note_id, partition_id) VALUES (?, ?)", [input.id, context.project_id!]);
+          });
+          const rows = db.all("SELECT note_id FROM notes");
+          return { count: rows.length, partition: context.project_id! };
+        })],
+      };
+    },
+    async stop(context) { stopped.push(context.project_id!); },
+  };
+  const actionsA = pluginActions(storeA, a);
+  const actionsB = pluginActions(storeB, b);
+  const installId = installIdentity(definition.manifest);
+  const scopeA = partitionPluginScope(home, a, PLUGIN, installId);
+  const scopeB = partitionPluginScope(home, b, PLUGIN, installId);
+  const portsA = { store: storeA, ...openProjectVersionStores(storeA), projectId: a, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: home, actions: actionsA, installedByHand: new Set([definition]) };
+  const portsB = { store: storeB, ...openProjectVersionStores(storeB), projectId: b, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: home, actions: actionsB, installedByHand: new Set([definition]) };
+  const callerFor = (projectId: string): ActionCallContext => ({
+    actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: ["notes:read", "notes:write"],
+  });
+  const ref = { capability_id: writeNoteAction.capability_id, version: writeNoteAction.version, provider_id: installId };
+  try {
+    const instanceA = await startPartitionPluginInstance(portsA, scopeA, { definition }, installs.db);
+    const instanceB = await startPartitionPluginInstance(portsB, scopeB, { definition }, installs.db);
+    assert.deepEqual(started, [a, b]);
+    const homeRows = installs.db.prepare("SELECT record_json FROM plugin_runtime_installs").all() as Array<{ record_json: string }>;
+    assert.equal(homeRows.length, 1, "one shared Home install row for both partitions");
+    assert.equal((JSON.parse(homeRows[0]!.record_json) as PluginInstanceRecord).state, "installed", "shared Home row keeps durable installed state rather than transient partition running state");
+
+    assert.deepEqual(await actionsA.client.invoke(callerFor(a), ref, { id: "a-1" }), { count: 1, partition: a });
+    assert.deepEqual(await actionsB.client.invoke(callerFor(b), ref, { id: "b-1" }), { count: 1, partition: b });
+
+    // Stopping B must not corrupt Home's install row or break A's live actions / owned action invocation.
+    await instanceB.stop();
+    assert.deepEqual(stopped, [b], "B's stop hook ran");
+    assert.deepEqual(await actionsA.client.invoke(callerFor(a), ref, { id: "a-2" }), { count: 2, partition: a }, "A keeps serving actions after B stopped");
+
+    // Crashing B on restart must not mark Home crashed or break A either.
+    failStartOn = b;
+    await assert.rejects(startPartitionPluginInstance(portsB, scopeB, { definition }, installs.db), unavailable);
+    failStartOn = null;
+    assert.deepEqual(await actionsA.client.invoke(callerFor(a), ref, { id: "a-3" }), { count: 3, partition: a }, "A keeps serving actions after B crashed on start");
+
+    // Stopping A afterwards must genuinely execute A's stop() hook and close its resources (not skipped by shutdownStops).
+    await instanceA.stop();
+    assert.deepEqual(stopped, [b, a], "A's stop hook genuinely ran after B had already stopped");
+    await assert.rejects(actionsA.client.invoke(callerFor(a), ref, { id: "a-after-stop" }), (error: unknown) => error instanceof ActionError);
+
+    // Direct check on createPluginPlatform: invokeOwnedAction in A stays alive after B stops, and B's DB still has only its own row.
+    const storageA = new SqlitePluginPrivateStorage(storeA.db), storageB = new SqlitePluginPrivateStorage(storeB.db);
+    const makePlatform = (projectId: string, store: LocalProjectDatabase, storage: SqlitePluginPrivateStorage, scope: PartitionPluginScope) =>
+      createPluginPlatform({
+        project_id: projectId, actor_id: LOCAL_PERSON_ACTOR_ID, db: store.db, journal: store, ...openProjectVersionStores(store),
+        ui: new UiHost(), privateStorageFor: (ctx, m) => storage.forPlugin(ctx, m),
+        actions: pluginActions(store, projectId), home: { directory: home, completeText: () => null, stores: homeStores(), consents: new HomeConsentLedger(home), capturePermission: () => () => {}, assertStorageOwner: () => ({} as never) },
+        inProcess: { admit: new Set([definition]) }, installDatabase: installs.db, partitionScope: scope,
+      });
+    const platformA = makePlatform(a, storeA, storageA, scopeA);
+    const platformB = makePlatform(b, storeB, storageB, scopeB);
+    try {
+      await platformA.start([{ definition }]);
+      await platformB.start([{ definition }]);
+      const recA = platformA.runtime.get(installId);
+      assert.equal(recA.state, "running");
+      await platformB.runtime.stop(installId, { preserve_enabled: true });
+      assert.equal(platformB.runtime.get(installId).state, "installed");
+      assert.equal(platformA.runtime.get(installId).state, "running", "A's platform still sees its own running state after B stopped");
+      const invoked = await platformA.invokeOwnedAction(
+        { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: a, plugin_id: PLUGIN, install_id: installId, installation_generation: recA.installation_generation },
+        ref,
+        { id: "a-owned" },
+        { beforeEffect: async () => {} },
+      );
+      assert.deepEqual(invoked, { count: 4, partition: a }, "invokeOwnedAction on A succeeds after B stopped");
+      await platformB.runtime.start(installId);
+      await platformB.runtime.reportCrash(installId, "plugin.process_crashed");
+      assert.equal(platformB.runtime.get(installId).state, "crashed");
+      assert.equal(platformA.runtime.get(installId).state, "running", "B crashing never poisons A's state");
+      const checkCap = platformA.runtime.capturePermission(installId, "notes:write");
+      assert.doesNotThrow(() => checkCap(), "A's captured permission holds even while B is crashed");
+      await platformA.runtime.stop(installId, { preserve_enabled: true });
+      assert.equal(platformA.runtime.get(installId).state, "installed");
+    } finally {
+      await platformB.closeCoordination();
+      await platformA.closeCoordination();
+    }
+    const dbB = new DatabaseSync(join(partitionRoot(home, b), "libraries", "notes.db"), { readOnly: true });
+    try { assert.deepEqual(dbB.prepare("SELECT note_id FROM notes").all().map(r => r.note_id), ["b-1"]); }
+    finally { dbB.close(); }
+  } finally { installs.db.close(); storeA.close(); storeB.close(); await host.close(); }
+}));
+
+test("UPP-06 S-partition-isolation S-64 real sandbox ownerFiles and project_database stay confined to each partition; symlinked plugin-files into B is refused on start and on uninstall", async () => withPartitions(async (home, a, b) => {
+  const probeA = ownerFilesProbe("iso-files", "project");
+  const probeB = ownerFilesProbe("iso-files", "project");
+  probeA.definition.execution = "sandbox";
+  probeB.definition.execution = "sandbox";
+  const projA = ownerFilesProject(home, probeA, { file: partitionRoot(home, a) + "/molis-work.db", projectId: a });
+  const projB = ownerFilesProject(home, probeB, { file: partitionRoot(home, b) + "/molis-work.db", projectId: b });
+  try {
+    const recA = projA.platform.runtime.install({ trust: UNSIGNED_TRUST, definition: probeA.definition, deployment: "local", grants: probeA.permissions }).install;
+    const recB = projB.platform.runtime.install({ trust: UNSIGNED_TRUST, definition: probeB.definition, deployment: "local", grants: probeB.permissions }).install;
+    await projA.platform.runtime.start(recA.install_id);
+    await projB.platform.runtime.start(recB.install_id);
+
+    probeA.behavior.write = client => client.write(writer => writer.replaceFileAtomic("catalog.json", Buffer.from("from-A")));
+    probeB.behavior.write = client => client.write(writer => writer.replaceFileAtomic("catalog.json", Buffer.from("from-B")));
+    await projA.client.invoke(probeA.caller(a), probeA.writeAction, {});
+    await projB.client.invoke(probeB.caller(b), probeB.writeAction, {});
+    const fileA = join(partitionRoot(home, a), "plugin-files", recA.install_id, probeA.owner_files.store_name, "catalog.json");
+    const fileB = join(partitionRoot(home, b), "plugin-files", recB.install_id, probeB.owner_files.store_name, "catalog.json");
+    assert.equal(readFileSync(fileA, "utf8"), "from-A");
+    assert.equal(readFileSync(fileB, "utf8"), "from-B");
+
+    // Path traversal from A trying to climb into B is refused.
+    probeA.behavior.read = client => client.read(`../../../${b}/plugin-files/${recB.install_id}/${probeB.owner_files.store_name}/catalog.json`);
+    await assert.rejects(projA.client.invoke(probeA.caller(a), probeA.readAction, {}), { code: "host.owner_file_invalid" });
+
+    // Swap A's plugin-files directory for a symlink pointing into B's plugin-files:
+    // both restarting A and uninstalling A (retain_private_data: false) MUST refuse and leave B's file intact.
+    await projA.platform.runtime.stop(recA.install_id);
+    const holderA = join(partitionRoot(home, a), "plugin-files");
+    const holderB = join(partitionRoot(home, b), "plugin-files");
+    rmSync(holderA, { recursive: true, force: true });
+    symlinkSync(holderB, holderA);
+
+    await assert.rejects(projA.platform.runtime.start(recA.install_id), (error: unknown) => error instanceof ActionError);
+    assert.equal(projA.platform.runtime.get(recA.install_id).last_error_code, "actions.forbidden", "sandboxOwnerFilesFor refuses symlink into partition B before mkdirSync/open");
+
+    await assert.rejects(
+      projA.platform.runtime.uninstall(recA.install_id, { retain_private_data: false }),
+      { code: pluginErrors.declaration_invalid("x").code },
+      "removeSandboxOwnerFiles refuses to follow partition A's symlink into partition B",
+    );
+    assert.equal(readFileSync(fileB, "utf8"), "from-B", "partition B's owner files are completely untouched");
+  } finally {
+    await projA.close();
+    await projB.close();
+  }
+
+  // Real services.project_database isolation: each partition's plugin instance only sees its own partition's molis-work.db tables.
+  const projDecl: PluginDatabaseDeclaration = {
+    store_name: "pitems", version: 1,
+    schema: "CREATE TABLE pitems (item_id TEXT PRIMARY KEY, owner_partition TEXT NOT NULL);",
+    read_permission: "pitems:read", write_permission: "pitems:write",
+  };
+  const writeItem: ActionDefinition<{ id: string }, string[]> = {
+    capability_id: "com.example.pitems.write", version: 1, operation: "command",
+    action: {
+      title: "写项目表", description: "写入分区主库插件表", kind: "operation", scope: "project",
+      audiences: ["user"], permissions: ["pitems:read", "pitems:write"], subject_kinds: [],
+      input_schema: { type: "object", properties: { id: { type: "string", minLength: 1 } }, required: ["id"], additionalProperties: false },
+    },
+  };
+  const projDef: PluginDefinition = {
+    manifest: {
+      schema_version: 1, host_api_version: 1, plugin_id: "com.example.pitems", version: "1.0.0", name: "PItems", kind: "app",
+      publisher: { publisher_id: "example", signature: "pitems-sig" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+      permissions: [
+        { permission: "storage:private", required: true, reason: "private" },
+        { permission: "pitems:read", required: true, reason: "read" },
+        { permission: "pitems:write", required: true, reason: "write" },
+      ],
+      capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+      actions: [writeItem], databases: { project: projDecl },
+    },
+    async start(context) {
+      const pdb = context.services?.project_database;
+      assert.ok(pdb, "project_database is bound");
+      return {
+        kind: "app", views: [], actions: [bindActionHandler(writeItem, async (input, caller) => {
+          await pdb.transaction(caller.beforeEffect, tx => {
+            tx.run("INSERT INTO pitems (item_id, owner_partition) VALUES (?, ?)", [input.id, context.project_id!]);
+          });
+          return pdb.all("SELECT item_id FROM pitems ORDER BY item_id").map(row => String(row.item_id));
+        })],
+      };
+    },
+  };
+  const storeA = new LocalProjectDatabase(partitionRoot(home, a) + "/molis-work.db");
+  const storeB = new LocalProjectDatabase(partitionRoot(home, b) + "/molis-work.db");
+  const actionsA = pluginActions(storeA, a), actionsB = pluginActions(storeB, b);
+  const storageA = new SqlitePluginPrivateStorage(storeA.db), storageB = new SqlitePluginPrivateStorage(storeB.db);
+  const platA = createPluginPlatform({ project_id: a, actor_id: LOCAL_PERSON_ACTOR_ID, db: storeA.db, journal: storeA, ...openProjectVersionStores(storeA), ui: new UiHost(), privateStorageFor: (c, m) => storageA.forPlugin(c, m), actions: actionsA, home: null, inProcess: { admit: new Set([projDef]) } });
+  const platB = createPluginPlatform({ project_id: b, actor_id: LOCAL_PERSON_ACTOR_ID, db: storeB.db, journal: storeB, ...openProjectVersionStores(storeB), ui: new UiHost(), privateStorageFor: (c, m) => storageB.forPlugin(c, m), actions: actionsB, home: null, inProcess: { admit: new Set([projDef]) } });
+  try {
+    await platA.start([{ definition: projDef }]);
+    await platB.start([{ definition: projDef }]);
+    const ref = { capability_id: writeItem.capability_id, version: writeItem.version, provider_id: installIdentity(projDef.manifest) };
+    const rowsA = await actionsA.client.invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: a, audience: "user", permissions: ["pitems:read", "pitems:write"] }, ref, { id: "only-a" });
+    const rowsB = await actionsB.client.invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: b, audience: "user", permissions: ["pitems:read", "pitems:write"] }, ref, { id: "only-b" });
+    assert.deepEqual(rowsA, ["only-a"]);
+    assert.deepEqual(rowsB, ["only-b"]);
+  } finally {
+    await platA.closeCoordination();
+    await platB.closeCoordination();
+    storeA.close();
+    storeB.close();
+  }
+}));
+
+test("UPP-06 S-82 S-147 per-partition plugin declaring settings_entries starts in multiple partitions and upgrades without self-conflict, while conflicting key and illegal partition upgrade SQL are refused", async () => withPartitions(async (home, a, b) => {
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const storeA = new LocalProjectDatabase(partitionRoot(home, a) + "/molis-work.db");
+  const storeB = new LocalProjectDatabase(partitionRoot(home, b) + "/molis-work.db");
+  const installs = openHomePluginStore(home);
+  const makeSettingsPlugin = (pluginId: string, version: string, key: string, extra: Partial<PluginDefinition["manifest"]> = {}): PluginDefinition => {
+    const { read, write } = defineSettingsActions({
+      scope: "project",
+      read: { capability_id: `${pluginId}.settings.read`, version: 1, title: "read", description: "read", permissions: [] },
+      write: { capability_id: `${pluginId}.settings.write`, version: 1, title: "write", description: "write", permissions: [] },
+    });
+    return {
+      manifest: {
+        schema_version: 1, host_api_version: 1, kind: "app", plugin_id: pluginId, name: pluginId, version,
+        publisher: { publisher_id: "example", signature: `sig-${pluginId}` },
+        entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+        permissions: [
+          { permission: "storage:private", required: true, reason: "db" },
+          { permission: "notes:read", required: true, reason: "read" },
+          { permission: "notes:write", required: true, reason: "write" },
+        ],
+        capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+        actions: [read, write],
+        settings_entries: {
+          entries: [{ key, title: { key: `${pluginId.split(".").pop()}.settings.title` }, layers: ["project"], schema: { type: "string" } }],
+          read: { capability_id: read.capability_id, version: read.version },
+          write: { capability_id: write.capability_id, version: write.version },
+        },
+        databases: { partition: declaration },
+        ...extra,
+      },
+      async start() {
+        return { kind: "app", actions: [bindActionHandler(read, () => ({ values: [] })), bindActionHandler(write, () => ({ values: [] }))] };
+      },
+    };
+  };
+  const v1 = makeSettingsPlugin("com.example.pnotes-settings", "1.0.0", "pnotes.mode");
+  const v2 = makeSettingsPlugin("com.example.pnotes-settings", "2.0.0", "pnotes.mode", { upgrade_compatibility: { compatible_from_versions: ["1.0.0"] } });
+  const rival = makeSettingsPlugin("com.example.pnotes-rival", "1.0.0", "pnotes.mode", {
+    databases: { partition: { ...declaration, store_name: "rival" } },
+  });
+  const badUpgrade = makeSettingsPlugin("com.example.pnotes-bad-sql", "2.0.0", "pnotes.bad", {
+    databases: { partition: { ...declaration, store_name: "badsql", version: 2, upgrades: [{ from: 1, sql: "PRAGMA journal_mode = OFF;" }] } },
+  });
+  const installId = installIdentity(v1.manifest);
+  const scopeA = partitionPluginScope(home, a, v1.manifest.plugin_id, installId);
+  const scopeB = partitionPluginScope(home, b, v1.manifest.plugin_id, installId);
+  const storageA = new SqlitePluginPrivateStorage(storeA.db), storageB = new SqlitePluginPrivateStorage(storeB.db);
+  const homePort = { directory: home, completeText: () => null, stores: homeStores(), consents: new HomeConsentLedger(home), capturePermission: () => () => {}, assertStorageOwner: () => ({} as never) };
+  const platA = createPluginPlatform({ project_id: a, actor_id: LOCAL_PERSON_ACTOR_ID, db: storeA.db, journal: storeA, ...openProjectVersionStores(storeA), ui: new UiHost(), privateStorageFor: (c, m) => storageA.forPlugin(c, m), actions: pluginActions(storeA, a), home: homePort, inProcess: { admit: new Set([v1, v2, rival, badUpgrade]) }, installDatabase: installs.db, partitionScope: scopeA });
+  const platB = createPluginPlatform({ project_id: b, actor_id: LOCAL_PERSON_ACTOR_ID, db: storeB.db, journal: storeB, ...openProjectVersionStores(storeB), ui: new UiHost(), privateStorageFor: (c, m) => storageB.forPlugin(c, m), actions: pluginActions(storeB, b), home: homePort, inProcess: { admit: new Set([v1, v2]) }, installDatabase: installs.db, partitionScope: scopeB });
+  try {
+    const repA = await platA.start([{ definition: v1, releaseArtifact: { capture: () => "export {};", restore: () => v1 } }]);
+    assert.deepEqual(repA.running, [v1.manifest.plugin_id], `v1 must start without settings_entries self-conflict: ${JSON.stringify(repA)}`);
+    const repB = await platB.start([{ definition: v1, releaseArtifact: { capture: () => "export {};", restore: () => v1 } }]);
+    assert.deepEqual(repB.running, [v1.manifest.plugin_id], `second partition must also start without self-conflict: ${JSON.stringify(repB)}`);
+
+    const upgraded = await platA.upgrade(v1.manifest.plugin_id, v2);
+    assert.equal(upgraded?.status, "running", `upgrade reading v1 release from Home install table must succeed: ${JSON.stringify(upgraded)}`);
+
+    // Another plugin declaring the same setting key must still be refused (S-82).
+    assert.throws(
+      () => platA.runtime.install({ trust: UNSIGNED_TRUST, definition: rival, deployment: "local", grants: ["storage:private", "notes:read", "notes:write"] }),
+      { code: "plugin.definition_conflict" },
+    );
+
+    // Illegal SQL in databases.partition.upgrades must be refused at install (S-147).
+    assert.throws(
+      () => platA.runtime.install({ trust: UNSIGNED_TRUST, definition: badUpgrade, deployment: "local", grants: ["storage:private", "notes:read", "notes:write"] }),
+      { code: "plugin.project_database.upgrade_out_of_scope" },
+    );
+  } finally {
+    await platB.runtime.stop(installId, { preserve_enabled: true }).catch(() => {});
+    await platA.runtime.stop(installId, { preserve_enabled: true }).catch(() => {});
+    await platB.closeCoordination();
+    await platA.closeCoordination();
+    installs.db.close();
+    storeA.close();
+    storeB.close();
+    await host.close();
+  }
+}));
+
+test("UPP-21 sweep does not stop an instance with pending start waiters, and stopping a failing start does not throw spurious AggregateError", async () => withPartitions(async (home, a) => {
+  let now = 0;
+  let resolveStart!: () => void;
+  let stops = 0;
+  const assembly = new PartitionPluginAssembly({
+    home, idleMs: 1000, now: () => now, library: () => "notes", members: () => [PLUGIN], installation: () => record,
+    start: () => new Promise<{ stop(): Promise<void> }>(resolve => {
+      resolveStart = () => resolve({ async stop() { stops += 1; } });
+    }),
+  });
+  const acquiring = assembly.acquire(PLUGIN, a, "open");
+  await new Promise(resolve => setImmediate(resolve));
+  now = 5000;
+  assert.equal(await assembly.sweep(), 0, "sweep skips an instance while callers await its start");
+  assert.equal(stops, 0);
+  resolveStart();
+  const lease = await acquiring;
+  assert.equal(lease.scope.partition_id, a);
+  lease.release();
+  now = 7000;
+  assert.equal(await assembly.sweep(), 1, "once released and idle, sweep stops it");
+  assert.equal(stops, 1);
+
+  let rejectStart!: (error: Error) => void;
+  const failing = new PartitionPluginAssembly({
+    home, library: () => "notes", members: () => [PLUGIN], installation: () => record,
+    start: () => new Promise<{ stop(): Promise<void> }>((_resolve, reject) => { rejectStart = reject; }),
+  });
+  const pendingAcquire = failing.acquire(PLUGIN, a, "open");
+  await new Promise(resolve => setImmediate(resolve));
+  const concurrentStop = failing.stopPlugin(PLUGIN, a);
+  rejectStart(new Error("boom-on-start"));
+  await concurrentStop; // Must resolve without throwing AggregateError for a start that never produced a handle.
+  await assert.rejects(pendingAcquire, /boom-on-start/u);
+  assert.deepEqual(failing.instances(), []);
 }));

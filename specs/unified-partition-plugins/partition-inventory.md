@@ -2,14 +2,14 @@
 
 > 状态：106 批交付的逐文件归类表，评审按表核对。随 107～111 批搬迁逐行改「批」列直到清零；109 批收尾时并入 spec 归档。
 
-数法（2026-11-24，`batch/106` 头）：在 `apps`、`modules`、`packages`、`horizontal`、`plugins`、`server`、`scripts` 的非测试源码里数这几种写法：`project_id: null`、`project_id === null`、`projectId: null`、`projectId === null`、`project_id ?? null`、`project_id = ""`、`project_id ?? ""`、`project_id || null`、`projectId ?? null`。spec 写的「约 660 处」把测试和生成物也算进去了；本表只数源码，共 **359 处 / 180 个文件**。
+数法（2026-11-24，`batch/106` 头；2026-11-25 复核补录）：在 `apps`、`modules`、`packages`、`horizontal`、`plugins`、`server`、`scripts` 的非测试源码里，先按字面写法数 `project_id: null`、`project_id === null`、`projectId: null`、`projectId === null`、`project_id ?? null`、`project_id = ""`、`project_id ?? ""`、`project_id || null`、`projectId ?? null`（**359 处 / 180 个文件**），再补录三元置 `null`、`IS NULL`、`!== null`、`spec.md §9.2` 点名的非空/空串 DDL 约定与首页独立 Home 库 `#home-pages-owner`（**+57 处 / +42 个文件**）。spec 写的「约 660 处」把测试和生成物也算进去了；本表只数非测试源码，合计 **416 处 / 222 个文件**。
 
 归类（spec §9.2）：
 - **①** Home 系统作用域：包安装、账号、系统动作、Shelf、授权、MCP 设置。保留 `null`，字段名不变。
-- **②** Home 级业务位置：一律改 `"personal"`。
+- **②** Home 级业务位置：一律改 `"personal"`（其中首页独立 Home 库 `home-pages/home-pages.db` 已按全部分区 `project_id` 隔离，无 `null` 语义）。
 - **③** 平台记录里的可空项目：按含义拆开，「不属于任何分区」保留 `null`，「属于个人空间」改 `"personal"`。
 
-合计：① 117 处，② 111 处，③ 131 处。本批只加不删（V1），所以除了资料支撑表以外，②③ 都不在本批改；「批」列写的是哪一批负责清零。
+合计：① 136 处（原 117 + 补 19），② 125 处（原 111 + 补 14，另含已分区化的 `horizontal/home/src/store.ts`），③ 155 处（原 131 + 补 24）。本批只加不删（V1），所以除了资料支撑表与首页独立 Home 库以外，②③ 都不在本批改；「批」列写的是哪一批负责清零。
 
 ## 1. `listProjects()` 与 `listPartitions()`
 
@@ -32,7 +32,7 @@
 | `apps/local-host/src/web-project-schedulers.ts` | `listPartitions` | 调度要遍历全部分区 |
 | `apps/local-host/src/home-restore-projects.ts` | `listPartitions` | 恢复时核对目录里的每个分区库都在快照里 |
 | `apps/local-host/src/project-deletion-service.ts`、`project-reach.ts`、`plugin-projects-service.ts`、`plugin-directory-http.ts`、`authorization-management-http.ts`、`management-action-client.ts`、`system-agent-service.ts`、`assistant/assistant-pages.ts`、`web-project-settings.ts` 的插件启用页、`project-host.ts` | `listPartitions` | 平台按 id 找分区、或遍历全部分区 |
-| `apps/local-host/src/web-project-settings.ts` 的 `personProjects`（`GET /api/settings/projects`） | `listProjects` | 设置里的项目列表只对用户项目；个人空间不能改名、删除。`settingsProjects` 仍用 `listPartitions`：设置与能力页按 `?project=` 解析时个人空间也在；没点名也没打开过时，设置页落到第一个用户项目（`web-settings-arrival.ts`）；「设置 › 项目」的项目管理列表（`settings-project-manager.ts`）与安装诊断的项目数也只算用户项目，其余设置与能力页的视图仍带全部分区，从个人空间点开时能解析、标注它 |
+| `apps/local-host/src/web-project-settings.ts` 的 `personProjects`（`GET /api/settings/projects`） | `listProjects` | 设置里的项目列表只对用户项目；个人空间不能改名、删除。`settingsProjects` 仍用 `listPartitions`：设置与能力页按 `?project=` 解析时个人空间也在；没点名也没打开过时，设置页落到第一个用户项目（`web-settings-arrival.ts`）；「设置 › 项目」的项目管理列表（`settings-project-manager.ts`）、授权管理/项目规则下拉（`settings-authorizations.ts`）、个人记忆「移入项目」列表（`settings-memory.ts`）与安装诊断的项目数均过滤掉 `personal`，其余设置与能力页的视图仍带全部分区，从个人空间点开时能解析、标注它 |
 | `apps/local-host/src/sessions-ports.ts` | `listProjects` | 外部会话归入个人空间随 111 批的界面一起做，本批不变 |
 | `modules/private-work-context/src/project-resolution.ts` | `listProjects` | 外部工具的项目建议与 MCP 项目列表一致，本批不建议个人空间；随 110 批 `S-mcp-personal-binding` 一起放开 |
 | `scripts/golden/populate.mjs` | `listPartitions` | 金样要覆盖全部分区 |
@@ -51,7 +51,8 @@
 | `apps/local-host/src/plugin-holders.ts` | 改用 `partitionDatabasePath()`，删掉 `projects/` 前缀判断 |
 | `apps/local-host/src/local-uninstall.ts`、`modules/projects/src/installation-inspection.ts` | 经 `projectDatabasePath()` 推路径，它对 `personal` 给出 `personal-space/` |
 | `apps/local-host/src/installer/uninstall.ts` | 用户项目不算个人空间；`personal-space/` 进保留路径 |
-| `apps/local-host/src/home-restore-projects.ts`、`home-unavailable-owners.ts`、`platform-upgrade-stores.ts` | 用 `<partition>` 通配（`matchesPartitionPattern` / `partitionOfRelativePath`） |
+| `apps/local-host/src/home-restore-projects.ts`、`home-restore-inspection.ts`、`home-restore-finish.ts`、`home-unavailable-owners.ts`、`platform-upgrade-stores.ts` | 用 `<partition>` 通配（`matchesPartitionPattern` / `partitionOfRelativePath`），拒绝伪造 `projects/personal/*` 并将 `personal-space/libraries/*.db` 纳入目录对账 |
+| `horizontal/home/src/store.ts`（`home-pages/home-pages.db`，`#home-pages-owner`） | 首页独立 Home 库：全部 6 张表以 `project_id TEXT NOT NULL` 按分区（`personal` 与各项目）隔离存储，删项目经 `apps/local-host/src/project-deleted-owners.ts` 仅清该项目行、保留个人空间首页选择与批准记录 |
 | `apps/local-host/src/project-database.ts` | 用 `partitionOfDatabasePath()` / `partitionDatabasePath()` |
 | `apps/local-host/src/home-stores.ts`、`home-store-snapshot.ts` | 登记 `personal-space` 存储和它的快照规则（与项目库同一套 `partitionDatabaseSnapshot`） |
 | `apps/local-host/src/plugin-sandbox-owner-files.ts` | 项目级沙箱主人文件根改用 `partitionRoot()` |
@@ -242,4 +243,51 @@
 | `scripts/golden/session.mjs` | 1 | ① | Home 系统作用域 | 保留 `null` | — |
 | `scripts/preview-functions.mts` | 1 | ① | Home 系统作用域 | 保留 `null` | — |
 | `server/src/im/reads.ts` | 1 | ③ | 项目讨论 IM 的存储 | 个人空间 IM 已与项目同构（R21），存储键归类 | 110 |
+
+### 4.1 复核补录：首页独立 Home 库（`#home-pages-owner`）、`spec.md §9.2` 点名文件与三元/`IS NULL`/DDL 写法
+
+| 文件 | 处数 | 类 | 含义 | 改法 | 批 |
+| --- | ---: | --- | --- | --- | --- |
+| `apps/local-host/src/activation-partition.ts` | 1 | ② | 资料支撑表的分区归属助手（将 `null` 归为 `personal`） | 106 已收口，随 Home 实例退役清理 | 106（本批） |
+| `apps/local-host/src/agent-definitions/skill-catalog-host.ts` | 1 | ① | Home 系统作用域（未打开分区时传 `null` 查 Home 安装） | 保留 `null` | — |
+| `apps/local-host/src/agent-host-composition.ts` | 1 | ② | 附件归属（非项目记录时传 `null`） | 随普通插件改分区作用域归零 | 108～109 |
+| `apps/local-host/src/assistant/assistant-round-materials.ts` | 1 | ③ | 助理、记忆与上下文的可空项目（知识目录作用域） | 拆清本人级与个人空间（R15） | 110 |
+| `apps/local-host/src/context-onboarding-service.ts` | 1 | ① | 引导流程未绑定既有项目时的校验（`null`） | 保留 `null` | — |
+| `apps/local-host/src/context-onboarding-store.ts` | 2 | ① | 引导流程存储的可空目标项目（新建项目前无 `project_id`） | 保留 `null` | — |
+| `apps/local-host/src/home-unavailable-owners.ts` | 2 | ① | 升级不可用诊断（Home 级存储 `project_id: null`） | 保留 `null`（分区库经 `partitionOfRelativePath` 解析） | — |
+| `apps/local-host/src/knowledge-actions.ts` | 1 | ③ | 知识检索源键的可空项目 | 拆清本人级与个人空间（R15） | 110 |
+| `apps/local-host/src/plugin-database-partitions.ts` | 1 | ② | 旧共用库按分区复用器的调用方作用域判断 | 107 随 6 个独立库迁 `databases.partition` 删除复用器 | 107 |
+| `apps/local-host/src/uninstall-retained.ts` | 1 | ① | 卸载留存数据键（Home 级安装 `projectId === null`） | 保留 `null` | — |
+| `apps/local-host/src/web-capabilities.ts` | 1 | ① | 能力页调用历史列表（未选项目时查 Home 级 `null`） | 保留 `null` | — |
+| `apps/workbench/src/browser/appearance-sync.ts` | 2 | ① | 浏览器同源外观同步匹配（无项目页面用空串比较） | 保留 `null`/空 | — |
+| `apps/workbench/src/browser/work-bar.ts` | 2 | ① | 浏览器本地缓存键（按页面 `dataset.projectId` 隔离） | 保留 | — |
+| `apps/workbench/src/browser/work-event-card.ts` | 2 | ① | 浏览器事项卡片停靠缓存与链接拼装 | 保留 | — |
+| `apps/workbench/src/scripts/client/assistant-choosers.ts` | 1 | ③ | 助理界面角色选择器的可空项目 | 拆清本人级与个人空间（R15） | 110 |
+| `apps/workbench/src/scripts/client/context-bus.ts` | 1 | ② | 放置卡片上下文总线（无项目回落 `null`） | 随放置去 `HOME` 改明确分区 | 110 |
+| `apps/workbench/src/scripts/client/initialization.ts` | 1 | ③ | 工作台初始化挂载技能挑选器（`project_id || null`） | 随工作台分区统一清理 | 111 |
+| `apps/workbench/src/scripts/mcp-access.ts` | 1 | ① | MCP 授权设置页动作开关（Home 级传 `null`） | 保留 `null` | — |
+| `apps/workbench/src/settings-kit.ts` | 1 | ① | 能力套件全局设置页（`data-project` 为空表示 Home 级） | 保留 `null` | — |
+| `apps/workbench/src/settings-memory.ts` | 1 | ③ | 记忆设置页个人层（本人级，`data-project=""`） | 本人级保留 `null`（1.1），「移入项目」目标列表已排除 `personal` | — |
+| `apps/workbench/src/side-view-document.ts` | 1 | ① | 侧边面板插件挂载（无项目时传 `null`） | 保留 `null` | — |
+| `horizontal/agent-host/src/adapters/prologue-surfaces.ts` | 1 | ③ | 模型轮次描述中的可空项目 | 拆清本人级与个人空间（R15） | 110 |
+| `horizontal/blueprints/src/index.ts` | 2 | ③ | 蓝图采用目标的可空项目（`current_project` vs `personal`） | 逐个归类为本人级或个人空间 | 110 |
+| `horizontal/blueprints/src/store.ts` | 2 | ③ | 蓝图预览存储中 `target.kind === "personal" ? null` | 逐个归类为本人级或个人空间 | 110 |
+| `horizontal/home/src/store.ts` | 0 | ② | 首页独立 Home 库（`home-pages/home-pages.db`，`#home-pages-owner`），全部 6 张表按 `project_id TEXT NOT NULL`（含 `personal`）隔离、无 `null` 语义 | 已按分区隔离，删项目经 `project-deleted-owners.ts` 仅清该项目行 | 106（已达标） |
+| `horizontal/mainline/src/store.ts` | 1 | ③ | 主线表无项目存储写法（`spec.md §9.2` L14-21） | 逐个归类为本人级或个人空间 | 110 |
+| `horizontal/memory/src/scope-commands.ts` | 3 | ③ | 记忆作用域命令的可空项目（个人层/角色层/项目层） | 拆清本人级与个人空间（R15） | 110 |
+| `horizontal/observation/src/records.ts` | 1 | ③ | 工作记录覆盖上报中的 `projectId ?? ""` | 「不属于任何分区」留 `null`，「属于个人空间」改 `personal` | 110 |
+| `horizontal/placement/src/project-copy-preview.ts` | 2 | ② | 放置复制预览中的 `projectId !== null` 判定 | 删 `HOME` 分支，改 `personal` | 110 |
+| `horizontal/sessions/src/store-decisions.ts` | 3 | ③ | 外部会话归属决策表的可空 `project_id` | 「不属于任何分区」留 `null`，「属于个人空间」改 `personal` | 110 |
+| `horizontal/sessions/src/store.ts` | 2 | ③ | 外部会话记录的 `reported_project_id`/`derived_project_id` 可空列 | 「不属于任何分区」留 `null`，「属于个人空间」改 `personal` | 110 |
+| `horizontal/sessions/src/suggest.ts` | 1 | ③ | 外部会话归属建议的可空 `project_id` | 「不属于任何分区」留 `null`，「属于个人空间」改 `personal` | 110 |
+| `modules/characters/src/roles.ts` | 2 | ② | Characters 角色个人层特判（`spec.md §9.2` L29：`projectLayerOf` 将 `personal` 折为 `null`） | 个人层归本人级（1.1），清理 `personal → null` 特判 | 110 |
+| `modules/context-ledger/src/history-replication.ts` | 1 | ③ | 上下文账本历史同步引用的可空 `project_id` | 拆清本人级与个人空间（R15） | 110 |
+| `modules/judgment-rules/src/store-schema.ts` | 1 | ③ | 判断规则表用 `DEFAULT ''` 表示无项目（`spec.md §9.2` L40） | 逐个归类为本人级或个人空间 | 110 |
+| `packages/kernel/src/action-service.ts` | 1 | ① | 场景键 `scopedSceneKey`（Home 级作用域 `projectId ?? null`） | 保留 `null` | — |
+| `packages/storage/src/adapters/knowledge-cards.ts` | 1 | ③ | 知识卡片表非空 `project_id` 存储写法（`spec.md §9.2` L19-28） | 拆清本人级与个人空间（R15） | 110 |
+| `plugins/native/todo/src/caller.ts` | 1 | ② | Todo 调用方将 `personal` 折为 `null` | 改 `personal` 分区，删折算 | 108 |
+| `plugins/native/todo/src/search.ts` | 1 | ② | Todo 搜索结果将个人待办 `project_id` 置 `null` | 改 `personal` 分区 | 108 |
+| `plugins/native/todo/src/store-base.ts` | 1 | ② | Todo 查询 `project_id IS NULL` | 改 `personal` 分区，清 `IS NULL` | 108 |
+| `plugins/native/work-brief/src/store.ts` | 3 | ② | Work Brief 用 `scope === "personal" ? ""` 与 `projectId ?? ""` 存个人简报 | 迁分区库，清 `scope` 枚举与空串 | 108～109 |
+| `server/src/identity.ts` | 1 | ① | 服务端成员/邀请码签发（无项目归属时 `projectId ?? null`） | 保留 `null` | — |
 

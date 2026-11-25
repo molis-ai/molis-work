@@ -42,7 +42,7 @@ export class ProjectDeletionService {
   async changeRecycled(homeDirectory: string, input: ProjectRecycleInput, beforeEffect: () => void) {
     input = { ...input };
     beforeEffect();
-    if (input.project_id === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space('个人空间不能删除；可以把里面的内容移到项目或逐个删除');
+    if (typeof input.project_id === "string" && input.project_id.trim() === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space('个人空间不能删除；可以把里面的内容移到项目或逐个删除');
     return this.withCatalog({ homeDirectory }, async catalog => {
       beforeEffect();
       const space = readStorageSpace(catalog.homeDirectory);
@@ -76,6 +76,9 @@ export class ProjectDeletionService {
   }
 
   async deleteProject(homeDirectory: string | undefined, input: DeleteProjectInput): Promise<ProjectDeletionResult> {
+    if (typeof input.project_id === "string" && input.project_id.trim() === PERSONAL_SPACE_PROJECT_ID) {
+      throw catalogErrors.personal_space("个人空间不能删除；可以把里面的内容移到项目或逐个删除");
+    }
     requireDeletionConfirmed(input.delete_confirmed);
     requiredDeletionIdempotencyKey(input.idempotency_key);
     const deleteOutput = requiredOutputFiles(input.output_files) === "delete";
@@ -118,7 +121,7 @@ export class ProjectDeletionService {
     if (!Number.isSafeInteger(input.server_purged_at) || input.server_purged_at <= 0) {
       throw catalogErrors.project_storage_invalid('缺少服务端过期或永久清理凭据，本机原件已保留');
     }
-    if (input.project_id === PERSONAL_SPACE_PROJECT_ID) {
+    if (typeof input.project_id === "string" && input.project_id.trim() === PERSONAL_SPACE_PROJECT_ID) {
       throw catalogErrors.personal_space('个人空间不能删除；可以把里面的内容移到项目或逐个删除');
     }
     requiredDeletionIdempotencyKey(input.idempotency_key);

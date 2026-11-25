@@ -11,7 +11,6 @@ import { removeSandboxOwnerFiles, type SandboxOwnerFilesScope } from "./plugin-s
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import { noteRetained } from "./uninstall-retained.js";
 import { forgetInstallationPlatformRecords } from "./partition-platform-services.js";
-import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 
 /**
  * An installation's authorization in this project (or its Home-level activation): original-file registrations, and in a project the
@@ -35,7 +34,7 @@ export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record:
   // a Home that cannot be read through keeps them (a setting left is unused; one taken from an installation still in use is lost).
   const scopeKind: InstallScope = scope.project_id ? { kind: "project", project_id: scope.project_id } : { kind: "home" };
   const installed = dataGoes ? installedIdentities(scope.home.directory, { scope: scopeKind, install_id: record.install_id }) : null;
-  forgetInstallationPlatformRecords(scope.home.directory, record.install_id, scope.project_id ?? PERSONAL_SPACE_PROJECT_ID,
+  forgetInstallationPlatformRecords(scope.home.directory, record.install_id, scope.project_id ?? null,
     { dataGoes, installedElsewhere: !installed || installed.has(record.install_id) });
 }
 

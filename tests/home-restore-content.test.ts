@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { randomBytes } from "node:crypto";
-import { chmodSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import { chmodSync, copyFileSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { createHomeSnapshot, homeStores, restoreHomeSnapshot, MolisWorkLocalHost, LocalProjectDatabase, molisWorkHostProjectReference, openPartitionPluginLibrary, partitionPluginScope, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
 import { openDueRegistry } from "@molis-ai/molis-work-service-scheduler";
@@ -250,4 +251,120 @@ test("UPP-33 the personal space and each partition's own libraries are snapshott
   assert.equal(read(projectA), "项目 A 里记下的", "and project A's");
   const restored = openDueRegistry(f.home);
   try { assert.deepEqual(restored.entries().map(entry => [entry.partition_id, entry.entry_key]), [["personal", "r"]]); } finally { restored.close(); }
+});
+
+test("UPP-33 snapshot and restore refuse orphan personal-space databases/libraries and forged projects/personal/* paths", async t => {
+  const f = await restoreFixture(t);
+  await withMolisWorkProjectCatalog({ homeDirectory: f.home }, async catalog => {
+    await catalog.createProject({ display_name: "项目 A", actor_id: LOCAL_PERSON_ACTOR_ID });
+  });
+  const declaration = { store_name: "notes", version: 1, schema: "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL);", read_permission: "notes:read", write_permission: "notes:write" };
+  const lib = openPartitionPluginLibrary(partitionPluginScope(f.home, "personal", "com.example.notes", "notes-install"), f.home, declaration);
+  try { lib.writer.prepare("INSERT INTO notes (id, body) VALUES ('n1', 'hello')").run(); } finally { lib.close(); }
+
+  // 1. Snapshot creation refuses stray SQLite databases under projects/personal/.
+  for (const [sourceRel, forgedRel] of [
+    ["personal-space/molis-work.db", "projects/personal/molis-work.db"],
+    ["personal-space/libraries/notes.db", "projects/personal/libraries/notes.db"],
+  ] as const) {
+    const forgedDir = join(f.home, forgedRel, "..");
+    mkdirSync(forgedDir, { recursive: true });
+    copyFileSync(join(f.home, sourceRel), join(f.home, forgedRel));
+    try {
+      await assert.rejects(createHomeSnapshot({ homeDirectory: f.home, destination: join(f.directory, "bad-snap") }),
+        { code: "host.home_snapshot.unknown_data" }, `snapshot must refuse ${forgedRel}`);
+    } finally {
+      rmSync(join(f.home, "projects/personal"), { recursive: true, force: true });
+      rmSync(join(f.directory, "bad-snap"), { recursive: true, force: true });
+    }
+  }
+
+  // Produce a clean baseline snapshot, then derive mutated archives and verify every invalid case is refused cleanly.
+  await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
+  const before = homeBusinessTree(f.home);
+  const sha = (file: string) => { const bytes = readFileSync(file); return { size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }; };
+  const copyTree = (src: string, dst: string) => {
+    mkdirSync(dst, { recursive: true });
+    for (const entry of readdirSync(src, { withFileTypes: true })) {
+      const from = join(src, entry.name), to = join(dst, entry.name);
+      if (entry.isDirectory()) copyTree(from, to);
+      else copyFileSync(from, to);
+    }
+  };
+  const attempt = async (name: string, mutate: (root: string, manifest: HomeSnapshotManifest) => void) => {
+    const dir = join(f.directory, `mut-${name}`);
+    copyTree(f.snapshot, dir);
+    const manifestPath = join(dir, "manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as HomeSnapshotManifest;
+    mutate(dir, manifest);
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    await assert.rejects(
+      restoreHomeSnapshot({ homeDirectory: f.home, source: dir, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot }),
+      { code: "host.home_restore.invalid" },
+      `restore must refuse ${name}`,
+    );
+    assert.deepEqual(homeBusinessTree(f.home), before, `${name} left Home untouched`);
+  };
+
+  // 2a. Missing projects/catalog.db while personal-space/molis-work.db and personal-space/libraries/notes.db remain.
+  await attempt("missing-catalog-with-personal-space", (_dir, manifest) => {
+    const projectsStore = manifest.stores.find(store => store.path === "projects")!;
+    (projectsStore as { entries: typeof projectsStore.entries }).entries = projectsStore.entries.filter(entry => entry.path === "projects");
+  });
+
+  // 2b. Catalog omits `personal` row (and personal-space/molis-work.db removed), while personal-space/libraries/notes.db stays.
+  await attempt("orphan-personal-library", (dir, manifest) => {
+    const catalogEntry = manifest.stores.find(store => store.path === "projects")!.entries.find(entry => entry.path === "projects/catalog.db");
+    assert.ok(catalogEntry?.kind === "file");
+    const catalogPath = join(dir, catalogEntry.payload_path);
+    const db = new DatabaseSync(catalogPath);
+    try { db.exec("DELETE FROM projects WHERE project_id = 'personal'"); } finally { db.close(); }
+    Object.assign(catalogEntry, sha(catalogPath));
+    const personalStore = manifest.stores.find(store => store.path === "personal-space")!;
+    (personalStore as { entries: typeof personalStore.entries }).entries = personalStore.entries.filter(entry => entry.path !== "personal-space/molis-work.db");
+  });
+
+  // 2c. Forged projects/personal/molis-work.db alongside valid personal-space/molis-work.db.
+  await attempt("forged-projects-personal-main-db", (dir, manifest) => {
+    const personalMain = manifest.stores.find(store => store.path === "personal-space")!.entries.find(entry => entry.path === "personal-space/molis-work.db");
+    assert.ok(personalMain?.kind === "file");
+    const dst = join(dir, "data/projects/personal/molis-work.db");
+    mkdirSync(join(dir, "data/projects/personal"), { recursive: true });
+    copyFileSync(join(dir, personalMain.payload_path), dst);
+    const projectsStore = manifest.stores.find(store => store.path === "projects")!;
+    (projectsStore as { entries: typeof projectsStore.entries }).entries = [
+      ...projectsStore.entries,
+      { path: "projects/personal", kind: "directory", mode: 0o700 },
+      { ...personalMain, path: "projects/personal/molis-work.db", payload_path: "data/projects/personal/molis-work.db" },
+    ];
+  });
+
+  // 2d. Forged projects/personal/libraries/notes.db alongside valid personal-space/.
+  await attempt("forged-projects-personal-library", (dir, manifest) => {
+    const personalLib = manifest.stores.find(store => store.path === "personal-space")!.entries.find(entry => entry.path === "personal-space/libraries/notes.db");
+    assert.ok(personalLib?.kind === "file");
+    mkdirSync(join(dir, "data/projects/personal/libraries"), { recursive: true });
+    copyFileSync(join(dir, personalLib.payload_path), join(dir, "data/projects/personal/libraries/notes.db"));
+    const projectsStore = manifest.stores.find(store => store.path === "projects")!;
+    (projectsStore as { entries: typeof projectsStore.entries }).entries = [
+      ...projectsStore.entries,
+      { path: "projects/personal", kind: "directory", mode: 0o700 },
+      { path: "projects/personal/libraries", kind: "directory", mode: 0o700 },
+      { ...personalLib, path: "projects/personal/libraries/notes.db", payload_path: "data/projects/personal/libraries/notes.db" },
+    ];
+  });
+
+  // 2e. Forged plain non-SQLite file under projects/personal/.
+  await attempt("forged-projects-personal-plain-file", (dir, manifest) => {
+    const dst = join(dir, "data/projects/personal/note.txt");
+    mkdirSync(join(dir, "data/projects/personal"), { recursive: true });
+    writeFileSync(dst, "forged");
+    const digest = sha(dst);
+    const projectsStore = manifest.stores.find(store => store.path === "projects")!;
+    (projectsStore as { entries: typeof projectsStore.entries }).entries = [
+      ...projectsStore.entries,
+      { path: "projects/personal", kind: "directory", mode: 0o700 },
+      { path: "projects/personal/note.txt", kind: "file", mode: 0o600, size: digest.size, sha256: digest.sha256, payload_path: "data/projects/personal/note.txt" },
+    ];
+  });
 });

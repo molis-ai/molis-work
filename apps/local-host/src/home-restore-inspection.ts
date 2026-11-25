@@ -1,11 +1,13 @@
 import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PERSONAL_SPACE_DIRECTORY } from "@molis-ai/molis-work-module-projects";
 import { HOME_SECURITY_DIRNAME, readStorageSpace, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, readSnapshotFile } from "@molis-ai/molis-work-storage";
 import type { HomeRestoreArchive } from "./home-restore-archive.js";
 import type { HomeRestoreCatalogInspector, HomeRestoreControl, HomeRestoreInputs } from "./home-restore-contract.js";
 import { invalidRestore } from "./home-restore-input.js";
 import { preflightSnapshotConnectors, preflightSnapshotFile } from "./home-restore-owner-payload.js";
-import { inspectRestoreProjectDatabase, inspectRestoreProjectReferences, restorePersonalSpaceDatabase } from "./home-restore-projects.js";
+import { inspectRestoreProjectDatabase, inspectRestoreProjectReferences, isForbiddenPersonalProjectPath, restorePersonalSpaceDatabase, restorePersonalSpaceLibrary } from "./home-restore-projects.js";
 import type { RestoreStoreInputs } from "./home-restore-stores.js";
 import type { HomeSnapshotStoreRegistry, SnapshotKeyDependency } from "./home-store-snapshot.js";
 import { inspectRuntimeConfigBackupSnapshot } from "./installer/runtime-config-backups.js";
@@ -43,6 +45,9 @@ export async function inspectRestoreArchiveContents(home: string, archive: HomeR
   inspectCatalog: HomeRestoreCatalogInspector, control: HomeRestoreControl): Promise<HomeRestoreInputs> {
   const files = new Map(inputs.files), directories = new Map(inputs.directories), masterDependencies: SnapshotKeyDependency[] = [];
   const incomingPaths = new Set(inputs.archiveFiles.map(item => item.entry.path));
+  for (const path of [...incomingPaths, ...directories.keys()]) {
+    if (isForbiddenPersonalProjectPath(path)) throw invalidRestore();
+  }
   let projectIds: ReadonlySet<string> = new Set();
   const partitionLibraries: string[] = [];
   for (const file of inputs.archiveFiles) {
@@ -62,18 +67,29 @@ export async function inspectRestoreArchiveContents(home: string, archive: HomeR
         const project = /^([^/]+)\/molis-work\.db$/u.exec(file.relative);
         const library = /^([^/]+)\/libraries\/[^/]+\.db$/u.exec(file.relative);
         // A plugin's own library in a project (U2) comes back only with its project, whose main library the catalog names.
-        if (library) partitionLibraries.push(library[1]!);
-        else if (!project) throw invalidRestore();
+        if (library) {
+          if (library[1] === PERSONAL_SPACE_PROJECT_ID || library[1]!.startsWith(".")) throw invalidRestore();
+          partitionLibraries.push(library[1]!);
+        }
+        else if (!project || project[1] === PERSONAL_SPACE_PROJECT_ID || project[1]!.startsWith(".")) throw invalidRestore();
         else options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, entry.path, project[1]!) };
       } else {
         const personal = restorePersonalSpaceDatabase(file.store.path, file.relative);
+        const personalLibrary = restorePersonalSpaceLibrary(file.store.path, file.relative);
         if (personal) options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, entry.path, personal) };
+        else if (personalLibrary) partitionLibraries.push(personalLibrary);
+        else if (file.store.path === PERSONAL_SPACE_DIRECTORY) throw invalidRestore();
       }
       const actual = inspectSnapshotSqlite(join(archive.root, entry.payload_path), { ...options, space: readStorageSpace(home) ?? undefined, signal: control.signal });
       if (!isDeepStrictEqual(actual, entry.sqlite)) throw invalidRestore();
     }
   }
-  if (!incomingPaths.has("projects/catalog.db") && [...incomingPaths].some(path => /^projects\/[^/]+\/molis-work\.db$/u.test(path))) throw invalidRestore();
+  if (!incomingPaths.has("projects/catalog.db") && [...incomingPaths].some(path =>
+    /^projects\/[^/]+\/molis-work\.db$/u.test(path)
+    || /^projects\/[^/]+\/libraries\/[^/]+\.db$/u.test(path)
+    || path === `${PERSONAL_SPACE_DIRECTORY}/molis-work.db`
+    || new RegExp(`^${PERSONAL_SPACE_DIRECTORY}/libraries/[^/]+\\.db$`, "u").test(path)
+  )) throw invalidRestore();
   if (partitionLibraries.some(partition => !projectIds.has(partition))) throw invalidRestore();
   const vaultPath = `${HOME_SECURITY_DIRNAME}/secrets.json`, vault = files.has(vaultPath) ? readSnapshotFile(join(archive.root, "data", vaultPath), 32 * 1024 * 1024).toString("utf8") : undefined;
   if (vault !== undefined) {

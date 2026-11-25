@@ -3,7 +3,10 @@ import { personalRuntimeSyncAuthority } from './personal-runtime-sync-authority.
 import type {ProjectDeletionService} from './project-deletion-service.js';
 import {assertProjectSyncChildren} from './project-sync-children.js';
 import { PersonalSync, resolveSyncEndpoint, syncNamespace, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
-import { builtinPluginByProjectKey } from './plugin-registry.js';
+import { readPluginReleaseManifest, readPluginRuntimeRecords } from '@molis-ai/molis-work-plugin-runtime';
+import { builtinPluginByProjectKey, shippedPartByManifestId } from './plugin-registry.js';
+import { withReadOnlyHomePluginStore } from './home-plugin-store.js';
+import { personSettingsInstallations } from './partition-platform-services.js';
 import { hostSurfaceByProjectKey } from './host-surfaces.js';
 import type { StorageSpace } from '@molis-ai/molis-work-contracts/platform/storage';
 import type { PersonalAccountLease } from './personal-auth.js';
@@ -52,8 +55,17 @@ export async function createPersonalSync(home:string,space:StorageSpace,lease:Pe
   await guidance.refresh();
   const acceptance=createAcceptanceSyncRegistration(home,space.spaceId,check,withCatalog,readCatalog,()=>service.policy());
   await acceptance.refresh();
+  // Resolve active Home plugin installations read-only (never waking any plugin or creating plugin-runtime.db) so portable person settings sync automatically once plugins live in Home's install table.
+  const personSettings = personSettingsInstallations(() => withReadOnlyHomePluginStore(home, db =>
+    readPluginRuntimeRecords(db).flatMap(record => {
+      if (record.state === 'uninstalled') return [];
+      const shipped = shippedPartByManifestId(record.plugin_id)?.manifest;
+      const manifest = readPluginReleaseManifest(db, record)
+        ?? (shipped && shipped.publisher.signature === record.publisher_signature ? shipped : null);
+      return manifest ? [{ install_id: record.install_id, state: record.state, manifest }] : [];
+    })) ?? []);
   const configuration = personalConfigRegistrations({ home, spaceId: space.spaceId, actor: lease.userId, authorize: check, catalog: withCatalog,
-    ...(readCatalog ? { readCatalog } : {}), selected: () => service.policy() });
+    ...(readCatalog ? { readCatalog } : {}), selected: () => service.policy(), personSettings });
   for (const registration of configuration) await registration.refresh();
   const projectConfiguration = new Set(PLATFORM_SYNC_COLLECTIONS
     .filter(row => row.owner === 'surfaces' || row.owner === 'attention').map(row => syncNamespace(row.selection)));

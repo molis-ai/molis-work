@@ -2,7 +2,7 @@
 
 个人空间（`personal`）和每个项目是同构的「分区」（[统一工作分区](../../specs/unified-partition-plugins/spec.md)）。一个插件装一次（Home 一张安装表），在哪个分区启用就在那个分区有自己的一份数据。本页四节写插件怎样声明；字段都在 Manifest，类型在 `@molis-ai/molis-work-contracts/platform/plugin`，由 SDK 的 `partitionDeclarationProblems` 检查（`parsePluginManifest`／`assertManifest` 与安装都会跑它，写错了装不上）。
 
-> 现状（第 107 批）：这些字段和 SDK 帮手已经可以写、会被检查；Pages、PPT、Form、Dataset、灵光、Workflows 已经用 `databases.partition`，由宿主的按分区装配在每个启用它们的分区各跑一个实例（安装记录在 Home 一张安装表，运行状态按「安装 × 分区」分开记）；到期定时器随宿主起停，同步写入与恢复后标记总览待重读。平台的其他读取方（总览界面、到期投递、推送、随启用）在第 108–111 批随插件迁移接上。新插件照本页写，不要再用旧的「个人插件 / 项目插件」两套写法。
+> 现状（第 107 批）：这些字段和 SDK 帮手已经可以写、会被检查；Pages、PPT、Form、Dataset、灵光、Workflows 已经用 `databases.partition`，由宿主的按分区装配在每个启用它们的分区各跑一个实例（安装记录在 Home 一张安装表，运行状态按「安装 × 分区」分开记）；到期定时器随宿主起停，同步写入与恢复后标记总览待重读。平台的其他读取方（总览界面、到期投递、推送、随启用）在第 108–111 批随插件迁移接上。新插件照本页写，不要再用旧的「个人插件 / 项目插件」两套写法。注意：从产品入口装的签名包眼下仍由项目平台按项目装、按项目跑（第 109 批接到按分区装配）；这之前带 `databases.partition` 的签名包在项目里起不来（项目平台拒绝替它开分区库），内置插件以外先别用。
 
 ## 分区存储
 
@@ -37,12 +37,12 @@
 个人空间要能一眼看到所有分区的待办、日程、通知和简报，又不能为此把每个项目都启动起来。做法是：**你在自己的分区库里维护一张平台定好格式的总览表，平台只读它。**
 
 1. 在 Manifest 写 `overview_projection: { kinds: [...] }`，种类只能是 `task`（待办）、`event`（日程）、`notification`（通知）、`brief`（简报）；可选 `title_text` 给总览里的显示名。不写列名映射、不写 SQL。
-2. 把 `OVERVIEW_TABLE_SQL`（表名 `molis_overview_rows`）原样放进 `databases.partition.schema`，少了装不上。
-3. 写业务数据的**同一个事务**里用 SDK 的 `overviewRows(tx)` 顺手更新：`upsert(kind, row)`、`remove(kind, rowId)`、`removePrefix(kind, prefix)`。帮手按种类检查每一行（标题长度、带时区的时刻、待办状态 `open`／`done`／`cancelled`、优先级 0–3、标签数、通知级别 `info`／`warning`／`urgent`），每个种类最多 `OVERVIEW_ROW_LIMIT`（500）行，超了以 `actions.input_invalid` 拒。
+2. 从 `@molis-ai/molis-work-contracts/platform/plugin` 导入 `OVERVIEW_TABLE_SQL`（表名 `molis_overview_rows`）原样放进 `databases.partition.schema`，少了装不上。
+3. 写业务数据的**同一个事务**里用 SDK 的 `overviewRows(tx)` 顺手更新：`upsert(kind, row)`、`remove(kind, rowId)`、`removePrefix(kind, prefix)`。帮手按种类检查每一行（标题长度、带时区的时刻、待办状态 `open`／`done`／`cancelled`、优先级 0–3、标签数、合法 IANA 时区、通知级别 `info`／`warning`／`urgent`），每个种类最多 `OVERVIEW_ROW_LIMIT`（500）行，超了以 `actions.input_invalid` 拒。
 
 ```ts
 import { overviewRows } from "@molis-ai/molis-work-plugin-sdk";
-await services.database.transaction(tx => {
+await services.database.transaction(caller.beforeEffect, tx => {
   tx.run("UPDATE todos SET done = 1 WHERE id = ?", [id]);
   overviewRows(tx).upsert("task", { row_id: id, title, status: "done", remind_at: null, updated_at: now });
 });

@@ -79,11 +79,12 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   let closed = false;
   const service = new PlacementService(servicePorts);
   // A move the Host stopped in the middle of (between its put and its remove) is settled once the Host answers placement calls again, as
-  // the local person, in the background; one that fails is tried again on a later call. `move` settles its own object before it starts.
+  // the local person, in the background; one left unsettled or failing is tried again on a later call (one pass at a time). `move` settles
+  // its own object before it starts.
   let carries: Promise<unknown> | null = null;
   const settleCarries = () => {
     if (carries || closed || service.pendingCarries() === 0) return;
-    carries = service.settleCarries().catch(() => { carries = null; });
+    carries = service.settleCarries().catch(() => undefined).finally(() => { carries = null; });
   };
   const forCall = (caller: Parameters<ActionHandlerBinding["handle"]>[0]) => {
     settleCarries();

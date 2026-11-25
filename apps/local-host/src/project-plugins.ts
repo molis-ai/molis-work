@@ -246,7 +246,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     // Before the project's platform reads any installation record: the per-partition plugins' records are the Home install table's.
     const partitionHost = partitioned.length && ports.homeDirectory !== undefined ? partitionPluginHostFor(ports.homeDirectory, startPartitionPluginInstance) : undefined;
     partitionHost?.declare(partitioned);
-    partitionHost?.noteStore(ports.store);
+    partitionHost?.noteStore(ports.store, ports.projectId);
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
     // The only definitions that run in the Host's process without `host` trust are the Host's test fixtures, admitted as the objects they are (S-75 ⑥); a product Host is given none.
     const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db, { home: ports.homeDirectory, projectId: ports.projectId }), inProcess: fixtureAdmission(fixtures, ports.installedByHand ?? installedFixturesFor(ports.homeDirectory)),
@@ -340,7 +340,7 @@ export async function startPartitionPluginInstance(ports: ProjectPluginPorts, sc
     restorePrivateData: (installId, snapshot) => storage.restoreInstallationData(installId, snapshot as ReturnType<typeof storage.snapshotInstallationData>),
     ...(ports.dependencyCheck ? { dependencyCheck: ports.dependencyCheck } : {}),
     ...(ports.acceptDemoRequirements ? { acceptDemoRequirements: ports.acceptDemoRequirements } : {}),
-    inProcess: fixtureAdmission(projectFixtureEntries(ports.homeDirectory), ports.installedByHand ?? installedFixturesFor(ports.homeDirectory)),
+    inProcess: fixtureAdmission([], ports.installedByHand),
     actions: ports.actions, home: ports.homeDirectory ? pluginHomeFor(ports.homeDirectory) : null,
     installDatabase, partitionScope: scope,
   });

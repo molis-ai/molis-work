@@ -46,7 +46,7 @@ export class PersonalProjectProvisioner {
     if (ensureStorageSpace(this.home).kind !== 'personal') throw new Error('SYNC_PERSONAL_SPACE_REQUIRED');
     if (this.projects.recycle.isRecycled(input.project_id ?? '') || this.projects.query.listProjectDeletions().some(row => row.project_id === input.project_id)) throw new Error('已删除的项目不会通过同步自动恢复');
     // Sync never makes or takes the personal space (S-personal-partition-reserved): Home initialization already made it.
-    if (input.project_id === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space('个人空间是保留的，不能由同步接收建立');
+    if (typeof input.project_id === 'string' && input.project_id.trim() === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space('个人空间是保留的，不能由同步接收建立');
     return this.files.createProject(input, true, beforeEffect);
   }
 

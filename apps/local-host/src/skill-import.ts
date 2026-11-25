@@ -11,7 +11,7 @@
 import { externalTool } from '@molis-ai/molis-work-contracts/platform/external-tools';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstatSync } from 'node:fs';
-import { ActionError, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, PERSONAL_SPACE_PROJECT_ID, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { CharacterImportRuntimeId, CharacterImportSkill } from '@molis-ai/molis-work-contracts/modules/characters';
 import type { SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
@@ -113,8 +113,9 @@ export class SkillImportService {
     if (!found) throw skillErrors.import_source_unavailable(`这台电脑上没有 ${externalTool(runtime).display_name} 的技能目录`);
     // The source's kind and root name the plugin, so importing the same source again is its upgrade.
     const plugin_id = `imported.${runtime}-${createHash('sha256').update(`runtime\0${runtime}\0${found.root}`).digest('hex').slice(0, 12)}`;
-    const installed = await this.ports.installed(plugin_id, 'project', who.project_id) ?? await this.ports.installed(plugin_id, 'home', who.project_id);
-    const active = this.ports.activeScenes ? await this.ports.activeScenes('project', who.project_id, locale) : builtinActiveSkillScenes();
+    const isPersonal = who.project_id === PERSONAL_SPACE_PROJECT_ID;
+    const installed = (isPersonal ? undefined : await this.ports.installed(plugin_id, 'project', who.project_id)) ?? await this.ports.installed(plugin_id, 'home', who.project_id);
+    const active = this.ports.activeScenes ? await this.ports.activeScenes(isPersonal ? 'home' : 'project', who.project_id, locale) : builtinActiveSkillScenes();
     const applies_to = suggestedAppliesTo(input.source), skills = new Map<string, HeldSkill>(), candidates: SkillImportCandidate[] = [];
     for (const skill of found.skills) {
       const read = folderSkill(skill, applies_to), id = typeof read === 'string' ? skill.name : read.read.declaration.skill_id;
@@ -143,6 +144,9 @@ export class SkillImportService {
    * writes no `applies_to` takes the person's choice and is refused without one; one that writes its own keeps it, and a choice for it is refused.
    */
   async confirm(input: SkillImportConfirmRequest, who: Who, caller: ActionExecutionContext): Promise<SkillImportConfirmResult> {
+    if (input.scope === 'project' && who.project_id === PERSONAL_SPACE_PROJECT_ID) {
+      throw skillErrors.scope_mismatch('个人空间没有项目层，导入的技能请放到全局个人层（home）');
+    }
     const held = this.held.get(input.preview_id);
     if (!held || held.expires < this.now() || held.who.actor_id !== who.actor_id || held.who.project_id !== who.project_id) {
       throw skillErrors.import_preview_unknown('这次导入预览不存在、已过期或不是你在这个项目里做的，请重新预览');

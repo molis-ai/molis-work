@@ -1,7 +1,7 @@
 /** Public entry exports; Runtime lifecycle implementation remains in index.ts. */
 export { SqlitePluginPrivateStorage, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, privateValueReplicaOwner, validatePrivateValueReplication, installPrivateValueReplicationJournal } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
-export { SqlitePluginRuntimeRepository, PartitionPluginRuntimeRepository, readPluginRuntimeRecords, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PLUGIN_PARTITION_RUNTIME_SCHEMA_SQL } from "./repository.js";
+export { SqlitePluginRuntimeRepository, readPluginRuntimeRecords, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL } from "./repository.js";
 export { consentStands } from "./trust-rules.js";
 export { holdsFailedDatabaseUpgrade } from "./plugin-database-version.js";
 export { MemoryPluginConsentLedger, PLUGIN_TRUST_SCHEMA_SQL, SqlitePluginConsentLedger, readPluginConsents, readProjectReachSubject } from "./consent-ledger.js";

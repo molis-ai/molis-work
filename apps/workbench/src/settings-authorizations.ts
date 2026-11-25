@@ -1,10 +1,13 @@
 import { escapeHtml, renderButton, renderInput, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AUTHORIZATION_OWNERS } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 
 export function renderAuthorizationSettings(projects: readonly WebProjectNavigation[], current: string | null, rules = false) {
+  const userProjects = projects.filter(project => project.project_id !== PERSONAL_SPACE_PROJECT_ID);
   const text = (key: string) => uiText.text("workbench.authorization." + key);
-  const activeProject = current || (rules ? projects[0]?.project_id ?? null : null);
+  const currentProject = current && current !== PERSONAL_SPACE_PROJECT_ID ? current : null;
+  const activeProject = currentProject || (rules ? userProjects[0]?.project_id ?? null : null);
   const option = (id: string, title: string, selected?: boolean, hidden?: boolean) =>
     `<option value="${escapeHtml(id)}"${selected ? " selected" : ""}${hidden ? " hidden" : ""}>${escapeHtml(title)}</option>`;
   return `<section class="settings-document" data-authorization-settings data-view="${rules ? "rules" : "grants"}" aria-labelledby="settings-title">
@@ -16,7 +19,7 @@ export function renderAuthorizationSettings(projects: readonly WebProjectNavigat
     </div>
     <div class="authorization-tools">
       ${renderInput({ type: "search", placeholder: text("search"), attrs: { "aria-label": text("search"), "data-authorization-search": true } })}
-      <select class="mw-select" data-authorization-project aria-label="${escapeHtml(text("project"))}">${option("", text("all-projects"), false, rules)}${option("home", text("personal"), false, rules)}${projects.map(project => option(project.project_id, project.display_name, project.project_id === activeProject)).join("")}</select>
+      <select class="mw-select" data-authorization-project aria-label="${escapeHtml(text("project"))}">${option("", text("all-projects"), false, rules)}${option("home", text("personal"), !rules && current === PERSONAL_SPACE_PROJECT_ID, rules)}${userProjects.map(project => option(project.project_id, project.display_name, project.project_id === activeProject)).join("")}</select>
       <select class="mw-select authorization-owner-select" data-authorization-owner aria-label="${escapeHtml(text("owner"))}">${option("", text("all-owners"))}${AUTHORIZATION_OWNERS.map(owner => option(owner, text(owner))).join("")}</select>
       <select class="mw-select authorization-client" data-authorization-client aria-label="${escapeHtml(text("client"))}">${option("", text("all-clients"))}</select>
       ${renderButton({ variant: "ghost", icon: "refresh", iconOnly: true, label: text("refresh"), attrs: { "data-authorization-reload": true } })}

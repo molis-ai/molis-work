@@ -1,3 +1,4 @@
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { renderMemoryPreferences } from "./settings-memory-preferences.js";
 import { t as uiText, renderListToolbar, renderSettingRow, renderSettingsSection } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { MEMORY_CLASS_SETTINGS_CLIENT_SCRIPT } from "./settings-memory-classes.js";
@@ -12,11 +13,12 @@ export function renderMemorySettings({ scope, projectId, projects = [] }: { scop
   /** On the personal page: the projects a memory can be moved into (the move itself goes through that project's own route). */
   projects?: readonly { project_id: string; display_name: string }[] }): string {
   const personal = scope === "personal";
+  const targetProjects = projects.filter(project => project.project_id !== PERSONAL_SPACE_PROJECT_ID);
   const title = personal ? uiText.text("workbench.settings-memory.memory") : uiText.text("workbench.settings-memory.project-memory");
   const lead = personal
     ? uiText.text("workbench.settings-memory.preferences-habits-used-assistant-agent-work-plugins-interface")
     : uiText.text("workbench.settings-memory.project-s-conventions-background-lessons-used-only-project");
-  return `<section class="settings-document memory-settings" aria-labelledby="memory-title" data-memory-settings data-memory-scope="${scope}" data-project="${projectId ?? ""}"${personal && projects.length ? ` data-memory-projects="${attributeJson(projects.map(({ project_id, display_name }) => ({ project_id, display_name })))}"` : ""}>
+  return `<section class="settings-document memory-settings" aria-labelledby="memory-title" data-memory-settings data-memory-scope="${scope}" data-project="${projectId ?? ""}"${personal && targetProjects.length ? ` data-memory-projects="${attributeJson(targetProjects.map(({ project_id, display_name }) => ({ project_id, display_name })))}"` : ""}>
     <header class="settings-page-heading memory-heading"><h1 id="memory-title" data-memory-title>${title}</h1><p data-memory-intro>${lead}</p>
       <p class="settings-muted" data-memory-session-owner hidden></p>
       <p class="memory-summary" data-memory-summary aria-live="polite">${uiText("workbench.settings-memory.loading")}</p></header>

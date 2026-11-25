@@ -45,13 +45,31 @@ export function parseStoreSchemas(text, where = SCHEMAS_FILE) {
 
 /**
  * Whether a path a golden recorded is the library of `store` (for `<library>#<plugin_id>`, the library), in the root Home or in an account
- * Home under `spaces/`. Not `relativePathPattern` (the one the golden reader and the replay share): this accepts either Home, because an
- * account Home's recorded path carries a `spaces/<id>/` prefix that the store's own pattern does not.
+ * Home under `spaces/`. `<partition>` matches either `personal-space` or `projects/<id>`, covering both `<partition>/molis-work.db` and
+ * `<partition>/libraries/<store>.db`. Not `relativePathPattern` (the one the golden reader and the replay share): this accepts either Home,
+ * because an account Home's recorded path carries a `spaces/<id>/` prefix that the store's own pattern does not.
  */
 export function goldenPathMatcher(store) {
-  const pattern = store.split("#")[0].split("/").map(part => part === "*" ? "[^/]+" : part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("/");
+  const pattern = store.split("#")[0].split("/").map(part =>
+    part === "<partition>" ? "(?:personal-space|projects/[^/]+)"
+      : part === "*" ? "[^/]+"
+      : part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"),
+  ).join("/");
   const expression = new RegExp(`^(?:spaces/[^/]+/)?${pattern}$`, "u");
   return path => expression.test(path);
+}
+
+// When a library key migrates from `projects/*/molis-work.db(#...)` to `<partition>/molis-work.db(#...)`, look up the merge-base row
+// under its previous key (only when the old key is no longer on head) so a key rename never silently skips UPG-01 comparison.
+export function previousStoreKey(store) {
+  return store.startsWith("<partition>/molis-work.db") ? `projects/*${store.slice("<partition>".length)}` : null;
+}
+
+export function baseStoreRow(headRows, baseRows, store) {
+  const direct = baseRows.get(store);
+  if (direct) return direct;
+  const previous = previousStoreKey(store);
+  return previous && !headRows.has(previous) ? baseRows.get(previous) : undefined;
 }
 
 /** Same-version structure changes the user approved one by one, each an exact pair of hashes with who approved it and why. */
@@ -123,7 +141,7 @@ export function storeSchemaProblems(tree, baseTree) {
   const reset = (store, before, now) => !now.froms.length && resets.rows.some(row => row.store === store && row.from_version === before.version
     && row.to_version === now.version && row.from_structure === before.structure && row.to_structure === now.structure);
   for (const [store, now] of head.rows) {
-    const before = base.rows.get(store);
+    const before = baseStoreRow(head.rows, base.rows, store);
     if (!before) continue;
     for (const from of before.froms) {
       if (from >= before.version || from >= now.version || !now.froms.includes(from)) continue;

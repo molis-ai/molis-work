@@ -231,17 +231,22 @@ export class PlacementService {
     return { object: moved, location: placementLocation(this.ports, to, spaces), open: await this.openOf(moved) };
   }
 
-  /**
-   * Finishes the carries a cut left half done (the Host stopped between a put and its remove): an object found in both partitions goes from
-   * where it was while it is still the revision carried, or, changed there since, the put is taken back while that is unchanged. One changed in
-   * both is left in both, and its record stays, so nothing either side wrote is lost. Returns how many are still unsettled.
-   */
   /** How many carries are recorded as not yet finished; `settleCarries` settles them. */
   pendingCarries(): number { return this.edges(TYPES.carrying).length; }
 
+  /**
+   * Finishes the carries a cut left half done (the Host stopped between a put and its remove): an object found in both partitions goes from
+   * where it was while it is still the revision carried, or, changed there since, the put is taken back while that is unchanged. One changed in
+   * both is left in both, and its record stays, so nothing either side wrote is lost. A partition whose owner cannot be reached now leaves
+   * its record for the next pass. Returns how many are still unsettled.
+   */
   async settleCarries(): Promise<number> {
     let unsettled = 0;
-    for (const edge of this.edges(TYPES.carrying)) if (await settleCarry(this.ports, edge) !== "settled") unsettled += 1;
+    for (const edge of this.edges(TYPES.carrying)) {
+      // One that fails now (an owner that throws, a list that cannot be read) stays for the next pass and does not hold up the others.
+      const result = await settleCarry(this.ports, edge).catch(() => "unsettled" as const);
+      if (result !== "settled") unsettled += 1;
+    }
     return unsettled;
   }
 
@@ -465,7 +470,7 @@ function noteCarrying(ports: PlacementPorts, object: PlacedObject, from: string,
     target: projectRef(to), cause: "placement.carry:" + JSON.stringify([from, revision]) });
 }
 
-/** The object as its owner exports it in this partition, or null when it is not there. */
+/** The object as its owner exports it in this partition (`exported: null` when the owner says it is not there), or null when the owner cannot be reached. */
 async function exportedAt(ports: PlacementPorts, object: PlacedObject, at: string, other: string): Promise<{ tools: CarryTools; exported: PlacementExport | null } | null> {
   const tools = await carryTools(ports, object, at, other, true);
   if (!tools) return null;
@@ -493,9 +498,13 @@ async function settleCarry(ports: PlacementPorts, edge: ContextEdge): Promise<"s
     ports.ledger.commands.remove(ACCESS, edge.key, cause);
     return "settled" as const;
   };
+  // Only an owner that answers "not here" says the put never landed. One that cannot be reached now (taken out, switched off, not starting,
+  // its list unreadable) says nothing, so the record stays for the next pass and neither copy is touched.
   const target = await exportedAt(ports, { ...object, project_id: to }, to, from);
-  if (!target?.exported) return done("placement.carry_not_put");
+  if (!target) return "unsettled";
+  if (!target.exported) return done("placement.carry_not_put");
   const source = await exportedAt(ports, object, from, to);
+  if (!source) return "unsettled";
   if (source && source.exported && source.exported.revision !== revision) {
     if (target.exported.revision !== revision || !target.tools.remover) return "unsettled";
     await ports.beforeEffect?.();

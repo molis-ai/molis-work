@@ -92,7 +92,12 @@ export class DueRegistry {
     checkOwner(owner);
     if (entries.length > DUE_ENTRY_LIMIT) throw new ActionError("actions.input_invalid", `一个插件在一个分区至多登记 ${DUE_ENTRY_LIMIT} 个到期项`);
     const at = this.now().toISOString();
-    const rows = entries.map(entry => [entry.entry_key, iso(entry.due_at)] as const);
+    const rows = entries.map(entry => {
+      if (typeof entry.entry_key !== "string" || entry.entry_key.length < 1 || entry.entry_key.length > 200) {
+        throw new ActionError("actions.input_invalid", "到期登记的键是 1 到 200 字");
+      }
+      return [entry.entry_key, iso(entry.due_at)] as const;
+    });
     this.write(() => {
       this.db.prepare("DELETE FROM due_entries WHERE install_id = ? AND partition_id = ? AND source = 'overview'").run(owner.install_id, owner.partition_id);
       const insert = this.db.prepare("INSERT OR REPLACE INTO due_entries VALUES (?, ?, ?, ?, ?, 'overview', ?)");

@@ -297,7 +297,7 @@ export { handlePluginTrustHttp } from "./plugin-trust-http.js";
 export { collectRetained } from "./uninstall-retained.js";
 export { ensureProjectPlugins, projectPluginPlatform, projectPluginProblem, refreshRunningProjectPlugins, releaseProjectPlugins, runningProjectPlatform, runningProjectPluginState, startPartitionPluginInstance } from "./project-plugins.js";
 export { existingPartitionPluginHost, partitionChanged, type PartitionPluginInstance } from "./partition-plugin-host.js";
-export { partitionInstallRecords } from "./plugin-install-records.js";
+export { pluginInstallRecords } from "./plugin-install-records.js";
 export { assembledPerPartition, openPartitionPluginLibrary, PARTITION_PLUGIN_IDLE_MS, PartitionPluginAssembly, partitionPluginScope, type PartitionPluginAssemblyOptions, type PartitionPluginHandle, type PartitionPluginLease, type PartitionPluginScope, type PartitionWakeReason } from "./partition-plugin-assembly.js";
 export { forgetInstallationPlatformRecords, forgetPartitionPlatformRecords, PartitionPlatformServices, partitionOverviewLibraries, personSettingsInstallations, type OverviewInstallation, type PartitionPlatformServicesOptions } from "./partition-platform-services.js";
 export { openHomePluginStore } from "./home-plugin-store.js";

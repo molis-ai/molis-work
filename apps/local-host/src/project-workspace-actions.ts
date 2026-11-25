@@ -14,6 +14,7 @@ import { checkWorkspaceFile } from "./workspace-files.js";
 import { changedProjectPluginEnablement, type ProjectPluginRefreshResult } from "./project-plugin-enablement.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { disposeWorkTerminalsForHomePluginInProject } from "./work-terminal-service.js";
+import { partitionPluginRemoved } from "./partition-plugin-host.js";
 import { hostErrors } from "./host-errors.js";
 import { hostLog } from "./host-log.js";
 
@@ -114,7 +115,8 @@ export function projectPluginMembershipActionProvider(catalogOwner: ProjectCatal
   refreshOpenProjectPlugins: (projectId: string) => Promise<ProjectPluginRefreshResult | null>): ActionProviderRegistration {
   /** One membership write, one change (`projects.plugins.set@1`) or several in any partition (`partitions.plugins.set@1`), and what follows it. */
   const writeMembership = async <Saved extends VersionedProjectPluginMembership>(caller: ActionExecutionContext,
-    write: (catalog: MolisWorkProjectCatalog, projectId: string) => Saved): Promise<Saved> => {
+    write: (catalog: MolisWorkProjectCatalog, projectId: string) => Saved,
+    read: (catalog: MolisWorkProjectCatalog, projectId: string) => Saved): Promise<Saved> => {
       const projectId = caller.project_id!;
       await caller.beforeEffect();
       const { before, saved } = await withProjectCatalog(catalogOwner, catalog => catalog.commit(() => {
@@ -134,6 +136,8 @@ export function projectPluginMembershipActionProvider(catalogOwner: ProjectCatal
         for (const key of disabledKeys) {
           const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === key || item.manifest.plugin_id === key);
           disposeWorkTerminalsForHomePluginInProject(home, entry?.manifest.plugin_id ?? key, projectId);
+          // A plugin with a library in each partition: its due entries and overview rows there go, though the partition may not be open.
+          partitionPluginRemoved(home, entry?.manifest.plugin_id ?? key, projectId);
         }
       }
       const changed = changedProjectPluginEnablement(before, saved);
@@ -144,7 +148,7 @@ export function projectPluginMembershipActionProvider(catalogOwner: ProjectCatal
       } catch (error) {
         hostLog.warn("projects", "project_plugins_refresh_failed", error, { project_id: projectId });
       }
-      const observation = await withProjectCatalog(catalogOwner, catalog => catalog.projectPluginMembershipWithRevision(projectId))
+      const observation = await withProjectCatalog(catalogOwner, catalog => read(catalog, projectId))
         .then(membership => ({ membership }), () => ({ committed_membership: saved }));
       throw hostErrors.project_plugins_refresh_failed("插件选择已保存，切换尚未完成。请刷新项目。", { committed: true, ...observation });
   };
@@ -152,11 +156,13 @@ export function projectPluginMembershipActionProvider(catalogOwner: ProjectCatal
     bindActionHandler(projectPluginActions.get, (_input, caller) =>
       withProjectCatalog(catalogOwner, catalog => catalog.projectPluginMembershipWithRevision(caller.project_id!))),
     bindActionHandler(projectPluginActions.set, (input, caller) =>
-      writeMembership(caller, (catalog, projectId) => catalog.setProjectPlugin(projectId, caller.actor_id, input))),
+      writeMembership(caller, (catalog, projectId) => catalog.setProjectPlugin(projectId, caller.actor_id, input),
+        (catalog, projectId) => catalog.projectPluginMembershipWithRevision(projectId))),
     bindActionHandler(partitionPluginActions.get, (_input, caller) =>
       withProjectCatalog(catalogOwner, catalog => catalog.partitionPluginMembership(caller.project_id!))),
     bindActionHandler(partitionPluginActions.set, (input, caller) =>
-      writeMembership(caller, (catalog, partitionId) => catalog.setPartitionPlugins(partitionId, caller.actor_id, input))),
+      writeMembership(caller, (catalog, partitionId) => catalog.setPartitionPlugins(partitionId, caller.actor_id, input),
+        (catalog, partitionId) => catalog.partitionPluginMembership(partitionId))),
   ];
   return { provider: workspaceProvider, definitions: [...Object.values(projectPluginActions), ...Object.values(partitionPluginActions)], handlers,
     availability: () => catalogOwner() ? { available: true } : catalogUnavailable };

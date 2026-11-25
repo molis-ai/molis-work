@@ -101,4 +101,40 @@ test("the personal space is a place settings pages name and show, but not a row 
   assert.doesNotMatch(projects.text, new RegExp(`data-project-row="${PERSONAL_SPACE_PROJECT_ID}"`), "the personal space is not one of the person's projects");
   assert.match(projects.text, /data-project-pane="create" aria-labelledby/, "with no project of their own, creating one is what the page shows");
   assert.match(projects.text, /data-demo-action="create"/);
+
+  // Authorizations & personal memory never expose `personal` as an ordinary user project option or move target (P1-3).
+  const authEmpty = await open("/settings/authorizations", {});
+  assert.equal(authEmpty.status, 200);
+  assert.doesNotMatch(authEmpty.text, new RegExp(`<option value="${PERSONAL_SPACE_PROJECT_ID}"`), "authorizations keeps only the single home/personal option");
+  assert.match(authEmpty.text, /<option value="home"/);
+  const authFromPersonal = await open(`/settings/authorizations?project=${PERSONAL_SPACE_PROJECT_ID}`, {});
+  assert.equal(authFromPersonal.status, 200);
+  assert.doesNotMatch(authFromPersonal.text, new RegExp(`<option value="${PERSONAL_SPACE_PROJECT_ID}"`));
+  assert.match(authFromPersonal.text, /<option value="home" selected>/, "opening authorizations from personal space selects the home/personal option");
+  const rulesEmpty = await open("/settings/authorizations?view=project-rules", {});
+  assert.equal(rulesEmpty.status, 200);
+  assert.doesNotMatch(rulesEmpty.text, new RegExp(`<option value="${PERSONAL_SPACE_PROJECT_ID}"`), "project rules never defaults to personal space");
+  const memoryEmpty = await open("/settings/memory", {});
+  assert.equal(memoryEmpty.status, 200);
+  assert.doesNotMatch(memoryEmpty.text, /data-memory-projects=/, "with no user project, personal memory exposes no move-into-project list");
+});
+
+test("authorizations project-rules and personal memory move targets list only user projects, excluding personal space", async t => {
+  const { projects: [first], open } = await server(t, 1);
+  const auth = await open("/settings/authorizations", {});
+  assert.equal(auth.status, 200);
+  assert.doesNotMatch(auth.text, new RegExp(`<option value="${PERSONAL_SPACE_PROJECT_ID}"`));
+  assert.match(auth.text, new RegExp(`<option value="${first!.project_id}"`));
+
+  const rules = await open("/settings/authorizations?view=project-rules", {});
+  assert.equal(rules.status, 200);
+  assert.doesNotMatch(rules.text, new RegExp(`<option value="${PERSONAL_SPACE_PROJECT_ID}"`));
+  assert.match(rules.text, new RegExp(`<option value="${first!.project_id}" selected>`), "project rules defaults to the first user project");
+
+  const memory = await open("/settings/memory", {});
+  assert.equal(memory.status, 200);
+  const matched = /data-memory-projects="([^"]*)"/u.exec(memory.text);
+  assert.ok(matched, "personal memory lists user projects to move into");
+  const targets = JSON.parse(matched[1]!.replaceAll("&quot;", '"').replaceAll("&amp;", "&")) as Array<{ project_id: string }>;
+  assert.deepEqual(targets.map(item => item.project_id), [first!.project_id], "move targets include only ordinary user projects");
 });

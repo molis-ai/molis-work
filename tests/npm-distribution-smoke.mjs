@@ -1,12 +1,13 @@
 // Explicit release check: node tests/npm-distribution-smoke.mjs /absolute/npm-consumer
 // The consumer must have installed the real tgz with normal npm install scripts.
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, rename } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { isolatedMcpResident } from "./fixtures/isolated-mcp-resident.ts";
+import { installedAccountAuth } from "./fixtures/installed-account.ts";
+import { isolatedMcpResident, waitUntil } from "./fixtures/isolated-mcp-resident.ts";
 
 const exec = promisify(execFile);
 const consumer = path.resolve(process.argv[2]);
@@ -81,19 +82,49 @@ try {
   try {
     assert.match((await run(installed.launchers.cli, ["--help"])).stdout, /molis-work plugin/);
     const resident = await isolatedMcpResident(home);
-    environment.MOLIS_WORK_WEB_URL = resident.origin;
+    const auth = await installedAccountAuth(temporary, resident.origin);
+    Object.assign(environment, auth.environment, { MOLIS_WORK_WEB_URL: resident.origin });
+    const probeMcp = expected => run(process.execPath, ["--input-type=module", "-e", `
+      import assert from 'node:assert/strict';
+      import { validateMolisWorkMcpLauncher } from '@molis-ai/molis-work-app-mcp';
+      const errors = [];
+      const valid = await validateMolisWorkMcpLauncher({
+        runtime_id: 'codex', launcher_path: ${JSON.stringify(installed.launchers.mcp)},
+        home_directory: ${JSON.stringify(home)}, plan_id: 'npm-release-smoke',
+        onProtocolError: (step, code) => errors.push({step, code}),
+      });
+      assert.equal(valid, ${expected});
+      assert.deepEqual(errors.map(e => e.step), ${expected ? "[]" : "['tools/list']"});
+    `], installed.release_directory, 40_000);
     try {
       await run(process.execPath, ["--input-type=module", "-e", `
-        import assert from 'node:assert/strict';
-        import { validateMolisWorkMcpLauncher } from '@molis-ai/molis-work-app-mcp';
-        assert.equal(await validateMolisWorkMcpLauncher({
-          runtime_id: 'codex', launcher_path: ${JSON.stringify(installed.launchers.mcp)},
-          home_directory: ${JSON.stringify(home)}, plan_id: 'npm-release-smoke'
-        }), true);
+        import { changeMcpClientCredential } from '@molis-ai/molis-work-app-local-host';
+        changeMcpClientCredential(${JSON.stringify(home)}, "runtime:codex", "connect");
       `], installed.release_directory);
+      await probeMcp(false);
       await resident.health();
-    } finally {
+      assert.equal((await fetch(resident.origin + "/api/settings/projects")).status, 401);
       await resident.stopHost();
+      // A cold MCP deliberately starts Web with a minimal environment. Configure the test Auth server on Web itself.
+      const web = spawn(process.execPath, [installed.launchers.web, "--home", home, "--port", new URL(resident.origin).port], {
+        cwd: installed.release_directory, env: environment, stdio: "ignore",
+      });
+      const closed = new Promise((resolve, reject) => { web.once("close", resolve); web.once("error", reject); });
+      try {
+        await waitUntil(async () => {
+          if (web.exitCode !== null) throw new Error("Installed Web exited before login");
+          return fetch(resident.origin + "/health").then(response => response.ok, () => false);
+        }, 20_000);
+        await resident.health();
+        const control = (await readFile(path.join(home, "config/web-control-token"), "utf8")).trim();
+        await auth.login(home, control);
+        await probeMcp(true);
+      } finally {
+        web.kill("SIGTERM");
+        await closed;
+      }
+    } finally {
+      try { await resident.stopHost(); } finally { await auth.close(); }
     }
     assert.deepEqual(await readFile(path.join(installed.release_directory, "vendor/intelligence-client/sbom.cdx.json")),
       await readFile(path.join(moved, "vendor/intelligence-client/sbom.cdx.json")));

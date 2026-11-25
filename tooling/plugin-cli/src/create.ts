@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { UI_FORMAT_VERSIONS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { samplePluginSource, sampleStateMachine, samplePluginActions, samplePluginPermissions, sampleArtifactType, SAMPLE_ARTIFACT_TYPE_ID } from "./sample-source.js";
+import { samplePluginSource, sampleStateMachine, samplePluginActions, samplePluginPermissions, sampleArtifactType } from "./sample-source.js";
 
 export interface CreatePluginProjectInput {
   directory: string;
@@ -48,6 +48,7 @@ const SAMPLE_WORDS: Readonly<Record<string, Readonly<Record<string, string | { p
 
 export async function createPluginProject(input: CreatePluginProjectInput): Promise<{ directory: string; plugin_id: string }> {
   const owner = textKeyPrefix(input.plugin_id);
+  const resultType = sampleArtifactType(input.plugin_id);
   const manifest = parsePluginManifest({
     schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.plugin_id, version: "2.0.0",
     name: "Local Plugin Sample", name_text: { key: owner + ".main.title" }, kind: "integration",
@@ -57,9 +58,9 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
     actions: samplePluginActions(input.plugin_id),
     state_machines: [sampleStateMachine(input.plugin_id)],
     capabilities: { provides: [], consumes: [] },
-    artifacts: { produces: [sampleArtifactType(input.plugin_id)],
-      consumes: [{ artifact_type_id: SAMPLE_ARTIFACT_TYPE_ID, schema_version: 1 }] },
-    ui: { contributions: [input.plugin_id + ".main"], locales: { default: "en", available: ["en", "zh", "ja"] } },
+    artifacts: { produces: [resultType],
+      consumes: [{ artifact_type_id: resultType.artifact_type_id, schema_version: resultType.schema_version }] },
+    ui: { contributions: [input.plugin_id + ".main"], locales: { default: "en", available: Object.keys(SAMPLE_WORDS) } },
   });
   const directory = resolve(input.directory);
   // Exclusive directory creation: never overwrite a developer's existing project, even an empty one.

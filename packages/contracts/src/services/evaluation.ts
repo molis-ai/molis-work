@@ -464,6 +464,7 @@ export const evaluationActions = {
           until: { type: ["string", "null"] },
         }),
         sample_count: { type: "integer", minimum: 0 },
+        selected_sample_count: { type: "integer", minimum: 0 },
         denominator: { type: "integer", minimum: 0 },
         evaluable_count: { type: "integer", minimum: 0 },
         evaluable_ratio: { type: "number", minimum: 0, maximum: 1 },

@@ -113,6 +113,7 @@ ${ASSISTANT_REVIEW_PART}
         return;
       }
       const run = id === "run" || id === "confirm-adoption";
+      if (id === "confirm-adoption" && approved) host.records?.cardChoice(work.work_id, card.card_id, card.revision, approved.adopt || []);
       // Keyboard use keeps its place: after the card redraws, focus lands on it rather than the page.
       const hadFocus = node.contains(document.activeElement), neighbour = node.nextElementSibling || node.previousElementSibling;
       const lock = (on) => node.querySelectorAll("[data-ix-action]").forEach((one) => { one.disabled = on; });
@@ -129,6 +130,7 @@ ${ASSISTANT_REVIEW_PART}
         if (hadFocus) (node.isConnected ? node.querySelector("[data-ix-action], [data-ix-operation]") : (neighbour && neighbour.isConnected && neighbour.querySelector("button")) || input)?.focus();
       } catch (error) { showError(error); lock(false); if (hadFocus) button.focus(); }
     } });
+    if (node.querySelector("[data-assistant-adoption-confirm]")) host.records?.watchCard(node, work.work_id, card.card_id, card.revision);
     const pending = node.querySelector("[data-assistant-connection]");
     if (pending) connectionCard(pending, work, card);
   };

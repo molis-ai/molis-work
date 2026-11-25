@@ -134,6 +134,8 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
     ${SYNC_CLOUD_HISTORY_SCRIPT}
     ${SYNC_PROJECT_RECYCLE_SCRIPT}
     const render=(data)=>{
+      const draft=dirty && state?.policy?.spaceId===data.policy?.spaceId && state?.policy?.revision===data.policy?.revision
+        ? new Map([...fields.querySelectorAll('[data-collection]')].map(input=>[namespace(state.collections[Number(input.dataset.collection)].selection),input.checked])) : null;
       if(state?.policy?.spaceId&&data.policy?.spaceId!==state.policy.spaceId){
         document.querySelectorAll('[data-sync-dialog]').forEach(dialog=>dialog.close());
         quotaDetails.open=false;quotaRows.replaceChildren();
@@ -154,9 +156,9 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
         for(const [index,item] of items){
           const row=node('div','sync-row'),label=node('label','mw-check-row');
           const checkbox=node('input','mw-check');checkbox.type='checkbox';checkbox.dataset.slot='checkbox';checkbox.dataset.collection=String(index);
-          checkbox.checked=data.policy.selections.some(s=>namespace(s)===namespace(item.selection));
-          const waiting=item.conflicts.filter(c=>c.waiting).length;
-          label.append(checkbox,node('span','',item.title));row.append(label,node('span','settings-muted',readText("workbench.settings-sync.pending-upload")+' '+item.pending+' · '+readText("workbench.settings-sync.conflict")+' '+(item.conflicts.length-waiting)+(waiting?' · '+readText("workbench.settings-sync.waiting-linked-assets")+' '+waiting:'')));fields.append(row);
+          checkbox.checked=draft?.get(namespace(item.selection)) ?? data.policy.selections.some(s=>namespace(s)===namespace(item.selection));
+          const waiting=item.waitingCount;
+          label.append(checkbox,node('span','',item.title));row.append(label,node('span','settings-muted',readText("workbench.settings-sync.pending-upload")+' '+item.pending+' · '+readText("workbench.settings-sync.conflict")+' '+item.decisionCount+(waiting?' · '+readText("workbench.settings-sync.waiting-linked-assets")+' '+waiting:'')));fields.append(row);
         }
       }
       const progress=data.progress,tx=data.transfer;
@@ -166,15 +168,38 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       if(counts.length)status.textContent+=' · '+counts.join(' · ');
       if(data.lastSuccess)status.textContent+=' · '+readText("workbench.settings-sync.last-completed")+' '+readText("common.generated.formatted",{value:{kind:"date",at:data.lastSuccess,style:"datetime-with-seconds"}});
       const conflicts=root.querySelector('[data-sync-conflicts]');conflicts.replaceChildren();
-      for(const collection of data.collections)for(const item of collection.conflicts){
+      const conflictRow=(collection,item)=>{
         const row=node('section','settings-section');row.append(node('h2','',collection.title+' · '+(item.title||readText("workbench.settings-sync.object-id",{id:String(item.key).slice(-24)}))),node('p','',item.reason));
         const details=node('details','settings-data-disclosure');details.append(node('summary','',readText("workbench.settings-sync.asset-identity")),node('code','',item.key));row.append(details);
         if(item.waiting){
           const b=node('button','mw-btn mw-btn--secondary',readText("workbench.settings-sync.retry-sync"));b.type='button';
-          b.addEventListener('click',()=>act(()=>request('/run',{},'POST')));row.append(b);conflicts.append(row);continue;
+          b.addEventListener('click',()=>act(()=>request('/run',{},'POST')));row.append(b);return row;
         }
         row.append(button("workbench.settings-sync.compare-versions",()=>compare(collection,item)));
-        conflicts.append(row);
+        return row;
+      };
+      for(const collection of data.collections){
+        conflicts.append(...collection.conflicts.map(item=>conflictRow(collection,item)));
+        let cursor=collection.nextConflict;
+        if(!cursor)continue;
+        const more=button("workbench.settings-sync.load-more",async()=>{
+          more.disabled=true;
+          try{
+            const query=new URLSearchParams({namespace:namespace(collection.selection),after:cursor.key,waiting:String(cursor.waiting),snapshot:cursor.snapshot});
+            const page=await request('/conflicts?'+query);
+            if(!more.isConnected||state!==data)return;
+            if(page.restarted){
+              const fresh=await request('');
+              if(more.isConnected&&state===data)render(fresh);
+              return;
+            }
+            more.before(...page.conflicts.map(item=>conflictRow(collection,item)));
+            cursor=page.nextConflict;
+            if(!cursor)more.remove();
+          }catch(failure){if(more.isConnected){error.hidden=false;error.textContent=failure.message;}}
+          finally{more.disabled=false;}
+        });
+        conflicts.append(more);
       }
       for(const collection of data.collections)for(const item of collection.failures||[]){const row=node('section','settings-section');row.append(node('h2','',readText("workbench.settings-sync.items-needing-attention")),node('p','',item.reason),node('code','',item.key),button("workbench.settings-sync.retry-item",()=>act(()=>request('/retry-item',{namespace:namespace(collection.selection),key:item.key,direction:item.direction},'POST'))));conflicts.append(row);}
       const history=root.querySelector('[data-sync-history]');history.replaceChildren();

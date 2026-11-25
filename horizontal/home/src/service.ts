@@ -43,6 +43,7 @@ export interface HomePagesPorts {
   discover(caller: ActionCallContext, mode: "save" | "approve"): Promise<readonly ActionView[]>;
   openPreviewSession(caller: ActionExecutionContext, version: HomePageVersion): { page_session_id: string };
   onSelectionChanged?(projectId: string): void;
+  recordSelection?(caller: ActionExecutionContext, stage: "adopted" | "restored" | "undone", page: HomePageRef, revision: string, requestId: string): void;
   assertTopLevelUserApproval?(caller: ActionExecutionContext): void;
 }
 
@@ -292,7 +293,10 @@ export async function approveHomePage<Op extends HomePageApprovalOperation>(
   caller.signal?.throwIfAborted();
 
   const { receipt, changed } = store.approveAndSelect(decision);
-  if (changed) ports.onSelectionChanged?.(projectId);
+  if (changed) {
+    ports.onSelectionChanged?.(projectId);
+    ports.recordSelection?.(caller, operation === "adopt" ? "adopted" : "restored", receipt.selection, receipt.revision, receipt.request_id);
+  }
   return receipt;
 }
 
@@ -308,12 +312,15 @@ export async function selectBasicHomePage(
   caller.signal?.throwIfAborted();
 
   const store = ports.open(projectId);
-  const { result, changed } = store.selectBasic({
+  const { result, changed, previous } = store.selectBasic({
     actor_id: caller.actor_id,
     request_id: input.request_id,
     expected_revision: input.expected_revision,
   });
-  if (changed) ports.onSelectionChanged?.(projectId);
+  if (changed) {
+    ports.onSelectionChanged?.(projectId);
+    if (previous?.kind === "page") ports.recordSelection?.(caller, "undone", previous, result.revision, input.request_id);
+  }
   return result;
 }
 

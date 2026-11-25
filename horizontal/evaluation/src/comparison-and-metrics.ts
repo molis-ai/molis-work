@@ -1,7 +1,6 @@
 import {
   EVALUATION_STAGES,
   EVALUATION_WORK_MODES,
-  type EvaluationFunnelCounts,
   type EvaluationMetricsSummarizeInput,
   type EvaluationMetricsSummary,
   type EvaluationRunComparison,
@@ -10,7 +9,8 @@ import {
   type EvaluationUnknownReason,
   type EvaluationVerdict,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
-import type { ObservationOutcome } from "@molis-ai/molis-work-contracts/services/observation";
+import type { ObservationOutcome, ObservationQueriedRecord } from "@molis-ai/molis-work-contracts/services/observation";
+import { collectFunnel, emptyFunnelSets, funnelCounts } from "./unknown-and-funnel.js";
 import type { StoredRunWithOutcomes } from "./store.js";
 
 function stageVerdictOf(run: EvaluationRunView, stage: EvaluationStage): EvaluationVerdict {
@@ -151,23 +151,16 @@ export function compareEvaluationRuns(baseline: EvaluationRunView, candidate: Ev
 export function summarizeEvaluationMetrics(
   input: EvaluationMetricsSummarizeInput,
   stored: readonly StoredRunWithOutcomes[],
-  sampleCount: number,
+  selectedSampleCount: number,
+  evidence: ReadonlyMap<string, readonly ObservationQueriedRecord[]>,
 ): EvaluationMetricsSummary {
   const verdictCounts: Record<EvaluationVerdict, number> = { passed: 0, failed: 0, unknown: 0 };
   const unknownReasonCounts: Partial<Record<EvaluationUnknownReason, number>> = {};
   const workOutcomeCounts: Partial<Record<ObservationOutcome, number>> = {};
   let excludedExecutionRuns = 0;
-  let funnelTotals: EvaluationFunnelCounts = {
-    presented: 0,
-    viewed: 0,
-    selected: 0,
-    executed: 0,
-    completed: 0,
-    adopted: 0,
-    modified_after_adoption: 0,
-    undone_or_reworked: 0,
-  };
-
+  const stages = emptyFunnelSets();
+  const unattributedInteractions = { presented: 0, viewed: 0, selected: 0, adopted: 0, modified_after_adoption: 0, undone_or_reworked: 0 };
+  const interactions = Object.keys(unattributedInteractions) as (keyof typeof unattributedInteractions)[];
   for (const { view, outcomeCounts } of stored) {
     verdictCounts[view.effective_verdict] += 1;
     for (const reason of view.unknown_reasons) {
@@ -179,20 +172,21 @@ export function summarizeEvaluationMetrics(
         workOutcomeCounts[key] = (workOutcomeCounts[key] ?? 0) + count;
       }
     }
-    const ownerCounts = view.funnel.execution_basis === "owner_work";
-    if (!ownerCounts) excludedExecutionRuns += 1;
-    funnelTotals = {
-      presented: funnelTotals.presented + view.funnel.presented,
-      viewed: funnelTotals.viewed + view.funnel.viewed,
-      selected: funnelTotals.selected + view.funnel.selected,
-      executed: funnelTotals.executed + (ownerCounts ? view.funnel.executed : 0),
-      completed: funnelTotals.completed + (ownerCounts ? view.funnel.completed : 0),
-      adopted: funnelTotals.adopted + view.funnel.adopted,
-      modified_after_adoption: funnelTotals.modified_after_adoption + view.funnel.modified_after_adoption,
-      undone_or_reworked: funnelTotals.undone_or_reworked + view.funnel.undone_or_reworked,
-    };
+    const rows = evidence.get(view.run_id) ?? [];
+    const keys = collectFunnel(rows);
+    for (const stage of interactions) {
+      for (const key of keys[stage]) stages[stage].add(key);
+      unattributedInteractions[stage] += Math.max(0, view.funnel[stage] - keys[stage].size);
+    }
+    for (const key of keys.executed) stages.executed.add(key);
+    for (const key of keys.completed) stages.completed.add(key);
+    const completeBasis = rows.length === view.observed_conditions.record_count;
+    if (!completeBasis && (view.funnel.execution_basis !== "owner_work" ||
+      keys.executed.size < view.funnel.executed || keys.completed.size < view.funnel.completed)) excludedExecutionRuns++;
   }
 
+  const totals = { ...funnelCounts(stages), excluded_execution_runs: excludedExecutionRuns, unattributed_interactions: unattributedInteractions };
+  for (const stage of interactions) totals[stage] += unattributedInteractions[stage];
   const denominator = stored.length;
   const evaluableCount = verdictCounts.passed + verdictCounts.failed;
   const evaluableRatio = denominator === 0 ? 0 : Number((evaluableCount / denominator).toFixed(4));
@@ -220,14 +214,15 @@ export function summarizeEvaluationMetrics(
   return {
     purpose: input.purpose,
     window: { since: input.since ?? null, until: input.until ?? null },
-    sample_count: sampleCount,
+    sample_count: new Set(stored.map(({ view }) => view.sample_id)).size,
+    selected_sample_count: selectedSampleCount,
     denominator,
     evaluable_count: evaluableCount,
     evaluable_ratio: evaluableRatio,
     verdict_counts: verdictCounts,
     unknown_reason_counts: unknownReasonCounts,
     work_outcome_counts: workOutcomeCounts,
-    funnel_totals: { ...funnelTotals, execution_basis: "owner_work", excluded_execution_runs: excludedExecutionRuns },
+    funnel_totals: totals,
     by_work_mode: byWorkMode,
   };
 }

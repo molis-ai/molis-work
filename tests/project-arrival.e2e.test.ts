@@ -369,6 +369,30 @@ test("BCS-01 BCS-02 BCS-03: the chooser searches the person's own content in the
   await command("Input.insertText", { text: "深海生态" }, sessionId);
   await waitFor("[...document.querySelectorAll('[data-global-search-hit]')].some(hit => hit.textContent.includes('个人知识：鲸落'))", 20_000);
   assert.equal(await evaluate(selected), others[2], "searching does not change the project in view");
+  // QRF-06: this is a real successful open, held after the server replies. Closing discards its navigation.
+  await evaluate(`{
+    const real = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const reply = await real(input, init);
+      if (new URL(String(input), location.href).pathname.endsWith("/api/search/open") && !window.__released) {
+        await new Promise(resolve => window.__releaseSearch = resolve);
+        window.__released = true;
+      }
+      return reply;
+    };
+  }`);
+  await click("[data-global-search-hit]");
+  await waitFor("typeof window.__releaseSearch === 'function'");
+  await press("k", 4);
+  await waitFor("document.activeElement.id === 'chooser-q'");
+  await evaluate("window.__releaseSearch(); true");
+  await waitFor("window.__released");
+  await evaluate("new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => done(true))))");
+  assert.deepEqual(await evaluate("[location.pathname, document.activeElement.id, document.activeElement.value]"), ["/", "chooser-q", "foot"]);
+  await click(".chooser-personal-search");
+  await waitFor("document.querySelector('[data-global-search-dialog]').open");
+  await command("Input.insertText", { text: "深海生态" }, sessionId);
+  await waitFor("document.querySelector('[data-global-search-hit]')");
   // A typed Enter (a key with its character), which submits the dialog's form as a person's would.
   await navigate(() => command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" }, sessionId));
   assert.match(await evaluate<string>("location.pathname"), /^\/projects\/personal\//);

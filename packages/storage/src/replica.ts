@@ -233,7 +233,20 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
       const conflicts = Number(db.prepare('SELECT COUNT(*) AS n FROM replica_conflicts').get()!.n);
       return { pending, conflicts };
     },
-    conflicts(){owner.authorize();return db.prepare('SELECT key,event,reason,waiting FROM replica_conflicts ORDER BY key LIMIT 100').all().filter(row=>replicaKeyVisible(owner,String(row.key))&&replicaKeyVisible(owner,String(row.key),(serial.read(row.event,String(row.key),'conflict') as SyncEvent).value)).map(row=>({key:String(row.key),reason:String(row.reason),waiting:!!row.waiting}));},
+    conflicts() {
+      owner.authorize();
+      const visible: ReturnType<SyncReplicaAdapter['conflicts']> = [];
+      const eventFor = db.prepare('SELECT event FROM replica_conflicts WHERE key=?');
+      for (const row of db.prepare('SELECT key,reason,waiting FROM replica_conflicts ORDER BY key').all()) {
+        const key = String(row.key);
+        if (!replicaKeyVisible(owner, key)) continue;
+        const saved = eventFor.get(key);
+        if (saved && replicaKeyVisible(owner, key, (serial.read(saved.event, key, 'conflict') as SyncEvent).value)) {
+          visible.push({ key, reason: String(row.reason), waiting: !!row.waiting });
+        }
+      }
+      return visible;
+    },
     retryWaiting(){replicaTransaction(db,()=>{
       owner.authorize();
       for(const row of db.prepare('SELECT key,event FROM replica_conflicts WHERE waiting=1 ORDER BY key').all()){

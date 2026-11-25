@@ -46,22 +46,28 @@ Manifest 的 `agent.prompts` 只声明提示词标识、版本等元信息；作
 
 ### 安装版开发入口
 
-Molis Work 安装后，CLI 在该 Home 的 `bin/molis-work`。默认完整路径如下，自选 Home 时换成对应路径。安装两个公开包不会把这个命令加到 PATH。把下面两个压缩包路径改成你拿到的实际路径，再从空目录创建样例。
+使用 Node 24.15.x。安装过 Home 时，`molis_cli` 指向该 Home 的 `bin/molis-work`；安装 npm 产品包时也可以指向安装目录的 `node_modules/.bin/molis-work`。下列命令先在完整产品 npm 归档解包得到的 `package/` 目录执行，从它自带的两个公开包制成匹配版本的压缩包。已有这两份压缩包的作者可以直接设置 `contracts_tgz` 和 `plugin_sdk_tgz`。
 
 ```bash
 molis_cli="$HOME/.molis-work/bin/molis-work"
-contracts_tgz="/实际目录/molis-ai-molis-work-contracts-0.0.0.tgz"
-plugin_sdk_tgz="/实际目录/molis-ai-molis-work-plugin-sdk-0.0.0.tgz"
 plugin_dev_dir="$(mktemp -d)"
+contracts_tgz="$plugin_dev_dir/$(npm pack ./node_modules/@molis-ai/molis-work-contracts --silent --offline --ignore-scripts --pack-destination "$plugin_dev_dir")"
+plugin_sdk_tgz="$plugin_dev_dir/$(npm pack ./node_modules/@molis-ai/molis-work-plugin-sdk --silent --offline --ignore-scripts --pack-destination "$plugin_dev_dir")"
+```
+
+从空目录创建新的开发样例。用临时 Home 和状态目录可以再次运行同一条 `dev`，核对版本从 1 增到 2。
+
+```bash
 "$molis_cli" plugin create "$plugin_dev_dir/sample" com.example.notes local-developer local-development-binding
 npm --prefix "$plugin_dev_dir/sample" install --offline --ignore-scripts --no-audit --no-fund \
   "$contracts_tgz" "$plugin_sdk_tgz"
 "$molis_cli" plugin validate "$plugin_dev_dir/sample/manifest.json"
-"$molis_cli" plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state" \
-  storage:private,artifact:write,artifact:read,ui:register --allow-unsigned-development
+MOLIS_WORK_HOME="$plugin_dev_dir/home" MOLIS_WORK_SECRET_BACKEND=file \
+  "$molis_cli" plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state" \
+  storage:private,artifact:write,artifact:read,ui:register --allow-unsigned-development --locale zh
 ```
 
-在独立 Home 里试跑时，把 `MOLIS_WORK_HOME` 指向该临时 Home，设 `MOLIS_WORK_SECRET_BACKEND=file`，再给 `plugin dev` 单独的空状态目录。
+如果业务代码导入 `@molis-ai/molis-work-plugin-sdk/rich-text`，还需安装它声明的三个可选 peer：`micromark`、`micromark-extension-gfm`、`sanitize-html`。基础样例只使用上面两个平台包。
 
 `dev`：真实安装、启动、poll 一次、渲染已注册 UI、卸载并撤 UI/授权。退出码 0 只表示这次健康检查和 poll 成功，**不是**浏览器交互已验收。状态目录必须是新目录、空目录或已有 `.molis-work-plugin-development.json` 的开发目录。不要用正式项目目录。
 
@@ -84,7 +90,37 @@ pnpm --dir packages/plugin-sdk pack --pack-destination "$plugin_packages_dir"
 
 `molis-work plugin pack <源目录> <bundle.json>` 打包 `package.json` 的 `files`、`package.json`、`manifest.json` 及 Manifest 声明的语言文件。拒绝 `..` 和符号链接，不执行安装脚本或收集依赖。JSON 包上限 64 MiB，输出不覆盖已有文件。
 
-同一个安装版 CLI 提供三条签验命令。`molis-work plugin identity <public.pem>` 从 Ed25519 公钥取得发布者绑定。`molis-work plugin sign <bundle.json> <private.pem> <signed.json>` 显式使用与该绑定对应的私钥。`molis-work plugin verify <signed.json> <trusted-public.pem>` 用调用者信任的公钥检查包内容和发布者身份。`local-development-binding` 只供本地预览，签验与官方审核各有自己的流程。
+下面沿用刚试跑的目录。发布者准备 Ed25519 密钥，将开发样例的副本绑定到发布公钥，核验方只持有经独立渠道信任的公钥和待验包。生产使用时保管好原私钥，以下命令在新的临时目录演示这两种角色。
+
+```bash
+mkdir "$plugin_dev_dir/author" "$plugin_dev_dir/receiver"
+node --input-type=module - "$plugin_dev_dir" <<'JS'
+import { generateKeyPairSync } from "node:crypto";
+import { writeFileSync } from "node:fs";
+const work = process.argv[2];
+const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+writeFileSync(work + "/author/sign.pem", privateKey.export({ format: "pem", type: "pkcs8" }), { mode: 0o600, flag: "wx" });
+writeFileSync(work + "/receiver/trusted.pem", publicKey.export({ format: "pem", type: "spki" }), { flag: "wx" });
+JS
+binding="$("$molis_cli" plugin identity "$plugin_dev_dir/receiver/trusted.pem" | node -pe 'JSON.parse(require("node:fs").readFileSync(0,"utf8")).publisher_identity')"
+node --input-type=module - "$plugin_dev_dir" "$binding" <<'JS'
+import { basename, join } from "node:path";
+import { cpSync, readFileSync, writeFileSync } from "node:fs";
+const [work, binding] = process.argv.slice(2);
+const release = join(work, "release");
+cpSync(join(work, "sample"), release, { recursive: true, filter: file => basename(file) !== "node_modules" });
+const file = join(release, "manifest.json");
+const manifest = JSON.parse(readFileSync(file, "utf8"));
+manifest.publisher.signature = binding;
+writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
+JS
+"$molis_cli" plugin validate "$plugin_dev_dir/release/manifest.json"
+"$molis_cli" plugin pack "$plugin_dev_dir/release" "$plugin_dev_dir/author/source.json"
+"$molis_cli" plugin sign "$plugin_dev_dir/author/source.json" "$plugin_dev_dir/author/sign.pem" "$plugin_dev_dir/receiver/signed.json"
+"$molis_cli" plugin verify "$plugin_dev_dir/receiver/signed.json" "$plugin_dev_dir/receiver/trusted.pem"
+```
+
+`verified: true` 确认这个源码包和发布者身份。产品安装入口接受沙箱应用、沙箱集成和技能内容包；本机源码开发继续使用最初的开发副本。
 
 沙箱包用 `molis-work plugin pack-sandbox`，只有技能的内容包用 `molis-work plugin pack-content`。在安装版 CLI 运行 `molis-work plugin --help` 查看参数。公开 SDK 的 `sandboxPluginManifest`、`sandboxIntegrationManifest`、`effectsFromContract` 与 CLI 共用清单和效果的生成逻辑。角色资料与方法可在随包手册查看，完整格式留作源码树参考。[签名 app 包的文字资料](#签名-app-包的文字资料) · [源码树的沙箱包格式与安装](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)
 

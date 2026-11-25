@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import type { DatabaseSync, StatementSync } from "node:sqlite";
-import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { OBSERVATION_LIMITS, type ObservationCoverageState } from "@molis-ai/molis-work-contracts/services/observation";
 import { collectUnreferenced, resolveEvidence } from "./evidence.js";
 import type { ObservationKeys } from "./keys.js";
@@ -73,13 +74,13 @@ export class ObservationWriter {
     }
     if (this.queue.length >= (this.options.maxQueued ?? 10_000)) { this.gap(record.coverage, "lost", "queue_full", 1); return; }
     this.queue.push(record);
-    if (this.queue.length >= (this.options.batchRows ?? 200)) this.flush();
-    else this.schedule();
+    this.schedule(this.queue.length === (this.options.batchRows ?? 200));
   }
 
-  private schedule(): void {
-    if (this.timer || this.closed) return;
-    this.timer = setTimeout(() => { this.timer = undefined; this.flush(); }, this.options.flushDelayMs ?? 250);
+  private schedule(ready = false): void {
+    if (this.closed || (this.timer && !ready)) return;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = setTimeout(() => { this.timer = undefined; this.flush(); }, ready ? 0 : this.options.flushDelayMs ?? 250);
     this.timer.unref?.();
   }
 
@@ -218,6 +219,10 @@ export class ObservationWriter {
     } catch {
       return undefined;
     }
+  }
+
+  hasDatabase(): boolean {
+    return this.db !== undefined || existsSync(homeSqlitePath(this.options.home, OBSERVATION_STORE));
   }
 
   /** The library for reads and the lifecycle hooks; undefined when it cannot be opened. */

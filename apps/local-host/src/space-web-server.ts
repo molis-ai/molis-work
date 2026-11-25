@@ -16,6 +16,7 @@ import { personalCloudConfig } from './personal-auth.js';
 import { resolveWebControlToken, sendWebHealth } from './web-control-token.js';
 import { authorizeLocalWebRequest, finalizeLocalMutation, refuseForeignRequest, refuseLocalWebRequest, requestHost, sendLocalWebJson, respondLocalWebRefusal, type LocalMutationState } from './web-http.js';
 import type { WebServerOptions } from './web-types.js';
+import { PLUGIN_INSTALL_PATH } from './plugin-install-gateway.js';
 import { ACCOUNT_CONNECT_PATH } from './resident-account-connection.js';
 import { MCP_CONTEXT_PATH } from './mcp-context-envelope.js';
 import { handleHomeMaintenanceHttp, HOME_MAINTENANCE_PATH } from './home-maintenance-gateway.js';
@@ -386,7 +387,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         // CLI/MCP have no browser cookies. Only an already-open, authenticated
         // personal Host can be reached with its exact Home id and private token.
         const gatewayHome=request.headers['x-molis-work-home-id'];
-        const internal=[ACTION_GATEWAY_PATH,HOME_MAINTENANCE_PATH,MCP_CONTEXT_PATH,MANAGEMENT_ACTION_PATH,'/api/settings/demo'].includes(url.pathname);
+        const internal=[ACTION_GATEWAY_PATH,HOME_MAINTENANCE_PATH,MCP_CONTEXT_PATH,MANAGEMENT_ACTION_PATH,PLUGIN_INSTALL_PATH,'/api/settings/demo'].includes(url.pathname);
         if(url.pathname==='/health'){
           const entry=[...surfaces.values()].find(item=>actionGatewayHomeId(item.home)===gatewayHome&&isAccountReady(item.space.spaceId));
           const scoped=gatewayHome&&gatewayHome!==actionGatewayHomeId(home);

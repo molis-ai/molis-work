@@ -512,6 +512,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if (take) return route(objectLinkAt(home, opened ? { surface: take.project_plugin_id, id: opened.item_id, title: opened.title } : { surface: take.project_plugin_id }));
     // Drafts kept: the drafting plugin's page. Otherwise the summary, where the plugin that kept the documents opens it (contract-design §2.5).
     if (journey.drafts && journey.drafts.surface && journey.drafts.added && journey.drafts.added.length) return route(objectLinkAt(home, { surface: journey.drafts.surface }));
+    if (journey.adoption?.blank) return route(home);
     const summary = journey.summary_open;
     return route(summary ? objectLinkAt(home, { surface: summary.surface, id: summary.id, title: (journey.adoption?.title || journey.summary?.title || globalThis.t.text("workbench.context-onboarding.project"))+' · '+globalThis.t.text("workbench.context-onboarding.work-summary") }) : home);
   }
@@ -609,7 +610,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   async function adopt(isBlank=false) {
     preserveEdits();await saveQueue;
     const accepted=journey.adoption;
-    const name=accepted?.title ?? (isBlank?document.getElementById('cx-blank-name').value:journey.summary.title);
+    const name=accepted?.title ?? (isBlank?blankName:journey.summary.title);
     journey=await api(endpoint('adopt'),{title:name,body:accepted?.body ?? (isBlank?'':journey.summary.body),blank:isBlank&&!materialsOnly,materials_only:materialsOnly,keep:!isBlank&&draftPicked?[...draftPicked]:[],...(!accepted&&documentsPicked?{documents_taker:documentsPicked}:{}),...(!isBlank&&!accepted&&takePicked&&codeFolder()?{take:takePicked}:{})});
     blank=false;
     if(journey.phase==='complete'){await clearJourneyUploads(journey.id);if(takeHeld()){render();}

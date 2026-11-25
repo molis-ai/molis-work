@@ -20,6 +20,7 @@ interface PackageMetadata {
 export async function createMolisWorkNpmPackageDirectory(options: {
   sourceDirectory: string;
   destinationDirectory: string;
+  sourceRevision?: string;
 }): Promise<{ directory: string; bundledPackages: string[] }> {
   const source = path.resolve(options.sourceDirectory);
   const destination = path.resolve(options.destinationDirectory);
@@ -56,6 +57,7 @@ export async function createMolisWorkNpmPackageDirectory(options: {
   try {
     const staged = path.join(temporary, "package");
     await copyPackageFiles(source, staged, root);
+    await linkAuthorSourceReferences(source, staged, options.sourceRevision);
     for (const name of bundled) {
       const dependency = packages.get(name)!;
       const target = path.join(staged, "node_modules", name);
@@ -98,4 +100,29 @@ async function copyPackageFiles(source: string, destination: string, metadata: P
 
 async function writePackage(directory: string, metadata: PackageMetadata): Promise<void> {
   await fs.writeFile(path.join(directory, "package.json"), `${JSON.stringify(metadata, null, 2)}\n`);
+}
+
+/** Skill-to-skill links travel with the product. References into the checkout point to the source used to pack it. */
+async function linkAuthorSourceReferences(source: string, staged: string, revision?: string): Promise<void> {
+  const directory = path.join(staged, "skills", "molis-plugin-dev");
+  const remote = "https://github.com/molis-ai/molis-work";
+  const commit = revision && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(revision) ? revision : undefined;
+  for (const file of await fs.readdir(directory)) {
+    if (!file.endsWith(".md")) continue;
+    const filename = path.join(directory, file);
+    const original = await fs.readFile(filename, "utf8");
+    let markdown = original;
+    for (const match of original.matchAll(/\[([^\]\n]+)\]\((\.\.\/[^)\s#]+)(#[^)\s]*)?\)/gu)) {
+      const target = path.resolve(directory, match[2]!);
+      if (await pathState(target)) continue;
+      const relative = path.relative(staged, target).split(path.sep).join("/");
+      const sourceTarget = await fs.stat(path.join(source, relative));
+      const urlPath = relative.split("/").map(encodeURIComponent).join("/");
+      const reference = commit
+        ? `[${match[1]}](${remote}/${sourceTarget.isDirectory() ? "tree" : "blob"}/${commit}/${urlPath}${match[3] ?? ""})`
+        : `${match[1]}（源码 \`${relative}\`）`;
+      markdown = markdown.replaceAll(match[0], reference);
+    }
+    if (markdown !== original) await fs.writeFile(filename, markdown);
+  }
 }

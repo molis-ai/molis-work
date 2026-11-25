@@ -372,12 +372,6 @@
     "reason": "新插件模板的初始版本，生成后归插件作者自己管理，不是平台的版本。"
   },
   {
-    "file": "tooling/plugin-cli/src/create.ts",
-    "name": "schema_version",
-    "values": { "1": 1 },
-    "reason": "新插件模板里样例成果类型的初始版本，生成后归插件作者自己管理。"
-  },
-  {
     "file": "tooling/plugin-cli/src/sample-source.ts",
     "name": "version",
     "values": { "1": 3 },

@@ -25,6 +25,8 @@
 - **宿主侧的记录器**：服务不在 Host 对象上时，用 `liveObservation(home)` 找到这个 Home 正在运行的采集层；没有运行层（命令行卸载）时，`recordGrantChanges` 直接开这个 Home 的库写同形记录。授权变化写在保存之后、从不抛错。
 - **单次文字模型用量**：`HostCompleteText` 和 `hostTextGeneration` 共用 `onReceipt`。技能起草、修订、回放和插件的 `services.model` 经同一个宿主记录器写 `agent.usage`（`stage: "inference"`）。每份实际用量回执只记一次，正文交付的末次复查仍单独进行。记录用原调用的项目、入口和调用编号，带 Prologue 运行编号、请求模型、供应商报告的模型、用量来源与缓存口径。估算值标明来源，未知数字留空。技能回放与判定标为 `trial`。
 
+首页主人在选择落库后记 `home.selection`，采用、恢复与退回基础页分别关联页面版本和选择回执。同一请求重送沿用原回执。助理卡片的候选进入视口、本人最终确认时，工作台分别记 `ui.candidates` 的 `presented` 和 `chosen`。真正启用或按原回执撤销技能时，主人另记 `automation.adoption`。按同一项目及 `work_ref` 查询即可区分人看到了什么、选了什么、实际改了什么。
+
 ## 读取、用途开关与清理
 
 - **统一读取动作**：页面、主动助理、效果评测、工作流、插件与 MCP 共用 `observation.records.query@1`（按 `work_ref`、`call_id`、`run_id`、`subject`、时间、平台版本或 `after_seq` 增量游标查询，返回 `kind`、`late` 与可选 `subject_status`）、`observation.evidence.get@1`（按 `record_id` 解封快照或核对主人版本引用）与 `observation.coverage.get@1`（查看覆盖登记、缺口与无活动区分）。

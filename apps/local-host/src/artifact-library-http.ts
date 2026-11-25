@@ -6,17 +6,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { logPreviewFailure } from "./host-log.js";
-import { objectLinkAt, type BoundActionClient, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, isArtifactReferrersAction, platformErrorKind, objectLinkAt, type ActionReference, type BoundActionClient, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {
   ARTIFACTS_PLUGIN_ID, artifactsErrors, documentErrors, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, openArtifactOriginal,
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactImportResult, type ArtifactExternalImport, type SubjectArtifactEmbed,
 } from "@molis-ai/molis-work-module-artifacts";
 import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
-import { artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, continuerReadsFile, type ArtifactTypeDeclaration } from "./artifact-type-registry.js";
+import { artifactTypeDeclarations, artifactContinuers, continuerReadsFile, type ArtifactTypeDeclaration } from "./artifact-type-registry.js";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
-import { IMPORTED_DOCUMENT_READ_TYPES, IMPORTED_DOCUMENT_TYPE, importedDocumentFile, isImportedDocumentVersion, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { IMPORTED_DOCUMENT_READ_TYPES, IMPORTED_DOCUMENT_TYPE, importedDocumentFile, isImportedDocumentVersion, type ArtifactReference, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ActionProgressEvent, ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { LocalWebActionClient } from "./local-web-actions.js";
 import { currentLocale, inLanguagePreview } from "./web-locale.js";
 import { importedDocumentWarnings, type ReadArtifactDisplay } from "./artifact-display-words.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
@@ -30,7 +31,7 @@ export interface ArtifactHttpContext {
   readonly projectId: string;
   readonly routePrefix: string;
   readonly projectTitle: string;
-  readonly actions: BoundActionClient;
+  readonly actions: LocalWebActionClient;
   readonly homeDirectory: string;
   /** The person's 成果库 actions for one import that comes with a file the Host received (`ActionCallContext.original_file`). */
   readonly offeredActions: (file: HostOfferedOriginalFile) => BoundActionClient;
@@ -94,6 +95,48 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
     source_href: pinned && compared !== "missing" && compared !== "moved" ? objectLinkAt(context.routePrefix, { surface: declaration.surface, id: pinned.id, title: artifact.title }) : "",
     source_label: pinned ? uiText.text("workbench.browser-ui.open-original-in-plugin", { plugin: pluginTitle ?? artifact.producer_plugin_id }) : "",
     plugin_id: declaration.surface, item_id: pinned?.id ?? "" };
+}
+
+type ReferenceSource = Parameters<typeof artifactWorkbench.referenceSources>[0][number];
+
+async function readReferenceSources(actions: LocalWebActionClient, reference: ArtifactReference, only?: string): Promise<ReferenceSource[]> {
+  const failed = async (error: unknown, key: string, action?: ActionReference, title?: string): Promise<ReferenceSource[]> => {
+    if (error instanceof ActionError) {
+      if ((error.kind ?? platformErrorKind(error.code)) === "forbidden") return [];
+      // A provider may itself report a missing record. Only a vanished registration makes its source inapplicable.
+      if (action && error.code === "actions.missing") {
+        try {
+          if (!await actions.discoverOne(action)) return [];
+        } catch { /* Discovery also failed; keep the retry. */ }
+      }
+    }
+    return [{ key, state: "failed", title }];
+  };
+  const ledger = async (): Promise<ReferenceSource[]> => {
+    try { return [{ key: "ledger", state: "links", ...await actions.invoke(artifactsActions.links, { reference }) }]; }
+    catch (error) { return failed(error, "ledger", artifactsActions.links); }
+  };
+  const owners = async (): Promise<ReferenceSource[]> => {
+    // This request's registrations already carry the project's running installations and the person's grants.
+    // The exact provider can be an installation ID, including when another installation declares the same capability.
+    const sourceKey = (provider: string, capability: string, version: number) => encodeURIComponent(JSON.stringify([provider, capability, version]));
+    try {
+      const declared = await actions.declaredMatching((definition, provider) => definition.operation === "query" && isArtifactReferrersAction(definition.action)
+        && (!only || only === "owners" || only === sourceKey(provider.provider_id, definition.capability_id, definition.version)));
+      return (await Promise.all(declared.map(async (view): Promise<ReferenceSource[]> => {
+        const provider = view.provider.provider_id, key = sourceKey(provider, view.capability_id, view.version), title = view.provider.title;
+        const action = { ...view, provider_id: provider };
+        try {
+          const result = await actions.invoke(action, { reference }) as ArtifactReferrersResult;
+          return [{ key, state: "objects", title, referrers: result.referrers }];
+        } catch (error) { return failed(error, key, action, title); }
+      }))).flat();
+    } catch (error) { return failed(error, only || "owners"); }
+  };
+  if (only === "ledger") return ledger();
+  if (only) return owners();
+  const [linked, objects] = await Promise.all([ledger(), owners()]);
+  return [...linked, ...objects];
 }
 
 export async function renderProjectArtifactContext(embeds: SubjectArtifactEmbed[], readArtifactDisplay: ReadArtifactDisplay): Promise<string> {
@@ -251,18 +294,26 @@ export function createLocalArtifactHttp() {
         return true;
       }
       const selected = view.selected;
-      const words = await context.readArtifactDisplay(selected ? [...view.versions, selected] : view.versions);
       const fragment = requestHeader(request, "x-molis-work-fragment"), compact = fragment === "frame-block";
+      const reference = selected && route.kind === "detail" ? { artifact_id: selected.artifact_id, version: selected.version } : null;
+      if (fragment === "artifact-reference-source") {
+        const source = requestHeader(request, "x-molis-work-reference-source");
+        if (!source || !reference) {
+          response.writeHead(404, { "cache-control": "no-store" });
+          response.end();
+          return true;
+        }
+        const answer = await readReferenceSources(context.actions, reference, source);
+        response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+        response.end(`<div data-artifact-reference-response lang="${escape(currentLocale())}">${artifactWorkbench.referenceSources(answer, primitives)}</div>`);
+        return true;
+      }
+      const words = await context.readArtifactDisplay(selected ? [...view.versions, selected] : view.versions);
       const languagePreview = fragment === "artifact-workbench" && inLanguagePreview();
       const presentation = await ownerPreview(selected, artifactTypeDeclarations(), selected ? words(selected)?.pluginTitle : undefined, context, languagePreview);
       // 「从这一版继续」 (A4b): who declares it for this type; for an imported file, those whose `file` declaration reads it.
       const continuers = continuersFor(selected).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title }));
-      const reference = view.selected ? { artifact_id: view.selected.artifact_id, version: view.selected.version } : null;
-      const linked = reference && route.kind === "detail" ? await context.actions.invoke(artifactsActions.links, { reference }) : undefined;
-      // Documents and other objects that link to this version (五.1), each answered by its own plugin; one that cannot answer is left out.
-      const referrers = linked && reference && context.ownerActions ? (await Promise.all(artifactReferrerActions().map(item => context.ownerActions!(item.action.action.permissions)
-        .invoke(item.action, { reference }).then(result => (result as ArtifactReferrersResult).referrers.map(row => ({ ...row, plugin_title: item.plugin_title }))).catch(() => [])))).flat() : [];
-      const links = linked ? { ...linked, referrers } : undefined;
+      const links = reference ? await readReferenceSources(context.actions, reference) : undefined;
       const attachTarget = !links
         ? true
         : context.inputTargetAvailable

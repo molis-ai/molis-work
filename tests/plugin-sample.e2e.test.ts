@@ -42,11 +42,13 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.equal(readFileSync(join(project, "index.mjs"), "utf8"), original);
     const validated = JSON.parse(execFileSync(process.execPath, [cli, "validate", join(project, "manifest.json")], { encoding: "utf8" }));
     assert.equal(validated.plugin_id, "com.example.notes");
-    const createdManifest = JSON.parse(readFileSync(join(project, "manifest.json"), "utf8")) as { permissions: Array<{ reason_text?: { key?: string } }> };
+    const createdManifest = JSON.parse(readFileSync(join(project, "manifest.json"), "utf8")) as { permissions: Array<{ reason_text?: { key?: string } }>; artifacts: { produces: { artifact_type_id: string }[] } };
     assert.equal(createdManifest.permissions.every(permission => permission.reason_text?.key?.startsWith("notes.permission.")), true,
       "CLI scaffold generates localized permissions[].reason_text keys");
     // SMP-04: the CLI generates and validates the same declaration the isolated sample uses.
     const sampleManifest = JSON.parse(readFileSync(join(root, "examples/plugin-sample/manifest.json"), "utf8"));
+    assert.deepEqual(createdManifest.artifacts.produces.map(type => type.artifact_type_id), ["com.example.notes.result"]);
+    assert.equal(sampleManifest.artifacts.produces[0].artifact_type_id, "com.example.note");
     assert.deepEqual(validated.state_machines, sampleManifest.state_machines);
     assert.equal(validated.state_machines[0].machine_id, "com.example.notes.result");
     // FSS-62: the language files are checked too; a placeholder broken in one language fails the check, and fixing it passes again.
@@ -267,6 +269,13 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     const devIn = (locale: string, target: string) => spawnSync(process.execPath,
       ["--disable-warning=ExperimentalWarning", appCli, "plugin", "dev", project, join(directory, target), grants, "--allow-unsigned-development", "--locale", locale], { encoding: "utf8" });
     const inEnglish = devIn("en", "state-en"), inChinese = devIn("zh", "state-zh");
+    const inJapanese = devIn("ja", "state-ja");
+    assert.equal(inJapanese.status, 0, inJapanese.stderr);
+    const japanese = JSON.parse(inJapanese.stdout).rendered_ui[0].html as string;
+    assert.match(japanese, /ローカルプラグインサンプル/);
+    assert.match(japanese, /保存済みの結果：1/);
+    assert.match(japanese, /1 件の結果を保存しました/);
+    assert.ok(japanese.includes("出典：Tom&#039;s R&amp;D notes"), japanese);
     assert.equal(inEnglish.status, 0, inEnglish.stderr);
     assert.equal(inChinese.status, 0, inChinese.stderr);
     const english = JSON.parse(inEnglish.stdout).rendered_ui[0].html as string, chinese = JSON.parse(inChinese.stdout).rendered_ui[0].html as string;
@@ -279,12 +288,12 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     // A name with ' and & is escaped once, by `t`: never left raw, never twice.
     assert.ok(english.includes("Source: Tom&#039;s R&amp;D notes"), english);
     assert.ok(chinese.includes("来源：Tom&#039;s R&amp;D notes"), chinese);
-    for (const html of [english, chinese]) assert.equal(/&amp;(?:amp|#039);/u.test(html), false, html);
+    for (const html of [english, chinese, japanese]) assert.equal(/&amp;(?:amp|#039);/u.test(html), false, html);
     const undeclared = devIn("fr", "state-fr");
     assert.equal(undeclared.status, 1, undeclared.stderr);
     assert.equal(JSON.parse(undeclared.stderr).code, "actions.input_invalid");
     assert.match(undeclared.stderr, /fr/);
-    assert.match(undeclared.stderr, /en、zh/, "the error lists the languages it can draw in");
+    assert.match(undeclared.stderr, /en、zh、ja/, "the error lists the languages it can draw in");
     // BL-plugin-dev-state-dir-before-locale-check: the language is checked before the state directory is made, so a refusal leaves none behind.
     assert.equal(existsSync(join(directory, "state-fr")), false, "a refused --locale makes no state directory");
     // FSS-60 FSS-62 (#1976 review ① item 4): dev compares the language it draws in with the default, as validate does. Arguments that differ
@@ -392,9 +401,17 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.equal(repositoryRun.status, 0, repositoryRun.stderr);
     const repositoryResult = JSON.parse(repositoryRun.stdout);
     assert.equal(repositoryResult.installation.state, "uninstalled");
+    assert.equal(repositoryResult.artifacts[0].artifact_type_id, "com.example.note");
     assert.deepEqual(repositoryResult.artifacts[0].payload, { title: "Local sample result", sequence: 1 });
     assert.match(repositoryResult.rendered_ui[0].html, /Saved results: 1/);
 
+    // QRF-08: two independent authors keep both generated plugins installed in the same runtime.
+    const secondProject = join(directory, "drafts");
+    execFileSync(process.execPath, [appCli, "plugin", "create", secondProject, "com.example.drafts", "second-author", "dev-binding"]);
+    execFileSync("npm", ["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--cache", join(directory, "npm-cache"),
+      join(directory, "molis-ai-molis-work-contracts-0.0.0.tgz"), join(directory, "molis-ai-molis-work-plugin-sdk-0.0.0.tgz")],
+    { cwd: secondProject });
+    const secondDefinition = (await import(pathToFileURL(join(secondProject, "index.mjs")).href)).default as PluginDefinition;
     const boardPath = join(directory, "board.db");
     seedDemoBoard(boardPath);
     store = new LocalProjectDatabase(boardPath);
@@ -413,7 +430,10 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     // The Host's text context and the plugin's own words, as `createPluginPlatform` gives them (§8.3): the page the Host mounts says them.
     const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "developer",
       artifacts, processItems, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest),
-      localePacks: given => pluginLocaleReader(given.manifest, path => existsSync(join(project, path)) ? readFileSync(join(project, path), "utf8") : null) }), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions });
+      localePacks: given => {
+        const ownerRoot = given.manifest.plugin_id === secondDefinition.manifest.plugin_id ? secondProject : project;
+        return pluginLocaleReader(given.manifest, path => existsSync(join(ownerRoot, path)) ? readFileSync(join(ownerRoot, path), "utf8") : null);
+      } }), { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions });
     const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local" });
     const installId = installed.install.install_id;
     await assert.rejects(runtime.start(installId), (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.grant_denied");
@@ -453,6 +473,20 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     const previewed = await actions.client.invoke(caller, previewResult, { artifact: artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, reference) }) as { media_type: string; data: string };
     assert.equal(previewed.media_type, "text/markdown");
     assert.equal(previewed.data, "# Local sample result\n\nResult 1\n");
+    const secondId = runtime.install({ trust: { level: "unsigned" }, definition: secondDefinition, deployment: "local" }).install.install_id;
+    runtime.grant(secondId, secondDefinition.manifest.permissions.map(permission => permission.permission));
+    await runtime.start(secondId);
+    const secondAction = (suffix: string) => secondDefinition.manifest.actions!.find(item => item.capability_id === "com.example.drafts." + suffix)!;
+    const secondSaved = await actions.client.invoke(caller, secondAction("results.publish"), {}) as { artifact_id: string; version: number };
+    const secondArtifact = artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: secondSaved.artifact_id, version: secondSaved.version })!;
+    assert.equal(secondArtifact.artifact_type_id, "com.example.drafts.result");
+    assert.equal(artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, reference)!.artifact_type_id, "com.example.notes.result");
+    assert.notEqual(secondArtifact.artifact_id, reference.artifact_id);
+    assert.equal((await actions.client.invoke(caller, secondAction("results.read"), {}) as { count: number }).count, 1);
+    const secondPreview = await actions.client.invoke(caller, secondAction("results.preview"), { artifact: secondArtifact }) as { data: string };
+    assert.equal(secondPreview.data, "# Local sample result\n\nResult 1\n");
+    await assert.rejects(actions.client.invoke(caller, previewResult, { artifact: secondArtifact }), { code: "actions.input_invalid" });
+    await runtime.uninstall(secondId);
     const render = () => ui.mount({ slot: { slot_id: "plugin.main", accepts: ["html"] },
       contribution: { contribution_id: definition.manifest.ui.contributions[0]!, surface: "main", model: null } }).html;
     assert.match(render(), /Saved results: 1/);

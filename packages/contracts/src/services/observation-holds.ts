@@ -7,6 +7,10 @@ export interface ObservationHoldPutInput {
   readonly hold_id: string;
   readonly sample_id: string;
   readonly owner?: string;
+  /** If the ID already exists, only update a hold with the same owner and exact sample reference. */
+  readonly require_same_identity?: boolean;
+  /** Add this bounded batch to the same owner's exact sample hold. The default replaces its membership. */
+  readonly append_records?: boolean;
   readonly project_id?: string | null;
   readonly record_ids: readonly string[];
   readonly expires_at?: string | null;
@@ -19,6 +23,8 @@ export interface ObservationHoldView {
   readonly sample_id: string;
   readonly project_id: string | null;
   readonly record_ids: readonly string[];
+  /** Members whose original records have been removed or were already missing at registration. */
+  readonly missing_record_ids?: readonly string[];
   readonly active_record_count: number;
   readonly bytes: number;
   readonly created_at: string;
@@ -35,6 +41,10 @@ export interface ObservationHoldPutResult {
 }
 
 export interface ObservationHoldReleaseInput {
+  /** Release only these (owner, sample, ID) triples, together in one transaction. */
+  readonly targets?: readonly Pick<ObservationHoldView, "owner" | "sample_id" | "hold_id">[];
+  /** Also release this owner's pairs whose two literal prefixes are followed by the same canonical positive integer. */
+  readonly version_series?: { readonly owner: string; readonly sample_id_prefix: string; readonly hold_id_prefix: string };
   readonly hold_id?: string;
   readonly sample_id?: string;
 }
@@ -77,6 +87,8 @@ export const observationHoldActions = {
         hold_id: token,
         sample_id: token,
         owner: token,
+        require_same_identity: { type: "boolean" },
+        append_records: { type: "boolean" },
         project_id: nullableToken,
         record_ids: { type: "array", minItems: 1, maxItems: 500, items: token },
         expires_at: nullableToken,
@@ -105,6 +117,8 @@ export const observationHoldActions = {
       permissions: [],
       subject_kinds: [],
       input_schema: inputSchemaFor<ObservationHoldReleaseInput>()(closedObjectSchema({
+        targets: { type: "array", items: closedObjectSchema({ owner: token, sample_id: token, hold_id: token }) },
+        version_series: closedObjectSchema({ owner: token, sample_id_prefix: token, hold_id_prefix: token }),
         hold_id: token,
         sample_id: token,
       }, [])),

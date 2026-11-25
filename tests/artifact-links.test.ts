@@ -7,7 +7,7 @@ import { ArtifactsModule, createArtifactsSchema, ARTIFACTS_PROVIDER_ID, ARTIFACT
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
 import { artifactLinkKinds, artifactLinkSubjectActions, artifactLinkSubjectsPort, artifactProducerSources, captureHostLog, type ArtifactProducerSource, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, ARTIFACT_LINK_SUBJECTS_BATCH, defineArtifactLinkSubjectsAction, isArtifactLinkSubjectsAction, isArtifactReferrersAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, ARTIFACT_LINK_SUBJECTS_BATCH, bindActionClient, defineArtifactLinkSubjectsAction, isArtifactLinkSubjectsAction, isArtifactReferrersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { artifactBrowserUiContribution } from "@molis-ai/molis-work-app-workbench";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
@@ -50,7 +50,8 @@ test("RAC-2080: a Goal's proposed input, deliverable and confirmed ones are each
     handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, linkKinds: artifactLinkKinds(), linkSubjects: goalNames, importSources: () => ({}),
       importDocument: async () => { throw new Error("n/a"); }, openProjectReference: async () => { throw new Error("n/a"); } }),
   });
-  const links = (artifactId: string) => actions.invoke(person, artifactsActions.links, { reference: { artifact_id: artifactId, version: 1 } });
+  const reader = bindActionClient(actions, () => person);
+  const links = (artifactId: string) => reader.invoke(artifactsActions.links, { reference: { artifact_id: artifactId, version: 1 } });
 
   const goals = (row: ReturnType<typeof goalRow>) => ({ plugins: [{ plugin_id: GOALS, plugin_title: "Goals", objects: [row] }], other: 0 });
   assert.deepEqual(await links("input-proposed"), goals(goalRow("G1", "input", true)));
@@ -63,9 +64,10 @@ test("RAC-2080: a Goal's proposed input, deliverable and confirmed ones are each
   const packs = chinesePagePacks();
   const proposedLinks = await links("input-proposed");
   const html = withPagePacks("zh", packs, () => artifactBrowserUiContribution.render({
-    surface: "detail", model: { view: { versions: [selected], selected, requested: null, compatibility: null }, routePrefix: "",
-      links: proposedLinks, primitives: { escape: (value: string) => value, text: pageTextForPacks("zh", packs), formatDate: (value: string) => value } },
-  } as never));
+    contribution_id: artifactBrowserUiContribution.descriptor.contribution_id, surface: "detail",
+    model: { view: { versions: [selected], selected, requested: null, compatibility: null }, routePrefix: "",
+      links: [{ key: "ledger", state: "links", ...proposedLinks }], primitives: { escape: (value: string) => value, text: pageTextForPacks("zh", packs), formatDate: (value: string) => value } },
+  }));
   assert.match(String(html), /<h3 class="artifact-links-heading">Goals<\/h3><ul data-artifact-linked-plugin="io\.molis\.work\.goals"><li><a href="#" data-workbench-item-plugin="goals" data-workbench-item-id="G1" data-workbench-item-title="Goal G1" translate="no">Goal G1<\/a><span>提议的输入<\/span>/u);
   assert.doesNotMatch(String(html), /\/goals\//u, "RAC-2085: a row opens as a workbench item, never by a Goals address");
 });

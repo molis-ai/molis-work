@@ -59,6 +59,11 @@ export function createSyncDocument<T>(owner: SyncDocumentOwner<T>): SyncDocument
       const { source, state } = load(), result = write(state);
       state.data = owner.validate(state.data); owner.authorize();
       const value = JSON.stringify(state);
+      if (value === source) {
+        if (owner.storage.read() !== source) throw syncError('conflict', '本机内容已变化，未提交旧修改');
+        owner.authorize();
+        return result;
+      }
       if (Buffer.byteLength(value) > SYNC_DOCUMENT_MAX_BYTES) throw syncError('limit', '本机同步目录超过容量保护上限，原内容已保留');
       parseDocumentState(value, owner.spaceId, owner.validate);
       if (!owner.storage.compareAndSet(source, value)) throw syncError('conflict', '本机内容已变化，未提交旧修改');

@@ -155,6 +155,7 @@ function buildHoldView(db: DatabaseSync, row: StoredHoldRow, nowIso: string): Ob
   `).all(row.hold_id));
 
   const liveSeqs = recRows.map((item) => item.live_seq).filter((seq): seq is number => typeof seq === "number");
+  const missingIds = recRows.filter(item => item.live_seq === null).map(item => item.record_id);
   const expired = row.expires_at !== null && row.expires_at <= nowIso;
   return {
     hold_id: row.hold_id,
@@ -162,6 +163,7 @@ function buildHoldView(db: DatabaseSync, row: StoredHoldRow, nowIso: string): Ob
     sample_id: row.sample_id,
     project_id: row.project_id,
     record_ids: recRows.map((item) => item.record_id),
+    ...(missingIds.length ? { missing_record_ids: missingIds } : {}),
     active_record_count: expired ? 0 : liveSeqs.length,
     bytes: measureSeqsBytes(db, liveSeqs),
     created_at: row.created_at,
@@ -191,7 +193,6 @@ export async function handleHoldsPut(
   const expiresAt = normalizeExpiresAt(input.expires_at, now);
   const owner = (input.owner ?? "system.evaluation").trim();
   const recordIds = [...new Set(input.record_ids)];
-
   const findRecord = db.prepare("SELECT seq, project_id FROM records WHERE record_id = ?");
   const held_record_ids: string[] = [];
   const missing_record_ids: string[] = [];
@@ -216,13 +217,23 @@ export async function handleHoldsPut(
     resolvedRecords.push({ record_id: recordId, seq: found.seq });
   }
 
-  const resolvedProjectId: string | null = input.project_id !== undefined
-    ? input.project_id
-    : (seenProjects.size === 1 ? [...seenProjects][0]! : null);
-
   db.exec("BEGIN IMMEDIATE");
   try {
-    const existing = db.prepare("SELECT created_at FROM evaluation_holds WHERE hold_id = ?").get(input.hold_id) as { created_at: string } | undefined;
+    const existing = db.prepare("SELECT created_at, owner, sample_id, project_id FROM evaluation_holds WHERE hold_id = ?")
+      .get(input.hold_id) as Pick<StoredHoldRow, "created_at" | "owner" | "sample_id" | "project_id"> | undefined;
+    if ((input.require_same_identity || input.append_records) && existing && (existing.owner !== owner || existing.sample_id !== input.sample_id)) {
+      throw observationErrors.invalid_query("留存标识已属于其他主人或样本版本");
+    }
+    if (input.append_records && existing) {
+      if (existing.project_id !== null && readable && !readable.has(existing.project_id)) {
+        throw observationErrors.forbidden("留存所属项目已删除或正在关闭");
+      }
+      if (input.project_id !== undefined && existing.project_id !== input.project_id) {
+        throw observationErrors.forbidden("追加的记录不能改变留存的指定项目范围");
+      }
+      seenProjects.add(existing.project_id);
+    }
+    const resolvedProjectId = input.project_id !== undefined ? input.project_id : seenProjects.size === 1 ? [...seenProjects][0]! : null;
     const createdAt = existing?.created_at ?? nowIso;
     db.prepare(`
       INSERT INTO evaluation_holds (hold_id, owner, sample_id, project_id, created_at, updated_at, expires_at, note)
@@ -236,8 +247,9 @@ export async function handleHoldsPut(
         note = excluded.note
     `).run(input.hold_id, owner, input.sample_id, resolvedProjectId, createdAt, nowIso, expiresAt, input.note ?? null);
 
-    db.prepare("DELETE FROM evaluation_hold_records WHERE hold_id = ?").run(input.hold_id);
-    const insertRec = db.prepare("INSERT INTO evaluation_hold_records (hold_id, record_id, seq) VALUES (?, ?, ?)");
+    if (!input.append_records) db.prepare("DELETE FROM evaluation_hold_records WHERE hold_id = ?").run(input.hold_id);
+    const insertRec = db.prepare(`INSERT INTO evaluation_hold_records (hold_id, record_id, seq) VALUES (?, ?, ?)
+      ON CONFLICT(hold_id, record_id) DO UPDATE SET seq = excluded.seq WHERE seq IS NOT excluded.seq`);
     for (const item of resolvedRecords) {
       insertRec.run(input.hold_id, item.record_id, item.seq);
     }
@@ -255,15 +267,28 @@ export async function handleHoldsPut(
   };
 }
 
+function holdsInVersionSeries(db: DatabaseSync, series: NonNullable<ObservationHoldReleaseInput["version_series"]>) {
+  const rows = rowsAs<Pick<StoredHoldRow, "owner" | "sample_id" | "hold_id">>(db.prepare(`
+    SELECT owner, sample_id, hold_id FROM evaluation_holds
+    WHERE owner = ? AND instr(sample_id, ?) = 1 AND instr(hold_id, ?) = 1
+  `).all(series.owner, series.sample_id_prefix, series.hold_id_prefix));
+  return rows.filter(row => {
+    const suffix = row.sample_id.slice(series.sample_id_prefix.length);
+    const version = Number(suffix);
+    return Number.isInteger(version) && version > 0 && String(version) === suffix && row.hold_id === series.hold_id_prefix + suffix;
+  });
+}
+
 export function handleHoldsRelease(
   deps: HoldActionDeps,
   caller: ActionCallContext,
   input: ObservationHoldReleaseInput,
 ): ObservationHoldReleaseResult {
   assertPersonCaller(caller);
-  if (input.hold_id === undefined && input.sample_id === undefined) {
-    throw observationErrors.invalid_query("释放留存需要提供 hold_id 或 sample_id");
+  if (input.hold_id === undefined && input.sample_id === undefined && input.targets === undefined && input.version_series === undefined) {
+    throw observationErrors.invalid_query("释放留存需要指定保留标识、样本或确切的保留对象");
   }
+  if (!deps.writer.hasDatabase()) return { released_hold_ids: [], released_record_count: 0 };
   const db = openForHolds(deps.writer);
   const where: string[] = [];
   const params: string[] = [];
@@ -276,21 +301,27 @@ export function handleHoldsRelease(
     params.push(input.sample_id);
   }
 
-  const targets = rowsAs<{ hold_id: string }>(
-    db.prepare(`SELECT hold_id FROM evaluation_holds WHERE ${where.join(" AND ")} ORDER BY hold_id`).all(...params),
-  );
-  if (targets.length === 0) {
-    return { released_hold_ids: [], released_record_count: 0 };
-  }
-
   let released_record_count = 0;
+  const released_hold_ids: string[] = [];
   db.exec("BEGIN IMMEDIATE");
   try {
+    if (input.targets !== undefined || input.version_series) {
+      const seriesTargets = input.version_series ? holdsInVersionSeries(db, input.version_series) : [];
+      where.push(`(hold_id, owner, sample_id) IN (
+        SELECT json_extract(value, '$.hold_id'), json_extract(value, '$.owner'), json_extract(value, '$.sample_id')
+        FROM json_each(?)
+      )`);
+      params.push(JSON.stringify([...(input.targets ?? []), ...seriesTargets]));
+    }
+    const targets = rowsAs<{ hold_id: string }>(
+      db.prepare(`SELECT hold_id FROM evaluation_holds WHERE ${where.join(" AND ")} ORDER BY hold_id`).all(...params),
+    );
     const delRecs = db.prepare("DELETE FROM evaluation_hold_records WHERE hold_id = ?");
     const delHold = db.prepare("DELETE FROM evaluation_holds WHERE hold_id = ?");
     for (const target of targets) {
       released_record_count += Number(delRecs.run(target.hold_id).changes);
       delHold.run(target.hold_id);
+      released_hold_ids.push(target.hold_id);
     }
     db.exec("COMMIT");
   } catch (error) {
@@ -299,7 +330,7 @@ export function handleHoldsRelease(
   }
 
   return {
-    released_hold_ids: targets.map((target) => target.hold_id),
+    released_hold_ids,
     released_record_count,
   };
 }

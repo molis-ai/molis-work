@@ -202,7 +202,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    const itemTabs = ["artifacts", 
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     document.addEventListener("click", (event) => { const btn = event.target?.closest?.("[data-sessions-open-scope]"); if (btn) void deferredClients.loadBundle("sessions").then(() => globalThis.molisOpenSessionsScope?.(btn.dataset.sessionsOpenScope === "project_ai_read" ? "project_ai_read" : "tools", { overlay: !btn.closest('[data-work-surface="sessions"]') })); });
-    assistantIsland = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: readText, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
+    assistantIsland = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: readText, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts, records: workRecords,
       positions: projectPositions, positionRead, lineFocus: (subject) => workLine?.focus(subject), lineEvent: (subject) => workLine?.event(subject) || null, lineEvents: workLine ? () => workLine.events() : undefined,
       linePlaced: (task) => workLine?.placed(task) || '', lineWaiting: () => workLine?.waiting() || [], lineWaitingGo: (key) => workLine?.goWaiting(key), linePlace: (subject) => workLine?.place(subject), lineCard: workLine ? (slot, card) => workLine.card(slot, card) : undefined,
       lineConversation: (now) => workLine?.conversation(now), lineAttention: () => workLine?.conversation({ unread: false }),

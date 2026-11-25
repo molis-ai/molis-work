@@ -236,7 +236,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     // The person's Home, for the reminders they set in Plugins.
     homeActions: async () => personClient(undefined),
     // Reading related objects back from their owners, as the person (the work's project, or the Home), and a material they handed in.
-    scopeActions: async (work, decision) => personClient(work.project_ref, decision), readMaterial: personMaterialReader(ports.localHost),
+    scopeActions: async (work, decision) => personClient(work.project_ref, decision, work.work_id), readMaterial: personMaterialReader(ports.localHost),
     prepareConnectionAnswer: (work, questions, answers) => prepareWorkConnectionAnswer(ports.homeDirectory, store, work, questions, answers),
     // A landing's object, read again from its owner as the person before a round hears of it (H3's reader).
     readReferences: async (projectId, picked) => ports.localHost.search ? ports.localHost.search.readReferences(projectId, picked) : picked.map(() => null),

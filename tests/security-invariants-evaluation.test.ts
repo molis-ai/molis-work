@@ -98,7 +98,7 @@ function setupHarness(t: test.TestContext) {
   const evaluation = new EvaluationService({
     home: directory,
     clientFor: () => service,
-    runInReplayScope: (fn) => withObservationSource("replay", fn),
+    runInReplayScope: (fn, replayId) => withObservationSource("replay", fn, replayId),
   });
   service.registerProvider(evaluation.provider());
   t.after(() => {

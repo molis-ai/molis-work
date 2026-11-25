@@ -27,12 +27,12 @@
 个人空间要能一眼看到所有分区的待办、日程、通知和简报，又不能为此把每个项目都启动起来。做法是：**你在自己的分区库里维护一张平台定好格式的总览表，平台只读它。**
 
 1. 在 Manifest 写 `overview_projection: { kinds: [...] }`，种类只能是 `task`（待办）、`event`（日程）、`notification`（通知）、`brief`（简报）；可选 `title_text` 给总览里的显示名。不写列名映射、不写 SQL。
-2. 把 `OVERVIEW_TABLE_SQL`（表名 `molis_overview_rows`）原样放进 `databases.partition.schema`，少了装不上。
-3. 写业务数据的**同一个事务**里用 SDK 的 `overviewRows(tx)` 顺手更新：`upsert(kind, row)`、`remove(kind, rowId)`、`removePrefix(kind, prefix)`。帮手按种类检查每一行（标题长度、带时区的时刻、待办状态 `open`／`done`／`cancelled`、优先级 0–3、标签数、通知级别 `info`／`warning`／`urgent`），每个种类最多 `OVERVIEW_ROW_LIMIT`（500）行，超了以 `actions.input_invalid` 拒。
+2. 从 `@molis-ai/molis-work-contracts/platform/plugin` 导入 `OVERVIEW_TABLE_SQL`（表名 `molis_overview_rows`）原样放进 `databases.partition.schema`，少了装不上。
+3. 写业务数据的**同一个事务**里用 SDK 的 `overviewRows(tx)` 顺手更新：`upsert(kind, row)`、`remove(kind, rowId)`、`removePrefix(kind, prefix)`。帮手按种类检查每一行（标题长度、带时区的时刻、待办状态 `open`／`done`／`cancelled`、优先级 0–3、标签数、合法 IANA 时区、通知级别 `info`／`warning`／`urgent`），每个种类最多 `OVERVIEW_ROW_LIMIT`（500）行，超了以 `actions.input_invalid` 拒。
 
 ```ts
 import { overviewRows } from "@molis-ai/molis-work-plugin-sdk";
-await services.database.transaction(tx => {
+await services.database.transaction(caller.beforeEffect, tx => {
   tx.run("UPDATE todos SET done = 1 WHERE id = ?", [id]);
   overviewRows(tx).upsert("task", { row_id: id, title, status: "done", remind_at: null, updated_at: now });
 });

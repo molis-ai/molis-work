@@ -40,6 +40,7 @@ export class ProjectRecycle {
   constructor(private readonly db: ProjectsSqliteDatabase, private readonly now: () => string, private readonly projectsDirectory: string) {}
 
   inspect(projectId: string): ProjectRecycleObservation {
+    assertOrdinaryPartition(projectId, "不能回收或恢复");
     const project = this.db.prepare('SELECT * FROM projects WHERE project_id=?').get(projectId) as Record<string, unknown> | undefined;
     if (!project || project.data_class !== 'user') throw errors.recycle_missing('找不到可回收的项目');
     const lifecycle = this.db.prepare('SELECT recycled,generation FROM project_recycle WHERE project_id=?').get(projectId) as { recycled: number; generation: number } | undefined;

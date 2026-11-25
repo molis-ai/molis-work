@@ -1,7 +1,8 @@
+import { existsSync, lstatSync, rmSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { OVERVIEW_KINDS, OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, type OverviewKind } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { OverviewIndexLibrary, OverviewIndexPort, OverviewIndexStoredRow, OverviewTableRow } from "@molis-ai/molis-work-contracts/services/search";
-import { openHomeSqliteDatabase, openHomeSqliteFile } from "../home-sqlite.js";
+import { homeSqlitePath, openHomeSqliteDatabase, openHomeSqliteFile } from "../home-sqlite.js";
 import { TEXT_SEARCH_STORE } from "./text-search-index.js";
 
 /**
@@ -14,18 +15,24 @@ const OVERVIEW_INDEX_VERSION = /* @version database.search.overview-index "{vers
 type Row = Record<string, unknown>;
 
 export function openOverviewIndex(options: { readonly homeDirectory: string }): OverviewIndexPort {
-  const db = openHomeSqliteDatabase(options.homeDirectory, TEXT_SEARCH_STORE);
-  db.exec("PRAGMA busy_timeout = 5000;");
-  db.exec("CREATE TABLE IF NOT EXISTS overview_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
-  const version = (db.prepare("SELECT value FROM overview_meta WHERE key = 'schema'").get() as Row | undefined)?.value;
-  if (version !== OVERVIEW_INDEX_VERSION) {
-    db.exec(`DROP TABLE IF EXISTS overview_rows; DROP TABLE IF EXISTS overview_libraries;
-      CREATE TABLE overview_libraries (partition_id TEXT NOT NULL, install_id TEXT NOT NULL, plugin_id TEXT NOT NULL,
-        dirty INTEGER NOT NULL CHECK (dirty IN (0, 1)), refreshed_at TEXT, PRIMARY KEY (partition_id, install_id));
-      CREATE TABLE overview_rows (partition_id TEXT NOT NULL, install_id TEXT NOT NULL, plugin_id TEXT NOT NULL, kind TEXT NOT NULL,
-        row_id TEXT NOT NULL, fields_json TEXT NOT NULL, sort_at TEXT, PRIMARY KEY (partition_id, install_id, kind, row_id));
-      CREATE INDEX overview_rows_kind ON overview_rows (kind, sort_at);`);
-    db.prepare("INSERT OR REPLACE INTO overview_meta (key, value) VALUES ('schema', ?)").run(OVERVIEW_INDEX_VERSION);
+  const dbPath = homeSqlitePath(options.homeDirectory, TEXT_SEARCH_STORE);
+  const open = (): DatabaseSync => {
+    const handle = openHomeSqliteDatabase(options.homeDirectory, TEXT_SEARCH_STORE);
+    try {
+      handle.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;");
+      const check = handle.prepare("PRAGMA quick_check").all() as Row[];
+      if (!check.every(row => Object.values(row).every(value => value === "ok"))) throw new Error("overview index failed integrity check");
+      return handle;
+    } catch (error) {
+      try { handle.close(); } catch { /* closing failed handle */ }
+      throw error;
+    }
+  };
+  let db: DatabaseSync;
+  try { db = open(); }
+  catch {
+    for (const suffix of ["", "-wal", "-shm"]) if (existsSync(dbPath + suffix)) rmSync(dbPath + suffix, { force: true });
+    db = open();
   }
   const transaction = (run: () => void) => {
     db.exec("BEGIN IMMEDIATE");
@@ -33,10 +40,23 @@ export function openOverviewIndex(options: { readonly homeDirectory: string }): 
       run();
       db.exec("COMMIT");
     } catch (error) {
-      db.exec("ROLLBACK");
+      try { db.exec("ROLLBACK"); } catch { /* already rolled back */ }
       throw error;
     }
   };
+  transaction(() => {
+    db.exec("CREATE TABLE IF NOT EXISTS overview_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+    const version = (db.prepare("SELECT value FROM overview_meta WHERE key = 'schema'").get() as Row | undefined)?.value;
+    if (version !== OVERVIEW_INDEX_VERSION) {
+      db.exec(`DROP TABLE IF EXISTS overview_rows; DROP TABLE IF EXISTS overview_libraries;
+        CREATE TABLE overview_libraries (partition_id TEXT NOT NULL, install_id TEXT NOT NULL, plugin_id TEXT NOT NULL,
+          dirty INTEGER NOT NULL CHECK (dirty IN (0, 1)), refreshed_at TEXT, PRIMARY KEY (partition_id, install_id));
+        CREATE TABLE overview_rows (partition_id TEXT NOT NULL, install_id TEXT NOT NULL, plugin_id TEXT NOT NULL, kind TEXT NOT NULL,
+          row_id TEXT NOT NULL, fields_json TEXT NOT NULL, sort_at TEXT, PRIMARY KEY (partition_id, install_id, kind, row_id));
+        CREATE INDEX overview_rows_kind ON overview_rows (kind, sort_at);`);
+      db.prepare("INSERT OR REPLACE INTO overview_meta (key, value) VALUES ('schema', ?)").run(OVERVIEW_INDEX_VERSION);
+    }
+  });
   const removeWhere = (where: string, parameters: readonly string[]) => transaction(() => {
     for (const table of ["overview_rows", "overview_libraries"]) db.prepare(`DELETE FROM ${table} WHERE ${where}`).run(...parameters);
   });
@@ -57,12 +77,17 @@ export function openOverviewIndex(options: { readonly homeDirectory: string }): 
     },
     readLibrary(library) {
       const kinds = library.kinds.filter(kind => (OVERVIEW_KINDS as readonly string[]).includes(kind));
+      try {
+        lstatSync(library.path);
+      } catch (error) {
+        // Only a library file that does not exist yet holds nothing; any other error (EACCES, EMFILE, broken parent) leaves the index as it was.
+        return (error as NodeJS.ErrnoException | null)?.code === "ENOENT" ? [] : null;
+      }
       let source: DatabaseSync;
       try {
         source = openHomeSqliteFile(library.path, { readOnly: true });
-      } catch (error) {
-        // A library the instance has not made yet holds nothing; any other failure leaves the index as it was.
-        return /unable to open/u.test(String((error as Error).message)) ? [] : null;
+      } catch {
+        return null;
       }
       try {
         const table = source.prepare("SELECT 1 AS found FROM sqlite_schema WHERE type = 'table' AND name = ?").get(OVERVIEW_TABLE);

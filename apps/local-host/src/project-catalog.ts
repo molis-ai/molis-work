@@ -481,12 +481,12 @@ export class MolisWorkProjectCatalog {
     input: DeleteMolisWorkProjectInput,
     options?: { allowRecycled?: boolean; beforeCommit?: () => void },
   ): Promise<MolisWorkProjectDeletionResult> {
-    if (input.project_id === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space("个人空间不能删除；可以把里面的内容移到项目或逐个删除");
+    if (typeof input.project_id === "string" && input.project_id.trim() === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space("个人空间不能删除；可以把里面的内容移到项目或逐个删除");
     return notifyAfterAsync(this.homeDirectory, this.projectDeletion.deleteProject(input, options));
   }
 
   renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): MolisWorkProjectRecord {
-    if (projectId === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space("个人空间不能改名");
+    if (typeof projectId === "string" && projectId.trim() === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space("个人空间不能改名");
     return notifyAfter(this.homeDirectory, this.projects.commands.renameProject(projectId, displayName, actorId, expectedDisplayName));
   }
 

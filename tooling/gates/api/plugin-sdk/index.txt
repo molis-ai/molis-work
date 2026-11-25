@@ -334,7 +334,9 @@ export interface PageRouteMatch {
     };
 }
 
-export type PartitionDeclarationFields = Pick<PluginManifest, "plugin_id"> & Partial<Pick<PluginManifest, "databases" | "overview_projection" | "market" | "dependencies" | "person_settings" | "actions" | "push">>;
+export type PartitionDeclarationFields = Pick<PluginManifest, "plugin_id"> & Partial<Pick<PluginManifest, "databases" | "overview_projection" | "market" | "dependencies" | "person_settings" | "actions" | "push">> & {
+    readonly ui?: Pick<PluginManifest["ui"], "locales">;
+};
 
 export type { PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PersonMaterial } from "@molis-ai/molis-work-contracts/platform/actions";

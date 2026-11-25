@@ -8,8 +8,7 @@ CREATE TABLE person_settings (
   value_json TEXT NOT NULL,
   revision INTEGER NOT NULL CHECK (revision >= 1),
   updated_at TEXT NOT NULL,
-  PRIMARY KEY (install_id, key),
-  UNIQUE (plugin_id, key)
+  PRIMARY KEY (install_id, key)
 );
 
     CREATE TABLE IF NOT EXISTS person_settings_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);

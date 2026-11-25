@@ -42,17 +42,17 @@ CREATE TABLE skill_uses (
   caller TEXT NOT NULL, run_ref TEXT, at TEXT NOT NULL
 );
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_golden_root_home','{"spaceId":"space_golden_root_home","kind":"local","ownerUserId":null,"teamId":null,"issuer":null,"applicationId":null}');
-INSERT INTO "personal_prompt_overrides_replica_changes"("seq","key") VALUES(1,'system.assistant/assistant-thread');
+INSERT INTO "personal_prompt_overrides_replica_changes"("seq","key") VALUES(1,'io.molis.work.assistant/assistant-thread');
 INSERT INTO "personal_prompt_overrides_replica_state"("id","device","cursor","applying") VALUES(1,'2aa3d18e54c1169c9c4a16bc01c5090c',0,0);
-INSERT INTO "prompt_history"("key","revision","action","body","base_version","at","actor_id","default_ref") VALUES('system.assistant/assistant-thread',1,'save','金样提示词 seed',2,'2026-01-15T09:00:00.000Z','web-user',NULL);
-INSERT INTO "prompt_overrides"("key","revision","base_version","body","updated_at","actor_id","default_ref") VALUES('system.assistant/assistant-thread',1,2,'金样提示词 seed','2026-01-15T09:00:00.000Z','web-user',NULL);
-INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('system.assistant/assistant-base','2026-01-15T09:00:00.000Z',7,NULL,'agent:system.assistant',NULL);
-INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('system.assistant/assistant-compaction','2026-01-15T09:00:00.000Z',2,NULL,'agent:system.assistant',NULL);
-INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('system.assistant/assistant-delegated','2026-01-15T09:00:00.000Z',2,NULL,'agent:system.assistant',NULL);
-INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('system.assistant/assistant-ending-review','2026-01-15T09:00:00.000Z',3,NULL,'agent:system.assistant',NULL);
-INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('system.assistant/assistant-main','2026-01-15T09:00:00.000Z',2,NULL,'agent:system.assistant',NULL);
-INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('system.assistant/assistant-thread','2026-01-15T09:00:00.000Z',2,1,'agent:system.assistant',NULL);
-INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('system.assistant/assistant-work','2026-01-15T09:00:00.000Z',5,NULL,'agent:system.assistant',NULL);
+INSERT INTO "prompt_history"("key","revision","action","body","base_version","at","actor_id","default_ref") VALUES('io.molis.work.assistant/assistant-thread',1,'save','金样提示词 seed',2,'2026-01-15T09:00:00.000Z','web-user',NULL);
+INSERT INTO "prompt_overrides"("key","revision","base_version","body","updated_at","actor_id","default_ref") VALUES('io.molis.work.assistant/assistant-thread',1,2,'金样提示词 seed','2026-01-15T09:00:00.000Z','web-user',NULL);
+INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-base','2026-01-15T09:00:00.000Z',5,NULL,'agent:io.molis.work.assistant',NULL);
+INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-compaction','2026-01-15T09:00:00.000Z',1,NULL,'agent:io.molis.work.assistant',NULL);
+INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-delegated','2026-01-15T09:00:00.000Z',2,NULL,'agent:io.molis.work.assistant',NULL);
+INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-ending-review','2026-01-15T09:00:00.000Z',2,NULL,'agent:io.molis.work.assistant',NULL);
+INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-main','2026-01-15T09:00:00.000Z',1,NULL,'agent:io.molis.work.assistant',NULL);
+INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-thread','2026-01-15T09:00:00.000Z',2,1,'agent:io.molis.work.assistant',NULL);
+INSERT INTO "prompt_uses"("key","at","version","user_revision","caller","source_ref") VALUES('io.molis.work.assistant/assistant-work','2026-01-15T09:00:00.000Z',4,NULL,'agent:io.molis.work.assistant',NULL);
 DELETE FROM sqlite_sequence;
 INSERT INTO sqlite_sequence(name,seq) VALUES('personal_prompt_overrides_replica_changes',1);
 CREATE INDEX personal_prompt_overrides_replica_changes_key ON personal_prompt_overrides_replica_changes(key);

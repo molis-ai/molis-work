@@ -4,6 +4,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 import {
   PROJECT_WORKSPACE_PROVIDER_ID,
   partitionPluginActions,
@@ -12,10 +14,12 @@ import {
   type ProjectPluginRegistry,
   type VersionedProjectPluginMembership,
 } from "@molis-ai/molis-work-contracts/modules/projects";
-import { bindActionHandler, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createProjectsSchema, projectReplicationOwner, ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import { SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
 import { openSqliteConnection, sqliteErrorName, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { person as hostPerson, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const projectId = "project-a";
 const otherProjectId = "project-b";
@@ -344,4 +348,82 @@ test("UPP-21 partitions.plugins.set@1 changes several members of one partition a
   assert.deepEqual(await service.invoke(person, get, {}), saved, "one bad change leaves the whole batch unapplied");
   const after = await service.invoke(person, set, { changes: [{ plugin_id: "goals", enabled: false }, { plugin_id: "feed", enabled: true }], expected_revision: saved.revision }) as VersionedPartitionPluginMembership;
   assert.deepEqual([...after.plugins].sort(), ["feed", "inbox", "pages"], "a companion comes with its plugin");
+
+  // P2 #4: duplicates differing only by surrounding whitespace are refused before writing, and single trimmed ids succeed.
+  await assert.rejects(
+    service.invoke(person, set, { changes: [{ plugin_id: "goals", enabled: true }, { plugin_id: " goals ", enabled: false }], expected_revision: after.revision }),
+    { code: "actions.input_invalid" },
+    "trimmed duplicate plugin ids are refused",
+  );
+  assert.deepEqual(await service.invoke(person, get, {}), after, "trimmed duplicate refusal writes nothing");
+  const trimmed = await service.invoke(person, set, { changes: [{ plugin_id: " goals ", enabled: true }], expected_revision: after.revision }) as VersionedPartitionPluginMembership;
+  assert.deepEqual([...trimmed.plugins].sort(), ["feed", "goals", "inbox", "pages"]);
+});
+
+test("UPP-21 P1-12 P2-4 host projectPluginMembershipActionProvider partitions.plugins.set@1 honors beforeEffect cancellation/revocation and preserves partition_id on refresh failure", async t => {
+  const f = await serveHomeRuntime(t);
+  const project = await f.project("分区成员宿主动作");
+  const client = f.host.actionClient(project.reference, false);
+  const getPart = { ...partitionPluginActions.get, provider_id: PROJECT_WORKSPACE_PROVIDER_ID };
+  const setPart = { ...partitionPluginActions.set, provider_id: PROJECT_WORKSPACE_PROVIDER_ID };
+  const caller = hostPerson(["projects:settings"], project.project_id);
+
+  let initial = await client.invoke(caller, getPart, {}) as VersionedPartitionPluginMembership;
+  assert.equal(initial.partition_id, project.project_id);
+  if (!initial.plugins.includes("schedule")) {
+    initial = await client.invoke(caller, setPart, { changes: [{ plugin_id: "schedule", enabled: true }], expected_revision: initial.revision }) as VersionedPartitionPluginMembership;
+  }
+  assert.ok(initial.plugins.includes("schedule"));
+
+  // Cancelled signal aborts beforeEffect() before any catalog write.
+  const aborted = new AbortController();
+  aborted.abort();
+  await assert.rejects(
+    client.invoke({ ...caller, signal: aborted.signal }, setPart, { changes: [{ plugin_id: "schedule", enabled: false }], expected_revision: initial.revision }),
+    (error: unknown) => error instanceof Error,
+    "aborted caller is refused before writing",
+  );
+  assert.deepEqual(await client.invoke(caller, getPart, {}), initial, "cancelled call leaves partition membership untouched");
+
+  // Authority revoked inside beforeEffect() before catalog commit leaves zero writes.
+  let revoked = false;
+  const catalog = await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, value => value);
+  const realCommit = catalog.commit;
+  t.mock.method(catalog, "commit", <T>(write: () => T, check?: () => Promise<void>) => realCommit(write, async () => {
+    await check?.();
+    if (revoked) throw new ActionError("actions.forbidden", "调用授权已撤销");
+  }));
+  revoked = true;
+  await assert.rejects(
+    client.invoke(caller, setPart, { changes: [{ plugin_id: "schedule", enabled: false }], expected_revision: initial.revision }),
+    { code: "actions.forbidden" },
+  );
+  revoked = false;
+  assert.deepEqual(await client.invoke(caller, getPart, {}), initial, "revoked authority leaves partition membership untouched");
+
+  // Open the project runtime and force runtime refresh failure after commit: error observation must preserve partition_id.
+  assert.equal((await f.request(`/projects/${project.project_id}/`)).status, 200);
+  const { platform, db } = await f.host.withProject(project.reference, async runtime => ({
+    platform: await runningProjectPlatform(runtime.store, project.project_id), db: runtime.store.db,
+  }));
+  assert.ok(platform);
+  db.exec(`CREATE TEMP TRIGGER refuse_schedule_stop_partition BEFORE UPDATE ON plugin_runtime_installs
+    WHEN json_extract(NEW.record_json, '$.plugin_id') = '${SCHEDULE_PLUGIN_ID}' AND json_extract(NEW.record_json, '$.state') = 'disabled'
+    BEGIN SELECT RAISE(ABORT, 'fixture partition schedule stop failed'); END`);
+  try {
+    let caught: ActionError | undefined;
+    try {
+      await client.invoke(caller, setPart, { changes: [{ plugin_id: "schedule", enabled: false }], expected_revision: initial.revision });
+    } catch (error) {
+      caught = error as ActionError;
+    }
+    assert.ok(caught instanceof ActionError, "refresh failure throws ActionError");
+    assert.equal(caught.code, "host.project_plugins_refresh_failed");
+    const details = caught.details as { committed?: boolean; membership?: VersionedPartitionPluginMembership } | undefined;
+    assert.equal(details?.committed, true);
+    assert.equal(details?.membership?.partition_id, project.project_id, "refresh failure re-read preserves partition_id (P2 #4)");
+    assert.equal(details?.membership?.plugins.includes("schedule"), false);
+  } finally {
+    db.exec("DROP TRIGGER IF EXISTS refuse_schedule_stop_partition");
+  }
 });

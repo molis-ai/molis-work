@@ -28,17 +28,20 @@ export interface OverviewGrant {
   readonly fields: readonly OverviewSummaryField[];
 }
 
-type OverviewCaller = Pick<ActionCallContext, "actor_id" | "audience" | "actor_kind" | "delegated_by" | "host_plugin">;
+type OverviewCaller = Pick<ActionCallContext, "actor_id" | "audience" | "actor_kind" | "delegated_by" | "host_plugin" | "calling_plugin_id" | "audit_actor_id">;
 
 /**
  * The person on this machine, the personal assistant acting for them, or nobody. Both are the local person's own identity from the trusted
- * context: the person's page or command, and the assistant's runtime (`assistantActionContext`). A project Agent carries its own
- * `agent:` actor; an MCP client, a workflow, a plugin or a delegated call is nobody here, whatever it was granted.
+ * context: the person's page or command, and the assistant's runtime (`assistantActionContext`, carrying `audit_actor_id: "assistant:<id>"`).
+ * A project Agent carries its own `agent:` actor; an MCP client, a workflow, a plugin or a delegated call is nobody here, whatever it was granted.
  */
 export function overviewReaderKind(caller: OverviewCaller): "person" | "assistant" | null {
-  if (caller.actor_id !== LOCAL_PERSON_ACTOR_ID || caller.delegated_by !== undefined || caller.host_plugin) return null;
+  if (caller.actor_id !== LOCAL_PERSON_ACTOR_ID || caller.delegated_by !== undefined || caller.host_plugin || caller.calling_plugin_id) return null;
   if (caller.audience === "user" && caller.actor_kind !== "runtime") return "person";
-  if (caller.audience === "agent" && caller.actor_kind === "runtime") return "assistant";
+  if (caller.audience === "agent" && caller.actor_kind === "runtime"
+    && typeof caller.audit_actor_id === "string" && caller.audit_actor_id.startsWith("assistant:") && caller.audit_actor_id.length > "assistant:".length) {
+    return "assistant";
+  }
   return null;
 }
 
@@ -129,6 +132,7 @@ export class OverviewService {
       const first = before.get(row.partition_id), second = after.get(row.partition_id);
       if (!first || !second) return [];
       const fields = Object.fromEntries(Object.entries(row.fields).filter(([field]) => first.has(field) && second.has(field)));
+      if (Object.keys(fields).length === 0) return [];
       return [{ partition_id: row.partition_id, install_id: row.install_id, plugin_id: row.plugin_id, kind: row.kind, row_id: row.row_id,
         fields: fields as OverviewIndexRow["fields"] }];
     });
@@ -174,7 +178,10 @@ function storedRow(library: OverviewLibrary, row: OverviewTableRow): OverviewInd
 function sortAt(row: OverviewTableRow): string | null {
   for (const field of ["due_at", "starts_at", "occurred_at", "updated_at"]) {
     const value = row[field];
-    if (typeof value === "string") return value;
+    if (typeof value === "string") {
+      const parsed = Date.parse(value);
+      return Number.isNaN(parsed) ? value : new Date(parsed).toISOString();
+    }
   }
   return null;
 }

@@ -15,8 +15,7 @@ CREATE TABLE external_sessions (
     reported_project_id TEXT,
     last_activity_at TEXT NOT NULL,
     forked_from TEXT,
-    gone_at TEXT,
-    subagent INTEGER NOT NULL DEFAULT 0,
+    gone_at TEXT, subagent INTEGER NOT NULL DEFAULT 0,
     UNIQUE (entry_id, location_key, native_id)
   );
 CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL);
@@ -90,9 +89,9 @@ CREATE TABLE session_suggestions (
     created_at TEXT NOT NULL
   );
 INSERT INTO "molis_storage_space"("singleton","space_id","descriptor") VALUES(1,'space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935','{"spaceId":"space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935","kind":"personal","ownerUserId":"golden-person","teamId":null,"issuer":"https://golden.invalid","applicationId":"io.molis.work.golden"}');
-INSERT INTO "session_meta"("key","value") VALUES('binding_snapshot_digest','ba2d1dfa04806cf7bbc77eca17e7d002');
-INSERT INTO "session_meta"("key","value") VALUES('directory_snapshot_digest','1430c36996b40b6c066ee20366f3583a');
-INSERT INTO "session_project_ai_reads"("project_id","allowed","revision","decided_by","decided_at") VALUES('project-308fe670-0345-4052-886a-23b38c1213f4',0,2,'web-user','2026-01-15T09:00:00.000Z');
+INSERT INTO "session_meta"("key","value") VALUES('binding_snapshot_digest','8277c508113f2293f83d4f12b59bbc8f');
+INSERT INTO "session_meta"("key","value") VALUES('directory_snapshot_digest','ef0d8a4836892d223fd64e5613f1d970');
+INSERT INTO "session_project_ai_reads"("project_id","allowed","revision","decided_by","decided_at") VALUES('project-adcfbd21-e22e-44f4-af64-38851fbc840c',0,2,'web-user','2026-01-15T09:00:00.000Z');
 CREATE INDEX external_sessions_activity_idx
     ON external_sessions (last_activity_at DESC, session_key ASC);
 CREATE INDEX external_sessions_directory_idx

@@ -9,9 +9,10 @@
 // The check also runs in `pnpm test:contracts` (tests/store-schema-snapshot.test.ts). It needs the packages built; it starts no Host and opens
 // no Home: each baseline's statements run in an in-memory SQLite.
 //
-// WHICH LIBRARIES. The project catalog and the project database; every Home library of the Host's store registry (`homeStores()`, which
-// already holds each built-in plugin's `databases.home`); each built-in plugin's project tables (`databases.project`), under the project
-// database's pattern with `#<plugin_id>`.
+// WHICH LIBRARIES. The project catalog and the partition database (`<partition>/molis-work.db`, covering `personal-space/` and
+// `projects/*/`), every Home library of the Host's store registry (`homeStores()`, which already holds each built-in plugin's
+// `databases.home`), each built-in plugin's shared partition tables (`databases.project`, under `<partition>/molis-work.db#<plugin_id>`),
+// and each built-in plugin's own per-partition library (`databases.partition`, under `<partition>/libraries/<store_name>.db`).
 // An installed plugin's library is the publisher's, not this build's, so it is not here.
 //
 // THE HASH. sha256 (first 16 digits) of what SQLite itself reports after running the statements: `describeSqliteSchema` (tables, columns,
@@ -50,6 +51,20 @@ export function databaseStructureHash(db, describe) {
 
 const froms = baseline => (baseline.upgrades ?? []).map(step => step.from).sort((left, right) => left - right);
 
+/** Built-in plugin partition-scoped databases: shared tables in `<partition>/molis-work.db#<plugin_id>` and own libraries in `<partition>/libraries/<store_name>.db`. */
+export function pluginPartitionRows(registrations, describe) {
+  const row = (store, owner, baseline) => {
+    try { return { store, owner, version: baseline.version, structure: structureHash(baseline.schema, describe), froms: froms(baseline) }; }
+    catch (error) { throw new Error(`${store}: its creation statements do not run on their own: ${error instanceof Error ? error.message : String(error)}`); }
+  };
+  return [
+    ...registrations.filter(entry => entry.manifest.databases?.project).map(({ manifest }) =>
+      row(`<partition>/molis-work.db#${manifest.plugin_id}`, manifest.plugin_id, manifest.databases.project)),
+    ...registrations.filter(entry => entry.manifest.databases?.partition).map(({ manifest }) =>
+      row(`<partition>/libraries/${manifest.databases.partition.store_name}.db`, manifest.plugin_id, manifest.databases.partition)),
+  ];
+}
+
 /** Every library of the built product, sorted by `store`. */
 export async function productRows() {
   const host = await import("@molis-ai/molis-work-app-local-host");
@@ -60,13 +75,12 @@ export async function productRows() {
   };
   const rows = [
     row("projects/catalog.db", "apps/local-host", host.CATALOG_BASELINE),
-    row("projects/*/molis-work.db", "apps/local-host", host.PROJECT_DATABASE_BASELINE),
+    row("<partition>/molis-work.db", "apps/local-host", host.PROJECT_DATABASE_BASELINE),
     ...host.homeStores().stores.filter(store => store.library).map(store => {
       const name = store.library.file ?? `${store.path}.db`;
       return row(store.library.partition ? `${store.path}/projects/*/${name}` : `${store.path}/${name}`, store.owner, store.library.baseline);
     }),
-    ...host.PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.databases?.project).map(({ manifest }) =>
-      row(`projects/*/molis-work.db#${manifest.plugin_id}`, manifest.plugin_id, manifest.databases.project)),
+    ...pluginPartitionRows(host.PLATFORM_PLUGIN_REGISTRATIONS, describeSqliteSchema),
   ];
   return rows.sort((left, right) => (left.store < right.store ? -1 : left.store > right.store ? 1 : 0));
 }

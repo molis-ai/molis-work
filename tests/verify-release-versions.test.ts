@@ -294,9 +294,11 @@ test("only the typed Host connection bridge forwards a plugin declaration; other
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
   put("apps/local-host/src/plugin-database.ts", bridge.replace("partition?.project_id)", "partition?.project_id, extra)"));
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
+  put("apps/local-host/src/plugin-database.ts", bridge + "\nexport function rogue(home: string, declaration: any, partition?: any) { return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id); }");
+  failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
 });
 
-test("batch 106: the per-partition library opener forwards a plugin declaration only in its own exact form", () => {
+test("batch 106: the per-partition library opener forwards a plugin declaration only in its own exact form and call site", () => {
   put("apps/local-host/package.json", JSON.stringify({ name: "host", version: "0.0.0", private: true }));
   const file = "apps/local-host/src/partition-plugin-assembly.ts";
   const opener = "export function openPartitionPluginLibrary(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration) { applySqliteBaseline(writer, file, declaration); }";
@@ -311,6 +313,15 @@ test("batch 106: the per-partition library opener forwards a plugin declaration 
   failsWith(run(), `${file}: openBaselineHomeSqlite is called with declaration`);
   put(file, opener + "\napplySqliteBaseline(db, path, { version: 1, schema: `` });");
   failsWith(run(), `${file}: applySqliteBaseline is called with an inline baseline`);
+  // A sibling function, a commented-out signature, a nested callback, or a second call in the same file must all be refused.
+  put(file, opener + "\nexport function sibling(writer: any, file: string, declaration: any) { applySqliteBaseline(writer, file, declaration); }");
+  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
+  put(file, "// function openPartitionPluginLibrary(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration) {}\nexport function rogue(writer: any, file: string, declaration: any) { applySqliteBaseline(writer, file, declaration); }");
+  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
+  put(file, "export function openPartitionPluginLibrary(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration) { const run = () => applySqliteBaseline(writer, file, declaration); run(); }");
+  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
+  put(file, "export function openPartitionPluginLibrary(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration) { applySqliteBaseline(writer, file, declaration); applySqliteBaseline(writer, file, declaration); }");
+  failsWith(run(), `${file}: applySqliteBaseline is called with declaration`);
   put(file, opener);
   put("apps/alpha/src/opener.ts", opener);
   failsWith(run(), "apps/alpha/src/opener.ts: applySqliteBaseline is called with declaration");

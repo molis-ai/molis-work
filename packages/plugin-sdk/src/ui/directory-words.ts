@@ -9,6 +9,7 @@ type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text
   readonly permissions?: PluginManifest["permissions"];
   readonly read_groups?: PluginManifest["read_groups"];
   readonly actions?: PluginManifest["actions"];
+  readonly overview_projection?: PluginManifest["overview_projection"];
 };
 export type DirectoryWordManifest = NameFields & {
   readonly ui?: Pick<PluginManifest["ui"], "locales" | "views">;
@@ -52,6 +53,8 @@ const localizedDeclarationFields = (manifest: DirectoryWordManifest) => [
     ...(action.title_text === undefined ? [] : [[`动作 ${capability_id} 的 title_text`, action.title_text, DIRECTORY_WORD_LIMITS.actionTitle] as const]),
     ...(action.description_text === undefined ? [] : [[`动作 ${capability_id} 的 description_text`, action.description_text, DIRECTORY_WORD_LIMITS.actionDescription] as const]),
   ]),
+  ...(typeof manifest.overview_projection === "object" && manifest.overview_projection !== null && manifest.overview_projection.title_text !== undefined
+    ? [["overview_projection.title_text", manifest.overview_projection.title_text, DIRECTORY_WORD_LIMITS.actionTitle] as const] : []),
 ] satisfies ReadonlyArray<readonly [string, TextRef | undefined, number]>;
 
 const deletionField = "databases.home.project_rows.label";

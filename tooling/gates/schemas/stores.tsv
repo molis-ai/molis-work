@@ -3,6 +3,13 @@
 # SQLite reports after running the creation statements; upgrades is the `from` of each step, or -. scripts/gates/store-schemas.mjs fails a
 # row whose structure changed while its version stayed.
 store	owner	version	structure	upgrades
+<partition>/molis-work.db	apps/local-host	1	ef7b23560ff7e149	-
+<partition>/molis-work.db#io.molis.work.coding	io.molis.work.coding	1	7554f5bd7e17b35e	-
+<partition>/molis-work.db#io.molis.work.feed	io.molis.work.feed	1	a2446b1f1b0d700d	-
+<partition>/molis-work.db#io.molis.work.goals	io.molis.work.goals	1	423b08698498fad5	-
+<partition>/molis-work.db#io.molis.work.inbox	io.molis.work.inbox	1	56acddfd14f308b1	-
+<partition>/molis-work.db#io.molis.work.risk	io.molis.work.risk	1	2598fbcecb5c9e39	-
+<partition>/molis-work.db#io.molis.work.schedule	io.molis.work.schedule	1	60eee1da661a2c2a	-
 agent-declarations/agent-declarations.db	apps/local-host	1	90aa329cbf64815e	-
 agent-definitions/agent-definitions.db	apps/local-host	1	abad6100076206e5	-
 assistant/assistant.db	apps/local-host	1	81eb1ed879d29fa5	-
@@ -30,20 +37,13 @@ mainline/mainline.db	horizontal/mainline	1	24e9f4a4fef41aca	-
 memory/memory.db	packages/storage	2	17c9d78d1f64f5b8	1
 observation/observation.db	horizontal/observation	1	482e790be1bc46e2	-
 pages/pages.db	io.molis.work.pages	1	3070ef951cd25cad	-
-person-settings/person-settings.db	horizontal/person-settings	1	b6c54dfe0fa5eaa5	-
+person-settings/person-settings.db	horizontal/person-settings	1	0aa8b1771c6fe435	-
 placement/placement.db	apps/local-host	1	cc231f53373dbc13	-
 plugin-directories/plugin-directories.db	apps/local-host	1	4e3877ad46125b3e	-
 plugin-libraries/plugin-libraries.db	apps/local-host	1	3f1e077abbfc48cb	-
 plugin-originals/plugin-originals.db	apps/local-host	1	3ad6632f1b839415	-
 plugin-runtime/plugin-runtime.db	apps/local-host	1	e69c29d592801ef1	-
 ppt/ppt.db	io.molis.work.ppt	1	f3762d71cb86ab0f	-
-projects/*/molis-work.db	apps/local-host	1	ef7b23560ff7e149	-
-projects/*/molis-work.db#io.molis.work.coding	io.molis.work.coding	1	7554f5bd7e17b35e	-
-projects/*/molis-work.db#io.molis.work.feed	io.molis.work.feed	1	a2446b1f1b0d700d	-
-projects/*/molis-work.db#io.molis.work.goals	io.molis.work.goals	1	423b08698498fad5	-
-projects/*/molis-work.db#io.molis.work.inbox	io.molis.work.inbox	1	56acddfd14f308b1	-
-projects/*/molis-work.db#io.molis.work.risk	io.molis.work.risk	1	2598fbcecb5c9e39	-
-projects/*/molis-work.db#io.molis.work.schedule	io.molis.work.schedule	1	60eee1da661a2c2a	-
 projects/catalog.db	apps/local-host	1	0691cb9c32e88862	-
 server/server.sqlite	server	1	2c4efaa24415de5e	-
 sync/sync.db	modules/sync-replication	1	4ffa2f326552fc84	-

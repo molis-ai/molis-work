@@ -1533,6 +1533,7 @@ type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text
     readonly permissions?: PluginManifest["permissions"];
     readonly read_groups?: PluginManifest["read_groups"];
     readonly actions?: PluginManifest["actions"];
+    readonly overview_projection?: PluginManifest["overview_projection"];
 };
 
 interface PresentationControl {

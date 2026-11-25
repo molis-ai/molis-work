@@ -23,8 +23,8 @@ interface OnboardingHttpPorts {
 }
 
 /**
- * The blank start below makes the personal space and then writes down that onboarding is done. A record this build
- * may not replace is answered with its refusal before the space is made (upgrade-chain-design §2.6), by the same check as the context journey's.
+ * The blank start below reads the personal space already created at Home initialization and writes down that onboarding is done. A record
+ * this build may not replace is answered with its refusal first (upgrade-chain-design §2.6), by the same check as the context journey's.
  */
 function refusedBeforeMaking(response: ServerResponse, homeDirectory: string | undefined): boolean {
   try { assertOnboardingWritable(homeDirectory); return false; }

@@ -122,6 +122,64 @@ test("UPG-01 a golden's path is matched as the library's, in the root Home or an
   assert.equal(project("other/projects/a/molis-work.db"), false);
   assert.equal(goldenPathMatcher("memory/memory.db")("memory/memoryXdb"), false, "a dot is a dot");
   assert.equal(goldenPathMatcher("projects/*/molis-work.db#io.molis.work.todo")("projects/a/molis-work.db"), true, "a plugin's tables are in the project library");
+
+  const partitionDb = goldenPathMatcher("<partition>/molis-work.db");
+  assert.equal(partitionDb("personal-space/molis-work.db"), true);
+  assert.equal(partitionDb("spaces/space_9/personal-space/molis-work.db"), true);
+  assert.equal(partitionDb("projects/p1/molis-work.db"), true);
+  assert.equal(partitionDb("spaces/space_9/projects/p1/molis-work.db"), true);
+  assert.equal(partitionDb("projects/a/b/molis-work.db"), false);
+  assert.equal(partitionDb("personal-space/a/molis-work.db"), false);
+  assert.equal(partitionDb("other/personal-space/molis-work.db"), false);
+  assert.equal(goldenPathMatcher("<partition>/molis-work.db#io.molis.work.goals")("personal-space/molis-work.db"), true);
+
+  const partitionLibrary = goldenPathMatcher("<partition>/libraries/pages.db");
+  assert.equal(partitionLibrary("personal-space/libraries/pages.db"), true);
+  assert.equal(partitionLibrary("spaces/space_9/personal-space/libraries/pages.db"), true);
+  assert.equal(partitionLibrary("projects/p1/libraries/pages.db"), true);
+  assert.equal(partitionLibrary("spaces/space_9/projects/p1/libraries/pages.db"), true);
+  assert.equal(partitionLibrary("pages/pages.db"), false);
+  assert.equal(partitionLibrary("projects/a/b/libraries/pages.db"), false);
+  assert.equal(partitionLibrary("personal-space/libraries/sub/pages.db"), false);
+});
+
+test("UPG-01 migrating projects/*/molis-work.db to <partition>/molis-work.db keeps strict comparison and supports <partition>/libraries/<store>.db", () => {
+  const PARTITION_DB = (version = 1, structure = HASH, upgrades = "-") => `<partition>/molis-work.db\tapps/local-host\t${version}\t${structure}\t${upgrades}`;
+  const PARTITION_PLUGIN = (version = 1, structure = HASH, upgrades = "-") => `<partition>/molis-work.db#io.molis.work.todo\tio.molis.work.todo\t${version}\t${structure}\t${upgrades}`;
+  const PARTITION_LIB = (version = 1, structure = HASH, upgrades = "-") => `<partition>/libraries/pages.db\tio.molis.work.pages\t${version}\t${structure}\t${upgrades}`;
+
+  // Pure key rename with unchanged structure passes; changed structure or version downgrade under the renamed key still fails.
+  assert.deepEqual(problems({ [SCHEMAS_FILE]: table(CATALOG(), MEMORY(), PARTITION_PLUGIN(), PARTITION_DB()) }), []);
+  assert.match(problems({ [SCHEMAS_FILE]: table(CATALOG(), MEMORY(), PARTITION_PLUGIN(), PARTITION_DB(1, OTHER)) }).join("\n"),
+    /UPG-01 <partition>\/molis-work\.db: its creation statements changed and its version is still 1/u);
+  assert.match(problems({ [SCHEMAS_FILE]: table(CATALOG(), MEMORY(), PARTITION_PLUGIN(1, OTHER), PARTITION_DB()) }).join("\n"),
+    /UPG-01 <partition>\/molis-work\.db#io\.molis\.work\.todo: its creation statements changed and its version is still 1/u);
+  assert.match(problems({ [SCHEMAS_FILE]: table(CATALOG(), MEMORY(), PARTITION_PLUGIN(), PARTITION_DB(1)) }, table(PROJECT(2))).join("\n"),
+    /UPG-01 <partition>\/molis-work\.db: its version went down, 2 → 1/u);
+
+  // Raised version accepts a golden holding personal-space/molis-work.db or <partition>/libraries/pages.db, and rejects a Home-level path.
+  const personalGolden = golden([{ path: "personal-space/molis-work.db", schema_version: 1 }, { path: "personal-space/libraries/pages.db", schema_version: 1 }]);
+  assert.deepEqual(problems({
+    [SCHEMAS_FILE]: table(CATALOG(), MEMORY(), PARTITION_PLUGIN(), PARTITION_DB(2, OTHER, "1")),
+    "tests/fixtures/golden-homes/0.1.0/manifest.json": personalGolden,
+  }), []);
+  assert.deepEqual(problems({
+    [SCHEMAS_FILE]: table(PARTITION_LIB(2, OTHER, "1")),
+    "tests/fixtures/golden-homes/0.1.0/manifest.json": personalGolden,
+  }, table(PARTITION_LIB(1, HASH))), []);
+  assert.match(problems({
+    [SCHEMAS_FILE]: table(PARTITION_LIB(2, OTHER, "1")),
+    "tests/fixtures/golden-homes/0.1.0/manifest.json": golden([{ path: "pages/pages.db", schema_version: 1 }]),
+  }, table(PARTITION_LIB(1, HASH))).join("\n"), /<partition>\/libraries\/pages\.db: .*holds it at 1/u);
+
+  // Removing the last older golden across the key migration still fails.
+  assert.match(problems({
+    [SCHEMAS_FILE]: table(PARTITION_DB(2, OTHER, "1")),
+    "tests/fixtures/golden-homes/0.1.0/manifest.json": golden([{ path: "personal-space/molis-work.db", schema_version: 2 }]),
+  }, {
+    [SCHEMAS_FILE]: table(PROJECT(2, OTHER, "1")),
+    "tests/fixtures/golden-homes/0.1.0/manifest.json": golden([{ path: "projects/p1/molis-work.db", schema_version: 1 }]),
+  }).join("\n"), /<partition>\/molis-work\.db: the last golden Home at 1 was removed/u);
 });
 
 test("UPG-01 the last golden for a supported older store version survives fixture-only changes", () => {

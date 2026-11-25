@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test, { before } from "node:test";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 // @ts-expect-error the gate modules are plain .mjs
-import { productRows, renderStoreSchemas, snapshotDifferences, structureHash } from "../scripts/gates/store-schema-snapshot.mjs";
+import { pluginPartitionRows, productRows, renderStoreSchemas, snapshotDifferences, structureHash } from "../scripts/gates/store-schema-snapshot.mjs";
 // @ts-expect-error the gate modules are plain .mjs
 import { SCHEMAS_FILE } from "../scripts/gates/store-schemas.mjs";
 
@@ -21,18 +21,35 @@ test("UPG-01 the committed snapshot is what the built product creates; `pnpm sch
   assert.equal(committed(), renderStoreSchemas(rows));
 });
 
-test("UPG-01 the snapshot holds the catalog, the project database, every Home library and each built-in plugin's project tables", () => {
+test("UPG-01 the snapshot holds the catalog, the partition database, every Home library and each built-in plugin's partition tables and libraries", () => {
   const stores = rows.map(row => row.store);
-  for (const store of ["projects/catalog.db", "projects/*/molis-work.db", "blueprints/blueprints.db", "memory/memory.db", "sync/sync.db", "server/server.sqlite", "todo/todo.db",
-    "projects/*/molis-work.db#io.molis.work.goals"]) assert.ok(stores.includes(store), store);
+  for (const store of ["projects/catalog.db", "<partition>/molis-work.db", "blueprints/blueprints.db", "memory/memory.db", "sync/sync.db", "server/server.sqlite", "todo/todo.db",
+    "<partition>/molis-work.db#io.molis.work.goals"]) assert.ok(stores.includes(store), store);
   assert.deepEqual(stores, [...stores].sort(), "sorted, so a new library lands in one place");
+
+  // Built-in plugins declaring `databases.partition` land under `<partition>/libraries/<store_name>.db` so batch 107's six libraries stay under UPG-01.
+  const collected = pluginPartitionRows([{
+    manifest: {
+      plugin_id: "io.molis.work.pages",
+      databases: {
+        partition: { store_name: "pages", version: 1, schema: "CREATE TABLE pages (id TEXT PRIMARY KEY);", upgrades: [] },
+      },
+    },
+  }], describeSqliteSchema) as Row[];
+  assert.deepEqual(collected, [{
+    store: "<partition>/libraries/pages.db",
+    owner: "io.molis.work.pages",
+    version: 1,
+    structure: hash("CREATE TABLE pages (id TEXT PRIMARY KEY);"),
+    froms: [],
+  }]);
 });
 
-// V7 (batch 106, user 2026-11-24): the project library's steps were reset, so it starts again at a v1 baseline with no steps.
-test("UPG-01 V7 the shared project database is at its v1 baseline with no upgrade steps, and Goals stays at its v1 baseline", () => {
-  const project = rows.find(row => row.store === "projects/*/molis-work.db");
-  const goals = rows.find(row => row.store === "projects/*/molis-work.db#io.molis.work.goals");
-  assert.deepEqual([project?.version, project?.froms], [1, []]);
+// V7 (batch 106, user 2026-11-24): the partition library's steps were reset, so it starts again at a v1 baseline with no steps.
+test("UPG-01 V7 the shared partition database is at its v1 baseline with no upgrade steps, and Goals stays at its v1 baseline", () => {
+  const partition = rows.find(row => row.store === "<partition>/molis-work.db");
+  const goals = rows.find(row => row.store === "<partition>/molis-work.db#io.molis.work.goals");
+  assert.deepEqual([partition?.version, partition?.froms], [1, []]);
   assert.deepEqual([goals?.version, goals?.froms], [1, []]);
 });
 

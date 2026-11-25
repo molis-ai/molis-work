@@ -5,6 +5,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { isRecord } from "./json-value.js";
 import { PLUGIN_ID } from "./plugin-id.js";
+import { DIRECTORY_WORD_LIMITS, staticDirectoryTextRefProblem } from "./ui/directory-words.js";
 
 /**
  * The Manifest fields of the unified partitions (specs/unified-partition-plugins §4–§7, batch 106): `overview_projection`, `market`,
@@ -13,11 +14,13 @@ import { PLUGIN_ID } from "./plugin-id.js";
  * (S-person-settings-private): a secret, a connection or a path never follows the person through sync.
  */
 /** The Manifest fields these checks read; a caller hands the whole Manifest or just these. */
-export type PartitionDeclarationFields = Pick<PluginManifest, "plugin_id"> & Partial<Pick<PluginManifest, "databases" | "overview_projection" | "market" | "dependencies" | "person_settings" | "actions" | "push">>;
+export type PartitionDeclarationFields = Pick<PluginManifest, "plugin_id">
+  & Partial<Pick<PluginManifest, "databases" | "overview_projection" | "market" | "dependencies" | "person_settings" | "actions" | "push">>
+  & { readonly ui?: Pick<PluginManifest["ui"], "locales"> };
 
 export function partitionDeclarationProblems(manifest: PartitionDeclarationFields): string[] {
   return [
-    ...overviewProblems(manifest.overview_projection, manifest.databases?.partition?.schema),
+    ...overviewProblems(manifest.overview_projection, manifest.databases?.partition?.schema, manifest.plugin_id, Boolean(manifest.ui?.locales)),
     ...marketProblems(manifest.market),
     ...dependencyProblems(manifest.dependencies, manifest.plugin_id),
     ...personSettingProblems(manifest.person_settings),
@@ -27,7 +30,7 @@ export function partitionDeclarationProblems(manifest: PartitionDeclarationField
 
 const only = (value: Record<string, unknown>, fields: readonly string[]) => Object.keys(value).filter(field => !fields.includes(field));
 
-function overviewProblems(value: unknown, partitionSchema: unknown): string[] {
+function overviewProblems(value: unknown, partitionSchema: unknown, pluginId: string, hasLocales: boolean): string[] {
   if (value === undefined) return [];
   // The table lives in the plugin's own partition library, written exactly as the platform gives it, so the platform can read it.
   if (typeof partitionSchema !== "string" || !partitionSchema.includes(OVERVIEW_TABLE_SQL)) {
@@ -35,22 +38,25 @@ function overviewProblems(value: unknown, partitionSchema: unknown): string[] {
   }
   if (!isRecord(value)) return ["overview_projection 必须为对象"];
   const extra = only(value, ["kinds", "title_text"]);
-  if (extra.length) return [`overview_projection 不认这些字段：${extra.join("、")}（只声明种类，不写列名与 SQL）`];
-  if (!Array.isArray(value.kinds) || value.kinds.length === 0) return ["overview_projection.kinds 至少要声明一种：task、event、notification 或 brief"];
+  if (extra.length) return [`overview_projection 不认这些字段：${extra.join(", ")}（只声明种类，不写列名与 SQL）`];
+  if (!Array.isArray(value.kinds) || value.kinds.length === 0) return ["overview_projection.kinds 至少要声明一种：task, event, notification 或 brief"];
   const problems: string[] = [], seen = new Set<string>();
   for (const kind of value.kinds) {
-    if (!(OVERVIEW_KINDS as readonly unknown[]).includes(kind)) problems.push(`overview_projection.kinds 里的 ${String(kind)} 不是平台的总览种类（task、event、notification、brief）`);
+    if (!(OVERVIEW_KINDS as readonly unknown[]).includes(kind)) problems.push(`overview_projection.kinds 里的 ${String(kind)} 不是平台的总览种类（${OVERVIEW_KINDS.join(", ")}）`);
     else if (seen.has(kind)) problems.push(`overview_projection.kinds 重复：${kind}`);
     seen.add(String(kind));
   }
-  if (value.title_text !== undefined && (!isRecord(value.title_text) || typeof value.title_text.key !== "string")) problems.push("overview_projection.title_text 必须是语言文件里的一行（{ key }）");
+  if (value.title_text !== undefined) {
+    const problem = staticDirectoryTextRefProblem("overview_projection.title_text", value.title_text, pluginId, DIRECTORY_WORD_LIMITS.actionTitle, hasLocales);
+    if (problem !== null) problems.push(problem);
+  }
   return problems;
 }
 
 function marketProblems(value: unknown): string[] {
   if (value === undefined) return [];
   if (!isRecord(value) || only(value, ["category"]).length || !(PLUGIN_MARKET_CATEGORIES as readonly unknown[]).includes(value.category)) {
-    return [`market 只写 category，取 ${PLUGIN_MARKET_CATEGORIES.join("、")} 之一`];
+    return [`market 只写 category，取 ${PLUGIN_MARKET_CATEGORIES.join(", ")} 之一`];
   }
   return [];
 }
@@ -83,7 +89,7 @@ function personSettingProblems(value: unknown): string[] {
   for (const entry of value.keys) {
     if (!isRecord(entry) || only(entry, ["key", "kind", "portable"]).length || typeof entry.key !== "string" || !PERSON_SETTING_KEY_PATTERN.test(entry.key)
       || !(PERSON_SETTING_KINDS as readonly unknown[]).includes(entry.kind)) {
-      problems.push(`person_settings.keys 的每一项要有 key（小写字母开头，至多 ${PERSON_SETTING_LIMITS.key} 字）与 kind（${PERSON_SETTING_KINDS.join("、")}），可选 portable`);
+      problems.push(`person_settings.keys 的每一项要有 key（小写字母开头，至多 ${PERSON_SETTING_LIMITS.key} 字）与 kind（${PERSON_SETTING_KINDS.join(", ")}），可选 portable`);
       continue;
     }
     if (seen.has(entry.key)) problems.push(`person_settings.keys 重复：${entry.key}`);

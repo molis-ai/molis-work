@@ -98,7 +98,7 @@ export function describePluginTablesRefusal(home: string, pluginId: string, libr
   let runId = "none", path = `${library ?? "home"}#${pluginId}`;
   try {
     const root = realpathSync(home), prefix = library ? `${relative(root, realpathSync(library))}#` : null, ledger = readUpgradeLedger(root);
-    const unit = ledger?.units.find(entry => entry.owner === pluginId && (prefix ? entry.relative_path.startsWith(prefix) : !entry.relative_path.startsWith("projects/")));
+    const unit = ledger?.units.find(entry => entry.owner === pluginId && (prefix ? entry.relative_path.startsWith(prefix) : projectOf(entry.relative_path) === null));
     if (ledger && unit) {
       runId = ledger.run_id; path = unit.relative_path;
       if (unit.state === "too_new") reason = "store_too_new";

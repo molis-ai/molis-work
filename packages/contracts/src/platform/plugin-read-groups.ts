@@ -1,3 +1,5 @@
+import type { TextRef } from "./ui-text.js";
+
 /**
  * What a person can let one background task of another plugin read, in this plugin's own words (`read_groups` in the Manifest;
  * specs/proactive-assistant/schedule-task-reads.md §3.2, decided 2026-11-05). Each group is one switch on a task's "能读的数据":
@@ -12,8 +14,12 @@ export interface PluginReadGroupDeclaration {
   readonly group_id: string;
   /** The declaring plugin's original name for the switch. */
   readonly title: string;
+  /** Localized display name for the switch (single-line, no arguments/plurals, max 80 chars). Falls back to `title` when omitted. */
+  readonly title_text?: TextRef;
   /** One line saying what the group contains, shown under the switch so the person knows what they allow. */
   readonly description: string;
+  /** Localized display description for the switch (single-line, no arguments/plurals, max 200 chars). Falls back to `description` when omitted. */
+  readonly description_text?: TextRef;
   /** The `capability_id`s of this plugin's own actions in the group; every declared version of each is in it. */
   readonly actions: readonly string[];
 }

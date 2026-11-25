@@ -8,6 +8,7 @@ import { wireCatalogPresentation } from "./catalog-presentation.js";
 import { wireCatalogSplit } from "./catalog-skill-packs.js";
 import { wireCatalogCapabilityPacks } from "./catalog-capability-packs.js";
 import { wireCatalogLanguage } from "./catalog-language.js";
+import { catalogBrowserSay as say } from "./catalog-say.js";
 type Craft = { land(element: Element): void; celebrate(element: Element): void };
 const craft = () => (globalThis as typeof globalThis & { molisCraft?: Craft }).molisCraft;
 const all = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = document) => [...scope.querySelectorAll<T>(selector)];
@@ -31,7 +32,7 @@ document.addEventListener("click", (event) => {
     if (kind === "sheet") one<HTMLDialogElement>("[data-motion-sheet]")?.showModal();
     if (kind === "arrive") restart(one("[data-motion-list]"), "is-arriving");
     if (kind === "switch") all("[data-motion-page]").forEach((page) => { page.hidden = !page.hidden; });
-    if (kind === "toast") { const toast = one(".toast") || Object.assign(document.body.appendChild(document.createElement("div")), { className: "mw-toast toast" }); toast.textContent = "已保存"; toast.classList.add("is-visible"); setTimeout(() => toast.classList.remove("is-visible"), 1600); }
+    if (kind === "toast") { const toast = one(".toast") || Object.assign(document.body.appendChild(document.createElement("div")), { className: "mw-toast toast" }); toast.textContent = say("workbench.catalog-board.ex.br-saved"); toast.classList.add("is-visible"); setTimeout(() => toast.classList.remove("is-visible"), 1600); }
     return;
   }
   const demo = origin.closest<HTMLElement>("[data-craft-demo]");
@@ -44,7 +45,7 @@ document.addEventListener("click", (event) => {
   if (demo.dataset.craftDemo === "celebrate") {
     const done = status.classList.toggle("mw-object-status--completed");
     status.classList.toggle("mw-object-status--in_progress", !done);
-    status.querySelector("span")!.textContent = done ? "已完成" : "正在推进";
+    status.querySelector("span")!.textContent = done ? say("workbench.catalog-board.ex.br-status-completed") : say("workbench.catalog-board.ex.br-status-in-progress");
     if (done) craft()?.celebrate(target);
   }
 });
@@ -155,7 +156,7 @@ all(".mw-calendar").forEach((root) => {
       root.setAttribute("data-calendar-year", String(year));
       root.setAttribute("data-calendar-month", String(month));
       const title = root.querySelector("[data-calendar-title]");
-      if (title) title.textContent = year + "年" + (month + 1) + "月";
+      if (title) title.textContent = new Intl.DateTimeFormat(document.documentElement.lang || undefined, { year: "numeric", month: "long" }).format(new Date(year, month, 1));
     });
   });
 });
@@ -209,7 +210,7 @@ function wireCatalogPlatformFeedback(): void {
       if (row) {
         const nextOpen = row.dataset.open !== "true";
         row.dataset.open = String(nextOpen);
-        insetToggle.textContent = nextOpen ? "收起" : "展开";
+        insetToggle.textContent = nextOpen ? say("workbench.catalog-board.ex.br-collapse") : say("workbench.catalog-board.ex.br-expand");
       }
       return;
     }
@@ -222,7 +223,7 @@ function wireCatalogPlatformFeedback(): void {
       });
       void (window.molisBusy ? window.molisBusy(busyBtn, run) : run()).then(() => {
         if (status) {
-          status.textContent = fast ? "120ms 完成（零转圈闪烁）" : "950ms 完成（250ms 后仅锁定本按钮）";
+          status.textContent = fast ? say("workbench.catalog-board.ex.br-busy-fast-done") : say("workbench.catalog-board.ex.br-busy-slow-done");
         }
       });
       return;
@@ -231,16 +232,16 @@ function wireCatalogPlatformFeedback(): void {
     if (toastBtn) {
       const kind = toastBtn.dataset.fbToast;
       if (kind === "short") {
-        window.molisToast?.("已保存更改", { tone: "success", duration: "short" });
+        window.molisToast?.(say("workbench.catalog-board.ex.br-toast-saved"), { tone: "success", duration: "short" });
       } else if (kind === "warning") {
-        window.molisToast?.("连接较慢，正在后台重试", { tone: "warning", duration: "normal" });
+        window.molisToast?.(say("workbench.catalog-board.ex.br-toast-retrying"), { tone: "warning", duration: "normal" });
       } else if (kind === "error") {
-        window.molisToast?.("未能写入本地文件，请检查权限", { tone: "error", duration: "long" });
+        window.molisToast?.(say("workbench.catalog-board.ex.br-toast-write-failed"), { tone: "error", duration: "long" });
       } else if (kind === "undo") {
-        window.molisToast?.("已归档 1 条记录", {
+        window.molisToast?.(say("workbench.catalog-board.ex.br-toast-archived"), {
           tone: "default",
-          undoLabel: "撤销",
-          undo: () => window.molisToast?.("已恢复该记录", { tone: "success", duration: "short" }),
+          undoLabel: say("workbench.catalog-board.ex.pat-undo"),
+          undo: () => window.molisToast?.(say("workbench.catalog-board.ex.br-toast-restored"), { tone: "success", duration: "short" }),
         });
       }
       return;
@@ -272,12 +273,23 @@ function wireCatalogPlatformFeedback(): void {
   const autosaveStatus = one<HTMLElement>("[data-fb-autosave-status]");
   const autosaveRetry = one<HTMLButtonElement>("[data-fb-autosave-retry]");
   if (autosaveBox && autosaveInput && window.molisAutosave) {
+    const readAutosaveLabels = () => ({
+      idle: say("workbench.catalog-board.ex.pat-status-synced"),
+      dirty: say("workbench.catalog-board.ex.br-autosave-dirty"),
+      saving: say("workbench.catalog-board.ex.br-autosave-saving"),
+      saved: say("workbench.catalog-board.ex.br-saved"),
+      error: say("workbench.catalog-board.ex.br-autosave-error"),
+    });
+    const autosaveLabels = readAutosaveLabels();
+    document.addEventListener("molis-work:language-changed", () => {
+      Object.assign(autosaveLabels, readAutosaveLabels());
+    });
     const controller = window.molisAutosave(
       autosaveBox,
       () => new Promise<void>((resolve, reject) => {
         window.setTimeout(() => {
           if (autosaveFail?.checked) {
-            reject(new Error("保存失败"));
+            reject(new Error(say("workbench.catalog-board.ex.br-autosave-error")));
           } else {
             resolve();
           }
@@ -285,7 +297,7 @@ function wireCatalogPlatformFeedback(): void {
       }),
       {
         statusEl: autosaveStatus,
-        labels: { idle: "已同步", dirty: "有未保存修改", saving: "正在保存…", saved: "已保存", error: "保存失败" },
+        labels: autosaveLabels,
         onStateChange: (state) => {
           if (autosaveRetry) {
             autosaveRetry.hidden = state !== "error";
@@ -311,7 +323,7 @@ function wireCatalogPlatformFeedback(): void {
     void window.molisOptimisticToggle?.(
       optFail,
       () => new Promise<void>((_, reject) => {
-        window.setTimeout(() => reject(new Error("网络断开，开关已自动回滚")), 220);
+        window.setTimeout(() => reject(new Error(say("workbench.catalog-board.ex.br-opt-rollback"))), 220);
       }),
     );
   });

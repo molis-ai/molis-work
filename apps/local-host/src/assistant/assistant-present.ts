@@ -1,13 +1,14 @@
 import { cutWithEllipsis, cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import { AGENT_TOOLS } from "@molis-ai/molis-work-service-agent-host";
+import { AGENT_TOOLS, classifyPrologueStopReason, type PrologueStopCategory } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRecoveryReport, AgentRunView, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { failedStep } from "./activity-failure.js";
 import type { AssistantActivity, AssistantRecovery, AssistantWorkState, AssistantWorkObject, AssistantRoundDiagnostics } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { StoredRound, StoredWork } from "./assistant-store.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { ROUND_TURNS } from "./assistant-round-start.js";
 import { workTitle } from "./assistant-work-title.js";
+import { localizeWebErrorMessage, readWorkbenchText } from "../ui-error-words.js";
+import { listJoin } from "../web-locale.js";
 
 /** How a work's state, rounds and activity read to the person and on the diagnostics page: pure functions, no Host. */
 export function stateOf(phase: AgentRunView["phase"] | null | undefined, recovery: boolean): AssistantWorkState {
@@ -93,24 +94,43 @@ export function describeObjects(objects: readonly AssistantWorkObject[]): string
   return [...lines, ...moved].join("\n");
 }
 
+const SIMPLE_STOP_KEYS = {
+  "memory-permission": "workbench.assistant-stop.memory-permission",
+  "context-overflow": "workbench.assistant-stop.context-overflow",
+  "time-limit": "workbench.assistant-stop.time-limit",
+  auth: "workbench.assistant-stop.auth",
+  "rate-limit": "workbench.assistant-stop.rate-limit",
+  "service-unavailable": "workbench.assistant-stop.service-unavailable",
+  network: "workbench.assistant-stop.network",
+  refused: "workbench.assistant-stop.refused",
+  "output-truncated": "workbench.assistant-stop.output-truncated",
+  interrupted: "workbench.assistant-stop.interrupted",
+  "compaction-failed": "workbench.assistant-stop.compaction-failed",
+  "compaction-cancelled": "workbench.assistant-stop.compaction-cancelled",
+  guardrail: "workbench.assistant-stop.guardrail",
+  "guardrail-error": "workbench.assistant-stop.guardrail-error",
+  "circuit-breaker": "workbench.assistant-stop.circuit-breaker",
+  cancelled: "workbench.assistant-stop.cancelled",
+  stopped: "workbench.assistant-stop.stopped",
+  "model-error": "workbench.assistant-stop.model-error",
+} as const satisfies Readonly<Record<Exclude<PrologueStopCategory, "turn-limit" | "budget">, string>>;
+
 /**
  * Why a round stopped, in the person's words. A limit is a boundary the round kept, not a crash: what it did stays,
- * and the person can let it go on.
+ * and the person can let it go on. Technical codes stay in diagnostics logs and never leak into user-facing text.
  */
 export function stopInWords(reason: string, workBudget?: number): string {
-  if (/^MEMORY_SCOPE_DENIED(?:\b|:)/.test(reason)) return uiText.text("workbench.assistant-stop.memory-permission");
-  if (/too many tool turns|AGENT_BUDGET_EXCEEDED.*turn|maxTurns|of its \d+ turns/i.test(reason)) return uiText.text("workbench.assistant-stop.turn-limit", { count: ROUND_TURNS });
-  if (/MODEL_BUDGET_EXCEEDED|of its \d+ tokens|token/i.test(reason) && /budget|limit|exceed|of its \d+ tokens/i.test(reason)) {
-    // A round whose work has a cap was given only what was left of it: this stop is that cap.
-    return workBudget ? uiText.text("workbench.assistant-stop.work-budget", { count: format.number(workBudget) })
-      : uiText.text("workbench.assistant-stop.turn-budget");
+  const category = classifyPrologueStopReason(reason);
+  if (category === "turn-limit") {
+    return readWorkbenchText("workbench.assistant-stop.turn-limit", undefined, [{ name: "count", kind: "number", number: ROUND_TURNS, style: "decimal" }]);
   }
-  if (/wall.?clock|duration|timed.?out/i.test(reason)) return uiText.text("workbench.assistant-stop.time-limit");
-  // The model service could not be reached or answered with an error: say so, with what to check, keeping the code for reference.
-  if (/MODEL_NETWORK_FAILED|ECONNREFUSED|ENOTFOUND|fetch failed/i.test(reason)) return uiText.text("workbench.assistant-stop.network") + "\n" + reason;
-  if (/MODEL_AUTH|401|403|invalid.?api.?key|unauthori[sz]ed/i.test(reason)) return uiText.text("workbench.assistant-stop.auth") + "\n" + reason;
-  if (/429|rate.?limit|overloaded|529/i.test(reason)) return uiText.text("workbench.assistant-stop.rate-limit") + "\n" + reason;
-  return reason;
+  if (category === "budget") {
+    return workBudget
+      ? readWorkbenchText("workbench.assistant-stop.work-budget", undefined, [{ name: "count", kind: "number", number: workBudget, style: "decimal" }])
+      : readWorkbenchText("workbench.assistant-stop.turn-budget");
+  }
+  if (category !== null) return readWorkbenchText(SIMPLE_STOP_KEYS[category]);
+  return localizeWebErrorMessage(reason.trim(), "common.error.internal");
 }
 
 /** A returned Memory tool can mean a pending candidate or no change; only its bounded receipt says which. */
@@ -212,11 +232,12 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
 function answerOf(output: string | undefined): string {
   let parsed: { kind?: unknown; value?: unknown; picked?: unknown };
   try { parsed = JSON.parse(output ?? ""); } catch { return ""; }
+  const semicolon = readWorkbenchText("common.punctuation.semicolon");
   const text = parsed.kind === "text" && (typeof parsed.value === "string" || typeof parsed.value === "boolean") ? String(parsed.value)
     : parsed.kind === "questionnaire" && Array.isArray(parsed.picked) ? parsed.picked.map(pick => {
       const one = pick as { labels?: unknown; other?: unknown };
-      return [...(Array.isArray(one.labels) ? one.labels.filter((label): label is string => typeof label === "string") : []), ...(typeof one.other === "string" && one.other ? [one.other] : [])].join("、");
-    }).filter(Boolean).join("；") : "";
+      return listJoin([...(Array.isArray(one.labels) ? one.labels.filter((label): label is string => typeof label === "string") : []), ...(typeof one.other === "string" && one.other ? [one.other] : [])]);
+    }).filter(Boolean).join(semicolon) : "";
   return cutWithEllipsis(text, 300, { prefixLength: 300 });
 }
 

@@ -21,7 +21,7 @@ export const jellyUiContribution: UiContribution<JellyUiModel> = {
   render(request: UiRenderRequest<JellyUiModel>): string {
     if (request.surface === "directory") return "";
     if (request.surface === "workbench") return renderJellyWorkbench(request.model);
-    throw new Error(`Jelly UI surface ${request.surface} 不存在`);
+    throw new Error(`Unknown Jelly UI surface: ${request.surface}`);
   },
 };
 

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FrameDown, FrameScope, FrameUp } from "./types.js";
 
 export function childCopy(port: MessagePort, scope: FrameScope): (text: string) => Promise<void> {
@@ -19,8 +20,8 @@ export function childCopy(port: MessagePort, scope: FrameScope): (text: string) 
 /** A page can copy text after an actual interaction; it never receives clipboard read access. */
 export async function copyFromPage(port: MessagePort, message: Extract<FrameUp, { type: "copy" }>): Promise<void> {
   try {
-    if (typeof message.text !== "string" || message.text.length > 2_000_000 || !navigator.userActivation.isActive) throw new Error("请点击复制按钮后重试");
+    if (typeof message.text !== "string" || message.text.length > 2_000_000 || !navigator.userActivation.isActive) throw new Error(uiText.text("workbench.plugin-frame.retry-copy"));
     await navigator.clipboard.writeText(message.text);
     port.postMessage({ type: "copied", id: message.id } satisfies FrameDown);
-  } catch (error) { port.postMessage({ type: "copied", id: message.id, error: error instanceof Error ? error.message : "复制失败" } satisfies FrameDown); }
+  } catch (error) { port.postMessage({ type: "copied", id: message.id, error: error instanceof Error ? error.message : uiText.text("workbench.plugin-frame.copy-failed") } satisfies FrameDown); }
 }

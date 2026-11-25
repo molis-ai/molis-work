@@ -9,9 +9,11 @@
     "asana.connection.token-label": "Asana Personal Access Token",
     "asana.guide.mcp-connected-note": "Asana MCP authorization is separate from standard REST API authorization.",
     "asana.guide.mcp-link": "View the official Asana MCP",
-    "asana.guide.mcp-note": "Asana MCP authorization is separate from standard REST API authorization. Molis Work has not integrated it.",
+    "asana.guide.mcp-note": "Asana MCP authorization is separate from standard REST API authorization. Molis Work hasn’t integrated it yet.",
     "asana.guide.oauth-link": "View Asana OAuth app",
     "asana.oauth.note": "Enable the needed user, workspace and task read permissions in the app.",
-    "asana.setup.create-asana-personal-access-token": "Create Asana personal access token"
+    "asana.setup.create-asana-personal-access-token": "Create Asana personal access token",
+    "asana.permission.network.reason": "Read your Asana account info and latest updates",
+    "asana.permission.secret.reason": "Use your securely stored Asana connection credentials"
   }
 }

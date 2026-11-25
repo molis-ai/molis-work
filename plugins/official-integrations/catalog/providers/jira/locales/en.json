@@ -12,6 +12,8 @@
     "jira.guide.oauth-link": "View Atlassian OAuth 2.0",
     "jira.oauth.site-url": "Atlassian site",
     "jira.setup.create-atlassian-api-token": "Create Atlassian API token",
-    "jira.setup.view-jira-cloud-authentication-guide": "View Jira Cloud authentication guide"
+    "jira.setup.view-jira-cloud-authentication-guide": "View Jira Cloud authentication guide",
+    "jira.permission.network.reason": "Read your Jira account info and latest updates",
+    "jira.permission.secret.reason": "Use your securely stored Jira connection credentials"
   }
 }

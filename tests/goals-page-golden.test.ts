@@ -387,6 +387,9 @@ const pages: Record<string, Draw> = {
 // +51 on the 6 document-* and 6 refresh-* records with Goals inputs; -1525 zh / -1711 en on page-current*/page-archive, -1576 zh / -1762 en on
 // page-archive-none and page-trash*; all 12 settings-*, the momentum-*, document-trash/missing and refresh-trash records stayed byte-identical.
 // SCF-01: full pages and refresh fragments include the Goals create dialog. Its shared disclosure adds the slot and body wrapper (+64).
+// Trilingual copy & i18n governance (PR #2307): updated zh/en copy in workbench & Goals locale packs and trilingual language catalog
+// (zh/en/ja) after merging #2301/#2305; re-recorded with MOLIS_WORK_GOLDEN_RECORD=1 and re-verified with RECORD unset (40 records moved,
+// 12 unchanged including document-missing and unaffected settings records).
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

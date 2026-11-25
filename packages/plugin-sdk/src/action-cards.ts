@@ -1,10 +1,11 @@
 import { cutWithEllipsis } from "./whole-units.js";
-import { actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, exactBoundActionView, type ActionReference, type ActionSubjectContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, exactBoundActionView, type ActionFieldTextReader, type ActionReference, type ActionSubjectContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { presentActionResult, type ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantCard, AssistantCardChoice } from "@molis-ai/molis-work-contracts/services/assistant";
 import { TEXT_REF_LIMITS, type OwnedTextRef, type TextArg, type TextDateStyle } from "@molis-ai/molis-work-contracts/platform/ui";
 import { actionErrorKind } from "./errors.js";
+import { trySharedUiText } from "./ui/text.js";
 import { PLATFORM_TEXT_OWNER } from "./ui/text-keys.js";
 
 /**
@@ -181,7 +182,7 @@ function summarizeResult(result: unknown): OwnedTextRef | null {
 }
 
 /** Words that count days from the day they were said. */
-const RELATIVE_DAYS = /今天|明天|后天|今晚|今早|明早|明晚|今日|明日|本周|这周|下周|周末|昨天|大后天/;
+const RELATIVE_DAYS = /今天|明天|后天|今晚|今早|明早|明晚|今日|明日|明後日|今夜|今朝|本周|这周|下周|今週|来週|周末|週末|昨天|昨日|大后天|\b(?:today|tomorrow|yesterday|tonight|this week|next week|weekend)\b/i;
 
 /** Why a card is no longer what the person would mean by it: a moment passed, or "today" was another day. */
 function outdated(card: ActionCard, input: unknown, edited: boolean, ports: Pick<ActionCardPorts, "now" | "timeZone">): OwnedTextRef | null {
@@ -308,7 +309,7 @@ export async function sweepActionCard<Card extends ActionCard>(card: Card, ports
 }
 
 type SchemaProperties = Record<string, { title?: string; description?: string; properties?: SchemaProperties; type?: unknown }>;
-const labelOf = (properties: SchemaProperties | undefined, key: string) => actionFieldLabel(key, properties?.[key]);
+const labelOf = (properties: SchemaProperties | undefined, key: string, readText?: ActionFieldTextReader) => actionFieldLabel(key, properties?.[key], readText);
 /**
  * A field with declared choices is shown by its label and edited by picking one; a day or a moment is picked too. The raw
  * value is what runs.
@@ -326,7 +327,8 @@ const choices = (declared: unknown, value: unknown) => {
  * action's input schema; a field with declared choices by its label, a day or a moment to be picked, the raw value being what runs; the
  * object it acts on by its title. This is the `AssistantCard` the platform draws (`services.interaction.cardHtml`).
  */
-export function actionCardView(card: ActionCard & { readonly run_id?: string | null; readonly from?: AssistantCard["from"]; readonly source_object?: AssistantCard["source_object"] }): AssistantCard {
+export function actionCardView(card: ActionCard & { readonly run_id?: string | null; readonly from?: AssistantCard["from"]; readonly source_object?: AssistantCard["source_object"] }, reader?: ActionFieldTextReader): AssistantCard {
+  const readText: ActionFieldTextReader = reader ?? trySharedUiText;
   const properties = (card.input_schema.properties ?? {}) as SchemaProperties;
   const input = plainObject(card.input) ? card.input : null;
   const missingField = (key: string) => card.missing.some(item => item.field === key);
@@ -339,7 +341,7 @@ export function actionCardView(card: ActionCard & { readonly run_id?: string | n
       if (plainObject(value)) {
         for (const [child, inner] of Object.entries(value)) {
           if (inner === undefined || inner === null || inner === "") continue;
-          fields.push({ key: `${key}.${child}`, label: labelOf(properties[key]?.properties, child), value: actionFieldValue(child, inner, properties[key]?.properties?.[child]), editable: editable || card.editable.includes(`${key}.${child}`),
+          fields.push({ key: `${key}.${child}`, label: labelOf(properties[key]?.properties, child, readText), value: actionFieldValue(child, inner, properties[key]?.properties?.[child], readText), editable: editable || card.editable.includes(`${key}.${child}`),
             ...choices(properties[key]?.properties?.[child], inner) });
         }
         continue;
@@ -348,15 +350,15 @@ export function actionCardView(card: ActionCard & { readonly run_id?: string | n
       if (listed) {
         const declared = properties[key] as Schema | undefined, now = picked(declared, value) ?? [];
         const labels = now.map(item => listed.find(choice => choice.value === item)?.label ?? item);
-        fields.push({ key, label: labelOf(properties, key), value: labels.join("、"), editable, options: listed.map(choice => ({ ...choice })),
+        fields.push({ key, label: labelOf(properties, key, readText), value: labels.join(readText("common.list.separator") || "、"), editable, options: listed.map(choice => ({ ...choice })),
           ...(isArrayField(declared) ? { multiple: true, raw: JSON.stringify(now) } : now[0] !== undefined ? { raw: now[0] } : {}) });
         continue;
       }
       // The object it acts on reads by its title, not by its identifier.
       const target = !editable && card.target?.title && value === card.target.id ? card.target.title : null;
-      fields.push({ key, label: labelOf(properties, key), value: target ?? (value !== undefined ? actionFieldValue(key, value, properties[key]) : ""), editable, ...choices(properties[key], value) });
+      fields.push({ key, label: labelOf(properties, key, readText), value: target ?? (value !== undefined ? actionFieldValue(key, value, properties[key], readText) : ""), editable, ...choices(properties[key], value) });
     }
-  } else fields.push({ key: "", label: "内容", value: actionFieldValue("", card.input), editable: false });
+  } else fields.push({ key: "", label: readText("common.action-field.content") || "内容", value: actionFieldValue("", card.input, undefined, readText), editable: false });
   return { card_id: card.card_id, revision: card.revision, run_id: card.run_id ?? null, title: card.title, summary: card.summary, provider: card.provider,
     capability_title: card.capability_title, capability_id: card.reference.capability_id, effect: card.effect, fields, missing: card.missing, status: card.status,
     ...(card.outcome ? { outcome: card.outcome } : {}), ...(card.presentation ? { presentation: card.presentation } : {}), ...(card.from ? { from: { ...card.from } } : {}), ...(card.source_object ? { source_object: { ...card.source_object } } : {}),

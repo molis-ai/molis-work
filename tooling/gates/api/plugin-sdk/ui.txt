@@ -729,6 +729,10 @@ export interface UiResolvedSkin {
     readonly terminal: Readonly<Record<TerminalAxis, UiTokenMap>>;
 }
 
+export declare function activeUiIntlLocale(): string | undefined;
+
+export declare function activeUiLocale(): string | null;
+
 export declare function assertPluginLocales(manifest: PluginLocaleManifest, read: PluginLocaleRead): readonly LocaleSetProblem[];
 
 export declare function calendarTitle(year: number, month: number): string;
@@ -1491,6 +1495,8 @@ export declare function textRefProblems(value: unknown, check?: TextRefCheck): r
 
 export declare function tryOwnedTextRef(ref: unknown, owner: string): OwnedTextRef | null;
 
+export declare function tryUiText(key: string, args?: TextArgs): string | undefined;
+
 export declare function uiHelpDeclarationProblems(manifest: Pick<PluginManifest, "plugin_id" | "ui">): string[];
 
 export declare function withDevicePreferences(snapshot: UiEnvironmentSnapshot, device: UiDevicePreferences): UiEnvironmentSnapshot;
@@ -1524,6 +1530,8 @@ interface MwInputOptions {
 }
 
 type NameFields = Pick<PluginManifest, "plugin_id" | "name_text" | "summary_text" | "connection_services" | "databases"> & {
+    readonly permissions?: PluginManifest["permissions"];
+    readonly read_groups?: PluginManifest["read_groups"];
     readonly actions?: PluginManifest["actions"];
 };
 

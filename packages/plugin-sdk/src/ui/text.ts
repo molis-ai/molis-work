@@ -3,7 +3,7 @@ import { PLATFORM_TEXT_OWNER, SHARED_OWNER } from "./text-keys.js";
 import { escapeHtml } from "./html.js";
 import { formatDate, formatNumber } from "./message-format.js";
 import { uiTextErrors } from "./text-errors.js";
-import { guarded, languageFor, packsProvider, prefixIndex, report, sayText, UI_TEXT_UNAVAILABLE, wordText } from "./text-lookup.js";
+import { guarded, languageFor, localeChain, packsProvider, prefixIndex, report, sayText, UI_TEXT_UNAVAILABLE, wordText } from "./text-lookup.js";
 import { textArgs, textRefProblems } from "./text-ref.js";
 
 export { UI_TEXT_UNAVAILABLE };
@@ -52,6 +52,48 @@ function sayPlain(ref: OwnedTextRef, options?: UiSayOptions): string {
   if (textRefProblems(ref, { owned: true }).length > 0) return UI_TEXT_UNAVAILABLE;
   if ("literal" in ref && ref.literal !== undefined) return ref.literal;
   throw noProvider(`say("${(ref as Extract<OwnedTextRef, { key: string }>).key}")`);
+}
+
+/** Active UI language tag from the installed text context, or `null` when no context or language is mounted. */
+export function activeUiLocale(): string | null {
+  return installedProvider()?.locale() ?? null;
+}
+
+/** Active `Intl` locale tag from the installed text context, or `undefined` when no context or language is mounted. */
+export function activeUiIntlLocale(): string | undefined {
+  const provider = installedProvider();
+  const tag = provider?.locale() ?? null;
+  return tag ? provider?.intlLocale?.(tag) ?? tag : undefined;
+}
+
+/** Safe lookup of a `common.*` or registered owner key when a text context and active locale are present; returns `undefined` otherwise without logging or throwing. */
+export function tryUiText(key: string, args?: TextArgs): string | undefined {
+  const provider = installedProvider();
+  if (provider === null) return undefined;
+  const locale = provider.locale();
+  if (locale === null) return undefined;
+  const dot = key.indexOf(".");
+  if (dot <= 0) return undefined;
+  const prefix = key.slice(0, dot);
+  const owner = prefix === SHARED_OWNER ? PLATFORM_TEXT_OWNER : provider.ownerOfPrefix(prefix);
+  if (owner === null) return undefined;
+  const list = args === undefined ? {} : { args: textArgs(args) };
+  return guarded(provider, () => wordText(provider, { owner, key, ...list }, locale), "") || undefined;
+}
+
+/** Internal lookup of a shared `common.*` word when a UI text provider and active locale are present; returns `undefined` otherwise without logging or throwing. */
+export function trySharedUiText(key: string): string | undefined {
+  const provider = installedProvider();
+  if (provider === null) return undefined;
+  const locale = provider.locale();
+  if (locale === null) return undefined;
+  for (const tag of localeChain(locale)) {
+    const message = provider.message(PLATFORM_TEXT_OWNER, key, tag);
+    if (typeof message === "string") return message;
+  }
+  const fallback = provider.defaultLocale(PLATFORM_TEXT_OWNER);
+  const message = fallback === null ? null : provider.message(PLATFORM_TEXT_OWNER, key, fallback);
+  return typeof message === "string" ? message : undefined;
 }
 
 /**

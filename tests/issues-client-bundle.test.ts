@@ -26,12 +26,17 @@ test("RAC-138 every word the Issue page says has a stable key with both language
     used.add(`issues.agent-prompt.${id}.title`);
     used.add(`issues.agent-prompt.${id}.purpose`);
   }
-  for (const action of issuesManifest.actions ?? []) {
-    if (["issues.create", "issues.delete"].includes(action.capability_id)) used.add(`issues.capability-library.${action.capability_id.replaceAll(".", "-")}-v${action.version}.title`);
-  }
   const addRef = (ref: unknown) => {
     if (ref && typeof ref === "object" && "key" in ref && typeof ref.key === "string" && ref.key.startsWith("issues.")) used.add(ref.key);
   };
+  for (const permission of issuesManifest.permissions ?? []) {
+    addRef(permission.reason_text);
+  }
+  for (const action of issuesManifest.actions ?? []) {
+    if (["issues.create", "issues.delete"].includes(action.capability_id)) used.add(`issues.capability-library.${action.capability_id.replaceAll(".", "-")}-v${action.version}.title`);
+    addRef(action.action.title_text);
+    addRef(action.action.description_text);
+  }
   for (const topic of issuesManifest.ui.help?.topics ?? []) {
     addRef(topic.title);
     addRef(topic.first_visit_tip);
@@ -42,7 +47,7 @@ test("RAC-138 every word the Issue page says has a stable key with both language
       for (const item of section.items ?? []) addRef(item);
     }
   }
-  const packs = ["zh", "en"].map(locale => {
+  const packs = ["zh", "en", "ja"].map(locale => {
     const read = parseLocalePack(readFileSync(join(SRC, "..", "locales", locale + ".json"), "utf8"));
     assert.ok(read.value, JSON.stringify(read.problems));
     return read.value;

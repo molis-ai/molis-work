@@ -45,7 +45,7 @@ export const diffManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-diff-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
-    { permission: "artifact:read", required: true, reason: "读取要对比的快照与变更" },
+    { permission: "artifact:read", required: true, reason: "读取用于对比的固定文件版本与变更", reason_text: { key: "diff.permission.artifact-read.reason" } },
   ],
   capabilities: { provides: [], consumes: [] },
   actions: DIFF_ACTIONS,
@@ -117,7 +117,7 @@ export const diffManifest: PluginManifest = {
     ],
   },
   routes: [{ route_id: "diff.state", method: "GET", path: "/state" }],
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.asana",
+  "locale": "ja",
+  "messages": {
+    "asana.connection.auth-help": "Asana PAT を入力してください。あなたに割り当てられた未完了タスクを取得します。",
+    "asana.connection.inbound": "Feed でタスクとプロジェクトを取得",
+    "asana.connection.summary": "タスクとプロジェクト。",
+    "asana.connection.token-label": "Asana Personal Access Token",
+    "asana.guide.mcp-connected-note": "Asana MCP の認証は通常の REST API 認証とは別です。",
+    "asana.guide.mcp-link": "Asana 公式 MCP を見る",
+    "asana.guide.mcp-note": "Asana MCP の認証は通常の REST API 認証とは別です。Molis Work ではまだ接続していません。",
+    "asana.guide.oauth-link": "Asana OAuth アプリを見る",
+    "asana.oauth.note": "アプリ側で必要なユーザー・ワークスペース・タスクの読み取り権限を有効にしてください。",
+    "asana.setup.create-asana-personal-access-token": "Asana Personal Access Token を作成",
+    "asana.permission.network.reason": "Asana のアカウント情報と最新の更新を読み取ります",
+    "asana.permission.secret.reason": "安全に保存された Asana の接続資格情報を使用します"
+  }
+}

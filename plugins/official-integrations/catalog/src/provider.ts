@@ -37,11 +37,12 @@ async function resolveContext(
   token: string,
   http: CatalogHttp,
   authExtras?: Record<string, string>,
+  locale?: string,
 ): Promise<CatalogAuthContext> {
-  if (authExtras?.auth_method === "oauth") return { raw: token, accessToken: token, extra: authExtras };
+  if (authExtras?.auth_method === "oauth") return { raw: token, accessToken: token, extra: authExtras, ...(locale ? { locale } : {}) };
   const parsed = spec.parseToken ? spec.parseToken(token) : tokenContext(token);
-  if (spec.prepare) return spec.prepare(parsed, http);
-  return parsed;
+  const prepared = spec.prepare ? await spec.prepare(parsed, http) : parsed;
+  return locale ? { ...prepared, locale } : prepared;
 }
 
 async function readIdentity(
@@ -109,6 +110,7 @@ export function createCatalogProvider(opts: {
   resolveToken?: (forceRefresh: boolean, control: ConnectorCallControl) => string | null | undefined | Promise<string | null | undefined>;
   fetchImpl?: CatalogFetch;
   now?: () => Date;
+  locale?: string;
 }): IntegrationProviderPort {
   const spec = getCatalogSpec(opts.connectorId);
   const resolveToken = async (control: ConnectorCallControl, forceRefresh = false) => opts.token ?? await opts.resolveToken?.(forceRefresh, control) ?? undefined;
@@ -124,7 +126,7 @@ export function createCatalogProvider(opts: {
     if (!fetchImpl) throw new CatalogLiveError("provider", undefined, `${spec.title} fetch unavailable`);
     const http = createCatalogHttp(controlledConnectorFetch(fetchImpl, control), now);
     try {
-      const result = await run(await resolveContext(spec, token, http, authExtras()), http);
+      const result = await run(await resolveContext(spec, token, http, authExtras(), opts.locale), http);
       await control.beforeEffect(); control.current();
       return result;
     } catch (error) {
@@ -132,7 +134,7 @@ export function createCatalogProvider(opts: {
       if (authExtras()?.auth_method !== "oauth" || !opts.resolveToken || !(error instanceof CatalogLiveError) || error.kind !== "needs_auth" || error.status === 403) throw error;
       const renewed = await resolveToken(control, true);
       if (!renewed) throw error;
-      const result = await run(await resolveContext(spec, renewed, http, authExtras()), http);
+      const result = await run(await resolveContext(spec, renewed, http, authExtras(), opts.locale), http);
       await control.beforeEffect(); control.current();
       return result;
     }

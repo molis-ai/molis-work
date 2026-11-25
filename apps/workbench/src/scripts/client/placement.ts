@@ -647,7 +647,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     // What this kind is called is the title its plugin's view declares; the button carries it (goal-inputs-html.ts), worded with that plugin's words.
     const kind = (button.textContent || "").trim() || (button.dataset.placementCreateTitle || "");
     try {
-      const result = await api("create", { station, project_id: here(), attach_to: attachTo, request_id: crypto.randomUUID(), title: readText("workbench.placement.untitled") + kind });
+      const result = await api("create", { station, project_id: here(), attach_to: attachTo, request_id: crypto.randomUUID(), title: readText("workbench.placement.untitled-kind", { kind }) });
       invalidate();
       const section = button.closest("[data-placement-linked-materials]");
       if (section && result.attached_key) {

@@ -4,17 +4,24 @@
   "locale": "zh",
   "messages": {
     "gmail.connection.inbound": "Feed 只读收信",
-    "gmail.connection.outbound": "出站动作未兑现：当前只读收信，不发送邮件。",
+    "gmail.connection.outbound": "目前只支持收信，不会发送邮件。",
     "gmail.connection.send-mail": "发送邮件",
     "gmail.connection.summary": "本机账号。Feed 只读收信。",
-    "gmail.guide.mcp-connected-note": "Google Workspace 开发者预览资格必需。",
+    "gmail.guide.mcp-connected-note": "需要 Google Workspace 开发者预览资格。",
     "gmail.guide.mcp-link": "查看 Gmail 官方 MCP（开发者预览）",
-    "gmail.guide.mcp-note": "Google Workspace 开发者预览资格必需；Molis Work 尚未接入。",
+    "gmail.guide.mcp-note": "需要 Google Workspace 开发者预览资格；Molis Work 暂未接入。",
     "gmail.guide.oauth-link": "创建 Google OAuth 客户端",
     "gmail.guide.oauth-note": "应用内支持 Gmail 只读 OAuth；需要自己的 Google Cloud 客户端和本机回调配置。",
-    "gmail.guide.token-note": "在 OAuth Playground 获取 gmail.readonly 用户访问令牌后可粘贴；到期后需更新。",
+    "gmail.guide.token-note": "在 OAuth Playground 获取 gmail.readonly 访问令牌后粘贴到这里；到期后需要更新。",
     "gmail.setup.create-oauth-client": "创建 OAuth 客户端",
     "gmail.setup.enable-the-gmail-api": "启用 Gmail API",
-    "gmail.setup.get-a-token-in-oauth-playground": "在 OAuth Playground 拿令牌"
+    "gmail.setup.get-a-token-in-oauth-playground": "在 OAuth Playground 获取令牌",
+    "gmail.permission.network.reason": "读取 Gmail 账号信息与收件箱邮件",
+    "gmail.permission.secret.reason": "使用按账号隔离保存的 Gmail 连接凭据",
+    "gmail.mail.no-body": "没有可读取的邮件正文，附件未读取",
+    "gmail.mail.no-subject": "无主题邮件",
+    "gmail.mail.from": "发件人：",
+    "gmail.mail.date": "时间：",
+    "gmail.mail.original": "原邮件："
   }
 }

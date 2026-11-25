@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { PLUGIN_LOCALE_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionPermissionDeclarations, defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TEXT_REF_LIMITS } from "@molis-ai/molis-work-contracts/platform/ui";
-import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { assertContract } from "@molis-ai/molis-work-plugin-sandbox";
+import { inspectActionDeclarations, parsePluginManifest, sandboxLocaleProblems, sandboxPluginManifest, sandboxProjectedPermissions } from "@molis-ai/molis-work-plugin-sdk";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
+import { packageContract } from "./fixtures/sandbox-package.js";
 
 // What a Manifest may say about its languages (FSS-52, specs/font-and-skin-system/spec.md §11). Reading the language files is slice T7's.
 
@@ -134,4 +136,121 @@ test("FSS-35 FSS-38 a produced Artifact type may name one short word from its ow
   assert.match(manifestProblems(withLocales(LOCALES, {}, { artifacts: { produces: [], consumes: [tagged] } })), wrongSlot);
   assert.match(manifestProblems(withLocales(LOCALES, {}, { process_items: { produces: [tagged], consumes: [] } })), wrongSlot);
   assert.match(manifestProblems(withLocales(LOCALES, {}, { process_items: { produces: [], consumes: [tagged] } })), wrongSlot);
+});
+
+test("localized declaration TextRefs on permissions, read_groups and actions parse and refuse malformed shapes", () => {
+  const query = {
+    capability_id: "declaration-rules.items.list",
+    version: 1,
+    operation: "query" as const,
+    action: {
+      title: "列出条目",
+      title_text: { key: "declaration-rules.action.list.title" },
+      description: "读取项目里的条目",
+      description_text: { key: "declaration-rules.action.list.description" },
+      kind: "query" as const,
+      scope: "project" as const,
+      permissions: ["items:read"],
+      subject_kinds: [],
+      audiences: ["user", "agent"] as const,
+      input_schema: { type: "object" },
+    },
+  };
+  const permission = { permission: "items:read", required: true, reason: "读取条目", reason_text: { key: "declaration-rules.permission.read" } };
+  const readGroup = {
+    group_id: "items",
+    title: "条目",
+    title_text: { key: "declaration-rules.read-group.items.title" },
+    description: "项目条目列表",
+    description_text: { key: "declaration-rules.read-group.items.description" },
+    actions: [query.capability_id],
+  };
+  const parsed = parsePluginManifest(withLocales(LOCALES, {}, { permissions: [permission], actions: [query], read_groups: [readGroup] }));
+  assert.deepEqual(parsed.permissions, [permission]);
+  assert.deepEqual(parsed.read_groups, [readGroup]);
+  assert.deepEqual(parsed.actions?.[0]?.action.title_text, { key: "declaration-rules.action.list.title" });
+  assert.deepEqual(parsed.actions?.[0]?.action.description_text, { key: "declaration-rules.action.list.description" });
+
+  // actionPermissionDeclarations attaches optional reason_text cleanly.
+  assert.deepEqual(actionPermissionDeclarations([query], "读取条目", undefined, { key: "declaration-rules.permission.read" }), [
+    { permission: "items:read", required: false, reason: "读取条目", reason_text: { key: "declaration-rules.permission.read" } },
+  ]);
+
+  // Own keys require ui.locales; common.* keys and bounded single-line literals are allowed without ui.locales.
+  const rawPermission = { permission: "items:read", required: true, reason: "读取条目" };
+  assert.match(manifestProblems(declarationManifest({ permissions: [permission] })), /ui\.locales/u);
+  assert.match(manifestProblems(declarationManifest({ permissions: [rawPermission], actions: [query] })), /ui\.locales/u);
+  assert.match(manifestProblems(declarationManifest({ permissions: [rawPermission], actions: [{ ...query, action: { ...query.action, title_text: undefined, description_text: undefined } }], read_groups: [readGroup] })), /ui\.locales/u);
+  assert.equal(manifestProblems(declarationManifest({
+    permissions: [{ ...permission, reason_text: { literal: "Read items" } }],
+    actions: [{ ...query, action: { ...query.action, title_text: { literal: "List items" }, description_text: { key: "common.control.confirm" } } }],
+    read_groups: [{ ...readGroup, title_text: { literal: "Items" }, description_text: { literal: "Project items" } }],
+  })), "");
+
+  // Reject args, fallback, owner, multiline, foreign prefix, and char-limit overflows.
+  assert.match(manifestProblems(withLocales(LOCALES, {}, { permissions: [{ ...permission, reason_text: { key: "declaration-rules.p", args: [] } }] })), /不接收参数/u);
+  assert.match(manifestProblems(withLocales(LOCALES, {}, { permissions: [{ ...permission, reason_text: { key: "other.p" } }] })), /本插件的键/u);
+  assert.match(manifestProblems(withLocales(LOCALES, {}, { permissions: [{ ...permission, reason_text: { literal: "a".repeat(201) } }] })), /200/u);
+  assert.match(manifestProblems(withLocales(LOCALES, {}, { permissions: [{ ...permission, reason_text: { literal: "a\nb" } }] })), /一行/u);
+  assert.match(manifestProblems(withLocales(LOCALES, {}, { permissions: [rawPermission], actions: [{ ...query, action: { ...query.action, title_text: { literal: "t".repeat(81) } } }] })), /80/u);
+  assert.match(manifestProblems(withLocales(LOCALES, {}, { permissions: [rawPermission], actions: [{ ...query, action: { ...query.action, description_text: { literal: "d".repeat(401) } } }] })), /400/u);
+  assert.match(manifestProblems(withLocales(LOCALES, {}, { permissions: [rawPermission], actions: [query], read_groups: [{ ...readGroup, title_text: { literal: "g".repeat(81) } }] })), /80/u);
+  assert.match(manifestProblems(withLocales(LOCALES, {}, { permissions: [rawPermission], actions: [query], read_groups: [{ ...readGroup, description_text: { literal: "g".repeat(201) } }] })), /200/u);
+
+  // Standalone inspectActionDeclarations also refuses malformed action title_text / description_text.
+  assert.ok(inspectActionDeclarations([{ ...query, action: { ...query.action, title_text: { literal: "a\nb" } } }], undefined).some(line => line.includes("title_text")));
+  assert.ok(inspectActionDeclarations([{ ...query, action: { ...query.action, description_text: { key: "x.y", fallback: "nope" } } }], undefined).some(line => line.includes("description_text")));
+});
+
+test("sandbox contracts project localized permission_reasons, operation title_text/description_text and read_groups with validation", () => {
+  const base = packageContract("com.example.notes");
+  const localized = {
+    ...base,
+    ui: { locales: { default: "en", available: ["en", "zh", "ja"] } },
+    permission_reasons: {
+      "storage:private": { key: "notes.perm.storage" },
+      "network:request": { key: "notes.perm.network" },
+    },
+    operations: base.operations.map(op => op.id === "notes.list"
+      ? { ...op, effects: { storage: ["read"], networkDomains: ["api.example.com"] }, title_text: { key: "notes.op.list.title" }, description_text: { key: "notes.op.list.desc" } }
+      : op),
+    read_groups: [{
+      group_id: "notes",
+      title: "笔记",
+      title_text: { key: "notes.rg.title" },
+      description: "笔记列表",
+      description_text: { key: "notes.rg.desc" },
+      operations: ["notes.list"],
+    }],
+  };
+  assertContract(localized);
+  const manifest = sandboxPluginManifest({
+    pluginId: localized.pluginId,
+    version: "1.0.0",
+    name: "Example notes",
+    publisher: { publisher_id: "example", signature: "ed25519:sha256:aa" },
+    presentation: false,
+    contract: localized,
+  });
+  assert.deepEqual(manifest.permissions[0]?.reason_text, { key: "notes.perm.storage" });
+  const projected = sandboxProjectedPermissions(manifest, { networkDomains: ["api.example.com"] }, localized.permission_reasons);
+  assert.deepEqual(projected.map(row => [row.permission, row.reason_text]), [["network:request", { key: "notes.perm.network" }]]);
+  const listAction = manifest.actions?.find(item => item.action.local_id === "notes.list");
+  assert.ok(listAction);
+  assert.deepEqual(listAction.action.title_text, { key: "notes.op.list.title" });
+  assert.deepEqual(listAction.action.description_text, { key: "notes.op.list.desc" });
+  assert.deepEqual(manifest.read_groups, [{
+    group_id: "notes",
+    title: "笔记",
+    title_text: { key: "notes.rg.title" },
+    description: "笔记列表",
+    description_text: { key: "notes.rg.desc" },
+    actions: [listAction.capability_id],
+  }]);
+  assert.equal(manifestProblems(manifest), "");
+
+  // Invalid sandbox localized fields are rejected by sandboxLocaleProblems and assertContract.
+  assert.ok(sandboxLocaleProblems({ ...localized, ui: undefined }).some(msg => msg.includes("ui.locales")));
+  assert.ok(sandboxLocaleProblems({ ...localized, read_groups: [{ ...localized.read_groups[0]!, operations: ["notes.missing"] }] }).some(msg => msg.includes("operations")));
+  assert.throws(() => assertContract({ ...localized, permission_reasons: { "storage:private": { key: "foreign.perm" } } }), { code: "sandbox.invalid_contract" });
 });

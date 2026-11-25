@@ -28,7 +28,7 @@ test("a plugin that follows the conventions has no gaps; one that does not is to
   assert.deepEqual(goodReport!.gaps, []);
   assert.equal(poorReport!.actions, 2, "only what agents can see counts");
   assert.deepEqual(poorReport!.gaps.map(gap => gap.area).sort(), ["capabilities", "capabilities", "context", "results"]);
-  assert.match(poorReport!.gaps.find(gap => gap.area === "context")!.text, /card.*没有读取动作/);
+  assert.match(poorReport!.gaps.find(gap => gap.area === "context")!.text, /card.*没有配套的读取动作/);
   assert.match(poorReport!.gaps.find(gap => gap.area === "results")!.text, /批量处理/);
 });
 
@@ -52,8 +52,8 @@ test("a change counts as linkable only when its one result kind can be read back
   assert.equal(good.linked_changes, 1);
   const results = good.gaps.filter(gap => gap.area === "results").map(gap => gap.text);
   assert.equal(results.length, 2);
-  assert.match(results.find(text => text.includes("workspace"))!, /^2 个修改动作的结果对象（workspace）没有读取动作.*整理工作区、批量移动/);
-  assert.match(results.find(text => !text.includes("workspace"))!, /^1 个修改动作没有说明结果是哪个对象.*关联两种对象/);
+  assert.match(results.find(text => text.includes("workspace"))!, /^2 个修改动作的结果对象（workspace）没有配套的读取动作.*整理工作区、批量移动/);
+  assert.match(results.find(text => !text.includes("workspace"))!, /^1 个修改动作没有声明结果对应的对象类型.*关联两种对象/);
   assert.equal(poor.linked_changes, 1, "a kind read by another provider still links");
   assert.deepEqual(poor.gaps.filter(gap => gap.area === "results" || gap.area === "context"), [], "nor is that kind reported as unreadable");
 });

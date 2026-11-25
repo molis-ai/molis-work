@@ -3,6 +3,9 @@
   "plugin_id": "io.molis.work.integration.rss",
   "version": "1.0.0",
   "name": "RSS",
+  "name_text": { "key": "rss.directory.name" },
+  "summary": "读取你订阅的公开 RSS 与 Atom 源更新。",
+  "summary_text": { "key": "rss.directory.summary" },
   "kind": "integration",
   "publisher": { "publisher_id": "io.adeptify", "signature": "adeptify-official-signature-v1" },
   "host_api_version": 1,
@@ -11,12 +14,15 @@
     { "deployment": "local", "entrypoint": "./dist/index.js" }
   ],
   "permissions": [
-    { "permission": "network:rss", "required": true, "reason": "读取用户选择的公开 RSS 地址" }
+    { "permission": "network:rss", "required": true, "reason": "读取你选择的公开 RSS 订阅地址", "reason_text": { "key": "rss.permission.network.reason" } }
   ],
   "capabilities": {
     "provides": ["connector.driver.rss.v1", "signal.adapter.rss.v1"],
     "consumes": ["connector.host.v1", "listener.host.v1", "signals.command.v1"]
   },
   "artifacts": { "produces": [], "consumes": [] },
-  "ui": { "contributions": ["settings.integration.rss"] }
+  "ui": {
+    "contributions": ["settings.integration.rss"],
+    "locales": { "default": "zh", "available": ["zh", "en", "ja"] }
+  }
 }

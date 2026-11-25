@@ -88,6 +88,55 @@ export interface PrologueApprovalWaiting {
   character?: string;
 }
 
+export type PrologueStopCategory =
+  | "memory-permission"
+  | "turn-limit"
+  | "budget"
+  | "time-limit"
+  | "auth"
+  | "rate-limit"
+  | "service-unavailable"
+  | "network"
+  | "context-overflow"
+  | "refused"
+  | "output-truncated"
+  | "interrupted"
+  | "compaction-failed"
+  | "compaction-cancelled"
+  | "guardrail"
+  | "guardrail-error"
+  | "circuit-breaker"
+  | "cancelled"
+  | "stopped"
+  | "model-error";
+
+/** Classify a Prologue stop reason / error string into a stable stop category for localized UI presentation. */
+export function classifyPrologueStopReason(reason: string): PrologueStopCategory | null {
+  const trimmed = reason.trim();
+  if (!trimmed) return null;
+  if (/^MEMORY_SCOPE_DENIED(?:\b|:)/u.test(trimmed)) return "memory-permission";
+  if (/too many tool turns|AGENT_BUDGET_EXCEEDED.*turn|maxTurns|of its \d+ turns/iu.test(trimmed)) return "turn-limit";
+  if (/MODEL_CONTEXT_OVERFLOW|CONTEXT_BUDGET_EXCEEDED|context.?length.?exceeded|maximum context length|prompt is too long/iu.test(trimmed)) return "context-overflow";
+  if (/MODEL_BUDGET_EXCEEDED|AGENT_BUDGET_EXCEEDED|of its \d+ tokens|token/iu.test(trimmed) && /budget|limit|exceed|of its \d+ tokens/iu.test(trimmed)) return "budget";
+  if (/wall.?clock|duration|timed.?out|ETIMEDOUT|MODEL_TIMEOUT/iu.test(trimmed)) return "time-limit";
+  if (/MODEL_AUTH|invalid.?api.?key|unauthori[sz]ed/iu.test(trimmed) || (/\bMODEL_HTTP_ERROR\b/u.test(trimmed) && /\b(?:401|403)\b/u.test(trimmed)) || /\b(?:401|403)\b.*(?:auth|key|forbidden|unauthori[sz]ed)/iu.test(trimmed)) return "auth";
+  if (/MODEL_RATE_LIMITED|429|529|rate.?limit|overloaded|too many requests/iu.test(trimmed)) return "rate-limit";
+  if (/MODEL_UNAVAILABLE|service.?unavailable|bad.?gateway/iu.test(trimmed) || (/\bMODEL_HTTP_ERROR\b/u.test(trimmed) && /\b50[0234]\b/u.test(trimmed)) || /\b50[0234]\b.*(?:unavailable|bad gateway|service|server|internal)/iu.test(trimmed)) return "service-unavailable";
+  if (/MODEL_NETWORK_FAILED|ECONNREFUSED|ENOTFOUND|ECONNRESET|EHOSTUNREACH|ENETUNREACH|fetch failed/iu.test(trimmed)) return "network";
+  if (/MODEL_REFUSED|content.?filter|safety.?refus|refused by model/iu.test(trimmed)) return "refused";
+  if (/MODEL_OUTPUT_TRUNCATED|output.?truncated|max_tokens/iu.test(trimmed)) return "output-truncated";
+  if (/RUN_INTERRUPTED|本轮因中断结束/u.test(trimmed)) return "interrupted";
+  if (/compaction-cancelled|上下文整理已取消/u.test(trimmed)) return "compaction-cancelled";
+  if (/CONTEXT_COMPACTION|上下文整理失败/u.test(trimmed)) return "compaction-failed";
+  if (/护栏.*自身出错|guardrail.*(?:error|failed)/iu.test(trimmed)) return "guardrail-error";
+  if (/被护栏.*拦下|\bguardrail\b/iu.test(trimmed)) return "guardrail";
+  if (/circuit.?tripped|连续.*次调用都没有成功|同一个调用连续重复了|同样的话连续重复了/iu.test(trimmed)) return "circuit-breaker";
+  if (/^(?:已取消|cancelled|canceled)$/iu.test(trimmed)) return "cancelled";
+  if (/^(?:已停止|stopped)$/iu.test(trimmed)) return "stopped";
+  if (/\b(?:MODEL|AGENT|CONTEXT|RUN|TOOL|EFFECT|RUNTIME)_[A-Z0-9_]+\b/u.test(trimmed) || /运行时报告失败/u.test(trimmed)) return "model-error";
+  return null;
+}
+
 export interface PrologueStreamState {
   /** Derived presentation order, not another execution ledger. */
   next_sequence: number;
@@ -600,7 +649,9 @@ function applyCompactionEnded(state: PrologueStreamState, event: PrologueEvent, 
   if (activity) Object.assign(activity, { state: succeeded || skipped ? "completed" : "failed", summary: message, output: message, at });
   state.phase = "running";
   // A failed compaction is not the round's end: the round goes on while its history fits, and says so if it stops.
-  if (event.type === "compaction-cancelled") state.stop_reason = message;
+  if (event.type === "compaction-cancelled") {
+    state.stop_reason = message;
+  }
   return true;
 }
 

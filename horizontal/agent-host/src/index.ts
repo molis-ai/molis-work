@@ -50,7 +50,7 @@ export { createPrologueImageIntake } from "./adapters/prologue-images.js";
 export { takeImagesIn } from "./adapters/prologue-run-start.js";
 export { attachedImages, RUN_IMAGES_MAX, UNMARKED_IMAGES_NOTE } from "./run-images.js";
 export { SUBAGENT_KEY_PATTERN } from "./adapters/prologue-collaboration.js";
-export { reviewPresentation, reviewText, type ReviewWord, type ReviewWords } from "./review-presentation.js";
+export { presentToolReview, reviewField, reviewPresentation, reviewText, type ReviewWord, type ReviewWords } from "./review-presentation.js";
 export type { AgentRoundSkillCatalog, AgentSkillSource } from "./round-skills.js";
 export type { AgentHostWorktree } from "./run-start.js";
 export { emptyCapabilityMatrix } from "./capabilities.js";
@@ -102,6 +102,7 @@ export { resolveModelHostname } from "./adapters/node-model-dns.js";
 export { PrologueApprovalBridge } from "./adapters/prologue-approvals.js";
 export {
   applyRunEvent,
+  classifyPrologueStopReason,
   closeInterruptedPrologueStream,
   emptyPrologueStreamState,
   prologuePhaseOf,
@@ -111,6 +112,7 @@ export type {
   PrologueApprovalWaiting,
   PrologueControlState,
   PrologueEvent,
+  PrologueStopCategory,
   PrologueStreamState,
   PrologueUsageReceipt,
 } from "./adapters/prologue-stream.js";

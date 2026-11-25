@@ -14,18 +14,20 @@ declare global {
 
 /** The material the Assistant is handed with a todo: its words, dates, who it waits on, notes, sources and links. */
 function todoMaterial(page: TodoPage, item: TodoItem) {
+  const sep = uiText.text("common.punctuation.label-separator");
+  const clause = uiText.text("common.punctuation.clause-separator");
   return {
-    title: `${uiText.text("todo.page.title")}「${item.title}」`,
+    title: `${uiText.text("todo.page.title")} ${uiText.text("common.punctuation.quoted", { value: item.title })}`,
     text: [
-      `${uiText.text("todo.field.what")}：${item.title}`,
-      `${uiText.text("todo.field.status")}：${page.statusName(item.status)}`,
-      item.due_date ? `${uiText.text("todo.field.due-date")}：${item.due_date}${item.due_time ? ` ${item.due_time}` : ""}` : "",
-      item.planned_date ? `${uiText.text("todo.field.planned-date-long")}：${item.planned_date}` : "",
-      item.waiting ? `${uiText.text("todo.field.waiting-who")}：${item.waiting.who}${item.waiting.what ? `，${item.waiting.what}` : ""}` : "",
-      item.notes ? `${uiText.text("todo.field.notes")}：${item.notes}` : "",
+      `${uiText.text("todo.field.what")}${sep}${item.title}`,
+      `${uiText.text("todo.field.status")}${sep}${page.statusName(item.status)}`,
+      item.due_date ? `${uiText.text("todo.field.due-date")}${sep}${item.due_date}${item.due_time ? ` ${item.due_time}` : ""}` : "",
+      item.planned_date ? `${uiText.text("todo.field.planned-date-long")}${sep}${item.planned_date}` : "",
+      item.waiting ? `${uiText.text("todo.field.waiting-who")}${sep}${item.waiting.who}${item.waiting.what ? `${clause}${item.waiting.what}` : ""}` : "",
+      item.notes ? `${uiText.text("todo.field.notes")}${sep}${item.notes}` : "",
       ...item.sources.filter((source) => source.kind !== "manual").map((source) =>
-        `${uiText.text("todo.source.title")}：${source.title}${source.reason ? `（${source.reason}）` : ""}${source.excerpt ? `\n“${source.excerpt}”` : ""}`),
-      ...item.links.map((link) => `${uiText.text("todo.link.title")}：${link.title}`),
+        `${uiText.text("todo.source.title")}${sep}${source.title}${source.reason ? uiText.text("common.punctuation.in-parens", { value: source.reason }) : ""}${source.excerpt ? `\n${uiText.text("common.punctuation.quoted", { value: source.excerpt })}` : ""}`),
+      ...item.links.map((link) => `${uiText.text("todo.link.title")}${sep}${link.title}`),
     ].filter(Boolean).join("\n"),
   };
 }

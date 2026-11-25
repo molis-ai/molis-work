@@ -32,7 +32,7 @@
 
 1. **第三方代码不进宿主进程，也不进浏览器页面。** 宿主进程里执行（`execution: "host"`）只留给随宿主编译的内置插件，由 Plugin Runtime 强制（BL-588，S-75 ⑥：`unsigned`、`pinned` 配进程内定义被拒，例外只有开发目录刚加载的那一个和宿主收到的测试夹具，按对象身份由宿主代码放行）；第三方一律 `execution: "sandbox"`，界面由平台的 UI 目录画。
 2. **身份 = 发布者密钥指纹 + `plugin_id`。** 密钥变了就是另一个插件（沿用 PLUGIN-PLATFORM.md §2）。
-3. **权限 = Manifest 声明的上限 ∩ 用户逐项授予的。** 安装时用户看到每一项权限和它的理由；没有「全部允许」。
+3. **权限 = Manifest 声明的上限 ∩ 用户逐项授予的。** 安装时用户看到每一项权限和它的理由（直白温和、无黑话；支持随包签名的多语言 `ui.locales`——`molis-work plugin create` 默认生成 `en`/`zh`/`ja` 三语词包与 `permissions[].reason_text`，现行公共合同同步支持可选 `permissions[].reason_text`、`read_groups[].title_text/description_text` 与 `actions[].action.title_text/description_text` 声明，与内置插件同等待遇）；没有「全部允许」。
 4. **一个 Home 一个执行进程。** 命令行不自己安装，转给常驻宿主（`AGENTS.md` 硬约束）。
 5. **不静默升级、不静默扩权。** 升级只在同一发布者、版本更高、授权不超出已授予范围时进行（沿用现有升级规则）；签名的包装进来的插件，新版本比旧版本多要的权限，由你在预览里看到并同意后才有，升级本身也是你点“安装”才发生（BL-623）。
 

@@ -108,15 +108,44 @@ const differences = (look: BoardLook, theme: LookTheme): string => [
   }),
 ].join(" ");
 
+const JA_SANS = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", "Meiryo", "Noto Sans JP"';
+const JA_ROUNDED = '"Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo", "Noto Sans JP"';
+const JA_SERIF = '"Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP"';
+const MONO_TOKENS = new Set(Object.values(BASELINE_SPEC.font_roles.find((role) => role.name === "code")!.tokens));
+
+function jaFontOverrides(font: UiResolvedFont): string {
+  const decls: string[] = [];
+  for (const [name, value] of Object.entries(font.tokens)) {
+    if (MONO_TOKENS.has(name) || typeof value !== "string") continue;
+    let next: string | null = null;
+    if (value.includes('"Molis Folio Rounded SC"')) {
+      next = value.replace('"Molis Folio Rounded SC"', `${JA_ROUNDED}, "Molis Folio Rounded SC"`);
+    } else if (value.includes('"Noto Sans SC"')) {
+      next = value.replace('"Noto Sans SC"', `${JA_SANS}, "Noto Sans SC"`);
+    } else if (value.includes('"Songti SC"')) {
+      next = value.replace('"Songti SC"', `${JA_SERIF}, "Songti SC"`);
+    }
+    if (next) decls.push(`--${name}: ${next};`);
+  }
+  return decls.join(" ");
+}
+
 /**
  * Every token a look sets, as the rules that give them to `[data-look]`. The baseline is written whole once for each theme and each other look writes only
  * what differs from it, after: the board does not carry the same five kilobytes for each look.
  */
 export function lookRules(looks: readonly BoardLook[] = BOARD_LOOKS): string {
   const whole = THEMES.map((theme) => `${lookScope(null, theme)} { color-scheme: ${theme}; ${skinTokenDeclarations(BASELINE_SKIN, { theme })} ${aliasDeclarations()} ${fontTokenDeclarations(BASELINE_FONT)} }`);
-  const own = looks.flatMap((look) => THEMES.flatMap((theme) => {
-    const css = differences(look, theme);
-    return css === "" ? [] : [`${lookScope(look.id, theme)} { ${css} }`];
-  }));
-  return [...whole, ...own].join("\n  ");
+  const baseJa = jaFontOverrides(BASELINE_FONT);
+  const wholeJa = baseJa ? [`:is(${lookScope(null, "light")}, ${lookScope(null, "dark")}):lang(ja) { ${baseJa} }`] : [];
+  const own = looks.flatMap((look) => {
+    const themed = THEMES.flatMap((theme) => {
+      const css = differences(look, theme);
+      return css === "" ? [] : [`${lookScope(look.id, theme)} { ${css} }`];
+    });
+    const ja = jaFontOverrides(look.font);
+    const jaRule = ja && ja !== baseJa ? [`:is(${lookScope(look.id, "light")}, ${lookScope(look.id, "dark")}):lang(ja) { ${ja} }`] : [];
+    return [...themed, ...jaRule];
+  });
+  return [...whole, ...wholeJa, ...own].join("\n  ");
 }

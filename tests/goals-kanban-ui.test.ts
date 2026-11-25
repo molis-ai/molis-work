@@ -51,7 +51,7 @@ test("kanban keeps all visible-status columns, empty columns, and current-tree c
   assert.match(columnBody(html, "waiting"), /data-goal-id="ROOT"/);
   assert.match(columnBody(html, "waiting_user"), /<details data-kanban-group>/);
   assert.match(columnBody(html, "waiting_user"), /class="goal-kanban-count">0</);
-  assert.match(columnBody(html, "waiting_user"), /class="goal-kanban-empty">此栏为空</);
+  assert.match(columnBody(html, "waiting_user"), /class="goal-kanban-empty">这一栏还没有目标</);
   assert.match(columnBody(html, "in_progress"), /class="goal-kanban-count">1</);
   assert.match(columnBody(html, "in_progress"), /<details open data-kanban-group>/);
   assert.doesNotMatch(columnBody(html, "in_progress"), /goal-kanban-empty/);
@@ -62,7 +62,7 @@ test("kanban keeps all visible-status columns, empty columns, and current-tree c
   assert.match(html, /APP outcome/);
   assert.match(html, /data-kanban-card[^>]*data-goal-id="APP"[^>]*class="[^"]*is-selected/);
   assert.doesNotMatch(html, /data-goal-id="ARCHIVED"|data-goal-id="TRASHED"/);
-  assert.doesNotMatch(html, /data-graph-frame|draggable="true"|还没有目标|从想要的结果开始|创建第一条 Goal|data-open-create|<h1>/);
+  assert.doesNotMatch(html, /data-graph-frame|draggable="true"|>还没有目标<|从想要的结果开始|创建第一条 Goal|data-open-create|<h1>/);
 });
 
 test("kanban localizes column labels without translating user titles or adding how-to copy", () => {
@@ -75,7 +75,7 @@ test("kanban localizes column labels without translating user titles or adding h
   assert.match(html, />Waiting</);
   assert.match(html, />Can record; not ready to close</);
   assert.match(html, />Completed</);
-  assert.match(html, />Cancelled</);
+  assert.match(html, />Canceled</);
   assert.doesNotMatch(html, /Kanban|How to use|Click a card to open/);
 });
 

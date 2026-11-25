@@ -105,7 +105,6 @@ export interface ShelfPage {
   readonly search: HTMLInputElement | null;
   readonly projectPrefix: string;
   readonly api: string;
-  readonly hintDefault: string;
   readonly reading: Reading;
   snapshot: Snapshot;
   selected: Item | null;

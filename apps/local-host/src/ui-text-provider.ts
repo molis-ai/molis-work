@@ -9,7 +9,7 @@ import { createTextReader, installUiText, localeMessageArguments, say, textKeyPr
 import { installCatalogTextScope, workbenchPlatformText, type MolisWorkSettingsView } from "@molis-ai/molis-work-app-workbench";
 import { pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, type DirectoryWordResolver, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { hostLog } from "./host-log.js";
-import { runWithRegisteredText, textScope, webLanguage, DEFAULT_WEB_LOCALE } from "./web-locale.js";
+import { activeLocale, runWithRegisteredText, textScope, webLanguage, DEFAULT_WEB_LOCALE } from "./web-locale.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS, shippedPartByManifestId } from "./plugin-registry.js";
 import { HOST_SURFACE_REGISTRATIONS } from "./host-surfaces.js";
 import { registeredPackageDirectory, registeredPluginLocaleFiles } from "./registered-plugin-files.js";
@@ -156,6 +156,16 @@ export function drawRegisteredText<T>(manifest: PluginManifest, draw: (resolve?:
   const reader = registeredBuiltinText(manifest);
   const resolve = directoryWordResolver(reader);
   return reader ? runWithRegisteredText(reader, () => draw(resolve)) : draw(resolve);
+}
+
+/** Safe resolver for optional Manifest `*_text` fields when the Host text provider and a display locale are active. */
+export function manifestWordResolver(reader: PluginTextReader | null, requested?: string | null): DirectoryWordResolver | undefined {
+  if (!hasHostUiText()) return undefined;
+  const locale = requested ?? activeLocale();
+  if (locale === null) return undefined;
+  const resolve = directoryWordResolver(reader, locale);
+  if (reader !== null) return resolve;
+  return (ref, original) => ref.key.startsWith("common.") ? resolve(ref, original) : original;
 }
 
 /**

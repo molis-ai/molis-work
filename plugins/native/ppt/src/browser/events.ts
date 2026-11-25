@@ -15,6 +15,15 @@ export function installEvents(page: PptPage): void {
     reload();
   });
   document.addEventListener("molis-work:model-ready", reload);
+  const languageAbort = new AbortController();
+  window.addEventListener("pagehide", () => languageAbort.abort(), { once: true });
+  document.addEventListener("molis-work:language-changed", () => {
+    page.renderList();
+    if (!s.selected) return;
+    page.paintStatus(s.selected);
+    page.renderSlideList(s.selected);
+    page.paintView(page.liveRecord());
+  }, { signal: languageAbort.signal });
   window.addEventListener("beforeunload", (event) => {
     if (s.selected && (s.saveError || s.editRev > s.savedRev)) {
       event.preventDefault();

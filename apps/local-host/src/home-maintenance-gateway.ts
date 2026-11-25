@@ -10,7 +10,7 @@ import { probeMcpResident, probeMcpResidentReport } from "./mcp-resident-health.
 import { resolveConfiguredHome } from "./product-home.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { RESIDENT_HOST_URL_ENV, postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
-import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
+import { readLocalWebBody, sendLocalGatewayJson as sendJson } from "./web-http.js";
 
 /** S-07 control gateway for online Home maintenance (online SQLite backup while resident Host holds `storage-owner`). */
 export const HOME_MAINTENANCE_PATH = "/api/internal/home-maintenance";

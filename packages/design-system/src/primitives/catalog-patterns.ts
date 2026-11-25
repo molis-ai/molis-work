@@ -3,7 +3,7 @@
 // tokens with Soft Workbench's values as fallbacks, and move into the page sheets with the first product page that uses them.
 import { icon, renderButton, renderCheckbox, renderInput, renderInputGroup, renderProgress, renderStatusMark, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu, renderMenuItem } from "./overlay.js";
-import { section, specimen } from "./catalog-parts.js";
+import { resolveCatalogSay, section, specimen, type CatalogSay } from "./catalog-parts.js";
 
 const SURFACE = "border: 1px solid var(--line); border-radius: var(--r-card); background: var(--paper)";
 const RADIUS = "var(--r-control)";
@@ -145,48 +145,66 @@ ${ITEM_ROW_STYLES}
 
 const ghostIcon = (label: string, name: PluginIconName, attrs: Record<string, string | boolean> = {}) =>
   renderButton({ label, variant: "ghost", size: "icon", icon: name, iconOnly: true, attrs });
-const splitMenu = (variant: "primary" | "secondary", items: string) => `<div class="mw-compose__anchor">${renderButton({
-  label: "更多选项", variant, size: "icon", icon: "chevron-down", iconOnly: true,
+const splitMenu = (variant: "primary" | "secondary", items: string, moreLabel: string) => `<div class="mw-compose__anchor">${renderButton({
+  label: moreLabel, variant, size: "icon", icon: "chevron-down", iconOnly: true,
   attrs: { "data-compose-menu-toggle": "", "aria-expanded": "false", "aria-haspopup": "menu" },
 })}<div class="mw-compose__menu" data-compose-menu hidden>${renderMenu({ items })}</div></div>`;
 
-export function buttonGroupSection(): string {
+export function buttonGroupSection(say: CatalogSay = resolveCatalogSay()): string {
   const group = (label: string, body: string) => `<div class="mw-btn-group" role="group" aria-label="${label}">${body}</div>`;
   const icons = (items: Array<[string, PluginIconName]>) => items.map(([label, name]) => renderButton({ label, variant: "secondary", size: "icon", icon: name, iconOnly: true })).join("");
-  const publish = group("发布", renderButton({ label: "发布", variant: "primary" }) + splitMenu("primary",
-    renderMenuItem({ label: "定时发布…", iconName: "clock" }) + renderMenuItem({ label: "存为草稿", iconName: "save" }),
+  const moreOptions = say("workbench.catalog-board.ex.pat-more-options");
+  const publish = group(say("workbench.catalog-board.ex.pat-publish"), renderButton({ label: say("workbench.catalog-board.ex.pat-publish"), variant: "primary" }) + splitMenu("primary",
+    renderMenuItem({ label: say("workbench.catalog-board.ex.pat-schedule-publish"), iconName: "clock" }) + renderMenuItem({ label: say("workbench.catalog-board.ex.pat-save-draft"), iconName: "save" }),
+    moreOptions,
   ));
-  const exporter = group("导出", renderButton({ label: "导出", variant: "secondary", icon: "download" }) + splitMenu("secondary",
-    renderMenuItem({ label: "PDF", iconName: "file" }) + renderMenuItem({ label: "Markdown", iconName: "text" }) + renderMenuItem({ label: "网页", iconName: "globe" }),
+  const exporter = group(say("workbench.catalog-board.ex.pat-export"), renderButton({ label: say("workbench.catalog-board.ex.pat-export"), variant: "secondary", icon: "download" }) + splitMenu("secondary",
+    renderMenuItem({ label: "PDF", iconName: "file" }) + renderMenuItem({ label: "Markdown", iconName: "text" }) + renderMenuItem({ label: say("workbench.catalog-board.ex.pat-web-page"), iconName: "globe" }),
+    moreOptions,
   ));
-  return section("button-group", "Button Group / Split Button", `<div class="mw-catalog__specimens">${specimen("成组",
-    group("历史", icons([["撤销", "undo"], ["重做", "redo"]])) + group("翻页", icons([["上一个", "chevron-left"], ["下一个", "chevron-right"]]))
-    + group("文件操作", renderButton({ label: "复制", variant: "secondary", icon: "copy" }) + renderButton({ label: "固定", variant: "secondary", icon: "pin" }) + renderButton({ label: "分享", variant: "secondary", icon: "share" })),
-  )}${specimen("分裂按钮", publish + exporter)}${specimen("带计数", group("关注", renderButton({ label: "关注", variant: "secondary", icon: "star" }) + `<span class="mw-btn-group__count" aria-label="128 人关注">128</span>`))}</div>`);
+  return section("button-group", "Button Group / Split Button", `<div class="mw-catalog__specimens">${specimen(say("workbench.catalog-board.ex.pat-grouped"),
+    group(say("workbench.catalog-board.ex.pat-history"), icons([[say("workbench.catalog-board.ex.pat-undo"), "undo"], [say("workbench.catalog-board.ex.pat-redo"), "redo"]]))
+    + group(say("workbench.catalog-board.ex.pat-pagination"), icons([[say("workbench.catalog-board.ex.pat-previous"), "chevron-left"], [say("workbench.catalog-board.ex.pat-next"), "chevron-right"]]))
+    + group(say("workbench.catalog-board.ex.pat-file-actions"), renderButton({ label: say("workbench.catalog-board.ex.pat-copy"), variant: "secondary", icon: "copy" }) + renderButton({ label: say("workbench.catalog-board.ex.pat-pin"), variant: "secondary", icon: "pin" }) + renderButton({ label: say("workbench.catalog-board.ex.pat-share"), variant: "secondary", icon: "share" })),
+  )}${specimen(say("workbench.catalog-board.ex.pat-split-button"), publish + exporter)}${specimen(say("workbench.catalog-board.ex.pat-with-count"), group(say("workbench.catalog-board.ex.pat-star"), renderButton({ label: say("workbench.catalog-board.ex.pat-star"), variant: "secondary", icon: "star" }) + `<span class="mw-btn-group__count" aria-label="${say("workbench.catalog-board.ex.pat-star-count", { count: 128 })}">128</span>`))}</div>`);
 }
 
-export function tagInputSection(): string {
-  const tag = (label: string) => `<span class="mw-tag">${label}<button type="button" data-tag-remove aria-label="移除 ${label}">${icon("x")}</button></span>`;
+export function tagInputSection(say: CatalogSay = resolveCatalogSay()): string {
+  const tag = (label: string) => `<span class="mw-tag">${label}<button type="button" data-tag-remove aria-label="${say("workbench.catalog-board.ex.pat-tag-remove", { label })}">${icon("x")}</button></span>`;
   const suggest = (label: string) => `<button type="button" class="mw-tag mw-tag--add" data-tag-add="${label}">${icon("plus")}${label}</button>`;
-  return section("tag-input", "Tag Input", `<div class="mw-catalog__specimens">${specimen("标签", `<div class="mw-tags mw-input-group" data-tags>${
-    ["设计", "调研", "第三季度"].map(tag).join("")
-  }${renderInput({ placeholder: "回车添加", attrs: { "aria-label": "添加标签", "data-tags-input": "" } })}</div><div class="mw-tags__suggest">${["周报", "客户", "待定"].map(suggest).join("")}</div>`)}</div>`);
+  const initialTags = [
+    say("workbench.catalog-board.ex.pat-tag-design"),
+    say("workbench.catalog-board.ex.pat-tag-research"),
+    say("workbench.catalog-board.ex.pat-tag-q3"),
+  ];
+  const suggestedTags = [
+    say("workbench.catalog-board.ex.pat-tag-weekly"),
+    say("workbench.catalog-board.ex.pat-tag-customer"),
+    say("workbench.catalog-board.ex.pat-tag-tbd"),
+  ];
+  return section("tag-input", "Tag Input", `<div class="mw-catalog__specimens">${specimen(say("workbench.catalog-board.ex.pat-tags"), `<div class="mw-tags mw-input-group" data-tags>${
+    initialTags.map(tag).join("")
+  }${renderInput({ placeholder: say("workbench.catalog-board.ex.pat-tag-placeholder"), attrs: { "aria-label": say("workbench.catalog-board.ex.pat-tag-add-label"), "data-tags-input": "" } })}</div><div class="mw-tags__suggest">${suggestedTags.map(suggest).join("")}</div>`)}</div>`);
 }
 
-export function dropZoneSection(say: (key: string) => string = (k) => k): string {
+export function dropZoneSection(say: CatalogSay = resolveCatalogSay()): string {
   const zone = (attrs: string, mark: PluginIconName, title: string, meta: string, compact = false) =>
     `<div class="mw-drop${compact ? " mw-drop--compact" : ""}"${attrs}><span class="mw-mark">${icon(mark)}</span><p>${title}</p><p>${meta}</p></div>`;
-  const pick = `拖到这里，或 ${renderButton({ label: "选择文件", variant: "link" })}`;
-  const compact = zone(" data-drop-live", "paperclip", pick, "单个不超过 50 MB", true) + zone(" data-dropping", "upload", "松开即添加", "3 个文件", true)
-    + zone(" data-drop-refused", "x", "不收文件夹", "只收 PDF、图片和表格", true);
+  const pick = `${say("workbench.catalog-board.ex.pat-drop-prefix")} ${renderButton({ label: say("workbench.catalog-board.ex.pat-drop-choose"), variant: "link" })}`;
+  const compact = zone(" data-drop-live", "paperclip", pick, say("workbench.catalog-board.ex.pat-drop-limit"), true)
+    + zone(" data-dropping", "upload", say("workbench.catalog-board.ex.pat-drop-release"), say("workbench.catalog-board.ex.pat-drop-count", { count: 3 }), true)
+    + zone(" data-drop-refused", "x", say("workbench.catalog-board.ex.pat-drop-no-folders"), say("workbench.catalog-board.ex.pat-drop-accepted-short"), true);
   const upload = (mark: PluginIconName, name: string, body: string, end: string, sample = false) =>
     `<li class="mw-upload"${sample ? " data-drop-sample" : ""}><span class="mw-mark">${icon(mark)}</span><span>${name}${body}</span>${end}</li>`;
-  return section("drop-zone", "Drop Zone", `<div class="mw-catalog__specimens">${specimen("放下文件", zone(" data-drop-live", "upload", pick, "PDF、图片、表格 · 单个不超过 50 MB"))}${
+  const interviewName = say("workbench.catalog-board.ex.pat-file-interview");
+  const sketchName = say("workbench.catalog-board.ex.pat-file-sketch");
+  const reportName = say("workbench.catalog-board.ex.pat-file-annual-report");
+  return section("drop-zone", "Drop Zone", `<div class="mw-catalog__specimens">${specimen(say("workbench.catalog-board.ex.pat-drop-specimen"), zone(" data-drop-live", "upload", pick, say("workbench.catalog-board.ex.pat-drop-meta")))}${
     specimen(say("workbench.context-onboarding.compact"), compact)}${
-    specimen("上传", `<ul class="mw-uploads" data-drop-list>${
-      upload("note", "访谈记录.docx", renderProgress({ value: 62, label: "访谈记录.docx 已上传 62%" }), `<small>62%</small>${ghostIcon("取消上传 访谈记录.docx", "x")}`)
-      + upload("image", "首页草图.png", "<small>820 KB</small>", renderStatusMark({ label: "已上传", state: "done", tone: "done" }), true)
-      + upload("file", "年度报告.pdf", `<small class="is-failed">超过 50 MB</small>`, renderButton({ label: say("common.control.retry"), variant: "ghost", size: "sm" }))
+    specimen(say("workbench.catalog-board.ex.pat-upload"), `<ul class="mw-uploads" data-drop-list>${
+      upload("note", interviewName, renderProgress({ value: 62, label: say("workbench.catalog-board.ex.pat-upload-progress", { name: interviewName, percent: 62 }) }), `<small>62%</small>${ghostIcon(say("workbench.catalog-board.ex.pat-upload-cancel", { name: interviewName }), "x")}`)
+      + upload("image", sketchName, "<small>820 KB</small>", renderStatusMark({ label: say("workbench.catalog-board.ex.pat-uploaded"), state: "done", tone: "done" }), true)
+      + upload("file", reportName, `<small class="is-failed">${say("workbench.catalog-board.ex.pat-exceeds-limit")}</small>`, renderButton({ label: say("common.control.retry"), variant: "ghost", size: "sm" }))
     }</ul>`)}</div>`);
 }
 
@@ -200,58 +218,64 @@ function trend(values: number[], label: string): string {
   return `<svg class="mw-stat__trend" viewBox="0 0 200 32" preserveAspectRatio="none" role="img" aria-label="${label}">${line(points.slice(0, -1))}${line(points.slice(-2))}${dot}${dot}</svg>`;
 }
 
-export function statSection(): string {
+export function statSection(say: CatalogSay = resolveCatalogSay()): string {
+  const vsLastWeek = say("workbench.catalog-board.ex.pat-stat-vs-last-week");
   const delta = (tone: "success" | "danger", up: boolean, text: string) =>
-    `<p class="mw-stat__delta"><span class="mw-badge mw-badge--${tone}">${icon(up ? "chevron-up" : "chevron-down")}${text}</span>比上周</p>`;
+    `<p class="mw-stat__delta"><span class="mw-badge mw-badge--${tone}">${icon(up ? "chevron-up" : "chevron-down")}${text}</span>${vsLastWeek}</p>`;
   const tile = (label: string, value: string, body: string) => `<article class="mw-stat"><p>${label}</p><strong>${value}</strong>${body}</article>`;
-  return section("stat", "Stat", `<div class="mw-catalog__specimens">${specimen("数字卡片", `<div class="mw-stats"><div>${
-    tile("本周完成", "128", delta("success", true, "12%") + trend([62, 70, 66, 74, 81, 77, 88, 93, 90, 104, 114, 128], "近 12 周完成数，本周最高"))
-    + tile("失败的运行", "7", delta("danger", true, "3") + trend([4, 6, 3, 5, 4, 2, 3, 5, 4, 3, 4, 7], "近 12 周失败数，本周上升"))
-    + tile("平均用时", "4.2<small>分钟</small>", delta("success", false, "8%") + trend([7.1, 6.8, 6.9, 6.2, 5.9, 6.1, 5.4, 5.2, 4.9, 4.8, 4.6, 4.2], "近 12 周平均用时，持续下降"))
-    + tile("本机存储", "4.2<small>/ 10 GB</small>", `<p class="mw-stat__delta">还剩 5.8 GB</p>${renderProgress({ value: 42, label: "已用 42%" })}`)
+  return section("stat", "Stat", `<div class="mw-catalog__specimens">${specimen(say("workbench.catalog-board.ex.pat-stat-cards"), `<div class="mw-stats"><div>${
+    tile(say("workbench.catalog-board.ex.pat-stat-done-week"), "128", delta("success", true, "12%") + trend([62, 70, 66, 74, 81, 77, 88, 93, 90, 104, 114, 128], say("workbench.catalog-board.ex.pat-stat-done-trend")))
+    + tile(say("workbench.catalog-board.ex.pat-stat-failed-runs"), "7", delta("danger", true, "3") + trend([4, 6, 3, 5, 4, 2, 3, 5, 4, 3, 4, 7], say("workbench.catalog-board.ex.pat-stat-failed-trend")))
+    + tile(say("workbench.catalog-board.ex.pat-stat-avg-duration"), `4.2<small>${say("workbench.catalog-board.ex.pat-unit-min")}</small>`, delta("success", false, "8%") + trend([7.1, 6.8, 6.9, 6.2, 5.9, 6.1, 5.4, 5.2, 4.9, 4.8, 4.6, 4.2], say("workbench.catalog-board.ex.pat-stat-duration-trend")))
+    + tile(say("workbench.catalog-board.ex.pat-stat-local-storage"), "4.2<small>/ 10 GB</small>", `<p class="mw-stat__delta">${say("workbench.catalog-board.ex.pat-stat-remaining", { amount: "5.8 GB" })}</p>${renderProgress({ value: 42, label: say("workbench.catalog-board.ex.pat-stat-used-pct", { percent: 42 }) })}`)
   }</div></div>`)}</div>`);
 }
 
-export function rowsSection(say: (key: string) => string): string {
+export function rowsSection(say: CatalogSay = resolveCatalogSay()): string {
   const item = (mark: PluginIconName, title: string, meta: string, end: string) =>
     `<li class="mw-item"><span class="mw-mark">${icon(mark)}</span><span><strong>${title}</strong><small>${meta}</small></span><span class="mw-item__end">${end}</span></li>`;
-  const more = (name: string) => ghostIcon(`${name} 的更多操作`, "more");
+  const more = (name: string) => ghostIcon(say("workbench.catalog-board.ex.pat-more-actions", { name }), "more");
+  const reviewName = say("workbench.catalog-board.ex.pat-file-review");
+  const sketchName = say("workbench.catalog-board.ex.pat-file-sketch");
+  const customersName = say("workbench.catalog-board.ex.pat-file-customers");
   const items = `<ul class="mw-items">${
-    item("file", "季度复盘.pdf", "成果库 · 2.4 MB", `10 分钟前${more("季度复盘.pdf")}`)
-    + item("image", "首页草图.png", "设计 · 820 KB", renderStatusMark({ label: "同步中", state: "syncing", tone: "progress" }) + more("首页草图.png"))
-    + item("database", "客户名单.csv", "导入 · 1,284 行", renderStatusMark({ label: say("workbench.assistant-delivery.failed"), state: "failed", tone: "blocked" }) + renderButton({ label: say("common.control.retry"), variant: "ghost", size: "sm" }))
+    item("file", reviewName, say("workbench.catalog-board.ex.pat-row-meta-review"), `${say("workbench.catalog-board.ex.pat-time-10m")}${more(reviewName)}`)
+    + item("image", sketchName, say("workbench.catalog-board.ex.pat-row-meta-sketch"), renderStatusMark({ label: say("workbench.catalog-board.ex.pat-status-syncing"), state: "syncing", tone: "progress" }) + more(sketchName))
+    + item("database", customersName, say("workbench.catalog-board.ex.pat-row-meta-customers"), renderStatusMark({ label: say("workbench.assistant-delivery.failed"), state: "failed", tone: "blocked" }) + renderButton({ label: say("common.control.retry"), variant: "ghost", size: "sm" }))
   }</ul>`;
-  // A settings page's rows have their own section on the board (设置的行, the SDK's renderSettingRow and its kin).
-  return section("rows", "Item Row", `<div class="mw-catalog__specimens">${specimen("条目", items)}</div>`);
+  // A settings page's rows have their own section on the board (settings rows: the SDK's renderSettingRow and its kin).
+  return section("rows", "Item Row", `<div class="mw-catalog__specimens">${specimen(say("workbench.catalog-board.ex.pat-items"), items)}</div>`);
 }
 
 type FileRow = { name: string; mark: PluginIconName; where: string; status: Parameters<typeof renderStatusMark>[0]; updated: string; minutes: number; size: string; bytes: number };
-const FILES: FileRow[] = [
-  { name: "季度复盘.pdf", mark: "file", where: "成果库", status: { label: "已同步", state: "done", tone: "done" }, updated: "10 分钟前", minutes: 10, size: "2.4 MB", bytes: 2_400_000 },
-  { name: "首页草图.png", mark: "image", where: "设计", status: { label: "同步中", state: "syncing", tone: "progress" }, updated: "1 小时前", minutes: 60, size: "820 KB", bytes: 820_000 },
-  { name: "客户名单.csv", mark: "database", where: "导入", status: { label: "workbench.assistant-delivery.failed", state: "failed", tone: "blocked" }, updated: "昨天", minutes: 1_440, size: "96 KB", bytes: 96_000 },
-  { name: "访谈记录.docx", mark: "note", where: "调研", status: { label: "已同步", state: "done", tone: "done" }, updated: "3 天前", minutes: 4_320, size: "1.1 MB", bytes: 1_100_000 },
-  { name: "发布清单.md", mark: "text", where: "Pages", status: { label: "草稿", state: "draft", tone: "idle" }, updated: "上周", minutes: 10_080, size: "12 KB", bytes: 12_000 },
-];
 
-export function dataTableSection(say: (key: string) => string = (k) => k): string {
+export function dataTableSection(say: CatalogSay = resolveCatalogSay()): string {
+  const files: FileRow[] = [
+    { name: say("workbench.catalog-board.ex.pat-file-review"), mark: "file", where: say("workbench.catalog-board.ex.pat-where-artifacts"), status: { label: say("workbench.catalog-board.ex.pat-status-synced"), state: "done", tone: "done" }, updated: say("workbench.catalog-board.ex.pat-time-10m"), minutes: 10, size: "2.4 MB", bytes: 2_400_000 },
+    { name: say("workbench.catalog-board.ex.pat-file-sketch"), mark: "image", where: say("workbench.catalog-board.ex.pat-tag-design"), status: { label: say("workbench.catalog-board.ex.pat-status-syncing"), state: "syncing", tone: "progress" }, updated: say("workbench.catalog-board.ex.pat-time-1h"), minutes: 60, size: "820 KB", bytes: 820_000 },
+    { name: say("workbench.catalog-board.ex.pat-file-customers"), mark: "database", where: say("workbench.catalog-board.ex.pat-where-import"), status: { label: say("workbench.assistant-delivery.failed"), state: "failed", tone: "blocked" }, updated: say("workbench.catalog-board.ex.pat-time-yesterday"), minutes: 1_440, size: "96 KB", bytes: 96_000 },
+    { name: say("workbench.catalog-board.ex.pat-file-interview"), mark: "note", where: say("workbench.catalog-board.ex.pat-tag-research"), status: { label: say("workbench.catalog-board.ex.pat-status-synced"), state: "done", tone: "done" }, updated: say("workbench.catalog-board.ex.pat-time-3d"), minutes: 4_320, size: "1.1 MB", bytes: 1_100_000 },
+    { name: say("workbench.catalog-board.ex.pat-file-checklist"), mark: "text", where: "Pages", status: { label: say("workbench.catalog-board.ex.pat-status-draft"), state: "draft", tone: "idle" }, updated: say("workbench.catalog-board.ex.pat-time-last-week"), minutes: 10_080, size: "12 KB", bytes: 12_000 },
+  ];
   const sort = (key: string, label: string, order = "none", num = false) =>
     `<th aria-sort="${order}"${num ? ` class="is-num"` : ""}><button type="button" data-dt-sort="${key}">${label}${icon("chevron-down")}</button></th>`;
-  const rows = FILES.map((file) => `<tr data-name="${file.name}" data-updated="${-file.minutes}" data-size="${file.bytes}">
-    <td>${renderCheckbox({ attrs: { "aria-label": `选择 ${file.name}`, "data-dt-pick": "" } })}</td>
+  const rows = files.map((file) => `<tr data-name="${file.name}" data-updated="${-file.minutes}" data-size="${file.bytes}">
+    <td>${renderCheckbox({ attrs: { "aria-label": say("workbench.catalog-board.ex.pat-dt-select-row", { name: file.name }), "data-dt-pick": "" } })}</td>
     <td><div><span class="mw-mark">${icon(file.mark)}</span><span><strong>${file.name}</strong><small>${file.where}</small></span></div></td>
-    <td>${renderStatusMark({ ...file.status, label: file.status.label.startsWith("workbench.") ? say(file.status.label) : file.status.label })}</td><td>${file.updated}</td><td class="is-num">${file.size}</td><td>${ghostIcon(`${file.name} 的更多操作`, "more")}</td></tr>`).join("");
-  const search = (value = "") => renderInputGroup({ start: icon("search"), control: renderInput({ type: "search", placeholder: "搜索文件", value, attrs: { "aria-label": "搜索文件" } }) });
-  const table = `<div class="mw-dt" data-dt><div class="mw-dt__bar"><div>${search()}${renderButton({ label: "状态", variant: "secondary", icon: "filter" })}<span>${FILES.length} 项</span></div>
-    <div class="mw-dt__bulk"><strong aria-live="polite"><span data-dt-count>0</span> 项已选</strong>${renderButton({ label: "下载", variant: "secondary", icon: "download" })}${renderButton({ label: "归档", variant: "secondary", icon: "archive" })}${
-      renderButton({ label: "删除", variant: "danger-outline", icon: "trash" })}<span>${renderButton({ label: "取消选择", variant: "ghost", attrs: { "data-dt-clear": "" } })}</span></div></div>
-    <div class="mw-dt__scroll"><table><thead><tr><th>${renderCheckbox({ attrs: { "aria-label": "全选", "data-dt-all": "" } })}</th>${sort("name", "名称")}<th>状态</th>${
-      sort("updated", "更新", "descending")}${sort("size", "大小", "none", true)}<th><span class="mw-sr-only">操作</span></th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="mw-dt__foot"><span>1–5，共 24 项</span><div class="mw-btn-group" role="group" aria-label="翻页">${
-      renderButton({ label: "上一页", variant: "secondary", size: "icon", icon: "chevron-left", iconOnly: true, disabled: true })}${renderButton({ label: "下一页", variant: "secondary", size: "icon", icon: "chevron-right", iconOnly: true })}</div></div></div>`;
+    <td>${renderStatusMark(file.status)}</td><td>${file.updated}</td><td class="is-num">${file.size}</td><td>${ghostIcon(say("workbench.catalog-board.ex.pat-more-actions", { name: file.name }), "more")}</td></tr>`).join("");
+  const searchLabel = say("workbench.catalog-board.ex.pat-dt-search");
+  const search = (value = "") => renderInputGroup({ start: icon("search"), control: renderInput({ type: "search", placeholder: searchLabel, value, attrs: { "aria-label": searchLabel } }) });
+  const sampleQuery = say("workbench.catalog-board.ex.pat-dt-sample-query");
+  const table = `<div class="mw-dt" data-dt><div class="mw-dt__bar"><div>${search()}${renderButton({ label: say("workbench.catalog-board.ex.pat-dt-status"), variant: "secondary", icon: "filter" })}<span>${say("workbench.catalog-board.ex.pat-dt-count-items", { count: files.length })}</span></div>
+    <div class="mw-dt__bulk"><strong aria-live="polite"><span data-dt-count>0</span> ${say("workbench.catalog-board.ex.pat-dt-selected-suffix")}</strong>${renderButton({ label: say("workbench.catalog-board.ex.pat-dt-download"), variant: "secondary", icon: "download" })}${renderButton({ label: say("workbench.catalog-board.ex.pat-dt-archive"), variant: "secondary", icon: "archive" })}${
+      renderButton({ label: say("workbench.catalog-board.ex.pat-dt-delete"), variant: "danger-outline", icon: "trash" })}<span>${renderButton({ label: say("workbench.catalog-board.ex.pat-dt-clear-selection"), variant: "ghost", attrs: { "data-dt-clear": "" } })}</span></div></div>
+    <div class="mw-dt__scroll"><table><thead><tr><th>${renderCheckbox({ attrs: { "aria-label": say("workbench.catalog-board.ex.pat-dt-select-all"), "data-dt-all": "" } })}</th>${sort("name", say("workbench.catalog-board.ex.pat-dt-col-name"))}<th>${say("workbench.catalog-board.ex.pat-dt-status")}</th>${
+      sort("updated", say("workbench.catalog-board.ex.pat-dt-col-updated"), "descending")}${sort("size", say("workbench.catalog-board.ex.pat-dt-col-size"), "none", true)}<th><span class="mw-sr-only">${say("workbench.catalog-board.ex.pat-dt-col-actions")}</span></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="mw-dt__foot"><span>${say("workbench.catalog-board.ex.pat-dt-page-range")}</span><div class="mw-btn-group" role="group" aria-label="${say("workbench.catalog-board.ex.pat-pagination")}">${
+      renderButton({ label: say("workbench.catalog-board.ex.pat-dt-prev-page"), variant: "secondary", size: "icon", icon: "chevron-left", iconOnly: true, disabled: true })}${renderButton({ label: say("workbench.catalog-board.ex.pat-dt-next-page"), variant: "secondary", size: "icon", icon: "chevron-right", iconOnly: true })}</div></div></div>`;
   const skeleton = (width: number) => `<tr><td><span class="mw-skeleton" style="width:${width}%"></span></td><td><span class="mw-skeleton" style="width:56px"></span></td></tr>`;
-  const loading = `<div class="mw-dt mw-dt--small" aria-busy="true"><div class="mw-dt__scroll"><table><thead><tr><th>名称</th><th>更新</th></tr></thead><tbody>${[72, 54, 64].map(skeleton).join("")}</tbody></table></div></div>`;
-  const empty = `<div class="mw-dt mw-dt--small"><div class="mw-dt__bar"><div>${search("预算")}</div></div><div class="mw-dt__empty"><span class="mw-mark">${icon("search")}</span><p>没有匹配「预算」的文件</p>${
-    renderButton({ label: "清除搜索", variant: "secondary" })}</div></div>`;
-  return section("data-table", "Data Table", `<div class="mw-catalog__specimens">${specimen("文件", table)}${specimen("加载中", loading)}${specimen("没有结果", empty)}</div>`);
+  const loading = `<div class="mw-dt mw-dt--small" aria-busy="true"><div class="mw-dt__scroll"><table><thead><tr><th>${say("workbench.catalog-board.ex.pat-dt-col-name")}</th><th>${say("workbench.catalog-board.ex.pat-dt-col-updated")}</th></tr></thead><tbody>${[72, 54, 64].map(skeleton).join("")}</tbody></table></div></div>`;
+  const empty = `<div class="mw-dt mw-dt--small"><div class="mw-dt__bar"><div>${search(sampleQuery)}</div></div><div class="mw-dt__empty"><span class="mw-mark">${icon("search")}</span><p>${say("workbench.catalog-board.ex.pat-dt-empty-match", { query: sampleQuery })}</p>${
+    renderButton({ label: say("workbench.catalog-board.ex.pat-dt-clear-search"), variant: "secondary" })}</div></div>`;
+  return section("data-table", "Data Table", `<div class="mw-catalog__specimens">${specimen(say("workbench.catalog-board.ex.pat-dt-specimen-files"), table)}${specimen(say("workbench.catalog-board.ex.pat-dt-specimen-loading"), loading)}${specimen(say("workbench.catalog-board.ex.pat-dt-specimen-empty"), empty)}</div>`);
 }

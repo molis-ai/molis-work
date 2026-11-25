@@ -102,7 +102,7 @@ const htmlDocument = (page: PagesPage, body: unknown) => {
   // The exported/printed page keeps the language the page is shown in; the frame's `lang` already follows the language switch.
   const lang = escapeHtml(document.documentElement.lang || "");
   return '<!doctype html><html lang="' + lang + '"><head><meta charset="utf-8"><title>' + title
-    + "</title><style>body{max-width:760px;margin:40px auto;padding:0 20px;font:15px/1.7 -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;color:#222}img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}</style></head><body><h1>"
+    + "</title><style>body{max-width:760px;margin:40px auto;padding:0 20px;font:15px/1.7 -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;color:#222}:lang(ja) body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic','Meiryo','Noto Sans JP',sans-serif}img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}</style></head><body><h1>"
     + title + "</h1>" + page.Editor.toHTML(body) + "</body></html>";
 };
 

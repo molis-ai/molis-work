@@ -3,6 +3,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { JELLY_PLUGIN_ID } from "./contract.js";
 import { JELLY_UI_CONTRIBUTION_ID } from "./ui.js";
 import { JELLY_ACTIONS, JELLY_ACTION_PERMISSIONS } from "./actions.js";
+import { localizeAction, localizePermission } from "./action-text.js";
 import { JELLY_DATABASE } from "./database.js";
 import { jellySettings } from "./model-configuration.js";
 export const jellyManifest: PluginManifest = {
@@ -13,15 +14,28 @@ export const jellyManifest: PluginManifest = {
   permissions: [
     { permission: "storage:private", required: true, reason: "本机日历、笔记及撤销恢复记录" },
     ...JELLY_ACTION_PERMISSIONS.map(permission => ({ permission, required: false, reason: "按每项能力的授权读写个人内容、使用模型或管理模型选择" })),
-  ],
+  ].map(localizePermission),
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
-  actions: [...JELLY_ACTIONS],
+  actions: [...JELLY_ACTIONS].map(localizeAction),
   // What another plugin's background task may be let read, one switch per group (specs/proactive-assistant/schedule-task-reads.md §3.2).
   // 日历 is the person's 日程 without the notes; 笔记 (full text, search, whole-workspace exports) is a switch of its own.
   read_groups: [
-    { group_id: "calendar", title: "日历", description: "日历事项与进展", actions: ["jelly.calendar.list", "jelly.calendar.progress", "jelly.item.get"] },
-    { group_id: "notes", title: "笔记", description: "笔记全文、搜索，以及整个 Jelly 工作区的读取与导出",
-      actions: ["jelly.search", "jelly.note.export", "jelly.note.subject.read", "jelly.content.list", "jelly.content.read", "jelly.workspace.get", "jelly.workspace.export"] },
+    {
+      group_id: "calendar",
+      title: "日历",
+      title_text: { key: "jelly.read-group.calendar.title" },
+      description: "日历事项与进展",
+      description_text: { key: "jelly.read-group.calendar.description" },
+      actions: ["jelly.calendar.list", "jelly.calendar.progress", "jelly.item.get"],
+    },
+    {
+      group_id: "notes",
+      title: "笔记",
+      title_text: { key: "jelly.read-group.notes.title" },
+      description: "笔记全文、搜索，以及整个 Jelly 工作区的读取与导出",
+      description_text: { key: "jelly.read-group.notes.description" },
+      actions: ["jelly.search", "jelly.note.export", "jelly.note.subject.read", "jelly.content.list", "jelly.content.read", "jelly.workspace.get", "jelly.workspace.export"],
+    },
   ],
   runtime: { scope: "home" },
   databases: { home: JELLY_DATABASE },
@@ -41,7 +55,7 @@ export const jellyManifest: PluginManifest = {
     { route_id: "jelly.ai", method: "POST", path: "/ai", max_body_bytes: 36_000_000, stream: "ndjson" },
     { route_id: "jelly.model.save", method: "POST", path: "/model-settings", max_body_bytes: 36_000_000 },
   ],
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

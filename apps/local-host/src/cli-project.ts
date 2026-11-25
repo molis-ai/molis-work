@@ -2,6 +2,7 @@ import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { readProductEnv, readStorageSpace, resolveHomeDirectory } from "@molis-ai/molis-work-storage";
+import { runWithLocalCliLocale } from "./cli-host.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import { bindStandaloneReviewActions, catalogManagementProject, residentManagementActions, reviewOnly, upgradeOlderCatalog } from "./management-action-client.js";
 import {connectResidentAccount,type ResidentAccountConnection} from "./resident-account-connection.js";
@@ -13,7 +14,7 @@ import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { ensureHomeStorageOwner } from "./home-storage-lifetime.js";
 import { preflightMemoryHome } from "./memory/memory-initialization.js";
-import { dispatchCliProjectCommand, cliFlagValue as value,
+import { cliText, dispatchCliProjectCommand, cliFlagValue as value,
   readCliJsonPayload as payload, printV1Help } from "@molis-ai/molis-work-app-cli";
 
 export interface V1CliOptions {
@@ -23,7 +24,11 @@ export interface V1CliOptions {
   signal?: AbortSignal;
 }
 
-export async function runV1Cli(args: string[], options: V1CliOptions = {}): Promise<number> {
+export function runV1Cli(args: string[], options: V1CliOptions = {}): Promise<number> {
+  return runWithLocalCliLocale(options.homeDirectory, args, () => runV1CliScoped(args, options));
+}
+
+async function runV1CliScoped(args: string[], options: V1CliOptions): Promise<number> {
   const operation = args[0];
   if (!operation || operation === "--help" || operation === "-h") {
     printV1Help();
@@ -32,7 +37,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   // A flag right after a valueless --db would be read as its value and name a database after the flag (`--json`).
   const flagValue = value(args, "--db");
   const location = flagValue?.startsWith("--") ? undefined : namedDatabasePath(flagValue);
-  if (!location) throw new Error("Molis Work 命令需要 --db PATH 指明项目数据库；没有默认路径，不会按当前目录猜一个。");
+  if (!location) throw new Error(cliText("workbench.cli.protocol-db-required"));
   let home = options.homeDirectory ?? resolveConfiguredHome();
   const origin=options.actionServiceUrl??readProductEnv("WEB_URL")??homeHostUrl(home);
   let connected:ResidentAccountConnection|undefined;
@@ -44,12 +49,12 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
     if(required||existsSync(path.join(home,NATIVE_SESSION_FILE))||existsSync(path.join(home,WEB_CONTROL_TOKEN_RELATIVE_PATH))){
       connected=await connectResidentAccount(home,origin,options.signal,required);home=connected.homeDirectory;
       if(connected.installation)allowLocalFallback=false;
-      if(!databaseInHome(home,databasePath))throw new ActionError("actions.scope_mismatch","项目不属于当前安装账号；请显式连接正确账号。");
+      if(!databaseInHome(home,databasePath))throw new ActionError("actions.scope_mismatch",cliText("workbench.cli.protocol-account-mismatch"));
     }
   }
   const homeDatabase = databaseInHome(home, databasePath);
   if (storage.status === "missing") {
-    throw new Error(`Molis Work 数据库不存在: ${databasePath}`);
+    throw new Error(cliText("workbench.cli.protocol-db-missing", { path: databasePath }));
   }
   const input = payload(args);
   let localHost = options.localHost;
@@ -60,7 +65,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   });
   let homeProject = false;
   const fallback = () => {
-    if(!allowLocalFallback&&homeDatabase)throw new ActionError("actions.service_unavailable","当前账号宿主尚未连接，不能回退匿名业务。");
+    if(!allowLocalFallback&&homeDatabase)throw new ActionError("actions.service_unavailable",cliText("workbench.cli.protocol-host-disconnected"));
     if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);
     return bindStandaloneReviewActions(localHost ??= createMolisWorkLocalHost(), reference, options.signal);
   };
@@ -69,12 +74,12 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
       // Not left to `fallback`: it only takes the lock for a database inside the Home, and the catalog here may belong to a project outside it.
       if (!options.localHost || options.actionServiceUrl) upgradeOlderCatalog(home, () => {
         ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);
-        process.stderr.write("已检查并升级这份 Home 的数据库。\n");
+        process.stderr.write(`${cliText("workbench.cli.protocol-catalog-upgraded")}\n`);
       });
       const project = options.localHost && !options.actionServiceUrl ? undefined : catalogManagementProject(home, databasePath);
       homeProject = Boolean(project);
-      if(connected&&!project&&!allowLocalFallback)throw new ActionError("actions.scope_mismatch","当前账号没有登记这个项目，不能回退本地执行。");
-      if (project && project.project_id !== reference.project_id) throw new ActionError("actions.scope_mismatch", "管理请求与 Home 登记的项目不匹配");
+      if(connected&&!project&&!allowLocalFallback)throw new ActionError("actions.scope_mismatch",cliText("workbench.cli.protocol-unregistered"));
+      if (project && project.project_id !== reference.project_id) throw new ActionError("actions.scope_mismatch", cliText("workbench.cli.protocol-project-mismatch"));
       if (project) reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       const actions = project ? reviewOnly(residentManagementActions({ home, databasePath: project.database_path, projectId: project.project_id,
         origin,controlToken:connected?.controlToken, signal: options.signal, fallback })) : fallback();

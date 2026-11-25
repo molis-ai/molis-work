@@ -16,6 +16,12 @@ export function installEvents(page: DatasetPage): void {
     reload();
   }, options);
   document.addEventListener("molis-work:model-ready", reload, options);
+  document.addEventListener("molis-work:language-changed", () => {
+    page.renderList();
+    if (!s.selected) return;
+    page.paintStatus(s.selected);
+    if (!s.saveError && s.editRev === s.savedRev) page.renderTable(s.selected);
+  }, options);
   window.addEventListener("beforeunload", (event) => {
     if (s.selected && (s.saveError || s.editRev > s.savedRev)) {
       event.preventDefault();

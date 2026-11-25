@@ -24,7 +24,7 @@ export function pageFilePicker(port: MessagePort, scope: FrameScope, frame: HTML
     close = () => finish();
     try {
       const invoke = nativeFileInvoke();
-      if (!invoke || !navigator.userActivation.isActive || typeof message.query !== "string" || message.query.length > 200) throw new Error("请重新点击或拖动文件");
+      if (!invoke || !navigator.userActivation.isActive || typeof message.query !== "string" || message.query.length > 200) throw new Error(uiText.text("workbench.plugin-frame.retry-file-action"));
       if (message.query.trim().length < 2) { finish(); return; }
       await check();
       const found = await invoke<Array<{ name: string; path: string }>>("shelf_find_files", { query: message.query.trim() });

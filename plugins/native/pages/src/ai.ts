@@ -1,3 +1,5 @@
+import { readPagesText as localized } from "./ui-text-safe.js";
+
 export const PAGES_AI_COMMANDS = [
   { id: "translate", label: "翻译" },
   { id: "rewrite", label: "改写", styles: ["concise", "expand", "formal", "casual"] as const },
@@ -32,6 +34,32 @@ export interface PagesAiResult {
   readonly style?: string;
 }
 
+const COMMAND_KEYS: Readonly<Record<PagesAiCommandId, string>> = {
+  translate: "pages.offer.translate",
+  rewrite: "pages.ai.rewrite",
+  expand: "pages.offer.expand",
+  continue: "pages.offer.continue",
+  outline: "pages.offer.outline",
+  summarize: "pages.offer.summarize",
+  explain: "pages.offer.explain",
+  bullets: "pages.offer.bullets",
+  actions: "pages.offer.actions",
+  reader: "pages.offer.reader",
+  coach: "pages.offer.coach",
+  counter: "pages.offer.counter",
+  compare: "pages.offer.compare",
+  merge: "pages.offer.merge",
+  translate_new: "pages.offer.translate-new",
+  proofread: "pages.offer.proofread",
+};
+
+const STYLE_KEYS: Readonly<Record<PagesAiStyle, string>> = {
+  concise: "pages.ai.style-concise",
+  expand: "pages.ai.style-expand",
+  formal: "pages.ai.style-formal",
+  casual: "pages.ai.style-casual",
+};
+
 const STYLE_LABEL: Record<PagesAiStyle, string> = {
   concise: "更短",
   expand: "更展开",
@@ -45,8 +73,8 @@ export function isPagesAiCommand(value: string): value is PagesAiCommandId {
 
 export function pagesAiCommandLabel(command: string, style?: string): string {
   const found = PAGES_AI_COMMANDS.find((item) => item.id === command);
-  const base = found?.label ?? command;
-  if (command === "rewrite" && isPagesAiStyle(style)) return `${base} · ${STYLE_LABEL[style]}`;
+  const base = found ? localized(COMMAND_KEYS[found.id], found.label) : command;
+  if (command === "rewrite" && isPagesAiStyle(style)) return `${base} · ${localized(STYLE_KEYS[style], STYLE_LABEL[style])}`;
   return base;
 }
 

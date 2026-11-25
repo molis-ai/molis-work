@@ -6,7 +6,7 @@ import { installLoad } from "./load.js";
 import { installMaterial } from "./material.js";
 import { createPage } from "./page.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import type { LingguangHost } from "./types.js";
+import type { LingguangHost, SaveState } from "./types.js";
 
 /** The workbench calls this bundle as `(host) => …`: the build wraps the entry in that function. */
 declare const host: LingguangHost;
@@ -28,6 +28,12 @@ function mountLingguang(): void {
   installMaterial(page);
   installChat(page);
   installCommands(page);
+  document.addEventListener("molis-work:language-changed", () => {
+    page.renderList();
+    page.syncSelectionBar();
+    const state = page.el.saveStatus.dataset.mwState as SaveState | undefined;
+    if (page.s.selected && state) page.showSave(state);
+  }, { signal: life.signal });
   life.whenVisible(() => () => { if (life.alive && !document.hidden) void page.leaveBlank().catch(() => {}); });
   void page.loadList().catch((error: unknown) => { page.listFailed(error); throw error; }).then(page.openWanted).catch((error: unknown) => page.showNote(messageOf(error), true));
 }

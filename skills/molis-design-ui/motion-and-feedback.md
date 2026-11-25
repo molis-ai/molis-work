@@ -41,7 +41,9 @@
 5. **统一五态自动保存（`window.molisAutosave(el, save, opts?)`）**：
    - `idle`（静默隐退，常态不刷绿也不占位）→ `dirty`（中性灰「未保存」）→ `saving`（超 `250ms` 显微环「保存中…」）→ `saved`（轻亮后 `2.2s` 淡隐）→ `error`（红字常驻 + 保留草稿 + `retry()`）。
 6. **乐观开关回滚（`window.molisOptimisticToggle(control, work, opts?)`）**：切换立即生效，请求失败自动弹回原值、恢复交互并经 `molisToast` 报错。
-7. **危险确认与日期增强**：不可逆操作统一走 `host.confirm({ title, body, confirmLabel, cancelLabel, tone: "danger" })`（左取消、右红底具体动词）；日期/时间输入走 `window.molisEnhanceDateInputs()` 统一样式、可清除按钮与 `Escape` 行为。
+7. **危险确认、空态与报错文案范式（温和友好、克制不聒噪）**：
+   - 不可逆操作统一走 `host.confirm({ title, body, confirmLabel, cancelLabel, tone: "danger" })`（左取消、右红底具体动词）；标题直接写动作与对象（如 `退出 Molis Work？`，不用 `确定要…吗`），正文两句内平实交代不可逆影响与保留项。
+   - 报错、中断与空态统一按 **「现状 → 安心/影响 → 出口」** 写温和白话（用「你」，禁用 `此/该/予以/尚未/暂无/如需/未能完成操作`），报错明确说明「已有内容都保留着」；Host HTTP/SSE/WS 与 Prologue 出口统一按当前语言转译为 `common.error.*`，前端绝不裸露 `MODEL_HTTP_ERROR`、`SYNC_*`、AJV 字段路径或异语言报错，排错技术细节只留给可复制的「诊断编号（`call_id`）」与「设置 › 诊断」。日期/时间输入走 `window.molisEnhanceDateInputs()` 统一样式、可清除按钮与 `Escape` 行为，并按活跃语言格式化 `aria-label`（不写死中文默认值）。
 
 ---
 

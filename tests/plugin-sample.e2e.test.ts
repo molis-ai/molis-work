@@ -42,6 +42,9 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.equal(readFileSync(join(project, "index.mjs"), "utf8"), original);
     const validated = JSON.parse(execFileSync(process.execPath, [cli, "validate", join(project, "manifest.json")], { encoding: "utf8" }));
     assert.equal(validated.plugin_id, "com.example.notes");
+    const createdManifest = JSON.parse(readFileSync(join(project, "manifest.json"), "utf8")) as { permissions: Array<{ reason_text?: { key?: string } }> };
+    assert.equal(createdManifest.permissions.every(permission => permission.reason_text?.key?.startsWith("notes.permission.")), true,
+      "CLI scaffold generates localized permissions[].reason_text keys");
     // SMP-04: the CLI generates and validates the same declaration the isolated sample uses.
     const sampleManifest = JSON.parse(readFileSync(join(root, "examples/plugin-sample/manifest.json"), "utf8"));
     assert.deepEqual(validated.state_machines, sampleManifest.state_machines);
@@ -64,7 +67,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     for (const authorDirectory of [project, join(root, "examples/plugin-sample")]) {
       const packed = JSON.parse(execFileSync("pnpm", ["--dir", authorDirectory, "pack", "--pack-destination", directory, "--json"], { encoding: "utf8" })) as { filename: string };
       const files = execFileSync("tar", ["-tf", resolve(directory, packed.filename)], { encoding: "utf8" }).split("\n");
-      for (const lang of ["zh", "en"]) assert.ok(files.includes("package/locales/" + lang + ".json"), files.join(", "));
+      for (const lang of ["zh", "en", "ja"]) assert.ok(files.includes("package/locales/" + lang + ".json"), files.join(", "));
     }
     execFileSync("npm", ["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--cache", join(directory, "npm-cache"),
       join(directory, "molis-ai-molis-work-contracts-0.0.0.tgz"), join(directory, "molis-ai-molis-work-plugin-sdk-0.0.0.tgz")],
@@ -293,7 +296,9 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.match(differingArgs.stderr, /locales\/zh\.json notes\.main\.source/);
     assert.match(differingArgs.stderr, /locales\/en\.json/);
     assert.equal(existsSync(join(directory, "state-zh-args")), false, "a broken language file makes no state directory");
-    writeFileSync(zhPath, zhSource.replace(/\n\s*"notes\.main\.title": "[^"]*"/u, "").replace(/,(\s*\})/u, "$1"));
+    const zhWithoutTitle = JSON.parse(zhSource) as { messages: Record<string, unknown> };
+    delete zhWithoutTitle.messages["notes.main.title"];
+    writeFileSync(zhPath, JSON.stringify(zhWithoutTitle, null, 2) + "\n");
     const shortOfOne = devIn("zh", "state-zh-short");
     assert.equal(shortOfOne.status, 0, shortOfOne.stderr);
     assert.match(JSON.parse(shortOfOne.stdout).rendered_ui[0].html as string, /Local Plugin Sample/);
@@ -311,6 +316,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     delete unlocalized.ui.locales;
     delete unlocalized.name_text;
     delete unlocalized.summary_text;
+    for (const permission of unlocalized.permissions ?? []) delete permission.reason_text;
     writeFileSync(manifestPath, JSON.stringify(unlocalized));
     const noLanguages = devIn("en", "state-unlocalized");
     assert.equal(noLanguages.status, 1, noLanguages.stderr);
@@ -321,7 +327,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
 
     const repositorySample = join(directory, "repository-sample");
     mkdirSync(repositorySample);
-    for (const file of ["index.mjs", "manifest.json", "package.json", "README.md", "locales/en.json", "locales/zh.json"]) {
+    for (const file of ["index.mjs", "manifest.json", "package.json", "README.md", "locales/en.json", "locales/zh.json", "locales/ja.json"]) {
       mkdirSync(dirname(join(repositorySample, file)), { recursive: true });
       writeFileSync(join(repositorySample, file), readFileSync(join(root, "examples/plugin-sample", file)));
     }

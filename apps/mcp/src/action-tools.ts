@@ -38,6 +38,39 @@ export function actionMcpToolDefinition(view: ActionView, name = actionMcpToolNa
   };
 }
 
+function mcpLanguage(locale: string | undefined): "zh" | "en" | "ja" {
+  const base = locale?.trim().toLowerCase().split("-")[0];
+  if (!base || base === "zh") return "zh";
+  if (base === "ja") return "ja";
+  return "en";
+}
+
+function mcpConflictError(locale: string | undefined, name: string): ActionError {
+  const lang = mcpLanguage(locale);
+  const message = lang === "zh" ? `MCP 名称重复：${name}` : lang === "ja" ? `MCP ツール名が重複しています：${name}` : `Duplicate MCP tool name: ${name}`;
+  return new ActionError("actions.mcp_name_conflict", message, { kind: "conflict" });
+}
+
+function mcpUnavailableError(locale: string | undefined): ActionError {
+  const lang = mcpLanguage(locale);
+  const message = lang === "zh"
+    ? "这项能力未授权、已停用或当前不可用，请刷新能力列表。"
+    : lang === "ja"
+      ? "この機能は未許可、無効、または現在利用できません。ツール一覧を更新してからもう一度お試しください。"
+      : "This capability isn’t authorized, enabled, or available right now. Refresh the tool list and try again.";
+  return new ActionError("actions.mcp_unavailable", message, { kind: "unavailable" });
+}
+
+function mcpInputFieldError(locale: string | undefined): ActionError {
+  const lang = mcpLanguage(locale);
+  const message = lang === "zh"
+    ? "这项能力的参数需要放在 input 字段中。"
+    : lang === "ja"
+      ? "この機能の引数は input フィールド内に指定してください。"
+      : "Arguments for this capability must be passed inside the input field.";
+  return new ActionError("actions.input_invalid", message, { kind: "invalid" });
+}
+
 /** Context is bound by the authenticated transport. Model arguments and _meta confer no authority. */
 export function createActionMcpPorts(options: {
   service: ActionClient;
@@ -59,7 +92,7 @@ export function createActionMcpPorts(options: {
     const entries = new Map<string, ActionView>();
     for (const view of await options.service.discover(caller)) {
       const name = toolName(view);
-      if (entries.has(name)) throw new ActionError("actions.mcp_name_conflict", `MCP 名称重复：${name}`);
+      if (entries.has(name)) throw mcpConflictError(caller.locale, name);
       entries.set(name, view);
     }
     return entries;
@@ -72,7 +105,7 @@ export function createActionMcpPorts(options: {
         view = await options.service.discoverOne(caller, { capability_id: reference.capability_id, version: reference.version });
       } catch (error) {
         if (error instanceof ActionError && error.code === "actions.provider_ambiguous") {
-          throw new ActionError("actions.mcp_name_conflict", `MCP 名称重复：${name}`);
+          throw mcpConflictError(caller.locale, name);
         }
         throw error;
       }
@@ -89,10 +122,10 @@ export function createActionMcpPorts(options: {
     async callTool(name, arguments_) {
       const caller = context();
       const view = await one(caller, name);
-      if (!view) throw new ActionError("actions.mcp_unavailable", "能力未授权、已停用或当前不可用，请刷新能力列表");
+      if (!view) throw mcpUnavailableError(caller.locale);
       const wrapped = !objectSchema(view.action.input_schema);
       if (wrapped && (!Object.hasOwn(arguments_, "input") || Object.keys(arguments_).some(key => key !== "input"))) {
-        throw new ActionError("actions.input_invalid", "此能力的参数必须放在 input 字段中");
+        throw mcpInputFieldError(caller.locale);
       }
       const result = await options.service.invoke(caller, view, wrapped ? arguments_.input : arguments_);
       const structuredContent = objectSchema(view.action.output_schema)

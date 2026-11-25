@@ -19,9 +19,11 @@ const bytes = (image: IssueImage, index: number): PluginModelImage => {
   return { bytes: Uint8Array.from(binary, char => char.charCodeAt(0)), label: `截图 ${index + 1}` };
 };
 
+const KANA = /[\p{Script=Hiragana}\p{Script=Katakana}]/u;
 const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff00-\uffef]/u;
-/** The language the title is written in, decided here from the person's words (never left for the model to guess): English for words with Latin letters and no CJK, Chinese otherwise. */
-export const titleLanguage = (description: string): "zh" | "en" => !CJK.test(description) && /[A-Za-z]/.test(description) ? "en" : "zh";
+/** The language the title is written in, decided here from the person's words (never left for the model to guess): Japanese when Hiragana/Katakana is present, English for Latin letters without CJK, Chinese otherwise. */
+export const titleLanguage = (description: string): "zh" | "en" | "ja" =>
+  KANA.test(description) ? "ja" : !CJK.test(description) && /[A-Za-z]/.test(description) ? "en" : "zh";
 
 const line = (value: unknown, max: number): value is string => typeof value === "string" && value.trim().length > 0 && [...value.trim()].length <= max && !/[\r\n]/.test(value.trim());
 

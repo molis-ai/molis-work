@@ -296,7 +296,7 @@ fi
     await evaluate(`delete window.molisWorkShelfTui; const field=document.querySelector('[data-shelf-tty-input]');
       field.value='桥接尚未就绪时的输入'; field.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));`);
     assert.equal(await evaluate("document.querySelector('[data-shelf-tty-input]').value"), "桥接尚未就绪时的输入");
-    assert.match(await evaluate<string>("document.querySelector('[data-shelf-bar-hint]').textContent"), /终端尚未连接，输入已保留/);
+    assert.match(await evaluate<string>("document.querySelector('[data-shelf-bar-hint]').textContent"), /终端还没连上，输入都保留着/);
     await evaluate("window.dispatchEvent(new CustomEvent('molis:shelf-tui-unsent',{detail:{texts:['失败后恢复的输入'],message:'fixture spawn failed'}}))");
     assert.equal(await evaluate("document.querySelector('[data-shelf-tty-input]').value"), "失败后恢复的输入 桥接尚未就绪时的输入");
   });

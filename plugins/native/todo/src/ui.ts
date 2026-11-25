@@ -36,7 +36,7 @@ export const todoUiContribution: UiContribution<TodoUiModel> = {
       case "workbench":
         return renderTodoWorkbench(request.model);
       default:
-        throw new Error(`Todo UI surface ${(request as UiRenderRequest).surface} 不存在`);
+        throw new Error(`Unknown Todo UI surface: ${String((request as UiRenderRequest).surface)}`);
     }
   },
 };
@@ -66,7 +66,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
     `<button class="mw-toggle${current ? " is-current" : ""}" type="button" ${attribute}="${value}" aria-pressed="${current}"${extra}>${uiText(label)}</button>`;
   return renderPluginStageShell({
     surface: "todo",
-    label: "待办",
+    label: uiText.text("todo.directory.view-todo"),
     dataset: "todo",
     body: `
     <div class="plugin-stage-list mw-stage-list mw-stage-tree todo-list" data-todo="directory">

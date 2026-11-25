@@ -24,7 +24,7 @@ const riskUiDescriptor: UiContributionDeclaration = {
 export const riskUiContribution: UiContribution = {
   descriptor: riskUiDescriptor,
   render(request: UiRenderRequest): string {
-    if (request.surface !== "workbench" && request.surface !== "record") throw new Error(`Risk UI surface ${request.surface} 不存在`);
+    if (request.surface !== "workbench" && request.surface !== "record") throw new Error(`Unknown Risk UI surface: ${String(request.surface)}`);
     const side = request.surface === "record";
     return renderPluginStageShell({ surface: "risk", label: uiText("risk.view.overview"), dataset: "risk", extraAttrs: side ? "data-risk-side" : undefined,
       body: `<div class="rk mw-layout-primitives" data-risk-body aria-live="polite"><p class="rk-muted" aria-busy="true">${uiText("risk.overview.loading")}</p></div>` });

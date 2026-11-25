@@ -308,6 +308,15 @@ export function goalsPageClient(host: PageHost) {
     const collapse = elementOf(event)?.closest("[data-goal-collapse]");
     if (collapse) tabs()?.setItemView("goals", undefined, collapse.closest<HTMLElement>("[data-tab-pane]")?.dataset.tabPane);
   });
+  const languageAbort = new AbortController();
+  window.addEventListener("pagehide", () => languageAbort.abort(), { once: true });
+  document.addEventListener("molis-work:language-changed", () => {
+    const graph = momentum.graphElement();
+    if (graph?.dataset.loaded === "true") {
+      if (workspace.dataset.workspaceMode === "graph") void momentum.loadGoalGraph(true);
+      else graph.dataset.loaded = "false";
+    }
+  }, { signal: languageAbort.signal });
 
   if (document.body.classList.contains("immersive-workbench")) workFrame = workFrameClient({
     documentPane, projectId, setWorkspaceMode, setMobileView,

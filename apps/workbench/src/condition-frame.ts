@@ -1,6 +1,7 @@
 import { WEB_LOCALES, type WebLocale } from "./i18n.js";
 import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
-import { renderLanguageHead } from "./language-resource.js";
+import { catalogInlinePageText } from "./platform-languages.js";
+import { renderInlinePageText, renderLanguageHead } from "./language-resource.js";
 import { readFileSync } from "node:fs";
 import { t as uiText, escapeHtml, renderDirectoryRow, type MwStatusTone as DirectoryStatusTone } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
@@ -113,7 +114,7 @@ export function renderMolisWorkConditionsSpecimen(options: ConditionFrameOptions
 <body class="immersive-workbench mw-cond-page">
   ${renderIconSprite()}
   ${rows ? `<main class="mw-cond" data-cond-frame-page data-part="rows">${renderBoardPluginRows(readText, options.text)}</main>` : frameBody(options, sample)}
-  ${renderLanguageHead(ports.htmlLang())}
+  ${renderInlinePageText([catalogInlinePageText(options.lang)])}${renderLanguageHead(ports.htmlLang())}
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
   ${rows ? "" : `<script type="application/json" id="mw-cond-data">${data}</script>
   <script>globalThis.molisBoardCodeGrow = ${createAssistantCodeGrow.toString()};</script>

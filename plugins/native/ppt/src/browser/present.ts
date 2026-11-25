@@ -24,7 +24,7 @@ function slideNode(record: Ppt, slide: Slide, index: number): HTMLElement {
   return card;
 }
 
-const PRINT_PAGE = "<!doctype html><html><head><meta charset='utf-8'><title></title><style>@page{size:A4 landscape;margin:0}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif}.ppt-present-slide{box-sizing:border-box;width:100vw;height:100vh;padding:7vh 8vw;page-break-after:always;border-left:1.2vw solid var(--ppt-accent)}h2{font-size:5vh;margin:0 0 4vh}ul{font-size:3vh;line-height:1.6;margin:0;padding-left:1.2em}p{font-size:3vh}</style></head><body></body></html>";
+const PRINT_PAGE = "<!doctype html><html><head><meta charset='utf-8'><title></title><style>@page{size:A4 landscape;margin:0}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','PingFang SC','Yu Gothic UI','Microsoft YaHei',system-ui,sans-serif}:lang(ja) body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Meiryo','Noto Sans JP',system-ui,sans-serif}.ppt-present-slide{box-sizing:border-box;width:100vw;height:100vh;padding:7vh 8vw;page-break-after:always;border-left:1.2vw solid var(--ppt-accent)}h2{font-size:5vh;margin:0 0 4vh}ul{font-size:3vh;line-height:1.6;margin:0;padding-left:1.2em}p{font-size:3vh}</style></head><body></body></html>";
 
 /** Full-screen presenting on this computer, and every slide on its own landscape page for the browser's print dialog. */
 export function installPresent(page: PptPage): void {
@@ -40,7 +40,6 @@ export function installPresent(page: PptPage): void {
     stage.className = "ppt-present";
     stage.tabIndex = -1;
     stage.setAttribute("role", "dialog");
-    stage.setAttribute("aria-label", uiText.text("ppt.present.action") + " · " + record.title);
     const frame = document.createElement("div");
     frame.className = "ppt-present-frame";
     const notesEl = document.createElement("aside");
@@ -54,6 +53,7 @@ export function installPresent(page: PptPage): void {
     window.addEventListener("resize", fit);
     const draw = () => {
       const slide = slides[index]!;
+      stage.setAttribute("aria-label", uiText.text("ppt.present.stage-label", { title: record.title }));
       frame.replaceChildren(slideNode(record, slide, index));
       const text = slide.notes || "";
       notesEl.hidden = !notes || !text;
@@ -63,6 +63,7 @@ export function installPresent(page: PptPage): void {
     let watch: ReturnType<typeof setInterval> | undefined;
     const leave = () => {
       document.removeEventListener("keydown", key, true);
+      document.removeEventListener("molis-work:language-changed", draw);
       window.removeEventListener("resize", fit);
       clearInterval(watch);
       if (document.fullscreenElement === stage) document.exitFullscreen().catch(() => {});
@@ -92,6 +93,7 @@ export function installPresent(page: PptPage): void {
     });
     stage.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && stage.isConnected) leave(); });
     document.addEventListener("keydown", key, true);
+    document.addEventListener("molis-work:language-changed", draw);
     // Switching to another plugin hides this surface; the show must not stay on top of the next one.
     // The surface hides through an ancestor (the tab workspace pool), so visibility is what to watch.
     watch = setInterval(() => { if (!el.bench.isConnected || (el.bench.checkVisibility && !el.bench.checkVisibility())) leave(); }, 250);
@@ -107,6 +109,8 @@ export function installPresent(page: PptPage): void {
     doc.open();
     doc.write(PRINT_PAGE);
     doc.close();
+    doc.documentElement.lang = document.documentElement.lang || "en";
+    if (document.documentElement.dir) doc.documentElement.dir = document.documentElement.dir;
     doc.title = record.title;
     (record.slides || []).forEach((slide, index) => doc.body.append(doc.importNode(slideNode(record, slide, index), true)));
     page.host.printDocument(doc.documentElement.outerHTML);

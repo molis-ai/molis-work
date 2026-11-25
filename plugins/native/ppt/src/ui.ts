@@ -41,7 +41,7 @@ export const pptUiContribution: UiContribution<PptUiModel> = {
       case "workbench":
         return renderPptWorkbench(request.model);
       default:
-        throw new Error(`PPT UI surface ${(request as UiRenderRequest).surface} 不存在`);
+        throw new Error(`Unknown PPT UI surface: ${(request as UiRenderRequest).surface}`);
     }
   },
 };

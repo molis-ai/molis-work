@@ -331,12 +331,12 @@
     "status": 400,
     "type": "application/json",
     "code": "actions.input_invalid",
-    "error": "输入不符合能力合同：/ required, / required, / required"
+    "error": "填写的内容还不完整或格式不对，检查后再试一次。"
   },
   "GET <project>/side/todo/no-such-view (page)": {
     "status": 404,
     "type": "application/json",
-    "error": "插件没有这个侧栏入口"
+    "error": "找不到对应的功能入口，刷新页面后再试一次。"
   },
   "GET <project>/side/no-such-plugin/x (page)": {
     "status": 404,
@@ -391,7 +391,7 @@
   "GET <project>/api/plugins/io.molis.work.todo/x": {
     "status": 404,
     "type": "application/json",
-    "error": "插件没有这个入口"
+    "error": "找不到对应的功能入口，刷新页面后再试一次。"
   },
   "GET <project>/sessions (page)": {
     "status": 302,
@@ -490,13 +490,13 @@
     "status": 400,
     "type": "application/json",
     "code": "actions.input_invalid",
-    "error": "输入不符合能力合同：/ required"
+    "error": "填写的内容还不完整或格式不对，检查后再试一次。"
   },
   "POST <project>/api/placement/describe": {
     "status": 400,
     "type": "application/json",
     "code": "actions.input_invalid",
-    "error": "输入不符合能力合同：/ required"
+    "error": "填写的内容还不完整或格式不对，检查后再试一次。"
   },
   "GET <project>/api/contextual/surfaces": {
     "status": 200,
@@ -589,7 +589,7 @@
     "status": 400,
     "type": "application/json",
     "code": "actions.input_invalid",
-    "error": "输入不符合能力合同：/ required"
+    "error": "填写的内容还不完整或格式不对，检查后再试一次。"
   },
   "GET <project>/api/plugins/io.molis.work.pages/pages/no-such": {
     "status": 404,

@@ -165,7 +165,7 @@ test("FSS-33 FSS-35 the first Settings HTML marks the actual language preference
   await assertFirstPaint(project, "zh", "explicit", "zh");
   await b.click(`${options} a[data-ui-language=system]`);
   await b.waitFor(`document.documentElement.lang === 'en' && document.querySelector('${options} a[data-ui-language=system]')?.getAttribute('aria-current') === 'true'`);
-  await useBrowserLanguages("fr-FR,ja-JP");
+  await useBrowserLanguages("fr-FR,de-DE");
   await go(projectAppearance);
   await assertFirstPaint(project, "zh", "default", "system");
   assert.equal(writes, 2);
@@ -389,7 +389,7 @@ async function openLanguageSettings(t: TestContext, b: LanguageBrowser) {
   assert.ok(navigations.length > 0);
   const location = new URL(address), navigation = new URL(navigations.at(-1)!);
   assert.deepEqual([location.origin, location.pathname], [navigation.origin, navigation.pathname]);
-  const select = async (target: "zh" | "en") => {
+  const select = async (target: "zh" | "en" | "ja") => {
     const opened = navigations.slice(); // The project cover can set settingsPath with replaceState in this same document.
     assert.equal(await evaluate(`(async () => {
       const stop = Date.now() + 15000;
@@ -419,7 +419,7 @@ async function openLanguageSettings(t: TestContext, b: LanguageBrowser) {
   return select;
 }
 
-async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser, target: "zh" | "en" = "en") {
+async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser, target: "zh" | "en" | "ja" = "en") {
   const select = await openLanguageSettings(t, b);
   await select(target);
   return select;
@@ -617,7 +617,11 @@ test("FSS-35 FSS-36 the open Diff wait state changes language without replacing 
   const message = `${empty}?.querySelector('strong').textContent`;
   const zh = "先在侧栏「资料」阅读器里分别固定「对比前」和「对比后」，这里就会显示两者的差异", en = "Pin a “Before” and “After” version in the Materials reader first to view their differences here";
   await child.waitFor(`${message} === ${JSON.stringify(zh)}`);
-  await child.evaluate(`void (()=>{ window.diffOriginal = ${empty}; ${refresh}.focus(); })()`);
+  await child.frameCommand("Runtime.evaluate", {
+    expression: `void (()=>{ window.diffOriginal = ${empty}; ${refresh}.focus(); })()`,
+    returnByValue: true,
+    userGesture: true,
+  });
   const select = await chooseEnglishInSettings(t, b);
   for (const [locale, text] of [["en", en], ["zh-CN", zh]]) {
     if (locale === "zh-CN") await select("zh");
@@ -839,7 +843,11 @@ test("FSS-36 the Studio retitles the same refused request through both language 
     studioDraft.dispatchEvent(new Event("input",{bubbles:true}));studioDraft.form.requestSubmit();`);
   const notice = `document.querySelector(".as-error p")`;
   await child.waitFor(`${notice}?.textContent==="Choose the model used for building first"`);
-  await child.evaluate(`window.studioNotice=${notice};studioDraft.focus();studioDraft.setSelectionRange(1,6,"backward");`);
+  await child.frameCommand("Runtime.evaluate", {
+    expression: `window.studioNotice=${notice};studioDraft.focus();studioDraft.setSelectionRange(1,6,"backward");`,
+    returnByValue: true,
+    userGesture: true,
+  });
   const chooseLanguage = await chooseEnglishInSettings(t, b, "zh");
   await child.waitFor(`${notice}?.textContent==="请先选择构建使用的模型"`);
   const preserved = `[studioNotice===${notice},studioDraft===document.querySelector('[data-as-input]'),document.activeElement===studioDraft,
@@ -877,14 +885,18 @@ test("FSS-35 a Pages editor retitles its controls in place without rewriting the
     !!calendar.textContent.match(/年/u), document.activeElement===editor, getSelection().anchorNode===originalText,
     getSelection().anchorOffset, getSelection().focusOffset, originalText.data, scrollHost.scrollTop === scrollOffset,
     document.querySelector('[data-pages-title]').value]`;
-  await child.evaluate(`(() => { window.originalBody=document.body; window.editor=document.querySelector('[data-pages-editor] .ProseMirror');
+  await child.frameCommand("Runtime.evaluate", {
+    expression: `(() => { window.originalBody=document.body; window.editor=document.querySelector('[data-pages-editor] .ProseMirror');
     window.codeCopy=editor.querySelector('.pages-code-copy'); window.contents=editor.querySelector('[data-pages-toc]');
     window.calendar=editor.querySelector('.pages-calendar header'); window.originalText=editor.querySelector(':scope > p').firstChild;
     window.scrollHost=[editor.closest('.pages-workspace'),editor.closest('[data-pages-stage-workspace]')].find(node=>node.scrollHeight>node.clientHeight);
     editor.focus(); getSelection().setBaseAndExtent(originalText,6,originalText,1); document.dispatchEvent(new Event('selectionchange'));
     scrollHost.scrollTop=140; window.scrollOffset=scrollHost.scrollTop;
     if (!scrollOffset) throw new Error('Fixture did not scroll');
-  })()`);
+  })()`,
+    returnByValue: true,
+    userGesture: true,
+  });
   const expected = (en: boolean) => [true, true, true, true, true, en ? "Document body" : "文档正文", en ? "Copy code" : "复制代码",
     en ? "Table of contents" : "目录", "目录（用户正文）", !en, true, true, 6, 1, original, true, title];
   assert.deepEqual(await child.evaluate(snapshot), expected(false));
@@ -985,11 +997,15 @@ test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized
   const child = await pluginFrameBrowser(t, b, "issues");
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=%2Fplugins%2Fissues" }, b.sessionId));
   await child.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'");
-  await child.evaluate(`(() => {
+  await child.frameCommand("Runtime.evaluate", {
+    expression: `(() => {
     window.issuedDraft = document.querySelector('[data-issue-composer] textarea');
     issuedDraft.value = 'Issue draft 原文'; issuedDraft.focus(); issuedDraft.setSelectionRange(1, 5, 'backward');
     issuedDraft.dispatchEvent(new Event('input', {bubbles:true}));
-  })()`);
+  })()`,
+    returnByValue: true,
+    userGesture: true,
+  });
   assert.match(await child.evaluate<string>("issuedDraft.placeholder"), /遇到什么问题/u);
   // A trusted fixture uses HTML en and German Intl conventions. The current frame grant and the rest of the words are real.
   await b.evaluate(`(() => {
@@ -1234,7 +1250,7 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
   assert.deepEqual(await b.evaluate(`[window.originalInstalledTitle = document.querySelector(${JSON.stringify(tab)}), window.originalMarketTitle = document.querySelector('[data-market-plugin=todo] h2'),
     JSON.parse(document.querySelector('#workbench-plugin-titles').textContent)[${JSON.stringify(surface)}], originalMarketTitle.textContent].slice(2)`), ["读书摘记", "待办"]);
   // The project home is composed when it is shown, so this window holds none of it; SCS-12 FSS-34 (surface-home-workbench) switches the shown home's owners' words.
-  await chooseEnglishInSettings(t, b);
+  const selectLanguage = await chooseEnglishInSettings(t, b);
   await child.waitFor("document.documentElement.lang === 'en' && document.querySelector('h1').textContent === 'Reading notes'");
   assert.deepEqual(await child.evaluate(`[savedStudioBody===document.body,savedStudioField===document.querySelector('[data-field=text]'),document.activeElement===savedStudioField,
     savedStudioField.value,savedStudioField.selectionStart,savedStudioField.selectionEnd,savedStudioField.selectionDirection,document.querySelector('[data-field=access]').value,
@@ -1248,7 +1264,16 @@ test("FSS-20 FSS-38 FSS-74 a signed Studio installation switches its words in th
   assert.deepEqual(await b.evaluate(`[originalInstalledTitle===document.querySelector(${JSON.stringify(tab)}),
     originalInstalledTitle.querySelector('.tab-item-name').textContent, originalMarketTitle===document.querySelector('[data-market-plugin=todo] h2'),
     originalMarketTitle.textContent, originalMarketTitle.nextElementSibling.textContent, JSON.parse(document.querySelector('#workbench-plugin-titles').textContent)[${JSON.stringify(surface)}]]`),
-  [true, "Reading notes", true, "Todo", "Write down what needs doing, what is for today, and who you are waiting for.", "Reading notes"]);
+  [true, "Reading notes", true, "Todo", "Write down what needs doing, what’s for today, and who you’re waiting on.", "Reading notes"]);
+  // Switching the workbench to ja: this signed plugin only declares zh/en, so it falls back gracefully to its default (zh) while the shell switches to ja.
+  await selectLanguage("ja");
+  await b.waitFor("document.documentElement.lang === 'ja' && document.querySelector('[data-market-plugin=todo] h2')?.textContent === 'ToDo'");
+  await child.waitFor("document.querySelector('h1')?.textContent === '读书摘记'");
+  assert.deepEqual(await child.evaluate(`[savedStudioBody===document.body,savedStudioField===document.querySelector('[data-field=text]'),
+    savedStudioField.value,savedStudioField.selectionStart,savedStudioField.selectionEnd,savedStudioField.selectionDirection,document.querySelector('[type=submit]').textContent]`),
+  [true, true, "unfinished 摘录", 1, 6, "backward", "保存摘记"]);
+  await selectLanguage("en");
+  await child.waitFor("document.documentElement.lang === 'en' && document.querySelector('h1').textContent === 'Reading notes'");
   assert.deepEqual([...new Set(hostTextProblems().filter(problem => !problemsBefore.has(problem)).map(problem => problem.key ?? problem.code))], [], "a viewless Home half and the installed release used their actual owners");
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(frame)}).title`), "Reading notes");
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(frame)}).parentElement.dataset.pluginPage`), opened);
@@ -1582,13 +1607,13 @@ test("FSS-20 FSS-27 FSS-35 FSS-36 discussion retitles the open conversation and 
     form.requestSubmit();
   })()`);
   const error = setup + ".querySelector('[data-form-error]')";
-  await b.waitFor(`${error}?.textContent === 'Check the required fields and their length, then try again.'`);
+  await b.waitFor(`${error}?.textContent === 'Check the required fields and length limits, then try again.'`);
   assert.deepEqual(await b.evaluate("discussionInvalidThread"), { status: 400,
-    body: { code: "im.invalid_input", error: "Thread 标题不能为空，且不能超过 120 字" } });
+    body: { code: "im.invalid_input", error: "话题标题不能为空，且不能超过 120 字" } });
   await b.evaluate(`void (window.discussionDraftError = ${error})`);
   watchWrites = true;
   await choose("zh");
-  await b.waitFor(`${error} === discussionDraftError && ${error}.textContent === '请检查必填内容及其长度，再试一次。'`);
+  await b.waitFor(`${error} === discussionDraftError && ${error}.textContent === '请检查必填内容和字数限制，再试一次。'`);
   assert.equal(await b.evaluate(`${setup}.querySelector('[name=body]').value`), "未提交原文");
   assert.equal(await b.evaluate(`${im}.querySelectorAll('.im-thread-strip [data-action=select-thread]').length`), 0);
   assert.deepEqual(writes, [], "retitling the existing failure did not submit a second time");
@@ -1775,9 +1800,9 @@ test("FSS-35 approved library titles and Assistant settings words preserve exact
   }
   const cases = [
     ["account.seat.assign", "system.account", "分配席位", "Assign seat"],
-    ["dataset.create", "io.molis.work.dataset", "新建数据表", "New table"],
-    ["goals.list", "io.molis.work.goals", "目标目录", "Target directory"],
-    ["todo.reminders.due", "io.molis.work.todo", "到了时间的提醒", "Reminders due"],
+    ["dataset.create", "io.molis.work.dataset", "新建数据表", "Create data table"],
+    ["goals.list", "io.molis.work.goals", "目标目录", "List goals"],
+    ["todo.reminders.due", "io.molis.work.todo", "到点提醒", "List due reminders"],
   ];
   const ids = cases.map(([id, provider]) => `library-index-${provider}:${id}@1`);
   const detail = "library-detail-io.molis.work.dataset:dataset.create@1";
@@ -1789,9 +1814,349 @@ test("FSS-35 approved library titles and Assistant settings words preserve exact
   assert.match(await b.evaluate<string>("document.querySelector('.capability-detail').textContent"), /dataset\.create@1/u);
   await b.evaluate(`void (window.catalogLibrary = [...${JSON.stringify(ids)}, ${JSON.stringify(detail)}].map(id => document.getElementById(id)))`);
   await select("en"); await b.waitFor("document.documentElement.lang === 'en'");
-  assert.deepEqual(await b.evaluate(titles), [...cases.map(row => row[3]), "New table"]);
+  assert.deepEqual(await b.evaluate(titles), [...cases.map(row => row[3]), "Create data table"]);
   assert.ok(await b.evaluate("catalogLibrary.every(node => document.getElementById(node.id) === node)"));
   await go(library + "&q=" + encodeURIComponent("新建数据表"));
   await b.waitFor(`!!document.getElementById(${JSON.stringify(ids[1])})`);
-  assert.equal(await b.evaluate(`document.getElementById(${JSON.stringify(ids[1])}).textContent`), "New table", "the library still searches the original declaration");
+  assert.equal(await b.evaluate(`document.getElementById(${JSON.stringify(ids[1])}).textContent`), "Create data table", "the library still searches the original declaration");
+});
+
+test("FSS-20 FSS-34 FSS-35 FSS-36 full live zh → en → ja → zh switching across shell, side panel, split-pane clones, IM, plugin stage, settings, error status, fallback plugin and 3-language switcher widths", { timeout: 180_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null);
+  assert.ok(b?.projectId);
+  const { command, sessionId, origin, waitFor, evaluate } = b;
+
+  // 1. Settings › Appearance: verify 3-language switcher fits without horizontal overflow at 1440, 1024, and 390 widths
+  // across en (Follow system), ja (システムに合わせる), and zh (跟随系统),
+  // plus error status on failed ja load, retry recovery, and full zh → en → ja → zh in place with draft + focus preserved.
+  const switcherCases = [
+    ["en", "en", "Follow system"],
+    ["ja", "ja", "システムに合わせる"],
+    ["zh", "zh-CN", "跟随系统"],
+  ] as const;
+  for (const [lang, htmlLang, systemLabel] of switcherCases) {
+    await b.navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${lang}&next=%2Fsettings%2Fappearance` }, sessionId));
+    await waitFor(`typeof t === 'function' && document.documentElement.lang === '${htmlLang}' && !!document.querySelector('[data-ui-language-options] a[data-ui-language=ja]')`, 20_000);
+    for (const width of [1440, 1024, 390] as const) {
+      await b.setViewport(width, 900);
+      const layout = await evaluate<{
+        tags: string[];
+        systemText: string;
+        visible: boolean;
+        groupOverflow: boolean;
+        viewportOverflow: boolean;
+        buttonOverflow: boolean;
+        singleRow: boolean;
+        itemWrapped: boolean;
+      }>(`(() => {
+        const group = document.querySelector('[data-ui-language-options]');
+        const links = [...group.querySelectorAll('a[data-ui-language]')];
+        const groupRect = group.getBoundingClientRect();
+        const rects = links.map(link => ({
+          tag: link.dataset.uiLanguage,
+          text: link.textContent.trim(),
+          rect: link.getBoundingClientRect(),
+          scrollW: link.scrollWidth,
+          clientW: link.clientWidth,
+          lineHeight: parseFloat(getComputedStyle(link).lineHeight) || 20,
+        }));
+        const tops = rects.map(item => item.rect.top);
+        return {
+          tags: rects.map(item => item.tag),
+          systemText: rects.find(item => item.tag === 'system')?.text ?? '',
+          visible: rects.every(item => item.rect.width > 0 && item.rect.height > 0),
+          groupOverflow: group.scrollWidth > group.clientWidth + 1 || rects.some(item => item.scrollW > item.clientW + 1),
+          viewportOverflow: groupRect.right > window.innerWidth + 1,
+          buttonOverflow: rects.some(item => item.rect.left < groupRect.left - 1 || item.rect.right > groupRect.right + 1 || item.rect.right > window.innerWidth + 1),
+          singleRow: Math.max(...tops) - Math.min(...tops) <= 2,
+          itemWrapped: rects.some(item => item.rect.height > Math.max(48, item.lineHeight * 2.2)),
+        };
+      })()`);
+      assert.deepEqual(layout.tags, ["system", "zh", "en", "ja"], `all 3 languages + system shown in ${lang} at ${width}px`);
+      assert.equal(layout.systemText, systemLabel, `system option label in ${lang} at ${width}px`);
+      assert.deepEqual(
+        [layout.visible, layout.groupOverflow, layout.viewportOverflow, layout.buttonOverflow, layout.itemWrapped],
+        [true, false, false, false, false],
+        `3-language switcher fits without horizontal overflow in ${lang} (${systemLabel}) at ${width}px`,
+      );
+      if (width >= 1024) {
+        assert.equal(layout.singleRow, true, `3-language switcher stays single-row in ${lang} at ${width}px`);
+      }
+    }
+  }
+  await b.setViewport(1440, 900);
+
+  await evaluate(`(() => {
+    window.__triSettingsBody = document.body;
+    const draft = window.__triSettingsDraft = document.createElement('textarea');
+    draft.value = '三语草稿 · Draft · 下書き';
+    document.querySelector('.settings-content').append(draft);
+    draft.focus();
+    draft.setSelectionRange(2, 8, 'backward');
+    const prevTransport = window.molisWorkUiTransport;
+    window.__failJaOnce = true;
+    window.molisWorkUiTransport = (url, init) => {
+      if (init?.headers?.['x-molis-work-ui-locale'] === 'ja' && window.__failJaOnce) {
+        window.__failJaOnce = false;
+        return Promise.resolve(new Response('Unavailable', { status: 503 }));
+      }
+      return prevTransport?.(url, init);
+    };
+  })()`);
+  await evaluate("document.querySelector('a[data-ui-language=ja]').click()");
+  await waitFor("!!document.querySelector('[data-ui-language-status] button')");
+  assert.match(await evaluate<string>("document.querySelector('[data-ui-language-status]').textContent"), /界面语言未能切换，请重试。/u);
+  assert.equal(await evaluate("document.documentElement.lang"), "zh-CN");
+  assert.deepEqual(
+    await evaluate("[window.__triSettingsBody === document.body, document.activeElement === window.__triSettingsDraft, window.__triSettingsDraft.value, window.__triSettingsDraft.selectionStart, window.__triSettingsDraft.selectionEnd]"),
+    [true, true, "三语草稿 · Draft · 下書き", 2, 8],
+  );
+  await evaluate("document.querySelector('[data-ui-language-status] button').click()");
+  await waitFor("document.documentElement.lang === 'ja' && !document.querySelector('[data-ui-language-status]') && document.querySelector('a[data-ui-language=ja]')?.getAttribute('aria-current') === 'true'");
+  assert.deepEqual(
+    await evaluate("[window.__triSettingsBody === document.body, document.activeElement === window.__triSettingsDraft, window.__triSettingsDraft.value, window.__triSettingsDraft.selectionStart, window.__triSettingsDraft.selectionEnd, window.__triSettingsDraft.selectionDirection]"),
+    [true, true, "三语草稿 · Draft · 下書き", 2, 8, "backward"],
+  );
+  await evaluate("document.querySelector('a[data-ui-language=zh]').click()");
+  await waitFor("document.documentElement.lang === 'zh-CN'");
+
+  // 2. Full Project Workbench: Shell + Side Panel + Split-Pane Clone + IM + Plugin Stage (issues) + Non-ja fallback plugin (shelf).
+  const select = await openLanguageSettings(t, b);
+  const issuesFrame = await pluginFrameBrowser(t, b, "issues");
+  const projectPath = `/projects/${b.projectId}/?desktop=1&openPlugin=issues`;
+  await b.navigate(() => command("Page.navigate", { url: origin + "/locale?lang=zh&next=" + encodeURIComponent(projectPath) }, sessionId));
+  await waitFor("document.documentElement.lang === 'zh-CN' && !!document.querySelector('[data-side-tabs]') && !!document.querySelector('[data-tab-pane]')", 25_000);
+  await issuesFrame.waitFor("document.querySelector('[data-issues=workbench]')?.dataset.ready === 'true'", 25_000);
+  await issuesFrame.frameCommand("Runtime.evaluate", {
+    expression: `(() => {
+      window.__triIssueBody = document.body;
+      window.__triIssueDraft = document.querySelector('[data-issue-composer] textarea');
+      window.__triIssueDraft.value = 'Issue 草稿 · Draft · 下書き';
+      window.__triIssueDraft.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`,
+    returnByValue: true,
+    userGesture: true,
+  });
+
+  // Split the active pane right to create a real split pane and [data-pane-clone="true"] surface clone.
+  await evaluate("document.querySelector('[data-tab-pane] [data-tab-edge=right]').click()");
+  await waitFor("document.querySelectorAll('[data-tab-pane]').length >= 2 && document.querySelectorAll('[data-pane-clone=\"true\"]').length >= 1", 15_000);
+  await evaluate("window.__triPaneClone = document.querySelector('[data-pane-clone=\"true\"]');");
+
+  // Open Shelf side tab (declares zh/en only, no ja) first to verify graceful fallback when switching to ja, then open Discussion IM.
+  const shelfTabExists = await evaluate<boolean>("!!document.querySelector('[data-side-tab=shelf]')");
+  if (shelfTabExists) {
+    await b.click("[data-side-tab=shelf]");
+    await waitFor("!!document.querySelector('[data-side-body=shelf]')", 15_000);
+  }
+  await b.click("[data-side-tab=discussion]");
+  const imFrame = "document.querySelector('[data-side-body=\"discussion\"] iframe')";
+  const imDoc = imFrame + "?.contentDocument";
+  await waitFor(`${imDoc}?.querySelector('[data-name-form] input')`, 20_000);
+  await evaluate(`(() => {
+    const form = ${imDoc}.querySelector('[data-name-form]');
+    form.querySelector('input').value = '一骏';
+    form.requestSubmit();
+  })()`);
+  const activeRoom = `${imDoc}?.querySelector('[data-room-list] [aria-current=true]')?.dataset.id`;
+  await waitFor(`${activeRoom} && ${imDoc}.querySelector('#im-group-input').disabled === false`, 20_000);
+  const room = await evaluate<string>(activeRoom);
+  const posted = await evaluate<number>(`${imFrame}.contentWindow.fetch('/im/api/rooms/${room}/messages', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: crypto.randomUUID(), body: '三语测试消息' }),
+  }).then(answer => answer.status)`);
+  assert.equal(posted, 200);
+  await waitFor(`${imDoc}.querySelector('[data-message]') && ${imDoc}.querySelector('.im-date')`, 15_000);
+
+  await evaluate(`(() => {
+    window.__triWbBody = document.body;
+    window.__triSideTabs = document.querySelector('[data-side-tabs]');
+    const doc = ${imDoc};
+    const input = doc.querySelector('#im-group-input');
+    window.__triIm = { doc, input };
+    input.value = 'IM 草稿 · Draft · 下書き';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(3, 9, 'backward');
+  })()`);
+
+  const checks: ReadonlyArray<{
+    tag: "en" | "ja" | "zh";
+    htmlLang: string;
+    discussionTab: string;
+    closePane: string;
+    splitRight: string;
+    imDay: string;
+    imQuote: string;
+    imFormError: string;
+    issueMinutes: string;
+    issuePlaceholder: RegExp;
+  }> = [
+    {
+      tag: "en",
+      htmlLang: "en",
+      discussionTab: "Discussion",
+      closePane: "Close pane",
+      splitRight: "Split right",
+      imDay: "Today",
+      imQuote: "Quote",
+      imFormError: "Check the required fields and length limits, then try again.",
+      issueMinutes: "3 minutes ago",
+      issuePlaceholder: /^What went wrong/u,
+    },
+    {
+      tag: "ja",
+      htmlLang: "ja",
+      discussionTab: "ディスカッション",
+      closePane: "ペインを閉じる",
+      splitRight: "右に分割",
+      imDay: "今日",
+      imQuote: "引用",
+      imFormError: "必須項目と文字数制限を確認して、再度お試しください。",
+      issueMinutes: "3 分前",
+      issuePlaceholder: /^どんな問題がありましたか/u,
+    },
+    {
+      tag: "zh",
+      htmlLang: "zh-CN",
+      discussionTab: "讨论",
+      closePane: "关闭分栏",
+      splitRight: "拆到右侧",
+      imDay: "今天",
+      imQuote: "引用",
+      imFormError: "请检查必填内容和字数限制，再试一次。",
+      issueMinutes: "3 分钟前",
+      issuePlaceholder: /遇到什么问题/u,
+    },
+  ];
+
+  for (const step of checks) {
+    await select(step.tag);
+    await waitFor(
+      `document.documentElement.lang === ${JSON.stringify(step.htmlLang)} && document.documentElement.dataset.uiLanguageTag === ${JSON.stringify(step.tag)} && ${imDoc}.documentElement.lang === ${JSON.stringify(step.htmlLang)}`,
+      25_000,
+    );
+    await issuesFrame.waitFor(`document.documentElement.lang === ${JSON.stringify(step.htmlLang)}`, 25_000);
+
+    const wbState = await evaluate<{
+      sameBody: boolean;
+      sameSideTabs: boolean;
+      samePaneClone: boolean;
+      discussionTab: string;
+      paneCloseLabels: string[];
+      paneSplitRightLabels: string[];
+      imSameDoc: boolean;
+      imSameInput: boolean;
+      imFocused: boolean;
+      imDraft: string;
+      imSelection: [number, number, string];
+      imDay: string;
+      imQuote: string;
+    }>(`(() => {
+      const doc = ${imDoc};
+      const input = doc.querySelector('#im-group-input');
+      const sideDiscussion = document.querySelector('[data-side-tab=discussion]');
+      return {
+        sameBody: window.__triWbBody === document.body,
+        sameSideTabs: window.__triSideTabs === document.querySelector('[data-side-tabs]'),
+        samePaneClone: window.__triPaneClone === document.querySelector('[data-pane-clone="true"]'),
+        discussionTab: (sideDiscussion?.getAttribute('aria-label') || sideDiscussion?.textContent || '').trim(),
+        paneCloseLabels: [...document.querySelectorAll('[data-tab-pane-close]')].map(btn => btn.getAttribute('aria-label') || ''),
+        paneSplitRightLabels: [...document.querySelectorAll('[data-tab-edge=right]')].map(btn => btn.getAttribute('aria-label') || ''),
+        imSameDoc: doc === window.__triIm.doc,
+        imSameInput: input === window.__triIm.input,
+        imFocused: doc.activeElement === input,
+        imDraft: input.value,
+        imSelection: [input.selectionStart, input.selectionEnd, input.selectionDirection],
+        imDay: doc.querySelector('.im-date')?.textContent?.trim() || '',
+        imQuote: doc.querySelector('[data-message] [data-action=quote]')?.textContent?.trim() || '',
+      };
+    })()`);
+
+    assert.equal(wbState.sameBody, true, `${step.tag}: workbench body preserved in place`);
+    assert.equal(wbState.sameSideTabs, true, `${step.tag}: side tabs preserved in place`);
+    assert.equal(wbState.samePaneClone, true, `${step.tag}: split-pane clone node preserved in place`);
+    assert.ok(wbState.discussionTab.includes(step.discussionTab), `${step.tag}: side panel discussion tab (${wbState.discussionTab})`);
+    assert.ok(wbState.paneCloseLabels.length >= 2 && wbState.paneCloseLabels.every(label => label === step.closePane),
+      `${step.tag}: all split panes retitled close button (${JSON.stringify(wbState.paneCloseLabels)})`);
+    assert.ok(wbState.paneSplitRightLabels.length >= 2 && wbState.paneSplitRightLabels.every(label => label === step.splitRight),
+      `${step.tag}: all split panes retitled split-right edge (${JSON.stringify(wbState.paneSplitRightLabels)})`);
+    assert.equal(wbState.imSameDoc, true, `${step.tag}: IM document preserved in place`);
+    assert.equal(wbState.imSameInput, true, `${step.tag}: IM input node preserved`);
+    assert.equal(wbState.imFocused, true, `${step.tag}: IM input focus preserved`);
+    assert.equal(wbState.imDraft, "IM 草稿 · Draft · 下書き", `${step.tag}: IM draft preserved`);
+    assert.deepEqual(wbState.imSelection, [3, 9, "backward"], `${step.tag}: IM selection preserved`);
+    assert.equal(wbState.imDay, step.imDay, `${step.tag}: IM date label localized`);
+    assert.equal(wbState.imQuote, step.imQuote, `${step.tag}: IM quote button localized`);
+
+    const issueState = await issuesFrame.evaluate<{
+      sameBody: boolean;
+      sameDraft: boolean;
+      draftValue: string;
+      placeholder: string;
+      minutes: string;
+    }>(`(() => {
+      const textarea = document.querySelector('[data-issue-composer] textarea');
+      return {
+        sameBody: window.__triIssueBody === document.body,
+        sameDraft: window.__triIssueDraft === textarea,
+        draftValue: textarea.value,
+        placeholder: textarea.placeholder,
+        minutes: t.text('issues.when.minutes-ago', { count: 3 }),
+      };
+    })()`);
+    assert.equal(issueState.sameBody, true, `${step.tag}: issues iframe body preserved`);
+    assert.equal(issueState.sameDraft, true, `${step.tag}: issues textarea preserved`);
+    assert.equal(issueState.draftValue, "Issue 草稿 · Draft · 下書き", `${step.tag}: issues draft preserved`);
+    assert.match(issueState.placeholder, step.issuePlaceholder, `${step.tag}: issues placeholder localized`);
+    assert.equal(issueState.minutes, step.issueMinutes, `${step.tag}: issues plural localized`);
+
+    if (step.tag === "ja" && shelfTabExists) {
+      // Shelf only declares zh/en (no ja): verify its frame/panel stays healthy with zero errors on ja.
+      const shelfHealthy = await evaluate<boolean>("!document.querySelector('[data-side-body=shelf] [data-ui-client-state=failed]')");
+      assert.equal(shelfHealthy, true, "ja: plugin without ja (shelf) remains healthy");
+    }
+  }
+
+  // Also trigger a real validation error in the IM topic form and verify error copy retitles live across en → ja → zh while preserving focus & draft.
+  await evaluate(`(() => {
+    const doc = ${imDoc};
+    doc.querySelector('.im-thread-strip [data-action=new-topic]').click();
+    const form = doc.querySelector('.im-thread-setup');
+    form.querySelector('[name=title]').value = '  ';
+    const body = form.querySelector('[name=body]');
+    body.value = '未提交三语正文';
+    form.requestSubmit();
+  })()`);
+  await waitFor(`${imDoc}.querySelector('.im-thread-setup [data-form-error]')?.textContent === '请检查必填内容和字数限制，再试一次。'`, 15_000);
+  await evaluate(`(() => {
+    const doc = ${imDoc};
+    const body = doc.querySelector('.im-thread-setup [name=body]');
+    window.__triTopicError = doc.querySelector('.im-thread-setup [data-form-error]');
+    body.focus({ preventScroll: true });
+    body.setSelectionRange(1, 5, 'backward');
+  })()`);
+  for (const step of checks) {
+    await select(step.tag);
+    await waitFor(
+      `${imDoc}.documentElement.lang === ${JSON.stringify(step.htmlLang)} && ${imDoc}.querySelector('.im-thread-setup [data-form-error]')?.textContent?.trim() === ${JSON.stringify(step.imFormError)}`,
+      25_000,
+    );
+    assert.deepEqual(
+      await evaluate(`(() => {
+        const doc = ${imDoc};
+        const body = doc.querySelector('.im-thread-setup [name=body]');
+        return [
+          doc.querySelector('.im-thread-setup [data-form-error]') === window.__triTopicError,
+          doc.activeElement === body,
+          body.value,
+          body.selectionStart,
+          body.selectionEnd,
+          body.selectionDirection,
+        ];
+      })()`),
+      [true, true, "未提交三语正文", 1, 5, "backward"],
+      `${step.tag}: IM error alert & topic draft preserved in place`,
+    );
+  }
 });

@@ -8,10 +8,12 @@
     "lark.connection.summary": "国际版 Lark 的消息与文档。",
     "lark.connection.token-label": "Lark 应用凭证",
     "lark.guide.cli-link": "查看 Lark 官方 CLI",
-    "lark.guide.cli-note": "同一官方 CLI 支持 Lark 环境；Molis Work 的 Lark Connector 尚未复用其登录。",
+    "lark.guide.cli-note": "同一官方 CLI 支持 Lark 环境；Molis Work 的 Lark 连接暂未复用其登录。",
     "lark.guide.mcp-link": "查看 Lark 官方 MCP",
     "lark.guide.oauth-link": "查看 Lark 用户授权",
     "lark.guide.token-note": "国际版 Lark 自建应用需 app_id:app_secret。",
-    "lark.setup.open-lark-open-platform": "打开 Lark 开放平台"
+    "lark.setup.open-lark-open-platform": "打开 Lark 开放平台",
+    "lark.permission.network.reason": "读取 Lark 账号信息与最新动态",
+    "lark.permission.secret.reason": "使用已安全保存的 Lark 连接凭据"
   }
 }

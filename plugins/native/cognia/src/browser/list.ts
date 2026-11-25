@@ -85,6 +85,14 @@ function paintManage(page: CogniaPage): void {
   for (const action of ["rename-source", "delete-source"]) maybe(page, `[data-cognia-action="${action}"]`)?.toggleAttribute("hidden", !source);
 }
 
+export function repaintList(page: CogniaPage): void {
+  if (!page.loaded) return;
+  paintFilters(page);
+  paintModel(page);
+  renderRows(page);
+  paintManage(page);
+}
+
 /** Reads the library with the filters as they are now; a read that is not the latest is dropped. */
 export async function load(page: CogniaPage): Promise<void> {
   const id = ++page.seq;

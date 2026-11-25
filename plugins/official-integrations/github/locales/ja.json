@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.github",
+  "locale": "ja",
+  "messages": {
+    "github.connection.inbound": "Feed で未読通知を取得",
+    "github.connection.outbound": "接続設定から現在の GitHub アカウントを確認できます。AI が使える機能は機能カタログで確認できます。",
+    "github.connection.summary": "この端末のアカウントを接続します。Feed で未読通知を取得し、接続設定でアカウントを確認できます。",
+    "github.guide.cli-link": "GitHub CLI のログイン方法を見る",
+    "github.guide.mcp-link": "GitHub 公式 MCP を見る",
+    "github.guide.oauth-link": "GitHub OAuth App を登録",
+    "github.guide.oauth-note": "アプリ内で Device Flow に対応しています。初回利用時はご自身の OAuth App Client ID を設定してください。",
+    "github.guide.token-note": "notifications と read:user の権限を持つ PAT を作成し、ここに貼り付けてください。",
+    "github.setup.create-a-personal-access-token": "Personal Access Token を作成",
+    "github.setup.register-an-oauth-app": "OAuth App を登録",
+    "github.permission.network.reason": "GitHub のアカウント情報と未読通知を読み取ります",
+    "github.permission.secret.reason": "安全に保存された GitHub の接続資格情報を使用します"
+  }
+}

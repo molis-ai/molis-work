@@ -15,7 +15,7 @@ import { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
-import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
+import { readLocalWebBody, sendLocalGatewayJson as sendLocalWebJson } from "./web-http.js";
 import { homeHostUrl } from "./host-endpoint.js";
 
 interface ContextGatewayOwner {

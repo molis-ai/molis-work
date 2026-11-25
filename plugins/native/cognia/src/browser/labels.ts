@@ -8,5 +8,14 @@ export const STATUS_KEY = {
   new: "cognia.status.new", update: "cognia.status.update", unchanged: "cognia.status.unchanged", skipped: "cognia.status.skipped",
 } as const;
 
+export const SKIP_REASON_KEY: Readonly<Record<string, string>> = {
+  hidden: "cognia.skip.hidden",
+  unsupported: "cognia.skip.unsupported",
+  too_large: "cognia.skip.too-large",
+  unreadable: "cognia.skip.unreadable",
+  missing: "cognia.skip.missing",
+  truncated: "cognia.skip.truncated",
+};
+
 /** The two sources every library has that are not an import: a person's own material and the saved drafts. They cannot be renamed or deleted. */
 export const OWN_SOURCES: readonly string[] = ["manual", "knowledge"];

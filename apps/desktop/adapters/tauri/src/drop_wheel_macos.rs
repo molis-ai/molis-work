@@ -56,7 +56,6 @@ static REVEAL_GEN: AtomicU64 = AtomicU64::new(0);
 static WATCHDOG_GEN: AtomicU64 = AtomicU64::new(0);
 static CATCHER: AtomicBool = AtomicBool::new(false);
 static FADE_GEN: AtomicU64 = AtomicU64::new(0);
-static ENGLISH: AtomicBool = AtomicBool::new(false);
 // Zero follows macOS until the web surface supplies its resolved theme.
 static THEME: AtomicU64 = AtomicU64::new(0);
 
@@ -502,11 +501,26 @@ pub fn set_shelf_surface(panel: Option<PanelBox>, language: Option<&str>, theme:
         *shown = drop_wheel::reported_panel(panel);
     }
     if let Some(language) = language {
-        ENGLISH.store(language.starts_with("en"), Ordering::SeqCst);
+        crate::native_language::note_surface_language(language);
+        refresh_labels();
     }
     if let Some(theme) = theme {
         THEME.store(if theme == "dark" { 2 } else { 1 }, Ordering::SeqCst);
     }
+}
+
+pub fn refresh_labels() {
+    let Some(current) = host() else {
+        return;
+    };
+    let app = current.app.clone();
+    let _ = app.run_on_main_thread(|| {
+        if let Some(live) = host() {
+            for tile in live.view.ivars().tiles.borrow().iter() {
+                tile.ivars().chrome.setNeedsDisplay(true);
+            }
+        }
+    });
 }
 
 pub fn is_shelf_surface() -> bool {
@@ -518,7 +532,14 @@ fn shelf_panel() -> Option<PanelBox> {
 }
 
 pub fn install(app: &AppHandle) -> Result<(), String> {
-    let mtm = MainThreadMarker::new().ok_or_else(|| "必须在主线程安装轮盘".to_string())?;
+    let mtm = MainThreadMarker::new().ok_or_else(|| {
+        crate::native_language::tr(
+            "拖放轮盘需要在主线程初始化。",
+            "The drop wheel must be initialized on the main thread.",
+            "ドロップホイールはメインスレッドで初期化する必要があります。",
+        )
+        .to_string()
+    })?;
     let size = window_size();
     let frame = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(size, size));
     let view = DropWheelView::new(mtm, frame);
@@ -852,12 +873,18 @@ fn send_terminal_text(items: &[String], text: Option<&str>) {
 
 /// A wheel notice never opens or closes the panel; it only leaves the reason.
 fn quiet_notice(message: &str) {
-    admission_notice(message, false, None);
+    let code = shelf_http::notice_code_for_error(message);
+    admission_notice(message, false, None, code.as_ref());
 }
 
-fn admission_notice(message: &str, partial: bool, warning: Option<&str>) {
+fn admission_notice(
+    message: &str,
+    partial: bool,
+    warning: Option<&str>,
+    notice: Option<&crate::native_language::ShelfNoticeCode>,
+) {
     let Some(host) = host() else { return };
-    crate::shelf_notice(&host.app, message, partial, warning, 0);
+    crate::shelf_notice(&host.app, message, partial, warning, notice, 0);
 }
 
 /// Returns the shelf item ids the drop produced, in drop order.
@@ -1411,19 +1438,9 @@ fn draw_chrome(view: &DropWheelChromeView) {
         box_bounds.origin.y + box_bounds.size.height / 2.0,
     );
     draw_symbol(action, NSPoint::new(center.x, center.y + ICON_LIFT), &glyph);
+    let label = crate::native_language::wheel_label(action);
     draw_label(
-        if ENGLISH.load(Ordering::SeqCst) {
-            match action {
-                WheelAction::Shelf => "Add files",
-                WheelAction::Send => "To terminal",
-                WheelAction::Summarize => "Summarize",
-                WheelAction::Extract => "Extract data",
-                WheelAction::Translate => "Translate",
-                WheelAction::ToMarkdown => "To MD",
-            }
-        } else {
-            slices[index].title
-        },
+        &label,
         NSPoint::new(center.x, center.y - LABEL_DROP),
         &ink,
         LABEL_MAX_WIDTH,

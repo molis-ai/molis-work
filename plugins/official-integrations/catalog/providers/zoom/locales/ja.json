@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.zoom",
+  "locale": "ja",
+  "messages": {
+    "zoom.connection.auth-help": "Zoom の OAuth ユーザーアクセストークンを入力してください。アカウント確認には /v2/users/me を使います。Server-to-Server トークンは /users/me にアクセスできず接続確認に失敗するため、ユーザーコンテキストのトークンを使ってください。",
+    "zoom.connection.inbound": "Feed でミーティングと録画を取得",
+    "zoom.connection.summary": "ミーティングと録画。",
+    "zoom.connection.token-label": "Zoom アクセストークン",
+    "zoom.guide.mcp-link": "Zoom 公式 MCP を見る",
+    "zoom.guide.oauth-link": "Zoom OAuth アプリを見る",
+    "zoom.guide.token-note": "Zoom OAuth ユーザーアクセストークンを使ってください。期限切れ後は再取得が必要です。",
+    "zoom.oauth.note": "Zoom アプリでユーザー・ミーティング・録画の読み取り権限を有効にしてください。",
+    "zoom.setup.open-zoom-app-marketplace": "Zoom App Marketplace を開く",
+    "zoom.permission.network.reason": "Zoom のアカウント情報と最新の更新を読み取ります",
+    "zoom.permission.secret.reason": "安全に保存された Zoom の接続資格情報を使用します"
+  }
+}

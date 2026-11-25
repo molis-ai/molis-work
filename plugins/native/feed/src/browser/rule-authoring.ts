@@ -57,7 +57,7 @@ export function feedRules(page: FeedPage) {
       catch (error) { check(); if (error && typeof error === "object" && "status" in error && typeof error.status === "number" && error.status >= 400 && error.status < 500 && !("code" in error && error.code === "functions.key_conflict")) throw error; const listed = await action<{ functions: JudgmentRuleRecord[] }>("list", /* @version action.functions.authoring.list */ 1, {}); saved.function = listed.functions.find(fn => fn.function_key === saved.functionKey); if (!saved.function) throw error; } remember(section);
     }
     if (saved.functionContent !== content) {
-      saved.function = (await action<{ function: JudgmentRuleRecord }>("update", /* @version action.functions.authoring.update */ 1, { ...revisionOf(saved.function), patch: { name: rule.name, instructions: rule.instructions, criteria: { true_description: "符合用户描述，值得关注。", false_description: "不符合用户描述，无需关注。" }, scene_id: FEED_CAPTURE_SCENE_ID, subject_kinds: ["feed_item"], scene_map: { true: INBOX_ADMIT_OPTION_ID, false: FEED_OPEN_OPTION_ID } } })).function;
+      saved.function = (await action<{ function: JudgmentRuleRecord }>("update", /* @version action.functions.authoring.update */ 1, { ...revisionOf(saved.function), patch: { name: rule.name, instructions: rule.instructions, criteria: { true_description: uiText.text("feed.rule-authoring.criteria-true"), false_description: uiText.text("feed.rule-authoring.criteria-false") }, scene_id: FEED_CAPTURE_SCENE_ID, subject_kinds: ["feed_item"], scene_map: { true: INBOX_ADMIT_OPTION_ID, false: FEED_OPEN_OPTION_ID } } })).function;
       saved.functionContent = content; delete saved.previewContent; remember(section);
     }
     return saved.function;

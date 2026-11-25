@@ -9,7 +9,7 @@ import { actionClientAudience } from "./mcp-action-grants.js";
 import { authenticateMcpClientProof } from "./mcp-client-credentials.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
-import { sendLocalWebJson as sendJson } from "./web-http.js";
+import { sendLocalGatewayJson as sendJson } from "./web-http.js";
 import { lastUsedLocale } from "./ui-locale-memory.js";
 import { runBackgroundWork } from "./web-locale.js";
 

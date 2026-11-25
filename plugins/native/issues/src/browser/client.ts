@@ -117,6 +117,13 @@ export function mountIssues(host: IssuesHost): void {
   listenToKeys(page);
   scope.listen(el.root, "click", (event) => page.run(() => onClick(page, event)));
   scope.listen(el.root, "molis-work:select-item", (event) => onSelectItem(page, event));
+  scope.listen(document, "molis-work:language-changed", () => {
+    page.render();
+    page.paint();
+    const current = page.state.current;
+    if (current && !isPending(current) && "images" in current && !page.state.editing) page.show(current, true);
+    else if (current) page.mode();
+  });
   listenToPage(page);
   try { el.desc.value = localStorage.getItem(page.storageKey) || ""; } catch { el.desc.value = ""; }
   page.ready();

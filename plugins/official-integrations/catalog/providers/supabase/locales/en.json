@@ -11,6 +11,8 @@
     "supabase.guide.mcp-link": "View the official Supabase MCP",
     "supabase.guide.oauth-link": "View Supabase OAuth app",
     "supabase.oauth.note": "Configure read access in the Supabase OAuth app.",
-    "supabase.setup.create-supabase-access-token": "Create Supabase access token"
+    "supabase.setup.create-supabase-access-token": "Create Supabase access token",
+    "supabase.permission.network.reason": "Read your Supabase account info and latest updates",
+    "supabase.permission.secret.reason": "Use your securely stored Supabase connection credentials"
   }
 }

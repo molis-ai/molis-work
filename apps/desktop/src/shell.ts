@@ -24,15 +24,28 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
   };
   globalThis.molisWorkOpenExternalUrl=(url)=>globalThis.__TAURI__.core.invoke("open_external_url",{url});
   globalThis.molisWorkOpenShelf=()=>globalThis.molisWorkOpenPlugin?.("shelf");
-  globalThis.molisWorkShelfNotice=(message,partial=false,originalWarning=null)=>{
+  globalThis.molisWorkShelfNotice=(message,partial=false,originalWarning=null,notice=null)=>{
     if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
     message=String(message||"");
-    window.dispatchEvent(new CustomEvent("molis:shelf-notice",{detail:{message}}));
+    const tr=(code,args)=>{
+      if(typeof code!=="string"||!/^[a-z0-9-]+$/.test(code)||typeof globalThis.t?.text!=="function")return null;
+      const out=globalThis.t.text("workbench.desktop-shelf."+code,args??undefined);
+      const miss=globalThis.t.text("common.text.unavailable");
+      return out&&out!=="…"&&out!==miss?out:null;
+    };
+    let display=message;
+    if(notice&&typeof notice==="object"){
+      const primary=tr(notice.code,notice.args);
+      const warn=tr(notice.warning_code);
+      if(primary)display=warn?primary+"\\n"+warn:primary;
+      else if(warn&&originalWarning&&message.endsWith(originalWarning))display=message.slice(0,-originalWarning.length)+warn;
+    }else if(originalWarning&&message.endsWith(originalWarning)){
+      const warn=tr("original-not-registered");
+      if(warn)display=message.slice(0,-originalWarning.length)+warn;
+    }
+    window.dispatchEvent(new CustomEvent("molis:shelf-notice",{detail:{message:notice?display:message}}));
     const toast=document.querySelector("[data-settings-toast], [data-toast]");
     if(!toast||!globalThis.molisWorkRequest?.toast)return;
-    // The native receipt identifies the appended warning independently of the original diagnostic.
-    const display=originalWarning ? message.slice(0,-originalWarning.length)
-      +(globalThis.t?.text("workbench.desktop-shelf.original-not-registered")??originalWarning) : message;
     globalThis.molisWorkRequest.toast(toast,null,display,{ms:5000});
     if(partial===true){toast.setAttribute("data-mw-state","partial");toast.classList.remove("is-error");}
   };
@@ -162,6 +175,37 @@ export function withDesktopQuery(href: string): string {
 export function appendDesktopQueryToLocalHrefs(html: string): string {
   return html.replace(/href="(\/[^\"]*)"/g, (_match, href: string) => `href="${withDesktopQuery(href)}"`);
 }
+
+/**
+ * Stable `workbench.desktop-shelf.*` keys resolved by `molisWorkShelfNotice` when native Rust
+ * commands send structured `ShelfNoticeCode` payloads (kept server-side so browser bytes stay lean).
+ */
+export const DESKTOP_SHELF_NOTICE_KEYS = [
+  "workbench.desktop-shelf.original-not-registered",
+  "workbench.desktop-shelf.batch-partial-failed",
+  "workbench.desktop-shelf.folder-too-large",
+  "workbench.desktop-shelf.no-items-to-process",
+  "workbench.desktop-shelf.action-failed",
+  "workbench.desktop-shelf.add-failed",
+  "workbench.desktop-shelf.service-unreachable",
+  "workbench.desktop-shelf.file-read-failed",
+  "workbench.desktop-shelf.folder-read-failed",
+  "workbench.desktop-shelf.invalid-filename",
+  "workbench.desktop-shelf.busy",
+  "workbench.desktop-shelf.no-browser",
+  "workbench.desktop-shelf.no-browser-hotkey",
+  "workbench.desktop-shelf.need-accessibility",
+  "workbench.desktop-shelf.need-accessibility-retry",
+  "workbench.desktop-shelf.need-browser-automation",
+  "workbench.desktop-shelf.browser-no-url",
+  "workbench.desktop-shelf.browser-show-address-bar",
+  "workbench.desktop-shelf.files-self",
+  "workbench.desktop-shelf.files-browser",
+  "workbench.desktop-shelf.files-need-accessibility",
+  "workbench.desktop-shelf.files-need-finder",
+  "workbench.desktop-shelf.files-empty-finder",
+  "workbench.desktop-shelf.files-empty",
+] as const;
 
 /** Shell ports consumed by the Host's Workbench renderer for both browser and native pages. */
 export const desktopWorkbenchRendererPorts = {

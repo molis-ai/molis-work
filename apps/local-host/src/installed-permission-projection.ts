@@ -20,7 +20,7 @@ const releaseKey = (pluginId: string, signature: string, version: string) => JSO
 export function projectInstalledPermissions(definition: PluginDefinition, release: { design: { contract: SandboxPluginContract } }): void {
   const { plugin_id, publisher, version } = definition.manifest;
   byRelease.set(releaseKey(plugin_id, publisher.signature, version),
-    Object.freeze(sandboxProjectedPermissions(definition.manifest, effectsFromContract(release.design.contract)).map(row => Object.freeze(row))));
+    Object.freeze(sandboxProjectedPermissions(definition.manifest, effectsFromContract(release.design.contract), release.design.contract.permission_reasons).map(row => Object.freeze(row))));
 }
 
 /** The Runtime's `permissionDeclarations` port: only for a sandboxed definition, the only kind the Host projects rows for. */

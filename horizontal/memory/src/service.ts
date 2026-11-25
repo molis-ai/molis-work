@@ -1,4 +1,5 @@
 import { MemoryCandidates } from "./candidates.js";
+import { resolveMemoryIntlLocale } from "./memory-locale.js";
 import { MemoryBatch } from "./batch.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { randomUUID } from "node:crypto";
@@ -124,6 +125,7 @@ export interface MemoryServicePorts {
   now?: () => Date;
   newId?: () => string;
   timeZone?: string;
+  locale?: string | (() => string | undefined);
   projectTitle?(projectId: string): Promise<string | null>;
   /** The Runtime session an original input came from (the Host owns that identity): a session's page and clear include what was learned there. */
   sourceSession?: MemorySourceSession;
@@ -189,7 +191,7 @@ export class MemoryService {
     this.maintenance = new MemoryUpkeep({ backend: ports.backend, ledger: ports.ledger, operations: this.operations,
       promotions: this.promotions, now: this.now, newId: this.newId });
     this.scopeCommands = new MemoryScopeCommands({ backend: ports.backend, ledger: ports.ledger, preferences: this.preferences, operations: this.operations,
-      now: this.now, newId: this.newId, timeZone: ports.timeZone,
+      now: this.now, newId: this.newId, timeZone: ports.timeZone, locale: ports.locale,
       importEntry: (caller, scope, item, origin) => this.commit(caller, { scope, text: item.text, kind: item.kind, applies: item.applies,
         expires_at: item.expires_at, source: "imported", basis: item.basis, evidence: [], approved_by: null, origin,
         retainedMeta: { classification: item.classification, session_ref: item.session_ref, namespace: item.namespace } }),
@@ -1223,7 +1225,8 @@ export class MemoryService {
   }
 
   private date(at?: string): string {
-    return new Intl.DateTimeFormat("zh-CN", { timeZone: this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone, dateStyle: "medium" }).format(at ? new Date(at) : this.now());
+    const activeLocale = resolveMemoryIntlLocale(this.ports.locale);
+    return new Intl.DateTimeFormat(activeLocale, { timeZone: this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone, dateStyle: "medium" }).format(at ? new Date(at) : this.now());
   }
 
   /** Provenance in words. A personal memory's names no work of a project, only the person's own words. */

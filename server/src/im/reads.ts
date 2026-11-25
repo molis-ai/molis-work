@@ -65,7 +65,7 @@ export class ImReads {
     const row = this.db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM im_messages WHERE thread_id = t.id) AS reply_count,
       (SELECT body FROM im_messages WHERE thread_id = t.id ORDER BY sequence DESC LIMIT 1) AS latest_reply
       FROM im_threads t WHERE t.id = ? AND t.room_id = ?`).get(threadId, roomId) as unknown as Row | undefined;
-    if (!row) throw new ImError("im.thread_not_found", "找不到这个群里的 Thread", 404);
+    if (!row) throw new ImError("im.thread_not_found", "找不到这个群里的话题", 404);
     return { id: String(row.id), room_id: String(row.room_id), title: String(row.title),
       source_message_id: row.source_message_id === null ? null : String(row.source_message_id), created_by: String(row.created_by),
       created_at: String(row.created_at), updated_at: String(row.updated_at),

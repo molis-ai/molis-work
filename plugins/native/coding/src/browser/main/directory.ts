@@ -47,8 +47,8 @@ function newRow(page: Page, session: SessionRecord): HTMLElement {
 }
 
 /** Local time: today reads as a clock time, earlier days as a date. */
-function drawTime(time: HTMLTimeElement, updated: string) {
-  if (time.dateTime === updated) return;
+function drawTime(time: HTMLTimeElement, updated: string, force = false) {
+  if (!force && time.dateTime === updated) return;
   const at = new Date(updated), now = new Date(), invalid = Number.isNaN(at.getTime());
   time.textContent = invalid ? updated.slice(5, 10) : at.toDateString() === now.toDateString() ? pad(at.getHours()) + ":" + pad(at.getMinutes()) : pad(at.getMonth() + 1) + "-" + pad(at.getDate());
   time.dateTime = updated;
@@ -106,15 +106,19 @@ function drawState(mark: HTMLElement, parts: ReturnType<typeof stateParts>) {
     piece(parts.word + parts.after, "mw-sr-only"));
 }
 
-function drawRow(page: Page, row: HTMLElement, session: SessionRecord, visible: readonly SessionRecord[]) {
+function drawRow(page: Page, row: HTMLElement, session: SessionRecord, visible: readonly SessionRecord[], force = false) {
   const { s } = page;
   let restore = row.querySelector<HTMLButtonElement>("[data-coding-restore]");
   if (session.archived || session.execution_state === "archived") {
     if (!restore) {
       restore = el("button", "↩", "mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only");
-      restore.type = "button"; restore.dataset.codingRestore = session.session_id;
-      restore.setAttribute("aria-label", uiText.text("coding.session.restore")); restore.title = uiText.text("coding.session.restore"); row.append(restore);
+      restore.type = "button";
+      restore.dataset.codingRestore = session.session_id;
+      row.append(restore);
     }
+    const restoreLabel = uiText.text("coding.session.restore");
+    restore.setAttribute("aria-label", restoreLabel);
+    restore.title = restoreLabel;
   } else restore?.remove();
   const link = row.querySelector("[data-coding-session]"), selected = s.current === session.session_id;
   link?.setAttribute("aria-current", String(selected));
@@ -124,7 +128,7 @@ function drawRow(page: Page, row: HTMLElement, session: SessionRecord, visible: 
   const shown = sessionTitle(session.title);
   if (title.textContent !== shown) title.textContent = shown;
   title.title = shown;
-  drawTime(time, session.updated_at);
+  drawTime(time, session.updated_at, force);
   drawState(mark, stateParts(page, session, visible));
   mark.dataset.state = session.checkpoint_busy ? "waiting-approval" : session.state;
   mark.dataset.mwState = session.checkpoint_busy ? "verify" : CODING_SESSION_MARKS[session.state as keyof typeof CODING_SESSION_MARKS]?.ring || "idle";
@@ -168,7 +172,7 @@ function matches(session: SessionRecord, needle: string, filter: string): boolea
 }
 
 /** The session list, grouped by Goal; rows are kept and updated in place. */
-export function renderDirectory(page: Page) {
+export function renderDirectory(page: Page, force = false) {
   const { directory, s } = page;
   renderGoalFace(page);
   const filter = directory.querySelector<HTMLElement>("[data-coding-filter][aria-pressed=true]")?.dataset.codingFilter || "all";
@@ -208,7 +212,7 @@ export function renderDirectory(page: Page) {
       row = newRow(page, session);
       s.directoryRows.set(session.session_id, row);
     }
-    drawRow(page, row, session, visible);
+    drawRow(page, row, session, visible, force);
     placeInGroup(page, list, row, session);
   }
   reorder(page, visible);

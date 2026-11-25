@@ -13,7 +13,7 @@ for (const mode of ["allowed", "source-missing", "pages-hidden", "controlled own
   const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.project_plugin_id === "issues")!;
   assert.ok(entry.runtime);
   probe.definition.manifest = { ...probe.definition.manifest, plugin_id: entry.manifest.plugin_id,
-    permissions: [...probe.definition.manifest.permissions, ...entry.manifest.permissions.filter(item => !probe.definition.manifest.permissions.some(own => own.permission === item.permission))] };
+    permissions: [...probe.definition.manifest.permissions, ...entry.manifest.permissions.filter(item => !probe.definition.manifest.permissions.some(own => own.permission === item.permission)).map(({ reason_text: _reasonText, ...permission }) => permission)] };
   t.mock.method(entry.runtime, "create", () => probe.definition);
   const s = await openTestHome(t, mode === "controlled owner unavailable" ? { host: { actionAvailability: (_caller, action) =>
     action.capability_id === pagesContentActions.read.capability_id

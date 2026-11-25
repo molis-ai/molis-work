@@ -9,6 +9,8 @@
     "linear.connection.token-label": "Linear API Key",
     "linear.guide.mcp-link": "View the official Linear MCP",
     "linear.guide.oauth-link": "View Linear OAuth app",
-    "linear.setup.open-linear-api-settings": "Open Linear API settings"
+    "linear.setup.open-linear-api-settings": "Open Linear API settings",
+    "linear.permission.network.reason": "Read your Linear account info and latest updates",
+    "linear.permission.secret.reason": "Use your securely stored Linear connection credentials"
   }
 }

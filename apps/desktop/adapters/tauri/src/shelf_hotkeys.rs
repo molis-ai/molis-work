@@ -1,6 +1,7 @@
 //! DropAgent global hotkey chords, toggle, front-file routing, capture recovery,
 //! and HTML→Markdown. Carbon registration lives in `shelf_hotkeys_macos`.
 
+use crate::native_language::{active_builtin, tr, BuiltinLocale, ShelfNoticeCode};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -21,19 +22,69 @@ pub const HOTKEY_TOGGLE: u32 = 1;
 pub const HOTKEY_CAPTURE: u32 = 2;
 pub const HOTKEY_FILES: u32 = 3;
 
-pub const NO_BROWSER: &str = "没读到当前页。把 Safari、Chrome 或 Edge 放到最前面，再抓一次。";
-#[cfg(test)]
-pub const NO_BROWSER_HOTKEY: &str =
-    "没读到当前页。把 Safari、Chrome 或 Edge 放到最前面，再按 ⌃⌥W。";
-pub const NEED_ACCESSIBILITY: &str =
-    "第一次抓页需要授权。点「去授权」，允许辅助功能后再点「再试」。";
-pub const NEED_ACCESSIBILITY_RETRY: &str =
-    "需要辅助功能才能读当前页地址。点「去授权」，允许后再点「再试」。";
-pub const FILES_SELF: &str = "到 Finder 或编辑器里选中文件再按。";
-pub const FILES_NEED_AX: &str = "加入选中文件需要辅助功能。";
-pub const FILES_NEED_FINDER: &str = "加入 Finder 里选中的文件需要允许控制 Finder。";
-pub const FILES_EMPTY_FINDER: &str = "请先在 Finder 里选中文件。";
-pub const FILES_EMPTY: &str = "没读到选中的文件。可在 Finder 里选，或打开一个本地文件。";
+pub(crate) fn no_browser_message() -> &'static str {
+    tr(
+        "没读到当前网页。把 Safari、Chrome 或 Edge 放到最前面再试一次。",
+        "Couldn’t read the current page. Bring Safari, Chrome, or Edge to the front and try again.",
+        "現在のページを読み取れませんでした。Safari、Chrome、または Edge を前面にしてもう一度お試しください。",
+    )
+}
+
+pub(crate) fn need_accessibility_message() -> &'static str {
+    tr(
+        "第一次抓取网页需要授权。点「去授权」，允许辅助功能后再点「再试」。",
+        "First-time page capture needs permission. Select “Grant access”, allow Accessibility, then try again.",
+        "初めてページを取り込むには権限が必要です。「権限を許可」からアクセシビリティを許可し、もう一度お試しください。",
+    )
+}
+
+pub(crate) fn need_accessibility_retry_message() -> &'static str {
+    tr(
+        "需要辅助功能权限才能读取当前网页地址。点「去授权」，允许后再点「再试」。",
+        "Accessibility permission is needed to read the current page address. Select “Grant access”, allow it, then try again.",
+        "現在のページ URL を読み取るにはアクセシビリティ権限が必要です。「権限を許可」から許可し、もう一度お試しください。",
+    )
+}
+
+pub(crate) fn files_self_message() -> &'static str {
+    tr(
+        "先在 Finder 或编辑器里选中文件，再按快捷键。",
+        "Select a file in Finder or your editor first, then press the shortcut.",
+        "先に Finder またはエディターでファイルを選択してからショートカットを押してください。",
+    )
+}
+
+pub(crate) fn files_need_ax_message() -> &'static str {
+    tr(
+        "加入选中文件需要开启辅助功能权限。",
+        "Accessibility permission is needed to add selected files.",
+        "選択中のファイルを追加するにはアクセシビリティ権限が必要です。",
+    )
+}
+
+pub(crate) fn files_need_finder_message() -> &'static str {
+    tr(
+        "加入 Finder 中选中的文件，需要先允许控制 Finder。",
+        "Permission to control Finder is needed to add selected files from Finder.",
+        "Finder で選択中のファイルを追加するには、Finder の制御権限が必要です。",
+    )
+}
+
+pub(crate) fn files_empty_finder_message() -> &'static str {
+    tr(
+        "请先在 Finder 里选中要添加的文件。",
+        "Select one or more files in Finder first.",
+        "先に Finder でファイルを選択してください。",
+    )
+}
+
+pub(crate) fn files_empty_message() -> &'static str {
+    tr(
+        "没读到选中的文件。可以在 Finder 里选中，或先打开一份本地文件。",
+        "No selected files found. Select a file in Finder or open a local file first.",
+        "選択中のファイルが見つかりませんでした。Finder で選択するか、ローカルファイルを開いてからお試しください。",
+    )
+}
 
 static TOGGLE_OK: AtomicBool = AtomicBool::new(false);
 static CAPTURE_OK: AtomicBool = AtomicBool::new(false);
@@ -164,7 +215,12 @@ impl DeviceHotkeys {
         if chords.iter().any(|chord| {
             chord.key_code > 255 || chord.carbon_modifiers == 0 || chord.carbon_modifiers > 65535
         }) {
-            return Err("全局快捷键无效".into());
+            return Err(tr(
+                "全局快捷键格式无效。",
+                "Invalid global shortcut.",
+                "グローバルショートカットが無効です。",
+            )
+            .into());
         }
         Ok((self.toggle.into(), self.capture.into(), self.files.into()))
     }
@@ -226,12 +282,34 @@ pub enum FrontFileFailure {
 impl FrontFileFailure {
     pub fn message(self, capture_label: &str) -> String {
         match self {
-            Self::SelfApp => FILES_SELF.to_string(),
-            Self::Browser => format!("这不是文件。网页请用 {capture_label}。"),
-            Self::NeedAccessibility => FILES_NEED_AX.to_string(),
-            Self::NeedFinderAutomation => FILES_NEED_FINDER.to_string(),
-            Self::EmptyFinder => FILES_EMPTY_FINDER.to_string(),
-            Self::Empty => FILES_EMPTY.to_string(),
+            Self::SelfApp => files_self_message().to_string(),
+            Self::Browser => match active_builtin() {
+                BuiltinLocale::Zh => format!("当前窗口不是文件。要保存网页，请按 {capture_label}。"),
+                BuiltinLocale::En => {
+                    format!("That’s a web page, not a file. Press {capture_label} to capture the page.")
+                }
+                BuiltinLocale::Ja => format!(
+                    "ファイルではなく Web ページです。ページを取り込むには {capture_label} を押してください。"
+                ),
+            },
+            Self::NeedAccessibility => files_need_ax_message().to_string(),
+            Self::NeedFinderAutomation => files_need_finder_message().to_string(),
+            Self::EmptyFinder => files_empty_finder_message().to_string(),
+            Self::Empty => files_empty_message().to_string(),
+        }
+    }
+
+    pub(crate) fn notice_code(self, capture_label: &str) -> ShelfNoticeCode {
+        match self {
+            Self::SelfApp => ShelfNoticeCode::key("files-self"),
+            Self::Browser => ShelfNoticeCode::key_with_args(
+                "files-browser",
+                serde_json::json!({ "shortcut": capture_label }),
+            ),
+            Self::NeedAccessibility => ShelfNoticeCode::key("files-need-accessibility"),
+            Self::NeedFinderAutomation => ShelfNoticeCode::key("files-need-finder"),
+            Self::EmptyFinder => ShelfNoticeCode::key("files-empty-finder"),
+            Self::Empty => ShelfNoticeCode::key("files-empty"),
         }
     }
 }
@@ -318,28 +396,31 @@ impl BrowserKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CaptureDecision {
+pub(crate) enum CaptureDecision {
     Proceed,
     Stop {
         message: String,
+        code: ShelfNoticeCode,
         offer_privacy: bool,
     },
 }
 
-pub fn capture_decision(
+pub(crate) fn capture_decision(
     target: Option<BrowserKind>,
     ax_trusted: bool,
     automation_allowed: bool,
 ) -> CaptureDecision {
     if target.is_none() {
         return CaptureDecision::Stop {
-            message: NO_BROWSER.to_string(),
+            message: no_browser_message().to_string(),
+            code: ShelfNoticeCode::key("no-browser"),
             offer_privacy: false,
         };
     }
     if !ax_trusted && !automation_allowed {
         return CaptureDecision::Stop {
-            message: NEED_ACCESSIBILITY.to_string(),
+            message: need_accessibility_message().to_string(),
+            code: ShelfNoticeCode::key("need-accessibility"),
             offer_privacy: true,
         };
     }
@@ -347,53 +428,139 @@ pub fn capture_decision(
 }
 
 pub fn no_browser_hotkey(label: &str) -> String {
-    format!("没读到当前页。把 Safari、Chrome 或 Edge 放到最前面，再按 {label}。")
-}
-
-pub fn capture_hotkey_message(message: &str) -> String {
-    if message == NO_BROWSER {
-        no_browser_hotkey(&current_capture().label())
-    } else {
-        message.to_string()
+    match active_builtin() {
+        BuiltinLocale::Zh => {
+            format!("没读到当前网页。把 Safari、Chrome 或 Edge 放到最前面，再按 {label}。")
+        }
+        BuiltinLocale::En => format!(
+            "Couldn’t read the current page. Bring Safari, Chrome, or Edge to the front, then press {label}."
+        ),
+        BuiltinLocale::Ja => format!(
+            "現在のページを読み取れませんでした。Safari、Chrome、または Edge を前面にして {label} を押してください。"
+        ),
     }
 }
 
-pub fn capture_failure(
+pub(crate) fn no_browser_hotkey_notice(label: &str) -> (String, ShelfNoticeCode) {
+    (
+        no_browser_hotkey(label),
+        ShelfNoticeCode::key_with_args(
+            "no-browser-hotkey",
+            serde_json::json!({ "shortcut": label }),
+        ),
+    )
+}
+
+pub(crate) fn capture_hotkey_notice(
+    message: &str,
+    code: ShelfNoticeCode,
+) -> (String, ShelfNoticeCode) {
+    if code.code == Some("no-browser") {
+        no_browser_hotkey_notice(&current_capture().label())
+    } else {
+        (message.to_string(), code)
+    }
+}
+
+pub(crate) fn capture_failure(
     target: Option<BrowserKind>,
     ax_trusted: bool,
     automation_allowed: bool,
-) -> (String, bool) {
+) -> (String, bool, ShelfNoticeCode) {
     let Some(kind) = target else {
-        return (NO_BROWSER.to_string(), false);
+        return (
+            no_browser_message().to_string(),
+            false,
+            ShelfNoticeCode::key("no-browser"),
+        );
     };
     if !ax_trusted {
-        return (NEED_ACCESSIBILITY_RETRY.to_string(), true);
+        return (
+            need_accessibility_retry_message().to_string(),
+            true,
+            ShelfNoticeCode::key("need-accessibility-retry"),
+        );
     }
     let name = kind.apple_script_name();
     match kind {
         BrowserKind::Safari | BrowserKind::Chrome | BrowserKind::Edge | BrowserKind::Brave => {
             if !automation_allowed {
+                let message = match active_builtin() {
+                    BuiltinLocale::Zh => {
+                        format!("辅助功能已开启，还需要允许控制 {name}。点「去授权」即可完成。")
+                    }
+                    BuiltinLocale::En => format!(
+                        "Accessibility is on, and permission to control {name} is also needed. Select “Grant access” to continue."
+                    ),
+                    BuiltinLocale::Ja => format!(
+                        "アクセシビリティは有効ですが、{name} を制御する権限も必要です。「権限を許可」から設定してください。"
+                    ),
+                };
                 (
-                    format!("辅助功能已开，还要允许控制{name}。点「去授权」。"),
+                    message,
                     true,
+                    ShelfNoticeCode::key_with_args(
+                        "need-browser-automation",
+                        serde_json::json!({ "browser": name }),
+                    ),
                 )
             } else {
+                let message = match active_builtin() {
+                    BuiltinLocale::Zh => {
+                        format!("已检测到 {name}，但没拿到网页地址。确认当前标签页是网页后再试一次。")
+                    }
+                    BuiltinLocale::En => format!(
+                        "Found {name}, but couldn’t read a web address. Make sure a web page is open and try again."
+                    ),
+                    BuiltinLocale::Ja => format!(
+                        "{name} を検出しましたが、URL を取得できませんでした。Web ページが開いていることを確認してもう一度お試しください。"
+                    ),
+                };
                 (
-                    format!("读到了{name}，但没拿到地址。确认当前是网页，再试一次。"),
+                    message,
                     false,
+                    ShelfNoticeCode::key_with_args(
+                        "browser-no-url",
+                        serde_json::json!({ "browser": name }),
+                    ),
                 )
             }
         }
-        BrowserKind::Arc | BrowserKind::Firefox => (
-            format!("读到了{name}，但没拿到地址。把地址栏露出来再试。"),
-            false,
-        ),
+        BrowserKind::Arc | BrowserKind::Firefox => {
+            let message = match active_builtin() {
+                BuiltinLocale::Zh => {
+                    format!("已检测到 {name}，但没拿到网页地址。请显示地址栏后再试一次。")
+                }
+                BuiltinLocale::En => format!(
+                    "Found {name}, but couldn’t read the address. Show the address bar and try again."
+                ),
+                BuiltinLocale::Ja => format!(
+                    "{name} を検出しましたが、URL を取得できませんでした。アドレスバーを表示してからもう一度お試しください。"
+                ),
+            };
+            (
+                message,
+                false,
+                ShelfNoticeCode::key_with_args(
+                    "browser-show-address-bar",
+                    serde_json::json!({ "browser": name }),
+                ),
+            )
+        }
     }
 }
 
 #[cfg(test)]
 pub fn occupied_message(label: &str) -> String {
-    format!("{label} 已被占用，这次没注册上。")
+    match active_builtin() {
+        BuiltinLocale::Zh => format!("{label} 已被其他程序占用，这次没能注册。"),
+        BuiltinLocale::En => {
+            format!("{label} is already in use by another app and couldn’t be registered.")
+        }
+        BuiltinLocale::Ja => {
+            format!("{label} は他のアプリで使用されているため登録できませんでした。")
+        }
+    }
 }
 
 pub fn document_title(html: &str) -> Option<String> {
@@ -952,14 +1119,16 @@ mod tests {
         assert_eq!(
             capture_decision(None, false, false),
             CaptureDecision::Stop {
-                message: NO_BROWSER.to_string(),
+                message: no_browser_message().to_string(),
+                code: ShelfNoticeCode::key("no-browser"),
                 offer_privacy: false
             }
         );
         assert_eq!(
             capture_decision(Some(BrowserKind::Safari), false, false),
             CaptureDecision::Stop {
-                message: NEED_ACCESSIBILITY.to_string(),
+                message: need_accessibility_message().to_string(),
+                code: ShelfNoticeCode::key("need-accessibility"),
                 offer_privacy: true
             }
         );
@@ -967,15 +1136,25 @@ mod tests {
             capture_decision(Some(BrowserKind::Safari), false, true),
             CaptureDecision::Proceed
         );
-        assert_eq!(capture_hotkey_message(NO_BROWSER), NO_BROWSER_HOTKEY);
-        assert!(NO_BROWSER_HOTKEY.contains("⌃⌥W"));
-        assert!(NO_BROWSER_HOTKEY.contains("Edge"));
+        let (hotkey_msg, hotkey_code) =
+            capture_hotkey_notice(no_browser_message(), ShelfNoticeCode::key("no-browser"));
+        assert!(hotkey_msg.contains("⌃⌥W"));
+        assert!(hotkey_msg.contains("Edge"));
+        assert_eq!(
+            hotkey_code,
+            ShelfNoticeCode::key_with_args(
+                "no-browser-hotkey",
+                serde_json::json!({ "shortcut": "⌃⌥W" })
+            )
+        );
         assert!(no_browser_hotkey("⌃⌥E").contains("⌃⌥E"));
-        let (message, privacy) = capture_failure(Some(BrowserKind::Chrome), true, false);
+        let (message, privacy, code) = capture_failure(Some(BrowserKind::Chrome), true, false);
         assert!(message.contains("Google Chrome"));
         assert!(privacy);
-        let (arc, _) = capture_failure(Some(BrowserKind::Arc), true, true);
+        assert_eq!(code.code, Some("need-browser-automation"));
+        let (arc, _, arc_code) = capture_failure(Some(BrowserKind::Arc), true, true);
         assert!(arc.contains("地址栏"));
+        assert_eq!(arc_code.code, Some("browser-show-address-bar"));
     }
 
     #[test]
@@ -1015,7 +1194,9 @@ mod tests {
 
     #[test]
     fn occupied_copy_does_not_pretend_the_chord_registered() {
-        assert_eq!(occupied_message("⌃⌥D"), "⌃⌥D 已被占用，这次没注册上。");
+        let message = occupied_message("⌃⌥D");
+        assert!(message.contains("⌃⌥D"));
+        assert!(message.contains("占用") || message.contains("in use"));
     }
 
     #[test]

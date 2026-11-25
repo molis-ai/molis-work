@@ -20,10 +20,28 @@ export function renderSkinScope(skin: UiResolvedSkin, baseline = false): string 
   `;
 }
 
+const JA_SANS = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", "Meiryo", "Noto Sans JP"';
+const JA_ROUNDED = '"Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo", "Noto Sans JP"';
+const JA_SERIF = '"Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP"';
+
+function jaFontOverrides(font: UiResolvedFont): string {
+  const decls: string[] = [];
+  for (const [name, value] of Object.entries(font.tokens)) {
+    if (monoTokens.includes(name) || typeof value !== "string") continue;
+    if (value.includes('"Molis Folio Rounded SC"')) decls.push(`--${name}: ${value.replace('"Molis Folio Rounded SC"', `${JA_ROUNDED}, "Molis Folio Rounded SC"`)};`);
+    else if (value.includes('"Noto Sans SC"')) decls.push(`--${name}: ${value.replace('"Noto Sans SC"', `${JA_SANS}, "Noto Sans SC"`)};`);
+    else if (value.includes('"Songti SC"')) decls.push(`--${name}: ${value.replace('"Songti SC"', `${JA_SERIF}, "Songti SC"`)};`);
+  }
+  return decls.join(" ");
+}
+
 export function renderFontScope(font: UiResolvedFont, baseline = false): string {
   const names = Object.keys(font.tokens).filter(name => !monoTokens.includes(name));
   const families = [...new Set(font.faces.map(face => face.family))].filter(family => !baselineFamilies.has(family));
-  return `${baseline ? ":root, " : ""}${scope("font", font.ref)} { ${fontTokenDeclarations(font, names)} --mw-shipped-families: ${families.map(family => JSON.stringify(family)).join(", ") || "none"}; }`;
+  const target = scope("font", font.ref);
+  const ja = jaFontOverrides(font);
+  const jaRule = ja ? `\n${baseline ? ":root:lang(ja), " : ""}${target}:lang(ja) { ${ja} }` : "";
+  return `${baseline ? ":root, " : ""}${target} { ${fontTokenDeclarations(font, names)} --mw-shipped-families: ${families.map(family => JSON.stringify(family)).join(", ") || "none"}; }${jaRule}`;
 }
 
 export function renderMonoScope(font: UiResolvedFont, baseline = false): string {
@@ -61,7 +79,20 @@ ${rootDark}{color-scheme:dark;${dark}}`;
 export function renderRootTypeTokens(font: UiResolvedFont): string {
   const names = Object.keys(font.tokens).filter(name => !monoTokens.includes(name));
   const families = [...new Set(font.faces.map(face => face.family))].filter(family => !baselineFamilies.has(family));
-  return `:root{${compactDecls(fontTokenDeclarations(font, names))};${compactDecls(fontTokenDeclarations(font, monoTokens))};--mw-shipped-families:${families.map(family => JSON.stringify(family)).join(",") || "none"}}`;
+  const shipped = families.map(family => JSON.stringify(family)).join(",") || "none";
+  const fontValue = typeof font.tokens.font === "string" ? font.tokens.font : "";
+  const marker = '"Noto Sans SC"';
+  const splitAt = fontValue.indexOf(marker);
+  if (splitAt > 0 && names.includes("font")) {
+    const prefix = fontValue.slice(0, splitAt).replace(/,\s*$/u, "");
+    const tail = fontValue.slice(splitAt);
+    const otherNames = names.filter(name => name !== "font");
+    const rootFont = compactDecls(`--mw-f:${tail};--font:${prefix},var(--mw-f);${fontTokenDeclarations(font, otherNames)};${fontTokenDeclarations(font, monoTokens)};--mw-shipped-families:${shipped}`);
+    const jaFont = compactDecls(`--font:${prefix},${JA_SANS},var(--mw-f)`);
+    return `:root{${rootFont}}\n:root:lang(ja){${jaFont}}`;
+  }
+  const ja = compactDecls(jaFontOverrides(font));
+  return `:root{${compactDecls(fontTokenDeclarations(font, names))};${compactDecls(fontTokenDeclarations(font, monoTokens))};--mw-shipped-families:${shipped}}${ja ? `\n:root:lang(ja){${ja}}` : ""}`;
 }
 
 const FONT_FORMATS: Readonly<Record<string, string>> = { woff2: "woff2", woff: "woff", ttf: "truetype", otf: "opentype" };

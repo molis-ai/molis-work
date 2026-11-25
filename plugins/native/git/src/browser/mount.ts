@@ -23,6 +23,9 @@ function onOwnPage(host: GitFactoryHost, root: HTMLElement): GitBrowser | null {
   const panel = root.querySelector<HTMLElement>("[data-git-browser]"), back = root.querySelector("[data-git-close]");
   if (panel) panel.hidden = false;
   if (back) back.textContent = uiText.text("git.list.back");
+  lifetime.listen(document, "molis-work:language-changed", () => {
+    if (back) back.textContent = uiText.text("git.list.back");
+  });
   return browser;
 }
 

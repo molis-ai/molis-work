@@ -128,7 +128,13 @@ export function gitActionHandlers(context: PluginStartContext): ActionHandlerBin
     bindOwnerPluginAction(context, gitActions.conflict, async (input) => {
       if (!input || typeof input.path !== "string" || !input.path) throw gitErrors.invalid("请选择冲突文件");
       const current = await workspace(input.workspace_id);
-      return (await read({ workspace_id: current.workspace_id, kind: "conflict", path: input.path })).result;
+      const res = (await read({ workspace_id: current.workspace_id, kind: "conflict", path: input.path })).result;
+      if (res.outcome !== "conflict-file") return res;
+      return {
+        ...res,
+        ours: res.ours === "当前" ? ":ours" : res.ours,
+        theirs: res.theirs === "合并进来的一方" ? ":theirs" : res.theirs,
+      };
     }, browsing),
     bindOwnerPluginAction(context, gitActions.operations, async input => {
       const current = await workspace(input?.workspace_id);

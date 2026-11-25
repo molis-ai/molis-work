@@ -10,6 +10,8 @@
     "sentry.guide.cli-link": "Sentry CLI",
     "sentry.guide.mcp-link": "查看 Sentry 官方 MCP",
     "sentry.guide.oauth-link": "查看 Sentry OAuth 应用",
-    "sentry.setup.create-sentry-auth-token": "创建 Sentry Auth Token"
+    "sentry.setup.create-sentry-auth-token": "创建 Sentry Auth Token",
+    "sentry.permission.network.reason": "读取 Sentry 账号信息与最新动态",
+    "sentry.permission.secret.reason": "使用已安全保存的 Sentry 连接凭据"
   }
 }

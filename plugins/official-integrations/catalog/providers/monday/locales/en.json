@@ -11,6 +11,8 @@
     "monday.guide.oauth-link": "View monday OAuth",
     "monday.oauth.note": "Enable the new OAuth 2.1 flow for this app version first.",
     "monday.setup.open-monday-developer-dashboard": "Open monday developer dashboard",
-    "monday.setup.view-monday-com-authentication-guide": "View monday.com authentication guide"
+    "monday.setup.view-monday-com-authentication-guide": "View monday.com authentication guide",
+    "monday.permission.network.reason": "Read your monday.com account info and latest updates",
+    "monday.permission.secret.reason": "Use your securely stored monday.com connection credentials"
   }
 }

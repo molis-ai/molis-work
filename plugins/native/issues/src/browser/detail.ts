@@ -29,7 +29,7 @@ export function installDetail(page: IssuesPage): void {
     if (!page.draft()) { page.primary("save"); page.primary("redo", false); }
     if (state.editing) page.scope.frame(() => page.fit(el.detailInput));
   };
-  page.show = (issue) => {
+  page.show = (issue, keepFocus = false) => {
     void page.stopReview();
     state.current = issue;
     state.editing = false;
@@ -46,8 +46,10 @@ export function installDetail(page: IssuesPage): void {
     $("source").textContent = [recordedOn && t.text("issues.detail.recorded-on", { page: recordedOn }), VIA_KEYS[issue.entered_via] ? t.text(VIA_KEYS[issue.entered_via]!) : issue.entered_via,
       issue.version > 1 && t.text("issues.detail.edited-on", { time: dateArg(issue.updated_at, "datetime") })].filter(Boolean).join(" · ");
     page.mode();
-    $("page").scrollTop = 0;
-    $("back").focus();
+    if (!keepFocus) {
+      $("page").scrollTop = 0;
+      $("back").focus();
+    }
   };
   page.open = async (id) => {
     if (state.saving) return;

@@ -7,10 +7,13 @@
     "hubspot.connection.inbound": "Feed reads contacts",
     "hubspot.connection.summary": "CRM and marketing.",
     "hubspot.connection.token-label": "HubSpot Service Key / existing Private App Token",
+    "hubspot.connection.token-placeholder": "Service Key or pat-na1-…",
     "hubspot.guide.cli-link": "View HubSpot CLI",
     "hubspot.guide.mcp-link": "View the official HubSpot MCP",
     "hubspot.guide.oauth-link": "View HubSpot OAuth",
-    "hubspot.guide.token-note": "Create a read-only Service Key under Settings → Integrations → Service Keys. Existing Private App Tokens still work.",
-    "hubspot.setup.view-hubspot-service-key-setup": "View HubSpot Service Key setup"
+    "hubspot.guide.token-note": "Create a read-only Service Key under Settings › Integrations › Service Keys. Existing Private App Tokens still work.",
+    "hubspot.setup.view-hubspot-service-key-setup": "View HubSpot Service Key setup",
+    "hubspot.permission.network.reason": "Read your HubSpot account info and latest updates",
+    "hubspot.permission.secret.reason": "Use your securely stored HubSpot connection credentials"
   }
 }

@@ -597,7 +597,7 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "The task's role picker and its default and editor modes.";
     };
     readonly "document-language": {
-        readonly files: readonly ["apps/workbench/src/browser/language-entry.ts", "apps/workbench/src/browser/plugin-frame/language-child.ts"];
+        readonly files: readonly ["apps/workbench/src/browser/language-entry.ts", "apps/workbench/src/browser/plugin-frame/language-child.ts", "packages/im-ui/src/browser/locale.ts"];
         readonly state: "The displayed words and language of one document.";
     };
     readonly "side-panel": {

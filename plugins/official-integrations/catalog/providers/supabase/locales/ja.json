@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.supabase",
+  "locale": "ja",
+  "messages": {
+    "supabase.connection.auth-help": "Supabase Management API アクセストークンを入力してください。プロジェクト一覧を取得します。",
+    "supabase.connection.inbound": "Feed でプロジェクト一覧を取得",
+    "supabase.connection.summary": "データベース、認証、ストレージ。",
+    "supabase.connection.token-label": "Supabase Access Token",
+    "supabase.guide.cli-link": "Supabase CLI を見る",
+    "supabase.guide.mcp-link": "Supabase 公式 MCP を見る",
+    "supabase.guide.oauth-link": "Supabase OAuth アプリを見る",
+    "supabase.oauth.note": "読み取り権限は Supabase OAuth アプリ側で設定してください。",
+    "supabase.setup.create-supabase-access-token": "Supabase Access Token を作成",
+    "supabase.permission.network.reason": "Supabase のアカウント情報と最新の更新を読み取ります",
+    "supabase.permission.secret.reason": "安全に保存された Supabase の接続資格情報を使用します"
+  }
+}

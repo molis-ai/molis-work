@@ -3,6 +3,7 @@ import type {IncomingMessage,ServerResponse} from 'node:http';
 import type {PersonalSync} from '@molis-ai/molis-work-module-sync-replication';
 import {readLocalWebBody,sendLocalWebJson} from './web-http.js';
 import {executeLocalProjectsCopy,listCopyableLocalProjects,previewLocalProjectsCopy,type LocalProjectsCopyContext} from './personal-project-copy.js';
+import { localizeWebErrorMessage, readErrorWord } from "./ui-error-words.js";
 
 /** The caller has already checked the current space, Origin, control token and mutation key. */
 export async function serveSpaceSync(input:{request:IncomingMessage;response:ServerResponse;url:URL;local:boolean;service():Promise<PersonalSync|null>;copy?():Promise<LocalProjectsCopyContext|null>|LocalProjectsCopyContext|null}){
@@ -10,12 +11,12 @@ export async function serveSpaceSync(input:{request:IncomingMessage;response:Ser
   try{
     if (url.pathname.startsWith('/api/sync/copy/')) {
       if (input.local) {
-        sendLocalWebJson(response, 409, { error: '请先切换到个人空间再从本地空间复制项目。' });
+        sendLocalWebJson(response, 409, { error: readErrorWord("common.error.sync-personal-required") });
         return;
       }
       const copyCtx = (await input.copy?.()) ?? null;
       if (!copyCtx) {
-        sendLocalWebJson(response, 409, { error: '请先切换到个人空间再从本地空间复制项目。' });
+        sendLocalWebJson(response, 409, { error: readErrorWord("common.error.sync-personal-required") });
         return;
       }
       if(request.method==='GET'&&url.pathname==='/api/sync/copy/projects'){
@@ -31,16 +32,16 @@ export async function serveSpaceSync(input:{request:IncomingMessage;response:Ser
         const ids=Array.isArray(body.projectIds)?body.projectIds.filter((v):v is string=>typeof v==='string'):[];
         sendLocalWebJson(response,200,await executeLocalProjectsCopy(copyCtx,{projectIds:ids,fingerprint:String(body.fingerprint??''),operationId:String(body.operationId??'')}));return;
       }
-      sendLocalWebJson(response,404,{error:'接口不存在。'});return;
+      sendLocalWebJson(response,404,{error:readErrorWord("common.error.endpoint-not-found")});return;
     }
     const permanentCleanup=request.method==='POST'&&(url.pathname==='/api/sync/purge-trash'||url.pathname==='/api/sync/history/purge');
     const confirmation=permanentCleanup?await readLocalWebBody(request):undefined;
     if(permanentCleanup&&(input.local||confirmation?.confirm!==true)){
-      sendLocalWebJson(response,409,{error:input.local?'永久清理暂未开放，保留内容仍计入云端容量。':'请在个人空间确认永久清理。'});return;
+      sendLocalWebJson(response,409,{error:readErrorWord(input.local?"common.error.sync-purge-disabled":"common.error.sync-confirm-purge")});return;
     }
     const service=await input.service();
-    if(!service&&permanentCleanup){sendLocalWebJson(response,409,{error:'永久清理暂未开放，保留内容仍计入云端容量。'});return;}
-    if(!service){sendLocalWebJson(response,200,{available:false,reason:input.local?'本地空间不参与同步，请先切换到个人空间。':'尚未配置同步服务。'});return;}
+    if(!service&&permanentCleanup){sendLocalWebJson(response,409,{error:readErrorWord("common.error.sync-purge-disabled")});return;}
+    if(!service){sendLocalWebJson(response,200,{available:false,reason:readErrorWord(input.local?"common.error.sync-personal-required":"common.error.sync-unavailable")});return;}
     if(request.method==='GET'){
       let value:unknown;
       switch(url.pathname){
@@ -55,7 +56,7 @@ export async function serveSpaceSync(input:{request:IncomingMessage;response:Ser
         case '/api/sync/history/keys':value=await service.history.keys(namespace,query.get('after')??undefined);break;
         case '/api/sync/history':value=await service.history.versions(namespace,key,query.has('before')?Number(query.get('before')):undefined);break;
         case '/api/sync/history/version':value=await service.history.inspect(namespace,key,Number(query.get('revision')));break;
-        default:sendLocalWebJson(response,404,{error:'接口不存在。'});return;
+        default:sendLocalWebJson(response,404,{error:readErrorWord("common.error.endpoint-not-found")});return;
       }
       sendLocalWebJson(response,200,value);return;
     }
@@ -68,20 +69,20 @@ export async function serveSpaceSync(input:{request:IncomingMessage;response:Ser
         case '/api/sync/run':await service.run();break;
         case '/api/sync/retry-item':await service.retryItem(ns,asset,body.direction as 'upload'|'download');break;
         case '/api/sync/resolve':
-          if(!Number.isSafeInteger(body.revision)||typeof body.state!=='string'||!/^[a-f0-9]{64}$/.test(body.state))throw new Error('请先查看当前冲突版本');
+          if(!Number.isSafeInteger(body.revision)||typeof body.state!=='string'||!/^[a-f0-9]{64}$/.test(body.state))throw new Error(readErrorWord("common.error.sync-conflict-review"));
           await service.resolve(ns,asset,body.choice as 'local'|'remote',revision,body.state);break;
         case '/api/sync/restore-recovery':await service.restoreRecovery(ns,String(body.id),body.choice as 'local'|'remote',revision);break;
         case '/api/sync/restore-trash':await service.restoreTrash(ns,asset,revision,String(body.operationId));break;
         case '/api/sync/purge-trash':await service.purgeTrash(ns,asset,revision,body.confirm===true);break;
         case '/api/sync/history/restore':await service.history.restore(ns,asset,Number(body.sourceRevision),revision,String(body.operationId));break;
         case '/api/sync/history/purge':await service.history.purge(ns,asset,Number(body.sourceRevision),revision,body.confirm===true);break;
-        default:sendLocalWebJson(response,404,{error:'接口不存在。'});return;
+        default:sendLocalWebJson(response,404,{error:readErrorWord("common.error.endpoint-not-found")});return;
       }
-    }else{sendLocalWebJson(response,404,{error:'接口不存在。'});return;}
+    }else{sendLocalWebJson(response,404,{error:readErrorWord("common.error.endpoint-not-found")});return;}
     sendLocalWebJson(response,200,{available:true,...service.status(),device_label:hostname()});
   } catch (error) {
     if (!response.headersSent && !response.destroyed) {
-      sendLocalWebJson(response, 409, { error: error instanceof Error ? error.message : '同步暂时不可用' });
+      sendLocalWebJson(response, 409, { error: localizeWebErrorMessage(error, "common.error.sync-unavailable") });
     }
   }
 }

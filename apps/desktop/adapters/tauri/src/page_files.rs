@@ -8,6 +8,7 @@
 //! What comes back is held to the layout the Host promises: an owner file sits under the Home's own directory, inside a store
 //! directory the plugin declared, and the path the Host named is the real path (no link on the way).
 
+use crate::native_language::tr;
 use crate::shelf_http::post_json_with;
 use crate::web_service::molis_work_home;
 use std::path::Path;
@@ -55,16 +56,36 @@ fn checked_request<'a>(
     relative: &'a [String],
 ) -> Result<&'a [String], String> {
     if !valid_endpoint(endpoint) {
-        return Err("文件请求的地址无效".into());
+        return Err(tr(
+            "文件请求地址无效。",
+            "Invalid file request address.",
+            "ファイルリクエストのアドレスが無効です。",
+        )
+        .into());
     }
     if !plain(page_id, MIN_PAGE_ID_BYTES, MAX_PAGE_ID_BYTES) {
-        return Err("文件请求需要当前插件页面".into());
+        return Err(tr(
+            "文件请求需要来自当前插件页面。",
+            "File requests must come from the active plugin page.",
+            "ファイルリクエストは現在のプラグインページから行う必要があります。",
+        )
+        .into());
     }
     if relative.is_empty() || relative.len() > MAX_PATHS {
-        return Err("请选择要处理的文件".into());
+        return Err(tr(
+            "请选择要处理的文件。",
+            "Select the files you want to use.",
+            "操作するファイルを選択してください。",
+        )
+        .into());
     }
     if !relative.iter().all(|path| valid_relative(path)) {
-        return Err("文件路径无效".into());
+        return Err(tr(
+            "文件路径无效。",
+            "This file path isn’t valid.",
+            "ファイルパスが無効です。",
+        )
+        .into());
     }
     Ok(relative)
 }
@@ -74,28 +95,72 @@ fn checked_request<'a>(
 /// directory, and equal to its own canonical form, so no link sits anywhere on the way.
 fn checked_files(paths: Vec<String>, asked: usize, home: &Path) -> Result<Vec<String>, String> {
     if paths.len() != asked {
-        return Err("宿主返回的文件数量不符".into());
+        return Err(tr(
+            "本地服务返回的文件数量不符。",
+            "The local service returned an unexpected number of files.",
+            "ローカルサービスから返されたファイル数が一致しません。",
+        )
+        .into());
     }
     for path in &paths {
         let candidate = Path::new(path);
         if !candidate.is_absolute() || path.contains('\0') {
-            return Err("宿主返回了无效的文件路径".into());
+            return Err(tr(
+                "本地服务返回了无效的文件路径。",
+                "The local service returned an invalid file path.",
+                "ローカルサービスから無効なファイルパスが返されました。",
+            )
+            .into());
         }
-        let metadata = std::fs::symlink_metadata(candidate).map_err(|_| "文件已不存在")?;
+        let metadata = std::fs::symlink_metadata(candidate).map_err(|_| {
+            tr(
+                "文件已不存在。",
+                "This file no longer exists.",
+                "このファイルは見つかりませんでした。",
+            )
+        })?;
         if !metadata.is_file() {
-            return Err("只能处理普通文件".into());
+            return Err(tr(
+                "只能处理普通文件。",
+                "Only regular files can be accessed.",
+                "通常のファイルのみ操作できます。",
+            )
+            .into());
         }
         if has_other_names(&metadata) {
-            return Err("这份文件有多个名字，已拒绝".into());
+            return Err(tr(
+                "出于安全考虑，不能访问包含多个链接的文件。",
+                "For security, files with multiple links can’t be accessed.",
+                "セキュリティ上の理由から、複数のリンクを持つファイルにはアクセスできません。",
+            )
+            .into());
         }
-        let real = candidate.canonicalize().map_err(|_| "文件已不存在")?;
+        let real = candidate.canonicalize().map_err(|_| {
+            tr(
+                "文件已不存在。",
+                "This file no longer exists.",
+                "このファイルは見つかりませんでした。",
+            )
+        })?;
         if real != candidate {
-            return Err("宿主返回的路径不是文件的真实路径，已拒绝".into());
+            return Err(tr(
+                "文件路径未通过安全核验，已拒绝访问。",
+                "This file path didn’t pass security checks and was blocked.",
+                "ファイルパスがセキュリティ確認を通過しなかったため拒否されました。",
+            )
+            .into());
         }
         // Store directory and file: an owner file is never the Home's own top level.
         match real.strip_prefix(home) {
             Ok(inside) if inside.components().count() >= 2 => {}
-            _ => return Err("文件不在宿主的文件目录内，已拒绝".into()),
+            _ => {
+                return Err(tr(
+                    "文件不在允许的本地存储目录内，已拒绝访问。",
+                    "This file is outside the allowed local folder and couldn’t be accessed.",
+                    "このファイルは許可されたローカル保存先の外にあるためアクセスできません。",
+                )
+                .into());
+            }
         }
     }
     Ok(paths)
@@ -118,7 +183,15 @@ fn parse_paths(payload: &str) -> Result<Vec<String>, String> {
     }
     serde_json::from_str::<Resolved>(payload)
         .map(|resolved| resolved.paths)
-        .map_err(|error| format!("宿主的文件响应无效：{error}"))
+        .map_err(|error| {
+            eprintln!("page_files::parse_paths invalid json: {error}");
+            tr(
+                "本地服务返回的文件数据无效，请稍后再试。",
+                "The local service returned invalid file data. Please try again.",
+                "ローカルサービスから無効なファイルデータが返されました。もう一度お試しください。",
+            )
+            .to_string()
+        })
 }
 
 /// The absolute files a page's relative paths stand for, checked once more here. The caller acts on them straight away.
@@ -133,9 +206,13 @@ pub fn plugin_page_files(
         &serde_json::json!({ "paths": relative }),
         &format!("x-molis-plugin-page: {page_id}\r\n"),
     )?;
-    let home = molis_work_home()
-        .canonicalize()
-        .map_err(|_| "找不到宿主的文件目录")?;
+    let home = molis_work_home().canonicalize().map_err(|_| {
+        tr(
+            "找不到 Molis Work 的本地文件目录。",
+            "Couldn’t find the Molis Work local data folder.",
+            "Molis Work のローカルデータフォルダーが見つかりません。",
+        )
+    })?;
     checked_files(parse_paths(&payload)?, relative.len(), &home)
 }
 

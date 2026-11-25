@@ -9,6 +9,7 @@ import { HOME_PAGE_SESSION_HEADER, HomePageSessionRegistry, projectDeletedHooksF
 import {
   ActionError,
   LOCAL_PERSON_ACTOR_ID,
+  PERSONAL_SPACE_PROJECT_ID,
   bindActionHandler,
   bindActionClient,
   type ActionCallContext,
@@ -375,7 +376,18 @@ test("SPC-10 ONB-25 ONB-26 ONB-27 WBR-26: home page lifecycle — draft save, bl
   const overLimitBody = (await overLimit.json()) as { code?: string };
   assert.equal(overLimitBody.code, "home.page_limit");
 
-  // 10. Deleting project clears its rows in home-pages.db while preserving other project.
+  // 10. Deleting project clears its rows in home-pages.db while preserving other project — and the personal space every Home has
+  // (batch 106): it chose a page of its own, both choices read back from a fresh connection to the file, and only the project's go.
+  const personalDraft = (await (await post(PERSONAL_SPACE_PROJECT_ID, "/api/home-pages/drafts/save", { draft: sampleDraft("个人空间首页") })).json()) as { version: HomePageVersion };
+  const personalBefore = (await (await post(PERSONAL_SPACE_PROJECT_ID, "/api/home-pages/read", {})).json()) as HomePageOverview;
+  const personalAdopt = await post(PERSONAL_SPACE_PROJECT_ID, "/api/home-pages/adopt", { page_id: personalDraft.version.page_id, version: 1,
+    approved_actions: [QUERY_ACTION], request_id: "personal-adopt-v1", expected_revision: personalBefore.revision });
+  assert.equal(personalAdopt.status, 200, await personalAdopt.clone().text());
+  const personalChoice = { kind: "page", page_id: personalDraft.version.page_id, version: 1 };
+  const projectChoice = ((await (await post(project.project_id, "/api/home-pages/read", {})).json()) as HomePageOverview).selection;
+  const reread = (projectId: string) => { const db = openHomePagesDatabase(f.home); try { return new HomePagesStore(db, projectId).readOverview(); } finally { db.close(); } };
+  assert.deepEqual(reread(PERSONAL_SPACE_PROJECT_ID).selection, personalChoice, "the personal space's choice is on disk");
+  assert.deepEqual(reread(project.project_id).selection, projectChoice, "and the project's, kept apart");
   const hooks = projectDeletedHooksFor(f.home);
   const owner = hooks.owners().find(item => item.id === "home-pages");
   assert.ok(owner, "home-pages is registered in project-deleted-owners");
@@ -384,6 +396,9 @@ test("SPC-10 ONB-25 ONB-26 ONB-27 WBR-26: home page lifecycle — draft save, bl
   assert.deepEqual(afterClear.versions, []);
   const otherStill = (await (await post(other.project_id, "/api/home-pages/read", {})).json()) as HomePageOverview;
   assert.equal(otherStill.versions.length, 1);
+  const personalAfter = reread(PERSONAL_SPACE_PROJECT_ID);
+  assert.deepEqual(personalAfter.selection, personalChoice, "deleting a project leaves the personal space's choice");
+  assert.deepEqual(personalAfter.versions.map(version => version.approval?.approved_actions), [[QUERY_ACTION]], "and its approval");
 });
 
 test("S-home-page-files SPC-11 ONB-28: tampered stored file bytes are refused by readFiles, preview, adopt, restore, and live session open; framed pages cannot read home page files", { timeout: 120_000 }, async t => {

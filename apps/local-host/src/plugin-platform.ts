@@ -131,7 +131,7 @@ export interface PluginPlatformOptions {
   /** Protected Host review seam for a plugin's `demo_seed` when its sample needs accepted requirements. */
   acceptDemoRequirements?: (items: readonly DemoAcceptanceRequest[]) => Promise<void>;
   /**
-   * Where the installation records are. A per-partition instance's platform reads the Home's one install table (`plugin-runtime.db`,
+   * Where the installation records, install directory and signed release packages are. A per-partition instance's platform reads the Home's one install table (`plugin-runtime.db`,
    * specs/unified-partition-plugins §4.2 第 1 条); absent: the records in `db`, as the old assemblies keep them until batch 109 deletes them.
    */
   installDatabase?: import("@molis-ai/molis-work-plugin-runtime").PluginRuntimeDatabase;
@@ -257,11 +257,14 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const identity = pluginEntryIdentity();
   const providerFor = identity.providerFor;
   const consents = options.consents ?? options.home?.consents ?? null;
-  const records = pluginInstallRecords(options.installDatabase ?? options.db);
+  // One install table in the Home (batch 106, §4.2): a partition instance keeps its install records, install directory and signed release
+  // packages there with it; only its business data is the partition's.
+  const installDb = options.installDatabase ?? options.db;
+  const records = pluginInstallRecords(installDb);
   let closed = false;
   const views = new PluginViewRevisions(id => !closed && supervisor.state(id)?.status === "running");
   const { invalidateView, viewRevision, waitForView } = views;
-  const installations = openPluginInstallationDirectory(options.db, records, pluginId => supervisor.manifest(pluginId));
+  const installations = openPluginInstallationDirectory(installDb, records, pluginId => supervisor.manifest(pluginId));
   const isDualDefinition = (definition: PluginDefinition): boolean => identity.dualInstance(definition) || isDualSandboxDefinition(definition);
   const isDualId = (pluginId: string): boolean => identity.dualInstanceId(pluginId) || isDualSandboxPlugin(supervisor, records, pluginId);
   const executor = new PluginHostExecutor({
@@ -289,7 +292,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
           effectiveGrants: () => { const now = records.get(record.install_id); return now ? effectiveGrants(now) : []; },
         }) } });
   const supervisor = new PluginSupervisor(runtime, {
-    releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
+    releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(installDb),
     hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY],
   });
   const artifactView = supervisedArtifacts(supervisor, runtime, () => !closed && options.db.open !== false);

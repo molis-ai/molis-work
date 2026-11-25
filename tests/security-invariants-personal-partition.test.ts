@@ -95,6 +95,7 @@ test("UPP-33 a restore refuses a personal space main database whose root is anot
   Object.assign(entry, { size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") });
   writeFileSync(manifestPath, JSON.stringify(manifest));
   const before = homeBusinessTree(f.home);
-  await assert.rejects(restoreHomeSnapshot({ homeDirectory: f.home, source: f.snapshot, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot }));
+  await assert.rejects(restoreHomeSnapshot({ homeDirectory: f.home, source: f.snapshot, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot }),
+    { code: "host.home_restore.invalid" }, "refused for the personal space's root, not for any other reason");
   assert.deepEqual(homeBusinessTree(f.home), before);
 });

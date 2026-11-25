@@ -107,7 +107,10 @@ test("W2-18-S8-TODO-01: a real Todo reminder automatically produces one Assistan
     do {
       notices = (await request("/api/assistant/notices") as { notices: typeof notices }).notices.filter(notice => noticeText(notice).includes("Read the actual overdue draft"));
       if (notices.length) break;
-      assert.ok(Date.now() < deadline, "the actual service reminder timer did not report Todo"); await new Promise(resolve => setTimeout(resolve, 10));
+      assert.ok(Date.now() < deadline, "the actual service reminder timer did not report Todo");
+      // The timer's next minute: a sweep still running from the Host's start skips this tick (one sweep at a time), so a slower
+      // machine needs the one after; each tick is the real timer, nothing here asks the reminders directly.
+      await new Promise(resolve => setTimeout(resolve, 200)); t.mock.timers.tick(60_000);
     } while (true);
     assert.equal(notices.length, 1); assert.equal(notices[0]!.kind, "reminder");
     assert.match(JSON.stringify(notices[0]), new RegExp(created.item.id));

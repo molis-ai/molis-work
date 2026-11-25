@@ -328,6 +328,8 @@ export interface PageRouteMatch {
     };
 }
 
+export type PartitionDeclarationFields = Pick<PluginManifest, "plugin_id"> & Partial<Pick<PluginManifest, "databases" | "overview_projection" | "market" | "dependencies" | "person_settings" | "actions" | "push">>;
+
 export type { PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PersonMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationCandidates } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -978,6 +980,16 @@ export declare function objectSchema<const P extends Readonly<Record<string, unk
     additionalProperties: false;
 };
 
+export declare function overviewColumns<K extends OverviewKind>(kind: K, row: OverviewRowByKind[K]): Record<string, PluginSqlValue>;
+
+export declare function overviewEventWindowEnd(now: Date): Date;
+
+export declare function overviewRows(tx: PluginDatabaseTransaction): {
+    upsert<K extends OverviewKind>(kind: K, row: OverviewRowByKind[K]): void;
+    remove(kind: OverviewKind, rowId: string): void;
+    removePrefix(kind: OverviewKind, prefix: string): void;
+};
+
 export declare function pageRouteProblems(manifest: PluginManifest): string[];
 
 export declare function parseConnectionSlots(value: unknown, used: readonly string[]): PluginConnectionsDeclaration | undefined;
@@ -1001,6 +1013,8 @@ export declare function parseSyncAggregates(value: unknown): readonly SyncAggreg
 export declare function parseSyncDocumentValue<T>(value: unknown, spaceId: string, validate: (value: unknown) => T): DocumentState<T>;
 
 export declare function parseSyncTracking(value: unknown): readonly SyncTrackedTable[];
+
+export declare function partitionDeclarationProblems(manifest: PartitionDeclarationFields): string[];
 
 export declare function pollingIntegrationBinding({ manifest, provider, presentAccount, now }: {
     manifest: PluginManifest;

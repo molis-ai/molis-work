@@ -3546,6 +3546,31 @@ export declare const OPEN_TARGET_SCHEMA: {
     }];
 };
 
+export declare const OVERVIEW_EVENT_WINDOW_DAYS = 90;
+
+export declare const OVERVIEW_KINDS: readonly ["task", "event", "notification", "brief"];
+
+export declare const OVERVIEW_NOTIFICATION_LEVELS: readonly ["info", "warning", "urgent"];
+
+export declare const OVERVIEW_ROW_LIMIT = 500;
+
+export declare const OVERVIEW_SUMMARY_FIELDS: readonly ["title", "status", "due_at", "remind_at", "priority", "tags", "starts_at", "ends_at", "all_day", "time_zone", "level", "source", "occurred_at", "summary", "updated_at"];
+
+export declare const OVERVIEW_TABLE = "molis_overview_rows";
+
+export declare const OVERVIEW_TABLE_SQL: string;
+
+export declare const OVERVIEW_TASK_STATUSES: readonly ["open", "done", "cancelled"];
+
+export declare const OVERVIEW_TEXT_LIMITS: Readonly<{
+    title: 500;
+    summary: 2000;
+    source: 200;
+    row_id: 200;
+    tag: 64;
+    tags: 16;
+}>;
+
 export interface ObjectLinkPlace {
     surface: string;
     id?: string | null;
@@ -3562,7 +3587,67 @@ export interface OpenTarget {
     label: string;
 }
 
+export interface OverviewBriefRow extends OverviewRowBase {
+    readonly summary?: string | null;
+}
+
+export interface OverviewEventRow extends OverviewRowBase {
+    readonly starts_at: string;
+    readonly ends_at?: string | null;
+    readonly all_day?: boolean;
+    readonly time_zone?: string | null;
+    readonly remind_at?: string | null;
+}
+
+export interface OverviewIndexRow {
+    readonly partition_id: string;
+    readonly install_id: string;
+    readonly plugin_id: string;
+    readonly kind: OverviewKind;
+    readonly row_id: string;
+    readonly fields: Partial<Record<OverviewSummaryField, string | number | boolean | readonly string[] | null>>;
+}
+
+export type OverviewKind = (typeof OVERVIEW_KINDS)[number];
+
+export type OverviewNotificationLevel = (typeof OVERVIEW_NOTIFICATION_LEVELS)[number];
+
+export interface OverviewNotificationRow extends OverviewRowBase {
+    readonly level: OverviewNotificationLevel;
+    readonly source?: string | null;
+    readonly occurred_at: string;
+}
+
+export interface OverviewRowByKind {
+    task: OverviewTaskRow;
+    event: OverviewEventRow;
+    notification: OverviewNotificationRow;
+    brief: OverviewBriefRow;
+}
+
+export type OverviewSummaryField = (typeof OVERVIEW_SUMMARY_FIELDS)[number];
+
+export interface OverviewTaskRow extends OverviewRowBase {
+    readonly status: OverviewTaskStatus;
+    readonly due_at?: string | null;
+    readonly remind_at?: string | null;
+    readonly priority?: 0 | 1 | 2 | 3 | null;
+    readonly tags?: readonly string[];
+}
+
+export type OverviewTaskStatus = (typeof OVERVIEW_TASK_STATUSES)[number];
+
 export declare const PERSONAL_SPACE_PROJECT_ID = "personal";
+
+export declare const PERSON_SETTING_KEY_PATTERN: RegExp;
+
+export declare const PERSON_SETTING_KINDS: readonly ["preference", "secret_ref", "connection_ref", "local_path"];
+
+export declare const PERSON_SETTING_LIMITS: Readonly<{
+    keys: 64;
+    key: 64;
+    value_bytes: number;
+}>;
 
 export declare const PLACEMENT_COPY_INPUT_SCHEMA: {
     readonly type: "object";
@@ -3702,6 +3787,8 @@ export declare const PLUGIN_DATA_EXPORT_VERSION = 1;
 
 export declare const PLUGIN_DATA_PROVIDER_ID = "system.plugin-data";
 
+export declare const PLUGIN_DEPENDENCY_LIMIT = 16;
+
 export declare const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16384;
 
 export declare const PLUGIN_ID_PATTERN = "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$";
@@ -3723,6 +3810,8 @@ export declare const PLUGIN_LOCAL_TOOLS_LIMITS: Readonly<{
 }>;
 
 export declare const PLUGIN_LOCAL_TOOLS_PERMISSION = "local-tools:read";
+
+export declare const PLUGIN_MARKET_CATEGORIES: readonly ["write", "plan", "data", "media", "knowledge", "develop", "inform", "automate"];
 
 export declare const PLUGIN_MODEL_LIMITS: {
     readonly default_timeout_ms: 120000;
@@ -3810,6 +3899,12 @@ export declare const PLUGIN_PROJECTS_EXIST_LIMITS: Readonly<{
 
 export declare const PLUGIN_PROJECTS_EXIST_PERMISSION = "projects:exist";
 
+export declare const PLUGIN_PUSH_LIMITS: Readonly<{
+    kinds: 16;
+    local_refs: 32;
+    children: 16;
+}>;
+
 export declare const PLUGIN_SCENES_PERMISSION = "scenes:use";
 
 export declare const PLUGIN_SCENE_SCHEMA: {
@@ -3821,6 +3916,8 @@ export declare const PLUGIN_SCENE_SCHEMA: {
 };
 
 export declare const PROJECT_JOURNAL_PERMISSION = "journal:project";
+
+export declare const PUSH_POINTER_PATTERN: RegExp;
 
 export interface PersonIntake extends DestinationDeclaration {
     readonly intake_id: string;
@@ -3843,6 +3940,14 @@ export type PersonMaterial = {
     }[];
     readonly file?: ArtifactFileDeclaration;
 };
+
+export interface PersonSettingDeclaration {
+    readonly key: string;
+    readonly kind: PersonSettingKind;
+    readonly portable?: true;
+}
+
+export type PersonSettingKind = (typeof PERSON_SETTING_KINDS)[number];
 
 export interface PlacementCopyInput {
     subject: ActionSubject;
@@ -4202,6 +4307,13 @@ export interface PluginDefinition {
         from: PluginInstanceRecord;
         context: PluginUpgradeContext;
     }): void | Promise<void>;
+}
+
+export interface PluginDependencyDeclaration {
+    readonly plugin_id: string;
+    readonly enable_with?: true;
+    readonly optional?: true;
+    readonly reason: string;
 }
 
 export type PluginDeployment = "local" | "server";
@@ -4864,6 +4976,11 @@ export interface PluginManifest {
     methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").PluginMethodDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     databases?: import("platform/plugin-database").PluginManifestDatabases;
+    overview_projection?: import("platform/plugin-overview").PluginOverviewProjectionDeclaration;
+    push?: import("platform/plugin-partition").PluginPushDeclaration;
+    market?: import("platform/plugin-partition").PluginMarketDeclaration;
+    dependencies?: readonly import("platform/plugin-partition").PluginDependencyDeclaration[];
+    person_settings?: import("platform/plugin-partition").PluginPersonSettingsDeclaration;
     state_machines?: readonly import("platform/plugin-state-machines").StateMachineDeclaration[];
     owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
     image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
@@ -4895,6 +5012,13 @@ export interface PluginManifest {
 export interface PluginManifestDatabases {
     readonly project?: PluginDatabaseDeclaration;
     readonly home?: HomePluginDatabaseDeclaration;
+    readonly partition?: PluginDatabaseDeclaration;
+}
+
+export type PluginMarketCategory = (typeof PLUGIN_MARKET_CATEGORIES)[number];
+
+export interface PluginMarketDeclaration {
+    readonly category: PluginMarketCategory;
 }
 
 export type PluginMaterialDocumentsRequest = MaterialDocumentOptions;
@@ -5122,6 +5246,11 @@ export interface PluginOutputsClient {
     read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
 }
 
+export interface PluginOverviewProjectionDeclaration {
+    readonly kinds: readonly OverviewKind[];
+    readonly title_text?: TextRef;
+}
+
 export interface PluginOwnerFileEntry {
     readonly name: string;
     readonly kind: "file" | "directory";
@@ -5198,6 +5327,10 @@ export interface PluginPermissionDeclaration {
     reason: string;
     reason_text?: TextRef;
     origins?: readonly string[];
+}
+
+export interface PluginPersonSettingsDeclaration {
+    readonly keys: readonly PersonSettingDeclaration[];
 }
 
 export type PluginPortArtifactBindingInput = Pick<PluginPortArtifactBindingRecord, "target_plugin_id" | "target_port" | "artifact_id" | "version" | "actor_id">;
@@ -5367,6 +5500,22 @@ export interface PluginProjectsClient {
     exist(ids: readonly string[], options?: {
         readonly signal?: AbortSignal;
     }): Promise<Readonly<Record<string, boolean>>>;
+}
+
+export interface PluginPushDeclaration {
+    readonly kinds: readonly PluginPushKindDeclaration[];
+}
+
+export interface PluginPushKindDeclaration {
+    readonly kind: string;
+    readonly export_action: string;
+    readonly put_action: string;
+    readonly revision: string;
+    readonly local_refs?: readonly {
+        readonly path: string;
+        readonly on_push: "strip" | "remap";
+    }[];
+    readonly children?: readonly string[];
 }
 
 export interface PluginReadGroupDeclaration {
@@ -9172,6 +9321,12 @@ type IsRequired<U, K extends PropertyKey> = [U] extends [U extends unknown ? (K 
 type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : never;
 
 type OptionalFrom<T extends readonly unknown[], Min extends number, Head extends unknown[] = []> = Head["length"] extends Min ? [...Head, ...Partial<T>] : T extends readonly [infer F, ...infer R] ? OptionalFrom<R, Min, [...Head, F]> : Head;
+
+interface OverviewRowBase {
+    readonly row_id: string;
+    readonly title: string;
+    readonly updated_at: string;
+}
 
 type Prop<P, R extends readonly string[]> = Expand<{
     readonly [K in keyof P & R[number]]: InferActionInput<P[K]>;

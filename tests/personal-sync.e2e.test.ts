@@ -19,7 +19,7 @@ test('PCSYNC-27 sync progress distinguishes unfinished work from a past successf
   await b.waitFor("document.querySelector('[data-sync-status]')?.textContent.includes('不可用集合 1')");
   assert.match(await b.evaluate<string>("document.querySelector('[data-sync-identity]').textContent"), /progress-space.*测试Mac/);
   const text=await b.evaluate<string>("document.querySelector('[data-sync-status]').textContent");
-  for(const label of ['同步尚未完成','待上传 2','冲突 1','等待关联资产 1','需要处理的资产 1','不可用集合 1','上次完成'])assert.ok(text.includes(label),label);
+  for(const label of ['同步还没完成','待上传 2','冲突 1','等待关联资产 1','需要处理的资产 1','不可用集合 1','上次完成'])assert.ok(text.includes(label),label);
   assert.equal(await b.evaluate("document.querySelector('[data-sync-status]').dataset.syncComplete"),'false');
   await mkdir('.impeccable/qa/review',{recursive:true});
   for(const width of [1440,1024,390])for(const theme of ['light','dark']){

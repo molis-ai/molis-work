@@ -4,20 +4,27 @@ const formerPath = file => MOVED.reduce((path, [now, before]) => path.replace(no
 
 /** Content files are versioned once, independently of the language they are read in. */
 function versionKeys(file, known) {
+  const replyLanguage = /^apps\/local-host\/prompts\/reply-language\/[^/]+\.md$/u.exec(file);
+  if (replyLanguage) return ["prompt.reply-language"];
   const prompt = /^(?:apps\/local-host|(?:plugins\/native|horizontal|modules)\/[^/]+)\/prompts\/([^/]+)\.md$/u.exec(file);
   const method = /^plugins\/native\/([^/]+)\/methods\/(?:[^/]+\/)?([^/]+)\.md$/u.exec(file);
-  // A content pack's or system skill pack's Skill body carries its own version in SKILL.md; translations share the same Skill and version.
-  const contentMethod = /^(?:plugins\/content|packages\/system-skills)\/([^/]+)\/skills\/([^/]+)\/SKILL(?:\.[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-[A-Z]{2})?)?\.md$/u.exec(file);
+  // A content pack's or system skill pack's Skill body (and bundled references) share the same Skill and version.
+  const contentMethod = /^(?:plugins\/content|packages\/system-skills)\/([^/]+)\/skills\/([^/]+)\/(?:SKILL(?:\.[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-[A-Z]{2})?)?|references\/[^/]+)\.md$/u.exec(file);
   const name = prompt ? "prompt." + prompt[1] : contentMethod
     ? "method." + contentMethod[1] + "." + contentMethod[2]
     : method && !method[2].startsWith("runtime.")
-      ? "method." + (method[1] === "goals" ? "goals." : "") + method[2] : null;
+      ? "method." + method[2] : null;
   if (!name) return [];
   // A stable id may itself end in a language (shelf.translate.en). Only the version table can distinguish an id from a suffix.
   const unqualified = name.replace(/\.[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-[A-Z]{2})?$/u, "");
   if (unqualified === name || !known.has(unqualified)) return [name];
   return known.has(name) ? [name, unqualified] : [unqualified];
 }
+
+/** Composed prompts whose shipped text embeds another prompt file at runtime (editing the base changes both). */
+const COMPOSED_PROMPT_DEPENDENTS = {
+  "prompt.todo.organize.basic": ["prompt.todo.organize.organizer"],
+};
 
 const table = raw => raw ? JSON.parse(raw).versions ?? {} : {};
 const body = raw => raw?.replace(/^version: \d+\r?\n/mu, "").trimEnd() ?? null;
@@ -30,7 +37,12 @@ export function contentVersionChanges({ files, read }, readBase) {
   for (const file of files) {
     const [key, ambiguous] = versionKeys(file, known);
     if (ambiguous) { errors.push(file + ": ambiguous content id (" + key + " or a translation of " + ambiguous + ")"); continue; }
-    if (key) groups.set(key, [...(groups.get(key) ?? []), file]);
+    if (key) {
+      groups.set(key, [...(groups.get(key) ?? []), file]);
+      for (const dependent of COMPOSED_PROMPT_DEPENDENTS[key] ?? []) {
+        groups.set(dependent, [...(groups.get(dependent) ?? []), file]);
+      }
+    }
   }
   for (const [key, paths] of groups) {
     const next = current[key], previous = before[key];

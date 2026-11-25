@@ -11,6 +11,7 @@ import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-ag
 import { agentBodyIn, type InstructionPrompt, type PromptOverridePolicy } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { hostLog } from "../host-log.js";
 import { cloneAgentRegistration, rememberComposedRoles } from "./display-words.js";
+import { isTrustedReplyLanguagePrompt } from "../reply-language.js";
 import { promptConfigJournal } from './prompt-overrides-replica.js';
 import {
   AGENT_PROMPT_MAX_CHARS, agentDefinitionErrors,
@@ -72,7 +73,6 @@ interface Override { default_ref: string | null; key: string; revision: number; 
 
 const keyOf = (ownerId: string, promptId: string) => `${ownerId}/${promptId}`;
 const isProtectedPrompt = (prompt: { override_policy?: PromptOverridePolicy }): boolean => prompt.override_policy === "protected";
-const PLATFORM_FIXED_UNREGISTERED_PROMPTS: ReadonlySet<string> = new Set(["reply-language"]);
 
 const storedRef = (value: string | null | undefined): SignedAgentReference | undefined => value ? JSON.parse(value) as SignedAgentReference : undefined;
 const sameRef = (left: SignedAgentReference | undefined, right: SignedAgentReference | undefined) => left?.kind === right?.kind && left?.entry_id === right?.entry_id
@@ -301,12 +301,12 @@ export class AgentDefinitions {
     return this.view(owner, prompt, locale);
   }
 
-  /** The Agent Host's resolver: the text a registered prompt runs with now. Only documented platform-fixed prompts (reply-language) pass through unregistered. */
+  /** The Agent Host's resolver: the text a registered prompt runs with now. Only a Host-minted reply-language prompt passes through unregistered. */
   effective(ownerId: string, declaration: AgentPromptText, locale?: string): AgentPromptText {
-    const prompt = selectedBody(declaration, locale);
-    if (PLATFORM_FIXED_UNREGISTERED_PROMPTS.has(prompt.prompt_id)) {
-      return prompt;
+    if (isTrustedReplyLanguagePrompt(declaration)) {
+      return selectedBody(declaration, locale);
     }
+    const prompt = selectedBody(declaration, locale);
     const key = keyOf(ownerId, prompt.prompt_id);
     const { prompt: registered } = this.registered(key);
     const edited = isProtectedPrompt(registered) ? null : this.override(key);
@@ -437,9 +437,12 @@ export function agentRegistration(ownerId: string, source: AgentDefinitionSource
     const named = names.prompts?.[text.prompt_id];
     const title = named?.title ?? side?.title ?? (layer === "base" ? "基础约束" : users.length === 1 ? users[0]! : text.prompt_id);
     const purpose = named?.purpose ?? side?.purpose;
+    const overridePolicy = declared.get(text.prompt_id)?.override_policy ?? text.override_policy;
     const prompt: AgentPromptRegistration = { prompt_id: text.prompt_id, version: text.version, kind: "agent", layer, title,
       purpose: purpose ?? (users.length ? `组成角色：${users.join("、")}` : "未被任何角色使用"),
-      used_by: side ? [side.title] : users, body: text.body, ...(text.body_by_locale ? { body_by_locale: text.body_by_locale } : {}) };
+      used_by: side ? [side.title] : users,
+      ...(overridePolicy ? { override_policy: overridePolicy } : {}),
+      body: text.body, ...(text.body_by_locale ? { body_by_locale: text.body_by_locale } : {}) };
     if (purpose === undefined && composed.length) rememberComposedRoles(prompt, composed.map(role => role.role_id));
     return prompt;
   });

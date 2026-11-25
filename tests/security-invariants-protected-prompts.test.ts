@@ -12,6 +12,7 @@ import {
   homeAgentDefinitions,
   personalConfigRegistrations,
   promptOverrideActions,
+  replyLanguagePrompt,
   resolveModelPrompt,
 } from "@molis-ai/molis-work-app-local-host";
 import { ensureStorageSpace, openBaselineHomeSqlite, personalStorageSpace } from "@molis-ai/molis-work-storage";
@@ -301,6 +302,7 @@ test("S-protected-prompt-override: override import preview/confirm and personal 
   assert.equal(nextMutation.key, editableKey, "tampered protected key is skipped instead of throwing or uploading");
   promptReplica.withReplica(replica => replica.acknowledge(nextMutation.key, nextMutation.operationId, 1));
   assert.equal(promptReplica.withReplica(replica => replica.next()), null, "protected key is never uploaded even after editable keys drain");
+  assert.equal(promptReplica.withReplica(replica => replica.counts().pending), 0, "skipped protected rows do not inflate pending sync count");
 
   // 6) P2 #5: Multi-row batch confirm fails atomically when any row turns protected before commit — earlier editable rows stay uncommitted.
   definitions.register({
@@ -347,13 +349,18 @@ test("S-protected-prompt-override: unregistered prompts and raw strings are refu
   t.after(() => rm(home, { recursive: true, force: true }));
   const definitions = homeAgentDefinitions(home);
 
-  // Unregistered prompt in effective() is refused (no silent passthrough), while platform-fixed reply-language passes through.
+  // Unregistered prompt (including forged reply-language) in effective() is refused, while Host-minted replyLanguagePrompt passes through.
   assert.throws(
     () => definitions.effective("io.molis.work.unregistered", { prompt_id: "sneaky", version: 1, body: "raw body" }),
     errorCode("agent_definitions.not_found"),
   );
-  const replyLanguage = definitions.effective("io.molis.work.assistant", { prompt_id: "reply-language", version: 2, body: "Always reply in English." });
-  assert.equal(replyLanguage.body, "Always reply in English.");
+  assert.throws(
+    () => definitions.effective("io.molis.work.assistant", { prompt_id: "reply-language", version: 2, body: "Always reply in English." }),
+    errorCode("agent_definitions.not_found"),
+  );
+  const trustedReplyLanguage = replyLanguagePrompt("en");
+  const replyLanguage = definitions.effective("io.molis.work.assistant", trustedReplyLanguage);
+  assert.equal(replyLanguage.body, trustedReplyLanguage.body);
 
   // resolveModelPrompt() refuses raw strings (even when homeDirectory is undefined) and refuses unregistered InstructedPrompts.
   assert.throws(
@@ -572,6 +579,7 @@ test("S-protected-prompt-override (P1 #2): Settings UI and Kit prompt editor ren
     assert.ok(textarea, "read-only textarea renders prompt body");
     assert.equal(textarea.readOnly, true, `textarea stays readOnly (failDetail=${failDetail})`);
     assert.equal(textarea.getAttribute("aria-busy"), null);
+    assert.equal(textarea.dataset.agentDisplayAttribute, "view-label", "protected prompt uses view-label so live language switch preserves read-only aria-label");
     assert.ok(root.querySelector("[data-prompt-protected='true']"), "read-only protected note is visible");
     const saveBtn = root.all().find(n => n.tagName === "BUTTON" && n.textContent === "workbench.settings-prompts.save-my-version");
     const resetBtn = root.all().find(n => n.tagName === "BUTTON" && n.textContent === "workbench.settings-prompts.restore-default");

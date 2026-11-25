@@ -25,7 +25,7 @@ horizontal
 plugins
   → plugin SDK
   → declared Module / Service / UI contracts and the action directory
-  → never an App, Horizontal Service or Module implementation package (one listed exception, §2)
+  → never an App, Horizontal Service or Module implementation package (no listed exceptions, §2)
 
 platform packages
   → contracts/platform/*
@@ -108,7 +108,7 @@ F2 创建目标地图里的全部 package。每个 package 必须有：
 - 归属：技能的声明和正文归提供它的插件（Manifest 的 `methods`，内容包里验签的正文与资源，SDK 的 `skill-declarations.ts`、`skill-files.ts` 读写）；目录、开关、用量与草稿归 `apps/local-host/src/agent-definitions/`（`skill-catalog*.ts`、`skill-settings*.ts`、`skill-drafts.ts`，Agent 定义库里的 `skill_settings`、`skill_uses`、`skill_drafts`、`skill_cases`、`skill_trials`、`skill_lineage` 六张表）；合同在 `packages/contracts/src/services/skills.ts` 与 `services/agent-definitions.ts`（`SkillRef`）；一轮冻结与读正文在 `horizontal/agent-host`。
 - 消费者：助理、Coding、委派（都只认目录给的 `SkillRef`，在一轮开始时由宿主核对）和能力包（`horizontal/kit` 读 `skills.kit.report`）。
 - 能力包（`horizontal/kit`）是包，因为它汇总好几个主人的上报（八个 `*.kit.report` 动作）、自己不存东西，只做汇总；技能目录只有一个主人，所以不是包。
-- 随系统自带的技能包（`plugins/content/<包>` 写 `system`）是构建产物，不是 workspace 包，也不进安装记录：`pnpm build` 打到 `apps/local-host/dist/system-skills/`，技能目录直接读，和安装包共用同一目录；自己写的技能是每范围一个签名内容包（`my-skills.*`），走同一条安装路径，同样不新增包。
+- 随系统自带的技能包（`packages/system-skills/<包>/pack-content.json`，第 44B 批迁入；`plugins/content/` 禁止声明 `system`）是构建产物，不是 workspace 包，也不进安装记录：`pnpm build` 打到 `apps/local-host/dist/system-skills/`，技能目录直接读，和安装包共用同一目录；自己写的技能是每范围一个签名内容包（`my-skills.*`），走同一条安装路径，同样不新增包。
 
 ## 5. Adapter 放置
 
@@ -188,8 +188,8 @@ Linux 先构建一次，`gates` 和 `gate-rules` 并行使用同一次构建的�
 | `moduleRepositoryExports` | 各 Module 入口（`src/index.ts`）导出的 `…Repository`/`…Store` 名字，和导出的类、接口上公开的 `repository` 成员；顺着 `export *`、`export {…} from`、对 import 的 `export {…}` 找到声明，命名空间再导出（`export * as ns from "./x.js"`，或 `import * as ns` 后 `export { ns }`）里的每个名字按 `ns.<名>` 记（嵌套按 `a.b.<名>`）。没有追的：别名声明（`export const repo = GoalsRepository`、`export type R = GoalsRepository`）和把命名空间包进对象（`export const api = { ns }`），靠评审。Module 指 `scripts/workspace-packages.mjs` 里 `kind` 为 `module` 的包（`modules/*` 和 `server`），另加任何 `modules/<名>` 目录；对照 merge-base 时两边都读这份清单 | Repository 仅内部可见（§3）；去掉导出是下一步，这一步先不让它变多 |
 | `typedCapabilities` | 按文件三项：①对 `HostCapabilityDefinition` 和包装它的类型别名的引用（别名由扫描仓库发现，R8 删除前是 `HostMethodCapability`，含 `import { 别名 as 本地名 }`；只读取定义类型的 `HostCapabilityInput` 一类不算）；②没有 `action` 的描述符字面量（转成上述类型的；同时带 `capability_id`、`version`、`operation` 的任何字面量，不管有没有转型；以及展开一个基础描述符、又给 `capability_id` 一个字符串字面量新 id 的，如 `{ ...base, capability_id: "x.y.v1" }`）；③typed 注册调用：`registerCapability(…)`；对“注册型”接收者的 `.register(…)` 或 `["register"](…)`——接收者在本文件里声明为注册型类型（`LocalHost`、`CapabilityRegistry`、Agent 与 Schedule 的 registrar 等：凡有一个 `register`/`registerCapability` 方法且第一个参数是 typed 定义的类或接口，也由扫描发现）、用 `new` 造出、是这类接收者的 `typeof`，或经一个声明了返回类型为注册型的函数取得（`getHost().register(…)`，本文件里的或导出的）；对这类接收者的 `register` 的非调用引用（`.bind(host)`、`.call(…)`、`.apply(…)`、`const add = host.register`、`const { register } = host`、`list.forEach(host.register)`，每处记一次，绑定出的名字再按下一条追）；调用第一个参数是 typed 定义的函数（本文件里的，如 `horizontal/agent-host/src/capability-registration.ts` 的局部 `register` 助手，它有 40 多处调用；或别的文件导出的，含 import 改名）；调用把自己的第一个参数原样交给上述任一种注册的本地函数（不论参数类型，逐层追到不再增加）；以及名为 `register`/`registerCapability` 的调用，第一个参数是内联的描述符字面量（有 `capability_id`，有 `operation` 或展开，无 `action`），不管接收者是什么类型 | 2026-10-07 N-12 决定：对外的只走动作，不再新增 typed 条目；R8「删 typed 通道」删掉了定义类型、注册口与插件的 `services.capabilities`，三项现在都是 0。三项里任何一项变多都会失败，所以新的 typed 描述符（用类型名或别名）、新的注册点、新写出这些的文件都放不过；已有的 typed 能力被调用不在其内（见下面「看不到的」） |
 | `layerExceptions` | `APP_IMPORT_ALLOWLIST`、`PLUGIN_MODULE_IMPORT_ALLOWLIST` 里的条目，一条边一条记录 | 名单和钉死它的测试可以在同一个 PR 里一起改；这里对照 merge-base，新增条目放不过，只能删。名单读不出来时也失败（合入前的 merge-base 还没有这两个名单，那一次不比）：读得出来指两个名单各是一个同名变量，初值是只含字符串字面量的数组；改名、挪走，或往里放展开（`...EXTRA_EDGES`）、标识符、函数调用、带替换的模板，都算读不出来 |
-| `hostPluginFiles`、`registerProviderSites` | 宿主里以内置插件命名的 `<插件>-actions.ts`、`<插件>-native-plugin-http.ts`；`apps/local-host/src` 里每个文件的 `registerProvider(` 调用 | 构建期装配只剩两个批过的例外（AGENTS.md）；名单测试 `tests/builtin-plugin-assembly-gate.test.ts` 之外，这里对照 merge-base，改名单放不过 |
-| `hybridPlugins` | 已由 Plugin Runtime 启动、宿主却还有同名文件或手工 `registerProvider(<插件>…Provider(…))` 的插件（现在：`goals`；门禁 `tests/builtin-plugin-assembly-gate.test.ts` 的 `HYBRID_RUNTIME_PLUGINS`），报告里标出 | 混合装配既不是 Runtime 形状也不是批过例外的构建期形状，名单看不出来。Shelf、Coding、Git 已收拢，不在名单；Characters 按 2026-10-08 决定第 26 项并进了宿主和 `modules/characters`，不再是 Runtime 插件（CHR-1，2026-10-22） |
+| `hostPluginFiles`、`registerProviderSites` | 宿主里以内置插件命名的 `<插件>-actions.ts`、`<插件>-native-plugin-http.ts`；`apps/local-host/src` 里每个文件的 `registerProvider(` 调用 | 第 44B 批删除旧 Alchemist 后构建期装配例外已归零（`tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS` 与 `NATIVE_PLUGIN_HTTP_FILES` 均为空）；名单测试之外，这里对照 merge-base，改名单放不过 |
+| `hybridPlugins` | 已由 Plugin Runtime 启动、宿主却还有同名文件或手工 `registerProvider(<插件>…Provider(…))` 的插件（门禁 `tests/builtin-plugin-assembly-gate.test.ts` 的 `HYBRID_RUNTIME_PLUGINS` 现为空），报告里标出 | 混合装配既不是 Runtime 形状也不是构建期形状，名单看不出来。Goals 已随第 44 批复核与第 44B 批清零宿主私路并离开名单；Shelf 已收归纯平台模块 `modules/shelf`，Coding、Git 已收拢，Characters 并进了宿主和 `modules/characters`，不再是 Runtime 插件 |
 | `pluginOutsideMentions` | 每个内置插件的包名在它自己的包之外出现在多少个源码或配置文件里（import、`package.json` 依赖、工作区清单） | 加一个插件除了它自己的包还要改几处。新插件的额度是 0（W5-02 PR-C，统筹 10-23 定）：生成器写的两份文件不算，两个应用与根的 `package.json` 只在插件依赖正好等于生成文件 import 的那一组（根是两份的并集）时不算 |
 
 安装生命周期和发布类型这条链沿用 `apps/local-host/src/installed-plugin-host.ts` 作为创作台类型接缝：由它 `export type` 转出 `AgentBuilderPorts`、`AgentRelease`，`installed-plugin-lifecycle.ts`、`installed-plugin-version.ts`、`installed-release.ts` 再以 `import type` 取得所需类型，不增加运行时依赖。这一约定只限定上述类型链；其他创作台调用方和私路的后续处理见[特权清单](../../specs/archive/repository-anti-corruption/privileges.md)。不得为压低 `pluginOutsideMentions` 数字，借该接缝加入新的运行时依赖。

@@ -40,7 +40,7 @@ description: How to add or change an AI capability in Molis Work — anything th
 - **先分清谁管什么**：理解与选择归模型；做法归方法（Skill）；这一次的事实归材料；发生了什么归工具回执；身份、权限、版本、幂等、取消、预算、恢复归代码（手册 12.1）。固定步骤只给出错代价高、又能事先写清的部分（12.3）。
 - **每样东西放在它的层里**：产品约束放 base 层，角色目的放角色提示词，有界调用的要求放登记的指令，会变的事实放每一轮的材料，用户这一次的话不由插件代写；同一条规则只写一层（13.1）。机器要读的输出写清形状并由代码校验，给人看的回复不套固定标题和条数。
 - **规则要有来由**：每句话给出一个事实或一个理由；说不出理由的「不要」，要么交给代码，要么删掉（13.1、15.6）。不为一次交付加关键词路由、固定子任务数、固定轮数判完成，也不在每次失败后追加一条禁令。
-- **回复语言由平台给**：一轮用哪种语言回复，由宿主在一处给模型（`AgentStartAuthority.reply_language`）；提示词、Skill、方法和插件里不写「用中文回复」，也不按语言分支（手册 13.1）。有界单次调用按显式 `reply_language_policy` 区分 `"follow_locale"`（人看正文）与 `"fixed_schema"`（结构化 JSON/枚举抽取，严禁盲灌回复语言）（手册 13.6）。
+- **回复语言由平台给**：一轮用哪种语言回复，由宿主在一处给模型（`AgentStartAuthority.reply_language`）；提示词、Skill、方法和插件里不写「用中文回复」，也不按语言分支（手册 13.1）。有界单次调用（于 `104-1` 落地）按显式 `reply_language_policy` 区分 `"follow_locale"`（人看正文）与 `"fixed_schema"`（结构化 JSON/枚举抽取，严禁盲灌回复语言）（手册 13.6）。
 - **四类 Prompt 统一治理与受保护策略（决定 67）**：送进模型的全部文本归入 `editable`、`protected`、`platform-fixed` 或 `user-owned` 四类，零游离硬编码。`AgentDefinitions.effective()`（仅豁免 `reply-language`）与 `resolveModelPrompt()` 拒绝未登记或裸字符串调用；停用插件保留 `body_by_locale`。直接决定副作用放行权的安全门控提示词（如 `65-2` AI 低风险命令自动放行）必须零 DDL 声明 `override_policy: "protected"` 并进 `WORDING_HISTORY`，设置页只读可见，保存/重置/导入/同步一律以 `agent_definitions.prompt_override_protected` 拒绝覆盖（见 `S-protected-prompt-override`）。
 - **双缓存域五层动态拼装与模型侧工具稳定语言（决定 58、67）**：静态工具面（Zone 0，确定性排序、静态 Schema、**模型侧工具名/副作用标签/描述保持稳定语言不随 UI 切换变动**以保护 `toolsFingerprint`，仅界面展示本地化）与静态系统指令（Zone 1：`runtime:clock` 留 `developer` 层、`base`→`role`→Character→`project`→会话冻结常驻记忆→`reply_language`，断点 #1）禁止混入 UUID、毫秒时间戳、轮中易变状态或动态召回记忆；须保持 `trust: "instruction"` 守 `S-13` 的按轮条件宿主指令放入 Two-Zone `system` Dynamic 区（Zone 2，全双语、不打断点，绝不降级为 `data`）；半静态目录放 Zone 3，热态 `situation`（分钟级、排目录后锚定）/当前对象/动态召回记忆/永久锚定于 `userTask` 的 `start.attachments` 放 Zone 4；Anthropic 总断点 ≤4 且默认 `ephemeral`（禁默认 `ttl: "1h"`）。单次调用（`104-1` 起）拆 `system`（指令 + 策略化语言）与 `user`（`fencedMaterials` + 空数据安全占位）并按需开 `prompt_cache: "best-effort"`。
 - **方法（Skill）**：摘要说清适合什么，正文写做法、判断线索、资料、工具用法和什么算好；必须的过程写出理由；正文改了发新版本；方法不放大工具权限（13.2）。
@@ -56,7 +56,7 @@ description: How to add or change an AI capability in Molis Work — anything th
 1. **选用法**（手册第 2 节）：单次有界调用 → Host 端口；多轮带工具 → Agent 角色；专门编排 → 新适配器。不要为统一而套 Agent 循环。
 2. **定义动作**：权限写 `model:invoke`；等模型的动作写 `scheduling: "concurrent"`；`effect` 与真实效果一致（名字里有 delete/remove/trash 会被推断为不可撤销，不对就用 `withActionEffect` 显式声明）。
 3. **处理器**：读快照 → 把 `caller.signal` 传给模型 → 返回后 `await caller.beforeEffect()` → 按快照/版本提交；嵌套动作/场景用 `retainActionAuthority(caller, originReference, caller.beforeEffect)` 保留外层执行检查；空结果、超时、错误都不制造成功结果，输入保留。
-4. **Host 装配**：Runtime 插件由宿主给 `services`（含 `services.model`，见下）；仍在构建期装配的旧插件只注入函数端口（`completeText`、`modelAvailability`），随 W5-11 删。未配置时 `actions.connection_required`。插件不拿密钥、不依赖 `@prologue/sdk`。
+4. **Host 装配**：第 44B 批删除旧 Alchemist 后全仓构建期插件例外已归零，内置与安装插件统一经 Plugin Runtime 注入 `services`（含 `services.model`，见下）。未配置时 `actions.connection_required`。插件不拿密钥、不依赖 `@prologue/sdk`。
    宿主自己运行的 Home 与项目 Runtime 插件（非沙箱、有 Home）共用这条模型/指令入口，不写第二层绑定：Manifest 声明 `model:invoke`（只列模型、问能不能用的声明只读的 `model:read`，它发不出请求），用 `context.services.model.complete(instructed(自己的指令, 数据), { selection?, system?, output?, timeout_ms?, max_output_tokens? })`。只在自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调，其余位置 `plugin.model_*` 拒绝；发出前、返回后宿主各问一次这次调用的 `beforeEffect()`，动作返回之后再调是 `actions.expired`；限额默认 120 秒 / 5000 token，至多 600 秒 / 12000（`PLUGIN_MODEL_LIMITS`）；指令是本插件自己的，没有目录条目时在 `PluginDefinition.instructions` 登记。写入前插件仍要自己 `await caller.beforeEffect()`，按读取时的版本提交。不向 Prologue 传调用编号。手册第 4 节有写法和错误码。
    宿主自己的代码需要执行引用、结构化结果、进度或用量时使用同一绑定的 `hostTextGeneration`（Host 侧函数，插件内不直接调；Runtime 插件用上一段的 `services.model.complete`，JSON 的业务校验留在插件），不要再组模型/凭据或轮询 Run。`structured` 显式指定 local/native 与可支持 schema，未知约束拒绝而不忽略；领域 parse 留在插件。仅需要 JSON 格式解码时 Host 使用 Agent Host 公开的 `decodePrologueJsonOutput`（SDK 所有），围栏容忍显式启用；插件消费 JSON 值并验证业务含义，不能各自复制 JSON/围栏解析。`onProgress` 只表示过程，不授权业务提交。完整用量保留 reported/estimated/unknown，未知不当零；未报实际模型不填请求模型。默认不自动纠正格式，允许额外调用必须有界且重新预算/授权。
    `selection: { provider_id, model_id }` 指向 Home 已配置的模型，`availability(selection)` 查询同一个目标；不指定才用默认。明确选择不可用就拒绝，不换成别的供应商或环境模型。Runtime 在首次等待前复制选择，模型调用仍复用 Host 的配置/连接复核；不把地址或凭据给插件。
@@ -72,6 +72,7 @@ description: How to add or change an AI capability in Molis Work — anything th
    - 不经 Agent Host 的 Agent（如插件创作台）也一样：Prompt 登记在同一处，运行时经端口取有效正文，版本里写出 `+user.<修订号>`。
    - 生成插件先按可信调用上下文选择安装发布版或创作构建，再解析该版本已声明的 prompt；不能先查 Home 设置登记来选择默认正文。安装版应用现有用户覆盖，创作试运行验证构建正文。多项目登记按安装隔离，用户覆盖仍按 Home/owner/prompt 共享；卸载一个安装不能移除其他安装的登记。
 5. **Agent 角色**（如需要）：Manifest `agent.roles[]` 的每个角色声明 `role_id`、`version`、`execution`（缺省 read-only）、`prompts`（按角色列出，读者角色不要拿到写者提示词）、`host_tools`，`agent.prompts` 声明提示词条目；提示词正文放在插件定义的 `agent_prompts`，Skill 正文放 `agent_skills`（给自己的 Agent）；给别的 Agent 的 Skill 声明在 Manifest `methods`、正文放 `PluginDefinition.methods`；插件运行时由 Host 的 `registerPluginAgentDefinitions` 登记，设置「Prompt 与 Character」里看得见（PG-051）；在 Prologue 上登记钩子一律 `forSession`。
+   - **材料附带已登记说明（`AgentTextMaterial.instruction_prompt_id`）**：Agent 轮次中若某份 `text_materials` 需要附带受「设置 › 提示词」用户覆盖与 `prompt_uses` 追踪的说明正文（如 `coding.auto-skill-catalog`），在 `AgentTextMaterial` 上填写平台通用的 `instruction_prompt_id`，由 `AgentHost.start()` 在调用插件的 `request.plugin_id` 命名空间内自动解析有效正文并记账，不在插件里硬编码提示词或绕过覆盖。
    - **角色版本跟着它实际拿到的工具走**（统筹 2026-10-19 裁定）：角色实际拿到的工具集变了就升这个角色的 `version`，经共用常量（现在是 `BUSINESS_HOST_TOOLS`）变的也算。改常量的同一个改动里，展开它的每个角色都升一版（现在是助理的 `assistant`、`assistant-delegated` 和 Todo 的 `organizer`），PR 里写出哪些角色多了或少了什么工具。冻结记录（`AgentRunView.frozen`）里有 `role_version` 也有 `host_tools`：版本不动、工具变了，按版本比前后两轮就以为角色没变，要逐项比工具列表才看得出来。
    - **说明怎样处理补充（`acknowledge-inputs`）**：展开 `BUSINESS_HOST_TOOLS` 的业务角色经这个常量自动带上；有目录的角色要自己在 `host_tools` 里列（Coding 里人直接对话的角色都列了，子任务的角色没列）。补充的编号只在列了它的一轮里给模型看。它只把 AI 自己说的怎样处理记在 SDK 的输入账上，不改账本：补充还是那条补充，事情做没做看工具回执，不看这句自称（`specs/ai-input-receipts` 3e-0）。
    - **`BUSINESS_HOST_TOOLS` 里还有 `board-wait`**（#661 加）：展开常量的业务角色都能登记等外面的结果，只能用它的 App 登记的只读外部检查器（第 7 步「等外面的结果」和其后一段）。
@@ -112,7 +113,7 @@ Host 解析 MCP 账号时可交出可信的同步 `assertCurrent`，闭包固定
 
 - `node scripts/run-tests.mjs tests/action-model-scheduling.test.ts`（等模型的动作必须并发，例外要写理由）。
 - `node scripts/run-tests.mjs tests/plugin-model-service.test.ts`（Runtime 插件的 `services.model`：只在声明过的并发动作里、动作返回后被拒、取消与停用时不交结果、走宿主自己的文字模型路径）。
-- `node scripts/run-tests.mjs tests/prompt-registration.test.ts`（定义的指令必须已登记、插件端口不收裸字符串、Host 直接调模型只能在带理由的过渡清单里）。
+- `node scripts/run-tests.mjs tests/prompt-registration.test.ts`（定义的指令必须已登记、插件端口不收裸字符串；对 `apps/local-host/src`、`modules/*/src`、`horizontal/*/src`、`plugins/native/*/src` 实行逐调用点 TS AST 门禁，覆盖低层推理入口与 `services.model.complete` 等模型调用，仅 `LOW_LEVEL_MODEL_CALL_ALLOWLIST` 中的底层传输与连通性探针豁免）。
 - 仿 `tests/action-before-effect.test.ts` 覆盖「等模型时撤权 / 停用 / 取消」不写入且可恢复。
 - 模型替身放在生产接缝：`new MolisWorkLocalHost({ homeDirectory, completeText })` 或 `bindPrologueInference(home, client)`；不要 mock 全局 `fetch`。
 - 改了 `horizontal/agent-host`：跑 `tests/agent-*.test.ts` 与 `tests/prologue-*.test.ts`；动到真实 SDK 路径时用本机替身模型服务跑一次（见 `tests/agent-budget-prologue.test.ts`）。
@@ -125,7 +126,7 @@ Host 解析 MCP 账号时可交出可信的同步 `assertCurrent`，闭包固定
 执行结果驱动通知时，从 Agent Host 的 Run 投影或 Prologue Effect/dispatch 回执读取真实结果；批准不等于执行成功，reconcile-required/unknown 也不是成功。Coding/Git 的刷新通知不重试模型或副作用，SDK 重启恢复历史回执时不重新发布“新执行”。订阅使用当前插件 activation 的独立身份，等待后复查，停止时释放。
 
 
-Shelf 的自动 recipe 是共享 Prologue 消费者：固定指令登记在插件 prompts.ts，模型选择与人工终端 engine 分离。调模型的 Action 声明 `model:invoke` 和 metered；本机提取是另一个不要模型、成本 none 的 Action，两条路不合成一个能走两边的入口（Shelf 的 `shelf.jobs.generate` 与 `shelf.jobs.extract` 就这样分，它们的权限、成本和调用链以 `docs/platform/PROLOGUE-AI.md` §11 为准，这里不复述）。保留完整执行回执的 reported/estimated/unknown，JSON 解码读取 SDK 的 ok/value，领域约束再校验。材料部分覆盖进入最终结果说明；最终业务提交仍复查原调用、材料 hash 和可信 Host 返回的模型配置校验，不让最后一次 await 留出失效结果写入窗口。
+Shelf（第 44B 批起收归纯平台部件 `system.shelf`）的自动 recipe 是共享 Prologue 消费者：固定指令登记在 `modules/shelf/src/surface/prompts.ts`，模型选择与人工终端 engine 分离。调模型的 Action 声明 `model:invoke` 和 metered；本机提取是另一个不要模型、成本 none 的 Action，两条路不合成一个能走两边的入口（Shelf 的 `shelf.jobs.generate` 与 `shelf.jobs.extract` 就这样分，它们的权限、成本和调用链以 `docs/platform/PROLOGUE-AI.md` §11 为准，这里不复述）。保留完整执行回执的 reported/estimated/unknown，JSON 解码读取 SDK 的 ok/value，领域约束再校验。材料部分覆盖进入最终结果说明；最终业务提交仍复查原调用、材料 hash 和可信 Host 返回的模型配置校验，不让最后一次 await 留出失效结果写入窗口。
 
 评论内显式召唤个人助理时，复用宿主的原线程回复服务和同一个 Prologue，不新建第二个执行引擎。插件拥有消息与锚点，并声明用户专属的线程上下文查询与回复命令；宿主冻结该轮目标、材料和受限角色，最终回复从可信调用上下文交给所有者。普通评论不启动模型。模型完成而投递失败时只重投递；停止、撤权或原注册实例变化后拒绝迟到写入。后台使用 dispatcher 在原处理器存活时保留的授权检查，不保存已经结束的 beforeEffect。重启后的投递由新的显式请求恢复，不自动再调模型。实现入口为 `apps/local-host/src/assistant/assistant-threads.ts`，协议与验证边界见 [统一规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
 

@@ -20,7 +20,7 @@
 
 2026-11-20 按全仓体检与决定 57 两轮红队终校调整（[决定 58](reference/decisions.md#decision-58)）：不砍任何既有批次、不做大规模拆迁、100% 保留全部 AI Harness 与 RSI 工程优化；按最大批号追加 6 个横向修复与硬化正式批次 [100](reference/batches/100.md)～[105](reference/batches/105.md)（按各自真实前置开工，**不等 38～89**），同步校准 [91](reference/batches/91.md)、[91B](reference/batches/91b.md)、[62](reference/batches/62.md) 等批次的红队护栏，第 90 批仍为整条路线最终交付对账。
 
-2026-11-22 按「特殊逻辑平民化 + 统一工作分区」终审合并拍板（[决定 66](reference/decisions.md#decision-66)；决定 64/65 随已合入的 `#2259` 保留）：新增 [44B](reference/batches/44b.md)（特殊逻辑平民化，Shelf 剥离插件壳收归纯平台 `modules/shelf` / `system.shelf`、彻底删旧 Alchemist 与 `better-sqlite3`、官方集成驱动化、G1 门禁）与按 V1 先加后迁再删的 6 个统一工作分区正式批次 [106](reference/batches/106.md)～[111](reference/batches/111.md)（20 个平等内置插件，零 `always_on`/`dual_instance`/普通 `scope:"home"`、星型版本化 Push、Clean v1、G1～G5 门禁）。在途待合前置 PR（`#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260`）先合入消费，`#2259` 的 `91-0c` 可与 `44B` 并行/前置；`44B` 与 `106`～`111` 排在 `91-2..4`、`91B`、`105`、`45`～`90`、`REL-4`、`SRV` 之前，[第 90 批](reference/batches/90.md)仍为整条路线最终交付对账。
+2026-11-22 按「特殊逻辑平民化 + 统一工作分区」终审合并拍板（[决定 66](reference/decisions.md#decision-66)；决定 64/65 规格已由 `#2259` 确立，`91-0c` 代码实现 PR 仍待在 `91-4` 与 `91B` 之前合入）：新增 [44B](reference/batches/44b.md)（已随 `#2262`/`#2279`/`#2294` `b57fd115ff` 合入：特殊逻辑平民化，Shelf 剥离插件壳收归纯平台 `modules/shelf` / `system.shelf`、彻底删旧 Alchemist 与 `better-sqlite3`、官方集成驱动化、G1 门禁）与按 V1 先加后迁再删的 6 个统一工作分区正式批次 [106](reference/batches/106.md)～[111](reference/batches/111.md)（20 个平等内置插件，零 `always_on`/`dual_instance`/普通 `scope:"home"`、星型版本化 Push、Clean v1、G1～G5 门禁）。在途待合前置 PR（`#2239`、`#2258`、`#2253`～`#2255`、`#2257`、`#2250`、`#2260`）均已合入消费；`44B` 与 `106`～`111` 排在 `91-2..4`、`91B`、`105`、`45`～`90`、`REL-4`、`SRV` 之前，[第 90 批](reference/batches/90.md)仍为整条路线最终交付对账。
 
 | 批次 | 批次内内容 |
 | --- | --- |
@@ -127,9 +127,9 @@
 |  | [宿主与工作台去私路、Goals 可移除](reference/batches/44.md#batch-44-item-6) |
 |  | [删除桌面胶囊、CLI 的 Goals 命令与 `goal-advance`](reference/batches/44.md#batch-44-item-7) |
 |  | [叙事与命名](reference/batches/44.md#batch-44-item-8) |
-| [44B](reference/batches/44b.md) | [P0 安全补洞：全局保留 `io.molis.work.` 前缀与修第三方前缀正则](reference/batches/44b.md#batch-44b-item-0)（已随 #2262 合入，[决定 66](reference/decisions.md#decision-66)） |
-|  | [合同、SDK、纯平台身份与 Clean v1 存储改名（D5+U13）](reference/batches/44b.md#batch-44b-item-1) |
-|  | [Shelf 收归纯平台 `modules/shelf`、彻底删除旧 Alchemist、官方集成驱动化与宿主清零](reference/batches/44b.md#batch-44b-item-2)（#2279、#2294 已合入，独立复核修复已随 #2308 合入） |
+| [44B](reference/batches/44b.md) | [P0 安全补洞：全局保留 `io.molis.work.` 前缀与修第三方前缀正则](reference/batches/44b.md#batch-44b-item-0)（已合入 [#2262](https://github.com/molis-ai/molis-work/pull/2262) `de25e3090d`，[决定 66](reference/decisions.md#decision-66)） |
+|  | [合同、SDK、纯平台身份与 Clean v1 存储改名（D5+U13）](reference/batches/44b.md#batch-44b-item-1)（已随 [#2294](https://github.com/molis-ai/molis-work/pull/2294) `b57fd115ff` 合入） |
+|  | [Shelf 收归纯平台 `modules/shelf`、彻底删除旧 Alchemist、官方集成驱动化与宿主清零](reference/batches/44b.md#batch-44b-item-2)（已随 [#2279](https://github.com/molis-ai/molis-work/pull/2279)、[#2294](https://github.com/molis-ai/molis-work/pull/2294) `b57fd115ff` 及独立复核修复 [#2308](https://github.com/molis-ai/molis-work/pull/2308) 合入；两项测试补缺移交 [106](reference/batches/106.md)） |
 | [44C](reference/batches/44c.md) | [统一提供方身份与平台登记](reference/batches/44c.md#batch-44c-item-1)（2026-11-24 加，44B 两轮复核的余项，用户定一次做完） |
 |  | [集成驱动收尾与厂商分支清零](reference/batches/44c.md#batch-44c-item-2) |
 |  | [签名样例、G1 终点与验证欠账](reference/batches/44c.md#batch-44c-item-3) |
@@ -247,7 +247,7 @@
 | [90](reference/batches/90.md) | [整条路线最终交付对账](reference/batches/90.md#batch-90-item-1) |
 | [91](reference/batches/91.md) | [`91-0a` · 设计开发 Skill（`skills/molis-design-ui/`）、规范统一与 59→9 存量设计库收口](reference/batches/91.md#batch-91-item-0a)（已合入 [#2221](https://github.com/molis-ai/molis-work/pull/2221)，[决定 60](reference/decisions.md#decision-60)） |
 |  | [`91-0b` · 4 套皮肤/F1 字体/材质升级 + 原 `91-1` 底座 + 组件板 93 节 + 设置页 30 页](reference/batches/91.md#batch-91-item-0b)（已合入 [#2222](https://github.com/molis-ai/molis-work/pull/2222) + [#2230](https://github.com/molis-ai/molis-work/pull/2230)，[决定 60](reference/decisions.md#decision-60)） |
-|  | [`91-0c` · 平台统一「列表—详情」标准容器、退役插件 `workbench.directory`／`DIRECT_WORK_SURFACE_IDS`、共享样式公共 `mw-*` 去插件名与顶部标签组联动底座](reference/batches/91.md#batch-91-item-0c)（[决定 64](reference/decisions.md#decision-64)；含 `BL-b44-shared-styles-plugin-names` 片 1，[决定 65](reference/decisions.md#decision-65)） |
+|  | [`91-0c` · 平台统一「列表—详情」标准容器、退役插件 `workbench.directory`／`DIRECT_WORK_SURFACE_IDS`、共享样式公共 `mw-*` 去插件名与顶部标签组联动底座](reference/batches/91.md#batch-91-item-0c)（规格与[决定 64](reference/decisions.md#decision-64)／[决定 65](reference/decisions.md#decision-65)已由 `#2259` 确立，代码实现 PR 仍待在 `91-4` 与 `91B` 之前合入） |
 |  | [Design System 流式、布局与行为反馈统一底座](reference/batches/91.md#batch-91-item-1)（已随 `91-0b` [#2222](https://github.com/molis-ai/molis-work/pull/2222) 提前交付；[决定 54](reference/decisions.md#decision-54)、[决定 55](reference/decisions.md#decision-55)、[决定 60](reference/decisions.md#decision-60)） |
 |  | [平台运行流合同、Prologue 与 Agent Host 热路径减负](reference/batches/91.md#batch-91-item-2) |
 |  | [个人助理 SSE 增量流与对话流精修](reference/batches/91.md#batch-91-item-3) |
@@ -288,10 +288,10 @@
 |  | [Home 单张安装表、`partition_plugins`、`partitions.plugins.set@1` 与新每分区装配](reference/batches/106.md#batch-106-item-2) |
 |  | [新平台基础设施：`person-settings`、`evidence`、到期登记、声明式 `overview_projection` 与 Manifest 新字段](reference/batches/106.md#batch-106-item-3) |
 | [107](reference/batches/107.md) | [6 个独立库插件迁 `databases.partition` 并删业务表 `project_id`](reference/batches/107.md#batch-107-item-1)（2026-11-22 加，UPP 批 B1，前置 `106`，[决定 66](reference/decisions.md#decision-66)） |
-|  | [当波删除 `project_rows`、跨库 `artifact_join` 与 `databases.home.partition` 复用器](reference/batches/107.md#batch-107-item-2) |
+|  | [当波删除 `databases.home.partition` 复用器；6 个插件去掉自己的 `project_rows` 与 `artifact_join`（两项机制本身留 `109-3` 删除）](reference/batches/107.md#batch-107-item-2) |
 | [108](reference/batches/108.md) | [Todo、Jelly、Cognia、Images、Issues 迁分区作用域与 `databases.partition`](reference/batches/108.md#batch-108-item-1)（2026-11-22 加，UPP 批 B2，前置 `107`，[决定 66](reference/decisions.md#decision-66)） |
 |  | [个人空间总览上线（承接原 `64-3` 跨项目个人视图）与门禁 G4](reference/batches/108.md#batch-108-item-2) |
-|  | [当波删除普通插件 `scope:"home"`、`personal:true`、`hidden` 与 `project_reach`](reference/batches/108.md#batch-108-item-3) |
+|  | [当波删除 `personal:true`、`hidden` 与 `project_reach`（普通插件 `runtime.scope:"home"` 机制留 `109-3` 删除）](reference/batches/108.md#batch-108-item-3) |
 | [109](reference/batches/109.md) | [主库插件删 `project_id` 列与 Feed/Work Brief 摘除 Home 半](reference/batches/109.md#batch-109-item-1)（2026-11-22 加，UPP 批 B3，前置 `108`，[决定 66](reference/decisions.md#decision-66)） |
 |  | [Workspace Git 与 `projects.workspace.writers.*` 迁入 `plugins/native/git`（D6=B）+ 开放审查种类](reference/batches/109.md#batch-109-item-2) |
 |  | [第三方沙箱包开放 `databases.partition` + 彻底删除双实例与旧平行装配](reference/batches/109.md#batch-109-item-3) |
@@ -339,7 +339,7 @@
 
 ## 发行批
 
-只为对外发行才要的事（2026-11-14 用户定，[决定 45](reference/decisions.md#decision-45)，[发行批总则](reference/release-batch.md)）：开工时间由用户定，01～105 不等它；发行用的值只填 [26-9](reference/batches/26.md#batch-26-item-9) 收拢的那份配置，不再改代码。
+只为对外发行才要的事（2026-11-14 用户定，[决定 45](reference/decisions.md#decision-45)，[发行批总则](reference/release-batch.md)）：开工时间由用户定，01～111 不等它；发行用的值只填 [26-9](reference/batches/26.md#batch-26-item-9) 收拢的那份配置，不再改代码。
 
 | 批次 | 批次内内容 |
 | --- | --- |

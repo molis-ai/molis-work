@@ -196,7 +196,7 @@
 
 检查供应商直连、旧执行器和绕过约束的 fallback；检查 Runtime 结束、权限撤销或配置变化后是否仍产生副作用。
 
-检查回复语言是否只由平台一处给（`AgentStartAuthority.reply_language`）；提示词、Skill、方法和插件里有没有写死回复语言或按语言分支；有界单次调用是否按显式 `reply_language_policy` 区分人看正文与结构化抽取，且 `user` 侧不可信材料统一经 `fencedMaterials` 隔离。
+检查回复语言是否只由平台一处给（`AgentStartAuthority.reply_language`）；提示词、Skill、方法和插件里有没有写死回复语言或按语言分支；有界单次调用（于 `104-1` 落地后）是否按显式 `reply_language_policy` 区分人看正文与结构化抽取，且 `user` 侧不可信材料统一经 `fencedMaterials` 隔离。
 
 检查 Prompt 统一登记、受保护策略与双缓存域 KV-Cache 稳定性（见 `docs/platform/PROLOGUE-AI.md` §13.6 与路线书决定 67）：
 

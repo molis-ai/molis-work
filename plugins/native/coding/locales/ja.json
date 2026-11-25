@@ -15,6 +15,8 @@
     "coding.actions.saved": "機能の選択を保存しました。次のターンから適用され、実行中のタスクは元の選択を保持します。",
     "coding.actions.session-changed": "セッションが切り替わりました。現在のセッションの機能選択を開き直してください。",
     "coding.actions.title": "次のターンで使用する機能",
+    "coding.agent-prompt.coding-auto-skill-catalog.purpose": "Codingのターンで自動選択できるスキルの一覧と読み取りルールを説明します",
+    "coding.agent-prompt.coding-auto-skill-catalog.title": "自動スキルの案内",
     "coding.agent-prompt.coding-background.title": "ビルダー",
     "coding.agent-prompt.coding-base.title": "基本制約",
     "coding.agent-prompt.coding-builder.title": "コード実装",

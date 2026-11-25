@@ -74,7 +74,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `apps/local-host` | 本地唯一业务 composition root 和 single writer | 唯一项目数据库和业务装配；统一动作服务的宿主侧（能力目录合成、系统动作、逐客户端 MCP 授权、调用记录、跨进程动作网关）；可信身份与 Web/CLI/MCP 装配；各 Native 插件的组合适配（注入存储位置、模型、Artifact 发布等端口）；凭据与本机 IO | `production` | AP2/Cutover；动作服务见 `specs/action-architecture/` | 共享核心：@yijunw0212 |
 | `apps/server` | 无桌面窗口的接续服务命令与生命周期 | 2026-11-09 用户批准改由现有产品 CLI 的 `molis-work server …` 组合公开 `runServer(args, ports)`，替代原独立 Node 路径；授权、动作网关证明与本机资产恢复适配留在 Host owner。移除对 desktop/Host 的反向 import。接续能力仍属实验范围，此次接线不代表完整 Server/Exchange 或 Team 控制面已经交付 | `experimental`（已接入产品 CLI；能力仍实验） | `docs/reviews/daily-quality/2026-11-08-medium-supplement.md`；`specs/archive/daily-quality-medium-20261108/spec.md` | 应用：@yijunw0212 |
 | `apps/cli` | 参数、协议和终端展示适配 | 协议参数、命令分发与公开应用 adapter；root bin 仅注入启动环境 | `production` | DV1/Cutover；CLI 协议和真实进程验证 | 应用：@yijunw0212 |
-| `apps/mcp` | MCP schema、audience 和 Capability 适配 | 平台工具包含项目连接与受保护的管理入口（`initialize`、`review_request`、`review_decide`）；业务能力由 Host 按动作目录合成、逐客户端授权；本人决定沿平台受保护入口固定原提供方与目标版本 | `production` | DV1/DV2/Cutover；#269 | 应用：@yijunw0212 |
+| `apps/mcp` | MCP schema、audience 和 Capability 适配 | 平台工具包含项目连接与受保护的平台审阅管理入口（`review_request`、`review_decide`）；业务能力由 Host 按动作目录合成、逐客户端授权；本人决定沿平台受保护入口固定原提供方与目标版本 | `production` | DV1/DV2/Cutover；#269；第 44B 批删除插件 `management_actions` 与管理 `initialize` | 应用：@yijunw0212 |
 
 ## 4. Foundation 与 Tooling packages
 
@@ -108,7 +108,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `modules/sync-replication` | 空间同步策略、增量协调、冲突与同步状态 | 个人空间本机联调；复用 owner 适配器与持久队列，六项平台个人配置独立同意，默认关闭 | `slice` | F2；`specs/personal-cloud-sync/plugin-replication.md` | Module：@yijunw0212 |
 | `modules/actions` | 个人/外部 Action 请求、状态和结果引用 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `modules/acceptance` | 挂在任何插件对象上的要求、交付版本、核对报告与层级（含复查档）、用户本人的认可与退回、各轮记录（平台能力，不经 Goals） | `openAcceptance` 给出的服务（`set`、`deliver`、`report`、`read`、`decide`）、`acceptanceView`；系统动作 `acceptance.requirements.set`、`acceptance.deliveries.record`、`acceptance.reports.submit`、`acceptance.read`、`acceptance.decide` 由 Host 装配为 `system.acceptance`；五张表存在项目库中，与可信决定同库同事务，Goals 与助理后台任务均为消费方（第 44 批 44-3 迁入并接管存量）。缺片：个人范围 | `slice` | `specs/proactive-assistant/spec.md` §7.3.1、`specs/agent-approval/spec.md` §3.5；第 44 批 44-3 | Module：@yijunw0212 |
-| `modules/attention-resumption` | Attention reference、reason 与最小处置状态 | Attention reference/reason 与最小处置；平台同步复用原 Inbox 集合身份与回执；旧 Inbox 转发已退出；缺片：完整 snooze/resume；后续：另立 Goal 补未来能力 | `slice` | FD2/Cutover；完整 snooze/resume 仍是未来能力 | Module：@yijunw0212 |
+| `modules/attention-resumption` | Attention reference、reason 与最小处置状态 | Attention reference/reason 与最小处置；平台同步采用纯平台身份 `system.attention`（`official-attention-binding`，变更流水 `attention_replica_*` 位于项目库基线，第 44B 批已脱离 Inbox）；旧 Inbox 转发与同步集合已退出；缺片：完整 snooze/resume；后续：另立 Goal 补未来能力 | `slice` | FD2/Cutover；第 44B 批；完整 snooze/resume 仍是未来能力 | Module：@yijunw0212 |
 | `modules/private-work-context` | Runtime context binding（Runtime 工作入口与 Project 的绑定、事件、setup 幂等、拒绝建议） | Runtime 当前 Project 关联经 Ledger API 保存；控制历史留在本模块。旧 Session、内容引用与 Handoff 随 Sessions 插件下线（SC-4）删除；现行发现与读取归 `horizontal/sessions`，交接进展见 [BL-177](../specs/backlog/BL-177.md) | `slice` | WK1–WK3 已迁移；SC-4 删除 Session 部分 | Module：@yijunw0212 |
 | `modules/artifacts` | Artifact、版本、类型、内容引用、原件与 provenance | 唯一正式事实；平台提供方和生产者声明由 Host 装配，工作台成果界面走动作消费；原件 Home 存储由本模块声明 | `production` | AR1 已迁 Core；AR3 切换现有结果入口 | Module：@yijunw0212 |
 | `modules/shelf` | 平台部件 Shelf（`system.shelf`）：个人置物架材料、副本任务、Hash、本机抽字结果与右栏 Shelf 界面 | Home 下 `shelf/` 副本与 Jobs 沙箱；由运行时作为平台部件托管（`HostSurfaceRegistration`，无安装记录、不进插件目录），路由 `/api/platform/shelf/…`；项目结果只经 `services.artifacts` 读；不写项目 Goal / Artifact；[macOS 桌面壳](../apps/desktop/adapters/tauri/src/main.rs)已接入轮盘和热键 | `slice` | Shelf 工作台切片；真人划选、Finder 拖放与系统文件选择器见 [BL-014](../specs/backlog/BL-014.md) | Module：@yijunw0212、@jingxusandra-gif |
@@ -218,7 +218,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 技能声明和正文 | 提供技能的插件 | Manifest 的 methods 和已验签正文/资源；内置声明由原注册提供 |
 | 当前范围的目录与读取 | apps/local-host 的 Agent definitions | `system.skills` 的目录、导入与草稿/回放动作，每次投影安装、声明与授权；manual 只认宿主冻结点名 |
 | 技能自动/仅手动状态、接受后的使用记录 | apps/local-host 的 Agent definitions | `agent-definitions` 库第 2 版（#2209 升级段 `1 → 2` 将 `system:information/information.plan` 迁至 `io.molis.work.feed/feed.information-plan`）的 `skill_settings`、`skill_uses`，以及第 42 批的 `skill_drafts`、`skill_cases`、`skill_trials`、`skill_lineage`；项目与 home 分开，off 不留行；卸载删除状态、保留历史 |
-| 随系统自带的技能包 | 宿主构建产物 | `packages/system-skills/<包>/pack-content.json` 的 `system`；构建产物 `apps/local-host/dist/system-skills/`；不安装、不验签、不固定发布者，和安装包共用同一目录 |
+| 随系统自带的技能包 | 宿主构建产物 | `packages/system-skills/<包>/pack-content.json` 的 `system`（第 44B 批自 `plugins/content/` 迁出，`plugins/content/` 禁止声明 `system`）；构建产物 `apps/local-host/dist/system-skills/`；不安装、不验签、不固定发布者，和安装包共用同一目录 |
 | 自己写的技能 | 每范围一个内容包 + 已装记录的发布者签名 | `my-skills.project`／`.home`；正文与声明在签名内容包，`skill_settings` 只存状态；认主只看已装记录的发布者签名 |
 
 助理和 Coding 都只读这一份目录（第 09 批）：Coding 旧的方法发现、安装和 Prologue 存储里的 `molis-coding-method` 已删，不迁移。

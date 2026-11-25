@@ -390,6 +390,8 @@
     "plugin-builder.agent-prompt.choose-capability.purpose": "When several platform actions could serve a feature, ask the judgment service to choose the best fit; Studio supplies candidates and design state, and only valid candidates count",
     "plugin-builder.agent-prompt.choose-component.title": "Choose a component",
     "plugin-builder.agent-prompt.choose-component.purpose": "When several components could serve a part, ask the judgment service to choose using the whole-page layout and neighboring parts; Studio supplies candidates and design state, and only valid candidates count",
+    "plugin-builder.agent-prompt.mockup-generate.title": "Generate proposal mockup",
+    "plugin-builder.agent-prompt.mockup-generate.purpose": "Specify layout and visual style requirements for the image service to draw a plugin proposal mockup from its title, summary, parts and flow",
     "plugin-builder.agent-prompt.builder-experience.title": "Experience designer",
     "plugin-builder.agent-prompt.builder-experience.purpose": "Plan the user journey, information hierarchy, and representative content before the design is finalized",
     "plugin-builder.agent-prompt.builder-review.title": "Interface design · Visual check",

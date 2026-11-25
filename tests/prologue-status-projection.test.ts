@@ -5,6 +5,8 @@ import { PrologueAgentAdapter, type PrologueRuntimePort, type PrologueRestoredSe
 const owner = { project_id: "status-board", plugin_id: "io.molis.work.coding", install_id: "status-install", actor_id: "person" };
 const frozen = { role_id: "reader", role_version: 1, execution: "read-only" as const, model_id: "fixture", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null };
 const ref = { session_id: "status-session", runtime_id: "prologue" };
+type SavedRun = NonNullable<Awaited<ReturnType<NonNullable<PrologueRuntimePort["sessions"]["restore"]>>>>["runs"][number];
+const savedFrozen: SavedRun["frozen"] = { ...frozen, workspace: "none" };
 
 test("warm status reads the current phase after an asynchronous step board lookup", async () => {
   let emit: (event: PrologueEvent) => void = () => {};
@@ -98,8 +100,8 @@ test("status reads only the latest projection and keeps full history available o
 
 test("a session nobody has read for a while is let go and restored from the ledger on the next read", async () => {
   let clock = Date.parse("2026-11-25T00:00:00Z"), restores = 0;
-  const sessionRuns = (id: string) => [{ ref: { session_id: id, run_id: id + "-run" }, frozen, task: "保存的任务", started_at: "2026-11-25T00:00:00Z", terminal: true,
-    events: [{ type: "text-delta", text: "保存的正文 " + id }, { type: "completed" }] as PrologueEvent[] }];
+  const sessionRuns = (id: string): SavedRun[] => [{ ref: { session_id: id, run_id: id + "-run" }, frozen: savedFrozen, task: "保存的任务", started_at: "2026-11-25T00:00:00Z", terminal: true,
+    events: [{ type: "text-delta", text: "保存的正文 " + id }, { type: "completed" }] }];
   const adapter = new PrologueAgentAdapter({ now: () => new Date(clock), modelConfiguration: async () => { throw new Error("passive read"); }, runtime: {
     sessions: { create: async () => { throw new Error("unused"); }, restore: async id => { restores++; return { title: id, owner, runs: sessionRuns(id) }; },
       readStatus: async id => ({ owner, latest: sessionRuns(id).at(-1) }) },
@@ -141,7 +143,7 @@ test("streamed text reaches a follower gathered, while a phase change goes at on
       sessions: { create: async () => ({ ref: { id: "stream-session" } }) },
       startAgentRun: async () => ({
         run: { ref: { id: "stream-run" }, subscribe: listener => { emit = listener; return () => {}; }, cancel: async () => {} },
-        control: { state: "running", stop: () => {}, pause: () => {}, resume: () => {}, steer: () => {}, subscribe: () => () => {} },
+        control: { state: "running", stop: () => {}, pause: () => {}, resume: () => {}, steer: async () => ({ steerId: "steer-1", replayed: false }), subscribe: () => () => {} },
       }),
       shutdown: async () => {},
     },

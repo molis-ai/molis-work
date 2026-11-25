@@ -1,3 +1,4 @@
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderHint } from "@molis-ai/molis-work-design-system";
 import { createProjectSettingsFolds } from "./project-settings-folds.js";
@@ -25,7 +26,9 @@ function renderProjectDetail(project: WebSettingsProject, selected: boolean, des
   </article>`;
 }
 
-export function renderProjectSettings(view: MolisWorkSettingsView, desktopShell: boolean, primitives: ProjectManagerPrimitives): string {
+export function renderProjectSettings(settingsView: MolisWorkSettingsView, desktopShell: boolean, primitives: ProjectManagerPrimitives): string {
+  // The person's own projects: the personal space is a partition the platform keeps, never renamed or deleted here (batch 106, only add).
+  const view = { ...settingsView, projects: settingsView.projects.filter((project) => project.project_id !== PERSONAL_SPACE_PROJECT_ID) };
   const { readText, escapeHtml, icon, withDesktopQuery } = primitives;
   const folds = createProjectSettingsFolds({ readText, escapeHtml, icon, withDesktopQuery, projectDeletionLabels: primitives.projectDeletionLabels });
   const demo = view.projects.find((project) => project.data_class === "regenerable_demo");

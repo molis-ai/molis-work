@@ -177,7 +177,8 @@ test("UPP-06 S-partition-isolation the per-partition starter runs the plugin on 
     escapeHtml: String, translate: (value: string) => value, installedByHand: new Set([definition]) };
   const scope = partitionPluginScope(home, a, PLUGIN, installIdentity(definition.manifest));
   try {
-    const instance = await startPartitionPluginInstance(ports, scope, { definition }, installs.db);
+    // With a release package, so the start keeps one: it goes to the Home's install table with the installation, never the partition's.
+    const instance = await startPartitionPluginInstance(ports, scope, { definition, releaseArtifact: { capture: () => "export {};", restore: () => definition } }, installs.db);
     try {
       const library = join(partitionRoot(home, a), "libraries", "notes.db");
       assert.equal(existsSync(library), true, "its library is A's own");
@@ -188,6 +189,9 @@ test("UPP-06 S-partition-isolation the per-partition starter runs the plugin on 
       const installed = installs.db.prepare("SELECT install_id FROM plugin_runtime_installs").all().map(row => row.install_id);
       assert.equal(installed.length, 1, "the installation is recorded once, in the Home's install table");
       assert.equal((store.db.prepare("SELECT count(*) AS count FROM plugin_runtime_installs").get() as { count: number }).count, 0, "and not in the partition's library");
+      const releases = (db: { prepare(sql: string): { get(): unknown } }) => (db.prepare("SELECT count(*) AS count FROM plugin_runtime_release_artifacts").get() as { count: number }).count;
+      assert.equal(releases(installs.db), 1, "its release package is kept with the installation, in the Home");
+      assert.equal(releases(store.db), 0, "and not in the partition's library");
     } finally { await instance.stop(); }
     const otherInstall = partitionPluginScope(home, a, PLUGIN, "another-install");
     await assert.rejects(startPartitionPluginInstance(ports, otherInstall, { definition }, installs.db), /不一致/u, "a scope for another installation is refused before any start");

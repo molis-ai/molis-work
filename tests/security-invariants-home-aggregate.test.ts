@@ -203,7 +203,8 @@ test("S-49 PG-043 a home_aggregate declaration that writes, calls a model, costs
 });
 
 // AAP-03 SYS-05: real Host queries with one non-cooperating provider; timeout does not withhold other projects or accept late results.
-test("SYS-05 a stalled Home provider is cancelled, other projects return, and a later retry works", { timeout: 15_000 }, async t => {
+// 30 s: the two full reads with their deadlines sat right at 15 s on the loaded Linux runner (batch 106 CI); the deadlines themselves are unchanged.
+test("SYS-05 a stalled Home provider is cancelled, other projects return, and a later retry works", { timeout: 30_000 }, async t => {
   const { host, plugin, a, b } = await rig(t);
   for (const ref of [a, b]) await startProjectPlugins(host, ref);
   const release = Promise.withResolvers<void>();
@@ -222,7 +223,7 @@ test("SYS-05 a stalled Home provider is cancelled, other projects return, and a 
   assert.equal(result.answers.length, 1, "a late result cannot mutate the returned partial snapshot");
 });
 
-test("SYS-05 Home discovery has a deadline and cancelling the caller rejects the whole read", { timeout: 15_000 }, async t => {
+test("SYS-05 Home discovery has a deadline and cancelling the caller rejects the whole read", { timeout: 30_000 }, async t => {
   const { host, plugin, a, b } = await rig(t);
   for (const ref of [a, b]) await startProjectPlugins(host, ref);
   const ports = openOnly(host), held = Promise.withResolvers<void>();

@@ -7,8 +7,8 @@ export { EVIDENCE_COLLECT_PERMISSION, type EvidenceHolder, type EvidenceHoldReco
 /**
  * The platform's ledger of who holds which evidence body (specs/unified-partition-plugins §5, batch 106): the bodies stay in the Home's
  * content-addressed pool (`packages/storage` evidence-content, shared by every partition); this records each reference by
- * (content_ref, partition, installation, holder key), so a body nobody holds can be collected, and only the platform collects it
- * (`evidence:collect`, S-98 as rewritten). The partition and the installation are the Host's stamp from the trusted context; a plugin
+ * (content_ref, partition, installation, holder key), so a body nobody holds can be collected; collection carries `evidence:collect`
+ * (S-98 as rewritten) and deletes only what no hold anywhere keeps. The partition and the installation are the Host's stamp from the trusted context; a plugin
  * names only its own holder key. Feed's own `feed_content_holds` stays until batch 109 moves Feed here (V1: add, move, delete).
  */
 export const EVIDENCE_STORE = "evidence";
@@ -84,8 +84,8 @@ export class EvidenceLedger {
   }
 
   /**
-   * Deletes the candidate bodies nobody holds. Only a caller carrying `evidence:collect` reaches it: the platform's own collection path,
-   * never a plugin, whatever it declares (S-98).
+   * Deletes the candidate bodies nobody holds. Only a caller carrying `evidence:collect` reaches it (S-98; from batch 109 Feed triggers its
+   * collection here). Whoever triggers it, what is deleted is the ledger's decision: a body any partition or installation still holds is kept.
    */
   collect(caller: { readonly permissions: readonly string[] }, content: Pick<EvidenceContentStore, "collect">, candidates: Iterable<string>): { deleted: string[]; kept: string[] } {
     if (!caller.permissions.includes(EVIDENCE_COLLECT_PERMISSION)) throw new ActionError("actions.forbidden", "只有平台能回收没人引用的证据正文");

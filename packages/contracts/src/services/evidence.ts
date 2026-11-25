@@ -1,8 +1,8 @@
 /**
  * The platform's evidence ledger (`horizontal/evidence`, specs/unified-partition-plugins §5, batch 106): who holds which body of the Home's
  * shared evidence pool. A hold is keyed by the body's reference, the partition and installation the Host stamps from the trusted context,
- * and the plugin's own holder key; only the platform's collection path, carrying {@link EVIDENCE_COLLECT_PERMISSION}, deletes a body
- * nobody holds (S-98 as rewritten).
+ * and the plugin's own holder key; collection carries {@link EVIDENCE_COLLECT_PERMISSION} (S-98 as rewritten) and deletes only a body
+ * no partition or installation holds.
  */
 export const EVIDENCE_COLLECT_PERMISSION = "evidence:collect";
 

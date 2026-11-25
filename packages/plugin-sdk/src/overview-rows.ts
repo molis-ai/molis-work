@@ -55,52 +55,68 @@ function overviewInvalid(message: string): ActionError {
 function assertKind(kind: unknown): asserts kind is OverviewKind {
   if (!(OVERVIEW_KINDS as readonly unknown[]).includes(kind)) throw overviewInvalid(`${String(kind)} 不是平台的总览种类`);
 }
-const text = (value: unknown, limit: number, field: string, required = false): string | null => {
-  if (value === undefined || value === null) {
-    if (required) throw overviewInvalid(`总览行缺少 ${field}`);
-    return null;
-  }
-  if (typeof value !== "string" || value.length === 0 || value.length > limit) throw overviewInvalid(`总览行的 ${field} 要是 1 到 ${limit} 字的文字`);
-  return value;
-};
-const instant = (value: unknown, field: string, required = false): string | null => {
-  if ((value === undefined || value === null) && !required) return null;
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/u.test(value) || Number.isNaN(Date.parse(value))) {
-    throw overviewInvalid(`总览行的 ${field} 要是带时区的时刻（ISO 8601）`);
-  }
-  return value;
-};
-
-/** The columns of one row, checked against its kind's format; a field the kind does not use is not written. */
+/** The columns of one row, checked against its kind's format (`checkOverviewRow`, which the platform runs again when it reads); a field the kind does not use is not written. */
 export function overviewColumns<K extends OverviewKind>(kind: K, row: OverviewRowByKind[K]): Record<string, PluginSqlValue> {
-  assertKind(kind);
-  const base: Record<string, PluginSqlValue> = {
-    kind, row_id: text(row.row_id, OVERVIEW_TEXT_LIMITS.row_id, "row_id", true), title: text(row.title, OVERVIEW_TEXT_LIMITS.title, "title", true),
-    updated_at: instant(row.updated_at, "updated_at", true),
+  const checked = checkOverviewRow(kind, row);
+  if ("problem" in checked) throw overviewInvalid(checked.problem);
+  return { ...checked.columns };
+}
+
+/** One overview row checked against its kind's format: the columns to write, or what is wrong with it, in words its author can act on. */
+export type OverviewRowCheck = { readonly columns: Readonly<Record<string, PluginSqlValue>> } | { readonly problem: string };
+
+const OVERVIEW_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/u;
+
+/**
+ * The one check of an overview row (specs/unified-partition-plugins §6.1): the SDK runs it before a plugin writes (`overviewRows`), and the
+ * platform runs it again on every row it reads back, so a row written past the SDK is left out of the overview rather than breaking it.
+ * A field the kind does not use is not in the columns.
+ */
+export function checkOverviewRow(kind: unknown, row: unknown): OverviewRowCheck {
+  let problem: string | null = null;
+  const fail = (message: string): null => {
+    problem ??= message;
+    return null;
   };
-  // Read as plain fields: a plugin written in JavaScript may hand over anything, and every value is checked below.
-  const fields: Readonly<Record<string, unknown>> = { ...row };
+  if (!(OVERVIEW_KINDS as readonly unknown[]).includes(kind)) return { problem: `${String(kind)} 不是平台的总览种类` };
+  // Read as plain fields: a plugin written in JavaScript, or a row read back from a library, may hold anything.
+  const fields: Readonly<Record<string, unknown>> = typeof row === "object" && row !== null ? { ...row } : {};
+  const text = (value: unknown, limit: number, field: string, required = false): string | null => {
+    if (value === undefined || value === null) return required ? fail(`总览行缺少 ${field}`) : null;
+    if (typeof value !== "string" || value.length === 0 || value.length > limit) return fail(`总览行的 ${field} 要是 1 到 ${limit} 字的文字`);
+    return value;
+  };
+  const instant = (value: unknown, field: string, required = false): string | null => {
+    if ((value === undefined || value === null) && !required) return null;
+    if (typeof value !== "string" || !OVERVIEW_INSTANT.test(value) || Number.isNaN(Date.parse(value))) return fail(`总览行的 ${field} 要是带时区的时刻（ISO 8601）`);
+    return value;
+  };
+  const base: Record<string, PluginSqlValue> = {
+    kind: kind as OverviewKind, row_id: text(fields.row_id, OVERVIEW_TEXT_LIMITS.row_id, "row_id", true),
+    title: text(fields.title, OVERVIEW_TEXT_LIMITS.title, "title", true), updated_at: instant(fields.updated_at, "updated_at", true),
+  };
+  let columns: Record<string, PluginSqlValue>;
   if (kind === "task") {
-    if (!(OVERVIEW_TASK_STATUSES as readonly unknown[]).includes(fields.status)) throw overviewInvalid("待办的 status 只能是 open、done 或 cancelled");
+    if (!(OVERVIEW_TASK_STATUSES as readonly unknown[]).includes(fields.status)) fail("待办的 status 只能是 open、done 或 cancelled");
     const priority = fields.priority ?? null;
-    if (priority !== null && !(Number.isInteger(priority) && (priority as number) >= 0 && (priority as number) <= 3)) throw overviewInvalid("待办的 priority 是 0 到 3");
+    if (priority !== null && !(Number.isInteger(priority) && (priority as number) >= 0 && (priority as number) <= 3)) fail("待办的 priority 是 0 到 3");
     const tags = fields.tags ?? [];
-    if (!Array.isArray(tags) || tags.length > OVERVIEW_TEXT_LIMITS.tags || tags.some(tag => typeof tag !== "string" || !tag || tag.length > OVERVIEW_TEXT_LIMITS.tag)) {
-      throw overviewInvalid(`待办的 tags 至多 ${OVERVIEW_TEXT_LIMITS.tags} 个，每个 1 到 ${OVERVIEW_TEXT_LIMITS.tag} 字`);
-    }
-    return { ...base, status: fields.status as string, due_at: instant(fields.due_at, "due_at"), remind_at: instant(fields.remind_at, "remind_at"),
-      priority: priority as number | null, tags_json: tags.length ? JSON.stringify(tags) : null };
-  }
-  if (kind === "event") {
-    const startsAt = instant(fields.starts_at, "starts_at", true)!, endsAt = instant(fields.ends_at, "ends_at");
-    if (endsAt !== null && Date.parse(endsAt) < Date.parse(startsAt)) throw overviewInvalid("日程的 ends_at 不能早于 starts_at");
-    if (fields.all_day !== undefined && typeof fields.all_day !== "boolean") throw overviewInvalid("日程的 all_day 只能是 true 或 false");
-    return { ...base, starts_at: startsAt, ends_at: endsAt, all_day: fields.all_day === undefined ? null : fields.all_day ? 1 : 0,
+    const tagsValid = Array.isArray(tags) && tags.length <= OVERVIEW_TEXT_LIMITS.tags && tags.every(tag => typeof tag === "string" && tag.length > 0 && tag.length <= OVERVIEW_TEXT_LIMITS.tag);
+    if (!tagsValid) fail(`待办的 tags 至多 ${OVERVIEW_TEXT_LIMITS.tags} 个，每个 1 到 ${OVERVIEW_TEXT_LIMITS.tag} 字`);
+    columns = { ...base, status: fields.status as string, due_at: instant(fields.due_at, "due_at"), remind_at: instant(fields.remind_at, "remind_at"),
+      priority: priority as number | null, tags_json: tagsValid && (tags as unknown[]).length ? JSON.stringify(tags) : null };
+  } else if (kind === "event") {
+    const startsAt = instant(fields.starts_at, "starts_at", true), endsAt = instant(fields.ends_at, "ends_at");
+    if (startsAt !== null && endsAt !== null && Date.parse(endsAt) < Date.parse(startsAt)) fail("日程的 ends_at 不能早于 starts_at");
+    if (fields.all_day !== undefined && typeof fields.all_day !== "boolean") fail("日程的 all_day 只能是 true 或 false");
+    columns = { ...base, starts_at: startsAt, ends_at: endsAt, all_day: fields.all_day === undefined ? null : fields.all_day ? 1 : 0,
       time_zone: text(fields.time_zone, 64, "time_zone"), remind_at: instant(fields.remind_at, "remind_at") };
+  } else if (kind === "notification") {
+    if (!(OVERVIEW_NOTIFICATION_LEVELS as readonly unknown[]).includes(fields.level)) fail("通知的 level 只能是 info、warning 或 urgent");
+    columns = { ...base, level: fields.level as string, source: text(fields.source, OVERVIEW_TEXT_LIMITS.source, "source"),
+      occurred_at: instant(fields.occurred_at, "occurred_at", true) };
+  } else {
+    columns = { ...base, summary: text(fields.summary, OVERVIEW_TEXT_LIMITS.summary, "summary") };
   }
-  if (kind === "notification") {
-    if (!(OVERVIEW_NOTIFICATION_LEVELS as readonly unknown[]).includes(fields.level)) throw overviewInvalid("通知的 level 只能是 info、warning 或 urgent");
-    return { ...base, level: fields.level as string, source: text(fields.source, OVERVIEW_TEXT_LIMITS.source, "source"), occurred_at: instant(fields.occurred_at, "occurred_at", true) };
-  }
-  return { ...base, summary: text(fields.summary, OVERVIEW_TEXT_LIMITS.summary, "summary") };
+  return problem === null ? { columns } : { problem };
 }

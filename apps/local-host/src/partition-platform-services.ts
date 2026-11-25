@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { OverviewIndexRow, OverviewKind, PluginManifest, PluginPersonSettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DUE_REGISTRY_STORE, DueTimer, openDueRegistry, type DueEntryOwner, type DueEntryRecord, type DueExpiredRecord, type DueRegistry } from "@molis-ai/molis-work-service-scheduler";
 import { EVIDENCE_STORE, openEvidenceLedger } from "@molis-ai/molis-work-service-evidence";
@@ -26,14 +26,23 @@ export interface OverviewInstallation {
 
 /**
  * The libraries the overview reads: for each partition, each enabled plugin that declares `overview_projection` and keeps a library in every
- * partition. The path is the partition layout's (`partitionPluginScope`), never the plugin's word; the stamp is the platform's.
+ * partition. The path is the partition layout's (`partitionPluginScope`), never the plugin's word, and one that a link leads into another
+ * partition is left out; the stamp is the platform's.
  */
 export function partitionOverviewLibraries(home: string, partitions: readonly { readonly partition_id: string; readonly plugins: readonly OverviewInstallation[] }[]): OverviewLibrary[] {
   return partitions.flatMap(partition => partition.plugins.flatMap(({ install_id, manifest }) => {
     const declaration = manifest.databases?.partition, kinds = manifest.overview_projection?.kinds;
     if (!declaration || !kinds?.length) return [];
     const scope = partitionPluginScope(home, partition.partition_id, manifest.plugin_id, install_id);
-    return [{ partition_id: partition.partition_id, install_id, plugin_id: manifest.plugin_id, path: scope.libraryPath(declaration.store_name), kinds }];
+    let path: string;
+    try {
+      // Through the scope's link check, as the instance itself opens it: a library that resolves into another partition is not this one's to stamp.
+      path = scope.assertOwnPath(scope.libraryPath(declaration.store_name));
+    } catch (error) {
+      if (error instanceof ActionError && error.code === "actions.forbidden") return [];
+      throw error;
+    }
+    return [{ partition_id: partition.partition_id, install_id, plugin_id: manifest.plugin_id, path, kinds }];
   }));
 }
 

@@ -11,6 +11,7 @@ import { forgetInstallationPlatformRecords, forgetPartitionPlatformRecords } fro
 import { DUE_ENTRY_LIMIT, openDueRegistry } from "@molis-ai/molis-work-service-scheduler";
 import { EVIDENCE_COLLECT_PERMISSION, openEvidenceLedger } from "@molis-ai/molis-work-service-evidence";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { checkOverviewRow, overviewColumns } from "@molis-ai/molis-work-plugin-sdk";
 
 const A = { install_id: "todo-install", plugin_id: "io.molis.work.todo", partition_id: "personal" };
 const B = { ...A, partition_id: "project-b" };
@@ -90,7 +91,7 @@ test("the evidence ledger: a body held in any partition is kept; only the platfo
       for (const candidate of candidates) (isReferenced(candidate) ? kept : deleted).push(candidate);
       return { deleted: [...deleted], kept };
     } };
-    assert.throws(() => ledger.collect({ permissions: ["storage:private"] }, content, [ref(3)]), { code: "actions.forbidden" }, "a plugin, whatever it declares, cannot collect");
+    assert.throws(() => ledger.collect({ permissions: ["storage:private"] }, content, [ref(3)]), { code: "actions.forbidden" }, "a caller without evidence:collect cannot collect");
     assert.deepEqual(ledger.releasePartition("project-a"), [ref(1), ref(2)]);
     assert.deepEqual(ledger.collect({ permissions: [EVIDENCE_COLLECT_PERMISSION] }, content, [ref(1), ref(2)]), { deleted: [ref(1)], kept: [ref(2)] },
       "the body project B still holds is kept");
@@ -119,3 +120,26 @@ test("a partition's deletion takes its due entries and evidence holds; an uninst
     assert.equal(held.isHeld(ref(2)), true, "an uninstall that keeps the data keeps its holds");
   } finally { after.close(); held.close(); }
 }));
+
+test("UPP-34 one overview row check: what the SDK refuses to write is what the platform leaves out when it reads", () => {
+  const at = "2026-11-24T09:00:00.000Z", base = { row_id: "r1", title: "标题", updated_at: at };
+  const valid = [["task", { ...base, status: "open", priority: 2, tags: ["家"], remind_at: "2026-11-25T09:00:00+08:00" }],
+    ["event", { ...base, starts_at: at, ends_at: at, all_day: false }], ["notification", { ...base, level: "urgent", occurred_at: at }], ["brief", { ...base, summary: "摘要" }]] as const;
+  for (const [kind, row] of valid) assert.ok("columns" in checkOverviewRow(kind, row), kind);
+  assert.deepEqual(overviewColumns("task", { ...base, status: "done", tags: ["家"] }), { kind: "task", row_id: "r1", title: "标题", updated_at: at, status: "done",
+    due_at: null, remind_at: null, priority: null, tags_json: "[\"家\"]" }, "only the kind's own columns");
+  for (const [kind, row, why] of [
+    ["task", { ...base, status: "open", remind_at: "2026-11-30 08:00" }, "a time without a time zone"],
+    ["task", { ...base, status: "later" }, "a status the platform does not know"],
+    ["task", { ...base, status: "open", priority: 4 }, "a priority past 3"],
+    ["task", { ...base, status: "open", tags: Array.from({ length: 17 }, (_, i) => `t${i}`) }, "too many tags"],
+    ["event", { ...base, starts_at: at, ends_at: "2026-11-23T09:00:00.000Z" }, "an end before the start"],
+    ["notification", { ...base, level: "loud", occurred_at: at }, "a level the platform does not know"],
+    ["brief", { ...base, summary: "x".repeat(2_001) }, "a summary past its limit"],
+    ["brief", { row_id: "r1", updated_at: at }, "no title"],
+    ["memo", base, "a kind the platform does not have"],
+  ] as const) {
+    assert.ok("problem" in checkOverviewRow(kind, row), why);
+    assert.throws(() => overviewColumns(kind as "task", row as never), { code: "actions.input_invalid" }, why);
+  }
+});

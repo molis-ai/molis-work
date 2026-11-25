@@ -3,6 +3,7 @@ import {
   OVERVIEW_KINDS, OVERVIEW_SUMMARY_FIELDS, type OverviewIndexRow, type OverviewKind, type OverviewSummaryField,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { OverviewIndexLibrary, OverviewIndexPort, OverviewIndexStoredRow, OverviewTableRow } from "@molis-ai/molis-work-contracts/services/search";
+import { checkOverviewRow } from "@molis-ai/molis-work-plugin-sdk";
 
 /**
  * The Home's overview index (specs/unified-partition-plugins §6.1, U4/V11, batch 106): the overview tables the plugins keep in their
@@ -77,8 +78,10 @@ export class OverviewService {
   track(library: OverviewLibrary): void { this.port.track(library); }
 
   /**
-   * Reads one library's overview table and replaces what the index holds of it. A library that cannot be read now keeps its rows and
-   * stays dirty. Returns the rows held, or null when it could not be read.
+   * Reads one library's overview table and replaces what the index holds of it. Each row is checked again as the SDK checks it before a
+   * write (`checkOverviewRow`): one written past the SDK is left out, never breaking the rest. The reminders go to the due registry before
+   * the library is marked read, so a failure there leaves it dirty and it is read again. A library that cannot be read now keeps its rows
+   * and stays dirty. Returns the rows held, or null when it could not be read.
    */
   refresh(library: OverviewLibrary): number | null {
     const read = this.port.readLibrary(library);
@@ -86,11 +89,14 @@ export class OverviewService {
       this.port.track(library);
       return null;
     }
-    const rows = read.map(row => storedRow(library, row));
-    this.port.replace(library, rows, read.map(sortAt));
-    const reminders = read.flatMap(row => typeof row.remind_at === "string" && !Number.isNaN(Date.parse(row.remind_at))
-      ? [{ entry_key: `${String(row.kind)}:${String(row.row_id)}`, due_at: row.remind_at }] : []);
+    const valid = read.flatMap(row => {
+      const columns = checkedColumns(row);
+      return columns ? [columns] : [];
+    });
+    const reminders = valid.flatMap(row => typeof row.remind_at === "string" ? [{ entry_key: `${String(row.kind)}:${String(row.row_id)}`, due_at: row.remind_at }] : []);
     this.options.reminders?.(library, reminders);
+    const rows = valid.map(row => storedRow(library, row));
+    this.port.replace(library, rows, valid.map(sortAt));
     return rows.length;
   }
 
@@ -133,6 +139,24 @@ export class OverviewService {
 
 function reachMap(reach: OverviewReach): Map<string, Set<string>> {
   return new Map(reach.map(entry => [entry.partition_id, new Set<string>(entry.fields)]));
+}
+
+/** A row read back from a library as its kind's columns, or null when it is not a valid row of its kind. */
+function checkedColumns(row: OverviewTableRow): OverviewTableRow | null {
+  let tags: unknown;
+  if (typeof row.tags_json === "string") {
+    try {
+      tags = JSON.parse(row.tags_json);
+    } catch {
+      return null;
+    }
+  }
+  const allDay = row.all_day === null || row.all_day === undefined ? undefined : row.all_day === 1 ? true : row.all_day === 0 ? false : row.all_day;
+  const checked = checkOverviewRow(row.kind, { ...row, tags: tags ?? undefined, all_day: allDay });
+  if ("problem" in checked) return null;
+  const columns: Record<string, string | number | null> = {};
+  for (const [column, value] of Object.entries(checked.columns)) if (typeof value === "string" || typeof value === "number" || value === null) columns[column] = value;
+  return columns;
 }
 
 function storedRow(library: OverviewLibrary, row: OverviewTableRow): OverviewIndexStoredRow {

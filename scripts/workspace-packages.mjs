@@ -546,7 +546,8 @@ export const WORKSPACE_PACKAGES = [
     capabilities: [
       "search.query.v1",
       "search.index.v1"
-    ]
+    ],
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"]
   }),
   entry("horizontal/appearance", "@molis-ai/molis-work-contracts/platform/ui", {
     maturity: "slice",

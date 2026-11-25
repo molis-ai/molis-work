@@ -280,6 +280,12 @@ export type { MissedRun } from "@molis-ai/molis-work-contracts/platform/actions"
 export type { ObjectLinkPlace } from "@molis-ai/molis-work-contracts/platform/object-link";
 export type { OpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export type OverviewRowCheck = {
+    readonly columns: Readonly<Record<string, PluginSqlValue>>;
+} | {
+    readonly problem: string;
+};
+
 export declare const PAGE_ROUTE_LIMITS: Readonly<{
     routes: 32;
     segments: 8;
@@ -784,6 +790,8 @@ export declare function cardSubject(view: Pick<ActionView, "action" | "operation
     kind: string;
     id: string;
 } | null;
+
+export declare function checkOverviewRow(kind: unknown, row: unknown): OverviewRowCheck;
 
 export declare function checkedSourcePresentation(value: unknown): SourcePresentation;
 

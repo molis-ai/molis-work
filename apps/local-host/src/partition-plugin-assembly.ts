@@ -47,8 +47,11 @@ export interface PartitionPluginHandle {
 
 export interface PartitionPluginAssemblyOptions {
   readonly home: string;
-  /** Whether this plugin is assembled per partition: its Manifest declares `databases.partition`. */
-  assembled(pluginId: string): boolean;
+  /**
+   * The library name the plugin declares in `databases.partition`, or null when it is not assembled per partition. Two plugins enabled in one
+   * partition may not declare the same name: the file is `<partition root>/libraries/<name>.db`, so one would open the other's data.
+   */
+  library(pluginId: string): string | null;
   /** The plugins enabled in this partition, as `partition_plugins` holds them now. */
   members(partitionId: string): Promise<readonly string[]> | readonly string[];
   /** The plugin's installation in the Home's one install table, or null when it is not installed. */
@@ -91,13 +94,19 @@ export class PartitionPluginAssembly {
 
   /**
    * The instance of this plugin in this partition, started if it is not running. Refused when the plugin is not assembled per partition, is not
-   * installed, or is not enabled in this partition: a partition never runs a plugin it did not choose.
+   * installed, or is not enabled in this partition: a partition never runs a plugin it did not choose. Refused too when another plugin enabled
+   * here declares the same library name (S-partition-isolation).
    */
   async acquire(pluginId: string, partitionId: string, reason: PartitionWakeReason): Promise<PartitionPluginLease> {
-    if (!this.options.assembled(pluginId)) throw new ActionError("actions.plugin_unavailable", "这个插件还不按分区运行");
+    const library = this.options.library(pluginId);
+    if (library === null) throw new ActionError("actions.plugin_unavailable", "这个插件还不按分区运行");
     const record = this.options.installation(pluginId);
     if (!record) throw new ActionError("actions.plugin_unavailable", "这个插件没有安装");
-    if (!(await this.options.members(partitionId)).includes(pluginId)) throw new ActionError("actions.plugin_unavailable", "这个插件没有在这里启用");
+    const members = await this.options.members(partitionId);
+    if (!members.includes(pluginId)) throw new ActionError("actions.plugin_unavailable", "这个插件没有在这里启用");
+    if (members.some(other => other !== pluginId && this.options.library(other) === library)) {
+      throw new ActionError("actions.forbidden", "这里启用的另一个插件申报了同名的库，两个都不打开，免得一个读到另一个的数据");
+    }
     const key = keyOf(pluginId, partitionId);
     let entry = this.running.get(key);
     if (!entry) {
@@ -110,6 +119,8 @@ export class PartitionPluginAssembly {
       });
     }
     await entry.ready;
+    // Stopped while it was starting (disabled, uninstalled, its partition gone): no lease on an instance that is no longer running.
+    if (this.running.get(key) !== entry) throw new ActionError("actions.plugin_unavailable", "这个插件在这里刚停下");
     entry.leases += 1;
     entry.lastUsed = this.now();
     let released = false;

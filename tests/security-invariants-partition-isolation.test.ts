@@ -42,7 +42,7 @@ const unavailable = { code: "actions.plugin_unavailable" };
 test("UPP-06 S-partition-isolation each (plugin, partition) instance reaches only its own partition's library and files; a path into another partition is refused", async () => withPartitions(async (home, a, b) => {
   const opened = new Map<string, ReturnType<typeof openPartitionPluginLibrary>>();
   const members = new Map([[PERSONAL_SPACE_PROJECT_ID, [PLUGIN]], [a, [PLUGIN]], [b, [PLUGIN]]]);
-  const assembly = new PartitionPluginAssembly({ home, assembled: id => id === PLUGIN, members: id => members.get(id) ?? [], installation: id => id === PLUGIN ? record : null,
+  const assembly = new PartitionPluginAssembly({ home, library: id => id === PLUGIN ? "notes" : null, members: id => members.get(id) ?? [], installation: id => id === PLUGIN ? record : null,
     async start(scope) {
       const library = openPartitionPluginLibrary(scope, home, declaration);
       library.writer.prepare("INSERT INTO notes VALUES (?, ?)").run(`note-${scope.partition_id}`, scope.partition_id);
@@ -80,7 +80,7 @@ test("UPP-06 S-partition-isolation each (plugin, partition) instance reaches onl
 
 test("UPP-06 S-partition-isolation a partition never runs a plugin it did not enable, one that is not installed, or one the old assemblies run", async () => withPartitions(async (home, a, b) => {
   const starts: string[] = [];
-  const assembly = new PartitionPluginAssembly({ home, assembled: id => id !== "io.molis.work.old", members: id => id === a ? [PLUGIN, "com.example.uninstalled"] : [],
+  const assembly = new PartitionPluginAssembly({ home, library: id => id === "io.molis.work.old" ? null : id.split(".").pop()!, members: id => id === a ? [PLUGIN, "com.example.uninstalled"] : [],
     installation: id => id === PLUGIN ? record : null, async start(scope) { starts.push(scope.partition_id); return { async stop() {} }; } });
   await assert.rejects(assembly.acquire(PLUGIN, b, "push"), unavailable, "B did not enable it");
   await assert.rejects(assembly.acquire(PLUGIN, PERSONAL_SPACE_PROJECT_ID, "sync"), unavailable, "nor did the personal space");
@@ -88,6 +88,13 @@ test("UPP-06 S-partition-isolation a partition never runs a plugin it did not en
   await assert.rejects(assembly.acquire("io.molis.work.old", a, "open"), unavailable, "a plugin the old assemblies run is not started here");
   assert.deepEqual(starts, [], "no refused acquire started anything");
   (await assembly.acquire(PLUGIN, a, "due")).release();
+  const twinStarts: string[] = [];
+  const twins = new PartitionPluginAssembly({ home, library: () => "todo", members: () => [PLUGIN, "com.example.lookalike"], installation: () => record,
+    async start(scope) { twinStarts.push(scope.plugin_id); return { async stop() {} }; } });
+  for (const plugin of [PLUGIN, "com.example.lookalike"]) {
+    await assert.rejects(twins.acquire(plugin, a, "open"), { code: "actions.forbidden" }, `${plugin}: two plugins here declare one library name`);
+  }
+  assert.deepEqual(twinStarts, [], "neither is started, so neither opens the other's library");
   assert.deepEqual(starts, [a]);
   await assembly.close();
 }));
@@ -95,7 +102,7 @@ test("UPP-06 S-partition-isolation a partition never runs a plugin it did not en
 test("UPP-21 one instance per (plugin, partition): started on first use, shared by concurrent uses, stopped when idle, disabled, uninstalled or its partition goes", async () => withPartitions(async (home, a, b) => {
   let now = 0;
   const events: string[] = [];
-  const assembly = new PartitionPluginAssembly({ home, idleMs: 1000, now: () => now, assembled: () => true, members: () => [PLUGIN, "com.example.second"],
+  const assembly = new PartitionPluginAssembly({ home, idleMs: 1000, now: () => now, library: id => id.split(".").pop()!, members: () => [PLUGIN, "com.example.second"],
     installation: id => ({ install_id: `${id.split(".").pop()}-install` } as PluginInstanceRecord),
     async start(scope, reason) { events.push(`start ${scope.plugin_id} ${scope.partition_id} ${reason}`); return { async stop() { events.push(`stop ${scope.plugin_id} ${scope.partition_id}`); } }; } });
   const [first, second] = await Promise.all([assembly.acquire(PLUGIN, a, "open"), assembly.acquire(PLUGIN, a, "due")]);
@@ -116,6 +123,21 @@ test("UPP-21 one instance per (plugin, partition): started on first use, shared 
   await assembly.stopPartition(a);
   assert.deepEqual(assembly.instances(), [], "the partition going stops every instance in it");
   assert.equal(events.filter(event => event.startsWith("start")).length, 4);
+}));
+
+test("UPP-21 a use waiting for an instance that is stopped while it starts gets no lease on it", async () => withPartitions(async (home, a) => {
+  let started!: () => void;
+  const stopped: string[] = [];
+  const assembly = new PartitionPluginAssembly({ home, library: () => "notes", members: () => [PLUGIN], installation: () => record,
+    start: scope => new Promise(resolve => { started = () => resolve({ async stop() { stopped.push(scope.partition_id); } }); }) });
+  const waiting = assembly.acquire(PLUGIN, a, "open");
+  await new Promise(resolve => setImmediate(resolve));
+  const stopping = assembly.stopPlugin(PLUGIN, a);
+  started();
+  await stopping;
+  await assert.rejects(waiting, unavailable, "the plugin was disabled there while it started");
+  assert.deepEqual(stopped, [a]);
+  assert.deepEqual(assembly.instances(), []);
 }));
 
 function partitionNotes(): PluginDefinition {
@@ -197,6 +219,31 @@ function writeTasks(home: string, partition: string, tasks: readonly { id: strin
     db.exec("COMMIT");
   } finally { library.close(); }
 }
+
+test("UPP-34 a row written past the SDK is left out of the overview; the plugin's other rows still show and still ring", async () => withPartitions(async (home, a) => {
+  writeTasks(home, a, [{ id: "a1", title: "A 的待办", remind_at: "2026-12-01T08:00:00.000Z" }]);
+  const library = openPartitionPluginLibrary(partitionPluginScope(home, a, OVERVIEW_PLUGIN, "todo-install"), home, overviewDeclaration);
+  try {
+    const insert = library.writer.prepare(`INSERT INTO ${OVERVIEW_TABLE} (kind, row_id, title, status, tags_json, remind_at, updated_at) VALUES ('task', ?, '坏行', 'open', ?, ?, '2026-11-24T09:00:00.000Z')`);
+    insert.run("bad-tags", "{", null);
+    insert.run("bad-time", null, "2026-11-30 08:00");
+  } finally { library.close(); }
+  const libraries = partitionOverviewLibraries(home, [{ partition_id: a, plugins: [{ install_id: "todo-install", manifest: overviewManifest }] }]);
+  const services = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("nothing is woken to read the overview"); } } });
+  try {
+    const rows = services.readOverview(person, libraries, () => ({ readable: [a], grants: [] }));
+    assert.deepEqual(rows.map(row => row.row_id), ["a1"], "the two malformed rows are left out, and reading does not fail");
+    assert.deepEqual(services.due.entries().map(entry => [entry.entry_key, entry.due_at]), [["task:a1", "2026-12-01T08:00:00.000Z"]], "and a1 still rings");
+  } finally { services.close(); }
+}));
+
+test("UPP-06 S-partition-isolation the overview does not read a library that a link in one partition leads into another", async () => withPartitions(async (home, a, b) => {
+  writeTasks(home, b, [{ id: "b1", title: "B 的待办" }]);
+  rmSync(join(partitionRoot(home, a), "libraries"), { recursive: true, force: true });
+  symlinkSync(join(partitionRoot(home, b), "libraries"), join(partitionRoot(home, a), "libraries"));
+  const libraries = partitionOverviewLibraries(home, [a, b].map(partition_id => ({ partition_id, plugins: [{ install_id: "todo-install", manifest: overviewManifest }] })));
+  assert.deepEqual(libraries.map(library => library.partition_id), [b], "A's link into B is not read as A's, so B's rows are never stamped A's");
+}));
 
 test("UPP-06 S-partition-isolation the overview gives the person what they can read, the assistant only granted partitions and fields, and every other caller nothing", async () => withPartitions(async (home, a, b) => {
   writeTasks(home, a, [{ id: "a1", title: "A 的待办" }]);

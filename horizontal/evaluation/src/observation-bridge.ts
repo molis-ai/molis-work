@@ -7,6 +7,7 @@ import {
 import {
   EVALUATION_PROVIDER_ID,
   type EvaluationSampleInput,
+  type EvaluationRunView,
   type EvaluationSampleView,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
 import {
@@ -68,6 +69,26 @@ export async function queryAllObservationRecords(
     afterSeq = page.next_seq;
   }
   return collected;
+}
+
+/**
+ * Read identities from the records an attempt actually cited. The caller's current observation scope and evaluation-use
+ * grant apply on every page, including to a replay. A sample can be removed and registered again under the same ID and
+ * version, so its current pins, and the accumulated sample hold, cannot supply missing members of a historical attempt.
+ */
+export async function readRunFunnelEvidence(client: ActionClient, caller: ActionCallContext, runs: readonly EvaluationRunView[]) {
+  const members = new Map(runs.map(run => [run.run_id, new Set(run.replay?.replay_record_ids
+    ?? run.expectation_results.flatMap(expectation => expectation.evidence_refs.map(ref => ref.record_id)))]));
+  const ids = [...new Set([...members.values()].flatMap(batch => [...batch]))];
+  const found = new Map<string, ObservationQueriedRecord>();
+  for (let offset = 0; offset < ids.length; offset += 500) {
+    const batch = ids.slice(offset, offset + 500);
+    const page = await client.invoke(caller, obsRef(observationActions.recordsQuery), {
+      record_ids: batch, limit: batch.length, use: "evaluation", all_projects: true, include_simulated: true,
+    } satisfies ObservationQueryInput) as ObservationQueryOutput;
+    for (const row of page.records) found.set(row.record_id, row);
+  }
+  return new Map([...members].map(([id, ids]) => [id, [...ids].flatMap(key => found.get(key) ?? [])]));
 }
 
 export async function fetchObservationEvidenceMap(

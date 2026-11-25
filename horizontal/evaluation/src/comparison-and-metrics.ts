@@ -9,8 +9,8 @@ import {
   type EvaluationUnknownReason,
   type EvaluationVerdict,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
-import type { ObservationOutcome } from "@molis-ai/molis-work-contracts/services/observation";
-import { emptyFunnelSets, funnelCounts } from "./unknown-and-funnel.js";
+import type { ObservationOutcome, ObservationQueriedRecord } from "@molis-ai/molis-work-contracts/services/observation";
+import { collectFunnel, emptyFunnelSets, funnelCounts } from "./unknown-and-funnel.js";
 import type { StoredRunWithOutcomes } from "./store.js";
 
 function stageVerdictOf(run: EvaluationRunView, stage: EvaluationStage): EvaluationVerdict {
@@ -152,6 +152,7 @@ export function summarizeEvaluationMetrics(
   input: EvaluationMetricsSummarizeInput,
   stored: readonly StoredRunWithOutcomes[],
   selectedSampleCount: number,
+  evidence: ReadonlyMap<string, readonly ObservationQueriedRecord[]>,
 ): EvaluationMetricsSummary {
   const verdictCounts: Record<EvaluationVerdict, number> = { passed: 0, failed: 0, unknown: 0 };
   const unknownReasonCounts: Partial<Record<EvaluationUnknownReason, number>> = {};
@@ -171,16 +172,17 @@ export function summarizeEvaluationMetrics(
         workOutcomeCounts[key] = (workOutcomeCounts[key] ?? 0) + count;
       }
     }
-    const keys = outcomeCounts.funnel_keys;
+    const rows = evidence.get(view.run_id) ?? [];
+    const keys = collectFunnel(rows);
     for (const stage of interactions) {
-      const ids = keys?.[stage];
-      if (ids) for (const key of ids) stages[stage].add(key);
-      else unattributedInteractions[stage] += view.funnel[stage];
+      for (const key of keys[stage]) stages[stage].add(key);
+      unattributedInteractions[stage] += Math.max(0, view.funnel[stage] - keys[stage].size);
     }
-    if (view.funnel.execution_basis === "owner_work" && keys?.executed && keys.completed) {
-      for (const key of keys.executed) stages.executed.add(key);
-      for (const key of keys.completed) stages.completed.add(key);
-    } else excludedExecutionRuns++;
+    for (const key of keys.executed) stages.executed.add(key);
+    for (const key of keys.completed) stages.completed.add(key);
+    const completeBasis = rows.length === view.observed_conditions.record_count;
+    if (!completeBasis && (view.funnel.execution_basis !== "owner_work" ||
+      keys.executed.size < view.funnel.executed || keys.completed.size < view.funnel.completed)) excludedExecutionRuns++;
   }
 
   const totals = { ...funnelCounts(stages), excluded_execution_runs: excludedExecutionRuns, unattributed_interactions: unattributedInteractions };

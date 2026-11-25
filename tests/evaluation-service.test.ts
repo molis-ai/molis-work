@@ -10,10 +10,8 @@ import {
   evaluationActions,
   type EvaluationSampleInput,
   type EvaluationRunView,
-  type EvaluationRunComparison,
-  type EvaluationMetricsSummary,
 } from "@molis-ai/molis-work-contracts/services/evaluation";
-import { observationActions, type ObservationQueryOutput } from "@molis-ai/molis-work-contracts/services/observation";
+import { observationActions, type ObservationQueryOutput, type ObservationFactInput } from "@molis-ai/molis-work-contracts/services/observation";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { installHostUiText, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { TODO_ACTION_PERMISSIONS, todoActions } from "@molis-ai/molis-work-plugin-todo";
@@ -1275,64 +1273,72 @@ test("PWA-52 OCL-17: scoring cannot use reasoning or borrowed aliases to establi
   }
 });
 
-test("QRF-04 PWA-54 PWA-55 OCL-17: count confirmed owner work once, preserve legacy runs and disclose their exclusion from work totals", async t => {
+test("QRF-04 PWA-54 OCL-17: v1 history attributes only observed owner work across repeated attempts and keeps unresolved interactions", async t => {
   const fx = createEvaluationFixture(t);
   const work = { work_ref: "work-unit-1" };
-  await fx.service.invoke(pluginCaller("pages"), observationActions.report, { facts: [
-    { fact: "pages.save", outcome: "succeeded", stage: "executed", work },
+  const report = (facts: readonly ObservationFactInput[]) =>
+    fx.service.invoke(pluginCaller("pages"), observationActions.report, { facts });
+  await report([
     { fact: "pages.save", outcome: "succeeded", stage: "completed", work },
     { fact: "pages.save", outcome: "succeeded", stage: "completed", work },
-    { fact: "pages.save", outcome: "refused", stage: "executed", work: { work_ref: "never-started" } },
-    { fact: "pages.save", outcome: "succeeded", stage: "completed" },
-  ] });
-  const agent = fx.layer.sink("agent").bind({ kind: "background", actor_id: "agent:assistant", project_id: "p1", entry: "agent", call_id: "model-unit" });
-  agent.record({ fact: "agent.run", stage: "completed", outcome: "succeeded", work: { work_ref: "agent-technical" } });
+    { fact: "pages.choices", outcome: "succeeded", stage: "presented", work },
+  ]);
   fx.layer.flush();
-  await fx.user.invoke(evaluationActions.samplesPut, {
-    sample_id: "work-units", title: "按业务记录归集", version: 1, purpose: "validation", work_mode: "manual_plugin",
-    project_id: "p1", initial_intent: "核对主人保存的操作", query: { project_id: "p1" },
+  const sample = workEvaluationSample("work-units", { project_id: "p1", work_ref: work.work_ref }, {
     expectations: [{ expectation_id: "save", source: "deterministic", stage: "execution", description: "已保存",
       rule: { check: "record_count", fact: "pages.save", min_count: 1 } }],
   });
-  const execute = () => fx.user.invoke(evaluationActions.runsExecute, { sample_id: "work-units" }) as Promise<EvaluationRunView>;
-  const legacy = await execute();
-  // Model the actual persisted pre-upgrade JSON; exercise both public history reads and aggregation.
-  const { execution_basis: ignored, ...oldFunnel } = legacy.funnel;
-  assert.equal(ignored, "owner_work");
-  const historicalCounts = { presented: 5, viewed: 4, selected: 3, adopted: 2, modified_after_adoption: 1, undone_or_reworked: 2 };
+  await fx.user.invoke(evaluationActions.samplesPut, sample);
+  const execute = () => fx.user.invoke(evaluationActions.runsExecute, { sample_id: sample.sample_id });
+  const first = await execute(), second = await execute();
+  // Reopen v1 from disk through a fresh evaluation provider. All observation reads still use the registered action service.
+  fx.evaluation.close();
+  const reopened = new EvaluationService({ home: fx.home, clientFor: () => fx.service });
+  const historyService = new ActionService();
+  historyService.registerProvider(reopened.provider());
+  const history = bindActionClient(historyService, person);
+  const summarize = () => history.invoke(evaluationActions.metricsSummarize, { purpose: sample.purpose, project_id: "p1" });
   const db = new DatabaseSync(join(fx.home, "evaluation", "evaluation.db"));
   try {
-    db.prepare("UPDATE evaluation_runs SET outcome_counts=json_remove(outcome_counts, '$.funnel_keys'), run_json=? WHERE run_id=?").run(JSON.stringify({
-      ...legacy, funnel: { ...oldFunnel, ...historicalCounts, executed: 9, completed: 9 },
-    }), legacy.run_id);
-  } finally { db.close(); }
-  const summary = () => fx.user.invoke(evaluationActions.metricsSummarize, { purpose: "validation", project_id: "p1" });
-  const historicalTotals = (await summary()).funnel_totals;
-  for (const [stage, count] of Object.entries(historicalCounts)) assert.equal(historicalTotals[stage as keyof typeof historicalCounts], count);
-  assert.deepEqual(historicalTotals.unattributed_interactions, historicalCounts);
-  assert.deepEqual([historicalTotals.executed, historicalTotals.completed, historicalTotals.excluded_execution_runs], [0, 0, 1]);
-  await bindActionClient(fx.service, () => pluginCaller("pages")).invoke(observationActions.report, {
-    facts: [{ fact: "pages.suggestions", stage: "presented", outcome: "succeeded", work }],
-  });
-  const current = await execute();
-  assert.deepEqual([current.funnel.executed, current.funnel.completed], [1, 1]);
-  // The presentation identity survives even when this run cannot prove an owner-defined execution.
-  const mixed = new DatabaseSync(join(fx.home, "evaluation", "evaluation.db"));
-  try {
-    mixed.prepare("UPDATE evaluation_runs SET run_json=json_remove(run_json, '$.funnel.execution_basis') WHERE run_id=?").run(current.run_id);
-  } finally { mixed.close(); }
-  const history = await fx.user.invoke(evaluationActions.runsGet, { run_id: legacy.run_id }) as EvaluationRunView;
-  assert.equal(history.funnel.completed, 9);
-  const comparable = await execute();
-  await fx.user.invoke(evaluationActions.samplesPut, workEvaluationSample("unattempted", { work_ref: "other-work" }));
-  const metrics = await fx.user.invoke(evaluationActions.metricsSummarize, { purpose: "validation", project_id: "p1" }) as EvaluationMetricsSummary;
-  assert.deepEqual([metrics.selected_sample_count, metrics.sample_count, metrics.denominator, metrics.evaluable_count, metrics.verdict_counts.passed], [2, 1, 3, 3, 3]);
-  assert.deepEqual([metrics.funnel_totals.executed, metrics.funnel_totals.completed, metrics.funnel_totals.excluded_execution_runs], [1, 1, 2]);
-  assert.equal(metrics.funnel_totals.presented, 6);
-  assert.equal(metrics.funnel_totals.adopted, 2);
-  assert.deepEqual(metrics.funnel_totals.unattributed_interactions, historicalCounts);
-  const comparison = await fx.user.invoke(evaluationActions.runsCompare, { baseline_run_id: legacy.run_id, candidate_run_id: comparable.run_id }) as EvaluationRunComparison;
-  assert.equal(comparison.comparable, false);
+    const counts = JSON.parse(String(db.prepare("SELECT outcome_counts FROM evaluation_runs WHERE run_id=?").get(first.run_id)!.outcome_counts));
+    assert.deepEqual(counts, { succeeded: 3 }, "v1 stores only the original outcome counts");
+    assert.deepEqual([...new Set(first.expectation_results[0]!.evidence_refs.map(ref => ref.fact))], ["pages.save"]);
+    const summary = await summarize();
+    assert.deepEqual([summary.denominator, summary.funnel_totals.executed, summary.funnel_totals.completed, summary.funnel_totals.excluded_execution_runs], [2, 1, 1, 0]);
+    assert.equal(summary.funnel_totals.presented, 2);
+    assert.equal(summary.funnel_totals.unattributed_interactions.presented, 2);
+    await history.invoke(evaluationActions.reviewsRecord, { run_id: first.run_id, verdict: "failed", rationale: "需要人工复查" });
+    const reread = await history.invoke(evaluationActions.runsGet, { run_id: first.run_id });
+    assert.deepEqual([reread.automated_verdict, reread.effective_verdict, reread.human_reviews.length], ["passed", "failed", 1]);
+
+    // A new record in the identical project/work, even at the identical timestamp, did not belong to either attempt.
+    await report([{ fact: "pages.save", outcome: "succeeded", stage: "completed", work: { work_ref: "other-work" } }]);
+    await history.invoke(evaluationActions.samplesRemove, { sample_id: sample.sample_id });
+    const later = (await fx.user.invoke(observationActions.recordsQuery, { use: "evaluation", project_id: "p1", work_ref: "other-work" }) as ObservationQueryOutput).records;
+    await history.invoke(evaluationActions.samplesPut, { ...sample, pinned_record_ids: later.map(record => record.record_id), query: { project_id: "p1" } });
+    assert.deepEqual((await summarize()).funnel_totals, summary.funnel_totals);
+
+    await history.invoke(evaluationActions.samplesPut, workEvaluationSample("unattempted", { work_ref: "another" }));
+    // Pre-owner-count v1 saved only totals. Its verdict and raw funnel stay exactly as they were.
+    const legacyCounts = { presented: 5, viewed: 4, selected: 3, adopted: 2, modified_after_adoption: 1, undone_or_reworked: 2 };
+    db.prepare("UPDATE evaluation_runs SET run_json=json_set(run_json, '$.funnel', json(?), '$.expectation_results', json('[]')) WHERE run_id=?")
+      .run(JSON.stringify({ ...legacyCounts, executed: 9, completed: 9 }), second.run_id);
+    const partial = await summarize();
+    assert.deepEqual([partial.selected_sample_count, partial.sample_count, partial.denominator, partial.evaluable_count], [2, 1, 2, 2]);
+    assert.deepEqual([partial.funnel_totals.executed, partial.funnel_totals.completed, partial.funnel_totals.excluded_execution_runs], [1, 1, 1]);
+    assert.deepEqual(partial.funnel_totals.unattributed_interactions, { ...legacyCounts, presented: 6 });
+    for (const [stage, count] of Object.entries(legacyCounts)) {
+      assert.equal(partial.funnel_totals[stage as keyof typeof legacyCounts], count + (stage === "presented" ? 1 : 0));
+    }
+    assert.equal((await history.invoke(evaluationActions.runsGet, { run_id: second.run_id })).funnel.completed, 9);
+    assert.equal((await history.invoke(evaluationActions.runsCompare, { baseline_run_id: second.run_id, candidate_run_id: first.run_id })).comparable, false);
+    await fx.user.invoke(observationActions.settingsSet, { uses: { evaluation: false } });
+    await assert.rejects(summarize, (error: unknown) => (error as { code?: string }).code === "observation.use_disabled");
+    await fx.user.invoke(observationActions.settingsSet, { uses: { evaluation: true } });
+    fx.layer.purgePlugin({ plugin_id: "pages", install_ids: ["pages-install"], provider_ids: ["pages"], project_id: "p1" });
+    const purged = await summarize();
+    assert.deepEqual([purged.funnel_totals.completed, purged.funnel_totals.excluded_execution_runs, purged.verdict_counts.failed], [0, 2, 1]);
+  } finally { reopened.close(); db.close(); }
 });
 
 test("MR19-03 plugin delivery accepts only the plugin's output, including unrestricted queries and frozen samples", async t => {
@@ -1429,6 +1435,25 @@ test("QRF-01: empty and overlapping replays use only their Host-issued records p
     ...sample.query, source_classes: ["replay"], replay_id: "forged", use: "evaluation",
   });
   assert.deepEqual(forged.records, []);
+});
+
+test("QRF-04: a replay with no matching expectation pointers counts only the records in its receipt", async t => {
+  const fx = createEvaluationFixture(t);
+  const sink = fx.layer.sink("assistant").bind({ kind: "background", actor_id: "assistant", entry: "background", project_id: "p1" });
+  await fx.user.invoke(evaluationActions.samplesPut, workEvaluationSample("receipt", {}, { expectations: [{
+    expectation_id: "reply", stage: "delivery", source: "deterministic", description: "仅核对模型的回复",
+    rule: { check: "evidence_text", fact: "agent.reply", contains_all: ["答复"] },
+  }] }));
+  const add = (work_ref: string) => sink.record({ fact: "assistant.work", stage: "completed", outcome: "succeeded", work: { work_ref } });
+  await withObservationSource("replay", async () => add("other"));
+  fx.evaluation.registerReplayScenario("receipt", async () => {
+    for (let i = 0; i < 501; i++) add("selected-" + i);
+  });
+  const run = await fx.user.invoke(evaluationActions.runsExecute, { sample_id: "receipt", execution_kind: "isolated_replay" });
+  assert.deepEqual(run.expectation_results[0]!.evidence_refs, []);
+  assert.equal(run.replay?.replay_record_ids.length, 501);
+  const { funnel_totals } = await fx.user.invoke(evaluationActions.metricsSummarize, { project_id: "p1", purpose: "validation" });
+  assert.deepEqual([funnel_totals.completed, funnel_totals.excluded_execution_runs], [501, 0]);
 });
 
 test("QRF-01: an identified replay in a demo project includes its nested trial records only", async t => {

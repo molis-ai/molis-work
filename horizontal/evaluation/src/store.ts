@@ -17,7 +17,6 @@ import type {
 import type { ObservationOutcome } from "@molis-ai/molis-work-contracts/services/observation";
 import { homeSqlitePath, openBaselineHomeSqlite, rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import { sampleHoldTarget } from "./observation-bridge.js";
-import type { FunnelKeys } from "./unknown-and-funnel.js";
 import { evaluationErrors } from "./errors.js";
 import { EVALUATION_BASELINE, EVALUATION_STORE } from "./schema.js";
 
@@ -65,7 +64,7 @@ interface StoredReviewRow {
 
 export interface StoredRunWithOutcomes {
   readonly view: EvaluationRunView;
-  readonly outcomeCounts: Readonly<Partial<Record<ObservationOutcome, number>>> & { readonly funnel_keys?: FunnelKeys };
+  readonly outcomeCounts: Readonly<Partial<Record<ObservationOutcome, number>>>;
 }
 
 function rowsAs<T>(rows: readonly Record<string, SQLOutputValue>[]): T[] {

@@ -174,7 +174,7 @@ export interface EvaluationSampleInput {
   readonly project_id?: string | null;
   readonly case_ref?: string;
   readonly initial_intent: string;
-  readonly query: Omit<ObservationQueryInput, "use">;
+  readonly query: Omit<ObservationQueryInput, "use" | "record_ids">;
   readonly window?: EvaluationSampleWindow;
   readonly opportunity_basis?: EvaluationOpportunityBasis;
   readonly baseline_conditions?: EvaluationConditionBaseline;

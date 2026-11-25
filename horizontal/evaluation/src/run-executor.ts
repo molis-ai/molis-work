@@ -32,7 +32,7 @@ import { executeIsolatedReplay, type EvaluationReplayScenario } from "./replay.j
 import { evaluateExpectation } from "./rules.js";
 import {
   collectFunnel,
-  type FunnelKeys,
+  funnelCounts,
   countWorkOutcomes,
   deriveRunCoverageUnknowns,
   extractObservedConditions,
@@ -121,7 +121,6 @@ async function collectEvaluationRecords(
 export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Promise<{
   readonly runView: EvaluationRunView;
   readonly holdRecordIds: readonly string[];
-  readonly funnelKeys: FunnelKeys;
   readonly outcomeCounts: Readonly<Partial<Record<ObservationOutcome, number>>>;
 }> {
   const { caller, origin, clientFor, sample, input } = ctx;
@@ -162,7 +161,7 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
       }
     }
   }
-  const { counts: funnel, keys: funnelKeys } = collectFunnel(records);
+  const funnel = funnelCounts(collectFunnel(records));
   if (records.length && !funnel.completed) {
     limitations.push("本次未读到业务主人确认完成的工作。完成数只计有据可查的交付。");
   }
@@ -231,5 +230,5 @@ export async function executeSampleEvaluationRun(ctx: RunExecutionContext): Prom
     duration_ms: durationMs,
   };
 
-  return { runView, outcomeCounts, funnelKeys, holdRecordIds: input.hold_records ? records.map(record => record.record_id) : [] };
+  return { runView, outcomeCounts, holdRecordIds: input.hold_records ? records.map(record => record.record_id) : [] };
 }

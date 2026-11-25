@@ -393,7 +393,7 @@ observation.holds.put	1	system.observation	command	operation	home	write	-	user	-
 observation.holds.release	1	system.observation	command	operation	home	write	-	user	-	-	-	-	f180d4949635	befa352c4966	-
 observation.preferences.read	1	system.observation	query	query	home	read	-	agent,plugin,user	-	-	molis.settings.read.request.v1	molis.settings.values.v1	169508f33c70	e1302800e8b3	-
 observation.preferences.write	1	system.observation	command	operation	home	write	-	user	-	-	molis.settings.write.request.v1	molis.settings.values.v1	c737fddc8897	e1302800e8b3	-
-observation.records.query	1	system.observation	query	query	home	read	-	agent,mcp,plugin,user,workflow	-	-	-	-	688ff2869d2a	898c0c919f4f	-
+observation.records.query	1	system.observation	query	query	home	read	-	agent,mcp,plugin,user,workflow	-	-	-	-	764161e29466	898c0c919f4f	-
 observation.report	1	system.observation	command	operation	home	write	-	plugin,user	-	-	-	-	0dd034973bce	8cfd08f953ae	eeb2d5d6b907
 observation.settings.get	1	system.observation	query	query	home	read	-	user	-	-	-	-	d746974fa9af	74d3467b1094	-
 observation.settings.set	1	system.observation	command	operation	home	write	-	user	-	-	-	-	dcdff10a856d	74d3467b1094	-

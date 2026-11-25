@@ -49,7 +49,6 @@ const UNDONE_OR_REWORKED_FACTS = new Set([
 ]);
 
 export type FunnelStage = Exclude<keyof EvaluationFunnelCounts, "execution_basis">;
-export type FunnelKeys = Readonly<Record<FunnelStage, readonly string[]>>;
 
 export function emptyFunnelSets(): Record<FunnelStage, Set<string>> {
   return {
@@ -67,7 +66,7 @@ export function funnelCounts(sets: Record<FunnelStage, Set<string>>): Evaluation
   };
 }
 
-export function collectFunnel(records: readonly ObservationQueriedRecord[]): { counts: EvaluationFunnelCounts; keys: FunnelKeys } {
+export function collectFunnel(records: readonly ObservationQueriedRecord[]): Record<FunnelStage, Set<string>> {
   const stages = emptyFunnelSets();
   for (const record of records) {
     const owner = [record.project_id, record.install_id, record.owner.kind, "id" in record.owner ? record.owner.id : null];
@@ -97,8 +96,7 @@ export function collectFunnel(records: readonly ObservationQueriedRecord[]): { c
     if (MODIFIED_AFTER_ADOPTION_FACTS.has(record.fact) || record.stage === "modified_after_adoption" || record.detail.modified_after_adoption === true) add("modified_after_adoption");
     if (UNDONE_OR_REWORKED_FACTS.has(record.fact) || record.stage === "undone" || record.stage === "reworked" || record.detail.undone === true || record.detail.reworked === true) add("undone_or_reworked");
   }
-  const keys = Object.fromEntries(Object.entries(stages).map(([stage, ids]) => [stage, [...ids]])) as Record<FunnelStage, string[]>;
-  return { counts: funnelCounts(stages), keys };
+  return stages;
 }
 
 export function extractObservedConditions(records: readonly ObservationQueriedRecord[]): EvaluationObservedConditions {

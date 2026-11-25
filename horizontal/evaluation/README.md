@@ -23,7 +23,7 @@
 
 设计与取舍见 [specs/observation-collection/evaluation-path-design.md](../../specs/observation-collection/evaluation-path-design.md)。
 
-交付判定可以用 `evidence_source` 固定事实及正文角色。模型回复只在 `agent.reply` 的 `reply` 正文里核对词语。运行的执行和完成数按项目、安装、事实主人和工作引用去重。定时会话的工作引用来自 Schedule 保存的结果轮次。同一件交付被不同样本引用或重复评测，在汇总漏斗中只计一次。呈现和选择按工作与候选分开统计，采用和撤回按主人回执识别。`excluded_execution_runs` 统计缺少执行与完成身份依据的运行。其余六个互动阶段分别按保存的身份去重。某阶段只有数量时，汇总按该轮保存的次数累加，并在 `funnel_totals.unattributed_interactions` 单列这部分。各阶段的总数减去这部分，就是有身份依据且已跨运行去重的数量。
+交付判定可以用 `evidence_source` 固定事实及正文角色。模型回复只在 `agent.reply` 的 `reply` 正文里核对词语。运行的执行和完成数按项目、安装、事实主人和工作引用去重。定时会话的工作引用来自 Schedule 保存的结果轮次。同一件交付被不同样本引用或重复评测，在汇总漏斗中只计一次。呈现和选择按工作与候选分开统计，采用和撤回按主人回执识别。`excluded_execution_runs` 统计缺少执行与完成身份依据的运行。汇总经工作记录的评测用途重读本轮回放回执或逐项预期所引的记录。六个互动阶段分别按已查实的身份去重。某阶段的原次数超过能查实的身份数时，汇总保留剩余次数，并在 `funnel_totals.unattributed_interactions` 单列这部分。各阶段的总数减去这部分，就是有身份依据且已跨运行去重的数量。
 
 指标中的 `selected_sample_count` 包含窗口结束前已登记、目前仍可用的样本以及窗口内评过、之后移除的样本。`sample_count` 是该窗评过的不同样本数，`denominator`、`evaluable_count` 和 `verdict_counts` 按评测尝试计，`work_outcome_counts` 汇总各次运行读到的原始记录结局。
 

@@ -178,6 +178,11 @@ export async function handleRecordsQuery(
   const baseParams: (string | number)[] = [];
   if (projFilter.sql) { baseWhere.push(projFilter.sql); baseParams.push(...projFilter.params); }
 
+  if (input.record_ids) {
+    baseWhere.push("record_id IN (SELECT value FROM json_each(?))");
+    baseParams.push(JSON.stringify(input.record_ids));
+  }
+
   for (const key of ["work_ref", "call_id", "invocation_id", "runtime_session_id", "run_id", "fact", "owner_kind", "owner_id", "entry", "actor_id"] as const) {
     const val = input[key];
     if (val !== undefined) { baseWhere.push(`${key} = ?`); baseParams.push(val); }

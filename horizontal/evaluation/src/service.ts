@@ -40,6 +40,7 @@ import { evaluationErrors } from "./errors.js";
 import {
   commitEvaluationSampleHold,
   readSampleHold,
+  readRunFunnelEvidence,
   releaseEvaluationSampleHolds,
   resolveSampleHoldRecordIds,
   sampleHoldTarget,
@@ -257,7 +258,7 @@ export class EvaluationService {
 
   private async evaluateAndCommit(caller: ActionExecutionContext, input: EvaluationRunExecuteInput, sample: EvaluationSampleView): Promise<EvaluationRunView> {
     const origin = originOf(caller, evaluationActions.runsExecute);
-    const { runView, outcomeCounts, funnelKeys, holdRecordIds } = await executeSampleEvaluationRun({
+    const { runView, outcomeCounts, holdRecordIds } = await executeSampleEvaluationRun({
       caller, origin, clientFor: this.options.clientFor, sample, input, scenarios: this.scenarios,
       runInReplayScope: this.options.runInReplayScope, nowIso: () => this.nowIso(),
     });
@@ -271,7 +272,7 @@ export class EvaluationService {
       checkSample();
       return this.commitWithHold(caller, origin, sample, holdRecordIds, hold => {
         checkSample();
-        this.store.insertRun(runView, { ...outcomeCounts, funnel_keys: funnelKeys }, hold);
+        this.store.insertRun(runView, outcomeCounts, hold);
         return runView;
       });
     });
@@ -328,11 +329,13 @@ export class EvaluationService {
         return compareEvaluationRuns(baseline, candidate);
       }),
       defineAction(evaluationActions.reviewsRecord, (caller, input) => this.recordReview(caller, input)),
-      defineAction(evaluationActions.metricsSummarize, (caller, input: EvaluationMetricsSummarizeInput): EvaluationMetricsSummary => {
+      defineAction(evaluationActions.metricsSummarize, async (caller, input: EvaluationMetricsSummarizeInput): Promise<EvaluationMetricsSummary> => {
         assertPersonCaller(caller);
         validateMetricsWindow(input);
         const { runs, sampleCount } = this.store.queryRunsForMetrics(input);
-        return summarizeEvaluationMetrics(input, runs, sampleCount);
+        const nested = retainActionAuthority(caller, originOf(caller, evaluationActions.metricsSummarize));
+        const evidence = await readRunFunnelEvidence(this.options.clientFor(caller), nested, runs.map(run => run.view));
+        return summarizeEvaluationMetrics(input, runs, sampleCount, evidence);
       }),
     ];
     return {

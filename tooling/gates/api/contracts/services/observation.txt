@@ -377,6 +377,7 @@ export interface ObservationQueriedRecord extends ObservationRecord {
 }
 
 export interface ObservationQueryInput {
+    readonly record_ids?: readonly string[];
     readonly use?: ObservationUse;
     readonly project_id?: string | null;
     readonly all_projects?: boolean;

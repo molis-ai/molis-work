@@ -299,6 +299,8 @@ export interface ObservationQueriedRecord extends ObservationRecord {
 }
 
 export interface ObservationQueryInput {
+  /** Intersect this exact batch with all other filters and the current caller’s authorized projects. */
+  readonly record_ids?: readonly string[];
   readonly use?: ObservationUse;
   readonly project_id?: string | null;
   readonly all_projects?: boolean;
@@ -548,6 +550,7 @@ export const observationActions = {
       input_schema: inputSchemaFor<ObservationQueryInput>()(closedObjectSchema({
         use: { enum: OBSERVATION_USES },
         ...OBSERVATION_QUERY_FIELDS,
+        record_ids: { type: "array", minItems: 1, maxItems: 500, items: token },
       }, [])),
       output_schema: closedObjectSchema({
         records: { type: "array" },

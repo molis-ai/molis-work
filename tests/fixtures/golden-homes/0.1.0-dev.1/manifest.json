@@ -1413,7 +1413,7 @@
         "plugin_private_values": 2,
         "plugin_project_databases": 6,
         "plugin_runtime_installs": 17,
-        "plugin_runtime_release_artifacts": 31,
+        "plugin_runtime_release_artifacts": 16,
         "process_item_versions": 0,
         "process_items": 0,
         "process_items_replica_changes": 0,
@@ -1521,8 +1521,8 @@
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
         "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
       },
-      "sha256": "b59517a256dfae6b1e857a6ae68211fed134467c91dbcfabcf0a2e887c7d21f3",
-      "expanded_sha256": "bad31544d32fb989c2d4b38baed64a86cb7e43dcba87bb762a889c3df69fd464"
+      "sha256": "d6f6ecd8f89bfd97c3a7a43475798ac2786c06d338305914cb6abce97eff0d1e",
+      "expanded_sha256": "a14853cf5b0b60894782a943b53cfd27637970a5099bd12d384b9f046862da13"
     },
     {
       "path": "sbxdb-07ba5a137b9c31eb32d2afc59b67135f/sbxdb-07ba5a137b9c31eb32d2afc59b67135f.db",
@@ -2158,44 +2158,14 @@
       "bytes": 33030
     },
     {
-      "digest": "3b24c33132791483d9d70be31b3654e7510245784efe99f8c409510c4b44acf5",
-      "payload": "files/release-manifests/3b24c33132791483d9d70be31b3654e7510245784efe99f8c409510c4b44acf5.br",
-      "bytes": 40861
-    },
-    {
       "digest": "3db5a436aed34f0027753481b459bf77e7c386b4511a0d3ffbaac465020ccccb",
       "payload": "files/release-manifests/3db5a436aed34f0027753481b459bf77e7c386b4511a0d3ffbaac465020ccccb.br",
       "bytes": 146378
     },
     {
-      "digest": "4065fbadd2f63838815e8b18c7403360a56115cedbea50dd0a932743164a4258",
-      "payload": "files/release-manifests/4065fbadd2f63838815e8b18c7403360a56115cedbea50dd0a932743164a4258.br",
-      "bytes": 101726
-    },
-    {
-      "digest": "4ff035b0b8cd04635934fa8df5378bda165e104e1ee1d1ae9b4a61378f53d679",
-      "payload": "files/release-manifests/4ff035b0b8cd04635934fa8df5378bda165e104e1ee1d1ae9b4a61378f53d679.br",
-      "bytes": 463757
-    },
-    {
-      "digest": "545312f92502e9450714e2c8c59303d42b3a77862a75435fc41351f788d9671a",
-      "payload": "files/release-manifests/545312f92502e9450714e2c8c59303d42b3a77862a75435fc41351f788d9671a.br",
-      "bytes": 33675
-    },
-    {
       "digest": "54d8412a4eddd19e85f59ea614275dc1144ae7ac57b0ab2f5c3e5e9a72d60f39",
       "payload": "files/release-manifests/54d8412a4eddd19e85f59ea614275dc1144ae7ac57b0ab2f5c3e5e9a72d60f39.br",
       "bytes": 49315
-    },
-    {
-      "digest": "599de795ab7e8147202a42f121d3bd0dfe219fff3b437e2a9ff9eb1ce9e7f2a2",
-      "payload": "files/release-manifests/599de795ab7e8147202a42f121d3bd0dfe219fff3b437e2a9ff9eb1ce9e7f2a2.br",
-      "bytes": 50713
-    },
-    {
-      "digest": "5c282d12953ba1b58d382a401de7a0735f087ade88efbf6996faa8ca99aac9eb",
-      "payload": "files/release-manifests/5c282d12953ba1b58d382a401de7a0735f087ade88efbf6996faa8ca99aac9eb.br",
-      "bytes": 26998
     },
     {
       "digest": "5d213316fdfa3c0f87d275b681deb6b1de62b0d3086702783aae8ecd2f8c8335",
@@ -2206,11 +2176,6 @@
       "digest": "61a47cf5c0546fd62f907e4c1001e25b98c2922b62e22972598bcd2c916a5984",
       "payload": "files/release-manifests/61a47cf5c0546fd62f907e4c1001e25b98c2922b62e22972598bcd2c916a5984.br",
       "bytes": 365618
-    },
-    {
-      "digest": "66809ee5242ef39555b5ef89c00869b7a6675d66d2a5b0ae8a15d7397b881fec",
-      "payload": "files/release-manifests/66809ee5242ef39555b5ef89c00869b7a6675d66d2a5b0ae8a15d7397b881fec.br",
-      "bytes": 41238
     },
     {
       "digest": "678f99bed85fb6e1f8040b8c50040bc8155ebec05ab9e49a931630db3f0ab4f0",
@@ -2238,11 +2203,6 @@
       "bytes": 34946
     },
     {
-      "digest": "8ac6331c50648c61d47c61c88b917ab95d126a8a2df340a222aa4e278fe6d071",
-      "payload": "files/release-manifests/8ac6331c50648c61d47c61c88b917ab95d126a8a2df340a222aa4e278fe6d071.br",
-      "bytes": 40173
-    },
-    {
       "digest": "8bfd8f55ec7a5368e1eb3c94a00c956d02edd5081457d13a187667c14c044a5a",
       "payload": "files/release-manifests/8bfd8f55ec7a5368e1eb3c94a00c956d02edd5081457d13a187667c14c044a5a.br",
       "bytes": 3375
@@ -2253,29 +2213,9 @@
       "bytes": 34032
     },
     {
-      "digest": "9f15df578dae9cc73ee7cf45e72ec4af7bc0d6c07003316da711486f7b61a285",
-      "payload": "files/release-manifests/9f15df578dae9cc73ee7cf45e72ec4af7bc0d6c07003316da711486f7b61a285.br",
-      "bytes": 40826
-    },
-    {
-      "digest": "ab6f6e68245242fc19f8118571b955551cadb4ffc1a3800588aeb624075ace7a",
-      "payload": "files/release-manifests/ab6f6e68245242fc19f8118571b955551cadb4ffc1a3800588aeb624075ace7a.br",
-      "bytes": 20888
-    },
-    {
-      "digest": "b5ea9baf8e62ead9edf75167b56a60da3ad7ca154203d180ab2cd29e11cbc54a",
-      "payload": "files/release-manifests/b5ea9baf8e62ead9edf75167b56a60da3ad7ca154203d180ab2cd29e11cbc54a.br",
-      "bytes": 98654
-    },
-    {
       "digest": "bf4628a1759b1d738848cfa09578c6836ff6272ccd8544b6cb9d012c546753cf",
       "payload": "files/release-manifests/bf4628a1759b1d738848cfa09578c6836ff6272ccd8544b6cb9d012c546753cf.br",
       "bytes": 34562
-    },
-    {
-      "digest": "c14b98a34a06fc4dfdb8d6e37460ee7d6939041afa123e10d9b0cb55097b4869",
-      "payload": "files/release-manifests/c14b98a34a06fc4dfdb8d6e37460ee7d6939041afa123e10d9b0cb55097b4869.br",
-      "bytes": 7675
     },
     {
       "digest": "c1dac934a37db83a8a24174790ed39710b1b137f7b4e73f3fedf2c21ff288a3b",
@@ -2301,21 +2241,6 @@
       "digest": "e2024806ae3d5b1ba771fecd4e9d912aee0757b806973a010ed0a643863005d6",
       "payload": "files/release-manifests/e2024806ae3d5b1ba771fecd4e9d912aee0757b806973a010ed0a643863005d6.br",
       "bytes": 35071
-    },
-    {
-      "digest": "e80f69d6733b6de55a1302365a38fc5209ff2326b3e5bc551d0abe5da3c7a767",
-      "payload": "files/release-manifests/e80f69d6733b6de55a1302365a38fc5209ff2326b3e5bc551d0abe5da3c7a767.br",
-      "bytes": 50037
-    },
-    {
-      "digest": "e82eb0e767240e6243974b7dac15fa1fbc8c3b630339de86406822aec7135edf",
-      "payload": "files/release-manifests/e82eb0e767240e6243974b7dac15fa1fbc8c3b630339de86406822aec7135edf.br",
-      "bytes": 50817
-    },
-    {
-      "digest": "efabba5ef50fccc4c3c65478316102ab7868108fddf219d8477ceb662798358e",
-      "payload": "files/release-manifests/efabba5ef50fccc4c3c65478316102ab7868108fddf219d8477ceb662798358e.br",
-      "bytes": 89485
     }
   ],
   "formats": [

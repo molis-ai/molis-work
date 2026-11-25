@@ -1,4 +1,5 @@
 import type { IncomingMessage } from "node:http";
+import { SHELF_SURFACE_ID } from "@molis-ai/molis-work-app-local-host";
 
 export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
   const native=Boolean(globalThis.__TAURI_INTERNALS__||globalThis.__TAURI__);
@@ -23,7 +24,7 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
     return globalThis.molisWorkPersonalAccountFetch(url.pathname+url.search,options);
   };
   globalThis.molisWorkOpenExternalUrl=(url)=>globalThis.__TAURI__.core.invoke("open_external_url",{url});
-  globalThis.molisWorkOpenShelf=()=>globalThis.molisWorkOpenPlugin?.("shelf");
+  globalThis.molisWorkOpenShelf=()=>globalThis.molisWorkOpenPlugin?.(${JSON.stringify(SHELF_SURFACE_ID)});
   globalThis.molisWorkShelfNotice=(message,partial=false,originalWarning=null,notice=null)=>{
     if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
     message=String(message||"");

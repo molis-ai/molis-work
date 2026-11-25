@@ -141,12 +141,10 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | 场景 | 现在 | 文件 |
 | --- | --- | --- |
 | 插件自己的设置页 | 0 | Manifest；图标取 `settings` 视图的 `icon`，没写或宿主不认识这个图标名时为 `settings`（W5-06 第 2b 片，宿主不再有图标表） |
-| 宿主自有的全局分区（以「记忆」为例） | 9 | `settings-sections.ts`（`HOST_SECTIONS`）、`settings-renderer.ts`、`settings-directory.ts`、`settings-navigation.ts`、`plugin-settings-catalog.ts`（`isHostGlobalSettingsSection`）、`apps/workbench/src/scripts/client/settings-directory.ts`、`page-assets.ts`、`apps/workbench/src/scripts/settings.ts`、`apps/local-host/src/web-project-pages.ts`（路由到分区） |
-| 同时有项目版 | +2 = 11 | `project-settings-pages.ts`、`project-settings-folds.ts` |
+| 宿主自有的全局分区（以「记忆」为例） | 2 | `apps/workbench/src/platform-settings-registry.ts`（一行：id、名称、图标、分组、顺序、渲染函数、静态资源与搬走的旧名）和分区自己的渲染文件；分区要读宿主数据的，再在 `apps/local-host/src/platform-settings-data.ts` 给一个读取函数（类型要求每个分区都有，漏了编译不过） |
+| 同时有项目版 | 2 | 同一个文件的项目页登记（`PLATFORM_PROJECT_SETTINGS_REGISTRY` 一行）与它的渲染 |
 
-**目标：0 / 2。** 宿主分区由一张登记表产生（分区 id、名称、图标、分组、顺序、渲染函数、静态资源），再加分区自己的渲染文件。`settings-sections.ts` 的注释写「The one list of global settings categories」，但分区 id 实际散在 9 个文件里，这是名单与单一来源不符的地方。无切片，建议并入 W5-02（4.3 的 X-2）。
-
-2026-10-08 已定 Characters 并进宿主、界面仍是设置里的一节，CHR-1（2026-10-22）已做：「角色」原来是插件 Manifest 里 `slot: "settings"`、`order: 35` 的视图，现在是 `HOST_SECTIONS` 里 `order: 35` 的一项（现有 12 项，`apps/workbench/src/settings-sections.ts`），按上表要改的位置一样多，这也是做 X-2 的又一个理由。
+**目标：0 / 2，已达到（第 44C 批，X-2 同时结掉）。** 路由、导航、搜索、页面资源与文件名规则都由登记推出，没有另一份分区名单；`tests/plugin-global-settings.test.ts` 与 `tests/web-catalog-routes.test.ts` 核对。「角色」2026-10-22 并进宿主后也是登记里的一行。
 
 ### 3.7 底栏、侧栏、标题栏入口
 
@@ -306,7 +304,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | 编号 | 扩展点 | 解决什么 | 对应推演 |
 | --- | --- | --- | --- |
 | X-1 | 应用的 `package.json` 依赖和根包依赖由 `scripts/workspace-packages.mjs` 生成并带一致性检查；新建包只登记一处。路线图普查（`roadmap-2026-10-07.md` 第 607 行）已列入声明式注册要生成的东西，W5-02 的切片描述没有写，需要补进去 | 内置插件的包登记从 4 处降到 1 处，Module、服务从 3 处降到 1 处 | F1、F4、F5、3.1、3.10、3.11 |
-| X-2 | 宿主自有设置分区登记表 | 3.6 的 9 处降到 2 处 | F4 |
+| X-2 | 宿主自有设置分区登记表：已做（第 44C 批，`platform-settings-registry.ts`） | 3.6 的 9 处降到 2 处 | F4 |
 | X-3 | 记忆作用域登记（并入 W4-08 的边界规则） | 3.9 的 10 处降到 3 处 | — |
 | X-4 | 外部 Runtime 描述表 | 3.12 的 6–15 处已降到 2–6 处（BL-955，余项是 Shelf） | — |
 | X-5 | 项目库基线由各 owner 包声明的 SQL 汇总，版本由声明推出 | `project-database-schema.ts` 不再逐个 import；Module 和插件加表不碰宿主 | F2、F4 |

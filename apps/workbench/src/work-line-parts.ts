@@ -1,4 +1,5 @@
 import { escapeHtml, icon, renderButton, renderMenu, renderMenuItem, renderStateRing, t as uiText, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { PLATFORM_RECEIVE_STATION } from "@molis-ai/molis-work-contracts/services/mainline";
 
 /**
  * The markup of the work line's parts (specs/work-line §4, scheme E of docs/design/work-line-32; rules in styles/work-line.ts).
@@ -489,7 +490,7 @@ export function renderCardOwn(own: { readonly words: string; readonly facts: rea
 export function renderCardResult(result: { readonly id: string; readonly preview: string; readonly open: boolean; readonly shelf: "" | "busy" | "done";
   readonly targets?: readonly { readonly station: string; readonly title: string; readonly icon: string }[]; readonly placed?: string; readonly choosing?: boolean }): string {
   const say = (key: string) => uiText.text(`workbench.work-line.${key}`), id = escapeHtml(result.id);
-  const [first, ...rest] = result.targets?.length ? result.targets : [{ station: "shelf", title: "Shelf", icon: "bookmark" }];
+  const [first, ...rest] = result.targets?.length ? result.targets : [{ station: PLATFORM_RECEIVE_STATION, title: say("shelf"), icon: "bookmark" }];
   const busy = result.shelf ? { disabled: "" } : {};
   const placedIn = result.shelf === "done" ? [first!, ...rest].find(target => target.station === result.placed) : undefined;
   const elsewhere = placedIn && placedIn !== first ? placedIn : undefined;

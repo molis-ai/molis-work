@@ -100,9 +100,8 @@ export { renderMolisWorkKitClientScript } from "./settings-kit.js";
 export { renderMolisWorkWorkRecordsClientScript } from "./settings-work-records.js";
 export { renderMolisWorkChooserSearchClientScript } from "./arrival/chooser-search.js";
 export { renderCharacters } from "./characters/ui.js";
-export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
+export { platformSurfaceClientScript } from "./platform-surfaces.js";
 export { CHARACTERS_CLIENT_PATH } from "./characters/client-path.js";
-export { renderMolisWorkSessionsClientScript } from "./sessions/client-asset.js";
 export { INSTALLED_PLUGIN_BUNDLE, INSTALLED_PLUGIN_PAGE_CLASS, renderInstalledPluginBody, renderMolisWorkInstalledPluginClientScript, renderMolisWorkInstalledPluginStylesheet } from "./installed-plugin/client-asset.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";
@@ -124,3 +123,4 @@ export { accountCacheOwner, ACCOUNT_CACHE_SCOPE_MISSING } from './account-cache-
 export { pageSessionScope } from './account-cache-key.js';
 
 export { renderMolisWorkAssistantSubtasksClientScript } from "./assistant-subtasks-client.js";
+export { MOVED_SETTINGS_ADDRESSES, PLATFORM_PROJECT_SETTINGS_REGISTRY, PLATFORM_SETTINGS_REGISTRY, platformSettingsAt, type PlatformSettingsPage } from "./platform-settings-registry.js";

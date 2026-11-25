@@ -2,8 +2,7 @@ import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
 import { DEFAULT_WEB_LOCALE, type WebLocale } from "./i18n.js";
 import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { HostSurfaceRegistration, PluginBoardSpecimenPorts } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { BUILTIN_PLUGIN_CATALOG } from "./plugin-catalog.js";
-import { HOST_FRAMED_SURFACES } from "./host-surfaces.js";
+import { HOST_FRAMED_SURFACES, WORKBENCH_SURFACE_CATALOG } from "./host-surfaces.js";
 import { drawCatalogText } from "./plugin-text.js";
 import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js";
@@ -15,7 +14,7 @@ import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js"
  * and says they are samples. No plugin is named here: the catalog says which plugins have specimens, and the platform's own framed
  * surfaces (Shelf, 44B) come first with theirs.
  */
-const BOARD_PARTS: readonly HostSurfaceRegistration[] = [...HOST_FRAMED_SURFACES, ...BUILTIN_PLUGIN_CATALOG];
+const BOARD_PARTS: readonly HostSurfaceRegistration[] = [...HOST_FRAMED_SURFACES, ...WORKBENCH_SURFACE_CATALOG.filter(entry => !HOST_FRAMED_SURFACES.includes(entry))];
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
 export function renderBoardPluginRows(readText: Say, sample: PluginBoardSpecimenPorts["sample"], catalog: readonly HostSurfaceRegistration[] = BOARD_PARTS): string {

@@ -1,12 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { mainlineActions, mainlineItemActions, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
+import { PLATFORM_RECEIVE_STATION, mainlineActions, mainlineItemActions, type WorkLineReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { randomUUID } from "node:crypto";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { placementActions } from "@molis-ai/molis-work-contracts/services/placement";
 import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-module-shelf/contract";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
+import { shippedOwnerManifest } from "./host-surfaces.js";
 import { homePageRequestBound } from "./home-page-authority.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
@@ -85,8 +86,6 @@ export function mainlineAttention(
   };
 }
 
-/** The platform's own receiver of 「放到…」 (M4): the Shelf, first in every list; a plugin receives through a station it declares. */
-const PLATFORM_RECEIVER = "shelf";
 const SUBJECT_PART = /^[A-Za-z0-9._:-]{1,200}$/u;
 
 /**
@@ -111,15 +110,15 @@ async function handleReceiveRoutes(request: IncomingMessage, response: ServerRes
         const stations = new Map<string, { station: string; title: string; icon: string }>();
         for (const view of views) {
           const station = view.action.workflow_content;
-          if (station?.role === "receive" && view.availability.available && !stations.has(station.id)) stations.set(station.id, { station: station.id, title: station.title, icon: station.icon });
+          if (station?.role === "receive" && station.id !== PLATFORM_RECEIVE_STATION && view.availability.available && !stations.has(station.id)) stations.set(station.id, { station: station.id, title: station.title, icon: station.icon });
         }
-        return { status: 200, body: { targets: [{ station: PLATFORM_RECEIVER, title: "Shelf", icon: "bookmark" }, ...stations.values()] } };
+        return { status: 200, body: { targets: [{ station: PLATFORM_RECEIVE_STATION, title: shippedOwnerManifest(PLATFORM_RECEIVE_STATION)!.name, icon: "bookmark" }, ...stations.values()] } };
       }
       const input = body as Record<string, unknown>;
       const title = typeof input.title === "string" ? input.title.slice(0, 200) : "", text = typeof input.text === "string" ? input.text : "";
       if (!title || !text || text.length > 200_000) throw new ActionError("actions.input_invalid", "请写好标题与正文");
-      const station = typeof input.station === "string" && input.station ? input.station : PLATFORM_RECEIVER;
-      if (station === PLATFORM_RECEIVER) return { status: 200, body: await invokePersonPageAction(host, project, SHELF_ADMIT_ACTION as ActionDefinition, { title, text }, controller.signal) as object };
+      const station = typeof input.station === "string" && input.station ? input.station : PLATFORM_RECEIVE_STATION;
+      if (station === PLATFORM_RECEIVE_STATION) return { status: 200, body: await invokePersonPageAction(host, project, SHELF_ADMIT_ACTION as ActionDefinition, { title, text }, controller.signal) as object };
       const source = input.source as { kind?: unknown; id?: unknown } | undefined;
       if (typeof source?.kind !== "string" || typeof source.id !== "string" || !SUBJECT_PART.test(source.kind) || !SUBJECT_PART.test(source.id)) throw new ActionError("actions.input_invalid", "要说明放的是哪一件");
       const converted = await invokePersonPageAction(host, project, placementActions.convert, { source: { kind: source.kind, id: source.id, project_id: project.project_id },

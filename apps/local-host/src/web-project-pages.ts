@@ -15,6 +15,7 @@ import { lookingForArea, type MolisWorkWebView, type WebViewOptions } from "./we
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { renderWorkbenchRefreshDocument, type createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
+import { PLATFORM_PROJECT_SETTINGS_REGISTRY } from "@molis-ai/molis-work-app-workbench";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ensureProjectPlugins, type ProjectPluginState } from "./project-plugins.js";
 import { renderProjectRuntimeStages, stageErrorsOf, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
@@ -24,8 +25,7 @@ import { isInstalledPackage } from "./installed-plugin-common.js";
 import { pinnedProjectGuidanceRead } from "./project-guidance-actions.js";
 
 /** The project settings page each path opens; `/settings` alone opens 常规. */
-const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "characters", "grants", "rules", "general"] as const)
-  .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
+const SETTINGS_SECTIONS = new Map(PLATFORM_PROJECT_SETTINGS_REGISTRY.map(({ id }) => [`/settings/${id}` as string, id] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 
 interface StageRouteError {

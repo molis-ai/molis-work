@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { MOVED_SETTINGS_ADDRESSES } from "@molis-ai/molis-work-app-workbench";
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { markProjectOpened, pruneProjectArrival } from "./project-arrival.js";
 import { isTopLevelNavigation } from "./web-http.js";
@@ -40,10 +41,10 @@ export function arriveAtProjectPage(request: IncomingMessage, response: ServerRe
  * no workbench, and the page itself is shown. True when the response was sent. */
 export async function redirectSettingsAddress(request: IncomingMessage, response: ServerResponse, url: URL,
   homeDirectory: string | undefined, projects: () => Promise<readonly { project_id: string }[]>, desktop: boolean): Promise<boolean> {
-  const capability = url.pathname === "/settings/mcp" ? "access" : url.pathname === "/settings/connectors" || url.pathname === "/settings/functions" ? "connections" : null;
-  if (request.method === "GET" && capability) {
-    if (url.pathname === "/settings/functions") url.searchParams.set("connector", "typesafe");
-    response.writeHead(302, { location: `/capabilities/${capability}${url.search}`, "cache-control": "no-store" });
+  const moved = Object.hasOwn(MOVED_SETTINGS_ADDRESSES, url.pathname) ? MOVED_SETTINGS_ADDRESSES[url.pathname] : undefined;
+  if (request.method === "GET" && moved) {
+    for (const [name, value] of Object.entries(moved.query)) url.searchParams.set(name, value);
+    response.writeHead(302, { location: `${moved.path}${url.search}`, "cache-control": "no-store" });
     response.end();
     return true;
   }

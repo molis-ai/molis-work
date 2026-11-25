@@ -9,12 +9,10 @@ import { renderConnectionItem, renderConnectionProgress, renderConnectionUseMatr
 import type { ConnectorSettingsCardView, ConnectorSettingsConnection, MolisWorkSettingsView } from "./settings-view.js";
 import { renderConnectorRequest } from "./settings-connector-request.js";
 import { renderPluginSlots } from "./settings-plugin-slots.js";
-import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { RuntimePluginDirectory } from "./runtime-plugin-directory.js";
 import { pluginSettingsNavItemsFrom } from "./plugin-settings-catalog.js";
 import { listWorkbenchUiContributions } from "./ui-composition.js";
 
-const imagePluginId = () => BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.image_generation)?.project_plugin_id;
-const sourcePluginId = () => BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.permissions.some(p => p.permission === "sources:pull_connector"))?.project_plugin_id;
 const agentToolsSettingsHref = () => {
   const section = pluginSettingsNavItemsFrom(listWorkbenchUiContributions()).find(item => item.settings_runtimes);
   return section ? `/settings/${section.section_id}` : "/settings/runtimes";
@@ -63,7 +61,7 @@ export function renderConnectorMark(connectorId: string, escapeHtml: ConnectorsS
   return `<span class="settings-connector-mark" data-connector-mark="${escapeHtml(connectorId)}" data-on="${mark.on}" aria-hidden="true"><img src="data:image/svg+xml,${encodeURIComponent(mark.svg)}" alt="" width="24" height="24"></span>`;
 }
 
-function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly ConnectorConnectionView[], p: ConnectorsSettingsPrimitives): string {
+function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly ConnectorConnectionView[], plugins: RuntimePluginDirectory, p: ConnectorsSettingsPrimitives): string {
   const { escapeHtml: e } = p;
   const active = connections.filter(connection => connection.state === "connected" && connection.enabled !== false);
   if (!active.length || card.availability !== "live") return "";
@@ -72,7 +70,7 @@ function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly 
   if (active.some(row => row.auth_method === "mcp" && row.agent_available === false)) instructions.push({ text: uiText.text("workbench.settings-connectors.connection-uses-provider-s-native-transport-under-advanced") });
   if (active.some(row => row.auth_method === "cli")) instructions.push({ text: uiText.text("workbench.settings-connectors.account-managed-client-machine-can-check-connection-view") });
   if (active.some(row => row.auth_method === "oauth" || row.auth_method === "token")) {
-    const imagesPlugin = imagePluginId(), sourcePlugin = sourcePluginId();
+    const imagesPlugin = plugins.offering("image_generation")?.id, sourcePlugin = plugins.offering("connector_sources")?.id;
     if (card.connector_id === "model-api") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-connection-model-settings-then-pick-model-check"), label: uiText.text("workbench.settings-connectors.open-model-settings"), href: "/settings/models" });
     else if (card.connector_id === "image-api" && imagesPlugin) instructions.push({ text: uiText.text("workbench.settings-connectors.choose-connection-project-s-images-set-up-image"), label: uiText.text("workbench.settings-connectors.choose-project-open-images"), projectLabel: uiText.text("workbench.connectors-settings.open-images"), href: "/", plugin: imagesPlugin });
     else if (card.connector_id === "typesafe") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-account-functions"), label: uiText.text("workbench.settings-connectors.see-functions"), href: "/capabilities/library" });
@@ -89,7 +87,7 @@ function renderAdvanced(body: string, _p: ConnectorsSettingsPrimitives): string 
 }
 
 /** A service's open part: what it is, its accounts, the way to connect it (or one more account), what to do next, and 高级. */
-function renderServiceBody(card: ConnectorSettingsCardView, connections: readonly ConnectorSettingsConnection[], view: Pick<MolisWorkSettingsView, "functions_settings">, p: ConnectorsSettingsPrimitives): string {
+function renderServiceBody(card: ConnectorSettingsCardView, connections: readonly ConnectorSettingsConnection[], view: Pick<MolisWorkSettingsView, "functions_settings">, plugins: RuntimePluginDirectory, p: ConnectorsSettingsPrimitives): string {
   const { readText, escapeHtml: e } = p;
   // null is the platform's own; an object names the declaring package; undefined means nothing said where the service comes from, so
   // no source line is shown rather than a trust label the page cannot back.
@@ -106,7 +104,7 @@ function renderServiceBody(card: ConnectorSettingsCardView, connections: readonl
     ${connections.map(connection => renderConnectionAccount(connection, card, p, connections.filter(other => other !== connection && other.state === "connected" && other.enabled !== false && !other.project_id && other.auth_method === connection.auth_method))).join("")}
     ${card.connector_id === "typesafe" && view.functions_settings ? renderFunctionsSettings({ ...view.functions_settings, embedded: true, primitives: { escape: e, text: readText } }) : ""}
     ${add}
-    ${renderNextSteps(card, connections, p)}
+    ${renderNextSteps(card, connections, plugins, p)}
     ${renderAdvanced(connections.map(connection => renderConnectionManage(connection, card, p)).join("") + renderConnectorWays(card, p), p)}
   </div>`;
 }
@@ -132,13 +130,14 @@ function renderUseView(cards: readonly ConnectorSettingsCardView[], escapeHtml: 
 }
 
 export function renderConnectorsSettings(
-  view: Pick<MolisWorkSettingsView, "connectors" | "connector_connections" | "connector_setup" | "capabilities" | "functions_settings" | "plugin_slots" | "context_project">,
+  view: Pick<MolisWorkSettingsView, "connectors" | "connector_connections" | "connector_setup" | "capabilities" | "functions_settings" | "plugin_slots" | "context_project" | "plugin_directory">,
   primitives: ConnectorsSettingsPrimitives,
 ): string {
   const { readText, escapeHtml } = primitives;
   const cards = view.connectors ?? [];
   if (view.connector_setup !== undefined) return renderConnectorRequest(view.connector_setup, cards, primitives);
   const connections = [...view.connector_connections ?? []].sort((a, b) => connectionOrder(a) - connectionOrder(b));
+  const plugins = new RuntimePluginDirectory(view.plugin_directory);
   const of = (serviceId: string) => connections.filter(connection => connection.service_id === serviceId);
   // Within a group: services that have an account first, then those that connect now, then those not in yet.
   const rank = (card: ConnectorSettingsCardView) => of(card.connector_id).some(connection => connection.state !== "disconnected") ? 0 : card.availability === "placeholder" ? 2 : 1;
@@ -148,7 +147,7 @@ export function renderConnectorsSettings(
       id: `connector-${card.connector_id}`, mark: renderConnectorMark(card.connector_id, escapeHtml),
       // A package writes the row's words: the row shows them within their limits, cut in whole characters; the search reads them whole.
       name: connectorCardText(card.title, CONNECTOR_NAME_MAX_CHARS), caption: connectorCardText(purpose, CONNECTOR_SUMMARY_MAX_CHARS),
-      state: serviceState(card, of(card.connector_id), primitives), body: renderServiceBody(card, of(card.connector_id), view, primitives),
+      state: serviceState(card, of(card.connector_id), primitives), body: renderServiceBody(card, of(card.connector_id), view, plugins, primitives),
       attrs: { "data-connector-item": card.connector_id, "data-connector-search": `${card.title} ${card.connector_id} ${purpose}`.toLowerCase() },
     }, readText);
   };

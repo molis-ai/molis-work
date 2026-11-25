@@ -11,7 +11,8 @@ import type {
 
 export { createPluginUiClient } from "./plugin-client.js";
 export { pluginTextForOwner, pluginTextOwnerOfPrefix, pluginTextReader, registerPlatformText, registerPluginText, type PluginTextReader } from "./text-sources.js";
-export { projectDirectoryWords, type DirectoryView, type DirectoryWordSource, type DirectoryWordResolver, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory-words.js";
+export { PLUGIN_OFFERS, projectDirectoryWords, type PluginOffer, type DirectoryView, type DirectoryWordSource, type DirectoryWordResolver, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory-words.js";
+export { PLATFORM_SURFACES, platformSurface, type PlatformSurface, type PlatformSurfaceClient, type PlatformSurfaceClientPath, type PlatformSurfaceId } from "./platform-surfaces.js";
 export type { AssistantReviewDisplay, AssistantReviewField, AssistantReviewWords, FormattedReviewField } from "./assistant-review-words.js";
 export type { WorkbenchAppearance, WorkbenchAppearanceChoices, WorkbenchAppearancePorts } from "./appearance-view.js";
 export type { UiDeclaredMountHost } from "./declared-mount-host.js";

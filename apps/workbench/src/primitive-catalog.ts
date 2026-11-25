@@ -36,9 +36,9 @@ import { SUBTASK_CONVERSATION_STYLES } from "@molis-ai/molis-work-design-system"
 import { ENVIRONMENT_SECTION_SCRIPT, ENVIRONMENT_SECTION_STYLES } from "./environment-specimens.js";
 import { renderImmersiveHeader, renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
-import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, hostSurfaceDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
-import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
-import { SESSIONS_NAVIGATION } from "./sessions/navigation.js";
+import { builtinPluginDirectory, manifestFor, hostSurfaceDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
+import { PLATFORM_NAVIGATION } from "./platform-surfaces.js";
+import type { PlatformSurfaceId } from "@molis-ai/molis-work-ui-host";
 import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 
 /**
@@ -55,14 +55,17 @@ function htmlLangFor(lang: WebLocale): string {
     ?? WORKBENCH_LANGUAGES.languages.find(row => row.tag === DEFAULT_WEB_LOCALE)!.html_lang;
 }
 
+const SURFACE_NAMES = {
+  artifacts: "workbench.catalog-board.core.surface-artifacts", characters: "workbench.catalog-board.core.surface-characters", sessions: "workbench.catalog-board.core.surface-sessions",
+} as const satisfies Readonly<Record<PlatformSurfaceId, string>>;
+
 /** The workbench's own surfaces that draw a glyph without being a plugin: they are not in any Manifest, so the board names them here. */
 function surfaceGlyphs(say: CatalogSay): readonly CatalogPluginIcon[] {
   return [
     { id: "home", name: say("workbench.catalog-board.core.surface-home"), icon: "home" },
-    { id: "characters", name: say("workbench.catalog-board.core.surface-characters"), icon: "user" },
+    { id: "characters", name: say(SURFACE_NAMES.characters), icon: "user" },
     { id: "market", name: say("workbench.catalog-board.core.surface-market"), icon: "grid" },
-    { id: ARTIFACT_NAVIGATION.id, name: say("workbench.catalog-board.core.surface-artifacts"), icon: ARTIFACT_NAVIGATION.glyph },
-    { id: SESSIONS_NAVIGATION.id, name: say("workbench.catalog-board.core.surface-sessions"), icon: SESSIONS_NAVIGATION.glyph },
+    ...PLATFORM_NAVIGATION.map(({ id, glyph }) => ({ id, name: say(SURFACE_NAMES[id]), icon: glyph })),
   ];
 }
 
@@ -296,10 +299,8 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
     delivery,
     ...(environment ? {
       presentationLocale: lang,
-      presentationPlugins: BUILTIN_PLUGIN_CATALOG.map(({ manifest }) => ({
-        id: manifest.plugin_id,
-        name: directory.find(entry => entry.plugin_id === manifest.plugin_id)?.name ?? manifest.name,
-        declared: (manifest.presentation?.objects.length ?? 0) > 0,
+      presentationPlugins: directory.map(entry => ({
+        id: entry.plugin_id, name: entry.name, declared: (manifestFor(entry.id)?.presentation?.objects.length ?? 0) > 0,
       })),
     } : {}),
     extraChapters: [{

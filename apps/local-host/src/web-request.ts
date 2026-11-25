@@ -2,13 +2,12 @@ import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http
 import { handleKitSettingsHttp } from "./kit-settings-http.js";
 import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
 import { handleTaskGrantsSettingsHttp } from "./task-grants-settings-http.js";
-import { resolveConfiguredHome } from "./product-home.js";
 import { ownerUnavailableCard, refusedOwner, sendOwnerUnavailablePage, withOwnerUnavailablePage } from "./web-owner-unavailable.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-agents.js";
 import { modelRoundLocale } from "./reply-language.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
-import { handleCharactersHttp, hostCharactersInvoke } from "./characters-http.js";
+import { PLATFORM_SURFACE_ROUTES } from "./platform-surface-routes.js";
 import { bindLocalWebAction, bindLocalWebActions, bindWebEntryActions, localWebActionContext } from "./local-web-actions.js";
 import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-artifacts";
@@ -272,20 +271,9 @@ const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 
 ];
 
-/** Project shell pages and 成果's own HTTP; the project page is tried last, before the 404. */
-const projectPagesAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
+/** Project shell pages; the project page is tried last, before the 404. */
+const projectPageRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "project-reference", handle: context => handleLocalProjectReferenceHttp(context.request, context.response, context.url, asPerson(context, ARTIFACT_ACTION_PERMISSIONS)) },
-  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions, readArtifactDisplay }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
-    projectId: options.projectId, routePrefix: options.routePrefix ?? "",
-    projectTitle: options.project?.display_name ?? "Molis Work",
-    actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
-    homeDirectory: serverOptions.homeDirectory ?? resolveConfiguredHome(),
-    offeredActions: original_file => userActions(ARTIFACT_ACTION_PERMISSIONS, { original_file }),
-    // Each 成果 type's owner previews its own versions (A4): a plugin's preview runs on its installation's grants, not on the person's (V-21).
-    ownerActions: permissions => userActions(permissions),
-    readArtifactDisplay,
-    desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
-  }) },
   { id: "project-page", handle: context => context.composition.projectPagesHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
     projectWebView(context, { withMembershipRevision: true }), context.controlToken,
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.readArtifactDisplay, context.store,
@@ -298,8 +286,8 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   projectWriteCheckersRoute,
   installedPluginsRoute,
   pluginStudioRoute,
-  // Characters is the Host's own surface (CHR-1), under the platform prefix since 44B (`/api/platform/characters`).
-  { id: "characters", handle: ({ request, response, url, localHost, hostReference }) => handleCharactersHttp(request, response, url, hostCharactersInvoke(localHost, hostReference)) },
+  // The platform's own pages (成果库, 角色, 外部会话), from their one registration.
+  ...PLATFORM_SURFACE_ROUTES,
   runtimePluginsRoute,
   workspaceMembershipRoute,
   ...projectSettingsRoutes,
@@ -313,6 +301,6 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   ...directoryRoutes,
   ...projectAssistantRoutes,
   ...pageOwnerRoutes,
-  ...projectPagesAndArtifactRoutes,
+  ...projectPageRoutes,
   projectNotFoundRoute,
 ];

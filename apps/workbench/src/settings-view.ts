@@ -66,6 +66,8 @@ export interface MolisWorkSettingsView {
   /** Project plugins enabled for the settings context. Personal plugins are listed unless hidden. */
   enabled_plugins?: readonly string[];
   hidden_plugins?: readonly string[];
+  /** The plugins this Home and the context project run, then the market's; a page that points at a plugin finds it here. */
+  plugin_directory?: import("./plugin-directory.js").PluginDirectory;
   /** The plugins the settings context shows, as the Host works it out (W5-02 B1); their settings pages are listed. */
   shown_plugins?: readonly string[];
   runtimes: RuntimeIntegrationDetection[];

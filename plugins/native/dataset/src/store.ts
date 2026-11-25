@@ -1,4 +1,4 @@
-import type { ActionExecutionContext, PlacementExport, PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
+import { sameCarriedRecord, type ActionExecutionContext, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   DatasetColumn,
   DatasetColumnInput,
@@ -114,7 +114,12 @@ export class DatasetStore {
   /** One table as the record placement carries to another partition (`placement.export`), with its saved versions; pinned versions stay here. */
   exportRecord(id: string): PlacementExport {
     const current = this.get(id);
-    const versions = this.db.all("SELECT id, note, snapshot_json, created_at FROM dataset_versions WHERE dataset_id = ? ORDER BY created_at, id", [id]).map(row => JSON.stringify(row));
+    // A saved version travels without what only means something here (its table's id and partition, the pins): the put gives it the target's.
+    const versions = this.db.all("SELECT id, note, snapshot_json, created_at FROM dataset_versions WHERE dataset_id = ? ORDER BY created_at, id", [id]).map(row => {
+      const snapshot = JSON.parse(String(row.snapshot_json)) as Record<string, unknown>;
+      for (const local of ["id", "project_id", "artifact_id", "artifact_version", "publication_pending"]) delete snapshot[local];
+      return JSON.stringify({ ...row, snapshot_json: JSON.stringify(snapshot) });
+    });
     const { title, description, columns, rows, created_at, updated_at, version } = current;
     return { subject: { kind: "dataset", id }, revision: String(version),
       record: { title, description, columns_json: JSON.stringify(columns), rows_json: JSON.stringify(rows), created_at, updated_at, version, versions } };
@@ -134,9 +139,15 @@ export class DatasetStore {
       });
     }
     return this.atomically(() => {
-      this.db.run("DELETE FROM dataset_versions WHERE dataset_id = ?", [targetId]);
-      this.db.run("DELETE FROM datasets WHERE id = ?", [targetId]);
       const columns = normalizeColumns(carried.columns), rows = normalizeRows(carried.rows, columns);
+      // An earlier attempt of the same move already put it here: only that exact record is a replay; anything written since is kept (conflict).
+      if (this.db.get("SELECT 1 FROM datasets WHERE id = ?", [targetId])) {
+        // Compared with what this put would write (its own normalizing included), so a retry of the same move is found the same.
+        const written = { ...record, title: carried.title, description: carried.description, columns_json: JSON.stringify(columns), rows_json: JSON.stringify(rows) };
+        if (sameCarriedRecord(this.exportRecord(targetId).record, written)) return this.get(targetId);
+        throw datasetErrors.conflict("目标位置已经有这张表，而且内容或保存的版本不同；没有覆盖它");
+      }
+      this.db.run("DELETE FROM dataset_versions WHERE dataset_id = ?", [targetId]);
       this.write({ id: targetId, project_id: this.partition, title: carried.title, description: carried.description, status: columns.length > 0 ? "ready" : "draft",
         columns, rows, created_at: carried.created_at, updated_at: carried.updated_at, version: carried.version, artifact_id: "", artifact_version: 0 }, true);
       for (const saved of carried.versions) {

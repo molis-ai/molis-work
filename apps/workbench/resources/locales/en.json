@@ -4326,6 +4326,7 @@
     "workbench.index.couldn-t-find-where-save": "Couldn’t find where to save it",
     "workbench.index.deleted-project": "a deleted project",
     "workbench.index.items-plugin-can-t-be-copied-elsewhere-yet": "Items from this plugin can’t be copied elsewhere yet",
+    "workbench.index.item-changed-both-places-last-move": "The last move didn’t finish, and this item was changed in both places. Both copies are kept; open both and check them first.",
     "workbench.index.items-plugin-can-t-be-moved-yet-copy": "Items from this plugin can’t be moved yet; copy them or use them in a project",
     "workbench.index.kind-item-can-t-be-created-here": "This kind of item can’t be created here",
     "workbench.index.kind-item-only-lives-personal-space-can-be": "This kind of item only lives in your personal space; it can be used in a project but not moved",

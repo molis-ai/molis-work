@@ -13,7 +13,6 @@ import { partitionLibraryPath } from "./partition-plugin-assembly.js";
 import { homeLibraryRollbackSidecars, assertArtifactProjectIdentity, wrongArtifactSpace } from "./artifact-row-storage-policy.js";
 import { assertSqliteLibraryReady, pendingSqliteRecovery } from "@molis-ai/molis-work-storage";
 import { homeStores } from "./home-stores.js";
-import { partitionOfDatabasePath } from "@molis-ai/molis-work-module-projects";
 import { projectDatabases } from "./platform-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 

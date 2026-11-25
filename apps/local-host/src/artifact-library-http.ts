@@ -68,14 +68,20 @@ function assertSupportedImportVersion(version: ArtifactVersionRecord | null): vo
   }
 }
 
-/** Whether the placement service last saw this object somewhere other than this project. */
-async function movedElsewhere(context: ArtifactHttpContext, subject: { kind: string; id: string }): Promise<boolean> {
+/**
+ * Whether the placement service last saw this object somewhere other than this project; null when it cannot say now (its read failed), so
+ * the page says nothing rather than calling a moved object deleted.
+ */
+async function movedElsewhere(context: ArtifactHttpContext, subject: { kind: string; id: string }, typeId: string): Promise<boolean | null> {
+  if (!context.placementReader) return false;
   try {
-    if (!context.placementReader) return false;
     const found = await context.placementReader.invoke(placementActions.locate,
       { object: { kind: subject.kind, id: subject.id, project_id: context.projectId } });
     return found.moved && found.object.project_id !== context.projectId;
-  } catch { return false; }
+  } catch (error) {
+    logPreviewFailure(error, typeId);
+    return null;
+  }
 }
 
 /**
@@ -99,7 +105,10 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
     catch { compared = null; }
     // An object kept in its partition's own library is not there any more once it moved, so its owner cannot tell a move from a deletion;
     // the placement service, which carried it, can.
-    if (compared === "missing" && await movedElsewhere(context, pinned)) compared = "moved";
+    if (compared === "missing") {
+      const moved = await movedElsewhere(context, pinned, artifact.artifact_type_id);
+      compared = moved === null ? null : moved ? "moved" : "missing";
+    }
   }
   const version = { version: artifact.version };
   const notice = artifact.origin.kind === "imported" ? uiText.text("workbench.browser-ui.imported-version-notice")

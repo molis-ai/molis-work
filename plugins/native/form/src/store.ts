@@ -1,4 +1,4 @@
-import { ActionError, type ActionExecutionContext, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, sameCarriedRecord, type ActionExecutionContext, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   FormOption,
   FormQuestion,
@@ -245,8 +245,13 @@ export class FormStore {
         this.db.run("INSERT INTO form_copies (request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?)", ["copy:" + requestId, "", copyId, now]);
         return this.get(copyId);
       }
+      // An earlier attempt of the same move already put it here: only that exact record is a replay; anything written since is kept (conflict).
+      if (this.db.get("SELECT 1 FROM forms WHERE id = ?", [targetId])) {
+        // Compared with what this put would write (its own normalizing included), so a retry of the same move is found the same.
+        if (sameCarriedRecord(this.exportRecord(targetId).record, { ...record, title: carried.title, description: carried.description, questions_json: JSON.stringify(carried.questions) })) return this.get(targetId);
+        throw formErrors.conflict("目标位置已经有这份问卷，而且内容或答卷不同；没有覆盖它");
+      }
       this.db.run("DELETE FROM submissions WHERE form_id = ?", [targetId]);
-      this.db.run("DELETE FROM forms WHERE id = ?", [targetId]);
       this.db.run("INSERT INTO forms (id, title, description, status, share_id, questions_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [targetId, carried.title, carried.description, carried.status, carried.share_id, JSON.stringify(carried.questions), carried.created_at, carried.updated_at, carried.version]);
       for (const row of carried.submissions) {

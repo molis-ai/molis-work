@@ -38,7 +38,7 @@ function goalsAttachHandlers(inputs: ReturnType<typeof createGoalsInputActionHan
 }
 import { SearchService } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
-import { bindSearchEntriesHandler, defineSearchEntriesAction, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindSearchEntriesHandler, defineSearchEntriesAction, isObjectCopier, isObjectExporter, isObjectMover, isObjectPutter, isObjectRemover, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
 import { chinesePagePacks, pageTextForPacks } from "./fixtures/page-text-packs.js";
 
 const placementText = pageTextForPacks("zh", chinesePagePacks());
@@ -180,11 +180,12 @@ function fixture(projects = ["personal", "q4", "interview"], hooks?: {
   return { actions, notes, service, ledger, titles, removeProject: (id: string) => removed.add(id), deleteClip: (id: string) => { clips = new Map([...clips].filter(([key]) => key !== id)); } };
 }
 
-test("placement protocol: shipped plugins declare move and copy for the person only", () => {
+test("placement protocol: shipped plugins declare their carry parts (export, put, remove) for the person only", () => {
+  // Their objects are in each partition's own library (batch 107): placement carries them itself, with the plugin's three parts.
   for (const manifest of [pagesManifest, pptManifest, formManifest, datasetManifest, lingguangManifest]) {
     assert.deepEqual(inspectActionDeclarations(manifest.actions!, undefined), [], manifest.plugin_id);
-    const placement = manifest.actions!.filter(definition => definition.action.input_type?.startsWith("molis.placement."));
-    assert.equal(placement.length, 2, manifest.plugin_id);
+    const placement = manifest.actions!.filter(definition => [isObjectExporter, isObjectPutter, isObjectRemover, isObjectMover, isObjectCopier].some(part => part(definition.action)));
+    assert.deepEqual(placement.map(definition => [isObjectExporter, isObjectPutter, isObjectRemover].findIndex(part => part(definition.action))).sort(), [0, 1, 2], manifest.plugin_id);
     for (const definition of placement) assert.deepEqual(definition.action.audiences, ["user"]);
   }
   // Letting an agent move things would change who can read them without the person deciding.

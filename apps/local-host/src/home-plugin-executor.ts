@@ -60,7 +60,6 @@ import { join } from "node:path";
 export class HomePluginExecutor implements PluginExecutor {
   private readonly sessions = new Map<string, { context: PluginStartContext; execution: PluginStopExecution; revoke(): void; dispose(): void;
     background?: ReturnType<typeof pluginBackgroundFor> }>();
-  /** Per installation, not per instance: a project deletion under way outlives a restart of the instance (`PartitionDeletions`). */
   /** A stopped sandbox library's process exit, by installation: what an uninstall waits for before it removes the library (BL-915). */
   private readonly libraryExits = new Map<string, Promise<void>>();
   /** Service calls each instance's code made after it stopped, each doing nothing (BL-411). */

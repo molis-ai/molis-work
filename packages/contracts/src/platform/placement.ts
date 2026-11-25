@@ -61,12 +61,13 @@ export function defineObjectCopyAction(capabilityId: string, version: number, ki
  * `put` writes such a record in the target partition; `remove` lets the object go from where it was, only while it is still the revision
  * that was exported. A move is export → put (same id) → remove, undone by removing what was put; a copy is export → put (a new id, the
  * same `request_id` always the same copy). The record is the plugin's own shape: whatever only means something in the source partition
- * (a folder, a Goal, a pinned version) is the plugin's `put` to let go. The same three parts serve a push (§7, batch 111).
+ * (a folder, a Goal, a pinned version) is the plugin's `put` to let go. Export and put are the push's own two action types (`push` in the
+ * Manifest, §7.1): batch 111 pushes through the same actions, so a plugin declares each once. Remove is a move's alone.
  */
-export const PLACEMENT_EXPORT_INPUT_TYPE = /* @version type.molis.placement.export.input "molis.placement.export.input.v{version}" */ "molis.placement.export.input.v1";
-export const PLACEMENT_EXPORT_OUTPUT_TYPE = /* @version type.molis.placement.export.output "molis.placement.export.output.v{version}" */ "molis.placement.export.output.v1";
-export const PLACEMENT_PUT_INPUT_TYPE = /* @version type.molis.placement.put.input "molis.placement.put.input.v{version}" */ "molis.placement.put.input.v1";
-export const PLACEMENT_PUT_OUTPUT_TYPE = /* @version type.molis.placement.put.output "molis.placement.put.output.v{version}" */ "molis.placement.put.output.v1";
+export const PUSH_EXPORT_INPUT_TYPE = /* @version type.molis.push.export.input "molis.push.export.input.v{version}" */ "molis.push.export.input.v1";
+export const PUSH_EXPORT_OUTPUT_TYPE = /* @version type.molis.push.export.output "molis.push.export.output.v{version}" */ "molis.push.export.output.v1";
+export const PUSH_PUT_INPUT_TYPE = /* @version type.molis.push.put.input "molis.push.put.input.v{version}" */ "molis.push.put.input.v1";
+export const PUSH_PUT_OUTPUT_TYPE = /* @version type.molis.push.put.output "molis.push.put.output.v{version}" */ "molis.push.put.output.v1";
 export const PLACEMENT_REMOVE_INPUT_TYPE = /* @version type.molis.placement.remove.input "molis.placement.remove.input.v{version}" */ "molis.placement.remove.input.v1";
 export const PLACEMENT_REMOVE_OUTPUT_TYPE = /* @version type.molis.placement.remove.output "molis.placement.remove.output.v{version}" */ "molis.placement.remove.output.v1";
 
@@ -95,14 +96,14 @@ export const PLACEMENT_REMOVED_SCHEMA = { type: "object", properties: { subject:
 export function defineObjectExportAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementExportInput, PlacementExport> {
   return { capability_id: capabilityId, version, operation: "query", action: { ...metadata(kinds, title, permissions), kind: "query",
     description: `读出一份${title}，好带到另一个位置。`, effect: "read",
-    input_type: PLACEMENT_EXPORT_INPUT_TYPE, output_type: PLACEMENT_EXPORT_OUTPUT_TYPE, input_schema: inputSchemaFor<PlacementExportInput>()(PLACEMENT_EXPORT_INPUT_SCHEMA), output_schema: PLACEMENT_EXPORT_SCHEMA } };
+    input_type: PUSH_EXPORT_INPUT_TYPE, output_type: PUSH_EXPORT_OUTPUT_TYPE, input_schema: inputSchemaFor<PlacementExportInput>()(PLACEMENT_EXPORT_INPUT_SCHEMA), output_schema: PLACEMENT_EXPORT_SCHEMA } };
 }
 
 /** Writes a carried record here: under its own id for a move, as a new object for a copy (the same `request_id` makes the same one). */
 export function defineObjectPutAction(capabilityId: string, version: number, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementPutInput, PlacementResult> {
   return { capability_id: capabilityId, version, operation: "command", action: { ...metadata(kinds, title, permissions),
     description: `把从另一个位置带来的${title}放进这里。`, effect: "write",
-    input_type: PLACEMENT_PUT_INPUT_TYPE, output_type: PLACEMENT_PUT_OUTPUT_TYPE, input_schema: inputSchemaFor<PlacementPutInput>()(PLACEMENT_PUT_INPUT_SCHEMA), output_schema: PLACEMENT_RESULT_SCHEMA } };
+    input_type: PUSH_PUT_INPUT_TYPE, output_type: PUSH_PUT_OUTPUT_TYPE, input_schema: inputSchemaFor<PlacementPutInput>()(PLACEMENT_PUT_INPUT_SCHEMA), output_schema: PLACEMENT_RESULT_SCHEMA } };
 }
 
 /** Lets an object that went elsewhere go from here, only while it is still the revision that was carried. */
@@ -112,11 +113,38 @@ export function defineObjectRemoveAction(capabilityId: string, version: number, 
     input_type: PLACEMENT_REMOVE_INPUT_TYPE, output_type: PLACEMENT_REMOVE_OUTPUT_TYPE, input_schema: inputSchemaFor<PlacementRemoveInput>()(PLACEMENT_REMOVE_INPUT_SCHEMA), output_schema: PLACEMENT_REMOVED_SCHEMA } };
 }
 
+/**
+ * Whether a carried record already stands at the target as itself. A move's `put` that finds its object already there (an earlier attempt of
+ * the same move, cut before the original went) accepts only an exact replay and writes nothing; anything else is a conflict, so what was
+ * written there since is never replaced. Key order does not count, also inside a field that holds JSON text (`slides_json`); a list of strings
+ * directly on the record (comments, submissions, saved versions) is compared as a set, since the owner may read them back in another order.
+ */
+export function sameCarriedRecord(here: PlacementRecord, carried: PlacementRecord): boolean {
+  return canonicalRecord(here, true) === canonicalRecord(carried, true);
+}
+
+function canonicalRecord(value: unknown, top = false, field = false): string {
+  if (typeof value === "string") {
+    if (/^\s*[[{]/u.test(value)) {
+      try { return `json:${canonicalRecord(JSON.parse(value))}`; } catch { /* plain text that starts like JSON */ }
+    }
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    const items = value.map(item => canonicalRecord(item));
+    return `[${field && value.every(item => typeof item === "string") ? items.sort().join(",") : items.join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalRecord((value as Record<string, unknown>)[key], false, top)}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
 export function isObjectExporter(action: { input_type?: string; output_type?: string }): boolean {
-  return action.input_type === PLACEMENT_EXPORT_INPUT_TYPE && action.output_type === PLACEMENT_EXPORT_OUTPUT_TYPE;
+  return action.input_type === PUSH_EXPORT_INPUT_TYPE && action.output_type === PUSH_EXPORT_OUTPUT_TYPE;
 }
 export function isObjectPutter(action: { input_type?: string; output_type?: string }): boolean {
-  return action.input_type === PLACEMENT_PUT_INPUT_TYPE && action.output_type === PLACEMENT_PUT_OUTPUT_TYPE;
+  return action.input_type === PUSH_PUT_INPUT_TYPE && action.output_type === PUSH_PUT_OUTPUT_TYPE;
 }
 export function isObjectRemover(action: { input_type?: string; output_type?: string }): boolean {
   return action.input_type === PLACEMENT_REMOVE_INPUT_TYPE && action.output_type === PLACEMENT_REMOVE_OUTPUT_TYPE;

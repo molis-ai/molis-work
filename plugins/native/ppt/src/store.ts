@@ -1,4 +1,4 @@
-import type { ActionExecutionContext, PlacementExport, PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
+import { sameCarriedRecord, type ActionExecutionContext, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PPT_SUBJECT_KIND, type PptRecord, type PptSlide, type PptSlideInput } from "./contract.js";
 import { pptErrors } from "./error.js";
 import { PPT_DATABASE } from "./database.js";
@@ -142,7 +142,14 @@ export class PptStore {
         this.db.run("INSERT INTO presentation_copies (request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?)", ["copy:" + requestId, "", copy.id, now]);
         return copy;
       }
-      this.db.run("DELETE FROM presentations WHERE id = ?", [targetId]);
+      // An earlier attempt of the same move already put it here: only that exact record is a replay; anything written since is kept (conflict).
+      if (this.db.get("SELECT 1 FROM presentations WHERE id = ?", [targetId])) {
+        // Compared with what this put would write (its own normalizing included), so a retry of the same move is found the same.
+        const written = { ...record, title: carried.title, description: carried.description, color_primary: carried.color_primary,
+          color_background: carried.color_background, color_text: carried.color_text, slides_json: JSON.stringify(carried.slides) };
+        if (sameCarriedRecord(this.exportRecord(targetId).record, written)) return this.get(targetId);
+        throw pptErrors.conflict("目标位置已经有这份演示稿，而且内容不同；没有覆盖它");
+      }
       this.write({ ...carried, id: targetId, project_id: this.partition, artifact_id: "", artifact_version: 0 }, true);
       return this.get(targetId);
     });

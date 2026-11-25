@@ -1,6 +1,6 @@
 import { PagesComments } from "./comments-store.js";
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
-import { ActionError, type ActionExecutionContext, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, sameCarriedRecord, type ActionExecutionContext, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesCommentThread, PagesFolder, PagesRecord } from "./contract.js";
 import { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 import { pagesErrors } from "./error.js";
@@ -209,7 +209,7 @@ export class PagesStore extends PagesGenerationStore {
 
   /**
    * Writes a carried document here (`placement.put`). With `targetId` (a move) it keeps its id and version, so every link and recorded
-   * version still finds it, replacing what an earlier attempt of the same move put; without (a copy) it is a new document, and the same
+   * version still finds it; finding it already there, it accepts only the same record again (a retried move) and refuses anything else; without (a copy) it is a new document, and the same
    * request makes the same one. It arrives at the top level, with no Goal and no pinned versions: those belonged to where it came from.
    */
   putRecord(record: PlacementRecord, requestId: string, targetId?: string): PagesRecord {
@@ -219,7 +219,13 @@ export class PagesStore extends PagesGenerationStore {
         documents: [{ title: carried.title, body: carried.body, starred: carried.starred }] })[0]!;
     }
     return this.atomically(() => {
-      this.db.run("DELETE FROM pages WHERE id = ?", [targetId]);
+      // An earlier attempt of the same move already put it here: only that exact record is a replay; anything written since is kept (conflict).
+      if (this.db.get("SELECT 1 FROM pages WHERE id = ?", [targetId])) {
+        // Compared with what this put would write (its own normalizing included), so a retry of the same move is found the same.
+        if (sameCarriedRecord(this.exportRecord(targetId).record, { ...record, title: normalizeTitle(carried.title), body: carried.body })) return this.get(targetId);
+        throw pagesErrors.conflict("目标位置已经有这份文档，而且内容不同；没有覆盖它");
+      }
+      this.db.run("DELETE FROM page_comments WHERE page_id = ?", [targetId]);
       this.db.run("INSERT INTO pages (id, title, body_json, folder_id, starred, goal_id, artifact_id, artifact_version, created_at, updated_at, version) VALUES (?, ?, ?, '', ?, '', '', 0, ?, ?, ?)",
         [targetId, normalizeTitle(carried.title), JSON.stringify(carried.body), carried.starred ? 1 : 0, carried.created_at, carried.updated_at, carried.version]);
       for (const thread of carried.comments) {

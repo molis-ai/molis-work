@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ActionExecutionContext, PlacementExport, PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
+import { sameCarriedRecord, type ActionExecutionContext, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LINGGUANG_BODY_LIMIT } from "./contract.js";
 import type {
   LingguangConversation,
@@ -175,11 +175,18 @@ export class LingguangStore {
     }
     if (carried.shared) throw lingguangErrors.invalid("这条灵光和其他灵光在同一场头脑风暴里，移走会让那场对话缺了它；可以复制到别处");
     return this.transaction(() => {
+      // An earlier attempt of the same move already put it here: only that exact record is a replay; anything written since is kept (conflict).
+      if (this.db.get("SELECT 1 FROM sparks WHERE id = ?", [targetId])) {
+        // Compared with what this put would write (its own normalizing included), so a retry of the same move is found the same.
+        if (sameCarriedRecord(this.exportRecord(targetId).record, { ...record, title: carried.title, body: carried.body })) return this.get(targetId);
+        throw lingguangErrors.conflict("目标位置已经有这条灵光，而且内容或对话不同；没有覆盖它");
+      }
+      // Only a conversation an earlier attempt left for this spark goes; one of another spark's is never touched (its insert below refuses).
       for (const talk of carried.conversations) {
+        if (!this.db.get("SELECT 1 FROM conversations WHERE id = ? AND spark_key = ?", [talk.id, targetId])) continue;
         this.db.run("DELETE FROM messages WHERE conversation_id = ?", [talk.id]);
         this.db.run("DELETE FROM conversations WHERE id = ?", [talk.id]);
       }
-      this.db.run("DELETE FROM sparks WHERE id = ?", [targetId]);
       this.db.run("INSERT INTO sparks (id, title, body, source_kind, status, created_at, updated_at) VALUES (?, ?, ?, 'manual', ?, ?, ?)",
         [targetId, carried.title, carried.body, carried.status, carried.created_at, carried.updated_at]);
       for (const talk of carried.conversations) {

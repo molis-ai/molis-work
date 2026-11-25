@@ -77,6 +77,10 @@ test("AIC-14: a project id of 81 characters works in all five stores (the old 80
   const carry = <R extends { project_id: string }>(from: { exportRecord(id: string): PlacementExport; removeCarried(id: string, revision: string): boolean },
     to: { putRecord(record: PlacementRecord, requestId: string, targetId?: string): R }, id: string): R => {
     const carried = from.exportRecord(id), put = to.putRecord(carried.record, "move-" + id, id);
+    // Batch 107 review P1-2: a retried put of the same record finds it and writes nothing; any other record onto the object already there is
+    // refused, so nothing written at the target since is replaced.
+    assert.deepEqual(to.putRecord(carried.record, "move-" + id, id), put, "a retried put is a replay");
+    assert.throws(() => to.putRecord({ ...carried.record, title: "后来改过" }, "move-" + id, id), { kind: "conflict" });
     assert.equal(from.removeCarried(id, carried.revision), true);
     return put;
   };
@@ -85,7 +89,10 @@ test("AIC-14: a project id of 81 characters works in all five stores (the old 80
   assert.equal(d.project_id, long);
   assert.deepEqual(dataset.list().map(row => row.id), [d.id]);
   assert.equal(dataset.get(d.id).id, d.id);
+  // A saved version travels too, without what only meant something where it was, so the replay still finds it the same.
+  dataset.saveVersion(d.id, "第一版");
   assert.equal(carry(dataset, there.dataset, d.id).project_id, other);
+  assert.equal(there.dataset.listVersions(d.id).length, 1);
 
   const f = form.create({ title: "问卷" });
   assert.deepEqual(form.list().map(row => row.id), [f.id]);

@@ -6,6 +6,7 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-639 | 不再适用并删除 | 2026-11-25：它问的是 `databases.home` 按项目拆的分区库升级后怎么办；第 107 批删掉了那个复用器，分区库改为每个分区一份 `databases.partition`，版本按库声明的一份现行结构开（[107](../specs/post-anticorruption-roadmap/reference/batches/107.md)） |
 | BL-1055 | 已完成并删除 | SDK 与设计系统共用折叠组件，Images、Goals 已接入，Files 旧面板随 #2009 退役。[SCF-01](../specs/archive/shared-ui-folds/spec.md#验收标准) |
 | BL-1061 | 已完成并删除 | 连接行、原处连接卡和设计系统的自然高度折叠共用选择器函数。[SCF-02](../specs/archive/shared-ui-folds/spec.md#验收标准) |
 | BL-schedule-reads-actions-render-alert | 已完成并删除 | 日程读取失败使用共享提示的动作槽，点击重试会再次读取。[SCF-03](../specs/archive/shared-ui-folds/spec.md#验收标准) |

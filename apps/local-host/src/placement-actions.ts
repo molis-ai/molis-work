@@ -78,7 +78,17 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   };
   let closed = false;
   const service = new PlacementService(servicePorts);
-  const forCall = (caller: Parameters<ActionHandlerBinding["handle"]>[0]) => new PlacementService(surfacePlacementCallPorts(servicePorts, caller, () => !closed));
+  // A move the Host stopped in the middle of (between its put and its remove) is settled once the Host answers placement calls again, as
+  // the local person, in the background; one that fails is tried again on a later call. `move` settles its own object before it starts.
+  let carries: Promise<unknown> | null = null;
+  const settleCarries = () => {
+    if (carries || closed || service.pendingCarries() === 0) return;
+    carries = service.settleCarries().catch(() => { carries = null; });
+  };
+  const forCall = (caller: Parameters<ActionHandlerBinding["handle"]>[0]) => {
+    settleCarries();
+    return new PlacementService(surfacePlacementCallPorts(servicePorts, caller, () => !closed));
+  };
   const handlers: ActionHandlerBinding[] = [
     { ...placementActions.describe, handle: (caller, input) => forCall(caller).describe((input as { object: PlacedObject }).object) },
     { ...placementActions.spaces, handle: async (caller) => ({ spaces: await forCall(caller).spaces() }) },

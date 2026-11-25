@@ -4016,6 +4016,7 @@
     "workbench.index.couldn-t-find-where-save": "找不到要存到的位置",
     "workbench.index.deleted-project": "已删除的项目",
     "workbench.index.items-plugin-can-t-be-copied-elsewhere-yet": "这个插件的内容还不能复制到别处",
+    "workbench.index.item-changed-both-places-last-move": "上次移动没有走完，这一项在原来的位置和目标位置都改过；两份都留着，请先打开两处核对",
     "workbench.index.items-plugin-can-t-be-moved-yet-copy": "这个插件的内容还不能移动；可以复制或用于项目",
     "workbench.index.kind-item-can-t-be-created-here": "这个位置不能新建这类内容",
     "workbench.index.kind-item-only-lives-personal-space-can-be": "这类内容只放在个人空间；可以用于项目，但不能移动",

@@ -3966,6 +3966,7 @@
     "workbench.index.couldn-t-find-where-save": "保存先が見つかりませんでした",
     "workbench.index.deleted-project": "削除されたプロジェクト",
     "workbench.index.items-plugin-can-t-be-copied-elsewhere-yet": "このプラグインの項目はまだ他の場所へコピーできません",
+    "workbench.index.item-changed-both-places-last-move": "前回の移動が完了しておらず、この項目は移動元と移動先の両方で変更されています。両方とも残しています。先に両方を開いて確認してください。",
     "workbench.index.items-plugin-can-t-be-moved-yet-copy": "このプラグインの項目はまだ移動できません。コピーするか、プロジェクト内で参照してご利用ください",
     "workbench.index.kind-item-can-t-be-created-here": "この場所ではこの種類の項目を新規作成できません",
     "workbench.index.kind-item-only-lives-personal-space-can-be": "この種類の項目は個人スペース専用です。プロジェクトで使うことはできますが、移動はできません",

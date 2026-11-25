@@ -66,6 +66,8 @@ test("W5-01-PAGES-STORE-03 a refused beforeEffect does not enter the write", asy
 // W5-01-PAGES-STORE-04: the Runtime's own `database.transaction` is the same unit: the documents and their receipt commit together or not at all.
 test("W5-01-PAGES-STORE-04 on the Runtime a failing import receipt rolls the imported documents back, and the same import works once the failure is gone", async t => {
   const pages = await servePages(t);
+  // The partition's library is made the first time the plugin reads there (batch 107); the fixture's trigger goes into that one file.
+  assert.deepEqual((await pages.http<{ documents: unknown[] }>("")).documents, []);
   const db = new DatabaseSync(partitionLibraryFile(pages.home, pages.project.project_id, "pages"));
   t.after(() => db.close());
   const files = [{ name: "甲.md", data: Buffer.from("# 甲\n\n正文甲").toString("base64") }, { name: "乙.md", data: Buffer.from("# 乙\n\n正文乙").toString("base64") }];

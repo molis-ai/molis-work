@@ -279,7 +279,6 @@
     "tests/fixtures/installed-account.ts": 2,
     "tests/fixtures/locale-request-digests.ts": 1,
     "tests/fixtures/parameterless-reads.ts": 1,
-    "tests/fixtures/partition-probe.ts": 2,
     "tests/fixtures/plugin-actions.ts": 3,
     "tests/fixtures/plugin-background.ts": 2,
     "tests/fixtures/plugin-callers.ts": 1,

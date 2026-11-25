@@ -47,7 +47,7 @@ const ACCESS: ContextAccess = { actor_id: "module:placement", scope: { kind: "pe
 /** Ledger-only marker for Home-level content (Shelf, Jelly, Cognia…): always personal, never moved. */
 const HOME = "home";
 const TYPES = { location: "placement.location", used: "placement.used_in", derived: CONTEXT_RELATION_TYPES.derived_from, copied: CONTEXT_RELATION_TYPES.copied_from, attached: "placement.attached_in",
-  belonging: "placement.belonged_to", belongs: "placement.belongs_to" } as const;
+  belonging: "placement.belonged_to", belongs: "placement.belongs_to", carrying: "placement.carrying" } as const;
 
 const identity = (kind: string, id: string): ObjectRef => ({ module: "plugins", object_type: kind, id, version: null, scope: ACCESS.scope, project_id: null });
 const projectRef = (projectId: string): ObjectRef => ({ module: "projects", id: projectId, version: null, scope: ACCESS.scope, project_id: null });
@@ -198,6 +198,9 @@ export class PlacementService {
 
   async move(input: PlacedObject, to: string): Promise<PlacementMoveResponse> {
     const spaces = await this.ports.spaces();
+    // A carry an earlier move of this object left half done (cut between its put and its remove) is finished or taken back first.
+    const pending = this.ports.ledger.query.get(ACCESS, carryingKey(input.kind, input.id));
+    if (pending && await settleCarry(this.ports, pending) !== "settled") throw carryUnsettled(this.ports);
     const object = this.locate(input).object;
     if (object.project_id === null) return this.moveHome(object, to, spaces);
     if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(this.ports, "workbench.index.couldn-t-find-where-move"));
@@ -208,6 +211,7 @@ export class PlacementService {
       await carryMove(this.ports, object, from, to, carried, text => placementText(this.ports, text));
       await settleMove(this.ports, () => writeProjectLocation(this.ports, object, from, to),
         async () => { const back = await carryTools(this.ports, object, to, from, true); if (!back) throw notMovable(this.ports); await carryMove(this.ports, object, to, from, back, text => placementText(this.ports, text), true); });
+      this.ports.ledger.commands.remove(ACCESS, carryingKey(object.kind, object.id), "placement.carried");
       const moved = { ...object, project_id: to };
       return { object: moved, location: placementLocation(this.ports, to, spaces), open: await this.openOf(moved) };
     }
@@ -221,6 +225,20 @@ export class PlacementService {
     await settleMove(this.ports, () => writeProjectLocation(this.ports, object, from, to), () => moveBack(this.ports, object, to, from, text => placementText(this.ports, text)));
     const moved = { ...object, project_id: to };
     return { object: moved, location: placementLocation(this.ports, to, spaces), open: await this.openOf(moved) };
+  }
+
+  /**
+   * Finishes the carries a cut left half done (the Host stopped between a put and its remove): an object found in both partitions goes from
+   * where it was while it is still the revision carried, or, changed there since, the put is taken back while that is unchanged. One changed in
+   * both is left in both, and its record stays, so nothing either side wrote is lost. Returns how many are still unsettled.
+   */
+  /** How many carries are recorded as not yet finished; `settleCarries` settles them. */
+  pendingCarries(): number { return this.edges(TYPES.carrying).length; }
+
+  async settleCarries(): Promise<number> {
+    let unsettled = 0;
+    for (const edge of this.edges(TYPES.carrying)) if (await settleCarry(this.ports, edge) !== "settled") unsettled += 1;
+    return unsettled;
   }
 
   /**
@@ -371,12 +389,12 @@ const notMovable = (ports: PlacementPorts) => new ActionError("placement.not_mov
  */
 async function carryTools(ports: PlacementPorts, object: PlacedObject, from: string, to: string, revert = false): Promise<CarryTools | null> {
   const open = revert ? ports.revert ?? ports.scope : ports.scope;
-  const source = await open(from);
-  const exporter = carryToolOf(ports, await source.client.discover(source.caller), object.kind, isObjectExporter);
+  const source = await open(from), here = await source.client.discover(source.caller);
+  const exporter = carryToolOf(ports, here, object.kind, isObjectExporter);
   if (!exporter) return null;
   const target = await open(to);
   const putter = carryToolOf(ports, await target.client.discover(target.caller), object.kind, isObjectPutter);
-  const remover = carryToolOf(ports, await source.client.discover(source.caller), object.kind, isObjectRemover);
+  const remover = carryToolOf(ports, here, object.kind, isObjectRemover);
   if (!putter) throw new ActionError("placement.target_unavailable", placementText(ports, "workbench.index.items-plugin-can-t-be-moved-yet-copy"));
   return { source, target, exporter, putter, remover };
 }
@@ -403,6 +421,8 @@ async function carryMove(ports: PlacementPorts, object: PlacedObject, from: stri
   if (!tools.remover) throw notMovable(ports);
   const exported = await carryExport(tools, object, t);
   const request = "move:" + createHash("sha256").update(JSON.stringify([object.kind, object.id, exported.revision, from, to])).digest("hex");
+  // Written before the put: a cut between the put and the remove leaves this record, and `settleCarry` finishes the move or takes the put back.
+  noteCarrying(ports, object, from, to, exported.revision);
   const put = await tools.target.client.invoke(tools.target.caller, tools.putter, { kind: object.kind, record: exported.record, request_id: request, target_id: object.id }) as PlacementResult;
   if (put.subject.kind !== object.kind || put.subject.id !== object.id || put.project_id !== to) {
     throw new ActionError("placement.result_mismatch", t(back ? "workbench.index.putting-it-back-did-not-return-the" : "workbench.index.plugin-s-move-result-doesn-t-match-request"));
@@ -416,9 +436,65 @@ async function carryMove(ports: PlacementPorts, object: PlacedObject, from: stri
     try {
       if (!undo || !remover) throw notMovable(ports);
       await undo.source.client.invoke(undo.source.caller, remover, { subject: put.subject, revision: put.revision });
+      // Taken back: the object is only where it was, as before the move.
+      ports.ledger.commands.remove(ACCESS, carryingKey(object.kind, object.id), "placement.carry_undone");
     } catch (failure) { if (error instanceof Error && error.cause === undefined) error.cause = failure; }
     throw error;
   }
+  // Carried back after its location was refused: no location is written for it, so it is settled here.
+  if (back) ports.ledger.commands.remove(ACCESS, carryingKey(object.kind, object.id), "placement.carried_back");
+}
+
+const carryingKey = (kind: string, id: string) => key("carrying", kind, id);
+const carryUnsettled = (ports: PlacementPorts) => placementErrors.carry_unsettled(placementText(ports, "workbench.index.item-changed-both-places-last-move"));
+
+function noteCarrying(ports: PlacementPorts, object: PlacedObject, from: string, to: string, revision: string): void {
+  ports.ledger.commands.put(ACCESS, { key: carryingKey(object.kind, object.id), type: TYPES.carrying, source: identity(object.kind, object.id),
+    target: projectRef(to), cause: "placement.carry:" + JSON.stringify([from, revision]) });
+}
+
+/** The object as its owner exports it in this partition, or null when it is not there. */
+async function exportedAt(ports: PlacementPorts, object: PlacedObject, at: string, other: string): Promise<{ tools: CarryTools; exported: PlacementExport | null } | null> {
+  const tools = await carryTools(ports, object, at, other, true);
+  if (!tools) return null;
+  try {
+    const exported = await tools.source.client.invoke(tools.source.caller, tools.exporter, { subject: { kind: object.kind, id: object.id } }) as PlacementExport;
+    return { tools, exported };
+  } catch (error) {
+    if (error instanceof ActionError && error.kind === "not_found") return { tools, exported: null };
+    throw error;
+  }
+}
+
+/**
+ * Settles one carry record by what the two partitions hold now, never by what the record guesses: put never landed → nothing to do; only at
+ * the target → its location is the target; in both → the original goes while it is the revision carried, or else the put is taken back while
+ * it is; changed in both → both are kept and the record stays ("unsettled").
+ */
+async function settleCarry(ports: PlacementPorts, edge: ContextEdge): Promise<"settled" | "unsettled"> {
+  const kind = edge.source.object_type ?? "", id = edge.source.id, to = edge.target.id;
+  let from: string, revision: string;
+  try { [from, revision] = JSON.parse(edge.cause.slice("placement.carry:".length)) as [string, string]; } catch { return "unsettled"; }
+  if (typeof from !== "string" || typeof revision !== "string") return "unsettled";
+  const object: PlacedObject = { kind, id, project_id: from };
+  const done = (cause: string) => { ports.ledger.commands.remove(ACCESS, edge.key, cause); return "settled" as const; };
+  const target = await exportedAt(ports, { ...object, project_id: to }, to, from);
+  if (!target?.exported) return done("placement.carry_not_put");
+  const source = await exportedAt(ports, object, from, to);
+  if (source && source.exported && source.exported.revision !== revision) {
+    if (target.exported.revision !== revision || !target.tools.remover) return "unsettled";
+    await ports.beforeEffect?.();
+    await target.tools.source.client.invoke(target.tools.source.caller, target.tools.remover, { subject: { kind, id }, revision });
+    return done("placement.carry_undone");
+  }
+  await ports.beforeEffect?.();
+  if (source?.exported) {
+    if (!source.tools.remover) return "unsettled";
+    await source.tools.source.client.invoke(source.tools.source.caller, source.tools.remover, { subject: { kind, id }, revision });
+  }
+  const location = ports.ledger.query.get(ACCESS, key("location", kind, id));
+  if (location?.target.id !== to) writeProjectLocation(ports, object, from, to);
+  return done("placement.carried");
 }
 
 /** The ledger access this service writes as; the Host authorizes exactly this partition. */
@@ -628,7 +704,7 @@ interface AttachRelations {
 const NO_RELATIONS: AttachRelations = { all: [], of: () => null, noun: () => null };
 
 /** Codes this package owns beyond the platform's `placement.same_location`; the rest are raised as plain `ActionError`s where they happen. */
-const placementErrors = defineErrorCodes("placement", { relation_ambiguous: "conflict" });
+const placementErrors = defineErrorCodes("placement", { relation_ambiguous: "conflict", carry_unsettled: "conflict" });
 
 /**
  * Every relation in a partition. One relation has one owner, and one kind of target is one relation's: two providers declaring the same

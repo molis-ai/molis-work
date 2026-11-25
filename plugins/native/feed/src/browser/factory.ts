@@ -87,7 +87,7 @@ export function feedClient(host: FeedHost): void {
         if (!replacement) continue;
         const composer = previous.querySelector("[data-feed-rule-composer]");
         const newComposer = replacement.querySelector("[data-feed-rule-composer]");
-        if (composer && newComposer) newComposer.replaceWith(composer);
+        if (composer && newComposer && reason !== "language") newComposer.replaceWith(composer);
         for (const field of previous.querySelectorAll<FeedField>("input,select,textarea")) {
           const key = [...field.attributes].find(attr => attr.name.startsWith("data-"));
           const dirty = field instanceof HTMLSelectElement ? [...field.options].some(option => option.selected !== option.defaultSelected) : field instanceof HTMLInputElement && field.type === "checkbox" ? field.checked !== field.defaultChecked : field.value !== field.defaultValue;
@@ -103,9 +103,18 @@ export function feedClient(host: FeedHost): void {
       // Keep the disclosure, its Add control, and the inline form while rows/configuration refresh beneath them.
       const menu = page.q("[data-feed-source-menu]"), nextMenu = page.q("[data-feed-source-menu]", next);
       if (menu && nextMenu) {
-        const rail = page.q("[data-feed-source-rail]", menu), nextRail = page.q("[data-feed-source-rail]", nextMenu);
-        if (rail && nextRail) { const nav = rail.querySelector("nav"), nextNav = nextRail.querySelector("nav"); if (nav && nextNav) nav.replaceChildren(...nextNav.childNodes); const count = rail.querySelector('[data-feed-task="all"] em'), nextCount = nextRail.querySelector('[data-feed-task="all"] em'); if (count && nextCount) count.textContent = nextCount.textContent; }
-        nextMenu.replaceWith(menu);
+        if (reason === "language") {
+          if (menu instanceof HTMLDetailsElement && nextMenu instanceof HTMLDetailsElement) nextMenu.open = menu.open;
+        } else {
+          const rail = page.q("[data-feed-source-rail]", menu), nextRail = page.q("[data-feed-source-rail]", nextMenu);
+          if (rail && nextRail) {
+            const nav = rail.querySelector("nav"), nextNav = nextRail.querySelector("nav");
+            if (nav && nextNav) nav.replaceChildren(...nextNav.childNodes);
+            const count = rail.querySelector('[data-feed-task="all"] em'), nextCount = nextRail.querySelector('[data-feed-task="all"] em');
+            if (count && nextCount) count.textContent = nextCount.textContent;
+          }
+          nextMenu.replaceWith(menu);
+        }
       }
       const dialog = page.q("[data-feed-sources-dialog]"), nextDialog = page.q("[data-feed-sources-dialog]", next);
       if (dialog && nextDialog) { const draft = page.q<HTMLFormElement>("[data-feed-add-form]", dialog), nextDraft = page.q<HTMLFormElement>("[data-feed-add-form]", nextDialog); if (draft && nextDraft) nextDraft.replaceWith(draft); for (const account of page.all<HTMLFormElement>("[data-feed-add-account]", dialog)) { const replacement = page.q<HTMLFormElement>('[data-feed-add-account="' + CSS.escape(account.dataset.feedAddAccount!) + '"]', nextDialog); if (replacement) replacement.replaceWith(account); } dialog.replaceChildren(...nextDialog.childNodes); nextDialog.replaceWith(dialog); }

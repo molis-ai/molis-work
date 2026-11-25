@@ -1,3 +1,4 @@
+use crate::native_language::{active_builtin, tr, BuiltinLocale, ShelfNoticeCode};
 use crate::web_identity::control_token;
 use serde::Deserialize;
 use std::fs;
@@ -13,6 +14,15 @@ const SHELF_API: &str = "/api/platform/shelf";
 /// The header that tells the Host the person chose this file here; the Host reads it, page script cannot send it.
 const ORIGINAL_PATH_HEADER: &str = "sec-molis-work-original-path";
 const FOLDER_MAX_BYTES: u64 = 32 * 1024 * 1024;
+pub(crate) const ORIGINAL_NOT_REGISTERED_CODE: &str = "original-not-registered";
+
+pub(crate) fn original_not_registered_message() -> &'static str {
+    tr(
+        "副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。",
+        "The copy was saved, but the original could not be registered. Later processing cannot check whether the original has changed.",
+        "コピーは保存されましたが、元のファイルを登録できませんでした。今後の処理では元のファイルの変更を確認できません。",
+    )
+}
 
 #[derive(Debug, Deserialize)]
 struct AdmitResponse {
@@ -36,7 +46,7 @@ pub struct AdmitReceipt {
 impl AdmitReceipt {
     pub fn into_item_id(self, warn: impl FnOnce(&'static str)) -> String {
         if self.original_registered == Some(false) {
-            warn("副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。");
+            warn(original_not_registered_message());
         }
         self.item_id
     }
@@ -45,14 +55,18 @@ impl AdmitReceipt {
 pub struct AdmissionFeedback {
     outcome: Result<Option<&'static str>, String>,
     original_warning: Option<&'static str>,
+    notice: Option<ShelfNoticeCode>,
 }
 
 impl AdmissionFeedback {
-    pub fn notify(self, notify: impl FnOnce(&str, bool, Option<&str>)) -> bool {
+    pub fn notify(
+        self,
+        notify: impl FnOnce(&str, bool, Option<&str>, Option<&ShelfNoticeCode>),
+    ) -> bool {
         match self.outcome {
             Ok(None) => return false,
-            Ok(Some(message)) => notify(message, true, self.original_warning),
-            Err(error) => notify(&error, false, self.original_warning),
+            Ok(Some(message)) => notify(message, true, self.original_warning, self.notice.as_ref()),
+            Err(error) => notify(&error, false, self.original_warning, self.notice.as_ref()),
         }
         true
     }
@@ -71,12 +85,13 @@ pub fn collect_admissions(
             Err(error) => last_error = Some(error),
         }
     }
-    let outcome = finish_capture(admitted.len(), warning, last_error);
+    let (outcome, notice) = finish_capture(admitted.len(), warning, last_error);
     (
         admitted,
         AdmissionFeedback {
             outcome,
             original_warning: warning,
+            notice,
         },
     )
 }
@@ -84,29 +99,119 @@ pub fn collect_admissions(
 /// Background entry points notify once, after every result; a later warning cannot replace an error.
 pub fn notify_admissions(
     admissions: impl IntoIterator<Item = Result<AdmitReceipt, String>>,
-    notify: impl FnOnce(&str, bool, Option<&str>),
+    notify: impl FnOnce(&str, bool, Option<&str>, Option<&ShelfNoticeCode>),
 ) -> Vec<String> {
     let (admitted, feedback) = collect_admissions(admissions);
     feedback.notify(notify);
     admitted
 }
 
+fn format_batch_partial_failed(admitted: usize, error: &str) -> String {
+    match active_builtin() {
+        BuiltinLocale::Zh => format!("已收下 {admitted} 项，另有文件没能收下：{error}"),
+        BuiltinLocale::En => {
+            format!("Saved {admitted}, but another file couldn’t be added: {error}")
+        }
+        BuiltinLocale::Ja => {
+            format!("{admitted} 件を保存しましたが、追加できなかったファイルがあります：{error}")
+        }
+    }
+}
+
+const SHELF_ERROR_CODES: &[(&str, &str, &str, &str)] = &[
+    (
+        "folder-too-large",
+        "这个文件夹超过 32 MB，拆成小一点的文件夹再放进来吧。",
+        "This folder is over 32 MB. Split it into smaller folders and try again.",
+        "このフォルダーは 32 MB を超えています。小さいフォルダーに分けてから追加してください。",
+    ),
+    (
+        "no-items-to-process",
+        "没有可处理的材料。",
+        "No items to process.",
+        "処理できる資料がありません。",
+    ),
+    (
+        "action-failed",
+        "这次操作没能完成，请稍后再试。",
+        "Couldn’t complete that action right now. Please try again.",
+        "操作を完了できませんでした。少し待ってからもう一度お試しください。",
+    ),
+    (
+        "add-failed",
+        "没能把这份材料放进 Shelf，请稍后再试。",
+        "Couldn’t add this item to Shelf. Please try again.",
+        "この資料を Shelf に追加できませんでした。少し待ってからもう一度お試しください。",
+    ),
+    (
+        "service-unreachable",
+        "暂时连不上 Shelf 服务，请稍后再试。",
+        "Can’t reach Shelf right now. Please try again in a moment.",
+        "現在 Shelf に接続できません。少し待ってからもう一度お試しください。",
+    ),
+    (
+        "file-read-failed",
+        "读不了这份文件，请检查文件是否还在以及访问权限。",
+        "Couldn’t read this file. Check that it still exists and is readable.",
+        "このファイルを読み込めませんでした。ファイルの存在とアクセス権を確認してください。",
+    ),
+    (
+        "folder-read-failed",
+        "读不了这个文件夹，请检查访问权限后再试。",
+        "Couldn’t read this folder. Check permissions and try again.",
+        "このフォルダーを読み込めませんでした。アクセス権を確認してからもう一度お試しください。",
+    ),
+    (
+        "invalid-filename",
+        "文件名无效，无法添加。",
+        "This file name isn’t valid and couldn’t be added.",
+        "ファイル名が無効なため追加できませんでした。",
+    ),
+];
+
+/// Map known trilingual Shelf HTTP/file errors back to their stable `workbench.desktop-shelf.*` code
+/// so the workbench can render them in any Nth language pack.
+pub(crate) fn notice_code_for_error(message: &str) -> Option<ShelfNoticeCode> {
+    SHELF_ERROR_CODES
+        .iter()
+        .find(|(_, zh, en, ja)| message == *zh || message == *en || message == *ja)
+        .map(|(code, _, _, _)| ShelfNoticeCode::key(code))
+}
+
 fn finish_capture(
     admitted: usize,
     warning: Option<&'static str>,
     last_error: Option<String>,
-) -> Result<Option<&'static str>, String> {
+) -> (
+    Result<Option<&'static str>, String>,
+    Option<ShelfNoticeCode>,
+) {
     if admitted == 0 {
-        Err(last_error.unwrap_or_else(|| crate::shelf_hotkeys::FILES_EMPTY.to_string()))
+        match last_error {
+            Some(error) => {
+                let code = notice_code_for_error(&error);
+                (Err(error), code)
+            }
+            None => (
+                Err(crate::shelf_hotkeys::files_empty_message().to_string()),
+                Some(ShelfNoticeCode::key("files-empty")),
+            ),
+        }
     } else if let Some(error) = last_error {
-        let mut message = format!("已收下 {admitted} 项，另有文件未收下：{error}");
+        let mut message = format_batch_partial_failed(admitted, &error);
+        let mut notice = ShelfNoticeCode::key_with_args(
+            "batch-partial-failed",
+            serde_json::json!({ "count": admitted, "error": error }),
+        );
         if let Some(warning) = warning {
             message.push('\n');
             message.push_str(warning);
+            notice = notice.with_warning(ORIGINAL_NOT_REGISTERED_CODE);
         }
-        Err(message)
+        (Err(message), Some(notice))
     } else {
-        Ok(warning)
+        let notice = warning.map(|_| ShelfNoticeCode::key(ORIGINAL_NOT_REGISTERED_CODE));
+        (Ok(warning), notice)
     }
 }
 
@@ -114,11 +219,26 @@ pub fn admit_file(path: &Path) -> Result<AdmitReceipt, String> {
     if path.is_dir() {
         return admit_folder(path);
     }
-    let bytes = fs::read(path).map_err(|error| format!("读不了这份文件：{error}"))?;
+    let bytes = fs::read(path).map_err(|error| {
+        eprintln!("shelf_http::admit_file read error: {error}");
+        tr(
+            "读不了这份文件，请检查文件是否还在以及访问权限。",
+            "Couldn’t read this file. Check that it still exists and is readable.",
+            "このファイルを読み込めませんでした。ファイルの存在とアクセス権を確認してください。",
+        )
+        .to_string()
+    })?;
     let filename = path
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| "文件名无效".to_string())?;
+        .ok_or_else(|| {
+            tr(
+                "文件名无效，无法添加。",
+                "This file name isn’t valid and couldn’t be added.",
+                "ファイル名が無効なため追加できませんでした。",
+            )
+            .to_string()
+        })?;
     admit_bytes(filename, &bytes, Some(path))
 }
 
@@ -151,9 +271,25 @@ fn folder_entries(root: &Path) -> Result<Vec<serde_json::Value>, String> {
         size: &mut u64,
     ) -> Result<(), String> {
         let mut children = fs::read_dir(at)
-            .map_err(|error| format!("读不了这个文件夹：{error}"))?
+            .map_err(|error| {
+                eprintln!("shelf_http::folder_entries read_dir error: {error}");
+                tr(
+                    "读不了这个文件夹，请检查访问权限后再试。",
+                    "Couldn’t read this folder. Check permissions and try again.",
+                    "このフォルダーを読み込めませんでした。アクセス権を確認してからもう一度お試しください。",
+                )
+                .to_string()
+            })?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| {
+                eprintln!("shelf_http::folder_entries entry error: {error}");
+                tr(
+                    "读不了这个文件夹，请检查访问权限后再试。",
+                    "Couldn’t read this folder. Check permissions and try again.",
+                    "このフォルダーを読み込めませんでした。アクセス権を確認してからもう一度お試しください。",
+                )
+                .to_string()
+            })?;
         children.sort_by_key(|entry| entry.file_name());
         for entry in children {
             let kind = entry.file_type().map_err(|error| error.to_string())?;
@@ -167,9 +303,22 @@ fn folder_entries(root: &Path) -> Result<Vec<serde_json::Value>, String> {
             } else if kind.is_file() {
                 *size += entry.metadata().map_err(|error| error.to_string())?.len();
                 if *size > FOLDER_MAX_BYTES {
-                    return Err("这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来".into());
+                    return Err(tr(
+                        "这个文件夹超过 32 MB，拆成小一点的文件夹再放进来吧。",
+                        "This folder is over 32 MB. Split it into smaller folders and try again.",
+                        "このフォルダーは 32 MB を超えています。小さいフォルダーに分けてから追加してください。",
+                    )
+                    .into());
                 }
-                let bytes = fs::read(&file).map_err(|error| format!("读不了这份文件：{error}"))?;
+                let bytes = fs::read(&file).map_err(|error| {
+                    eprintln!("shelf_http::folder_entries read file error: {error}");
+                    tr(
+                        "读不了这份文件，请检查文件是否还在以及访问权限。",
+                        "Couldn’t read this file. Check that it still exists and is readable.",
+                        "このファイルを読み込めませんでした。ファイルの存在とアクセス権を確認してください。",
+                    )
+                    .to_string()
+                })?;
                 let relative = file
                     .strip_prefix(root)
                     .map_err(|error| error.to_string())?
@@ -188,7 +337,13 @@ fn admit_folder(path: &Path) -> Result<AdmitReceipt, String> {
     let name = path
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or("文件夹名称无效")?;
+        .ok_or_else(|| {
+            tr(
+                "文件夹名称无效。",
+                "This folder name isn’t valid.",
+                "フォルダー名が無効です。",
+            )
+        })?;
     let body = serde_json::json!({"name": name, "entries": folder_entries(path)?});
     post_json(&format!("{SHELF_API}/folders"), &body).and_then(parse_admit_receipt)
 }
@@ -303,7 +458,12 @@ pub fn parse_wheel_gates(payload: &str) -> Option<(bool, bool)> {
 /// A wheel petal runs its recipe with the default option, no confirmation page.
 pub fn run_recipe(recipe: &str, item_ids: &[String]) -> Result<(), String> {
     if item_ids.is_empty() {
-        return Err("没有可处理的材料".into());
+        return Err(tr(
+            "没有可处理的材料。",
+            "No items to process.",
+            "処理できる資料がありません。",
+        )
+        .into());
     }
     let body = serde_json::json!({
         "recipe": recipe,
@@ -311,7 +471,14 @@ pub fn run_recipe(recipe: &str, item_ids: &[String]) -> Result<(), String> {
     });
     let payload = post_json(&format!("{SHELF_API}/jobs"), &body)?;
     if payload.contains("\"error\"") {
-        return Err(json_error(&payload).unwrap_or_else(|| "这次动作没跑成".into()));
+        return Err(json_error(&payload).unwrap_or_else(|| {
+            tr(
+                "这次操作没能完成，请稍后再试。",
+                "Couldn’t complete that action right now. Please try again.",
+                "操作を完了できませんでした。少し待ってからもう一度お試しください。",
+            )
+            .into()
+        }));
     }
     Ok(())
 }
@@ -321,8 +488,15 @@ fn parse_item_id(payload: String) -> Result<String, String> {
 }
 
 fn parse_admit_receipt(payload: String) -> Result<AdmitReceipt, String> {
-    let parsed: AdmitResponse =
-        serde_json::from_str(&payload).map_err(|error| format!("置物架响应无效：{error}"))?;
+    let parsed: AdmitResponse = serde_json::from_str(&payload).map_err(|error| {
+        eprintln!("shelf_http::parse_admit_receipt invalid json: {error}");
+        tr(
+            "没能把这份材料放进 Shelf，请稍后再试。",
+            "Couldn’t add this item to Shelf. Please try again.",
+            "この資料を Shelf に追加できませんでした。少し待ってからもう一度お試しください。",
+        )
+        .to_string()
+    })?;
     if let Some(error) = parsed.error {
         return Err(error);
     }
@@ -332,7 +506,14 @@ fn parse_admit_receipt(payload: String) -> Result<AdmitReceipt, String> {
             item_id: item.item_id,
             original_registered: parsed.original_registered,
         })
-        .ok_or_else(|| "置物架没有收下这份材料".to_string())
+        .ok_or_else(|| {
+            tr(
+                "没能把这份材料放进 Shelf，请稍后再试。",
+                "Couldn’t add this item to Shelf. Please try again.",
+                "この資料を Shelf に追加できませんでした。少し待ってからもう一度お試しください。",
+            )
+            .to_string()
+        })
 }
 
 fn json_error(payload: &str) -> Option<String> {
@@ -420,42 +601,69 @@ pub(crate) fn get_json_within(path: &str, read: Duration) -> Result<String, Stri
 }
 
 fn exchange_http(request: &str, connect: Duration, read: Duration) -> Result<String, String> {
+    let unreachable = || {
+        tr(
+            "暂时连不上 Shelf 服务，请稍后再试。",
+            "Can’t reach Shelf right now. Please try again in a moment.",
+            "現在 Shelf に接続できません。少し待ってからもう一度お試しください。",
+        )
+        .to_string()
+    };
     let addr = crate::host_port::address();
-    let mut stream = TcpStream::connect_timeout(&addr, connect)
-        .map_err(|error| format!("置物架服务连不上：{error}"))?;
+    let mut stream = TcpStream::connect_timeout(&addr, connect).map_err(|error| {
+        eprintln!("shelf_http connect error: {error}");
+        unreachable()
+    })?;
     crate::web_identity::authenticate(&mut stream, &control_token()?)?;
     let _ = stream.set_read_timeout(Some(read));
     let _ = stream.set_write_timeout(Some(read));
-    stream
-        .write_all(request.as_bytes())
-        .map_err(|error| format!("送不到置物架：{error}"))?;
+    stream.write_all(request.as_bytes()).map_err(|error| {
+        eprintln!("shelf_http write error: {error}");
+        unreachable()
+    })?;
     let mut response = Vec::new();
-    stream
-        .read_to_end(&mut response)
-        .map_err(|error| format!("置物架没有回音：{error}"))?;
+    stream.read_to_end(&mut response).map_err(|error| {
+        eprintln!("shelf_http read error: {error}");
+        unreachable()
+    })?;
     http_payload(&response)
 }
 
 fn http_payload(raw: &[u8]) -> Result<String, String> {
+    let bad_response = || {
+        tr(
+            "Shelf 返回的数据不完整，请稍后再试。",
+            "Shelf returned an incomplete response. Please try again.",
+            "Shelf からの応答が不完全でした。もう一度お試しください。",
+        )
+        .to_string()
+    };
     let Some((head, body)) = split_http(raw) else {
-        return Err("置物架响应不完整".into());
+        return Err(bad_response());
     };
     let head_text = std::str::from_utf8(head).unwrap_or("");
     let payload = if head_text
         .to_ascii_lowercase()
         .contains("transfer-encoding: chunked")
     {
-        let joined = decode_chunked(body).ok_or("置物架分块响应不完整")?;
-        String::from_utf8(joined).map_err(|_| "置物架响应不是文本".to_string())?
+        let joined = decode_chunked(body).ok_or_else(bad_response)?;
+        String::from_utf8(joined).map_err(|_| bad_response())?
     } else {
-        String::from_utf8(body.to_vec()).map_err(|_| "置物架响应不是文本".to_string())?
+        String::from_utf8(body.to_vec()).map_err(|_| bad_response())?
     };
     let ok = head_text.starts_with("HTTP/1.1 2")
         || head_text.starts_with("HTTP/1.0 2")
         || head_text.contains(" 200 ")
         || head_text.contains(" 201 ");
     if !ok {
-        return Err(json_error(&payload).unwrap_or_else(|| "置物架拒绝了这次投放".into()));
+        return Err(json_error(&payload).unwrap_or_else(|| {
+            tr(
+                "没能把这份材料放进 Shelf，请稍后再试。",
+                "Couldn’t add this item to Shelf. Please try again.",
+                "この資料を Shelf に追加できませんでした。少し待ってからもう一度お試しください。",
+            )
+            .into()
+        }));
     }
     Ok(payload)
 }
@@ -590,23 +798,55 @@ mod tests {
     #[test]
     fn batch_feedback_preserves_success_and_failure_outcomes() {
         let warning = "副本已收下，但未能登记原件";
-        assert_eq!(finish_capture(2, None, None), Ok(None));
-        assert_eq!(finish_capture(2, Some(warning), None), Ok(Some(warning)));
+        assert_eq!(finish_capture(2, None, None), (Ok(None), None));
         assert_eq!(
-            finish_capture(1, Some(warning), Some("读取失败".into())),
-            Err(format!("已收下 1 项，另有文件未收下：读取失败\n{warning}"))
+            finish_capture(2, Some(warning), None),
+            (
+                Ok(Some(warning)),
+                Some(crate::native_language::ShelfNoticeCode::key(
+                    super::ORIGINAL_NOT_REGISTERED_CODE
+                ))
+            )
+        );
+        let (mixed, mixed_code) = finish_capture(1, Some(warning), Some("读取失败".into()));
+        assert_eq!(
+            mixed,
+            Err(format!(
+                "已收下 1 项，另有文件没能收下：读取失败\n{warning}"
+            ))
         );
         assert_eq!(
-            finish_capture(1, None, Some("读取失败".into())),
-            Err("已收下 1 项，另有文件未收下：读取失败".into())
+            mixed_code,
+            Some(
+                crate::native_language::ShelfNoticeCode::key_with_args(
+                    "batch-partial-failed",
+                    serde_json::json!({ "count": 1, "error": "读取失败" }),
+                )
+                .with_warning(super::ORIGINAL_NOT_REGISTERED_CODE)
+            )
+        );
+        let (partial_err, partial_code) = finish_capture(1, None, Some("读取失败".into()));
+        assert_eq!(
+            partial_err,
+            Err("已收下 1 项，另有文件没能收下：读取失败".into())
+        );
+        assert_eq!(
+            partial_code,
+            Some(crate::native_language::ShelfNoticeCode::key_with_args(
+                "batch-partial-failed",
+                serde_json::json!({ "count": 1, "error": "读取失败" }),
+            ))
         );
         assert_eq!(
             finish_capture(0, None, Some("读取失败".into())),
-            Err("读取失败".into())
+            (Err("读取失败".into()), None)
         );
         assert_eq!(
             finish_capture(0, None, None),
-            Err(crate::shelf_hotkeys::FILES_EMPTY.into())
+            (
+                Err(crate::shelf_hotkeys::files_empty_message().into()),
+                Some(crate::native_language::ShelfNoticeCode::key("files-empty"))
+            )
         );
     }
 
@@ -625,16 +865,28 @@ mod tests {
                 admissions.reverse();
             }
             let mut notices = Vec::new();
-            let ids = notify_admissions(admissions, |message, partial, original| {
-                notices.push((message.to_string(), partial, original.map(str::to_owned)))
+            let ids = notify_admissions(admissions, |message, partial, original, code| {
+                notices.push((
+                    message.to_string(),
+                    partial,
+                    original.map(str::to_owned),
+                    code.cloned(),
+                ))
             });
             assert_eq!(ids, ["saved-copy"]);
             assert_eq!(
                 notices,
                 [(
-                    format!("已收下 1 项，另有文件未收下：读取失败\n{warning}"),
+                    format!("已收下 1 项，另有文件没能收下：读取失败\n{warning}"),
                     false,
-                    Some(warning.into())
+                    Some(warning.into()),
+                    Some(
+                        crate::native_language::ShelfNoticeCode::key_with_args(
+                            "batch-partial-failed",
+                            serde_json::json!({ "count": 1, "error": "读取失败" }),
+                        )
+                        .with_warning(super::ORIGINAL_NOT_REGISTERED_CODE)
+                    )
                 )]
             );
         }
@@ -651,8 +903,13 @@ mod tests {
                 ),
                 parse_admit_receipt(r#"{"item":{"item_id":"copy-only"}}"#.into()),
             ],
-            |message, partial, original| {
-                notices.push((message.to_string(), partial, original.map(str::to_owned)))
+            |message, partial, original, code| {
+                notices.push((
+                    message.to_string(),
+                    partial,
+                    original.map(str::to_owned),
+                    code.cloned(),
+                ))
             },
         );
         assert_eq!(ids, ["registered", "copy-only"]);
@@ -666,8 +923,13 @@ mod tests {
                     r#"{"item":{"item_id":"second"},"original_registered":false}"#.into(),
                 ),
             ],
-            |message, partial, original| {
-                notices.push((message.to_string(), partial, original.map(str::to_owned)))
+            |message, partial, original, code| {
+                notices.push((
+                    message.to_string(),
+                    partial,
+                    original.map(str::to_owned),
+                    code.cloned(),
+                ))
             },
         );
         assert_eq!(ids, ["first", "second"]);
@@ -676,20 +938,24 @@ mod tests {
             [(
                 "副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。".into(),
                 true,
-                Some("副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。".into())
+                Some("副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。".into()),
+                Some(crate::native_language::ShelfNoticeCode::key(
+                    super::ORIGINAL_NOT_REGISTERED_CODE
+                ))
             )]
         );
         notices.clear();
         assert!(notify_admissions(
             [Err("第一个失败".into()), Err("最后一个失败".into())],
-            |message, partial, original| notices.push((
+            |message, partial, original, code| notices.push((
                 message.to_string(),
                 partial,
-                original.map(str::to_owned)
+                original.map(str::to_owned),
+                code.cloned(),
             ))
         )
         .is_empty());
-        assert_eq!(notices, [("最后一个失败".into(), false, None)]);
+        assert_eq!(notices, [("最后一个失败".into(), false, None, None)]);
     }
 
     // PG-026-S1-S3-1/2: execute the parser and the same consumer used by all native admission paths.
@@ -803,7 +1069,7 @@ mod tests {
             folder_entries(&temp.0).expect_err("the limit applies to the combined folder size");
         assert_eq!(
             error,
-            "这个文件夹超过 32 MB，请把它拆成几个小一点的文件夹再放进来"
+            "这个文件夹超过 32 MB，拆成小一点的文件夹再放进来吧。"
         );
     }
 
@@ -860,5 +1126,16 @@ mod tests {
         );
         let body = http_payload(raw.as_bytes()).expect("read identity shelf body");
         assert_eq!(parse_wheel_gates(&body), Some((true, true)));
+    }
+
+    #[test]
+    fn notice_code_for_error_maps_all_builtin_shelf_errors() {
+        for &(code, zh, en, ja) in super::SHELF_ERROR_CODES {
+            let expected = Some(crate::native_language::ShelfNoticeCode::key(code));
+            assert_eq!(super::notice_code_for_error(zh), expected);
+            assert_eq!(super::notice_code_for_error(en), expected);
+            assert_eq!(super::notice_code_for_error(ja), expected);
+        }
+        assert_eq!(super::notice_code_for_error("custom error"), None);
     }
 }

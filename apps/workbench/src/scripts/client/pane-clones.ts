@@ -58,27 +58,26 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
       mountedHomeClones.get(node)?.sync?.();
     });
   };
-  const captureSurfaceTemplates = (refreshFramedOnly = false) => {
+  const captureSurfaceTemplates = (refresh = false) => {
     document.querySelectorAll("[data-work-surface]:not([data-pane-clone])").forEach((surface) => {
       if (surface.closest("[data-surface-host]")) return;
       const id = surface.dataset.workSurface;
       if (!id) return;
       const framed = surface.hasAttribute("data-deferred-surface") || surface.dataset.pluginClient || surface.dataset.installedPlugin || surface.querySelector("iframe[data-plugin-frame]");
       if (framed) {
-        if (!refreshFramedOnly && surfaceTemplates.has(id)) return;
+        if (!refresh && surfaceTemplates.has(id)) return;
         surfaceTemplates.set(id, makeFramedTemplate(surface));
-      } else if (!refreshFramedOnly && !surfaceTemplates.has(id) && (id === "home" || id === "artifacts" || id === "materials")) {
+      } else if ((refresh || !surfaceTemplates.has(id)) && (id === "home" || id === "artifacts" || id === "materials")) {
         surfaceTemplates.set(id, makeStaticTemplate(surface, id));
       }
     });
-    if (refreshFramedOnly) return;
     // A plugin that draws its own page hands over the copies a pane starts from (page client paneTemplates).
     (pageClients?.() || []).forEach((page) => {
       const own = page.surface && page.paneTemplates?.();
       if (!own) return;
       Object.entries(own).forEach(([key, copy]) => {
         const id = "__page:" + page.surface + ":" + key;
-        if (!copy || surfaceTemplates.has(id)) return;
+        if (!copy || (!refresh && surfaceTemplates.has(id))) return;
         stripDuplicateIds(copy);
         RUNTIME_SURFACE_ATTRS.forEach((attr) => copy.removeAttribute(attr));
         copy.hidden = true;
@@ -89,6 +88,10 @@ export const TAB_WORKSPACE_CLONES_PART = `  const surfaceTemplates = new Map();
   captureSurfaceTemplates();
   document.addEventListener("molis-work:language-changed", () => {
     captureSurfaceTemplates(true);
+    syncHomeClones();
+    panesEl.querySelectorAll('[data-work-surface="materials"][data-pane-clone]').forEach((node) => {
+      mountedMaterialsClones.get(node)?.sync?.();
+    });
   });
   const isFramedSurface = (plugin, canonical) => Boolean(
     plugin

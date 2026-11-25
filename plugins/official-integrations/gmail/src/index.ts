@@ -35,15 +35,15 @@ export const gmailIntegrationManifest = {
   source_presentations: ["gmail-scope"],
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [
-    { permission: "network:googleapis.com", required: true, reason: "读取 Gmail profile、history 和 message" },
-    { permission: "secret:gmail", required: true, reason: "使用按账号隔离的 OAuth credential reference" },
+    { permission: "network:googleapis.com", required: true, reason: "读取 Gmail 账号信息与收件箱邮件", reason_text: { key: "gmail.permission.network.reason" } },
+    { permission: "secret:gmail", required: true, reason: "使用按账号隔离保存的 Gmail 连接凭据", reason_text: { key: "gmail.permission.secret.reason" } },
   ],
   capabilities: {
     provides: [/* @version type.connector.driver.gmail "connector.driver.gmail.v{version}" */ "connector.driver.gmail.v1", /* @version type.signal.adapter.gmail "signal.adapter.gmail.v{version}" */ "signal.adapter.gmail.v1"],
     consumes: [/* @version type.connector.host "connector.host.v{version}" */ "connector.host.v1", /* @version type.listener.host "listener.host.v{version}" */ "listener.host.v1", /* @version type.signals.command "signals.command.v{version}" */ "signals.command.v1"],
   },
   artifacts: { produces: [], consumes: [] },
-  ui: { contributions: ["settings.integration.gmail"], locales: { default: "zh", available: ["zh", "en"] } },
+  ui: { contributions: ["settings.integration.gmail"], locales: { default: "zh", available: ["zh", "en", "ja"] } },
   connection_services: [{
     service_id: "gmail",
     title: "Gmail",

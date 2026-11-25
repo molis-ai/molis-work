@@ -10,9 +10,11 @@
     "gitlab.guide.cli-link": "查看 GitLab CLI 登录",
     "gitlab.guide.mcp-connected-note": "GitLab 官方 MCP 处于 Beta。",
     "gitlab.guide.mcp-link": "查看 GitLab 官方 MCP",
-    "gitlab.guide.mcp-note": "GitLab 官方 MCP 处于 Beta；Molis Work 尚未接入。",
+    "gitlab.guide.mcp-note": "GitLab 官方 MCP 处于 Beta；Molis Work 暂未接入。",
     "gitlab.guide.oauth-link": "查看 GitLab OAuth 应用",
     "gitlab.guide.token-note": "创建具备 read_api 或 read_user 权限的 PAT。",
-    "gitlab.setup.create-gitlab-personal-access-token": "创建 GitLab Personal Access Token"
+    "gitlab.setup.create-gitlab-personal-access-token": "创建 GitLab Personal Access Token",
+    "gitlab.permission.network.reason": "读取 GitLab 账号信息与最新动态",
+    "gitlab.permission.secret.reason": "使用已安全保存的 GitLab 连接凭据"
   }
 }

@@ -10,6 +10,8 @@
     "linkedin.guide.oauth-link": "查看 LinkedIn OAuth 2.0",
     "linkedin.guide.token-note": "需要 OpenID 会员访问令牌；帖子权限另需审批。",
     "linkedin.oauth.note": "应用需开通 Sign In with LinkedIn。普通 OIDC 不提供帖子 Feed 权限。",
-    "linkedin.setup.open-linkedin-developer-dashboard": "打开 LinkedIn 开发者后台"
+    "linkedin.setup.open-linkedin-developer-dashboard": "打开 LinkedIn 开发者后台",
+    "linkedin.permission.network.reason": "读取 LinkedIn 账号信息与最新动态",
+    "linkedin.permission.secret.reason": "使用已安全保存的 LinkedIn 连接凭据"
   }
 }

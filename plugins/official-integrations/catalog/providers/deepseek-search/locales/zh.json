@@ -7,6 +7,8 @@
     "deepseek-search.connection.inbound": "网页搜索（设为默认后使用）",
     "deepseek-search.connection.summary": "DeepSeek 的网页搜索，能搜文档，按成功请求计费。",
     "deepseek-search.connection.token-label": "DeepSeek API Key",
-    "deepseek-search.setup.open-deepseek-api-keys": "打开 DeepSeek API Keys"
+    "deepseek-search.setup.open-deepseek-api-keys": "打开 DeepSeek API Keys",
+    "deepseek-search.permission.network.reason": "使用 DeepSeek Search 进行网页搜索与账号状态检查",
+    "deepseek-search.permission.secret.reason": "使用已安全保存的 DeepSeek Search 连接凭据"
   }
 }

@@ -339,7 +339,7 @@ test("RCPT-382: the timeline says which session read what, how it will be handle
 
     const page = await r.person.invoke(goalsActions.historyItem, { goal_id, item_id: said.event_id });
     assert.ok(page, "the timeline opens the record");
-    assert.ok(page.html.includes(`Claude Code 会话 ack-sess 在游标 ${note.observed_event_cursor} 读到了你的笔记「${reference.title}」`), page.html);
+    assert.ok(page.html.includes(`Claude Code 会话 ack-sess 在记录进度 ${note.observed_event_cursor} 读到了你的笔记「${reference.title}」`), page.html);
     for (const part of [`处理方式：${RECEIPT_WORDS.TREATMENT["later-step"]}`, SAID, "AI 自己说的，Molis 没有核对", `data-locate-event="${note.event_id}"`, "定位到被说明的记录"]) {
       assert.ok(page.html.includes(part), `the card shows ${part}`);
     }
@@ -357,7 +357,7 @@ test("RCPT-382: the timeline says which session read what, how it will be handle
     const english = (key: string) => withGoalLocale("en", () => t.text(key));
     const escape = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
     const html = withGoalLocale("en", () => renderWorkEventBody(record, t.text, escape, {}, "user"));
-    assert.ok(html.includes(`read your note “${reference.title}” at cursor ${note.observed_event_cursor}`), html);
+    assert.ok(html.includes(`read your note “${reference.title}” at record position ${note.observed_event_cursor}`), html);
     assert.ok(/Claude Code session ack-sess read/.test(html), html);
     assert.ok(html.includes("How it will be handled:") && html.includes("Locate the record it answers") && html.includes(english("goals.event-acknowledgement-body.what-ai-says-itself-molis-has-not-checked")), html);
     assert.notEqual(english("goals.event-acknowledgement-body.what-ai-says-itself-molis-has-not-checked"), "AI 自己说的，Molis 没有核对");

@@ -4,13 +4,13 @@
 //! rule). The menu-bar popover that showed what runs, missed runs and the quit confirmation was removed
 //! with the capsule (batch 44, PEQ-13); it comes back with the capsule's redo (BL-capsule-redo).
 use crate::host_port;
+use crate::native_language::{active_builtin, tr, BuiltinLocale};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU32};
 use tauri::Url;
 use tauri_plugin_autostart::ManagerExt;
 
-const REFUSED: &str = "这个页面不能做这件事";
 const DESKTOP_CONFIG_VERSION: u32 = 1;
 
 #[derive(Default)]
@@ -70,6 +70,14 @@ fn write_keep_running(home: &Path, keep_running: bool) -> Result<(), String> {
     use std::io::Write;
     use std::os::unix::fs::OpenOptionsExt;
     let directory = home.join("config");
+    let save_err = || {
+        tr(
+            "没能保存这项设置，请稍后再试。",
+            "Couldn’t save this setting. Please try again.",
+            "この設定を保存できませんでした。もう一度お試しください。",
+        )
+        .to_string()
+    };
     // A newer version's file is that version's to change: refused before anything is made or written
     // (upgrade-chain-design §2.6). A file that is not one at all is replaced.
     if let Some(found) = std::fs::read(directory.join("desktop.json"))
@@ -78,16 +86,30 @@ fn write_keep_running(home: &Path, keep_running: bool) -> Result<(), String> {
         .map(|file| file.schema_version)
         .filter(|version| *version != DESKTOP_CONFIG_VERSION)
     {
-        return Err(format!(
-            "这项设置是另一版 Molis Work 存的（第 {found} 版），这一版不改它"
-        ));
+        return Err(match active_builtin() {
+            BuiltinLocale::Zh => format!(
+                "这项设置由其他版本的 Molis Work 保存（格式第 {found} 版），当前版本不会改动它。"
+            ),
+            BuiltinLocale::En => format!(
+                "This setting was saved by another version of Molis Work (format v{found}), so this version won’t change it."
+            ),
+            BuiltinLocale::Ja => format!(
+                "この設定は別バージョンの Molis Work（形式 v{found}）で保存されているため、現在のバージョンでは変更しません。"
+            ),
+        });
     }
-    std::fs::create_dir_all(&directory).map_err(|error| format!("存不下这项设置：{error}"))?;
+    std::fs::create_dir_all(&directory).map_err(|error| {
+        eprintln!("runtime desktop.json mkdir error: {error}");
+        save_err()
+    })?;
     let config = DesktopConfig {
         schema_version: DESKTOP_CONFIG_VERSION,
         keep_running,
     };
-    let text = serde_json::to_string(&config).map_err(|error| error.to_string())?;
+    let text = serde_json::to_string(&config).map_err(|error| {
+        eprintln!("runtime desktop.json serialize error: {error}");
+        save_err()
+    })?;
     let partial = directory.join(format!("desktop.json.{}.tmp", std::process::id()));
     let mut file = std::fs::OpenOptions::new()
         .write(true)
@@ -95,12 +117,20 @@ fn write_keep_running(home: &Path, keep_running: bool) -> Result<(), String> {
         .truncate(true)
         .mode(0o600)
         .open(&partial)
-        .map_err(|error| format!("存不下这项设置：{error}"))?;
+        .map_err(|error| {
+            eprintln!("runtime desktop.json open error: {error}");
+            save_err()
+        })?;
     file.write_all(format!("{text}\n").as_bytes())
         .and_then(|()| file.sync_all())
-        .map_err(|error| format!("存不下这项设置：{error}"))?;
-    std::fs::rename(&partial, directory.join("desktop.json"))
-        .map_err(|error| format!("存不下这项设置：{error}"))
+        .map_err(|error| {
+            eprintln!("runtime desktop.json write error: {error}");
+            save_err()
+        })?;
+    std::fs::rename(&partial, directory.join("desktop.json")).map_err(|error| {
+        eprintln!("runtime desktop.json rename error: {error}");
+        save_err()
+    })
 }
 
 fn running_settings(app: &tauri::AppHandle) -> RunningSettings {
@@ -115,7 +145,12 @@ fn from_running_settings(window: &tauri::WebviewWindow) -> Result<(), String> {
     if running_settings_source(window.label(), window.url().ok().as_ref()) {
         Ok(())
     } else {
-        Err(REFUSED.into())
+        Err(tr(
+            "当前页面没有权限修改这项设置。",
+            "This page isn’t allowed to change this setting.",
+            "このページではこの設定を変更できません。",
+        )
+        .into())
     }
 }
 
@@ -144,10 +179,25 @@ pub(crate) fn runtime_settings_set(
             } else {
                 launcher.disable()
             }
-            .map_err(|error| format!("系统没有改成：{error}"))?;
+            .map_err(|error| {
+                eprintln!("autolaunch toggle error: {error}");
+                tr(
+                    "系统没能更新登录启动设置，请稍后再试。",
+                    "The system couldn’t update launch-at-login. Please try again.",
+                    "ログイン時の起動設定を変更できませんでした。もう一度お試しください。",
+                )
+                .to_string()
+            })?;
         }
         "keep_running" => write_keep_running(&crate::web_service::molis_work_home(), value)?,
-        _ => return Err("没有这项设置".into()),
+        _ => {
+            return Err(tr(
+                "没有这项设置。",
+                "Unknown setting.",
+                "その設定は見つかりません。",
+            )
+            .into())
+        }
     }
     Ok(running_settings(&app))
 }

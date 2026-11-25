@@ -7,6 +7,8 @@
     "tavily.connection.inbound": "网页搜索（设为默认后使用）",
     "tavily.connection.summary": "给 AI 用的网页搜索，每月有免费额度。",
     "tavily.connection.token-label": "Tavily API Key",
-    "tavily.setup.open-tavily-api-keys": "打开 Tavily 控制台"
+    "tavily.setup.open-tavily-api-keys": "打开 Tavily 控制台",
+    "tavily.permission.network.reason": "使用 Tavily 进行网页搜索与账号状态检查",
+    "tavily.permission.secret.reason": "使用已安全保存的 Tavily 连接凭据"
   }
 }

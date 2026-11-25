@@ -11,7 +11,8 @@ import { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions, readSandboxPackage } 
 import { packPluginProject, packSandboxProject, runPluginCli, validatePluginManifestFile } from "@molis-ai/molis-work-plugin-cli";
 import { assertPluginLocales, inspectPluginLocales, loadDevelopmentLocalePacks, parsePluginPackage, pluginLocaleFilePaths, pluginLocaleReader, signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { assertPluginLocales as validateAuthorLocales, createTextReader, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { assertPluginLocales as validateAuthorLocales, createTextReader, inspectLocaleSet, parseLocalePack, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { scanTree } from "../scripts/gates/translations.mjs";
 import { declarationManifest } from "./fixtures/declaration-manifest.js";
 import { newPublisher, packageFiles, payloadOf, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -336,7 +337,9 @@ test("FSS-53 built-in registrations use the same declared language files as a pl
   assert.deepEqual(HOST_FRAMED_SURFACES.map(entry => entry.project_plugin_id).sort(), Object.keys(SURFACE_PACKAGES).sort(), "a new platform surface names its package here");
   for (const { entry, directory } of entries) {
     assert.ok(entry.manifest.ui.locales, entry.manifest.plugin_id);
-    assert.deepEqual(new Set(entry.manifest.ui.locales.available), new Set(["zh", "en"]), entry.manifest.plugin_id);
+    const available = new Set(entry.manifest.ui.locales.available);
+    assert.ok(available.has("zh") && available.has("en"), entry.manifest.plugin_id);
+    for (const tag of available) assert.ok(["zh", "en", "ja"].includes(tag), `${entry.manifest.plugin_id}: ${tag}`);
     assert.deepEqual(inspectPluginLocales(entry.manifest, file => readFileSync(path.join(directory, file), "utf8")), [], entry.manifest.plugin_id);
   }
 });
@@ -348,3 +351,289 @@ test("FSS-53 a package with no ui.locales is what it always was: no language fil
   assert.deepEqual(bundle.payload.files.map((one) => one.path).sort(), ["entry.mjs", "manifest.json", "package.json"]);
   assert.equal(readFileSync(path.join(directory, "out.json"), "utf8").includes("locales/"), false);
 }));
+
+test("plugin validate and assertPluginLocales enforce default-locale single-line limits for permission, read-group and action *_text", withProject(async (directory) => {
+  const query = {
+    capability_id: "notes.items.list",
+    version: 1,
+    operation: "query" as const,
+    action: {
+      title: "列出笔记",
+      title_text: { key: "notes.action.list.title" },
+      description: "读取项目笔记",
+      description_text: { key: "notes.action.list.description" },
+      kind: "query" as const,
+      scope: "project" as const,
+      permissions: ["notes:read"],
+      subject_kinds: [],
+      audiences: ["user", "agent"] as const,
+      input_schema: { type: "object" },
+    },
+  };
+  const manifest = parsePluginManifest(manifestOf({
+    permissions: [{ permission: "notes:read", required: true, reason: "读取笔记", reason_text: { key: "notes.perm.read" } }],
+    actions: [query],
+    read_groups: [{
+      group_id: "notes",
+      title: "笔记",
+      title_text: { key: "notes.rg.title" },
+      description: "项目里的笔记",
+      description_text: { key: "notes.rg.desc" },
+      actions: ["notes.items.list"],
+    }],
+  }));
+  const fullEn = {
+    "notes.main.saved": "Saved {count}",
+    "notes.perm.read": "Read notes in this project",
+    "notes.rg.title": "Notes",
+    "notes.rg.desc": "Notes in this project",
+    "notes.action.list.title": "List notes",
+    "notes.action.list.description": "Read notes stored in this project",
+  };
+  const file = path.join(directory, "manifest.json");
+
+  // Missing default-locale keys block CLI validation.
+  writeProject(directory, manifest, GOOD);
+  let out = outputOf();
+  assert.equal(await runPluginCli(["validate", file], out), 1);
+  assert.match(JSON.parse(out.lines[0]!).message, /notes\.perm\.read/u);
+
+  // Default locale complete while zh misses keys: non-blocking notes only.
+  writeProject(directory, manifest, { ...GOOD, "locales/en.json": packText("en", fullEn) });
+  out = outputOf();
+  assert.equal(await runPluginCli(["validate", file], out), 0, out.lines.join());
+  const notes = JSON.parse(out.lines[0]!).locale_notes as Array<{ code: string; key: string }>;
+  assert.equal(notes.filter(item => item.code === "ui.locale_missing_key").length, 5);
+
+  // Args, plural, multiline, or over-limit strings in any locale block validation.
+  for (const [badKey, badVal] of [
+    ["notes.perm.read", "Read {count} notes"],
+    ["notes.perm.read", "x".repeat(201)],
+    ["notes.rg.title", "Two\nlines"],
+    ["notes.rg.desc", { plural_arg: "count", forms: { one: "One", other: "{count} notes" } }],
+    ["notes.action.list.title", "a".repeat(81)],
+    ["notes.action.list.description", "d".repeat(401)],
+  ] as const) {
+    assert.throws(() => validateAuthorLocales(manifest, reader({
+      ...GOOD,
+      "locales/en.json": packText("en", { ...fullEn, [badKey]: badVal }),
+    })), { code: "plugin.package_invalid" }, `${badKey}: ${JSON.stringify(badVal)}`);
+  }
+}));
+
+test("readSandboxPackage validates contract.permission_reasons for projected permissions against default locale pack", withProject(async (directory) => {
+  const publisher = newPublisher();
+  const { files, manifest } = packageFiles(publisher.identity, (pkgFiles, pkgManifest) => {
+    const contract = JSON.parse(pkgFiles[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
+    const nextContract: SandboxPluginContract = {
+      ...contract,
+      ui: { locales: LOCALES },
+      permission_reasons: {
+        "storage:private": { key: "notes.perm.storage" },
+        "network:request": { key: "notes.perm.network" },
+      },
+      operations: contract.operations.map(op => op.id === "notes.list"
+        ? { ...op, effects: { storage: ["read"], networkDomains: ["api.example.com"] } }
+        : op),
+    };
+    pkgFiles[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(nextContract);
+    pkgFiles["locales/en.json"] = packText("en", { "notes.main.saved": "Saved {count}", "notes.perm.storage": "Save notes", "notes.perm.network": "Reach api.example.com" });
+    pkgFiles["locales/zh.json"] = packText("zh", { "notes.main.saved": "已保存 {count}", "notes.perm.storage": "保存笔记", "notes.perm.network": "访问 api.example.com" });
+    return {
+      ...pkgManifest,
+      permissions: pkgManifest.permissions.map(row => row.permission === "storage:private" ? { ...row, reason_text: { key: "notes.perm.storage" } } : row),
+      ui: { ...pkgManifest.ui, locales: LOCALES },
+    };
+  }, { pluginId: PLUGIN_ID });
+  mkdirSync(path.join(directory, "locales"));
+  for (const [name, body] of Object.entries(files)) writeFileSync(path.join(directory, name), body!);
+  const packOptions = { name: manifest.name, version: manifest.version, publisherId: manifest.publisher.publisher_id, publisherKeyId: publisher.identity };
+  const bundle = await packSandboxProject(directory, path.join(directory, "localized-sandbox.json"), packOptions);
+  const signed = signPluginPackage(bundle, publisher.signer);
+  const loaded = readSandboxPackage(verifyPluginPackageSignature(signed).bundle.payload);
+  assert.deepEqual(loaded.manifest.permissions[0]?.reason_text, { key: "notes.perm.storage" });
+  // Dropping the projected permission key from default locale is refused by readSandboxPackage.
+  const missingProjected = { ...files, "locales/en.json": packText("en", { "notes.main.saved": "Saved {count}", "notes.perm.storage": "Save notes" }) };
+  assert.throws(() => readSandboxPackage(payloadOf(loaded.manifest, missingProjected)), /notes\.perm\.network/u);
+}));
+
+test("FSS-53 ja parseLocalePack and inspectLocaleSet validate trilingual packs, plural forms, placeholders and markup", () => {
+  const trilingualManifest = manifestOf({}, { default: "zh", available: ["zh", "en", "ja"] });
+  const zhRaw = packText("zh", {
+    "notes.main.saved": { plural_arg: "count", forms: { other: "已保存 {count} 条" } },
+    "notes.main.title": "笔记",
+  });
+  const enRaw = packText("en", {
+    "notes.main.saved": { plural_arg: "count", forms: { one: "Saved {count} note", other: "Saved {count} notes" } },
+    "notes.main.title": "Notes",
+  });
+  const jaRaw = packText("ja", {
+    "notes.main.saved": { plural_arg: "count", forms: { other: "{count} 件保存しました" } },
+    "notes.main.title": "ノート",
+  });
+
+  const zhPack = parseLocalePack(zhRaw, { file: "locales/zh.json" });
+  const enPack = parseLocalePack(enRaw, { file: "locales/en.json" });
+  const jaPack = parseLocalePack(jaRaw, { file: "locales/ja.json" });
+  assert.equal(zhPack.ok, true);
+  assert.equal(enPack.ok, true);
+  assert.equal(jaPack.ok, true);
+  if (zhPack.ok && enPack.ok && jaPack.ok) {
+    assert.deepEqual(inspectLocaleSet([zhPack.value, enPack.value, jaPack.value], { default: "zh" }), []);
+  }
+  assert.deepEqual(inspectPluginLocales(trilingualManifest, reader({
+    "locales/zh.json": zhRaw,
+    "locales/en.json": enRaw,
+    "locales/ja.json": jaRaw,
+  })), []);
+
+  // Raw markup in ja is refused by parseLocalePack.
+  const jaMarkup = parseLocalePack(packText("ja", { "notes.main.title": "ノート <raw>" }), { file: "locales/ja.json" });
+  assert.equal(jaMarkup.ok, false);
+  if (!jaMarkup.ok) {
+    assert.equal(jaMarkup.problems[0]?.code, "ui.locale_markup");
+  }
+
+  // Placeholder mismatch in ja blocks inspectLocaleSet; missing key reports ui.locale_missing_key for ja.
+  const jaBadArgs = parseLocalePack(packText("ja", {
+    "notes.main.saved": { plural_arg: "total", forms: { other: "{total} 件保存しました" } },
+    "notes.main.title": "ノート",
+  }), { file: "locales/ja.json" });
+  assert.equal(jaBadArgs.ok, true);
+  if (zhPack.ok && enPack.ok && jaBadArgs.ok) {
+    const problems = inspectLocaleSet([zhPack.value, enPack.value, jaBadArgs.value], { default: "zh" });
+    assert.ok(problems.some(issue => issue.locale === "ja" && issue.code === "ui.locale_args" && issue.blocking));
+  }
+  const jaMissingKey = parseLocalePack(packText("ja", {
+    "notes.main.saved": { plural_arg: "count", forms: { other: "{count} 件保存しました" } },
+  }), { file: "locales/ja.json" });
+  assert.equal(jaMissingKey.ok, true);
+  if (zhPack.ok && enPack.ok && jaMissingKey.ok) {
+    const problems = inspectLocaleSet([zhPack.value, enPack.value, jaMissingKey.value], { default: "zh" });
+    assert.ok(problems.some(issue => issue.locale === "ja" && issue.code === "ui.locale_missing_key" && issue.key === "notes.main.title"));
+  }
+});
+
+test("FSS-53 translations.mjs enforces 0 missing keys and arg parity across all declared languages and nested workbench sub-packs", () => {
+  const pack = (owner: string, locale: string, messages: Record<string, string>) =>
+    JSON.stringify({ format_version: 1, owner, locale, messages });
+  const registry = "packages/design-system/resources/registry.json";
+  const baseFiles: Record<string, string> = {
+    [registry]: JSON.stringify({ resources: [{ kind: "locale", owner: "workbench", package: "@molis/wb", path: "resources/locales" }] }),
+    "apps/workbench/package.json": JSON.stringify({ name: "@molis/wb" }),
+    "apps/workbench/resources/languages.json": JSON.stringify({
+      format_version: 1,
+      default: "zh",
+      languages: [
+        { tag: "zh", html_lang: "zh-CN", intl: "zh-CN", direction: "ltr", name: "简体中文" },
+        { tag: "en", html_lang: "en", intl: "en-US", direction: "ltr", name: "English" },
+        { tag: "ja", html_lang: "ja", intl: "ja-JP", direction: "ltr", name: "日本語" },
+      ],
+    }),
+    "apps/workbench/resources/locales/zh.json": pack("workbench", "zh", { "workbench.shell.ok": "好" }),
+    "apps/workbench/resources/locales/en.json": pack("workbench", "en", { "workbench.shell.ok": "OK" }),
+    "apps/workbench/resources/locales/ja.json": pack("workbench", "ja", { "workbench.shell.ok": "OK" }),
+    "apps/workbench/resources/locales/scene/zh.json": pack("workbench", "zh", { "workbench.scene.wait": "等待" }),
+    "apps/workbench/resources/locales/scene/en.json": pack("workbench", "en", { "workbench.scene.wait": "Waiting" }),
+    "apps/workbench/resources/locales/scene/ja.json": pack("workbench", "ja", { "workbench.scene.wait": "待機中" }),
+    "apps/workbench/resources/locales/catalog/zh.json": pack("workbench", "zh", { "workbench.catalog-board.title": "标题 {n}" }),
+    "apps/workbench/resources/locales/catalog/en.json": pack("workbench", "en", { "workbench.catalog-board.title": "Title {n}" }),
+    "apps/workbench/resources/locales/catalog/ja.json": pack("workbench", "ja", { "workbench.catalog-board.title": "タイトル {n}" }),
+    "plugins/native/tri/src/manifest.ts": 'export const manifest = { plugin_id: "io.example.tri", ui: { contributions: [], locales: { default: "zh", available: ["zh", "en", "ja"] } } };',
+    "plugins/native/tri/locales/zh.json": pack("io.example.tri", "zh", { "tri.main.hello": "你好 {name}", "tri.main.done": "完成" }),
+    "plugins/native/tri/locales/en.json": pack("io.example.tri", "en", { "tri.main.hello": "Hello {name}", "tri.main.done": "Done" }),
+    "plugins/native/tri/locales/ja.json": pack("io.example.tri", "ja", { "tri.main.hello": "こんにちは {name}", "tri.main.done": "完了" }),
+    "plugins/native/bi/src/manifest.ts": 'export const manifest = { plugin_id: "io.example.bi", ui: { contributions: [], locales: { default: "zh", available: ["zh", "en"] } } };',
+    "plugins/native/bi/locales/zh.json": pack("io.example.bi", "zh", { "bi.main.ok": "好" }),
+    "plugins/native/bi/locales/en.json": pack("io.example.bi", "en", { "bi.main.ok": "OK" }),
+  };
+  const scan = (files: Record<string, string>) => scanTree({ files: Object.keys(files), read: file => files[file] ?? null });
+
+  // Clean trilingual + bilingual (shelf-like) + nested scene/catalog sub-packs pass with 0 problems.
+  assert.deepEqual(scan(baseFiles).problems, []);
+
+  // Missing key in plugin ja.json fails.
+  const missingJaKey = scan({
+    ...baseFiles,
+    "plugins/native/tri/locales/ja.json": pack("io.example.tri", "ja", { "tri.main.hello": "こんにちは {name}" }),
+  });
+  assert.ok(missingJaKey.problems.some(item => item.includes("plugins/native/tri/locales/ja.json") && item.includes("ui.locale_missing_key tri.main.done")));
+
+  // Arg mismatch in plugin ja.json fails.
+  const badJaArgs = scan({
+    ...baseFiles,
+    "plugins/native/tri/locales/ja.json": pack("io.example.tri", "ja", { "tri.main.hello": "こんにちは {user}", "tri.main.done": "完了" }),
+  });
+  assert.ok(badJaArgs.problems.some(item => item.includes("plugins/native/tri/locales/ja.json") && item.includes("ui.locale_args tri.main.hello")));
+
+  // Missing ja.json in nested catalog sub-pack fails.
+  const withoutCatalogJa = { ...baseFiles };
+  delete withoutCatalogJa["apps/workbench/resources/locales/catalog/ja.json"];
+  assert.ok(scan(withoutCatalogJa).problems.some(item => item.includes("apps/workbench/resources/locales/catalog/ja.json: declared file missing")));
+
+  // Duplicate key between main workbench pack and nested catalog sub-pack fails.
+  const dupCatalogKey = scan({
+    ...baseFiles,
+    "apps/workbench/resources/locales/catalog/zh.json": pack("workbench", "zh", { "workbench.shell.ok": "重复" }),
+    "apps/workbench/resources/locales/catalog/en.json": pack("workbench", "en", { "workbench.shell.ok": "Dup" }),
+    "apps/workbench/resources/locales/catalog/ja.json": pack("workbench", "ja", { "workbench.shell.ok": "重複" }),
+  });
+  assert.ok(dupCatalogKey.problems.some(item => item.includes("duplicate owner of workbench.shell.ok")));
+
+  // Undeclared nested sub-pack file fails.
+  const rogueNested = scan({
+    ...baseFiles,
+    "apps/workbench/resources/locales/rogue/zh.json": pack("workbench", "zh", { "workbench.rogue.x": "好" }),
+  });
+  assert.ok(rogueNested.problems.some(item => item.includes("apps/workbench/resources/locales/rogue/zh.json: no locale declaration reaches this file")));
+});
+
+test("audit-ui-copy.mjs enforces tightened zh rules, cross-language en/ja leak checks, and source multi-locale hygiene", async () => {
+  type AuditFinding = { file: string; key: string; rule: string; label: string; text: string };
+  const auditModule = (await import(new URL("../scripts/audit-ui-copy.mjs", import.meta.url).href)) as {
+    auditLocaleText: (input: { file: string; locale: string; key: string; text: string; categoryFilter?: string | null }) => AuditFinding[];
+    auditSourceText: (file: string, source: string, options?: { category?: string | null }) => AuditFinding[];
+  };
+  const localeRules = (file: string, locale: string, key: string, text: string) =>
+    auditModule.auditLocaleText({ file, locale, key, text }).map((item) => item.rule);
+
+  // Tightened Chinese rules.
+  assert.ok(localeRules("apps/workbench/resources/locales/zh.json", "zh", "workbench.demo.a", "数据已写入并落盘").includes("zh.arch-jargon"));
+  assert.ok(localeRules("apps/workbench/resources/locales/zh.json", "zh", "workbench.demo.b", "刷新游标位置").includes("zh.arch-jargon"));
+  assert.ok(localeRules("apps/workbench/resources/locales/zh.json", "zh", "workbench.demo.c", "通过门禁 G1 后继续").includes("zh.arch-jargon"));
+  assert.ok(localeRules("apps/workbench/resources/locales/zh.json", "zh", "workbench.demo.d", "检查父子 Contract").includes("zh.arch-jargon"));
+  assert.ok(localeRules("apps/workbench/resources/locales/zh.json", "zh", "workbench.demo.e", "查看 Runtime payload").includes("zh.arch-jargon"));
+  assert.ok(localeRules("apps/workbench/resources/locales/zh.json", "zh", "workbench.demo.f", "打开能力板").includes("zh.retired-term"));
+  assert.ok(localeRules("apps/workbench/resources/locales/zh.json", "zh", "workbench.demo.g", "由提供方决定").includes("zh.beginner-jargon"));
+  assert.ok(localeRules("apps/workbench/resources/locales/zh.json", "zh", "workbench.demo.h", "选择一个 Character").includes("zh.retired-term"));
+  assert.deepEqual(localeRules("apps/workbench/resources/locales/zh.json", "zh", "workbench.mcp-access.provider", "提供方"), []);
+  assert.ok(localeRules("packages/im-ui/resources/locales/zh.json", "zh", "im-ui.demo.thread", "新建 Thread").includes("zh.im-thread-term"));
+  assert.ok(localeRules("apps/workbench/resources/locales/zh.json", "zh", "workbench.demo.i", "未能完成操作，已被拒绝，不予予以处理").includes("zh.bureaucratic-tone"));
+
+  // English CJK leak rule + narrow allowlist.
+  assert.ok(localeRules("apps/workbench/resources/locales/en.json", "en", "workbench.demo.leak", "Save 笔记").includes("en.cjk-leak"));
+  assert.deepEqual(localeRules("modules/shelf/locales/en.json", "en", "shelf.recipe.translate.choice.ja", "日本語"), []);
+  assert.deepEqual(localeRules("apps/workbench/resources/locales/en.json", "en", "workbench.catalog-appearance.on-4-november-2026-1-284-notes", "Longer passages read more easily, and 中\u2060文 mixed with English should sit on one baseline."), []);
+
+  // Japanese Simplified-Chinese leak, markup, and quote rules.
+  assert.ok(localeRules("apps/workbench/resources/locales/ja.json", "ja", "workbench.demo.sc1", "请重试").includes("ja.simplified-chinese-leak"));
+  assert.ok(localeRules("apps/workbench/resources/locales/ja.json", "ja", "workbench.demo.sc2", "这里没找到对应的结果吗").includes("ja.simplified-chinese-leak"));
+  assert.ok(localeRules("apps/workbench/resources/locales/ja.json", "ja", "workbench.demo.sc3", "您的保存记录").includes("ja.simplified-chinese-leak"));
+  assert.ok(localeRules("apps/workbench/resources/locales/ja.json", "ja", "workbench.demo.markup", "保存 & 終了").includes("ja.raw-markup"));
+  assert.ok(localeRules("apps/workbench/resources/locales/ja.json", "ja", "workbench.demo.quotes", "“保存”しました").includes("ja.bent-quotes"));
+  assert.deepEqual(localeRules("apps/workbench/resources/locales/ja.json", "ja", "workbench.demo.good", "具体的な目的を自動的に日没前に確認します。「保存」完了です。"), []);
+
+  // Production source multi-locale hygiene rules.
+  const srcRules = (file: string, code: string) => auditModule.auditSourceText(file, code).map((item) => item.rule);
+  assert.deepEqual(srcRules("apps/desktop/adapters/tauri/src/tray.rs", "static ENGLISH: AtomicBool = AtomicBool::new(false);"), ["src.binary-locale-flag"]);
+  assert.deepEqual(srcRules("apps/desktop/adapters/tauri/src/tray.rs", "// static ENGLISH: AtomicBool = AtomicBool::new(false);"), []);
+  assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'const x = locale === "en" ? "Save" : "保存";'), ["src.binary-locale-switch"]);
+  assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'const x = lang.startsWith("en") ? "Save" : "保存";'), ["src.binary-locale-switch"]);
+  assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'const en = document.documentElement.lang === "en";'), ["src.binary-locale-switch"]);
+  assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'const x = locale === "en" ? "Save" : locale === "ja" ? "保存" : "保存";'), []);
+  assert.deepEqual(srcRules("apps/workbench/src/sample.ts", 'new Intl.DateTimeFormat("zh-CN").format(now);'), ["src.hardcoded-intl-zh"]);
+  assert.deepEqual(srcRules("packages/plugin-sdk/src/action-cards.ts", 'new Intl.DateTimeFormat("en-CA").format(now);'), []);
+  assert.deepEqual(srcRules("modules/shelf/src/ocr.ts", 'const langs = ["zh-Hans", "en-US"];'), []);
+  assert.deepEqual(srcRules("apps/workbench/src/page.ts", 'const doc = `<!doctype html><html lang="zh-CN"><body></body></html>`;'), ["src.hardcoded-html-lang-zh"]);
+  assert.deepEqual(srcRules("apps/workbench/src/page.ts", '// <html lang="zh-CN">\nconst doc = `<html lang="${htmlLang()}">`;'), []);
+});

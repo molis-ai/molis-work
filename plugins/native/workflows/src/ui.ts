@@ -40,7 +40,7 @@ export const workflowsUiContribution: UiContribution<WorkflowsUiModel> = {
       case "workbench":
         return renderWorkflowsWorkbench(request.model);
       default:
-        throw new Error(`Workflows UI surface ${(request as UiRenderRequest).surface} 不存在`);
+        throw new Error(`Unknown Workflows UI surface: ${String((request as UiRenderRequest).surface)}`);
     }
   },
 };

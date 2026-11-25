@@ -71,6 +71,46 @@ function placeholder(category: string): RegExp {
   return new RegExp(`~~${words.join("[ _-]")}(?![A-Za-z0-9])`, "giu");
 }
 
+const CATEGORY_NOTE_COPY = {
+  zh: {
+    sep: "、",
+    single: (category: string, account: string, id: string) => `「${category}」用 ${account}（连接 ID：${id}）。`,
+    candidateTag: (category: string, choices: string) => `${category}（候选：${choices}）`,
+    multiple: (category: string, choices: string) => `「${category}」有几个已连上的账号：${choices}。用到之前问用户一次用哪一个，这次工作只用它，不混用、不合并。`,
+    question: (id: string, options: string) => `请在独立的 ask-user 问卷中提交一道必答单选题，id 用 ${id}。以下各选项按顺序使用 label，选择后用对应连接 ID：${options}。原账号失效时重新选择。`,
+    readParam: (category: string) => `调用 connectors.records.read 时，connector_category 用 ${category}。`,
+    heading: "连接（Molis Work 给出）：",
+    close: "结果里写明实际用的服务和账号。",
+  },
+  en: {
+    sep: ", ",
+    single: (category: string, account: string, id: string) => `“${category}” uses ${account} (connection ID: ${id}).`,
+    candidateTag: (category: string, choices: string) => `${category} (one of: ${choices})`,
+    multiple: (category: string, choices: string) => `“${category}” has several connected accounts: ${choices}. Before using one, ask the person once which to use, and use only that one for this work; do not mix or merge them.`,
+    question: (id: string, options: string) => `Call ask-user with a questionnaire containing only one required single-choice question with id ${id}. Use these exact labels in order and use the matching connection ID: ${options}. Ask again if their former account is no longer available.`,
+    readParam: (category: string) => `On connectors.records.read, set connector_category to ${category}.`,
+    heading: "Connections (from Molis Work):",
+    close: "Name the service and account actually used in the result.",
+  },
+  ja: {
+    sep: "、",
+    single: (category: string, account: string, id: string) => `「${category}」は ${account}（接続 ID：${id}）を使用します。`,
+    candidateTag: (category: string, choices: string) => `${category}（候補：${choices}）`,
+    multiple: (category: string, choices: string) => `「${category}」には複数の接続済みアカウントがあります：${choices}。使う前にどちらを使うかユーザーに一度確認し、このワークではその1つだけを使い、混用・統合しないでください。`,
+    question: (id: string, options: string) => `独立した ask-user アンケートで、id が ${id} の必須単一選択質問を1問だけ送信してください。次の選択肢の label を順番通りに使用し、選ばれた対応する接続 ID を使ってください：${options}。元のアカウントが無効になった場合は再確認してください。`,
+    readParam: (category: string) => `connectors.records.read を呼び出す際は、connector_category に ${category} を設定してください。`,
+    heading: "接続（Molis Work 提供）：",
+    close: "結果には実際に使用したサービスとアカウントを明記してください。",
+  },
+} as const;
+
+function noteCopyFor(locale: string | undefined) {
+  const base = locale?.trim().toLowerCase().split("-")[0];
+  if (!base || base === "zh") return CATEGORY_NOTE_COPY.zh;
+  if (base === "ja") return CATEGORY_NOTE_COPY.ja;
+  return CATEGORY_NOTE_COPY.en;
+}
+
 /**
  * The body as the model reads it: each declared category's placeholder filled, and a closing note when a category has several accounts
  * (ask once, keep it for this work, do not mix them) or to say which service and account to name in the result (ASC-40). Categories the
@@ -78,8 +118,7 @@ function placeholder(category: string): RegExp {
  */
 export function resolveCategoryPlaceholders(body: string, declared: readonly string[], accounts: CategoryAccounts, locale: string | undefined): string {
   if (!declared.length) return body;
-  const zh = !locale || locale.toLowerCase().startsWith("zh");
-  const sep = zh ? "、" : ", ";
+  const copy = noteCopyFor(locale);
   const work = workConnections.getStore();
   let text = body;
   const lines: string[] = [];
@@ -92,23 +131,19 @@ export function resolveCategoryPlaceholders(body: string, declared: readonly str
     const selected = chosen ? found.find(account => account.connection_id === chosen) : found.length === 1 ? found[0] : undefined;
     if (selected) {
       text = text.replace(placeholder(category), () => name(selected));
-      lines.push(zh ? `「${category}」用 ${name(selected)}（连接 ID：${selected.connection_id}）。` : `“${category}” uses ${name(selected)} (connection ID: ${selected.connection_id}).`);
+      lines.push(copy.single(category, name(selected), selected.connection_id));
     } else {
-      const choices = found.map(name).join(sep);
-      text = text.replace(placeholder(category), () => zh ? `${category}（候选：${choices}）` : `${category} (one of: ${choices})`);
-      lines.push(zh
-        ? `「${category}」有几个已连上的账号：${choices}。用到之前问用户一次用哪一个，这次工作只用它，不混用、不合并。`
-        : `“${category}” has several connected accounts: ${choices}. Before using one, ask the person once which to use, and use only that one for this work; do not mix or merge them.`);
+      const choices = found.map(name).join(copy.sep);
+      text = text.replace(placeholder(category), () => copy.candidateTag(category, choices));
+      lines.push(copy.multiple(category, choices));
       if (work) {
         const question = accountQuestion(category, found);
         const options = JSON.stringify(question.choices);
-        lines.push(zh ? `请在独立的 ask-user 问卷中提交一道必答单选题，id 用 ${question.id}。以下各选项按顺序使用 label，选择后用对应连接 ID：${options}。原账号失效时重新选择。`
-          : `Call ask-user with a questionnaire containing only one required single-choice question with id ${question.id}. Use these exact labels in order and use the matching connection ID: ${options}. Ask again if their former account is no longer available.`);
+        lines.push(copy.question(question.id, options));
       }
     }
-    if (work) lines.push(zh ? `调用 connectors.records.read 时，connector_category 用 ${category}。` : `On connectors.records.read, set connector_category to ${category}.`);
+    if (work) lines.push(copy.readParam(category));
   }
   if (!lines.length) return text;
-  const close = zh ? "结果里写明实际用的服务和账号。" : "Name the service and account actually used in the result.";
-  return `${text}\n\n---\n${zh ? "连接（Molis Work 给出）：" : "Connections (from Molis Work):"}\n${lines.map(line => `- ${line}`).join("\n")}\n- ${close}\n`;
+  return `${text}\n\n---\n${copy.heading}\n${lines.map(line => `- ${line}`).join("\n")}\n- ${copy.close}\n`;
 }

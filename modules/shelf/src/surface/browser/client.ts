@@ -32,7 +32,6 @@ export function shelfClient(host: ShelfHost): void {
     search: bench.querySelector<HTMLInputElement>("[data-shelf-search]"),
     projectPrefix: document.body.dataset.routePrefix || "",
     api: host.pluginRoute(""),
-    hintDefault: bench.querySelector("[data-shelf-bar-hint]")?.textContent || "",
     snapshot: { materials: [], results: [], clipboard: [], recipes: [], current_clip_id: null, runtime: null },
     selected: null, selection: new Set(), pending: null, choices: {}, runningJob: null, selectedChild: null, openFolders: new Set(), runWatch: null,
     selClip: null, clipSelection: new Set(), clipExpanded: false, compare: false, compareSourceId: null,

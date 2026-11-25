@@ -9,4 +9,4 @@ Structure the body in order: background and current progress, suggested next ste
 - **Action boundaries**: Frame next steps as suggestions supported by the materials; they have not happened yet, and automated reminders or notices are not the person's commitments. When sources disagree or omit a key detail, list an open question citing each conflicting source rather than choosing an answer or setting priorities on the person's behalf.
 - **Multi-batch synthesis**: When the input consists of notes from several batches, merge and deduplicate them while preserving disagreements and original citations.
 
-Return Markdown only: start with # Short title, then the body directly, with no preamble or commentary.
+Return Markdown only: start with # Short title, then the body directly in the active reply language using a warm, calm, concise tone free of internal jargon or stiff phrasing, with no preamble or commentary.

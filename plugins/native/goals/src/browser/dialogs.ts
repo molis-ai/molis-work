@@ -347,7 +347,7 @@ export function dialogsClient(host: DialogsHost) {
         const result = await molisWorkRequest<{ goal_path: string }>(route(GOALS_PLUGIN_API + "/goals"), {
           method: "POST",
           body: { ...payload, idempotency_key: key },
-          fallback: "创建失败",
+          fallback: globalThis.t.text("goals.dialogs-client.create-failed"),
         });
         delete form.dataset.idempotencyKey;
         clearCurrentGoalUiState();
@@ -355,7 +355,7 @@ export function dialogsClient(host: DialogsHost) {
         navigate(route(result.goal_path));
       } catch (error) {
         if (formError) {
-          formError.textContent = messageOf(error) || "创建失败，请检查输入后重试";
+          formError.textContent = messageOf(error) || globalThis.t.text("goals.dialogs-client.create-failed-retry");
           formError.hidden = false;
         }
         if (submit) submit.disabled = false;

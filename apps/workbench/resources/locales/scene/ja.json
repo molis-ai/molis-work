@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "owner": "workbench",
+  "locale": "ja",
+  "messages": {
+    "workbench.scene.pending-owner-unavailable": "元の設定機能は現在利用できません。復旧後に確認を続けられます。",
+    "workbench.scene.pending-owner-replaced": "元の設定機能が再インストールされました。このリクエストを確認できるのは元のインストールのみです。"
+  }
+}

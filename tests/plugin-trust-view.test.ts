@@ -9,11 +9,12 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { SANDBOX_PACKAGE_FILES, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { platformPermissionMeaning } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, installedPluginViews, pluginInstallActions, pluginInstallProvider } from "@molis-ai/molis-work-app-local-host";
+import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, installHostUiText, installedPluginViews, pluginInstallActions, pluginInstallProvider } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 
 // ac-trust T7: what the install preview and the plugin's detail page tell the person. RAC-405 the platform says what a permission is
@@ -125,4 +126,94 @@ test("RAC-2619-VIEW service rows preserve multiple exact origins as text and omi
     await page.wait("document.querySelector('[data-plugin-trust-preview]').hidden");
   }
   assert.equal(pageText("en")("workbench.settings-plugins.service-addresses-may-access"), "Service addresses it may access");
+});
+
+test("install preview and installedPluginViews localize manifest name_text and permissions[].reason_text with fallback", async () => {
+  installHostUiText();
+  const manifest = sandboxPluginManifest({
+    pluginId: PACKAGE_PLUGIN_ID,
+    version: "1.0.0",
+    name: "示例笔记",
+    publisher: { publisher_id: "example", signature: "ed25519:sha256:aa" },
+    presentation: false,
+    textDeclarations: { plugin_id: PACKAGE_PLUGIN_ID, name_text: { key: "notes.name" } },
+    permissionReasons: { "storage:private": { key: "notes.perm.storage" } },
+  });
+  manifest.permissions = [
+    ...manifest.permissions,
+    { permission: "issues:write", required: false, reason: "记录问题", reason_text: { literal: "Record issues" } },
+    { permission: "issues:read", required: false, reason: "读取问题" },
+  ];
+  const dictionary: Record<string, string> = { "notes.name": "Example Notes", "notes.perm.storage": "Save this plugin’s own data" };
+  const [localized] = installedPluginViews(
+    [{ record: record({}), manifest }],
+    new MemoryPluginConsentLedger(),
+    () => (ref, original) => dictionary[ref.key] ?? original,
+  );
+  assert.equal(localized!.name, "Example Notes");
+  assert.deepEqual(localized!.permissions.map(item => [item.permission, item.reason]), [
+    ["storage:private", "Save this plugin’s own data"],
+    ["issues:write", "Record issues"],
+    ["issues:read", "读取问题"],
+  ]);
+
+  const publisher = newPublisher();
+  const locales = { default: "en", available: ["en", "zh"] } as const;
+  const bundle = signedPackage(publisher, (files, baseManifest) => {
+    const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
+    const nextContract: SandboxPluginContract = {
+      ...contract,
+      ui: { locales },
+      permission_reasons: {
+        "storage:private": { key: "notes.perm.storage" },
+        "network:request": { key: "notes.perm.network" },
+      },
+      operations: contract.operations.map(op => op.id === "notes.list"
+        ? { ...op, effects: { storage: ["read"], networkDomains: ["api.example.com"] } }
+        : op),
+    };
+    files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(nextContract);
+    files["locales/en.json"] = JSON.stringify({ format_version: 1, owner: PACKAGE_PLUGIN_ID, locale: "en", messages: {
+      "notes.perm.storage": "Save notes privately",
+      "notes.perm.network": "Connect to api.example.com",
+    } });
+    files["locales/zh.json"] = JSON.stringify({ format_version: 1, owner: PACKAGE_PLUGIN_ID, locale: "zh", messages: {
+      "notes.perm.storage": "私密保存笔记",
+      "notes.perm.network": "连接到 api.example.com",
+    } });
+    return {
+      ...baseManifest,
+      permissions: baseManifest.permissions.map(row => row.permission === "storage:private"
+        ? { ...row, reason_text: { key: "notes.perm.storage" } }
+        : row),
+      ui: { ...baseManifest.ui, locales },
+    };
+  });
+  const service = new PluginInstallService({
+    ledger: new MemoryPluginConsentLedger(),
+    packages: new SandboxPackageStore("/nonexistent"),
+    now: () => AT,
+    installInProject: async () => undefined,
+    installInHome: async () => undefined,
+    installed: async () => [],
+    control: async () => ({ state: "disabled" }),
+  });
+  const authority = (locale: "en" | "zh") => ({
+    actor_id: LOCAL_PERSON_ACTOR_ID,
+    audience: "user" as const,
+    project_id: "project-one",
+    permissions: PLUGIN_INSTALL_PERMISSIONS,
+    locale,
+    beforeEffect: async () => {},
+  });
+  const previewEn = await service.preview({ bundle }, { project_id: "project-one", actor_id: LOCAL_PERSON_ACTOR_ID }, authority("en"));
+  const previewZh = await service.preview({ bundle }, { project_id: "project-one", actor_id: LOCAL_PERSON_ACTOR_ID }, authority("zh"));
+  assert.deepEqual(previewEn.preview.permissions.map(item => [item.permission, item.reason]), [
+    ["storage:private", "Save notes privately"],
+    ["network:request", "Connect to api.example.com"],
+  ]);
+  assert.deepEqual(previewZh.preview.permissions.map(item => [item.permission, item.reason]), [
+    ["storage:private", "私密保存笔记"],
+    ["network:request", "连接到 api.example.com"],
+  ]);
 });

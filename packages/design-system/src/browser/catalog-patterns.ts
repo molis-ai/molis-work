@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 // The board's composed patterns (`primitives/catalog-patterns.ts`) made to feel real: picking and sorting the data table, adding
 // and removing tags, and the drop zone's two faces. Presentation only; nothing here is a product control.
+import { catalogBrowserSay as say } from "./catalog-say.js";
 const all = <T extends Element = HTMLElement>(selector: string, scope: ParentNode = document) => [...scope.querySelectorAll<T>(selector)];
 
 /** Called once by the board script, after the board is on the page. */
@@ -33,7 +34,7 @@ export function wireCatalogPatterns(): void {
       const value = (row: HTMLElement) => row.dataset[key] ?? "";
       const rows = all<HTMLTableRowElement>("tr", body).sort((a, b) => {
         const left = value(a), right = value(b);
-        const compared = Number.isNaN(Number(left)) ? left.localeCompare(right, "zh") : Number(left) - Number(right);
+        const compared = Number.isNaN(Number(left)) ? left.localeCompare(right, document.documentElement.lang || undefined) : Number(left) - Number(right);
         return order === "ascending" ? compared : -compared;
       });
       body.append(...rows);
@@ -53,7 +54,7 @@ export function wireCatalogPatterns(): void {
       const remove = document.createElement("button");
       remove.type = "button";
       remove.dataset.tagRemove = "";
-      remove.setAttribute("aria-label", `移除 ${label}`);
+      remove.setAttribute("aria-label", say("workbench.catalog-board.ex.pat-tag-remove", { label }));
       const glyph = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       glyph.setAttribute("aria-hidden", "true");
       const use = document.createElementNS("http://www.w3.org/2000/svg", "use");

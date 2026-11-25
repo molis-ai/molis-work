@@ -1,61 +1,116 @@
 import { renderInteractionComposerTarget, renderInteractionNextSteps, renderInteractionOperation, renderInteractionOptions, renderInteractionQuestion,
   type InteractionField, type InteractionOperationView } from './interaction.js';
 import { INTERACTION_CLIENT_SCRIPT } from './interaction-client.js';
+import { resolveCatalogSay, type CatalogSay } from './primitives/catalog-parts.js';
 import { INTERACTION_STYLES } from './styles/interaction.js';
 
 const calendar = { months: [{ year: 2026, month: 9 }, { year: 2026, month: 10 }], today: '2026-10-12' };
-const fields = (errors: Partial<Record<string, string>> = {}, refreshed?: string): InteractionField[] => [
-  { id: 'format', label: '沟通方式', hint: '推荐依据：两项重点都需要现场演示。', control: { kind: 'choice', options: [
-    { value: 'together', label: '一起复盘', description: '先对齐体验，再定下一步', recommended: true, selected: true },
-    { value: 'async', label: '异步审阅', description: '先读材料，在文档里留判断' }] } },
-  { id: 'topics', label: '重点看什么', hint: '可以多选。选中只是在填写参数。', control: { kind: 'choice', multiple: true, options: [
-    { value: 'first', label: '首次使用', selected: true }, { value: 'recovery', label: '失败与恢复', selected: true }, { value: 'detail', label: '交互细节' }] } },
-  { id: 'notes', label: '补充要求', hint: '也可以在输入框里说，回车后放进这里。', error: errors.notes,
-    control: { kind: 'text', multiline: true, value: '只看首次使用，时长改为 45 分钟', placeholder: '例如：只讨论首次使用遇到的卡点' },
-    notice: { text: '补充里写了「时长 45 分钟」，字段里是 30 分钟。用哪个？', actions: [{ id: 'adopt', label: '采用文字里的时长' }, { id: 'keep', label: '保留字段值', variant: 'ghost' }] } },
-  { id: 'minutes', label: '预计时长', hint: '15–120 分钟，整数。', error: errors.minutes, refreshed,
-    control: { kind: 'number', value: errors.minutes ? 'two' : '30', unit: '分钟', step: 5, stepLabels: ['减少 5 分钟', '增加 5 分钟'] } },
-  { id: 'date', label: '准备截止', hint: '需要在开始当天或之前准备好。', control: { kind: 'date', value: '2026-10-15', weekday: '周四', calendar } },
-  { id: 'when', label: '开始时间', hint: '时区随问题给定，不需要输入。', control: { kind: 'datetime', date: '2026-10-16', time: '10:00', weekday: '周五', zone: '洛杉矶时间 · UTC−07:00', calendar } },
-  { id: 'materials', label: '关联材料', hint: '输入名称搜索，选 1–2 份', error: errors.materials, control: { kind: 'reference', source: 'material', multiple: true, max: 2, placeholder: '搜索材料',
-    picked: errors.materials ? [] : [{ value: 'goal', label: '秋季工作台 · 内部试用' }] } },
-];
-const footer = (note: string, error = false) => ({ note, error, keys: '⌘ / Ctrl + 回车 提交', actions: [{ id: 'cancel', label: '不回答', variant: 'ghost' as const }, { id: 'submit', label: '提交回答', variant: 'primary' as const, type: 'submit' as const }] });
-const answeredRows: Array<[string, string]> = [['沟通方式', '一起复盘'], ['重点看什么', '首次使用、失败与恢复'], ['补充要求', '只看首次使用'], ['预计时长', '45 分钟'], ['开始时间', '2026-10-16 10:00（UTC−07:00）'], ['关联材料', '秋季工作台 · 内部试用']];
-const operation = (id: string, patch: Partial<InteractionOperationView>): InteractionOperationView => ({
-  id, kicker: '操作建议 · 不会自动执行', title: '创建复盘安排', badge: { label: '待你预览', tone: 'waiting' },
-  target: { prefix: '作用于', label: '秋季工作台 · 内部试用', version: '版本 1' }, impact: '会在日程里创建一项，参数先给你核对。', ...patch,
-});
-const preview = { title: '将使用这些参数', rows: answeredRows, note: '目标：秋季工作台 · 内部试用 · 版本 1' };
 const card = (label: string, body: string, wide = false) => `<figure class="mw-catalog__specimen${wide ? ' mw-ix-specimen--wide' : ''}"><figcaption>${label}</figcaption><div class="mw-ix-specimen">${body}</div></figure>`;
 
 /** The component board's specimens of every interaction part and state, with fixed sample content. */
-export function renderInteractionExample(): string {
-  const question = renderInteractionQuestion({ id: 'ix-q-open', kicker: '需要你补充 · 7 项', title: '把这次复盘安排好', badge: { label: '等你回答', tone: 'waiting' },
-    collapse: { id: 'collapse', label: '收起问卷' }, intro: '全部必填。预填只是起点；提交只交回答案，执行另请你确认。',
-    about: '针对你说的「安排一次试用复盘」', target: { prefix: '针对', label: '秋季工作台 · 内部试用', version: '版本 1' },
-    evidence: { label: '依据', rows: [['request_id', 'req-7f3a'], ['about', 'input-12'], ['pending', 'pend-3 · 第 2 版']] },
-    fields: fields({ minutes: '请输入 15–120 之间的整数分钟。', materials: '请选择 1–2 份材料。' }, '已按最新材料更新'), footer: footer('还有 2 项要修正，填写都在。', true) });
-  const answered = renderInteractionQuestion({ id: 'ix-q-done', kicker: '已交回 · 7 项回答', title: '把这次复盘安排好', badge: { label: '已交回', tone: 'done' }, fields: [],
-    answered: { rows: answeredRows, actions: [{ id: 'revise', label: '调整回答', variant: 'ghost' }] }, footer: footer('') });
-  const expired = renderInteractionQuestion({ id: 'ix-q-expired', kicker: '需要你补充 · 7 项', title: '把这次复盘安排好', badge: { label: '已过期', tone: 'quiet', state: 'stale' },
-    target: { prefix: '针对', label: '秋季工作台 · 内部试用', version: '版本 2', changed: true },
-    banner: { text: '问题针对的对象已改到版本 2，旧回答不会再交回。草稿还在，可以请助理带着它重新问。', tone: 'waiting', actions: [{ id: 'reopen', label: '按新版本重新准备' }] },
-    fields: fields().slice(2, 4), footer: { note: '草稿只在本页保留', actions: [{ id: 'submit', label: '提交回答', variant: 'primary', type: 'submit', disabled: true }] } });
-  const steps = [
-    ['问题收起时', renderInteractionNextSteps([{ id: 'question', label: '继续填写', source: '来自问卷' }])],
-    ['回答已交回', renderInteractionNextSteps([{ id: 'card', label: '预览参数', source: '来自复盘安排操作卡' }])],
-    ['执行中', renderInteractionNextSteps([{ id: 'card', label: '执行中…', source: '来自复盘安排操作卡', busy: true }])],
-    ['完成后：一主一次', renderInteractionNextSteps([{ id: 'result', label: '打开结果', source: '来自复盘安排操作卡' }, { id: 'continue', label: '继续调整', source: '来自复盘安排操作卡', primary: false }])],
-    ['记录变了：原位禁用', renderInteractionNextSteps([{ id: 'card', label: '预览参数', source: '来自复盘安排操作卡', disabled: true }])],
-    ['助理的下一步：三个加「还有 2 项」', renderInteractionNextSteps([
-      { id: 'card:run', label: '记成待办', source: '来自操作卡「记成待办：第二阶段定负责人」', primary: false, waiting: true, waitingLabel: '等你确认：' },
-      { id: 'question:choose:team', label: '团队', source: '来自问卷「跟进发给谁？」', primary: false },
-      { id: 'question:choose:boss', label: '只给经理', source: '来自问卷「跟进发给谁？」', primary: false },
-      { id: 'open', label: '打开「第二阶段定负责人」', source: '这一轮做出的结果', primary: false },
-      { id: 'retry', label: '用同样的话再试一次', source: '上一轮没做完', primary: false },
-    ], '下一步', { max: 3, more: count => `还有 ${count} 项` })],
-  ].map(([label, body]) => card(label!, `<div class="mw-ix-composer-specimen">${body}<div class="mw-ix-composer-specimen__pill">${label === '问题收起时' ? renderInteractionComposerTarget('补充到问卷') : ''}<span>继续说…</span></div></div>`)).join('');
+export function renderInteractionExample(say: CatalogSay = resolveCatalogSay()): string {
+  const fields = (errors: Partial<Record<string, string>> = {}, refreshed?: string): InteractionField[] => [
+    { id: 'format', label: say('workbench.catalog-board.ex.ix-f-format'), hint: say('workbench.catalog-board.ex.ix-f-format-hint'), control: { kind: 'choice', options: [
+      { value: 'together', label: say('workbench.catalog-board.ex.ix-opt-together'), description: say('workbench.catalog-board.ex.ix-opt-together-desc'), recommended: true, selected: true },
+      { value: 'async', label: say('workbench.catalog-board.ex.ix-opt-async'), description: say('workbench.catalog-board.ex.ix-opt-async-desc') }] } },
+    { id: 'topics', label: say('workbench.catalog-board.ex.ix-f-topics'), hint: say('workbench.catalog-board.ex.ix-f-topics-hint'), control: { kind: 'choice', multiple: true, options: [
+      { value: 'first', label: say('workbench.catalog-board.ex.ix-opt-first'), selected: true },
+      { value: 'recovery', label: say('workbench.catalog-board.ex.ix-opt-recovery'), selected: true },
+      { value: 'detail', label: say('workbench.catalog-board.ex.ix-opt-detail') }] } },
+    { id: 'notes', label: say('workbench.catalog-board.ex.ix-f-notes'), hint: say('workbench.catalog-board.ex.ix-f-notes-hint'), error: errors.notes,
+      control: { kind: 'text', multiline: true, value: say('workbench.catalog-board.ex.ix-f-notes-val'), placeholder: say('workbench.catalog-board.ex.ix-f-notes-ph') },
+      notice: { text: say('workbench.catalog-board.ex.ix-f-notes-notice'), actions: [{ id: 'adopt', label: say('workbench.catalog-board.ex.ix-act-adopt') }, { id: 'keep', label: say('workbench.catalog-board.ex.ix-act-keep'), variant: 'ghost' }] } },
+    { id: 'minutes', label: say('workbench.catalog-board.ex.ix-f-minutes'), hint: say('workbench.catalog-board.ex.ix-f-minutes-hint'), error: errors.minutes, refreshed,
+      control: { kind: 'number', value: errors.minutes ? 'two' : '30', unit: say('workbench.catalog-board.ex.pat-unit-min'), step: 5, stepLabels: [say('workbench.catalog-board.ex.ix-step-dec'), say('workbench.catalog-board.ex.ix-step-inc')] } },
+    { id: 'date', label: say('workbench.catalog-board.ex.ix-f-date'), hint: say('workbench.catalog-board.ex.ix-f-date-hint'), control: { kind: 'date', value: '2026-10-15', weekday: say('workbench.catalog-board.ex.ix-wd-thu'), calendar } },
+    { id: 'when', label: say('workbench.catalog-board.ex.ix-f-when'), hint: say('workbench.catalog-board.ex.ix-f-when-hint'), control: { kind: 'datetime', date: '2026-10-16', time: '10:00', weekday: say('workbench.catalog-board.ex.ix-wd-fri'), zone: say('workbench.catalog-board.ex.ix-tz-la'), calendar } },
+    { id: 'materials', label: say('workbench.catalog-board.ex.ix-f-materials'), hint: say('workbench.catalog-board.ex.ix-f-materials-hint'), error: errors.materials, control: { kind: 'reference', source: 'material', multiple: true, max: 2, placeholder: say('workbench.catalog-board.ex.ix-f-materials-ph'),
+      picked: errors.materials ? [] : [{ value: 'goal', label: say('workbench.catalog-board.ex.ix-target-label') }] } },
+  ];
+  const footer = (note: string, error = false) => ({
+    note, error, keys: say('workbench.catalog-board.ex.ix-footer-keys'),
+    actions: [{ id: 'cancel', label: say('workbench.catalog-board.ex.ix-act-skip'), variant: 'ghost' as const }, { id: 'submit', label: say('workbench.catalog-board.ex.ix-act-submit'), variant: 'primary' as const, type: 'submit' as const }],
+  });
+  const answeredRows: Array<[string, string]> = [
+    [say('workbench.catalog-board.ex.ix-f-format'), say('workbench.catalog-board.ex.ix-opt-together')],
+    [say('workbench.catalog-board.ex.ix-f-topics'), say('workbench.catalog-board.ex.ix-ans-topics')],
+    [say('workbench.catalog-board.ex.ix-f-notes'), say('workbench.catalog-board.ex.ix-ans-notes')],
+    [say('workbench.catalog-board.ex.ix-f-minutes'), say('workbench.catalog-board.ex.ix-ans-duration')],
+    [say('workbench.catalog-board.ex.ix-f-when'), say('workbench.catalog-board.ex.ix-ans-when')],
+    [say('workbench.catalog-board.ex.ix-f-materials'), say('workbench.catalog-board.ex.ix-target-label')],
+  ];
+  const operation = (id: string, patch: Partial<InteractionOperationView>): InteractionOperationView => ({
+    id, kicker: say('workbench.catalog-board.ex.ix-op-kicker'), title: say('workbench.catalog-board.ex.ix-op-title'), badge: { label: say('workbench.catalog-board.ex.ix-badge-preview'), tone: 'waiting' },
+    target: { prefix: say('workbench.catalog-board.ex.ix-prefix-acts-on'), label: say('workbench.catalog-board.ex.ix-target-label'), version: say('workbench.catalog-board.ex.ix-ver-1') }, impact: say('workbench.catalog-board.ex.ix-op-impact'), ...patch,
+  });
+  const preview = { title: say('workbench.catalog-board.ex.ix-preview-title'), rows: answeredRows, note: say('workbench.catalog-board.ex.ix-preview-note') };
+  const errMinutes = say('workbench.catalog-board.ex.ix-err-minutes');
+  const errMaterials = say('workbench.catalog-board.ex.ix-err-materials');
+  const question = renderInteractionQuestion({ id: 'ix-q-open', kicker: say('workbench.catalog-board.ex.ix-q-kicker-open'), title: say('workbench.catalog-board.ex.ix-q-title'), badge: { label: say('workbench.catalog-board.ex.ix-badge-waiting'), tone: 'waiting' },
+    collapse: { id: 'collapse', label: say('workbench.catalog-board.ex.ix-act-collapse') }, intro: say('workbench.catalog-board.ex.ix-q-intro'),
+    about: say('workbench.catalog-board.ex.ix-q-about'), target: { prefix: say('workbench.catalog-board.ex.ix-prefix-for'), label: say('workbench.catalog-board.ex.ix-target-label'), version: say('workbench.catalog-board.ex.ix-ver-1') },
+    evidence: { label: say('workbench.catalog-board.ex.ix-evidence-label'), rows: [['request_id', 'req-7f3a'], ['about', 'input-12'], ['pending', say('workbench.catalog-board.ex.ix-evidence-pending')]] },
+    fields: fields({ minutes: errMinutes, materials: errMaterials }, say('workbench.catalog-board.ex.ix-refreshed')), footer: footer(say('workbench.catalog-board.ex.ix-note-errors', { count: 2 }), true) });
+  const answered = renderInteractionQuestion({ id: 'ix-q-done', kicker: say('workbench.catalog-board.ex.ix-q-kicker-done'), title: say('workbench.catalog-board.ex.ix-q-title'), badge: { label: say('workbench.catalog-board.ex.ix-badge-submitted'), tone: 'done' }, fields: [],
+    answered: { rows: answeredRows, actions: [{ id: 'revise', label: say('workbench.catalog-board.ex.ix-act-revise'), variant: 'ghost' }] }, footer: footer('') });
+  const expired = renderInteractionQuestion({ id: 'ix-q-expired', kicker: say('workbench.catalog-board.ex.ix-q-kicker-open'), title: say('workbench.catalog-board.ex.ix-q-title'), badge: { label: say('workbench.catalog-board.ex.ix-badge-expired'), tone: 'quiet', state: 'stale' },
+    target: { prefix: say('workbench.catalog-board.ex.ix-prefix-for'), label: say('workbench.catalog-board.ex.ix-target-label'), version: say('workbench.catalog-board.ex.ix-ver-2'), changed: true },
+    banner: { text: say('workbench.catalog-board.ex.ix-expired-banner'), tone: 'waiting', actions: [{ id: 'reopen', label: say('workbench.catalog-board.ex.ix-act-reopen') }] },
+    fields: fields().slice(2, 4), footer: { note: say('workbench.catalog-board.ex.ix-note-draft-local'), actions: [{ id: 'submit', label: say('workbench.catalog-board.ex.ix-act-submit'), variant: 'primary', type: 'submit', disabled: true }] } });
+  const srcOpCard = say('workbench.catalog-board.ex.ix-src-op-card');
+  const srcFollowup = say('workbench.catalog-board.ex.ix-src-followup-q');
+  const stepEntries: Array<[string, string, boolean?]> = [
+    [say('workbench.catalog-board.ex.ix-step-cap-collapsed'), renderInteractionNextSteps([{ id: 'question', label: say('workbench.catalog-board.ex.ix-step-resume'), source: say('workbench.catalog-board.ex.ix-src-question') }]), true],
+    [say('workbench.catalog-board.ex.ix-step-cap-submitted'), renderInteractionNextSteps([{ id: 'card', label: say('workbench.catalog-board.ex.ix-act-preview'), source: srcOpCard }])],
+    [say('workbench.catalog-board.ex.ix-step-cap-running'), renderInteractionNextSteps([{ id: 'card', label: say('workbench.catalog-board.ex.ix-step-running'), source: srcOpCard, busy: true }])],
+    [say('workbench.catalog-board.ex.ix-step-cap-done'), renderInteractionNextSteps([{ id: 'result', label: say('workbench.catalog-board.ex.ix-step-open-result'), source: srcOpCard }, { id: 'continue', label: say('workbench.catalog-board.ex.ix-act-continue'), source: srcOpCard, primary: false }])],
+    [say('workbench.catalog-board.ex.ix-step-cap-stale'), renderInteractionNextSteps([{ id: 'card', label: say('workbench.catalog-board.ex.ix-act-preview'), source: srcOpCard, disabled: true }])],
+    [say('workbench.catalog-board.ex.ix-step-cap-assistant'), renderInteractionNextSteps([
+      { id: 'card:run', label: say('workbench.catalog-board.ex.ix-step-todo'), source: say('workbench.catalog-board.ex.ix-src-todo-card'), primary: false, waiting: true, waitingLabel: say('workbench.catalog-board.ex.ix-waiting-prefix') },
+      { id: 'question:choose:team', label: say('workbench.catalog-board.ex.ix-step-team'), source: srcFollowup, primary: false },
+      { id: 'question:choose:boss', label: say('workbench.catalog-board.ex.ix-step-manager'), source: srcFollowup, primary: false },
+      { id: 'open', label: say('workbench.catalog-board.ex.ix-step-open-owner'), source: say('workbench.catalog-board.ex.ix-src-this-turn'), primary: false },
+      { id: 'retry', label: say('workbench.catalog-board.ex.ix-step-retry-same'), source: say('workbench.catalog-board.ex.ix-src-prev-turn'), primary: false },
+    ], say('workbench.catalog-board.ex.ix-steps-label'), { max: 3, more: count => say('workbench.catalog-board.ex.ix-steps-more', { count }) })],
+  ];
+  const composerTarget = renderInteractionComposerTarget(say('workbench.catalog-board.ex.ix-composer-target'));
+  const composerContinue = say('workbench.catalog-board.ex.ix-composer-continue');
+  const steps = stepEntries.map(([label, body, hasTarget]) => card(label, `<div class="mw-ix-composer-specimen">${body}<div class="mw-ix-composer-specimen__pill">${hasTarget ? composerTarget : ''}<span>${composerContinue}</span></div></div>`)).join('');
+  const initialScriptCopy = {
+    errMinutes,
+    errMaterials,
+    materials: [
+      { value: 'goal', label: say('workbench.catalog-board.ex.ix-target-label'), meta: say('workbench.catalog-board.ex.ix-mat-meta-goal') },
+      { value: 'notes', label: say('workbench.catalog-board.ex.ix-mat-notes'), meta: say('workbench.catalog-board.ex.ix-mat-meta-doc') },
+      { value: 'plan', label: say('workbench.catalog-board.ex.ix-mat-plan'), meta: say('workbench.catalog-board.ex.ix-mat-meta-doc') },
+    ],
+    noteOk: say('workbench.catalog-board.ex.ix-note-ok'),
+    noteErr1: say('workbench.catalog-board.ex.ix-note-errors', { count: 1 }),
+    noteErr2: say('workbench.catalog-board.ex.ix-note-errors', { count: 2 }),
+  };
+  const script = `(()=>{const card=document.querySelector('[data-ix-question="ix-q-open"]');if(!card)return;
+    const readLive=()=>({errMinutes:globalThis.t.text("workbench.catalog-board.ex.ix-err-minutes"),errMaterials:globalThis.t.text("workbench.catalog-board.ex.ix-err-materials"),
+      materials:[{value:"goal",label:globalThis.t.text("workbench.catalog-board.ex.ix-target-label"),meta:globalThis.t.text("workbench.catalog-board.ex.ix-mat-meta-goal")},
+        {value:"notes",label:globalThis.t.text("workbench.catalog-board.ex.ix-mat-notes"),meta:globalThis.t.text("workbench.catalog-board.ex.ix-mat-meta-doc")},
+        {value:"plan",label:globalThis.t.text("workbench.catalog-board.ex.ix-mat-plan"),meta:globalThis.t.text("workbench.catalog-board.ex.ix-mat-meta-doc")}],
+      noteOk:globalThis.t.text("workbench.catalog-board.ex.ix-note-ok"),
+      noteErr1:globalThis.t.text("workbench.catalog-board.ex.ix-note-errors",{count:1}),
+      noteErr2:globalThis.t.text("workbench.catalog-board.ex.ix-note-errors",{count:2})});
+    let copy=${JSON.stringify(initialScriptCopy).replaceAll('<', '\\u003c')};
+    let errors={minutes:copy.errMinutes,materials:copy.errMaterials};
+    document.addEventListener("molis-work:language-changed",()=>{if(!globalThis.t?.text)return;copy=readLive();
+      if(errors.minutes)errors.minutes=copy.errMinutes;if(errors.materials)errors.materials=copy.errMaterials;});
+    const client=(${INTERACTION_CLIENT_SCRIPT})(card,{
+      references:(source,query)=>Promise.resolve({items:copy.materials.filter(item=>item.label.includes(query)||item.meta.includes(query))}),
+      onChange:({field})=>{if(errors[field]){delete errors[field];client.showErrors(errors)}},
+      onAction:id=>{const notice=card.querySelector('[data-ix-notice]');if(id==='adopt'){client.write({minutes:'45'});delete errors.minutes;client.showErrors(errors)}if(id==='adopt'||id==='keep'){if(notice)notice.hidden=true}},
+      onSubmit:()=>{const v=client.read();const m=Number(v.minutes);errors={};
+        if(!Number.isInteger(m)||m<15||m>120)errors.minutes=copy.errMinutes;
+        if(!v.materials.length||v.materials.length>2)errors.materials=copy.errMaterials;
+        client.showErrors(errors,{focus:true});
+        const count=Object.keys(errors).length;
+        const note=card.querySelector('[data-ix-note]');if(note){note.textContent=count===0?copy.noteOk:count===1?copy.noteErr1:copy.noteErr2;note.dataset.tone=count?'error':''}}
+    });})()`;
   return `<style>${INTERACTION_STYLES}
     .mw-ix-specimen { width: min(620px, 100%); }
     .mw-ix-specimen--wide { grid-column: 1 / -1; }
@@ -64,29 +119,17 @@ export function renderInteractionExample(): string {
     .mw-ix-composer-specimen__pill { flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: 6px; height: 50px; padding: 0 14px; border-radius: var(--r-composer, 15px); background: var(--paper); box-shadow: var(--lift-2); color: var(--muted); }
   </style>
   <div class="mw-catalog__specimens">
-    ${card('问卷 · 待答，带错误与冲突确认', question, true)}
-    ${card('问卷 · 已交回', answered)}
-    ${card('问卷 · 已过期，草稿保留', expired)}
-    ${card('选项组 · 带说明与推荐', renderInteractionOptions([{ value: 'a', label: '一起复盘', description: '先对齐体验，再定下一步', recommended: true, selected: true }, { value: 'b', label: '异步审阅', description: '先读材料，在文档里留判断' }], { id: 'ix-options-demo' }))}
-    ${card('选项组 · 短选项多选', renderInteractionOptions([{ value: 'a', label: '首次使用', selected: true }, { value: 'b', label: '失败与恢复' }, { value: 'c', label: '交互细节', disabled: true }], { id: 'ix-choices-demo', multiple: true }))}
-    ${card('操作卡 · 待预览', renderInteractionOperation(operation('ix-op-ready', { actions: [{ id: 'revise', label: '调整回答', variant: 'ghost' }, { id: 'preview', label: '预览参数' }] })))}
-    ${card('操作卡 · 参数预览', renderInteractionOperation(operation('ix-op-preview', { badge: { label: '待你执行', tone: 'waiting' }, preview: { ...preview, actions: [{ id: 'revise', label: '返回调整', variant: 'ghost' }, { id: 'execute', label: '执行', variant: 'primary' }] } })))}
-    ${card('操作卡 · 结果未知，只能核对', renderInteractionOperation(operation('ix-op-unknown', { badge: { label: '结果未知', tone: 'waiting', state: 'verify' }, preview, status: { text: '连接在执行途中断开，结果未知。先核对，不会自动再执行一次。', tone: 'waiting' }, recovery: [{ id: 'reconcile', label: '核对结果' }] })))}
-    ${card('操作卡 · 已完成', renderInteractionOperation(operation('ix-op-done', { badge: { label: '已完成', tone: 'done' }, result: { title: '复盘安排已准备好', body: '日程已创建；参数与回执在摘要里。', actions: [{ id: 'open', label: '打开摘要' }, { id: 'continue', label: '继续调整', variant: 'ghost' }] } })))}
-    ${card('操作卡 · 对象改版后失效', renderInteractionOperation(operation('ix-op-stale', { badge: { label: '已失效', tone: 'quiet', state: 'stale' }, target: { prefix: '作用于', label: '秋季工作台 · 内部试用', version: '版本 2', changed: true }, status: { text: '作用对象已改版，这组参数不能再执行。按新版本重新准备上面的问题。' } })))}
+    ${card(say('workbench.catalog-board.ex.ix-cap-q-open'), question, true)}
+    ${card(say('workbench.catalog-board.ex.ix-cap-q-done'), answered)}
+    ${card(say('workbench.catalog-board.ex.ix-cap-q-expired'), expired)}
+    ${card(say('workbench.catalog-board.ex.ix-cap-opt-rich'), renderInteractionOptions([{ value: 'a', label: say('workbench.catalog-board.ex.ix-opt-together'), description: say('workbench.catalog-board.ex.ix-opt-together-desc'), recommended: true, selected: true }, { value: 'b', label: say('workbench.catalog-board.ex.ix-opt-async'), description: say('workbench.catalog-board.ex.ix-opt-async-desc') }], { id: 'ix-options-demo' }))}
+    ${card(say('workbench.catalog-board.ex.ix-cap-opt-multi'), renderInteractionOptions([{ value: 'a', label: say('workbench.catalog-board.ex.ix-opt-first'), selected: true }, { value: 'b', label: say('workbench.catalog-board.ex.ix-opt-recovery') }, { value: 'c', label: say('workbench.catalog-board.ex.ix-opt-detail'), disabled: true }], { id: 'ix-choices-demo', multiple: true }))}
+    ${card(say('workbench.catalog-board.ex.ix-cap-op-ready'), renderInteractionOperation(operation('ix-op-ready', { actions: [{ id: 'revise', label: say('workbench.catalog-board.ex.ix-act-revise'), variant: 'ghost' }, { id: 'preview', label: say('workbench.catalog-board.ex.ix-act-preview') }] })))}
+    ${card(say('workbench.catalog-board.ex.ix-cap-op-preview'), renderInteractionOperation(operation('ix-op-preview', { badge: { label: say('workbench.catalog-board.ex.ix-badge-exec'), tone: 'waiting' }, preview: { ...preview, actions: [{ id: 'revise', label: say('workbench.catalog-board.ex.ix-act-back-edit'), variant: 'ghost' }, { id: 'execute', label: say('workbench.catalog-board.ex.ix-act-execute'), variant: 'primary' }] } })))}
+    ${card(say('workbench.catalog-board.ex.ix-cap-op-unknown'), renderInteractionOperation(operation('ix-op-unknown', { badge: { label: say('workbench.catalog-board.ex.ix-badge-unknown'), tone: 'waiting', state: 'verify' }, preview, status: { text: say('workbench.catalog-board.ex.ix-op-unknown-status'), tone: 'waiting' }, recovery: [{ id: 'reconcile', label: say('workbench.catalog-board.ex.ix-act-reconcile') }] })))}
+    ${card(say('workbench.catalog-board.ex.ix-cap-op-done'), renderInteractionOperation(operation('ix-op-done', { badge: { label: say('workbench.catalog-board.ex.ix-badge-done'), tone: 'done' }, result: { title: say('workbench.catalog-board.ex.ix-op-done-title'), body: say('workbench.catalog-board.ex.ix-op-done-body'), actions: [{ id: 'open', label: say('workbench.catalog-board.ex.ix-act-open-summary') }, { id: 'continue', label: say('workbench.catalog-board.ex.ix-act-continue'), variant: 'ghost' }] } })))}
+    ${card(say('workbench.catalog-board.ex.ix-cap-op-stale'), renderInteractionOperation(operation('ix-op-stale', { badge: { label: say('workbench.catalog-board.ex.ix-badge-stale'), tone: 'quiet', state: 'stale' }, target: { prefix: say('workbench.catalog-board.ex.ix-prefix-acts-on'), label: say('workbench.catalog-board.ex.ix-target-label'), version: say('workbench.catalog-board.ex.ix-ver-2'), changed: true }, status: { text: say('workbench.catalog-board.ex.ix-op-stale-status') } })))}
     ${steps}
   </div>
-  <script>(()=>{const card=document.querySelector('[data-ix-question="ix-q-open"]');if(!card)return;
-    let errors={minutes:'请输入 15–120 之间的整数分钟。',materials:'请选择 1–2 份材料。'};
-    const materials=[{value:'goal',label:'秋季工作台 · 内部试用',meta:'Goal'},{value:'notes',label:'10 月试用反馈摘录',meta:'文档'},{value:'plan',label:'试用复盘议程',meta:'文档'}];
-    const client=(${INTERACTION_CLIENT_SCRIPT})(card,{
-      references:(source,query)=>Promise.resolve({items:materials.filter(item=>item.label.includes(query)||item.meta.includes(query))}),
-      onChange:({field})=>{if(errors[field]){delete errors[field];client.showErrors(errors)}},
-      onAction:id=>{const notice=card.querySelector('[data-ix-notice]');if(id==='adopt'){client.write({minutes:'45'});delete errors.minutes;client.showErrors(errors)}if(id==='adopt'||id==='keep'){if(notice)notice.hidden=true}},
-      onSubmit:()=>{const v=client.read();const m=Number(v.minutes);errors={};
-        if(!Number.isInteger(m)||m<15||m>120)errors.minutes='请输入 15–120 之间的整数分钟。';
-        if(!v.materials.length||v.materials.length>2)errors.materials='请选择 1–2 份材料。';
-        client.showErrors(errors,{focus:true});
-        const note=card.querySelector('[data-ix-note]');if(note){note.textContent=Object.keys(errors).length?'还有 '+Object.keys(errors).length+' 项要修正，填写都在。':'没有问题；示例页不会真的提交。';note.dataset.tone=Object.keys(errors).length?'error':''}}
-    });})()</script>`;
+  <script>${script}</script>`;
 }

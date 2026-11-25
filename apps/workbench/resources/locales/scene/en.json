@@ -3,7 +3,7 @@
   "owner": "workbench",
   "locale": "en",
   "messages": {
-    "workbench.scene.pending-owner-unavailable": "The original settings provider is unavailable. You can continue verification when it is available again.",
-    "workbench.scene.pending-owner-replaced": "The settings provider’s installation has changed. Only the original installation can verify this request."
+    "workbench.scene.pending-owner-unavailable": "The original settings feature isn’t available right now. You can continue verification once it’s back.",
+    "workbench.scene.pending-owner-replaced": "The original settings feature was reinstalled. Only the original installation can verify this request."
   }
 }

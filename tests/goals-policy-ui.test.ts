@@ -23,7 +23,7 @@ test("W1-18-GOAL-POLICY-01 Workbench mounts current rules and Goal requirements 
   assert.match(html, /data-goal-policy-requirements/);
   assert.match(html, /data-event-reader="requirements"/);
   assert.doesNotMatch(html, /data-policy-form|name="goal_id"|GOAL OVERRIDE|<input|<textarea/);
-  assert.match(html, /<dt>用户确认<\/dt><dd><strong>需要<\/strong>/);
+  assert.match(html, /<dt>你的确认<\/dt><dd><strong>需要<\/strong>/);
   assert.doesNotMatch(html, /data-live-form="policy-project_default-/);
 });
 

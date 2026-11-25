@@ -182,7 +182,7 @@ test("RAC-916-L1: complete detail rejects long comments plus draft and JSON esca
     const request = side.pending()!.request_id;
     await side.send();
     assert.deepEqual([side.saves, side.raw.length, side.assistant.steps.length], [0, 0, 0]);
-    assert.equal(side.node("error").textContent, "评论和附带草稿太长，评论未发送。请先保存文档，或减少内容后重试。");
+    assert.equal(side.node("error").textContent, "评论和附带草稿太长，评论没有发出。请先保存文档，或减少内容后再试。");
     assert.equal(side.node("error").hidden, false);
     assert.equal(side.node("run").textContent, "");
     assert.equal(side.pending()!.body, "c".repeat(19000));
@@ -205,7 +205,7 @@ test("RAC-916-L1 RAC-916-L2 RAC-916-L3: final detail at the bridge cap passes; o
       assert.equal(rejected.sent.length, 0, "the actual bridge rejects 100001");
     } else {
       assert.deepEqual([side.raw.length, side.framed.sent.length, side.assistant.steps.length], [0, 0, 0]);
-      assert.equal(side.node("error").textContent, "评论已保存，尚未交给助理。请先保存文档，或取消附带草稿后重试。");
+      assert.equal(side.node("error").textContent, "评论已保存，还没有交给助理。请先保存文档，或取消附带草稿后再试。");
       assert.equal(side.node("run").textContent, "");
       assert.equal(side.threads[0]!.messages[0]!.body, '评论"\n原文');
       assert.equal(side.pending()!.body, '评论"\n原文');

@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.vercel",
+  "locale": "ja",
+  "messages": {
+    "vercel.connection.auth-help": "Vercel アカウントトークンを入力してください。デプロイ一覧のみを読み取り専用で取得します。",
+    "vercel.connection.inbound": "Feed でデプロイとプレビューを取得",
+    "vercel.connection.summary": "デプロイとプレビュー。",
+    "vercel.connection.token-label": "Vercel Token",
+    "vercel.guide.cli-link": "Vercel CLI を見る",
+    "vercel.guide.mcp-connected-note": "公式 MCP はベータ版のため、クライアントの承認が必要な場合があります。",
+    "vercel.guide.mcp-link": "Vercel 公式 MCP を見る",
+    "vercel.guide.mcp-note": "公式 MCP はベータ版のため、クライアントの承認が必要な場合があります。Molis Work ではまだ接続していません。",
+    "vercel.guide.oauth-link": "Vercel OAuth インテグレーションを見る",
+    "vercel.oauth.note": "Vercel REST Integration を使います。ダッシュボードで固定コールバックと読み取り権限を設定してください。",
+    "vercel.setup.create-vercel-token": "Vercel Token を作成",
+    "vercel.permission.network.reason": "Vercel のアカウント情報と最新の更新を読み取ります",
+    "vercel.permission.secret.reason": "安全に保存された Vercel の接続資格情報を使用します"
+  }
+}

@@ -1,3 +1,4 @@
+use crate::native_language::tr;
 use crate::runtime_env::login_shell_path;
 use crate::web_identity::Answer;
 use semver::Version;
@@ -129,13 +130,22 @@ fn wait_for_owned_web(
         Wait::Upgrading => Ok(Started::Upgrading),
         Wait::Stopped => {
             stop_owned_web_service(service_state);
-            Err("Molis Work 正在退出，不再等待 Web 服务".into())
+            Err(tr(
+                "Molis Work 正在退出，已停止等待启动。",
+                "Molis Work is quitting and stopped waiting for startup.",
+                "Molis Work を終了しているため、起動の待機を中止しました。",
+            )
+            .into())
         }
         Wait::TimedOut => {
             stop_owned_web_service(service_state);
-            Err(format!(
-                "Molis Work Web 已启动，但 127.0.0.1:{expected_port} 尚未就绪"
-            ))
+            eprintln!("Molis Work local service timed out on 127.0.0.1:{expected_port}");
+            Err(tr(
+                "Molis Work 启动超时，本地服务暂时没有响应。请稍后再打开一次。",
+                "Molis Work took too long to start because the local service isn’t responding yet. Try opening the app again.",
+                "Molis Work の起動がタイムアウトしました。ローカルサービスが応答していないため、少し待ってからもう一度開いてください。",
+            )
+            .into())
         }
     }
 }
@@ -398,7 +408,12 @@ fn embedded_runtime_upgrade_available(resource_dir: &Path, home: &Path) -> bool 
 
 fn install_embedded_molis_work(resource_dir: &Path, home: &Path) -> Result<(), String> {
     let (source, node) = embedded_molis_work_source(resource_dir).ok_or_else(|| {
-        "Molis Work App 不含可用的 Runtime payload，请重新下载安装包。".to_string()
+        tr(
+            "Molis Work 的安装文件不完整，重新下载安装一次即可。",
+            "Some Molis Work files are missing. Download and reinstall the app to fix this.",
+            "Molis Work のインストールファイルが不足しています。アプリを再ダウンロードしてインストールしてください。",
+        )
+        .to_string()
     })?;
     let installer = source.join("dist").join("cli").join("main.js");
     let output = Command::new(&node)
@@ -411,16 +426,28 @@ fn install_embedded_molis_work(resource_dir: &Path, home: &Path) -> Result<(), S
         .arg("--json")
         .stdin(Stdio::null())
         .output()
-        .map_err(|error| format!("无法运行 Molis Work 内置安装器：{error}"))?;
+        .map_err(|error| {
+            eprintln!("Embedded installer launch failed: {error}");
+            tr(
+                "Molis Work 没能完成启动准备，已有数据都保留着。请重新打开一次，或重新下载安装。",
+                "Molis Work couldn’t finish preparing startup. Your data is safe — try reopening or reinstalling the app.",
+                "Molis Work の起動準備を完了できませんでした。データはそのまま残っていますので、開き直すか再インストールしてください。",
+            )
+            .to_string()
+        })?;
     if output.status.success() {
         return Ok(());
     }
     let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    Err(if detail.is_empty() {
-        "Molis Work 内置 Runtime 安装失败。".to_string()
-    } else {
-        format!("Molis Work 内置 Runtime 安装失败：{detail}")
-    })
+    if !detail.is_empty() {
+        eprintln!("Embedded installer failed: {detail}");
+    }
+    Err(tr(
+        "Molis Work 没能完成内置组件准备，已有数据都保留着。请稍后重新打开一次，或重新下载安装。",
+        "Molis Work couldn’t finish setting up its built-in components. Your data is safe — reopen or reinstall the app.",
+        "Molis Work の組み込みコンポーネントを準備できませんでした。データはそのまま残っていますので、開き直すか再インストールしてください。",
+    )
+    .to_string())
 }
 
 #[derive(Deserialize)]
@@ -519,7 +546,12 @@ fn replace_owned_web_child(
     if state.shutting_down.load(Ordering::Acquire) {
         drop(owned_child);
         terminate_owned_web_child(&mut child);
-        return Err("Molis Work 正在退出，不再启动 Web 服务".into());
+        return Err(tr(
+            "Molis Work 正在退出，已取消启动。",
+            "Molis Work is quitting, so startup was canceled.",
+            "Molis Work を終了しているため、起動をキャンセルしました。",
+        )
+        .into());
     }
     let previous = owned_child.replace(child);
     drop(owned_child);
@@ -627,9 +659,14 @@ fn start_port(occupied: impl Fn(u16) -> bool) -> Result<Option<u16>, String> {
     if !occupied(crate::host_port::DEFAULT_PORT) {
         return Ok(None);
     }
-    crate::host_port::spare_port()
-        .map(Some)
-        .ok_or_else(|| "127.0.0.1 的 4173–4199 端口都被别的程序占着，Molis Work 起不来".to_string())
+    crate::host_port::spare_port().map(Some).ok_or_else(|| {
+        tr(
+            "本地可用端口都被其他程序占用了，Molis Work 暂时无法启动。关闭占用端口的程序后再打开即可。",
+            "All local ports for Molis Work are in use by other apps. Close the conflicting app and reopen Molis Work.",
+            "Molis Work が使用するローカルポートがすべて他のアプリに使われているため起動できません。競合しているアプリを終了してからもう一度開いてください。",
+        )
+        .to_string()
+    })
 }
 
 pub(crate) fn start_molis_work_web(
@@ -664,9 +701,9 @@ pub(crate) fn start_molis_work_web(
     if web_healthy() {
         if !web_desktop_ready() {
             eprintln!(
-        "{} 上的 Molis Work Web 不含桌面终端。请在仓库运行 pnpm install:local 后执行 molis-work service restart --confirm，再重新打开 App。",
-        crate::host_port::host()
-      );
+                "Molis Work local service on {} does not support desktop terminal features; restart the updated service and reopen the app.",
+                crate::host_port::host()
+            );
         }
         return Ok(Started::Ready);
     }
@@ -685,10 +722,13 @@ pub(crate) fn start_molis_work_web(
         }
     }
     if !bin.is_file() {
-        return Err(format!(
-            "Molis Work Web 未安装：找不到 {}。源码运行请先执行 pnpm install:local。",
-            bin.display()
-        ));
+        eprintln!("Molis Work launcher binary missing at {}", bin.display());
+        return Err(tr(
+            "Molis Work 还没完成本地安装，重新下载并安装应用即可继续。",
+            "Molis Work isn’t fully installed yet. Download and reinstall the app to continue.",
+            "Molis Work のインストールが完了していません。アプリを再ダウンロードしてインストールしてください。",
+        )
+        .into());
     }
     // Stop any existing hung desktop-owned child before probing ports or spawning a replacement,
     // so it releases both its loopback port and its `storage-owner` lock cleanly.
@@ -713,7 +753,15 @@ pub(crate) fn start_molis_work_web(
         .stderr(Stdio::null())
         .process_group(0)
         .spawn()
-        .map_err(|error| format!("无法启动 Molis Work Web：{error}"))?;
+        .map_err(|error| {
+            eprintln!("Failed to spawn local service: {error}");
+            tr(
+                "Molis Work 没能启动本地服务，已有数据都保留着。请稍后重新打开一次。",
+                "Molis Work couldn’t start its local service. Your data is safe — try reopening the app.",
+                "Molis Work のローカルサービスを起動できませんでした。データはそのまま残っていますので、少し待ってからもう一度開いてください。",
+            )
+            .to_string()
+        })?;
     replace_owned_web_child(service_state, child)?;
     wait_for_owned_web(service_state, expected_port, Upgrade::HandOver)
 }

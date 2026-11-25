@@ -10,6 +10,8 @@
     "canva.guide.mcp-link": "查看 Canva 官方 MCP",
     "canva.guide.oauth-link": "查看 Canva Connect OAuth",
     "canva.guide.token-note": "Canva 没有 PAT；可在自己的 OAuth 应用取得访问令牌后粘贴，到期需更新。",
-    "canva.setup.open-canva-developer-platform": "打开 Canva 开发者平台"
+    "canva.setup.open-canva-developer-platform": "打开 Canva 开发者平台",
+    "canva.permission.network.reason": "读取 Canva 账号信息与最新动态",
+    "canva.permission.secret.reason": "使用已安全保存的 Canva 连接凭据"
   }
 }

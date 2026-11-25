@@ -106,7 +106,7 @@ test("FSS-58 a language directory's files parse, are the row's owner's, and agre
     const files = readdirSync(directory).sort();
     if (row.owner === "workbench") {
       const locales = catalog.value.languages.map(language => language.tag).sort();
-      const packs = readPacks(directory, files.filter(name => name !== "scene"));
+      const packs = readPacks(directory, files.filter(name => name !== "scene" && name !== "catalog"));
       assert.deepEqual(packs.map(pack => pack.locale), locales);
       const scene = path.join(directory, "scene");
       const scenePacks = readPacks(scene, readdirSync(scene).sort());
@@ -118,9 +118,30 @@ test("FSS-58 a language directory's files parse, are the row's owner's, and agre
           assert.ok(key.startsWith("workbench.scene.") && !startupKeys.has(key), `${key}: belongs only to scene results`);
         }
       }
+      const catalogDir = path.join(directory, "catalog");
+      const catalogPacks = readPacks(catalogDir, readdirSync(catalogDir).sort());
+      assert.deepEqual(catalogPacks.map(pack => pack.locale), locales);
+      const catalogOnlyPrefixes = [
+        "workbench.catalog-board.",
+        "workbench.catalog-kit.",
+        "workbench.collab-specimens.",
+        "workbench.catalog-keep-edits.",
+        "workbench.catalog-home-adoption.",
+        "workbench.catalog-source-ladder.",
+        "workbench.catalog-coding-basics.",
+        "workbench.catalog-skill-selection.",
+      ] as const;
+      for (const pack of catalogPacks) {
+        for (const key of Object.keys(pack.messages)) {
+          assert.ok(
+            catalogOnlyPrefixes.some(prefix => key.startsWith(prefix)) && !startupKeys.has(key),
+            `${key}: belongs only to catalog board`,
+          );
+        }
+      }
     } else {
       const packs = readPacks(directory, files);
-      assert.deepEqual(packs.map(pack => pack.locale), ["en", "zh"], "the shipped discussion packs include its default and its English words");
+      assert.deepEqual(packs.map(pack => pack.locale), ["en", "ja", "zh"], "the shipped discussion packs include its default, English, and Japanese words");
     }
   }
 });
@@ -192,7 +213,7 @@ test("FSS-34 the same Workbench build discovers and serves a language added only
     assert.throws(probe, /workbench\.language\.retry/, "markup is still refused in a registered Workbench pack");
     writeFileSync(packPath, JSON.stringify(registeredPack));
     const first = probe();
-    assert.deepEqual(first, { languages: ["zh", "en", "en-GB"], system: "en-GB", cookie: "en-GB", rejected: "en", href: first.href,
+    assert.deepEqual(first, { languages: ["zh", "en", "ja", "en-GB"], system: "en-GB", cookie: "en-GB", rejected: "en", href: first.href,
       served: true, word: text, html: "en-GB", intl: "en-GB" });
     assert.match(first.href, /^\/assets\/locale\/workbench\.en-GB\.[a-f0-9]{24}\.js$/u);
     assert.equal(probe(escaped).word, escaped);

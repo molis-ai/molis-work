@@ -187,15 +187,22 @@ function reviewPriority(row: AgentReviewRow): number {
   return ["pending", "approved", "reconcile"].includes(reviewPhase(row)) ? 0 : reviewPhase(row) === "failed" ? 1 : 2;
 }
 
+function isReviewFieldNamed(field: { key?: string; label: string }, key: string, localizedLabel: string, aliases: readonly string[]): boolean {
+  return field.key === key || field.label === localizedLabel || aliases.includes(field.label);
+}
+
 function reviewLabel(row: Pick<AgentReviewRow, "request">): string {
   const document = row.request.document, documentReadable = isReviewDocumentReadable(document);
   // The heading names the thing itself, so a history list reads without opening every row.
+  const roleField = document.kind === "tool-operation" && document.tool === "dispatch-subagent"
+    ? document.fields.find(field => isReviewFieldNamed(field, "subtask-role", uiText.text("workbench.assistant-review.field.subtask-role"), ["子任务角色", "Subtask role", "サブタスクの役割"]))
+    : undefined;
   return document.kind === "text-edit" ? document.target_path
     : document.kind === "command" && documentReadable ? [document.command, ...document.args].map(shellWord).join(" ")
     : document.kind === "git-index" ? (document.action === "stage" ? uiText.text("workbench.agent-review.stage") : uiText.text("workbench.agent-review.unstage"))
     : document.kind === "git-integration" ? uiText.text("workbench.agent-review.integrate")
     : document.kind === "rewind" ? uiText.text("workbench.agent-review.rewind") : row.request.kind === "command" ? uiText.text("workbench.agent-review.execute-command")
-    : document.kind === "tool-operation" && document.tool === "dispatch-subagent" ? uiText.text("workbench.agent-review.dispatch") + (document.fields.find(field => field.label === "子任务角色") ? " · " + document.fields.find(field => field.label === "子任务角色")!.value : "")
+    : document.kind === "tool-operation" && document.tool === "dispatch-subagent" ? uiText.text("workbench.agent-review.dispatch") + (roleField ? " · " + roleField.value : "")
     : document.kind === "tool-operation" && document.tool === "steer-subagent" ? uiText.text("workbench.agent-review.steer")
     // A Git operation is named by what it does, with its own summary (branch, remote, file count) beside it.
     : document.kind === "tool-operation" && GIT_TOOL_TITLES[document.tool] ? uiText.text("workbench.agent-review.tool-with-summary", { name: uiText.text(GIT_TOOL_TITLES[document.tool]!), summary: document.summary })
@@ -338,7 +345,9 @@ export function renderAgentReviewDocument(document: AgentReviewDocument, p: Pick
       </div>`;
     case "tool-operation": {
       // Exact arguments stay reviewable, folded under the readable fields rather than in front of them.
-      const exact = document.fields.filter(field => field.label === "本次完整参数"), readable = document.fields.filter(field => field.label !== "本次完整参数");
+      const exactLabel = uiText.text("workbench.assistant-review.field.exact-arguments");
+      const isExact = (field: { key?: string; label: string }) => isReviewFieldNamed(field, "exact-arguments", exactLabel, ["本次完整参数", "完整参数", "Full parameters", "Exact arguments", "今回の全パラメーター", "詳細な引数"]);
+      const exact = document.fields.filter(isExact), readable = document.fields.filter(field => !isExact(field));
       return `<div class="agent-review-doc" data-agent-review-kind="tool-operation"><p class="agent-review-meta">${p.escape(document.summary)}</p>${readable.length ? `<dl class="agent-review-fields">${readable.map(field => `<dt>${p.escape(field.label)}</dt><dd>${p.escape(field.value)}</dd>`).join("")}</dl>` : ""}${exact.map(field => `<details class="agent-review-bounds" data-review-detail="arguments"><summary>${p.escape(uiText.text("workbench.agent-review.arguments"))}</summary><pre>${p.escape(field.value)}</pre></details>`).join("")}</div>`;
     }
     case "mcp": return `<div class="agent-review-doc" data-agent-review-kind="mcp"><p>${p.escape(document.server + " · " + document.tool)}</p><pre translate="no">${p.escape(document.arguments_json)}</pre></div>`;

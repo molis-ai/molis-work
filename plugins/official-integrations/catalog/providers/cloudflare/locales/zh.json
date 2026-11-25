@@ -13,6 +13,8 @@
     "cloudflare.oauth.api-scopes": "应用已批准的只读 API scopes（空格分隔，点号格式）",
     "cloudflare.oauth.client-auth": "Client 认证方式（basic / post / none）",
     "cloudflare.oauth.note": "从官方 OAuth Scopes API 选择需要的只读权限；不使用 Wrangler 的冒号格式 scope。",
-    "cloudflare.setup.create-cloudflare-api-token": "创建 Cloudflare API Token"
+    "cloudflare.setup.create-cloudflare-api-token": "创建 Cloudflare API Token",
+    "cloudflare.permission.network.reason": "读取 Cloudflare 账号信息与最新动态",
+    "cloudflare.permission.secret.reason": "使用已安全保存的 Cloudflare 连接凭据"
   }
 }

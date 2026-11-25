@@ -29,6 +29,8 @@ import { acquireUpgradedHomeOwner, closeHostResourceSteps, ensureHomeStorageOwne
 import { trackHostListener } from './host-endpoints.js';
 import { serviceProcessId } from './web-runtime-settings.js';
 import { installHostUiText } from './ui-text-provider.js';
+import { readErrorWord } from './ui-error-words.js';
+import { resolveWebLocale, runWithLocale } from './web-locale.js';
 
 interface Surface {
   home:string; space:StorageSpace; token:string; server:SpaceWebSurface;
@@ -45,7 +47,7 @@ function disconnectSurface(entry:Surface,graceful=false){
 function dispatchPersonalSurface(entry:Surface,request:IncomingMessage,response:ServerResponse,url:URL,valid:()=>boolean,notify:(space:string)=>void){
   entry.responses.set(response,valid);
   response.once('close',()=>entry.responses.delete(response));
-  if(!valid()){sendLocalWebJson(response,401,{error:'账号已切换。'});return;}
+  if(!valid()){sendLocalWebJson(response,401,{error:readErrorWord('common.error.account-changed')});return;}
   if(!url.pathname.startsWith('/api/sync')&&['POST','PUT','PATCH','DELETE'].includes(request.method??'')){
     // Sync routes are dispatched before this point. Covers Web API, MCP HTTP, and action mutations.
     response.once('finish',()=>{
@@ -345,7 +347,7 @@ function bindSpaceSockets(server:http.Server,sessions:WebSessions,{surface,selec
 }
 
 function respondAccountPreparation(response:ServerResponse,render?:()=>string):void {
-  if(!render){sendLocalWebJson(response,409,{error:'正在处理旧页面的未保存内容，请稍候。'});return;}
+  if(!render){sendLocalWebJson(response,409,{error:readErrorWord('common.error.account-switching')});return;}
   response.writeHead(409,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','referrer-policy':'no-referrer',Refresh:'1'});
   response.end(render());
 }
@@ -369,9 +371,10 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
   let timer:ReturnType<typeof setInterval>|undefined, shutdown:(()=>Promise<void>)|undefined;
   try {
     server=trackHostListener(http.createServer((request,response)=>{
-    void withWebSessionRequest(request, () => runWithMolisWorkHome(home,async()=>{
+    const requestLocale=resolveWebLocale(request.headers.cookie,request.headers['accept-language']);
+    void withWebSessionRequest(request, () => runWithLocale(requestLocale, () => runWithMolisWorkHome(home,async()=>{
       try {
-        if(isStopping()){sendLocalWebJson(response,503,{error:'服务正在关闭。'});return;}
+        if(isStopping()){sendLocalWebJson(response,503,{error:readErrorWord('common.error.service-stopping')});return;}
         const url=new URL(request.url??'/','http://localhost');
         if(refuseForeignRequest(request,response))return;
         // External top-level links first enter this origin without any session or account action.
@@ -399,17 +402,17 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         if(url.pathname===ACCOUNT_CONNECT_PATH){
           if(!native(request)){refuseLocalWebRequest(response);return;}
           if(!authorizeLocalWebRequest(request,response,url,rootToken,mutations))return;
-          if(request.method!=='POST'){sendLocalWebJson(response,405,{error:'不支持此操作。'});return;}
-          if(account.preparing()){sendLocalWebJson(response,409,{error:'账号操作进行中，请稍后显式重连。'});return;}
+          if(request.method!=='POST'){sendLocalWebJson(response,405,{error:readErrorWord('common.error.method-not-allowed')});return;}
+          if(account.preparing()){sendLocalWebJson(response,409,{error:readErrorWord('common.error.account-busy')});return;}
           // This native attachment is an explicit retry; ordinary business traffic never retries a failed handoff.
           try{await account.restore();await settleAccount(true);}catch(error){respondLocalWebRefusal({respond:(status,body)=>sendLocalWebJson(response,status,body)},error);return;}
           const session=account.current();
-          if(!session){sendLocalWebJson(response,401,{error:'请先登录当前安装的账号。'});return;}
+          if(!session){sendLocalWebJson(response,401,{error:readErrorWord('common.error.account-session-expired')});return;}
           const selected=selection(request),entry=surfaces.get(selected.space.spaceId);
-          if(!entry||!isAccountReady(entry.space.spaceId)){sendLocalWebJson(response,503,{error:'当前账号尚未就绪。'});return;}
+          if(!entry||!isAccountReady(entry.space.spaceId)){sendLocalWebJson(response,503,{error:readErrorWord('common.error.account-not-ready')});return;}
           sendLocalWebJson(response,200,{homeDirectory:entry.home,controlToken:entry.token});return;
         }
-        if(internal&&account.preparing()){sendLocalWebJson(response,409,{error:'正在处理旧页面的未保存内容，请稍候。'});return;}
+        if(internal&&account.preparing()){sendLocalWebJson(response,409,{error:readErrorWord('common.error.account-switching')});return;}
         if (url.pathname === HOME_MAINTENANCE_PATH && (!gatewayHome || gatewayHome === actionGatewayHomeId(home))) {
           if (!authorizeLocalWebRequest(request, response, url, rootToken, mutations)) return;
           const pending = handleHomeMaintenanceHttp(request, response, url, home, options.localHost ?? null).then(() => undefined);
@@ -459,11 +462,11 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         if (url.pathname.startsWith('/api/sync')) {
           const expectedSpace = request.headers['x-molis-sync-space'];
           if (expectedSpace && expectedSpace !== selected.space.spaceId) {
-            sendLocalWebJson(response, 409, { error: '空间已切换，请刷新页面。' });
+            sendLocalWebJson(response, 409, { error: readErrorWord('common.error.account-changed') });
             return;
           }
           if (!webRequestAuthenticated(request, token)) {
-            sendLocalWebJson(response, 403, { error: '空间已切换，请刷新页面。' });
+            sendLocalWebJson(response, 403, { error: readErrorWord('common.error.account-changed') });
             return;
           }
           if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
@@ -489,7 +492,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         }
         if(accountPath){
           if(!authorizeLocalWebRequest(request,response,url,native(request)||request.headers['x-molis-work-control-token']===rootToken?rootToken:protocolToken,mutations))return;
-          if(!await (installationProtocol?account.protocol.handle(request,response,url):account(request,response,url,origin,webPageToken(request),'')))sendLocalWebJson(response,404,{error:'接口不存在。'});
+          if(!await (installationProtocol?account.protocol.handle(request,response,url):account(request,response,url,origin,webPageToken(request),'')))sendLocalWebJson(response,404,{error:readErrorWord('common.error.endpoint-not-found')});
           if (url.pathname === '/api/personal/logout' && response.statusCode === 200) revokeWebSession(request);
           sweep();await resume(request);return;
         }
@@ -500,15 +503,15 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
             refuseLocalWebRequest(response);return;
           }
           if(request.method==='GET'&&!url.pathname.startsWith('/api/')&&accountEntry){url.searchParams.delete('accountLogin');response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,url));}
-          else sendLocalWebJson(response,401,{error:'请先登录当前安装的账号。'});
+          else sendLocalWebJson(response,401,{error:readErrorWord('common.error.account-session-expired')});
           return;
         }
-        if(account.preparing()){respondAccountPreparation(response,request.method==='GET'&&!url.pathname.startsWith('/api/')&&accountEntry?()=>accountEntry.render(webPageToken(request),request,url,'账号正在切换，请稍候'):undefined);return;}
+        if(account.preparing()){respondAccountPreparation(response,request.method==='GET'&&!url.pathname.startsWith('/api/')&&accountEntry?()=>accountEntry.render(webPageToken(request),request,url,readErrorWord('common.error.account-switching')):undefined);return;}
         if(!isAccountReady(selected.space.spaceId))await settleAccount();
         token=tokenFor(selected);
         if(url.pathname==='/api/spaces'){
           if(!authorizeLocalWebRequest(request,response,url,token,mutations))return;
-          if(request.method!=='GET'){sendLocalWebJson(response,405,{error:'不支持此操作。'});return;}
+          if(request.method!=='GET'){sendLocalWebJson(response,405,{error:readErrorWord('common.error.method-not-allowed')});return;}
           const identity=selected.session?.auth.identity();
           const personal=identity?personalStorageSpace(personalCloudConfig()!.authOrigin,identity.applicationId,identity.userId):null;
           sendLocalWebJson(response,200,{current:selected.space,spaces:personal?[personal]:[]});return;
@@ -518,7 +521,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         if(supplied && supplied!==token){
           // Preserve the existing forbidden-mutation contract. Stale reads get
           // an explicit conflict instead of loading another space into the UI.
-          if (['GET','HEAD'].includes(request.method??'')) sendLocalWebJson(response,409,{code:'space.changed',error:'空间已切换，请刷新页面。'});
+          if (['GET','HEAD'].includes(request.method??'')) sendLocalWebJson(response,409,{code:'space.changed',error:readErrorWord('common.error.account-changed')});
           else refuseLocalWebRequest(response);
           return;
         }
@@ -531,14 +534,14 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
       }catch(error){
         if(!response.headersSent&&error instanceof ActionError){respondLocalWebRefusal({respond:(status,body)=>sendLocalWebJson(response,status,body)},error);return;}
         if(!response.headersSent){
-          if(request.method==='GET'&&!(request.url??'/').startsWith('/api/')&&accountEntry){response.writeHead(503,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,new URL(request.url??'/','http://localhost'),'账号环境尚未就绪，请重试。'));}
-          else sendLocalWebJson(response,503,{code:'space.unavailable',error:'账号环境尚未就绪，请重试。'});
+          if(request.method==='GET'&&!(request.url??'/').startsWith('/api/')&&accountEntry){response.writeHead(503,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,new URL(request.url??'/','http://localhost'),readErrorWord('common.error.account-not-ready')));}
+          else sendLocalWebJson(response,503,{code:'space.unavailable',error:readErrorWord('common.error.account-not-ready')});
         }
         else response.destroy();
       }finally{
         finalizeLocalMutation(response,mutations);
       }
-    }));
+    })));
   }));
   bindSpaceSockets(server,sessions,{surface,selection,attach});
   attachHostPresence(server,home);

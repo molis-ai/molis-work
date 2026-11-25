@@ -40,7 +40,7 @@ export const datasetUiContribution: UiContribution<DatasetUiModel> = {
       case "workbench":
         return renderDatasetWorkbench(request.model);
       default:
-        throw new Error(`Dataset UI surface ${(request as UiRenderRequest).surface} 不存在`);
+        throw new Error(`Unknown Dataset UI surface: ${(request as UiRenderRequest).surface}`);
     }
   },
 };

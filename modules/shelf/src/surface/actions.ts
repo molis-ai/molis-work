@@ -27,8 +27,10 @@ const SHARED: readonly ActionAudience[] = ["user", "workflow", "agent", "mcp"];
 
 function define<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[], audiences: readonly ActionAudience[], resultView?: ActionResultView): ActionDefinition<I, O> {
+  const keyBase = `shelf.action.${name.replaceAll(".", "-")}`;
   // The existing HTTP surface never serialized Shelf: recipes run for minutes while the panel keeps reading and cancelling.
   return createActionDefinition<I, O>(`shelf.${name}`, operation, { title, description,
+    title_text: { key: `${keyBase}.title` }, description_text: { key: `${keyBase}.description` },
     scope: "home", scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output, ...(resultView ? { result_view: resultView } : {}) }, version);
 }
 
@@ -194,7 +196,9 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
 export interface ShelfMaterialPreview { payload: import("../contract.js").ShelfTextMaterial; fingerprint: string }
 function defineProject<I, O>(name: string, version: number, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[]): ActionDefinition<I, O> {
+  const keyBase = `shelf.action.${name.replaceAll(".", "-")}`;
   return createActionDefinition<I, O>(`shelf.${name}`, operation, { title, description,
+    title_text: { key: `${keyBase}.title` }, description_text: { key: `${keyBase}.description` },
     scheduling: "concurrent", audiences: LOCAL, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output }, version);
 }
 const material = object({ title: text, text, content_hash: text, source: { type: "object", required: ["item_id"] } });

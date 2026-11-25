@@ -8,10 +8,12 @@
     "lark.connection.summary": "Messages and documents from Lark.",
     "lark.connection.token-label": "Lark app credentials",
     "lark.guide.cli-link": "View the official Lark CLI",
-    "lark.guide.cli-note": "The same official CLI supports Lark. The Molis Work Lark connector does not yet use its sign-in.",
+    "lark.guide.cli-note": "The same official CLI supports Lark. The Molis Work Lark connection doesn’t reuse its sign-in yet.",
     "lark.guide.mcp-link": "View the official Lark MCP",
     "lark.guide.oauth-link": "View Lark user authorization",
     "lark.guide.token-note": "For a custom Lark app, use app_id:app_secret.",
-    "lark.setup.open-lark-open-platform": "Open Lark Open Platform"
+    "lark.setup.open-lark-open-platform": "Open Lark Open Platform",
+    "lark.permission.network.reason": "Read your Lark account info and latest updates",
+    "lark.permission.secret.reason": "Use your securely stored Lark connection credentials"
   }
 }

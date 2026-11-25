@@ -1,3 +1,4 @@
+import { readPagesText as localized } from "./ui-text-safe.js";
 import type { PagesBody } from "./contract.js";
 
 interface PagesTemplate {
@@ -269,10 +270,48 @@ export const PAGES_TEMPLATES: readonly PagesTemplate[] = [
   },
 ];
 
+const TEMPLATE_TITLE_KEYS: Readonly<Record<string, string>> = {
+  "meeting-notes": "pages.template.meeting-notes.title",
+  "weekly-report": "pages.template.weekly-report.title",
+  "project-plan": "pages.template.project-plan.title",
+  prd: "pages.template.prd.title",
+  "sprint-retro": "pages.template.sprint-retro.title",
+  "user-interview": "pages.template.user-interview.title",
+  okr: "pages.template.okr.title",
+  postmortem: "pages.template.postmortem.title",
+  "tech-design": "pages.template.tech-design.title",
+  competitor: "pages.template.competitor.title",
+};
+
+const TEMPLATE_SUMMARY_KEYS: Readonly<Record<string, string>> = {
+  "meeting-notes": "pages.template.meeting-notes.summary",
+  "weekly-report": "pages.template.weekly-report.summary",
+  "project-plan": "pages.template.project-plan.summary",
+  prd: "pages.template.prd.summary",
+  "sprint-retro": "pages.template.sprint-retro.summary",
+  "user-interview": "pages.template.user-interview.summary",
+  okr: "pages.template.okr.summary",
+  postmortem: "pages.template.postmortem.summary",
+  "tech-design": "pages.template.tech-design.summary",
+  competitor: "pages.template.competitor.summary",
+};
+
+function localizedTemplate(item: PagesTemplate): PagesTemplate {
+  return {
+    ...item,
+    title: localized(TEMPLATE_TITLE_KEYS[item.id], item.title),
+    summary: localized(TEMPLATE_SUMMARY_KEYS[item.id], item.summary),
+  };
+}
+
 export function pagesTemplateById(id: string): PagesTemplate | undefined {
-  return PAGES_TEMPLATES.find((item) => item.id === id);
+  const found = PAGES_TEMPLATES.find((item) => item.id === id);
+  return found ? localizedTemplate(found) : undefined;
 }
 
 export function pagesTemplateSummaries(): readonly { id: string; title: string; summary: string }[] {
-  return PAGES_TEMPLATES.map(({ id, title, summary }) => ({ id, title, summary }));
+  return PAGES_TEMPLATES.map((item) => {
+    const { id, title, summary } = localizedTemplate(item);
+    return { id, title, summary };
+  });
 }

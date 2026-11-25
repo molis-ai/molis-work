@@ -1,6 +1,7 @@
 /** One-time document reads. Credentials never leave the selected provider's API origin. */
 import { ActionError, createExecutionLifetime, defineErrorCodes, type ExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import type { ImportedDocumentWarning } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { catalogFallback } from "./fallback-text.js";
 
 export type ExternalDocumentSource = "notion" | "feishu" | "lark" | "google-docs";
 
@@ -178,7 +179,7 @@ function createReader(fetchImpl: typeof fetch, lifetime: ExecutionLifetime, befo
 
 type Reader = ReturnType<typeof createReader>;
 
-async function notionDocument(id: string, token: string, reader: Reader) {
+async function notionDocument(id: string, token: string, reader: Reader, locale?: string) {
   const headers = { Authorization: `Bearer ${token}`, "Notion-Version": NOTION_VERSION };
   const page = await reader.json(`https://api.notion.com/v1/pages/${id}`, { headers });
   if (page.object !== "page" || page.archived === true || page.in_trash === true) {
@@ -194,7 +195,7 @@ async function notionDocument(id: string, token: string, reader: Reader) {
   const title = Array.isArray(titleProperty?.title)
     ? titleProperty.title.map((item) => string(record(item).plain_text) || string(record(record(item).text).content)).join("").trim() : "";
   return {
-    title: title || "Notion 文档",
+    title: title || catalogFallback("catalog.fallback.notion-document", undefined, locale),
     content: data.markdown,
     format: "markdown" as const,
     warnings: [{ key: "workbench.import.warning-notion-snapshot" }, ...(/<unknown\b/u.test(data.markdown)
@@ -202,7 +203,7 @@ async function notionDocument(id: string, token: string, reader: Reader) {
   };
 }
 
-async function feishuDocument(source: "feishu" | "lark", reference: ReturnType<typeof documentReference>, token: string, reader: Reader, tokenKind?: "access_token" | "app_credentials") {
+async function feishuDocument(source: "feishu" | "lark", reference: ReturnType<typeof documentReference>, token: string, reader: Reader, tokenKind?: "access_token" | "app_credentials", locale?: string) {
   const separator = token.indexOf(":");
   const cli = (source === "feishu" && token === "lark-cli") || tokenKind === "access_token";
   if (!cli && (separator < 1 || !token.slice(separator + 1).trim())) fail("needs_auth", "请在设置中以 app_id:app_secret 格式连接该数据源的自建应用。");
@@ -229,21 +230,21 @@ async function feishuDocument(source: "feishu" | "lark", reference: ReturnType<t
   if (typeof record(body.data).content !== "string") fail("provider", "数据源没有返回有效的文档正文。");
   return {
     source_id: id,
-    title: string(document.title).trim() || (source === "feishu" ? "飞书文档" : "Lark 文档"),
+    title: string(document.title).trim() || catalogFallback(source === "feishu" ? "catalog.fallback.feishu-document" : "catalog.fallback.lark-document", undefined, locale),
     content: string(record(body.data).content),
     format: "text" as const,
     warnings: [{ key: "workbench.import.warning-lark-snapshot" }],
   };
 }
 
-async function googleDocument(id: string, token: string, reader: Reader) {
+async function googleDocument(id: string, token: string, reader: Reader, locale?: string) {
   const headers = { Authorization: `Bearer ${token}` };
   const page = await reader.json(`https://www.googleapis.com/drive/v3/files/${id}?fields=id,name,mimeType,capabilities(canDownload)&supportsAllDrives=true`, { headers });
   if (page.id !== id || page.mimeType !== "application/vnd.google-apps.document") fail("unsupported_document", "此链接不是 Google Docs 文档。请导出为 Markdown、文本或 HTML 后导入。");
   if (record(page.capabilities).canDownload === false) fail("permission_denied", "文档所有者禁止下载该文档，无法导入正文。");
   const content = await reader.text(`https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=text%2Fplain`, { headers });
   return {
-    title: string(page.name).trim() || "Google 文档", content, format: "text" as const,
+    title: string(page.name).trim() || catalogFallback("catalog.fallback.google-document", undefined, locale), content, format: "text" as const,
     warnings: [{ key: "workbench.import.warning-google-docs-snapshot" }],
   };
 }
@@ -251,7 +252,7 @@ async function googleDocument(id: string, token: string, reader: Reader) {
 export async function readExternalDocument(
   input: { source: ExternalDocumentSource; url: string },
   ports: { token: string; fetch?: typeof fetch; tokenKind?: "access_token" | "app_credentials";
-    signal?: AbortSignal; beforeDispatch?(): void | Promise<void> },
+    signal?: AbortSignal; beforeDispatch?(): void | Promise<void>; locale?: string },
 ): Promise<ExternalDocument> {
   ports.signal?.throwIfAborted();
   const reference = documentReference(input);
@@ -263,9 +264,9 @@ export async function readExternalDocument(
     timeout: { milliseconds: DEADLINE_MS, reason: externalDocumentErrors.timeout("读取文档超时，请稍后重试。") } });
   try {
     const reader = createReader(fetchImpl, lifetime, ports.beforeDispatch);
-    const content = input.source === "notion" ? await notionDocument(reference.id, token, reader)
-      : input.source === "google-docs" ? await googleDocument(reference.id, token, reader)
-        : await feishuDocument(input.source, reference, token, reader, ports.tokenKind);
+    const content = input.source === "notion" ? await notionDocument(reference.id, token, reader, ports.locale)
+      : input.source === "google-docs" ? await googleDocument(reference.id, token, reader, ports.locale)
+        : await feishuDocument(input.source, reference, token, reader, ports.tokenKind, ports.locale);
     lifetime.assertActive();
     if (!content.content.trim()) fail("empty_content", "文档没有可导入的正文。请确认文档内容和当前应用的读取权限。");
     return { source: input.source, source_id: reference.id, source_url: reference.sourceUrl, ...content };

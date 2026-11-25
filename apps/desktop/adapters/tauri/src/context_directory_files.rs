@@ -1,6 +1,7 @@
 //! Metadata and bytes stay beneath an open authorized directory descriptor.
 //! openat/O_NOFOLLOW prevents a changed directory or symlink from redirecting access.
 use crate::context_directories::{DirectoryPreview, FilePreview, SkippedReasons};
+use crate::native_language::tr;
 use std::ffi::{CStr, CString};
 use std::fs::{File, Metadata, OpenOptions};
 use std::io::{Read, Write};
@@ -122,27 +123,55 @@ pub(crate) fn open_root(path: &Path) -> Result<File, String> {
         .and_then(|name| name.to_str())
         .is_some_and(ignored_folder)
     {
-        return Err("请选择普通工作目录，隐藏目录和依赖目录不参与整理".into());
+        return Err(tr(
+            "请选择普通工作文件夹，隐藏文件夹和依赖文件夹不参与整理。",
+            "Choose a regular folder. Hidden and dependency folders aren’t included.",
+            "通常のフォルダーを選択してください。隠しフォルダーや依存関係フォルダーは対象外です。",
+        )
+        .into());
     }
     let directory = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(path)
-        .map_err(|_| "目录已移动、不可访问或授权失效，请重新选择")?;
+        .map_err(|_| {
+            tr(
+                "文件夹已移动、无法访问或授权已失效，请重新选择。",
+                "This folder moved, can’t be read, or its permission expired. Please select it again.",
+                "フォルダーが移動されたか、アクセスできない状態です。もう一度選択してください。",
+            )
+        })?;
     if directory
         .metadata()
-        .map_err(|_| "无法确认目录状态")?
+        .map_err(|_| {
+            tr(
+                "无法确认文件夹状态。",
+                "Couldn’t check folder status.",
+                "フォルダーの状態を確認できませんでした。",
+            )
+        })?
         .st_flags()
         & libc::UF_HIDDEN
         != 0
     {
-        return Err("隐藏目录不参与整理".into());
+        return Err(tr(
+            "隐藏文件夹不参与整理。",
+            "Hidden folders aren’t included.",
+            "隠しフォルダーは対象外です。",
+        )
+        .into());
     }
     Ok(directory)
 }
 
 fn open_child(directory: &File, name: &str, is_directory: bool) -> Result<File, String> {
-    let name = CString::new(name).map_err(|_| "文件路径无效")?;
+    let name = CString::new(name).map_err(|_| {
+        tr(
+            "文件路径无效。",
+            "This file path isn’t valid.",
+            "ファイルパスが無効です。",
+        )
+    })?;
     let flags = libc::O_RDONLY
         | libc::O_NOFOLLOW
         | libc::O_CLOEXEC
@@ -151,7 +180,12 @@ fn open_child(directory: &File, name: &str, is_directory: bool) -> Result<File, 
     // name is one validated component and the descriptor remains owned by directory.
     let fd = unsafe { libc::openat(directory.as_raw_fd(), name.as_ptr(), flags) };
     if fd < 0 {
-        Err("文件已移走、是链接或无法访问，请刷新预览".into())
+        Err(tr(
+            "文件已移走、是快捷方式或无法访问，刷新预览后再试即可。",
+            "This file moved, is a link, or can’t be read. Refresh the preview and try again.",
+            "ファイルが移動されたかリンクになっているため読み取れません。プレビューを更新してからお試しください。",
+        )
+        .into())
     } else {
         Ok(unsafe { File::from_raw_fd(fd) })
     }
@@ -214,14 +248,24 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan<'_>) -> 
         )
     };
     if stream_fd < 0 {
-        return Err("无法预览目录，请重新选择".into());
+        return Err(tr(
+            "暂时无法预览这个文件夹，请重新选择。",
+            "Couldn’t preview this folder. Please select it again.",
+            "このフォルダーをプレビューできませんでした。もう一度選択してください。",
+        )
+        .into());
     }
     let stream = unsafe { libc::fdopendir(stream_fd) };
     if stream.is_null() {
         unsafe {
             libc::close(stream_fd);
         }
-        return Err("无法预览目录，请重新选择".into());
+        return Err(tr(
+            "暂时无法预览这个文件夹，请重新选择。",
+            "Couldn’t preview this folder. Please select it again.",
+            "このフォルダーをプレビューできませんでした。もう一度選択してください。",
+        )
+        .into());
     }
     // Collect and sort entries deterministically so a cancelled scan can resume from `resume_offset` without duplicating or dropping items.
     let mut raw_entries: Vec<(Vec<u8>, u8)> = Vec::new();
@@ -234,7 +278,12 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan<'_>) -> 
             let entry = unsafe { libc::readdir(stream.0) };
             if entry.is_null() {
                 if unsafe { *libc::__error() } != 0 {
-                    return Err("部分目录无法访问，请刷新预览".into());
+                    return Err(tr(
+                        "部分子文件夹无法访问，请刷新预览。",
+                        "Some folders couldn’t be read. Refresh the preview and try again.",
+                        "一部のフォルダーを読み取れませんでした。プレビューを更新してください。",
+                    )
+                    .into());
                 }
                 break;
             }
@@ -279,7 +328,13 @@ fn scan(directory: &File, prefix: &str, depth: usize, output: &mut Scan<'_>) -> 
             output.record_skipped_file(name, reason);
             continue;
         }
-        let component = CString::new(name).map_err(|_| "文件名称无效")?;
+        let component = CString::new(name).map_err(|_| {
+            tr(
+                "文件名称无效。",
+                "This file name isn’t valid.",
+                "ファイル名が無効です。",
+            )
+        })?;
         let mut info = std::mem::MaybeUninit::<libc::stat>::uninit();
         let result = unsafe {
             libc::fstatat(
@@ -406,11 +461,22 @@ where
     F: FnMut(usize, usize, u64, &str),
 {
     if ![0, 7, 30, 90].contains(&days) {
-        return Err("时间范围无效".into());
+        return Err(tr(
+            "时间范围无效。",
+            "Invalid time range.",
+            "期間の設定が無効です。",
+        )
+        .into());
     }
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_err(|_| "系统时间无效")?
+        .map_err(|_| {
+            tr(
+                "系统时间无效。",
+                "System clock isn’t valid.",
+                "システム時刻が無効です。",
+            )
+        })?
         .as_millis() as u64;
     let since_ms = if days == 0 {
         0
@@ -461,7 +527,12 @@ pub(crate) fn preview(directory: &File, days: u16) -> Result<DirectoryPreview, S
 
 fn relative_components(path: &str) -> Result<Vec<&str>, String> {
     if path.is_empty() || path.len() > 4096 || path.contains(['\\', '\0']) {
-        return Err("文件路径无效".into());
+        return Err(tr(
+            "文件路径无效。",
+            "This file path isn’t valid.",
+            "ファイルパスが無効です。",
+        )
+        .into());
     }
     let components = path.split('/').collect::<Vec<_>>();
     if components.len() > MAX_DEPTH + 1
@@ -473,7 +544,12 @@ fn relative_components(path: &str) -> Result<Vec<&str>, String> {
             .any(|part| ignored_folder(part))
         || skipped_file(components[components.len() - 1])
     {
-        return Err("文件不在允许的预览范围内".into());
+        return Err(tr(
+            "这份文件不在可预览的范围内。",
+            "This file isn’t within the allowed preview scope.",
+            "このファイルはプレビュー可能な範囲外です。",
+        )
+        .into());
     }
     Ok(components)
 }
@@ -487,23 +563,51 @@ pub(crate) enum StreamFailure {
 
 fn open_checked(directory: &File, expected: &FilePreview) -> Result<(File, Metadata), String> {
     let components = relative_components(&expected.path)?;
-    let mut parent = directory.try_clone().map_err(|_| "目录访问已中断")?;
+    let mut parent = directory.try_clone().map_err(|_| {
+        tr(
+            "文件夹访问已中断。",
+            "Folder access was interrupted.",
+            "フォルダーへのアクセスが中断されました。",
+        )
+    })?;
     for component in &components[..components.len() - 1] {
         parent = open_child(&parent, component, true)?;
         if parent
             .metadata()
-            .map_err(|_| "无法确认子目录状态")?
+            .map_err(|_| {
+                tr(
+                    "无法确认子文件夹状态。",
+                    "Couldn’t check subfolder status.",
+                    "サブフォルダーの状態を確認できませんでした。",
+                )
+            })?
             .st_flags()
             & libc::UF_HIDDEN
             != 0
         {
-            return Err("隐藏目录不参与整理".into());
+            return Err(tr(
+                "隐藏文件夹不参与整理。",
+                "Hidden folders aren’t included.",
+                "隠しフォルダーは対象外です。",
+            )
+            .into());
         }
     }
     let file = open_child(&parent, components[components.len() - 1], false)?;
-    let before = file.metadata().map_err(|_| "无法确认文件状态")?;
+    let before = file.metadata().map_err(|_| {
+        tr(
+            "无法确认文件状态。",
+            "Couldn’t check file status.",
+            "ファイルの状態を確認できませんでした。",
+        )
+    })?;
     if !before.is_file() || before.st_flags() & libc::UF_HIDDEN != 0 {
-        return Err("只读取普通、非隐藏文件".into());
+        return Err(tr(
+            "只读取普通、非隐藏的文件。",
+            "Only regular, non-hidden files can be read.",
+            "通常の非隠しファイルのみ読み込めます。",
+        )
+        .into());
     }
     let identity = format!(
         "{}:{}:{}:{}:{}:{}",
@@ -518,7 +622,12 @@ fn open_checked(directory: &File, expected: &FilePreview) -> Result<(File, Metad
         || before.len() != expected.size
         || modified_ms(before.mtime(), before.mtime_nsec()) != expected.modified_ms
     {
-        return Err("文件自预览后已改变，请刷新后重新选择".into());
+        return Err(tr(
+            "文件在预览后发生了变化，刷新后再重新选择即可。",
+            "This file changed after preview. Refresh and select it again.",
+            "プレビュー後にファイルが変更されました。更新してからもう一度選択してください。",
+        )
+        .into());
     }
     Ok((file, before))
 }
@@ -535,9 +644,16 @@ pub(crate) fn stream_one(
     let mut buffer = vec![0_u8; 256 * 1024];
     let mut copied = 0_u64;
     loop {
-        let read = reader
-            .read(&mut buffer)
-            .map_err(|_| StreamFailure::File("无法读取文件正文".into()))?;
+        let read = reader.read(&mut buffer).map_err(|_| {
+            StreamFailure::File(
+                tr(
+                    "没能读取文件内容。",
+                    "Couldn’t read the file content.",
+                    "ファイルの内容を読み込めませんでした。",
+                )
+                .into(),
+            )
+        })?;
         if read == 0 {
             break;
         }
@@ -545,9 +661,16 @@ pub(crate) fn stream_one(
             .map_err(|_| StreamFailure::Sink)?;
         copied += read as u64;
     }
-    let after = file
-        .metadata()
-        .map_err(|_| StreamFailure::File("无法确认读取后的文件状态".into()))?;
+    let after = file.metadata().map_err(|_| {
+        StreamFailure::File(
+            tr(
+                "没能确认读取后的文件状态。",
+                "Couldn’t verify the file after reading.",
+                "読み込み後のファイル状態を確認できませんでした。",
+            )
+            .into(),
+        )
+    })?;
     if copied != before.len()
         || before.len() != after.len()
         || before.mtime() != after.mtime()
@@ -556,7 +679,12 @@ pub(crate) fn stream_one(
         || before.ctime_nsec() != after.ctime_nsec()
     {
         return Err(StreamFailure::File(
-            "文件在读取时改变，请刷新后重新选择".into(),
+            tr(
+                "文件在读取时发生了变化，刷新后再重新选择即可。",
+                "This file changed while being read. Refresh and select it again.",
+                "読み込み中にファイルが変更されました。更新してからもう一度選択してください。",
+            )
+            .into(),
         ));
     }
     Ok(())
@@ -807,7 +935,7 @@ mod tests {
             .reason
             .as_ref()
             .unwrap()
-            .contains("改变"));
+            .contains("变化"));
     }
     #[test]
     fn replacing_a_previewed_subdirectory_with_a_symlink_is_rejected() {
@@ -843,7 +971,7 @@ mod tests {
         std::fs::rename(replacement, &path).unwrap();
         let result = read(&fixture.root(), files);
         assert!(result[0].data.is_none());
-        assert!(result[0].reason.as_ref().unwrap().contains("改变"));
+        assert!(result[0].reason.as_ref().unwrap().contains("变化"));
     }
     #[test]
     fn previews_by_date_range() {

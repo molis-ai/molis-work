@@ -563,6 +563,8 @@ export interface ActionExecutionPolicy {
     readonly max_calls_per_minute?: number;
 }
 
+export type ActionFieldTextReader = (key: string) => string | undefined;
+
 export interface ActionHandlerBinding {
     readonly capability_id: string;
     readonly version: number;
@@ -582,7 +584,9 @@ export type ActionLocale = UiLanguageTag;
 
 export interface ActionMetadata {
     readonly title: string;
+    readonly title_text?: TextRef;
     readonly description: string;
+    readonly description_text?: TextRef;
     readonly local_id?: string;
     readonly kind: "query" | "judgment" | "operation" | "navigation";
     readonly scope: "home" | "project";
@@ -2160,6 +2164,8 @@ export interface BoundActionClient {
     discoverOne(reference: ActionReference): Promise<ActionView | undefined>;
     invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only" | "assert_memory_sources_current">, transport?: ActionInvokeTransport): Promise<Output>;
 }
+
+export declare const COMMON_ACTION_FIELD_KEYS: Readonly<Record<string, string>>;
 
 export declare const DELIVERED_MATERIAL_KINDS: readonly DeliveredMaterialKind[];
 
@@ -5952,12 +5958,14 @@ export declare function actionFieldInput(declared?: unknown): "date" | "datetime
 export declare function actionFieldLabel(key: string, declared?: {
     title?: string;
     description?: string;
-}): string;
+}, readText?: ActionFieldTextReader): string;
+
+export declare function actionFieldLabelKey(key: string): string | undefined;
 
 export declare function actionFieldLabelSource(key: string, declared?: {
     title?: string;
     description?: string;
-}): {
+}, readText?: ActionFieldTextReader): {
     label: string;
     defaultKey?: string;
 };
@@ -5967,14 +5975,15 @@ export declare function actionFieldOptions(declared?: unknown): Array<{
     label: string;
 }> | null;
 
-export declare function actionFieldValue(key: string, value: unknown, declared?: unknown): string;
+export declare function actionFieldValue(key: string, value: unknown, declared?: unknown, readText?: ActionFieldTextReader): string;
 
 export declare function actionPermissionDeclarations(definitions: readonly ActionDefinition[], reason: string, declared?: readonly {
     readonly permission: string;
-}[]): {
+}[], reasonText?: TextRef): {
     permission: string;
     required: boolean;
     reason: string;
+    reason_text?: TextRef;
 }[];
 
 export declare function actionReachesAudience(action: Pick<ActionMetadata, "kind" | "effect" | "plugin" | "audiences">, capabilityId: string, audience: ActionAudience): boolean;

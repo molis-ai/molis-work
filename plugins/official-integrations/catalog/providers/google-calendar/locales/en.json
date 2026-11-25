@@ -9,11 +9,13 @@
     "google-calendar.connection.token-label": "Google access token (calendar.readonly)",
     "google-calendar.guide.mcp-connected-note": "Access to the Google Workspace Developer Preview is required.",
     "google-calendar.guide.mcp-link": "View the official Calendar MCP (Developer Preview)",
-    "google-calendar.guide.mcp-note": "Access to the Google Workspace Developer Preview is required. Molis Work has not integrated this service.",
+    "google-calendar.guide.mcp-note": "Access to the Google Workspace Developer Preview is required. Molis Work hasn’t integrated this service yet.",
     "google-calendar.guide.oauth-link": "Create Google OAuth client",
     "google-calendar.guide.token-note": "Get a calendar.readonly user access token from OAuth Playground and paste it here. Replace it when it expires.",
     "google-calendar.setup.create-oauth-client": "Create OAuth client",
     "google-calendar.setup.enable-calendar-api": "Enable Calendar API",
-    "google-calendar.setup.get-a-token-in-oauth-playground": "Get a token in OAuth Playground"
+    "google-calendar.setup.get-a-token-in-oauth-playground": "Get a token in OAuth Playground",
+    "google-calendar.permission.network.reason": "Read your Google Calendar account info and latest updates",
+    "google-calendar.permission.secret.reason": "Use your securely stored Google Calendar connection credentials"
   }
 }

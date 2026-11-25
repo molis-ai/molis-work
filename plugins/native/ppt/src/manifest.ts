@@ -7,6 +7,7 @@ import {
 } from "./contract.js";
 import { PPT_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pptActions, PPT_ACTION_PERMISSIONS } from "./actions.js";
+import { localizeAction, localizePermission } from "./action-text.js";
 import { pptContentActions } from "./content-actions.js";
 import { pptSync } from "./replication.js";
 import { PPT_DATABASE } from "./database.js";
@@ -26,7 +27,7 @@ export const pptManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-ppt-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  actions: [...Object.values(pptActions), ...Object.values(pptContentActions)],
+  actions: [...Object.values(pptActions), ...Object.values(pptContentActions)].map(localizeAction),
   databases: { home: PPT_DATABASE },
   routes: [
     { route_id: "ppt.list", method: "GET", path: "/ppt" },
@@ -44,11 +45,11 @@ export const pptManifest: PluginManifest = {
   permissions: [
     ...PPT_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: permission !== "model:invoke",
       reason: permission === "model:invoke" ? "让模型把文字整理成大纲（显式调用）" : "演示稿动作" })),
-    { permission: "actions:delegate", required: true, reason: "按内容站协议从项目里已装的文档插件读取文字生成大纲" },
+    { permission: "actions:delegate", required: true, reason: "从项目里已安装的文档插件读取文字来生成大纲" },
     { permission: "storage:private", required: true, reason: "本机演示稿库" },
     { permission: "artifact:write", required: true, reason: "把演示稿存为成果" },
     { permission: "artifact:read", required: true, reason: "给下一版编号、恢复没存完的固定版本时读回自己固定的演示稿" },
-  ],
+  ].map(localizePermission),
   capabilities: { provides: [], consumes: [] },
   artifacts: {
     produces: [{ artifact_type_id: PPT_ARTIFACT_TYPE_ID, schema_version: PPT_ARTIFACT_SCHEMA_VERSION, title: "演示稿", title_text: { key: "ppt.artifacts.type-title" }, searchable_fields: ["bullets"],
@@ -56,7 +57,7 @@ export const pptManifest: PluginManifest = {
       compare: { capability_id: "ppt.artifacts.compare", version: /* @version action.ppt.artifacts.compare */ 1 } }],
     consumes: [],
   },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

@@ -17,39 +17,54 @@
 
 界面文案面向**完全没有 AI 与编程基础的普通用户**。第一要务是**让人一眼看明白「这是什么、对我有什么影响、下一步点哪里」**——既分毫不差地守住产品真实功能边界，又把底层 AI 与系统机制转译成直白人话（对照 [`PRODUCT.md`](../../PRODUCT.md)「直接、具体、简洁、专业」与 [`DESIGN.md`](../../DESIGN.md) 三问）。官方插件、创作台生成插件、工作台外壳与宿主报错遵守同一套标准；概念定义与界面用词以 [`docs/system/GLOSSARY.md`](../../docs/system/GLOSSARY.md) 为准。
 
-### 四条标尺与两层受众
+### 五条标尺与两层受众
 
-1. **懂（零 AI 基础也能秒懂）**：讲对用户的文件、内容、费用和下一步有什么影响，不讲底层派了哪个 Agent、拼进哪段 Prompt、走了哪条回执。遇到用户去第三方后台必须核对的行业词（如 `API Key`、`tokens`），一律写成 **「白话主词（行业词）」**，如 `密钥（API Key）`、`AI 字数额度（tokens）`。
-2. **准（贴合功能真实边界）**：只读就写「只读、不改原文件」，导入备份就写「只复制导入当时的内容，不随原文件更新」，结果未知就写「不确定是否已完成，请先查看记录再决定要不要重试」；白话不等于含糊或夸大自动化。
-3. **短（去掉无信息量的字与绕口机制）**：删掉「您可以在 / 请点击 / 当前尚未 / 暂无任何 / 正在为您 / 进行…操作 / 本页面用于 / 以便于」；上层标题已交代的主语下层不再重复；把绕口的否定叠加（如「不读取不会删除…不自动形成仍保留…」）拆成直白的条件与结果。
-4. **引（空白与阻断必给出口）**：遇到空态、缺配置、无权限或失败，统一按 **「现状或原因 → 下一步去哪做」** 写清出口；写入中断额外交代已填内容仍在。
+全系统文案（中 / 英 / 日三语及后续扩展语种）统一执行以下 **五条校准标尺**——**温和友好、克制不聒噪、用词精准、立场中性、信息暴露恰到好处**：
+
+1. **温和友好，像在跟人说话**：直接用「你」，避免冰冷公文腔与书面被动句（禁用 `此…`、`该…`、`予以`、`尚未`、`暂无`、`如需`、`已被拒绝`、`未能完成操作`）；失败、暂停或拦截时，自然交代「已有内容都保留着 / 不会影响其他数据」，让人安心再给出口。英文用自然地道的美式表达与常见缩略（`isn’t`、`hasn’t`、`couldn’t`、`your`），杜绝生硬直译和英美拼写混用（统一 `authorized` / `judgment` / `canceled`）。日语用温和克制的 `です・ます` 敬体（不用过度恭维的敬语或机翻腔），按钮与标签用简洁名词或动词短词（如 `キャンセル`、`保存`、`再試行`、`確認が必要です`）。
+2. **克制不聒噪**：去掉无信息量套话与多余主语（删 `您可以在`、`正在为您`、`本页面用于`、`请先确认`、`确定要…吗`、`请点击`、`进行…操作`、`以便于`）；上层标题已交代的主语下层不再重复；不卖萌、不刷感叹号、不说教、不叠多层括号，也不把免责声明铺成长段文字。
+3. **用词精准，守住真实边界**：只读就写「只读、不改原文件」，导入备份就写「只复制导入当时的内容，不随原文件更新」，结果未知就写「暂时不确定是否完成，先核对一下」，停用不说成删除，停止不说成撤销；同一概念全站只有一个中/英/日名称。遇到用户去第三方后台必须核对的行业词（如 `API Key`、`tokens`），写成 **「白话主词（行业词）」**，如 `密钥（API Key）`、`AI 字数额度（tokens）`。
+4. **立场中性、稳定可靠**：不制造焦虑、不居高临下，也不轻描淡写不可逆风险——删除、覆盖、外部发送前把后果与保留项平实写清。
+5. **信息暴露恰到好处**：空白、阻断或失败按 **「现状或原因 → 安心说明/影响 → 下一步去哪做」** 给出出口；主界面绝不裸露原始错误码（`MODEL_HTTP_ERROR`、`SYNC_*`）、AJV / JSON 字段名与路径（`result_subject`、`subject.read`、`/api/...`）、内部流程号（`门禁 G1–G6`）、架构黑话（`宿主`、`游标`、`落盘`、`提供方`、`调用者`、`能力板`、`替身`、`父子 Contract`、`Thread`、`Runtime payload`）、本机路径或开发命令；排错细节只留给「诊断编号」复制入口和「设置 › 诊断」页。
 
 按界面受众分两档掌握用词尺度：
 
-- **A 层 · 日常与通用界面（默认标准）**：新手引导、外壳、个人助理、Goals、Inbox、Feed、Schedule、风险、工作简报、待办、灵光、Pages、Forms、PPT、Dataset、Jelly、Cognia、Shelf、图片、Issue、炼金术士、插件创作台、工作流程，以及常规/助理/记忆/同步/角色/插件设置——**零 AI 与工程黑话**，不裸写 `Runtime`、`Agent`、`Prompt`、`上下文`、`快照`、`回执`、`调用方`、`规格校验`、`进程`、`沙箱`、`Shell`。
-- **B 层 · 开发者工具界面**：`Coding`、`Git`、`Diff`、模型高级协议、对外接入（`MCP` / `CLI`）与系统诊断——保留开发者主动寻找的标准词（`Git`、`工作树`、`暂存区`、`PR`、`MCP`、`CLI`、`API Key`、`Base URL`），但所有状态解释、风险提示和恢复动作一律用直白人话（如 `原子任务` 统一写 `子任务`，`执行回执` 统一写 `执行记录`）。
+- **A 层 · 日常与通用界面（默认标准）**：新手引导、外壳、个人助理、Goals、Inbox、Feed、Schedule、风险、工作简报、待办、灵光、Pages、Forms、PPT、Dataset、Jelly、Cognia、Shelf、图片、Issue、炼金术士、插件创作台、工作流程，以及常规/助理/记忆/同步/角色/插件设置——**零 AI 与工程黑话**，不裸写 `Runtime`、`Agent`、`Prompt`、`上下文`、`快照`、`回执`、`调用方`、`提供方`、`游标`、`落盘`、`能力板`、`替身`、`门禁 G1–G6`、`父子 Contract`、`Thread`、`规格校验`、`进程`、`沙箱`、`Shell`、`Runtime payload`。
+- **B 层 · 开发者工具界面**：`Coding`、`Git`、`Diff`、模型高级协议、对外接入（`MCP` / `CLI`）与系统诊断——保留开发者主动寻找的标准词（`Git`、`工作树`、`暂存区`、`PR`、`MCP`、`CLI`、`API Key`、`Base URL`），但所有状态解释、风险提示和恢复动作一律用温和直白的人话（如 `原子任务` 统一写 `子任务`，`执行回执` 统一写 `执行记录`）。
 
 ### 内部词与高门槛 AI 术语 → 用户白话转译表
 
 | 不要在日常界面写 | 面向用户写成 |
 | --- | --- |
-| 宿主、宿主设置、宿主重启 | `Molis Work`、系统，或直接写「设置 › …」 |
+| 宿主、宿主设置、宿主重启、`Runtime payload` | `Molis Work`、系统，或直接写「设置 › …」；安装包缺失写「安装文件不完整」 |
 | 超出宿主执行边界 | 超出本次允许范围 |
-| 权威状态、权威记录、投影、幂等运行记录、游标、世代 | 当前记录、列表或预览、共用运行记录（不重复执行）、同步进度、版本 |
+| 权威状态、权威记录、投影、幂等运行记录、游标、世代、父子 Contract | 当前记录、列表或预览、共用运行记录（不重复执行）、同步进度、版本、层级关联信息 |
+| 提供方、调用方 / 调用者、按声明的能力读写 | 当前已装的功能 / 当前功能 / 使用处、读取和修改相关内容 |
+| 能力板、替身、门禁 G1–G6、规格板、规格校验、功能合同、验收用例、沙箱试运行 | 项目可供插件使用的功能、试运行模拟（不改动真实数据）、自动检查、组件库、功能清单、检查项、安全试运行（不影响正式数据） |
 | `Runtime`、本地 `Runtime`、终端 `Runtime`、默认运行时 | **外部 AI 工具**、**电脑上的 AI 工具**、**默认 AI 工具**（已知具体软件时直接写 `Claude Code`、`Codex`） |
 | `Agent`、只读 `Agent`、内置 `Agent` vs 外部 `Agent` | 日常直写 **AI**（特指底栏个人助理写 **助理**）；需区分内外时写 **内置 AI** 与 **外部 AI 工具** |
-| 子代理、原子任务 | **子任务**（英文 `sub-task`） |
+| 子代理、原子任务 | **子任务**（英文 `sub-task`，日语 `サブタスク`） |
 | `Prompt`、`Runtime Prompt`、下一次 `Prompt`、提示词 | 日常说明写 **AI 指令说明 / 做事要求**；生图写 **画面描述**；专用设置页写 **指令说明（提示词）** |
 | 上下文、放进上下文、超出模型上下文窗口、整理上下文 | **参考内容 / 对话记录**、**AI 已收到**、**内容太多，超出了当前 AI 一次能读完的长度**、**浓缩早期对话记录** |
 | 裸写 `tokens`、单次模型请求、模型未声明读图能力 | **AI 字数额度（按字数折算为 tokens）**、**让 AI 分析一次**、**当前 AI 模型不支持看图** |
 | 快照（来源快照、文件快照、更新快照） | **当时的内容备份**、**已保存的文件版本**、**重新读取**（`存为固定版本` 配说明「保存当前这一版，后续修改不影响它」） |
-| 回执（除专有词「读到回执」外）、已落盘、终端通道、对象挂载位 | **执行结果 / 操作记录**、已保存、终端连接、关联内容区 |
-| 调用方 / 调用者、按声明的能力读写 | **当前功能 / 使用处**、**读取和修改相关内容** |
-| 规格板、规格校验、功能合同、验收用例、沙箱试运行 | **组件库**、**自动检查**、**功能清单**、**检查项**、**安全试运行（不影响正式数据）** |
+| 回执（除专有词「读到回执」外）、已落盘 / 不会落盘、终端通道、对象挂载位 | **执行结果 / 操作记录**、已保存 / 不会保存、终端连接、关联内容区 |
 | 进程、退出码 `{code}`、不开放任意 Shell、发给终端不是副本沙箱 | **运行**、**状态码 `{code}`**、**结果另存为新文件，不改动原文件**、**在终端中运行会直接读写原文件** |
 | 工作区、工作目录（指项目关联文件夹时） | **项目目录、输入目录、输出目录**（Git 内部仍称工作树、暂存区） |
-| `Functions`、动作库、消费场景、`Connectors`、方法（指 Skill 时） | **判断规则**、**能力库**、**用途**、「设置 › 服务连接」、中文写 **技能**（英文 `Skill` / `Skills`） |
-| 中文句内夹杂英文业务词（`新建 Goal`、`这条 Item`、`在 Characters 里新建`） | 顺为自然中文：**新建目标**、**这条消息**、**在「设置 › 角色」里新建**（插件独立品牌名如 `Pages`、`Jelly`、`Coding` 除外） |
+| `Functions`、动作库、消费场景、`Connectors`、方法（指 Skill 时） | **判断规则**、**能力库**、**用途**、「设置 › 服务连接」、中文写 **技能**（英文 `Skill` / `Skills`，日语 `スキル`） |
+| 中文句内夹杂英文业务词（`新建 Goal`、`这条 Item`、`开 Thread`、`在 Characters 里新建`） | 顺为自然中文：**新建目标**、**这条消息**、**发起话题**、**在「设置 › 角色」里新建**（插件独立品牌名如 `Pages`、`Jelly`、`Coding` 除外） |
+| 冰冷公文词（`此…`、`该…`、`予以`、`尚未`、`暂无`、`如需`、`已被拒绝`、`未能完成操作`、`确定要…吗`） | 自然口语：**这个 / 这条**、**还没有**、**需要时**、**这次没能完成**、**退出 Molis Work？** |
+
+### 中 / 英 / 日三语语感基准样例
+
+| 场景 | 简体中文（`zh`） | 英文（`en` · 美式自然表达） | 日语（`ja` · 温和 `です・ます`） |
+| --- | --- | --- | --- |
+| 模型密钥无效或过期 | 模型的密钥无效或已过期，到「设置 › 模型」检查一下就可以继续。 | Your model key isn’t valid or has expired. Check Settings › Models to continue. | モデルのキーが無効か期限切れです。「設定 › モデル」で確認すると続行できます。 |
+| 模型服务暂不可用 | 模型服务暂时连不上，已有内容都保留着，稍后再试一次即可。 | The model service is temporarily unavailable. Your content is safe — try again in a moment. | モデルサービスに一時的に接続できません。入力内容はそのまま残っていますので、少し待ってからもう一度お試しください。 |
+| 账号会话过期 | 登录已过期，重新登录后就可以继续。 | Your session expired. Sign in again to continue. | ログインの有効期限が切れました。もう一度ログインすると続行できます。 |
+| 通用失败提示 | 这次没能完成，请稍后再试。 | Couldn’t complete that right now. Please try again. | 処理を完了できませんでした。少し待ってからもう一度お試しください。 |
+| 退出确认标题 | 退出 Molis Work？ | Quit Molis Work? | Molis Work を終了しますか？ |
+| 常用按钮与状态 | 取消 / 保存 / 重试 / 需要你确认 | Cancel / Save / Retry / Needs your review | キャンセル / 保存 / 再試行 / 確認が必要です |
 
 ### 九类界面元素的写法
 
@@ -65,11 +80,12 @@
 | 权限理由（`permissions.reason`） | `读取/修改 <具体内容>，用于 <用户可感知目的>` | 单行无句号，≤40 字 | `按调用者授权使用能力` → `读取并搜索你已导入的知识库内容` |
 | 动作目录（`title` / `description`） | 标题写动宾短语；描述用白话写做什么、改不改数据 | 标题 3–10 字无句号；描述不写接口调参语法（如 `传入 {}`） | `传入 {} 读取全部服务的连接方式…` → `查看所有可连接的服务、登录方式与当前连接状态` |
 
-### 符号与中英文排版
+### 符号与中 / 英 / 日排版
 
-- **引号与路径**：中文词包引用界面按钮、菜单、视图或对象名称统一用直角引号 `「…」`（既清晰，也天然避开词包禁用的裸 `"` 与 `'`），英文词包用弯引号 `“…"`；菜单与层级路径统一用 ` › `（两端各留一个半角空格，如 `「设置 › 服务连接」`，不混用 `→`、`/`、`·`）。
-- **英文大小写与术语**：英文标题、按钮、表头、状态词一律采用 **Sentence case**（仅句首词与专有名词如 `Goal`、`Inbox`、`Feed`、`Pages`、`Forms`、`Dataset`、`PPT`、`Shelf`、`Jelly`、`Cognia`、`Coding`、`Git`、`Diff`、`Schedule`、`Work Brief`、`AI`、`Skill`、`MCP`、`Molis Work` 大写）；一轮统一写 `turn`（不写 `round`），子任务统一写 `sub-task`（不写 `subtask`）。
-- **巡检命令**：改完词包先跑 `node scripts/gates/translations.mjs --missing` 查缺漏与参数一致性，再跑 `node scripts/audit-ui-copy.mjs` 自查架构黑话、高门槛 AI 词、旧术语、标点与大小写。
+- **引号与路径**：中文与日语词包引用界面按钮、菜单、视图或对象名称统一用直角引号 `「…」`（既清晰，也天然避开词包禁用的裸 `"` 与 `'`），英文词包用弯引号 `“…”` 与弯撇号 `’`；菜单与层级路径统一用 ` › `（两端各留一个半角空格，如 `「设置 › 服务连接」`、`Settings › Models`、`「設定 › モデル」`，不混用 `→`、`/`、`·`）。
+- **英文大小写与术语**：英文标题、按钮、表头、状态词一律采用 **Sentence case**（仅句首词与专有名词如 `Goal`、`Inbox`、`Feed`、`Pages`、`Forms`、`Dataset`、`PPT`、`Shelf`、`Jelly`、`Cognia`、`Coding`、`Git`、`Diff`、`Schedule`、`Work Brief`、`AI`、`Skill`、`MCP`、`Molis Work` 大写）；使用自然美式拼写与常见缩略（`isn’t`、`hasn’t`、`couldn’t`、`authorized`、`judgment`、`canceled`）；一轮统一写 `turn`（不写 `round`），子任务统一写 `sub-task`（不写 `subtask`）。
+- **日语语感与字形**：日语正文与提示用自然温和的 `です・ます` 敬体，按钮与短标签用简洁名词或动词（`キャンセル`、`保存`、`再試行`、`確認が必要です`）；复数词条写 `{ "plural_arg": "count", "forms": { "other": "…" } }` 并保留 `{count}`。平台样式通过 `:lang(ja)` 优先指定系统日文字体栈（macOS `Hiragino Sans` / Windows `Yu Gothic UI` / `Noto Sans JP`，零额外字体体积），插件不自配字体文件。
+- **巡检命令**：改完词包先跑 `node scripts/gates/translations.mjs --missing` 查中/英/日全语种缺漏与参数一致性，再跑 `node scripts/audit-ui-copy.mjs` 自查架构黑话、冰冷公文词、高门槛 AI 词、旧术语、标点与大小写。
 
 ### 按需帮助与执行前事实（方案 A）
 
@@ -80,9 +96,9 @@
 - **执行前事实常驻可见**：涉及外部发送、模型/生图计费、权限范围扩大或不可逆删除的操作，用 SDK 的 `renderPreActionFacts`（`.mw-facts`）把事实直接写在按钮之前；合上帮助时这些事实依然可见。生成插件的宿主渲染器也会按操作声明的 `effects` 自动补齐执行前事实。
 - **状态沿用七义与语义令牌**：公开状态对齐平台七义（`可开始`、`进行中`、`等你`、`等别人`、`走不通`、`已完成`、`歇着`），颜色与图标由设计系统语义令牌成对给出，不靠纯色或自造缩写表达状态。
 
-## 写一个带两种语言的插件
+## 写一个带多语言的插件
 
-`molis-work plugin create` 生成的样例已经带 `ui.locales`、`locales/en.json` 和 `locales/zh.json`。先按随包手册准备安装版 CLI 和 contracts、SDK 两包。从空目录手写时，照下面四步和文末的完整例子。[安装版开发入口](authoring.md#安装版开发入口) · [中英文最小例子](#最小的完整例子)
+平台语言目录由 `languages.json` 驱动（当前并行支持简体中文 `zh`、英文 `en`、日语 `ja`，结构可扩展至 N 种语言）。`molis-work plugin create` 生成的样例已经带 `ui.locales` 与 `locales/{en,zh,ja}.json`。先按随包手册准备安装版 CLI 和 contracts、SDK 两包。从空目录手写时，照下面四步和文末的完整例子。[安装版开发入口](authoring.md#安装版开发入口) · [三语最小例子](#最小的完整例子)
 
 有源码树时，可以对照其中同一写法的样例。[源码树样例](../../examples/plugin-sample/)
 
@@ -91,7 +107,7 @@
 ```json
 "ui": {
   "contributions": ["com.example.greeting.main"],
-  "locales": { "default": "en", "available": ["en", "zh"] }
+  "locales": { "default": "en", "available": ["en", "zh", "ja"] }
 }
 ```
 
@@ -133,7 +149,23 @@
 }
 ```
 
-中文不分单复数，`unread` 写一句就够；`level` 的参数顺序可以和英文不同，名字要一样。
+`locales/ja.json`：
+
+```json
+{
+  "format_version": 1,
+  "owner": "com.example.greeting",
+  "locale": "ja",
+  "messages": {
+    "greeting.main.title": "あいさつ",
+    "greeting.main.hello": "こんにちは、{name}",
+    "greeting.main.unread": { "plural_arg": "count", "forms": { "other": "新しいメモが {count} 件あります" } },
+    "greeting.main.level": "{at} の最高水位は {level} m です"
+  }
+}
+```
+
+中文和日语都不区分英文式单复数，日语复数词条写 `forms: { "other": "…" }` 并保留 `{count}`；`level` 的参数顺序可以和英文不同，但参数名必须完全一致。
 
 - `owner` 是完整的 `plugin_id`，`locale` 和文件名相同。
 - 键是 `<plugin_id 最后一段>.<位置>.<元素>`：小写，2 到 5 段，最长 120 个字符。键说意思，不抄措辞；整句一个键，不拼半句（不写 `t("a") + "：" + title`）。
@@ -184,21 +216,24 @@ plugin_state="$(mktemp -d)"
 - `validate` 读 Manifest 旁边声明的语言文件。默认语言缺键（别的语言有、它没有）、参数和默认语言不一样、文字里有那五个字符、文件缺失、`owner` 或 `locale` 和声明不符：都失败，退出码 1，`message` 写哪个文件、哪个键、怎么改。参数不一样时，问题记在非默认语言的文件上，但写错的可能是任何一边：`message` 写出两个文件各用什么参数、哪个是默认语言，改写错的那一边；代码里 `t` 传的参数名以默认语言为准。只是别的语言少几个键不算失败，写进输出的 `locale_notes`（每条有 `file`、`code`、`locale`、`key`、`reason`、`fix`），那种语言暂时显示默认语言的字。
 - `dev` 加 `--locale <语言>` 用那种语言画页面，不写用 `default`。语言不在 `available` 里报 `actions.input_invalid` 并列出可选的；插件没写 `ui.locales` 却传了 `--locale`，同样报错，提示先写 `ui.locales`。中英文各跑一次，看输出 JSON 里 `rendered_ui` 的 HTML。
 
-## 后台工作与稍后显示的文字
+## 后台工作、报错边界与稍后显示的文字
 
 开发预览只有在渲染时提供语言。正式运行的请求、动作和后台入口由宿主给上下文：页面随当前调用，后台工作开始时读同一 Home 最近用的语言。请求结束后的 promise 或定时器不能继续用原页面的语言。
 
-消息存下来以后才显示时，用 `TextRef` 保存键和参数（例如 `{ key: "greeting.sync.done", args: { count } }`）。在拥有它的作用域用 `t` 或 `say` 显示，换语言后仍用同一条记录。外部错误和用户原文按原文保留。
+- **存盘与异步通知用 `OwnedTextRef`**：消息存下来以后才显示时，用 `OwnedTextRef` / `TextRef` 保存键和参数（例如 `{ owner, key: "greeting.sync.done", args: { count } }`），不存译好的句子。在拥有它的作用域用 `t` 或 `say` 显示，换语言后仍用同一条记录。用户原文按原文保留。
+- **业务报错抛结构化 `ActionError`，平台出口统一转译**：动作处理器抛 `ActionError(code, kind, details)`（使用 `defineErrorCodes`），不在各业务处把报错强转成固定单语种句子或把原始 `PrologueErrorCode`、AJV 字段路径、本机路径透传给前端。Host 在 HTTP / SSE / WS 出口及 Prologue 边界按当前请求语言统一映射到 `common.error.*` 的温和三语文案，原始技术详情只进服务端日志并向用户提供可复制的「诊断编号（`call_id`）」。
 
 测试用 `installTextForTest({ packs, locale })` 装上用 `parseLocalePack` 读出的词包，并在结束时撤回；`locale: null` 模拟无语言上下文。
 
-## 逻辑不碰译文
+## 逻辑不碰译文，切换原地生效
 
 状态标签沿用本插件的静态语言键，家族标签由平台的状态环定义提供。代码以状态 ID 做判断。
 
-- 不拿译文做判断：不比较 `t(...)` 的结果，不按显示的字找按钮、选状态；用键、错误码、对象的原值。
-- 不把译文存进业务数据：存键和参数，或原值。存了译文，换语言以后旧数据还是那种语言。
-- 用户自己的字原样存、原样显示，不翻译。
+- **禁写二元 `zh`/`en` 语言分支**：不读 `navigator.language`、`currentLocale === "en"` 或 `locale.startsWith("zh")` 来分支；语言目录可扩展至 N 种语言，格式化统一走 SDK 的 `format` / `dateArg` / `numberArg` / `dateTimeLocale()`，HTML 文档壳统一走 `htmlLang()`，不得写死 `Intl.DateTimeFormat("zh-CN")`、`.toLocaleString("en-US")`、`<html lang="zh-CN">` 或中文顿号 `.join("、")`。
+- **不拿译文做判断**：不比较 `t(...)` 的结果，不按显示的字找按钮、选状态或剥离中文前缀；用键、错误码、结构化类型或对象原值。
+- **不闭包缓存译文、不裸拼接半句**：不要把 `t.text(...)` 缓存在模块/闭包变量里反复复用，也不要写 `t("prefix") + kind` 这类半句拼接（改用带 `{kind}` 占位符的整句键）。浏览器客户端动态渲染的文本必须监听 `molis-work:language-changed` 事件并重绘，确保切换简体中文 / English / 日本語时原地换字无残留。
+- **不把译文存进业务数据**：存键和参数，或原值。存了译文，换语言以后旧数据还是那种语言。
+- **用户自己的字原样存、原样显示，不翻译**。
 
 ## 颜色和字体
 
@@ -214,6 +249,8 @@ plugin_state="$(mktemp -d)"
 
 集成插件的连接服务标题、简介、提示、能力标签、链接标题，以及凭据和 OAuth 设置的标签与占位文字，也可以用同一份 `TextRef`。默认语言必须有本插件的每个声明键，这些字段不带参数，也不取复数词条。授权端点、域名、范围、枚举值和设置字段名照原合同写；语言切换不改变授权。签名沙箱集成把语言声明写进现有 `contract.json` 的 `ui.locales`，其 `manifest.json` 与之相符，语言文件同包签名。
 
+**权限、读取分组与动作的本地化字段**：除上述字段外，现行公共合同已对权限说明（`permissions[].reason_text`，≤200 字）、读取分组（`read_groups[].title_text` ≤80 字 / `description_text` ≤200 字）与能力目录动作展示（`actions[].action.title_text` ≤80 字 / `description_text` ≤400 字）统一支持可选 `TextRef`，并在 `packages/plugin-sdk` 与 `SandboxPluginContract`（`permission_reasons`、`read_groups[].{title_text,description_text}`、`operations[].{title_text,description_text}`）中对内置、创作台与第三方插件同等开放；所有键均为无参单行短句、默认语言不得缺词，且原文与多语言译文都须遵循本节的白话、无黑话写作规范。
+
 ## 给模型的内容
 
 一轮用哪种语言回复，由平台在一处给模型（`AgentStartAuthority.reply_language`）。提示词、Skill、方法和插件代码里都不写「用中文回复」，也不按语言分支；用户这一轮明说要别的语言时，模型照用户的。写法见 [molis-prologue-ai](../molis-prologue-ai/SKILL.md)。
@@ -222,7 +259,7 @@ Skill、方法和提示词的长正文每种语言一个文件，缺译文时用
 
 ## 最小的完整例子
 
-一个只画一页的 Integration 插件，中英文，参数带 `'` 和 `&`。上面第 2 步的 `locales/en.json`、`locales/zh.json` 放在同一目录。
+一个只画一页的 Integration 插件，支持中 / 英 / 日三语，参数带 `'` 和 `&`。上面第 2 步的 `locales/en.json`、`locales/zh.json`、`locales/ja.json` 放在同一目录。
 
 插件代码在 `molis-work` 的进程里运行，Node 版本跟它走。当前 npm 安装包要求 Node 24.15.x，源码树也锁定这个系列。源码树的 `.nvmrc` 写 24.15.0，根 `package.json` 的 `engines` 写 `>=24.15.0 <24.16.0`。contracts 和 SDK 两包自己声明 `>=24`。`import … with { type: "json" }` 在 24.15 能用。入口写成 `.mjs` 时按 ES 模块读，与 `package.json` 的 `"type"` 无关。`validate` 和 `dev` 无需手写 `package.json`，离线安装两包时 npm 会建一个。打包时用 `files` 列出分发文件，Manifest 声明的语言文件自动带上。[离线安装两包](authoring.md#安装版开发入口)
 
@@ -243,7 +280,7 @@ Skill、方法和提示词的长正文每种语言一个文件，缺译文时用
   "artifacts": { "produces": [], "consumes": [] },
   "ui": {
     "contributions": ["com.example.greeting.main"],
-    "locales": { "default": "en", "available": ["en", "zh"] }
+    "locales": { "default": "en", "available": ["en", "zh", "ja"] }
   }
 }
 ```
@@ -280,4 +317,4 @@ export default definePlugin({
 
 `provider` 的形状是合同里的 `IntegrationProviderPort`（`@molis-ai/molis-work-contracts/platform/plugin`）。`health()` 返回 `{ ok, status, message }`：`status` 是 `connected`、`disconnected`、`error`、`needs_auth` 之一，`message` 是给人看的一句话。`sync({ cursor, mode })` 成功时返回 `{ ok: true, mode: "live", cursor, items }`：`items` 是这次拉到的条目（这个例子没有，写空数组）；`cursor` 是下次从哪里接着拉，平台原样存下、下次传回来，没有就写 `null`。失败时返回 `{ ok: false, mode: "live", failure, message }`。连接、cursor 和重建 cursor 的做法见 [integrations.md](integrations.md)。
 
-`--locale en` 画出 `Hello, Tom&#039;s R&amp;D team` 和 `3 new notes`，`--locale zh` 画出 `你好，Tom&#039;s R&amp;D team` 和 `3 条新笔记`。`health`、`sync` 里不调 `t`（上面「没有页面的地方没有语言」）。
+`--locale en` 画出 `Hello, Tom&#039;s R&amp;D team` 和 `3 new notes`，`--locale zh` 画出 `你好，Tom&#039;s R&amp;D team` 和 `3 条新笔记`，`--locale ja` 画出 `こんにちは、Tom&#039;s R&amp;D team` 和 `新しいメモが 3 件あります`。`health`、`sync` 里不调 `t`（上面「没有页面的地方没有语言」）。

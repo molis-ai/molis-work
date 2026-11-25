@@ -15,7 +15,8 @@
     "default": "zh",
     "available": [
       "zh",
-      "en"
+      "en",
+      "ja"
     ]
   },
   "system": {

@@ -2,6 +2,8 @@ import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { wireClicks } from "./click.js";
 import { wireDrag } from "./drag.js";
 import { required, statusOf } from "./dom.js";
+import { drawFlow } from "./flow.js";
+import { showLink } from "./link.js";
 import { drawList } from "./list.js";
 import { loadList, onModelReady, openRun, recalled, remember, setMode, showFlow } from "./nav.js";
 import { cameBack } from "./returns.js";
@@ -9,7 +11,8 @@ import { createPage } from "./page.js";
 import type { WorkflowsPage } from "./page.js";
 import { wirePopover } from "./pop-events.js";
 import { wireRoot } from "./root-events.js";
-import { restoreDrafts } from "./save.js";
+import { drawRun } from "./run.js";
+import { paintSave, restoreDrafts } from "./save.js";
 import { toast, wireToast } from "./toast.js";
 import type { WorkflowsHost } from "./types.js";
 
@@ -59,6 +62,19 @@ export function workflowsClient(host: WorkflowsHost) {
   wireToast(page);
   restoreDrafts(page);
   document.addEventListener("molis-work:model-ready", () => { onModelReady(page).catch((error) => toast(page, messageOf(error), "error")); });
+  const languageAbort = new AbortController();
+  window.addEventListener("pagehide", () => languageAbort.abort(), { once: true });
+  document.addEventListener("molis-work:language-changed", () => {
+    if (!page.started) return;
+    drawList(page);
+    if (root.dataset.wfMode === "workflow" && page.ui.workflow) {
+      drawFlow(page);
+      paintSave(page);
+      if (page.ui.openLink !== null && page.pop.matches(":popover-open")) showLink(page, page.ui.openLink);
+    } else if (root.dataset.wfMode === "instance" && page.ui.instance) {
+      drawRun(page);
+    }
+  }, { signal: languageAbort.signal });
   wireClicks(page);
   wirePopover(page);
   wireRoot(page);

@@ -33,7 +33,7 @@ export function refreshClient(host: RefreshHost) {
     const nextDialog = parsed.querySelector("[data-create-dialog]");
     // The tree footer is optional: the current layout has none, and requiring it made every
     // full-page fallback fail silently.
-    if (!nextTree || (!collectionOnly && !nextDocument)) throw new Error("页面数据不完整");
+    if (!nextTree || (!collectionOnly && !nextDocument)) throw new Error(globalThis.t.text("goals.refresh-client.data-incomplete"));
 
     let move: GoalRefresh["move"] = null;
     if (followSelection && goalId && !goalStillExists) {

@@ -657,7 +657,8 @@ test("the smoke counts the designer's repair rounds, which is what a Skill edit 
     instruction: request.instruction, input: request.task, output, configuredModel: "m", reportedModels: [], phase: "completed", startedAt: new Date().toISOString(), activity: [], usage: [] });
   const monolingual = JSON.parse(detail);
   delete monolingual.design.uiText.locales.en;
-  for (const [firstDetail, refusal] of [[detail.slice(0, 120), /^detail: .*JSON/], [JSON.stringify(monolingual), /^detail: UI languages must be zh, en/]] as const) {
+  delete monolingual.design.uiText.locales.ja;
+  for (const [firstDetail, refusal] of [[detail.slice(0, 120), /^detail: .*JSON/], [JSON.stringify(monolingual), /^detail: UI languages must be zh, en, ja/]] as const) {
     const requests: Array<{ mode: string; repair: boolean }> = [];
     const script: Record<string, string[]> = { propose: [answers.propose as string], experience: [answers.experience as string], detail: [firstDetail, detail] };
     const report = await runSmoke({ briefs: [{ id: "one", brief: "随手记" }], minutes: 1, pollMs: 5, model: { provider_id: "p", model_id: "m", label: "m" },
@@ -666,7 +667,7 @@ test("the smoke counts the designer's repair rounds, which is what a Skill edit 
         requests.push({ mode: task.mode, repair: task.repair !== undefined });
         if (task.mode === "detail") {
           assert.equal(task.uiText?.default, "zh");
-          assert.deepEqual(task.uiText?.available.map(language => language.tag), ["zh", "en"]);
+          assert.deepEqual(task.uiText?.available.map(language => language.tag), ["zh", "en", "ja"]);
         }
         const queue = script[task.mode]; if (!queue) throw new Error("no answer for " + task.mode);
         return record(request, queue.length > 1 ? queue.shift()! : queue[0]!);

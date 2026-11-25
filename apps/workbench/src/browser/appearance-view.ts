@@ -1,6 +1,6 @@
 import type { UiDefinitionRef, UiDevicePreferences, UiEnvironmentSnapshot } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkbenchAppearance } from "../appearance-document.js";
-import { withDevicePreferences } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, withDevicePreferences } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export type AppearanceProjection = Pick<WorkbenchAppearance, "snapshot" | "stylesheet">;
 export type AppearanceDimension = "skin" | "font" | "mono";
@@ -164,6 +164,10 @@ export async function prepareAppearance({ snapshot, stylesheet }: AppearanceProj
     scope.hidden = true;
     page.body.append(scope);
   }
-  try { await checkFonts(scope, snapshot.locale.tag === "zh" ? "本周工作 Aa 123" : "Work Aa 123"); }
+  const sample = (() => {
+    try { return uiText.text("common.appearance.font-sample"); }
+    catch { return "Aa 123"; }
+  })();
+  try { await checkFonts(scope, sample); }
   finally { if (!canvas) scope.remove(); }
 }

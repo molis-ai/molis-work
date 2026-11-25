@@ -15,6 +15,8 @@ export interface ProviderDeclaration {
   readonly description?: string;
   readonly read_groups?: readonly PluginReadGroupDeclaration[];
   display?(group?: PluginReadGroupDeclaration): { title?: string; description?: string };
+  actionTitle?(view: ActionView): string;
+  readonly separator?: string;
 }
 /**
  * A provider's declaration now. `null`: it is a plugin whose Manifest cannot be read, so whether it declares groups is not known and it
@@ -69,7 +71,8 @@ function byProvider(views: readonly ActionView[]): Map<string, ActionView[]> {
 function providerCategory(providerId: string, views: readonly ActionView[], declaration: ProviderDeclaration | null): TaskGrantCategory {
   const provider = views[0]?.provider;
   const display = declaration?.display?.();
-  const description = display?.description ?? declaration?.description ?? [...new Set(views.filter(readableByTask).map(view => view.action.title))].join("、");
+  const titles = [...new Set(views.filter(readableByTask).map(view => declaration?.actionTitle?.(view) ?? view.action.title))];
+  const description = display?.description ?? declaration?.description ?? titles.join(declaration?.separator ?? "、");
   return { provider_id: providerId, ...(provider?.plugin_id ? { plugin_id: provider.plugin_id } : {}), title: words(display?.title ?? provider?.title ?? providerId), description: words(description) };
 }
 

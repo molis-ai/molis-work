@@ -1,9 +1,11 @@
 import { installCommands } from "./commands.js";
 import { installCompose } from "./compose.js";
-import { installConnections, loadConnections, syncSaving } from "./connections.js";
+import { installConnections, loadConnections, paintConn, paintConnections, syncSaving } from "./connections.js";
 import { installLimits } from "./limits.js";
 import { ensureContext, loadJobs } from "./jobs.js";
+import { paintList } from "./list.js";
 import { createPage } from "./page.js";
+import { paintResult } from "./result.js";
 import type { ImagesHost } from "./types.js";
 
 const uiText = globalThis.t;
@@ -25,6 +27,16 @@ export function mountImages(host: ImagesHost): void {
   page.restoreDraft();
   page.syncGenerate();
   syncSaving(page);
+  life.listen(document, "molis-work:language-changed", () => {
+    s.listSignature = "";
+    s.resultSignature = "";
+    paintConnections(page);
+    paintConn(page);
+    syncSaving(page);
+    paintList(page);
+    const job = s.jobId ? s.jobs.find((item) => item.id === s.jobId) : undefined;
+    if (job) paintResult(page, job);
+  });
   life.whenVisible((signal) => {
     s.viewSignal = signal;
     ensureContext(page);

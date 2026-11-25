@@ -32,6 +32,8 @@ export function standInAnswers(corpusFile: string): StandInAnswers {
       'part/title/title': '笔记板', 'part/editor/submitLabel': '添加', 'field/notes.add/text/label': '笔记' },
     en: { 'plugin/name': 'Note board', 'page/home/title': 'Notes', 'region/home/main/title': 'Notes workspace',
       'part/title/title': 'Note board', 'part/editor/submitLabel': 'Add', 'field/notes.add/text/label': 'Note' },
+    ja: { 'plugin/name': 'メモボード', 'page/home/title': 'メモ', 'region/home/main/title': 'メモ作業スペース',
+      'part/title/title': 'メモボード', 'part/editor/submitLabel': '追加', 'field/notes.add/text/label': 'メモ' },
   } };
   return { propose: answerOf('propose-two-candidates'), detail: JSON.stringify(detail),
     experience: JSON.stringify({ summary: '以浏览已有内容为主，随手录入不中断浏览', journey: first.journey, pages: first.pages,

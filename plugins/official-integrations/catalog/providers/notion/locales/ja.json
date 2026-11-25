@@ -1,0 +1,24 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.notion",
+  "locale": "ja",
+  "messages": {
+    "notion.connection.auth-help": "Notion の内部インテグレーショントークンを入力してください。読み取りたいページにインテグレーションを共有しておく必要があります。",
+    "notion.connection.inbound": "Feed でページとデータベースの更新を取得",
+    "notion.connection.summary": "ページとデータベース。",
+    "notion.connection.token-label": "Notion Internal Integration Token",
+    "notion.connection.token-placeholder": "ntn_… または secret_…",
+    "notion.guide.cli-link": "Notion 公式 CLI を見る",
+    "notion.guide.cli-note": "Notion CLI はブラウザでログインして API を呼び出せますが、Molis Work はそのローカル認証を読み取りません。",
+    "notion.guide.mcp-connected-note": "別途認証が必要です。現在の Notion API OAuth で選択したページは引き継がれません。",
+    "notion.guide.mcp-link": "Notion 公式 MCP を見る",
+    "notion.guide.mcp-note": "別途認証が必要です。現在の Notion API OAuth で選択したページは引き継がれません。Molis Work ではまだ接続していません。",
+    "notion.guide.oauth-link": "Notion OAuth 設定を見る",
+    "notion.guide.oauth-note": "アプリ内で Notion API OAuth に対応しています。Public connection を作成し、ローカルコールバックを設定してください。",
+    "notion.guide.token-note": "公式 PAT または Internal Integration Token に対応しています。読み取れる内容はユーザー権限またはインテグレーションに共有されたページに限られます。",
+    "notion.setup.create-notion-integration": "Notion インテグレーションを作成",
+    "notion.setup.notion-oauth-setup-guide": "Notion OAuth 設定ガイド",
+    "notion.permission.network.reason": "Notion のアカウント情報と最新の更新を読み取ります",
+    "notion.permission.secret.reason": "安全に保存された Notion の接続資格情報を使用します"
+  }
+}

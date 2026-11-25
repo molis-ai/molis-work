@@ -339,7 +339,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
     const form = event.currentTarget, choice = form.querySelector("[data-assistant-rule-duration]").value;
     const until = choice === "day" ? (() => { const end = new Date(); end.setHours(23, 59, 0, 0); return end; })() : new Date(Date.now() + Number(choice) * 60000);
     const except = exceptOf(form);
-    add(form, { kind: "pause", surfaces: [], except, until: until.toISOString(), label: globalThis.t.text("workbench.settings-assistant.paused-until") + " " + until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) });
+    add(form, { kind: "pause", surfaces: [], except, until: until.toISOString(), label: globalThis.t.text("workbench.settings-assistant.paused-until") + " " + globalThis.format.date(until.toISOString(), "time") });
   });
   run(() => rulesApi("/rules"));
   // Memory is managed on its own pages (个人 → 记忆, 项目记忆): here only how much there is and whether the Assistant may use it.
@@ -366,9 +366,9 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   const budgetError = root.querySelector("[data-assistant-budget-error]");
   const paintUsage = (usage) => {
     const used = usage.today.input + usage.today.output;
-    usageLine.textContent = used.toLocaleString() + " tokens" + globalThis.t.text("common.punctuation.in-parens", { value: globalThis.t.text("workbench.settings-assistant.inputs") + " " + usage.today.input.toLocaleString() + globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-assistant.output") + " " + usage.today.output.toLocaleString()
-      + (usage.today.cached_input ? globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-assistant.cached-reads") + " " + usage.today.cached_input.toLocaleString() : "") + globalThis.t.text("common.punctuation.clause-separator") + usage.today.rounds + " " + globalThis.t.text("workbench.settings-assistant.turns") })
-      + (usage.daily_tokens ? " · " + globalThis.t.text("workbench.settings-assistant.cap") + " " + usage.daily_tokens.toLocaleString() : " · " + globalThis.t.text("workbench.settings-assistant.no-cap"));
+    usageLine.textContent = globalThis.format.number(used) + " tokens" + globalThis.t.text("common.punctuation.in-parens", { value: globalThis.t.text("workbench.settings-assistant.inputs") + " " + globalThis.format.number(usage.today.input) + globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-assistant.output") + " " + globalThis.format.number(usage.today.output)
+      + (usage.today.cached_input ? globalThis.t.text("common.punctuation.clause-separator") + globalThis.t.text("workbench.settings-assistant.cached-reads") + " " + globalThis.format.number(usage.today.cached_input) : "") + globalThis.t.text("common.punctuation.clause-separator") + usage.today.rounds + " " + globalThis.t.text("workbench.settings-assistant.turns") })
+      + (usage.daily_tokens ? " · " + globalThis.t.text("workbench.settings-assistant.cap") + " " + globalThis.format.number(usage.daily_tokens) : " · " + globalThis.t.text("workbench.settings-assistant.no-cap"));
   };
   async function refreshUsage() {
     try { paintUsage(await rulesApi("/usage")); } catch (failure) { molisWorkRequest.show(budgetError, failure); budgetError.hidden = false; }

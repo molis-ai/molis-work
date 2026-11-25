@@ -75,7 +75,7 @@ export function pcKit(word: (ref?: SandboxVisibleText) => string) {
   const shown = (column: { field?: string; values?: Record<string, SandboxVisibleText> } | undefined, value: unknown): unknown =>
     column?.values && Object.hasOwn(column.values, text(value)) ? word(column.values[text(value)]) : statusWord(column?.field, value) ?? (typeof value === 'boolean' ? value ? t.text("common.generated.yes") : t.text("common.generated.no")
       // A list of words or numbers reads as words ("晨跑、读书"), not as code.
-      : Array.isArray(value) && value.every(item => typeof item === 'string' || typeof item === 'number') ? value.join('、') : value);
+      : Array.isArray(value) && value.every(item => typeof item === 'string' || typeof item === 'number') ? value.join(t.text("common.list.separator")) : value);
   /** Model answers often carry light Markdown: show **emphasis**, drop heading marks. Always text nodes, never markup. */
   const prose = <K extends keyof HTMLElementTagNameMap>(tag: K, value: unknown, cls?: string) => {
     const element = raw(tag, '', cls), source = text(value).replace(/^#{1,6}\s+/gmu, '');

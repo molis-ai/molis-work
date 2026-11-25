@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.linkedin",
+  "locale": "ja",
+  "messages": {
+    "linkedin.connection.auth-help": "openid と profile を含む LinkedIn OpenID メンバートークンを入力してください。アカウント確認には /v2/userinfo を使います。投稿一覧には Community Management 権限が必要で多くの開発者アプリでは 403 になりますが、userinfo が成功すれば接続は正常です。",
+    "linkedin.connection.inbound": "API で OpenID メンバープロフィールを取得",
+    "linkedin.connection.summary": "ビジネス SNS。",
+    "linkedin.connection.token-label": "LinkedIn アクセストークン",
+    "linkedin.guide.oauth-link": "LinkedIn OAuth 2.0 を見る",
+    "linkedin.guide.token-note": "OpenID メンバーアクセストークンを使ってください。投稿の取得には別途承認が必要です。",
+    "linkedin.oauth.note": "アプリで Sign In with LinkedIn を有効にしてください。通常の OIDC では Feed の投稿読み取り権限は付与されません。",
+    "linkedin.setup.open-linkedin-developer-dashboard": "LinkedIn 開発者ダッシュボードを開く",
+    "linkedin.permission.network.reason": "LinkedIn のアカウント情報と最新の更新を読み取ります",
+    "linkedin.permission.secret.reason": "安全に保存された LinkedIn の接続資格情報を使用します"
+  }
+}

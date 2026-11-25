@@ -29,6 +29,7 @@ export const SIDE_HELP_SCRIPT = String.raw`(() => {
   const helpTab = () => document.querySelector('[data-side-tab="help"]');
   let openedSideForHelp = false;
   let previousTab = null;
+  let lastTarget = null;
 
   const str = (v, max) => typeof v === "string" ? v.slice(0, max) : "";
   const mk = (tag, cls, text) => {
@@ -40,7 +41,8 @@ export const SIDE_HELP_SCRIPT = String.raw`(() => {
 
   function paint(target) {
     if (!target || typeof target !== "object") return;
-    const baseTitle = globalThis.t?.text("workbench.side-panel-tab.help") || "帮助";
+    lastTarget = target;
+    const baseTitle = globalThis.t?.text("workbench.side-panel-tab.help") || "Help";
     const topicTitle = str(target.title, 160);
     if (titleEl) titleEl.textContent = topicTitle ? baseTitle + " · " + topicTitle : baseTitle;
     const ctx = str(target.context, 240);
@@ -134,5 +136,9 @@ export const SIDE_HELP_SCRIPT = String.raw`(() => {
   closeBtn?.addEventListener("click", (event) => { event.stopPropagation(); closeHelpSide(); });
   root.addEventListener("keydown", (event) => {
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeHelpSide(); }
+  });
+  document.addEventListener("molis-work:language-changed", () => {
+    if (lastTarget) paint(lastTarget);
+    else if (titleEl) titleEl.textContent = globalThis.t?.text("workbench.side-panel-tab.help") || "Help";
   });
 })();`.replace(/^[ \t]*\/\/.*\n/gm, "");

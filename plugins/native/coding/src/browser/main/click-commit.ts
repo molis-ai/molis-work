@@ -8,13 +8,22 @@ import { api, sessionPath, status } from "./request.js";
 import type { RunView } from "./shapes.js";
 import { useProjectWorkspace } from "./workspace.js";
 
-const HANDED = "完成原任务：\n";
+const NUDGE_WRAPPERS: readonly (readonly [prefix: string, head: string])[] = [
+  ["上一轮你说「", "完成原任务：\n"],
+  ["Last turn you stopped after saying “", "complete the original task:\n"],
+  ["前のターンは「", "元のタスクを完了してください：\n"],
+];
 
 /** The person's own request titles the commit, unwrapped from a "let it continue" or a continuation the product composed. */
 function requestOf(run: RunView): string {
   let request = ownTask(run.turns.find(turn => turn.kind === "user")?.text || "");
-  const handed = request.indexOf(HANDED);
-  if (request.startsWith("上一轮你说「") && handed >= 0) request = request.slice(handed + HANDED.length);
+  for (const [prefix, head] of NUDGE_WRAPPERS) {
+    const handed = request.indexOf(head);
+    if (request.startsWith(prefix) && handed >= 0) {
+      request = request.slice(handed + head.length);
+      break;
+    }
+  }
   if (request.startsWith(CONTINUATION_MARKER)) {
     const from = request.indexOf("原任务：\n"), to = request.indexOf("\n\n宿主核实的事实");
     if (from >= 0) request = request.slice(from + "原任务：\n".length, to > from ? to : undefined);

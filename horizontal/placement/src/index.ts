@@ -570,7 +570,9 @@ async function attachRelationsOf(ports: PlacementPorts, scope: PlacementScope): 
   for (const view of views) byName.set(view.action.placement_relation!.relation, [...byName.get(view.action.placement_relation!.relation) ?? [], view]);
   const ambiguous = (relation: string, same: readonly ActionView[]) => {
     const providers = [...new Set(same.map(view => view.provider.provider_id))];
-    return placementErrors.relation_ambiguous(placementText(ports, "workbench.index.more-than-one-plugin-keeps-relation-link-providers", { relation, providers: providers.join("、") }), { relation, providers });
+    const { text } = ports;
+    const separator = text ? text("common.list.separator") : ", ";
+    return placementErrors.relation_ambiguous(placementText(ports, "workbench.index.more-than-one-plugin-keeps-relation-link-providers", { relation, providers: providers.join(separator) }), { relation, providers });
   };
   const all: AttachRelation[] = [];
   for (const [name, parts] of byName) {

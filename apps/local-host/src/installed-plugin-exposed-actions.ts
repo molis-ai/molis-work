@@ -1,4 +1,5 @@
 import { actionErrorFromResponse, sandboxUpgradeOperation, sandboxOperationActions, sandboxOperationPermissions, sandboxActionId } from '@molis-ai/molis-work-plugin-sdk';
+import { tryOwnedTextRef } from '@molis-ai/molis-work-plugin-sdk/ui';
 /**
  * An installed generated plugin offers its functions to the rest of the product (D16): each operation becomes an
  * action of the project's unified directory, provided by the plugin itself, so a person, the Home AI, an external MCP
@@ -183,8 +184,10 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
             },
           };
         });
+        const boundName = release.packaged?.manifest.name_text === undefined ? null : tryOwnedTextRef(release.packaged.manifest.name_text, release.pluginId);
+        const titleText = boundName && ('literal' in boundName ? boundName : { ...boundName, fallback: boundName.fallback ?? title });
         const unregister = actions.registry.registerProvider({
-          provider: { provider_id: providerId, title, kind: 'plugin', plugin_id: release.pluginId, ...(actions.project_id === null ? {} : { project_id: actions.project_id }), ...(plugin ? { plugin_install_id: plugin.install_id } : {}) },
+          provider: { provider_id: providerId, title, ...(titleText ? { title_text: titleText } : {}), kind: 'plugin', plugin_id: release.pluginId, ...(actions.project_id === null ? {} : { project_id: actions.project_id }), ...(plugin ? { plugin_install_id: plugin.install_id } : {}) },
           definitions: finalDefinitions,
           handlers: finalHandlers,
           ...(availability ? { availability } : {}),

@@ -91,7 +91,7 @@ export interface AgentToolOperationReviewDocument {
   kind: "tool-operation";
   tool: string;
   summary: string;
-  fields: Array<{ label: string; value: string }>;
+  fields: Array<{ key?: string; label: string; value: string }>;
   /** Reversible desktop action not yet allowed this round; the card may offer allowing that app (specs/computer-use D06). */
   round_allow?: { app: string; label: string };
 }

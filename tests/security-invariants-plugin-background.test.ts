@@ -164,7 +164,7 @@ for (const hidden of [false, true]) {
     const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.project_plugin_id === "issues")!;
     // Give an actual catalog entry a background probe; the real Home supervisor, project-path admission and controls stay in place.
     probe.definition.manifest = { ...probe.definition.manifest, plugin_id: entry.manifest.plugin_id,
-      permissions: [...probe.definition.manifest.permissions, ...entry.manifest.permissions.filter(item => !probe.permissions.includes(item.permission))] };
+      permissions: [...probe.definition.manifest.permissions, ...entry.manifest.permissions.filter(item => !probe.permissions.includes(item.permission)).map(({ reason_text: _reasonText, ...permission }) => permission)] };
     delete probe.definition.instructions;
     assert.ok(entry.runtime);
     t.mock.method(entry.runtime, "create", () => probe.definition);

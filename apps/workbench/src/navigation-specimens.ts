@@ -1,6 +1,7 @@
 import type { WebLocale } from "./i18n.js";
 import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
-import { renderLanguageHead } from "./language-resource.js";
+import { catalogInlinePageText } from "./platform-languages.js";
+import { renderInlinePageText, renderLanguageHead } from "./language-resource.js";
 import { readFileSync } from "node:fs";
 import { escapeHtml, icon, renderButton, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { builtinPluginDirectory } from "./plugin-catalog.js";
@@ -273,7 +274,7 @@ export function renderMolisWorkNavigationSpecimen(readText: Say, htmlLang: strin
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(workLine ? workLineSpecimenTitle() : uiText.text("workbench.navigation-specimens.workbench-navigation"))} · Molis Work</title>
-  ${renderLanguageHead(htmlLang)}
+  ${renderInlinePageText([catalogInlinePageText(htmlLang)])}${renderLanguageHead(htmlLang)}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-${arrival ? "arrival" : "workbench"}.css">
   ${appearanceHead(appearance)}

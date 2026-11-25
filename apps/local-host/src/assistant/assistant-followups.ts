@@ -13,6 +13,7 @@ import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { assistantWords } from "./assistant-saved-text.js";
 import { repeatingFailure } from "../host-log.js";
+import { sanitizeErrorForNotice } from "../ui-error-words.js";
 
 async function inFollowUpWorkEffect<T>(adapter: AgentRuntimeAdapter, control: AgentActionReviewControl, operation: () => Promise<T>): Promise<T> {
   await control.beforeEffect(); control.assertCurrent();
@@ -290,7 +291,7 @@ export class AssistantFollowUps<W extends FollowUpWork> {
           detail = assistantWords(skipped);
         } else {
           try { await ports.send(work, assistantWords("workbench.assistant-followup.scheduled-message", { label: followUp.label, text: followUp.text }), `fu-${followUp.followup_id}-${Date.parse(due)}`, current); }
-          catch (error) { outcome = "failed"; detail = { original: error instanceof Error ? error.message : String(error) }; }
+          catch (error) { outcome = "failed"; detail = { original: sanitizeErrorForNotice(error) }; }
         }
       }
       if (!current()) return;

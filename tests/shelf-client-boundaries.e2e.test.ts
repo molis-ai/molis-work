@@ -154,7 +154,7 @@ test("Shelf isolated client boundaries use production UI and real file HTTP", { 
     assert.equal(await evaluate("document.querySelector('[data-shelf-tty-input]').value"), restored);
     await evaluate("document.querySelector('[data-shelf-tty-input]').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))");
     assert.equal(await evaluate("document.querySelector('[data-shelf-tty-input]').value"), restored);
-    assert.match(await evaluate<string>("document.querySelector('[data-shelf-bar-hint]').textContent"), /终端尚未连接，输入已保留/);
+    assert.match(await evaluate<string>("document.querySelector('[data-shelf-bar-hint]').textContent"), /终端还没连上，输入都保留着/);
     await evaluate(`window.terminalCalls=[];window.molisWorkShelfTui={open:()=>window.terminalCalls.push({kind:'open'}),send:text=>{window.terminalCalls.push({kind:'send',text});return true}};
       window.dispatchEvent(new CustomEvent('molis:shelf-send-tui',{detail:{item_ids:[${JSON.stringify(itemId)}]}}));`);
     await waitFor("window.terminalCalls.some(call=>call.kind==='send')");

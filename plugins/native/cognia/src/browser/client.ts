@@ -1,8 +1,9 @@
 import { installActions, installAskReturns } from "./actions.js";
 import { closeDialog } from "./dialog.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { reload } from "./list.js";
+import { reload, repaintList } from "./list.js";
 import { cogniaPage, fail, q } from "./page.js";
+import { openMaterial } from "./reading.js";
 import { installSubmit } from "./submit.js";
 import type { CogniaClientHost } from "./types.js";
 
@@ -22,8 +23,17 @@ export function cogniaClient(host: CogniaClientHost): void {
   installActions(page);
 
   const modelReady = () => void reload(page);
+  const languageChanged = () => {
+    repaintList(page);
+    if (page.cur && !q(page, "[data-cognia-workspace]").hidden) void openMaterial(page, page.cur.id).catch(() => {});
+  };
   document.addEventListener("molis-work:model-ready", modelReady);
-  host.scope.own(() => { document.removeEventListener("molis-work:model-ready", modelReady); clearTimeout(page.timer); });
+  document.addEventListener("molis-work:language-changed", languageChanged);
+  host.scope.own(() => {
+    document.removeEventListener("molis-work:model-ready", modelReady);
+    document.removeEventListener("molis-work:language-changed", languageChanged);
+    clearTimeout(page.timer);
+  });
 
   q<HTMLInputElement>(page, "[data-cognia-search]").addEventListener("input", () => {
     clearTimeout(page.timer);

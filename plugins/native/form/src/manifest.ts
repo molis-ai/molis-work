@@ -8,6 +8,7 @@ import {
 } from "./contract.js";
 import { FORM_UI_CONTRIBUTION_ID } from "./ui.js";
 import { formActions, FORM_ACTION_PERMISSIONS } from "./actions.js";
+import { localizeAction, localizePermission } from "./action-text.js";
 import { formContentActions } from "./content-actions.js";
 import { FORM_DATABASE } from "./database.js";
 
@@ -32,8 +33,8 @@ export const formManifest: PluginManifest = {
     { permission: "artifact:write", required: true, reason: "把问卷存为成果" },
     { permission: "artifact:read", required: true, reason: "给下一版编号、恢复没存完的固定版本时读回自己固定的问卷" },
     ...FORM_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write" && permission !== "artifact:read").map(permission => ({ permission, required: permission !== "model:invoke", reason: "问卷动作读取、编辑、填写或显式模型调用" })),
-  ],
-  actions: [...Object.values(formActions), ...Object.values(formContentActions)],
+  ].map(localizePermission),
+  actions: [...Object.values(formActions), ...Object.values(formContentActions)].map(localizeAction),
   capabilities: { provides: [], consumes: [] },
   // Served under /api/plugins/io.molis.work.form in the project (a route needs a path below the plugin's own); each one only maps
   // the request to its action (plugin.ts).
@@ -61,7 +62,7 @@ export const formManifest: PluginManifest = {
       compare: { capability_id: "form.artifacts.compare", version: /* @version action.form.artifacts.compare */ 1 } }],
     consumes: [],
   },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

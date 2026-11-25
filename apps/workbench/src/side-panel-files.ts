@@ -270,12 +270,14 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const find=(source,kind,id)=>(entries.get(source)?.items||[]).find(item=>item.subject.kind===kind&&item.subject.id===id);
   const show=(on)=>{preview.hidden=!on;browse.hidden=on&&!wide;};
-  const openLabel=openButton.querySelector('span'),pluginLabel=openLabel?.textContent||'';
+  const openLabel=openButton.querySelector('span');
+  let openTarget=null,cardEditing=false,lastPreview=null;
   // A file of the project's folders opens in the main area's reader; another plugin's object in that plugin.
-  const setOpen=(target)=>{openButton.hidden=!target;openButton.dataset.surface=target?.surface||'';openButton.dataset.id=target?.id||'';if(openLabel)openLabel.textContent=target?.surface==='materials'?globalThis.t.text("workbench.side-panel-files.open-main"):pluginLabel;};
+  const setOpen=(target)=>{openTarget=target||null;openButton.hidden=!target;openButton.dataset.surface=target?.surface||'';openButton.dataset.id=target?.id||'';if(openLabel)openLabel.textContent=target?.surface==='materials'?globalThis.t.text("workbench.side-panel-files.open-main"):globalThis.t.text("workbench.side-panel-files.open-its-plugin");};
   // The shared preview renderer (design system), the same one the 成果库 uses: Markdown, CSV as a table, plain text.
   const {renderFilePreview,materialsReader}=host.kit;
   const render=(file,note)=>{
+    lastPreview={file,note:note||''};
     body.classList.remove('is-frame');
     // Where a handed-over page came from: the page itself opens again in the side panel's browser.
     const source=/^https?:\/\//.test(file.source_url||'')?'<p class="side-files-source">'+esc(globalThis.t.text("workbench.side-panel-files.original-page"))+esc(globalThis.t.text("common.punctuation.label-separator"))+'<button class="side-files-link" type="button" data-side-files-action="source" data-url="'+esc(file.source_url)+'">'+esc(file.source_url)+'</button></p>':'';
@@ -299,6 +301,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     paintCard(card,false);
   };
   const paintCard=(card,editing)=>{
+    cardEditing=Boolean(editing);
     const state=stateText({state:card.state,excluded:card.excluded,changed:!!card.suggestion})||(card.state==='listed'?globalThis.t.text("workbench.side-panel-files.title-only"):globalThis.t.text("workbench.side-panel-files.organized"));
     const words=(card.keywords||[]).join(globalThis.t.text('common.list.separator'));
     cardBox.innerHTML=editing
@@ -329,6 +332,16 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const wordsAt=at=>globalThis.t.text("common.generated.formatted", { value: { kind: "date", at, style: "datetime-with-seconds" } });
   document.addEventListener('molis-work:language-changed',()=>{
     const stamp=meta.querySelector('time[datetime]');if(stamp)stamp.textContent=wordsAt(stamp.dateTime);
+    paint();
+    if(openTarget)setOpen(openTarget);
+    if(!cardBox.hidden&&cardBox.cardRecord&&!cardEditing)paintCard(cardBox.cardRecord,false);
+    if(!preview.hidden&&lastPreview&&!body.querySelector('iframe')){
+      const srcNote=body.querySelector('.side-files-source');
+      if(srcNote&&srcNote.firstChild?.nodeType===3)srcNote.firstChild.nodeValue=globalThis.t.text("workbench.side-panel-files.original-page")+globalThis.t.text("common.punctuation.label-separator");
+      const dl=body.querySelector('.side-files-link[download]');if(dl)dl.textContent=readText("workbench.browser-ui.download-original-file");
+      const trunc=body.querySelector('.side-files-truncated');if(trunc)trunc.textContent=globalThis.t.text("workbench.side-panel-files.only-beginning-shown-open-its-plugin-full-content");
+      if(lastPreview.file.encoding==='base64'&&!/^image\//.test(lastPreview.file.media_type||'')&&lastPreview.file.media_type!=='application/pdf')render(lastPreview.file,lastPreview.note);
+    }
   });
   const openFile=async(sourceId,kind,id,fallback)=>{
     const source=sources.find(item=>item.id===sourceId),item=find(sourceId,kind,id)||fallback||null;

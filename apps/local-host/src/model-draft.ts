@@ -11,6 +11,12 @@ import { modelRoundLocale, replyLanguagePrompt } from "./reply-language.js";
 
 const LIMITS = { purpose: 80, material: 60_000 } as const;
 
+const DRAFT_TASK_LINE: Record<string, (purpose: string) => string> = {
+  zh: (purpose) => `${purpose}。只返回结果本身，不要调用工具，不要加其他文字。`,
+  en: (purpose) => `${purpose}. Return only the result itself, do not call tools, and do not add extra commentary.`,
+  ja: (purpose) => `${purpose}。結果そのものだけを返してください。ツールは呼び出さず、余計な説明は付けないでください。`,
+};
+
 /** A tool-free draft through the owning Home Runtime; no workspace or durable conversation is created. */
 export async function draftText(options: HostTextOptions, input: AgentDraftTextRequest,
   execution: Pick<HostTextRequestOptions, "signal" | "beforeDispatch" | "onProgress"> & { /** Trusted Host invocation identity, never request input. */ pluginId?: string } = {}): Promise<AgentDraftTextResult> {
@@ -30,9 +36,8 @@ export async function draftText(options: HostTextOptions, input: AgentDraftTextR
     const generate = hostTextGeneration({ ...options, ...(input.model_selection ? { selection: input.model_selection } : {}) });
     if (!generate) throw new ActionError("actions.connection_required", "没有可用文字模型，请检查模型设置后重试");
     const fenced = fencedMaterials(input.material, "DRAFT_" + randomUUID().replaceAll("-", ""));
-    const promptText = locale.startsWith("en")
-      ? `${input.purpose}. Return only the result itself, do not call tools, and do not add extra commentary.\n${fenced}`
-      : `${input.purpose}。只返回结果本身，不要调用工具，不要加其他文字。\n${fenced}`;
+    const formatTask = DRAFT_TASK_LINE[locale.split("-")[0]!] ?? DRAFT_TASK_LINE.zh!;
+    const promptText = `${formatTask(input.purpose)}\n${fenced}`;
     const result = await generate(promptText,
       { signal: lifetime.signal, beforeDispatch: execution.beforeDispatch, onProgress: execution.onProgress, system, timeoutMs: 120_000 });
     instruction.recordUse();

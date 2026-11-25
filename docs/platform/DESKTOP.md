@@ -29,7 +29,7 @@ Desktop 是 Molis Work 在 macOS 上的“外壳和控制台”。它负责开�
 - Projects Module 只拥有 Project 身份和正式事实；终端记录是平台的启动终端服务的（`apps/local-host/src/plugin-terminal-panels.ts`），不进入 Projects Module。
 - Private Work Context 拥有 Session 和 Runtime workspace 关联；终端记录只保存终端到稳定 work context 的别名。
 - Runtime Host 拥有通用 Runtime stream、重连和中断；当前工作台终端的连接在 `apps/workbench/src/terminal/connection.ts`，接 `apps/local-host/src/pty-socket.ts`。Tauri 仍登记原生 PTY 命令，其消费用途与 IPC 可达范围另待实探，不能以登记代替现行动线。
-- Workbench 提供共享页面壳；Local Host 注入主题与语言，菜单栏的文字随语言经 `native_set_locale` 更新。
+- Workbench 提供共享页面壳；Local Host 注入主题与语言。所有桌面原生界面文字（菜单栏与 tooltip、Drop Wheel、macOS 原生选目录面板、Shelf 通知、启动失败占位页与 launcher 错误）统一消费 `NativeLanguage` 词包投影与 Home 语言偏好（支持 `zh` / `en` / `ja` 并可扩展至 N 语种）；**严禁新增语言布尔开关（如已退役的 `ENGLISH: AtomicBool`）**，禁止向用户暴露 `宿主`、`Runtime payload`、`pnpm install:local` 等内部词或开发命令；`native_set_locale` 切换语言时同步更新菜单项、菜单栏状态标题与 tooltip。
 - Feed Native Plugin 拥有外部内容脱敏规则；Desktop 推进提示直接调用其公开 API，不复制一份规则。
 
 ## 4. 当前真实能力
@@ -39,7 +39,7 @@ AP4 保持并迁移了以下既有能力：
 - Desktop 启动、关闭隐藏、窗口恢复和本地服务重连。
 - Codex、Claude Code、OpenCode、Pi、Grok 与自定义命令的启动配方。
 - 面板打开/退出/重开/关闭、Session alias、Project 关联和 PTY 生命周期。
-- 菜单栏图标（「打开／退出」）、主题与中英文 locale。菜单栏的工作胶囊在第 44 批删除（PEQ-13）：它只画 Goals 的内容，插件同等以后不再由外壳替一个插件出面；以后重做见 `specs/BACKLOG.md` 的 BL-capsule-redo。
+- 菜单栏图标（「打开／退出」）、主题与中 / 英 / 日三语 `NativeLanguage` 投影（随 `native_set_locale` 实时刷新菜单项、状态标题、tooltip 与 Drop Wheel，启动失败页读取 Home 保存的语言偏好）。菜单栏的工作胶囊在第 44 批删除（PEQ-13）：它只画 Goals 的内容，插件同等以后不再由外壳替一个插件出面；以后重做见 `specs/BACKLOG.md` 的 BL-capsule-redo。
 - 内置 Molis Work Runtime 的版本比较、升级安装与 owned service 配置修复。
 - Tauri command 的显式 permission allowlist。
 

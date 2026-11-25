@@ -42,7 +42,7 @@ Required. Each case starts empty with real UI steps and at least one assertion (
   - Preserved field draft: {"action":"expectValue","componentId":"editor","field":"text","value":"Original text"}.
 
 ## UI text (uiText)
-When input includes uiText, write complete design.uiText with each tag from available copied verbatim as a locales key. New designs use the requested available tag as default or input default; revisions preserve default and tags. Populate every final page/part/field slot for every locale (omit slots for merged list filters).
+When input includes uiText, write complete design.uiText with every tag from available (such as zh, en, ja and future locales) copied verbatim as a locales key. New designs use the requested available tag as default or input default; revisions preserve default and tags. Populate every final page/part/field slot for every locale (omit slots for merged list filters). Keep all UI copy, empty states, errors and permission reasons aligned with text-and-appearance.md and generated-ui.md: warm, restrained, neutral and jargon-free (US English Sentence case + contractions; polite です・ます in Japanese), backed by locale packs with zero hardcoded UI text or translated-label logic branching.
 
 Example detail response, for syntax only. Its short text, part order and flow are not a template for other work. The selected experience and scenarios take priority.
 

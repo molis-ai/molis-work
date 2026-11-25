@@ -172,7 +172,7 @@ ${CONTEXT_ONBOARDING_WELCOME_PART}
     if (!s.metadata && s.references?.length) return fileGroup({...add, icon:sourceIcons[kind], title:globalThis.t.text(names[kind]), caption:globalThis.t.text("workbench.context-onboarding.n-n-stored-snapshot-will-be-reused", {n:s.references.length}), rows:[]});
     if (kind === 'sessions') return fileGroup({...add, icon:'history', title:readText(names.sessions), caption:sessionsWhy(), rows:[]});
     if (kind === 'gmail') return fileGroup({...add, icon:'mail', title:'Gmail', caption:gmailCaption(), rows:[fileRow({name:globalThis.t.text("workbench.context-onboarding.emails-last-n-n", {n:s.days || 30}) + '.eml', size:'≤ 20', chip:kindChip('x.eml')})]});
-    if (kind === 'browser') { const bytes = new TextEncoder().encode(s.text || '').length; return fileGroup({...add, icon:'globe', title:globalThis.t.text("workbench.context-onboarding.page-text"), caption:(s.url || globalThis.t.text("workbench.context-onboarding.pasted-text")), rows:[fileRow({name:globalThis.t.text("workbench.context-onboarding.page-text-n-n", {n:(s.text || '').length.toLocaleString()}) + '.txt', size:size(bytes)})]}); }
+    if (kind === 'browser') { const bytes = new TextEncoder().encode(s.text || '').length; return fileGroup({...add, icon:'globe', title:globalThis.t.text("workbench.context-onboarding.page-text"), caption:(s.url || globalThis.t.text("workbench.context-onboarding.pasted-text")), rows:[fileRow({name:globalThis.t.text("workbench.context-onboarding.page-text-n-n", {n:globalThis.format.number((s.text || '').length)}) + '.txt', size:size(bytes)})]}); }
     const files = (s.metadata?.files || (s.files || []).map(f => ({path:f.path, size:0}))), listed = included(s).length ? included(s) : files;
     const shown = listed.slice(0, 8), more = listed.length - shown.length;
     const caption = directory(s) ? [grants[kind]?.path || s.path || '', (s.days === 0 ? globalThis.t.text("workbench.context-onboarding.any-time") : globalThis.t.text("workbench.context-onboarding.last-n-n", {n:s.days ?? 30}))].filter(Boolean).join(' · ') : kind === 'directory' ? String(files[0]?.path || '').split('/')[0] : kind === 'chat' ? globalThis.t.text("workbench.context-onboarding.exported-text-records") : '';
@@ -763,6 +763,13 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   if (otherTabs) otherTabs.onmessage = () => {
     readConfig().then(latest => { config = latest; if (lastView === 'preview' || lastView === 'materials' || lastView === 'model') render(); }).catch(() => undefined);
   };
+  document.addEventListener('molis-work:language-changed', () => {
+    if (!journey && !introStep) return;
+    if (editing) preserveEdits();
+    const blankInput = app.querySelector('#cx-blank-name');
+    if (blankInput) blankName = blankInput.value;
+    render();
+  });
 
   /* ───────── Start ───────── */
   (async()=>{try{

@@ -10,6 +10,8 @@
     "sentry.guide.cli-link": "Sentry CLI",
     "sentry.guide.mcp-link": "View the official Sentry MCP",
     "sentry.guide.oauth-link": "View Sentry OAuth app",
-    "sentry.setup.create-sentry-auth-token": "Create Sentry auth token"
+    "sentry.setup.create-sentry-auth-token": "Create Sentry auth token",
+    "sentry.permission.network.reason": "Read your Sentry account info and latest updates",
+    "sentry.permission.secret.reason": "Use your securely stored Sentry connection credentials"
   }
 }

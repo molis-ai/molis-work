@@ -1,8 +1,13 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { workbenchNavigationLabel } from "../navigation-label.js";
+
 /** Platform navigation for external AI tool session history (BL-177, SRB-08). */
 export const SESSIONS_NAVIGATION = {
   id: "sessions",
   surface: "sessions",
-  label: "外部会话",
+  get label(): string {
+    return workbenchNavigationLabel("workbench.sessions.navigation-name", () => uiText.text("workbench.sessions.navigation-name"));
+  },
   glyph: "history",
   group: "make",
   rail: null,

@@ -107,7 +107,7 @@ test("PG094-09: a Goal document read keeps its one refusal copy, and an unreacha
   // The Host names the missing Goal; the pane keeps the copy it has always shown for a read it could not do.
   const missing = await run(json(404, { error: "找不到这个 Goal: GONE", code: "goals.not_found" }), ["GONE"]);
   assert.deepEqual(missing.results, [false]);
-  assert.deepEqual(missing.errors, ["无法读取这条 Goal 正文"]);
+  assert.deepEqual(missing.errors, ["无法读取这条目标正文"]);
   assert.deepEqual(missing.busy, [true, false]);
   assert.deepEqual(gone.splice(0), [{ type: "molis-work:record-gone", detail: { plugin: "goals", itemId: "GONE" } }], "07-1 S3: the missing Goal's tab is told it is gone");
   const [read] = missing.sent;
@@ -123,7 +123,7 @@ test("PG094-09: a Goal document read keeps its one refusal copy, and an unreacha
   assert.deepEqual(gone.splice(0), [], "an unreachable Host does not say the Goal is gone");
   // A 404 that is not Goals' own "no such Goal" (a route the Host does not know, say) does not say the Goal is gone.
   const route = await run(json(404, { error: "Goal 内容不存在" }), ["CORE"]);
-  assert.deepEqual(route.errors, ["无法读取这条 Goal 正文"]);
+  assert.deepEqual(route.errors, ["无法读取这条目标正文"]);
   assert.deepEqual(gone.splice(0), [], "a 404 without Goals' not-found code does not say the Goal is gone");
 
   // A newer read cancels the older one, which ends quietly.
@@ -132,7 +132,7 @@ test("PG094-09: a Goal document read keeps its one refusal copy, and an unreacha
     : json(404, { error: "找不到这个 Goal: NEW" })();
   const superseded = await run(held, ["OLD", "NEW"]);
   assert.deepEqual(superseded.results, [null, false]);
-  assert.deepEqual(superseded.errors, ["无法读取这条 Goal 正文"]);
+  assert.deepEqual(superseded.errors, ["无法读取这条目标正文"]);
   assert.equal(superseded.sent[0]!.signal!.aborted, true);
 });
 

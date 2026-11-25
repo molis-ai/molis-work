@@ -85,9 +85,7 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
   const providers = new Map<string, HelpTopicProvider>();
   let active: ActiveHelp | null = null;
 
-  const isEn = (): boolean => String(document.documentElement.lang || "").toLowerCase().startsWith("en");
-
-  const word = (key: string, zh: string, en: string): string => {
+  const word = (key: string, fallback: string): string => {
     try {
       const read = globalThis.t?.text;
       if (typeof read === "function") {
@@ -95,9 +93,9 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
         if (value && value !== key && !value.startsWith("common.help.")) return value;
       }
     } catch {
-      // Fallback to bilingual literal below.
+      // Fallback to neutral label when locale pack is unavailable.
     }
-    return isEn() ? en : zh;
+    return fallback;
   };
 
   const resolveRef = (ref: string | HelpTextRef | undefined): string => {
@@ -193,7 +191,7 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
         const resolved = typeof value === "function" ? value() : value;
         if (resolved) map.set(id, resolved);
       } catch {
-        map.set(id, { id, title: word("common.help.title", "帮助", "Help"), failed: true });
+        map.set(id, { id, title: word("common.help.title", "Help"), failed: true });
       }
     }
     return map;
@@ -234,14 +232,14 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
       const mark = mk("span", "mw-empty__mark");
       mark.setAttribute("aria-hidden", "true");
       mark.append(iconSvg("circle-alert"));
-      const strong = mk("strong", "", word("common.help.load-failed-title", "帮助没读出来", "Help didn't load"));
-      const p = mk("p", "", word("common.help.load-failed-body", "这一页照常能用；权限、费用和后果仍直接写在操作前。", "This page still works; permissions, costs and effects stay listed before the action."));
+      const strong = mk("strong", "", word("common.help.load-failed-title", "Help didn't load"));
+      const p = mk("p", "", word("common.help.load-failed-body", "This page still works; permissions, costs and effects stay listed before the action."));
       const acts = mk("div", "mw-empty__actions");
       const retry = mk("button", "mw-btn mw-btn--secondary mw-btn--sm");
       retry.type = "button";
       retry.dataset.slot = "button";
       retry.dataset.mwHelpRetry = "true";
-      retry.append(iconSvg("refresh"), mk("span", "", word("common.help.retry", "再试一次", "Try again")));
+      retry.append(iconSvg("refresh"), mk("span", "", word("common.help.retry", "Try again")));
       retry.addEventListener("click", onRetry);
       acts.append(retry);
       empty.append(mark, strong, p, acts);
@@ -385,17 +383,17 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
     const card = mk("div", "mw-help-card");
     card.id = trigger.getAttribute("aria-controls") || "mw-help-region";
     card.setAttribute("role", "dialog");
-    card.setAttribute("aria-label", word("common.help.title", "帮助", "Help"));
+    card.setAttribute("aria-label", word("common.help.title", "Help"));
     card.setAttribute("tabindex", "-1");
 
     const head = mk("div", "mw-help-card__head");
-    const helpWord = word("common.help.title", "帮助", "Help");
+    const helpWord = word("common.help.title", "Help");
     const title = mk("strong", "mw-help-card__title", topic?.title ? `${helpWord} · ${topic.title}` : helpWord);
     const closeBtn = mk("button", "mw-btn mw-btn--ghost mw-btn--sm mw-btn--icon-only");
     closeBtn.type = "button";
     closeBtn.dataset.slot = "button";
     closeBtn.dataset.mwHelpClose = "true";
-    closeBtn.setAttribute("aria-label", word("common.help.close", "关闭帮助", "Close help"));
+    closeBtn.setAttribute("aria-label", word("common.help.close", "Close help"));
     closeBtn.append(iconSvg("x"));
     closeBtn.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -412,9 +410,9 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
     }));
 
     const foot = mk("div", "mw-help-card__foot");
-    foot.append(mk("span", "mw-help-card__hint", word("common.help.esc-closes", "Esc 关闭", "Esc closes")));
+    foot.append(mk("span", "mw-help-card__hint", word("common.help.esc-closes", "Esc closes")));
     if (canMoveToSide() && topic && !topic.failed) {
-      const sideLabel = word("common.help.keep-reading-side", "在右栏继续看", "Keep reading in the side pane");
+      const sideLabel = word("common.help.keep-reading-side", "Keep reading in the side pane");
       const sideBtn = mk("button", "mw-btn mw-btn--ghost mw-btn--sm");
       sideBtn.type = "button";
       sideBtn.dataset.slot = "button";
@@ -427,7 +425,7 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
       sideBtn.addEventListener("click", () => {
         const payload = {
           title: topic.title,
-          context: topic.context || word("common.help.looking-at", "正在看：", "Looking at: ") + topic.title,
+          context: topic.context || word("common.help.looking-at", "Looking at: ") + topic.title,
           focusId: focusId || null,
           sections: (topic.sections || []).slice(0, 12).map((section) => ({
             id: String(section.id || ""),
@@ -494,7 +492,7 @@ if (!globalThis.__molisOnDemandHelpInstalled) {
     const trigger = document.querySelector<HTMLElement>("[data-mw-help-trigger]");
     if (notify) {
       trigger?.focus({ preventScroll: true });
-      globalThis.molisWorkRequest?.toast?.(word("common.help.tip-skipped-toast", "不再提示；随时点「帮助」都能找回", "Won't show again; Help is always there"));
+      globalThis.molisWorkRequest?.toast?.(word("common.help.tip-skipped-toast", "Won't show again; Help is always there"));
     }
   };
 

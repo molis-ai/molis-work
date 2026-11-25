@@ -1,0 +1,22 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.teams",
+  "locale": "ja",
+  "messages": {
+    "teams.connection.auth-help": "Chat.Read 権限を持つ Microsoft Graph トークンを入力してください。",
+    "teams.connection.inbound": "Feed でチャット一覧を取得",
+    "teams.connection.summary": "メッセージ、チャンネル、チャット。",
+    "teams.connection.token-label": "Microsoft Graph アクセストークン（Chat.Read）",
+    "teams.guide.cli-link": "Microsoft Graph PowerShell を見る",
+    "teams.guide.cli-note": "Connect-MgGraph でログインして Graph を呼び出せますが、Molis Work は PowerShell セッションを読み取りません。",
+    "teams.guide.mcp-link": "Microsoft Work IQ MCP",
+    "teams.guide.mcp-note": "テナント管理者が Work IQ プレビュー、Copilot ライセンス、Entra アプリ権限を有効にする必要があります。",
+    "teams.guide.oauth-link": "Microsoft Entra アプリを登録",
+    "teams.guide.token-note": "テスト用のユーザートークンは Graph Explorer で取得できます。継続利用する場合はご自身のアプリを登録してください。",
+    "teams.oauth.tenant": "テナント ID（個人アカウントやマルチテナントアプリでは空欄可）",
+    "teams.setup.get-a-token-in-graph-explorer": "Graph Explorer でトークンを取得",
+    "teams.setup.register-azure-app": "Azure アプリを登録",
+    "teams.permission.network.reason": "Microsoft Teams のアカウント情報と最新の更新を読み取ります",
+    "teams.permission.secret.reason": "安全に保存された Microsoft Teams の接続資格情報を使用します"
+  }
+}

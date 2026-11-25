@@ -5,7 +5,7 @@
 tooling/versions.json merge=molis-json
 tooling/gates/version-exceptions.json merge=molis-json
 tooling/gates/error-owners.json merge=molis-json
-**/locales/*.json merge=molis-json
+**/locales/**/*.json merge=molis-json
 tests/fixtures/goals-page-golden/golden.json merge=molis-json
 
 # Generated snapshots: take the incoming side and list the path; `pnpm merge:regenerate` rewrites them from the merged source.

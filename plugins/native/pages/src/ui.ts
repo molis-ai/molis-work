@@ -44,7 +44,7 @@ export const pagesUiContribution: UiContribution<PagesUiModel> = {
       case "workbench":
         return renderPagesWorkbench(request.model);
       default:
-        throw new Error(`Pages UI surface ${(request as UiRenderRequest).surface} 不存在`);
+        throw new Error(`Unknown Pages UI surface: ${(request as UiRenderRequest).surface}`);
     }
   },
 };

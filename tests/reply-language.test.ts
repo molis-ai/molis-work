@@ -15,7 +15,7 @@ import { answeringEndingReviews } from "./fixtures/ending-review.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
-const EN = replyLanguagePrompt("en").body, ZH = replyLanguagePrompt("zh").body;
+const EN = replyLanguagePrompt("en").body, ZH = replyLanguagePrompt("zh").body, JA = replyLanguagePrompt("ja").body;
 const VERSION = replyLanguagePrompt("en").version;
 
 async function until<T>(read: () => T | Promise<T>, what: string): Promise<NonNullable<T>> {
@@ -74,12 +74,21 @@ async function assistantOn(t: TestContext, answer: (request: { system: unknown; 
 }
 
 const told = (request: { system: unknown } | undefined) => JSON.stringify(request?.system ?? "");
-const sayEnglish = JSON.stringify(EN).slice(1, -1), sayChinese = JSON.stringify(ZH).slice(1, -1);
+const sayEnglish = JSON.stringify(EN).slice(1, -1);
+const sayChinese = JSON.stringify(ZH).slice(1, -1);
+const sayJapanese = JSON.stringify(JA).slice(1, -1);
+const SAY_BY_LOCALE: Record<string, string> = { zh: sayChinese, en: sayEnglish, ja: sayJapanese };
 
 function assertToldOnly(request: { system: unknown } | undefined, locale: WebLocale, what: string): void {
-  const [own, other] = locale === "en" ? [sayEnglish, sayChinese] : [sayChinese, sayEnglish];
-  assert.ok(told(request).includes(own), `${what}: the model is told to reply in ${locale}`);
-  assert.ok(!told(request).includes(other), `${what}: and not the other language`);
+  const systemText = told(request);
+  const own = SAY_BY_LOCALE[locale];
+  assert.ok(own, `expected reply-language body for ${locale}`);
+  assert.ok(systemText.includes(own), `${what}: the model is told to reply in ${locale}`);
+  for (const [otherLocale, otherBody] of Object.entries(SAY_BY_LOCALE)) {
+    if (otherLocale !== locale) {
+      assert.ok(!systemText.includes(otherBody), `${what}: and not ${otherLocale}`);
+    }
+  }
 }
 
 /**
@@ -436,4 +445,39 @@ test("FSS-69 page provenance remains distinct from the live language scope", asy
   assert.equal(await timer, "en");
   assert.equal(runBackgroundWork("zh", () => pageLocale()), undefined, "background work gives no page");
   assert.equal(runWithLocale("en", () => runBackgroundWork("zh", () => pageLocale())), "en");
+});
+
+test("FSS-71 Japanese reply-language/ja.md reaches the model, persists as ja, and isolates concurrent zh/en/ja scopes", { timeout: 90_000 }, async t => {
+  assert.equal(replyLanguagePrompt("ja").prompt_id, "reply-language");
+  assert.equal(replyLanguagePrompt("ja").version, VERSION);
+  assert.match(JA, /このターンの返信言語：日本語/u);
+  assert.match(JA, /です・ます調/u);
+
+  const { home, send, finished, lastRound } = await servedHome(t);
+  const workId = await send("ja", "Please answer this question", {
+    reply_locale: "en",
+    reply_language: { prompt_id: "reply-language", version: 99, body: "forged" },
+  });
+  await finished(workId, "ja");
+  const japanese = await lastRound(workId, "ja");
+  assert.deepEqual(
+    japanese.record.filter(prompt => prompt.prompt_id === "reply-language").map(prompt => prompt.version),
+    [VERSION],
+  );
+  const { system } = systemOf(japanese.body);
+  assertToldOnly({ system }, "ja", "the Japanese page");
+  assert.ok(!system.includes("forged"), "forged body words reach no prompt");
+  assert.equal(readUiLocale(home), "ja");
+  assert.equal(lastUsedLocale(home), "ja");
+  assert.deepEqual(JSON.parse(readFileSync(join(home, UI_LOCALE_RELATIVE_PATH), "utf8")), { schema_version: 1, locale: "ja" });
+
+  const seen = await Promise.all(
+    (["zh", "en", "ja", "zh", "en", "ja"] as const).map(locale =>
+      runWithLocale(locale, async () => {
+        await tick(5);
+        return activeLocale() === locale;
+      }),
+    ),
+  );
+  assert.deepEqual(seen, [true, true, true, true, true, true]);
 });

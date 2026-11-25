@@ -656,7 +656,7 @@ test("a runtime file that asks the judgment service through the TypeSafe provide
 const WORDING_HISTORY: Readonly<Record<string, ReadonlyArray<readonly [number, string]>>> = {
   "system:contextual/contextual.next": [[1, "96f7580dc4cc2f98"], [2, "dec965681829cd19"], [3, "867279908f6bcf58"]],
   "system:contextual/contextual.surface": [[1, "7df658138dab2107"], [2, "30758305968dc65c"]],
-  "system:contextual/contextual.draft": [[1, "4b887167a46f0e24"], [2, "52a31e1969853577"]],
+  "system:contextual/contextual.draft": [[1, "4b887167a46f0e24"], [2, "52a31e1969853577"], [3, "a07c38c223004a8f"]],
   "io.molis.work.plugin-builder/choose.capability": [[1, "9d814fb0b2f16a3b"], [2, "a838a63b669ae189"]],
   "io.molis.work.plugin-builder/choose.component": [[1, "30528fb1319325ba"], [2, "6ddc67034cf55f92"]],
   // N31: the current wording starts at 1. Earlier evaluations remain in specs/prologue-adoption §6.0e.

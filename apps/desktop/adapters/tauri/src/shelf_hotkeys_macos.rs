@@ -1,10 +1,11 @@
 //! Carbon global hotkeys for Shelf: toggle, capture front page, admit front files.
 
 use crate::drop_wheel_macos;
+use crate::native_language::{tr, ShelfNoticeCode};
 use crate::shelf_hotkeys::{
-    self, capture_decision, capture_failure, capture_hotkey_message, classify_front, decide_front,
-    document_title, html_to_markdown, paths_from_text, website_markdown, BrowserKind,
-    CaptureDecision, FrontFileFailure, FrontFileKind, HotKeyAvailability, HotKeyChord,
+    self, capture_decision, capture_failure, capture_hotkey_notice, classify_front, decide_front,
+    document_title, html_to_markdown, no_browser_hotkey_notice, paths_from_text, website_markdown,
+    BrowserKind, CaptureDecision, FrontFileFailure, FrontFileKind, HotKeyAvailability, HotKeyChord,
     ToggleAction, FINDER_BUNDLE, HOTKEY_CAPTURE, HOTKEY_FILES, HOTKEY_TOGGLE,
 };
 use crate::{shelf_clipboard_macos, shelf_http};
@@ -114,10 +115,22 @@ struct Host {
 static HOST: AtomicPtr<Host> = AtomicPtr::new(ptr::null_mut());
 
 pub fn install(app: &AppHandle) -> Result<(), String> {
-    let _ = MainThreadMarker::new().ok_or_else(|| "必须在主线程注册 Shelf 热键".to_string())?;
+    let _ = MainThreadMarker::new().ok_or_else(|| {
+        tr(
+            "Shelf 快捷键需要在主线程注册。",
+            "Shelf shortcuts must be registered on the main thread.",
+            "Shelf のショートカットはメインスレッドで登録する必要があります。",
+        )
+        .to_string()
+    })?;
     let target = unsafe { GetApplicationEventTarget() };
     if target.is_null() {
-        return Err("找不到应用事件目标，无法注册热键".into());
+        return Err(tr(
+            "暂时无法注册全局快捷键。",
+            "Couldn’t register global shortcuts right now.",
+            "現在グローバルショートカットを登録できません。",
+        )
+        .into());
     }
     let host = Box::leak(Box::new(Host {
         app: app.clone(),
@@ -134,7 +147,13 @@ pub fn install(app: &AppHandle) -> Result<(), String> {
     let status =
         unsafe { InstallEventHandler(target, hotkey_handler, 1, &spec, user, &mut host.handler) };
     if status != 0 {
-        return Err(format!("InstallEventHandler 失败：{status}"));
+        eprintln!("InstallEventHandler failed with status {status}");
+        return Err(tr(
+            "暂时无法注册全局快捷键。",
+            "Couldn’t register global shortcuts right now.",
+            "現在グローバルショートカットを登録できません。",
+        )
+        .into());
     }
     let (toggle, capture, files) = shelf_hotkeys::default_chords();
     reregister(host, toggle, capture, files)?;
@@ -166,8 +185,22 @@ fn register_chord(
 }
 
 pub fn apply(toggle: HotKeyChord, capture: HotKeyChord, files: HotKeyChord) -> Result<(), String> {
-    let _ = MainThreadMarker::new().ok_or_else(|| "必须在主线程重注册 Shelf 热键".to_string())?;
-    let host = host_mut().ok_or_else(|| "热键尚未安装".to_string())?;
+    let _ = MainThreadMarker::new().ok_or_else(|| {
+        tr(
+            "Shelf 快捷键需要在主线程更新。",
+            "Shelf shortcuts must be updated on the main thread.",
+            "Shelf のショートカットはメインスレッドで更新する必要があります。",
+        )
+        .to_string()
+    })?;
+    let host = host_mut().ok_or_else(|| {
+        tr(
+            "全局快捷键还没初始化完成，请稍后再试。",
+            "Global shortcuts aren’t initialized yet. Please try again in a moment.",
+            "グローバルショートカットがまだ初期化されていません。少し待ってからもう一度お試しください。",
+        )
+        .to_string()
+    })?;
     reregister(host, toggle, capture, files)
 }
 
@@ -178,7 +211,12 @@ fn reregister(
     files: HotKeyChord,
 ) -> Result<(), String> {
     if !toggle.has_modifier() || !capture.has_modifier() || !files.has_modifier() {
-        return Err("全局快捷键必须带 ⌃ ⌥ ⇧ 或 ⌘。".into());
+        return Err(tr(
+            "全局快捷键需要包含 ⌃、⌥、⇧ 或 ⌘。",
+            "Global shortcuts must include ⌃, ⌥, ⇧, or ⌘.",
+            "グローバルショートカットには ⌃、⌥、⇧、または ⌘ を含めてください。",
+        )
+        .into());
     }
     unsafe {
         if !host.toggle_ref.is_null() {
@@ -196,7 +234,12 @@ fn reregister(
     }
     let target = unsafe { GetApplicationEventTarget() };
     if target.is_null() {
-        return Err("找不到应用事件目标，无法注册热键".into());
+        return Err(tr(
+            "暂时无法注册全局快捷键。",
+            "Couldn’t register global shortcuts right now.",
+            "現在グローバルショートカットを登録できません。",
+        )
+        .into());
     }
     let toggle_reg = register_chord(target, toggle, 0x4D4C5331, HOTKEY_TOGGLE);
     let capture_reg = register_chord(target, capture, 0x4D4C5332, HOTKEY_CAPTURE);
@@ -292,9 +335,11 @@ impl Drop for IoJob {
     }
 }
 
+type HotkeyNoticeError = (String, Option<ShelfNoticeCode>);
+
 /// Only AppKit/foreground snapshots happen here; blocking work never runs in Carbon's main-thread handler.
 fn start_io(
-    work: impl FnOnce(&AppHandle) -> Result<Option<shelf_http::AdmissionFeedback>, String>
+    work: impl FnOnce(&AppHandle) -> Result<Option<shelf_http::AdmissionFeedback>, HotkeyNoticeError>
         + Send
         + 'static,
 ) {
@@ -302,7 +347,15 @@ fn start_io(
         return;
     };
     if IO_RUNNING.swap(true, Ordering::AcqRel) {
-        notice("正在收取，请稍候再试");
+        let code = ShelfNoticeCode::key("busy");
+        notice_coded(
+            tr(
+                "正在收取上一项内容，稍后再试一次。",
+                "Still saving the previous item. Try again in a moment.",
+                "前の項目を取り込み中です。少し待ってからもう一度お試しください。",
+            ),
+            Some(&code),
+        );
         return;
     }
     let app = host.app.clone();
@@ -316,7 +369,7 @@ fn start_io(
                     show_shelf_refresh();
                 }
             }
-            Err(error) => notice(&error),
+            Err((error, code)) => notice_coded(&error, code.as_ref()),
         });
     });
 }
@@ -328,28 +381,33 @@ fn on_capture() {
         .and_then(|(bundle, _)| BrowserKind::from_bundle(bundle));
     let ax = ax_trusted();
     match capture_decision(kind, ax, kind.is_some_and(BrowserKind::uses_apple_script)) {
-        CaptureDecision::Stop { message, .. } => {
-            notice(&capture_hotkey_message(&message));
+        CaptureDecision::Stop { message, code, .. } => {
+            let (text, coded) = capture_hotkey_notice(&message, code);
+            notice_coded(&text, Some(&coded));
             return;
         }
         CaptureDecision::Proceed => {}
     }
     let (Some(kind), Some((bundle, _))) = (kind, front) else {
-        notice(&capture_hotkey_message(shelf_hotkeys::NO_BROWSER));
+        let (text, coded) = no_browser_hotkey_notice(&shelf_hotkeys::current_capture().label());
+        notice_coded(&text, Some(&coded));
         return;
     };
     if !kind.uses_apple_script() {
-        let (message, _) = capture_failure(Some(kind), ax, true);
-        notice(&message);
+        let (message, _, code) = capture_failure(Some(kind), ax, true);
+        notice_coded(&message, Some(&code));
         return;
     }
     // Browser kind was selected before yielding; never re-read the new front app on the worker.
     start_io(move |_| {
         let (url, title) = browser_page(kind, &bundle).map_err(|denied| {
-            let (message, _) = capture_failure(Some(kind), ax, !denied);
-            capture_hotkey_message(&message)
+            let (message, _, code) = capture_failure(Some(kind), ax, !denied);
+            let (text, coded) = capture_hotkey_notice(&message, code);
+            (text, Some(coded))
         })?;
-        admit_page(&url, &title).map(|_| None)
+        admit_page(&url, &title)
+            .map(|_| None)
+            .map_err(|error| (error, None))
     });
 }
 
@@ -363,7 +421,8 @@ fn on_files() {
     let kind = classify_front(bundle, &host.app.config().identifier);
     let capture_label = shelf_hotkeys::current_capture().label();
     if let Err(fail) = decide_front(kind, ax_trusted(), true) {
-        notice(&fail.message(&capture_label));
+        let code = fail.notice_code(&capture_label);
+        notice_coded(&fail.message(&capture_label), Some(&code));
         return;
     }
     start_io(move |app| {
@@ -374,9 +433,12 @@ fn on_files() {
                 } else {
                     FrontFileFailure::EmptyFinder
                 };
-                failure.message(&capture_label)
+                (
+                    failure.message(&capture_label),
+                    Some(failure.notice_code(&capture_label)),
+                )
             })?,
-            FrontFileKind::Other => copy_file_urls(app, pid)?,
+            FrontFileKind::Other => copy_file_urls(app, pid).map_err(|error| (error, None))?,
             FrontFileKind::Itself | FrontFileKind::Browser => return Ok(None),
         };
         if paths.is_empty() {
@@ -385,7 +447,10 @@ fn on_files() {
             } else {
                 FrontFileFailure::Empty
             };
-            return Err(failure.message(&capture_label));
+            return Err((
+                failure.message(&capture_label),
+                Some(failure.notice_code(&capture_label)),
+            ));
         }
         let (_, feedback) =
             shelf_http::collect_admissions(paths.iter().map(|path| shelf_http::admit_file(path)));
@@ -655,11 +720,21 @@ fn show_shelf_refresh() {
     }
 }
 
-fn notice(message: &str) {
-    show_notice(message, false, None);
+fn notice_coded(message: &str, code: Option<&ShelfNoticeCode>) {
+    let mapped = if code.is_none() {
+        shelf_http::notice_code_for_error(message)
+    } else {
+        None
+    };
+    show_notice(message, false, None, code.or(mapped.as_ref()));
 }
 
-fn show_notice(message: &str, partial: bool, warning: Option<&str>) {
+fn show_notice(
+    message: &str,
+    partial: bool,
+    warning: Option<&str>,
+    code: Option<&ShelfNoticeCode>,
+) {
     let Some(host) = host() else {
         return;
     };
@@ -667,7 +742,7 @@ fn show_notice(message: &str, partial: bool, warning: Option<&str>) {
         return;
     };
     show_shelf(&window);
-    crate::shelf_notice(&host.app, message, partial, warning, 80);
+    crate::shelf_notice(&host.app, message, partial, warning, code, 80);
 }
 
 #[allow(dead_code)]

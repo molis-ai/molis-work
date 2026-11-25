@@ -40,7 +40,7 @@ export const formUiContribution: UiContribution<FormUiModel> = {
       case "workbench":
         return renderFormWorkbench(request.model);
       default:
-        throw new Error(`Form UI surface ${(request as UiRenderRequest).surface} 不存在`);
+        throw new Error(`Unknown Form UI surface: ${(request as UiRenderRequest).surface}`);
     }
   },
 };

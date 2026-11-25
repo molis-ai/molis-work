@@ -23,10 +23,14 @@ interface DiffStateInput { reference?: { artifact_id: string; version: number };
 interface DiffState { view: DiffView; html?: string }
 export const diffActions = {
   state: { capability_id: "diff.state", version: /* @version action.diff.state */ 1, operation: "query", action: { ...base, audiences: [...base.audiences, "plugin"],
-    title: "读取固定差异", description: "读取明确指定的固定成果或当前已选输入组，保留原版本、来源和失效状态，不读取当前磁盘", permissions: ["artifact:read"],
+    title: "读取固定差异", title_text: { key: "diff.cap.state.title" },
+    description: "读取明确指定的固定成果或当前已选输入组，保留原版本、来源和失效状态，不读取当前磁盘", description_text: { key: "diff.cap.state.description" },
+    permissions: ["artifact:read"],
     input_schema: object({ reference, change_index: count }, []), output_schema: object({ view, html: text }, ["view"]) } } as ActionDefinition<DiffStateInput, DiffState>,
   compare: { capability_id: "diff.compare", version: /* @version action.diff.compare */ 1, operation: "query", action: { ...base,
-    title: "比较两段文本", description: "比较提供的两段文本，保留原行尾；超出计算预算时返回完整删除与新增，不改文件或保存成果", permissions: [],
+    title: "比较两段文本", title_text: { key: "diff.cap.compare.title" },
+    description: "比较提供的两段文本，保留原行尾；超出计算预算时返回完整删除与新增，不改文件或保存成果", description_text: { key: "diff.cap.compare.description" },
+    permissions: [],
     input_schema: object({ before: { type: "string", maxLength: 2_000_000 }, after: { type: "string", maxLength: 2_000_000 } }),
     output_schema: object({ identical: boolean, empty: boolean, coarse: boolean,
       ops: { type: "array", items: { oneOf: [

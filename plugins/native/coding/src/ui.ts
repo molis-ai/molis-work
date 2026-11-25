@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { DEFAULT_SESSION_TITLE } from "./session-title.js";
 import { CODING_SETTINGS_STYLES } from "./settings-styles.js";
 import { codingUsageSummary } from "./usage.js";
@@ -92,7 +92,7 @@ export const codingUiContribution: UiContribution<CodingUiModel> = {
       case "workbench":
         return renderCodingWorkbench(request.model);
       default:
-        throw new Error(`Coding UI surface ${(request as UiRenderRequest).surface} 不存在`);
+        throw new Error(`Unknown Coding UI surface: ${(request as UiRenderRequest).surface}`);
     }
   },
 };
@@ -107,7 +107,7 @@ export interface CodingUiHostModel extends UiNestedContentModel {
 }
 
 const codingIcon = (name: string): string => icon(name as Parameters<typeof icon>[0]);
-const codingDate = (value: string): string => value.slice(0, 10);
+const codingDate = (value: string): string => format.date(value, "date");
 
 /**
  * Coding's page as one started plugin gives it: the session directory is read from the plugin's own store (`directory`) each time
@@ -339,7 +339,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
     </form></dialog>
     <div class="coding-layout">${renderCodingDirectory(model)}
     <div class="coding-stage" data-coding-stage>
-      <section class="coding-start" aria-label="Coding"><div class="coding-start-hero"><span class="mw-empty__mark coding-start-mark">${p.icon("code")}</span><h2>${p.escape(uiText.text("coding.start.title"))}</h2><p>${p.escape(uiText.text("coding.start.lede"))}</p>${renderButton({label:uiText.text("coding.start.new"),variant:"primary",icon:"plus",attrs:{"data-coding-new":""}})}<small>${p.escape(uiText.text("coding.start.existing"))}</small></div></section>
+      <section class="coding-start" aria-label="${p.escape(uiText.text("coding.start.title"))}"><div class="coding-start-hero"><span class="mw-empty__mark coding-start-mark">${p.icon("code")}</span><h2>${p.escape(uiText.text("coding.start.title"))}</h2><p>${p.escape(uiText.text("coding.start.lede"))}</p>${renderButton({label:uiText.text("coding.start.new"),variant:"primary",icon:"plus",attrs:{"data-coding-new":""}})}<small>${p.escape(uiText.text("coding.start.existing"))}</small></div></section>
       <div class="coding-dialogue mw-frame" data-slot="frame" data-coding-dialogue>
         <header class="coding-dialogue-head mw-frame__header" data-coding-dialogue-head>
           <div class="coding-identity"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-directory-back" type="button" data-coding-directory-back aria-label="${p.escape(uiText.text("coding.dialogue.back-to-list"))}" title="${p.escape(uiText.text("coding.dialogue.session-list"))}">${p.icon("chevron-left")}</button><div class="coding-identity-copy mw-frame__heading"><h2 data-coding-title>${p.escape(uiText.text("coding.dialogue.empty-title"))}</h2><p class="coding-workspace-chip" data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</p></div></div>
@@ -466,7 +466,7 @@ function toolLabel(page: CodingToolAvailability["page"], _p: CodingUiPrimitives)
   if (page === "result") return uiText.text("coding.tool.result");
   if (page === "browser") return uiText.text("coding.tool.browser");
   if (page === "terminal") return uiText.text("coding.tool.terminal");
-  return "Canvas";
+  return uiText.text("coding.tool.canvas");
 }
 
 export interface CodingSettingsModel {

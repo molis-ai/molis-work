@@ -1,0 +1,21 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.google-calendar",
+  "locale": "ja",
+  "messages": {
+    "google-calendar.connection.auth-help": "calendar.readonly 権限を持つ Google アクセストークンを入力してください。カレンダーの scope を含めれば Gmail と同じ OAuth クライアントを使えます。",
+    "google-calendar.connection.inbound": "Feed で予定と会議を取得",
+    "google-calendar.connection.summary": "予定と会議。",
+    "google-calendar.connection.token-label": "Google アクセストークン（calendar.readonly）",
+    "google-calendar.guide.mcp-connected-note": "Google Workspace 開発者プレビューへの参加資格が必要です。",
+    "google-calendar.guide.mcp-link": "Calendar 公式 MCP を見る（開発者プレビュー）",
+    "google-calendar.guide.mcp-note": "Google Workspace 開発者プレビューへの参加資格が必要です。Molis Work ではまだ接続していません。",
+    "google-calendar.guide.oauth-link": "Google OAuth クライアントを作成",
+    "google-calendar.guide.token-note": "OAuth Playground で calendar.readonly のアクセストークンを取得して貼り付けてください。期限切れ後は再取得が必要です。",
+    "google-calendar.setup.create-oauth-client": "OAuth クライアントを作成",
+    "google-calendar.setup.enable-calendar-api": "Calendar API を有効化",
+    "google-calendar.setup.get-a-token-in-oauth-playground": "OAuth Playground でトークンを取得",
+    "google-calendar.permission.network.reason": "Google Calendar のアカウント情報と最新の更新を読み取ります",
+    "google-calendar.permission.secret.reason": "安全に保存された Google Calendar の接続資格情報を使用します"
+  }
+}

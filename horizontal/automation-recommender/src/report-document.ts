@@ -19,12 +19,28 @@ const words = {
     next: { skill: "Review and enable the skill in Capabilities", connection: "Review the setup in Connections", role: "Review the role in Capabilities" },
     requirements: "Requirements", risk: "Risk", evidence: "Evidence",
   },
+  ja: {
+    title: "プロジェクトの自動化提案", empty: "現在利用できる提案はありません。", partial: "一部のソースまたは機能を確認できませんでした。",
+    gap: { "no-workspace": "読み取り可能なプロジェクト入力フォルダーがありません", budget: "一部のフォルダーまたは設定がスキャン上限を超えました", unreadable: "読み取れませんでした",
+      "directory-unavailable": "カタログが利用できないか、設定可能な項目がありません", "preferences-unavailable": "保存済みの設定を読み取れませんでした" },
+    category: { hooks: "Hooks", skills: "スキル", connections: "接続", roles: "ロール", commands: "コマンド" },
+    confidence: { high: "信頼度：高", medium: "信頼度：中" },
+    next: { skill: "機能パックでスキルを確認して有効にする", connection: "接続設定で連携条件を確認する", role: "機能パックでロールを確認する" },
+    requirements: "前提条件", risk: "リスク", evidence: "根拠",
+  },
 } as const;
 
 const plain = (value: string) => value.replace(/[\r\n]/g, " ").replace(/[\\*_<>\x60\[\]#!]/g, "\\$&");
 
+function wordsFor(locale?: string) {
+  const base = locale?.trim().toLowerCase().split("-")[0];
+  if (!base || base === "zh") return words.zh;
+  if (base === "ja") return words.ja;
+  return words.en;
+}
+
 export function reportDocument(groups: AutomationReport["groups"], gaps: AutomationReport["gaps"], locale?: string) {
-  const copy = locale?.startsWith("en") ? words.en : words.zh;
+  const copy = wordsFor(locale);
   const sections = groups.filter(group => group.suggestions.length).map(group => [
     "## " + copy.category[group.category],
     ...group.suggestions.map(row => [

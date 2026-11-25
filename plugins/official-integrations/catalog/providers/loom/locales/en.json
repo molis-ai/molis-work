@@ -8,6 +8,8 @@
     "loom.connection.summary": "Read recordings from a linked site through Atlassian Rovo MCP.",
     "loom.guide.mcp-link": "View Atlassian Rovo MCP",
     "loom.guide.mcp-note": "Link the Loom workspace to an Atlassian site. Loom has no public REST API.",
-    "loom.setup.view-loom-api-guide": "View Loom API guide"
+    "loom.setup.view-loom-api-guide": "View Loom API guide",
+    "loom.permission.network.reason": "Read your Loom account info and latest updates",
+    "loom.permission.secret.reason": "Use your securely stored Loom connection credentials"
   }
 }

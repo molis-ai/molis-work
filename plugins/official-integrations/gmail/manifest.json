@@ -11,15 +11,15 @@
     { "deployment": "local", "entrypoint": "./dist/index.js" }
   ],
   "permissions": [
-    { "permission": "network:googleapis.com", "required": true, "reason": "读取 Gmail profile、history 和 message" },
-    { "permission": "secret:gmail", "required": true, "reason": "使用按账号隔离的 OAuth credential reference" }
+    { "permission": "network:googleapis.com", "required": true, "reason": "读取 Gmail 账号信息与收件箱邮件", "reason_text": { "key": "gmail.permission.network.reason" } },
+    { "permission": "secret:gmail", "required": true, "reason": "使用按账号隔离保存的 Gmail 连接凭据", "reason_text": { "key": "gmail.permission.secret.reason" } }
   ],
   "capabilities": {
     "provides": ["connector.driver.gmail.v1", "signal.adapter.gmail.v1"],
     "consumes": ["connector.host.v1", "listener.host.v1", "signals.command.v1"]
   },
   "artifacts": { "produces": [], "consumes": [] },
-  "ui": { "contributions": ["settings.integration.gmail"], "locales": { "default": "zh", "available": ["zh", "en"] } },
+  "ui": { "contributions": ["settings.integration.gmail"], "locales": { "default": "zh", "available": ["zh", "en", "ja"] } },
   "connection_services": [
     {
       "service_id": "gmail",

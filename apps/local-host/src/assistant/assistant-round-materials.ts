@@ -194,10 +194,13 @@ export class AssistantRoundMaterials {
     }
     // Forming memories switched off: the round is told without hardcoding a locale-specific Settings breadcrumb.
     if (!work.delegated_by && this.ports.memory?.() && !this.link.memoryTools(work)?.remember) {
-      const en = locale?.startsWith("en");
-      dynamic.push(...chunked({ title: en ? "Memory setting" : "记忆设置" }, "memory-off",
-        en ? "The user turned off memory formation, so this round cannot save long-term memories or leave suggestions."
-          : "用户关闭了“允许记住”，这一轮不能保存长期记忆或留下建议。"));
+      const MEMORY_OFF_NOTICE: Record<string, { title: string; text: string }> = {
+        zh: { title: "记忆设置", text: "用户关闭了“允许记住”，这一轮不能保存长期记忆或留下建议。" },
+        en: { title: "Memory setting", text: "The user turned off memory formation, so this round cannot save long-term memories or leave suggestions." },
+        ja: { title: "メモリ設定", text: "ユーザーが記憶の保存をオフにしているため、このターンでは長期メモリを保存したり提案を残したりできません。" },
+      };
+      const notice = MEMORY_OFF_NOTICE[(locale ?? "zh").split("-")[0]!] ?? MEMORY_OFF_NOTICE.zh!;
+      dynamic.push(...chunked({ title: notice.title }, "memory-off", notice.text));
     }
     // Changes a stopped round left running, and how each ended (the base says not to submit an unsettled one again blindly).
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);

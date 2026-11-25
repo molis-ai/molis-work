@@ -99,6 +99,10 @@ export interface SandboxOperationExample {
 interface SandboxOperationFields {
   id: string;
   description?: string;
+  /** Localized display title for the operation's projected action (single-line, no arguments/plurals, max 80 chars). */
+  title_text?: TextRef;
+  /** Localized display description for the operation's projected action (single-line, no arguments/plurals, max 400 chars). */
+  description_text?: TextRef;
   errors: Array<{ code: string; description: string }>;
   effects: SandboxEffects;
   /** Whether the operation sends content outside the Home. Separate from the effects it has permission to use. */
@@ -223,12 +227,27 @@ export interface SandboxHelpDeclaration {
   readonly topics: readonly SandboxHelpTopicDeclaration[];
 }
 
+/** Optional task read group declared inside a sandbox contract over its own read-only query operations. */
+export interface SandboxReadGroupDeclaration {
+  readonly group_id: string;
+  readonly title: string;
+  readonly title_text?: TextRef;
+  readonly description: string;
+  readonly description_text?: TextRef;
+  /** Operation ids of this contract's own read-only queries in the group. */
+  readonly operations: readonly string[];
+}
+
 export interface SandboxPluginContract {
   version: /* @version format.sandbox.contract */ 1;
   pluginId: string;
   revision: string;
   /** The signed Manifest projects this declaration; each language is a file in the package's locales/ directory. */
   ui?: { readonly locales: PluginLocalesDeclaration };
+  /** Optional localized permission reasons keyed by permission name; projected onto derived permission rows. */
+  permission_reasons?: Readonly<Record<string, TextRef>>;
+  /** Optional task read groups over this contract's read-only operations; projected onto Manifest `read_groups`. */
+  read_groups?: readonly SandboxReadGroupDeclaration[];
   /** Optional on-demand help topics shown via the platform's Scheme A help entry (VUX-55, VUX-59). */
   help?: SandboxHelpDeclaration;
   operations: SandboxOperationContract[];

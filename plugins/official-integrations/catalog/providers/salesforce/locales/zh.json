@@ -11,10 +11,12 @@
     "salesforce.guide.cli-note": "Salesforce CLI 可登录 org 并查询数据；Molis Work 不读取本机 org 授权。",
     "salesforce.guide.mcp-connected-note": "Hosted MCP 可能要求企业配置并消耗 Flex Credits。",
     "salesforce.guide.mcp-link": "查看 Salesforce Hosted MCP",
-    "salesforce.guide.mcp-note": "Hosted MCP 可能要求企业配置并消耗 Flex Credits；Molis Work 尚未接入。",
+    "salesforce.guide.mcp-note": "Hosted MCP 可能要求企业配置并消耗 Flex Credits；Molis Work 暂未接入。",
     "salesforce.guide.oauth-link": "查看 Salesforce OAuth",
     "salesforce.guide.token-note": "填写 Salesforce 实例地址与访问令牌。",
     "salesforce.oauth.login-origin": "Salesforce 登录地址",
-    "salesforce.setup.view-salesforce-connected-app-guide": "查看 Salesforce Connected App 说明"
+    "salesforce.setup.view-salesforce-connected-app-guide": "查看 Salesforce Connected App 说明",
+    "salesforce.permission.network.reason": "读取 Salesforce 账号信息与最新动态",
+    "salesforce.permission.secret.reason": "使用已安全保存的 Salesforce 连接凭据"
   }
 }

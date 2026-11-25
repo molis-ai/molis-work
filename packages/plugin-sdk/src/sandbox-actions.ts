@@ -149,22 +149,26 @@ export function sandboxOperationActions(input: { contract: SandboxPluginContract
   };
   return input.contract.operations.filter(operation => operation.id !== input.upgradeOperation).map(operation => {
     const actionScope = scopeOf(operation);
+    const localized = {
+      ...(operation.title_text === undefined ? {} : { title_text: operation.title_text }),
+      ...(operation.description_text === undefined ? {} : { description_text: operation.description_text }),
+    };
     if (operation.read_protocol !== undefined) {
       const definition = sandboxReadProtocolAction(operation, { capabilityId: sandboxActionId(input.buildId, operation.id), version: input.version,
         title: input.title + ' · ' + (operation.description || operation.id), scope: actionScope,
         permissions: sandboxOperationPermissions(operation.effects, input.hasProjectDatabase) });
-      return { ...definition, action: { ...definition.action, local_id: operation.id } };
+      return { ...definition, action: { ...definition.action, ...localized, local_id: operation.id } };
     }
     if (operation.action_protocol !== undefined) {
       const definition = sandboxActionProtocolAction(operation, { capabilityId: sandboxActionId(input.buildId, operation.id), version: input.version,
         title: input.title + ' · ' + (operation.description || operation.id), scope: actionScope,
         permissions: sandboxOperationPermissions(operation.effects, input.hasProjectDatabase) });
-      return { ...definition, action: { ...definition.action, local_id: operation.id } };
+      return { ...definition, action: { ...definition.action, ...localized, local_id: operation.id } };
     }
     return {
       capability_id: sandboxActionId(input.buildId, operation.id), version: input.version, operation: operation.kind,
       action: { local_id: operation.id, title: input.title + ' · ' + (operation.description || operation.id),
-        description: '插件「' + input.title + '」的功能：' + (operation.description || operation.id), kind: operation.kind === 'query' ? 'query' : 'operation',
+        description: '插件「' + input.title + '」的功能：' + (operation.description || operation.id), ...localized, kind: operation.kind === 'query' ? 'query' : 'operation',
         scope: actionScope, scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'],
         permissions: sandboxOperationPermissions(sandboxOperationEffects(input.contract, operation), input.hasProjectDatabase), subject_kinds: operation.trusted_review?.subject_kinds ?? [],
         input_schema: { ...operation.input }, output_schema: { ...operation.output },

@@ -52,6 +52,7 @@ export function installReminders(page: TodoPage): void {
     page.$("[data-todo-reminders-title]").textContent = late === state.reminders.length && late > 1 ? uiText.text("todo.reminder.missed-title", { count: late }) : uiText.text("todo.reminder.due-title");
     page.$("[data-todo-reminder-rows]").replaceChildren(...state.reminders.map(renderRow));
   };
+  page.renderReminders = renderReminders;
   page.loadReminders = async () => {
     const seq = ++state.reminderSeq;
     const payload = await page.request<{ reminders?: ReminderEntry[] }>("GET", "/reminders");

@@ -468,10 +468,11 @@ test("agentRegistration propagates override_policy: protected on kind: agent pro
     (error: unknown) => typeof error === "object" && error !== null && Reflect.get(error, "code") === "agent_definitions.prompt_override_protected",
   );
 
-  // Verify English locale packs provide non-CJK display strings for all newly covered prompts and roles.
+  // Verify English & Japanese locale packs provide localized display strings for all newly covered prompts and roles.
   const cjk = /[\u4e00-\u9fff]/u;
   const readMessages = (relPath: string) => (JSON.parse(readFileSync(new URL(relPath, import.meta.url), "utf8")) as { messages: Record<string, string> }).messages;
   const workbenchEn = readMessages("../apps/workbench/resources/locales/en.json");
+  const workbenchJa = readMessages("../apps/workbench/resources/locales/ja.json");
   for (const key of [
     "workbench.agent-assistant-prompt.assistant-main.title",
     "workbench.agent-assistant-role.assistant-main.name",
@@ -489,20 +490,25 @@ test("agentRegistration propagates override_policy: protected on kind: agent pro
     "workbench.agent-skills-prompt.skills-trial-judge.title",
     "workbench.agent-skills-prompt.skills-trial-judge.purpose",
   ]) {
-    const value = workbenchEn[key];
-    assert.ok(value, `missing English locale key: ${key}`);
-    assert.doesNotMatch(value, cjk, `English locale key must not contain CJK: ${key}=${value}`);
+    const enValue = workbenchEn[key];
+    assert.ok(enValue, `missing English locale key: ${key}`);
+    assert.doesNotMatch(enValue, cjk, `English locale key must not contain CJK: ${key}=${enValue}`);
+    assert.ok(workbenchJa[key], `missing Japanese locale key: ${key}`);
   }
   const studioEn = readMessages("../horizontal/plugin-studio/locales/en.json");
+  const studioJa = readMessages("../horizontal/plugin-studio/locales/ja.json");
   for (const key of ["plugin-builder.agent-prompt.mockup-generate.title", "plugin-builder.agent-prompt.mockup-generate.purpose"]) {
-    const value = studioEn[key];
-    assert.ok(value, `missing English locale key: ${key}`);
-    assert.doesNotMatch(value, cjk, `English locale key must not contain CJK: ${key}=${value}`);
+    const enValue = studioEn[key];
+    assert.ok(enValue, `missing English locale key: ${key}`);
+    assert.doesNotMatch(enValue, cjk, `English locale key must not contain CJK: ${key}=${enValue}`);
+    assert.ok(studioJa[key], `missing Japanese locale key: ${key}`);
   }
   const codingEn = readMessages("../plugins/native/coding/locales/en.json");
+  const codingJa = readMessages("../plugins/native/coding/locales/ja.json");
   for (const key of ["coding.agent-prompt.coding-auto-skill-catalog.title", "coding.agent-prompt.coding-auto-skill-catalog.purpose"]) {
-    const value = codingEn[key];
-    assert.ok(value, `missing English locale key: ${key}`);
-    assert.doesNotMatch(value, cjk, `English locale key must not contain CJK: ${key}=${value}`);
+    const enValue = codingEn[key];
+    assert.ok(enValue, `missing English locale key: ${key}`);
+    assert.doesNotMatch(enValue, cjk, `English locale key must not contain CJK: ${key}=${enValue}`);
+    assert.ok(codingJa[key], `missing Japanese locale key: ${key}`);
   }
 });

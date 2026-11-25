@@ -67,4 +67,4 @@ export const when = (iso: string | null): string => {
   return (date.getMonth() + 1) + "/" + date.getDate() + " " + pad(date.getHours()) + ":" + pad(date.getMinutes());
 };
 
-export const count = (value: number): string => value.toLocaleString();
+export const count = (value: number): string => globalThis.format.number(value);

@@ -35,6 +35,8 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // Any other caller's write through it keeps its content like any write.
   { owner: "service:gateway", fact: "action.call.draft_content", entries: ["workbench", "cli"], state: "by_rule", reason: "unsent_draft_not_kept" },
   { owner: "service:gateway", fact: "action.call.read_timing", entries: ["workbench", "cli", "mcp", "agent", "workflow", "plugin"], state: "by_rule", reason: "reads_coalesced_per_minute" },
+  // `agent.instructions`, `agent.skill`, and `agent.materials` cover `AgentTextMaterial.instruction_prompt_id` resolution
+  // for registered plugin material instructions and parent-session short-handle (`s1..sN`) skill catalog reads.
   ...AGENT_FACTS.map(name => ({ owner: "service:agent", fact: `agent.${name}`, entries: ["agent"], state: "complete" } as const)),
   // Round and compaction events plus receipts from skill authoring, trial replay and the shared plugin model action port.
   { owner: "service:agent", fact: "agent.usage", entries: ["agent", "workbench", "cli", "mcp", "workflow", "plugin", "host"], state: "complete" },
@@ -43,7 +45,8 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // Images shown to a round are runtime resources that do not outlive it; only that there was one, and which, is kept.
   { owner: "service:agent", fact: "agent.materials.image", entries: ["agent"], state: "unavailable", reason: "image_resources_not_kept" },
   // Each request the round's loop sent, as the runtime handed it to the Host (Prologue `onModelRequest`, #119); attachment bytes stay
-  // placeholders there, and an image a round was shown is the row above. A compaction summary's request is not reported by the runtime.
+  // placeholders there, and an image a round was shown is the row above. Compaction summaries and ephemeral ending-review runs are
+  // outside the main loop's per-turn `onModelRequest` stream (ending-review still forwards `promptCache` for cache reuse).
   { owner: "service:agent", fact: "agent.model_request", entries: ["agent"], state: "complete" },
   { owner: "service:agent", fact: "agent.model_request.compaction", entries: ["agent"], state: "by_rule", reason: "runtime_reports_loop_turns_only" },
   // A subagent's round: its start and end are in the dispatching round's stream and each request it sent is recorded as its own run's work

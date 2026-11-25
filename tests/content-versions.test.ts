@@ -149,4 +149,51 @@ test("content versions: covers horizontal prompts, modules prompts (including la
     [],
     "packages/system-skills Skill bump passes when version advances",
   );
+
+  // Nested reply-language prompts map to prompt.reply-language
+  const replyEn = "apps/local-host/prompts/reply-language/en.md";
+  assert.match(
+    runCase(
+      { "prompt.reply-language": 2 },
+      { "prompt.reply-language": 2 },
+      { [replyEn]: "Reply in English.\n" },
+      { [replyEn]: "Always reply in English.\n" },
+      [replyEn],
+    )[0] ?? "",
+    /prompt\.reply-language changed content without advancing its version/u,
+  );
+  assert.deepEqual(
+    runCase(
+      { "prompt.reply-language": 2 },
+      { "prompt.reply-language": 3 },
+      { [replyEn]: "Reply in English.\n" },
+      { [replyEn]: "Always reply in English.\n" },
+      [replyEn],
+    ),
+    [],
+  );
+
+  // Skill references/*.md map to their owning Skill's version key
+  const skillRefEn = "plugins/content/design-accessibility/skills/accessibility-review/references/checklist.en.md";
+  assert.match(
+    runCase(
+      { "method.design-accessibility.accessibility-review": 2 },
+      { "method.design-accessibility.accessibility-review": 2 },
+      { [skillRefEn]: "# Checklist\n" },
+      { [skillRefEn]: "# Updated Checklist\n" },
+      [skillRefEn],
+    )[0] ?? "",
+    /method\.design-accessibility\.accessibility-review changed content without advancing its version/u,
+  );
+
+  // Composed todo.organize.basic also tracks dependent prompt.todo.organize.organizer
+  const todoBasic = "plugins/native/todo/prompts/todo.organize.basic.md";
+  const todoErrors = runCase(
+    { "prompt.todo.organize.basic": 2, "prompt.todo.organize.organizer": 3 },
+    { "prompt.todo.organize.basic": 3, "prompt.todo.organize.organizer": 3 },
+    { [todoBasic]: "旧基础整理\n" },
+    { [todoBasic]: "新基础整理\n" },
+    [todoBasic],
+  );
+  assert.match(todoErrors[0] ?? "", /prompt\.todo\.organize\.organizer changed content without advancing its version/u);
 });

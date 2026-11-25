@@ -354,6 +354,8 @@
     "plugin-builder.agent-prompt.choose-capability.purpose": "複数のプラットフォーム機能が候補になる場合、最適な1つを判定します。候補と設計状態はスタジオから渡され、有効な候補のみを採用します",
     "plugin-builder.agent-prompt.choose-component.title": "コンポーネントの選定",
     "plugin-builder.agent-prompt.choose-component.purpose": "複数のコンポーネントが候補になる場合、ページ全体のレイアウトと隣接パーツに合わせて最適な1つを判定します",
+    "plugin-builder.agent-prompt.mockup-generate.title": "案のモックアップ生成",
+    "plugin-builder.agent-prompt.mockup-generate.purpose": "設計案のタイトル・概要・画面パーツ・利用フローをもとに、画像生成サービス向けのプラグイン画面モックアップの構図とスタイル要件を作成します",
     "plugin-builder.agent-prompt.builder-experience.title": "体験デザイナー",
     "plugin-builder.agent-prompt.builder-experience.purpose": "設計確定前に利用動線・情報の優先順位・代表コンテンツを整理します",
     "plugin-builder.agent-prompt.builder-review.title": "画面設計 · 外観チェック",

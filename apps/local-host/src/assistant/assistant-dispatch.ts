@@ -339,7 +339,7 @@ export class AssistantDispatch {
       base = await roundAuthority(); authority = startAuthority();
       const { offered, unavailable } = await this.actionTools(authority);
       this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
-      prepared = work.thread_round ? threadReplyMaterials(work.thread_round) : await this.link.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn, autoSkills);
+      prepared = work.thread_round ? threadReplyMaterials(work.thread_round) : await this.link.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn, autoSkills, authority.reply_language?.locale);
       const ready = prepared;
       const knowledge = ready.knowledgeDispatch;
       if (knowledge) {

@@ -966,6 +966,7 @@ export interface AgentPromptDeclaration {
     prompt_id: string;
     version: number;
     layer?: AgentPromptLayer;
+    override_policy?: PromptOverridePolicy;
 }
 
 export type AgentPromptLayer = "base" | "role" | "project" | "task";
@@ -975,6 +976,7 @@ export interface AgentPromptText extends LocalizedAgentBody {
     version: number;
     body: string;
     layer?: AgentPromptLayer;
+    override_policy?: PromptOverridePolicy;
     user_revision?: number;
 }
 

@@ -225,7 +225,14 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
       owner.authorize();
       db.prepare('UPDATE replica_state SET cursor=MAX(cursor,?) WHERE id=1').run(event.revision);
     }); },
-    counts(){return {pending:Number(db.prepare('SELECT COUNT(*) AS n FROM (SELECT key FROM replica_changes UNION SELECT key FROM replica_outbox)').get()!.n),conflicts:Number(db.prepare('SELECT COUNT(*) AS n FROM replica_conflicts').get()!.n)};},
+    counts() {
+      const pendingRows = db.prepare('SELECT key FROM replica_changes UNION SELECT key FROM replica_outbox').all();
+      const pending = owner.canUpload
+        ? pendingRows.filter(row => owner.canUpload!(String(row.key)) !== false).length
+        : pendingRows.length;
+      const conflicts = Number(db.prepare('SELECT COUNT(*) AS n FROM replica_conflicts').get()!.n);
+      return { pending, conflicts };
+    },
     conflicts() {
       owner.authorize();
       const visible: ReturnType<SyncReplicaAdapter['conflicts']> = [];

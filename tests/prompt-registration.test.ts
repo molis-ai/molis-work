@@ -35,7 +35,7 @@ const HOST = sources("apps/local-host/src");
 const PLUGINS = subPackageSources("plugins/native");
 const MODULES = subPackageSources("modules");
 const HORIZONTALS = subPackageSources("horizontal");
-const RUNTIME_SOURCES = [...HOST, ...MODULES, ...HORIZONTALS];
+const RUNTIME_SOURCES = [...HOST, ...PLUGINS, ...MODULES, ...HORIZONTALS];
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
 /** The built-in plugins' definitions, each carrying its own instructions and Agent prompts, which the Host registers while it runs (PG-051). */
 const DEFINITIONS = BUILTIN_DEFINITIONS;
@@ -200,8 +200,8 @@ test("RAC-194 a Plugin's instructions reach the register through its own definit
 });
 
 test("a Plugin, Module or Horizontal model port takes registered instructions, not a raw prompt string", () => {
-  const raw = [...PLUGINS, ...MODULES, ...HORIZONTALS].filter(path => /completeText\??\s*[:(]\s*\(?\s*prompt\s*:\s*string/.test(read(path)));
-  assert.deepEqual(raw, [], "插件与平台模块的 completeText 端口应接收 InstructedPrompt / ModelPromptInput");
+  const raw = [...PLUGINS, ...MODULES, ...HORIZONTALS].filter(path => /(?:completeText|completeJson|complete)\??\s*[:(]\s*\(?\s*prompt\s*:\s*string/.test(read(path)));
+  assert.deepEqual(raw, [], "插件与平台模块的 complete / completeText / completeJson 端口应接收 InstructedPrompt / ModelPromptInput");
 });
 
 const DIRECT_MODEL_CALLS = new Set([
@@ -214,12 +214,21 @@ const DIRECT_MODEL_CALLS = new Set([
   "testConfiguredModel",
 ]);
 const METHOD_MODEL_CALLS = new Set([
+  "complete",
   "completeText",
   "completeTextResult",
   "evaluateTypeSafe",
   "generateImages",
   "startRun",
   "startAgentRun",
+]);
+const NON_MODEL_COMPLETE_RECEIVERS = new Set([
+  "store",
+  "journal",
+  "delivery",
+  "protocol",
+  "driver",
+  "request",
 ]);
 const INSTRUCTIONS_RESOLVERS = new Set([
   "resolveModelPrompt",
@@ -262,6 +271,73 @@ function collectLocalBindingNames(node: ts.Node, out: Set<string>): void {
   ts.forEachChild(node, child => collectLocalBindingNames(child, out));
 }
 
+const instructedHelperCache = new Map<string, boolean>();
+function exportsInstructedHelper(filePath: string, exportName: string, seen = new Set<string>()): boolean {
+  const cacheKey = `${filePath}#${exportName}`;
+  if (instructedHelperCache.has(cacheKey)) return instructedHelperCache.get(cacheKey)!;
+  if (seen.has(cacheKey)) return false;
+  seen.add(cacheKey);
+  let text: string;
+  try { text = readFileSync(filePath, "utf8"); } catch { return false; }
+  if (!text.includes("instructed") || !text.includes(MODEL_PROMPTS_CONTRACT)) {
+    instructedHelperCache.set(cacheKey, false);
+    return false;
+  }
+  const source = ts.createSourceFile(filePath, text, ts.ScriptTarget.ES2022, true);
+  let localInstructed: string | undefined;
+  for (const st of source.statements) {
+    if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier) || st.importClause?.isTypeOnly) continue;
+    if (st.moduleSpecifier.text !== MODEL_PROMPTS_CONTRACT) continue;
+    const named = st.importClause?.namedBindings;
+    if (!named || !ts.isNamedImports(named)) continue;
+    for (const el of named.elements) {
+      if (!el.isTypeOnly && (el.propertyName ?? el.name).text === "instructed") localInstructed = el.name.text;
+    }
+  }
+  if (!localInstructed) { instructedHelperCache.set(cacheKey, false); return false; }
+  const callsInstructed = (node: ts.Node): boolean => {
+    if (ts.isCallExpression(node)) {
+      const callee = unwrapExpression(node.expression);
+      if (ts.isIdentifier(callee) && callee.text === localInstructed) return true;
+    }
+    return ts.forEachChild(node, callsInstructed) ?? false;
+  };
+  let found = false;
+  for (const st of source.statements) {
+    if (!isExportedStatement(st)) continue;
+    if (ts.isFunctionDeclaration(st) && st.name?.text === exportName && callsInstructed(st)) { found = true; break; }
+    if (ts.isVariableStatement(st)) {
+      for (const decl of st.declarationList.declarations) {
+        if (ts.isIdentifier(decl.name) && decl.name.text === exportName && decl.initializer && callsInstructed(decl.initializer)) { found = true; break; }
+      }
+      if (found) break;
+    }
+  }
+  instructedHelperCache.set(cacheKey, found);
+  return found;
+}
+
+function isThinTypedModelForwarder(callNode: ts.CallExpression): boolean {
+  if (callNode.arguments.length === 0) return false;
+  const firstArg = unwrapExpression(callNode.arguments[0]!);
+  if (!ts.isIdentifier(firstArg)) return false;
+  let current: ts.Node | undefined = callNode.parent;
+  while (current) {
+    if (ts.isArrowFunction(current) || ts.isFunctionExpression(current) || ts.isMethodDeclaration(current)) {
+      const takesArg = current.parameters.some(param => ts.isIdentifier(param.name) && param.name.text === firstArg.text);
+      if (takesArg) {
+        const hostProp = ts.isMethodDeclaration(current)
+          ? current.name
+          : ts.isPropertyAssignment(current.parent) ? current.parent.name : undefined;
+        const propName = hostProp && (ts.isIdentifier(hostProp) || ts.isStringLiteral(hostProp)) ? hostProp.text : "";
+        if (propName === "complete" || propName === "completeText" || propName === "completeJson") return true;
+      }
+    }
+    current = current.parent;
+  }
+  return false;
+}
+
 /**
  * Inspect one TypeScript module with the TS AST and return all monitored model call sites together with those whose
  * enclosing callable unit (or every in-file caller of a non-exported private helper) is NOT bound to an imported
@@ -289,6 +365,8 @@ function inspectModelCallSites(filePath: string, sourceText: string): { calls: s
       } else if (resolved === PLUGIN_PROMPTS_OWNER_MODULE && PLUGIN_PROMPT_RESOLVERS.has(importedName)) {
         registryResolvers.add(localName);
       } else if (resolved === MODEL_PROMPTS_CONTRACT && importedName === "instructed") {
+        instructedWrappers.add(localName);
+      } else if (spec.startsWith(".") && exportsInstructedHelper(resolved.replace(/\.js$/u, ".ts"), importedName)) {
         instructedWrappers.add(localName);
       }
     }
@@ -380,11 +458,17 @@ function inspectModelCallSites(filePath: string, sourceText: string): { calls: s
           }
         } else if (ts.isPropertyAccessExpression(callee)) {
           const method = callee.name.text;
-          if (METHOD_MODEL_CALLS.has(method) && (method !== "completeText" || node.arguments.length > 0)) {
-            unit.modelCalls.push({ kind: `.${method}`, line, isTypedCompleteText: method === "completeText" });
+          const receiver = unwrapExpression(callee.expression);
+          const receiverName = ts.isIdentifier(receiver) ? receiver.text : ts.isPropertyAccessExpression(receiver) ? receiver.name.text : "";
+          const isModelComplete = method === "complete"
+            && node.arguments.length > 0
+            && receiver.kind !== ts.SyntaxKind.ThisKeyword
+            && !NON_MODEL_COMPLETE_RECEIVERS.has(receiverName)
+            && !isThinTypedModelForwarder(node);
+          if ((method === "complete" ? isModelComplete : METHOD_MODEL_CALLS.has(method)) && (method !== "completeText" || node.arguments.length > 0)) {
+            unit.modelCalls.push({ kind: `.${method}`, line, isTypedCompleteText: method === "completeText" || method === "complete" });
           }
           if (entry.className) {
-            const receiver = unwrapExpression(callee.expression);
             if (receiver.kind === ts.SyntaxKind.ThisKeyword || (ts.isIdentifier(receiver) && receiver.text === entry.className)) {
               const targetId = `${entry.className}.${method}`;
               if (knownUnitIds.has(targetId) && targetId !== unit.id) {
@@ -453,7 +537,7 @@ function inspectModelCallSites(filePath: string, sourceText: string): { calls: s
   return { calls, unregistered };
 }
 
-test("Host, Module and Horizontal call sites reach a model only through verified prompt-registry resolvers, apart from the low-level allowlist", () => {
+test("Host, Plugin, Module and Horizontal call sites reach a model only through verified prompt-registry resolvers, apart from the low-level allowlist", () => {
   const offenders: string[] = [];
   const allowlistHits = new Set<string>();
   for (const path of RUNTIME_SOURCES) {
@@ -532,6 +616,15 @@ test("per-call-site AST gate rejects sibling rogue calls, comment-only mentions,
   const classResult = inspectModelCallSites("apps/local-host/src/synthetic-class.ts", classSiblingRogue);
   assert.equal(classResult.unregistered.length, 1, JSON.stringify(classResult));
   assert.match(classResult.unregistered[0]!, /MixedService\.rogue -> hostTextForCommit/);
+
+  const rogueComplete = `
+    export async function roguePluginCall(model: any) {
+      return model.complete("raw unregistered prompt");
+    }
+  `;
+  const pluginCompleteResult = inspectModelCallSites("plugins/native/example/src/rogue.ts", rogueComplete);
+  assert.equal(pluginCompleteResult.unregistered.length, 1, JSON.stringify(pluginCompleteResult));
+  assert.match(pluginCompleteResult.unregistered[0]!, /roguePluginCall -> \.complete/);
 });
 
 test("Plugin Builder's designer and code Agents are registered as the prompts they run, not its unused manifest set", () => {
@@ -582,8 +675,13 @@ test("a registered judgment wording's version moves with its default text", () =
     history.forEach((row, index) => { if (index) assert.ok(row[0] > history[index - 1]![0], `${key}: versions rise from row to row`); });
     assert.equal(new Set(history.map(row => row[1])).size, history.length, `${key}: a version that does not change the text`);
   }
-  const everyWording = [...bodies.keys()].filter(key => key.startsWith("system:contextual/") || key.startsWith("io.molis.work.plugin-builder/choose.") || key.startsWith("io.molis.work.coding/coding-background"));
-  assert.deepEqual(everyWording.sort(), Object.keys(WORDING_HISTORY).sort(), "a new judgment wording starts its own history");
+  const everyWording = [...bodies.entries()]
+    .filter(([key, prompt]) => key.startsWith("system:contextual/")
+      || key.startsWith("io.molis.work.plugin-builder/choose.")
+      || key.startsWith("io.molis.work.coding/coding-background")
+      || prompt.override_policy === "protected")
+    .map(([key]) => key);
+  assert.deepEqual(everyWording.sort(), Object.keys(WORDING_HISTORY).sort(), "a new judgment or protected wording starts its own history");
 });
 
 test("Plugin Builder's two questions to the judgment service are registered where the person can edit them, and the workflow asks for them instead of carrying the words", () => {

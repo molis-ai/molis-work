@@ -354,6 +354,8 @@
     "plugin-builder.agent-prompt.choose-capability.purpose": "一项功能有几个都说得通的平台能力时，请判断服务选出最适合的一个；候选和设计状态由创作台给出，只有有效候选算数",
     "plugin-builder.agent-prompt.choose-component.title": "选组件",
     "plugin-builder.agent-prompt.choose-component.purpose": "一个部件有几个都说得通的组件时，请判断服务按整页布局和相邻部件选出一个；候选和设计状态由创作台给出，只有有效候选算数",
+    "plugin-builder.agent-prompt.mockup-generate.title": "生成方案效果图",
+    "plugin-builder.agent-prompt.mockup-generate.purpose": "根据设计方案的标题、说明、页面部件与使用路径，为生图服务生成插件界面效果图的风格与构图要求",
     "plugin-builder.agent-prompt.builder-experience.title": "体验设计师",
     "plugin-builder.agent-prompt.builder-experience.purpose": "在方案定稿前规划用户动线、信息主次与代表性内容",
     "plugin-builder.agent-prompt.builder-review.title": "界面制作 · 视觉检查",

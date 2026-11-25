@@ -128,6 +128,9 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
     assert.match(frozen, /Write a Git commit message/);
     assert.match(frozen, /Reply language for this round: English/);
     assert.doesNotMatch(frozen, /A later prompt edit|本轮回复语言：简体中文/);
+    const frozenMessages = JSON.stringify(bodies.at(-1).messages);
+    assert.match(frozenMessages, /Return only the result itself, do not call tools/);
+    assert.match(frozenMessages, /BEGIN_DRAFT_[0-9a-f]+/);
     assert.deepEqual(fresh.uses.list(key).map(use => [use.version, use.user_revision]), [[2, null], [2, null]]);
 
     await draftText({ ...options, homeDirectory: otherHome }, { ...named, prompt: "coding.history-summary" }, { pluginId });

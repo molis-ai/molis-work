@@ -11,9 +11,18 @@ const REPLY_WORDS = new Map(WORKBENCH_LANGUAGES.languages.map(({ tag }) => {
   return [tag, body];
 }));
 
+const TRUSTED_REPLY_LANGUAGE_PROMPTS = new WeakSet<AgentPromptText>();
+
 /** What a round is told about the language to reply in. */
 export function replyLanguagePrompt(locale: WebLocale): AgentPromptText {
-  return { prompt_id: "reply-language", version: /* @version prompt.reply-language */ 2, body: REPLY_WORDS.get(locale) ?? REPLY_WORDS.get(DEFAULT_WEB_LOCALE)! };
+  const prompt: AgentPromptText = { prompt_id: "reply-language", version: /* @version prompt.reply-language */ 2, body: REPLY_WORDS.get(locale) ?? REPLY_WORDS.get(DEFAULT_WEB_LOCALE)! };
+  TRUSTED_REPLY_LANGUAGE_PROMPTS.add(prompt);
+  return prompt;
+}
+
+/** True only for a fixed reply-language prompt object minted by the Host itself (`replyLanguagePrompt`), never caller-forged data. */
+export function isTrustedReplyLanguagePrompt(prompt: AgentPromptText): boolean {
+  return prompt.prompt_id === "reply-language" && TRUSTED_REPLY_LANGUAGE_PROMPTS.has(prompt);
 }
 
 /** The current call's language, or this Home's most recent language when a round did not come from a page. */

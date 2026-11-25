@@ -4,8 +4,10 @@ import { bindPresentationValuesHandler, definePresentationOverviewAction, define
 import { codingCreateSessionAction } from "./route-actions.js";
 import type { CodingSessionStore } from "./store.js";
 
-const values = definePresentationValuesAction("coding.presentation.values", /* @version action.coding.presentation.values */ 1, ["coding_session"], "编码会话显示字段", ["artifact:read"]);
-const overview = definePresentationOverviewAction("coding.presentation.overview", /* @version action.coding.presentation.overview */ 1, "编码会话首页概况", ["artifact:read"]);
+const rawValues = definePresentationValuesAction("coding.presentation.values", /* @version action.coding.presentation.values */ 1, ["coding_session"], "编码会话显示字段", ["artifact:read"]);
+const values = { ...rawValues, action: { ...rawValues.action, title_text: { key: "coding.action.presentation-values.title" }, description_text: { key: "coding.action.presentation-values.description" } } };
+const rawOverview = definePresentationOverviewAction("coding.presentation.overview", /* @version action.coding.presentation.overview */ 1, "编码会话首页概况", ["artifact:read"]);
+const overview = { ...rawOverview, action: { ...rawOverview.action, title_text: { key: "coding.action.presentation-overview.title" }, description_text: { key: "coding.action.presentation-overview.description" } } };
 const { capability_id, version } = codingCreateSessionAction;
 const start = { capability_id, version };
 export const codingPresentationActions = [values, overview];

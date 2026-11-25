@@ -9,6 +9,8 @@
     "linear.connection.token-label": "Linear API Key",
     "linear.guide.mcp-link": "查看 Linear 官方 MCP",
     "linear.guide.oauth-link": "查看 Linear OAuth 应用",
-    "linear.setup.open-linear-api-settings": "打开 Linear API 设置"
+    "linear.setup.open-linear-api-settings": "打开 Linear API 设置",
+    "linear.permission.network.reason": "读取 Linear 账号信息与最新动态",
+    "linear.permission.secret.reason": "使用已安全保存的 Linear 连接凭据"
   }
 }

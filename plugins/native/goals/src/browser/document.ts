@@ -22,7 +22,7 @@ export function documentClient(host: DocumentHost) {
     const template = document.createElement("template");
     template.innerHTML = String(html || "").trim();
     const nextView = template.content.querySelector("[data-goal-view]");
-    if (!nextView) throw new Error("Goal 正文响应不完整");
+    if (!nextView) throw new Error(globalThis.t.text("goals.document-client.incomplete-response"));
     (documentPane.querySelector('[data-work-surface="goals"]') || documentPane).replaceChildren(nextView);
     afterReplace();
   };
@@ -49,7 +49,7 @@ export function documentClient(host: DocumentHost) {
     try {
       const html = await molisWorkRequest<string>(
         route("/api/goals/" + encodeURIComponent(goalId) + "/document?view=" + documentCollection),
-        { signal: controller.signal, as: "text", fallback: "无法读取这条 Goal 正文" },
+        { signal: controller.signal, as: "text", fallback: globalThis.t.text("goals.document-client.load-failed") },
       );
       if (goalDocumentRequest !== controller) return null;
       replaceGoalDocument(html);
@@ -60,7 +60,7 @@ export function documentClient(host: DocumentHost) {
       // A Goal this project no longer has (Goals' own not-found, not any 404): its tab stays, struck through, and its pane says why.
       if (failure.status === 404 && failure.code === GOAL_NOT_FOUND) document.dispatchEvent(new CustomEvent("molis-work:record-gone", { detail: { plugin: "goals", itemId: goalId } }));
       // A refusal, a missing Goal included, keeps the one copy this read has always shown; an unreachable Host says so.
-      showError((failure.status ? "" : failure.message) || "无法读取这条 Goal 正文");
+      showError((failure.status ? "" : failure.message) || globalThis.t.text("goals.document-client.load-failed"));
       return false;
     } finally {
       if (goalDocumentRequest === controller) {

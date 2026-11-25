@@ -64,7 +64,7 @@ export const PAGE_STATE_OWNERS = {
     state: "The task's role picker and its default and editor modes.",
   },
   "document-language": {
-    files: ["apps/workbench/src/browser/language-entry.ts", "apps/workbench/src/browser/plugin-frame/language-child.ts"],
+    files: ["apps/workbench/src/browser/language-entry.ts", "apps/workbench/src/browser/plugin-frame/language-child.ts", "packages/im-ui/src/browser/locale.ts"],
     state: "The displayed words and language of one document.",
   },
   "side-panel": {

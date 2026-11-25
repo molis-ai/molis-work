@@ -1,23 +1,36 @@
 import { bindFileEntriesHandler, bindSearchEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, fileContentOf, FILE_CONTENT_MAX_BYTES, searchRevisionOf, searchText, subjectContext, type ActionDefinition, type ActionHandlerBinding, type ActionSubjectContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
+import { tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ShelfSnapshot } from "../contract.js";
 import { shelfErrors } from "../index.js";
+
+const withActionText = <I, O>(definition: ActionDefinition<I, O>, slug: string): ActionDefinition<I, O> => ({
+  ...definition,
+  action: {
+    ...definition.action,
+    title_text: { key: `shelf.action.${slug}.title` },
+    description_text: { key: `shelf.action.${slug}.description` },
+  },
+});
 
 /**
  * Shelf's part in the system search. Original files stay on the shelf; only text the shelf already shows is indexed.
  * Materials reach as far as `shelf.items.read` does. Clipboard history stays with the local person, like every other
  * clipboard action, so it is its own source open to `user` only: no Agent, workflow or external client finds it.
  */
-export const shelfSearchEntriesAction = defineSearchEntriesAction("shelf.search.entries", /* @version action.shelf.search.entries */ 1,
-  [{ kind: "shelf_item", title: "置物架材料", surface: "shelf" }], "置物架材料", ["shelf:read"], "home");
-export const shelfClipboardSearchEntriesAction = defineSearchEntriesAction("shelf.clipboard.search.entries", /* @version action.shelf.clipboard.search.entries */ 1,
-  [{ kind: "shelf_clip", title: "剪贴板", surface: "shelf" }], "剪贴板", ["shelf:read"], "home", ["user"]);
+export const shelfSearchEntriesAction = withActionText(defineSearchEntriesAction("shelf.search.entries", /* @version action.shelf.search.entries */ 1,
+  [{ kind: "shelf_item", title: "置物架材料", surface: "shelf" }], "置物架材料", ["shelf:read"], "home"), "search-entries");
+export const shelfClipboardSearchEntriesAction = withActionText(defineSearchEntriesAction("shelf.clipboard.search.entries", /* @version action.shelf.clipboard.search.entries */ 1,
+  [{ kind: "shelf_clip", title: "剪贴板", surface: "shelf" }], "剪贴板", ["shelf:read"], "home", ["user"]), "clipboard-search-entries");
 
 /**
  * One Shelf material by the shared subject protocol: where it is, its name and the text the shelf already shows. It
  * reaches as far as `shelf.items.read` (no plugins); a copy deleted from the shelf answers `shelf.not_found`.
  */
 const reader = defineSubjectContextAction("shelf.subject.read", /* @version action.shelf.subject.read */ 1, "shelf_item", "置物架材料", ["shelf:read"], "home");
-export const shelfSubjectAction: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = { ...reader, action: { ...reader.action, execution: { cost: "none" }, audiences: ["user", "workflow", "agent", "mcp"] } };
+export const shelfSubjectAction: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = withActionText(
+  { ...reader, action: { ...reader.action, execution: { cost: "none" }, audiences: ["user", "workflow", "agent", "mcp"] } },
+  "subject-read",
+);
 
 function shelfSubjectContext(snapshot: ShelfSnapshot, id: string): ActionSubjectContext {
   const item = [...snapshot.materials, ...snapshot.results].find(entry => entry.item_id === id);
@@ -36,22 +49,25 @@ function shelfSearchEntries(snapshot: ShelfSnapshot): SearchEntry[] {
 }
 
 function shelfClipboardSearchEntries(snapshot: ShelfSnapshot): SearchEntry[] {
+  const untitled = tryUiText("shelf.search.clipboard") ?? "剪贴板";
   return snapshot.clipboard.map((clip): SearchEntry => ({ subject: { kind: "shelf_clip", id: clip.clip_id }, revision: clip.fingerprint,
-    title: clip.title || searchText(clip.body, 80) || "剪贴板", summary: searchText(clip.body, 4000), updated_at: clip.created_at, content: "summary", open: { surface: "shelf", id: clip.clip_id } }));
+    title: clip.title || searchText(clip.body, 80) || untitled, summary: searchText(clip.body, 4000), updated_at: clip.created_at, content: "summary", open: { surface: "shelf", id: clip.clip_id } }));
 }
 
 /** The side panel's file tab (specs/archive/side-panel): what is on the shelf, originals previewed as themselves. Folders stay on the shelf. */
 const shelfFileKinds = [{ kind: "shelf_item", title: "置物架材料", surface: "shelf" }];
-export const shelfFileEntriesAction = defineFileEntriesAction("shelf.files.entries", /* @version action.shelf.files.entries */ 1, shelfFileKinds, "置物架", ["shelf:read"], "home");
-export const shelfFileContentAction = defineFileContentAction("shelf.files.content", /* @version action.shelf.files.content */ 1, shelfFileKinds, "置物架", ["shelf:read"], "home");
+export const shelfFileEntriesAction = withActionText(defineFileEntriesAction("shelf.files.entries", /* @version action.shelf.files.entries */ 1, shelfFileKinds, "置物架", ["shelf:read"], "home"), "files-entries");
+export const shelfFileContentAction = withActionText(defineFileContentAction("shelf.files.content", /* @version action.shelf.files.content */ 1, shelfFileKinds, "置物架", ["shelf:read"], "home"), "files-content");
 
 const shelfMedia = (item: ShelfSnapshot["materials"][number]) => item.kind === "markdown" ? "text/markdown" : item.kind === "text" || item.kind === "url" || item.kind === "website" ? "text/plain"
   : /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/u.test(item.mime) ? item.mime : "application/octet-stream";
 
 function shelfFileEntries(snapshot: ShelfSnapshot) {
+  const resultFolder = tryUiText("shelf.board-specimens.results") ?? "结果";
+  const materialFolder = tryUiText("shelf.board-specimens.materials") ?? "材料";
   return [...snapshot.materials, ...snapshot.results].filter(item => !item.hidden && item.kind !== "folder" && item.status !== "failed").map(item => ({
     subject: { kind: "shelf_item", id: item.item_id }, revision: searchRevisionOf([item.status, item.name, item.origin_hash]), title: item.name,
-    folder: [item.group === "result" ? "结果" : "材料"], media_type: shelfMedia(item), size: item.size_bytes || null, updated_at: item.created_at,
+    folder: [item.group === "result" ? resultFolder : materialFolder], media_type: shelfMedia(item), size: item.size_bytes || null, updated_at: item.created_at,
     open: { surface: "shelf", id: item.item_id } }));
 }
 

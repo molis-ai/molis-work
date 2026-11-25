@@ -3,7 +3,7 @@ import { projectDirectoryWords } from '@molis-ai/molis-work-ui-host';
 import { isPluginSceneName } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
 import { cutHead } from '@molis-ai/molis-work-plugin-sdk/whole-units';
 import { builtinActiveSkillScenes, SKILL_SCENES_MAX, skillAudienceActive, skillSceneChoicesOf, type ActiveSkillScene } from './memory/memory-plugin-scene.js';
-import { directoryWordResolver } from './ui-text-provider.js';
+import { directoryWordResolver, manifestWordResolver, registeredInstallationText } from './ui-text-provider.js';
 import { activeLocale } from './web-locale.js';
 /**
  * Installing a plugin from a signed package (ac-trust T2, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.1): a sandbox
@@ -334,7 +334,8 @@ export class PluginInstallService {
     const installed = current && !upgradeRefusal(manifest, current.record.version) ? this.ports.packages.load(manifest.plugin_id, manifest.publisher.signature, current.record.version).packaged : undefined;
     const skills = skillInstallPreviews(pkg, installed), agent_bodies = rolePreviews('agentBodies' in pkg ? pkg.agentBodies : [], installed && (installed.agentBodies ?? []));
     const locale = caller?.locale ?? activeLocale();
-    const name = projectDirectoryWords(manifest, pkg.localePacks && locale ? directoryWordResolver(pkg.localePacks, locale) : undefined).name;
+    const resolve = manifestWordResolver(pkg.localePacks, locale);
+    const name = projectDirectoryWords(manifest, resolve).name;
     let skill_scenes: SkillSceneChoice[] | undefined;
     if ((manifest.methods?.length ?? 0) > 0 || skills.length > 0) {
       const activeScenes = await this.activeSkillScenesFor(runtime_scope, who.project_id, locale ?? undefined);
@@ -365,7 +366,12 @@ export class PluginInstallService {
       effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null, ...(this.ports.localSigner?.keyId() === key_id ? { local: true as const } : {}) },
       ...(refs.length ? { secrets: refs.map(name => ({ name, saved: saved.includes(name) })) } : {}),
       preview: { plugin_id: manifest.plugin_id, version: manifest.version, trust: 'pinned', publisher_signature: manifest.publisher.signature, publisher_pinned: pin !== undefined,
-        permissions: permissionViews(manifest, manifest.kind === 'app' ? sandboxRequestedPermissions(pkg.permissions) : undefined, sandboxProjectedPermissions(manifest, pkg.permissions)), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
+        permissions: permissionViews(
+          manifest,
+          manifest.kind === 'app' ? sandboxRequestedPermissions(pkg.permissions) : undefined,
+          sandboxProjectedPermissions(manifest, pkg.permissions, 'contract' in pkg ? pkg.contract.permission_reasons : undefined),
+          resolve,
+        ), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
       ...manifest.kind === 'integration' ? { origins: (manifest.connection_services ?? []).flatMap(service => service.origins
         ? [{ service_id: service.service_id, title: word(service.title), origins: [...service.origins] }] : []) } : {} };
     const now = Date.now();
@@ -580,20 +586,20 @@ export class PluginInstallService {
    * project's; what the Manifest does not declare, or a required one switched off, is refused by the Runtime (`plugin.grant_denied`).
    * Answers the installation's permissions as they stand after, and whether anything changed.
    */
-  async setPermission(projectId: string, installId: string, permission: string, granted: boolean): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
+  async setPermission(projectId: string, installId: string, permission: string, granted: boolean, locale?: string): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
     const { regrant } = this.ports;
-    return this.switchPermission(() => this.ports.installed(projectId), regrant && (expected => regrant(projectId, installId, permission, granted, expected)), installId, permission, granted);
+    return this.switchPermission(() => this.ports.installed(projectId), regrant && (expected => regrant(projectId, installId, permission, granted, expected)), installId, permission, granted, locale);
   }
 
   /** The same switch for a plugin that runs as the Home's own instance, shared by every project (BL-700, S-94). */
-  async setHomePermission(installId: string, permission: string, granted: boolean): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
+  async setHomePermission(installId: string, permission: string, granted: boolean, locale?: string): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
     const { homeInstalled, homeRegrant } = this.ports;
     if (!homeInstalled) throw pluginErrors.state_invalid('这个宿主没有个人空间');
-    return this.switchPermission(homeInstalled, homeRegrant && (expected => homeRegrant(installId, permission, granted, expected)), installId, permission, granted);
+    return this.switchPermission(homeInstalled, homeRegrant && (expected => homeRegrant(installId, permission, granted, expected)), installId, permission, granted, locale);
   }
 
   private async switchPermission(list: () => Promise<InstalledPluginEntry[]>, regrant: ((expected: PermissionSwitchTarget) => Promise<void>) | undefined, installId: string,
-    permission: string, granted: boolean): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
+    permission: string, granted: boolean, locale?: string): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
     const find = async () => (await list()).find(entry => entry.record.install_id === installId);
     const before = await find();
     if (!before?.manifest) throw pluginErrors.definition_missing('这里没有这个插件的安装，或读不到它安装时的声明');
@@ -606,7 +612,7 @@ export class PluginInstallService {
     const after = await find();
     if (!after?.manifest) throw pluginErrors.definition_missing('这个插件的安装已经不在');
     const held = new Set(before.record.grants);
-    return { install_id: installId, permissions: this.views([after])[0]!.permissions.slice(),
+    return { install_id: installId, permissions: this.views([after], locale)[0]!.permissions.slice(),
       changed: after.record.grants.length !== held.size || after.record.grants.some(grant => !held.has(grant)) };
   }
 
@@ -616,22 +622,33 @@ export class PluginInstallService {
     return sandboxRequestedPermissions(saved.permissions);
   }
 
-  private views(entries: InstalledPluginEntry[]): PluginInstalledView[] {
+  private localeReaderFor(entry: InstalledPluginEntry) {
+    if (entry.record.publisher_trust === 'host') return registeredInstallationText(entry.record);
+    if (entry.record.publisher_trust !== 'pinned') return null;
+    try {
+      return this.ports.packages.load(entry.record.plugin_id, entry.record.publisher_signature, entry.record.version).packaged?.localePacks ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private views(entries: InstalledPluginEntry[], locale?: string): PluginInstalledView[] {
+    const targetLocale = locale ?? activeLocale();
     return installedPluginViews(entries.map(entry => {
       try { return { ...entry, requestedPermissions: this.requested(entry) }; }
       catch (error) { const code = (error as { code?: unknown } | null)?.code; return { ...entry, manifest: undefined, recoveryCode: typeof code === 'string' ? code : 'plugin.package_invalid' }; }
-    }), this.ports.ledger);
+    }), this.ports.ledger, entry => manifestWordResolver(this.localeReaderFor(entry), targetLocale));
   }
 
   /** The Home's own plugins as the settings page shows them: the same view as a project's, for the instance every project shares. */
-  async homeInstalled(): Promise<PluginInstalledView[]> {
-    return this.views(await (this.ports.homeInstalled?.() ?? []));
+  async homeInstalled(locale?: string): Promise<PluginInstalledView[]> {
+    return this.views(await (this.ports.homeInstalled?.() ?? []), locale);
   }
 
   /** The project's installed plugins as their detail page shows them: trust, permissions, jobs and the person's agreements. */
-  async installed(projectId: string): Promise<ProjectPluginInstalledView[]> {
+  async installed(projectId: string, locale?: string): Promise<ProjectPluginInstalledView[]> {
     const entries = await this.ports.installed(projectId);
-    return this.views(entries).map((view, index) => {
+    return this.views(entries, locale).map((view, index) => {
       const { installation_generation, manifest_digest } = entries[index]!.record;
       return { ...view, installation_generation, manifest_digest };
     });

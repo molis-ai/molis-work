@@ -86,7 +86,7 @@ for (const scenario of ["restart", "timeout", "unowned"] as const) {
       assert.equal(f.toast.textContent, "常驻服务已重启，连接已恢复"); assert.equal(f.timers.length, 1);
       assert.equal(f.error.hidden, true);
     } else {
-      assert.equal(f.error.hidden, false); assert.match(f.error.textContent, /尚未确认/);
+      assert.equal(f.error.hidden, false); assert.match(f.error.textContent, /还没确认/);
       assert.equal(f.timers.length, 0); assert.doesNotMatch(f.toast.textContent, /已重启/);
     }
   });

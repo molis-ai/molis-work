@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.adobe",
+  "locale": "ja",
+  "messages": {
+    "adobe.connection.auth-help": "Adobe IMS の公式 UserInfo 呼び出しには client_id が必要です。api-key|access-token の形式で入力してください。トークンだけでも通る場合がありますが、通常は 401 になります。",
+    "adobe.connection.inbound": "API で Adobe IMS アカウントを確認",
+    "adobe.connection.summary": "クリエイティブツール。",
+    "adobe.connection.token-label": "Adobe IMS アクセストークン",
+    "adobe.connection.token-placeholder": "api-key|access-token または access-token",
+    "adobe.guide.oauth-link": "Adobe ユーザー認証を見る",
+    "adobe.guide.token-note": "Adobe IMS のユーザーアクセストークンを使います。多くの場合、Client ID も必要です。",
+    "adobe.oauth.note": "Adobe Console で User Authentication を有効にしてください。製品 API の権限はアプリで承認された範囲に依存します。",
+    "adobe.setup.open-adobe-developer-console": "Adobe Developer Console を開く",
+    "adobe.permission.network.reason": "Adobe のアカウント情報と最新の更新を読み取ります",
+    "adobe.permission.secret.reason": "安全に保存された Adobe の接続資格情報を使用します"
+  }
+}

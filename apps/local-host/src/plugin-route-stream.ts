@@ -1,9 +1,10 @@
 import type { ServerResponse } from "node:http";
 import { ActionError, type ActionProgressEvent } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteResponse, PluginRouteStreamLine } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PLUGIN_ROUTE_STREAM_LIMITS, actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { PLUGIN_ROUTE_STREAM_LIMITS } from "@molis-ai/molis-work-plugin-sdk";
 import { recordedCallIdField } from "./call-id-response.js";
 import { withPluginInteraction } from "./plugin-interaction-answer.js";
+import { localizeActionErrorResponse, localizeWebErrorBody, readErrorWord } from "./ui-error-words.js";
 import { markMutationResponseFailed } from "./web-http.js";
 
 /**
@@ -33,7 +34,7 @@ export async function answerPluginRouteStream(response: ServerResponse,
   };
   response.writeHead(200, { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
   response.flushHeaders();
-  const overflowError = () => new ActionError("actions.output_invalid", "进度超出了流式回复的上限");
+  const overflowError = () => new ActionError("actions.output_invalid", readErrorWord("common.error.stream-overflow"));
   try {
     const result = await dispatch(emit);
     if (overflow) {
@@ -41,7 +42,7 @@ export async function answerPluginRouteStream(response: ServerResponse,
       write(errorLine(overflowError()));
     } else if (!result) {
       markMutationResponseFailed(response);
-      write(errorLine(new ActionError("actions.missing", "插件没有这个入口")));
+      write(errorLine(new ActionError("actions.missing", readErrorWord("common.error.endpoint-not-found"))));
     } else if (result.status >= 200 && result.status < 300) {
       write({ type: "result", result: withPluginInteraction(result.body) });
     } else {
@@ -59,14 +60,15 @@ export async function answerPluginRouteStream(response: ServerResponse,
 }
 
 function errorLine(error: unknown): PluginRouteStreamLine {
-  const refusal = actionErrorResponse(error);
+  const refusal = localizeActionErrorResponse(error);
   return refusalLine({ status: refusal.status, body: refusal.body });
 }
 
 /** The same fields a JSON route's refusal carries, as one line. Its `call_id` is the Host's recorded number, never one the plugin's body names. */
 function refusalLine(result: Pick<PluginRouteResponse, "status" | "body">): PluginRouteStreamLine {
-  const body = (result.body ?? {}) as { code?: unknown; error?: unknown; details?: unknown };
+  const localized = localizeWebErrorBody(result.status, result.body);
+  const body = (localized ?? {}) as { code?: unknown; error?: unknown; details?: unknown };
   return { type: "error", status: result.status, code: typeof body.code === "string" ? body.code : "actions.execution_failed",
-    error: typeof body.error === "string" ? body.error : "能力执行失败", ...recordedCallIdField(),
+    error: typeof body.error === "string" ? body.error : readErrorWord("common.error.internal"), ...recordedCallIdField(),
     ...(body.details && typeof body.details === "object" ? { details: body.details as Readonly<Record<string, unknown>> } : {}) };
 }

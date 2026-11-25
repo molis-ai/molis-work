@@ -53,14 +53,14 @@ test("context distinguishes local satisfaction, historical parent coverage and c
   const model = view([parent, child], relations);
   const coverage = renderer.renderContractCoverage(parent, model);
   assert.match(coverage, /部分覆盖/);
-  assert.match(coverage, /历史父子 Contract 覆盖/);
+  assert.match(coverage, /早期父子层级关联信息/);
   const progress = renderer.renderChildProgress(parent, model);
   assert.match(progress, /已完成 1 \/ 1 个子目标/);
   assert.match(progress, /子目标全部做完后仍需确认收尾上级目标/);
   assert.match(progress, /href="\/goals\/child"/);
   const childHtml = renderer.renderContractCoverage(child, model);
   assert.match(childHtml, /不代表上级目标已经全部做完/);
-  assert.match(childHtml, /Full product · 尚有缺口/);
+  assert.match(childHtml, /Full product · 还有缺口/);
   parent.goal.decomposition_review = null;
-  assert.match(renderer.renderContractCoverage(parent, model), /未记录父子 Contract 覆盖（历史数据）/);
+  assert.match(renderer.renderContractCoverage(parent, model), /早期记录没有保存层级关联信息/);
 });

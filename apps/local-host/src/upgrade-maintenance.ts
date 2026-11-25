@@ -12,8 +12,9 @@ import { WEB_CONTROL_TOKEN_RELATIVE_PATH, sendWebHealth } from "./web-control-to
 import { refuseForeignRequest, refuseLocalWebRequest, sendLocalWebJson } from "./web-http.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { installHostUiText } from "./ui-text-provider.js";
+import { readErrorWord } from "./ui-error-words.js";
 import { hostRecoveryPages } from "./workbench-renderer.js";
-import { htmlLang } from "./web-locale.js";
+import { htmlLang, resolveWebLocale, runWithLocale } from "./web-locale.js";
 import { tightenServedCss } from "./served-page-text.js";
 
 /** The opening page runs its own few lines and reads its own numbers; nothing else, from nowhere else. */
@@ -137,15 +138,16 @@ export async function runUpgradeMaintenance({ home, port, plan, workerEntry, onL
       }).catch(() => undefined);
       return;
     }
+    const locale = resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
     if (request.method === "GET" && /\btext\/html\b/u.test(request.headers.accept ?? "")) {
       const desktopHeader = request.headers["x-molis-work-desktop"];
       const desktopShell = desktopHeader === "1" || (Array.isArray(desktopHeader) && desktopHeader.includes("1")) || url.searchParams.get("desktop") === "1";
       response.writeHead(503, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "1", "content-security-policy": OPENING_CSP });
-      response.end(hostRecoveryPages.upgradeOpeningPage(htmlLang(), undefined, desktopShell));
+      response.end(runWithLocale(locale, () => hostRecoveryPages.upgradeOpeningPage(htmlLang(), undefined, desktopShell)));
       return;
     }
     response.setHeader("retry-after", "1");
-    sendLocalWebJson(response, 503, { error: "Molis Work 正在升级这个 Home 的数据，稍后再试。", code: "storage.upgrade_in_progress" });
+    runWithLocale(locale, () => sendLocalWebJson(response, 503, { error: readErrorWord("common.error.upgrade-in-progress"), code: "storage.upgrade_in_progress" }));
   };
   const server = http.createServer(answer);
   const listening = await new Promise<boolean>(resolve => {

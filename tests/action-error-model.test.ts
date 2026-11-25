@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import test from "node:test";
 
 import {
@@ -12,7 +14,8 @@ import {
   type ActionErrorKind,
   type BoundActionClient,
 } from "@molis-ai/molis-work-contracts/platform/actions";
-import { handleFunctionsHttp } from "@molis-ai/molis-work-app-local-host";
+import { handleAgentReviewHttp, handleFunctionsHttp, installHostUiText, MolisWorkLocalHost, runWithLocale, sendLocalWebJson, sendUnhandledWebError } from "@molis-ai/molis-work-app-local-host";
+import { AgentHost, AgentReviewQueue, classifyPrologueStopReason, presentToolReview, reviewField, reviewText } from "@molis-ai/molis-work-service-agent-host";
 import {
   actionErrorBody,
   actionErrorFromResponse,
@@ -270,5 +273,244 @@ test("a Runtime route answers a failure with the status of its kind: the platfor
     const body = await answer.json() as { code: string; error: unknown };
     assert.deepEqual([answer.status, body.code], [status, code], name);
     assert.equal(typeof body.error, "string", name);
+  }
+});
+
+test("Host error edge localizes account.*, technical leaks, and opposite-language strings in zh/en/ja while preserving code and details", async () => {
+  const cases: Record<string, (response: import("node:http").ServerResponse, request: import("node:http").IncomingMessage) => void> = {
+    "/account-expired": (response, request) => sendUnhandledWebError(response, new ActionError("account.login_required", "Account session has expired", { kind: "forbidden", details: { step: "me" } }), request),
+    "/leak-model": (response) => sendLocalWebJson(response, 500, { error: "MODEL_HTTP_ERROR: 503 Service Unavailable", code: "actions.execution_failed", details: { trace: "t-1" } }),
+    "/leak-sync": (response) => sendLocalWebJson(response, 429, { error: "SYNC_RATE_LIMITED: retry after 60s", code: "actions.rate_limited", details: { trace: "t-1" } }),
+    "/leak-ajv": (response) => sendLocalWebJson(response, 400, { error: "输入不符合能力合同：/title must NOT have fewer than 1 characters", code: "actions.input_invalid", details: { trace: "t-1" } }),
+    "/leak-path": (response) => sendLocalWebJson(response, 500, { error: "ENOENT: no such file, open /Users/alice/secret.txt", code: "actions.execution_failed", details: { trace: "t-1" } }),
+    "/leak-fetch": (response) => sendLocalWebJson(response, 502, { error: "fetch failed", code: "actions.delivery_unknown", details: { trace: "t-1" } }),
+    "/todo-missing": (response) => sendLocalWebJson(response, 404, { error: "找不到这件待办，可能已被删除", code: "todo.not_found" }),
+  };
+  const server = await serveNativeHttp(async (request, response, url) => {
+    const locale = url.searchParams.get("locale") ?? "zh";
+    const handler = cases[url.pathname];
+    if (!handler) return false;
+    runWithLocale(locale as never, () => handler(response, request));
+    return true;
+  });
+  try {
+    // Upstream account.* raw English is localized cleanly in zh, en, and ja while preserving code & details.
+    const expiredZh = await server.post("/account-expired?locale=zh", "{}");
+    assert.equal(expiredZh.status, 403);
+    assert.equal(expiredZh.body.code, "account.login_required");
+    assert.deepEqual(expiredZh.body.details, { step: "me" });
+    assert.match(String(expiredZh.body.error), /登录已过期/u);
+    const expiredEn = await server.post("/account-expired?locale=en", "{}");
+    assert.match(String(expiredEn.body.error), /session expired/i);
+    const expiredJa = await server.post("/account-expired?locale=ja", "{}");
+    assert.match(String(expiredJa.body.error), /有効期限が切れました/u);
+
+    // Technical leaks (Prologue codes, SYNC_*, AJV pointers, OS paths, fetch failed) never pass through.
+    for (const path of ["/leak-model", "/leak-sync", "/leak-ajv", "/leak-path", "/leak-fetch"]) {
+      for (const locale of ["zh", "en", "ja"] as const) {
+        const answer = await server.post(`${path}?locale=${locale}`, "{}");
+        assert.deepEqual(answer.body.details, { trace: "t-1" });
+        assert.doesNotMatch(String(answer.body.error), /MODEL_HTTP_ERROR|SYNC_RATE_LIMITED|\/title|\/Users\/|ENOENT|fetch failed/u, `${locale}: ${path}`);
+      }
+    }
+
+    // Opposite-language domain errors are mapped cleanly by status/code; same-language domain errors are preserved.
+    const zhDomainInZh = await server.post("/todo-missing?locale=zh", "{}");
+    assert.equal(zhDomainInZh.body.error, "找不到这件待办，可能已被删除");
+    const zhDomainInEn = await server.post("/todo-missing?locale=en", "{}");
+    assert.doesNotMatch(String(zhDomainInEn.body.error), /\p{Script=Han}/u);
+    const zhDomainInJa = await server.post("/todo-missing?locale=ja", "{}");
+    assert.match(String(zhDomainInJa.body.error), /[\p{Script=Hiragana}\p{Script=Katakana}]/u);
+  } finally {
+    await server.close();
+  }
+});
+
+test("Host error edge preserves English errors with unquoted CJK user titles while replacing raw Chinese/Japanese backend errors", async () => {
+  const preservedCases = [
+    "Project 季度复盘 was updated by someone else.",
+    "Couldn’t find 季度复盘.",
+    "Can’t delete 設計メモ right now.",
+    "File 季度复盘.md not found.",
+    "You can't edit 季度复盘 because it's locked.",
+  ];
+  const replacedInEn = [
+    "找不到这件待办，可能已被删除",
+    "Plugin manifest 无效请检查配置并重试",
+    "Codex 会话不存在",
+    "无法保存 todo 记录",
+    "この操作を行う権限がありません。",
+  ];
+  const server = await serveNativeHttp(async (_request, response, url) => {
+    const locale = (url.searchParams.get("locale") ?? "en") as "zh" | "en" | "ja";
+    const message = url.searchParams.get("message") ?? "";
+    if (url.pathname !== "/check") return false;
+    runWithLocale(locale, () => sendLocalWebJson(response, 409, { error: message, code: "projects.conflict" }));
+    return true;
+  });
+  try {
+    for (const message of preservedCases) {
+      const answer = await server.post(`/check?locale=en&message=${encodeURIComponent(message)}`, "{}");
+      assert.equal(answer.body.error, message, `should preserve in en: ${message}`);
+    }
+    for (const message of replacedInEn) {
+      const answer = await server.post(`/check?locale=en&message=${encodeURIComponent(message)}`, "{}");
+      assert.notEqual(answer.body.error, message, `should replace in en: ${message}`);
+      assert.doesNotMatch(String(answer.body.error), /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u, `no CJK leak in en for: ${message}`);
+    }
+    const jaInZh = await server.post(`/check?locale=zh&message=${encodeURIComponent("この操作を行う権限がありません。")}`, "{}");
+    assert.doesNotMatch(String(jaInZh.body.error), /[\p{Script=Hiragana}\p{Script=Katakana}]/u);
+  } finally {
+    await server.close();
+  }
+});
+
+test("Host error, assistant-error, and assistant-stop keys resolve from single-source workbench/{zh,en,ja}.json with zero drift", async () => {
+  const packs = Object.fromEntries(
+    (["zh", "en", "ja"] as const).map(locale => [
+      locale,
+      JSON.parse(readFileSync(`apps/workbench/resources/locales/${locale}.json`, "utf8")) as { messages: Record<string, unknown> },
+    ]),
+  ) as Record<"zh" | "en" | "ja", { messages: Record<string, unknown> }>;
+
+  // Every key declared across all 3 Host error/stop modules must exist in all 3 production workbench packs,
+  // with zero inline fallback tables and zero Tier-A jargon left in TS sources.
+  const hostFiles = [
+    "apps/local-host/src/ui-error-words.ts",
+    "apps/local-host/src/assistant/assistant-error.ts",
+    "apps/local-host/src/assistant/assistant-present.ts",
+  ];
+  const declaredKeys = new Set<string>();
+  for (const file of hostFiles) {
+    const source = readFileSync(file, "utf8");
+    assert.doesNotMatch(source, /\b(?:ERROR_FALLBACKS|ASSISTANT_ERROR_FALLBACKS|STOP_FALLBACKS)\b/u, `${file} must not keep an inline fallback dictionary`);
+    assert.doesNotMatch(source, /上下文上限|context limit|コンテキスト上限/iu, `${file} must not carry Tier-A context-limit jargon`);
+    for (const match of source.matchAll(/["']((?:common\.error|workbench\.assistant-error|workbench\.assistant-stop)\.[a-z0-9-]+)["']/gu)) {
+      declaredKeys.add(match[1]!);
+    }
+  }
+  assert.ok(declaredKeys.size >= 80, `expected all common.error + assistant-error + assistant-stop keys, found ${declaredKeys.size}`);
+  for (const locale of ["zh", "en", "ja"] as const) {
+    for (const key of declaredKeys) {
+      assert.ok(packs[locale].messages[key] !== undefined, `${locale}:${key} exists in workbench locale pack`);
+    }
+    const overflow = String(packs[locale].messages["workbench.assistant-stop.context-overflow"]);
+    assert.doesNotMatch(overflow, /上下文上限|context limit|コンテキスト上限/iu, `${locale} context-overflow stays jargon-free`);
+  }
+
+  // Runtime check both before and after installHostUiText(): HTTP error edge returns the exact workbench/{zh,en,ja}.json wording.
+  const runtimeChecks: Array<[string, number, Record<string, unknown>, string]> = [
+    ["/overflow", 500, { error: "MODEL_CONTEXT_OVERFLOW: prompt too long", code: "actions.execution_failed" }, "common.error.model-context-overflow"],
+    ["/expired", 403, { error: "Account session has expired", code: "account.login_required" }, "common.error.account-session-expired"],
+    ["/busy", 503, { error: "SQLITE_BUSY: database is locked", code: "storage.owner.busy" }, "common.error.storage-busy"],
+  ];
+  const server = await serveNativeHttp(async (_request, response, url) => {
+    const locale = (url.searchParams.get("locale") ?? "zh") as "zh" | "en" | "ja";
+    const entry = runtimeChecks.find(([path]) => path === url.pathname);
+    if (!entry) return false;
+    runWithLocale(locale, () => sendLocalWebJson(response, entry[1], entry[2]));
+    return true;
+  });
+  try {
+    for (const phase of ["standalone", "installed"] as const) {
+      if (phase === "installed") installHostUiText();
+      for (const locale of ["zh", "en", "ja"] as const) {
+        for (const [path, , , key] of runtimeChecks) {
+          const res = await server.post(`${path}?locale=${locale}`, "{}");
+          assert.equal(res.body.error, packs[locale].messages[key], `${phase}:${locale}:${key} matches workbench/${locale}.json verbatim`);
+        }
+      }
+    }
+  } finally {
+    await server.close();
+  }
+});
+
+test("classifyPrologueStopReason is the single canonical stop-category classifier", () => {
+  const cases: Array<[string, string | null]> = [
+    ["MEMORY_SCOPE_DENIED: forbidden", "memory-permission"],
+    ["too many tool turns", "turn-limit"],
+    ["MODEL_CONTEXT_OVERFLOW: prompt is too long", "context-overflow"],
+    ["AGENT_BUDGET_EXCEEDED: This run already used 1200 of its 390 tokens", "budget"],
+    ["MODEL_TIMEOUT: timed out", "time-limit"],
+    ["MODEL_HTTP_ERROR: 401 unauthorized", "auth"],
+    ["MODEL_HTTP_ERROR: 529 overloaded", "rate-limit"],
+    ["MODEL_HTTP_ERROR: 503 Service Unavailable", "service-unavailable"],
+    ["MODEL_NETWORK_FAILED: fetch failed", "network"],
+    ["MODEL_REFUSED: safety", "refused"],
+    ["MODEL_OUTPUT_TRUNCATED", "output-truncated"],
+    ["RUN_INTERRUPTED", "interrupted"],
+    ["compaction-cancelled", "compaction-cancelled"],
+    ["CONTEXT_COMPACTION_FAILED", "compaction-failed"],
+    ["护栏 safety 自身出错，已按绊停处理", "guardrail-error"],
+    ["被护栏 safety 拦下：policy", "guardrail"],
+    ["连续 3 次调用都没有成功，这一轮先停在这里", "circuit-breaker"],
+    ["已取消", "cancelled"],
+    ["stopped", "stopped"],
+    ["RUNTIME_INTERNAL_CRASH", "model-error"],
+    ["ordinary domain message", null],
+  ];
+  for (const [reason, expected] of cases) {
+    assert.equal(classifyPrologueStopReason(reason), expected, reason);
+  }
+});
+
+test("GET /api/agent/reviews guarantees stable structured field.key on tool-operation review documents", async () => {
+  installHostUiText();
+  const queue = new AgentReviewQueue();
+  const agentHost = new AgentHost({ reviews: queue });
+  const localHost = new MolisWorkLocalHost();
+  const browserDoc = presentToolReview(
+    { kind: "tool-operation", tool: "surface-act", summary: "在 https://example.com 向网站上传本机文件" },
+    [
+      reviewField("网站", "https://example.com", "site"),
+      reviewField("动作", "向网站上传本机文件", "action"),
+      reviewField("详情", "file.txt", "detail"),
+      reviewField("注意", "上传会把这个文件发送给该网站", "warning", { value: [reviewText("surface.site-upload-warning")] }),
+    ],
+  );
+  queue.request({
+    review_id: "rev-browser-upload",
+    reference: { owner: { kind: "agent-review", project_id: "p-1", plugin_id: "io.molis.work.coding", install_id: "inst-1" }, id: "rev-browser-upload", version: "v1" },
+    run: { run_id: "run-1", session_id: "sess-1" },
+    project_id: "p-1",
+    plugin_id: "io.molis.work.coding",
+    kind: "tool-operation",
+    document: browserDoc,
+    requested_at: "2026-11-24T00:00:00.000Z",
+    expires_at: null,
+  });
+  queue.request({
+    review_id: "rev-legacy-fixture",
+    reference: { owner: { kind: "agent-review", project_id: "p-1", plugin_id: "io.molis.work.coding", install_id: "inst-1" }, id: "rev-legacy-fixture", version: "v1" },
+    run: { run_id: "run-2", session_id: "sess-2" },
+    project_id: "p-1",
+    plugin_id: "io.molis.work.coding",
+    kind: "tool-operation",
+    document: { kind: "tool-operation", tool: "surface-act", summary: "legacy", fields: [{ label: "网站", value: "https://legacy.test" }, { label: "注意", value: "上传提醒" }, { label: "应用", value: "Test App" }] },
+    requested_at: "2026-11-24T00:00:01.000Z",
+    expires_at: null,
+  });
+
+  const server = createServer((request, response) => {
+    void runWithLocale("ja", () => handleAgentReviewHttp(
+      request,
+      response,
+      new URL(request.url ?? "/", "http://127.0.0.1"),
+      { host: localHost, projectId: "p-1", agentHost, actorId: "web-user" },
+    ));
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const res = await fetch(`${origin}/api/agent/reviews?status=pending`);
+    assert.equal(res.status, 200);
+    const payload = await res.json() as { reviews: Array<{ request: { review_id: string; document: { fields?: Array<{ key?: string; label: string; value: string }> } } }> };
+    const byId = new Map(payload.reviews.map(row => [row.request.review_id, row.request.document.fields ?? []]));
+    assert.deepEqual(byId.get("rev-browser-upload")?.map(f => f.key), ["site", "action", "detail", "warning"]);
+    assert.deepEqual(byId.get("rev-legacy-fixture")?.map(f => f.key), ["site", "warning", "app"]);
+  } finally {
+    await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); });
+    await localHost.close();
   }
 });

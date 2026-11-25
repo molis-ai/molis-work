@@ -51,13 +51,13 @@ export const gitManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-git-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
-    { permission: "artifact:read", required: true, reason: "读取项目目录引用与待接受的变更" },
-    { permission: "artifact:write", required: true, reason: "发布工作树改动与操作回执" },
-    { permission: "storage:private", required: true, reason: "保留固定差异选择、提交信息与冲突草稿" },
-    { permission: "workspace:read", required: true, reason: "读取项目已关联目录的 Git 状态、摘要、差异与冲突文件" },
+    { permission: "artifact:read", required: true, reason: "读取项目目录引用、已固定的 Git 差异与待确认的变更", reason_text: { key: "git.permission.artifact-read.reason" } },
+    { permission: "artifact:write", required: true, reason: "保存工作区的固定差异与已确定的 Git 操作结果", reason_text: { key: "git.permission.artifact-write.reason" } },
+    { permission: "storage:private", required: true, reason: "在本地保存你选中的固定差异、提交说明和冲突解决草稿", reason_text: { key: "git.permission.storage-private.reason" } },
+    { permission: "workspace:read", required: true, reason: "只读查看项目关联目录的 Git 状态、分支摘要、差异和冲突文件", reason_text: { key: "git.permission.workspace-read.reason" } },
     // Starting a review only: whether the stage or the Git operation happens is a person's to approve, every time (PG-009).
-    { permission: "review:git-index", required: true, reason: "发起暂存或取消暂存的审查，由用户批准后才改动索引" },
-    { permission: "review:git-operation", required: true, reason: "发起提交、分支、推送、合并、拉取与解决冲突的审查，由用户批准后才执行" },
+    { permission: "review:git-index", required: true, reason: "发起暂存或取消暂存的操作审阅，经你明确批准后才修改暂存区", reason_text: { key: "git.permission.review-git-index.reason" } },
+    { permission: "review:git-operation", required: true, reason: "发起提交、分支、推送、合并、拉取与解决冲突的操作审阅，经你明确批准后才执行", reason_text: { key: "git.permission.review-git-operation.reason" } },
   ],
   capabilities: {
     provides: [],
@@ -125,7 +125,7 @@ export const gitManifest: PluginManifest = {
     { route_id: "git.operations", method: "GET", path: "/operations" },
     { route_id: "git.prepare-operation", method: "POST", path: "/operations" },
   ],
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

@@ -3,8 +3,10 @@ import { roleKey } from "./assistant-characters.js";
 import { cutHead, cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { MATERIAL_PART_UNITS } from "./assistant-material-parts.js";
 import { takeBackAssistantWork } from "./assistant-work-control.js";
-import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { numberArg, t, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
+import { readWorkbenchText, sanitizeErrorForNotice } from "../ui-error-words.js";
+import { activeLocale, DEFAULT_WEB_LOCALE, pageLocale } from "../web-locale.js";
 import { eventBehind } from "./assistant-line-actions.js";
 import { deliveryOf, handedBackLines, hangRequirements, readStanding, requirementsBrief, type WorkAcceptancePort } from "./assistant-delegated-delivery.js";
 export type { WorkAcceptancePort } from "./assistant-delegated-delivery.js";
@@ -414,7 +416,10 @@ export class AssistantDelegations {
       if (!stillCurrent()) return;
       if (auto >= DELEGATION_LIMITS.autoRounds) {
         this.#refused.add(ready.request_key);
-        this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original: `已经连续自己接着做了 ${DELEGATION_LIMITS.autoRounds} 轮，先停下来等你看一眼；你再说一句，它就接着做` }, key);
+        const locale = activeLocale() ?? pageLocale() ?? DEFAULT_WEB_LOCALE;
+        const count = DELEGATION_LIMITS.autoRounds;
+        const original = readWorkbenchText("workbench.assistant-notice.handoff-auto-limit", locale, textArgs({ count: numberArg(count, "decimal") }));
+        this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original }, key);
         return;
       }
       if (this.ports.stepGate && !this.ports.stepGate.pass(parent, "hand-back", ready.request_key, latest.ref.run_id)) return;
@@ -427,7 +432,7 @@ export class AssistantDelegations {
           : `（子任务都已交回）请核对${names}的结果，把这项工作接着做完。`, [], "host", key, stillCurrent);
       } catch (error) {
         this.#refused.add(ready.request_key);
-        this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original: error instanceof Error ? error.message : String(error) }, key);
+        this.ports.notify(parent, { label: assistantWords("workbench.assistant-notice.handoff-blocked", { title: parent.title }), original: sanitizeErrorForNotice(error) }, key);
       }
     } finally { this.#continuing.delete(parent.work_id); }
   }

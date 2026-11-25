@@ -1,13 +1,17 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CODING_SESSION_MARKS } from "../../session-marks.js";
+import { retitleSavedHistory } from "../saved-history.js";
 import { codingTranscript } from "../transcript.js";
+import { renderArtifacts } from "./artifacts.js";
 import { changeTally } from "./change-tally.js";
+import { renderDirectory } from "./directory.js";
 import type { CodingHost } from "./host.js";
 import type { Page, Refs, State } from "./page.js";
 import { readCurrent } from "./read.js";
 import { retitleCodingComposer } from "./composer-mount.js";
 import { api, status } from "./request.js";
 import { mountResultsIndex } from "./results-index.js";
+import { renderFacts } from "./run-facts.js";
 
 /** The words of a round's state, as the header, the directory and the facts name it. */
 function phaseWords(_L: Page["readText"]): Record<string, string> {
@@ -88,7 +92,19 @@ export function mountFoundations(page: Page) {
   const { readText, lifetime, s, turns } = page;
   s.viewSignal = undefined;
   mountResultsIndex(page);
-  lifetime.listen(document, "molis-work:language-changed", () => retitleCodingComposer(page));
+  lifetime.listen(document, "molis-work:language-changed", () => {
+    s.ROLE_NAMES = roleNames(readText);
+    s.SESSION_STATE = sessionStateWords(readText);
+    s.phases = phaseWords(readText);
+    retitleCodingComposer(page);
+    renderDirectory(page, true);
+    retitleSavedHistory(turns);
+    if (s.artifactRows.length) renderArtifacts(page);
+    if (s.lastData) {
+      renderFacts(page, s.allRuns);
+      page.refs.usageMeter?.render(s.lastData, s.lastRun);
+    }
+  });
   const { timeline, turnChanges } = codingTranscript({ readText, lifetime, turns, changeTally: runId => changeTally(page, runId) });
   page.refs.timeline = timeline;
   page.refs.turnChanges = turnChanges;

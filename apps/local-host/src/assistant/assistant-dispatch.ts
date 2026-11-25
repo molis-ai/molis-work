@@ -1,5 +1,5 @@
 import { assertSubtaskRun } from "./assistant-subtask-binding.js";
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { numberArg, t as uiText, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { threadReplyMaterials } from "./assistant-thread-types.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
@@ -16,6 +16,7 @@ import { openSession, setExecutorMode } from "./assistant-executor-session.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
 import { reportOnlyAuthority } from "./assistant-task-reports.js";
+import { readAssistantErrorWord } from "./assistant-error.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { assertStoredCharacter } from "./assistant-characters.js";
 import { randomUUID } from "node:crypto";
@@ -312,7 +313,17 @@ export class AssistantDispatch {
     // The work's own cap: none left means no round; otherwise the round may spend only what is left.
     const spent = await this.link.workUsage(work);
     if (spent.budget_tokens !== null && spent.tokens >= spent.budget_tokens) {
-      throw assistantErrors.budget(`${spent.budget_of ? `委托这项子任务的工作「${spent.budget_of.title}」连同它的子任务` : "这项工作"}已用 ${spent.tokens.toLocaleString("en-US")} tokens，达到给它设的上限 ${spent.budget_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。要继续，先调高${spent.budget_of ? "那项工作" : "这项工作"}的上限`, { action: "调高这项工作的上限", action_kind: "raise_work_budget" });
+      const message = spent.budget_of
+        ? readAssistantErrorWord("workbench.assistant-error.parent-work-budget-reached", textArgs({
+          title: spent.budget_of.title,
+          used: numberArg(spent.tokens, "decimal"),
+          limit: numberArg(spent.budget_tokens, "decimal"),
+        }))
+        : readAssistantErrorWord("workbench.assistant-error.work-budget-reached", textArgs({
+          used: numberArg(spent.tokens, "decimal"),
+          limit: numberArg(spent.budget_tokens, "decimal"),
+        }));
+      throw assistantErrors.budget(message, { action: readAssistantErrorWord("workbench.assistant-error.raise-work-budget"), action_kind: "raise_work_budget" });
     }
     const left = spent.budget_tokens === null ? undefined : spent.budget_tokens - spent.tokens;
     if (writtenBy) this.starting.delete(work.work_id); else this.starting.set(work.work_id, text);
@@ -328,7 +339,7 @@ export class AssistantDispatch {
       base = await roundAuthority(); authority = startAuthority();
       const { offered, unavailable } = await this.actionTools(authority);
       this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
-      prepared = work.thread_round ? threadReplyMaterials(work.thread_round) : await this.link.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn, autoSkills);
+      prepared = work.thread_round ? threadReplyMaterials(work.thread_round) : await this.link.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn, autoSkills, authority.reply_language?.locale);
       const ready = prepared;
       const knowledge = ready.knowledgeDispatch;
       if (knowledge) {

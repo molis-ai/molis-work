@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingInputs } from "../inputs.js";
 import { draftKey } from "./helpers.js";
 import { sessionPath } from "./request.js";
@@ -12,7 +13,7 @@ export function mountInputEditor(page: Page) {
     const raw = sessionStorage.getItem(draftKey(page, id) + ":questions");
     if (raw === null) return undefined;
     const value: unknown = JSON.parse(raw);
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("本窗口待答草稿暂不可读，原内容已保留");
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(uiText.text("coding.input-editor.draft-unreadable"));
     return value as Record<string, unknown>;
   };
   refs.inputEditor = codingInputs({

@@ -266,18 +266,18 @@ export function pluginInstallHandlers(service: PluginInstallService, imports?: S
       assertPluginPermissionSettingsEntry(caller);
       await caller.beforeEffect();
       const { install_id, permission, granted } = input as { install_id: string; permission: string; granted: boolean };
-      return await service.setPermission(caller.project_id!, install_id, permission, granted);
+      return await service.setPermission(caller.project_id!, install_id, permission, granted, caller.locale);
     } },
     { capability_id: pluginInstallActions.setHomePermission.capability_id, version: pluginInstallActions.setHomePermission.version, handle: async (caller, input) => {
       assertHomePluginPermissionSettingsEntry(caller);
       await caller.beforeEffect();
       const { install_id, permission, granted } = input as { install_id: string; permission: string; granted: boolean };
-      return await service.setHomePermission(install_id, permission, granted);
+      return await service.setHomePermission(install_id, permission, granted, caller.locale);
     } },
-    { capability_id: pluginInstallActions.homeInstalled.capability_id, version: pluginInstallActions.homeInstalled.version, handle: async () => ({ plugins: await service.homeInstalled() }) },
+    { capability_id: pluginInstallActions.homeInstalled.capability_id, version: pluginInstallActions.homeInstalled.version, handle: async caller => ({ plugins: await service.homeInstalled(caller.locale) }) },
     { capability_id: pluginInstallActions.installed.capability_id, version: pluginInstallActions.installed.version, handle: async caller => {
       if (!caller.project_id) throw new ActionError("actions.project_required", "请选择一个项目");
-      return { plugins: await service.installed(caller.project_id) };
+      return { plugins: await service.installed(caller.project_id, caller.locale) };
     } },
     // The person's own, as installing is: a Skill imported here is a package installed here.
     ...imports ? [

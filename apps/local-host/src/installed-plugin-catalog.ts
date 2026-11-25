@@ -20,6 +20,7 @@ import { projectReachSubject } from './plugin-project-reach-subject.js';
 import { activeLocale, runBackgroundWork } from './web-locale.js';
 import { lastUsedLocale } from './ui-locale-memory.js';
 import { outsidePluginAction } from '@molis-ai/molis-work-plugin-runtime';
+import { resolveActionLibraryWords } from './web-capabilities.js';
 
 /** The catalog version a design records: designs call real actions with their real schemas. */
 export const CATALOG_VERSION = /* @version format.plugin-builder.action-catalog "actions/{version}" */ "actions/1";
@@ -101,9 +102,13 @@ export async function capabilityCatalog(actions: ProjectActions, actorId: string
   const here = (views: ActionView[]) => actions.project_id === null ? views : views.filter(view => view.provider.provider_id !== HOME_PLATFORM_PROVIDER_ID);
   const [offered, agents] = await Promise.all([list('plugin').then(here), list('agent').then(here)]), key = (view: ActionView) => view.capability_id + '@' + view.version + '@' + view.provider.provider_id;
   const offeredKeys = new Set(offered.map(key));
+  const words = resolveActionLibraryWords([...offered, ...agents], { locale, libraryKeyTitles: false });
   const entry = (view: ActionView, reachable: boolean): CatalogCapability => {
     const platform = isPlatformProvider(view.provider.provider_id), calledAs = actions.project_id === null && platform && view.capability_id === HOME_MODEL_GENERATE_ID ? MODEL_GENERATE_ID : view.capability_id;
     const effect = actionEffect(view.action, calledAs), known = studioCapability(calledAs);
+    const title = words.titles.get(view) ?? view.action.title;
+    const description = words.descriptions.get(view) ?? view.action.description;
+    const providerTitle = words.providers.get(view) ?? view.provider.title;
     // Enabling its plugin is the person's choice and the studio asks for it. Any other refusal (an action that only
     // answers its own installation, say) stands: the board does not offer what would fail when called.
     const code = view.availability.available === false ? view.availability.code : undefined, disabled = code === 'actions.plugin_disabled';
@@ -113,11 +118,11 @@ export async function capabilityCatalog(actions: ProjectActions, actorId: string
     const dependent = (view.action.required_actions?.length ?? 0) > 0 || (view.action.required_roles?.length ?? 0) > 0, isOffered = reachable && !refused && !dependent;
     // MCP tools are registered under whoever holds their configuration (the Coding plugin, or 服务连接 as a system
     // provider); on the board they are MCP.
-    const source = view.provider.kind === 'mcp' || isMcpToolCapability(view.capability_id) ? { kind: 'mcp' as const, title: view.provider.title }
-      : view.provider.kind === 'system' ? { kind: 'platform' as const, title: view.provider.title }
-      : { kind: 'plugin' as const, title: view.provider.title, ...(view.provider.plugin_id ? { plugin_id: view.provider.plugin_id } : {}) };
-    return { id: calledAs, scope: view.action.scope, ...(calledAs === view.capability_id ? {} : { registered_id: view.capability_id }), version: view.version, provider_id: view.provider.provider_id, title: view.action.title, description: view.action.description,
-      consent: platform && known ? known.consent : (effect === 'read' ? '读取：' : '写入：') + view.action.title + '（' + view.provider.title + '）',
+    const source = view.provider.kind === 'mcp' || isMcpToolCapability(view.capability_id) ? { kind: 'mcp' as const, title: providerTitle }
+      : view.provider.kind === 'system' ? { kind: 'platform' as const, title: providerTitle }
+      : { kind: 'plugin' as const, title: providerTitle, ...(view.provider.plugin_id ? { plugin_id: view.provider.plugin_id } : {}) };
+    return { id: calledAs, scope: view.action.scope, ...(calledAs === view.capability_id ? {} : { registered_id: view.capability_id }), version: view.version, provider_id: view.provider.provider_id, title, description,
+      consent: platform && known ? known.consent : (effect === 'read' ? '读取：' : '写入：') + title + '（' + providerTitle + '）',
       effect, input: view.action.input_schema, ...(view.action.output_schema ? { output: view.action.output_schema } : {}), permissions: view.action.permissions,
       source, offered: isOffered, ...(isOffered ? {} : { reason: effect === 'irreversible' ? '不能撤销，不开放给插件' : refused ? '只对它自己的使用方开放' : dependent ? '依赖其他能力，插件一次只能调用一项，暂不开放' : '提供方没有开放给插件' }),
       installed: !disabled,

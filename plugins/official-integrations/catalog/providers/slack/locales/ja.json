@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.slack",
+  "locale": "ja",
+  "messages": {
+    "slack.connection.auth-help": "channels:read または groups:read 権限を持つ Slack Bot User OAuth Token を入力してください。",
+    "slack.connection.inbound": "Feed でチャンネル一覧を取得",
+    "slack.connection.summary": "チャンネル、メッセージ、Canvas。",
+    "slack.connection.token-label": "Slack Bot Token",
+    "slack.guide.mcp-connected-note": "Slack アプリおよびワークスペースの条件を満たしている必要があります。",
+    "slack.guide.mcp-link": "Slack 公式 MCP を見る",
+    "slack.guide.mcp-note": "Slack アプリおよびワークスペースの条件を満たしている必要があります。Molis Work ではまだ接続していません。",
+    "slack.guide.oauth-link": "Slack アプリを作成してワークスペースにインストール",
+    "slack.guide.token-note": "アプリをワークスペースにインストールし、対応する Bot トークンまたはユーザートークンを取得してください。",
+    "slack.oauth.note": "インストール済みアプリの Bot 認証を使います。チャットの読み取りはワークスペースおよびチャンネル参加権限の範囲内に限られます。",
+    "slack.setup.open-slack-app-dashboard": "Slack アプリ管理画面を開く",
+    "slack.permission.network.reason": "Slack のアカウント情報と最新の更新を読み取ります",
+    "slack.permission.secret.reason": "安全に保存された Slack の接続資格情報を使用します"
+  }
+}

@@ -47,19 +47,18 @@ export function promptOverrideConfigReplica(db: ReplicaDatabase, actor: string, 
   return personalConfigReplica(db, namespace, { spaceId, authorize }, {
     maximumBytes: 384 * 1024,
     key: assertEditableKey,
-    // Skip protected keys before outbox reading so a tampered protected row cannot head-of-line poison sync.
+    // Skip protected or malformed keys before outbox reading so tampered rows cannot head-of-line poison sync.
     canUpload(key) {
       try {
         return !isProtectedKey(key);
       } catch {
-        return true;
+        return false;
       }
     },
     read(key) {
       const saved = db.prepare('SELECT base_version,body,updated_at FROM prompt_overrides WHERE key=? AND actor_id=?').get(key, actor);
       if (!saved) return null;
       const prompt = view(key);
-      if (prompt.override_policy === 'protected') return null;
       const value: PromptOverridesFile = { format: 'molis.prompt-overrides', format_version: formatVersion, exported_at: String(saved.updated_at),
         overrides: [{ owner_id: prompt.owner_id, prompt_id: prompt.prompt_id, title: prompt.title, base_version: Number(saved.base_version), body: String(saved.body) }] };
       portable(value, key);

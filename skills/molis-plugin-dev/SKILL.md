@@ -7,7 +7,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 先想清楚人盯着什么、那一时刻能做什么，再声明 Manifest，再按 kind 接到产品或 Runtime。不要从 MCP、事件或判断函数起笔。
 
-两种插件，一套标准：**官方插件**由人或编码 Agent 手写、接进产品；**生成插件**由插件创作台从一句需求做出来，后端跑在沙箱里、界面由平台用 UI 目录画。两种都走同一个交付流程（[process.md](process.md)）、守同一条质量线（[ui.md](ui.md#质量线所有插件)）、用同一个能力目录（[capabilities.md](capabilities.md)）。插件创作台的主线设计与代码 Agent 在运行时挂载本 Skill；改这里就是改它们的做法。
+两种插件，一套标准：**官方插件**由人或编码 Agent 手写、接进产品；**生成插件**由插件创作台从一句需求做出来，后端跑在沙箱里、界面由平台用 UI 目录画。两种都走同一个交付流程（[process.md](process.md)）、守同一条质量线（[ui.md](ui.md#质量线所有插件)）、用同一个能力目录（[capabilities.md](capabilities.md)）。插件创作台按阶段读取本目录的指定章节，各阶段使用的内容由宿主的 `CHAPTERS` 清单决定。
 
 命令原文、MCP 登记细则、动作四问判例、打包签名：仓库 `docs/platform/PLUGIN-DEVELOPMENT.md`。合同第一次可用的批次同步更新对应作者章节与 SDK 用例，写清谁能调用、成功结果和拒绝条件。命令、打包机制变动在手册维护；影响生成插件时核对[实际挂载章节](../../apps/local-host/src/plugin-builder/skill.ts)并按[回放和冒烟约定](../../docs/platform/STUDIO-SKILL-REPLAY.md)验证。
 
@@ -56,7 +56,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | --- | --- | --- |
 | `native` | 一等产品入口。内置插件在自己的登记中声明 `project_runtime` 或 `runtime`，由 Plugin Runtime 监督器启动 | 装配步骤、已退役的构建期例外和样例以[宿主接线](host.md)为准 |
 | `app` | Plugin Runtime **真的** `start()`，兑现 views/routes/actions | Coding、Git、Diff |
-| `integration` | 外部世界 → Connector / Signal | GitHub、Gmail、RSS（也读 YouTube 频道）、Catalog、Web Query |
+| `integration` | 外部世界 → Connector / Signal | GitHub、Gmail、RSS（也读 YouTube 频道）、Catalog |
 
 没跑在 Runtime 里就不要标 `app`。插件不 import 另一个插件的 implementation。
 

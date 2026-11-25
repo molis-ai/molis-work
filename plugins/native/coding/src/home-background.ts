@@ -11,7 +11,8 @@ import type { CodingBackgroundSession, CodingSessionStore } from "./store.js";
  * current while a round runs, so nothing here opens a runtime, calls a model or writes. A session is the event its rounds are
  * done for, so each row serves its own session.
  */
-export const codingBackgroundTasks = defineBackgroundTasksAction("coding.background.tasks", /* @version action.coding.background.tasks */ 1, ["coding_session"], "Coding 后台任务", ["artifact:read"]);
+const rawCodingBackgroundTasks = defineBackgroundTasksAction("coding.background.tasks", /* @version action.coding.background.tasks */ 1, ["coding_session"], "Coding 后台任务", ["artifact:read"]);
+export const codingBackgroundTasks = { ...rawCodingBackgroundTasks, action: { ...rawCodingBackgroundTasks.action, title_text: { key: "coding.action.background-tasks.title" }, description_text: { key: "coding.action.background-tasks.description" } } };
 
 /** The standing of a session whose round is under way or waiting, in the words the page has translations for. */
 export const CODING_STANDING: Readonly<Record<string, string>> = { running: "coding.home-background.in-progress", paused: "coding.home-background.paused", "waiting-answer": "coding.home-background.waiting-for-your-answer", "waiting-approval": "coding.home-background.waiting-for-your-review", "reconcile-required": "coding.home-background.needs-checking", queued: "coding.home-background.queued" };

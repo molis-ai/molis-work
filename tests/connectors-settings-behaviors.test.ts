@@ -112,7 +112,7 @@ test("connector directory covers common Codex/Claude/Grok accounts without empty
   assert.match(github?.outbound_note ?? "", /连接设置.*检查当前 GitHub 账号/);
   assert.doesNotMatch(github?.outbound_note ?? "", /Functions|可勾/);
   assert.equal(gmail?.availability, "live");
-  assert.match(gmail?.outbound_note ?? "", /出站动作未兑现/);
+  assert.match(gmail?.outbound_note ?? "", /目前只支持收信，不会发送邮件/);
   assert.deepEqual(
     HOST_CONNECTOR_DIRECTORY.map((row) => row.connector_id),
     ["model-api", "typesafe", "image-api", "mcp-bearer", "github", "gmail", ...catalogConnectorIds()],
@@ -162,7 +162,7 @@ test("Connectors settings cards distinguish account states and never echo the se
         auth_kind: "oauth",
         group_id: "mail",
         summary: "本机账号。Feed 只读收信。",
-        outbound_note: "出站动作未兑现：当前只读收信，不发送邮件。",
+        outbound_note: "目前只支持收信，不会发送邮件。",
         capabilities: [
           { label: "Feed 只读收信", fulfillment: "live" },
           { label: "发送邮件", fulfillment: "unfulfilled" },
@@ -212,7 +212,7 @@ test("Connectors settings cards distinguish account states and never echo the se
   assert.match(html, /data-connector-auth="wechat" data-credential-separator=":"/);
   assert.match(html, /data-connector-token="github"/);
   assert.doesNotMatch(html, /ghp_liveTokenABCD/);
-  assert.match(html, /出站动作未兑现/);
+  assert.match(html, /目前只支持收信，不会发送邮件/);
 });
 
 test("RAC-2418: a package's long connector name and summary are cut to whole characters, never half of one", () => {

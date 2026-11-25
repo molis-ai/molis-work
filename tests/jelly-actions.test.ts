@@ -128,7 +128,7 @@ test("commands on one calendar entry name it as their result, and the Assistant 
     .find(row => row.title === "Jelly")!;
   assert.ok(jelly.readable_kinds.includes("jelly_item"));
   assert.equal(jelly.linked_changes, entries.length + noteResults.length + 1);
-  assert.match(jelly.gaps.find(gap => gap.area === "results" && gap.text.includes("jelly_workspace"))!.text, /没有读取动作/);
+  assert.match(jelly.gaps.find(gap => gap.area === "results" && gap.text.includes("jelly_workspace"))!.text, /没有配套的读取动作/);
 });
 
 test("commands on one note name it as their result, and the Assistant can read it back; archiving and deletion do not", async t => {

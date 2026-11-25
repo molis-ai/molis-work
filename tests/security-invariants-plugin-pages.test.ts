@@ -515,7 +515,7 @@ test("SYS-15 S-47 RAC-1811 a plain Home request with bad percent-encoding is 400
   assert.equal((await declared.json()).code, "host.request_path_invalid");
   const other = await f.request(`/api/plugins/${id}/not-declared/%E0%A4%A`);
   assert.equal(other.status, 404, await other.clone().text());
-  assert.equal((await other.json()).error, "插件没有这个入口");
+  assert.equal((await other.json()).error, "找不到对应的功能入口，刷新页面后再试一次。");
   assert.deepEqual(answered, [], "the route's handler did not run for a malformed path");
   assert.equal((await f.request(`/api/plugins/${id}/items/abc`)).status, 200, "a well-formed path still reaches the route");
   assert.deepEqual(answered, ["abc"]);

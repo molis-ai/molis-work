@@ -2,8 +2,11 @@ import type { PluginComponentNode } from './plugin-components.js';
 import type { PluginPresentation } from './plugin-presentation.js';
 import { PLUGIN_COMPONENT_STYLES } from './plugin-components.js';
 import { PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from './plugin-component-program.js';
+import { resolveCatalogSay, type CatalogSay } from './primitives/catalog-parts.js';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
+// Static zh test-fixture exports kept intact for tests/fixtures/plugin-composition.ts (imported outside workbench locale context).
+// `/__ui/catalog` renders exclusively via `buildReading*(say)` in `renderPluginPresentationExample(say)`.
 export const readingContract: SandboxPluginContract = {
   version: /* @version format.sandbox.contract */ 1, pluginId: 'test.reading', revision: "reading-v1", entities: [], acceptance: [],
   pages: [{ id: 'home', title: '阅读摘记', regions: [{ id: 'main', title: '摘记', operationIds: ['notes.list', 'notes.add', 'notes.remove'] }] }],
@@ -29,8 +32,67 @@ export const readingSamples = [
   { id: 'three', title: '设计也需要安静的地方', source: '阅读札记 · 设计', text: '层次来自每个元素各有位置。留白让相邻的想法可以被分开理解。' },
 ];
 
+function buildReadingContract(say: CatalogSay): SandboxPluginContract {
+  const notes = say('workbench.catalog-board.ex.pp-notes');
+  return {
+    ...readingContract,
+    pages: [{ id: 'home', title: say('workbench.catalog-board.ex.pp-title'), regions: [{ id: 'main', title: notes, operationIds: ['notes.list', 'notes.add', 'notes.remove'] }] }],
+    operations: [
+      { id: 'notes.list', kind: 'query', input: { type: 'object', properties: { query: { type: 'string', description: notes } } }, output: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, text: { type: 'string' }, source: { type: 'string' } } } }, effects: {}, examples: [], errors: [] },
+      { id: 'notes.add', kind: 'command', input: { type: 'object', properties: { title: { type: 'string', description: say('workbench.catalog-board.ex.pp-field-title'), maxLength: 100 }, text: { type: 'string', description: say('workbench.catalog-board.ex.pp-field-text'), maxLength: 4000 }, source: { type: 'string', description: say('workbench.catalog-board.ex.pp-field-source') } }, required: ['title', 'text'] }, output: { type: 'object' }, effects: {}, examples: [], errors: [] },
+      { id: 'notes.remove', kind: 'command', input: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, output: { type: 'object' }, effects: {}, examples: [], errors: [] },
+    ],
+  };
+}
+
+function buildReadingNodes(say: CatalogSay): PluginComponentNode[] {
+  const title = say('workbench.catalog-board.ex.pp-title');
+  const subtitle = say('workbench.catalog-board.ex.pp-subtitle');
+  const newNote = say('workbench.catalog-board.ex.pp-new-note');
+  const [heading, notes, editor, remove] = readingNodes;
+  return [
+    { ...heading!, purpose: subtitle, props: { title, description: subtitle } },
+    { ...notes!, purpose: say('workbench.catalog-board.ex.pp-purpose-notes'), props: { ...notes!.props, emptyText: say('workbench.catalog-board.ex.pp-empty'), columns: [{ field: 'source', label: say('workbench.catalog-board.ex.pp-field-source') }] } },
+    { ...editor!, purpose: newNote, props: { title: newNote, submitLabel: say('workbench.catalog-board.ex.pp-save-note') } },
+    { ...remove!, purpose: say('workbench.catalog-board.ex.pp-delete-note'), props: { submitLabel: say('workbench.catalog-board.ex.pp-delete-this-note') } },
+  ];
+}
+
+function buildReadingSamples(say: CatalogSay) {
+  return [
+    { id: 'one', title: say('workbench.catalog-board.ex.pp-s1-title'), source: say('workbench.catalog-board.ex.pp-s1-source'), text: say('workbench.catalog-board.ex.pp-s1-text') },
+    { id: 'two', title: say('workbench.catalog-board.ex.pp-s2-title'), source: say('workbench.catalog-board.ex.pp-s2-source'), text: say('workbench.catalog-board.ex.pp-s2-text') },
+    { id: 'three', title: say('workbench.catalog-board.ex.pp-s3-title'), source: say('workbench.catalog-board.ex.pp-s3-source'), text: say('workbench.catalog-board.ex.pp-s3-text') },
+  ];
+}
+
 /** The catalogue uses the production renderer; this clearly labelled sample never reaches plugin storage. */
-export function renderPluginPresentationExample() {
-  const view = { contract: readingContract, nodes: readingNodes, connected: readingContract.operations.map(operation => operation.id), presentation: readingPresentation };
-  return '<style>' + PLUGIN_COMPONENT_STYLES + '</style><p class="mw-catalog__hint">可交互示例 · 数据只保留在此页内存。试用新建、搜索、阅读详情和删除；缩窄窗口可返回目录。</p><div data-presentation-example></div><script>(()=>{let rows=' + JSON.stringify(readingSamples) + ';const root=document.querySelector("[data-presentation-example]");const app=(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')({root,call:async(id,binding,payload)=>{if(binding==="read")return rows.filter(row=>row.title.includes(payload.form.query||""));if(id==="remove"){rows=rows.filter(row=>row.id!==payload.selection.notes.id);return {removed:true}}const row={...payload.form,id:crypto.randomUUID()};rows.unshift(row);return row}});app.update(' + JSON.stringify(view) + ');})()</script>';
+export function renderPluginPresentationExample(say: CatalogSay = resolveCatalogSay()): string {
+  const contract = buildReadingContract(say);
+  const nodes = buildReadingNodes(say);
+  const samples = buildReadingSamples(say);
+  const view = { contract, nodes, connected: contract.operations.map(operation => operation.id), presentation: readingPresentation };
+  const script = `(()=>{let rows=${JSON.stringify(samples).replaceAll('<', '\\u003c')};const view=${JSON.stringify(view).replaceAll('<', '\\u003c')};const root=document.querySelector("[data-presentation-example]");if(!root)return;
+    const app=(${PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT})({root,call:async(id,binding,payload)=>{if(binding==="read")return rows.filter(row=>row.title.includes(payload.form.query||""));if(id==="remove"){rows=rows.filter(row=>row.id!==payload.selection.notes.id);return {removed:true}}const row={...payload.form,id:crypto.randomUUID()};rows.unshift(row);return row}});
+    const refreshLocale=()=>{if(!globalThis.t?.text)return;
+      const title=globalThis.t.text("workbench.catalog-board.ex.pp-title"),notes=globalThis.t.text("workbench.catalog-board.ex.pp-notes"),subtitle=globalThis.t.text("workbench.catalog-board.ex.pp-subtitle"),newNote=globalThis.t.text("workbench.catalog-board.ex.pp-new-note"),sourceLabel=globalThis.t.text("workbench.catalog-board.ex.pp-field-source");
+      view.contract.pages[0].title=title;view.contract.pages[0].regions[0].title=notes;
+      view.contract.operations[0].input.properties.query.description=notes;
+      view.contract.operations[1].input.properties.title.description=globalThis.t.text("workbench.catalog-board.ex.pp-field-title");
+      view.contract.operations[1].input.properties.text.description=globalThis.t.text("workbench.catalog-board.ex.pp-field-text");
+      view.contract.operations[1].input.properties.source.description=sourceLabel;
+      view.nodes[0].purpose=subtitle;view.nodes[0].props.title=title;view.nodes[0].props.description=subtitle;
+      view.nodes[1].purpose=globalThis.t.text("workbench.catalog-board.ex.pp-purpose-notes");view.nodes[1].props.emptyText=globalThis.t.text("workbench.catalog-board.ex.pp-empty");view.nodes[1].props.columns[0].label=sourceLabel;
+      view.nodes[2].purpose=newNote;view.nodes[2].props.title=newNote;view.nodes[2].props.submitLabel=globalThis.t.text("workbench.catalog-board.ex.pp-save-note");
+      view.nodes[3].purpose=globalThis.t.text("workbench.catalog-board.ex.pp-delete-note");view.nodes[3].props.submitLabel=globalThis.t.text("workbench.catalog-board.ex.pp-delete-this-note");
+      const localized={
+        one:{title:globalThis.t.text("workbench.catalog-board.ex.pp-s1-title"),source:globalThis.t.text("workbench.catalog-board.ex.pp-s1-source"),text:globalThis.t.text("workbench.catalog-board.ex.pp-s1-text")},
+        two:{title:globalThis.t.text("workbench.catalog-board.ex.pp-s2-title"),source:globalThis.t.text("workbench.catalog-board.ex.pp-s2-source"),text:globalThis.t.text("workbench.catalog-board.ex.pp-s2-text")},
+        three:{title:globalThis.t.text("workbench.catalog-board.ex.pp-s3-title"),source:globalThis.t.text("workbench.catalog-board.ex.pp-s3-source"),text:globalThis.t.text("workbench.catalog-board.ex.pp-s3-text")},
+      };
+      rows=rows.map(row=>row.id in localized?{...row,...localized[row.id]}:row);
+      void app.update(view);};
+    document.addEventListener("molis-work:language-changed",refreshLocale);
+    void app.update(view);})()`;
+  return `<style>${PLUGIN_COMPONENT_STYLES}</style><p class="mw-catalog__hint">${say('workbench.catalog-board.ex.pp-hint')}</p><div data-presentation-example></div><script>${script}</script>`;
 }

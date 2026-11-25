@@ -7,7 +7,7 @@ import { actionGatewayHomeId, isGatewayCallId } from "./action-gateway.js";
 import { MANAGEMENT_ACTION_PATH, catalogManagementProject } from "./management-action-client.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { recordedCallIdField } from "./call-id-response.js";
-import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
+import { readLocalWebBody, sendLocalGatewayJson as sendJson } from "./web-http.js";
 import { invokeProjectReviewManagement } from "./project-review-entry.js";
 
 /** Mounted only after the resident service's Origin/token/one-time-key gate. */

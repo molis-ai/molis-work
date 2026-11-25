@@ -15,11 +15,11 @@ export interface KnowledgeDetailHost {
 const FIELDS = (): Array<{ field: KnowledgeEditableField; label: string }> => [
   { field: "title", label: uiText.text("workbench.knowledge-detail.title") }, { field: "brief", label: uiText.text("workbench.knowledge-detail.brief") }, { field: "keywords", label: uiText.text("workbench.knowledge-detail.keyword") },
 ];
-const shown = (card: KnowledgeCardRecord, field: KnowledgeEditableField): string => field === "keywords" ? card.keywords.join("、") : card[field];
+const shown = (card: KnowledgeCardRecord, field: KnowledgeEditableField): string => field === "keywords" ? card.keywords.join(uiText.text("common.list.separator")) : card[field];
 const suggested = (card: KnowledgeCardRecord, field: KnowledgeEditableField): string | null => {
   const value = card.suggestion?.[field];
   if (value === undefined) return null;
-  return Array.isArray(value) ? value.join("、") : value;
+  return Array.isArray(value) ? value.join(uiText.text("common.list.separator")) : value;
 };
 const keywordsOf = (text: string): string[] => text.split(/[,，、;；\n]/u).map(word => word.trim()).filter(Boolean);
 /**

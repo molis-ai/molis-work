@@ -89,12 +89,12 @@ test("08-10 BL-165 the signed pack carries only its own matching Chinese and Eng
   try {
     const { bundle } = await packBundledContent(PACK, out, newPublisher().signer);
     const { manifest, locale_files: files } = parseContentPackage(bundle.payload);
-    assert.deepEqual(Object.keys(files ?? {}).sort(), ["locales/en.json", "locales/zh.json"]);
+    assert.deepEqual(Object.keys(files ?? {}).sort(), ["locales/en.json", "locales/ja.json", "locales/zh.json"]);
     const expected = new Map([["design-accessibility.directory.name", manifest.name], ["design-accessibility.directory.summary", manifest.summary]]);
     for (const method of manifest.methods ?? []) for (const field of ["description", "when_to_use", "when_not_to_use"] as const) {
       expected.set(`design-accessibility.skill.${method.skill_id}.${field.replaceAll("_", "-")}`, method[field]);
     }
-    for (const locale of ["zh", "en"]) {
+    for (const locale of ["zh", "en", "ja"]) {
       const result = parseLocalePack(files![`locales/${locale}.json`]!, { contentPack: true });
       assert.ok(result.ok, locale);
       assert.equal(result.value.owner, PLUGIN_ID);
@@ -103,7 +103,8 @@ test("08-10 BL-165 the signed pack carries only its own matching Chinese and Eng
         const text: unknown = result.value.messages[key];
         assert.equal(typeof text, "string", key);
         if (locale === "zh") assert.equal(text, original, key);
-        else assert.doesNotMatch(String(text), /\p{Script=Han}/u, key);
+        else if (locale === "en") assert.doesNotMatch(String(text), /\p{Script=Han}/u, key);
+        else assert.ok(String(text).trim().length > 0, key);
       }
     }
   } finally { await rm(out, { recursive: true, force: true }); }

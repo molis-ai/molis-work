@@ -315,6 +315,7 @@ export const PLUGIN_COMPONENT_STYLES = `
 .pc-table td[data-number]{text-align:right}.pc-table td:last-child .pc-row-actions{justify-content:flex-end}.pc-table tbody tr:first-child td:first-child{font-weight:500}
 .pc-accordion>.pc-record>summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.pc-fold-title{font-weight:500}.pc-accordion .mw-collapsible__body{display:grid;gap:8px}
 .pc-reading .pc-record-text{font-family:"Songti SC","Noto Serif CJK SC",serif;font-size:17px;line-height:2;max-width:46ch;color:var(--ink)}
+:lang(ja) .pc-reading .pc-record-text{font-family:"Hiragino Mincho ProN","Yu Mincho","YuMincho","Noto Serif JP","Songti SC","Noto Serif CJK SC",serif}
 .pc-conversation .pc-record[data-role=user]{margin-left:auto;max-width:86%}
 .pc-agenda{display:grid;gap:16px}.pc-agenda-day{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;align-items:start}
 .pc-agenda-date{display:flex;flex-direction:column;align-items:center;padding-top:8px}.pc-agenda-date strong{font-size:24px;font-weight:600;line-height:1.1}.pc-agenda-date span{font-size:12px;color:var(--muted)}

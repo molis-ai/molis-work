@@ -62,9 +62,11 @@
 - **字体栈**：
   - UI Sans：`"Inter Variable", Inter, "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif`（`Inter Variable` 置顶管拉丁字母与数字，`Noto Sans SC` 随包提供真 `400` 简体全集及覆盖全仓 100% 界面中文词表的 `500 / 600` 常用子集，罕见字由系统 CJK 字体承接，配合 `font-synthesis-weight: none` 杜绝伪粗体与字重塌陷）。
   - 等宽代码：`--font-mono`（`SF Mono`, `JetBrains Mono`, `Cascadia Code`, `ui-monospace`, monospace）；全局 `:where(code, kbd, samp, pre)` 只落 `font-family: var(--font-mono); letter-spacing: 0`，字号与行高（`--type-code-weight` / `--type-code-size` / `--type-code-line-height`）由具体代码块 / 终端 / Diff 容器按需消费，不全局强行覆盖内联 `<code>` 行高（守 `VUX-33` / `PAS-15`）。
-- **分语种字距与中英自动微隙**：
+- **分语种字形与字距（含 `:lang(ja)` 零字节日文字体栈）**：
   - 默认（中文及混排）：正文 `letter-spacing: 0`、标题 `-0.012em`～`-0.014em`（**严禁把 `-0.011em` / `-0.03em` 套在中文上**）。
   - 纯英文（`:lang(en)`）：正文 `-0.011em`、大标题 `-0.024em`。
+  - 日语（`:lang(ja)`）：全部 **4 套内置字体方案**（`system-sans` / `folio-rounded` / `relaxed-reading` / `system-menlo`）在 `:lang(ja)` 作用域将系统日文字体栈（macOS `Hiragino Sans` / Windows `Yu Gothic UI`、`Meiryo` / `Noto Sans JP`）排在内置 `Noto Sans SC` 之前，确保汉字与假名统一呈现纯正日文字形，**零新增 `.woff2` 字体文件（字体资源预算 +0 字节）**；正文同样保持 `letter-spacing: 0`。
+  - **多语言切换器布局**：3 项语言切换条（`简体中文 | English | 日本語`）在 `1440px`、`1024px`、`390px` 三档宽度下均须单行不折行、不裁切、不横向溢出；共用 `mw-*` 原语不得写死默认中文标签（默认标签须经词包键或调用方传入）。
   - 全站开启 `text-autospace: normal`（中英文与数字间自动留微隙，不在文案里硬敲多余空格）与 `font-feature-settings: "cv02", "cv03", "cv04", "cv11"`（提升 Inter 数字与字母辨识度）。
 - **八档固定字阶与呼吸行高**（由 `DESIGN.md` 与 `tests/soft-workbench-refinement.test.ts` 锁死为 **`11 / 12 / 13 / 15 / 17 / 20 / 24 / 30px`**；严禁发明 `14px`、`18px`、`560` 字重等野生档位）：
   1. `30px / 600 / lh 1.25`：到达页 / 项目大标题

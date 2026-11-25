@@ -106,11 +106,15 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 插件折叠明细从 `@molis-ai/molis-work-plugin-sdk/ui` 调用 `renderCollapsible({ summary, body })`。标题传纯文本，正文传已渲染的 HTML，默认收起。
 
-插件的界面文字写在自己的语言文件里，每种语言一个 `locales/<语言>.json`，在 Manifest 的 `ui.locales` 声明（`{ "default": "en", "available": ["en", "zh"] }`）；代码里用 SDK `/ui` 的 `t("<plugin_id 最后一段>.<位置>.<元素>", 参数)` 和 `format`，语言由平台给。文件形状、键和参数的规则、`t` 与 `t.text` 的区别、颜色和字体变量，以及界面文案、Manifest 权限理由与动作 `title`/`description` 的写作准则（面向零 AI 基础用户的白话精准表达、黑话禁用、符号与英文 Sentence case）统一见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)。`create` 生成的样例已经带两种语言。
+平台语言目录由 `apps/workbench/resources/languages.json` 驱动（当前并行支持 `zh` / `en` / `ja` 三语，结构面向 N 语种扩展，禁止在业务或界面代码中写二元 `zh`/`en` 分支）。插件的界面文字写在自己的语言文件里，每种语言一个 `locales/<语言>.json`，在 Manifest 的 `ui.locales` 声明（`{ "default": "en", "available": ["en", "zh", "ja"] }`）；代码里用 SDK `/ui` 的 `t("<plugin_id 最后一段>.<位置>.<元素>", 参数)`、`format`、`dateArg`、`numberArg`、`dateTimeLocale()` 与 `htmlLang()`，语言由平台给。五条校准语感标尺（温和友好、克制不聒噪、精准、中性、克制信息暴露）、中/英/日三语写作准则、黑话禁词表、符号与英文 Sentence case / 日语 `です・ます` 规范统一见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)。`create` 生成的样例已默认带 `en`/`zh`/`ja` 三语词包。
 
-**开发和安装。** `molis-work plugin dev --locale <语言>` 选择预览语言；不传用 Manifest 的 `default`。请求的语言不在 `available`，或插件未声明 `ui.locales`，会报 `actions.input_invalid`。开发预览只在渲染时提供文字上下文。正式的内置、签名安装和沙箱插件沿同一声明路径；打包自动带上声明的语言文件，签名覆盖这些文件。安装会拒绝不一致、缺文件或夹带未声明语言文件的包。
+**原地切换与存盘引用。** 浏览器客户端动态渲染的文本必须响应 `molis-work:language-changed` 事件重绘；禁止在闭包里缓存初次渲染的译文字符串，也禁止裸拼接半句（如 `t("prefix") + kind` 须改为带 `{kind}` 的整句键）或写死中文顿号 `.join("、")`、固定区域 `Intl.DateTimeFormat("zh-CN")` / `.toLocaleString("en-US")` 与 `<html lang="zh-CN">`。存下来稍后显示的通知、状态或错误记录使用 `OwnedTextRef`（键 + 参数），不在业务表或逻辑中存储/比较译文。
 
-**先 `validate`，再 `dev`。** `validate` 和打包用同一套规则查全部语言文件（`packages/plugin-runtime/src/locale-packs.ts`，规则本身在 SDK 的 `parseLocalePack`、`inspectLocaleSet`）。`dev` 只读这次用的语言和默认语言两个文件，用同一套规则查：单个文件坏了（不是合法 JSON、有那五个字符、`owner` 或 `locale` 不符），或者这两种语言之间参数不一样、默认语言缺这次语言有的键，都拒绝运行（`plugin.package_invalid`）；没用到的语言它不读，全部语言的检查仍看 `validate`；这次的语言少几个键不挡运行，那几处显示默认语言的字。
+**清单展示字段本地化。** 现行合同统一支持 `name_text`、`summary_text`、视图 `title_text`、成果 `title_text`、创建入口与连接服务 `TextRef`，以及可选的 `permissions[].reason_text`、`read_groups[].title_text/description_text` 与 `actions[].action.title_text/description_text`（内置、创作台与第三方插件同等开放；静态无参短句与字数上限由 `packages/plugin-sdk` 统一校验）。
+
+**开发和安装。** `molis-work plugin dev --locale <语言>` 选择预览语言；不传用 Manifest 的 `default`。请求的语言不在 `available`，或插件未声明 `ui.locales`，会报 `actions.input_invalid`。开发预览只在渲染时提供文字上下文。正式的内置、签名安装和沙箱插件沿同一声明路径；打包自动带上声明的全部语言文件，签名覆盖这些文件。安装会拒绝不一致、缺文件或夹带未声明语言文件的包。
+
+**先 `validate`，再 `dev`。** `validate` 和打包用同一套规则查全部声明语言（`packages/plugin-runtime/src/locale-packs.ts`，规则本身在 SDK 的 `parseLocalePack`、`inspectLocaleSet`）。`dev` 只读这次用的语言和默认语言两个文件，用同一套规则查：单个文件坏了（不是合法 JSON、有那五个字符、`owner` 或 `locale` 不符），或者这两种语言之间参数不一样、默认语言缺这次语言有的键，都拒绝运行（`plugin.package_invalid`）；没用到的语言它不读，全部语言的检查仍看 `validate`；这次的语言少几个键不挡运行，那几处显示默认语言的字。
 
 **`validate` 的结果怎么读：**
 
@@ -122,7 +126,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 写进成果库的类型要在 Manifest 的 `artifacts.produces` 声明，并满足下面几条（`specs/archive/artifact-positioning` A1、A4b、A7；`AGENTS.md`「成果库只收人要留存、引用的固定版本」）。规则在 `packages/plugin-sdk/src/artifact-declarations.ts`，由 `parsePluginManifest` 在解析时检查，所以 `definePlugin`、命令行 `validate` 与 `create`、Runtime 的安装与升级、本地开发加载走的是同一份；不满足时一次报出全部问题（`plugin.declaration_invalid`，Runtime 安装包成 `plugin.manifest_invalid`）。以前只有内置插件被一个测试（`tests/artifact-type-gate.test.ts`）守着，别的 Manifest 可以产出没人读得了的一版。
 
-- **显示名**：每个产出类型有非空的 `title`，成果库用它给人看。
+- **显示名与多语言 `title_text`**：每个产出类型有非空的 `title`，成果库用它给人看；可同时声明本插件的 `title_text`（`{ "key": "<前缀>.artifacts.type-title" }`，默认语言须提供不超过 80 字的无参单行短句，多语言缺词时按默认语言优雅回退，规则见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md#目录和连接服务的文字)）。
 - **预览**：每个产出类型有 `preview`，指向本 Manifest 里用 `defineArtifactPreviewAction` 定义的预览查询，并用 `bindArtifactPreview` 绑定处理器（Runtime 要求 Manifest 声明的动作都有处理器）。
 - **固定与比较**：对象可以当场固定成新一版的类型写 `pin`，指向 `defineArtifactPinAction` 定义的命令，且只对一种对象（`subject_kinds` 恰好一个）；写了 `pin` 就必须同时写 `compare`（`defineArtifactCompareAction` 的查询），成果库才能告诉人「原文已改」。
 - **继续**：能从一版新建自己的工作对象的插件写 `continue`（`defineArtifactContinueAction` 的命令）；产出的类型和只读的类型（`artifacts.consumes`）上都可以写。
@@ -183,7 +187,7 @@ Schedule 是这些服务的生产消费者，工厂见 `plugins/native/schedule/
 
 ## 个人 Home Runtime 与插件 SQLite
 
-数据属于个人 Home、切换项目不分开的新内置插件，Manifest 写 `runtime: { scope: "home" }`，在自己的 `registration` 里给出 `runtime: { create, package_name, factory_export, keys? }`（运行范围是 Manifest 的，Home 实例的代码来自登记，两者同时有；装上的插件写 `runtime` 安装时被拒，`plugin.home_scope_unavailable`；唯一的例外是来自已固定发布者的签名沙箱包，见下一段）。`personal: true` 只是可见性，不会把现存 Form、Todo 等迁到 Runtime。当前 Issues、Todo 和 Cognia 使用 Home Runtime，迁移顺序见 `docs/system/RUNTIME-MIGRATION.md`。
+数据属于个人 Home、切换项目不分开的新内置插件，Manifest 写 `runtime: { scope: "home" }`，在自己的 `registration` 里给出 `runtime: { create, package_name, factory_export, keys? }`（运行范围是 Manifest 的，Home 实例的代码来自登记，两者同时有；装上的插件写 `runtime` 安装时被拒，`plugin.home_scope_unavailable`；唯一的例外是来自已固定发布者的签名沙箱包，见下一段）。`personal: true` 声明跨项目可见性。Todo 和 Images 的 Home 实例由 Manifest 的 `runtime.scope` 和登记中的 `runtime` 工厂共同指定；Form 同样跨项目可见，实例则由 `project_runtime` 启动。
 
 **装进 Home 的签名沙箱包**（BL-628，S-80、S-84）：沙箱包的清单写 `runtime: { scope: "home" }`，预览会返回 `runtime_scope: "home"`，确认后装进 Home：一个实例，所有项目共用，代码仍在沙箱里跑，权限仍是人在预览里批准的那些，发布者仍要被本人固定。它的批准、密钥和提示词登记放在 Home 里（不属于任何项目），它的调用没有项目（项目范围的动作够不到），库是 Home 库（S-91）、文件是主人文件（S-64）。它在每个项目里都能用，项目可以把它隐藏；停用、卸载（保留或不保留数据）走和项目里的签名包同一套生命周期。声明了端口、事件、成果或过程项的包不能装进 Home；同一个 `plugin_id` 的范围不能更换。没有写 `runtime` 的包只能装进项目，写了的只能装进 Home。
 
@@ -262,7 +266,7 @@ Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbenc
 - 平台第一次为这个插件打开项目库时建表，在账本 `plugin_project_databases` 记下插件、发布者签名、库名、版本和表名；之后每次打开核对。账本每个插件一行（`plugin_id` 主键、`publisher_signature`、`store_name` 唯一、`version`、`tables_json`、`created_at`），打开函数 `openPluginProjectDatabase`（`packages/plugin-runtime/src/project-database.ts`）在一个 `BEGIN IMMEDIATE` 事务里按下面的结果办，任何拒绝都回滚、库原样不动：库里已有同名的表或索引（名字比较时 ASCII 不分大小写）、库名归了别的插件是 `plugin.project_database.object_taken`；发布者签名与账本不同是 `publisher_mismatch`（卸载不删表也不删行，同一个 id 换了发布者拿不走数据）；版本不同是 `version_mismatch`；版本相同但库名、对象名单或表的形状与声明不同（比如库被手改过）是 `shape_mismatch`；都一致就打开。被拒的插件只停它自己，项目与别的插件照常，库不修补、不重建、不补账本。
 - 改表就升 `version`，并在同一份声明里写从旧版本到新版本的升级段 `upgrades: [{ from, sql, reduces_rows? }]`（[升级链设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.4）。段只有 SQL：`INSERT`、`UPDATE`、`DELETE`，`CREATE TABLE`、`CREATE [UNIQUE] INDEX`、`ALTER TABLE … ADD COLUMN / RENAME / DROP COLUMN`、`DROP TABLE`、`DROP INDEX`，不写 `IF [NOT] EXISTS`、库名、`AS SELECT`、触发器和 `PRAGMA`；回填只用确定的函数（`random()`、`datetime('now')`、`CURRENT_TIMESTAMP` 这类报 `plugin.project_database.upgrade_nondeterministic`）。平台在升级过程里跑，平台自己那一段之后、每个插件一个事务：段只能碰这个插件自己的表，碰了别的就整轮回滚（`plugin.project_database.upgrade_out_of_scope`），跑完的表必须正好是新声明建出来的样子，表的行数只在 `reduces_rows` 点名的表上可以变少（删掉的表也算；改名的表带着行走）。外键在段里是关的，最后统一 `foreign_key_check`；同步追踪和业务的触发器由平台在段前删、段后按声明建回，段里不用管。失败的插件只停它自己，同一个程序版本不再重试。已装签名包使用同一份检查，在确认升级时由有界 SQL Worker 执行。新库或改了版本，照旧在 `docs/releases/CHECKLIST.md` §3 改那一行，改完跑 `node scripts/verify-release-versions.mjs`。
 
-宿主开库时为 `BUILTIN_PLUGIN_CATALOG` 里声明了它的条目建表、核对（Coding、Feed、Goals、Schedule；Goals 的 31 张表含 `boards` 与治理的 4 张）；经 Plugin Runtime 启动的插件（含装进项目的与沙箱插件）启动时由平台用同一个打开函数建表或核对，被拒就不启动。Home 级插件没有项目库。恢复路径（`existingOnly`）只读已经在现行结构上的库，不给它建表也不写账本；这个插件平台的项目库不是文件（内存库、别的驱动）时，声明了 `databases.project` 的插件不启动，不退回到别的路。
+宿主开库时为 `BUILTIN_PLUGIN_CATALOG` 里声明了它的条目建表、核对（Coding、Feed、Goals、Inbox、Risk、Schedule；项目指导、项目审批规则与逐项认可分别由平台模块或服务管理）；经 Plugin Runtime 启动的插件（含装进项目的与沙箱插件）启动时由平台用同一个打开函数建表或核对，被拒就不启动。Home 实例只使用 Home 范围的存储；Feed 的项目实例按同一 Manifest 的 `databases.project` 使用项目库。恢复路径（`existingOnly`）只读已经在现行结构上的库，不给它建表也不写账本；这个插件平台的项目库不是文件（内存库、别的驱动）时，声明了 `databases.project` 的插件不启动，不退回到别的路。
 
 - 运行时读写：`context.services.project_database`（`PluginDatabase`，与 Home 库的 `services.database` 同一个接口、同一份客户端），只给经 Plugin Runtime 启动、声明了 `databases.project` 的插件。读 `get`、`all` 只认 `SELECT`、`WITH`，走只读连接；写只在 `transaction(caller.beforeEffect, tx => …)` 里，回调同步，`tx.run` 一次一句，只认 `INSERT`、`UPDATE`、`DELETE`，走宿主自己的连接（同一个文件只用一份 SQLite 库）。
 - 项目日志：`services.project_database.journal` 是项目事件日志和幂等记录的端口（`events`、`idempotency_records` 属于 `packages/storage`，语句读写不了）。要在 Manifest 声明并获授 `journal:project`。读 `eventCursor`、`readEventsDescending` 在数据库对象上，只读到、数到本插件自己写的事件；写 `appendEvent`、`getIdempotency`、`putIdempotency` 只在 `transaction` 的 `tx.journal` 上，和 `tx.run` 同一个 SQLite 事务。每次调用再问授权、原调用者和事务是否仍在（S-63）；一行的行为人只能是调用者的 `actor_id` 或 `audit_actor_id`，动作外只能是宿主给的行为人；项目号由库给，`appendEvent` 里多带的 `projectId` 无效。事件的 `type`、`objectType` 和幂等的 `operation` 写本插件自己的裸名：平台存成「插件号、一个冒号、名字」（插件号里不会有冒号，所以一个插件号是另一个的点分段前缀时也互不相干），读回来再去掉，所以插件读不到别的主人的事件、数不到它们的游标，两个主人用同一个操作名也撞不上；要别的主人的事件，调那个主人的动作。沙箱里的插件暂时没有它。
@@ -337,7 +341,7 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 ### 全局插件设置的数据
 
-`settings` view 可用 `settings_data: { action }` 声明本 Manifest 自己的只读、面向 `user`、只有一个版本的查询；宿主在个人 Home 按原本地所有者权限调用，结果交给同步 `SettingsPageModel.data`。项目与打开设置的项目仍在固定 `context` 中。需要 Agent 运行时列表的页另声明 `settings_runtimes: true`，结果在 `context.runtimes`；不声明就不查询并给未请求的空集合，查询失败沿原 ActionError/HTTP 错误链呈现，不伪装空列表。这个可选字段只许 `settings` 槽使用且只能为 `true`，不依赖有无 `settings_data`，不增加动作、权限、超时或重试政策。当前只有 Coding 消费列表并显式声明；Shelf 不依赖列表。
+`settings` view 可用 `settings_data: { action }` 声明本 Manifest 自己的只读、面向 `user`、只有一个版本的查询；宿主在个人 Home 按原本地所有者权限调用，结果交给同步 `SettingsPageModel.data`。项目与打开设置的项目仍在固定 `context` 中。需要 Agent 运行时列表的页另声明 `settings_runtimes: true`，结果在 `context.runtimes`；不声明就不查询并给未请求的空集合，查询失败沿原 ActionError/HTTP 错误链呈现，不伪装空列表。这个可选字段只许 `settings` 槽使用且只能为 `true`，不依赖有无 `settings_data`，不增加动作、权限、超时或重试政策。当前只有 Coding 消费列表并显式声明。
 
 设置页需要额外地址参数时，在该 view 声明 `settings_address: { query: ["tab"], hash: ["#section"] }`。外壳转交地址时只保留默认 `project`/`desktop` 和当前导航声明的参数、片段；query 名为 `[A-Za-z0-9_-]{1,32}`，hash 为 `#[A-Za-z0-9][A-Za-z0-9._~-]{0,31}`，各至多 8 项且不重复。`project`、`desktop`、`settings`、`settingsPath`、`embed` 属于外壳，不能声明；非法声明由 SDK 解析拒绝。`plugin`、`q`、`filter`、`format`、`section` 并非通用设置入口控制名，可由自己的设置页显式声明。
 
@@ -409,8 +413,9 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 - **平台的码**（`actions.missing`、`actions.plugin_disabled`、`actions.scope_mismatch` 等）在合同的 `ACTION_ERROR_KINDS` 里一码一行，已经有 kind，直接 `new ActionError("actions.missing", "…")`。
 - **抛 `ActionError`，不要自己造 Error 子类**：Host 里还有按 `instanceof ActionError` 认错误的入口（MCP 的错误文本、首页的动作回答、放置面板里「原对象已删除」与「暂时读不到」的区分等；它们还没有换成按形状读，SDK 的函数已经是按形状读的），只有 `ActionError` 才被当作带码的失败。Todo 原来的 `TodoError` 不是 `ActionError`，所以它的动作失败在这些入口里被当作未知失败，换成 `todoErrors` 后才各自回答成它本来的样子（Todo 读对象的那条路径本来就抛 `ActionError`，放置面板读到「原对象已删除」与首页准备对话的回答没有变）。
 - **没有 kind 的错误**：带我们格式的码（`<主人>.<原因>`）但没人给 kind，按调用者的错误处理，400；没有码、码不是我们的格式（例如系统错误码 `ENOENT`），或根本不是 Error，按内部失败处理，500，响应体的码是 `actions.execution_failed`。调用者写错了才会遇到的情形要先给它一个自己的码（kind `invalid`），别靠 500。动作的可用性对象（`{ available: false, code, reason, kind? }`）也可由主人给 kind；内核的动作与 typed 派发、SDK 的 owner 绑定在抛 `ActionError` 时保留它。Pages、PPT、Dataset、Form 的「当前环境不能发出成果」带 `conflict`，回答 409，原稿保留。没有 kind 的对象仍按主人码的默认 invalid（400）或平台表（例如 `actions.connection_required` 503）处理。
-- **响应体**统一是 `{ error, code, details? }`；`error` 是消息。**按 kind 答的入口**：Host 的 Native 插件 HTTP 分发器（`dispatchNativePluginJsonHttp`），不传 `mapError` 时让错误抛出来即可（Todo 是样例，Pages、PPT、Dataset、Form、Lingguang、Workflows、Shelf、Jelly、Cognia、Functions 同样）；要自己写 HTML、图片字节、跳转或头部的入口（Feed、Inbox、Schedule、Images），它们在 `try` 里用 `readNativePluginJsonBody` 读请求体，出错写 SDK 的 `actionErrorResponse(error)`；SDK 的 `bindPluginActionRoute`，Runtime 插件的路由用它兑现动作：动作抛出的错误按它自己的 kind 答，没有我们的码的错误答 500 `actions.execution_failed`，路由自己的请求映射函数拒绝了请求答 400 `actions.input_invalid`（带着映射函数的那句话）；不经它、自己写 `handle` 的路由，处理器抛出的带码错误由 Plugin Runtime 的路由派发按 kind 答（BL-404，不用自己写 catch），没有码的交给 Host 答通用句子，不带原消息；还有 Plugin Runtime 路由器自己的拒绝，用的是动作层已有的码和句子：没有路由要的权限 403 `actions.forbidden`，本项目没有启用该插件 403 `actions.plugin_disabled`（页面外层对「这个项目没有启用这个插件」答的也是它），插件未运行 503 `actions.plugin_unavailable`，声明了路由却没有处理器 500 `actions.execution_failed`。Host 自己的几个入口同样按 kind 答（成果入口还在这一个地方把消息翻成当前语言，`/api/project-references/`，设置页的项目插件开关），Host 对 Host、Origin、控制令牌检查的拒绝统一是 `host.request_refused`（403，不说哪一项没过）；读不出请求体也是同样的错误：`actions.input_invalid`（400）、`actions.input_too_large`（413）；仍带 `mapError` 的入口，读不出请求体时也由它回答（多数答 400，Agent 定义入口答 500、不带码，助理入口答 500、码 `assistant.failed`）。
-- **页面和调用方按 `code` 判断**（例如 `todo.conflict` 提示重新读取），不按 HTTP 状态；`actionErrorFromResponse(status, body)` 把响应还原成同样的错误。读错误一律按形状（有 `code` 和 `message`），不用 `instanceof`：Runtime 包和创作台页面里可能有另一份 `ActionError`。
+- **响应体**统一是 `{ error, code, details? }`；`error` 是消息。**按 kind 答的入口**：宿主自身的 JSON 入口（如 `knowledge-http.ts`）通过 `dispatchNativePluginJsonHttp` 分发，默认按错误 kind 映射状态码；SDK 的 `bindPluginActionRoute`，Runtime 插件的路由用它兑现动作：动作抛出的错误按它自己的 kind 答，没有我们的码的错误答 500 `actions.execution_failed`，路由自己的请求映射函数拒绝了请求答 400 `actions.input_invalid`（带着映射函数的那句话）；不经它、自己写 `handle` 的路由，处理器抛出的带码错误由 Plugin Runtime 的路由派发按 kind 答（BL-404，不用自己写 catch），没有码的交给 Host 答通用句子，不带原消息；还有 Plugin Runtime 路由器自己的拒绝，用的是动作层已有的码和句子：没有路由要的权限 403 `actions.forbidden`，本项目没有启用该插件 403 `actions.plugin_disabled`（页面外层对「这个项目没有启用这个插件」答的也是它），插件未运行 503 `actions.plugin_unavailable`，声明了路由却没有处理器 500 `actions.execution_failed`。Host 自己的几个入口同样按 kind 答（成果入口还在这一个地方把消息翻成当前语言，`/api/project-references/`，设置页的项目插件开关），Host 对 Host、Origin、控制令牌检查的拒绝统一是 `host.request_refused`（403，不说哪一项没过）；读不出请求体也是同样的错误：`actions.input_invalid`（400）、`actions.input_too_large`（413）。
+- **出口统一本地化转译与诊断分离**：业务动作和插件代码只负责抛出结构化 `ActionError(code, kind, details)`，不需要也不应在业务层手写多语种分支或兜底固定中文（如 `能力执行失败`）。Host 在 HTTP / SSE / WS 出口与 Prologue / 助理边界，按当前请求作用域语言（`web-locale.ts`）将结构化 `code` / `kind` 统一映射到 `common.error.*` 的温和三语文案（中 / 英 / 日），并过滤净化未翻译的异语言消息、原始 `PrologueErrorCode`（如 `MODEL_HTTP_ERROR`、`SYNC_*`）、AJV 字段路径与本机路径，不破坏 `details`（如 `call_id`、`details.work`）。排错所需的原始错误码与技术细节仅保留在服务端诊断日志中，面向用户通过可复制的「诊断编号（`call_id`）」与「设置 › 诊断」关联查看。
+- **页面和调用方按 `code` 判断**（例如 `todo.conflict` 提示重新读取），不按 HTTP 状态，也不按译文字符串判断；`actionErrorFromResponse(status, body)` 把响应还原成同样的错误。读错误一律按形状（有 `code` 和 `message`），不用 `instanceof`：Runtime 包和创作台页面里可能有另一份 `ActionError`。
 
 ## 连续工作：对象上下文、版本前提与助理
 
@@ -566,7 +571,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 创作台首次发布前可选择项目或个人空间。切换范围会作废旧范围的通过结果，并按新范围重新检查已有源码和界面；不会为重验调用模型。首份发布固定该草稿的范围。发布在原五文件旁保存独立签名分发包，下载后在插件设置中导入，查看指纹、范围和权限，再由本人命名固定并确认；本机生成不等于已经信任。已有 agent-built 项目安装沿用原身份和数据，签名包不自动替换它。每个 Home 的签名私钥归现有 SecretStore，公开身份记录在 `config/plugin-publisher.json`；删除项目和普通卸载保留，显式 Home purge 才移除。身份缺失、不匹配或已撤销时拒绝发布，不能自动换钥绕过。
 
-包就是一个 `PluginPackageBundle`（`payload` + `signature` + `publisher_key`，签名方式同上），`payload.files` 包含下面五个文件，以及 `agent` 逐项引用的 `agent/` 资源、`methods` 每项声明的正文 `skills/<skill_id>/SKILL.md` 与资源；缺文件、重复路径或未声明的额外文件均拒绝：
+包就是一个 `PluginPackageBundle`（`payload` + `signature` + `publisher_key`，签名方式同上），`payload.files` 包含下面五个文件，以及 Manifest `ui.locales` 声明的 `locales/<语言>.json`（支持 `zh`/`en`/`ja` 及 N 语种同包签名；缺词回退默认语言）、`agent` 逐项引用的 `agent/` 资源、`methods` 每项声明的正文 `skills/<skill_id>/SKILL.md` 与资源；缺文件、重复路径或未声明的额外文件均拒绝（现行公开合同已在 `SandboxPluginContract` 中支持 `permission_reasons`、`read_groups[].title_text/description_text` 与 `operations[].title_text/description_text`，由 SDK 投影为 Manifest 的权限、读取分组与动作 `*_text` 声明，内置、创作台与第三方沙箱包同等待遇）：
 
 | 文件 | 内容 |
 | --- | --- |

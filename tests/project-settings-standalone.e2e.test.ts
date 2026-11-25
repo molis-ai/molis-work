@@ -442,7 +442,7 @@ for (const mode of ["A", "B"] as const) test(`RAC-2848 RAC-2849 FSS-35 ${mode}: 
     assert.equal(traffic.posts(api + "/mcp", surface.frameId).length, 0, "changing the interface language does not submit the draft");
   }
   await surface.click("[data-mcp-config] [type=submit]");
-  const saved = mode === "A" ? "MCP 配置已保存，尚未连接；展开服务可连接。" : "MCP configuration saved but not connected; open the service to connect.";
+  const saved = mode === "A" ? "MCP 配置已保存，还没有连接；展开服务即可连接。" : "MCP configuration saved but not connected; open the service to connect.";
   await surface.waitFor(`document.querySelector('[data-mcp-status]')?.textContent === ${JSON.stringify(saved)}`);
   assert.equal(traffic.posts(api + "/mcp", surface.frameId).length, 1);
   const state = await b.web.get<{ mcp: { label: string; enabled: boolean }[] }>(api + "/state");

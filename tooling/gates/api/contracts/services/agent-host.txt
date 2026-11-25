@@ -2454,6 +2454,7 @@ export interface AgentToolOperationReviewDocument {
     tool: string;
     summary: string;
     fields: Array<{
+        key?: string;
         label: string;
         value: string;
     }>;

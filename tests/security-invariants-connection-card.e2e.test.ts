@@ -9,6 +9,7 @@ import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
+import { pressWhileSettling } from "./fixtures/steady-press.js";
 
 const CARD = "[data-connection-need-area]", WIDE = 344, LINE = 48;
 const WRITES = ["prepare", "bind", "switch", "enable", "save_key"];
@@ -199,19 +200,19 @@ test("S-plugin-connection-card ASC-68 C3-4 C3-8 C3-9 ASC-67 a press counts only 
   const p = await open(t); if (!p) return;
   const { browser, child } = p;
   p.account("Only account");
-  await p.ask("card", "left:24px;top:24px;width:560px");
-  await p.shown("cancel");
-  const use = await browser.evaluate<string>(`document.querySelector(${JSON.stringify(CARD + " [data-framed-control^='use:']")}).dataset.framedControl`);
+  const useControl = `document.querySelector(${JSON.stringify(CARD + " [data-framed-control^='use:']")})`;
 
-  // C3-4: pressed as soon as it is shown.
-  await p.press(p.control(use));
+  // C3-4: pressed as soon as it is shown (provably within the steady time, however slow the runner).
+  await pressWhileSettling(browser, { surface: CARD, locate: useControl,
+    scene: () => p.ask("card", "left:24px;top:24px;width:560px"),
+    reset: async () => { await child.evaluate("document.getElementById('card').remove()"); await browser.waitFor(`!document.querySelector(${JSON.stringify(CARD)})`); } });
   await p.settle(250);
   assert.deepEqual(await p.writes(), [], "C3-4 a card just shown does not act");
-  // C3-4: the page moves its element 100 ms before the press.
-  await p.ready();
-  await child.evaluate(`document.getElementById("card").style.left = "64px"`);
-  await p.settle(100);
-  await p.press(p.control(use));
+  await p.shown("cancel");
+  const use = await browser.evaluate<string>(`${useControl}.dataset.framedControl`);
+  // C3-4: the page moves its element just before the press.
+  await pressWhileSettling(browser, { surface: CARD, locate: useControl,
+    scene: async attempt => { await p.ready(); await child.evaluate(`document.getElementById("card").style.left = ${JSON.stringify(attempt % 2 ? "24px" : "64px")}`); } });
   await p.settle(250);
   assert.deepEqual(await p.writes(), [], "C3-4 a press on a moved card does not write");
   assert.equal(await p.note(), "刚移动过，请再点一次");

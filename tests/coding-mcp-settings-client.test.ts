@@ -81,7 +81,7 @@ const observation = (revision: string) => answer(200, { projects: [{ project_id:
 test("a project that has not enabled Coding shows the enable button, on the platform's code, and stops polling", async () => {
   const page = fixture(url => url === STATE ? NOT_ENABLED_ANSWER : url === MEMBERSHIP ? observation("first") : answer(500, {}));
   await page.settled();
-  assert.equal(page.status.textContent, "当前项目尚未启用 Coding。启用后即可选择已授权工具，不会自动执行工具。");
+  assert.equal(page.status.textContent, "当前项目还没有启用 Coding。启用后即可选择已授权工具，不会自动执行工具。");
   assert.equal(page.status.children.length, 1);
   assert.equal(page.status.children[0]!.textContent, "为当前项目启用 Coding");
   assert.deepEqual(page.timers.cleared, page.timers.started, "the poll that was started is the one that stopped");

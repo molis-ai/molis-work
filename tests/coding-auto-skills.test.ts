@@ -254,3 +254,63 @@ test("SKP-10: the model reads an automatic Skill through the round's own tool; a
   assert.match(results, /先读模板/, "the automatic Skill body was read through the round's tool");
   assert.match(results, /not_named/, "the unnamed manual Skill was refused, as in the Host's round");
 });
+
+test("AgentHost.start fits long instruction_prompt_id user overrides within 20K material budget and refuses missing instruction resolver", async () => {
+  const receivedMaterials: Array<{ title: string; text: string }> = [];
+  const capabilities = emptyCapabilityMatrix();
+  const fakeAdapter: AgentRuntimeAdapter = {
+    descriptor: { runtime_id: "fake", display_name: "Fake", provider_version: "1.0.0", capabilities, supports_action_tools: true },
+    async health() { return { ok: true, status: "ready", message: "就绪" }; },
+    createSession: () => { throw new Error("unused"); },
+    read: () => { throw new Error("unused"); },
+    observe: () => { throw new Error("unused"); },
+    control: () => { throw new Error("unused"); },
+    readCommandOutput: () => { throw new Error("unused"); },
+    async readSession(session) { return { session, owner: { project_id: "project", plugin_id: CODING, install_id: "install-1", actor_id: "tester" }, title: "读", runs: [], latest_run: null }; },
+    async start(request: AgentStartRequest): Promise<AgentRunHandle> {
+      receivedMaterials.push(...(request.text_materials ?? []).map(item => ({ title: item.title, text: item.text })));
+      return { ref: { run_id: "run-1", session_id: request.session.session_id }, frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m",
+        prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: DIRECTORY, realpath_verified: true } } };
+    },
+  };
+  const authority: AgentStartAuthority = { manifest, authorizedDirectories: [DIRECTORY], prompts: [] };
+  const bigCatalog = JSON.stringify(Array.from({ length: 40 }, (_, i) => ({ name: `skill-${i}`, description: "D".repeat(420) })));
+  const baseRequest: AgentStartRequest = {
+    session: { session_id: "s1", runtime_id: "fake" },
+    project_id: "project",
+    plugin_id: CODING,
+    install_id: "install-1",
+    actor_id: "tester",
+    role_id: "reader",
+    directory: { canonical_path: DIRECTORY, realpath_verified: true },
+    task: "hello",
+    text_materials: [{ material_id: "coding-auto-skills", title: "Auto skills", text: bigCatalog, instruction_prompt_id: CODING_AUTO_SKILL_CATALOG.prompt_id }],
+  };
+
+  // Without prompts.instruction resolver, instruction_prompt_id must fail closed rather than dropping safety instructions.
+  const hostNoPrompts = new AgentHost();
+  hostNoPrompts.register(fakeAdapter);
+  await assert.rejects(() => hostNoPrompts.start("fake", baseRequest, authority), { code: "agent.capability_unavailable" });
+
+  // With a very long user override (including >2,000 char single-line first line), the resolved material stays <= 20,000 chars and keeps a valid JSON array.
+  const longOverride = "User custom instruction: " + "R".repeat(5_000);
+  let useRecorded = 0;
+  const hostWithPrompts = new AgentHost({
+    prompts: {
+      effective: (_owner, prompt) => prompt,
+      instruction: (_owner, _id, _caller, _locale, deferUse) => {
+        deferUse?.(() => { useRecorded++; });
+        return { body: longOverride, version: 3, user_revision: 1 };
+      },
+    },
+  });
+  hostWithPrompts.register(fakeAdapter);
+  await hostWithPrompts.start("fake", baseRequest, authority);
+  assert.equal(useRecorded, 1);
+  assert.equal(receivedMaterials.length, 1);
+  assert.ok(receivedMaterials[0]!.title.length <= 2_000, "title stays within 2,000-char limit");
+  assert.ok(receivedMaterials[0]!.text.length <= 19_900, "combined text + header stays within 20,000-char budget");
+  const jsonPart = receivedMaterials[0]!.text.slice(receivedMaterials[0]!.text.lastIndexOf("\n\n") + 2);
+  const parsed = JSON.parse(jsonPart) as unknown[];
+  assert.ok(Array.isArray(parsed) && parsed.length > 0 && parsed.length < 40, "trimmed catalog preserves a valid non-empty JSON array");
+});

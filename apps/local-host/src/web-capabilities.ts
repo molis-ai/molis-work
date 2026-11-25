@@ -5,34 +5,94 @@ import { functionContextActions } from "@molis-ai/molis-work-module-judgment-rul
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { actionUsageActions, type ActionUsagesResult } from "./action-usage-actions.js";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
+import { resolveManifestText } from "@molis-ai/molis-work-plugin-runtime";
 import { localeMessageArguments, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { registeredBuiltinText, workbenchPlatformText } from "./ui-text-provider.js";
+import { currentInstalledPluginHost } from "./installed-plugin-host.js";
+import { manifestWordResolver, registeredBuiltinText, workbenchPlatformText } from "./ui-text-provider.js";
 import { shippedParts } from "./plugin-registry.js";
-import { currentLocale } from "./web-locale.js";
+import { activeLocale, currentLocale } from "./web-locale.js";
 
-/** The existing discovery already distinguishes a Host-built provider from any installed or external one. */
-function libraryTitles(actions: readonly ActionView[]): ReadonlyMap<ActionView, string> {
-  const titles = new Map<ActionView, string>(), readers = new Map<string, PluginTextReader | null>(), locale = currentLocale();
-  for (const view of actions) {
-    const { kind, provider_id, plugin_id } = view.provider, identity = JSON.stringify([kind, provider_id, plugin_id]);
-    if (!readers.has(identity)) {
-      // Only Host-built Runtime definitions use their Manifest ID as provider ID.
-      const manifest = kind === "plugin" && provider_id === plugin_id
-        ? shippedParts().find(entry => entry.manifest.plugin_id === plugin_id)?.manifest : undefined;
-      readers.set(identity, kind === "system" ? workbenchPlatformText : manifest ? registeredBuiltinText(manifest) : null);
+/** Collect locale readers for installed project packages so sandboxed/pinned actions render in the active language alongside built-ins. */
+export async function projectActionLocaleReaders(
+  host: Partial<Pick<MolisWorkLocalHost, "withProject">>,
+  reference?: LocalHostProjectReference,
+): Promise<ReadonlyMap<string, PluginTextReader | null>> {
+  const readers = new Map<string, PluginTextReader | null>();
+  if (!reference || !host.withProject) return readers;
+  await host.withProject(reference, runtime => {
+    const installedHost = currentInstalledPluginHost(runtime.store, runtime.project_id);
+    if (!installedHost) return;
+    for (const record of installedHost.records()) {
+      readers.set(record.plugin_id, installedHost.releaseFor(record.plugin_id)?.packaged?.localePacks ?? null);
     }
-    const reader = readers.get(identity);
-    if (!reader) continue;
-    const scope = kind === "system" ? provider_id.replaceAll(".", "-") + "--" : "";
-    // The approved display entries are keyed to their exact capability versions.
-    const key = `${textKeyPrefix(reader.owner)}.capability-library.${scope}${view.capability_id.replaceAll(".", "-")}-v${view.version}.title`;
-    const selected = locale ? reader.pack(locale) : null;
-    const message = selected?.messages[key] ?? reader.pack(reader.default)?.messages[key];
-    if (typeof message === "string" && localeMessageArguments(message).length === 0) titles.set(view, message);
+  }).catch(() => undefined);
+  return readers;
+}
+
+/** Resolve localized action titles, descriptions, and provider names from `*_text` declarations (falling back to capability-library keys and raw fields). */
+export function resolveActionLibraryWords(
+  actions: readonly ActionView[],
+  options: {
+    readonly host?: Pick<MolisWorkLocalHost, "homePlugins">;
+    readonly projectReaders?: ReadonlyMap<string, PluginTextReader | null>;
+    readonly locale?: string | null;
+    readonly libraryKeyTitles?: boolean;
+  } = {},
+): {
+  readonly titles: ReadonlyMap<ActionView, string>;
+  readonly descriptions: ReadonlyMap<ActionView, string>;
+  readonly providers: ReadonlyMap<ActionView, string>;
+} {
+  const titles = new Map<ActionView, string>();
+  const descriptions = new Map<ActionView, string>();
+  const providers = new Map<ActionView, string>();
+  const readers = new Map<string, PluginTextReader | null>();
+  const locale = options.locale ?? activeLocale() ?? currentLocale();
+  const useLibraryKeyTitles = options.libraryKeyTitles !== false;
+  for (const view of actions) {
+    const { kind, provider_id, plugin_id } = view.provider;
+    const identity = JSON.stringify([kind, provider_id, plugin_id]);
+    if (!readers.has(identity)) {
+      let reader: PluginTextReader | null = null;
+      if (kind === "system") {
+        reader = workbenchPlatformText;
+      } else if (kind === "plugin" && plugin_id) {
+        // Host-built Runtime definitions use their Manifest ID as provider ID; installed packages read from project/Home release packs.
+        const manifest = provider_id === plugin_id
+          ? shippedParts().find(entry => entry.manifest.plugin_id === plugin_id)?.manifest
+          : undefined;
+        reader = manifest
+          ? registeredBuiltinText(manifest)
+          : options.projectReaders?.get(plugin_id) ?? options.host?.homePlugins?.packageStage(plugin_id)?.packaged?.localePacks ?? null;
+      }
+      readers.set(identity, reader);
+    }
+    const reader = readers.get(identity) ?? null;
+    const owner = kind === "system" ? "workbench" : plugin_id ?? provider_id;
+    const resolve = manifestWordResolver(reader, locale);
+    if (view.action.title_text !== undefined) {
+      titles.set(view, resolveManifestText(owner, view.action.title, view.action.title_text, resolve));
+    } else if (useLibraryKeyTitles && reader) {
+      const scope = kind === "system" ? provider_id.replaceAll(".", "-") + "--" : "";
+      // The approved display entries are keyed to their exact capability versions.
+      const key = `${textKeyPrefix(reader.owner)}.capability-library.${scope}${view.capability_id.replaceAll(".", "-")}-v${view.version}.title`;
+      const selected = locale ? reader.pack(locale) : null;
+      const message = selected?.messages[key] ?? reader.pack(reader.default)?.messages[key];
+      if (typeof message === "string" && localeMessageArguments(message).length === 0) titles.set(view, message);
+    }
+    if (view.action.description_text !== undefined) {
+      descriptions.set(view, resolveManifestText(owner, view.action.description, view.action.description_text, resolve));
+    }
+    if (view.provider.title_text !== undefined) {
+      const ref = view.provider.title_text;
+      const name = "literal" in ref ? ref.literal : resolve?.(ref, view.provider.title) ?? view.provider.title;
+      providers.set(view, name);
+    }
   }
-  return titles;
+  return { titles, descriptions, providers };
 }
 
 /** Home event actions that name this capability as one of their declared offers. */
@@ -64,7 +124,9 @@ export async function capabilitiesView(options: {
     // Where it is used comes from the owners of saved references, through the same query MCP and Agents use.
     const reported = selected ? await client.invoke(caller, actionUsageActions.read, { action: { capability_id: selected.capability_id, version: selected.version, provider_id: selected.provider.provider_id } })
       .catch((error: unknown) => ({ usages: [], issues: [error instanceof Error ? error.message : "暂时无法读取使用位置"] })) as ActionUsagesResult : undefined;
-    return { ...model, actions, selected, library_titles: libraryTitles(actions),
+    const projectReaders = await projectActionLocaleReaders(host, reference);
+    const words = resolveActionLibraryWords(actions, { host, projectReaders });
+    return { ...model, actions, selected, library_titles: words.titles, library_descriptions: words.descriptions, library_providers: words.providers,
       ...(selectedId && !selected ? { selection_error: "引用的能力或版本已不可访问，请检查插件状态、权限或重新选择。" } : {}),
       ...(selected ? { offered_in: offeredIn(actions, selected), reported_usages: reported!.usages, usage_issues: reported!.issues } : {}),
       ...(selected?.action.kind === "judgment" ? {

@@ -11,6 +11,7 @@ import { feedReconcileJob } from "./runtime-reconcile.js";
 import { feedWakeJob } from "./runtime-wake.js";
 import { FEED_PERMISSIONS } from "./permissions.js";
 import { FEED_ACTIONS, GOAL_CONTRACT, WAKE } from "./runtime-actions.js";
+import { localizeManifestActions } from "./manifest-action-text.js";
 import { FEED_STAGE_INBOX_READ, feedQueryActions } from "./query-actions.js";
 import { feedRuntimeCaptureScene } from "./scenes.js";
 import { feedDemoSeedAction } from "./demo-seed.js";
@@ -38,7 +39,7 @@ export const feedManifest: PluginManifest = {
   // A Goal's material is read after the Goal itself has been read, as the caller (`feed.goals.context`).
   capabilities: { provides: [], consumes: ["functions.authoring.create", "functions.authoring.list", "functions.authoring.get", "functions.authoring.update", "functions.authoring.preview", "functions.authoring.publish", GOAL_CONTRACT.capability_id, FEED_STAGE_INBOX_READ.capability_id] },
   presentation: feedPresentation,
-  actions: FEED_ACTIONS,
+  actions: localizeManifestActions(FEED_ACTIONS),
   demo_seed: { capability_id: feedDemoSeedAction.capability_id, version: feedDemoSeedAction.version },
   artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息", title_text: { key: "feed.artifacts.type-title" }, searchable_fields: ["source_label", "tags"],
     preview: { capability_id: "feed.artifacts.preview", version: /* @version action.feed.artifacts.preview */ 1 } }], consumes: [] },
@@ -81,7 +82,7 @@ export const feedManifest: PluginManifest = {
   // The Home says when a connection changed (never which account); the kept job then looks at each account source again.
   events: { publishes: [], subscribes: [{ event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: /* @version event.host.connection.changed */ 1 }] },
   background: { jobs: [feedWakeJob, feedReconcileJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

@@ -6,10 +6,16 @@ import { bindSettingsHandlers, defineSettingsActions } from "@molis-ai/molis-wor
 import { shelfErrors, type ShelfStore } from "../index.js";
 import type { ShelfPreferenceKey, ShelfDeviceSettings } from "../contract.js";
 
-export const shelfPreferences = defineSettingsActions({ scope: "home",
+const rawShelfPreferences = defineSettingsActions({ scope: "home",
   read: { capability_id: "shelf.preferences.read", version: /* @version action.shelf.preferences.read */ 1, title: "查看置物架本机偏好", description: "读取此设备上的置物架设置及来源", permissions: ["shelf:read"] },
   write: { capability_id: "shelf.preferences.write", version: /* @version action.shelf.preferences.write */ 1, title: "更改置物架本机偏好", description: "在本机应用或恢复一项设置", permissions: ["shelf:read", "shelf:write"] },
 });
+export const shelfPreferences = {
+  read: { ...rawShelfPreferences.read, action: { ...rawShelfPreferences.read.action,
+    title_text: { key: "shelf.action.preferences-read.title" }, description_text: { key: "shelf.action.preferences-read.description" } } },
+  write: { ...rawShelfPreferences.write, action: { ...rawShelfPreferences.write.action,
+    title_text: { key: "shelf.action.preferences-write.title" }, description_text: { key: "shelf.action.preferences-write.description" } } },
+};
 
 const bool: SandboxSchema = { type: "boolean" }, text: SandboxSchema = { type: "string", minLength: 1 };
 const object = (properties: Record<string, SandboxSchema>, required = Object.keys(properties)): SandboxSchema => ({ type: "object", properties, required, additionalProperties: false });

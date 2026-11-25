@@ -8,6 +8,7 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { withRecordedCallId } from "./call-id-response.js";
 import { hostLog } from "./host-log.js";
 import { hostErrors } from "./host-errors.js";
+import { localizeActionErrorResponse, localizeWebErrorBody, readErrorWord } from "./ui-error-words.js";
 import { activeLocale } from "./web-locale.js";
 
 /**
@@ -27,7 +28,7 @@ export function requestHeader(request: Pick<IncomingMessage, "headers">, name: s
   return undefined;
 }
 
-export function sendLocalWebJson(response: ServerResponse, status: number, value: unknown): void {
+export function sendLocalGatewayJson(response: ServerResponse, status: number, value: unknown): void {
   const answer = withRecordedCallId(status, value);
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -37,13 +38,18 @@ export function sendLocalWebJson(response: ServerResponse, status: number, value
   response.end(JSON.stringify(answer.body));
 }
 
+export function sendLocalWebJson(response: ServerResponse, status: number, value: unknown): void {
+  const sanitized = status >= 400 ? localizeWebErrorBody(status, value) : value;
+  sendLocalGatewayJson(response, status, sanitized);
+}
+
 /**
  * A refusal answers by its kind and with its code (SDK `actionErrorResponse`), the same as every other exit. Anything that is not
  * an ActionError is not a refusal: it goes on to the Host's unhandled answer (`sendUnhandledWebError`), logged, without its message.
  */
 export function respondLocalWebRefusal(exit: { respond(status: number, body: unknown): void }, error: unknown): void {
   if (!(error instanceof ActionError)) throw error;
-  const answer = actionErrorResponse(error);
+  const answer = localizeActionErrorResponse(error);
   exit.respond(answer.status, answer.body);
 }
 
@@ -52,7 +58,7 @@ export function decodeLocalWebPathPart(part: string): string {
   try {
     return decodeURIComponent(part);
   } catch {
-    throw hostErrors.request_path_invalid("请求路径里有无效的编码");
+    throw hostErrors.request_path_invalid(readErrorWord("common.error.invalid"));
   }
 }
 
@@ -66,8 +72,9 @@ export function sendUnhandledWebError(response: ServerResponse, error: unknown, 
     response.destroy();
     return;
   }
-  const failed = error instanceof ActionError ? error : new ActionError("actions.execution_failed", uiText.text("workbench.http.request-could-not-be-completed-please-try-again"));
-  const answer = actionErrorResponse(failed);
+  const fallback = activeLocale() ? uiText.text("workbench.http.request-could-not-be-completed-please-try-again") : readErrorWord("common.error.internal");
+  const failed = error instanceof ActionError ? error : new ActionError("actions.execution_failed", fallback);
+  const answer = localizeActionErrorResponse(failed);
   if (answer.status === 503 && unavailablePage) {
     const html = unavailablePage.render();
     response.writeHead(answer.status, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": unavailablePage.csp });

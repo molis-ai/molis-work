@@ -9,9 +9,11 @@
     "asana.connection.token-label": "Asana Personal Access Token",
     "asana.guide.mcp-connected-note": "Asana MCP 的授权与普通 REST API 授权分开。",
     "asana.guide.mcp-link": "查看 Asana 官方 MCP",
-    "asana.guide.mcp-note": "Asana MCP 的授权与普通 REST API 授权分开；Molis Work 尚未接入。",
+    "asana.guide.mcp-note": "Asana MCP 的授权与普通 REST API 授权分开；Molis Work 暂未接入。",
     "asana.guide.oauth-link": "查看 Asana OAuth 应用",
     "asana.oauth.note": "在应用中启用所需的用户、工作区和任务读取权限。",
-    "asana.setup.create-asana-personal-access-token": "创建 Asana Personal Access Token"
+    "asana.setup.create-asana-personal-access-token": "创建 Asana Personal Access Token",
+    "asana.permission.network.reason": "读取 Asana 账号信息与最新动态",
+    "asana.permission.secret.reason": "使用已安全保存的 Asana 连接凭据"
   }
 }

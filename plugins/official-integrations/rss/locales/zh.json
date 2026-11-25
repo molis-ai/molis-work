@@ -1,0 +1,10 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.rss",
+  "locale": "zh",
+  "messages": {
+    "rss.directory.name": "RSS",
+    "rss.directory.summary": "读取你订阅的公开 RSS 与 Atom 源更新。",
+    "rss.permission.network.reason": "读取你选择的公开 RSS 订阅地址"
+  }
+}

@@ -93,6 +93,7 @@ export const PPT_STYLES = `
   /* A slide is drawn on a fixed 16:9 canvas with the type scale and scaled whole to the screen, like a picture. */
   .ppt-present-slide { box-sizing: border-box; flex: none; width: 960px; height: 540px; padding: 48px 64px; border-left: 10px solid var(--ppt-accent, var(--accent));
     transform: scale(var(--present-scale, 1)); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif; overflow: hidden; }
+  :lang(ja) .ppt-present-slide { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", "Meiryo", "Noto Sans JP", sans-serif; }
   .ppt-present-slide h2 { margin: 0 0 24px; font-size: 30px; font-weight: 700; line-height: 1.2; }
   .ppt-present-slide ul { margin: 0; padding-left: 1.2em; font-size: 20px; line-height: 1.6; }
   .ppt-present-slide p { margin: 0; font-size: 20px; }

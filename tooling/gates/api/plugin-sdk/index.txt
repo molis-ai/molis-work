@@ -328,8 +328,6 @@ export interface PageRouteMatch {
     };
 }
 
-export type PartitionDeclarationFields = Pick<PluginManifest, "plugin_id"> & Partial<Pick<PluginManifest, "databases" | "overview_projection" | "market" | "dependencies" | "person_settings" | "actions" | "push">>;
-
 export type { PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PersonMaterial } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PlacementRelationCandidates } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -483,6 +481,7 @@ export interface SandboxIntegrationManifestInput {
     source_presentations?: NonNullable<PluginManifest['source_presentations']>;
     contract?: SandboxPluginContract;
     textDeclarations?: Pick<PluginManifest, 'name_text' | 'summary' | 'summary_text'>;
+    permissionReasons?: Readonly<Record<string, TextRef>>;
 }
 
 export interface SandboxManifestInput {
@@ -505,6 +504,7 @@ export interface SandboxManifestInput {
     };
     textDeclarations?: Pick<SandboxPackageManifest, 'plugin_id' | 'agent' | 'methods' | 'name_text' | 'summary' | 'summary_text'>;
     stageTitleText?: TextRef;
+    permissionReasons?: Readonly<Record<string, TextRef>>;
     homeDatabase?: Pick<HomePluginDatabaseDeclaration, 'version' | 'schema' | 'upgrades'>;
     projectDatabase?: Pick<PluginDatabaseDeclaration, 'version' | 'schema' | 'upgrades'>;
     connections?: PluginManifest['connections'];
@@ -694,7 +694,7 @@ export declare function actionCardView(card: ActionCard & {
     readonly run_id?: string | null;
     readonly from?: AssistantCard["from"];
     readonly source_object?: AssistantCard["source_object"];
-}): AssistantCard;
+}, reader?: ActionFieldTextReader): AssistantCard;
 
 export declare function actionErrorBody(error: unknown, options?: ActionErrorBodyOptions): ActionErrorBody;
 
@@ -978,16 +978,6 @@ export declare function objectSchema<const P extends Readonly<Record<string, unk
     additionalProperties: false;
 };
 
-export declare function overviewColumns<K extends OverviewKind>(kind: K, row: OverviewRowByKind[K]): Record<string, PluginSqlValue>;
-
-export declare function overviewEventWindowEnd(now: Date): Date;
-
-export declare function overviewRows(tx: PluginDatabaseTransaction): {
-    upsert<K extends OverviewKind>(kind: K, row: OverviewRowByKind[K]): void;
-    remove(kind: OverviewKind, rowId: string): void;
-    removePrefix(kind: OverviewKind, prefix: string): void;
-};
-
 export declare function pageRouteProblems(manifest: PluginManifest): string[];
 
 export declare function parseConnectionSlots(value: unknown, used: readonly string[]): PluginConnectionsDeclaration | undefined;
@@ -1011,8 +1001,6 @@ export declare function parseSyncAggregates(value: unknown): readonly SyncAggreg
 export declare function parseSyncDocumentValue<T>(value: unknown, spaceId: string, validate: (value: unknown) => T): DocumentState<T>;
 
 export declare function parseSyncTracking(value: unknown): readonly SyncTrackedTable[];
-
-export declare function partitionDeclarationProblems(manifest: PartitionDeclarationFields): string[];
 
 export declare function pollingIntegrationBinding({ manifest, provider, presentAccount, now }: {
     manifest: PluginManifest;
@@ -1103,6 +1091,9 @@ export declare function sandboxIntegrationManifest(input: SandboxIntegrationMani
 export declare function sandboxLocaleProblems(contract: {
     readonly pluginId: string;
     readonly ui?: unknown;
+    readonly operations?: readonly unknown[];
+    readonly permission_reasons?: unknown;
+    readonly read_groups?: unknown;
 }): string[];
 
 export declare function sandboxOperationActions(input: {
@@ -1126,7 +1117,7 @@ export declare const sandboxPackageBuildId: (pluginId: string, signature: string
 
 export declare function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest;
 
-export declare function sandboxProjectedPermissions(manifest: Pick<PluginManifest, 'permissions'>, effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined): PermissionRow[];
+export declare function sandboxProjectedPermissions(manifest: Pick<PluginManifest, 'permissions'>, effects: Partial<Record<keyof SandboxEffects, readonly string[]>> | undefined, permissionReasons?: Readonly<Record<string, TextRef>>): PermissionRow[];
 
 export declare function sandboxPromptId(entryId: string): string;
 

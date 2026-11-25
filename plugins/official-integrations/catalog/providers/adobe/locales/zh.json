@@ -7,9 +7,12 @@
     "adobe.connection.inbound": "API 验证 Adobe IMS 身份",
     "adobe.connection.summary": "创意工具。",
     "adobe.connection.token-label": "Adobe IMS 访问令牌",
+    "adobe.connection.token-placeholder": "api-key|access-token 或 access-token",
     "adobe.guide.oauth-link": "查看 Adobe 用户授权",
     "adobe.guide.token-note": "使用 Adobe IMS 用户访问令牌；多数情况下还需要 Client ID。",
     "adobe.oauth.note": "Adobe Console 中启用 User Authentication；产品 API 权限取决于应用获准范围。",
-    "adobe.setup.open-adobe-developer-console": "打开 Adobe Developer Console"
+    "adobe.setup.open-adobe-developer-console": "打开 Adobe Developer Console",
+    "adobe.permission.network.reason": "读取 Adobe 账号信息与最新动态",
+    "adobe.permission.secret.reason": "使用已安全保存的 Adobe 连接凭据"
   }
 }

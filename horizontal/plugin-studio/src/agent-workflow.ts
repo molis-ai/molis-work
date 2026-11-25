@@ -744,30 +744,46 @@ export class AgentBuilderWorkflow {
   async close() { this.closed = true; for (const abort of this.drawing) abort.abort(); for (const job of this.jobs.values()) job.abort.abort(failStudioBuild('build-interrupted', '', { guidance: 'build-continue-after-restart' })); await Promise.all([...this.jobs.values()].map(job => job.done)); await Promise.all(this.store.list().map(build => this.resetPreview(build.id))); this.listeners.clear(); }
 }
 
-const MOCKUP_INTENT_LABELS: Readonly<Record<string, readonly [zh: string, en: string]>> = {
-  heading: ['标题栏', 'heading bar'],
-  description: ['说明或数字', 'summary or metrics'],
-  input: ['表单', 'input form'],
-  action: ['按钮', 'action button'],
-  collection: ['列表', 'item list'],
-  reading: ['分节文字', 'sectioned text'],
-  schedule: ['按日期的列表', 'dated list'],
-  conversation: ['对话', 'conversation'],
-  evidence: ['表格', 'data table'],
-  feedback: ['提示', 'status notice'],
+type MockupLocale = 'zh' | 'en' | 'ja';
+
+const MOCKUP_INTENT_LABELS: Readonly<Record<string, Readonly<Record<MockupLocale, string>>>> = {
+  heading: { zh: '标题栏', en: 'heading bar', ja: 'タイトルバー' },
+  description: { zh: '说明或数字', en: 'summary or metrics', ja: '説明または指標' },
+  input: { zh: '表单', en: 'input form', ja: '入力フォーム' },
+  action: { zh: '按钮', en: 'action button', ja: '操作ボタン' },
+  collection: { zh: '列表', en: 'item list', ja: '一覧' },
+  reading: { zh: '分节文字', en: 'sectioned text', ja: 'セクション文章' },
+  schedule: { zh: '按日期的列表', en: 'dated list', ja: '日付順一覧' },
+  conversation: { zh: '对话', en: 'conversation', ja: '会話' },
+  evidence: { zh: '表格', en: 'data table', ja: 'データ表' },
+  feedback: { zh: '提示', en: 'status notice', ja: '通知' },
 };
+
+const MOCKUP_COPY: Readonly<Record<MockupLocale, {
+  part: (purpose: string, label: string) => string;
+  plugin: (title: string, description: string) => string;
+  page: string;
+  journey: string;
+}>> = {
+  zh: { part: (p, l) => `- ${p}（${l}）`, plugin: (t, d) => `插件：${t}。${d}`, page: '页面从上到下：', journey: '使用路径：' },
+  en: { part: (p, l) => `- ${p} (${l})`, plugin: (t, d) => `Plugin: ${t}. ${d}`, page: 'Page from top to bottom:', journey: 'User journey: ' },
+  ja: { part: (p, l) => `- ${p}（${l}）`, plugin: (t, d) => `プラグイン：${t}。${d}`, page: '画面の上から下へ：', journey: '操作の流れ：' },
+};
+
+function mockupLocaleOf(locale?: string): MockupLocale {
+  const base = locale?.trim().toLowerCase().split(/[-_]/u)[0];
+  if (!base || base === 'zh') return 'zh';
+  return base === 'ja' ? 'ja' : 'en';
+}
 
 /** What the image service is asked to draw for a proposal: registered mockup style instructions plus the proposal details. */
 export function mockupPrompt(proposal: AgentProposal, instructions?: string, locale?: string): string {
-  const english = locale?.toLowerCase().startsWith('en') ?? false;
-  const parts = proposal.preview.parts.map(part => {
-    const label = MOCKUP_INTENT_LABELS[part.intent]?.[english ? 1 : 0] ?? part.intent;
-    return english ? `- ${part.purpose} (${label})` : `- ${part.purpose}（${label}）`;
-  }).join('\n');
-  const details = english
-    ? [`Plugin: ${proposal.title}. ${proposal.description}`, `Page from top to bottom:\n${parts}`, `User journey: ${proposal.journey.join(' → ')}`].join('\n')
-    : [`插件：${proposal.title}。${proposal.description}`, `页面从上到下：\n${parts}`, `使用路径：${proposal.journey.join(' → ')}`].join('\n');
-  return composeInstructedPrompt(instructions ?? agentBodyIn(BUILDER_MOCKUP, english ? 'en' : undefined), details);
+  const lang = mockupLocaleOf(locale);
+  const copy = MOCKUP_COPY[lang];
+  const parts = proposal.preview.parts.map(part => copy.part(part.purpose, MOCKUP_INTENT_LABELS[part.intent]?.[lang] ?? part.intent)).join('\n');
+  const details = [copy.plugin(proposal.title, proposal.description), `${copy.page}\n${parts}`, `${copy.journey}${proposal.journey.join(' → ')}`].join('\n');
+  const body = instructions ?? (lang === 'zh' ? agentBodyIn(BUILDER_MOCKUP) : agentBodyIn(BUILDER_MOCKUP, lang === 'ja' && BUILDER_MOCKUP.body_by_locale?.ja ? 'ja' : 'en'));
+  return composeInstructedPrompt(body, details);
 }
 /** Network failures between the host and the model service, worth one more request. */
 const TRANSIENT = /fetch failed|^terminated$|other side closed|ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|ENOTFOUND|getaddrinfo|could not be resolved|socket hang up|network (?:error|timeout)|UND_ERR/i;

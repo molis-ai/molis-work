@@ -87,3 +87,29 @@ export const renderQuestions = (page: FormPage, questions: readonly FormQuestion
   page.questionsEl.replaceChildren();
   (questions || []).forEach((question) => page.questionsEl.append(renderQuestion(page, question)));
 };
+
+const TYPE_KEYS: Readonly<Record<string, string>> = {
+  text: "form.type.text",
+  singleChoice: "form.type.single",
+  multiChoice: "form.type.multi",
+  dropdown: "form.type.dropdown",
+  rating: "form.type.rating",
+  date: "form.type.date",
+};
+
+export const retitleQuestions = (page: FormPage) => {
+  page.questionsEl.querySelectorAll<HTMLElement>("[data-form-question]").forEach((row) => {
+    const title = row.querySelector<HTMLInputElement>("[data-question-title]");
+    if (title) title.placeholder = uiText.text("form.question.title-placeholder");
+    row.querySelectorAll<HTMLOptionElement>("[data-question-type] option").forEach((opt) => {
+      if (Object.hasOwn(TYPE_KEYS, opt.value)) opt.textContent = uiText.text(TYPE_KEYS[opt.value]!);
+    });
+    const req = row.querySelector<HTMLElement>("[data-question-required] + span");
+    if (req) req.textContent = uiText.text("form.question.required");
+    row.querySelector('[data-question-move="-1"]')?.setAttribute("aria-label", uiText.text("form.question.up"));
+    row.querySelector('[data-question-move="1"]')?.setAttribute("aria-label", uiText.text("form.question.down"));
+    row.querySelector("[data-question-remove]")?.setAttribute("aria-label", uiText.text("form.question.remove"));
+    const addOpt = row.querySelector<HTMLElement>("[data-option-add]");
+    if (addOpt) addOpt.textContent = uiText.text("form.option.add");
+  });
+};

@@ -168,6 +168,7 @@ export function installDocument(page: ShelfPage): void {
 export function installPageEvents(page: ShelfPage): void {
   const { lifetime, bench } = page;
   lifetime.listen(document, "molis-work:language-changed", () => {
+    renderBar(page, page.lastBarKind);
     if (page.stage.classList.contains("is-confirm")) fillConfirm(page);
     if (page.stage.classList.contains("is-run")) retitleRun(page);
   });

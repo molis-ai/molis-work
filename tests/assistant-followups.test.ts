@@ -104,7 +104,7 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
       const skipped = await until(() => service.followUps.list(sent.work.work_id).find(item => item.followup_id === soon.followup_id && item.last), "skipped");
       const last = skipped.last!;
       assert.deepEqual([last.outcome, last.detail, skipped.enabled], ["skipped", { owner: "workbench", key: "workbench.assistant-followup.busy" }, false]);
-      assert.equal(savedText(last.detail, "zh"), "上一轮尚未结束，本轮未启动");
+      assert.equal(savedText(last.detail, "zh"), "上一轮还没结束，这一轮未启动");
       assert.equal(savedText(last.detail, "en"), "The previous turn was still running, so this turn did not start.");
     } finally {
       t.signal.removeEventListener("abort", releaseRound);

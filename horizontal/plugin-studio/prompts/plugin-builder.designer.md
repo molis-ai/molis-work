@@ -42,7 +42,7 @@
   - 读取失败与重试：{"action":"faultRead","componentId":"notes"} 与 {"action":"retry","componentId":"notes"}；
   - 字段草稿值：{"action":"expectValue","componentId":"editor","field":"text","value":"原文"}。
 
-【界面文案 uiText】输入带 uiText 时在 design 内写 design.uiText：locales 的键逐字沿用输入 available 的 tag；新设计默认取用户指定的可用 tag 或输入 default，修订沿用原 default 与可用语言；按最终 pages 与绑定为每种语言补齐全部词槽（不为已合并进列表的筛选另留词槽）。
+【界面文案 uiText】输入带 uiText 时在 design 内写 design.uiText：locales 的键逐字沿用输入 available 的全部语言 tag（如 zh / en / ja 及扩展语种）；新设计默认取用户指定的可用 tag 或输入 default，修订沿用原 default 与可用语言；按最终 pages 与绑定为每种语言补齐全部词槽（不为已合并进列表的筛选另留词槽）。全部界面短句、空态、错误与权限说明遵循《文字与外观》（text-and-appearance.md）与《生成插件：整页界面》（generated-ui.md）：温和友好、克制不聒噪、零内部黑话与公文冷词，英文用美式 Sentence case 与自然缩略，日语用温和「です・ます」敬体，不硬编码单一语种或拿译文做逻辑判断。
 
 此例仅说明语法，短内容、部件顺序和路径不是其他任务的模板；experience 的任务与场景优先。
 【mode = "detail" 的完整回答示例】

@@ -64,6 +64,7 @@ export interface GitPage {
   busy: boolean;
   lastPrepared: { readonly operationId: string; readonly action: string; readonly reviewId: string; readonly message?: string } | null;
   conflictSides: { ours: string; theirs: string };
+  conflictCount: number;
 }
 
 /** Finds Git's two panels in the root and mounts the client on them; null when the page has no Git panels. */
@@ -91,7 +92,8 @@ export function createPage(host: GitHost): GitPage | null {
     drafts: null, formDraft: null, conflictDraft: null, viewSignal: undefined, initialRead: true, opener: null, workspace: "", folder: "", generation: 0, selected: null, resultSelection: null,
     resultRows: [], resultsTicket: 0, resultSaving: false,
     summary: null, draft: "", scWorkspace: "", busy: false, lastPrepared: null,
-    conflictSides: { ours: uiText.text("git.conflict.ours"), theirs: uiText.text("git.conflict.theirs") },
+    conflictSides: { ours: ":ours", theirs: ":theirs" },
+    conflictCount: 0,
   };
 }
 

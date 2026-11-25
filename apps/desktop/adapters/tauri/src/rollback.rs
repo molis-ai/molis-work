@@ -1,3 +1,4 @@
+use crate::native_language::tr;
 use crate::web_service::{
     desktop_owns_web_service, ensure_molis_work_web, molis_work_home, stop_owned_web_service,
     WebServiceState,
@@ -20,7 +21,11 @@ pub(crate) fn rollback_source(label: &str, url: Option<&tauri::Url>) -> bool {
 fn saved_copy_directory(user_home: &Path, now: u64) -> PathBuf {
     user_home
         .join("Documents")
-        .join("Molis Work 回退前的数据")
+        .join(tr(
+            "Molis Work 回退前的数据",
+            "Molis Work Pre-Rollback Backup",
+            "Molis Work ロールバック前のデータ",
+        ))
         .join(now.to_string())
 }
 
@@ -31,16 +36,28 @@ fn run_cli(cli: &Path, args: &[&str], home: &Path) -> Result<String, String> {
         .arg(home)
         .stdin(Stdio::null())
         .output()
-        .map_err(|error| format!("无法运行 Molis Work 命令：{error}"))?;
+        .map_err(|error| {
+            eprintln!("rollback CLI spawn error: {error}");
+            tr(
+                "没能启动版本回退工具，当前数据都保留着。请稍后再试。",
+                "Couldn’t start the rollback tool. Your current data is safe — try again in a moment.",
+                "ロールバックツールを起動できませんでした。現在のデータはそのまま残っていますので、もう一度お試しください。",
+            )
+            .to_string()
+        })?;
     if output.status.success() {
         return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
     }
     let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    Err(if detail.is_empty() {
-        "没有回到上一版。".to_string()
-    } else {
-        detail
-    })
+    if !detail.is_empty() {
+        eprintln!("rollback CLI stderr: {detail}");
+    }
+    Err(tr(
+        "没能回到上一版，当前数据都保留着。",
+        "Couldn’t switch back to the previous version. Your current data is safe.",
+        "前のバージョンに戻せませんでした。現在のデータはそのまま残っています。",
+    )
+    .to_string())
 }
 
 static GOING_BACK: AtomicBool = AtomicBool::new(false);
@@ -71,7 +88,12 @@ fn go_back(app: &tauri::AppHandle, save_current: bool) -> Result<String, String>
     let home = molis_work_home();
     let cli = home.join("bin").join("molis-work");
     if !cli.is_file() {
-        return Err("这台电脑上的 Molis Work 安装不完整，没有回到上一版。".into());
+        return Err(tr(
+            "这台电脑上的 Molis Work 安装不完整，没能回到上一版。当前数据都保留着。",
+            "The Molis Work installation on this computer is incomplete, so it couldn’t roll back. Your current data is safe.",
+            "このコンピューターの Molis Work のインストールが不完全なため、前のバージョンに戻せませんでした。現在のデータはそのまま残っています。",
+        )
+        .into());
     }
     let mut args = vec!["home", "rollback", "--confirm", "--json"];
     let saved = save_current.then(|| {
@@ -88,8 +110,15 @@ fn go_back(app: &tauri::AppHandle, save_current: bool) -> Result<String, String>
     // Before anything stops: a place that cannot be made leaves the Host as it was.
     if let (Some(path), Some(text)) = (saved.as_ref(), saved_text.as_ref()) {
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|error| format!("没有地方另存现在的数据：{error}"))?;
+            std::fs::create_dir_all(parent).map_err(|error| {
+                eprintln!("rollback backup dir create error: {error}");
+                tr(
+                    "没能创建备份目录，当前数据和版本都没有改动。",
+                    "Couldn’t create a backup folder. Your data and current version weren’t changed.",
+                    "バックアップ先フォルダーを作成できませんでした。データもバージョンも変更されていません。",
+                )
+                .to_string()
+            })?;
         }
         args.extend(["--save-current", text.as_str()]);
     }
@@ -110,7 +139,15 @@ fn go_back(app: &tauri::AppHandle, save_current: bool) -> Result<String, String>
         run_cli(&cli, &["service", "start", "--confirm"], &home).map(|_| ())
     };
     let output = result?;
-    restarted.map_err(|error| format!("已经回到上一版，但本机服务没有起来：{error}"))?;
+    restarted.map_err(|error| {
+        eprintln!("rollback service restart error: {error}");
+        tr(
+            "已经回到上一版，但本地服务没能自动启动。重新打开 Molis Work 即可继续。",
+            "Switched back to the previous version, but the local service didn’t restart automatically. Reopen Molis Work to continue.",
+            "前のバージョンに戻しましたが、ローカルサービスを自動で再起動できませんでした。Molis Work を開き直してください。",
+        )
+        .to_string()
+    })?;
     Ok(output)
 }
 
@@ -121,11 +158,24 @@ pub(crate) async fn rollback_to_previous(
     save_current: bool,
 ) -> Result<String, String> {
     if !rollback_source(window.label(), window.url().ok().as_ref()) {
-        return Err("回到上一版只能从主窗口发起".into());
+        return Err(tr(
+            "回到上一版只能从主窗口发起。",
+            "Rolling back can only be started from the main window.",
+            "前のバージョンへの復元はメインウィンドウからのみ実行できます。",
+        )
+        .into());
     }
     tauri::async_runtime::spawn_blocking(move || go_back(&app, save_current))
         .await
-        .map_err(|error| error.to_string())?
+        .map_err(|error| {
+            eprintln!("rollback_to_previous join error: {error}");
+            tr(
+                "回退任务中断了，请重新打开应用确认当前状态。",
+                "Rollback was interrupted. Reopen the app to check the current state.",
+                "ロールバック処理が中断されました。アプリを開き直して状態を確認してください。",
+            )
+            .to_string()
+        })?
 }
 
 #[cfg(test)]

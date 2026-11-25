@@ -134,7 +134,10 @@ test("RAC-1667 a drafting request is counted in Unicode characters like the acti
   assert.equal(done.status, "done", "a 500-character request is drafted");
   assert.equal(done.form.questions.length, 3);
   assert.equal(f.heard.length, 1);
-  assert.equal(JSON.parse(JSON.parse(f.heard[0]!).data).request, wide(500), "the request goes to the model whole");
+  const heardData = String(JSON.parse(f.heard[0]!).data);
+  const fenced = heardData.match(/BEGIN_FORM_[0-9a-f]+\n(.+)\nEND_FORM_[0-9a-f]+$/u);
+  assert.ok(fenced, "form drafting wraps user request and answers in fencedMaterials");
+  assert.equal(JSON.parse(fenced[1]!).request, wide(500), "the request goes to the model whole");
   await assert.rejects(f.call({ prompt: wide(501) }), { code: "form.invalid", message: "生成要求须为 1 到 500 个字" }, "501 characters is still past the limit");
   assert.equal(f.heard.length, 1, "the refused request did not reach the model");
   assert.equal(f.forms.get(f.form.id, "p").questions.length, 3, "and wrote nothing");

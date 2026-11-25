@@ -1,5 +1,6 @@
-import { loadGoals, closeCreate, closeMore, closeMove } from "./menus.js";
+import { loadGoals, closeCreate, closeMore, closeMove, fillGoalSelect } from "./menus.js";
 import { bindClick } from "./click.js";
+import { syncEditorChrome } from "./context.js";
 import { enqueueSave, draftOf, fillEditor, remember } from "./editor.js";
 import { loadList, movePage, queueSave } from "./document.js";
 import { bindListKeyboard, listFailed, renderList } from "./list.js";
@@ -10,6 +11,12 @@ import { stop } from "./dom.js";
 import type { DocumentAnswer } from "./types.js";
 
 const uiText = globalThis.t;
+
+const STATUS_KEYS: Readonly<Record<string, string>> = {
+  saved: "pages.status.saved",
+  saving: "pages.status.saving",
+  failed: "pages.error.save",
+};
 
 // Back in this window: the open document may have changed elsewhere (another window, the Assistant in another tab).
 // Only it is read again; the change shows at once when nothing of the person's own waits, and otherwise they are told.
@@ -27,6 +34,16 @@ async function recheckOpen(page: PagesPage) {
 function bindWindow(page: PagesPage) {
   window.addEventListener?.("focus", () => { void recheckOpen(page).catch(() => {}); });
   document.addEventListener?.("visibilitychange", () => { void recheckOpen(page).catch(() => {}); });
+  const languageAbort = new AbortController();
+  window.addEventListener?.("pagehide", () => languageAbort.abort(), { once: true });
+  document.addEventListener?.("molis-work:language-changed", () => {
+    renderList(page);
+    fillGoalSelect(page);
+    syncEditorChrome(page);
+    const state = page.statusEl.dataset.mwState;
+    if (state && Object.hasOwn(STATUS_KEYS, state)) page.statusEl.textContent = uiText.text(STATUS_KEYS[state]!);
+    if (page.sel && !page.titleInput.value) page.titleEl.textContent = uiText.text("pages.doc.name");
+  }, { signal: languageAbort.signal });
   // The Assistant changed a Pages document: show the saved version, unless the person has edits of their own in flight.
   window.addEventListener?.("molis:assistant-effect", (event) => {
     const capability = (event as CustomEvent<{ capability_id?: unknown } | undefined>).detail?.capability_id;

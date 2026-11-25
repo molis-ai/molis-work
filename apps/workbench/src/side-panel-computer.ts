@@ -80,7 +80,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
   const ctx=canvas.getContext('2d');
   const projectId=document.body.dataset.projectId||'';
   const routePrefix=document.body.dataset.routePrefix||(projectId?'/projects/'+encodeURIComponent(projectId):'');
-  let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,lastMode='idle',lastWork=null,reviewTimer=null,reviewing=null,reviewMode=null,reviewVersion=null;
+  let socket=null,ready=false,state=null,shown=false,panelOpen=false,retry=0,retryTimer=null,pending=null,drawing=false,lastMode='idle',lastWork=null,reviewTimer=null,reviewing=null,reviewMode=null,reviewVersion=null,reviewRow=null;
   const say=(text)=>{if(live)live.textContent=text||'';};
   const sayError=(error)=>{if(live)molisWorkRequest.show(live,error);};
   const sendRaw=(message)=>{if(socket&&socket.readyState===1&&ready)socket.send(JSON.stringify(message));};
@@ -157,6 +157,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     lastMode=mode;lastWork=work;
     if(!reviewTimer&&(mode!=='idle'))void pollReviews();
   };
+  const isAppField=(field)=>Boolean(field&&field.key==='app');
   const pollReviews=async()=>{
     clearTimeout(reviewTimer);reviewTimer=null;
     let rows=[];
@@ -164,12 +165,13 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       // Only the round holding the computer, so another project's round never shows its card here.
       const holder=state?.control?.work_id;
       const result=await molisWorkRequest(routePrefix+'/api/agent/reviews?status=pending'+(holder?'&run_session_id='+encodeURIComponent(holder):''));
-      rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(f=>f.label==='应用')&&(!row.receipt||row.receipt.status==='pending'));
+      rows=(result.reviews||[]).filter(row=>row.request?.document?.tool==='surface-act'&&(row.request.document.fields||[]).some(isAppField)&&(!row.receipt||row.receipt.status==='pending'));
     }catch{/* a failed poll is retried on the next tick below */}
     renderApproval(rows[0]||null);
     if(rows.length||(state?.control?.mode&&state.control.mode!=='idle'))reviewTimer=setTimeout(pollReviews,1500);
   };
   const renderApproval=(row)=>{
+    reviewRow=row;
     const focused=approval.contains(document.activeElement)?document.activeElement:null;
     if(!row){if(focused){const tab=document.querySelector('[data-side-tab=computer][aria-selected=true]');(tab?.getClientRects().length?tab:document.querySelector('[data-side-ear=computer]'))?.focus({preventScroll:true});}approval.hidden=true;approval.innerHTML='';reviewing=null;reviewMode=null;return;}
     const held=state?.control?.mode==='taken-over'||state?.control?.mode==='paused';
@@ -214,7 +216,9 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       const outcome=record.outcome==='completed'?globalThis.t.text("common.control.done"):record.outcome==='failed'?globalThis.t.text("workbench.side-panel-computer.failed"):record.outcome==='stopped'?globalThis.t.text("workbench.side-panel-computer.stopped"):globalThis.t.text("workbench.side-panel-computer.progress");
       const lines=[record.goal?globalThis.t.text("workbench.side-panel-computer.goal-goal",{goal:record.goal}):'',globalThis.t.text("workbench.side-panel-computer.result-outcome",{outcome}),record.conclusion?record.conclusion:'',
         '',globalThis.t.text("workbench.side-panel-computer.steps-n",{n:record.steps.length}),...record.steps.slice(-40).map(step=>'- '+(step.app?('『'+step.app.name+'』'):'')+step.summary)].filter(Boolean);
-      const title=(record.goal?record.goal.slice(0,40):globalThis.t.text("workbench.side-panel-computer.computer-operation"))+globalThis.t.text("common.punctuation.in-parens", { value: new Date(record.started_at).toLocaleString() });
+      const startedAt=new Date(record.started_at);
+      const startedText=Number.isNaN(startedAt.getTime())?String(record.started_at):(globalThis.format&&typeof globalThis.format.date==='function'?globalThis.format.date(startedAt.toISOString(),'datetime'):startedAt.toISOString().slice(0,16).replace('T',' '));
+      const title=(record.goal?record.goal.slice(0,40):globalThis.t.text("workbench.side-panel-computer.computer-operation"))+globalThis.t.text("common.punctuation.in-parens", { value: startedText });
       await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id)+'/receive',{body:{title,text:lines.join('\n')},fallback:globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf")});
       env.say(globalThis.t.text("workbench.side-panel-computer.added-shelf"));
     }catch(error){env.sayError(error,globalThis.t.text("workbench.side-panel-computer.could-not-add-shelf"));}
@@ -234,5 +238,9 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     const now=event.detail?.tab==='computer'&&panelOpen;
     if(now&&!shown){shown=true;connect();}else shown=now&&shown;
     sendRaw({type:'visible',visible:visible()});
+  });
+  document.addEventListener('molis-work:language-changed',()=>{
+    if(state)render();
+    if(reviewRow){reviewMode=null;renderApproval(reviewRow);}
   });
 })();`;

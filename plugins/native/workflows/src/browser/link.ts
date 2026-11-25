@@ -1,5 +1,5 @@
 import type { WorkflowLink, WorkflowLinkKind } from "../model.js";
-import { ruleKey } from "./chain.js";
+import { DEFAULT_BODY_TOKEN, ruleKey } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ico, kindHelp, kindName, required, settle } from "./dom.js";
 import type { WorkflowsPage } from "./page.js";
@@ -10,8 +10,15 @@ import type { Ready } from "./types.js";
 
 const uiText = globalThis.t;
 
-/** The words a function link's rule can take from the content handed over. */
-const TOKENS = ["标题", "正文", "来源", "链接", "日期"];
+/** The words a function link's rule can take from the content handed over (internal syntax -> display label key). */
+const TOKENS = ["标题", "正文", "来源", "链接", "日期"] as const;
+const TOKEN_LABEL_KEYS: Record<(typeof TOKENS)[number], string> = {
+  "标题": "workflows.field.title",
+  "正文": "workflows.field.body",
+  "来源": "workflows.field.source",
+  "链接": "workflows.field.link",
+  "日期": "workflows.field.date",
+};
 /** Outcome-first order (PF-A13): direct pass-through first, then AI organize, explicit user decision, and rule filter. */
 const KINDS: readonly WorkflowLinkKind[] = ["function", "ai", "manual", "judgment"];
 
@@ -23,14 +30,14 @@ const field = (name: string, title: string, value: string, rows: number, placeho
 export function linkView(page: WorkflowsPage, link: WorkflowLink) {
   const { ui } = page;
   if (link.kind === "function") {
-    const customized = Boolean(link.title_template.trim() || (link.body_template.trim() && link.body_template.trim() !== "{正文}"));
+    const customized = Boolean(link.title_template.trim() || (link.body_template.trim() && link.body_template.trim() !== DEFAULT_BODY_TOKEN));
     return `<p class="wf-hint">${esc(uiText.text("workflows.rule.direct-summary"))}</p>`
       + `<details class="mw-collapsible wf-advanced-template" data-slot="collapsible"${customized ? " open" : ""}>`
       + `<summary>${esc(uiText.text("workflows.rule.customize"))}</summary>`
       + `<div class="mw-collapsible__body">`
-      + field("title_template", uiText.text("workflows.rule.title"), link.title_template, 1, "{标题}")
+      + field("title_template", uiText.text("workflows.rule.title"), link.title_template, 1, uiText.text("workflows.rule.title-placeholder", { title: "{标题}" }))
       + field("body_template", uiText.text("workflows.rule.body"), link.body_template, 5, uiText.text("workflows.rule.body-placeholder", { source: "{来源}", link: "{链接}", body: "{正文}" }))
-      + `<p class="wf-tokens"><span>${esc(uiText.text("workflows.rule.insert"))}</span>` + TOKENS.map((name) => `<button type="button" class="wf-token" data-wf-token="{${name}}" title="${esc(uiText.text("workflows.rule.insert-into-body"))}">{${esc(name)}}</button>`).join("") + "</p>"
+      + `<p class="wf-tokens"><span>${esc(uiText.text("workflows.rule.insert"))}</span>` + TOKENS.map((token) => `<button type="button" class="wf-token" data-wf-token="{${token}}" title="${esc(uiText.text("workflows.rule.insert-into-body"))}">${esc(uiText.text(TOKEN_LABEL_KEYS[token]))}</button>`).join("") + "</p>"
       + `<p class="wf-hint">${esc(uiText.text("workflows.rule.title-empty-note"))}</p>`
       + "</div></details>";
   }
@@ -103,7 +110,7 @@ export function switchKind(page: WorkflowsPage, index: number, kind: WorkflowLin
   const chain = chainOf(page);
   const current = chain.links[index]!;
   if (current.kind === kind) return;
-  const nextBody = kind === "function" && !current.body_template.trim() ? "{正文}" : current.body_template;
+  const nextBody = kind === "function" && !current.body_template.trim() ? DEFAULT_BODY_TOKEN : current.body_template;
   chain.links[index] = { ...current, kind, body_template: nextBody };
   saveFlow(page, { chain, undoable: true });
   for (const toggle of pop.querySelectorAll<HTMLElement>("[data-wf-action=kind]")) {

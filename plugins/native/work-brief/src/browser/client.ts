@@ -230,6 +230,7 @@ export function mountWorkBrief(host: WorkBriefHost): void {
     const value = new FormData(form).get("text");
     page.run(() => saveClaim(page, form.dataset.wbValue ?? "+", typeof value === "string" ? value : ""));
   });
+  scope.listen(document, "molis-work:language-changed", () => page.render());
   scope.own(() => { for (const held of placed) held.dispose(); placed = []; });
   page.render();
   // Opening the page reads what is saved and nothing else: no model, no refresh of the sources, no task (WBR-24).

@@ -352,6 +352,7 @@ export function mountRisk(host: RiskHost): void {
   });
   scope.listen(body, "submit", event => onSubmit(page, event as SubmitEvent));
   scope.listen(root, "molis-work:select-item", event => onSelectItem(page, event));
+  scope.listen(document, "molis-work:language-changed", () => page.render());
   scope.own(() => { linkSlots?.dispose(); clearTimeout(searchTimer); clearTimeout(linkedTimer); });
   if (page.side) { page.state.view = "idle"; page.render(); }
   scope.whenVisible(() => {

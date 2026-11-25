@@ -10,6 +10,8 @@
     "huggingface.guide.cli-link": "View Hugging Face CLI",
     "huggingface.guide.mcp-link": "View the official Hugging Face MCP",
     "huggingface.guide.oauth-link": "View Hugging Face OAuth",
-    "huggingface.setup.create-hugging-face-access-token": "Create Hugging Face access token"
+    "huggingface.setup.create-hugging-face-access-token": "Create Hugging Face access token",
+    "huggingface.permission.network.reason": "Read your Hugging Face account info and latest updates",
+    "huggingface.permission.secret.reason": "Use your securely stored Hugging Face connection credentials"
   }
 }

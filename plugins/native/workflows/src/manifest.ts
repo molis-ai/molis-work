@@ -2,6 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { WORKFLOWS_PLUGIN_ID } from "./model.js";
 import { WORKFLOWS_UI_CONTRIBUTION_ID } from "./ui.js";
 import { WORKFLOWS_ACTIONS } from "./actions.js";
+import { localizeManifestActions } from "./manifest-action-text.js";
 import { workflowsSync } from "./replication.js";
 import { WORKFLOWS_DATABASE } from "./database.js";
 import { observationActions } from "@molis-ai/molis-work-contracts/services/observation";
@@ -22,15 +23,15 @@ export const workflowsManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-workflows-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
-    { permission: "storage:private", required: true, reason: "本机保存流程和每一次的进度" },
-    { permission: "workflows:read", required: true, reason: "读取流程与每一次的进度" },
-    { permission: "workflows:write", required: true, reason: "编辑流程、开始运行和交接到下一站" },
-    { permission: "actions:delegate", required: true, reason: "替当前这个调用者调用每一站的内容动作、动作步骤和判断规则" },
-    { permission: "model:invoke", required: false, reason: "AI 整理这一段交接的内容" },
+    { permission: "storage:private", required: true, reason: "在本机保存工作流程和每次运行的进度", reason_text: { key: "workflows.permission.storage-private.reason" } },
+    { permission: "workflows:read", required: true, reason: "读取工作流程和每次运行的进度", reason_text: { key: "workflows.permission.workflows-read.reason" } },
+    { permission: "workflows:write", required: true, reason: "编辑流程、开始运行并把内容交接到下一站", reason_text: { key: "workflows.permission.workflows-write.reason" } },
+    { permission: "actions:delegate", required: true, reason: "按你的权限调用每一站的内容读写、动作步骤和判断规则", reason_text: { key: "workflows.permission.actions-delegate.reason" } },
+    { permission: "model:invoke", required: false, reason: "在流程交接时调用模型整理内容", reason_text: { key: "workflows.permission.model-invoke.reason" } },
   ],
   // Each handoff is reported to the work records as this installation (specs/observation-collection/design.md §4「工作流」).
   capabilities: { provides: [], consumes: [observationActions.report.capability_id] },
-  actions: WORKFLOWS_ACTIONS,
+  actions: localizeManifestActions(WORKFLOWS_ACTIONS),
   databases: { home: WORKFLOWS_DATABASE },
   routes: [
     { route_id: "workflows.list", method: "GET", path: "/workflows" },
@@ -48,7 +49,7 @@ export const workflowsManifest: PluginManifest = {
     { route_id: "workflows.instance_start", method: "POST", path: "/workflows/:id/instances", max_body_bytes: WORKFLOWS_BODY_BYTES },
   ],
   artifacts: { produces: [], consumes: [] },
-  ui: { locales: { default: "zh", available: ["zh", "en"] },
+  ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

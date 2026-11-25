@@ -79,6 +79,7 @@ export const SHELF_ADMIT_ACTION: ActionDefinition<ShelfAdmitActionInput, { item:
   capability_id: "shelf.items.admit", version: /* @version action.shelf.items.admit */ 1, operation: "command",
   action: {
     title: "放进 Shelf", description: "把一段文字或一个文件副本放进置物架；文字里的网址按链接保存，不抓取网页", kind: "operation",
+    title_text: { key: "shelf.action.items-admit.title" }, description_text: { key: "shelf.action.items-admit.description" },
     scope: "home", scheduling: "concurrent", audiences: ["user", "workflow", "agent", "mcp"], permissions: ["shelf:read", "shelf:write", "materials:read"], subject_kinds: ["shelf_item"],
     input_type: FILE_COPY_INTAKE_INPUT_TYPE, output_type: FILE_COPY_INTAKE_OUTPUT_TYPE,
     input_schema: {

@@ -43,7 +43,7 @@ export const lingguangUiContribution: UiContribution<LingguangUiModel> = {
       case "side":
         return renderLingguangWorkbench(request.model);
       default:
-        throw new Error(`Lingguang UI surface ${(request as UiRenderRequest).surface} 不存在`);
+        throw new Error(`Unknown Lingguang UI surface: ${(request as UiRenderRequest).surface}`);
     }
   },
 };

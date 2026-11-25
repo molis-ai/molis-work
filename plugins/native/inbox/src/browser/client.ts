@@ -63,7 +63,7 @@ export function inboxClient(host: InboxHost): void {
     const check = guard(); void results().catch(failure => { try { check(); error(failure, q('[data-inbox-entry-results="' + CSS.escape(id) + '"]')); } catch { /* A newer entry owns the reader. */ } });
   };
   let evaluatedNotice = "";
-  const refresh = async () => {
+  const refresh = async (language = false) => {
     const check = guard(), sequence = ++refreshSequence, scroll = q("[data-inbox-list]")?.scrollTop || 0;
     const group = q("[data-inbox-row].is-selected")?.closest<HTMLElement>("[data-inbox-stage-group]")?.dataset.inboxStageGroup;
     const html = await host.view.readDocument({ signal: reads.signal }).catch(error => {
@@ -78,7 +78,8 @@ export function inboxClient(host: InboxHost): void {
     const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]"); if (!next) throw new Error(uiText.text("inbox.client.could-not-refresh-inbox-list"));
     // Retain the draft form and the latest evaluation message while authoritative rows refresh.
     for (const selector of ["[data-inbox-compose]", "[data-inbox-evaluate-status]"]) {
-      const current = q(selector), replacement = q(selector, next); if (current && replacement) replacement.replaceWith(current);
+      const current = q(selector), replacement = q(selector, next);
+      if (current && replacement && (!language || selector === "[data-inbox-compose]" && (composeBusy || current instanceof HTMLDialogElement && current.open))) replacement.replaceWith(current);
     }
     const config = q<HTMLDetailsElement>(".inbox-next-config"), nextConfig = q<HTMLDetailsElement>(".inbox-next-config", next); if (config && nextConfig) nextConfig.open = config.open;
     root.replaceChildren(...next.childNodes);
@@ -97,7 +98,7 @@ export function inboxClient(host: InboxHost): void {
   };
   listen("molis-work:select-item", event => { const detail = (event as CustomEvent<{ itemId?: string | null; invalidate?: boolean }>).detail; if (detail?.invalidate) { if (scope.visible) void refresh().catch(failure => error(failure)); } else if (typeof detail?.itemId === "string") { event.preventDefault(); select(detail.itemId); } else if (detail?.itemId === null) collapse(); });
   root.ownerDocument.addEventListener("molis-work:language-changed", () => {
-    if (scope.visible) void refresh().catch(failure => error(failure));
+    if (scope.visible) void refresh(true).catch(failure => error(failure));
   }, { signal: scope.signal });
   listen("input", event => { if (event.target instanceof Element && event.target.closest("[data-inbox-compose]")) remember(); });
   listen("cancel", () => remember());

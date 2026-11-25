@@ -22,22 +22,34 @@
     {
       "permission": "storage:private",
       "required": true,
-      "reason": "Save a personal result, consume its exact version and show the local sample"
+      "reason": "Save private counter data for this sample plugin",
+      "reason_text": {
+        "key": "notes.permission.storage-private.reason"
+      }
     },
     {
       "permission": "artifact:write",
       "required": true,
-      "reason": "Save a personal result, consume its exact version and show the local sample"
+      "reason": "Save sample results into the artifact library",
+      "reason_text": {
+        "key": "notes.permission.artifact-write.reason"
+      }
     },
     {
       "permission": "artifact:read",
       "required": true,
-      "reason": "Save a personal result, consume its exact version and show the local sample"
+      "reason": "Read previously saved versions of sample results",
+      "reason_text": {
+        "key": "notes.permission.artifact-read.reason"
+      }
     },
     {
       "permission": "ui:register",
       "required": true,
-      "reason": "Save a personal result, consume its exact version and show the local sample"
+      "reason": "Show the sample plugin page in the workbench",
+      "reason_text": {
+        "key": "notes.permission.ui-register.reason"
+      }
     }
   ],
   "state_machines": [
@@ -83,7 +95,8 @@
       "default": "en",
       "available": [
         "en",
-        "zh"
+        "zh",
+        "ja"
       ]
     }
   },
@@ -382,8 +395,14 @@
       "version": 1,
       "operation": "query",
       "action": {
-        "title": "读取 Read a sample note 的正文与关联",
-        "description": "读取Read a sample note的当前正文、版本及真实关联，供调用者明确引用。",
+        "title": "Read a sample note",
+        "title_text": {
+          "key": "notes.action.read-note.title"
+        },
+        "description": "Read the current text, revision, and links of a sample note.",
+        "description_text": {
+          "key": "notes.action.read-note.description"
+        },
         "kind": "query",
         "scope": "project",
         "scheduling": "concurrent",

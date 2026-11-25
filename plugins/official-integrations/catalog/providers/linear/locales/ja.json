@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.linear",
+  "locale": "ja",
+  "messages": {
+    "linear.connection.auth-help": "Linear Personal API key を入力してください。現在のアカウント情報と最近の Issue のみを読み取り専用で取得します。",
+    "linear.connection.inbound": "Feed で Issue を取得",
+    "linear.connection.summary": "Issue、プロジェクト、サイクル。",
+    "linear.connection.token-label": "Linear API Key",
+    "linear.guide.mcp-link": "Linear 公式 MCP を見る",
+    "linear.guide.oauth-link": "Linear OAuth アプリを見る",
+    "linear.setup.open-linear-api-settings": "Linear API 設定を開く",
+    "linear.permission.network.reason": "Linear のアカウント情報と最新の更新を読み取ります",
+    "linear.permission.secret.reason": "安全に保存された Linear の接続資格情報を使用します"
+  }
+}

@@ -9,11 +9,13 @@
     "google-drive.connection.token-label": "Google access token (drive.readonly)",
     "google-drive.guide.mcp-connected-note": "Access to the Google Workspace Developer Preview is required.",
     "google-drive.guide.mcp-link": "View the official Drive MCP (Developer Preview)",
-    "google-drive.guide.mcp-note": "Access to the Google Workspace Developer Preview is required. Molis Work has not integrated this service.",
+    "google-drive.guide.mcp-note": "Access to the Google Workspace Developer Preview is required. Molis Work hasn’t integrated this service yet.",
     "google-drive.guide.oauth-link": "Create Google OAuth client",
     "google-drive.guide.token-note": "Get a Drive user access token from OAuth Playground and paste it here. Replace it when it expires.",
     "google-drive.setup.create-oauth-client": "Create OAuth client",
     "google-drive.setup.enable-drive-api": "Enable Drive API",
-    "google-drive.setup.get-a-token-in-oauth-playground": "Get a token in OAuth Playground"
+    "google-drive.setup.get-a-token-in-oauth-playground": "Get a token in OAuth Playground",
+    "google-drive.permission.network.reason": "Read your Google Drive account info and latest updates",
+    "google-drive.permission.secret.reason": "Use your securely stored Google Drive connection credentials"
   }
 }

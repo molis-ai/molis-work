@@ -1,4 +1,4 @@
-import type { LocalizedAgentBody } from "./model-prompts.js";
+import type { LocalizedAgentBody, PromptOverridePolicy } from "./model-prompts.js";
 import type { ContractDescriptor } from "./package.js";
 
 export const platformPluginAgentContract = {
@@ -101,6 +101,8 @@ export interface AgentPromptDeclaration {
   version: number;
   /** Omitted means `role`, which is what a Plugin's own prompt almost always is. */
   layer?: AgentPromptLayer;
+  /** Absent means `"editable"`. `"protected"` refuses user edits, resets, imports and sync overrides. */
+  override_policy?: PromptOverridePolicy;
 }
 
 export interface AgentCompactionDeclaration {
@@ -250,6 +252,8 @@ export interface AgentPromptText extends LocalizedAgentBody {
   body: string;
   /** Omitted means `role`. The Host orders a composed role by this. */
   layer?: AgentPromptLayer;
+  /** Absent means `"editable"`. `"protected"` refuses user edits, resets, imports and sync overrides. */
+  override_policy?: PromptOverridePolicy;
   /** Set by the Host when this text is the person's edit of the default (its revision), not the shipped default. */
   user_revision?: number;
 }

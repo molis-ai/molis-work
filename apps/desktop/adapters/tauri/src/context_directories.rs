@@ -1,4 +1,5 @@
 //! Directory access is granted by AppKit, never by a path supplied by web content.
+use crate::native_language::tr;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -91,23 +92,23 @@ fn valid_id(id: &str) -> Result<(), String> {
     if IDS.contains(&id) {
         Ok(())
     } else {
-        Err("未知的目录来源".into())
+        Err(tr(
+            "未知的文件夹来源。",
+            "Unknown folder source.",
+            "不明なフォルダー種別です。",
+        )
+        .into())
     }
 }
 
-pub(crate) fn directory_name(id: &str) -> &str {
-    match id {
-        "downloads" => "下载",
-        "documents" => "文稿",
-        "desktop" => "桌面",
-        _ => "其他文件夹",
-    }
+pub(crate) fn directory_name(id: &str) -> String {
+    crate::native_language::folder_name(id)
 }
 
 fn unconnected(id: &str) -> DirectoryStatus {
     DirectoryStatus {
         id: id.into(),
-        name: directory_name(id).into(),
+        name: directory_name(id),
         path: None,
         state: "unconnected".into(),
         message: None,
@@ -125,11 +126,22 @@ fn trusted_location(label: &str, url: &Url) -> bool {
 }
 
 pub(crate) fn validate_caller(window: &WebviewWindow) -> Result<(), String> {
-    let url = window.url().map_err(|_| "无法确认目录访问来源")?;
+    let url = window.url().map_err(|_| {
+        tr(
+            "无法确认当前页面来源。",
+            "Couldn’t verify the folder access request.",
+            "フォルダーアクセス元のページを確認できませんでした。",
+        )
+    })?;
     if trusted_location(window.label(), &url) {
         Ok(())
     } else {
-        Err("仅本机主窗口的工作准备页面可以访问目录".into())
+        Err(tr(
+            "只有在主窗口的工作准备页面里才能授权文件夹。",
+            "Folders can only be authorized from the setup page in the main window.",
+            "フォルダーの許可はメインウィンドウのセットアップ画面からのみ行えます。",
+        )
+        .into())
     }
 }
 
@@ -143,37 +155,63 @@ fn store_path(app: &AppHandle) -> Result<PathBuf, String> {
         Some(value) if !value.is_empty() => {
             let path = PathBuf::from(value);
             if !path.is_absolute() {
-                return Err("MOLIS_WORK_HOME 必须是绝对路径".into());
+                return Err(tr(
+                    "数据目录配置无效，请使用完整路径。",
+                    "The configured data folder path must be an absolute path.",
+                    "データフォルダーのパスには絶対パスを指定してください。",
+                )
+                .into());
             }
             path
         }
-        _ => app
-            .path()
-            .app_data_dir()
-            .map_err(|_| "无法找到应用数据目录")?,
+        _ => app.path().app_data_dir().map_err(|_| {
+            tr(
+                "找不到应用数据目录。",
+                "Couldn’t locate the app data folder.",
+                "アプリのデータフォルダーが見つかりません。",
+            )
+        })?,
     };
     Ok(root.join("directory-access").join("bookmarks.json"))
 }
 
 fn load_records(path: &Path) -> Result<Records, String> {
     match std::fs::read(path) {
-        Ok(bytes) => {
-            serde_json::from_slice(&bytes).map_err(|_| "目录授权记录损坏，请重新连接目录".into())
-        }
+        Ok(bytes) => serde_json::from_slice(&bytes).map_err(|_| {
+            tr(
+                "已保存的文件夹授权记录损坏了，重新选择一次文件夹即可恢复。",
+                "Saved folder permissions are damaged. Select the folder again to reconnect.",
+                "保存されたフォルダー権限のデータが破損しています。フォルダーを選び直してください。",
+            )
+            .into()
+        }),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Records::new()),
-        Err(_) => Err("无法读取已保存的目录授权".into()),
+        Err(_) => Err(tr(
+            "暂时读不到已保存的文件夹授权。",
+            "Couldn’t read saved folder permissions.",
+            "保存されたフォルダー権限を読み込めませんでした。",
+        )
+        .into()),
     }
 }
 
 fn save_records(path: &Path, records: &Records) -> Result<(), String> {
     use std::io::Write;
-    let directory = path.parent().ok_or("目录授权存储位置无效")?;
-    std::fs::create_dir_all(directory).map_err(|_| "无法创建目录授权存储位置")?;
+    let save_err = || {
+        tr(
+            "没能保存文件夹授权，请稍后再试。",
+            "Couldn’t save folder permissions. Please try again.",
+            "フォルダー権限を保存できませんでした。もう一度お試しください。",
+        )
+        .to_string()
+    };
+    let directory = path.parent().ok_or_else(save_err)?;
+    std::fs::create_dir_all(directory).map_err(|_| save_err())?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o700))
-            .map_err(|_| "无法保护目录授权存储位置")?;
+            .map_err(|_| save_err())?;
     }
     let temporary = path.with_extension("json.tmp");
     let mut options = std::fs::OpenOptions::new();
@@ -183,12 +221,12 @@ fn save_records(path: &Path, records: &Records) -> Result<(), String> {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600).custom_flags(libc::O_NOFOLLOW);
     }
-    let mut file = options.open(&temporary).map_err(|_| "无法保存目录授权")?;
-    let bytes = serde_json::to_vec(records).map_err(|_| "无法编码目录授权")?;
+    let mut file = options.open(&temporary).map_err(|_| save_err())?;
+    let bytes = serde_json::to_vec(records).map_err(|_| save_err())?;
     file.write_all(&bytes)
         .and_then(|_| file.sync_all())
-        .map_err(|_| "无法保存目录授权")?;
-    std::fs::rename(&temporary, path).map_err(|_| "无法更新目录授权".into())
+        .map_err(|_| save_err())?;
+    std::fs::rename(&temporary, path).map_err(|_| save_err())
 }
 
 fn status_for(id: &str, record: Option<&DirectoryRecord>) -> DirectoryStatus {
@@ -198,18 +236,23 @@ fn status_for(id: &str, record: Option<&DirectoryRecord>) -> DirectoryStatus {
     #[cfg(target_os = "macos")]
     let access = crate::context_directories_macos::access(record).map(|scope| scope.path.clone());
     #[cfg(not(target_os = "macos"))]
-    let access: Result<String, String> = Err("目录授权仅支持 macOS 桌面应用".into());
+    let access: Result<String, String> = Err(tr(
+        "文件夹授权目前仅支持 macOS 桌面应用。",
+        "Folder authorization is currently available only in the macOS desktop app.",
+        "フォルダーの許可は現在 macOS デスクトップアプリでのみ利用できます。",
+    )
+    .into());
     match access {
         Ok(path) => DirectoryStatus {
             id: id.into(),
-            name: directory_name(id).into(),
+            name: directory_name(id),
             path: Some(path),
             state: "ready".into(),
             message: None,
         },
         Err(message) => DirectoryStatus {
             id: id.into(),
-            name: directory_name(id).into(),
+            name: directory_name(id),
             path: Some(record.path.clone()),
             state: "unavailable".into(),
             message: Some(message),
@@ -225,16 +268,26 @@ async fn operation<T: Send + 'static>(
     validate_caller(&window)?;
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<ContextDirectoryState>();
-        let _guard = state
-            .operation
-            .lock()
-            .map_err(|_| "目录访问状态暂不可用，请重启应用")?;
+        let _guard = state.operation.lock().map_err(|_| {
+            tr(
+                "文件夹访问暂时不可用，请重新打开应用后再试。",
+                "Folder access is temporarily unavailable. Reopen the app and try again.",
+                "フォルダーアクセスが一時的に利用できません。アプリを開き直してからお試しください。",
+            )
+        })?;
         validate_caller(&window)?;
         let path = store_path(&app)?;
         action(&app, &window, &path)
     })
     .await
-    .map_err(|_| "目录访问任务中断，请重试".to_string())?
+    .map_err(|_| {
+        tr(
+            "文件夹读取中断了，请再试一次。",
+            "Folder access was interrupted. Please try again.",
+            "フォルダーの処理が中断されました。もう一度お試しください。",
+        )
+        .to_string()
+    })?
 }
 
 #[tauri::command]
@@ -273,7 +326,12 @@ pub async fn context_directory_authorize(
         #[cfg(not(target_os = "macos"))]
         {
             let _ = (app, window, records);
-            Err("目录授权仅支持 macOS 桌面应用".into())
+            Err(tr(
+                "文件夹授权目前仅支持 macOS 桌面应用。",
+                "Folder authorization is currently available only in the macOS desktop app.",
+                "フォルダーの許可は現在 macOS デスクトップアプリでのみ利用できます。",
+            )
+            .into())
         }
     })
     .await
@@ -322,7 +380,12 @@ pub async fn context_directory_preview(
         });
     }
     if ![0, 7, 30, 90].contains(&days) {
-        return Err("请选择最近 7、30、90 天或全部".into());
+        return Err(tr(
+            "请选择最近 7 天、30 天、90 天或全部。",
+            "Choose the last 7, 30, or 90 days, or all time.",
+            "過去 7 日・30 日・90 日、または全期間から選んでください。",
+        )
+        .into());
     }
     let offset = resume_offset.unwrap_or(0);
     operation(app, window, move |app, window, path| {
@@ -331,7 +394,13 @@ pub async fn context_directory_preview(
             .cancel_scan
             .store(false, std::sync::atomic::Ordering::SeqCst);
         let records = load_records(path)?;
-        let record = records.get(&id).ok_or("请先连接这个目录")?;
+        let record = records.get(&id).ok_or_else(|| {
+            tr(
+                "请先连接这个文件夹。",
+                "Connect this folder first.",
+                "先にこのフォルダーを接続してください。",
+            )
+        })?;
         #[cfg(target_os = "macos")]
         {
             use tauri::Emitter;
@@ -359,7 +428,12 @@ pub async fn context_directory_preview(
         #[cfg(not(target_os = "macos"))]
         {
             let _ = (app, window, record, offset);
-            Err("目录授权仅支持 macOS 桌面应用".into())
+            Err(tr(
+                "文件夹授权目前仅支持 macOS 桌面应用。",
+                "Folder authorization is currently available only in the macOS desktop app.",
+                "フォルダーの許可は現在 macOS デスクトップアプリでのみ利用できます。",
+            )
+            .into())
         }
     })
     .await
@@ -374,7 +448,12 @@ fn valid_journey(journey: &str) -> Result<(), String> {
     {
         Ok(())
     } else {
-        Err("整理轮次无效".into())
+        Err(tr(
+            "这次准备会话已失效，请刷新页面后重试。",
+            "This setup session isn’t valid. Refresh the page and try again.",
+            "セットアップセッションが無効です。ページを再読み込みしてからもう一度お試しください。",
+        )
+        .into())
     }
 }
 
@@ -389,18 +468,31 @@ fn stage_on_host(
 ) -> Result<StagedFile, String> {
     use crate::context_directory_files::{stream_one, StreamFailure};
     use std::io::{Read, Write};
-    const UNREACHABLE: &str = "连不上 Molis Work 服务，请稍后重试";
+    let unreachable = || {
+        tr(
+            "暂时连不上 Molis Work 服务，请稍后再试。",
+            "Can’t reach the Molis Work service right now. Please try again in a moment.",
+            "現在 Molis Work サービスに接続できません。少し待ってからもう一度お試しください。",
+        )
+        .to_string()
+    };
     let token = crate::web_identity::control_token()?;
     let mut target = Url::parse(&format!(
         "{}/api/onboarding/context/{journey}/files",
         crate::host_port::origin()
     ))
-    .map_err(|_| "整理轮次无效")?;
+    .map_err(|_| {
+        tr(
+            "这次准备会话已失效，请刷新页面后重试。",
+            "This setup session isn’t valid. Refresh the page and try again.",
+            "セットアップセッションが無効です。ページを再読み込みしてからもう一度お試しください。",
+        )
+    })?;
     target.query_pairs_mut().append_pair("path", &expected.path);
     let address = crate::host_port::address();
     let mut stream =
         std::net::TcpStream::connect_timeout(&address, std::time::Duration::from_millis(800))
-            .map_err(|_| UNREACHABLE)?;
+            .map_err(|_| unreachable())?;
     crate::web_identity::authenticate(&mut stream, &token)?;
     let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(120)));
     let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(600)));
@@ -420,7 +512,7 @@ fn stage_on_host(
         crate::host_port::origin(),
         expected.size
     )
-    .map_err(|_| UNREACHABLE)?;
+    .map_err(|_| unreachable())?;
     match stream_one(directory, expected, &mut stream) {
         Ok(()) => {}
         // Dropping the connection part-way makes the Host discard what it had received of this file.
@@ -431,27 +523,34 @@ fn stage_on_host(
                 reason: Some(reason),
             })
         }
-        Err(StreamFailure::Sink) => return Err(UNREACHABLE.into()),
+        Err(StreamFailure::Sink) => return Err(unreachable()),
     }
     let mut response = Vec::new();
-    stream.read_to_end(&mut response).map_err(|_| UNREACHABLE)?;
-    let (head, body) = crate::shelf_http::split_http(&response).ok_or(UNREACHABLE)?;
+    stream
+        .read_to_end(&mut response)
+        .map_err(|_| unreachable())?;
+    let (head, body) = crate::shelf_http::split_http(&response).ok_or_else(unreachable)?;
     let head = String::from_utf8_lossy(head).to_ascii_lowercase();
     let body = if head.contains("transfer-encoding: chunked") {
-        crate::shelf_http::decode_chunked(body).ok_or(UNREACHABLE)?
+        crate::shelf_http::decode_chunked(body).ok_or_else(unreachable)?
     } else {
         body.to_vec()
     };
-    let answer: HostStaged = serde_json::from_slice(&body).map_err(|_| UNREACHABLE)?;
+    let answer: HostStaged = serde_json::from_slice(&body).map_err(|_| unreachable())?;
     match (head.starts_with("http/1.1 201"), answer.staged) {
         (true, Some(staged)) => Ok(StagedFile {
             path: expected.path.clone(),
             staged: Some(staged),
             reason: None,
         }),
-        _ => Err(answer
-            .error
-            .unwrap_or_else(|| "这份文件没有存下，请重试".into())),
+        _ => Err(answer.error.unwrap_or_else(|| {
+            tr(
+                "这份文件没能存下，请再试一次。",
+                "Couldn’t save this file. Please try again.",
+                "このファイルを保存できませんでした。もう一度お試しください。",
+            )
+            .into()
+        })),
     }
 }
 
@@ -467,7 +566,13 @@ pub async fn context_directory_stage(
     valid_journey(&journey)?;
     operation(app, window, move |_, _, path| {
         let records = load_records(path)?;
-        let record = records.get(&id).ok_or("请先连接这个目录")?;
+        let record = records.get(&id).ok_or_else(|| {
+            tr(
+                "请先连接这个文件夹。",
+                "Connect this folder first.",
+                "先にこのフォルダーを接続してください。",
+            )
+        })?;
         #[cfg(target_os = "macos")]
         {
             let scope = crate::context_directories_macos::access(record)?;
@@ -476,7 +581,12 @@ pub async fn context_directory_stage(
         #[cfg(not(target_os = "macos"))]
         {
             let _ = (record, journey, file);
-            Err("目录授权仅支持 macOS 桌面应用".into())
+            Err(tr(
+                "文件夹授权目前仅支持 macOS 桌面应用。",
+                "Folder authorization is currently available only in the macOS desktop app.",
+                "フォルダーの許可は現在 macOS デスクトップアプリでのみ利用できます。",
+            )
+            .into())
         }
     })
     .await

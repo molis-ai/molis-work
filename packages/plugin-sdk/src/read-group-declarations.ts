@@ -7,7 +7,7 @@ import { isRecord } from "./json-value.js";
 // Which groups a task may read is the Host's to decide while it runs; `parsePluginManifest` is the one caller.
 
 const GROUP_ID = /^[a-z][a-z0-9-]{0,63}$/u;
-const FIELDS = new Set(["group_id", "title", "description", "actions"]);
+const FIELDS = new Set(["group_id", "title", "title_text", "description", "description_text", "actions"]);
 
 export function readGroupDeclarationProblems(groups: unknown, actions: readonly ActionDefinition[] | undefined): string[] {
   if (groups === undefined) return [];

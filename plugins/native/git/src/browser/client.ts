@@ -1,9 +1,10 @@
 import { clearResultSelection } from "./result-selection.js";
+import { refreshConflict } from "./conflicts.js";
 import { installFormDrafts, offerCommitDraft, resetEditors } from "./form-drafts.js";
 import { installDiff } from "./diff.js";
 import { refresh } from "./list.js";
 import { createPage, reading } from "./page.js";
-import { installResults } from "./results.js";
+import { installResults, renderResult } from "./results.js";
 import { afterDecision, installSource } from "./source.js";
 import type { GitBrowser, GitHost } from "./types.js";
 
@@ -23,6 +24,11 @@ export function gitClient(host: GitHost): GitBrowser | null {
   installFormDrafts(page);
   installSource(page);
   lifetime.listen(refreshButton, "click", () => void (host.refreshWorkspace ? host.refreshWorkspace() : refresh(page)));
+  lifetime.listen(document, "molis-work:language-changed", () => {
+    refreshConflict(page);
+    renderResult(page);
+    if (lifetime.visible && !page.busy) void refresh(page);
+  });
   lifetime.whenVisible((signal) => {
     page.viewSignal = signal;
     // The same mounted result can display its review again, with a fresh identity for this visible period.

@@ -53,7 +53,17 @@ function createAccountMenu() {
   notice.innerHTML = '<p data-account-transition-message></p><button type="button" data-personal-action="cancel"></button>';
   requiredElement(notice, '[data-account-transition-message]').textContent = uiText.text("workbench.account-menu.switching-accounts-please-wait");
   requiredElement(notice, 'button').textContent = uiText.text("common.control.cancel"); document.body.append(notice);
-  return { menu, notice };
+  const paintStatic = (hasIdentity: boolean, preparing: boolean) => {
+    menu.setAttribute('aria-label', uiText.text("workbench.account-menu.account"));
+    requiredElement(menu, '[data-personal-action=login]').textContent = uiText.text('workbench.account.sign-in-register');
+    requiredElement(menu, '[data-personal-action=switch]').textContent = uiText.text('workbench.account.switch-account');
+    requiredElement(menu, '[data-personal-action=logout]').textContent = uiText.text('workbench.account.sign-out');
+    if (!hasIdentity) requiredElement(menu, '[data-unified-account-name]').textContent = uiText.text("workbench.account-menu.molis-account");
+    if (!preparing) requiredElement(notice, '[data-account-transition-message]').textContent = uiText.text("workbench.account-menu.switching-accounts-please-wait");
+    requiredElement(notice, 'button').textContent = uiText.text("common.control.cancel");
+  };
+  paintStatic(false, false);
+  return { menu, notice, paintStatic };
 }
 interface AccountMenuState {
   identity: AccountIdentity | null;
@@ -63,7 +73,7 @@ interface AccountMenuState {
 /** Account presentation and keyboard/focus behavior; the account owner supplies its current state on every use. */
 export function createAccountMenuController(state: () => AccountMenuState, refresh: () => void) {
   const links = [...document.querySelectorAll<HTMLElement>('[data-account-link]')];
-  const {menu,notice} = createAccountMenu();
+  const {menu,notice,paintStatic} = createAccountMenu();
   let trigger: HTMLElement | null = null, showingLoading = false;
   const feedback = (text: string, error = false) => {
     if (!error) showingLoading = false;
@@ -111,6 +121,12 @@ export function createAccountMenuController(state: () => AccountMenuState, refre
   document.addEventListener('pointerdown', e => { const target = e.target; if (target instanceof Node && !menu.contains(target) && !links.some(a => a.contains(target))) close(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { e.preventDefault(); close(true); } });
   document.addEventListener('molis-work:place-changed', () => close());
+  document.addEventListener('molis-work:language-changed', () => {
+    const current = state();
+    paintStatic(Boolean(current.identity), current.preparing);
+    paint();
+    if (showingLoading) feedback(uiText.text("workbench.account-menu.reading-account-status"));
+  });
   addEventListener('molis:surface-interaction', () => close());
   addEventListener('blur', () => { if (!menu.hidden) close(); });
   addEventListener('resize', () => close());

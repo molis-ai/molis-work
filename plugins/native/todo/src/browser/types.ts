@@ -160,6 +160,7 @@ export interface TodoPage {
   load(): Promise<void>;
   renderList(): void;
   renderBatch(): void;
+  renderReminders(): void;
   loadReminders(): Promise<void>;
   loadBatches(): Promise<void>;
   renderReview(): void;

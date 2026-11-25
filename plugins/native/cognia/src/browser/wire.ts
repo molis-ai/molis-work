@@ -1,12 +1,12 @@
 /**
- * The reasons a file is left out of a preview, as the Host records them. The Host keeps this exact text in the preview and the
- * person reads it translated by that text (Cognia's `en.ts`), so these four are wire values, not page words.
+ * Structured skip reason IDs sent between the browser and Host preview route.
+ * Displayed to the user through `SKIP_REASON_KEY` in the active UI language.
  */
 export const SKIP_REASON = {
-  hidden: "隐藏或缓存目录",
-  unsupported: "暂不支持此文件类型",
-  tooLarge: "超过文件或批次大小限制",
-  unreadable: "读取失败",
+  hidden: "hidden",
+  unsupported: "unsupported",
+  tooLarge: "too_large",
+  unreadable: "unreadable",
 } as const;
 
 /** The limits Cognia's Host enforces on one import (`COGNIA_LIMITS`); the page applies them before it uploads anything. */

@@ -3,6 +3,7 @@
 //! Desktop, an upload field or a chat composer all take it. Copy, never move:
 //! the shelf keeps its copy and a refusal simply springs back.
 
+use crate::native_language::tr;
 use objc2::define_class;
 use objc2::rc::Allocated;
 use objc2::rc::Retained;
@@ -90,8 +91,24 @@ pub fn begin(app: &AppHandle, paths: &[String], item_ids: &[String]) -> Result<(
     app.run_on_main_thread(move || {
         let _ = tx.send(start());
     })
-    .map_err(|error| format!("拖出没能到主线程：{error}"))?;
-    rx.recv().map_err(|error| error.to_string())?
+    .map_err(|error| {
+        eprintln!("shelf_drag_macos main-thread dispatch error: {error}");
+        tr(
+            "拖出文件没能开始，请稍后再试。",
+            "Couldn’t start dragging the file. Please try again.",
+            "ファイルのドラッグを開始できませんでした。もう一度お試しください。",
+        )
+        .to_string()
+    })?;
+    rx.recv().map_err(|error| {
+        eprintln!("shelf_drag_macos channel error: {error}");
+        tr(
+            "拖出文件没能开始，请稍后再试。",
+            "Couldn’t start dragging the file. Please try again.",
+            "ファイルのドラッグを開始できませんでした。もう一度お試しください。",
+        )
+        .to_string()
+    })?
 }
 
 /// A copied file is a file URL on the system pasteboard, including multi-select.
@@ -99,21 +116,41 @@ pub fn copy_files(paths: &[String]) -> Result<(), String> {
     let root = crate::web_service::molis_work_home()
         .join("shelf")
         .canonicalize()
-        .map_err(|_| "置物架副本目录不存在")?;
+        .map_err(|_| {
+            tr(
+                "找不到 Shelf 文件目录。",
+                "Couldn’t find the Shelf files folder.",
+                "Shelf のファイルフォルダーが見つかりません。",
+            )
+        })?;
     let mut urls = Vec::new();
     for path in paths {
-        let path = std::path::Path::new(path)
-            .canonicalize()
-            .map_err(|_| "这份副本已经不在工作区")?;
+        let path = std::path::Path::new(path).canonicalize().map_err(|_| {
+            tr(
+                "这份文件已不在 Shelf 中。",
+                "This file is no longer in Shelf.",
+                "このファイルはすでに Shelf にありません。",
+            )
+        })?;
         if !path.starts_with(&root) {
-            return Err("只能复制 Shelf 工作区里的副本".into());
+            return Err(tr(
+                "只能复制 Shelf 里的文件副本。",
+                "Only files stored in Shelf can be copied.",
+                "Shelf 内に保存されたファイルのみコピーできます。",
+            )
+            .into());
         }
         urls.push(NSURL::fileURLWithPath(&NSString::from_str(
             &path.to_string_lossy(),
         )));
     }
     if urls.is_empty() {
-        return Err("请先选择要复制的文件".into());
+        return Err(tr(
+            "请先选择要复制的文件。",
+            "Select a file to copy first.",
+            "コピーするファイルを選択してください。",
+        )
+        .into());
     }
     write_file_urls(&NSPasteboard::generalPasteboard(), &urls)
 }
@@ -125,7 +162,12 @@ fn write_file_urls(board: &NSPasteboard, urls: &[Retained<NSURL>]) -> Result<(),
     if ok {
         Ok(())
     } else {
-        Err("没能写入剪贴板，请重试复制".into())
+        Err(tr(
+            "没能写入剪贴板，请再试一次复制。",
+            "Couldn’t copy to the clipboard. Please try again.",
+            "クリップボードにコピーできませんでした。もう一度お試しください。",
+        )
+        .into())
     }
 }
 
@@ -195,24 +237,59 @@ fn dynamic_colour(lr: f64, lg: f64, lb: f64, dr: f64, dg: f64, db: f64) -> Retai
 }
 
 fn begin_on_main(app: &AppHandle, paths: &[String]) -> Result<(), String> {
-    let mtm = MainThreadMarker::new().ok_or("拖出必须在主线程开始")?;
+    let mtm = MainThreadMarker::new().ok_or_else(|| {
+        tr(
+            "拖出文件需要在主线程开始。",
+            "Dragging must start on the main thread.",
+            "ドラッグはメインスレッドで開始する必要があります。",
+        )
+    })?;
     let files: Vec<&Path> = paths
         .iter()
         .map(Path::new)
         .filter(|path| path.exists())
         .collect();
     if files.is_empty() {
-        return Err("这次没有可以拖走的文件".into());
+        return Err(tr(
+            "当前没有可以拖出的文件。",
+            "No files available to drag out.",
+            "ドラッグできるファイルがありません。",
+        )
+        .into());
     }
-    let window = app.get_webview_window("main").ok_or("主窗口不在")?;
-    let ptr = window
-        .ns_window()
-        .map_err(|error| format!("拿不到窗口：{error}"))?;
+    let window = app.get_webview_window("main").ok_or_else(|| {
+        tr(
+            "找不到主窗口。",
+            "The main window isn’t available.",
+            "メインウィンドウが見つかりません。",
+        )
+    })?;
+    let ptr = window.ns_window().map_err(|error| {
+        eprintln!("shelf_drag_macos ns_window error: {error}");
+        tr(
+            "暂时无法访问应用窗口，请重试。",
+            "Couldn’t access the app window. Please try again.",
+            "アプリウィンドウにアクセスできませんでした。もう一度お試しください。",
+        )
+        .to_string()
+    })?;
     let ns_window = unsafe { &*(ptr as *const NSWindow) };
-    let view: Retained<NSView> = ns_window.contentView().ok_or("窗口还没有内容视图")?;
+    let view: Retained<NSView> = ns_window.contentView().ok_or_else(|| {
+        tr(
+            "窗口还没准备好，请稍后再试。",
+            "The window isn’t ready yet. Please try again.",
+            "ウィンドウの準備ができていません。もう一度お試しください。",
+        )
+    })?;
     let event: Retained<NSEvent> = NSApplication::sharedApplication(mtm)
         .currentEvent()
-        .ok_or("现在没有可以带起拖动的事件")?;
+        .ok_or_else(|| {
+            tr(
+                "请直接按住并拖动文件再试一次。",
+                "Click and drag the file again to start dragging.",
+                "ファイルをもう一度ドラッグしてみてください。",
+            )
+        })?;
 
     let workspace = NSWorkspace::sharedWorkspace();
     let mut items: Vec<Retained<NSDraggingItem>> = Vec::new();

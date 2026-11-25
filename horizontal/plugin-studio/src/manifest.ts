@@ -12,7 +12,7 @@ export const builderManifest:PluginManifest={
  capabilities:{provides:[],consumes:[agent.listRuntimes,agent.createSession,agent.readSession,agent.startRun,agent.readRun,agent.controlRun,projectDirectoryActions.get].map(x=>x.capability_id)},
  artifacts:{produces:[],consumes:[]},
  sync:builderSync,
- ui:{ locales: { default: "zh", available: ["zh", "en"] },
+ ui:{ locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {
       default_topic: "page",
       topics: [{

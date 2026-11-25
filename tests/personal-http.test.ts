@@ -181,7 +181,7 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
     assert.equal(stale.status,409);assert.equal(syncRequests,0,'a stale dialog cannot start another space sync');
     for(const state of [undefined,'', 'not-a-comparison', 'A'.repeat(64)]){
       const refused=await fetch(origin+'/api/sync/resolve',{method:'POST',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'uninspected-choice-'+(++sequence),'x-molis-sync-space':spaceId},body:JSON.stringify({namespace:'unknown',key:'asset',choice:'remote',revision:1,state})});
-      assert.equal(refused.status,409);assert.match((await refused.json()).error,/请先查看当前冲突版本/);
+      assert.equal(refused.status,409);assert.match((await refused.json()).error,/请先查看最新的冲突版本/);
     }
     assert.equal(syncRequests,0,'PCSYNC-15/16 no inspected content token means no conflict decision or remote call');
     await request('/api/sync/run','POST');assert.equal(syncRequests,1,'one authenticated idle summary includes policy and quota without separate reads');
@@ -202,7 +202,7 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
     const beforePurge=syncRequests;
     const purge=(confirm:boolean)=>fetch(origin+'/api/sync/history/purge',{method:'POST',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'history-purge-'+confirm,'x-molis-sync-space':spaceId},body:JSON.stringify({...source,confirm})});
     const refusedPurge=await purge(false);
-    assert.equal(refusedPurge.status,409);assert.match((await refusedPurge.json()).error,/确认永久清理/);assert.equal(syncRequests,beforePurge);
+    assert.equal(refusedPurge.status,409);assert.match((await refusedPurge.json()).error,/确认后再执行永久清理/);assert.equal(syncRequests,beforePurge);
     assert.equal((await purge(true)).status,200);
     assert.deepEqual(historyWrites,[{...source,operationId:'inspect-then-restore',policyRevision:1},{...source,confirm:true}],'Host forwards the inspected revisions and only forwards purge after confirmation');
     await request('/api/sync/device','PUT',{automatic:true});
@@ -324,7 +324,7 @@ test('AC-T5-03 and AC-T5-04: account page reports missing or invalid config and 
     assert.equal(status.status,200);
     assert.deepEqual(await status.json(),{
       ...expectedStatus,configReason:'missing_env',
-      configHint:'当前未配置账号服务环境（缺少 MOLIS_WORK_ACCOUNT_CONFIG）。本地测试请使用账号环境启动脚本，或联系管理员提供专用测试配置。',
+      configHint:'当前环境还没有完成账号服务配置，请稍后再试或联系管理员检查配置。',
     });
     for(const malformed of ['{bad-json-test-private-value','[]','{}','null','{"foo":"bar"}']){
       process.env.MOLIS_WORK_ACCOUNT_CONFIG=malformed;
@@ -333,7 +333,7 @@ test('AC-T5-03 and AC-T5-04: account page reports missing or invalid config and 
       const invalidStatus=await invalid.json();
       assert.deepEqual(invalidStatus,{
         ...expectedStatus,configReason:'invalid_json',
-        configHint:'账号服务环境配置格式无效，请检查 MOLIS_WORK_ACCOUNT_CONFIG。',
+        configHint:'当前环境的账号服务配置格式无效，请联系管理员检查配置。',
       });
       assert.equal(Object.values(invalidStatus).includes(malformed),false);
     }

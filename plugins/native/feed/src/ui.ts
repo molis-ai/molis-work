@@ -203,7 +203,7 @@ export const feedUiContribution: UiContribution<FeedUiModel | PersistedFeedDetai
       case "frame-block":
         return renderFeedFrameBlock(model as PersistedFeedDetailModel);
       default:
-        throw new Error(`Feed UI surface ${(request as UiRenderRequest).surface} 不存在`);
+        throw new Error(`Unknown Feed UI surface: ${String((request as UiRenderRequest).surface)}`);
     }
   },
 };

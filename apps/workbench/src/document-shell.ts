@@ -1,5 +1,6 @@
-import { NO_FAVICON_LINK, escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { NO_FAVICON_LINK, activeUiLocale, escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderLanguageHead } from "./language-resource.js";
+import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
 import type { UiSlotDescriptor, WorkbenchDocumentRenderRequest } from '@molis-ai/molis-work-contracts/platform/ui';
 
 export const WORKBENCH_UI_SLOTS = {
@@ -18,9 +19,19 @@ function renderAttributes(attributes: WorkbenchDocumentRenderRequest['body_attri
     .map(([name, value]) => value === true ? ` ${name}` : ` ${name}="${escapeHtml(String(value))}"`).join('');
 }
 
+function activeRefreshHtmlLang(): string | undefined {
+  const tag = activeUiLocale();
+  if (!tag) return undefined;
+  return WORKBENCH_LANGUAGES.languages.find(language => language.tag === tag)?.html_lang ?? tag;
+}
+
 /** Host-owned document for fetched content; an absent contribution remains an empty response. */
-export function renderWorkbenchRefreshDocument(request: Pick<WorkbenchDocumentRenderRequest, 'body_html' | 'body_attributes'>): string {
-  return request.body_html === '' ? '' : `<!doctype html><html><body${renderAttributes(request.body_attributes)}>${request.body_html}</body></html>`;
+export function renderWorkbenchRefreshDocument(
+  request: Pick<WorkbenchDocumentRenderRequest, 'body_html' | 'body_attributes'> & Partial<Pick<WorkbenchDocumentRenderRequest, 'lang'>>,
+): string {
+  if (request.body_html === '') return '';
+  const lang = request.lang ?? activeRefreshHtmlLang();
+  return `<!doctype html><html${lang ? ` lang="${escapeHtml(lang)}"` : ''}><body${renderAttributes(request.body_attributes)}>${request.body_html}</body></html>`;
 }
 
 export { NO_FAVICON_LINK };

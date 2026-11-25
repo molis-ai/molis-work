@@ -188,7 +188,25 @@
 
 ## 界面翻译（`scripts/gates/translations.mjs`）
 
-随 `pnpm health:check` 检查源码与声明的词包，无须先构建。可静态识别的键必须在对应主人的默认语言与英文中存在；未声明文件、主人不符、重复键、参数不一致、已撤掉的翻译入口都失败。跨主人只能读平台公开的 `common.*`，平台代画则沿已验证的生产者来源。动态计算的键及未找到字面量的词条报告，不把静态扫描当运行证明。见 [工作台界面文字](../../apps/workbench/README.md#界面文字稳定键和翻译检查)。
+随 `pnpm health:check` 检查源码与声明的词包，无须先构建（也可单跑 `node scripts/gates/translations.mjs --missing`）。覆盖平台词包（`apps/workbench/resources/locales/`、`packages/im-ui/resources/locales/`）、工作台嵌套子包（`apps/workbench/resources/locales/scene/` 及按需加载的 `apps/workbench/resources/locales/catalog/`）、内置插件（`plugins/native/*`）、平台部件与框内页面（`modules/shelf`、`horizontal/plugin-studio`）、官方集成（`plugins/official-integrations/*` 及 `catalog/providers/*`）与系统技能/内容包（`packages/system-skills/*/pack-content.json`、`plugins/content/*/pack-content.json`）。
+
+- **全声明语言零缺键与参数一致：** 每个主人声明的 `ui.locales.available`（或平台 `languages.json`）中的全部语言（含 `ja`，不再只限 `en`）都必须 0 缺键（`ui.locale_missing_key`）且占位符 `{arg}` 集合与默认语言完全一致（`ui.locale_args`）。只检查各包自己声明的语言，未声明 `ja` 的包不会误报。
+- **结构与边界：** 可静态识别的键必须在对应主人的默认语言中存在；主包与嵌套子包之间不允许重键；未声明词包文件（含嵌套子目录里的孤立 `.json`）、主人或语言标记不符、重复键、原始 `<>&"'`（内容包除外）、已撤掉的翻译入口都失败。跨主人只能读平台公开的 `common.*`，平台代画则沿已验证的生产者来源。动态计算的键及未找到字面量的词条报告，不把静态扫描当运行证明。见 [工作台界面文字](../../apps/workbench/README.md#界面文字稳定键和翻译检查)。
+
+## 界面文案与多语言卫生审计（`scripts/audit-ui-copy.mjs`）
+
+只读审计，单跑 `node scripts/audit-ui-copy.mjs --strict`（发现任一违规即以退出码 1 结束）。扫描仓库全部受跟踪的 `*/locales/**/*.json`（含所有 `ja.json` 以及 `apps/workbench/resources/locales/scene/*.json`、`catalog/*.json`，不含 `examples/`、`tests/`、`fixtures/`）与生产源码。
+
+- **中文文案规则：** 除既有架构黑话、退役术语、日常界面（Tier-A）门槛术语、套话/空状态/弯引号/箭头路径规则外，同步拦截 `落盘`、`游标`、`门禁 G1`、`父子 Contract`、`Runtime payload`、`出站动作未兑现`、`能力板`、单数 `Character`、Tier-A 的 `提供方`、`packages/im-ui/` 中文词包中的 `Thread`，以及生硬官腔措辞（`未能完成操作`、`已被拒绝`、`予以`、`该操作`、`尚未`、非空状态 `暂无`）。
+- **跨语言泄漏与日语质量规则：**
+  - `en.json`（`en.cjk-leak`）：禁止出现中日韩字符（仅狭义豁免真实语言自称如 `日本語` / `简体中文` / `繁體中文` 及排版混排验证样例）。
+  - `ja.json`（`ja.simplified-chinese-leak`、`ja.raw-markup`、`ja.bent-quotes`、`ja.chinese-semicolon`、`ja.telegraphic-ending`、`ja.dropped-particle`）：禁止简体中文专有字形及明确中文语境的 `没` / `的` 泄漏、原始 `<>&"'`、弯引号 `“”`、中文全角分号 `；`、电报式压缩结尾（`不可。`、`未保存。`、`未確認。`、`（…保持）。`、`残存）。`、`なし。`）以及省去助词的病句（`この操作する`、`この変更する`、`確認し再試行`、`調整し続行`）。
+- **生产源码多语言卫生规则：** 扫描 `apps/`、`horizontal/`、`modules/`、`packages/`、`plugins/`、`server/src/` 下的 `.ts`/`.mts`/`.tsx`/`.js`/`.mjs`/`.rs`/`.swift`/`.html`（剥离注释，排除测试、夹具、`examples/`、`scripts/`、`tooling/`，不误伤 OCR `["zh-Hans","en-US"]` 与 ISO `en-CA` 等算法）：
+  - `src.binary-locale-flag`：原生代码中二元英文开关（如 `ENGLISH: AtomicBool`、`isEnglish`）。
+  - `src.binary-locale-switch`：未处理三语及以上分支的二元 `zh`/`en` 三元或 `if` 条件切换与布尔标志（含 `currentLocale() === "en"` / `!== "en"` / `=== "zh"`、`if (... === "en")`、`startsWith("en") ?`、`const en = ...lang === "en"`；仅对少数已证明支持全语种的底层辅助行设精确单行豁免）。
+  - `src.hardcoded-intl-zh`：生产源码中写死的 `Intl.DateTimeFormat("zh-CN")` 等格式器。
+  - `src.hardcoded-html-lang-zh`：生产界面源码与 `.html` 文件（如 `apps/desktop/webview-placeholder/index.html`）中写死的 `<html lang="zh-CN">`。
+  - `src.bare-to-locale-string`：`apps/workbench/src/`、`horizontal/`、`modules/`、`packages/` 与 `plugins/` 生产界面代码中未传活动语言的裸 `.toLocaleString()` / `.toLocaleDateString()` / `.toLocaleTimeString()`（含传 `[]` 使用系统默认区域的写法）。
 
 ## 插件样式预算（`scripts/gates/plugin-styles.mjs`，PG-070、RAC-769）
 

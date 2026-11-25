@@ -15,7 +15,8 @@ import { ATTENTION_FACTORY_SCRIPT } from "./scripts/client/attention.js";
 import { renderWorkbenchBar } from "./immersive-shell.js";
 import { WEB_LOCALES, type WebLocale } from "./i18n.js";
 import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
-import { renderLanguageHead } from "./language-resource.js";
+import { catalogInlinePageText } from "./platform-languages.js";
+import { renderInlinePageText, renderLanguageHead } from "./language-resource.js";
 import type { AssistantBoardSamples } from "./assistant-board-samples.js";
 
 /**
@@ -71,7 +72,7 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(uiText.text("workbench.assistant-board-frame.assistant-specimen"))} · Molis Work</title>
-  ${renderLanguageHead(ports.htmlLang())}
+  ${renderInlinePageText([catalogInlinePageText(options.lang)])}${renderLanguageHead(ports.htmlLang())}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-workbench.css">
   ${appearanceHead(appearance)}

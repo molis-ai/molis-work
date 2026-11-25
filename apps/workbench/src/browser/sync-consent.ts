@@ -31,10 +31,21 @@ export function createSyncConsent() {
         }catch(failure){if(sheet.isConnected){error.textContent=failure instanceof Error?failure.message:uiText.text("workbench.sync-consent.sync-temporarily-unavailable");error.hidden=false;}}
         finally{buttons.forEach(button=>button.disabled=false);}
       };
-      for(const [automatic,label] of [[true,'开启自动同步'],[false,'暂不启用']] as const){
-        const button=document.createElement('button');button.type='button';button.className='mw-btn mw-btn--'+(automatic?'primary':'secondary');button.textContent=label;
+      const buttonText = (automatic: boolean) => automatic
+        ? uiText.text("workbench.sync-consent.enable-auto-sync")
+        : uiText.text("workbench.sync-consent.not-now");
+      for(const automatic of [true,false] as const){
+        const button=document.createElement('button');button.type='button';button.className='mw-btn mw-btn--'+(automatic?'primary':'secondary');button.textContent=buttonText(automatic);
         button.addEventListener('click',()=>void choose(automatic));buttons.push(button);footer.append(button);
       }
+      const onLanguageChanged=()=>{
+        title.textContent=uiText.text("workbench.sync-consent.sync-device");
+        text.textContent=uiText.text("workbench.sync-consent.automatically-sync-selected-personal-space-content-local-space");
+        if(buttons[0]) buttons[0].textContent=buttonText(true);
+        if(buttons[1]) buttons[1].textContent=buttonText(false);
+      };
+      document.addEventListener('molis-work:language-changed',onLanguageChanged);
+      sheet.addEventListener('close',()=>document.removeEventListener('molis-work:language-changed',onLanguageChanged),{once:true});
       sheet.addEventListener('cancel',event=>{event.preventDefault();void choose(false);});
       shell.append(header,body,footer);sheet.append(shell);document.body.append(sheet);sheet.showModal();buttons[1].focus();
     }catch{ /* The sync settings page offers diagnostics and retry; account use stays available. */ }

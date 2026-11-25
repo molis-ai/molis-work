@@ -14,7 +14,8 @@ import { requireProjectRuntime, runtimeDirectory } from "./runtime-choice.js";
  * its intake (`accepts: [{ kind: "code_root" }]`) and calls this as the person, once the folder is the project's output. Only the person can call it.
  */
 export const codingOnboardingTake = createActionDefinition<InferActionInput<typeof ONBOARDING_CODE_ROOT_TAKE_INPUT_SCHEMA>, OnboardingTakeResult>("coding.onboarding.take", "command", {
-  title: "从上手接手代码文件夹", description: "上手时把本人选的代码文件夹交给 Coding：新建一个会话，这一轮带来的材料放进它的下一轮",
+  title: "从上手接手代码文件夹", title_text: { key: "coding.action.onboarding-take.title" },
+  description: "上手时把本人选的代码文件夹交给 Coding：新建一个会话，这一轮带来的材料放进它的下一轮", description_text: { key: "coding.action.onboarding-take.description" },
   audiences: ["user"], permissions: ["storage:private"], subject_kinds: ["coding_session"],
   input_schema: ONBOARDING_CODE_ROOT_TAKE_INPUT_SCHEMA, output_schema: ONBOARDING_TAKE_RESULT_SCHEMA,
   // The platform finds the taker of a code folder by this (contract-design §2.3), naming no plugin.

@@ -1,5 +1,6 @@
 import { isRecord } from "./json-value.js";
 import { ACTION_ERROR_CODE, ACTION_ERROR_KIND_NAMES, ActionError, isActionErrorKind, platformErrorKind, type ActionErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
+import { trySharedUiText } from "./ui/text.js";
 
 // One error model (specs/archive/repository-anti-corruption W3-02): the transport derives the status from the failure's kind, and every
 // entry writes the same body, { error, code, details? }. Failures are read by shape, never by `instanceof`: a Runtime bundle or the
@@ -14,6 +15,11 @@ const STATUS_KIND = new Map(ACTION_ERROR_KIND_NAMES.map(kind => [KIND_STATUS[kin
 /** The code of a failure that has none of ours: it is a bug or an outage, not a mistake of the caller. */
 const FALLBACK_CODE = "actions.execution_failed";
 const FALLBACK_MESSAGE = "能力执行失败";
+
+/** Resolve the generic failure fallback in the active UI locale when a UI text context is installed. */
+function fallbackMessage(): string {
+  return trySharedUiText("common.error.internal") ?? FALLBACK_MESSAGE;
+}
 
 export interface ActionErrorBody {
   /** The message, in the language the exit's `translate` hook gives it (none by default). */
@@ -74,7 +80,8 @@ export function actionHttpStatus(error: unknown): number {
 
 export function actionErrorBody(error: unknown, options: ActionErrorBodyOptions = {}): ActionErrorBody {
   const failure = codedFailure(error);
-  const message = failure?.message || (error instanceof Error && error.message) || FALLBACK_MESSAGE;
+  const raw = failure?.message || (error instanceof Error && error.message) || "";
+  const message = !raw || (raw === FALLBACK_MESSAGE && !options.translate) ? fallbackMessage() : raw;
   return {
     error: options.translate ? options.translate(message) : message,
     code: failure?.code ?? FALLBACK_CODE,
@@ -91,6 +98,7 @@ export function actionErrorFromResponse(status: number, body: unknown): ActionEr
   const answer = isRecord(body) ? body : {};
   const kind = STATUS_KIND.get(status) ?? (status >= 400 && status < 500 ? "invalid" : "internal");
   const code = isModelCode(answer.code) ? answer.code : FALLBACK_CODE;
-  const message = typeof answer.error === "string" && answer.error !== "" ? answer.error : FALLBACK_MESSAGE;
+  const raw = typeof answer.error === "string" && answer.error !== "" ? answer.error : "";
+  const message = !raw || raw === FALLBACK_MESSAGE ? fallbackMessage() : raw;
   return new ActionError(code, message, { kind, ...(isRecord(answer.details) ? { details: answer.details } : {}) });
 }

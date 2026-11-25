@@ -1,16 +1,33 @@
+use crate::native_language::tr;
 use tauri::Url;
 
 fn validated_external_url(value: &str) -> Result<Url, String> {
     if value.len() > 4096 {
-        return Err("External URL is too long".into());
+        return Err(tr(
+            "链接太长，无法打开。",
+            "This link is too long to open.",
+            "URL が長すぎるため開けません。",
+        )
+        .into());
     }
-    let url = Url::parse(value).map_err(|_| "Invalid external URL")?;
+    let url = Url::parse(value).map_err(|_| {
+        tr(
+            "链接格式无效，无法打开。",
+            "This link isn’t valid.",
+            "無効な URL です。",
+        )
+    })?;
     if !matches!(url.scheme(), "http" | "https")
         || url.host_str().is_none()
         || !url.username().is_empty()
         || url.password().is_some()
     {
-        return Err("Only HTTP(S) URLs without credentials can be opened".into());
+        return Err(tr(
+            "只能打开不含账号密码的 HTTP 或 HTTPS 网页链接。",
+            "Only HTTP or HTTPS links without embedded credentials can be opened.",
+            "認証情報を含まない HTTP または HTTPS のリンクのみ開けます。",
+        )
+        .into());
     }
     Ok(url)
 }
@@ -24,16 +41,34 @@ pub fn open_external_url(url: String) -> Result<(), String> {
         let status = std::process::Command::new("/usr/bin/open")
             .arg(url.as_str())
             .status()
-            .map_err(|error| format!("Could not open system browser: {error}"))?;
+            .map_err(|error| {
+                eprintln!("open_external_url spawn error: {error}");
+                tr(
+                    "没能打开系统浏览器，请稍后再试。",
+                    "Couldn’t open your default browser. Please try again.",
+                    "既定のブラウザーを開けませんでした。もう一度お試しください。",
+                )
+                .to_string()
+            })?;
         if !status.success() {
-            return Err("The system browser could not open this URL".into());
+            return Err(tr(
+                "系统浏览器没能打开这个链接。",
+                "Your default browser couldn’t open this link.",
+                "既定のブラウザーでこのリンクを開けませんでした。",
+            )
+            .into());
         }
         Ok(())
     }
     #[cfg(not(target_os = "macos"))]
     {
         let _ = url;
-        Err("External browser opening is not available on this desktop target".into())
+        Err(tr(
+            "当前系统暂不支持打开外部浏览器。",
+            "Opening an external browser isn’t supported on this platform yet.",
+            "このプラットフォームでは外部ブラウザーの起動にまだ対応していません。",
+        )
+        .into())
     }
 }
 

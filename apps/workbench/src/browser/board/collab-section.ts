@@ -86,23 +86,37 @@ if (root) {
   });
   // The Assistant preparing: one line that changes, never a spinner; still when motion is reduced. The interval is
   // symmetric: a re-run clears the one before it, and a removed root or a hidden page stops it.
-  const holder = document.documentElement;
+  const STOP_KEY = Symbol.for("molis.work.collab-preparing.stop");
+  const holder = document.documentElement as HTMLElement & { [STOP_KEY]?: () => void };
+  holder[STOP_KEY]?.();
   const previous = Number(holder.dataset.collabPreparingTimer || 0);
   if (previous) clearInterval(previous);
   let line = root.querySelector<HTMLElement>("[data-preparing-line]");
   if (line && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const LINES = [t("workbench.collab-section.read-zhe-s-document"), t("workbench.collab-section.checked-the-ready-capabilities"), t("workbench.collab-section.drew-a-first-plugin-sketch")];
+    const LINE_KEYS = ["workbench.collab-section.read-zhe-s-document", "workbench.collab-section.checked-the-ready-capabilities", "workbench.collab-section.drew-a-first-plugin-sketch"] as const;
+    const controller = new AbortController();
     let at = 0, timer = 0;
-    const stop = () => { if (timer) { clearInterval(timer); timer = 0; } delete holder.dataset.collabPreparingTimer; };
+    const stop = () => {
+      if (timer) { clearInterval(timer); timer = 0; }
+      controller.abort();
+      delete holder.dataset.collabPreparingTimer;
+      if (holder[STOP_KEY] === stop) delete holder[STOP_KEY];
+    };
+    const paint = () => {
+      if (!line?.isConnected) { stop(); return; }
+      line.textContent = t(LINE_KEYS[at]!);
+    };
     timer = window.setInterval(() => {
       if (!line || !line.isConnected) { stop(); return; }
-      at = (at + 1) % LINES.length;
+      at = (at + 1) % LINE_KEYS.length;
       const next = line.cloneNode(false) as HTMLElement;
-      next.textContent = LINES[at] ?? "";
+      next.textContent = t(LINE_KEYS[at]!);
       line.replaceWith(next);
       line = next;
     }, 1800);
+    document.addEventListener("molis-work:language-changed", paint, { signal: controller.signal });
+    window.addEventListener("pagehide", stop, { once: true, signal: controller.signal });
     holder.dataset.collabPreparingTimer = String(timer);
-    window.addEventListener("pagehide", stop, { once: true });
+    holder[STOP_KEY] = stop;
   }
 }

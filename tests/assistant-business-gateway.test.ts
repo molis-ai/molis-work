@@ -1103,7 +1103,7 @@ test("a suggestion whose moment has passed, or that counted days from another da
     clock = Date.parse("2026-10-02T09:00:00+08:00");
     view = await f.service.read(sent.work.work_id);
     assert.equal(view.cards[1]!.status, "stale");
-    assert.match(outcomeOf(view.cards[1]!) ?? "", /2026年10月1日准备的/);
+    assert.match(outcomeOf(view.cards[1]!) ?? "", /2026年10月1日\s*准备的/);
     const clicked = await f.service.offers.runCard(sent.work.work_id, view.cards[1]!.card_id, { revision: view.cards[1]!.revision });
     assert.equal(clicked.status, "stale");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "neither ran");

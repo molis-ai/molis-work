@@ -1,0 +1,22 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.outlook",
+  "locale": "ja",
+  "messages": {
+    "outlook.connection.auth-help": "Mail.Read 権限を持つ Microsoft Graph 委任トークンを入力してください。必要な scope が含まれていれば Outlook・OneDrive・Teams・SharePoint で同じ Graph トークンを共有できます。",
+    "outlook.connection.inbound": "Feed でメールを取得",
+    "outlook.connection.summary": "メールとカレンダー。",
+    "outlook.connection.token-label": "Microsoft Graph アクセストークン（Mail.Read）",
+    "outlook.guide.cli-link": "Microsoft Graph PowerShell を見る",
+    "outlook.guide.cli-note": "Connect-MgGraph でログインして Graph を呼び出せますが、Molis Work は PowerShell セッションを読み取りません。",
+    "outlook.guide.mcp-link": "Microsoft Work IQ MCP",
+    "outlook.guide.mcp-note": "テナント管理者が Work IQ プレビュー、Copilot ライセンス、Entra アプリ権限を有効にする必要があります。",
+    "outlook.guide.oauth-link": "Microsoft Entra アプリを登録",
+    "outlook.guide.token-note": "テスト用のユーザートークンは Graph Explorer で取得できます。継続利用する場合はご自身のアプリを登録してください。",
+    "outlook.oauth.tenant": "テナント ID（個人アカウントやマルチテナントアプリでは空欄可）",
+    "outlook.setup.get-a-token-in-graph-explorer": "Graph Explorer でトークンを取得",
+    "outlook.setup.register-azure-app": "Azure アプリを登録",
+    "outlook.permission.network.reason": "Outlook のアカウント情報と最新の更新を読み取ります",
+    "outlook.permission.secret.reason": "安全に保存された Outlook の接続資格情報を使用します"
+  }
+}

@@ -269,6 +269,15 @@ Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbenc
 - 逐句检查（`pluginStatementGuard`）：关键字过后，平台用 `EXPLAIN` 带着参数读这一句的步骤。名单外的步骤（建、删、改表与索引，`PRAGMA`，`VACUUM`，事务控制）、不是本插件表与索引的根页（`project_root` 只许读）、`temp` 或附加的库、读里的写步、两个 JSON 函数之外的虚表，都以 `plugin.project_database.statement_refused` 拒绝，语句一步也不运行。步骤名单按 SQLite 3.51.3 写成，宿主的 SQLite 换了版本就全拒，直到重新核对。这份 SQLite 是 Node 官方构建自带的：没有 `DELETE … LIMIT`、`UPDATE … LIMIT`（语法错误），`LIKE` 会匹配 BLOB。
 - 沙箱插件：操作的 effects 写 `projectDatabase: ["read"]` 或 `["read", "write"]`（查询不能声明写），人批准后经 `sdk.projectDatabase.get`、`all`、`transaction` 跨通道读写，宿主一侧是同一份客户端与检查。通道上参数只许 null、有限数、字符串，BLOB 与超出 2^53 的整数不传回；一个事务 1 到 64 句，在宿主一侧整个提交或整个不写；宿主的拒绝码原样交给插件。创作台生成的 Manifest 写不出 `databases.project`，创作台防腐收尾后删除（BL-377）。宿主一侧的语句跑在子进程的 SQL Worker 里（S-59），子进程主线程独立处理截止时间、总 RSS 和宿主断线，即使宿主同步写在等待锁也会按时杀整个子进程：一句读超过 5 秒、一句写超过 2 秒、一个事务超过 3 秒是 `plugin.project_database.statement_timeout`，语句让进程用掉超过 256 MB 内存是 `plugin.project_database.statement_memory`，进程被杀，未提交的事务不留，下一句照常跑；若正在提交时被中断则返回结果未知；`get` 和 `all` 都至多回 512 KiB，`all` 另有 1000 行上限（再多是 `sandbox.database_result_too_large`，用 `LIMIT`/`OFFSET` 翻页），递归查询（CTE 读自己）一律被拒（`plugin.project_database.statement_refused`）。
 
+## 统一工作分区的声明（第 106 批起）
+
+个人空间与各项目是同构分区（[统一工作分区](../../specs/unified-partition-plugins/spec.md)）。第 106 批只加不删：下列 Manifest 字段和 SDK 帮手已可写、由 `partitionDeclarationProblems` 在 `parsePluginManifest` 与安装时检查，平台的读取方随第 107–111 批接上；作者写法见 [partitions.md](../../skills/molis-plugin-dev/partitions.md)。
+
+- `databases.partition`：每个启用分区一份库，`<分区根>/libraries/<库名>.db`，分区根只由 `partitionRoot()` 求；实例按（插件, 分区）起，只拿自己分区的库与文件（`S-partition-isolation`）。旧的项目平台遇到声明它的插件拒绝启动，所以第 109 批之前第三方沙箱包不开放。
+- `overview_projection: { kinds, title_text? }`：种类只有 `task`、`event`、`notification`、`brief`；分区库结构里要有 `OVERVIEW_TABLE_SQL`，业务写入同一事务里用 SDK `overviewRows(tx)` 维护，平台只读、盖章、按读者裁决（本人／个人助理），提醒列交给 `horizontal/scheduler` 的到期登记（只唤醒那个分区的那个插件，满七天未处理记为过期）。
+- `person_settings.keys`：随本人走的设置，存在 `horizontal/person-settings`；只有 `preference` 能标 `portable`，经个人配置同步集合 `person-settings` 出本机（`S-person-settings-private`）。
+- `push.kinds`、`market.category`（8 类）、`dependencies`（`enable_with` 随启用、`optional`、给人看的 `reason`）：第 106 批只是声明与检查，平台随后续批次用起来（推送与按类市场在第 111 批）。
+
 ## Runtime 流式路由
 
 Manifest 路由可声明 `stream: "ndjson"`，只支持 POST。`bindPluginActionRoute` 将真实动作的 `caller.on_progress` 接到 HTTP：每行是 `{ type: "progress", stage, progress, text_delta? }`，随后只有一个 `{ type: "result", result }` 或 `{ type: "error", status, code, error, call_id?, details? }`。末行由 Host 写，进度里的其他字段丢弃，插件不能伪造结果或诊断编号。HTTP 已经开始后状态保持 200，调用失败看错误末行；请求体超限则在开流前按普通 JSON 返回 413。未声明 stream 的路由继续返回 JSON。

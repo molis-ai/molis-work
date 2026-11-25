@@ -59,6 +59,9 @@
 | 对话附件 | `conversation-attachments/conversation-attachments.db` | 1 | `user_version` | `apps/local-host/src/material-attachments.ts#ATTACHMENTS_BASELINE` | 低版本升级，高版本拒绝（第 35 批新建，从版本 1 起） |
 | Issue | `issues/issues.db` | 1 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 低版本升级，高版本拒绝 |
 | Feed 的正文引用账 | `feed-content/feed-content.db` | 1 | `user_version` | `plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE` | 低版本升级，高版本拒绝 |
+| 分区到期登记 | `due-registry/due-registry.db` | 1 | `user_version` | `horizontal/scheduler/src/due-registry.ts#DUE_REGISTRY_BASELINE` | 低版本升级，高版本拒绝（第 106 批新建，从版本 1 起） |
+| 证据正文持有账 | `evidence/evidence.db` | 1 | `user_version` | `horizontal/evidence/src/index.ts#EVIDENCE_BASELINE` | 低版本升级，高版本拒绝（第 106 批新建，从版本 1 起） |
+| 随本人设置 | `person-settings/person-settings.db` | 1 | `user_version` | `horizontal/person-settings/src/index.ts#PERSON_SETTINGS_BASELINE` | 低版本升级，高版本拒绝（第 106 批新建，从版本 1 起） |
 | 记忆 | `memory/memory.db` | 2 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 低版本升级（1 → 2 补齐 `b3429bd1cc` 之前内置 Coding 会话清理计划的精确 `plugin_id`／`provider_id`），高版本拒绝；新 Home 创建完整 reviewed 偏好，不重设已有设置 |
 | 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 低版本升级，高版本拒绝 |
 | 工作记录 | `observation/observation.db` | 1 | `user_version` | `horizontal/observation/src/schema.ts#OBSERVATION_BASELINE` | 低版本升级，高版本拒绝 |
@@ -87,6 +90,7 @@
 | 主线 | `mainline/mainline.db` | 1 | `user_version` | `horizontal/mainline/src/store.ts#MAINLINE_BASELINE` | 新库从 1 开始；高版本拒绝 |
 | 首页服务 | `home-pages/home-pages.db` | 1 | `user_version` | `horizontal/home/src/store.ts#HOME_PAGES_BASELINE` | 新库从 1 开始；高版本拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 1 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
+| 总览索引（同一文件里可重建的派生表） | `search/search.db` | 1 | `overview_meta.schema` | `packages/storage/src/adapters/overview-index.ts#OVERVIEW_INDEX_VERSION` | 清空重读（第 106 批新建） |
 | 密钥与凭据（JSON 文件，不是库） | `security/secrets.json` | 1 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取高版本（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出；账号登录、设备授权、OAuth 与 MCP 的换令牌和刷新在发出请求之前就被拒（`assertSecretStoreWritable`，有别的条目坏了也一样），授权码不被用掉；低版本升级 |
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 1 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取高版本并报告配置错误，保留原文件，明确修复后恢复；低版本升级 |
 | Shelf 目录（JSON 文件，不是库） | `shelf/catalog.json` | 1 | `version` | `modules/shelf/src/catalog-shape.ts#CATALOG_VERSION` | 低版本升级，高版本拒绝 |
@@ -143,6 +147,7 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 | `user_version` | 26 个库，含项目库、`characters/characters.sqlite`、Alchemist 的 `studio.sqlite` | 1 |
 | `catalog_meta.schema_version` | `projects/catalog.db` | 1 |
 | `search_meta.schema` | `search/search.db` | 1 |
+| `overview_meta.schema` | `search/search.db` 的总览表 | 1 |
 | `plugin_project_databases.version` | 项目库里 Goals、Inbox、Schedule、Feed、Coding 的表 | 1 |
 | 文件内的版本字段 | `config/installation.json`、`release.json`、`config/onboarding.json`、`config/web-service.json`、`config/project-arrival.json`、`security/secrets.json`、`shelf/catalog.json` | 1 |
 

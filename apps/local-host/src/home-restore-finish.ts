@@ -37,8 +37,10 @@ export function verifyCommittedHomeRestore(journal: HomeRestoreJournal, registry
       } };
       else if (store.path === "projects") {
         const project = /^([^/]+)\/molis-work\.db$/u.exec(relative);
-        if (!project) throw invalidRestore();
-        options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, file.path, project[1]!) };
+        // A partition's own plugin library (`<id>/libraries/<store>.db`) is the plugin's, not the project database: it is checked as a
+        // SQLite file like any other, and its partition was already required to be among the restored projects.
+        if (!project && !/^[^/]+\/libraries\/[^/]+\.db$/u.test(relative)) throw invalidRestore();
+        if (project) options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, file.path, project[1]!) };
       }
       if (!isDeepStrictEqual(inspectSnapshotSqlite(path, { ...options, space, signal: control.signal }), file.sqlite)) throw invalidRestore();
     }

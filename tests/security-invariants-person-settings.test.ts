@@ -1,0 +1,92 @@
+// S-person-settings-private (specs/unified-partition-plugins §11, UPP-15, batch 106): settings that follow the person stay with the person on
+// this machine and the plugin's own background; only a preference may follow them to their other devices, and never a secret, a connection
+// or a path on this machine.
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginPersonSettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { partitionDeclarationProblems, type PartitionDeclarationFields } from "@molis-ai/molis-work-plugin-sdk";
+import { assertPersonSettingsCaller, openPersonSettings, personSettingsConfigReplica } from "@molis-ai/molis-work-service-person-settings";
+
+const INSTALL = "images-install", PLUGIN = "io.molis.work.images";
+const owner = { install_id: INSTALL, plugin_id: PLUGIN };
+const declarations: PluginPersonSettingsDeclaration = { keys: [
+  { key: "default_service", kind: "preference", portable: true },
+  { key: "last_folder", kind: "local_path" },
+  { key: "api_key", kind: "secret_ref" },
+  { key: "connection", kind: "connection_ref" },
+] };
+
+async function withSettings(run: (settings: ReturnType<typeof openPersonSettings>, home: string) => void | Promise<void>): Promise<void> {
+  const home = await mkdtemp(join(tmpdir(), "molis-work-person-settings-"));
+  const settings = openPersonSettings(home);
+  try { await run(settings, home); } finally { settings.close(); await rm(home, { recursive: true, force: true }); }
+}
+
+const caller = (fields: Partial<ActionCallContext>) => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", actor_kind: "user", permissions: [], project_id: null, ...fields }) as ActionCallContext;
+const forbidden = { code: "actions.forbidden" };
+
+test("UPP-15 S-person-settings-private only the person on this machine and the plugin's own background reach its person settings", () => {
+  assert.doesNotThrow(() => assertPersonSettingsCaller(caller({}), INSTALL), "the person on this machine");
+  assert.doesNotThrow(() => assertPersonSettingsCaller(caller({ audience: "plugin", actor_kind: "runtime", plugin_install_id: INSTALL }), INSTALL), "its own background");
+  for (const [label, fields] of [
+    ["a project Agent", { actor_id: "agent:runtime-1", audience: "agent", actor_kind: "runtime", project_id: "project-a" }],
+    ["the personal assistant", { audience: "agent", actor_kind: "runtime" }],
+    ["an MCP client", { audience: "mcp", actor_kind: "runtime" }],
+    ["a workflow", { audience: "workflow", actor_kind: "runtime" }],
+    ["another plugin", { audience: "plugin", actor_kind: "runtime", plugin_install_id: "other-install" }],
+    ["the person's call handed on by a plugin", { delegated_by: "other-install" }],
+    ["its own background handed another plugin's call", { audience: "plugin", actor_kind: "runtime", plugin_install_id: INSTALL, delegated_by: "other-install" }],
+    ["a runtime under the person's name", { actor_kind: "runtime" }],
+  ] as const) assert.throws(() => assertPersonSettingsCaller(caller(fields as Partial<ActionCallContext>), INSTALL), forbidden, label);
+});
+
+test("UPP-15 S-person-settings-private the SDK refuses a secret, a connection or a path marked portable; the table refuses it too", async () => {
+  // Read the way a Manifest file is read, so a key marked portable against the contract reaches the checks.
+  const manifest = (keys: readonly object[]): PartitionDeclarationFields => JSON.parse(JSON.stringify({ plugin_id: PLUGIN, person_settings: { keys } }));
+  assert.deepEqual(partitionDeclarationProblems(manifest(declarations.keys)), []);
+  for (const kind of ["secret_ref", "connection_ref", "local_path"]) {
+    const problems = partitionDeclarationProblems(manifest([{ key: "x", kind, portable: true }]));
+    assert.equal(problems.length, 1, kind);
+    assert.match(problems[0]!, /不能标 portable/u, kind);
+  }
+  await withSettings(settings => {
+    assert.throws(() => settings.db.prepare("INSERT INTO person_settings VALUES (?, ?, 'k', 'secret_ref', 1, '\"x\"', 1, ?)").run("i", "p", new Date().toISOString()),
+      /CHECK constraint failed/u, "a portable secret cannot be stored");
+  });
+});
+
+test("UPP-15 person settings are kept per installation and key, with a revision that refuses a stale write", async () => withSettings(settings => {
+  assert.equal(settings.get(INSTALL, declarations, "default_service"), null);
+  const first = settings.set(owner, declarations, "default_service", { provider: "fal" });
+  assert.equal(first.revision, 1);
+  assert.equal(first.portable, true);
+  assert.throws(() => settings.set(owner, declarations, "default_service", { provider: "other" }, { expected_revision: 0 }), { code: "actions.conflict" });
+  assert.equal(settings.set(owner, declarations, "default_service", { provider: "other" }, { expected_revision: 1 }).revision, 2);
+  assert.throws(() => settings.set(owner, declarations, "undeclared", 1), { code: "actions.input_invalid" }, "only a declared key");
+  assert.throws(() => settings.set(owner, declarations, "default_service", { folder: "/Users/someone/Pictures" }), { code: "actions.input_invalid" },
+    "a portable value that names a path on this machine is refused before it is kept");
+  settings.set(owner, declarations, "last_folder", "/Users/someone/Pictures");
+  assert.equal(settings.list(INSTALL).length, 2);
+  assert.equal(settings.clearInstall(INSTALL), 2, "an uninstall that takes its data takes its settings");
+}));
+
+test("UPP-15 S-person-settings-private sync carries only the portable preferences of a plugin installed here, never a path, a secret or another plugin's key", async () => withSettings(settings => {
+  settings.set(owner, declarations, "default_service", { provider: "fal" });
+  settings.set(owner, declarations, "last_folder", "/Users/someone/Pictures");
+  settings.set(owner, declarations, "api_key", { ref: "secret:images/key" });
+  const installed = (pluginId: string) => pluginId === PLUGIN ? { install_id: INSTALL, declarations } : null;
+  const changed = settings.db.prepare("SELECT DISTINCT key FROM person_settings_replica_changes ORDER BY key").all().map(row => String(row.key));
+  assert.deepEqual(changed, [`${PLUGIN}/default_service`], "only the portable key is journaled, keyed by plugin (another device has its own install id)");
+  const replica = personSettingsConfigReplica(settings.db, "space-1", () => {}, installed);
+  const outgoing = JSON.stringify(replica.next());
+  assert.match(outgoing, /default_service/u);
+  assert.doesNotMatch(outgoing, /Pictures|secret:|api_key/u, "nothing of this machine or a secret goes out");
+  for (const key of [`${PLUGIN}/api_key`, `${PLUGIN}/last_folder`, `${PLUGIN}/connection`, `${PLUGIN}/undeclared`, "com.example.not-installed/default_service"]) {
+    assert.throws(() => replica.authorizeKey!(key), forbidden, `an incoming ${key} is refused`);
+  }
+  assert.doesNotThrow(() => replica.authorizeKey!(`${PLUGIN}/default_service`));
+}));

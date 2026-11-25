@@ -25,6 +25,8 @@ export * from "./actions.js";
 export * from "./plugin-sync.js";
 export * from "./plugin-data-sections.js";
 export * from "./plugin-database.js";
+export * from "./plugin-overview.js";
+export * from "./plugin-partition.js";
 export * from "./plugin-attention.js";
 export * from "./plugin-scenes.js";
 export * from "./plugin-judgments.js";

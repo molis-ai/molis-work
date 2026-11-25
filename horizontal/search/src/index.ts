@@ -766,3 +766,5 @@ async function syncSearchSource(options: SearchServiceOptions, state: { syncedSe
     throw error;
   }
 }
+
+export { OverviewService, overviewReach, overviewReaderKind, type OverviewGrant, type OverviewLibrary, type OverviewReach, type OverviewServiceOptions } from "./overview.js";

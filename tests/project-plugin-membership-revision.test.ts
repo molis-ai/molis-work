@@ -335,7 +335,7 @@ test("UPP-21 partitions.plugins.set@1 changes several members of one partition a
   assert.deepEqual(await service.invoke(person, get, {}), saved);
   assert.deepEqual(f.get(), project, "another partition is untouched");
   const stored = f.db.prepare("SELECT plugin_id, enabled_by FROM partition_plugins WHERE partition_id = 'personal' ORDER BY plugin_id").all();
-  assert.deepEqual(stored.map(row => ({ ...row })), [{ plugin_id: "goals", enabled_by: actorId }, { plugin_id: "pages", enabled_by: actorId }], "who enabled each is recorded");
+  assert.deepEqual(JSON.parse(JSON.stringify(stored)), [{ plugin_id: "goals", enabled_by: actorId }, { plugin_id: "pages", enabled_by: actorId }], "who enabled each is recorded");
 
   await assert.rejects(service.invoke(person, set, { changes: [{ plugin_id: "pages", enabled: false }], expected_revision: before.revision }), { code: "actions.conflict" },
     "a stale revision changes nothing");

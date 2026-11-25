@@ -3,6 +3,7 @@ import { attentionContentReplicationDefinition } from '@molis-ai/molis-work-modu
 import { FUNCTIONS_HOME_STORE, FUNCTIONS_STORE_BASELINE, judgmentConfigReplica } from '@molis-ai/molis-work-module-judgment-rules';
 import { blueprintConfigReplica, BLUEPRINTS_BASELINE, BLUEPRINTS_STORE } from '@molis-ai/molis-work-service-blueprints';
 import { SURFACE_CONFIG_JOURNAL, surfaceConfigOwner } from '@molis-ai/molis-work-service-surfaces';
+import { PERSON_SETTINGS_BASELINE, PERSON_SETTINGS_STORE, personSettingsConfigReplica, type PersonSettingsInstallation } from '@molis-ai/molis-work-service-person-settings';
 import { createSyncConflictState, createSyncJsonContent } from '@molis-ai/molis-work-plugin-sdk';
 import { assertPortableConfig, createProjectContentReplicaFactory, openBaselineHomeSqlite, personalConfigReplica, readStorageSpace, validateProjectContentReplication } from '@molis-ai/molis-work-storage';
 import { syncNamespace, type SyncRegistration, type SyncSelection } from '@molis-ai/molis-work-module-sync-replication';
@@ -23,7 +24,9 @@ const attentionDefinition = attentionContentReplicationDefinition(assertPortable
 const attentionReplica = createProjectContentReplicaFactory([attentionDefinition], ATTENTION_SYNC_JOURNAL, ATTENTION_KIND);
 
 export function personalConfigRegistrations(context: { home: string; spaceId: string; actor: string; authorize(): void;
-  catalog: LocalWebCatalogRunner; readCatalog?: SyncCatalogReader; selected: Policy }): SyncRegistration[] {
+  catalog: LocalWebCatalogRunner; readCatalog?: SyncCatalogReader; selected: Policy;
+  /** The Home's installations and their declared person settings; without it no setting is portable here, so none is sent or applied. */
+  personSettings?: PersonSettingsInstallation }): SyncRegistration[] {
   const { home, spaceId, actor, catalog, readCatalog, selected } = context;
   const check = () => {
     context.authorize();
@@ -36,7 +39,7 @@ export function personalConfigRegistrations(context: { home: string; spaceId: st
     const db = open();
     try { return run(db); } finally { db.close(); }
   };
-  function homeConfig(owner: 'appearance' | 'prompt-overrides' | 'blueprints' | 'judgment-rules',
+  function homeConfig(owner: 'appearance' | 'prompt-overrides' | 'blueprints' | 'judgment-rules' | 'person-settings',
     open: <T>(authorize: () => void, run: (replica: SyncReplicaAdapter) => T) => T): SyncRegistration {
     const { selection, title } = PLATFORM_SYNC_COLLECTIONS.find(row => row.owner === owner)!;
     const namespace = syncNamespace(selection);
@@ -68,6 +71,10 @@ export function personalConfigRegistrations(context: { home: string; spaceId: st
     homeConfig('judgment-rules', (authorize, run) => own(
       () => openBaselineHomeSqlite(home, FUNCTIONS_HOME_STORE.path, FUNCTIONS_STORE_BASELINE),
       db => run(judgmentConfigReplica(db, spaceId, authorize)))),
+    // Only a preference a plugin installed here declares portable goes out or comes in (S-person-settings-private).
+    homeConfig('person-settings', (authorize, run) => own(
+      () => openBaselineHomeSqlite(home, PERSON_SETTINGS_STORE, PERSON_SETTINGS_BASELINE),
+      db => run(personSettingsConfigReplica(db, spaceId, authorize, context.personSettings ?? (() => null))))),
     projectPlatformSyncRegistration({
       owner: 'surfaces', journal: SURFACE_CONFIG_JOURNAL, denied: '呈现组合的同步授权或项目已变化', locate: projectLink,
       replica: (db, id, scope, authorize) => personalConfigReplica(db, SURFACE_CONFIG_JOURNAL, { spaceId: scope, authorize }, surfaceConfigOwner(db, id, actor)),

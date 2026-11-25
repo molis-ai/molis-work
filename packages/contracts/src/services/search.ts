@@ -274,3 +274,44 @@ export interface SearchIndexPort {
 export function searchSourceKey(input: { project_id: string | null; provider_id: string; capability_id: string; version: number }): string {
   return JSON.stringify([input.project_id ?? "", input.provider_id, input.capability_id, input.version]);
 }
+
+/**
+ * One plugin library the overview index reads (specs/unified-partition-plugins §6.1, batch 106): the partition and installation are the
+ * platform's stamp, `path` comes from the partition layout (`partitionPluginScope(...).libraryPath`), never from the plugin.
+ */
+export interface OverviewIndexLibrary {
+  readonly partition_id: string;
+  readonly install_id: string;
+  readonly plugin_id: string;
+  readonly path: string;
+  readonly kinds: readonly import("../platform/plugin-overview.js").OverviewKind[];
+}
+/** A row of a plugin's overview table as stored: the platform's columns (`OVERVIEW_TABLE_SQL`), nothing else. */
+export type OverviewTableRow = Readonly<Record<string, string | number | null>>;
+/** A row of the overview index as kept: the stamp, and the summary fields read from the table. */
+export interface OverviewIndexStoredRow {
+  readonly partition_id: string;
+  readonly install_id: string;
+  readonly plugin_id: string;
+  readonly kind: import("../platform/plugin-overview.js").OverviewKind;
+  readonly row_id: string;
+  readonly fields: Readonly<Record<string, unknown>>;
+}
+/**
+ * The overview index's storage, beside the search index in the Home's rebuildable `search/search.db` (packages/storage). A cache: a
+ * missing or outdated index is rebuilt empty, and every library is then read again.
+ */
+export interface OverviewIndexPort {
+  /** Whether the index knows this library, and whether it has to be read again. */
+  state(partitionId: string, installId: string): { readonly dirty: boolean } | null;
+  track(library: OverviewIndexLibrary): void;
+  markDirty(partitionId: string, installId?: string): void;
+  /** Reads the library's overview table on a read-only connection; `[]` when it has none yet, null when it cannot be read now. */
+  readLibrary(library: OverviewIndexLibrary): OverviewTableRow[] | null;
+  /** Replaces what the index holds of the library, in one transaction, and marks it clean. */
+  replace(library: OverviewIndexLibrary, rows: readonly OverviewIndexStoredRow[], sortAt: readonly (string | null)[]): void;
+  removeInstall(installId: string, partitionId?: string): void;
+  removePartition(partitionId: string): void;
+  rows(query: { readonly partitions: readonly string[]; readonly kinds: readonly string[]; readonly limit: number }): OverviewIndexStoredRow[];
+  close(): void;
+}

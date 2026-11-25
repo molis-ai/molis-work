@@ -265,6 +265,19 @@ export interface PluginManifest {
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /** The plugin's own tables, by scope (PG-020, specs/archive/plugin-project-database). */
   databases?: import("./plugin-database.js").PluginManifestDatabases;
+  /**
+   * The platform's overview tables this plugin keeps in its partition library (specs/unified-partition-plugins §6.1): only the kinds and
+   * the name the overview shows; no columns, no SQL. The table is `OVERVIEW_TABLE_SQL`, kept with the SDK's `overviewRows`.
+   */
+  overview_projection?: import("./plugin-overview.js").PluginOverviewProjectionDeclaration;
+  /** What this plugin can push from the personal space into a project (§7.1); the push itself arrives in batch 111. */
+  push?: import("./plugin-partition.js").PluginPushDeclaration;
+  /** The one market group the plugin is listed under (user 2026-11-24, eight groups). */
+  market?: import("./plugin-partition.js").PluginMarketDeclaration;
+  /** Other plugins this one relies on in the same partition; `enable_with` turns one on with it (V9). */
+  dependencies?: readonly import("./plugin-partition.js").PluginDependencyDeclaration[];
+  /** Settings that follow the person, not a partition (`services.personSettings`); only a `preference` may be `portable`. */
+  person_settings?: import("./plugin-partition.js").PluginPersonSettingsDeclaration;
   /** Bounded state metadata. Transitions are defined in implementation code. */
   state_machines?: readonly import("./plugin-state-machines.js").StateMachineDeclaration[];
   /** The plugin's own files in the Home (`services.ownerFiles`, PG-102): a root and its top-level entries, like `databases.home` declared here and nowhere else. */

@@ -69,6 +69,10 @@ function libraryFacts(project: string): Record<string, Seed> {
     "conversation-attachments": { table: "attachments", values: { plugin_id: "io.snapshot.fixture", install_id: id, project_id: project, sha256: "a".repeat(64), title, kind: "document", media_type: "text/plain", byte_length: 12, text: body, attached_at: at }, field: "text" },
     // The Home's default web search source and its last use (batch 61, §13.7): names and ids only, never a key.
     "web-search": { table: "web_search_last_use", values: { id: 1, source_id: id, title, account_label: null, audience: "user", used_at: at }, field: "title" },
+    // The platform's due registry, evidence ledger and person settings (batch 106, specs/unified-partition-plugins §4.1, §4.2, §5).
+    "due-registry": { table: "due_entries", values: { install_id: id, plugin_id: "io.snapshot.fixture", partition_id: project, entry_key: title, due_at: at, source: "plugin", registered_at: at }, field: "entry_key" },
+    evidence: { table: "evidence_holds", values: { content_ref: "molis-work-evidence/sha256/" + "6".repeat(64), partition_id: project, owner_install: id, holder_key: title, held_at: at }, field: "holder_key" },
+    "person-settings": { table: "person_settings", values: { install_id: id, plugin_id: "io.snapshot.fixture", key: "default_service", kind: "preference", portable: 1, value_json: body, revision: 2, updated_at: at }, field: "value_json" },
     "external-sessions": { table: "external_sessions", values: { session_key: id, entry_id: "claude-code", location_key: "local", native_id: id, seen_via: "file", title, activity: "idle", last_activity_at: at }, field: "title" },
   };
 }

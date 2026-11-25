@@ -242,6 +242,30 @@ export const countPlatformPluginNames = (file, text, { plugins, integrations }) 
     + (plugins.some((id) => base.startsWith(`${id}-`) || base.startsWith(`${id}.`)) ? 1 : 0);
 };
 
+// G3, the path half (specs/plugin-specials-demotion §8, user 2026-11-24 「106 先加路径半」): a platform loop over partitions takes them from
+// `listPartitions()` (the personal space first, its root from `partitionRoot()`), never by listing the `projects/` directory itself or by
+// iterating `listProjects()`, which leaves the personal space out. Counted per platform source, so each file may only fall: a direct
+// `readdir`/`readdirSync` of a `projects…` path, and a `for … of …listProjects()` or `listProjects().forEach/map/flatMap/filter/some/every/reduce`.
+// A list the person sees (their projects, without the personal space) is the one use of `listProjects()` that stays. Exported for tests.
+const PARTITION_PATH_PATTERNS = [
+  /\breaddir(?:Sync)?\(\s*(?:(?:path\.)?join\([^)]*?)?(?:\bprojects\w*\b|(["'`])projects\1)/g,
+  /\bfor\s*\((?:const|let|var)\s[^;)]*?\sof\s[^)]*?\blistProjects\(\s*\)/g,
+  /\blistProjects\(\s*\)\s*\.(?:forEach|map|flatMap|filter|some|every|reduce)\(/g,
+];
+export const countPartitionPathScans = (file, text) => {
+  if (!PLATFORM_SOURCE.test(file) || typeof text !== "string") return 0;
+  return PARTITION_PATH_PATTERNS.reduce((count, pattern) => count + (text.match(pattern) ?? []).length, 0);
+};
+const measurePartitionPathScans = (snapshot, { isSource }) => {
+  const result = {};
+  for (const file of snapshot.files) {
+    if (!isSource(file) || !PLATFORM_SOURCE.test(file)) continue;
+    const count = countPartitionPathScans(file, snapshot.read(file));
+    if (count) result[file] = count;
+  }
+  return result;
+};
+
 const platformNamePasses = new WeakMap();
 const measurePlatformPluginNames = (snapshot, { isSource }) => {
   let result = platformNamePasses.get(snapshot);
@@ -283,4 +307,8 @@ export const SOURCE_COUNT_RULES = [...[
   { id: "platformPluginNames", title: "Plugin names in platform sources (G1)", summary: "plugin names in the platform",
     what: "plugin names in a platform source", hint: "make it a public declaration any plugin can make (specs/plugin-specials-demotion §5), or move it into the plugin",
     measure: (snapshot, scope) => measurePlatformPluginNames(snapshot, scope) },
+  { id: "partitionPathScans", title: "Platform loops that list projects/ or iterate listProjects() (G3 path half)", summary: "partition path scans",
+    what: "platform loops over partitions that list projects/ or iterate listProjects()",
+    hint: "walk listPartitions() and take each root from partitionRoot(); listProjects() is only the person's own list of projects",
+    measure: (snapshot, scope) => measurePartitionPathScans(snapshot, scope) },
 ];

@@ -1,10 +1,11 @@
 import { chmodSync, mkdirSync, realpathSync } from "node:fs";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
-import { applySqliteBaseline, bindDatabaseSpace, ensureStorageSpace } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, bindDatabaseSpace, ensureStorageSpace, openHomeSqliteFile } from "@molis-ai/molis-work-storage";
+
+type LibraryConnection = ReturnType<typeof openHomeSqliteFile>;
 
 // The one assembly (specs/unified-partition-plugins §4.2 第 2 条, batch 106): an instance per (plugin, partition), started when its partition
 // is opened, a due entry fires, a push or a synchronized write arrives, and stopped again when idle, so the number of running instances follows
@@ -207,21 +208,21 @@ function resolveExisting(candidate: string): string {
  * read-only reader, bound to the Home's storage space. The path is the scope's, checked again after the directory exists, so a link swapped in under
  * the partition root cannot lead the library elsewhere.
  */
-export function openPartitionPluginLibrary(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration): { writer: DatabaseSync; reader: DatabaseSync; close(): void } {
+export function openPartitionPluginLibrary(scope: PartitionPluginScope, home: string, declaration: PluginDatabaseDeclaration): { writer: LibraryConnection; reader: LibraryConnection; close(): void } {
   const file = scope.libraryPath(declaration.store_name);
   // Checked before the directory is made (a link swapped in must not have it made elsewhere) and again after.
   scope.assertOwnPath(path.dirname(file));
   mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   scope.assertOwnPath(file);
-  const writer = new DatabaseSync(file);
-  let reader: DatabaseSync | undefined;
+  const writer = openHomeSqliteFile(file);
+  let reader: LibraryConnection | undefined;
   try {
     applySqliteBaseline(writer, file, declaration);
     bindDatabaseSpace(writer, ensureStorageSpace(home));
     try {
       chmodSync(file, 0o600);
     } catch { /* Mode is best-effort on this volume. */ }
-    reader = new DatabaseSync(file, { readOnly: true });
+    reader = openHomeSqliteFile(file, { readOnly: true });
   } catch (error) {
     writer.close();
     throw error;

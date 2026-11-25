@@ -55,6 +55,7 @@ export async function inspectRestoreArchiveContents(home: string, archive: HomeR
   const files = new Map(inputs.files), directories = new Map(inputs.directories), masterDependencies: SnapshotKeyDependency[] = [];
   const incomingPaths = new Set(inputs.archiveFiles.map(item => item.entry.path));
   let projectIds: ReadonlySet<string> = new Set();
+  const partitionLibraries: string[] = [];
   for (const file of inputs.archiveFiles) {
     control.assertCurrent();
     const entry = file.entry;
@@ -70,8 +71,11 @@ export async function inspectRestoreArchiveContents(home: string, archive: HomeR
       } };
       else if (file.store.path === "projects") {
         const project = /^([^/]+)\/molis-work\.db$/u.exec(file.relative);
-        if (!project) throw invalidRestore();
-        options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, entry.path, project[1]!) };
+        const library = /^([^/]+)\/libraries\/[^/]+\.db$/u.exec(file.relative);
+        // A plugin's own library in a project (U2) comes back only with its project, whose main library the catalog names.
+        if (library) partitionLibraries.push(library[1]!);
+        else if (!project) throw invalidRestore();
+        else options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, entry.path, project[1]!) };
       }
       const actual = inspectSnapshotSqlite(join(archive.root, entry.payload_path), { ...options, space: readStorageSpace(home) ?? undefined, signal: control.signal });
       if (!isDeepStrictEqual(actual, entry.sqlite)) throw invalidRestore();
@@ -79,6 +83,7 @@ export async function inspectRestoreArchiveContents(home: string, archive: HomeR
   }
   if (!incomingPaths.has("projects/catalog.db") && [...incomingPaths].some(path => /^projects\/[^/]+\/molis-work\.db$/u.test(path))) throw invalidRestore();
   inspectPartitionReferences(home, inputs, projectIds);
+  if (partitionLibraries.some(partition => !projectIds.has(partition))) throw invalidRestore();
   const vaultPath = `${HOME_SECURITY_DIRNAME}/secrets.json`, vault = files.has(vaultPath) ? readSnapshotFile(join(archive.root, "data", vaultPath), 32 * 1024 * 1024).toString("utf8") : undefined;
   if (vault !== undefined) {
     const inspected = inspectSealedSecretsSnapshot(home, vault);

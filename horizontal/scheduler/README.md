@@ -23,7 +23,7 @@
 
 不拥有 cron 表达式、Automation rule、Feed 来源意图或 Action 参数。插件不能替别人登记：`pluginSchedulerFor` 从激活使用的 Manifest 取 `plugin_id`，绑定当前安装、代次与声明的唤醒动作；写入器覆盖登记输入中的主人字段，调用方不能改用别人的身份。读取、写入和到点投递都复查安装与授权，已停止的安装拒绝。生产插件只用 `services.scheduler`；调度器只有带安装绑定的 `registerAction` 一条登记路，连不上该安装动作网关的登记被拒绝（`scheduler.handler_missing`），没有进程内 handler，测试也经 `tests/fixtures/scheduler-owner.ts` 接上安装的网关。
 
-工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期和截断文字的 `cutHead`）。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期和截断文字的 `cutHead`）、`@molis-ai/molis-work-storage`（到期登记表 `due-registry` 的 Home 库，第 106 批）。
 
 ## 本地开发
 
@@ -45,9 +45,10 @@ node scripts/run-tests.mjs tests/scheduler.test.ts tests/schedule-plugin.test.ts
 - 负责：一次性叫醒、租约、错过后的补叫与投递回执。
 - 不负责：cron 表达式、自动化规则、来源计划意图、动作参数。
 - 公开入口：`@molis-ai/molis-work-service-scheduler`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/scheduler`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：合同、公共执行生命周期（来自 plugin-sdk）与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`、`@molis-ai/molis-work-storage`。方向：合同、公共执行生命周期（来自 plugin-sdk）与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 到点只叫一次；once 与 interval 由 Schedule 插件的 job 模型解释。
+  - 到期登记表（`src/due-registry.ts`，统一工作分区 §6.1，第 106 批）：Home 一份 `due-registry` 库按（安装, 分区, 键）登记插件自己的到期项与从总览表提醒列读来的提醒；一个 `DueTimer` 到点只经按分区装配唤醒那一个（插件, 分区），不起别的分区（`S-partition-wake-scope`）；到点后满七天才处理到的项只记为过期、不执行（95-3 的规则归这里，`RUN_MISSED_KEPT_MS`）；总览提醒按键与时间只响一次；分区删除、插件在分区停用或卸载时这里的项一并清掉（`tests/partition-platform-services.test.ts`）。第 106 批只加不删，插件的投递处理随第 108 批。
   - 插件通过公共 `services.scheduler` 与本插件数据库事务登记闹钟，安装身份和项目由 Runtime 绑定，输入不读取 `plugin_id`；结束的事务、另一插件与另一项目的句柄、停用的安装均拒绝。唤醒只走 Manifest 声明的动作与现行动作网关（`tests/security-invariants-plugin-scheduler.test.ts`、`tests/scheduler-plugin-identity.test.ts`）。
   - 不执行业务，只叫醒闹钟主人自己的能力。
 - 改动后必跑：`node scripts/run-tests.mjs tests/scheduler.test.ts tests/scheduler-plugin-identity.test.ts tests/schedule-conversation-tasks.test.ts`

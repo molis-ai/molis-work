@@ -34,6 +34,7 @@ import { subjectContextProblems } from "./subject-context.js";
 import { workTerminalDeclarationProblems } from "./work-terminal.js";
 import { settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
+import { partitionDeclarationProblems } from "./partition-declarations.js";
 import { inspectStateMachineDeclarations } from "./state-machine-declaration.js";
 import { uiHelpDeclarationProblems } from "./ui/on-demand-help.js";
 
@@ -305,6 +306,7 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...readGroupDeclarationProblems(parsed.read_groups, parsed.actions));
   problems.push(...taskSubjectDeclarationProblems(parsed.task_subjects, parsed.actions));
   problems.push(...validatePresentationDeclaration(parsed));
+  problems.push(...partitionDeclarationProblems(parsed));
   if (problems.length) refuseDeclarations(problems);
 }
 

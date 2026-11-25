@@ -11,7 +11,7 @@ import { isRecord } from "./json-value.js";
 const CONTENT_KEYS = new Set([
   "schema_version", "plugin_id", "version", "name", "name_text", "summary", "summary_text", "publisher", "host_api_version", "developer", "kind",
   "entrypoints", "permissions", "capabilities", "artifacts", "ui",
-  "methods", "blueprint", "requires", "upgrade_compatibility", "runtime",
+  "methods", "blueprint", "requires", "upgrade_compatibility", "runtime", "market",
 ]);
 /** The `ui` keys it may write: the empty contribution list and the language file declaration. */
 const CONTENT_UI_KEYS = new Set(["contributions", "locales"]);

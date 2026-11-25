@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
-import { countFile, countNonTsOldNames, countPackedStatements, countPlatformPluginNames, pluginIdsOf } from "../scripts/gates/source-counts.mjs";
+import { countFile, countNonTsOldNames, countPackedStatements, countPartitionPathScans, countPlatformPluginNames, pluginIdsOf } from "../scripts/gates/source-counts.mjs";
 
 // specs/archive/repository-anti-corruption §4.13/§4.16 (W1-04): per-file counts of the old names (goalboard, board_id) and of empty
 // catch blocks inside browser programs written as string and template literals, which may only fall. The definitions are
@@ -91,6 +91,16 @@ test("44B G1 definition: platform sources count plugin ids, packages, quoted sho
   assert.equal(countPlatformPluginNames("apps/local-host/src/c.ts", 'const a = "goals:read"; const b = `methods:write`; const c = "goals.goal.v1"; const d = id.startsWith("goals.");', ids), 4);
 });
 
+test("UPP G3 path half definition: a platform source counts direct listings of projects/ and loops over listProjects(), nothing else", () => {
+  const file = "apps/local-host/src/a.ts";
+  assert.equal(countPartitionPathScans(file, 'readdirSync(join(home, "projects")); readdir(projectsDirectory); readdirSync(projects, { withFileTypes: true });'), 3);
+  assert.equal(countPartitionPathScans(file, "for (const project of catalog.listProjects()) go(project); catalog.listProjects().forEach(go); x.listProjects().flatMap(f);"), 3);
+  // What a partition loop should write, and the person's own list of projects, are not counted.
+  assert.equal(countPartitionPathScans(file, "for (const partition of catalog.listPartitions()) open(partitionRoot(home, partition.project_id)); const shown = catalog.listProjects();"), 0);
+  assert.equal(countPartitionPathScans(file, 'readdirSync(join(home, "plugin-files")); readdirSync(projectRoot);'), 0, "another directory, or one project's own root");
+  assert.equal(countPartitionPathScans("plugins/native/todo/src/a.ts", 'readdirSync(join(home, "projects"));'), 0, "a plugin is not a platform source");
+});
+
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-health-counts-"));
   gitAt(repo, "init", "-q", "-b", "main");
@@ -152,6 +162,8 @@ const violations: Scenario[] = [
     expect: [/plugin names in a platform source in packages\/alpha\/src\/wiring\.ts 0 → 1/] },
   { name: "44B G1 a plugin named once more in a platform file that names it", mutate: () => put("packages/alpha/src/plugin-named.ts", read("packages/alpha/src/plugin-named.ts") + "export const short = \"demo\";\n"),
     expect: [/plugin names in a platform source in packages\/alpha\/src\/plugin-named\.ts 1 → 2/] },
+  { name: "UPP G3 a platform loop that lists projects/ in a new file", mutate: () => put("packages/alpha/src/walk.ts", "export const walk = (home: string) => readdirSync(join(home, \"projects\"));\n"),
+    expect: [/platform loops over partitions that list projects\/ or iterate listProjects\(\) in packages\/alpha\/src\/walk\.ts 0 → 1/] },
   { name: "Batch 100-2 packed sibling statements in a new file", mutate: () => put("packages/alpha/src/new-packed.ts", "export function f() { const a = 1; return a; }\n"), expect: [/multiple sibling statements on one line in packages\/alpha\/src\/new-packed\.ts 0 → 1/] },
   { name: "Batch 100-2 another packed sibling statement in an existing file", mutate: () => put("packages/alpha/src/packed.ts", read("packages/alpha/src/packed.ts") + "export const p3 = 3; export const p4 = 4;\n"), expect: [/multiple sibling statements on one line in packages\/alpha\/src\/packed\.ts 1 → 2/] },
   { name: "PG-097 retired name in Rust source", mutate: () => put("apps/desktop/adapters/tauri/src/probe.rs", 'const ENV: &str = "MOLIS_JELLY_WHISPER";\n'), expect: [/uses of an old name \(goalboard, board_id\) in apps\/desktop\/adapters\/tauri\/src\/probe\.rs 0 → 1/] },

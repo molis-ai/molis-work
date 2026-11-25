@@ -1,3 +1,6 @@
+import { DUE_REGISTRY_HOME_STORE } from "@molis-ai/molis-work-service-scheduler";
+import { EVIDENCE_HOME_STORE } from "@molis-ai/molis-work-service-evidence";
+import { PERSON_SETTINGS_HOME_STORE } from "@molis-ai/molis-work-service-person-settings";
 import { MCP_CLIENT_CREDENTIAL_DIRECTORY } from "./mcp-client-credentials.js";
 import { basename, dirname, join } from "node:path";
 import { HOME_SECURITY_DIRNAME, readStorageSpace } from "@molis-ai/molis-work-storage";
@@ -92,6 +95,9 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
       CONNECTORS_HOME_STORE, WEB_SEARCH_HOME_STORE, { ...CONNECTOR_TOOLS_HOME_STORE, snapshot: managedToolsSnapshot }, CONTEXT_ONBOARDING_HOME_STORE,
       ORIGINAL_FILES_HOME_STORE, CONVERSATION_ATTACHMENTS_HOME_STORE, MATERIALS_HOME_STORE, DIRECTORY_GRANTS_HOME_STORE),
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),
+    ...owned("horizontal/scheduler", DUE_REGISTRY_HOME_STORE),
+    ...owned("horizontal/evidence", EVIDENCE_HOME_STORE),
+    ...owned("horizontal/person-settings", PERSON_SETTINGS_HOME_STORE),
     ...owned("modules/artifacts", ARTIFACTS_HOME_STORE),
     ...owned("modules/characters", CHARACTERS_HOME_STORE),
     ...owned("packages/storage", MEMORY_LEDGER_HOME_STORE,

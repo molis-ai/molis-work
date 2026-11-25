@@ -361,3 +361,5 @@ export { syncAggregateDeclaration, parseSyncTracking, parseSyncAggregates } from
 export { syncSection, syncSectionsDeclaration, syncSectionsTracking } from './sync-sections.js';
 
 export { readLocalizedMarkdown } from "./localized-markdown.js";
+export { overviewRows, overviewEventWindowEnd, overviewColumns } from "./overview-rows.js";
+export { partitionDeclarationProblems, type PartitionDeclarationFields } from "./partition-declarations.js";

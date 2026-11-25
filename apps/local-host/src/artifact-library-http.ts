@@ -105,7 +105,9 @@ async function readReferenceSources(actions: LocalWebActionClient, reference: Ar
       if ((error.kind ?? platformErrorKind(error.code)) === "forbidden") return [];
       // A provider may itself report a missing record. Only a vanished registration makes its source inapplicable.
       if (action && error.code === "actions.missing") {
-        try { if (!await actions.discoverOne(action)) return []; } catch { /* Discovery also failed; keep the retry. */ }
+        try {
+          if (!await actions.discoverOne(action)) return [];
+        } catch { /* Discovery also failed; keep the retry. */ }
       }
     }
     return [{ key, state: "failed", title }];
@@ -296,7 +298,11 @@ export function createLocalArtifactHttp() {
       const reference = selected && route.kind === "detail" ? { artifact_id: selected.artifact_id, version: selected.version } : null;
       if (fragment === "artifact-reference-source") {
         const source = requestHeader(request, "x-molis-work-reference-source");
-        if (!source || !reference) { response.writeHead(404, { "cache-control": "no-store" }); response.end(); return true; }
+        if (!source || !reference) {
+          response.writeHead(404, { "cache-control": "no-store" });
+          response.end();
+          return true;
+        }
         const answer = await readReferenceSources(context.actions, reference, source);
         response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
         response.end(`<div data-artifact-reference-response lang="${escape(currentLocale())}">${artifactWorkbench.referenceSources(answer, primitives)}</div>`);

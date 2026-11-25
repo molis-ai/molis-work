@@ -234,6 +234,9 @@ export class PlacementService {
   /** How many carries are recorded as not yet finished; `settleCarries` settles them. */
   pendingCarries(): number { return this.edges(TYPES.carrying).length; }
 
+  /** Each unfinished carry as it is recorded now (its key and what it carried): a new or re-recorded carry reads differently. */
+  pendingCarryRecords(): string[] { return this.edges(TYPES.carrying).map(edge => `${edge.key}\n${edge.cause}`); }
+
   /**
    * Finishes the carries a cut left half done (the Host stopped between a put and its remove): an object found in both partitions goes from
    * where it was while it is still the revision carried, or, changed there since, the put is taken back while that is unchanged. One changed in
@@ -519,6 +522,40 @@ async function settleCarry(ports: PlacementPorts, edge: ContextEdge): Promise<"s
   const location = ports.ledger.query.get(ACCESS, key("location", kind, id));
   if (location?.target.id !== to) writeProjectLocation(ports, object, from, to);
   return done("placement.carried");
+}
+
+/** How long a carry left unsettled waits before a background pass tries it again, unless a new one is recorded. */
+export const CARRY_RETRY_MS = 5 * 60_000;
+
+/**
+ * The Host's background settling of carries a cut left half done: one pass at a time, started by a placement call. A pass opens both
+ * partitions of every carry, so one that is left unsettled (changed in both, or an owner not reachable) is tried again only once a new carry
+ * is recorded or `retryMs` has passed, never on every call.
+ */
+export class CarrySettling {
+  private running: Promise<void> | null = null;
+  private lastAt = Number.NEGATIVE_INFINITY;
+  private left = new Set<string>();
+
+  constructor(private readonly service: Pick<PlacementService, "pendingCarryRecords" | "settleCarries">,
+    private readonly options: { readonly now?: () => number; readonly retryMs?: number } = {}) {}
+
+  /** Starts a pass when one is due; returns at once. */
+  kick(): void {
+    if (this.running) return;
+    const records = this.service.pendingCarryRecords();
+    if (!records.length) return;
+    const now = (this.options.now ?? Date.now)();
+    if (records.every(record => this.left.has(record)) && now - this.lastAt < (this.options.retryMs ?? CARRY_RETRY_MS)) return;
+    this.lastAt = now;
+    this.running = this.service.settleCarries().then(() => undefined, () => undefined).finally(() => {
+      this.left = new Set(this.service.pendingCarryRecords());
+      this.running = null;
+    });
+  }
+
+  /** Resolves once the pass under way, if any, has finished. */
+  idle(): Promise<void> { return this.running ?? Promise.resolve(); }
 }
 
 /** The ledger access this service writes as; the Host authorizes exactly this partition. */

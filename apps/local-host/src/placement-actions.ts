@@ -6,7 +6,7 @@ import type { MaterialRef } from "@molis-ai/molis-work-contracts/platform/projec
 import {
   PLACEMENT_PROVIDER_ID, placementActions, placementAttachActions, type PlacedObject, type PlacementConvertRequest, type PlacementCreateRequest, type PlacementSpaceView,
 } from "@molis-ai/molis-work-contracts/services/placement";
-import { PlacementService, PLACEMENT_LEDGER_ACCESS, placementRelationsFor, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
+import { CarrySettling, PlacementService, PLACEMENT_LEDGER_ACCESS, placementRelationsFor, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
 import { CONTEXT_LEDGER_SCHEMA, createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
@@ -79,13 +79,10 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   let closed = false;
   const service = new PlacementService(servicePorts);
   // A move the Host stopped in the middle of (between its put and its remove) is settled once the Host answers placement calls again, as
-  // the local person, in the background; one left unsettled or failing is tried again on a later call (one pass at a time). `move` settles
-  // its own object before it starts.
-  let carries: Promise<unknown> | null = null;
-  const settleCarries = () => {
-    if (carries || closed || service.pendingCarries() === 0) return;
-    carries = service.settleCarries().catch(() => undefined).finally(() => { carries = null; });
-  };
+  // the local person, in the background, one pass at a time; one left unsettled is tried again when a new carry is recorded or after
+  // `CARRY_RETRY_MS`, not on every call (a pass opens both partitions). `move` settles its own object before it starts.
+  const carrying = new CarrySettling(service);
+  const settleCarries = () => { if (!closed) carrying.kick(); };
   const forCall = (caller: Parameters<ActionHandlerBinding["handle"]>[0]) => {
     settleCarries();
     return new PlacementService(surfacePlacementCallPorts(servicePorts, caller, () => !closed));

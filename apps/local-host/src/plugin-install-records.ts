@@ -31,9 +31,10 @@ export function pluginInstallRecords(db: PluginRuntimeDatabase): PluginRuntimeRe
       if (!own(record)) rows.save(record);
       else {
         const instance = joined.running(record.plugin_id);
-        // The instance keeps the lifecycle and hands durable facts to the Home row; with none running here, the Home row holds no lifecycle.
+        // The instance keeps the lifecycle and hands durable facts to the Home row; with none running here, only the installation's own
+        // facts reach the Home row (installed, disabled, uninstalled), never one partition's lifecycle (running, crashed, quarantined).
         if (instance) instance.save(record);
-        else partition.save(record.state === "running" ? { ...record, state: "installed", recovery_count: 0, last_error_code: null } : record);
+        else partition.save(INSTALL_STATES.has(record.state) ? record : { ...record, state: partition.get(record.install_id)?.state ?? "installed", recovery_count: 0, last_error_code: null });
       }
       forgetInDirectoryPass(rows, record.install_id);
     },
@@ -41,6 +42,9 @@ export function pluginInstallRecords(db: PluginRuntimeDatabase): PluginRuntimeRe
 }
 
 /** For each partition's database: the Home install table its per-partition plugins' records are in, and which plugins those are. */
+/** The states that are the installation's, kept in the Home row; any other is one partition instance's lifecycle. */
+const INSTALL_STATES: ReadonlySet<PluginInstanceRecord["state"]> = new Set(["installed", "disabled", "uninstalled"]);
+
 interface PartitionInstalls {
   readonly installs: PluginRuntimeDatabase;
   plugins(): ReadonlySet<string>;

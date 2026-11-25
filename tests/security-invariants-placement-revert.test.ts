@@ -9,7 +9,7 @@ import {
   subjectContext, type ActionCallContext, type ActionExecutionContext,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
-import { PlacementService, PLACEMENT_LEDGER_ACCESS, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
+import { CarrySettling, PlacementService, PLACEMENT_LEDGER_ACCESS, type PlacementPorts } from "@molis-ai/molis-work-service-placement";
 
 // S-35: after a plugin has committed a cross-partition move and the round is then refused, the platform may put the object back
 // (user decision 2026-10-17). The move-back goes only to where the object was, and not after the placement service has closed.
@@ -173,6 +173,7 @@ function carryWorld({ remove }: CarryOptions = {}) {
   const projects = ["personal", "q4", "interview"];
   const notes = new Map<string, { version: number; body: string }>([["personal", { version: 1, body: "检查清单" }]]);
   let cut = false, refusing = true;
+  const exports = new Map<string, number>();
   const actions = new ActionService();
   const record = (at: string) => { const note = notes.get(at)!; return { body: note.body, version: note.version }; };
   for (const project of projects) {
@@ -184,6 +185,7 @@ function carryWorld({ remove }: CarryOptions = {}) {
           return subjectContext({ subject: { kind: "note", id: "n1" }, revision: String(note.version), title: note.body, content: "", open: { surface: "notes", id: "n1" } });
         } },
         { ...exporter, handle: caller => {
+          exports.set(caller.project_id!, (exports.get(caller.project_id!) ?? 0) + 1);
           if (!notes.has(caller.project_id!)) throw new ActionError("notes.not_found", "笔记不存在", { kind: "not_found" });
           return { subject: { kind: "note", id: "n1" }, revision: String(notes.get(caller.project_id!)!.version), record: record(caller.project_id!) };
         } },
@@ -213,7 +215,7 @@ function carryWorld({ remove }: CarryOptions = {}) {
     scope: async projectId => ({ client: actions, caller: owner(projectId) }),
     titles: { get: (kind, id) => titles.get(kind + ":" + id) ?? null, set: (kind, id, title) => { titles.set(kind + ":" + id, title); } },
   };
-  return { notes, ports, restart: () => { cut = false; refusing = false; }, service: () => new PlacementService(ports) };
+  return { notes, ports, exports, restart: () => { cut = false; refusing = false; }, service: () => new PlacementService(ports) };
 }
 
 test("S-35 a carried move whose remove is refused takes back what it put: the note is only where it was, and no carry is left", async () => {
@@ -286,6 +288,23 @@ test("S-35 a cut carry is not settled while either partition's owner cannot be r
     assert.equal(await w.service().settleCarries(), 0, "the owner is back: settled");
     assert.deepEqual([...w.notes.keys()], ["q4"]);
   }
+});
+
+test("S-35 a carry left unsettled is not tried again on every call: the background pass waits for a new carry or the retry interval", async () => {
+  const w = carryWorld({ remove: from => from === "personal" ? "cut" : undefined });
+  await assert.rejects(w.service().move(old, "q4"), /宿主停了/u);
+  w.restart();
+  w.notes.set("personal", { version: 2, body: "原处改过" });
+  w.notes.set("q4", { version: 2, body: "目标改过" });
+  w.exports.clear();
+  let now = 0;
+  const settling = new CarrySettling(w.service(), { now: () => now, retryMs: 1000 });
+  for (let call = 0; call < 5; call++) { settling.kick(); await settling.idle(); }
+  assert.deepEqual(Object.fromEntries(w.exports), { personal: 1, q4: 1 }, "changed in both: one pass reads each side once, then waits");
+  assert.equal(w.service().pendingCarries(), 1, "and the record stays");
+  now = 1500;
+  settling.kick(); await settling.idle();
+  assert.deepEqual(Object.fromEntries(w.exports), { personal: 2, q4: 2 }, "tried again once the interval has passed");
 });
 
 test("S-35 a put onto an object already at the target accepts only the same record again: a retried put is a replay, an edited target is a conflict", async () => {

@@ -198,6 +198,14 @@ export class PlacementService {
 
   async move(input: PlacedObject, to: string): Promise<PlacementMoveResponse> {
     const spaces = await this.ports.spaces();
+    const carrying = carryingKey(input.kind, input.id), moving = underWay(this.ports);
+    if (moving.has(carrying)) throw placementErrors.carry_in_progress(placementText(this.ports, "workbench.index.item-is-being-moved"));
+    moving.add(carrying);
+    try { return await this.moveHeld(input, to, spaces); } finally { moving.delete(carrying); }
+  }
+
+  /** `move` with this object's carry held by this process, so the background pass leaves its record alone until it ends. */
+  private async moveHeld(input: PlacedObject, to: string, spaces: readonly PlacementSpaceView[]): Promise<PlacementMoveResponse> {
     // A carry an earlier move of this object left half done (cut between its put and its remove) is finished or taken back first.
     const pending = this.ports.ledger.query.get(ACCESS, carryingKey(input.kind, input.id));
     if (pending && await settleCarry(this.ports, pending) !== "settled") throw carryUnsettled(this.ports);
@@ -234,8 +242,14 @@ export class PlacementService {
   /** How many carries are recorded as not yet finished; `settleCarries` settles them. */
   pendingCarries(): number { return this.edges(TYPES.carrying).length; }
 
-  /** Each unfinished carry as it is recorded now (its key and what it carried): a new or re-recorded carry reads differently. */
-  pendingCarryRecords(): string[] { return this.edges(TYPES.carrying).map(edge => `${edge.key}\n${edge.cause}`); }
+  /**
+   * Each unfinished carry a background pass could settle, as it is recorded now (its key and what it carried): a new or re-recorded carry
+   * reads differently. One a move here is still doing is not listed.
+   */
+  pendingCarryRecords(): string[] {
+    const moving = underWay(this.ports);
+    return this.edges(TYPES.carrying).filter(edge => !moving.has(edge.key)).map(edge => `${edge.key}\n${edge.cause}`);
+  }
 
   /**
    * Finishes the carries a cut left half done (the Host stopped between a put and its remove): an object found in both partitions goes from
@@ -245,7 +259,10 @@ export class PlacementService {
    */
   async settleCarries(): Promise<number> {
     let unsettled = 0;
+    const moving = underWay(this.ports);
     for (const edge of this.edges(TYPES.carrying)) {
+      // A move under way here holds its own record: only one a cut left (an earlier process, or a move here that has ended) is settled.
+      if (moving.has(edge.key)) { unsettled += 1; continue; }
       // One that fails now (an owner that throws, a list that cannot be read) stays for the next pass and does not hold up the others.
       const result = await settleCarry(this.ports, edge).catch(() => "unsettled" as const);
       if (result !== "settled") unsettled += 1;
@@ -466,6 +483,17 @@ async function carryMove(ports: PlacementPorts, object: PlacedObject, from: stri
 }
 
 const carryingKey = (kind: string, id: string) => key("carrying", kind, id);
+
+/**
+ * The objects a move in this process is carrying now, per ledger (every per-call wrapper of a Host's ports spreads the same ledger, so they
+ * share its `query`). Their carry records are the move's own, not ones a cut left: nothing settles them from outside while it runs.
+ */
+const carriesUnderWay = new WeakMap<object, Set<string>>();
+function underWay(ports: PlacementPorts): Set<string> {
+  let keys = carriesUnderWay.get(ports.ledger.query);
+  if (!keys) carriesUnderWay.set(ports.ledger.query, keys = new Set());
+  return keys;
+}
 const carryUnsettled = (ports: PlacementPorts) => placementErrors.carry_unsettled(placementText(ports, "workbench.index.item-changed-both-places-last-move"));
 
 function noteCarrying(ports: PlacementPorts, object: PlacedObject, from: string, to: string, revision: string): void {
@@ -765,7 +793,7 @@ interface AttachRelations {
 const NO_RELATIONS: AttachRelations = { all: [], of: () => null, noun: () => null };
 
 /** Codes this package owns beyond the platform's `placement.same_location`; the rest are raised as plain `ActionError`s where they happen. */
-const placementErrors = defineErrorCodes("placement", { relation_ambiguous: "conflict", carry_unsettled: "conflict" });
+const placementErrors = defineErrorCodes("placement", { relation_ambiguous: "conflict", carry_unsettled: "conflict", carry_in_progress: "conflict" });
 
 /**
  * Every relation in a partition. One relation has one owner, and one kind of target is one relation's: two providers declaring the same

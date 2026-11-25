@@ -167,13 +167,15 @@ const remover = defineObjectRemoveAction("notes.placement.remove", 1, ["note"], 
 interface CarryOptions {
   /** Refuses the remove where the note was: a conflict, or a cut (the Host stops: neither the remove nor taking back the put happens). */
   remove?: (from: string) => "conflict" | "cut" | undefined;
+  /** Awaited inside the put, before it writes. */
+  putting?: () => Promise<void>;
 }
 
-function carryWorld({ remove }: CarryOptions = {}) {
+function carryWorld({ remove, putting }: CarryOptions = {}) {
   const projects = ["personal", "q4", "interview"];
   const notes = new Map<string, { version: number; body: string }>([["personal", { version: 1, body: "检查清单" }]]);
   let cut = false, refusing = true;
-  const exports = new Map<string, number>();
+  const exports = new Map<string, number>(), removes = new Map<string, number>();
   const actions = new ActionService();
   const record = (at: string) => { const note = notes.get(at)!; return { body: note.body, version: note.version }; };
   for (const project of projects) {
@@ -189,7 +191,8 @@ function carryWorld({ remove }: CarryOptions = {}) {
           if (!notes.has(caller.project_id!)) throw new ActionError("notes.not_found", "笔记不存在", { kind: "not_found" });
           return { subject: { kind: "note", id: "n1" }, revision: String(notes.get(caller.project_id!)!.version), record: record(caller.project_id!) };
         } },
-        { ...putter, handle: (caller, input) => {
+        { ...putter, handle: async (caller, input) => {
+          await putting?.();
           const { record: carried } = input as { record: { body: string; version: number } };
           if (notes.has(caller.project_id!)) {
             if (!sameCarriedRecord(record(caller.project_id!), carried)) throw new ActionError("notes.conflict", "目标位置已经有这份笔记，而且内容不同", { kind: "conflict" });
@@ -198,6 +201,7 @@ function carryWorld({ remove }: CarryOptions = {}) {
         } },
         { ...remover, handle: (caller, input) => {
           const at = caller.project_id!, { revision } = input as { revision: string };
+          removes.set(at, (removes.get(at) ?? 0) + 1);
           const refusal = cut ? "cut" : refusing ? remove?.(at) : undefined;
           if (refusal === "cut") { cut = true; throw new Error("宿主停了"); }
           if (refusal === "conflict") throw new ActionError("notes.conflict", "笔记刚被修改", { kind: "conflict" });
@@ -215,7 +219,7 @@ function carryWorld({ remove }: CarryOptions = {}) {
     scope: async projectId => ({ client: actions, caller: owner(projectId) }),
     titles: { get: (kind, id) => titles.get(kind + ":" + id) ?? null, set: (kind, id, title) => { titles.set(kind + ":" + id, title); } },
   };
-  return { notes, ports, exports, restart: () => { cut = false; refusing = false; }, service: () => new PlacementService(ports) };
+  return { notes, ports, exports, removes, restart: () => { cut = false; refusing = false; }, service: () => new PlacementService(ports) };
 }
 
 test("S-35 a carried move whose remove is refused takes back what it put: the note is only where it was, and no carry is left", async () => {
@@ -305,6 +309,24 @@ test("S-35 a carry left unsettled is not tried again on every call: the backgrou
   now = 1500;
   settling.kick(); await settling.idle();
   assert.deepEqual(Object.fromEntries(w.exports), { personal: 2, q4: 2 }, "tried again once the interval has passed");
+});
+
+test("S-35 a move under way is not settled from outside: a background pass started between its put and its remove leaves it to finish", async () => {
+  const put = pause();
+  const w = carryWorld({ putting: () => put.wait() });
+  const settling = new CarrySettling(w.service());
+  const moving = w.service().move(old, "q4");
+  await put.reached;
+  assert.equal(w.service().pendingCarries(), 1, "the move has written its record");
+  settling.kick(); await settling.idle();
+  await assert.rejects(w.service().move(old, "interview"), { code: "placement.carry_in_progress" }, "a second move of it waits for the first");
+  put.release();
+  await moving;
+  settling.kick(); await settling.idle();
+  assert.deepEqual([...w.notes.keys()], ["q4"], "only at the target");
+  assert.equal(w.service().pendingCarries(), 0);
+  assert.deepEqual(w.service().locate(old), { object: { ...old, project_id: "q4" }, moved: true });
+  assert.deepEqual(Object.fromEntries(w.removes), { personal: 1 }, "removed once where it was, and the target's copy never");
 });
 
 test("S-35 a put onto an object already at the target accepts only the same record again: a retried put is a replay, an edited target is a conflict", async () => {

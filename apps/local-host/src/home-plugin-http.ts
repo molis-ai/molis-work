@@ -216,7 +216,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   let routed: ReturnType<typeof projectRouteControl> | undefined;
   try {
     abort.signal.throwIfAborted();
-    const caller = splitContext ? await splitContext() : await projectContext(host, project);
+    const caller = splitContext ? await splitContext() : await localOwnerContext(host, project);
     abort.signal.throwIfAborted();
     routed = projectRouteControl(plain, project?.project_id ?? null, project ? host.actionClient(project) : host.homeActionClient(), async () => {
       if (!project || !prefixed) return;
@@ -295,12 +295,13 @@ function binds(platform: Pick<PluginPlatform, "runtime">, install: PluginInstanc
   return Boolean(contribution?.kind === "app" && (contribution.routes ?? []).some(binding => binding.route_id === routeId));
 }
 
-const projectContext = (host: MolisWorkLocalHost, project: LocalHostProjectReference | undefined) => localWebActionContext(host, project, LOCAL_OWNER_PERMISSIONS);
+/** The local owner's context in a project (or in none): Home plugin routes and the Home's overview build it the same way. */
+export const localOwnerContext = (host: MolisWorkLocalHost, project: LocalHostProjectReference | undefined) => localWebActionContext(host, project, LOCAL_OWNER_PERMISSIONS);
 
 /** One request's person context for a project, built on first use: starting the platform and the route that answers share it (N42). */
 function requestProjectContext(host: MolisWorkLocalHost, project: LocalHostProjectReference): () => Promise<ActionCallContext> {
   let pending: Promise<ActionCallContext> | undefined;
-  return () => pending ??= projectContext(host, project);
+  return () => pending ??= localOwnerContext(host, project);
 }
 
 /**

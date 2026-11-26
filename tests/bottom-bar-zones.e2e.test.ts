@@ -49,13 +49,13 @@ test("PFG-22 WLN-16 POLISH-05 the strip carries the first place alone before the
   // The glyph-only ＋ says where the work area is to a screen reader.
   await waitFor("/^切换插件 · 现在：/.test(document.querySelector('[data-plugin-picker-toggle]').getAttribute('aria-label'))");
 
-  // One rule: the start page's 个人 group, the strip's own group and the plugin directory list the same built-ins (Pages is personal per project, 灵光 too: not the person's own here).
+  // One rule: the start page's 个人 group, the strip's own group and the plugin directory list the same plugins. Since batch 108 no built-in is
+  // the person's own (all run in each partition they are added to); only a Home plugin outside the build is (until batch 109-3).
   const personal = await evaluate<{ switcher: string[]; plus: string[] }>(`(() => ({
     switcher: [...document.querySelectorAll('[data-plugin-tile][data-rail-group="personal"]')].map((tile) => tile.dataset.pluginTile).sort(),
     plus: JSON.parse(document.querySelector('script[data-plugin-directory]').textContent).filter((entry) => entry.personal).map((entry) => entry.id).sort(),
   }))()`);
-  for (const id of ["todo", "jelly"]) assert.ok(personal.switcher.includes(id) && personal.plus.includes(id), `${id} is the person's own in both`);
-  for (const id of ["pages", "lingguang"]) assert.ok(!personal.switcher.includes(id) && !personal.plus.includes(id), `${id} is not the person's own`);
+  for (const id of ["todo", "jelly", "pages", "lingguang"]) assert.ok(!personal.switcher.includes(id) && !personal.plus.includes(id), `${id} is not the person's own`);
   assert.deepEqual(personal.switcher.filter((id) => !personal.plus.includes(id)), [], "every 个人 entry of the switcher is in ＋'s 个人 section");
 
   // The plugin that did not start: the amber point on its start-page entry and its ＋ row; the top has no glyph of it to carry one.

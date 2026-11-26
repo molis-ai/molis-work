@@ -12,8 +12,7 @@ import type { OverviewGrant, OverviewLibrary } from "@molis-ai/molis-work-servic
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { readBackgroundTasks } from "@molis-ai/molis-work-service-mainline";
-import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import { localWebActionContext } from "./local-web-actions.js";
+import { localOwnerContext } from "./home-plugin-http.js";
 
 /**
  * The Home's two lists across partitions, 「后台任务」 and 「定时运行」, read from the overview index alone (specs/unified-partition-plugins §6.1
@@ -166,7 +165,7 @@ export async function hostBackgroundTasks(host: MolisWorkLocalHost): Promise<Hom
   const partitions = await host.partitions(), names = new Map(partitions.map(partition => [partition.project_id, partition.display_name]));
   const [overview, own] = await Promise.all([homeBackgroundTasks(source, partitions), Promise.all(host.projects().filter(row => row.state !== "closing").map(async reference => {
     const read = await host.withProject(reference, async () => {
-      const caller = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS), client = host.actionClient(reference);
+      const caller = await localOwnerContext(host, reference), client = host.actionClient(reference);
       const views = (await client.discover({ ...caller, query_only: true })).filter(view => view.provider.kind === "system");
       return readBackgroundTasks(caller, client, views);
     }).catch(() => undefined);

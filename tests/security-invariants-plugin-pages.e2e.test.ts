@@ -220,10 +220,10 @@ test("SYS-15-U7 S-47 embedded content is host owned, confined to the page and ca
 // W2-18-HOME-LOCALE-01: the standalone Home settings host consumes the same restricted request.
 test("SYS-15 S-47 standalone Home settings reject invalid addresses and accept the existing connection pages", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
-  // Work Brief's is the built-in standalone Home page left after Issues and Jelly moved to the partitions (batch 108).
-  const child = await pluginFrameBrowser(t, b, "work-brief");
+  // Work Brief's is the built-in standalone Home page left after Issues and Jelly moved to the partitions (batch 108). Its Home half draws no
+  // view of its own, so the page's settings host is all there is to wait for.
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/locale?lang=en&next=%2Fplugins%2Fwork-brief` }, b.sessionId));
-  await child.waitFor("document.readyState === 'complete' && Boolean(document.body)", 20_000);
+  await b.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-home-model-settings]')", 20_000);
   const address = await b.evaluate("location.href");
   const refuse = () => b.evaluate(`(async () => {
     const fetch = window.fetch, requests = [], field = document.querySelector('[data-model-base-url]');

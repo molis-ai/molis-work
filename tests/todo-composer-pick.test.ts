@@ -5,7 +5,7 @@ import { todoPicks } from "@molis-ai/molis-work-plugin-todo";
 type Item = Parameters<typeof todoPicks>[0][number];
 
 const item = (id: string, title: string, more: Partial<Item> = {}): Item => ({
-  id, title, notes: "", status: "open", placement: "project", project_id: "p1", due_date: null, due_time: null, planned_date: null,
+  id, title, notes: "", status: "open", due_date: null, due_time: null, planned_date: null,
   remind_at: null, reminder_acknowledged_at: null, important: false, waiting: null, sources: [], links: [], edited_fields: [],
   archived_at: null, completed_at: null, created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-01T00:00:00Z", revision: 1, ...more,
 });

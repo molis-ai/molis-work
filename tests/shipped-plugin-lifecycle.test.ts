@@ -22,6 +22,8 @@ const SHIPPED: Record<string, Shipped> = {
     titles: async (web, routes) => titlesOf((await web.get<{ items: Array<{ title: string }> }>(`${routes}/items?view=all`)).items) },
   // Jelly has no routes since batch 112-2: the person writes and reads through its actions, refused the same way a route is.
   jelly: { key: "jelly", plugin_id: "io.molis.work.jelly", scope: "project", joins: true,
+    // A revoked partition instance registers none of its actions, so the call finds none.
+    revoked_answer: "404 actions.missing",
     write: (_web, _routes, title, call) => call("jelly.item.create", /* @version action.jelly.item.create */ 1, { item: { title, start_date: day } }),
     titles: async (_web, _routes, call) => titlesOf((await call<{ items: Array<{ title: string }> }>("jelly.calendar.list", /* @version action.jelly.calendar.list */ 1, { start: day, end: day })).items) },
   pages: { key: "pages", plugin_id: "io.molis.work.pages", scope: "project", joins: true,

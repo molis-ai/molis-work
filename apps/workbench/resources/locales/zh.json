@@ -5707,7 +5707,7 @@
     "workbench.settings-assistant.overview-field-summary": "摘要",
     "workbench.settings-assistant.overview-field-state": "进展状态",
     "workbench.settings-assistant.overview-field-waiting": "是否等你",
-    "workbench.settings-assistant.overview-field-started-at": "开始运行时间",
+    "workbench.settings-assistant.overview-field-started-at": "任务开始时间",
     "workbench.settings-assistant.overview-field-reports-to": "是否报给助理",
     "workbench.settings-assistant.overview-field-missed-at": "错过时间",
     "workbench.settings-assistant.overview-field-needs": "运行条件",

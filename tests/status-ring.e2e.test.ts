@@ -1,4 +1,3 @@
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
@@ -9,7 +8,6 @@ test("RING-01 RING-02 RING-03 RING-04 RING-05 catalog, lifecycle, Goals and Home
   if (!browser) return;
   const { command, sessionId, evaluate, navigate, waitFor, origin } = browser;
   // The disabled ring on a standalone Home page: Work Brief's since Issues and Jelly moved to the partitions (batch 108).
-  const homePage=await pluginFrameBrowser(t,browser,"work-brief");
   await command("Emulation.setDeviceMetricsOverride", { width: 1200, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#status-ring` }, sessionId));
@@ -119,10 +117,10 @@ test("RING-01 RING-02 RING-03 RING-04 RING-05 catalog, lifecycle, Goals and Home
     await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   }
   await navigate(() => command("Page.navigate", { url: `${origin}/plugins/work-brief` }, sessionId));
-  await homePage.waitFor("document.readyState === 'complete' && Boolean(document.body)", 20_000);
+  await waitFor("!!document.querySelector('[data-home-lifecycle=\"disable\"]')", 20_000);
   await navigate(() => browser.click('[data-home-lifecycle="disable"]'));
   await waitFor("document.querySelector('h1[data-mw-state=disabled] .mw-state-ring [data-ring-segments]')");
   assert.equal(await evaluate("document.querySelectorAll('h1[data-mw-state=disabled] [data-ring-segments] path').length"), 12);
   await navigate(() => browser.click('[data-home-lifecycle="enable"]'));
-  await homePage.waitFor("document.readyState === 'complete' && Boolean(document.body)", 20_000);
+  await waitFor("!!document.querySelector('[data-home-lifecycle=\"disable\"]')", 20_000);
 });

@@ -15,7 +15,7 @@ test("VUX-26: in the Assistant, a reader who scrolled up stays put when news arr
   await evaluate(`(() => { const filler = document.createElement('div'); filler.style.height = '1600px'; ${thread}.prepend(filler); ${thread}.style.maxHeight = '240px'; ${thread}.scrollTop = ${thread}.scrollHeight; })()`);
   const offer = (title: string) => evaluate(`fetch('/projects/${projectId}/api/assistant/cards', { method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({ message_id: crypto.randomUUID(),
     source: { surface: 'pages', title: 'Pages' }, work_id: ${JSON.stringify(id)}, card: { title: ${JSON.stringify(title)}, summary: '把选中的文字记到待办',
-      reference: { capability_id: 'todo.items.create', version: 1, provider_id: 'io.molis.work.todo' }, input: { title: ${JSON.stringify(title)}, placement: 'project' } } }) }).then((r) => r.status)`);
+      reference: { capability_id: 'todo.items.create', version: 1, provider_id: 'io.molis.work.todo' }, input: { title: ${JSON.stringify(title)} } } }) }).then((r) => r.status)`);
 
   // The page's first look at the conversation makes its owner; at the end, it follows.
   await offer("第一张卡"); await openWork(browser, id);

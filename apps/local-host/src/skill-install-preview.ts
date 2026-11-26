@@ -1,5 +1,6 @@
 import { matchLocale, type PluginLocaleReader } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { activeLocale } from './web-locale.js';
+import { stripSkillFrontmatter } from './agent-definitions/skill-catalog.js';
 import { skillDisplayWords } from './agent-definitions/skill-display-words.js';
 /**
  * What the install preview says about a package's Skills (specs/skill-packs/contract-design.md §4.3, §5): every Skill its Manifest's
@@ -44,7 +45,7 @@ function preview(skill: Skill, change?: SkillInstallPreview['change']): SkillIns
     ...(declaration.native_only_reason ? { native_only_reason: declaration.native_only_reason } : {}),
     ...(declaration.argument_hint ? { argument_hint: declaration.argument_hint } : {}), tools: [...declaration.tools],
     resources: resources.map(item => ({ path: item.path, role: item.role, bytes: item.bytes })), runs_scripts: resources.some(item => item.role === 'script'),
-    connector_categories: [...declaration.connector_categories ?? []], excerpt: Array.from(skill.body).slice(0, SKILL_EXCERPT_CHARS).join(''),
+    connector_categories: [...declaration.connector_categories ?? []], excerpt: Array.from(stripSkillFrontmatter(skill.body)).slice(0, SKILL_EXCERPT_CHARS).join(''),
     ...(change ? { change } : {}),
     // No Skill has a setting yet: settings, kept through an upgrade and dropped with a removed Skill, come with the catalog (batch 08, 08-7).
     state: 'off' };

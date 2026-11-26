@@ -161,7 +161,12 @@ export function mountKit(root: HTMLElement, page?: KitSettingsPage): () => void 
       const file = await exportPack(project, kit!, pack, value as ExportPart);
       return say(readText("workbench.kit.exported", { x: file }));
     }
-    if (name === "import-apply" && view.importing) { (origin as HTMLButtonElement).disabled = true; await applyPicked(project, view.importing); return draw("import"); }
+    if (name === "import-apply" && view.importing) {
+      const applyButton = origin as HTMLButtonElement;
+      applyButton.disabled = true;
+      try { await applyPicked(project, view.importing); return draw("import"); }
+      finally { applyButton.disabled = false; }
+    }
     if (name === "import-package" && view.importing) {
       if (handPackage(view.importing)) { location.href = pluginsHref; return; }
       return say(readText("workbench.kit.package-not-retained"), "danger");
@@ -181,7 +186,7 @@ export function mountKit(root: HTMLElement, page?: KitSettingsPage): () => void 
   search.addEventListener("input", () => { view.query = search.value; draw(); });
   kindSelect.addEventListener("change", () => { view.kind = kindSelect.value as View["kind"]; view.item = undefined; draw(); });
   groupSelect.addEventListener("change", () => { view.group = groupSelect.value as View["group"]; draw(); });
-  listenForImports(root, project, view, focus => draw(focus), say);
+  listenForImports(root, project, view, () => !disposed, focus => draw(focus), say);
   draw();
   void load().then(() => { if (!disposed) return writing.fromAddress(); });
   return () => {
@@ -191,7 +196,8 @@ export function mountKit(root: HTMLElement, page?: KitSettingsPage): () => void 
 }
 
 /** A file chosen to import is read into the import panel; a picked part of it is kept for applying. */
-function listenForImports(root: HTMLElement, project: string, view: View, draw: (focus?: "import") => void, say: (text: string, tone: "danger") => void): void {
+function listenForImports(root: HTMLElement, project: string, view: View, active: () => boolean, draw: (focus?: "import") => void, say: (text: string, tone: "danger") => void): void {
+  let importSeq = 0;
   root.addEventListener("change", event => {
     const target = event.target as HTMLInputElement;
     if (target.dataset.kitPick !== undefined && view.importing) {
@@ -199,9 +205,12 @@ function listenForImports(root: HTMLElement, project: string, view: View, draw: 
       return draw();
     }
     if (target.matches("[data-kit-file]") && target.files?.[0]) {
-      const chosen = target.files[0];
+      const chosen = target.files[0], seq = ++importSeq;
       target.value = "";
-      readKitFile(project, chosen).then(importing => { view.importing = importing; draw("import"); }, cause => say((cause as Error)?.message || String(cause), "danger"));
+      void readKitFile(project, chosen).then(
+        importing => { if (seq !== importSeq || !active()) return; view.importing = importing; draw("import"); },
+        cause => { if (seq === importSeq && active()) say((cause as Error)?.message || String(cause), "danger"); },
+      );
     }
   });
 }

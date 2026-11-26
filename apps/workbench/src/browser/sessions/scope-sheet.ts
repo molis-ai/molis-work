@@ -50,13 +50,15 @@ function renderToolsPanel(scope: SessionScopeWithMeta, dirMode: "linked_projects
   return `<section class="sessions-scope-group"><h3>${uiText("workbench.sessions.dir-scope-heading")}</h3><div class="mw-permits"><label class="sessions-tool-row"><span class="sessions-tool-main"><input type="radio" name="sessions-dir-mode" value="linked_projects"${dirMode === "linked_projects" ? " checked" : ""}><span class="sessions-tool-copy"><strong>${uiText("workbench.sessions.dir-linked-only")}</strong><small>${uiText("workbench.sessions.dir-linked-hint")}</small></span></span></label><label class="sessions-tool-row"><span class="sessions-tool-main"><input type="radio" name="sessions-dir-mode" value="all"${dirMode === "all" ? " checked" : ""}><span class="sessions-tool-copy"><strong>${uiText("workbench.sessions.dir-all")}</strong><small>${uiText("workbench.sessions.dir-all-hint")}</small></span></span></label></div><p class="sessions-scope-hint">${uiText("workbench.sessions.worktree-scope-note")}</p></section><section class="sessions-scope-group"><h3>${uiText("workbench.sessions.group-connected", { count: connected.length })}</h3><div class="mw-permits">${connected.map((m) => renderConnectedRow(m, byId.get(m.id as never))).join("")}</div></section><section class="sessions-scope-group"><h3>${uiText("workbench.sessions.group-export-only", { count: exportOnly.length })}</h3><div class="mw-permits">${exportRows}</div></section><section class="sessions-scope-group"><h3>${uiText("workbench.sessions.group-unsupported", { count: unsupported.length })}</h3><details><summary class="sessions-scope-hint">${uiText("workbench.sessions.show-unsupported")}</summary><div class="mw-permits">${unsupRows}</div></details></section>`;
 }
 
-function renderAiPanel(rows: readonly ExternalSessionProjectAiRead[], filter: string, notes: ReadonlyMap<string, MwPermitNote>): string {
+function renderAiPermitRows(
+  rows: readonly ExternalSessionProjectAiRead[],
+  filter: string,
+  notes: ReadonlyMap<string, MwPermitNote>,
+  pendingPermits?: ReadonlySet<string>,
+): string {
   const needle = filter.trim().toLowerCase();
   const visible = needle ? rows.filter((r) => r.project.display_name.toLowerCase().includes(needle)) : rows;
-  const search = rows.length > 8
-    ? `<label class="mw-input-group">${icon("search")}<input class="mw-input" type="search" data-permit-filter value="${escapeHtml(filter)}" placeholder="${uiText("workbench.sessions.filter-projects")}" aria-label="${uiText("workbench.sessions.filter-projects")}"></label>`
-    : "";
-  const list = visible.map((row) => {
+  return visible.map((row) => {
     const pid = row.project.project_id;
     const descId = `permit-desc-${pid}`;
     const blockedTotal = row.counts ? row.counts.blocked.reduce((sum, item) => sum + item.count, 0) : 0;
@@ -67,10 +69,21 @@ function renderAiPanel(rows: readonly ExternalSessionProjectAiRead[], filter: st
       ? `<p class="sessions-scope-hint">${escapeHtml(uiText.text("workbench.sessions.permit-blocked-tools", { tools: row.counts.blocked.map(item => `${item.display_name} ${item.count}`).join(uiText.text("common.list.separator")) }))}</p>`
       : "";
     const badges = row.current ? renderBadge({ label: uiText.text("workbench.sessions.current-project-badge") }) : "";
-    const control = renderSwitch({ checked: row.allowed, label: row.project.display_name, attrs: { "data-permit-switch": pid, "aria-describedby": descId } });
+    const control = renderSwitch({ checked: row.allowed, disabled: Boolean(pendingPermits?.has(pid)), label: row.project.display_name, attrs: { "data-permit-switch": pid, "aria-describedby": descId } });
     return renderPermitRow({ project: { id: pid, name: row.project.display_name }, badges, description: desc, descriptionId: descId, control, current: row.current, note: notes.get(pid), attrs: { "data-permit-project": pid } }) + blocked;
   }).join("");
-  return `<p class="sessions-scope-hint">${uiText("workbench.sessions.ai-panel-intro")}</p>${search}<div class="mw-permits">${list}</div>`;
+}
+
+function renderAiPanel(
+  rows: readonly ExternalSessionProjectAiRead[],
+  filter: string,
+  notes: ReadonlyMap<string, MwPermitNote>,
+  pendingPermits?: ReadonlySet<string>,
+): string {
+  const search = rows.length > 8
+    ? `<label class="mw-input-group">${icon("search")}<input class="mw-input" type="search" data-permit-filter value="${escapeHtml(filter)}" placeholder="${uiText("workbench.sessions.filter-projects")}" aria-label="${uiText("workbench.sessions.filter-projects")}"></label>`
+    : "";
+  return `<p class="sessions-scope-hint">${uiText("workbench.sessions.ai-panel-intro")}</p>${search}<div class="mw-permits">${renderAiPermitRows(rows, filter, notes, pendingPermits)}</div>`;
 }
 
 interface ScopeInternalState {
@@ -186,8 +199,8 @@ function bindScopeDialogEvents(dlg: HTMLDialogElement, st: ScopeInternalState, s
     const inp = e.target as HTMLInputElement | null;
     if (inp?.hasAttribute("data-permit-filter") && st.scope) {
       st.permitFilter = inp.value;
-      const aiEl = dlg.querySelector<HTMLElement>('[data-sessions-scope-panel="project_ai_read"]');
-      if (aiEl) aiEl.innerHTML = renderAiPanel(st.scope.project_ai_reads, st.permitFilter, st.notes);
+      const listEl = dlg.querySelector<HTMLElement>('[data-sessions-scope-panel="project_ai_read"] .mw-permits');
+      if (listEl) listEl.innerHTML = renderAiPermitRows(st.scope.project_ai_reads, st.permitFilter, st.notes, st.pendingPermits);
     }
   });
 }
@@ -217,7 +230,7 @@ export function createSessionsScopeSheet(): ScopeSheetController {
     const toolsEl = dlg.querySelector<HTMLElement>('[data-sessions-scope-panel="tools"]');
     const aiEl = dlg.querySelector<HTMLElement>('[data-sessions-scope-panel="project_ai_read"]');
     if (toolsEl) toolsEl.innerHTML = renderToolsPanel(st.scope, st.dirMode);
-    if (aiEl) aiEl.innerHTML = renderAiPanel(st.scope.project_ai_reads, st.permitFilter, st.notes);
+    if (aiEl) aiEl.innerHTML = renderAiPanel(st.scope.project_ai_reads, st.permitFilter, st.notes, st.pendingPermits);
     syncTabs();
   };
 

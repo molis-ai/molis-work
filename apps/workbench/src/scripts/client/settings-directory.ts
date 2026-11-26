@@ -140,7 +140,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindRunningSettings?.(root);
     globalThis.molisWorkBindProjectIdentity?.(root);
     globalThis.molisWorkBindProjectManager?.(root, { hash: root.dataset.settingsHash || "" });
-    globalThis.molisWorkBindProjectGuidance?.(root);
+    globalThis.molisWorkBindProjectGuidance?.(root, { search: root.dataset.settingsSearch || "" });
     globalThis.molisWorkBindShelfSettings?.(root);
     globalThis.molisWorkBindModelSettings?.(root, { saved: modelSaved });
     globalThis.molisWorkBindConnectorsSettings?.(root, page);
@@ -226,6 +226,11 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     };
     const loadSection = async (section, fetchPath) => {
       if (!body) return;
+      if (options.kind === "settings" && section === "update" && location.pathname !== "/settings/update") {
+        const target = fetchPath || options.sectionPath(section);
+        location.assign(globalThis.molisWorkNavigationUrl ? globalThis.molisWorkNavigationUrl(target) : target);
+        return;
+      }
       const dir = directionTo(section);
       const local = options.local?.(section);
       if (local) {
@@ -408,7 +413,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const linkedItem = projectSection === "kit" && new URLSearchParams(extra).has("install");
     const memoryTarget = projectSection === "memory" && ["memory_session_kind", "memory_session_id", "memory_session_plugin", "memory_session_provider"].some(name => url.searchParams.has(name));
     const draftTarget = projectSection === "kit" && url.searchParams.has("draft");
-    openProjectSettings(projectSection, linkedItem || memoryTarget || draftTarget ? url.pathname + (linkedItem || fromPage === true ? extra : url.search) : undefined);
+    const guidanceTarget = projectSection === "guidance" && url.searchParams.has("draft_ref");
+    openProjectSettings(projectSection, linkedItem || memoryTarget || draftTarget || guidanceTarget ? url.pathname + (linkedItem || fromPage === true ? extra : url.search) : undefined);
     return true;
   };
   const openGlobalSettingsFromUrl = (href, fromPage) => {
@@ -502,7 +508,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const inSettingsShell = link.closest("[data-work-surface=settings], [data-work-surface=project-settings], [data-directory-panel=settings], [data-directory-panel=project-settings]");
     const wasOpen = covered();
     opened = null;
-    if (openProjectSettingsFromUrl(link.href) || openGlobalSettingsFromUrl(link.href, !inSettingsShell)) {
+    if (openProjectSettingsFromUrl(link.href, !inSettingsShell) || openGlobalSettingsFromUrl(link.href, !inSettingsShell)) {
       event.preventDefault();
       if (!inSettingsShell) returns?.link(link, link.href, opened.kind + " " + opened.section, wasOpen);
       return;

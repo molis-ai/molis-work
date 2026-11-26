@@ -90,16 +90,15 @@ async function handToGit(page: Page, run: RunView, draft: string, note: string, 
 /** Committing a round's changes happens in Git, under Host review; the round only drafts the message. */
 export async function commitRound(page: Page, target: HTMLButtonElement) {
   const { s } = page, run = s.allRuns.find(item => item.ref.run_id === target.dataset.codingCommitRound);
-  if (!run || run.light) return;
+  if (!run || run.light || target.disabled) return;
   const id = s.current, fallback = ruleDraft(page, run);
   target.disabled = true;
   status(page, uiText.text("coding.commit.drafting"));
-  let drafted: Awaited<ReturnType<typeof modelDraft>>;
   try {
-    drafted = await modelDraft(page, id, run, fallback);
+    const drafted = await modelDraft(page, id, run, fallback);
+    if (!drafted || id !== s.current) return;
+    await handToGit(page, run, drafted.draft, drafted.note, drafted.failed);
   } finally {
     target.disabled = false;
   }
-  if (!drafted || id !== s.current) return;
-  await handToGit(page, run, drafted.draft, drafted.note, drafted.failed);
 }

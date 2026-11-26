@@ -4,4 +4,5 @@ export const codingStoreErrors = defineErrorCodes("coding", {
   session_unknown: "not_found",
   session_duplicate: "invalid",
   session_binding_conflict: "conflict",
+  plan_conflict: "conflict",
 });

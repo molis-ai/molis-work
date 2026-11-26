@@ -86,16 +86,20 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   /* “/”: what this work may use now and the methods it may follow, read again each time the person comes to the input (a plugin
      turned off or a method taken away meanwhile is gone from it); the last list stays until the new one is in, so the menu does not
      flicker. A method (how to do it) or a capability (what to use) chosen there goes with the next Send only, on the strip above the input. */
-  let catalog = null, rows = { capabilities: [], methods: [] }, rowsIn = false;
+  let catalog = null, catalogSeq = 0, rows = { capabilities: [], methods: [] }, rowsIn = false;
   const isInput = (event) => event.target.matches?.(".mw-composer__input");
-  const readCatalog = () => catalog ||= Promise.all([api("/capabilities").then((res) => (res.capabilities || []).filter((row) => row.enabled), () => []),
-    api("/methods").then((res) => res.methods || [], () => [])]).then(([capabilities, methods]) => {
-      const next = { capabilities, methods }, changed = json(next) !== json(rows);
-      rows = next; rowsIn = true;
-      const before = input.value.slice(0, input.selectionStart ?? input.value.length);
-      if (changed && document.activeElement === input && /^[/、][^\n]{0,80}$/u.test(before))
-        input.dispatchEvent(new InputEvent("input", { bubbles: true, data: before.length === 1 ? before : null, inputType: "insertText" }));
-    }).finally(() => { catalog = null; });
+  const readCatalog = () => catalog ||= (() => {
+    const seq = ++catalogSeq;
+    return Promise.all([api("/capabilities").then((res) => (res.capabilities || []).filter((row) => row.enabled), () => []),
+      api("/methods").then((res) => res.methods || [], () => [])]).then(([capabilities, methods]) => {
+        if (seq !== catalogSeq) return;
+        const next = { capabilities, methods }, changed = json(next) !== json(rows);
+        rows = next; rowsIn = true;
+        const before = input.value.slice(0, input.selectionStart ?? input.value.length);
+        if (changed && document.activeElement === input && /^[/、][^\n]{0,80}$/u.test(before))
+          input.dispatchEvent(new InputEvent("input", { bubbles: true, data: before.length === 1 ? before : null, inputType: "insertText" }));
+      }).finally(() => { if (seq === catalogSeq) catalog = null; });
+  })();
   compose.addEventListener("focusin", (event) => { if (isInput(event) || !rowsIn) void readCatalog(); });
   compose.addEventListener("pointerenter", () => { if (!rowsIn) void readCatalog(); });
   compose.addEventListener("input", (event) => { if (!rowsIn && (event.data === "/" || event.data === "、") && isInput(event)) void readCatalog(); });
@@ -264,7 +268,10 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
           itemScopeDismissed = false;
           paintItemPill();
         }
-        if (id && before) await draftFor(id).settle(await before);
+        if (id && before) {
+          try { await draftFor(id).settle(await before); }
+          catch { /* Send already landed; draft cleanup failure must not convert outcome to failed. */ }
+        }
       };
       if (outcome.state === "sent") await settleProjectSend();
       if (projectOnce && outcome.state === "unknown") return { ...outcome, check: async () => {

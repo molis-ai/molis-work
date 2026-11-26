@@ -2,6 +2,8 @@ import { bindActionHandler, ActionError, type ActionAvailability, type ActionCal
 import { bindPresentationValuesHandler, definePresentationOverviewAction, definePresentationValuesAction, PRESENTATION_LIMITS,
   type PresentationDeclaration, type PresentationValueItem } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { codingCreateSessionAction } from "./route-actions.js";
+import { DEFAULT_SESSION_TITLE } from "./session-title.js";
+import { tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { CodingSessionStore } from "./store.js";
 
 const rawValues = definePresentationValuesAction("coding.presentation.values", /* @version action.coding.presentation.values */ 1, ["coding_session"], "编码会话显示字段", ["artifact:read"]);
@@ -37,8 +39,9 @@ export function createCodingPresentationHandlers(projectId: string, sessions: Pi
     bindPresentationValuesHandler(values, input => ({ items: input.subjects.filter(subject => subject.kind === "coding_session").map((subject): PresentationValueItem => {
       try {
         const session = sessions.get(projectId, subject.id);
+        const title = session.title === DEFAULT_SESSION_TITLE ? tryUiText("coding.session.new-title") ?? session.title : session.title;
         if (!session.archived) return { subject, revision: session.updated_at, state: "ok",
-          values: { title: session.title, status: session.state, updated_at: session.updated_at, created_at: session.created_at } };
+          values: { title, status: session.state, updated_at: session.updated_at, created_at: session.created_at } };
       } catch (error) {
         if (!(error instanceof ActionError && error.code === "coding.session_unknown")) throw error;
       }

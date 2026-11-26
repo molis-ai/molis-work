@@ -1,5 +1,22 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { activeUiLocale, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Page } from "./page.js";
+
+const SECTION_SHORT_KEYS: readonly (readonly [attr: string, key: string])[] = [
+  ["data-coding-cooperation", "coding.short.cooperation"],
+  ["data-coding-checkpoints", "coding.short.checkpoints"],
+  ["data-coding-recovery", "coding.short.recovery"],
+  ["data-coding-outcomes", "coding.short.outcomes"],
+  ["data-coding-change-reader", "coding.short.change"],
+  ["data-coding-commands", "coding.short.commands"],
+  ["data-coding-background", "coding.short.background"],
+];
+
+const shortLabel = (section: HTMLElement, fallback: string): string => {
+  for (const [attr, key] of SECTION_SHORT_KEYS) {
+    if (section.hasAttribute(attr)) return uiText.text(key);
+  }
+  return fallback;
+};
 
 const sectionLabel = (section: HTMLElement): string => {
   const own = section.getAttribute("aria-label");
@@ -22,7 +39,7 @@ function sectionsOnShow(page: Page, nav: HTMLElement, tools: HTMLElement): HTMLE
 function resultsIndex(page: Page) {
   const { q } = page, { s } = page;
   const nav = q("[data-coding-results-index]"), tools = q("[data-coding-tools]");
-  const sections = sectionsOnShow(page, nav, tools), signature = sections.map(sectionLabel).join("|");
+  const sections = sectionsOnShow(page, nav, tools), signature = (activeUiLocale() ?? "") + "|" + sections.map(sectionLabel).join("|");
   if (signature === s.indexSignature) return;
   s.indexSignature = signature;
   s.indexed = sections;
@@ -32,12 +49,18 @@ function resultsIndex(page: Page) {
     chip.type = "button";
     chip.className = at === 0 ? "mw-toggle is-current" : "mw-toggle";
     chip.setAttribute("aria-pressed", String(at === 0));
-    chip.textContent = s.SECTION_SHORT[text] || text;
+    chip.textContent = shortLabel(section, text);
     chip.title = uiText.text("coding.results.jump", { section: text });
     chip.dataset.codingResultsJump = String(at);
     nav.append(chip);
   });
   nav.hidden = sections.length < 2;
+}
+
+/** Forces the results panel's index to rebuild with the active locale's labels. */
+export function refreshResultsIndex(page: Page) {
+  page.s.indexSignature = "";
+  resultsIndex(page);
 }
 
 /** Writes to the index are scheduled, so they never loop back through the observer that schedules them. */
@@ -55,11 +78,6 @@ function resultVisibility(page: Page) {
 /** Wires the results panel's index and its open mark. */
 export function mountResultsIndex(page: Page) {
   const { lifetime, q, root } = page, { s } = page;
-  s.SECTION_SHORT = {
-    [uiText.text("coding.results.cooperation")]: uiText.text("coding.short.cooperation"), [uiText.text("coding.checkpoints.title")]: uiText.text("coding.short.checkpoints"), [uiText.text("coding.results.recovery")]: uiText.text("coding.short.recovery"),
-    [uiText.text("coding.outcomes.title")]: uiText.text("coding.short.outcomes"), [uiText.text("coding.change.title")]: uiText.text("coding.short.change"),
-    [uiText.text("coding.commands.title")]: uiText.text("coding.short.commands"), [uiText.text("coding.results.background")]: uiText.text("coding.short.background"),
-  };
   lifetime.listen(q("[data-coding-results-index]"), "click", event => {
     const chip = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-coding-results-jump]") : null, tools = q("[data-coding-tools]");
     const section = chip && s.indexed[Number(chip.dataset.codingResultsJump)];

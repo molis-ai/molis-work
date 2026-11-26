@@ -68,6 +68,13 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 还等你处理: everyth
       if (steps.length) {
         // The step in hand either runs, or waits on the person: then it says what to do and takes them to it.
         const next = waitsOn(work);
+        const waitLabel = next ? (WAITING.has(work.state) ? stateLabel(work.state) : (nextRow?.querySelector("[data-ix-step][data-waiting] [data-ix-step-label], [data-ix-step] [data-ix-step-label]")?.textContent?.trim() || stateLabel(work.state))) : "";
+        const jumpWaiting = () => {
+          const target = (work.state === "needs-check" && thread.querySelector(".assistant-problem"))
+            || thread.querySelector("[data-review], [data-question], [data-card][data-status='ready'], [data-card][data-status='needs-input'], .assistant-problem");
+          if (target) jumpTo(target);
+          else nextRow?.querySelector("[data-ix-step]")?.focus();
+        };
         const doneSteps = steps.filter((item) => item.state === "done").length;
         const rows = steps.map((item) => {
           const cur = item.state === "in-progress", waiting = cur && next;
@@ -75,9 +82,9 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 还等你处理: everyth
           const mark = el("span", "assistant-subtask-mark" + (item.state === "done" ? " is-done" : waiting ? " is-attention" : ""));
           mark.append(spinner(item.state === "done" ? "done" : waiting ? (work.state === "needs-check" ? "verify" : work.state === "waiting-review" ? "approval" : "answer") : cur ? (work.state === "running" ? "running" : work.state === "paused" ? "paused" : "doing") : item.state === "abandoned" ? "cancelled" : "idle"));
           if (waiting) {
-            const name = el("button", "assistant-subtask-name", item.text); name.type = "button"; name.setAttribute("aria-label", globalThis.t.text("workbench.assistant-side-path.action-named", { label: next.label, name: item.text }));
-            name.addEventListener("click", () => next.run());
-            row.append(mark, name, el("span", "assistant-subtask-state", next.label));
+            const name = el("button", "assistant-subtask-name", item.text); name.type = "button"; name.setAttribute("aria-label", globalThis.t.text("workbench.assistant-side-path.action-named", { label: waitLabel, name: item.text }));
+            name.addEventListener("click", jumpWaiting);
+            row.append(mark, name, el("span", "assistant-subtask-state", waitLabel));
           } else row.append(mark, el("span", "assistant-subtask-name", item.text), el("span", "assistant-subtask-state", cur ? globalThis.t.text("workbench.assistant-side-path.hand") : item.state === "abandoned" ? globalThis.t.text("workbench.assistant-side-path.set-aside") : ""));
           return row;
         });
@@ -100,7 +107,7 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 还等你处理: everyth
           if (!child.taken_back && isLive(child.state)) row.append(sideAct(globalThis.t.text("workbench.assistant-side-path.stop"), child.title, async () => { await api("/works/" + encodeURIComponent(child.work_id) + "/control", "POST", { kind: "stop" }); await reload(); }, true));
           /* Take the part back: it stops, what it made stays, and this work finishes that part itself. */
           if (!child.taken_back) {
-            const takeBack = sideAct(globalThis.t.text("workbench.assistant-side-path.take-back"), child.title, async () => { view = await api("/works/" + encodeURIComponent(child.work_id) + "/take-back", "POST", {}); render(); }, true);
+            const takeBack = sideAct(globalThis.t.text("workbench.assistant-side-path.take-back"), child.title, async () => { const next = await api("/works/" + encodeURIComponent(child.work_id) + "/take-back", "POST", {}); adoptView(work.work_id, next); }, true);
             takeBack.title = globalThis.t.text("workbench.assistant-side-path.stop-sub-task-finish-that-part-work-what");
             row.append(takeBack);
           }
@@ -153,9 +160,11 @@ export const ASSISTANT_SIDE_PATH_PART = String.raw`  /* 还等你处理: everyth
         const control = el("span", "mw-switch"), toggle = el("input"), track = el("span", "mw-switch__track");
         toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = Boolean(work.ask_each_step); track.setAttribute("aria-hidden", "true"); control.append(toggle, track);
         toggle.addEventListener("change", async () => {
+          const wanted = toggle.checked;
           toggle.disabled = true;
-          try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/ask-each-step", "POST", { on: toggle.checked }); render(); }
-          catch (error) { toggle.checked = !toggle.checked; toggle.disabled = false; host.showToast?.(error); }
+          try { const next = await api("/works/" + encodeURIComponent(work.work_id) + "/ask-each-step", "POST", { on: wanted }); adoptView(work.work_id, next); }
+          catch (error) { if (toggle.isConnected) toggle.checked = !wanted; host.showToast?.(error); }
+          finally { if (toggle.isConnected) toggle.disabled = false; }
         });
         row.append(copy, control);
         if (content) { const list = el("div", "assistant-group-list"); list.append(content, row); content = list; } else content = row;

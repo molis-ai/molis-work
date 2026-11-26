@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { activeUiLocale, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el } from "../dom.js";
 import { editedPaths } from "../../timeline.js";
 import { changeTally } from "./change-tally.js";
@@ -20,7 +20,7 @@ export function renderChanged(page: Page): void {
   section.hidden = !paths.length;
   if (!run || !paths.length) { list.replaceChildren(); delete list.dataset.content; return; }
   const tally = changeTally(page, run.ref.run_id), lines = new Map(tally?.files.map(file => [file.path, file]));
-  const content = JSON.stringify([run.ref.run_id, paths, tally]);
+  const content = JSON.stringify([activeUiLocale(), run.ref.run_id, paths, tally]);
   if (list.dataset.content === content) return;
   list.dataset.content = content;
   q("[data-coding-changed-round]").textContent = uiText.text("coding.turn.number", { number: s.allRuns.length });

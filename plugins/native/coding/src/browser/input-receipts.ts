@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { activeUiLocale, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { StepNode } from "./shapes.js";
 import type { PagePorts, ReceiptLinks } from "./types.js";
 import type { CodingPickedMaterial } from "../materials.js";
@@ -91,8 +91,10 @@ const small = (text: string) => {
  * record does not mark that reply (a Prologue need in the spec), so the mark is the page's own and a reload loses it.
  */
 export function inputReceipts({ api, refresh, q, find, landed, receipts }: InputReceiptsPorts): InputReceipts {
-  const SENT: Readonly<Record<string, string>> = { "next-boundary": uiText.text("coding.sent.next-boundary"), interrupt: uiText.text("coding.sent.interrupt"), "after-run": uiText.text("coding.sent.after-run") };
-  const AGAIN = uiText.text("coding.sent.again");
+  const sentText = (mode: string) => mode === "next-boundary" ? uiText.text("coding.sent.next-boundary")
+    : mode === "interrupt" ? uiText.text("coding.sent.interrupt")
+    : mode === "after-run" ? uiText.text("coding.sent.after-run") : "";
+  const againText = () => uiText.text("coding.sent.again");
   let item: Sent | null = null;
   let initial: { signature: string; id: string } | undefined;
   const start = async <Result>(id: string, command: Record<string, unknown>): Promise<Result> => {
@@ -121,7 +123,7 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
         writing.classList.add("is-dropped");
         writing.append(small(uiText.text("coding.sent.dropped")));
       }
-      return receipt.replayed ? AGAIN : receipt.delivered === "queued" && sent.mode !== "after-run" ? uiText.text("coding.sent.just-ended") : SENT[sent.mode] ?? "";
+      return receipt.replayed ? againText() : receipt.delivered === "queued" && sent.mode !== "after-run" ? uiText.text("coding.sent.just-ended") : sentText(sent.mode);
     } catch (error) {
       if (unsure(error) || previouslyLost) {
         sent.lost = true;
@@ -138,7 +140,7 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
     const sent = item;
     item = null;
     sent.acknowledge?.();
-    landed(sent, AGAIN);
+    landed(sent, againText());
   };
   return {
     start,
@@ -160,13 +162,13 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
         withdraw: inputId => api<{ withdrawn: { from: string } }>(path, "POST", { kind: "withdraw", run_id: run, input_id: inputId })
           .then(({ withdrawn }) => withdrawn.from === "queued" ? uiText.text("coding.sent.withdrawn") : "", lost).finally(refresh),
         correct: (about, text, key) => supplement(id, { run_id: run, text, about, key: "send." + key })
-          .then(({ receipt }) => receipt.replayed ? AGAIN : receipt.delivered === "queued" ? SENT["after-run"]! : uiText.text("coding.sent.corrected"), lost).finally(refresh),
+          .then(({ receipt }) => receipt.replayed ? againText() : receipt.delivered === "queued" ? sentText("after-run") : uiText.text("coding.sent.corrected"), lost).finally(refresh),
       };
     },
     bubble(id, run) {
       observe(id, run.turns.map(turn => turn.steer?.key));
       if (item?.id !== id) return null;
-      const mark = item.lost ? "1" : "0";
+      const mark = (item.lost ? "1" : "0") + ":" + (activeUiLocale() ?? "");
       if (item.node?.dataset.lost !== mark) {
         const node = item.node = document.createElement("article");
         node.className = "coding-turn is-sending";

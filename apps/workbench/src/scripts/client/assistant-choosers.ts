@@ -14,10 +14,11 @@ export const ASSISTANT_CHOOSERS_PART = String.raw`  let executors = [];
     const work = getWork();
     if (!work) { nextMode = id; paintAim(); paintSum(); return; }
     try {
-      view = await api("/works/" + encodeURIComponent(work.work_id) + "/mode", "POST", { mode: id }); render();
-      const offer = modeOffer(); if (offer) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: offer.capability_ids["session.update"], session_id: view.work.executor.session_id } }));
+      const next = await api("/works/" + encodeURIComponent(work.work_id) + "/mode", "POST", { mode: id });
+      adoptView(work.work_id, next);
+      const offer = executorOffer(next?.work?.executor?.plugin_id || work.executor.plugin_id); if (offer) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: offer.capability_ids["session.update"], session_id: next.work.executor.session_id } }));
     }
-    catch (error) { showError(error); }
+    catch (error) { showWorkError(work.work_id, error); }
   }
   // Which role carries the next round: the work's own choice, or one made here that the next Send brings along (a stable choice,
   // { ref, title, character_id }; the Host pins its version). Project work picks among the project's roles, personal work among the

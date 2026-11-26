@@ -152,16 +152,29 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
     action_map: actionMap(),
     ...revisionOf(sel),
   });
+  const savingById = new Map();
   let saving = null;
   const saveDraft = async () => {
     clearTimeout(saveTick); saveTick = 0;
     const rec = sel, revision = editRevision;
     if (!rec || rec.status === "published") return rec;
     const body = draftBody();
-    if (saving) { const prior = await saving; if (prior?.id === rec.id) Object.assign(body, revisionOf(prior)); }
-    const operation = persistDraft(rec.id, body, revision);
+    const prev = savingById.get(rec.id) || null;
+    const operation = (async () => {
+      if (prev) {
+        const prior = await prev.catch(() => null);
+        if (prior?.id === rec.id) Object.assign(body, revisionOf(prior));
+        else if (sel?.id === rec.id) Object.assign(body, revisionOf(sel));
+      }
+      return persistDraft(rec.id, body, revision);
+    })();
+    savingById.set(rec.id, operation);
     saving = operation;
-    try { return await operation; } finally { if (saving === operation) saving = null; }
+    try { return await operation; }
+    finally {
+      if (savingById.get(rec.id) === operation) savingById.delete(rec.id);
+      if (saving === operation) saving = savingById.values().next().value || null;
+    }
   };
   const persistDraft = async (savingId, body, revision, again = true) => {
     if (sel?.id === savingId) saveStatus.textContent = globalThis.t.text("workbench.client-records.saving");

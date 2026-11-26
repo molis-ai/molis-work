@@ -191,19 +191,20 @@ export function bindKnowledgePicker(): void {
     const ticket = ++seq, text = $<HTMLInputElement>("query").value.trim(), files = $<HTMLSelectElement>("kind").value === "files";
     $("status").textContent = uiText.text("workbench.picker.searching");
     let partial = false;
+    let nextRows: Row[] = [];
     try {
       if (files) {
         const pattern = !text ? "**/*" : GLOB_CHARS.test(text) ? text : `**/*${text}*`;
         const found = await request()<KnowledgeGlobResponse>(base() + "/glob?pattern=" + encodeURIComponent(pattern));
-        rows = found.files.map(file => ({ title: file.path, plugin_title: file.workspace_name, note: "", file: file.subject.id }));
+        nextRows = found.files.map(file => ({ title: file.path, plugin_title: file.workspace_name, note: "", file: file.subject.id }));
         partial = found.more;
       } else if (text) {
         const found = await request()<KnowledgeSearchResponse>(base() + "/search?q=" + encodeURIComponent(text));
         // Where the words were found says why a piece came up; its brief when there is no such passage.
-        rows = found.cards.map(card => rowOf(card, card.hint || card.brief || ""));
+        nextRows = found.cards.map(card => rowOf(card, card.hint || card.brief || ""));
       } else {
         const listed = await request()<KnowledgeCardsResponse>(base() + "/overview");
-        rows = listed.cards.filter(card => !card.excluded && card.state !== "missing")
+        nextRows = listed.cards.filter(card => !card.excluded && card.state !== "missing")
           .sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? "")).map(card => rowOf(card, card.brief));
       }
     } catch (error) {
@@ -211,6 +212,7 @@ export function bindKnowledgePicker(): void {
       return;
     }
     if (ticket !== seq) return;
+    rows = nextRows;
     $("status").textContent = partial ? uiText.text("workbench.picker.only-part-listed-type-file-name-narrow") : "";
     const source = $<HTMLSelectElement>("source"), was = source.value;
     source.replaceChildren(new Option(uiText.text("workbench.picker.all-sources"), ""), ...[...new Set(rows.map(row => row.plugin_title))].sort().map(title => new Option(title, title)));
@@ -220,13 +222,15 @@ export function bindKnowledgePicker(): void {
 
   /** A folder file is taken as it is now: its revision is read when the person ticks it, so the reference names that exact content. */
   async function takeFile(row: Row, box: HTMLInputElement): Promise<void> {
+    const owner = asked;
     box.disabled = true;
     try {
       const read = await request()<{ read_revision: string; title: string }>(prefix() + "/api/materials/read",
         { body: { ref: { subject: { kind: FILE, id: row.file }, pin: { mode: "current", read_revision: "size:0" } }, mode: "head" }, fallback: uiText.text("workbench.side-panel-files.file-could-not-be-read") });
+      if (!owner || asked !== owner) return;
       const ref: MaterialRef = { subject: { kind: FILE, id: row.file! }, pin: { mode: "current", read_revision: read.read_revision } };
-      if (asked && choose({ ref, title: row.title })) fileRefs.set(row.file!, keyOf(ref)); else box.checked = false;
-    } catch (error) { box.checked = false; request().show($("status"), error); }
+      if (choose({ ref, title: row.title })) fileRefs.set(row.file!, keyOf(ref)); else box.checked = false;
+    } catch (error) { if (owner && asked === owner) { box.checked = false; request().show($("status"), error); } }
     finally { box.disabled = false; }
   }
 

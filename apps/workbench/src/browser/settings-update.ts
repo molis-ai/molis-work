@@ -26,9 +26,26 @@ if (root) {
     }
   });
   const lift = root.querySelector<HTMLButtonElement>("[data-rollback-lift]");
+  const liftError = (): HTMLElement => {
+    const existing = root.querySelector<HTMLElement>("[data-rollback-lift-error]");
+    if (existing) return existing;
+    const node = document.createElement("p");
+    node.className = "settings-form-error";
+    node.setAttribute("role", "alert");
+    node.dataset.rollbackLiftError = "";
+    (lift?.closest("[data-rollback-held]") ?? root).after(node);
+    return node;
+  };
   lift?.addEventListener("click", async () => {
     lift.disabled = true;
+    const note = root.querySelector<HTMLElement>("[data-rollback-lift-error]");
+    if (note) note.hidden = true;
     try { await page.molisWorkRequest("/api/update/hold/lift", { method: "POST", body: {} }); location.reload(); }
-    catch { lift.disabled = false; /* The request client has shown why on the page; the button is there to try again. */ }
+    catch (failure) {
+      lift.disabled = false;
+      const target = liftError();
+      page.molisWorkRequest.show(target, failure);
+      target.hidden = false;
+    }
   });
 }

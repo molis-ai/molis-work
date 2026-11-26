@@ -44,7 +44,9 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
   const column = document.createElement("aside");
   column.className = "work-reqs"; column.hidden = true; column.dataset.acceptanceColumn = ""; column.setAttribute("aria-label", uiText.text("workbench.acceptance.title"));
   document.body.append(column);
-  let open: string | null = null, opener: HTMLElement | null = null, back = false, watched = false, drawn = "", ui: RequirementColumnUi = { returning: null, editing: null, adding: false, busy: false, error: "" };
+  let open: string | null = null, opener: HTMLElement | null = null, back = false, watched = false, drawn = "", drawnForm = "", openSeq = 0, reviewSeq = 0;
+  let ui: RequirementColumnUi = { returning: null, editing: null, adding: false, busy: false, error: "" };
+  const formKey = () => open ? `${open}\u001f${ui.returning ?? ""}\u001f${ui.editing ?? ""}\u001f${ui.adding ? "1" : "0"}` : "";
   // The column stands where the work surface stands: between whatever chrome this width puts above and below it.
   const place = () => {
     const stage = [...document.querySelectorAll<HTMLElement>("[data-plugin-stage]")].find(one => one.getClientRects().length)?.getBoundingClientRect();
@@ -58,22 +60,50 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
     if (now?.view.review_reference) { column.dataset.reviewReference = now.view.review_reference.id; column.dataset.reviewVersion = now.view.review_reference.version; }
     else { delete column.dataset.reviewReference; delete column.dataset.reviewVersion; }
     const html = now ? renderRequirementColumn(now.view, ui) : "";
+    const nextForm = formKey();
     if (html === drawn) return;
+    // Preserve in-progress textarea draft when repainting the same open form (e.g. busy toggle or failed submit).
+    const prevField = nextForm && nextForm === drawnForm ? column.querySelector<HTMLTextAreaElement>("textarea") : null;
+    const draft = prevField ? { value: prevField.value, focus: document.activeElement === prevField, start: prevField.selectionStart, end: prevField.selectionEnd } : null;
     // A redraw keeps the place in the list: an answer to the fifth item does not throw the person back to the first.
     const at = column.querySelector(".work-reqs-list")?.scrollTop ?? 0;
-    drawn = html; column.innerHTML = html;
+    drawn = html;
+    drawnForm = nextForm;
+    column.innerHTML = html;
     const list = column.querySelector(".work-reqs-list");
     if (list) list.scrollTop = at;
-    column.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+    const nextField = column.querySelector<HTMLTextAreaElement>("textarea");
+    if (nextField) {
+      if (draft) {
+        nextField.value = draft.value;
+        if (draft.focus && !nextField.disabled) {
+          nextField.focus();
+          nextField.setSelectionRange(draft.start, draft.end);
+        }
+      } else if (!nextField.disabled) nextField.focus();
+    }
   };
   const show = (key: string | null, from?: HTMLElement) => {
     const was = open;
+    openSeq++;
+    reviewSeq++;
     open = key; ui = { returning: null, editing: null, adding: false, busy: false, error: "" };
     if (key) {
       const panel = document.querySelector<HTMLElement>("[data-assistant-panel]");
       opener = from ?? null; back = panel?.hidden === false; dialog(false);
       // The dialog opened over an open column (a press on the line): the column gives way and nothing is brought back.
-      if (panel && !watched) { watched = true; new MutationObserver(() => { if (open && !panel.hidden) { open = null; back = false; opener = null; draw(); } }).observe(panel, { attributes: true, attributeFilter: ["hidden"] }); }
+      if (panel && !watched) {
+        watched = true;
+        new MutationObserver(() => {
+          if (open && !panel.hidden) {
+            openSeq++;
+            open = null;
+            back = false;
+            opener = null;
+            draw();
+          }
+        }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+      }
       draw(); column.querySelector("[data-lead]")?.scrollIntoView({ block: "nearest" });
       column.querySelector<HTMLElement>("[data-lead] [data-acceptance-accept], [data-acceptance-close]")?.focus();
     } else { draw(); if (back) dialog(true); back = false;
@@ -84,12 +114,20 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
   };
   /** One write as the person; whatever happens the column shows what stands afterwards, with the refusal's own words when there is one. */
   const act = async (work: (now: { target: AcceptanceTarget; view: AcceptanceView }) => Promise<AcceptanceView>) => {
-    const now = open ? known.get(open) : undefined;
-    if (!now || ui.busy) return;
+    const targetKey = open, session = openSeq;
+    const now = targetKey ? known.get(targetKey) : undefined;
+    if (!targetKey || !now || ui.busy) return;
     ui = { ...ui, busy: true, error: "" }; draw();
-    try { now.view = await work(now); ui = { returning: null, editing: null, adding: false, busy: false, error: "" }; }
-    catch (error) { ui = { ...ui, busy: false, error: error instanceof Error ? error.message : String(error) }; await read(now.target).catch(() => undefined); }
-    draw(); for (const paint of slots) paint();
+    try {
+      now.view = await work(now);
+      if (open === targetKey && openSeq === session) ui = { returning: null, editing: null, adding: false, busy: false, error: "" };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await read(now.target).catch(() => undefined);
+      if (open === targetKey && openSeq === session) ui = { ...ui, busy: false, error: message };
+    }
+    if (open === targetKey && openSeq === session) draw();
+    for (const paint of slots) paint();
   };
   /** A new requirement after the ones that stand, with an id of its own; nothing is sent without its words. */
   const add = (field: HTMLTextAreaElement) => {
@@ -138,7 +176,11 @@ export function installAcceptance(route: (path: string) => string, request: UiRe
     const detail = (event as CustomEvent<{ subject?: AcceptanceTarget }>).detail, target = detail?.subject;
     if (!target || typeof target.provider_id !== "string" || typeof target.subject?.kind !== "string" || typeof target.subject.id !== "string") return;
     const from = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
-    void read(target).then(() => show(keyOf(target), from), () => undefined);
+    const turn = ++reviewSeq;
+    void read(target).then(
+      () => { if (turn === reviewSeq) show(keyOf(target), from); },
+      error => { if (turn === reviewSeq) request.toast?.(document.querySelector("[data-toast]") as never, error); },
+    );
   });
 
   return {

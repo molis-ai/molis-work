@@ -126,16 +126,38 @@ export function sideViewBridgeScript(_routePrefix: string): string {
         });
         const surface = document.querySelector("[data-side-view-root] > [data-work-surface]");
         let pendingItem;
-        const select = () => {
-          if (!surface || surface.hasAttribute("data-deferred-surface") || !pendingItem) return;
-          const itemId = pendingItem; pendingItem = null;
-          surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId } }));
+        const pendingShelf = [];
+        const dispatchShelf = (name, detail) => {
+          const init = detail !== null && detail !== undefined ? { detail } : undefined;
+          if (name === "molis:shelf-refresh") window.dispatchEvent(new CustomEvent("molis:shelf-refresh", init));
+          else if (name === "molis:shelf-send-tui") window.dispatchEvent(new CustomEvent("molis:shelf-send-tui", init));
+          else if (name === "molis:shelf-notice") window.dispatchEvent(new CustomEvent("molis:shelf-notice", init));
         };
-        if (surface) new MutationObserver(select).observe(surface, {attributes:true, attributeFilter:["data-deferred-surface"]});
+        const flush = () => {
+          if (!surface || surface.hasAttribute("data-deferred-surface")) return;
+          if (pendingItem) {
+            const itemId = pendingItem; pendingItem = null;
+            surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId } }));
+          }
+          while (pendingShelf.length) {
+            const next = pendingShelf.shift();
+            dispatchShelf(next.name, next.detail);
+          }
+        };
+        if (surface) new MutationObserver(flush).observe(surface, {attributes:true, attributeFilter:["data-deferred-surface"]});
         addEventListener("message", (event) => {
-          if (!messages.fromParent(event) || event.data.type !== "molis:side-target") return;
-          const item = event.data.target && event.data.target.item;
-          if (typeof item === "string" && item) { pendingItem = item; select(); }
+          if (!messages.fromParent(event)) return;
+          if (event.data.type === "molis:side-target") {
+            const item = event.data.target && event.data.target.item;
+            if (typeof item === "string" && item) { pendingItem = item; flush(); }
+            return;
+          }
+          if (event.data.type === "molis:shelf-desktop-event") {
+            const name = event.data.name;
+            if (name !== "molis:shelf-refresh" && name !== "molis:shelf-send-tui" && name !== "molis:shelf-notice") return;
+            if (surface && surface.hasAttribute("data-deferred-surface")) { pendingShelf.push({ name, detail: event.data.detail }); return; }
+            dispatchShelf(name, event.data.detail);
+          }
         });
       }`;
 }

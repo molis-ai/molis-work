@@ -198,13 +198,16 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
     const sample = (sel.samples || []).find((item) => item.id === row.dataset.sampleId);
     if (load && sample) sampleText.value = sample.input || "";
     if (remove) {
+      if (blocked()) return;
       const rec = sel, origin = { id: rec.id, revision: editRevision };
       try {
-        const payload = await withKeep(() => req("POST", "/api/functions/" + encodeURIComponent(rec.id) + "/samples/delete", {
-          sample_id: row.dataset.sampleId, ...revisionOf(sel),
+        const saved = await saveDraft();
+        if (sel?.id !== origin.id) return;
+        const payload = await withKeep(() => req("POST", "/api/functions/" + encodeURIComponent(origin.id) + "/samples/delete", {
+          sample_id: row.dataset.sampleId, ...revisionOf(sel?.id === origin.id ? sel : saved),
         }));
         remember(payload.function, origin);
-      } catch (error) { if (sel?.id === rec.id) showNote(error, true); }
+      } catch (error) { if (sel?.id === origin.id) { showNote(error, true); if (error?.keepEdits) toBand(); } }
     }
   });
   bench.querySelector("[data-functions-save-sample]").addEventListener("click", async () => {
@@ -215,18 +218,6 @@ export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-wor
       const payload = await withKeep(() => req("POST", "/api/functions/" + encodeURIComponent(origin.id) + "/samples", { input, ...revisionOf(sel?.id === origin.id ? sel : saved) }));
       remember(payload.function, origin);
     } catch (error) { if (sel?.id === origin.id) { showNote(error, true); if (error?.keepEdits) toBand(); } }
-  });
-  rowsEl.addEventListener("click", async (event) => {
-    const row = event.target.closest("[data-function-id]");
-    if (!row) return;
-    const rec = records.find((item) => item.id === row.dataset.functionId);
-    if (rec) {
-      if (sel?.id === rec.id || holding()) return;
-      try {
-        if (saveTick || saving || dirty) await saveDraft();
-        fillEditor(rec);
-      } catch (error) { showNote(error, true); }
-    }
   });
   let previewing = false;
   const previewBtn = bench.querySelector("[data-functions-preview]");

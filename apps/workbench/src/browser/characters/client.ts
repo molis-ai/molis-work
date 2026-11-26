@@ -9,12 +9,25 @@ import { memberKey, originalChanged, personalBody, projectBody, type PageUi } fr
 
 const uiText = globalThis.t;
 const say = (key: string, values?: Record<string, string | number>): string => uiText.text(key, values);
+const outsideMenuClosers = new WeakMap<HTMLElement, (event: PointerEvent) => void>();
+let outsidePointerBound = false;
+
+function watchOutsideMenuClick(): void {
+  if (outsidePointerBound) return;
+  outsidePointerBound = true;
+  document.addEventListener("pointerdown", event => {
+    for (const root of document.querySelectorAll<HTMLElement>("[data-characters][data-characters-mounted]")) {
+      outsideMenuClosers.get(root)?.(event);
+    }
+  });
+}
 
 /**
  * The role page (plan C): project settings › 角色 and Settings › 角色 from one catalog read. Choosing defaults, adding, following
  * again, turning off and every edit happen where they start: insets open under what opened them, the editor is a drawer over the page.
  */
 class RolesPage {
+  private readonly root: HTMLElement;
   private readonly q: Part;
   private readonly api: string;
   private readonly scope: "project" | "personal";
@@ -28,6 +41,7 @@ class RolesPage {
   private importing: CharacterRecord | null = null;
 
   constructor(root: HTMLElement) {
+    this.root = root;
     const { find, q } = partsOf(root);
     this.q = q;
     this.api = root.dataset.characterApi ?? "";
@@ -40,7 +54,7 @@ class RolesPage {
     this.imports = characterImportClient({ q, runtimeNames: JSON.parse(root.dataset.characterRuntimeNames ?? "{}") as Record<string, string>, request: this.request,
       current: () => this.importing ?? undefined, load: () => this.load(),
       select: id => { if (id) void this.drawer.open({ kind: "original", id }, null); }, act: action => this.act(action),
-      save: async () => { await this.drawer.saveNow(); return this.importing!; }, dirty: () => this.drawer.isDirty(), note: text => this.note(text) });
+      save: async () => (await this.drawer.saveNow()) ? this.importing : null, dirty: () => this.drawer.isDirty(), note: text => this.note(text) });
   }
 
   start(): void {
@@ -116,9 +130,10 @@ class RolesPage {
         items[(index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
       } else if (event.key === "Tab") { this.ui.menu = null; this.render(); }
     });
-    document.addEventListener("pointerdown", event => {
+    outsideMenuClosers.set(this.root, event => {
       if (this.ui.menu && !(event.target instanceof Element && event.target.closest(".roles-more"))) { this.ui.menu = null; this.render(); }
     });
+    watchOutsideMenuClick();
   }
 
   private click(name: string, arg: string, control: HTMLElement): void {

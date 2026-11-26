@@ -16,6 +16,7 @@ import type { Page } from "./page.js";
 import type { RoundSelection } from "./shapes.js";
 import { readCurrent } from "./read.js";
 import { api, sessionPath, status } from "./request.js";
+import { leaveSession } from "./select.js";
 
 const INTENT_BY_ROLE: Readonly<Record<string, string>> = { builder: "execute", writer: "edit", reader: "discuss", reviewer: "review", planner: "plan", coordinator: "collaborate" };
 
@@ -81,21 +82,27 @@ export async function openMcp(page: Page) {
 
 /** Archives the session after the person agrees; the page goes back to the list. */
 async function archive(page: Page, target: HTMLButtonElement) {
-  const { host, root, s } = page, { taskboard } = page.refs;
-  if (!s.current || !await host.confirm(uiText.text("coding.session.archive-confirm"))) return;
-  target.disabled = true;
+  const { host, lifetime, root, s } = page, { changeReview, draft, taskboard } = page.refs;
   const id = s.current;
+  if (!id || !await host.confirm(uiText.text("coding.session.archive-confirm"))) return;
+  if (!lifetime.alive || s.current !== id) return;
+  target.disabled = true;
   try {
     await api(page, sessionPath(id), "PATCH", { archive: true });
-    s.generation++;
-    s.current = "";
-    s.lastRun = null;
-    root.dataset.codingDetail = "false";
-    s.sessionOnShow = false;
-    taskboard.loading("");
-    renderGoalFace(page);
+    if (s.current === id) {
+      if (changeReview.active()) changeReview.close();
+      leaveSession(page, false);
+      draft.release();
+      s.generation++;
+      s.current = "";
+      s.lastRun = null;
+      root.dataset.codingDetail = "false";
+      s.sessionOnShow = false;
+      taskboard.loading("");
+      renderGoalFace(page);
+    }
     await refreshState(page);
-    status(page, uiText.text("coding.session.archived"));
+    if (lifetime.alive) status(page, uiText.text("coding.session.archived"));
   } finally {
     target.disabled = false;
   }

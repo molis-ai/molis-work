@@ -2,12 +2,15 @@ import { accountCachePrefix } from '../account-cache-key.js';
 /** Browser copies owned by the account UI; device preferences and unrelated origins' data are not account state. */
 const prefixes = [
   'molis.assistant.', 'molis.characters.drafts:', 'molis-plugin-page:', 'molis-review-feedback:', 'molis-connectors-', 'molis.home-action:',
+  'molis.work-line.', 'molis.mainline.', 'molis.home.decision:', 'molis.surface-unsettled:',
+  'molis-work:functions-keep:', 'molis-work-home-seen:', 'molis-work-artifact-selection:',
+  'molis-work:plugin-retained:', 'molis-work:plugin-toast:', 'molis-shell-refresh:',
   'molis-work-plugin-records:', 'molis-work-tab-history:', 'molis-work-tab-workspace:',
   'molis-work-frame-container:', 'molis-work-goal-work-modes:', 'molis-work-ui:',
   'molis-work-goal-move-receipt:', 'molis-work-guidance-receipt:', 'molis-work-studio-build:',
   'molis-work:brief:', 'molis-work:home-shortcuts:',
 ];
-const keys = new Set(['molis-work:return-trips', 'molis-work:return-window', 'molis-work:return-window-handoff', 'molis-work-decision-receipt', 'molis-work:search-scope', 'molis-work:onboarding-intro', 'molis-work:arrived']);
+const keys = new Set(['molis-work:return-trips', 'molis-work:return-window', 'molis-work:return-window-handoff', 'molis-work-decision-receipt', 'molis-work:search-scope', 'molis-work:onboarding-intro', 'molis-work:arrived', 'molis-work:kit-package', 'molis-work:appearance-handoff']);
 const owned = (key: string) => keys.has(key) || prefixes.some(prefix => key.startsWith(prefix));
 
 /** Install before account content runs. Revocation also fences pagehide handlers and late cache writes. */
@@ -78,7 +81,8 @@ export function installAccountCache(scope: string): {clear(): Promise<void>; has
       if (!physicalKey.startsWith(prefix)) continue;
       const key = physicalKey.slice(prefix.length);
       if ((key.startsWith('molis-review-feedback:') || key.startsWith('molis.characters.drafts:')
-        || key.startsWith('molis-connectors-draft:'))
+        || key.startsWith('molis-connectors-draft:') || key.startsWith('molis.work-line.parked:')
+        || key.startsWith('molis-work:functions-keep:'))
         && nonempty(get.call(area, physicalKey))) return true;
     }
     if (globalThis.caches) for (const name of await caches.keys()) {

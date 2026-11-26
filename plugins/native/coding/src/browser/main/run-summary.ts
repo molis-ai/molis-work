@@ -51,6 +51,11 @@ export function renderOutcomes(page: Page, all: readonly RunView[]) {
     if (!row) {
       row = outcomeRow(page, run.ref.run_id);
       list.prepend(row);
+    } else {
+      const change = row.querySelector<HTMLButtonElement>("[data-coding-change-open]");
+      if (change) change.replaceChildren(outcomeIcon("columns"), uiText.text("coding.short.change"));
+      const report = row.querySelector<HTMLButtonElement>("[data-coding-report-open]");
+      if (report) report.replaceChildren(outcomeIcon("file"), uiText.text("coding.outcome.report"));
     }
     const phase = row.querySelector<HTMLElement>(".coding-outcome-phase");
     if (!phase) continue;

@@ -108,8 +108,9 @@ document.addEventListener("pointerover", (event) => {
   if (node) queue(node, 420, event.target as Element);
 });
 document.addEventListener("pointerout", (event) => {
-  if (!owner || event.pointerType === "touch") return;
-  if (event.target instanceof Node && owner.contains(event.target) && !(event.relatedTarget instanceof Node && owner.contains(event.relatedTarget))) hide();
+  const about = owner ?? waiting;
+  if (!about || event.pointerType === "touch") return;
+  if (event.target instanceof Node && about.contains(event.target) && !(event.relatedTarget instanceof Node && about.contains(event.relatedTarget))) hide();
 });
 document.addEventListener("focusin", (event) => {
   const node = targetOf(event);

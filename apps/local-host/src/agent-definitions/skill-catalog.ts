@@ -70,14 +70,47 @@ const listable = (skill: CatalogSkill, caller: ActionCallContext, appliesTo: Ski
   return (caller.audience === "plugin" && caller.skill_round === undefined && appliesTo !== undefined) || applicable(skill, caller);
 };
 
+const SKILL_FRONTMATTER_BLOCK = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u;
+const SKILL_FRONTMATTER_FIELD = /^[A-Za-z_][A-Za-z0-9_-]*:(?:[ \t]+.*)?$/u;
+const SKILL_FRONTMATTER_CONT = /^[ \t]+(?:- |\S)/u;
+
+/**
+ * Strips a leading YAML frontmatter block (`---\nkey: value\n---`) while preserving Markdown content
+ * that begins with a horizontal rule (`---\n\n# Heading`, SKL-41-2-AU-07).
+ */
+export function stripSkillFrontmatter(markdown: string): string {
+  const match = SKILL_FRONTMATTER_BLOCK.exec(markdown);
+  if (!match) return markdown;
+  const lines = match[1]!.split(/\r?\n/u);
+  if (!lines[0]?.trim()) return markdown;
+  let hasField = false;
+  let inField = false;
+  for (const line of lines) {
+    if (!line.trim()) {
+      if (!hasField) return markdown;
+      continue;
+    }
+    if (/^\s*#/u.test(line)) continue;
+    if (SKILL_FRONTMATTER_FIELD.test(line)) {
+      hasField = true;
+      inField = true;
+      continue;
+    }
+    if (inField && SKILL_FRONTMATTER_CONT.test(line)) continue;
+    return markdown;
+  }
+  return hasField ? markdown.slice(match[0].length).replace(/^(?:\r?\n)+/u, "") : markdown;
+}
+
 function entry(skill: CatalogSkill, setting: SkillSetting | undefined): SkillCatalogEntry {
   const d = skill.declaration, resources = d.resources ?? [];
   const words = skill.display ?? d;
+  const excerptSource = isOwnSkill(skill) ? skill.body : stripSkillFrontmatter(skill.body);
   return { ref: skill.ref, name: words.name, description: words.description, applies_to: d.applies_to,
     ...(words.when_to_use ? { when_to_use: words.when_to_use } : {}), ...(words.when_not_to_use ? { when_not_to_use: words.when_not_to_use } : {}),
     ...(d.argument_hint ? { argument_hint: d.argument_hint } : {}), user_invocable: d.user_invocable ?? true, tools: [...d.tools],
     resources: resources.map(({ path, role, bytes }) => ({ path, role, bytes })), connector_categories: [...d.connector_categories ?? []],
-    runs_scripts: resources.some(resource => resource.role === "script"), excerpt: Array.from(skill.body).slice(0, SKILL_EXCERPT_CHARS).join(""),
+    runs_scripts: resources.some(resource => resource.role === "script"), excerpt: Array.from(excerptSource).slice(0, SKILL_EXCERPT_CHARS).join(""),
     pack: skill.pack, state: setting?.state ?? skill.default_state ?? "off", settings_revision: setting?.revision ?? 0, availability: skill.availability,
     ...(setting && setting.state !== "off" ? { enabled: { at: setting.enabled_at, by: setting.enabled_by, scope: setting.scope_ref === "home" ? "home" as const : "project" as const } } : {}) };
 }
@@ -86,14 +119,13 @@ function entry(skill: CatalogSkill, setting: SkillSetting | undefined): SkillCat
 export const isOwnSkill = (skill: CatalogSkill): boolean => skill.pack.plugin_id === SKILL_AUTHORED_PLUGIN_IDS[skill.pack.scope] && skill.pack.trust === "home_local";
 
 /**
- * A catalog Skill as the form's fields, in the caller's language. An imported package keeps a frontmatter block before the body; a
- * Skill written in settings is stored as the body itself, so a leading horizontal rule is content and is not stripped
+ * A catalog Skill as the form's fields, in the caller's language. Packaged and system Skills keep a YAML frontmatter block before
+ * the body; a Skill written in settings is stored as the body itself, so a leading horizontal rule is content and is not stripped
  * (BL-skill-authoring-b41-followups ②).
  */
 export function skillFields(skill: CatalogSkill): SkillAuthoredFields {
   const d = skill.declaration, words = skill.display ?? d;
-  const installed = skill.pack.trust !== "host" && !isOwnSkill(skill);
-  const body = (installed ? skill.body.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u, "") : skill.body).replace(/\r\n?/gu, "\n").trim();
+  const body = (isOwnSkill(skill) ? skill.body : stripSkillFrontmatter(skill.body)).replace(/\r\n?/gu, "\n").trim();
   return { name: words.name, description: words.description ?? "", applies_to: d.applies_to, body,
     ...(words.when_not_to_use ? { when_not_to_use: words.when_not_to_use } : {}), ...(d.argument_hint ? { argument_hint: d.argument_hint } : {}) };
 }

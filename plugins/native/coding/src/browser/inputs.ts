@@ -69,7 +69,14 @@ export function codingInputs(ports: InputPorts) {
   action(uiText.text('coding.input.save'),async()=>{await write(id,mine,view.revision);if(id===current())notify(uiText.text('coding.input.saved-notice'));},true);
   shell.append(header,body,footer);dialog.append(shell);root.append(dialog);
   lifetime.listen(dialog,'cancel',event=>{if(pending)event.preventDefault();});
-  lifetime.listen(dialog,'close',()=>{dialog.remove();if(opener instanceof HTMLElement&&opener.isConnected)opener.focus();});lifetime.own(()=>dialog.remove());dialog.showModal();cancel.focus();
+  const release = lifetime.own(() => dialog.remove());
+  lifetime.listen(dialog, 'close', () => {
+    release();
+    dialog.remove();
+    if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+  });
+  dialog.showModal();
+  cancel.focus();
  };
  lifetime.listen(root,'click',event=>{if(event.target instanceof Element&&event.target.closest('[data-coding-input-compare]'))void compare().catch(error=>{if(lifetime.alive)notify(errorMessage(error),true);});});
  return {

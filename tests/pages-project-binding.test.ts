@@ -38,7 +38,9 @@ test("W5-01-PAGES-02 Host 路由里的项目与 query/body 不一致时，发布
   const home = await mkdtemp(join(tmpdir(), "pages-project-binding-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const first = await catalog.createProject({ display_name: "项目 A", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: first.project_id, plugin_id: "pages", actor_id: "test" });
   const second = await catalog.createProject({ display_name: "项目 B", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: second.project_id, plugin_id: "pages", actor_id: "test" });
   catalog.close();
   const server = await listen(home);
   try {
@@ -64,15 +66,16 @@ test("W5-01-PAGES-02 Host 路由里的项目与 query/body 不一致时，发布
     });
     assert.equal(split.status, 403);
 
-    const pages = openPagesStore(home);
+    const pages = openPagesStore(home, first.project_id);
     try {
-      const stored = pages.get(page.id, first.project_id);
+      const stored = pages.get(page.id);
       assert.equal(stored.version, page.version);
       assert.equal(stored.artifact_version, 0);
-      assert.equal(pages.list(second.project_id).some((item) => item.id === page.id), false);
     } finally {
       pages.close();
     }
+    const elsewhere = openPagesStore(home, second.project_id);
+    try { assert.equal(elsewhere.list().some((item) => item.id === page.id), false, "the other project's library holds none of it"); } finally { elsewhere.close(); }
     for (const project of [first, second]) {
       const database = new LocalProjectDatabase(project.database_path);
       try {

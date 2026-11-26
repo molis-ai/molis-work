@@ -19,7 +19,7 @@ const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void | Promise<void> = seedDemoGoals, completion?: HostCompleteText | null,
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"],
-  webOptions: Pick<WebServerOptions, "chooseDirectory"> & { prepareHome?: (homeDirectory: string) => void | Promise<void> } = {},
+  webOptions: Pick<WebServerOptions, "chooseDirectory"> & { prepareHome?: (homeDirectory: string) => void | Promise<void>; projectPlugins?: readonly string[] } = {},
   pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"], chromeArgs?: readonly string[], profileTimeouts = false) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
@@ -66,6 +66,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     try {
       if (catalogMode === "seeded" || catalogMode === "user") {
         const project = await catalog.createProject({ display_name: "目录交互验证", actor_id: "browser-test" });
+        // What the person added to the project themselves (a new project enables no plugin of its own, batch 107).
+        for (const plugin_id of webOptions.projectPlugins ?? []) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "browser-test" });
         if (catalogMode === "seeded") {
           // Work Brief fills the project's home with its brief (WBR-22), so the seeded project keeps the basic home the journeys
           // here walk; the tests of Work Brief add it themselves (tests/work-brief-page.e2e.test.ts), as the demo project does.
@@ -93,7 +95,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     await seed(databasePath);
   }
   // T405-FULL-01: initial setup owns the Home only before the serving Host is created.
-  const { prepareHome, ...serverOptions } = webOptions;
+  const { prepareHome, projectPlugins: _projectPlugins, ...serverOptions } = webOptions;
   await prepareHome?.(directory);
   // The catalog fixture's observer must use the managed mode before it can hold a SQLite connection open.
   if (projectId) {

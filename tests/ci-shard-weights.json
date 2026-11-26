@@ -1335,8 +1335,6 @@
  "tests/plugin-composition.test.ts": 4,
  "tests/plugin-context-declarations.test.ts": 1,
  "tests/plugin-contract-ownership.test.ts": 4,
- "tests/plugin-database-partition-deletion.test.ts": 5,
- "tests/plugin-database-partition.test.ts": 6,
  "tests/plugin-declaration-rules.test.ts": 3,
  "tests/plugin-declarative-mounting.test.ts": 5,
  "tests/plugin-default-bindings.test.ts": 7,

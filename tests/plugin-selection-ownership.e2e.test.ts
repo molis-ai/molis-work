@@ -20,8 +20,8 @@ test("QEA-72: a normal PPT object link still uses the unclaimed row selection ex
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   await browser.setViewport(1440, 900);
   await pluginFrameInitScript(t, browser, observe);
-  const store = openPptStore(browser.homeDirectory);
-  const deck = (() => { try { return store.create({ title: "Row selection deck", project_id: browser.projectId! }); } finally { store.close(); } })();
+  const store = openPptStore(browser.homeDirectory, browser.projectId!);
+  const deck = (() => { try { return store.create({ title: "Row selection deck" }); } finally { store.close(); } })();
   const child = await pluginFrameBrowser(t, browser, "ppt");
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=ppt&openRecord=${deck.id}` }, browser.sessionId));
   await child.waitFor(`document.querySelector('[data-ppt=workbench]')?.dataset.expanded==='true' && document.querySelector('[data-ppt-title]')?.value===${JSON.stringify(deck.title)}`);

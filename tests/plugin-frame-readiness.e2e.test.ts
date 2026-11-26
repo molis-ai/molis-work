@@ -109,8 +109,8 @@ test("a visible plugin document precedes its listeners; the owner readiness gate
   });
   t.after(release);
   const count = () => {
-    const store = openLingguangStore(browser.homeDirectory);
-    try { return store.list(browser.projectId!).length; } finally { store.close(); }
+    const store = openLingguangStore(browser.homeDirectory, browser.projectId!);
+    try { return store.list().length; } finally { store.close(); }
   };
   await browser.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/` }, browser.sessionId));
@@ -159,8 +159,8 @@ test("VUX-16: a side document waits through hidden markup and visible unmounted 
   });
   t.after(() => { releaseBridge(); releaseClient(); });
   const count = () => {
-    const store = openLingguangStore(browser.homeDirectory);
-    try { return store.list(browser.projectId!).length; } finally { store.close(); }
+    const store = openLingguangStore(browser.homeDirectory, browser.projectId!);
+    try { return store.list().length; } finally { store.close(); }
   };
   await browser.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/side/lingguang/side` }, browser.sessionId));
@@ -221,8 +221,8 @@ test("RAC-1487: a side view is guarded through both loading windows; a real poin
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const assets = holdFrameAssets(browser);
   const count = () => {
-    const store = openLingguangStore(browser.homeDirectory);
-    try { return store.list(browser.projectId!).length; } finally { store.close(); }
+    const store = openLingguangStore(browser.homeDirectory, browser.projectId!);
+    try { return store.list().length; } finally { store.close(); }
   };
   const child = await pluginFrameBrowser(t, browser, "lingguang");
   t.after(() => { assets.releaseBridge(); assets.respondClient(); });
@@ -277,8 +277,8 @@ test("RAC-1488: the side view releases its guard into ready and a real click is 
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const assets = holdFrameAssets(browser);
   const count = () => {
-    const store = openLingguangStore(browser.homeDirectory);
-    try { return store.list(browser.projectId!).length; } finally { store.close(); }
+    const store = openLingguangStore(browser.homeDirectory, browser.projectId!);
+    try { return store.list().length; } finally { store.close(); }
   };
   const child = await pluginFrameBrowser(t, browser, "lingguang");
   t.after(() => { assets.releaseBridge(); assets.respondClient(); });
@@ -309,8 +309,8 @@ test("RAC-1489: a failed side view load releases the guard and leaves a failure 
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const assets = holdFrameAssets(browser);
   const count = () => {
-    const store = openLingguangStore(browser.homeDirectory);
-    try { return store.list(browser.projectId!).length; } finally { store.close(); }
+    const store = openLingguangStore(browser.homeDirectory, browser.projectId!);
+    try { return store.list().length; } finally { store.close(); }
   };
   t.after(() => { assets.releaseBridge(); assets.respondClient(); });
   // The failure view replaces the surface in the DOM, so keep the original root object: rebuild the value

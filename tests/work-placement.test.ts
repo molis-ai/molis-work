@@ -38,7 +38,7 @@ function goalsAttachHandlers(inputs: ReturnType<typeof createGoalsInputActionHan
 }
 import { SearchService } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
-import { bindSearchEntriesHandler, defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindSearchEntriesHandler, defineSearchEntriesAction, isObjectCopier, isObjectExporter, isObjectMover, isObjectPutter, isObjectRemover, type PlacementExport, type PlacementRecord } from "@molis-ai/molis-work-contracts/platform/actions";
 import { chinesePagePacks, pageTextForPacks } from "./fixtures/page-text-packs.js";
 
 const placementText = pageTextForPacks("zh", chinesePagePacks());
@@ -180,11 +180,12 @@ function fixture(projects = ["personal", "q4", "interview"], hooks?: {
   return { actions, notes, service, ledger, titles, removeProject: (id: string) => removed.add(id), deleteClip: (id: string) => { clips = new Map([...clips].filter(([key]) => key !== id)); } };
 }
 
-test("placement protocol: shipped plugins declare move and copy for the person only", () => {
+test("placement protocol: shipped plugins declare their carry parts (export, put, remove) for the person only", () => {
+  // Their objects are in each partition's own library (batch 107): placement carries them itself, with the plugin's three parts.
   for (const manifest of [pagesManifest, pptManifest, formManifest, datasetManifest, lingguangManifest]) {
     assert.deepEqual(inspectActionDeclarations(manifest.actions!, undefined), [], manifest.plugin_id);
-    const placement = manifest.actions!.filter(definition => definition.action.input_type?.startsWith("molis.placement."));
-    assert.equal(placement.length, 2, manifest.plugin_id);
+    const placement = manifest.actions!.filter(definition => [isObjectExporter, isObjectPutter, isObjectRemover, isObjectMover, isObjectCopier].some(part => part(definition.action)));
+    assert.deepEqual(placement.map(definition => [isObjectExporter, isObjectPutter, isObjectRemover].findIndex(part => part(definition.action))).sort(), [0, 1, 2], manifest.plugin_id);
     for (const definition of placement) assert.deepEqual(definition.action.audiences, ["user"]);
   }
   // Letting an agent move things would change who can read them without the person deciding.
@@ -345,7 +346,7 @@ test("RAC-129-PLACEMENT: copying makes an independent object that remembers its 
 test("S-placement-conversion-source: caller URLs cannot bind a conversion to another form's dataset", async t => {
   const f = fixture();
   const home = await mkdtemp(join(tmpdir(), "placement-form-source-"));
-  const datasets = openDatasetStore(home);
+  const datasets = openDatasetStore(home, "q4");
   t.after(async () => { datasets.close(); await rm(home, { recursive: true, force: true }); });
   const formRead = defineSubjectContextAction("form.subject.read", 1, "form", "问卷", ["form:read"]);
   f.actions.registerProvider({
@@ -362,7 +363,7 @@ test("S-placement-conversion-source: caller URLs cannot bind a conversion to ano
     handlers: createDatasetContentHandlers(ownDatasetStores(run => run(datasets))),
   });
   const formBUrl = "molis-source://form/form-B";
-  const formB = datasets.receiveCsv("q4", "form-B", "问卷 B", "request_id,姓名\nanswer-B,乙", formBUrl);
+  const formB = datasets.receiveCsv("form-B", "问卷 B", "request_id,姓名\nanswer-B,乙", formBUrl);
   const convert = (source: PlacedObject, request_id: string, url?: string) => f.service.convert({
     source, request_id, to: { station: "dataset" }, to_project_id: "q4",
     payload: { title: "答卷", body: "request_id,姓名\nanswer-A,甲", url },
@@ -372,11 +373,11 @@ test("S-placement-conversion-source: caller URLs cannot bind a conversion to ano
   const first = await convert(source, "first-form", formBUrl);
   assert.notEqual(first.object.id, formB.id);
   assert.equal((await convert(source, "next-form")).object.id, first.object.id);
-  assert.equal(datasets.receiveCsv("q4", "verified-form-A", "问卷 A", "request_id,姓名\nanswer-A,甲",
+  assert.equal(datasets.receiveCsv("verified-form-A", "问卷 A", "request_id,姓名\nanswer-A,甲",
     "molis-source://form/form-A%2F%E9%97%AE%E5%8D%B7").id, first.object.id);
   const other = await convert({ kind: "clip", id: "clip-1", project_id: null }, "unrelated-source", "  " + formBUrl);
   assert.notEqual(other.object.id, formB.id);
-  assert.deepEqual(datasets.get(formB.id, "q4"), formB);
+  assert.deepEqual(datasets.get(formB.id), formB);
 });
 
 test("Goals keeps a Goal's materials: bind once, list both ways, release keeps history", async () => {
@@ -455,52 +456,67 @@ test("the Goals page reads fresh input bindings via declaredStageData without st
   assert.equal(((await declaredStageData(["goals"], () => actions)).goals as { collection: { input_bindings: unknown[] } }).collection.input_bindings.length, 1);
 });
 
+// Each plugin's library is its partition's own (U2): a move is the platform carrying the export into the target library under the same id,
+// then letting the source go; a copy is a put without an id. `carry` plays the platform's part over two stores of one plugin.
+interface CarriedStore<T> { exportRecord(id: string): PlacementExport; putRecord(record: PlacementRecord, requestId: string, targetId?: string): T; removeCarried(id: string, revision: string): boolean }
+function carry<T>(from: CarriedStore<T>, to: CarriedStore<T>, id: string): T {
+  const out = from.exportRecord(id);
+  const put = to.putRecord(out.record, "move:" + id, id);
+  assert.equal(from.removeCarried(id, out.revision), true);
+  return put;
+}
+
 test("plugin stores move with the same id, copy independently and receive handed-over content once", async t => {
   const home = await mkdtemp(join(tmpdir(), "work-placement-"));
   t.after(() => rm(home, { recursive: true, force: true }));
-  const pages = openPagesStore(home);
-  const page = pages.create({ project_id: "personal", title: "上线前检查清单" });
-  const moved = pages.relocate(page.id, "personal", "q4");
+  const pages = openPagesStore(home, "personal"), pagesQ4 = openPagesStore(home, "q4");
+  const page = pages.create({ title: "上线前检查清单" });
+  const moved = carry(pages, pagesQ4, page.id);
   // A move is not an edit: same id, same version and time, so work that recorded this version still matches.
-  assert.deepEqual([moved.id, moved.project_id, moved.version, moved.updated_at], [page.id, "q4", page.version, page.updated_at]);
-  assert.throws(() => pages.get(page.id, "personal"), /找不到/);
-  const pageCopy = pages.duplicate(page.id, "q4", "personal", "r1");
-  assert.equal(pages.duplicate(page.id, "q4", "personal", "r1").id, pageCopy.id);
+  assert.deepEqual([moved.id, moved.version, moved.updated_at], [page.id, page.version, page.updated_at]);
+  assert.throws(() => pages.get(page.id), /找不到/);
+  const pageCopy = pages.putRecord(pagesQ4.exportRecord(page.id).record, "r1");
+  assert.equal(pages.putRecord(pagesQ4.exportRecord(page.id).record, "r1").id, pageCopy.id);
   assert.notEqual(pageCopy.id, page.id);
-  pages.close();
+  pages.close(); pagesQ4.close();
 
-  const ppt = openPptStore(home);
-  const deck = ppt.create({ project_id: "personal", title: "评审" });
-  const movedDeck = ppt.relocate(deck.id, "personal", "q4");
-  assert.deepEqual([movedDeck.project_id, movedDeck.version], ["q4", deck.version]);
-  const deckCopy = ppt.duplicate(deck.id, "q4", "personal", "c1");
-  assert.equal(ppt.duplicate(deck.id, "q4", "personal", "c1").id, deckCopy.id);
+  const ppt = openPptStore(home, "personal"), pptQ4 = openPptStore(home, "q4");
+  const deck = ppt.create({ title: "评审" });
+  const movedDeck = carry(ppt, pptQ4, deck.id);
+  assert.deepEqual([movedDeck.id, movedDeck.version], [deck.id, deck.version]);
+  assert.deepEqual(ppt.list(), []);
+  const deckCopy = ppt.putRecord(pptQ4.exportRecord(deck.id).record, "c1");
+  assert.equal(ppt.putRecord(pptQ4.exportRecord(deck.id).record, "c1").id, deckCopy.id);
   const outline = slidesFromMarkdown("# Q4 新版发布评审\n\n## 做成了什么\n- 计费重构\n- 团队空间 Beta\n> 数字来自周报\n\n## 风险\n- 价格变化", "备用标题");
   assert.equal(outline.title, "Q4 新版发布评审");
   assert.deepEqual(outline.slides.map(slide => [slide.title, slide.bullets, slide.notes]), [["做成了什么", ["计费重构", "团队空间 Beta"], "数字来自周报"], ["风险", ["价格变化"], ""]]);
-  const received = ppt.receive("q4", "delivery-1", outline.title, outline.slides);
-  assert.equal(ppt.receive("q4", "delivery-1", outline.title, outline.slides).id, received.id, "one delivery makes one deck");
-  ppt.close();
+  const received = ppt.receive("delivery-1", outline.title, outline.slides);
+  assert.equal(ppt.receive("delivery-1", outline.title, outline.slides).id, received.id, "one delivery makes one deck");
+  ppt.close(); pptQ4.close();
 
-  const datasets = openDatasetStore(home);
-  const table = datasets.receiveCsv("personal", "d-1", "答卷", "提交时间,整体满意度\n2026-09-28,4\n2026-09-28,5");
+  const datasets = openDatasetStore(home, "personal"), datasetsQ4 = openDatasetStore(home, "q4");
+  const table = datasets.receiveCsv("d-1", "答卷", "提交时间,整体满意度\n2026-09-28,4\n2026-09-28,5");
   assert.deepEqual([table.columns.length, table.rows.length], [2, 2]);
-  assert.equal(datasets.receiveCsv("personal", "d-1", "答卷", "x").id, table.id);
-  const movedTable = datasets.relocate(table.id, "personal", "q4");
-  assert.deepEqual([movedTable.project_id, movedTable.version], ["q4", table.version]);
-  datasets.close();
+  assert.equal(datasets.receiveCsv("d-1", "答卷", "x").id, table.id);
+  const movedTable = carry(datasets, datasetsQ4, table.id);
+  assert.deepEqual([movedTable.id, movedTable.version], [table.id, table.version]);
+  datasets.close(); datasetsQ4.close();
 
-  const sparks = openLingguangStore(home);
-  const alone = sparks.create({ project_id: "q4", title: "把发布说明做成演示" });
-  const shared = sparks.create({ project_id: "q4", title: "另一个想法" });
-  sparks.openConversation([alone.id, shared.id], "q4");
-  assert.throws(() => sparks.relocate(alone.id, "q4", "personal"), /同一场头脑风暴/);
-  const single = sparks.create({ project_id: "q4", title: "独自一条" });
-  sparks.openConversation([single.id], "q4");
-  const beforeMove = sparks.get(single.id, "q4");
-  const movedSpark = sparks.relocate(single.id, "q4", "personal");
-  assert.deepEqual([movedSpark.project_id, movedSpark.updated_at], ["personal", beforeMove.updated_at], "a spark keeps its time: its revision is its content");
-  sparks.close();
+  const sparks = openLingguangStore(home, "q4"), sparksPersonal = openLingguangStore(home, "personal");
+  const alone = sparks.create({ title: "把发布说明做成演示" });
+  const shared = sparks.create({ title: "另一个想法" });
+  sparks.openConversation([alone.id, shared.id]);
+  // A spark in a brainstorm with others is refused at the target before anything is written, and the source keeps it.
+  assert.throws(() => carry(sparks, sparksPersonal, alone.id), /同一场头脑风暴/);
+  assert.deepEqual(sparksPersonal.list(), []);
+  assert.throws(() => sparks.removeCarried(alone.id, sparks.exportRecord(alone.id).revision), /同一场头脑风暴/);
+  assert.equal(sparks.get(alone.id).id, alone.id);
+  const single = sparks.create({ title: "独自一条" });
+  sparks.openConversation([single.id]);
+  const beforeMove = sparks.get(single.id);
+  const movedSpark = carry(sparks, sparksPersonal, single.id);
+  assert.deepEqual([movedSpark.id, movedSpark.updated_at], [single.id, beforeMove.updated_at], "a spark keeps its time: its revision is its content");
+  sparks.close(); sparksPersonal.close();
 });
 
 test("a plugin that keeps its objects at Home moves them through its own Home-scoped mover", async () => {
@@ -599,26 +615,26 @@ test("a deck exports as a real PowerPoint package: one slide part per page, note
 test("a form collects on this computer and through answer files, honestly", async t => {
   const home = await mkdtemp(join(tmpdir(), "work-placement-form-"));
   t.after(() => rm(home, { recursive: true, force: true }));
-  const forms = openFormStore(home);
-  let form = forms.create({ project_id: "personal", title: "Beta </script> 满意度" });
-  form = forms.update(form.id, { questions: questionsFromText("1. 最常用的功能\n- 最希望改进的地方"), expected_version: form.version }, "personal");
+  const forms = openFormStore(home, "personal"), formsQ4 = openFormStore(home, "q4");
+  let form = forms.create({ title: "Beta </script> 满意度" });
+  form = forms.update(form.id, { questions: questionsFromText("1. 最常用的功能\n- 最希望改进的地方"), expected_version: form.version });
   assert.deepEqual(form.questions.map(question => question.title), ["最常用的功能", "最希望改进的地方"]);
   const [q1, q2] = form.questions;
-  assert.throws(() => forms.submit(form.id, { [q1!.id]: "团队空间" }, "personal", { source: "fill" }), /还没有开始收集/);
-  form = forms.publish(form.id, "personal", form.version);
-  forms.submit(form.id, { [q1!.id]: "团队空间", [q2!.id]: "权限分级" }, "personal", { source: "fill", requestId: "fill-1" });
+  assert.throws(() => forms.submit(form.id, { [q1!.id]: "团队空间" }, { source: "fill" }), /还没有开始收集/);
+  form = forms.publish(form.id, form.version);
+  forms.submit(form.id, { [q1!.id]: "团队空间", [q2!.id]: "权限分级" }, { source: "fill", requestId: "fill-1" });
   const answer = (answerId: string, value: string) => JSON.stringify({ format: FORM_ANSWER_FORMAT, form_id: form.id, form_version: form.version, answer_id: answerId,
     submitted_at: "2026-09-29T05:01:13.389Z", questions: form.questions, answers: { [q1!.id]: value, [q2!.id]: "" } });
   const result = forms.importAnswers(form.id, [{ name: "王敏.json", content: answer("80286b63-0b52-4a4b-94c6-3f36410fbdbb", "移动端") },
     { name: "王敏(1).json", content: answer("80286b63-0b52-4a4b-94c6-3f36410fbdbb", "移动端") },
     { name: "别的问卷.json", content: answer("11111111-2222-3333-4444-555555555555", "x").replace(form.id, "another-form") },
-    { name: "坏文件.json", content: "not json" }], "personal");
+    { name: "坏文件.json", content: "not json" }]);
   assert.deepEqual([result.imported, result.skipped], [1, 1]);
   assert.deepEqual(result.rejected.map(item => item.reason), ["这份答卷属于另一份问卷", "文件内容无法读取"]);
-  form = forms.closeCollection(form.id, "personal", form.version);
+  form = forms.closeCollection(form.id, form.version);
   assert.equal(form.status, "closed");
-  assert.throws(() => forms.submit(form.id, { [q1!.id]: "团队空间" }, "personal", { source: "fill" }), /已停止收集/);
-  const submissions = forms.listSubmissions(form.id, "personal");
+  assert.throws(() => forms.submit(form.id, { [q1!.id]: "团队空间" }, { source: "fill" }), /已停止收集/);
+  const submissions = forms.listSubmissions(form.id);
   assert.deepEqual(submissions.map(item => item.source).sort(), ["file", "fill"]);
   const csv = formResultsCsv(form, submissions);
   assert.ok(csv.startsWith("﻿request_id,提交时间,来源,最常用的功能,最希望改进的地方"));
@@ -627,9 +643,9 @@ test("a form collects on this computer and through answer files, honestly", asyn
   assert.ok(!page.includes("Beta </script> 满意度\","), "the title cannot end the data script");
   assert.match(page, /\\u003c\/script>/u);
   assert.match(page, /这个页面不会上传任何内容/);
-  const formBefore = forms.get(form.id, "personal");
-  const moved = forms.relocate(form.id, "personal", "q4");
+  const formBefore = forms.get(form.id);
+  const moved = carry(forms, formsQ4, form.id);
   assert.equal(moved.version, formBefore.version, "a move is not an edit");
-  assert.equal(forms.listSubmissions(moved.id, "q4").length, 2, "answers go with the form");
-  forms.close();
+  assert.equal(formsQ4.listSubmissions(moved.id).length, 2, "answers go with the form");
+  forms.close(); formsQ4.close();
 });

@@ -1,4 +1,4 @@
-import { compileAggregateTrackingSql, aggregateTrackingSeedSql } from './aggregate-tracking.js';
+import { compileAggregateTrackingSql, aggregateTrackingSeedSql, aggregateNamesProject } from './aggregate-tracking.js';
 import {readDatabaseSpace} from './space.js';
 import { syncError } from './project-replica-sync-errors.js';
 import type { SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
@@ -33,16 +33,23 @@ export function createAggregateReplica(db: ReplicaDatabase, definitions: readonl
 /** Owner-declared portable facts; local-copy readers do not acquire personal sync permission or technical journals. */
 export function createAggregatePortableOwner(db:ReplicaDatabase,definitions:readonly AggregateDefinition[],context:AggregateReplicaContext){
   const binding=readDatabaseSpace(db);context.authorize();if(!binding||binding.spaceId!==context.spaceId)throw syncError('scope','保存内容不属于当前空间');
+  // A partition's own library holds one partition: the platform bound it (`sync_context` is the collection's own context row).
+  const partition=()=>{
+    const row=db.prepare('SELECT project_id FROM sync_context WHERE id=1').get();
+    if(typeof row?.project_id!=='string'||!row.project_id)throw syncError('scope','这个库还没有绑定分区');
+    return row.project_id;
+  };
   const decode=(key:string) => {
     const parts:unknown=JSON.parse(key);
     if(!Array.isArray(parts)||parts.length!==3||!parts.every(v=>typeof v==='string'&&v.length>0&&v.length<=80))invalid();
     const [projectId,kind,id]=parts as string[];
     const definition=definitions.find(d=>d.kind===kind);if(!definition)invalid();
+    if(!aggregateNamesProject(definition!)&&projectId!==partition())throw syncError("scope",'资产属于其他分区');
     return {projectId:projectId!,id:id!,definition:definition!};
   };
   const local=(d:AggregateDefinition,id:string,projectId:string) => {
     const row=db.prepare(`SELECT * FROM ${d.table} WHERE id=?`).get(id);
-    if(row&&row.project_id!==projectId)throw syncError("scope",'资产标识已属于其他项目');
+    if(row&&aggregateNamesProject(d)&&row.project_id!==projectId)throw syncError("scope",'资产标识已属于其他项目');
     if(row&&d.busyColumn&&row[d.busyColumn])throw syncError("busy",'请先恢复本机尚未完成的发布');
     return row;
   };
@@ -65,13 +72,14 @@ export function createAggregatePortableOwner(db:ReplicaDatabase,definitions:read
       const current=local(d,id,projectId);
       if(value===null){
         for(const c of [...d.children].reverse())db.prepare(`DELETE FROM ${c.table} WHERE ${c.parent}=?`).run(id);
-        db.prepare(`DELETE FROM ${d.table} WHERE id=? AND project_id=?`).run(id,projectId);return;
+        if(aggregateNamesProject(d))db.prepare(`DELETE FROM ${d.table} WHERE id=? AND project_id=?`).run(id,projectId);else db.prepare(`DELETE FROM ${d.table} WHERE id=?`).run(id);
+        return;
       }
       size(value);const wire=object(value);exact(wire,['format','spaceId','project','record','children']);
       const project=object(wire.project);exact(project,['id','title']);
       if(wire.format!==/* @version format.aggregate.replica */ 1||wire.spaceId!==context.spaceId||project.id!==projectId||typeof project.title!=='string'||project.title.length>120)invalid();
       const record=validateAggregatePortableRow(wire.record,d.columns),children=object(wire.children);exact(children,d.children.map(c=>c.table));
-      if(record.id!==id||record.project_id!==projectId)invalid();
+      if(record.id!==id||aggregateNamesProject(d)&&record.project_id!==projectId)invalid();
       const parsed:AggregateRecords={record,children:{}};
       for(const c of d.children){
         const rows=children[c.table];if(!Array.isArray(rows)||rows.length>10000)invalid();

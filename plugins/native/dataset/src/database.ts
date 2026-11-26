@@ -1,13 +1,11 @@
-import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PartitionPluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 const SOURCE_BINDINGS_SCHEMA = `
   CREATE TABLE dataset_source_bindings (
-    project_id TEXT NOT NULL,
-    source_key TEXT NOT NULL,
+    source_key TEXT PRIMARY KEY,
     dataset_id TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    PRIMARY KEY (project_id, source_key)
+    updated_at TEXT NOT NULL
   );
 `;
 
@@ -23,7 +21,6 @@ const DATASET_SCHEMA = `
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     version INTEGER NOT NULL,
-    project_id TEXT NOT NULL DEFAULT '',
     artifact_id TEXT NOT NULL DEFAULT '',
     artifact_version INTEGER NOT NULL DEFAULT 0,
     publication_pending_json TEXT
@@ -35,22 +32,14 @@ const DATASET_SCHEMA = `
     snapshot_json TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
-  CREATE TABLE dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
+  CREATE TABLE dataset_receipts (request_id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL);
   ${SOURCE_BINDINGS_SCHEMA}
 `;
 /**
- * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its datasets go with their
- * saved versions, delivery receipts and source bindings.
+ * Each partition (the personal space or a project) has its own copy of this library (`<partition>/libraries/dataset.db`), so no row names
+ * its project; deleting a project takes its whole library with every saved version. A pinned version is recorded on the table it came from.
  */
-const DATASET_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "dataset.project-deletion.data" }, order: 30,
-  artifact_join: { table: "datasets", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
-    artifact_version_column: "artifact_version", write_columns: ["updated_at"], pending_column: "publication_pending_json" },
-  tables: [
-  { table: "dataset_versions", column: "dataset_id", parent: "datasets" },
-  { table: "datasets", column: "project_id" },
-  { table: "dataset_receipts", column: "project_id" },
-  { table: "dataset_source_bindings", column: "project_id" },
-] };
-/** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const DATASET_DATABASE: HomePluginDatabaseDeclaration = { project_rows: DATASET_PROJECT_ROWS, store_name: "dataset", version: /* @version database.dataset_database */ 1,
-  read_permission: "dataset:read", write_permission: "dataset:write", schema: DATASET_SCHEMA };
+export const DATASET_DATABASE: PartitionPluginDatabaseDeclaration = { store_name: "dataset", deletion: { label: { key: "dataset.project-deletion.data" }, order: 30 }, version: /* @version database.dataset_database */ 1,
+  read_permission: "dataset:read", write_permission: "dataset:write", schema: DATASET_SCHEMA,
+  pinned_rows: { table: "datasets", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
+    artifact_version_column: "artifact_version", write_columns: ["updated_at"], pending_column: "publication_pending_json" } };

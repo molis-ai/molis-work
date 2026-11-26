@@ -1,7 +1,7 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { wireClicks } from "./click.js";
 import { wireDrag } from "./drag.js";
-import { required, statusOf } from "./dom.js";
+import { redrawWords, required, statusOf } from "./dom.js";
 import { drawFlow } from "./flow.js";
 import { showLink } from "./link.js";
 import { drawList } from "./list.js";
@@ -64,7 +64,7 @@ export function workflowsClient(host: WorkflowsHost) {
   document.addEventListener("molis-work:model-ready", () => { onModelReady(page).catch((error) => toast(page, messageOf(error), "error")); });
   const languageAbort = new AbortController();
   window.addEventListener("pagehide", () => languageAbort.abort(), { once: true });
-  document.addEventListener("molis-work:language-changed", () => {
+  document.addEventListener("molis-work:language-changed", () => redrawWords(() => {
     if (!page.started) return;
     drawList(page);
     if (root.dataset.wfMode === "workflow" && page.ui.workflow) {
@@ -74,7 +74,7 @@ export function workflowsClient(host: WorkflowsHost) {
     } else if (root.dataset.wfMode === "instance" && page.ui.instance) {
       drawRun(page);
     }
-  }, { signal: languageAbort.signal });
+  }), { signal: languageAbort.signal });
   wireClicks(page);
   wirePopover(page);
   wireRoot(page);

@@ -19,7 +19,7 @@ test("PEQ-04 C1 Goals' attach parts and placement's 「挂到…」 run through 
   const home = await mkdtemp(join(tmpdir(), "placement-attach-goals-"));
   const project = await withCatalog({ homeDirectory: home }, async catalog => {
     const created = await catalog.createProject({ display_name: "Attach", actor_id: "user" });
-    catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "goals", actor_id: "user" });
+    for (const plugin_id of ["goals", "pages"]) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "user" });
     return created;
   });
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });

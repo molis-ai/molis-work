@@ -19,12 +19,12 @@ const whole = (name: string) => Buffer.from(name, "utf8").toString("utf8") === n
 /** A form with this title in a real Form library, and the names the two actions give its fill page and its results table. */
 async function exported(t: import("node:test").TestContext, title: string) {
   const home = await mkdtemp(join(tmpdir(), "form-export-names-"));
-  const forms = openFormStore(home);
+  const forms = openFormStore(home, "p");
   t.after(async () => { forms.close(); await rm(home, { recursive: true, force: true }); });
   const handlers: ActionHandlerBinding[] = createFormActionHandlers({ ...ownFormStores(run => run(forms)), modelAvailability: () => ({ available: true }) });
   const caller: ActionExecutionContext = { actor_id: "web-user", project_id: "p", audience: "user", permissions: [], beforeEffect: async () => {} };
-  const form = forms.create({ project_id: "p", title });
-  forms.update(form.id, { questions: [{ id: "q1", type: "text", title: "你的建议", required: false, order: 1 }] }, "p");
+  const form = forms.create({ title });
+  forms.update(form.id, { questions: [{ id: "q1", type: "text", title: "你的建议", required: false, order: 1 }] });
   const filename = async (definition: { capability_id: string }) => {
     const handler = handlers.find(item => item.capability_id === definition.capability_id)!;
     return (await (handler.handle(caller, { id: form.id }) as Promise<{ filename: string }>)).filename;

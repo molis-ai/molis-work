@@ -3,8 +3,8 @@ export interface PluginSyncCollection {
   readonly id: string;
   readonly title: string;
   readonly schema_version: number;
-  /** Required when the plugin declares both Home and project libraries. */
-  readonly database?: "home" | "project";
+  /** Required when the plugin declares more than one library (Home, project, or its own library in each partition). */
+  readonly database?: "home" | "project" | "partition";
   /** Required collections in this same plugin; cross-owner record refs stay in the payload. */
   readonly requires: readonly string[];
   readonly tracking?: readonly SyncTrackedTable[];

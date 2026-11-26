@@ -367,14 +367,14 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
     }; })()`);
   await click('[data-event-form=closure] input[name=deliverable-pin]');
   await click(submit);
-  await waitFor("document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent.includes('尚未核对') && !document.querySelector('[data-event-form=closure] [type=submit]').disabled");
+  await waitFor("document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent.includes('暂时不确定是否固定成功') && !document.querySelector('[data-event-form=closure] [type=submit]').disabled");
   const versions = () => openProjectVersionStores(store).artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, artifactId).map(row => row.version);
   const linked = async () => (await (await fetch(origin + prefix + "/api/plugins/io.molis.work.goals/goals/" + goal.goal_id + "/deliverables")).json() as { deliverables: Array<{ reference: { version: number } }> }).deliverables.map(row => row.reference.version);
   assert.deepEqual(versions(), [1]); assert.deepEqual(await linked(), [1]);
   await click(submit); await waitFor("!document.querySelector('[data-event-form=closure] [type=submit]').disabled");
   assert.equal(await evaluate("window.__pinPosts"), 1);
   await evaluate("window.__rejectDeliverableRead=true"); await click('[data-reconcile-deliverables]');
-  await waitFor("document.querySelector('[data-deliverable-read-status]').textContent.includes('未读回') && !document.querySelector('[data-reconcile-deliverables]').disabled");
+  await waitFor("document.querySelector('[data-deliverable-read-status]').textContent.includes('没能读回交付物清单') && !document.querySelector('[data-reconcile-deliverables]').disabled");
   await click(submit); await waitFor("!document.querySelector('[data-event-form=closure] [type=submit]').disabled");
   assert.equal(await evaluate("window.__pinPosts"), 1, "a failed read cannot unblock the original pin");
   await evaluate("window.__rejectDeliverableRead=false"); await click('[data-reconcile-deliverables]');

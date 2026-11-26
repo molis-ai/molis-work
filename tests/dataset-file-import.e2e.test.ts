@@ -13,13 +13,13 @@ async function openImport(t: TestContext) {
   const { homeDirectory, projectId, command, sessionId, navigate, origin } = browser;
   const child = await pluginFrameBrowser(t, browser, "dataset");
   const { evaluate, waitFor, click } = child;
-  const store = openDatasetStore(homeDirectory);
-  const a = store.importCsv(store.create({ project_id: projectId!, title: '表 A' }).id, '名称\nA 原内容', projectId!);
-  const b = store.importCsv(store.create({ project_id: projectId!, title: '表 B' }).id, '名称\nB 原内容', projectId!);
+  const store = openDatasetStore(homeDirectory, projectId!);
+  const a = store.importCsv(store.create({ title: '表 A' }).id, '名称\nA 原内容');
+  const b = store.importCsv(store.create({ title: '表 B' }).id, '名称\nB 原内容');
   store.close();
   const read = (id: string) => {
-    const db = openDatasetStore(homeDirectory);
-    try { return db.get(id, projectId!)!; } finally { db.close(); }
+    const db = openDatasetStore(homeDirectory, projectId!);
+    try { return db.get(id)!; } finally { db.close(); }
   };
   const path = join(homeDirectory, 'import.csv');
   await writeFile(path, csv);
@@ -182,11 +182,11 @@ test('W2-18-DATASET-01/02: an external write during file reading conflicts again
   const f = await openImport(t); if (!f) return;
   const { evaluate, waitFor, idle, a, b, read, homeDirectory, projectId } = f;
   const confirmed = await f.hold('Read');
-  const other = openDatasetStore(homeDirectory);
+  const other = openDatasetStore(homeDirectory, projectId!);
   let updated;
-  try { updated = other.importCsv(a.id, '名称\n其他客户端内容', projectId!, confirmed.version); } finally { other.close(); }
+  try { updated = other.importCsv(a.id, '名称\n其他客户端内容', confirmed.version); } finally { other.close(); }
   await evaluate('window.releaseRead()');
-  await waitFor("document.querySelector('[data-dataset-note]').textContent.includes('当前输入已保留')"); await idle();
+  await waitFor("document.querySelector('[data-dataset-note]').textContent.includes('你刚填的内容都保留着')"); await idle();
   assert.deepEqual(read(a.id), updated);
   assert.deepEqual(read(b.id), b);
   assert.equal(await evaluate("document.querySelector('[data-cell]').value"), 'A 原内容');

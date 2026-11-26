@@ -87,7 +87,7 @@ test("complete history discloses a short-to-long decision, cancels without writi
   await f.page.click(selector + " button"); await f.page.wait("document.querySelector('[data-memory-confirm-yes]')");
   const decision = await f.page.evaluate<string>("document.querySelector('.memory-confirm').innerText");
   for (const text of [saved.text, changed.text, "Coding", "短期", "通用", "长期", "无固定期限", "→", "来源", "状态保持不变"]) assert.ok(decision.includes(text), text);
-  const localExpiry = await f.page.evaluate<string>(`new Date(${JSON.stringify(expiry)}).toLocaleString()`); assert.ok(decision.includes(localExpiry));
+  const localExpiry = await f.page.evaluate<string>(`globalThis.format.date(new Date(${JSON.stringify(expiry)}).toISOString(), "datetime")`); assert.ok(decision.includes(localExpiry));
   await f.page.screenshot(join(f.directory, "full-restore-decision.png"));
   await f.page.click(".memory-confirm footer button:first-child"); await f.page.wait("!document.querySelector('.memory-confirm')");
   assert.equal(f.deliveries.length, 0); assert.deepEqual(await items(client), before);
@@ -220,7 +220,7 @@ test("protected Session history restores old text while disclosing that current 
   const selector = revision(saved.memory_id, saved.version);
   assert.ok((await b.page.evaluate<string>(`document.querySelector('${selector}').innerText`)).includes("无固定期限"));
   await b.page.click(selector + " button"); await b.page.wait("document.querySelector('[data-memory-confirm-yes]')");
-  const decision = await b.page.evaluate<string>("document.querySelector('.memory-confirm').innerText"), localExpiry = await b.page.evaluate<string>(`new Date(${JSON.stringify(expiry)}).toLocaleString()`);
+  const decision = await b.page.evaluate<string>("document.querySelector('.memory-confirm').innerText"), localExpiry = await b.page.evaluate<string>(`globalThis.format.date(new Date(${JSON.stringify(expiry)}).toISOString(), "datetime")`);
   assert.ok(decision.includes("会话内恢复保留当前分类、会话绑定和期限，不采用旧期限。")); assert.ok(decision.includes(localExpiry + " → " + localExpiry));
   assert.ok(decision.includes("Coding · 通用 · 会话内 → Coding · 通用 · 会话内"));
   await b.page.screenshot(join(b.directory, "protected-session-restore-decision.png"));

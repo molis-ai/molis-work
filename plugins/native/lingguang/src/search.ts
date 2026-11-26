@@ -1,4 +1,4 @@
-import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LINGGUANG_PROJECT_PLUGIN_ID, type LingguangSpark } from "./contract.js";
 import type { LingguangStore } from "./store.js";
 import { lingguangErrors } from "./error.js";
@@ -14,14 +14,13 @@ export const lingguangSearchActions = {
 export const revisionOf = (spark: LingguangSpark) => `${spark.updated_at}:${spark.status}`;
 
 export function createLingguangSearchHandlers(withStore: <T>(run: (store: LingguangStore) => T) => T): ActionHandlerBinding[] {
-  const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   return [
-    bindSearchEntriesHandler(lingguangSearchActions.entries, caller => withStore(store => store.list(project(caller)).map(spark => ({
+    bindSearchEntriesHandler(lingguangSearchActions.entries, () => withStore(store => store.list().map(spark => ({
       subject: { kind: "lingguang_spark", id: spark.id }, revision: revisionOf(spark), title: spark.title || searchText(spark.body, 80), summary: "",
       updated_at: spark.updated_at, content: "context" as const, open: { surface: LINGGUANG_PROJECT_PLUGIN_ID, id: spark.id } })))),
-    { ...lingguangSearchActions.subject, handle: (caller, input) => withStore(store => {
+    { ...lingguangSearchActions.subject, handle: (_caller, input) => withStore(store => {
       let spark: LingguangSpark;
-      try { spark = store.get((input as { subject_id: string }).subject_id, project(caller)); }
+      try { spark = store.get((input as { subject_id: string }).subject_id); }
       catch (error) {
         if ((error as { code?: string })?.code === "lingguang.not_found") throw lingguangErrors.not_found("灵光已不存在");
         throw error;

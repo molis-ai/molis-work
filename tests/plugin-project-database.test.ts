@@ -241,7 +241,7 @@ test("a start list that declares a library wrongly does not start at all, and no
     await refuse("another probe's", [{ definition: withLibrary(probe({ name: "first" }).definition, DECLARATION), trust: { level: "host" } },
       { definition: withLibrary(probe({ name: "second" }).definition, DECLARATION), trust: { level: "host" } }], /主人/, directory, { [LIBRARY]: idOf("first") });
     const libraries = homeStores().stores.filter(store => store.library).map(store => store.path);
-    assert.ok(["assistant", "memory", "functions", "characters", "server", "issues", "todo", "pages"].every(name => libraries.includes(name)));
+    assert.ok(["assistant", "memory", "functions", "characters", "server", "issues", "todo", "work-brief"].every(name => libraries.includes(name)));
     for (const name of libraries) {
       await refuse(`library ${name}`, [{ definition: withLibrary(probe().definition, { ...DECLARATION, store_name: name }), trust: { level: "host" } }], /主人/);
     }
@@ -251,8 +251,6 @@ test("a start list that declares a library wrongly does not start at all, and no
     assert.equal(homeStores().get("unlisted"), undefined);
     await refuse("not registered", [{ definition: withLibrary(probe().definition, { ...DECLARATION, store_name: "unlisted" }), trust: { level: "host" } }], /没有登记/);
     await refuse("another baseline", [{ definition: withLibrary(probe().definition, { ...DECLARATION, version: 2 }), trust: { level: "host" } }], /基线不同/);
-    // PART-02 (specs/archive/plugin-project-partition): a project's plugin keeps its data in the project already; only a Home plugin's library is split by project.
-    await refuse("partitioned", [{ definition: withLibrary(probe().definition, { ...DECLARATION, partition: "project" } as PluginDatabaseDeclaration), trust: { level: "host" } }], /Home 级插件/);
     for (const name of ["Dataset", "../data", "a/b", ""]) {
       await refuse(`name ${JSON.stringify(name)}`, [{ definition: withLibrary(probe().definition, { ...DECLARATION, store_name: name }), trust: { level: "host" } }], /库名|目录名/);
     }
@@ -337,7 +335,7 @@ test("RAC-302 every shipped plugin's Home library is registered to that plugin, 
       ...entry.home_store ? [{ path: entry.home_store.path, owner: entry.manifest.plugin_id, baseline: undefined }] : [],
       ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id, baseline: pluginSyncDatabaseDeclaration(entry.manifest, library) }] : []];
   });
-  assert.deepEqual(shipped.map(store => store.path).sort(), ["cognia", "dataset", "feed-content", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "todo", "work-brief", "workflows"]);
+  assert.deepEqual(shipped.map(store => store.path).sort(), ["cognia", "feed-content", "images", "issues", "jelly", "todo", "work-brief"]);
   assert.equal(homeStores().get("artifacts")?.owner, "modules/artifacts", "the platform's original files retain their Module owner");
   for (const { path, owner, baseline } of shipped) {
     const store = homeStores().get(path);
@@ -429,13 +427,14 @@ test("W4-11-03 a fixture the Host is given registers its library as its own, so 
     const reference = molisWorkHostProjectReference({ databasePath: created.database_path, projectId: created.project_id });
     const plugin = probe({ name: "hostprobe" });
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
-      // Lingguang's own name and baseline (a library its owner opens only when used): only that it is another owner's can refuse it.
-      pluginFixtures: { project: [{ definition: withLibrary(plugin.definition, { ...DECLARATION, ...homeStores().get("lingguang")!.library!.baseline, store_name: "lingguang" }) }] } });
+      // Issues' own name and baseline (a library its owner opens only when used): only that it is another owner's can refuse it.
+      pluginFixtures: { project: [{ definition: withLibrary(plugin.definition, { ...DECLARATION, ...homeStores().get("issues")!.library!.baseline, store_name: "issues" }) }] } });
     try {
-      // The project's platform refuses its start list whole (the registry finds `lingguang` registered twice), so the fixture's
+      // The project's platform refuses its start list whole (the registry finds `issues` registered twice), so the fixture's
       // action never registers: the same answer a caller gets for any plugin that did not start.
-      await assert.rejects(host.actionClient(reference).invoke(asUser(reference.project_id), plugin.note, { text: "写进灵光库" }), /能力未注册/);
+      await assert.rejects(host.actionClient(reference).invoke(asUser(reference.project_id), plugin.note, { text: "写进 Issue 库" }), /能力未注册/);
       assert.equal(plugin.started.length, 0, "the fixture never started");
-      assert.equal(existsSync(join(home, "lingguang")), false, "nothing of the Lingguang library was made");
+      // Issues runs at Home level, so its own instance may already have made its library: that the file is there says nothing of the
+      // fixture, which never started and so never opened it.
     } finally { await host.close(); }
   }));

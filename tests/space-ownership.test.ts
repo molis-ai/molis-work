@@ -76,7 +76,7 @@ test('projects, Goal stores and plugin stores inherit the same space; copied plu
         try {assert.equal(db.db.prepare('SELECT space_id FROM molis_storage_space').get().space_id,space.spaceId);}
         finally {db.close();}
       } finally {catalog.close();}
-      const plugin = openHomeSqliteDatabase(home,'pages');
+      const plugin = openHomeSqliteDatabase(home,'todo');
       try {
         plugin.exec('CREATE TABLE test_asset (id TEXT, content TEXT)');
         plugin.prepare('INSERT INTO test_asset VALUES (?,?)').run('same-id','belongs-to-'+i);
@@ -84,8 +84,8 @@ test('projects, Goal stores and plugin stores inherit the same space; copied plu
       } finally {plugin.close();}
     }
     // Restoring a store into the wrong account must not silently reassign it.
-    cpSync(join(root,'1','pages','pages.db'),join(root,'2','pages','pages.db'));
-    assert.throws(() => openHomeSqliteDatabase(join(root,'2'),'pages'), /SPACE_OWNERSHIP_MISMATCH/);
+    cpSync(join(root,'1','todo','todo.db'),join(root,'2','todo','todo.db'));
+    assert.throws(() => openHomeSqliteDatabase(join(root,'2'),'todo'), /SPACE_OWNERSHIP_MISMATCH/);
   } finally {rmSync(root,{recursive:true,force:true});}
 });
 

@@ -12,13 +12,13 @@ export const pagesPresentationValues = definePresentationValuesAction("pages.pre
   [PAGES_SUBJECT_KIND, PAGES_FOLDER_KIND], "文档与文件夹名称", ["pages:read"]);
 
 /** One bounded metadata read for both kinds. Never load document bodies just to name a permission target. */
-export function readPagesPresentation(db: PagesSql, projectId: string, input: PresentationValuesInput): PresentationValues {
+export function readPagesPresentation(db: PagesSql, input: PresentationValuesInput): PresentationValues {
   const selects: string[] = [], parameters: PagesSqlValue[] = [];
   for (const [kind, table, revision] of [[PAGES_SUBJECT_KIND, "pages", "version"], [PAGES_FOLDER_KIND, "folders", "updated_at"]]) {
     const ids = [...new Set(input.subjects.filter(subject => subject.kind === kind).map(subject => subject.id))];
     if (!ids.length) continue;
-    selects.push(`SELECT ? AS kind, id, title, ${revision} AS revision FROM ${table} WHERE project_id = ? AND id IN (${ids.map(() => "?").join(", ")})`);
-    parameters.push(kind, projectId, ...ids);
+    selects.push(`SELECT ? AS kind, id, title, ${revision} AS revision FROM ${table} WHERE id IN (${ids.map(() => "?").join(", ")})`);
+    parameters.push(kind, ...ids);
   }
   const rows = new Map((selects.length ? db.all(selects.join(" UNION ALL "), parameters) : []).map(row => [JSON.stringify([row.kind, row.id]), row]));
   return { items: input.subjects.map(subject => {

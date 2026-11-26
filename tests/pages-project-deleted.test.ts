@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { PagesRecord } from "@molis-ai/molis-work-plugin-pages/contract";
-import { Worker } from "node:worker_threads";
-import { openPagesStore } from "./fixtures/plugin-home-stores.js";
-import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { existsSync } from "node:fs";
+import { dirname } from "node:path";
+import { openPagesStore, partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { pagesIn } from "./fixtures/pages-runtime.js";
 
@@ -13,19 +13,22 @@ const stepOf = (result: Deletion) => result.deletion.owner_steps.find(step => st
 /** Two projects of one Home, each with a document, a folder and a generation receipt written through Pages' own library. */
 async function twoProjects(t: Parameters<typeof serveHomeRuntime>[0]) {
   const home = await serveHomeRuntime(t);
-  const gone = pagesIn(home, await home.project("Pages 要删的项目")), kept = pagesIn(home, await home.project("Pages 留下的项目"));
+  const gone = pagesIn(home, await home.project("Pages 要删的项目", ["pages"])), kept = pagesIn(home, await home.project("Pages 留下的项目", ["pages"]));
   for (const pages of [gone, kept]) {
     const folder = await pages.http<{ folder: { id: string } }>("/folders", { title: "文件夹" });
     await pages.http<{ document: PagesRecord }>("", { title: `文稿 ${pages.project.project_id}`, folder_id: folder.folder.id });
   }
-  const store = openPagesStore(gone.home);
-  try {
-    for (const pages of [gone, kept]) store.beginGeneration({ request_id: "receipt-" + pages.project.project_id, project_id: pages.project.project_id, request_hash: "hash",
-      status: "running", document_id: null, title: "回执", instructions: "", error: null, updated_at: new Date().toISOString(), inputs: [] });
-  } finally { store.close(); }
+  for (const pages of [gone, kept]) {
+    const store = openPagesStore(gone.home, pages.project.project_id);
+    try {
+      store.beginGeneration({ request_id: "receipt-" + pages.project.project_id, project_id: pages.project.project_id, request_hash: "hash",
+        status: "running", document_id: null, title: "回执", instructions: "", error: null, updated_at: new Date().toISOString(), inputs: [] });
+    } finally { store.close(); }
+  }
   const held = (projectId: string) => {
-    const reader = openPagesStore(gone.home);
-    try { return { documents: reader.list(projectId).length, folders: reader.listFolders(projectId).length, receipts: reader.generations(projectId).length }; }
+    if (!existsSync(partitionLibraryFile(gone.home, projectId, "pages"))) return { documents: 0, folders: 0, receipts: 0 };
+    const reader = openPagesStore(gone.home, projectId);
+    try { return { documents: reader.list().length, folders: reader.listFolders().length, receipts: reader.generations().length }; }
     finally { reader.close(); }
   };
   const remove = (projectId: string, key: string) => gone.rawRequest(`/api/settings/projects/${projectId}/delete`, { method: "POST", body: { delete_confirmed: true, idempotency_key: key } });
@@ -33,7 +36,7 @@ async function twoProjects(t: Parameters<typeof serveHomeRuntime>[0]) {
 }
 
 // W5-01-PAGES-07 (RUNTIME-MIGRATION 6.10): the "project deleted" step still reaches Pages' library from its Manifest's declaration
-// (`project_rows`, deleted by the platform, PG-024),
+// (the partition's library, removed whole by the platform, U2),
 // whether or not the project's Pages instance is running, and a failed step is finished by the same deletion asked again.
 test("W5-01-PAGES-07 deleting a project clears its Pages from the library, leaves the other project's, and the Runtime instance is no part of it", async t => {
   const f = await twoProjects(t);
@@ -50,25 +53,18 @@ test("W5-01-PAGES-07 deleting a project clears its Pages from the library, leave
   assert.deepEqual(still.documents.map(document => document.title), [`文稿 ${keptId}`], "and its Runtime instance still serves them");
 });
 
-test("W5-01-PAGES-07 a Pages step that fails stays pending, and asking for the same deletion again finishes it", { timeout: 60_000 }, async t => {
-  const f = await twoProjects(t), goneId = f.gone.project.project_id;
-  // Another connection holds a write on the library past the deletion's wait (busy_timeout): the platform's delete fails like any write.
-  const holder = new Worker(`
-    const { DatabaseSync } = require("node:sqlite"); const { parentPort, workerData } = require("node:worker_threads");
-    const db = new DatabaseSync(workerData.file); db.exec("BEGIN IMMEDIATE"); parentPort.postMessage("locked");
-    parentPort.once("message", () => { db.exec("ROLLBACK"); db.close(); parentPort.close(); });
-  `, { eval: true, workerData: { file: homeSqlitePath(f.gone.home, "pages") } });
-  const exited = new Promise(resolve => holder.once("exit", resolve));
-  t.after(async () => { holder.postMessage("release"); await exited; });
-  await new Promise(resolve => holder.once("message", resolve));
+// Batch 107: Pages' library is in the project's own folder, which the deletion moves aside before any owner step runs, so the step
+// has no file of its own left to fail on; the same deletion asked again is the receipt replayed.
+test("W5-01-PAGES-07 the Pages step goes with the project's folder, and asking for the same deletion again replays it complete", { timeout: 60_000 }, async t => {
+  const f = await twoProjects(t), goneId = f.gone.project.project_id, library = partitionLibraryFile(f.gone.home, goneId, "pages");
+  assert.equal(existsSync(library), true);
   const first = await (await f.remove(goneId, "pages-delete-retry")).json() as Deletion;
-  assert.equal(first.deletion.cleanup_state, "pending");
-  assert.equal(stepOf(first)?.state, "pending");
-  assert.match(first.deletion.cleanup_error ?? "", /pages/);
-  assert.deepEqual(f.held(goneId), { documents: 1, folders: 1, receipts: 1 }, "nothing was half cleared");
-  holder.postMessage("release");
-  await exited;
-  const retried = await (await f.remove(goneId, "pages-delete-retry")).json() as Deletion;
+  assert.equal(first.deletion.cleanup_state, "complete");
+  assert.equal(stepOf(first)?.state, "complete");
+  for (const suffix of ["", "-journal", "-wal", "-shm"]) assert.equal(existsSync(library + suffix), false, `the library${suffix} is gone`);
+  assert.equal(existsSync(dirname(library)), false, "and the folder it was in");
+  const retried = await (await f.remove(goneId, "pages-delete-retry")).json() as Deletion & { replayed?: boolean };
+  assert.equal(retried.replayed, true);
   assert.equal(retried.deletion.cleanup_state, "complete");
   assert.equal(stepOf(retried)?.state, "complete");
   assert.deepEqual(f.held(goneId), { documents: 0, folders: 0, receipts: 0 });

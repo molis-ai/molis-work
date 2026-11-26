@@ -18,9 +18,9 @@ test("W3-B1: a passage selected in the right panel is put at the cursor of the P
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
   const child=await pluginFrameBrowser(t,browser,"pages");
-  const store = openPagesStore(homeDirectory);
-  const left = store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
-  const right = store.create({ project_id: projectId!, title: "访谈记录", body: { type: "doc", content: [paragraph("用户说：离线也要能记下想法。")] } });
+  const store = openPagesStore(homeDirectory, projectId!);
+  const left = store.create({ title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
+  const right = store.create({ title: "访谈记录", body: { type: "doc", content: [paragraph("用户说：离线也要能记下想法。")] } });
   store.close();
   const capture = async (name: string) => { const directory = join(process.cwd(), `${REVIEW_EVIDENCE}/context-landing`); await mkdir(directory, { recursive: true });
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(join(directory, name + ".png"), Buffer.from(shot.data, "base64")); };
@@ -68,8 +68,8 @@ test("W3-B1: a passage selected in the right panel is put at the cursor of the P
   await child.waitFor(`${editorText} === '先完成离线也要能记下想法核心体验。再安排发布。'`, 10_000);
   assert.equal(await child.evaluate<boolean>("document.querySelector('.pages-landing-preview') === null"), true, "the preview is gone");
   await capture("3-written");
-  const saved = openPagesStore(homeDirectory);
-  try { assert.match(JSON.stringify(saved.get(left.id, projectId!).body), /先完成离线也要能记下想法核心体验。/u); } finally { saved.close(); }
+  const saved = openPagesStore(homeDirectory, projectId!);
+  try { assert.match(JSON.stringify(saved.get(left.id).body), /先完成离线也要能记下想法核心体验。/u); } finally { saved.close(); }
 });
 
 test("RAC-1983: what the landing reports about the cursor and the selection never starts or ends with half a character", { timeout: 120_000 }, async (t) => {
@@ -80,8 +80,8 @@ test("RAC-1983: what the landing reports about the cursor and the selection neve
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "pages");
-  const store = openPagesStore(homeDirectory);
-  const page = store.create({ project_id: projectId!, title: "Landing windows", body: { type: "doc", content: [paragraph(first), paragraph(second)] } });
+  const store = openPagesStore(homeDirectory, projectId!);
+  const page = store.create({ title: "Landing windows", body: { type: "doc", content: [paragraph(first), paragraph(second)] } });
   store.close();
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "document.addEventListener('molis:surface-landing', (event) => { window.lastLanding = event.detail; });" }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));

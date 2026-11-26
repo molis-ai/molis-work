@@ -196,10 +196,11 @@ function objectVersion(object) {
   return null;
 }
 
-// PluginDatabaseDeclaration carries the same version/schema baseline through the Host-owned connection service, and
-// HomePluginDatabaseDeclaration is that with what a Home library adds (`project_rows`, `partition`). All three types,
-// including satisfies/as spellings, name databases the table has to list.
-const BASELINE_TYPES = "SqliteBaseline|PluginDatabaseDeclaration|HomePluginDatabaseDeclaration";
+// PluginDatabaseDeclaration carries the same version/schema baseline through the Host-owned connection service,
+// HomePluginDatabaseDeclaration is that with what a Home library adds (`project_rows`), and PartitionPluginDatabaseDeclaration
+// that with what a partition's own library adds (`deletion`, `pinned_rows`, batch 107). All four types, including satisfies/as
+// spellings, name databases the table has to list.
+const BASELINE_TYPES = "SqliteBaseline|PluginDatabaseDeclaration|HomePluginDatabaseDeclaration|PartitionPluginDatabaseDeclaration";
 function baselineNames(text) {
   const names = new Set();
   for (const match of text.matchAll(new RegExp(`\\bconst\\s+(\\w+)\\s*:\\s*(?:${BASELINE_TYPES})\\s*=`, "g"))) names.add(match[1]);
@@ -296,8 +297,8 @@ const DECLARATION_BRIDGES = new Map([
     callee: "openBaselineHomeSqlite",
     functionName: "openPluginDatabaseConnection",
     params: [{ name: "home", type: "string" }, { name: "declaration", type: "PluginDatabaseDeclaration" }],
-    exactParams: false,
-    args: ["home", "declaration.store_name", "declaration", "partition?.project_id"],
+    exactParams: true,
+    args: ["home", "declaration.store_name", "declaration"],
   }],
   ["apps/local-host/src/partition-plugin-assembly.ts", {
     callee: "applySqliteBaseline",

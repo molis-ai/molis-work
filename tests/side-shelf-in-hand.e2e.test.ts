@@ -46,8 +46,8 @@ async function shelfBesidePages(t: TestContext) {
   if (!browser) return null;
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
   const pages=await pluginFrameBrowser(t,browser,"pages"), shelf=await pluginFrameBrowser(t,browser,"shelf",'[data-side-body="plugin:shelf/side"] iframe');
-  const store = openPagesStore(homeDirectory);
-  const left = (() => { try { return store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } }); } finally { store.close(); } })();
+  const store = openPagesStore(homeDirectory, projectId!);
+  const left = (() => { try { return store.create({ title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } }); } finally { store.close(); } })();
   const capture = async (name: string) => {
     const directory = join(process.cwd(), ".impeccable/qa/review/side-shelf-in-hand"); await mkdir(directory, { recursive: true });
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(join(directory, name + ".png"), Buffer.from(shot.data, "base64"));

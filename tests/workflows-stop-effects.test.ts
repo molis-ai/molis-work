@@ -78,8 +78,8 @@ test("W2-18-WF-STOP-01: stop reaches Form's final effect after its model wait an
   assert.equal(reread.status, "stopped"); assert.equal(reread.current, 0);
   assert.ok(reread.steps[0]!.pending?.attempted_at);
   await assert.rejects(f.actions.invoke(w.continue, { id: instance.instance_id, retry_action: true }));
-  const reopened = openWorkflowsStore(f.home);
-  try { assert.equal(reopened.instance(instance.instance_id, f.reference.project_id).status, "stopped"); } finally { reopened.close(); }
+  const reopened = openWorkflowsStore(f.home, f.reference.project_id);
+  try { assert.equal(reopened.instance(instance.instance_id).status, "stopped"); } finally { reopened.close(); }
 });
 
 test("W2-18-WF-STOP-02: an externally accepted result remains traceable and stopped/reopened runs never redispatch", { timeout: 25_000 }, async t => {
@@ -112,9 +112,9 @@ test("W2-18-WF-STOP-02: an externally accepted result remains traceable and stop
   const pending = f.actions.invoke(w.continue, { id: instance.instance_id }); const rejected = assert.rejects(pending);
   await entered.promise; await f.actions.invoke(w.stop, { id: instance.instance_id }); finish.resolve(); await rejected;
   assert.deepEqual(JSON.parse(await readFile(receiptFile, "utf8")), { external_id: "accepted-1", calls: 1, body: "The original request" }, "stop cannot undo actual external acceptance");
-  const reopened = openWorkflowsStore(f.home);
+  const reopened = openWorkflowsStore(f.home, f.reference.project_id);
   try {
-    const retained = reopened.instance(instance.instance_id, f.reference.project_id);
+    const retained = reopened.instance(instance.instance_id);
     assert.equal(retained.status, "stopped"); assert.ok(retained.steps[0]!.pending?.attempted_at);
     assert.match(retained.stopped!.reason, /结果尚未确认/);
   } finally { reopened.close(); }

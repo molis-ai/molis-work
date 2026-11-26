@@ -13,7 +13,7 @@ import { assertPermissionSwitchTarget, type InstalledPluginEntry, type Permissio
 import type { InstalledRelease, PackageInstallChoices } from "./installed-release.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkLocalHost, MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
-import { ensureProjectPlugins, runningProjectPlatform, type ProjectPluginState } from "./project-plugins.js";
+import { ensureProjectPlugins, projectPluginPlatform, runningProjectPlatform, runningProjectPluginState, type ProjectPluginState } from "./project-plugins.js";
 import { acceptDemoProjectRequirements } from "./plugin-demo-seed.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
 import type { HomePluginHost } from "./home-plugins.js";
@@ -247,8 +247,11 @@ export async function regrantPluginInProject(source: ProjectPluginHost, projectI
   if (!reference) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
   await ensureProjectPluginActions(source, reference);
   await source.host.withRuntime(reference, async runtime => {
-    const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
-    const record = platform?.runtime.list().find(row => row.install_id === installId);
+    const state = await runningProjectPluginState(runtime.store, runtime.project_id);
+    const found = state?.platform?.runtime.list().find(row => row.install_id === installId);
+    // A plugin with a library in each partition answers on its own instance here (batch 107).
+    const platform = found && state ? projectPluginPlatform(state, found.plugin_id) : null;
+    const record = found && platform?.runtime.list().find(row => row.install_id === installId);
     if (platform && record && !isInstalledPackage(record) && platform.supervisor.state(record.plugin_id)?.install_id === installId) {
       assertPermissionSwitchTarget(record, expected);
       if (platform.dualInstance(record.plugin_id)) throw pluginErrors.grant_denied("请在个人空间里管理这个插件的可选权限");
@@ -355,6 +358,12 @@ export function ensureProjectPluginActions(source: ProjectPluginHost, reference:
 }
 
 /** The ports the project's plugin platform opens with: the Runtime's stores, its action directory and the Agent observers. */
+/** Runs `work` with a partition's plugin ports, opening its runtime when needed but never its project platform (the per-partition assembly's opener). */
+export function withPartitionPluginPorts<Result>(source: ProjectPluginHost, reference: LocalHostProjectReference,
+  work: (ports: Parameters<typeof ensureProjectPlugins>[0]) => Promise<Result>): Promise<Result> {
+  return source.host.withRuntime(reference, runtime => work(projectPluginPorts(source, reference, runtime)));
+}
+
 function projectPluginPorts(source: ProjectPluginHost, reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Parameters<typeof ensureProjectPlugins>[0] {
   const { host, options } = source;
   const agents = () => source.agents();

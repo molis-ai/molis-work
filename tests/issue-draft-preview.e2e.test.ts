@@ -89,7 +89,7 @@ test("ISSUE-45 a failed draft write rejects the new image visibly and preserves 
   const before = await v.ask(thumbnails);
   await b.evaluate("(window.savedPut = Cache.prototype.put, Cache.prototype.put = function() { throw new DOMException('full', 'QuotaExceededError'); }, true)");
   await v.paste('不应假装保存.png');
-  await v.until("$('[data-issue-composer] [data-issue-tip]').textContent.includes('截图草稿未能保存在本机')");
+  await v.until("$('[data-issue-composer] [data-issue-tip]').textContent.includes('截图草稿没能保存在本机')");
   assert.deepEqual(await v.ask(thumbnails), before);
   assert.equal(await v.ask("$('[data-issue-composer] [name=description]').value"), '保留这句话与原图');
   await b.evaluate('(Cache.prototype.put = window.savedPut, true)');

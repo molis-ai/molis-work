@@ -307,8 +307,9 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   assert.deepEqual([...PROJECT_SCOPED_PLUGIN_IDS].sort(),
     // The workspace Plugin was retired: browsing roots come from project settings actions (action-architecture migration).
     // Files retired in batch 06: a project's folders are the platform's materials now, not a plugin a project enables.
-    ["coding", "diff", "feed", "git", "goals", "inbox", "risk", "schedule",
-      "work-brief"]);
+    // Batch 107: the six partition-library plugins stopped being personal and are project plugins like the rest.
+    ["coding", "dataset", "diff", "feed", "form", "git", "goals", "inbox", "lingguang", "pages", "ppt", "risk", "schedule",
+      "work-brief", "workflows"]);
   assert.deepEqual(
     railEntries(["coding"]).map((entry) => [entry.id, entry.label, entry.glyph]),
     [["coding", "Coding", "code"], ["artifacts", "成果", "package"], ["sessions", "外部会话", "history"]],
@@ -316,11 +317,13 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   );
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("shelf"), false, "个人插件不是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("functions"), false, "个人插件不是项目可启用项");
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("pages"), false, "个人插件不是项目可启用项");
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("form"), false, "个人插件不是项目可启用项");
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("dataset"), false, "个人插件不是项目可启用项");
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("ppt"), false, "个人插件不是项目可启用项");
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("lingguang"), false, "个人插件不是项目可启用项");
+  // Batch 107: the partition-library plugins are project plugins a project adds.
+  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("pages"), true, "分区资料库插件是项目可启用项");
+  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("form"), true, "分区资料库插件是项目可启用项");
+  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("dataset"), true, "分区资料库插件是项目可启用项");
+  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("ppt"), true, "分区资料库插件是项目可启用项");
+  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("lingguang"), true, "分区资料库插件是项目可启用项");
+  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("workflows"), true, "分区资料库插件是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("todo"), false, "个人插件不是项目可启用项");
   assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("feed"), ["inbox"]);
 });

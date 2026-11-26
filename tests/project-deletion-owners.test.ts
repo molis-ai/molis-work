@@ -9,7 +9,8 @@ import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, HomeConsentLedger, installHostUiText, ownerLabel, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { openFormStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { openFormStore, openPagesStore, partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
+import { DatabaseSync } from "node:sqlite";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
@@ -37,35 +38,42 @@ const count = (home: string, store: string, sql: string, ...values: string[]): n
   const db = openHomeSqliteDatabase(home, store);
   try { return Number((db.prepare(sql).get(...values) as { n: number }).n); } finally { db.close(); }
 };
+/** The same count in a project's own library of a plugin that keeps one in each partition (U2): none when the library is gone. */
+const countIn = (home: string, projectId: string, store: string, sql: string): number => {
+  const file = partitionLibraryFile(home, projectId, store);
+  if (!existsSync(file)) return 0;
+  const db = new DatabaseSync(file, { readOnly: true });
+  try { return Number((db.prepare(sql).get() as { n: number }).n); } finally { db.close(); }
+};
 const deletion = (id: string) => ({ project_id: id, actor_id: "test-user", delete_confirmed: true, idempotency_key: `delete-${id}` });
 
 /** What the Home libraries keep for one project, written the way the plugins' own actions write it. */
 function seed(home: string, projectId: string): { image: string } {
-  const pages = openPagesStore(home);
-  pages.create({ project_id: projectId, title: `文稿 ${projectId}`, folder_id: pages.createFolder({ project_id: projectId, title: "文件夹" }).id });
-  pages.importDocuments({ project_id: projectId, request_id: "import-1", request_hash: "hash", documents: [{ title: "导入的文稿", body: { type: "doc", content: [] } as never }] } as never);
+  const pages = openPagesStore(home, projectId);
+  pages.create({ title: `文稿 ${projectId}`, folder_id: pages.createFolder({ title: "文件夹" }).id });
+  pages.importDocuments({ request_id: "import-1", request_hash: "hash", documents: [{ title: "导入的文稿", body: { type: "doc", content: [] } as never }] } as never);
   pages.close();
 
-  const forms = openFormStore(home);
-  const form = forms.create({ project_id: projectId, title: "问卷" });
-  const question = forms.update(form.id, { questions: [{ type: "text", title: "你的手机号？" } as never], expected_version: form.version }, projectId).questions[0]!;
-  forms.publish(form.id, projectId);
-  forms.submit(form.id, { [question.id]: `13800000${projectId.length}` }, projectId, { source: "fill" });
+  const forms = openFormStore(home, projectId);
+  const form = forms.create({ title: "问卷" });
+  const question = forms.update(form.id, { questions: [{ type: "text", title: "你的手机号？" } as never], expected_version: form.version }).questions[0]!;
+  forms.publish(form.id);
+  forms.submit(form.id, { [question.id]: `13800000${projectId.length}` }, { source: "fill" });
   forms.close();
 
-  const datasets = openDatasetStore(home); datasets.create({ project_id: projectId, title: "数据表" }); datasets.close();
-  const ppt = openPptStore(home); ppt.create({ project_id: projectId, title: "演示稿" }); ppt.close();
-  const workflows = openWorkflowsStore(home); workflows.create({ project_id: projectId, title: "流程", chain: { stations: [], links: [] } }); workflows.close();
+  const datasets = openDatasetStore(home, projectId); datasets.create({ title: "数据表" }); datasets.close();
+  const ppt = openPptStore(home, projectId); ppt.create({ title: "演示稿" }); ppt.close();
+  const workflows = openWorkflowsStore(home, projectId); workflows.create({ title: "流程", chain: { stations: [], links: [] } }); workflows.close();
 
   const todo = openTodoStore(home);
   todo.create({ title: `项目待办 ${projectId}`, placement: "project", remind_at: new Date(Date.now() - 60_000).toISOString() }, { projectId, projectIds: [], actor: "user", actorId: "local-person" });
   todo.create({ title: "个人待办", placement: "personal" }, { projectId: null, projectIds: [], actor: "user", actorId: "local-person" });
   todo.close();
 
-  const lingguang = openLingguangStore(home);
-  const spark = lingguang.create({ project_id: projectId, title: "想法", body: "私密想法" });
-  const talk = lingguang.openConversation([spark.id], projectId);
-  lingguang.addReply(talk.conversation.id, "聊聊", "好", projectId, lingguang.conversation(talk.conversation.id, projectId));
+  const lingguang = openLingguangStore(home, projectId);
+  const spark = lingguang.create({ title: "想法", body: "私密想法" });
+  const talk = lingguang.openConversation([spark.id]);
+  lingguang.addReply(talk.conversation.id, "聊聊", "好", lingguang.conversation(talk.conversation.id));
   lingguang.close();
 
   const image = `${projectId.replace(/[^a-f0-9]/gu, "a")}-0000.png`;
@@ -92,18 +100,18 @@ function seed(home: string, projectId: string): { image: string } {
 /** How much of one project the libraries hold, down to the rows that hang off its documents, forms, todos and talks. */
 function held(home: string, projectId: string, image: string): Record<string, number> {
   return {
-    pages: count(home, "pages", "SELECT COUNT(*) n FROM pages WHERE project_id = ?", projectId) + count(home, "pages", "SELECT COUNT(*) n FROM folders WHERE project_id = ?", projectId),
-    pageReceipts: count(home, "pages", "SELECT COUNT(*) n FROM page_imports WHERE project_id = ?", projectId) + count(home, "pages", "SELECT COUNT(*) n FROM page_generations WHERE project_id = ?", projectId),
-    forms: count(home, "form", "SELECT COUNT(*) n FROM forms WHERE project_id = ?", projectId),
-    answers: count(home, "form", "SELECT COUNT(*) n FROM submissions WHERE form_id IN (SELECT id FROM forms WHERE project_id = ?)", projectId),
-    datasets: count(home, "dataset", "SELECT COUNT(*) n FROM datasets WHERE project_id = ?", projectId),
-    ppt: count(home, "ppt", "SELECT COUNT(*) n FROM presentations WHERE project_id = ?", projectId),
-    workflows: count(home, "workflows", "SELECT COUNT(*) n FROM workflows WHERE project_id = ?", projectId),
+    pages: countIn(home, projectId, "pages", "SELECT COUNT(*) n FROM pages") + countIn(home, projectId, "pages", "SELECT COUNT(*) n FROM folders"),
+    pageReceipts: countIn(home, projectId, "pages", "SELECT COUNT(*) n FROM page_imports") + countIn(home, projectId, "pages", "SELECT COUNT(*) n FROM page_generations"),
+    forms: countIn(home, projectId, "form", "SELECT COUNT(*) n FROM forms"),
+    answers: countIn(home, projectId, "form", "SELECT COUNT(*) n FROM submissions"),
+    datasets: countIn(home, projectId, "dataset", "SELECT COUNT(*) n FROM datasets"),
+    ppt: countIn(home, projectId, "ppt", "SELECT COUNT(*) n FROM presentations"),
+    workflows: countIn(home, projectId, "workflows", "SELECT COUNT(*) n FROM workflows"),
     todos: count(home, "todo", "SELECT COUNT(*) n FROM todo_items WHERE project_id = ?", projectId),
     todoHistory: count(home, "todo", "SELECT COUNT(*) n FROM todo_changes WHERE item_id IN (SELECT id FROM todo_items WHERE project_id = ?)", projectId),
-    sparks: count(home, "lingguang", "SELECT COUNT(*) n FROM sparks WHERE project_id = ?", projectId),
-    talks: count(home, "lingguang", "SELECT COUNT(*) n FROM conversations WHERE project_id = ?", projectId),
-    messages: count(home, "lingguang", "SELECT COUNT(*) n FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE project_id = ?)", projectId),
+    sparks: countIn(home, projectId, "lingguang", "SELECT COUNT(*) n FROM sparks"),
+    talks: countIn(home, projectId, "lingguang", "SELECT COUNT(*) n FROM conversations"),
+    messages: countIn(home, projectId, "lingguang", "SELECT COUNT(*) n FROM messages"),
     imageJobs: count(home, "images", "SELECT COUNT(*) n FROM jobs WHERE project_id = ?", projectId),
     imageFiles: existsSync(join(home, "images", "assets", image)) ? 1 : 0,
     bindings: count(home, "functions", "SELECT COUNT(*) n FROM function_scene_bindings WHERE project_id = ?", projectId),
@@ -113,10 +121,8 @@ function held(home: string, projectId: string, image: string): Record<string, nu
 /** Rows whose parent is gone: what a deletion that only removed the top rows would leave behind. */
 function orphaned(home: string): Record<string, number> {
   return {
-    answers: count(home, "form", "SELECT COUNT(*) n FROM submissions WHERE form_id NOT IN (SELECT id FROM forms)"),
     todoHistory: count(home, "todo", "SELECT COUNT(*) n FROM todo_changes WHERE item_id NOT IN (SELECT id FROM todo_items)"),
     todoRequests: count(home, "todo", "SELECT COUNT(*) n FROM todo_requests WHERE item_id NOT IN (SELECT id FROM todo_items)"),
-    messages: count(home, "lingguang", "SELECT COUNT(*) n FROM messages WHERE conversation_id NOT IN (SELECT id FROM conversations)"),
   };
 }
 const nothing = (left: Record<string, number>) => Object.fromEntries(Object.keys(left).map(key => [key, 0]));
@@ -198,7 +204,12 @@ test("deleting a project clears what every Home library keeps for it and leaves 
 
     assert.equal(result.deletion.cleanup_state, "complete");
     assert.deepEqual(held(home, gone, goneSeed.image), nothing(before));
-    assert.deepEqual(orphaned(home), nothing(orphaned(home)), "no row is left hanging off a deleted document, form, todo or talk");
+    assert.deepEqual(orphaned(home), nothing(orphaned(home)), "no row is left hanging off a deleted todo");
+    // A plugin with a library in each partition (U2): the deleted project's library file is gone with its journals; the kept one's stays.
+    for (const store of ["pages", "form", "dataset", "ppt", "workflows", "lingguang"]) {
+      for (const suffix of ["", "-journal", "-wal", "-shm"]) assert.equal(existsSync(partitionLibraryFile(home, gone, store) + suffix), false, `${store}${suffix} of the deleted project`);
+      assert.equal(existsSync(partitionLibraryFile(home, kept, store)), true, `${store} of the kept project`);
+    }
     assert.deepEqual(held(home, kept, keptSeed.image), before, "another project's data is untouched");
     const todo = openTodoStore(home);
     try { assert.deepEqual(todo.list({ projectId: null, projectIds: [kept], actor: "user", actorId: "local-person" }).map(item => item.title).sort(), ["个人待办", "个人待办", `项目待办 ${kept}`].sort(), "the personal todos name no project and stay"); }
@@ -213,8 +224,8 @@ test("deleting a project clears what every Home library keeps for it and leaves 
 test("the fixed-id demo never starts on what an earlier demo left, however it was removed or reset", async () => {
   await withHome(async ({ home, catalog }) => {
     const input = { actor_id: "test-user", user_confirmed: true };
-    const sparks = () => { const store = openLingguangStore(home); try { return store.list(DEMO_PROJECT_ID).map(spark => spark.title); } finally { store.close(); } };
-    const addSpark = (title: string) => { const store = openLingguangStore(home); store.create({ project_id: DEMO_PROJECT_ID, title, body: "私密" }); store.close(); };
+    const sparks = () => { const store = openLingguangStore(home, DEMO_PROJECT_ID); try { return store.list().map(spark => spark.title); } finally { store.close(); } };
+    const addSpark = (title: string) => { const store = openLingguangStore(home, DEMO_PROJECT_ID); store.create({ title, body: "私密" }); store.close(); };
 
     await catalog.ensureDemoProject(input);
     addSpark("删除前的想法");
@@ -242,6 +253,7 @@ test("FSS-36 the delete dialog lists the library owners' data in the person's la
     const owners = projectDeletedHooksFor(home).owners().filter(owner => owner.label !== null);
     const scope = (locale: "zh" | "en") => runWithLocale(locale, () => owners.map(owner => ownerLabel(owner)));
     const chinese = scope("zh");
+    // A library of the Home names the rows it keeps for the project (`project_rows`), a library in each partition what goes with it (`deletion`).
     for (const label of ["Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "放在这个项目里的待办", "灵光里的想法与对话"]) assert.ok(chinese.includes(label), label);
     const english = scope("en");
     assert.equal(english.length, owners.length);

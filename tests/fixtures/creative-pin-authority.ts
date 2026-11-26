@@ -4,7 +4,8 @@ import type { TestContext } from "node:test";
 import { pluginSyncNamespace } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { homeSqlitePath, openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { partitionLibraryFile } from "./plugin-home-stores.js";
 import { openTestHome } from "./test-home.js";
 
 interface PinOwner {
@@ -28,7 +29,7 @@ export async function checkCreativePinAuthority(t: TestContext, owner: PinOwner)
     store.db.prepare<[], { n: number }>("SELECT count(*) AS n FROM artifacts_replica_changes").get()?.n,
   ]);
   const changes = () => {
-    const library = openSqliteConnection(homeSqlitePath(h.home, owner.slug), { readonly: true });
+    const library = openSqliteConnection(partitionLibraryFile(h.home, project.project_id, owner.slug), { readonly: true });
     const namespace = pluginSyncNamespace(owner.manifest, owner.manifest.sync!.collections[0]!.id);
     try { return library.prepare(`SELECT count(*) AS n FROM ${namespace}_replica_changes`).get()?.n; }
     finally { library.close(); }

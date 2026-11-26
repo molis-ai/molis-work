@@ -22,7 +22,7 @@ interface Choice { fields: Array<{ name: string; title?: string }> }
 /** The real handlers and store against two fake content stations and one fake action whose input fields are `properties`. */
 async function setup(properties: Record<string, unknown> = {}) {
   const home = await mkdtemp(join(tmpdir(), "workflows-whole-character-text-"));
-  const store = openWorkflowsStore(home);
+  const store = openWorkflowsStore(home, PROJECT);
   const content = {
     stations: async () => ["feed", "pages"].map(plugin => ({ plugin, label: plugin, icon: "x", supported: true, can_start_blank: false, receives: true })),
     resolveStation: async (station: { plugin: string }) => ({ ...station, content: { provider_id: `prov-${station.plugin}`, actions: {

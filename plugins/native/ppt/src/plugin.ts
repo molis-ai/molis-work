@@ -12,8 +12,8 @@ import { promotePpt } from "./promote.js";
 import { PPT_INSTRUCTIONS } from "./prompts.js";
 
 /**
- * PPT as a Plugin Runtime plugin, one instance per project (docs/system/RUNTIME-MIGRATION.md 5.3). Its library is the
- * `ppt` store its Host entry declares; the 成果 it pins, the model and the Pages reads come from the Runtime's services.
+ * PPT as a Plugin Runtime plugin, one instance per partition (docs/system/RUNTIME-MIGRATION.md 5.3). Its library is that partition's
+ * own `ppt` library (`databases.partition`); the 成果 it pins, the model and the Pages reads come from the Runtime's services.
  */
 export function createPptPlugin(): PluginDefinition {
   return { manifest: pptManifest, instructions: PPT_INSTRUCTIONS, async start(context) {
@@ -21,15 +21,18 @@ export function createPptPlugin(): PluginDefinition {
     const database = context.services?.database, artifacts = context.services?.artifacts;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供演示稿库");
     if (!artifacts) throw new ActionError("actions.unredeemed", "宿主未提供成果服务");
+    // One instance per partition (the personal space or a project), each with that partition's own library.
+    const partition = context.project_id;
+    if (!partition) throw new ActionError("actions.project_required", "演示稿需要在个人空间或项目里打开");
     const stores: PptStores = {
       read: run => run(new PptStore({ get: (sql, parameters) => database.get(sql, parameters), all: (sql, parameters) => database.all(sql, parameters),
-        run: () => { throw new ActionError("actions.execution_failed", "演示稿的读取不写入"); } })),
-      write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new PptStore(transaction))),
+        run: () => { throw new ActionError("actions.execution_failed", "演示稿的读取不写入"); } }, partition)),
+      write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new PptStore(transaction, partition))),
     };
     const model = context.services?.model, directory = context.services?.actions?.directory;
     const ports: PptActionPorts = { ...stores,
       ...(database.transactionProjectRow && artifacts.join ? {
-        promote: (id: string, expectedVersion?: number) => promotePpt(database, artifacts, id, expectedVersion),
+        promote: (id: string, expectedVersion?: number) => promotePpt(database, artifacts, partition, id, expectedVersion),
       } : {}),
       modelAvailability: (): ActionAvailability => model?.availability() ?? { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" },
       ...(model ? { complete: async (prompt, options) => { await options.beforeDispatch?.(); return model.complete(prompt, { signal: options.signal }); } } : {}),

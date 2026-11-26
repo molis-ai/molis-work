@@ -4,9 +4,8 @@ import test from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { PAGES_ACTION_PERMISSIONS, PAGES_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { openPagesStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
 import { residentMcpGrants } from "./fixtures/resident-mcp-grants.js";
 
@@ -78,16 +77,16 @@ test("official stdio MCP client queries, imports, edits and generates with actua
     await call(a, "pages.update", { id: generated.document.id, title: "Generated then edited", expected_version: generated.document.version });
     await a.close();
     const restarted = await connect("a");
-    const store = openPagesStore(home);
+    const store = openPagesStore(home, projects.a.project_id);
     try {
       const persisted = (await call(restarted, "pages.list", {})).documents;
-      assert.deepEqual(persisted, store.list(projects.a.project_id));
+      assert.deepEqual(persisted, store.list());
       assert.equal(persisted.length, 4);
-      assert.equal(store.get(document.id, projects.a.project_id).title, "Updated");
+      assert.equal(store.get(document.id).title, "Updated");
       const replay = await call(restarted, "pages.generate", generationInput);
       assert.equal(replay.document.id, generated.document.id); assert.equal(replay.document.title, "Generated then edited"); assert.equal(replay.replayed, true);
     } finally { store.close(); }
-    const db = openHomeSqliteDatabase(home, "pages");
+    const db = openPartitionLibraryDatabase(home, projects.a.project_id, "pages");
     try {
       const sentinel = (await call(restarted, "pages.create", { title: "Published constraint fixture" })).document;
       await call(restarted, "pages.promote", { id: sentinel.id, expected_version: sentinel.version });
@@ -111,8 +110,8 @@ test("official stdio MCP client queries, imports, edits and generates with actua
     const recovered = await call(recovering, "pages.promote", { id: document.id, expected_version: current.version });
     assert.equal(recovered.recovered, false); assert.equal(recovered.artifact.version, 1);
     assert.equal(recovered.document.title, "Edited during recovery"); assert.equal(recovered.document.publication_pending, undefined);
-    const saved = openPagesStore(home);
-    try { assert.deepEqual(recovered.document, saved.get(document.id, projects.a.project_id)); } finally { saved.close(); }
+    const saved = openPagesStore(home, projects.a.project_id);
+    try { assert.deepEqual(recovered.document, saved.get(document.id)); } finally { saved.close(); }
     await call(recovering, "pages.delete", { id: document.id });
     assert.equal((await call(reader, "pages.list", {})).documents.length, 3);
   } finally { await Promise.all(clients.map(client => client.close())); }

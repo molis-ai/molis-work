@@ -108,7 +108,7 @@ test("classification controls save independent personal/project restrictions, ke
       try {
         db.exec("CREATE TRIGGER fail_class_receipt BEFORE INSERT ON memory_markers WHEN instr(NEW.key,'/receipt/')>0 BEGIN SELECT RAISE(ABORT,'receipt unavailable'); END");
         await page.click(root + " [data-memory-class-form] button[type=submit]");
-        await page.wait(`document.querySelector('${root} [data-memory-class-status]').textContent === '尚未保存，请重试。'`);
+        await page.wait(`document.querySelector('${root} [data-memory-class-status]').textContent === '还没保存，请重试。'`);
       } finally { db.exec("DROP TRIGGER IF EXISTS fail_class_receipt"); db.close(); }
       assert.equal(await page.evaluate(`document.querySelector('${root} [data-memory-class-error]').hidden`), false);
       assert.deepEqual((await read(scope)).prefs.class_restrictions, [retained]);

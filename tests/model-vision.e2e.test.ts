@@ -63,7 +63,7 @@ test("SYS-12 ISSUE-54 model settings preserve three image states and Issue uses 
       assert.equal(namings.at(-1)!.includes("看不到图片内容就直接说看不到"), value === "", "only an unmarked model is told to say when it cannot see");
       assert.ok((await Promise.all((await v.list()).items.map(async item => (await v.read(item.id)).images.length))).every(count => count === 1));
     } else {
-      await v.until("$('[data-state=attention]')?.textContent.includes('截图未发送给模型')", 20_000);
+      await v.until("$('[data-state=attention]')?.textContent.includes('截图没有发给模型')", 20_000);
       assert.equal(namings.length, previousNamings); assert.equal(requests.length, previousCalls);
       assert.equal((await v.list()).items.length, issues);
       await v.press("[data-state=attention]");

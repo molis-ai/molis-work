@@ -81,7 +81,9 @@ function validateSyncAggregates(definitions: readonly SyncAggregateDefinition[],
     const result = definitions.map(definition => {
       if (!definition || !identifier.test(definition.kind) || kinds.has(definition.kind) || typeof definition.validate !== 'function' || !Array.isArray(definition.children)) denied();
       kinds.add(definition.kind);
-      columns(definition.table, ['id', 'project_id', ...definition.columns, ...[definition.versionColumn, definition.timestampVersionColumn, definition.busyColumn].filter((value): value is string => value !== undefined)]);
+      // The root names its project exactly when its table has a project column (a shared library); a partition's own library has none.
+      if (tables.get(definition.table)?.has('project_id') !== definition.columns.includes('project_id')) denied();
+      columns(definition.table, ['id', ...definition.columns, ...[definition.versionColumn, definition.timestampVersionColumn, definition.busyColumn].filter((value): value is string => value !== undefined)]);
       const children = definition.children.map(child => {
         columns(child.table, [child.parent, ...child.columns, ...child.identityColumns ?? []]);
         for (const item of child.orderBy.split(',')) {

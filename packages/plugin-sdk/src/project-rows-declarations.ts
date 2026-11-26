@@ -17,21 +17,13 @@ export const projectDeletionLine = (label: string): boolean =>
   label.trim().length > 0 && label.length <= LABEL_LIMIT && !/[\p{Cc}\u2028\u2029]/u.test(label);
 const CREATED_TABLE = /\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`[]?([A-Za-z_][A-Za-z0-9_.]*)/giu;
 
-export function projectRowsProblems(path: string, value: unknown, schema: unknown, partitioned: boolean, ownerFiles?: unknown): string[] {
+export function projectRowsProblems(path: string, value: unknown, schema: unknown, ownerFiles?: unknown): string[] {
   if (value === undefined) return [];
   if (!isRecord(value)) return [`${path} 必须为对象`];
-  if (partitioned) return [`${path} 不能和 partition: "project" 同写：按项目分开的库由平台整个删掉`];
   const problems: string[] = [];
   const unknown = Object.keys(value).filter(field => !FIELDS.has(field));
   if (unknown.length > 0) problems.push(`${path} 不认这些字段：${unknown.join("、")}`);
-  const label = value.label;
-  const literal = typeof label === "string" ? label : isRecord(label) && typeof label.literal === "string" ? label.literal : undefined;
-  if (literal !== undefined && !projectDeletionLine(literal)) {
-    problems.push(`${path}.label 必须是不超过 ${LABEL_LIMIT} 字的非空单行文字（不含控制字符或 Unicode 换行）`);
-  } else if (typeof label !== "string" && (textRefProblems(label).length || isRecord(label) && ("args" in label || "fallback" in label))) {
-    problems.push(`${path}.label 必须是无参词键或非空单行文字`);
-  }
-  if (value.order !== undefined && (typeof value.order !== "number" || !Number.isSafeInteger(value.order))) problems.push(`${path}.order 必须是整数`);
+  problems.push(...deletionLineProblems(path, value));
   if (!Array.isArray(value.tables) || value.tables.length === 0) return [...problems, `${path}.tables 至少要写一张表`];
   const own = createdTables(typeof schema === "string" ? schema : "");
   value.tables.forEach((table, index) => problems.push(...tableProblems(`${path}.tables[${index}]`, table, own, value.tables as unknown[], index)));
@@ -40,20 +32,60 @@ export function projectRowsProblems(path: string, value: unknown, schema: unknow
   return problems;
 }
 
+/** The confirmation line and step order a project's deletion shows for a library: `project_rows` of a Home library, `deletion` of a partition's. */
+function deletionLineProblems(path: string, value: Record<string, unknown>): string[] {
+  const problems: string[] = [];
+  const label = value.label;
+  const literal = typeof label === "string" ? label : isRecord(label) && typeof label.literal === "string" ? label.literal : undefined;
+  if (literal !== undefined && !projectDeletionLine(literal)) {
+    problems.push(`${path}.label 必须是不超过 ${LABEL_LIMIT} 字的非空单行文字（不含控制字符或 Unicode 换行）`);
+  } else if (typeof label !== "string" && (textRefProblems(label).length || isRecord(label) && ("args" in label || "fallback" in label))) {
+    problems.push(`${path}.label 必须是无参词键或非空单行文字`);
+  }
+  if (value.order !== undefined && (typeof value.order !== "number" || !Number.isSafeInteger(value.order))) problems.push(`${path}.order 必须是整数`);
+  return problems;
+}
+
+/** `databases.partition.deletion`: only what the confirmation says and where its step runs; the platform removes the whole library. */
+export function partitionDeletionProblems(path: string, value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!isRecord(value)) return [`${path} 必须为对象`];
+  const unknown = Object.keys(value).filter(field => field !== "label" && field !== "order");
+  return [...unknown.length > 0 ? [`${path} 不认这些字段：${unknown.join("、")}`] : [], ...deletionLineProblems(path, value)];
+}
+
 function artifactJoinProblems(path: string, value: unknown, tables: readonly unknown[]): string[] {
   if (!isRecord(value)) return [`${path} 必须为对象`];
-  const problems: string[] = [];
-  const unknown = Object.keys(value).filter(field => !JOIN_FIELDS.has(field));
-  if (unknown.length > 0) problems.push(`${path} 不认这些字段：${unknown.join("、")}`);
   const owner = tables.find(table => isRecord(table) && table.table === value.table && table.parent === undefined);
+  const problems = pinnedShapeProblems(path, value, isRecord(owner) && typeof owner.column === "string" ? [owner.column] : []);
   if (typeof value.table !== "string" || !IDENTIFIER.test(value.table) || !isRecord(owner)) {
     problems.push(`${path}.table 必须是 tables 里一张不带 parent 的表`);
   }
+  return problems;
+}
+
+/**
+ * `databases.partition.pinned_rows`: the table of the partition library whose rows record the 成果 version pinned from them. It names a table
+ * its own `schema` creates; whether the columns are there with the right types is for the platform, which checks the built schema.
+ */
+export function pinnedRowsProblems(path: string, value: unknown, schema: unknown): string[] {
+  if (!isRecord(value)) return [`${path} 必须为对象`];
+  const problems = pinnedShapeProblems(path, value, []);
+  if (typeof value.table !== "string" || !IDENTIFIER.test(value.table) || !createdTables(typeof schema === "string" ? schema : "").has(value.table)) {
+    problems.push(`${path}.table 必须是这份库自己的 schema 建的一张表`);
+  }
+  return problems;
+}
+
+function pinnedShapeProblems(path: string, value: Record<string, unknown>, reserved: readonly string[]): string[] {
+  const problems: string[] = [];
+  const unknown = Object.keys(value).filter(field => !JOIN_FIELDS.has(field));
+  if (unknown.length > 0) problems.push(`${path} 不认这些字段：${unknown.join("、")}`);
   const names = [...JOIN_COLUMNS.map(field => value[field]), ...value.pending_column === undefined ? [] : [value.pending_column]];
   if (!Array.isArray(value.write_columns)) problems.push(`${path}.write_columns 必须为数组`);
   else names.push(...value.write_columns);
   if (names.some(name => typeof name !== "string" || !IDENTIFIER.test(name))) problems.push(`${path} 的列必须是不带库名的小写标识符`);
-  if (new Set(names).size !== names.length || isRecord(owner) && names.includes(owner.column)) {
+  if (new Set(names).size !== names.length || names.some(name => reserved.includes(name as string))) {
     problems.push(`${path} 的列必须互不重复，且不能是项目列`);
   }
   return problems;

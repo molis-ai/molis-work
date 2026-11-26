@@ -1,4 +1,4 @@
-import {openDatasetCopyOwner, openDatasetStore, openFormCopyOwner, openFormStore, openLingguangCopyOwner, openLingguangStore, openPptCopyOwner, openPptStore} from "./fixtures/plugin-sync-stores.js";
+import {openDatasetCopyOwner, openDatasetStore, openFormCopyOwner, openFormStore, openLingguangCopyOwner, openLingguangStore, openPptCopyOwner, openPptStore, openPartitionedCopyOwner} from "./fixtures/plugin-sync-stores.js";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
@@ -6,7 +6,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {previewProjectCopy,projectCopyIdentities,type ProjectCopySource} from '@molis-ai/molis-work-service-placement';
 import type {ProjectCopyAsset,ProjectCopyOwner,ProjectCopyReference} from '@molis-ai/molis-work-contracts/services/placement';
-import {ensureStorageSpace,personalStorageSpace,homeSqlitePath,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
+import {ensureStorageSpace,personalStorageSpace,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
+import {partitionLibraryFile} from "./fixtures/plugin-home-stores.js";
 
 
 
@@ -91,17 +92,17 @@ test('copy identity is stable across retries and separates projects, accounts, o
 test('two real local projects preview and fork all four supported owners independently without changing source bytes',t=>{
  const root=mkdtempSync(join(tmpdir(),'copy-preview-'));t.after(()=>rmSync(root,{recursive:true,force:true}));const localHome=join(root,'local'),personalHome=join(root,'personal'),local=ensureStorageSpace(localHome),personal=ensureStorageSpace(personalHome,personalStorageSpace('https://auth.example.test','work','alice'));
  const projects=[{id:'original-a',title:'First project'},{id:'original-b',title:'Second project'}],maps=projectCopyIdentities({operationId:'confirmed-operation',sourceSpaceId:local.spaceId,targetSpaceId:personal.spaceId,projects});
- const form=openFormStore(localHome),dataset=openDatasetStore(localHome),ppt=openPptStore(localHome),lingguang=openLingguangStore(localHome);
- for(const project of projects){form.create({project_id:project.id,title:'Form '+project.id});dataset.create({project_id:project.id,title:'Dataset '+project.id});ppt.create({project_id:project.id,title:'PPT '+project.id});const spark=lingguang.create({project_id:project.id,title:'Spark '+project.id,body:'Full body with literal '+project.id});if(project.id==='original-a'){const conversation=lingguang.openConversation([spark.id],project.id).conversation;const expected=lingguang.conversation(conversation.id,project.id);lingguang.addReply(conversation.id,'Complete question','Complete reply',project.id,expected);}}
- form.close();dataset.close();ppt.close();lingguang.close();
+ for(const project of projects){const form=openFormStore(localHome,project.id),dataset=openDatasetStore(localHome,project.id),ppt=openPptStore(localHome,project.id),lingguang=openLingguangStore(localHome,project.id);form.create({title:'Form '+project.id});dataset.create({title:'Dataset '+project.id});ppt.create({title:'PPT '+project.id});const spark=lingguang.create({title:'Spark '+project.id,body:'Full body with literal '+project.id});if(project.id==='original-a'){const conversation=lingguang.openConversation([spark.id]).conversation;const expected=lingguang.conversation(conversation.id);lingguang.addReply(conversation.id,'Complete question','Complete reply',expected);}form.close();dataset.close();ppt.close();lingguang.close();}
  const context=(direction:'source'|'target'):AggregateCopyContext=>({direction,spaceId:direction==='source'?local.spaceId:personal.spaceId,authorize(){},project(id){const project=projects.find(p=>direction==='source'?p.id===id:maps.project(p.id)===id);assert.ok(project,'only confirmed projects');return {title:project.title};},canUploadProject:()=>false,hasArtifact:()=>false});
  const entries=[['form','io.molis.work.form',openFormCopyOwner],['dataset','io.molis.work.dataset',openDatasetCopyOwner],['ppt','io.molis.work.ppt',openPptCopyOwner],['lingguang','io.molis.work.lingguang',openLingguangCopyOwner]] as const;
- const before=entries.map(([name])=>readFileSync(homeSqlitePath(localHome,name))),sources=entries.map(([,ownerId,open])=>({ownerId,port:open(localHome,context('source'))!})),targets=entries.map(([,ownerId,open])=>({ownerId,port:open(personalHome,context('target'))!}));
+ // Each project has its own library (U2): an owner per plugin reads and writes the library of the partition its asset's key names.
+ const libraries=entries.flatMap(([name])=>projects.map(project=>partitionLibraryFile(localHome,project.id,name)));
+ const before=libraries.map(file=>readFileSync(file)),sources=entries.map(([name,ownerId,open])=>({ownerId,port:openPartitionedCopyOwner(name,localHome,context('source'),open)})),targets=entries.map(([name,ownerId,open])=>({ownerId,port:openPartitionedCopyOwner(name,personalHome,context('target'),open)}));
  t.after(()=>{for(const {port} of [...sources,...targets])port.close();});
  const preview=previewProjectCopy({sourceSpaceId:local.spaceId,projectIds:projects.map(p=>p.id),sources:sources.map(({ownerId,port})=>({ownerId,owner:port.owner})),authorize(){}});assert.equal(preview.view.assetCount,9);assert.deepEqual(preview.view.blockers,[]);assert.equal(preview.view.dependencies.length,1);
  const confirmed=preview.confirm(preview.view.fingerprint),forked=confirmed.map(entry=>{const source=sources.find(p=>p.ownerId===entry.ownerId)!.port.owner;return {...entry,asset:source.fork(entry.asset,maps.forProject(entry.projectId)),dependencies:source.references(entry.asset).length};});
  // This fixture has a single spark -> conversation dependency; future whole-project scheduling is separate.
  for(const entry of forked.sort((a,b)=>a.dependencies-b.dependencies)){const target=targets.find(p=>p.ownerId===entry.ownerId)!.port.owner;target.apply(entry.asset);target.apply(entry.asset);}
  for(const {ownerId,port} of targets){const expected=forked.filter(entry=>entry.ownerId===ownerId).length;assert.equal(projects.flatMap(project=>port.owner.snapshot(maps.project(project.id))).length,expected);}
- for(let index=0;index<entries.length;index++)assert.deepEqual(readFileSync(homeSqlitePath(localHome,entries[index]![0])),before[index]);
+ libraries.forEach((file,index)=>assert.deepEqual(readFileSync(file),before[index]));
 });

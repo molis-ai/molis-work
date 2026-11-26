@@ -36,9 +36,8 @@ export function homeOwnerFilesEntries(home: string | null): PluginOwnerFilesEntr
     ...home === null ? [] : fixtureDeclarationsFor(home, "home")];
 }
 
-/** Whether a name in a store's root is its library's: the library file and its journals, and the partition directory of a partitioned one. */
-const libraryHolds = (store: string, partition: "project" | undefined, name: string) =>
-  name === `${store}.db` || name.startsWith(`${store}.db-`) || (partition === "project" && name === "projects");
+/** Whether a name in a store's root is its library's: the library file and its journals. */
+const libraryHolds = (store: string, name: string) => name === `${store}.db` || name.startsWith(`${store}.db-`);
 
 /**
  * Both scopes are checked together before any managed owner IO or initializer. A definition's files are what its Manifest declares
@@ -79,7 +78,7 @@ export function assertOwnerFilesEntries(homeEntries: readonly PluginOwnerFilesEn
       if (ownerFileSegments(item.name).length !== 1 || !["file", "directory"].includes(item.kind) || names.has(item.name)) {
         throw new Error("主人文件条目必须是名称唯一的顶层普通文件或目录");
       }
-      if (store.library && libraryHolds(files.store_name, store.library.partition, item.name)) {
+      if (store.library && libraryHolds(files.store_name, item.name)) {
         throw new Error(`主人文件条目 ${item.name} 是 ${files.store_name} 库自己的文件`);
       }
       names.add(item.name);

@@ -26,6 +26,7 @@ import { responseAbortSignal } from "./web-entry-actions.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
 import { executorProviders, unavailableReason } from "./assistant/assistant-executor.js";
 import { builtinPluginByManifestId } from "./plugin-registry.js";
+import { placementActions } from "@molis-ai/molis-work-contracts/services/placement";
 
 export interface ArtifactHttpContext {
   readonly projectId: string;
@@ -37,6 +38,8 @@ export interface ArtifactHttpContext {
   readonly offeredActions: (file: HostOfferedOriginalFile) => BoundActionClient;
   /** A type owner's actions, bound with the permissions its preview declares (A4). */
   readonly ownerActions?: (permissions: readonly string[]) => BoundActionClient;
+  /** The person's placement reading (`placement:read` only): where a pinned object that is no longer here was moved to. */
+  readonly placementReader?: BoundActionClient;
   /** Optional override for whether an input-target plugin is available; when omitted, discovered from active `placement_relation` actions. */
   readonly inputTargetAvailable?: () => Promise<boolean>;
   readonly readArtifactDisplay: ReadArtifactDisplay;
@@ -66,6 +69,22 @@ function assertSupportedImportVersion(version: ArtifactVersionRecord | null): vo
 }
 
 /**
+ * Whether the placement service last saw this object somewhere other than this project; null when it cannot say now (its read failed), so
+ * the page says nothing rather than calling a moved object deleted.
+ */
+async function movedElsewhere(context: ArtifactHttpContext, subject: { kind: string; id: string }, typeId: string): Promise<boolean | null> {
+  if (!context.placementReader) return false;
+  try {
+    const found = await context.placementReader.invoke(placementActions.locate,
+      { object: { kind: subject.kind, id: subject.id, project_id: context.projectId } });
+    return found.moved && found.object.project_id !== context.projectId;
+  } catch (error) {
+    logPreviewFailure(error, typeId);
+    return null;
+  }
+}
+
+/**
  * The owner's preview of a 成果 version (specs/artifact-positioning A4): the type's declared preview action turns the
  * version into a file, rendered read-only, with a way back to the pinned work object in its owner.
  */
@@ -84,6 +103,12 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
   if (pinned && declaration.compare) {
     try { compared = (await context.ownerActions(declaration.compare.action.permissions).invoke(declaration.compare, { artifact }) as ArtifactCompareResult).state; }
     catch { compared = null; }
+    // An object kept in its partition's own library is not there any more once it moved, so its owner cannot tell a move from a deletion;
+    // the placement service, which carried it, can.
+    if (compared === "missing") {
+      const moved = await movedElsewhere(context, pinned, artifact.artifact_type_id);
+      compared = moved === null ? null : moved ? "moved" : "missing";
+    }
   }
   const version = { version: artifact.version };
   const notice = artifact.origin.kind === "imported" ? uiText.text("workbench.browser-ui.imported-version-notice")

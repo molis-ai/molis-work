@@ -36,7 +36,7 @@ function cli(t: TestContext, args: string[], mode?: string) {
   const directory = home(t), report = join(directory, "observed.json");
   const result = spawnSync(process.execPath, [...flags, ...(mode ? ["--import", preload] : []), cliEntry, ...args], {
     cwd: root, encoding: "utf8", timeout: 15_000,
-    env: { ...process.env, MOLIS_WORK_HOME: directory, MOLIS_WORK_DEBUG: "",
+    env: { ...process.env, MOLIS_WORK_HOME: directory, MOLIS_WORK_DEBUG: "", MOLIS_WORK_LOCALE: "en",
       MOLIS_WORK_TEST_DESKTOP_FAULT: mode, MOLIS_WORK_TEST_DESKTOP_REPORT: report },
   });
   assert.equal(result.error, undefined, result.error?.message);

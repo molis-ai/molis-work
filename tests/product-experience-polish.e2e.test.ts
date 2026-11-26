@@ -11,7 +11,8 @@ import { installProducers } from "./fixtures/installed-producers.js";
 const shots = reviewEvidenceUrl("product-experience-20260926/");
 
 test('Product journeys: discover tools, create from empty states, save and recover without losing context', { timeout: 240_000 }, async t => {
-  const b = await openGoalBrowser(t, 'seeded'); if (!b) return;
+  // Batch 107: Pages and Dataset are partition plugins, on where a project turned them on.
+  const b = await openGoalBrowser(t, 'seeded', undefined, undefined, undefined, undefined, { projectPlugins: ['pages', 'dataset'] }); if (!b) return;
   try {
   const { origin, projectId, command, sessionId, navigate, evaluate, click, waitFor, reloadPage } = b;
   const views = Object.fromEntries(await Promise.all(["dataset", "form", "ppt", "lingguang", "cognia", "pages"].map(async id => [id, await pluginFrameBrowser(t, b, id)])));

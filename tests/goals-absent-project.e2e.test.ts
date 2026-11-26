@@ -15,7 +15,7 @@ const RECORD_ERRORS = "window.__errors = []; addEventListener('error', event => 
 test("RAC-400 a project without Goals opens on its home, offers no Goals and opens no Goal from a link, without a page error", { timeout: 240_000 }, async t => {
   let project!: Awaited<ReturnType<typeof createProjectWithoutGoals>>;
   const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
-    prepareHome: async home => { project = await createProjectWithoutGoals(home); },
+    prepareHome: async home => { project = await createProjectWithoutGoals(home, undefined, ["pages"]); },
   });
   if (!b) return;
   await b.command("Page.addScriptToEvaluateOnNewDocument", { source: RECORD_ERRORS }, b.sessionId);

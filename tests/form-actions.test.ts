@@ -7,8 +7,7 @@ import { join } from "node:path";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormRecord } from "@molis-ai/molis-work-plugin-form/contract";
 import { formActions as actions, formContentActions, FORM_ACTION_PERMISSIONS, FORM_ANSWER_FORMAT } from "@molis-ai/molis-work-plugin-form";
-import { openFormStore } from "./fixtures/plugin-home-stores.js";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openFormStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { callerPlugin, projectPluginCaller, type CallerPlugin } from "./fixtures/plugin-callers.js";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -73,9 +72,9 @@ test("Form actions share original data, six question types and snapshot-backed s
     assert.equal(artifact.owner_actor_id, LOCAL_PERSON_ACTOR_ID); assert.equal(artifact.created_by, "owner"); assert.equal((artifact.payload as any).questions.length, 2);
     assert.equal((artifact.payload as any).answers, undefined);
   });
-  const store = openFormStore(f.home);
+  const store = openFormStore(f.home, f.ref.project_id!), elsewhere = openFormStore(f.home, "b");
   let foreign: string;
-  try { foreign = store.create({ project_id: "b" }).id; assert.equal(store.listSubmissions(id, f.ref.project_id).length, 1); } finally { store.close(); }
+  try { foreign = elsewhere.create({}).id; assert.equal(store.listSubmissions(id).length, 1); } finally { store.close(); elsewhere.close(); }
   for (const definition of [actions.get, actions.results, actions.delete]) await assert.rejects(f.bound.invoke(definition, { id: foreign }), { code: "form.not_found" });
   await f.host.closeProject(f.ref);
   assert.deepEqual((await invoke("results", { id })).submissions[0], first);
@@ -85,9 +84,10 @@ test("Form actions share original data, six question types and snapshot-backed s
 });
 
 test("Form deletion rolls back earlier rows when an undeclared trigger refuses the final delete", async t => {
-  const f = await fixture(t), db = openHomeSqliteDatabase(f.home, "form");
+  const f = await fixture(t);
+  let { form } = await f.bound.invoke(actions.create, { title: "Old form" });
+  const db = openPartitionLibraryDatabase(f.home, f.ref.project_id, "form");
   try {
-    let { form } = await f.bound.invoke(actions.create, { title: "Old form" });
     form = (await f.bound.invoke(actions.update, { id: form.id, questions, expected_version: form.version })).form;
     await f.bound.invoke(actions.submit, { id: form.id, answers, expected_version: form.version, request_id: "kept-submission" });
     db.exec("CREATE TRIGGER fail_form_delete BEFORE DELETE ON forms BEGIN SELECT RAISE(ABORT, 'fixture delete failure'); END");
@@ -104,7 +104,7 @@ test("BSH-03 Form refuses the joined row write and the next pin uses the edited 
   const { form } = await bound.invoke(actions.create, { title: "Initial draft" });
   const id = form.id, sentinel = (await bound.invoke(actions.create, { title: "Constraint fixture" })).form;
   await bound.invoke(actions.promote, { id: sentinel.id });
-  const db = openHomeSqliteDatabase(home, "form");
+  const db = openPartitionLibraryDatabase(home, ref.project_id, "form");
   try {
     db.exec("CREATE UNIQUE INDEX fail_publication ON forms ((1)) WHERE artifact_version > 0");
     await assert.rejects(bound.invoke(actions.promote, { id }), /UNIQUE constraint failed/u);
@@ -208,22 +208,22 @@ test("a form that is not collecting takes no answer from an agent, MCP, a workfl
 });
 
 test("the store itself refuses every source but the trial fill while a form is not collecting", async t => {
-  const home = await mkdtemp(join(tmpdir(), "form-collecting-")), store = openFormStore(home);
+  const home = await mkdtemp(join(tmpdir(), "form-collecting-")), store = openFormStore(home, "p");
   t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
-  const draft = store.create({ project_id: "p", title: "F" });
-  const form = store.update(draft.id, { questions: [{ id: "q", title: "Q?" }], expected_version: draft.version }, "p");
+  const draft = store.create({ title: "F" });
+  const form = store.update(draft.id, { questions: [{ id: "q", title: "Q?" }], expected_version: draft.version });
   const sources = ["fill", "agent", "mcp", "workflow", "plugin"] as const;
-  const refused = (what: string) => { for (const source of sources) assert.throws(() => store.submit(form.id, { q: "x" }, "p", { source }), { name: "ActionError", code: "form.closed", kind: "conflict" }, `${source} on a ${what} form`); };
+  const refused = (what: string) => { for (const source of sources) assert.throws(() => store.submit(form.id, { q: "x" }, { source }), { name: "ActionError", code: "form.closed", kind: "conflict" }, `${source} on a ${what} form`); };
 
   refused("draft");
-  assert.equal(store.submit(form.id, { q: "a" }, "p", { source: "preview" }).source, "preview");
-  assert.equal(store.submit(form.id, { q: "b" }, "p").source, "preview", "a call that names no source is the trial fill");
-  store.publish(form.id, "p");
-  for (const source of ["preview", ...sources] as const) assert.equal(store.submit(form.id, { q: source }, "p", { source }).source, source);
-  store.closeCollection(form.id, "p");
+  assert.equal(store.submit(form.id, { q: "a" }, { source: "preview" }).source, "preview");
+  assert.equal(store.submit(form.id, { q: "b" }).source, "preview", "a call that names no source is the trial fill");
+  store.publish(form.id);
+  for (const source of ["preview", ...sources] as const) assert.equal(store.submit(form.id, { q: source }, { source }).source, source);
+  store.closeCollection(form.id);
   refused("stopped");
-  assert.equal(store.submit(form.id, { q: "c" }, "p", { source: "preview" }).source, "preview");
-  assert.equal(store.listSubmissions(form.id, "p").length, 2 + 6 + 1, "a refused call leaves no answer behind");
+  assert.equal(store.submit(form.id, { q: "c" }, { source: "preview" }).source, "preview");
+  assert.equal(store.listSubmissions(form.id).length, 2 + 6 + 1, "a refused call leaves no answer behind");
 });
 
 test("answer files go into a form that is not collecting only when the person imports them; every other caller is refused", async t => {
@@ -279,22 +279,22 @@ test("answer files go into a form that is not collecting only when the person im
 });
 
 test("the store itself refuses an answer-file import from anyone but the person while a form is not collecting", async t => {
-  const home = await mkdtemp(join(tmpdir(), "form-collecting-import-")), store = openFormStore(home);
+  const home = await mkdtemp(join(tmpdir(), "form-collecting-import-")), store = openFormStore(home, "p");
   t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
-  const draft = store.create({ project_id: "p", title: "F" });
-  const form = store.update(draft.id, { questions: [{ id: "q", title: "Q?" }], expected_version: draft.version }, "p");
+  const draft = store.create({ title: "F" });
+  const form = store.update(draft.id, { questions: [{ id: "q", title: "Q?" }], expected_version: draft.version });
   const outside = ["agent", "mcp", "workflow", "plugin"] as const;
-  const refused = (phase: string) => { for (const source of outside) assert.throws(() => store.importAnswers(form.id, [answerFile(form, `${phase}-${source}-0001`, source)], "p", { source }), { name: "ActionError", code: "form.closed", kind: "conflict" }, `${source} on a ${phase} form`); };
+  const refused = (phase: string) => { for (const source of outside) assert.throws(() => store.importAnswers(form.id, [answerFile(form, `${phase}-${source}-0001`, source)], { source }), { name: "ActionError", code: "form.closed", kind: "conflict" }, `${source} on a ${phase} form`); };
 
   refused("draft");
-  assert.equal(store.importAnswers(form.id, [answerFile(form, "person-0001", "a")], "p", { source: "preview" }).imported, 1);
-  assert.equal(store.importAnswers(form.id, [answerFile(form, "person-0002", "b")], "p").imported, 1, "a call that names no caller is the person");
-  store.publish(form.id, "p");
-  for (const source of outside) assert.equal(store.importAnswers(form.id, [answerFile(form, `open-${source}-0001`, source)], "p", { source }).imported, 1, source);
-  store.closeCollection(form.id, "p");
+  assert.equal(store.importAnswers(form.id, [answerFile(form, "person-0001", "a")], { source: "preview" }).imported, 1);
+  assert.equal(store.importAnswers(form.id, [answerFile(form, "person-0002", "b")]).imported, 1, "a call that names no caller is the person");
+  store.publish(form.id);
+  for (const source of outside) assert.equal(store.importAnswers(form.id, [answerFile(form, `open-${source}-0001`, source)], { source }).imported, 1, source);
+  store.closeCollection(form.id);
   refused("stopped");
-  assert.equal(store.importAnswers(form.id, [answerFile(form, "person-0003", "c")], "p").imported, 1);
-  const rows = store.listSubmissions(form.id, "p");
+  assert.equal(store.importAnswers(form.id, [answerFile(form, "person-0003", "c")]).imported, 1);
+  const rows = store.listSubmissions(form.id);
   assert.equal(rows.length, 2 + outside.length + 1, "a refused call leaves no answer behind");
   assert.ok(rows.every(row => row.source === "file"), "imported answers are answer files whoever imports them");
 });
@@ -330,10 +330,10 @@ test("RAC-1699: a title and question list a workflow hands over are cut and kept
 test("RAC-1699: an answer file that cannot be read is listed under its name in whole characters, up to the 200 the import counts", async t => {
   // The action's schema stops a name at 200 characters (actions.ts maxLength), the store cuts what reaches it. A 200-character name made of 🟢 is 399 UTF-16 units.
   const wide = (count: number) => "🟢".repeat(count);
-  const home = await mkdtemp(join(tmpdir(), "form-import-name-")), store = openFormStore(home);
+  const home = await mkdtemp(join(tmpdir(), "form-import-name-")), store = openFormStore(home, "p");
   t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
-  const form = store.create({ project_id: "p", title: "F" });
-  const result = store.importAnswers(form.id, [{ name: "a" + wide(199), content: "x" }, { name: "b" + wide(250), content: "x" }], "p");
+  const form = store.create({ title: "F" });
+  const result = store.importAnswers(form.id, [{ name: "a" + wide(199), content: "x" }, { name: "b" + wide(250), content: "x" }]);
   assert.equal(result.imported, 0);
   assert.deepEqual(result.rejected.map(file => file.name), ["a" + wide(199), "b" + wide(199)], "a 200-character name is kept whole, a longer one is cut to 200 whole characters");
   assert.ok(result.rejected.every(file => file.reason === "文件内容无法读取"), "they are listed because their content cannot be read");
@@ -343,21 +343,21 @@ test("RAC-2217: answer files are sized in UTF-8 bytes: a 40×4000 汉字 file (a
   // Two layers count the file differently: the import action's schema takes content.maxLength 400,000 code points (Ajv), while this store
   // checks the file's UTF-8 bytes (its size on disk) against 400,000. This sample is 40 answers of 4000 汉字 each: about 160,000 units and
   // about 480,000 bytes, so the store refuses it as too large instead of reading it.
-  const home = await mkdtemp(join(tmpdir(), "form-import-size-")), store = openFormStore(home);
+  const home = await mkdtemp(join(tmpdir(), "form-import-size-")), store = openFormStore(home, "p");
   t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
-  const form = store.update(store.create({ project_id: "p", title: "大答卷" }).id,
-    { questions: Array.from({ length: 40 }, (_, index) => ({ id: `q${index}`, type: "text" as const, title: `题 ${index + 1}` })) }, "p");
+  const form = store.update(store.create({ title: "大答卷" }).id,
+    { questions: Array.from({ length: 40 }, (_, index) => ({ id: `q${index}`, type: "text" as const, title: `题 ${index + 1}` })) });
   const answers: Record<string, string> = {};
   for (const question of form.questions) answers[question.id] = "字".repeat(4000);
   const content = JSON.stringify({ format: FORM_ANSWER_FORMAT, form_id: form.id, form_version: form.version, answer_id: "answer-0001",
     submitted_at: "2026-10-08T01:02:03.000Z", questions: form.questions, answers });
   assert.ok(content.length <= 400_000 && Buffer.byteLength(content, "utf8") > 400_000, "under 400,000 UTF-16 units but over 400,000 UTF-8 bytes on disk");
-  assert.deepEqual(store.importAnswers(form.id, [{ name: "big.molis-answer.json", content }], "p").rejected.map(file => file.reason),
+  assert.deepEqual(store.importAnswers(form.id, [{ name: "big.molis-answer.json", content }]).rejected.map(file => file.reason),
     ["文件过大，不像一份答卷"], "the byte guard refuses a file that is about 480 KB on disk");
   const small = JSON.stringify({ format: FORM_ANSWER_FORMAT, form_id: form.id, form_version: form.version, answer_id: "answer-0002",
     submitted_at: "2026-10-08T01:02:03.000Z", questions: form.questions,
     answers: Object.fromEntries(form.questions.map((question, index) => [question.id, String(index)])) });
-  assert.equal(store.importAnswers(form.id, [{ name: "small.molis-answer.json", content: small }], "p").imported, 1, "a small answer file still imports");
-  const refused = store.importAnswers(form.id, [{ name: "huge.molis-answer.json", content: "x".repeat(400_001) }], "p");
+  assert.equal(store.importAnswers(form.id, [{ name: "small.molis-answer.json", content: small }]).imported, 1, "a small answer file still imports");
+  const refused = store.importAnswers(form.id, [{ name: "huge.molis-answer.json", content: "x".repeat(400_001) }]);
   assert.deepEqual([refused.imported, refused.rejected.map(file => file.reason)], [0, ["文件过大，不像一份答卷"]], "content over the store's 400,000-byte guard is refused");
 });

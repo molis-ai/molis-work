@@ -114,7 +114,7 @@ function recoverPending(lock: Pick<UpgradeSnapshotUnit, "home" | "lockDirectory"
   };
   const previous = declaration(pending.from), target = declaration(pending.to);
   if (!previous || !target || previous.store_name !== target.store_name || previous.version >= target.version
-    || !installedHomeLibraryName(previous.store_name, reserved) || previous.partition || target.partition) throw refused();
+    || !installedHomeLibraryName(previous.store_name, reserved)) throw refused();
   const file = homeSqlitePath(home, previous.store_name), unit = { ...lock, runId: pending.run_id, relativePath: relative(home, file) };
   const space = readStorageSpace(home);
   if (!space) throw refused();

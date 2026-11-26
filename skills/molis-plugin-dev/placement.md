@@ -16,18 +16,21 @@
 ## 插件要做的事
 
 1. **对象读取**：界面上展示的每种对象都有 `*.subject.read`（见 [continuity.md](continuity.md)），带 `open: { surface, id }`；不存在时抛 `<plugin>.not_found`。放置服务靠它判断对象在不在、叫什么、在哪打开。
-2. **能移动、复制的对象，声明放置协议**（只对 `user`，项目作用域）：
+2. **能移动、复制的对象，声明放置零件**（只对 `user`）。分区插件（每个分区一份库，如 Pages、PPT、Form、Dataset、灵光）的实例碰不到别的分区的库，所以由放置服务来搬：插件只给三个零件，读出、放入、移走：
 
    ```ts
    // 内置插件从 contracts 引入；第三方插件从 Plugin SDK（@molis-ai/molis-work-plugin-sdk）引入同名导出
-   import { bindObjectMoveHandler, bindObjectCopyHandler, defineObjectMoveAction, defineObjectCopyAction } from "@molis-ai/molis-work-contracts/platform/actions";
-   move: defineObjectMoveAction("pages.placement.move", 1, ["pages_document"], "文档", ["pages:read", "pages:write"]),
-   copy: defineObjectCopyAction("pages.placement.copy", 1, ["pages_document"], "文档", ["pages:read", "pages:write"]),
-   bindObjectMoveHandler(actions.move, input => /* 把 input.from_project_id 分区的这一行改到 input.to_project_id，id 不变 */),
-   bindObjectCopyHandler(actions.copy, input => /* 同一 request_id 返回同一份副本 */),
+   import { defineObjectExportAction, defineObjectPutAction, defineObjectRemoveAction, sameCarriedRecord } from "@molis-ai/molis-work-contracts/platform/actions";
+   placementExport: defineObjectExportAction("pages.placement.export", 1, ["pages_document"], "文档", ["pages:read"]),
+   placementPut: defineObjectPutAction("pages.placement.put", 1, ["pages_document"], "文档", ["pages:read", "pages:write"]),
+   placementRemove: defineObjectRemoveAction("pages.placement.remove", 1, ["pages_document"], "文档", ["pages:read", "pages:write"]),
+   // export：在本分区把这一份读成自带全部内容的记录（含 revision）；put：在目标分区写下，移动用原 id、复制用新 id，
+   // 同一 request_id 得到同一份，已在的只认 sameCarriedRecord 的原样重放；remove：只在它还是被带走的那个 revision 时去掉原件。
    ```
 
-   移动时放掉只在原项目有意义的东西（文件夹、原项目里的 Goal 挂接、固定版本编号），有进行中的发布就拒绝。不能移动的对象（绑定外部服务、跨库）不声明，界面会写“不能移动”。
+   界面的「移到…」「复制到…」按这三个零件点亮（`horizontal/placement` 的 `placementTools`）。移动时放掉只在原分区有意义的东西（文件夹、原项目里的 Goal 挂接、固定版本编号），有进行中的发布就拒绝。不能移动的对象（绑定外部服务、跨库）不声明，界面会写“不能移动”。每个零件在 `action-text.ts` 里有自己的标题与说明键（`<插件>.cap.placement-export|put|remove.*`）。
+
+   不是分区插件、一个实例就能改到两个分区的对象，仍可用整件的 `defineObjectMoveAction` / `defineObjectCopyAction` 配 `bindObjectMoveHandler` / `bindObjectCopyHandler`。
 
    对象存在 Home、自己记“属于哪个项目”的插件（例如 Todo），声明 Home 作用域的移动：`defineObjectMoveAction(id, version, kinds, title, permissions, "home")` 配 `bindHomeObjectMoveHandler`，`to_project_id` 是新的归属（`personal` 表示个人空间），返回 `{ subject, project_id: to_project_id, revision }`。复制仍只在项目分区里。
 3. **能接收内容的插件，做成工作流内容站**（`defineWorkflowContentActions`，含 `receive`、需要时 `create`）：灵光“转成文档”、问卷“存成数据表”、Goal“新建演示稿”都走它；同一次交付只建一个对象（用输入里的 `request_id`：由调用的入口给，同一个请求号建同一个对象、重发时返回它；谁交来的从调用上下文的受众读，不从输入读）。内容站的定义放进 manifest 的 `actions`，处理器单独导出（`create<Plugin>ContentHandlers`），由 Host 与插件动作处理器合并注册；不要塞进 `create<Plugin>ActionHandlers`，否则只按 `<plugin>Actions` 注册的调用方会报“处理器未声明”。

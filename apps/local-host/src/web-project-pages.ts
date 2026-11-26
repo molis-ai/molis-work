@@ -16,7 +16,7 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { renderWorkbenchRefreshDocument, type createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { ensureProjectPlugins, type ProjectPluginState } from "./project-plugins.js";
+import { ensureProjectPlugins, projectPluginPlatforms, type ProjectPluginState } from "./project-plugins.js";
 import { renderProjectRuntimeStages, stageErrorsOf, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory } from "./plugin-directory.js";
@@ -71,8 +71,8 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
   const record = await ensureProjectPlugins(ports);
   // The installed packages run on this platform too (47-1 B), but their entries are the installed host's, keyed by their installation
   // (`installedPluginStages`): listed here under the plugin id they would take the id of a Home plugin by another publisher (BL-586).
-  const platform = record.platform;
-  const directory = platform ? runningPluginDirectory(platform.supervisor).filter(entry => entry.chosen || !installedPackageOn(platform, entry.plugin_id)) : [];
+  // A plugin with a library in each partition runs as its own instance here (batch 107); its entry is that instance's.
+  const directory = projectPluginPlatforms(record).flatMap(platform => runningPluginDirectory(platform.supervisor).filter(entry => entry.chosen || !installedPackageOn(platform, entry.plugin_id)));
   const stageView = { ...view, plugin_directory: mergePluginDirectories(directory, view.plugin_directory ?? [], builtinMarketDirectory()) };
   const runtime = renderProjectRuntimeStages(record, ports.store, { shown: view.shown_plugins ?? shownProjectPlugins(configuration.plugins, configuration.hidden),
     drawn: view.plugin_stage_surfaces ?? [], views: view.plugin_stage_views, page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, stageView), home: await homeStageHalves(ports.homePlugins),

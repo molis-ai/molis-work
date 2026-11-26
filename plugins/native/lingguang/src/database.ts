@@ -1,23 +1,13 @@
-import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PartitionPluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
- * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its sparks go with their
- * conversations, the messages in them and the request receipts.
- */
-const LINGGUANG_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "lingguang.project-deletion.data" }, order: 80, tables: [
-  { table: "messages", column: "conversation_id", parent: "conversations" },
-  { table: "conversations", column: "project_id" },
-  { table: "spark_requests", column: "project_id" },
-  { table: "sparks", column: "project_id" },
-] };
-/**
  * The 灵光 store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
- * must already be at its version.
+ * must already be at its version. Each partition (the personal space or a project) has its own copy (`<partition>/libraries/lingguang.db`),
+ * so no row names its project; deleting a project takes its whole library with every brainstorm in it.
  */
-export const LINGGUANG_DATABASE: HomePluginDatabaseDeclaration = { project_rows: LINGGUANG_PROJECT_ROWS, store_name: "lingguang", version: /* @version database.lingguang_database */ 1, read_permission: "lingguang:read", write_permission: "lingguang:write", schema: `
+export const LINGGUANG_DATABASE: PartitionPluginDatabaseDeclaration = { store_name: "lingguang", deletion: { label: { key: "lingguang.project-deletion.data" }, order: 80 }, version: /* @version database.lingguang_database */ 1, read_permission: "lingguang:read", write_permission: "lingguang:write", schema: `
   CREATE TABLE sparks (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
     title TEXT NOT NULL,
     body TEXT NOT NULL,
     source_kind TEXT NOT NULL,
@@ -27,18 +17,14 @@ export const LINGGUANG_DATABASE: HomePluginDatabaseDeclaration = { project_rows:
   );
   CREATE TABLE conversations (
     id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    spark_key TEXT NOT NULL,
+    spark_key TEXT NOT NULL UNIQUE,
     spark_ids_json TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    UNIQUE (project_id, spark_key)
+    updated_at TEXT NOT NULL
   );
   CREATE TABLE spark_requests (
-    project_id TEXT NOT NULL,
-    request_id TEXT NOT NULL,
-    spark_id TEXT NOT NULL,
-    PRIMARY KEY (project_id, request_id)
+    request_id TEXT PRIMARY KEY,
+    spark_id TEXT NOT NULL
   );
   CREATE TABLE messages (
     id TEXT PRIMARY KEY,

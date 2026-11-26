@@ -44,6 +44,10 @@ function detail(chosen: string, title?: string, defaultLocale = "zh") {
         'part/title/title': 'Quick notes', 'part/title/description': 'Write a note and return to it later.', 'part/editor/submitLabel': 'Save',
         'part/notes/title': 'All notes', 'part/notes/emptyText': 'No notes yet. Write your first one.', 'column/notes/expansion/label': 'Expansion',
         'part/expand/submitLabel': 'Expand', 'part/remove/submitLabel': 'Delete', 'field/notes.add/text/label': 'Note' },
+      ja: { 'plugin/name': chosen === 'board' ? 'メモボード' : 'クイックメモ', 'page/home/title': 'メモ', 'region/home/main/title': 'メモの作業エリア',
+        'part/title/title': 'クイックメモ', 'part/title/description': 'メモを書いて、あとで見返します。', 'part/editor/submitLabel': '保存',
+        'part/notes/title': 'すべてのメモ', 'part/notes/emptyText': 'まだメモがありません。最初の一件を書きましょう。', 'column/notes/expansion/label': '展開',
+        'part/expand/submitLabel': '展開', 'part/remove/submitLabel': '削除', 'field/notes.add/text/label': 'メモ' },
     } },
     operations: [
       { id: 'notes.list', kind: 'query', description: '列出笔记（最新在前）', input: {}, output: [{ id: 'string', text: 'string', 'expansion?': 'string' }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [] }] },

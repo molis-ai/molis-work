@@ -178,6 +178,14 @@ export function forgetInstallationPlatformRecords(home: string, installId: strin
   });
 }
 
+/** A synchronized write or a restore reached a partition while no services run: mark its libraries dirty in the overview index, if there is one. */
+export function markPartitionChanged(home: string, partitionId: string, installId?: string): void {
+  ifStore(home, TEXT_SEARCH_STORE, () => {
+    const index = new OverviewService(openOverviewIndex({ homeDirectory: home }));
+    try { index.markDirty(partitionId, installId); } finally { index.close(); }
+  });
+}
+
 /** A partition was deleted: every due entry, overview row and evidence hold it had goes with it. */
 export function forgetPartitionPlatformRecords(home: string, partitionId: string): void {
   ifStore(home, DUE_REGISTRY_STORE, () => {

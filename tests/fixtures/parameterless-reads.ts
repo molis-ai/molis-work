@@ -99,6 +99,9 @@ export async function readEveryParameterlessAction(host: MolisWorkLocalHost, dat
     const caller = { ...base, permissions: view.action.permissions };
     const client = view.action.scope === "home" ? host.homeActionClient() : host.actionClient(ref);
     const scope = view.action.scope === "home" ? { ...caller, project_id: null } : caller;
+    // A plugin the project does not enable is listed there as off (BL-088, batch 107): nothing of it is read, and that is no broken read.
+    const listed = await client.discoverOne(scope, { ...view, provider_id: view.provider.provider_id });
+    if (listed && !listed.availability.available && listed.availability.code === "actions.plugin_disabled") continue;
     try {
       if (accountReadsRequiringConfiguration.has(action)) {
         await assert.rejects(client.invoke({ ...caller, project_id: null }, view, {}), { code: "account.invalid_configuration" });

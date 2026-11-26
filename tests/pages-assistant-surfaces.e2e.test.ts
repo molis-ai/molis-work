@@ -20,8 +20,8 @@ test("RAC-916-L1 RAC-916-L2 RAC-916-L3: oversized real Pages offers preserve com
   }});`);
   const pages = await pluginFrameBrowser(t, browser, "pages");
   const comments = await pluginFrameBrowser(t, browser, "pages", '[data-side-body="plugin:pages/comments"] iframe');
-  const store = openPagesStore(homeDirectory);
-  const page = store.create({ project_id: projectId!, title: '完整消息"与草稿', body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "已保存正文" }] }] } });store.close();
+  const store = openPagesStore(homeDirectory, projectId!);
+  const page = store.create({ title: '完整消息"与草稿', body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "已保存正文" }] }] } });store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await pages.waitFor(`document.querySelector('[data-pages-title]')?.value === ${JSON.stringify(page.title)}`);
@@ -76,7 +76,7 @@ test("RAC-916-L1 RAC-916-L2 RAC-916-L3: oversized real Pages offers preserve com
     const comment = "c".repeat(18996)+'"\n尾';await body(comment);await draft("p".repeat(20000)+'"'.repeat(31000));
     const request = (await pending())!.request_id;
     await comments.click('[data-comment-send]');
-    await comments.waitFor("!document.querySelector('[data-comment-error]').hidden && document.querySelector('[data-comment-error]').textContent.includes('评论未发送')");
+    await comments.waitFor("!document.querySelector('[data-comment-error]').hidden && document.querySelector('[data-comment-error]').textContent.includes('评论没有发出')");
     assert.deepEqual(await evaluate("[window.racCommentPosts,window.racOffers.length,window.racStarts.length]"), [2, 1, 0]);
     assert.equal(await comments.evaluate("window.racSizes.at(-1).draftLength===51000 && window.racSizes.at(-1).size>100000 && window.racSizes.at(-1).savedIdLength===0"), true, "the real pre-save serialized detail includes the complete escaped draft and legal comment");
     assert.equal((await pending())!.request_id, request);assert.equal((await pending())!.body, comment);
@@ -109,7 +109,7 @@ test("RAC-916-L1 RAC-916-L2 RAC-916-L3: oversized real Pages offers preserve com
     assert.equal(await evaluate("window.racOffers[2].thread.message_id"), saved.message_id);
     assert.equal(await evaluate("window.racOffers[2].thread.draft.text"), '同一评论恢复的"完整草稿');
     await comments.waitFor("document.querySelector('[data-comment-draft]').value==='' && document.querySelector('[data-comment-run]').textContent.includes('已交给助理')");
-    const checked = openPagesStore(homeDirectory);try { assert.equal(checked.comments.list(page.id, projectId!).flatMap(thread => thread.messages).length, 4); } finally { checked.close(); }
+    const checked = openPagesStore(homeDirectory, projectId!);try { assert.equal(checked.comments.list(page.id).flatMap(thread => thread.messages).length, 4); } finally { checked.close(); }
     await browser.click('.mw-ix-step[data-step-offer]:last-child');
     await waitFor("window.racStarts.length===1");
     assert.equal(await evaluate("window.racStarts[0].message_id"), saved.message_id);
@@ -192,9 +192,9 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
       window.releaseContextFrames=()=>{window.holdContextFrames=false;held.splice(0).forEach(callback=>request(callback));};
     }
   ` }, sessionId);
-  const store = openPagesStore(homeDirectory);
-  const a = store.create({ project_id: projectId!, title: "讨论中的发布计划", body: { type: "doc", content: [{ type: "paragraph", attrs: { note: "需要保留的块备注" }, content: [{ type: "text", text: "先完成核心体验，再安排发布。" }] }] } });
-  const b = store.create({ project_id: projectId!, title: "另一个文档", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "此处不应出现前一篇的评论。" }] }] } });
+  const store = openPagesStore(homeDirectory, projectId!);
+  const a = store.create({ title: "讨论中的发布计划", body: { type: "doc", content: [{ type: "paragraph", attrs: { note: "需要保留的块备注" }, content: [{ type: "text", text: "先完成核心体验，再安排发布。" }] }] } });
+  const b = store.create({ title: "另一个文档", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "此处不应出现前一篇的评论。" }] }] } });
   store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   // PAS-14: the side document loads declared dependencies even when no editor has been opened.
@@ -339,7 +339,7 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   await waitFor("!document.body.hasAttribute('data-assistant-max') && document.querySelector('[data-plugin-stage]').checkVisibility({ visibilityProperty: true })");
   assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input') === window.originalComposer"), true);
   assert.deepEqual(await evaluate(TABS), tabsBefore, "POLISH-60: restored, the tabs are as they were");
-  const saved = openPagesStore(homeDirectory);
-  try { assert.match(JSON.stringify(saved.get(a.id, projectId!).body), /在侧栏保存的备注/);assert.equal(saved.comments.list(a.id, projectId!).length, 2);assert.equal(saved.comments.list(b.id, projectId!).length, 0); }
+  const saved = openPagesStore(homeDirectory, projectId!);
+  try { assert.match(JSON.stringify(saved.get(a.id).body), /在侧栏保存的备注/);assert.equal(saved.comments.list(a.id).length, 2);assert.equal(saved.comments.list(b.id).length, 0); }
   finally { saved.close(); }
 });

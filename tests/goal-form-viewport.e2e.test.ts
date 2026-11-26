@@ -82,7 +82,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await command('Network.setBlockedURLs', { urls: [origin + prefix + '/api/plugins/io.molis.work.goals/goals/' + goalId + '/event-concern'] }, sessionId);
     await click(`${form} button[type=submit]`);
     await waitFor(`!document.querySelector('${form} [data-form-status]').hidden && !document.querySelector('${form} button[type=submit]').disabled`);
-    assert.match(await evaluate<string>(`document.querySelector('${form} [data-form-status]').textContent`), /输入已保留/);
+    assert.match(await evaluate<string>(`document.querySelector('${form} [data-form-status]').textContent`), /你刚填的内容都保留着/);
     assert.equal(await evaluate(`document.querySelector('${field('statement')}').value`), statement);
     assert.equal(await evaluate(`document.querySelector('${body}').inert`), false);
     await contained(`${form} [data-form-status]`);

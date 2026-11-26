@@ -518,7 +518,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   assert.deepEqual(await evaluate("t403Artifact.reads.map(read=>({version:new URL(read.url,location.href).pathname.split('/').pop(),method:read.method}))"),[{version:"1",method:"GET"},{version:"2",method:"GET"}]);
   await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=inbox]').click()");
   const inboxPreview = await readPreview('[data-frame-reading=inbox]', '[data-frame-block-retry]');
-  assert.match(inboxPreview.text, /你手工加入/);
+  assert.match(inboxPreview.text, /你手动加入/);
   assert.match(inboxPreview.text, /查看原消息并处理/);
   await evaluate(`(() => {
     const canvas = document.querySelector("[data-frame-canvas]");

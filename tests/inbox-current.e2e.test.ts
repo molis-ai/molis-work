@@ -72,7 +72,7 @@ test("Inbox shows and runs an installed plugin judgment, then withdraws advice w
     assert.equal(await evaluate("document.querySelector('.inbox-next-config [data-inbox-evaluate]').disabled"), true);
     assert.equal(await evaluate("document.querySelectorAll('.inbox-next-suggestion').length"), 0);
     const text = await evaluate<string>("document.querySelector('.inbox-next-config').innerText");
-    assert.match(text, /已绑定判断能力/); assert.doesNotMatch(text, /尚未绑定规则|在 Functions/);
+    assert.match(text, /已绑定判断能力/); assert.doesNotMatch(text, /还没绑定规则|在 Functions/);
     assert.ok((await localHost.sceneClient(reference).usages(caller)).some(usage => usage.function.capability_id === definition.capability_id && !usage.availability.available));
     assert.ok(withFunctionsService(homeDirectory, service => service.listJudgments()).some(record => record.judgment_id === history[0]!.judgment_id));
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), true);
@@ -164,5 +164,5 @@ test("B27-FF05 Inbox keeps its selected item and the compose draft when a list r
   assert.equal(requests, 2);
   assert.equal(feedback.length, 1);
   assert.equal(feedback[0]![1], true);
-  assert.match(feedback[0]![0], /当前输入已保留.*重试/);
+  assert.match(feedback[0]![0], /你填的内容都保留着.*重试/);
 });

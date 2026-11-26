@@ -32,7 +32,7 @@ interface Run {
 /** A run of the real handlers and store against fake content stations, a fake judgment rule, a fake ticket action and a receiver that can be made to fail. */
 async function setup() {
   const home = await mkdtemp(join(tmpdir(), "workflows-whole-characters-"));
-  const store = openWorkflowsStore(home);
+  const store = openWorkflowsStore(home, PROJECT);
   // `title` and `body` are what the first station holds (empty: made from the item id); `judged` is every text the judgment rule was given.
   const state = { title: "", body: "", failReceive: false, failTicket: "", judged: [] as string[], received: [] as string[] };
   const content = {

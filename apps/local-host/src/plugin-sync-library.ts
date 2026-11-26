@@ -92,8 +92,10 @@ export function combinePluginSyncLibraries(manifest: PluginManifest, home?: Plug
   if (!home && !project) return undefined;
   const select = (id: string) => {
     const collection = manifest.sync?.collections.find(row => row.id === id);
-    const scope = collection?.database ?? (manifest.databases?.home && !manifest.databases?.project ? 'home' : manifest.databases?.project && !manifest.databases?.home ? 'project' : undefined);
-    const client = scope === 'home' ? home : scope === 'project' ? project : undefined;
+    const declared = (['home', 'project', 'partition'] as const).filter(scope => manifest.databases?.[scope]);
+    const scope = collection?.database ?? (declared.length === 1 ? declared[0] : undefined);
+    // A partition's own library is opened where a Home library is (`services.database`), so its collections come through the same client.
+    const client = scope === 'home' || scope === 'partition' ? home : scope === 'project' ? project : undefined;
     if (!collection || !client) throw new ActionError('actions.forbidden', '当前实例没有这个同步集合所属的库');
     return client;
   };

@@ -21,9 +21,9 @@ test("PANE-FLASH-01, PANE-FLASH-02, MENU-FLASH-01 (W3-A3c, S-30): hovering 「�
   const child = await pluginFrameBrowser(t, browser, "pages");
   const paneView = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-tab-pane].is-focused iframe[data-plugin-frame="pages"]');
   const otherView = await pluginFrameBrowser(t, browser, "pages", undefined, '[data-tab-pane]:not(.is-focused) iframe[data-plugin-frame="pages"]');
-  const store = openPagesStore(homeDirectory);
-  const left = store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
-  const right = store.create({ project_id: projectId!, title: "访谈记录", body: { type: "doc", content: [paragraph("用户说：离线也要能记下想法。")] } });
+  const store = openPagesStore(homeDirectory, projectId!);
+  const left = store.create({ title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
+  const right = store.create({ title: "访谈记录", body: { type: "doc", content: [paragraph("用户说：离线也要能记下想法。")] } });
   store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));

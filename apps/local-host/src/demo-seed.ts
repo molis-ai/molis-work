@@ -7,7 +7,7 @@ import { registerDemoDeliverable } from "./demo-deliverable.js";
 import { DEMO_PROJECT_ID } from "./demo-project-id.js";
 import { acceptDemoProjectRequirements, runDemoPluginSeed } from "./plugin-demo-seed.js";
 import { LocalProjectDatabase } from "./project-database.js";
-import { runningProjectPlatform } from "./project-plugins.js";
+import { runningProjectPluginPlatforms } from "./project-plugins.js";
 
 export { DEMO_PROJECT_ID };
 
@@ -44,10 +44,10 @@ export async function seedDemoProject(databasePath: string, projectId = DEMO_PRO
     const project = molisWorkHostProjectReference({ projectId, databasePath });
     const assertCurrent = () => { if (host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "示例项目的宿主已关闭"); };
     await host.inspectActions({ actor_id: DEMO_ACTOR, actor_kind: "user", audience: "user", project_id: projectId, permissions: [] }, project);
-    const platform = await host.withProject(project, ({ store }) => runningProjectPlatform(store, projectId));
-    if (!platform) return;
+    const platforms = await host.withProject(project, ({ store }) => runningProjectPluginPlatforms(store, projectId));
+    if (!platforms.length) return;
     const client = host.actionClient(project);
-    for (const state of platform.supervisor.states()) {
+    for (const [platform, state] of platforms.flatMap(platform => platform.supervisor.states().map(state => [platform, state] as const))) {
       if (state.status !== "running" || !state.install_id) continue;
       const manifest = platform.supervisor.manifest(state.plugin_id);
       if (!manifest?.demo_seed || manifest.runtime?.scope) continue;

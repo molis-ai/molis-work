@@ -41,8 +41,8 @@ test("PAS-15 / BBA-02: Host text streams, keeps reading state, copies exact code
   }); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "pages");
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
-  const pages = openPagesStore(homeDirectory);
-  const page = pages.create({ project_id: projectId!, title: pageTitle, body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "打开的是实际文档。" }] }] } });
+  const pages = openPagesStore(homeDirectory, projectId!);
+  const page = pages.create({ title: pageTitle, body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "打开的是实际文档。" }] }] } });
   pages.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));

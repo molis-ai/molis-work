@@ -20,8 +20,8 @@ test("S1 W4-1 RAC-136 contextual Todo: real selection → made at once from what
   const todoFrame=await pluginFrameBrowser(t,browser,"todo");
   const { command, sessionId, navigate, evaluate, waitFor, origin, projectId, homeDirectory } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const pages = openPagesStore(homeDirectory);
-  const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
+  const pages = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return pages.create({ title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
   await evaluate("document.addEventListener('molis:surface-focus',event=>window.todoTestFocus=event.detail)");
@@ -145,8 +145,8 @@ test("S1 W4-1 a card whose run is refused writes nothing and can run again: Goal
   const child=await pluginFrameBrowser(t,browser,"pages");
   const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory, store } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const pages = openPagesStore(homeDirectory);
-  const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
+  const pages = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return pages.create({ title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
   await evaluate("document.addEventListener('molis:surface-focus',event=>window.todoTestFocus=event.detail)");

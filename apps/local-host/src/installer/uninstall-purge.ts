@@ -22,8 +22,7 @@ export function purgePathFingerprint(home: string, target: string, registry: Hom
     if (!sidecar || sidecar[2] === "wal" && info.size !== 0) return false;
     const file = sidecar[1]!;
     const libraryFile = store.library?.file ?? store.path + ".db";
-    const library = store.library && (store.library.partition === "project"
-      ? file.split("/").length === 3 && file.startsWith("projects/") && file.endsWith("/" + libraryFile) : file === libraryFile);
+    const library = store.library && file === libraryFile;
     return Boolean(store.snapshot.database?.(file)) || Boolean(library);
   });
 }

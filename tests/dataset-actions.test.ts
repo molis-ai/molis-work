@@ -6,8 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { datasetActions as actions, DATASET_ACTION_PERMISSIONS, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
-import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openDatasetStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 
 import { openTestHome } from "./fixtures/test-home.js";
@@ -55,8 +54,8 @@ test("W5-01-DATASET-01: Dataset registers all business actions; snapshots, CSV a
     // A pinned dataset belongs to the Home's person; the actor who pinned it is its producer.
     assert.equal(artifact.owner_actor_id, LOCAL_PERSON_ACTOR_ID); assert.equal(artifact.created_by, "owner"); assert.deepEqual((artifact.payload as any).rows, imported.rows);
   });
-  const store = openDatasetStore(f.home); let foreign: string;
-  try { foreign = store.create({ project_id: "b", title: "Private" }).id; assert.equal(store.get(dataset.id).artifact_version, 1); } finally { store.close(); }
+  const store = openDatasetStore(f.home, f.ref.project_id), elsewhere = openDatasetStore(f.home, "b"); let foreign: string;
+  try { foreign = elsewhere.create({ title: "Private" }).id; assert.equal(store.get(dataset.id).artifact_version, 1); } finally { store.close(); elsewhere.close(); }
   for (const definition of [actions.get, actions.versions, actions.export, actions.delete]) await assert.rejects(f.bound.invoke(definition, { id: foreign }), { code: "dataset.not_found" });
   const another = await fixture(t);
   assert.deepEqual((await another.bound.invoke(actions.list, {})).datasets, []);
@@ -70,7 +69,7 @@ test("BSH-03 Dataset refuses the joined row write and the next pin uses the edit
   const { dataset } = await bound.invoke(actions.create, { title: "Initial draft" });
   const id = dataset.id, sentinel = (await bound.invoke(actions.create, { title: "Constraint fixture" })).dataset;
   await bound.invoke(actions.promote, { id: sentinel.id });
-  const db = openHomeSqliteDatabase(home, "dataset");
+  const db = openPartitionLibraryDatabase(home, ref.project_id, "dataset");
   try {
     db.exec("CREATE UNIQUE INDEX fail_publication ON datasets ((1)) WHERE artifact_version > 0");
     await assert.rejects(bound.invoke(actions.promote, { id }), /UNIQUE constraint failed/u);
@@ -91,10 +90,10 @@ test("BSH-03 Dataset refuses the joined row write and the next pin uses the edit
 });
 
 test("Dataset deletion rolls version removal back when the SQL boundary refuses an undeclared trigger", async t => {
-  const { bound, home } = await fixture(t);
+  const { bound, home, ref } = await fixture(t);
   const { dataset } = await bound.invoke(actions.create, {});
   const saved = await bound.invoke(actions.snapshot, { id: dataset.id });
-  const db = openHomeSqliteDatabase(home, "dataset");
+  const db = openPartitionLibraryDatabase(home, ref.project_id, "dataset");
   try {
     db.exec("CREATE TRIGGER fail_delete BEFORE DELETE ON datasets BEGIN SELECT RAISE(ABORT, 'fixture delete failure'); END");
     await assert.rejects(bound.invoke(actions.delete, { id: dataset.id }), /not authorized/);
@@ -171,8 +170,8 @@ test("RAC-1613: an AI column name of 80 Unicode characters is added; one of 81 i
 });
 
 test("RAC-1614: a table received from a workflow cuts its title at 80 whole Unicode characters", async t => {
-  const home = await mkdtemp(join(tmpdir(), "dataset-receive-")), store = openDatasetStore(home);
+  const home = await mkdtemp(join(tmpdir(), "dataset-receive-")), store = openDatasetStore(home, "a");
   t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
-  const received = store.receiveCsv("a", "rac-1614", "表" + "🟢".repeat(80), "列\n值");
+  const received = store.receiveCsv("rac-1614", "表" + "🟢".repeat(80), "列\n值");
   assert.equal(received.title, "表" + "🟢".repeat(79), "the title keeps 80 whole characters, never half of one");
 });

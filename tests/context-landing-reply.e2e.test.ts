@@ -27,8 +27,8 @@ test("BL-150 AC-S15: a passage selected in an Assistant reply is put at the curs
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const child=await pluginFrameBrowser(t,browser,"pages");
-  const store = openPagesStore(homeDirectory);
-  const left = store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
+  const store = openPagesStore(homeDirectory, projectId!);
+  const left = store.create({ title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
   store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "document.addEventListener('molis:surface-landing', (event) => { window.lastLanding = event.detail; }); document.addEventListener('molis:surface-focus', (event) => { window.lastFocus = event.detail; });" }, sessionId);
@@ -96,6 +96,6 @@ test("BL-150 AC-S15: a passage selected in an Assistant reply is put at the curs
   assert.equal(await child.evaluate<string>(editorText), "先完成核心体验。再安排发布。", "the document is unchanged under the preview");
   await child.evaluate(`[...document.querySelectorAll('.pages-pop .mw-btn--primary')].find(node => node.textContent === '放进去').click()`);
   await child.waitFor(`${editorText} === '先完成离线也要能记下想法核心体验。再安排发布。'`, 10_000);
-  const saved = openPagesStore(homeDirectory);
-  try { assert.match(JSON.stringify(saved.get(left.id, projectId!).body), /先完成离线也要能记下想法核心体验。/u); } finally { saved.close(); }
+  const saved = openPagesStore(homeDirectory, projectId!);
+  try { assert.match(JSON.stringify(saved.get(left.id).body), /先完成离线也要能记下想法核心体验。/u); } finally { saved.close(); }
 });

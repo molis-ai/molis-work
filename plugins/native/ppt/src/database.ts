@@ -1,4 +1,4 @@
-import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PartitionPluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /** The PPT baseline defines the schema for new stores and the expected version and column order for existing stores. */
 const PPT_SCHEMA = `
@@ -13,24 +13,17 @@ const PPT_SCHEMA = `
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     version INTEGER NOT NULL,
-    project_id TEXT NOT NULL DEFAULT '',
     artifact_id TEXT NOT NULL DEFAULT '',
     artifact_version INTEGER NOT NULL DEFAULT 0,
     publication_pending_json TEXT
   );
-  CREATE TABLE presentation_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
+  CREATE TABLE presentation_copies (request_id TEXT PRIMARY KEY, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL);
 `;
 /**
- * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its presentations go with the
- * receipts of copies made into it.
+ * Each partition (the personal space or a project) has its own copy of this library (`<partition>/libraries/ppt.db`), so no row names
+ * its project; deleting a project takes its whole library. A pinned version is recorded on the deck it came from.
  */
-const PPT_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "ppt.project-deletion.data" }, order: 40,
-  artifact_join: { table: "presentations", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
-    artifact_version_column: "artifact_version", write_columns: ["updated_at"], pending_column: "publication_pending_json" },
-  tables: [
-  { table: "presentations", column: "project_id" },
-  { table: "presentation_copies", column: "project_id" },
-] };
-/** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const PPT_DATABASE: HomePluginDatabaseDeclaration = { project_rows: PPT_PROJECT_ROWS, store_name: "ppt", version: /* @version database.ppt_database */ 1,
-  read_permission: "ppt:read", write_permission: "ppt:write", schema: PPT_SCHEMA };
+export const PPT_DATABASE: PartitionPluginDatabaseDeclaration = { store_name: "ppt", deletion: { label: { key: "ppt.project-deletion.data" }, order: 40 }, version: /* @version database.ppt_database */ 1,
+  read_permission: "ppt:read", write_permission: "ppt:write", schema: PPT_SCHEMA,
+  pinned_rows: { table: "presentations", id_column: "id", version_column: "version", artifact_id_column: "artifact_id",
+    artifact_version_column: "artifact_version", write_columns: ["updated_at"], pending_column: "publication_pending_json" } };

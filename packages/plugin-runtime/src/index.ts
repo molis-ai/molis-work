@@ -13,7 +13,7 @@ import { actionProviderId, assertInstallIdentity, assertStartIdentity, isIdentit
 import { InstallLocks } from "./install-locks.js";
 import { recordInstallConsents, type PluginConsentLedger } from "./consent-ledger.js";
 import { pluginActionProvider, type PluginRuntimeActions } from "./action-provider.js";
-export { PROJECT_REACH_PERMISSION, type PluginProjectReach } from "./action-provider.js";
+export { PROJECT_REACH_PERMISSION, registerPluginOffHere, type PluginProjectReach } from "./action-provider.js";
 import { advanceReadCheckGeneration, outsidePluginAction } from "./action-scope.js";
 import { OfferedContributions } from "./offered-contributions.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
@@ -502,9 +502,10 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   private async stopOnce(installId: string, preserveEnabled = false): Promise<PluginLifecycleReceipt> {
     const current = this.repository.get(installId) ?? await releaseUnrecorded(this.contexts.get(installId), this.executor, () => this.revokeContext(installId));
-    // A per-partition runtime shares Home's install record: if Home already disabled or uninstalled the installation while this
-    // partition still holds a live instance, a shutdown stop must release the live session without overwriting Home's durable state.
-    const externallyClosed = preserveEnabled && (current.state === "disabled" || current.state === "uninstalled") && this.hasLiveInstance(installId);
+    // A per-partition runtime shares Home's install record: if Home already disabled, uninstalled or replaced the installation (a
+    // new generation reads as `installed` there) while this partition still holds a live instance, a shutdown stop must release the
+    // live session without overwriting Home's durable state.
+    const externallyClosed = preserveEnabled && (current.state === "disabled" || current.state === "uninstalled" || current.state === "installed") && this.hasLiveInstance(installId);
     if (current.state === "disabled" && !externallyClosed) return this.receipt("stop", current, true);
     // Nothing runs in a crashed or never-started install; the person's stop still switches it off. A shutdown stop (preserve_enabled)
     // of one is refused, since it would erase the crash or decide for the person, and so is any stop of a quarantine: only an explicit

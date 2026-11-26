@@ -137,7 +137,7 @@ test('FSS-36 held judgments follow both language changes and keep the run, verdi
     assert.deepEqual(runs.map(run => run.stopped?.verdict?.status), ['needs_review', 'ok', 'ok', 'ok']);
     assert.equal(runs[2]!.stopped?.verdict?.choice, null);
     const original = '判断需要人确认，这一次没有交过去 <tag> 原文';
-    const store = openWorkflowsStore(b.homeDirectory);
+    const store = openWorkflowsStore(b.homeDirectory, b.projectId!);
     try {
       const legacy = runs[3]!;
       const steps = legacy.steps.map((step, index) => index === 0 ? { ...step, held: { at: legacy.stopped!.at, reason: original } } : step);

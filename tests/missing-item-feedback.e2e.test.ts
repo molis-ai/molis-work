@@ -109,7 +109,7 @@ test("VUX-12: a plugin refused the read says it is a permission matter (or that 
     await waitFor(`!!${surface}?.checkVisibility()`, 20_000);
     await new Promise((resolve) => setTimeout(resolve, 1500));
     await evaluate(`window.__unreadable = []; document.addEventListener('molis-work:item-unreadable', (event) => window.__unreadable.push(event.detail.itemId))`);
-    for (const [kind, body, words, itemId] of [["permission", denied, ["无权读取此内容", "可在「设置」管理授权"], "denied-item-1"], ["disabled", disabled, ["已在当前项目停用", "插件市场"], "denied-item-2"]] as const) {
+    for (const [kind, body, words, itemId] of [["permission", denied, ["没有查看这项内容的权限", "在「设置」里管理授权"], "denied-item-1"], ["disabled", disabled, ["在当前项目已停用", "插件市场"], "denied-item-2"]] as const) {
       refusal = { path, body };
       answered.length = 0;
       await evaluate(`${surface}.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId: ${JSON.stringify(itemId)} } }))`);

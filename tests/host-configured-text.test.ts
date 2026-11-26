@@ -211,6 +211,9 @@ test("RAC-1880 the configured-model entrance counts a prompt in characters too: 
 
 test("production settings HTTP -> shared connection -> Lingguang action actually calls the configured server", async () => fixture(async f => {
   const created = await f.catalog.createProject({ display_name: "模型调用", actor_id: "test" });
+  f.catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "form", actor_id: "test" });
+  f.catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "dataset", actor_id: "test" });
+  f.catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "lingguang", actor_id: "test" });
   const project = f.catalog.getProject(created.project_id);
   const host = f.host;
   const token = "configured-model-01234567890123456789";
@@ -293,8 +296,11 @@ for (const change of ["disconnect", "disable", "replace-model", "replace-key", "
     const resumed = new Promise<void>(resolve => { release = resolve; });
     f.answer(async () => { entered(); await resumed; return { choices: [{ message: { content: "stale" } }] }; });
     const host = f.host;
-    const ref = molisWorkHostProjectReference({ databasePath: join(f.home, "project.sqlite"), projectId: "a" });
-    const caller = { actor_id: "test", project_id: "a", audience: "user" as const, permissions: LINGGUANG_ACTION_PERMISSIONS };
+    // Lingguang runs in each project that enables it (batch 107).
+    const created = await f.catalog.createProject({ display_name: "Pending request", actor_id: "test" });
+    f.catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "lingguang", actor_id: "test" });
+    const ref = molisWorkHostProjectReference({ databasePath: created.database_path, projectId: created.project_id });
+    const caller = { actor_id: "test", project_id: created.project_id, audience: "user" as const, permissions: LINGGUANG_ACTION_PERMISSIONS };
     const client = host.actionClient(ref);
     const { spark } = await client.invoke(caller, lingguangActions.create, { body: "材料" });
     const { conversation } = await client.invoke(caller, lingguangActions.openConversation, { spark_ids: [spark.id] });
@@ -511,6 +517,9 @@ test("a saved connection cannot send its credential to a changed provider origin
 test("Dataset uses the configured model connection, keeps local columns offline and refuses revoked results", { timeout: 30_000 }, async () => fixture(async f => {
   const { datasetActions, DATASET_ACTION_PERMISSIONS } = await import("@molis-ai/molis-work-plugin-dataset");
   const created = await f.catalog.createProject({ display_name: "Dataset model", actor_id: "test" });
+  f.catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "form", actor_id: "test" });
+  f.catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "dataset", actor_id: "test" });
+  f.catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "lingguang", actor_id: "test" });
   const project = f.catalog.getProject(created.project_id);
   const connection = configure(f);
   const host = f.host;
@@ -543,6 +552,9 @@ test("Dataset uses the configured model connection, keeps local columns offline 
 test("Form uses the configured model connection, keeps local questions offline and refuses revoked results", { timeout: 30_000 }, async () => fixture(async f => {
   const { formActions, FORM_ACTION_PERMISSIONS } = await import("@molis-ai/molis-work-plugin-form");
   const created = await f.catalog.createProject({ display_name: "Form model", actor_id: "test" });
+  f.catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "form", actor_id: "test" });
+  f.catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "dataset", actor_id: "test" });
+  f.catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "lingguang", actor_id: "test" });
   const project = f.catalog.getProject(created.project_id);
   const connection = configure(f);
   const host = f.host;

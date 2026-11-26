@@ -66,8 +66,8 @@ test("RAC-2265: an import preview cuts by whole characters, so a two-unit charac
 /** A Pages document whose body is `body`, open in the project; the comments side view is opened with `openPanel` or by a comment itself. */
 async function openComments(t: TestContext, browser: Browser, pages: Child, title: string, body: object, openPanel = true) {
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
-  const store = openPagesStore(homeDirectory);
-  const page = store.create({ project_id: projectId!, title, body }); store.close();
+  const store = openPagesStore(homeDirectory, projectId!);
+  const page = store.create({ title, body }); store.close();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await pages.waitFor(`document.querySelector('[data-pages-title]')?.value === ${JSON.stringify(title)}`);
   if (!openPanel) return { comments: null, pageId: page.id };

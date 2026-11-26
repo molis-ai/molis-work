@@ -75,7 +75,7 @@ test("Pages: 「新建文档」 left empty is gone when the person goes back, an
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await pages.waitFor("document.querySelector('[data-pages-new]')", 20_000);
-  const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
+  const titles = () => { const store = openPagesStore(homeDirectory, projectId!); try { return store.list().map(page => page.title); } finally { store.close(); } };
   const before = titles();
   await pages.click("[data-pages-new]");
   await pages.waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'true' && document.querySelector('[data-pages-editor] .ProseMirror')", 20_000);
@@ -105,8 +105,8 @@ test("Pages and 灵光: a blank item is gone when the person switches to another
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
-  const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
-  const sparks = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
+  const titles = () => { const store = openPagesStore(homeDirectory, projectId!); try { return store.list().map(page => page.title); } finally { store.close(); } };
+  const sparks = () => { const store = openLingguangStore(homeDirectory, projectId!); try { return store.list().map(spark => spark.title); } finally { store.close(); } };
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await pages.waitFor("document.querySelector('[data-pages-new]')", 20_000);
   const before = titles();
@@ -154,8 +154,8 @@ test("Pages and 灵光: reloading with a blank item open takes it back, and the 
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
-  const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
-  const sparks = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
+  const titles = () => { const store = openPagesStore(homeDirectory, projectId!); try { return store.list().map(page => page.title); } finally { store.close(); } };
+  const sparks = () => { const store = openLingguangStore(homeDirectory, projectId!); try { return store.list().map(spark => spark.title); } finally { store.close(); } };
   // The record the workbench reopens in a plugin's page after a reload (per device, in localStorage).
   const remembered = (plugin: string) => evaluate<string[]>(`Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}')[${JSON.stringify(plugin)}]).filter(Boolean)`);
@@ -243,8 +243,8 @@ test("Pages and 灵光: going back with the workbench's own Back button or the p
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
-  const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
-  const sparks = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
+  const titles = () => { const store = openPagesStore(homeDirectory, projectId!); try { return store.list().map(page => page.title); } finally { store.close(); } };
+  const sparks = () => { const store = openLingguangStore(homeDirectory, projectId!); try { return store.list().map(spark => spark.title); } finally { store.close(); } };
   const object = (surface: string) => (surface.includes("pages") ? pages : lingguang).evaluate(`JSON.parse(document.querySelector('${surface}').getAttribute('data-assistant-context') || 'null')?.object ?? null`);
   const openBlankPage = async () => {
     await pages.click("[data-pages-new]");
@@ -311,8 +311,8 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
-  const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
-  const sparks = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
+  const titles = () => { const store = openPagesStore(homeDirectory, projectId!); try { return store.list().map(page => page.title); } finally { store.close(); } };
+  const sparks = () => { const store = openLingguangStore(homeDirectory, projectId!); try { return store.list().map(spark => spark.title); } finally { store.close(); } };
   // The record the workbench reopens in a plugin's page after a reload (per device, in localStorage).
   const remembered = (plugin: string) => evaluate<string[]>(`Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}')[${JSON.stringify(plugin)}]).filter(Boolean)`);
@@ -410,7 +410,7 @@ test("Pages: a document opened while the workbench is still looking for a taken-
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await pages.waitFor(`document.querySelector('[data-pages-new]') && ${CLIENTS_READY}`, 20_000);
-  const ids = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.id); } finally { store.close(); } };
+  const ids = () => { const store = openPagesStore(homeDirectory, projectId!); try { return store.list().map(page => page.id); } finally { store.close(); } };
   const remembered = () => evaluate<string[]>(`Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}').pages).filter(Boolean)`);
   const untilRemembered = async (count: number, what: string) => {
@@ -461,7 +461,7 @@ test("Pages: Back and then Forward at once, while the workbench is still looking
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await pages.waitFor(`document.querySelector('[data-pages-new]') && ${CLIENTS_READY}`, 20_000);
-  const count = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).length; } finally { store.close(); } };
+  const count = () => { const store = openPagesStore(homeDirectory, projectId!); try { return store.list().length; } finally { store.close(); } };
   const remembered = () => evaluate<string[]>(`Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}').pages).filter(Boolean)`);
   const before = count();
@@ -511,7 +511,7 @@ test("Pages: opening an imported document leaves the blank new document next to 
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
-  const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title).sort(); } finally { store.close(); } };
+  const titles = () => { const store = openPagesStore(homeDirectory, projectId!); try { return store.list().map(page => page.title).sort(); } finally { store.close(); } };
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await pages.waitFor("document.querySelector('[data-pages-new]')", 20_000);
   const before = titles();
@@ -551,7 +551,7 @@ async function blankDocumentGivenSomethingStays(t: TestContext, change: "star" |
   await waitFor("document.querySelector('[data-plugin-id=pages]')", 20_000);
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await pages.waitFor("document.querySelector('[data-pages-new]')", 20_000);
-  const documents = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!); } finally { store.close(); } };
+  const documents = () => { const store = openPagesStore(homeDirectory, projectId!); try { return store.list(); } finally { store.close(); } };
   const known = new Set(documents().map(page => page.id));
   // How the Host answered the page's discard: the page says nothing about a refused tidy-up, so this is where it shows.
   await evaluate(`window.discardAnswers = []; { const realFetch = window.fetch;
@@ -598,7 +598,7 @@ test("灵光: 「记下第一条灵光」 left empty is thrown away when the per
   await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await lingguang.waitFor(`document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
-  const kept = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
+  const kept = () => { const store = openLingguangStore(homeDirectory, projectId!); try { return store.list().map(spark => spark.title); } finally { store.close(); } };
   assert.deepEqual(kept(), []);
   await lingguang.click("[data-lingguang-capture]");
   await lingguang.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true' && document.querySelectorAll('[data-lingguang-id]').length === 1", 20_000);

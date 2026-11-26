@@ -192,30 +192,18 @@
         "images.ts"
       ]
     },
-    "pages/pages.db": {
+    "projects/<project_id>/libraries/<库名>.db": {
       "cases": [
-        "pages.ts"
+        "pages.ts",
+        "form.ts",
+        "dataset.ts",
+        "ppt.ts",
+        "lingguang.ts",
+        "workflows.ts"
       ]
     },
-    "form/form.db": {
-      "cases": [
-        "form.ts"
-      ]
-    },
-    "dataset/dataset.db": {
-      "cases": [
-        "dataset.ts"
-      ]
-    },
-    "ppt/ppt.db": {
-      "cases": [
-        "ppt.ts"
-      ]
-    },
-    "lingguang/lingguang.db": {
-      "cases": [
-        "lingguang.ts"
-      ]
+    "personal-space/libraries/<库名>.db": {
+      "none": "第 107 批起六个插件的分区独立库在每个分区各一份；金样的写入用例只写主项目，个人空间的同一份库由同一组用例在项目分区里证明能改（与 personal-space/molis-work.db 同理），个人空间里的写入从第 109 批起补用例"
     },
     "feed-content/feed-content.db": {
       "none": "正文只在 Feed 真的拉到内容时写，要联网；金样不联网，这个库只有结构和空间行，没有业务行（feed.ts 写的是项目那一半）"
@@ -233,11 +221,6 @@
     "cognia/cognia.db": {
       "cases": [
         "cognia.ts"
-      ]
-    },
-    "workflows/workflows.db": {
-      "cases": [
-        "workflows.ts"
       ]
     },
     "work-brief/work-brief.db": {

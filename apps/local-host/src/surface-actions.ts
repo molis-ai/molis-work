@@ -15,7 +15,7 @@ import { hostLog } from "./host-log.js";
 import type { PlacementHost } from "./placement-actions.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { runningProjectPlatform } from "./project-plugins.js";
+import { projectPluginPlatform, runningProjectPluginState } from "./project-plugins.js";
 import { objectStageLocation, surfaceHomeDirectory, type SurfaceHomeCatalogReader } from "./surface-home-directory.js";
 import { surfaceSampleFor, retainSurfaceDirectory } from "./surface-read-sample.js";
 
@@ -42,10 +42,11 @@ function surfacePlugin(record: PluginInstanceRecord, scope: SurfacePlugin["scope
 async function surfacePlugins(ports: SurfaceHostPorts, current: () => void): Promise<readonly SurfacePlugin[]> {
   const { store, reference: { project_id: projectId } } = ports;
   // Built-in and installed plugins run on the project's one platform (47-1 B).
-  const project = await runningProjectPlatform(store, projectId);
+  const project = await runningProjectPluginState(store, projectId);
   current();
   const projectEntries = installedPluginEntries(store.db).map(({ record, manifest }) => {
-    const platform = project?.supervisor.state(record.plugin_id)?.install_id === record.install_id ? project : undefined;
+    const own = project && projectPluginPlatform(project, record.plugin_id);
+    const platform = own?.supervisor.state(record.plugin_id)?.install_id === record.install_id ? own : undefined;
     const contribution = platform?.supervisor.contribution(record.plugin_id);
     const slots = contribution?.kind === "app" ? contribution.views?.flatMap(view => view.descriptor.slots) ?? [] : [];
     return surfacePlugin(record, "project", manifest, slots);

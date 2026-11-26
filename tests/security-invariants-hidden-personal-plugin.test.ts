@@ -66,17 +66,17 @@ test("RAC-580 S-72 a personal plugin the project hides is not reached through a 
 test("RAC-580 S-72 Shelf, a platform part, stays in reach whatever the project hid; the reach list holds no name of it", async t => {
   const home = await openTestHome(t, { catalogPolicy: false });
   const project = await home.createProject("Platform part", ["goals"]);
-  await hide(home, project, "pages");
+  await hide(home, project, "todo");
   const listed = await home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog)({ homeDirectory: home.home }, catalog => {
     const { plugins, hidden } = catalog.projectPluginMembership(project.project_id);
     return { enabled: plugins, hidden };
   });
-  assert.deepEqual(listed.hidden, ["pages"], "what the person hid is listed");
+  assert.deepEqual(listed.hidden, ["todo"], "what the person hid is listed");
   const shown = shownProjectPlugins(listed.enabled, listed.hidden);
-  assert.ok(!shown.includes("shelf") && !shown.includes("pages"), "Shelf is no project plugin, so the list never names it");
+  assert.ok(!shown.includes("shelf") && !shown.includes("todo"), "Shelf is no project plugin, so the list never names it");
   const availability = projectActionAvailability(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), home.home);
   assert.deepEqual(await availability(callerIn(project.project_id), SHELF_VIEW), { available: true });
-  assert.equal((await availability(callerIn(project.project_id), view("pages"))).available, false);
+  assert.equal((await availability(callerIn(project.project_id), view("todo"))).available, false);
 });
 
 // S-34: a platform part has no lifecycle. Whatever spelling reaches it — the platform path the pages use, or a project's — turning it off,
@@ -93,16 +93,16 @@ test("S-34 Shelf, a platform part, refuses every lifecycle operation and keeps a
 
 test("RAC-580 S-72 the availability both the action directory and discovery use refuses a hidden personal plugin, only in the project that hid it", async t => {
   const home = await openTestHome(t, { catalogPolicy: false });
-  const hiding = await home.createProject("Hides Pages", ["goals"]), showing = await home.createProject("Shows Pages", ["goals"]);
-  await hide(home, hiding, "pages");
+  const hiding = await home.createProject("Hides Todo", ["goals"]), showing = await home.createProject("Shows Todo", ["goals"]);
+  await hide(home, hiding, "todo");
   const availability = projectActionAvailability(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), home.home);
   const refused = { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" };
   const states = async (caller: ActionCallContext, plugin: string) => {
     const discovery = await availability.snapshotForDiscovery(caller);
     return { live: await availability(caller, view(plugin)), snapshot: discovery(caller, view(plugin)) };
   };
-  assert.deepEqual(await states(callerIn(hiding.project_id), "pages"), { live: refused, snapshot: refused });
-  assert.deepEqual(await states(callerIn(showing.project_id), "pages"), { live: { available: true }, snapshot: { available: true } });
+  assert.deepEqual(await states(callerIn(hiding.project_id), "todo"), { live: refused, snapshot: refused });
+  assert.deepEqual(await states(callerIn(showing.project_id), "todo"), { live: { available: true }, snapshot: { available: true } });
   // Shelf is a platform part: there is no project plugin of that name to hide, and it is reached whatever was hidden.
   await assert.rejects(hide(home, hiding, "shelf"), { status: 400, code: "catalog.plugin_not_found" });
   const shelfDiscovery = await availability.snapshotForDiscovery(callerIn(hiding.project_id));
@@ -113,7 +113,7 @@ test("RAC-580 S-72 the availability both the action directory and discovery use 
   assert.deepEqual(await availability(callerIn(hiding.project_id), unknown), { available: true });
   // No project, or a project that no longer exists: nothing is hidden, so a personal plugin is there; a project plugin still is not.
   for (const caller of [callerIn(null), callerIn("deleted-project")]) {
-    assert.deepEqual(await states(caller, "pages"), { live: { available: true }, snapshot: { available: true } });
+    assert.deepEqual(await states(caller, "todo"), { live: { available: true }, snapshot: { available: true } });
     assert.deepEqual(await states(caller, "goals"), { live: refused, snapshot: refused });
   }
 });
@@ -192,8 +192,9 @@ test("RAC-582 S-72 and RAC-583 the hidden plugin's routes under the project refu
   assert.equal(listed.counts.all, 1, "the owner's facts were never touched while it was hidden");
 });
 
-test("RAC-582 S-72 a project-level personal plugin's routes (Form) are refused in the project that hid it, from the same list the actions read, and work in one that did not", { timeout: 60_000 }, async t => {
-  const home = await openTestHome(t), hiding = await home.createProject("Hides Form"), showing = await home.createProject("Shows Form");
+// Since batch 107 Form is no longer personal: a project adds it, and one that takes it out refuses its routes as one that hid a personal plugin does.
+test("RAC-582 S-72 a per-partition plugin's routes (Form) are refused in the project that took it out, from the same list the actions read, and work in one that did not", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), hiding = await home.createProject("Hides Form", ["form"]), showing = await home.createProject("Shows Form", ["form"]);
   await home.web.get(formList(hiding));
   await hide(home, hiding, "form");
   await assert.rejects(home.web.get(formList(hiding)), { status: 403, code: "actions.plugin_disabled" });

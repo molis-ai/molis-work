@@ -4,8 +4,7 @@ import { pagesActions as actions, pagesContentActions as content, PAGES_ACTION_P
 import { body, fixture, selection } from "./fixtures/pages-action-host.js";
 import { bindActionClient, type ActionCallContext, type PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
-import { openPagesStore } from "./fixtures/plugin-home-stores.js";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openPagesStore, openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
 
 /** A project the Home's catalog holds: since the atomic pin (batch 06, N12) only such a project's library takes a Pages publication. */
@@ -40,9 +39,9 @@ test("Pages auto-registers all business contracts; HTTP and workflow use the sam
     const updated = (await bound.invoke(actions.update, { id: document.id, body: body("Edited"), expected_version: document.version })).document;
     await assert.rejects(bound.invoke(actions.update, { id: document.id, title: "Overwrite", expected_version: document.version }), { code: "pages.conflict" });
     assert.equal((await bound.invoke(actions.get, { id: document.id })).document.title, "Original");
-    const store = openPagesStore(home);
+    const store = openPagesStore(home, "b");
     let foreign: string;
-    try { foreign = store.create({ project_id: "b", title: "Private" }).id; } finally { store.close(); }
+    try { foreign = store.create({ title: "Private" }).id; } finally { store.close(); }
     await assert.rejects(bound.invoke(actions.get, { id: foreign }), { code: "pages.not_found" });
     await assert.rejects(bound.invoke(actions.update, { id: foreign, title: "Leak" }), { code: "pages.not_found" });
     const promoted = await bound.invoke(actions.promote, { id: document.id });
@@ -64,14 +63,14 @@ test("Pages auto-registers all business contracts; HTTP and workflow use the sam
 });
 
 test("extract rolls back both source and new knowledge pages when any insert fails, then retries without duplicates", async () => {
-  await fixture(async ({ home, bound }) => {
+  await fixture(async ({ home, bound, ref }) => {
     const content = [
       { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Knowledge" }] },
       { type: "paragraph", content: [{ type: "text", text: "Enough original text to form a knowledge page." }] },
       { type: "task_list", content: [{ type: "task_item", content: [{ type: "paragraph", content: [{ type: "text", text: "Ship it" }] }] }] },
     ];
     const { document } = await bound.invoke(actions.create, { title: "Source", body: { type: "doc", content } });
-    const db = openHomeSqliteDatabase(home, "pages");
+    const db = openPartitionLibraryDatabase(home, ref.project_id, "pages");
     try {
       db.exec("CREATE UNIQUE INDEX fail_knowledge ON pages ((1))");
       await assert.rejects(bound.invoke(actions.extract, { id: document.id }), /UNIQUE constraint failed/);

@@ -16,9 +16,9 @@ async function openPreview(t: TestContext) {
   const browser = await openGoalBrowser(t, true); if (!browser) return null;
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const form = await pluginFrameBrowser(t, browser, "form");
-  const store = openFormStore(homeDirectory);
-  const created = store.create({ project_id: projectId!, title: "回答长度" });
-  const record = store.update(created.id, { questions: [{ id: "q1", type: "text", title: "备注", required: false }] }, projectId!);
+  const store = openFormStore(homeDirectory, projectId!);
+  const created = store.create({ title: "回答长度" });
+  const record = store.update(created.id, { questions: [{ id: "q1", type: "text", title: "备注", required: false }] });
   store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=form` }, sessionId));
@@ -43,8 +43,8 @@ async function openPreview(t: TestContext) {
     note: () => form.evaluate<string>("document.querySelector('[data-form-note]')?.textContent ?? ''"),
     /** The answers the store kept for this form, counted in characters. */
     stored() {
-      const checked = openFormStore(homeDirectory);
-      try { return checked.listSubmissions(record.id, projectId!).map(submission => [...String((submission.answers || {})["q1"] ?? "")].length); }
+      const checked = openFormStore(homeDirectory, projectId!);
+      try { return checked.listSubmissions(record.id).map(submission => [...String((submission.answers || {})["q1"] ?? "")].length); }
       finally { checked.close(); }
     },
   };
@@ -76,10 +76,10 @@ async function openFill(t: TestContext) {
   const browser = await openGoalBrowser(t, true); if (!browser) return null;
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const form = await pluginFrameBrowser(t, browser, "form");
-  const store = openFormStore(homeDirectory);
-  const created = store.create({ project_id: projectId!, title: "回答长度-填写页" });
-  const record = store.update(created.id, { questions: [{ id: "q1", type: "text", title: "备注", required: true }] }, projectId!);
-  store.publish(record.id, projectId!);
+  const store = openFormStore(homeDirectory, projectId!);
+  const created = store.create({ title: "回答长度-填写页" });
+  const record = store.update(created.id, { questions: [{ id: "q1", type: "text", title: "备注", required: true }] });
+  store.publish(record.id);
   store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=form` }, sessionId));

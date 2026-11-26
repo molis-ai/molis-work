@@ -5,7 +5,7 @@ export { FORM_INSTRUCTIONS } from "./prompts.js";
 export { FORM_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { createFormPlugin } from "./plugin.js";
 export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID, formManifest } from "./manifest.js";
-export { ownFormStores, FormStore, FORM_HOME_STORE, FORM_DATABASE } from "./store.js";
+export { ownFormStores, FormStore, FORM_DATABASE } from "./store.js";
 export type { FormSql, FormSqlValue, FormStores } from "./store.js";
 export { formErrors } from "./error.js";
 

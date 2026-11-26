@@ -5,7 +5,7 @@ import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platf
 
 
 export const datasetAggregates:readonly SyncAggregateDefinition[]=[{
-  kind:'dataset',copy:{kind:'io.molis.work.dataset:dataset',references(value,projectId){const ids=new Set<string>();if(value.record.artifact_id)ids.add(String(value.record.artifact_id));for(const saved of value.children.dataset_versions!){const snapshot=JSON.parse(String(saved.snapshot_json));if(snapshot.artifact_id)ids.add(snapshot.artifact_id);}return [...ids].map(id=>({kind:'system.artifacts:artifact',id,projectId}));},rebase(value,identity){if(value.record.artifact_id)value.record.artifact_id=identity.id('system.artifacts:artifact',String(value.record.artifact_id));for(const saved of value.children.dataset_versions!){const snapshot=JSON.parse(String(saved.snapshot_json));snapshot.id=value.record.id;snapshot.project_id=identity.targetProjectId;if(snapshot.artifact_id)snapshot.artifact_id=identity.id('system.artifacts:artifact',snapshot.artifact_id);saved.snapshot_json=JSON.stringify(snapshot);}}},table:'datasets',columns:['id','project_id','title','description','status','columns_json','rows_json','created_at','updated_at','artifact_id','artifact_version'],
+  kind:'dataset',copy:{kind:'io.molis.work.dataset:dataset',references(value,projectId){const ids=new Set<string>();if(value.record.artifact_id)ids.add(String(value.record.artifact_id));for(const saved of value.children.dataset_versions!){const snapshot=JSON.parse(String(saved.snapshot_json));if(snapshot.artifact_id)ids.add(snapshot.artifact_id);}return [...ids].map(id=>({kind:'system.artifacts:artifact',id,projectId}));},rebase(value,identity){if(value.record.artifact_id)value.record.artifact_id=identity.id('system.artifacts:artifact',String(value.record.artifact_id));for(const saved of value.children.dataset_versions!){const snapshot=JSON.parse(String(saved.snapshot_json));snapshot.id=value.record.id;snapshot.project_id=identity.targetProjectId;if(snapshot.artifact_id)snapshot.artifact_id=identity.id('system.artifacts:artifact',snapshot.artifact_id);saved.snapshot_json=JSON.stringify(snapshot);}}},table:'datasets',columns:['id','title','description','status','columns_json','rows_json','created_at','updated_at','artifact_id','artifact_version'],
   children:[{table:'dataset_versions',parent:'dataset_id',columns:['id','dataset_id','note','snapshot_json','created_at'],orderBy:'created_at,id'}],versionColumn:'version',busyColumn:'publication_pending_json',
   validate({record:r,children}){
     base(r);table(JSON.parse(String(r.columns_json)),JSON.parse(String(r.rows_json)));
@@ -16,13 +16,13 @@ export const datasetAggregates:readonly SyncAggregateDefinition[]=[{
       // A historical snapshot can describe a pending publication. It is not an executable intent;
       // rollback consumes only its content fields and must preserve the historical description.
       if(s.publication_pending!==undefined){const p=s.publication_pending;check(p&&Object.keys(p).sort().join(',')==='source_version,version'&&Number.isSafeInteger(p.version)&&p.version>0&&Number.isSafeInteger(p.source_version)&&p.source_version>0);}
-      check(s.id===r.id&&s.project_id===r.project_id&&Number.isSafeInteger(s.version)&&s.version>0);base(s);table(s.columns,s.rows);
+      check(s.id===r.id&&typeof s.project_id==='string'&&Number.isSafeInteger(s.version)&&s.version>0);base(s);table(s.columns,s.rows);
     }
   },
   dependencies({record:r},context,projectId){if(r.artifact_id&&!context.hasArtifact(projectId,String(r.artifact_id),Number(r.artifact_version)))throw syncError("dependencies",'等待数据表关联的成果版本');},
 }];
 function base(r:SyncPortableRow){
-  for(const k of ['id','project_id','title','description','artifact_id'])check(typeof r[k]==='string');
+  for(const k of ['id','title','description','artifact_id'])check(typeof r[k]==='string');
   check(String(r.title).length>0&&String(r.title).length<=80&&String(r.description).length<=2000&&['draft','ready'].includes(String(r.status)));
   for(const k of ['created_at','updated_at'])check(typeof r[k]==='string'&&Number.isFinite(Date.parse(r[k])));
   check(Number.isSafeInteger(r.artifact_version)&&Number(r.artifact_version)>=0&&Boolean(r.artifact_id)===(Number(r.artifact_version)>0));

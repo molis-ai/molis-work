@@ -24,8 +24,8 @@ async function pagesWorkbench(t: TestContext) {
     const original=window.fetch;window.fetch=async(...args)=>{const url=String(args[0]);if(url.includes("/api/contextual/signal"))window.__signals.push(JSON.parse(args[1].body));if(url.includes("/api/contextual/judge"))window.__judgeBodies.push(JSON.parse(args[1].body));return original(...args)};`},sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  const setup = openPagesStore(homeDirectory);
-  const page = (() => { try { return setup.create({ project_id: projectId!, title: "留存分析", body: { type: "doc", content: [paragraph(TEXT)] } }); } finally { setup.close(); } })();
+  const setup = openPagesStore(homeDirectory, projectId!);
+  const page = (() => { try { return setup.create({ title: "留存分析", body: { type: "doc", content: [paragraph(TEXT)] } }); } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(TEXT)})`, 15_000);
   return {...browser,child,pane};

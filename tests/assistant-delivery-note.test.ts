@@ -117,7 +117,7 @@ test("RCPT-370: the ledger's facts and the AI's own statement are two groups, ea
   planned.rounds[0]!.steps = steps;
   const stated = groups(html(planned));
   assert.match(stated["AI 自己说的，Molis 没有核对"]!, /<li>AI 报告的步骤：整理数据 · 模型报告完成<\/li>/, "the AI's list of its own steps: its report of done, not a check");
-  assert.match(stated["AI 自己说的，Molis 没有核对"]!, /AI 报告的步骤：画图表 · 进行中.*AI 报告的步骤：写结论 · 尚未开始.*AI 报告的步骤：查旧稿 · 已取消/);
+  assert.match(stated["AI 自己说的，Molis 没有核对"]!, /AI 报告的步骤：画图表 · 进行中.*AI 报告的步骤：写结论 · 还没开始.*AI 报告的步骤：查旧稿 · 已取消/);
   for (const [heading, content] of Object.entries(stated)) if (heading !== "AI 自己说的，Molis 没有核对") assert.doesNotMatch(content, /AI 报告的步骤/, `${heading}: the AI's steps are in its own group only`);
   assert.doesNotMatch(Object.values(stated).join(""), FORBIDDEN);
   const only = view("completed", [turn("t1", "补充", steer("s1", "unread"))]);

@@ -91,7 +91,6 @@ test("S-91 RAC-241 another publisher's library, a name the Host or another plugi
   const elsewhere = newHome(t);
   mkdirSync(join(elsewhere, "sbxother"));
   await assert.rejects(openSandboxHomeLibrary(elsewhere, owner, { ...declaration, store_name: "sbxother" }, homeStores(), () => {}, instance), { code: "plugin.home_database.object_taken" });
-  await assert.rejects(openSandboxHomeLibrary(elsewhere, owner, { ...declaration, partition: "project" }, homeStores(), () => {}, instance), { code: "plugin.declaration_invalid" });
   assert.equal(existsSync(file(elsewhere)), false, "a refusal makes no library");
   assert.equal(await nobodyRuns() || workers().length <= 1, true, "a refusal starts no process");
 });

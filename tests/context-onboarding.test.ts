@@ -85,10 +85,10 @@ test('adoption resumes after the summary action fails without replacing imported
     },
   });
   assert.equal(failed.phase, 'failed'); assert.match(failed.error!, /temporarily unavailable/);
-  const store = openPagesStore(dir);
+  const store = openPagesStore(dir,failed.project_id!);
   try {
-    const [source] = store.list(failed.project_id); assert.ok(source); assert.equal(store.list(failed.project_id).length, 1);
-    store.update(source.id, { title: 'User edited source' }, failed.project_id);
+    const [source] = store.list(); assert.ok(source); assert.equal(store.list().length, 1);
+    store.update(source.id, { title: 'User edited source' });
     const resumed = await adoptContextJourney(dir, id, { title: 'Ignored new title', body: 'Ignored new body' }, ports);
     assert.equal(resumed.phase, 'complete', resumed.error ?? ''); assert.equal(resumed.project_id, failed.project_id);
     // OCL-02 (observation-collection design §3「用户导入」): what the adoption did in the new project, the retry's calls included, is the
@@ -98,9 +98,9 @@ test('adoption resumes after the summary action fails without replacing imported
     const imports = calls.filter(record => String(record.detail.action).startsWith('pages.onboarding.documents@'));
     assert.ok(imports.length >= 2, calls.map(record => record.detail.action).join(' '));
     assert.deepEqual([...new Set(calls.map(record => record.source_class))], ['imported']);
-    assert.equal(store.list(resumed.project_id).length, 2);
-    assert.equal(store.get(source.id, resumed.project_id).title, 'User edited source');
-    const summary = store.get(resumed.summary_open!.id, resumed.project_id);
+    assert.equal(store.list().length, 2);
+    assert.equal(store.get(source.id).title, 'User edited source');
+    const summary = store.get(resumed.summary_open!.id);
     assert.match(JSON.stringify(summary.body), /Adopted source body/); assert.match(JSON.stringify(summary.body), new RegExp(source.id));
     assert.doesNotMatch(JSON.stringify(summary), /Ignored new/);
     const replay = await adoptContextJourney(dir, id, {}, ports); assert.equal(replay.summary_open!.id, summary.id);
@@ -215,9 +215,9 @@ test('local scope → grounded summary → one real project and editable source 
   // The chooser introduces the new project in the words the person accepted: the summary's first paragraph, without its headings or [S1] marks.
   const introduced=readProjectArrival(dir).projects[a.project_id]?.description;assert.match(introduced??'',/10 月 8 日/);assert.doesNotMatch(introduced??'',/\[S\d+\]|^#/);
   await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.ok(!catalog.projectPluginMembership(a.project_id).hidden.includes('pages'));});
-  const pages=openPagesStore(dir);try{assert.equal(pages.list(a.project_id).length,2);const summary=pages.get(a.summary_open!.id,a.project_id);assert.match(JSON.stringify(summary.body),/openPlugin=pages/);pages.update(summary.id,{title:'手动修改后'});}finally{pages.close();}
+  const pages=openPagesStore(dir,a.project_id!);try{assert.equal(pages.list().length,2);const summary=pages.get(a.summary_open!.id);assert.match(JSON.stringify(summary.body),/openPlugin=pages/);pages.update(summary.id,{title:'手动修改后'});}finally{pages.close();}
   await adoptContextJourney(dir,id,{title:'重复请求'},ports);
-  const reopened=openPagesStore(dir);try{assert.equal(reopened.get(a.summary_open!.id).title,'手动修改后');assert.equal(reopened.list(a.project_id).length,2);}finally{reopened.close();}
+  const reopened=openPagesStore(dir,a.project_id!);try{assert.equal(reopened.get(a.summary_open!.id).title,'手动修改后');assert.equal(reopened.list().length,2);}finally{reopened.close();}
   assert.equal(a.artifact_references!.length,2);
   const actions=await ports.actions(dir,a.project_id);
   const stored=await actions.invoke(artifactsActions.read,{reference:a.artifact_references![0]!});
@@ -236,12 +236,12 @@ test('long source and project titles fit Pages while full titles, original bodie
   const ports={...pagesPorts(dir),model:async()=>({completeText:async()=> '# Work\nOriginal mail body. [S1]'})};
   startContextJourney(dir,id,ports);const ready=await waitContextJourney(dir,id);assert.equal(ready.summary!.references[0]!.title,sourceTitle);
   const saved=await adoptContextJourney(dir,id,{title:projectTitle,body:ready.summary!.body},ports);assert.equal(saved.phase,'complete',saved.error??'');
-  const pages=openPagesStore(dir);try{
-    const docs=pages.list(saved.project_id);assert.equal(docs.length,2);assert.ok(docs.every(d=>[...d.title].length<=80&&d.title.isWellFormed()));
+  const pages=openPagesStore(dir,saved.project_id!);try{
+    const docs=pages.list();assert.equal(docs.length,2);assert.ok(docs.every(d=>[...d.title].length<=80&&d.title.isWellFormed()));
     const source=docs.find(d=>d.id!==saved.summary_open!.id)!;assert.equal(source.title,'[S1] '+'A'.repeat(73)+'🙂…');
     const sourceBody=JSON.stringify(pages.get(source.id).body);assert.ok(sourceBody.includes(sourceTitle));assert.match(sourceBody,/Original mail body/);
     assert.ok(JSON.stringify(pages.get(saved.summary_open!.id).body).includes(projectTitle));
-    await adoptContextJourney(dir,id,{title:'Ignored retry'},ports);assert.equal(pages.list(saved.project_id).length,2);
+    await adoptContextJourney(dir,id,{title:'Ignored retry'},ports);assert.equal(pages.list().length,2);
   }finally{pages.close();}
   await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,projectTitle);});
 });
@@ -263,9 +263,9 @@ async function adoptedTitles(t: Parameters<Parameters<typeof test>[1]>[0], headi
   assert.equal(ready.phase, "review", ready.error ?? "");
   const saved = await adoptContextJourney(dir, id, { title: project, body: ready.summary!.body }, ports);
   assert.equal(saved.phase, "complete", saved.error ?? "");
-  const pages = openPagesStore(dir);
+  const pages = openPagesStore(dir,saved.project_id!);
   try {
-    const documents = pages.list(saved.project_id), summary = documents.find(document => document.id === saved.summary_open!.id)!;
+    const documents = pages.list(), summary = documents.find(document => document.id === saved.summary_open!.id)!;
     return { sources: headings.map((_, index) => documents.find(document => document.title.startsWith(`[S${index + 1}] `))?.title),
       summary: summary.title, body: JSON.stringify(pages.get(summary.id).body) };
   } finally { pages.close(); }
@@ -595,7 +595,7 @@ test('creation failure after project registration resumes exactly that project, 
   const first=await adoptContextJourney(dir,id,{title:'Without AI',materials_only:true},{...pagesPorts(dir),withCatalog:failAfterCreate});assert.match(first.error!,/response loss/);
   const second=await adoptContextJourney(dir,id,{title:'retry ignored',materials_only:true},{...pagesPorts(dir)});assert.equal(second.phase,'complete',second.error??'');assert.equal(second.error,null);
   await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,'Without AI');});
-  const pages=openPagesStore(dir);try{assert.equal(pages.list(second.project_id).length,2);assert.match(JSON.stringify(pages.list(second.project_id)),/Fixture preserved body/);}finally{pages.close();}
+  const pages=openPagesStore(dir,second.project_id!);try{assert.equal(pages.list().length,2);assert.match(JSON.stringify(pages.list()),/Fixture preserved body/);}finally{pages.close();}
 });
 
 // RAC-661 (PG-031), now contract-design §2.5: the Host keeps materials only by the action a plugin declares it keeps `documents` with,
@@ -656,7 +656,7 @@ test('interrupted blank adoption resumes persisted acceptance without requiring 
   assert.throws(()=>reopenContextJourney(dir,id),/不能更改来源/);assert.throws(()=>startContextJourney(dir,id,{...pagesPorts(dir)}),/继续保存/);
   const saved=await adoptContextJourney(dir,id,{}, {...pagesPorts(dir)});assert.equal(saved.phase,'complete');assert.equal(saved.project_id,accepted.project_id);
   await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>assert.equal(catalog.listProjects().length,1));
-  const pages=openPagesStore(dir);try{assert.equal(pages.list(saved.project_id).length,1);assert.equal(pages.get(saved.summary_open!.id).title,'Accepted blank project · 工作摘要');}finally{pages.close();}
+  const pages=openPagesStore(dir,saved.project_id!);try{assert.equal(pages.list().length,1);assert.equal(pages.get(saved.summary_open!.id).title,'Accepted blank project · 工作摘要');}finally{pages.close();}
 });
 
 
@@ -668,7 +668,7 @@ test('blank start after a prior summary never adopts old sources, including a fa
   const failAfterCreate:typeof withCatalog=async(options,operation)=>{await withCatalog(options,operation);throw Error('Response lost');};
   const failed=await adoptContextJourney(dir,id,{title:'Blank after summary',blank:true},{...pagesPorts(dir),withCatalog:failAfterCreate});assert.equal(failed.phase,'failed');
   const result=await adoptContextJourney(dir,id,{},pagesPorts(dir));assert.equal(result.phase,'complete');assert.deepEqual(result.artifact_references,[]);
-  const pages=openPagesStore(dir);try{assert.equal(pages.list(result.project_id).length,1);assert.doesNotMatch(JSON.stringify(pages.get(result.summary_open!.id).body),/Old facts|Alpha/);}finally{pages.close();}
+  const pages=openPagesStore(dir,result.project_id!);try{assert.equal(pages.list().length,1);assert.doesNotMatch(JSON.stringify(pages.get(result.summary_open!.id).body),/Old facts|Alpha/);}finally{pages.close();}
 });
 
 // No limits on a round (user 2026-10-22, replaces slice 90's 200 files / 50 MB / 20 MB): the selection names staged files by digest,
@@ -697,7 +697,7 @@ test('ONB-LIM-03 a round of 300 files is read one by one and adopted whole: ever
   assert.deepEqual(read.reading_bytes,{done:sizes,total:sizes});
   assert.ok(JSON.stringify(withContextJourneys(dir,s=>s.get(id))).length<300*1_000,'the journey row names materials by digest, without their text');
   const adopted=await adoptContextJourney(dir,id,{title:'Three hundred',materials_only:true},ports);assert.equal(adopted.phase,'complete',adopted.error??'');
-  const pages=openPagesStore(dir);try{assert.equal(pages.list(adopted.project_id).length,301);}finally{pages.close();}
+  const pages=openPagesStore(dir,adopted.project_id!);try{assert.equal(pages.list().length,301);}finally{pages.close();}
   assert.equal(adopted.artifact_references!.length,301);
   await assert.rejects(stat(join(dir,'context-onboarding','journeys',id)),{code:'ENOENT'});
 });
@@ -715,8 +715,8 @@ test('ONB-LIM-04 a file over 6 MB with over 2 MB of text reaches adoption whole:
   startContextJourney(dir,id,ports);const read=await waitContextJourney(dir,id);assert.equal(read.sources[0]!.references!.length,1);
   assert.equal(read.sources[0]!.references![0]!.text.chars,big.trim().length,'the whole text is read, not its first 2 MB');
   const adopted=await adoptContextJourney(dir,id,{title:'Big',materials_only:true},ports);assert.equal(adopted.phase,'complete',adopted.error??'');
-  const pages=openPagesStore(dir);try{
-    const parts=pages.list(adopted.project_id).filter(d=>d.id!==adopted.summary_open!.id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
+  const pages=openPagesStore(dir,adopted.project_id!);try{
+    const parts=pages.list().filter(d=>d.id!==adopted.summary_open!.id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
     assert.ok(parts.length>1);assert.ok(parts.every((d,i)=>d.title.endsWith(` · 第 ${i+1} / ${parts.length} 部分`)),parts.map(d=>d.title).join(', '));
     const text=parts.map(d=>JSON.stringify(pages.get(d.id).body)).join('');
     assert.match(text,/原标题：Big notes/);assert.match(text,/Line 119999 of the long record/);assert.match(text,/END OF BIG FILE/);
@@ -750,12 +750,12 @@ test('RAC-617 PG-088 a real Pages body_too_large refusal is halved by the plugin
     const node=value as {text?:string;content?:unknown[]};
     return node.text??(node.content??[]).map(textOf).join('');
   };
-  const pages=openPagesStore(dir);try{
-    const parts=pages.list(adopted.project_id).filter(d=>d.id!==adopted.summary_open!.id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
+  const pages=openPagesStore(dir,adopted.project_id!);try{
+    const parts=pages.list().filter(d=>d.id!==adopted.summary_open!.id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
     assert.equal(parts.length,2);
     assert.ok(parts.every((d,i)=>d.title.endsWith(` · 第 ${i+1} / 2 部分`)),parts.map(d=>d.title).join(', '));
     const restored=parts.map(part=>{
-      const body=pages.get(part.id,adopted.project_id).body;
+      const body=pages.get(part.id).body;
       assert.ok(JSON.stringify(body).length<=1_400_000,'the persisted part fits onboarding and Pages');
       return textOf(body);
     }).join('');

@@ -46,7 +46,7 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
     assert.equal((await call('/v1/policy','alice',{spaceId:space.spaceId,revision:0,selections:[],unexpected:true},'PUT')).status,400);
     assert.equal((await call('/v1/policy','alice',{spaceId:space.spaceId,revision:0,selections:[selection,{...selection,schema_version:selection.schema_version+1}]},'PUT')).status,400);
     const homes=[join(root,'a'),join(root,'b')];homes.forEach(h=>{ensureStorageSpace(h,space);prepareSyncTestHome(h);});
-    const withStore=(i,run)=>{const s=openPagesStore(homes[i]);try{return run(s);}finally{s.close();}};
+    const withStore=(i,run)=>{const s=openPagesStore(homes[i],project.project_id);try{return run(s);}finally{s.close();}};
     let revoked=false;
     const check=()=>{if(revoked)throw new Error('REVOKED');};
     const authority={assertCurrent:check,signal:new AbortController().signal,accessToken:async()=>'alice'};
@@ -71,7 +71,7 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
     const forged={spaceId:space.spaceId,revision:0,selections:[selection]};
     assert.equal((await call('/v1/policy','bob',forged,'PUT')).status,403);
     assert.equal((await call('/v1/changes?namespace='+encodeURIComponent(namespace)+'&after=0','bob')).status,403);
-    const mutation={operationId:'stale',key:JSON.stringify([null,JSON.stringify([project.project_id,'document',page.id])]),base:0,value:null};
+    const mutation={operationId:'stale',key:JSON.stringify([project.project_id,JSON.stringify([project.project_id,'document',page.id])]),base:0,value:null};
     assert.equal((await call('/v1/changes','alice',{namespace,policyRevision:1,mutation,attachments:[]})).status,409);
     withStore(0,s=>s.delete(page.id));await clients[0].run();await clients[1].run();
     assert.equal(withStore(1,s=>s.list(project.project_id).length),0);
@@ -102,7 +102,7 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
     const selections=creative.map(([,m])=>({plugin_id:m.plugin_id,publisher_id:m.publisher.publisher_id,publisher_signature:m.publisher.signature,collection_id:m.sync.collections[0].id,schema_version:m.sync.collections[0].schema_version}));
     assert.equal((await call('/v1/policy','alice',{spaceId:space.spaceId,revision:2,selections:[selection,...selections]},'PUT')).status,200);
     for(const [index,[open,manifest]] of creative.entries()){
-      const a=open(homes[0]),b=open(homes[1]);
+      const a=open(homes[0],project.project_id),b=open(homes[1],project.project_id);
       try{
         const record=a.create({project_id:project.project_id,title:manifest.name+' through Rust/D1'});
         await clients[0].run();await clients[1].run();

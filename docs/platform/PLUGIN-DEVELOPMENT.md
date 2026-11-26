@@ -177,14 +177,11 @@ Schedule 是这些服务的生产消费者，工厂见 `plugins/native/schedule/
 
 一个本机 Local Host 持有一个 `HomePluginHost`，并发动作、场景和 HTTP 共用启动 Promise。安装、授予、发行物和私有 KV 在 `{home}/plugin-runtime/plugin-runtime.db`，复用 PluginRuntime、Supervisor 和 Action Registry；不同版本或不完整结构拒绝并保留，不补表、不清空。MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home 与项目共用提供方规则：只有可信启动条目给 `trust: HOST_BUILD_TRUST` 的定义对象使用插件 ID，其余使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权不能相互替代。
 
-Home 插件的数据按项目放时，Manifest 的 `databases.home` 写 `partition: "project"`（合同 `HomePluginDatabaseDeclaration`），库与分区由宿主从 Manifest 生成（`apps/local-host/src/home-stores.ts`），登记上不写库：每个项目一个库，在 `{home}/<库名>/projects/<项目>/`，宿主按调用所在的项目给出，不在项目里的调用答 `actions.project_required`；闲置关闭、停用关闭与删项目都归平台，删项目时整份删掉，确认框写「{插件名} 在这个项目里的数据」（PG-024）。位置与闲置关闭见 [HOME-DATA 3.3](../system/HOME-DATA.md)。规则：
+每个分区一份的数据用分区独立库 `databases.partition`（第 107 批起；原先 `databases.home` 的 `partition: "project"` 复用器已删）：平台在 `<分区根>/libraries/<store_name>.db` 给每个启用插件的分区开一份，表里不写 `project_id`，分区根只由平台求（[partitions.md](../../skills/molis-plugin-dev/partitions.md)）。第 109 批两套装配合并之前，这类内置插件由项目平台在每个分区跑一个实例，宿主按实例所在的分区打开它的库（`apps/local-host/src/plugin-home-database-client.ts` 的 `openPartitionPluginDatabase`）；插件拿到的仍是 `services.database`，分区只来自实例，不读输入，也不读插件给的任何东西（S-31）。授权与检查和 Home 库同一份代码：读只收 `SELECT`、`WITH`，写在 `transaction(beforeEffect, …)` 里，调用方在等待中失去授权，写入被拒、什么都不留。
 
-- 只有 Home 级条目能声明；项目平台的条目带 `partition` 启动前拒绝。Manifest 的 `partition` 与存储登记里同一个库的 `library.partition` 不一致（任一方向），整份启动名单不启动、不建库。
-- 项目只从调用上下文来：正在运行的、属于这个安装的动作或场景回调的 `caller.project_id`（`currentPluginInvocation`，且调用范围要属于本实例），不读动作参数，也不读插件给的任何东西，所以输入里写别的项目 id 不起作用，一个项目的调用读不到另一个项目写的。项目里的页面路由经插件自己的动作走进来（路由 control 带宿主核过的项目，S-31）；路由处理器本身、`start`、`stop`、事件回调不在动作里，用不了分区库。后台作业写进受理它的动作的项目，动作里再调的动作、场景回调沿用外层那次的项目。
-- 授权与检查和 `services.database` 是同一份代码（`openPluginDatabase`）：每次读写复查实例仍在运行、授权仍在；读只收 `SELECT`、`WITH`；写在 `transaction(beforeEffect, …)` 里只收 `INSERT`、`UPDATE`、`DELETE`，事务体同步；调用方在等待中失去授权，写入被拒、什么都不留。实例停止时全部项目库关掉，之后的旧句柄被拒（S-18）。
-- 删项目由平台做，插件不被通知，不跑自己的代码，也没有 `purge`：同一轮里先停掉这个安装在这个项目里受理的后台执行，关掉这个项目的库（有写事务在等也关），再删整个项目目录；插件没在运行、宿主没开（命令行、卸载器）时同样删这个目录（`apps/local-host/src/project-deleted-owners.ts`）。删除开始之前就已开始的调用（含它里面再调的、它受理的后台作业）此后读写这个项目的库答 `actions.missing`，不会把删掉的库建回来；从关库到目录删完之间新开始的调用答 `actions.unavailable`（稍后再试）；删完之后才开始的调用（演示项目用固定的 id 删了再建）从空库开始。
-- 「删到哪次调用为止」和「哪些项目正在清理」记在 Home 插件执行器上（`apps/local-host/src/plugin-database-partitions.ts` 的 `PartitionDeletions`）、按安装分，不随实例走：清理等待中插件被停用再启用、升级或恢复，新实例照样答 `actions.unavailable`，不会打开一个随后被整个删掉的库。删目录失败时，这一步留在删除回执的待办里；固定 id 的演示重建前先 `settleProject`（`apps/local-host/src/managed-project-deletion.ts`）把待办的清理做完，做不完就拒绝，所以不会从旧库开始。
-- 升级后库版本与声明不符怎么办还没定（BL-639），用到之前先补。
+- 删项目由平台做，插件不被通知、不跑自己的代码：项目的插件实例先停掉，再由分区的主人把整个库连同 `-journal`、`-wal`、`-shm` 删掉（`apps/local-host/src/project-deleted-owners.ts`）；删除开始之前开始的调用此后被拒，不会把库建回来（S-18）。确认框里这一行的文字与先后写在 `databases.partition.deletion`（`label`、`order`，写法同 `project_rows`）；不写时是「{插件名} 在这个项目里的数据」。
+- 跨分区的移动与复制经平台搬运：源分区 `exportRecord` 出记录，目标分区 `putRecord` 放进去，移动再由源分区 `removeCarried` 按版本删掉；中途失败平台回滚（placement 合同，S-partition-isolation 不放宽）。
+- 成果库固定版本记在 `databases.partition.pinned_rows`；成果移到别的分区之后，成果库比对时向平台的放置服务问它现在在哪里（答「已移走」）。
 
 Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留页面、助理、MCP 的入口和身份。业务输入不得接收 owner、actor、install、provider 或数据库路径。Home 实例不提供项目 `artifacts`、端口、事件或假项目：`services.artifacts` 现在可缺省，项目消费者须明确要求该服务。
 
@@ -199,7 +196,7 @@ Home 库初始化失败由它自身的页面/API 明确报告，Goals 页面与�
 
 Manifest 的 `databases.home`（`PluginDatabaseDeclaration`，PG-022；项目库见 `databases.project`）描述库名、当前基线和读写权限，插件拥有 schema 与 SQL；Host 选择路径、打开连接并提供 `context.services.database`。当前只给宿主启动名单上的 Native 插件（库要登记在 Home 的存储登记里；名单之外的插件还没有 Home 库，声明了就拒绝启动）；它是安装生命周期服务，不是 JavaScript 沙箱，也不向外部动作暴露 SQL。沙箱包在 Home Runtime 里声明 `databases.home`，用 `sdk.homeDatabase`（`get`、`all`、`transaction`，操作合同写 `effects.homeDatabase: ["read" | "write"]`，与 `projectDatabase` 同一套检查，S-91）；语句在宿主杀得掉的子进程里跑，宿主不留连接；项目里运行的沙箱包不能声明。每个库独占 `{home}/<store_name>/<store_name>.db`，schema 基线不符时拒绝并保留原库，不自动迁移。
 
-项目里宿主自己运行的内置插件也可以有 Home 里的库，用的是同一个 `services.database`，不是第二份服务（W3-06 D）：在 Manifest 写 `databases.home`，启动名单的条目上不再有 `database`。名单上的定义对象拿登记里的库；不在名单上、由宿主自己运行的插件（开发中的、装进来的）也可以在 Manifest 声明 `databases.home`，库经账本给：库首次打开时在 `plugin-libraries/` 记下插件 ID、发布者（取自安装记录）、库名、版本和表的哈希，之后换了发布者、版本、表或库名都拒绝启动；库名不能是宿主已有的存储、安装器的目录、别的插件的库或 Home 里已有的目录；按项目分开的库只有名单上的插件能有。首次的发布者是安装时 Manifest 的自报，安装时不校验签名是 PG-001 的缺口，账本只保证装上后不可换发布者。沙箱定义、没有 Home 的平台（`home: null`）也拿不到。库名必须在 Home 存储登记中归该插件所有，并与登记的库基线一致；Manifest 声明 `storage:private` 和库的读写权限，同一份名单不能重复占用库。名单有错整份不启动、不建库。所有项目的实例指向同一个库文件，数据由插件自己按项目分区；库随实例启动打开、停止关闭。Dataset、Form、灵光、Pages、PPT、Workflows 是当前生产里的这类插件。
+项目里宿主自己运行的内置插件也可以有 Home 里的库，用的是同一个 `services.database`，不是第二份服务（W3-06 D）：在 Manifest 写 `databases.home`，启动名单的条目上不再有 `database`。名单上的定义对象拿登记里的库；不在名单上、由宿主自己运行的插件（开发中的、装进来的）也可以在 Manifest 声明 `databases.home`，库经账本给：库首次打开时在 `plugin-libraries/` 记下插件 ID、发布者（取自安装记录）、库名、版本和表的哈希，之后换了发布者、版本、表或库名都拒绝启动；库名不能是宿主已有的存储、安装器的目录、别的插件的库或 Home 里已有的目录。首次的发布者是安装时 Manifest 的自报，安装时不校验签名是 PG-001 的缺口，账本只保证装上后不可换发布者。沙箱定义、没有 Home 的平台（`home: null`）也拿不到。库名必须在 Home 存储登记中归该插件所有，并与登记的库基线一致；Manifest 声明 `storage:private` 和库的读写权限，同一份名单不能重复占用库。名单有错整份不启动、不建库。所有项目的实例指向同一个库文件，数据由插件自己按项目分区；库随实例启动打开、停止关闭。Work Brief 的项目一半是当前生产里的这类插件；Dataset、Form、灵光、Pages、PPT、Workflows 第 107 批起改用分区独立库（上一段）。
 
 - `database.get/all` 用 SQLite 只读连接，接受参数化查询；没有跨库、路径和连接管理入口。
 - `database.transaction(caller.beforeEffect, tx => …)` 先等待当前动作授权，再复查安装和 grant，随后执行短同步事务；异步回调拒绝并回滚。事务对象离开回调后失效。

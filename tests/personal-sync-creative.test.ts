@@ -44,9 +44,9 @@ test('Host exposes and transfers all registered creative collections through the
   await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},async c=>{await c.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},()=>{});for(const plugin_id of ['form','dataset','ppt','lingguang','workflows','schedule','feed'])c.addProjectPlugin({project_id:project.project_id,plugin_id,actor_id:'alice'});});
   const sourceRuntime=await runtimePersonalSync(f.homes[0],f.space),targetRuntime=await runtimePersonalSync(f.homes[1],f.space);f.closeWith(()=>sourceRuntime.close());f.closeWith(()=>targetRuntime.close());const a=sourceRuntime.sync,b=targetRuntime.sync;
   const factories=[openFormStore,openDatasetStore,openPptStore,openLingguangStore];
-  const ids=factories.map(open=>{const s=open(f.homes[0]);try{return s.create({project_id:project.project_id,title:'跨设备业务内容'}).id;}finally{s.close();}});
-  const workflow=(()=>{const s=openWorkflowsStore(f.homes[0]);try{
-    const flow=s.create({project_id:project.project_id,title:'跨设备流程',chain:{stations:[newStation('pages'),newStation('inbox')],links:[manualLink()]}});
+  const ids=factories.map(open=>{const s=open(f.homes[0],project.project_id);try{return s.create({title:'跨设备业务内容'}).id;}finally{s.close();}});
+  const workflow=(()=>{const s=openWorkflowsStore(f.homes[0], project.project_id);try{
+    const flow=s.create({title:'跨设备流程',chain:{stations:[newStation('pages'),newStation('inbox')],links:[manualLink()]}});
     return {id:flow.workflow_id,instance:s.startInstance(flow,{plugin:'pages',item_id:'source',title:'资料'}).instance_id};
   }finally{s.close();}})();
   const jelly=(()=>{const s=openJellyStore(f.homes[0]);try{return s.execute({type:'note.create',title:'跨设备笔记',markdown:'同步内容'}).notes[0]!.id;}finally{s.close();}})();
@@ -66,10 +66,10 @@ test('Host exposes and transfers all registered creative collections through the
   selections.push({plugin_id:CHARACTER_PLUGIN_ID,publisher_id:'molis',publisher_signature:CHARACTER_PUBLISHER_SIGNATURE,collection_id:'drafts',schema_version:1});
   for(const selection of selections){const available=a.status().collections.find(row=>row.selection.plugin_id===selection.plugin_id&&row.selection.collection_id===selection.collection_id);assert.ok(available,selection.plugin_id+' '+selection.collection_id+' '+JSON.stringify(a.status().collections));assert.deepEqual(available.selection,selection);}assert.ok(a.status().collections.some(c=>c.selection.plugin_id==='io.molis.work.module.projects.v1'));assert.equal(a.policy().selections.length,0,'all current owner collections are opt-in');
   await a.save({...a.policy(),selections});for(let round=0;round<4;round++){await a.run();await b.run();}assert.equal(a.status().error,null);assert.equal(b.status().error,null);
-  factories.forEach((open,i)=>{const s=open(f.homes[1]);try{assert.equal(s.get(ids[i]!,project.project_id).title,'跨设备业务内容');}finally{s.close();}});
-  const received=openWorkflowsStore(f.homes[1]);try{
-    assert.equal(received.get(workflow.id,project.project_id).title,'跨设备流程');
-    assert.equal(received.instance(workflow.instance,project.project_id).title,'资料');
+  factories.forEach((open,i)=>{const s=open(f.homes[1],project.project_id);try{assert.equal(s.get(ids[i]!).title,'跨设备业务内容');}finally{s.close();}});
+  const received=openWorkflowsStore(f.homes[1], project.project_id);try{
+    assert.equal(received.get(workflow.id).title,'跨设备流程');
+    assert.equal(received.instance(workflow.instance).title,'资料');
     assert.throws(()=>received.assertExecutableInstance(workflow.instance),/仅可查看/);
   }finally{received.close();}
   const receivedJelly=openJellyStore(f.homes[1]);try{

@@ -40,8 +40,7 @@ test("RAC-746 Todo, Form, Lingguang, Dataset, PPT, Jelly, Cognia, Workflows and 
 test("RAC-747 the test fixture opens each plugin's library at its declared baseline, outside the plugin packages", t => {
   const home = mkdtempSync(join(tmpdir(), "plugin-home-stores-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  for (const open of [openTodoStore, openFormStore, openLingguangStore, openDatasetStore, openPptStore, openJellyStore, openCogniaStore, openWorkflowsStore, openPagesStore]) {
-    const store = open(home);
-    store.close();
-  }
+  for (const open of [openTodoStore, openJellyStore, openCogniaStore]) open(home).close();
+  // A plugin with a library in each partition (U2) is opened in one partition: the personal space and a project alike.
+  for (const partition of ["personal", "p1"]) for (const open of [openFormStore, openLingguangStore, openDatasetStore, openPptStore, openWorkflowsStore, openPagesStore]) open(home, partition).close();
 });

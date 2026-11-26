@@ -25,7 +25,7 @@ for (const mode of ["allowed", "source-missing", "pages-hidden", "controlled own
   if (mode === "pages-hidden") {
     const disabled = await request(`/api/settings/projects/${project.project_id}/plugins`, { plugin_id: "pages", expected_revision: await projectPluginRevisionAt(s.origin, project.project_id) }, "DELETE");
     assert.equal(disabled.status, 200, await disabled.clone().text());
-    assert.ok((await disabled.json()).hidden.includes("pages"));
+    assert.equal((await disabled.json()).plugins.includes("pages"), false, "taken out of the project (batch 107: Pages is no longer personal)");
   }
   const path = `/projects/${project.project_id}/api/plugins/${entry.manifest.plugin_id}/read`;
   if (mode === "allowed" || mode === "source-missing" || mode === "pages-hidden" || mode === "controlled owner unavailable") {
@@ -36,8 +36,10 @@ for (const mode of ["allowed", "source-missing", "pages-hidden", "controlled own
     } else {
       if (mode === "source-missing") assert.equal(probe.contexts.at(-1)!.grants.includes("pages:read"), false);
       assert.notEqual(response.status, 200);
-      // A hidden Pages refuses the delegated read too: a dependency does not keep a hidden plugin available (platform-authority-audience §9.1).
-      if (mode === "controlled owner unavailable" || mode === "pages-hidden") assert.equal((await response.json()).code, "actions.plugin_disabled");
+      // Pages taken out of the project refuses the delegated read too: a dependency does not keep a plugin available (platform-authority-audience §9.1).
+      // An owner the Host holds back is disabled; Pages taken out of the project has no instance here, so the read it depends on is missing.
+      if (mode === "controlled owner unavailable") assert.equal((await response.json()).code, "actions.plugin_disabled");
+      if (mode === "pages-hidden") assert.equal((await response.json()).code, "actions.dependency_missing");
       assert.equal(probe.contexts.at(-1)!.services!.storage!.get("delivered"), null);
     }
     if (mode !== "allowed") {

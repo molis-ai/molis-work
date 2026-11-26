@@ -5,11 +5,11 @@ import { captureWebSessionAuthority } from "./web-sessions.js";
 import { ActionError, bindActionClient, isSubjectReader, requireSynchronous, type ActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionSceneView, ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { activeLocale, inLanguagePreview } from "./web-locale.js";
 import { LOCAL_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
-import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstanceRecord, PluginManifest, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentProjectPlatform, runningProjectPlatform } from "./project-plugins.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { sameInstalledRelease } from "./installed-stage-identity.js";
@@ -74,7 +74,7 @@ async function localWebActionContextWithCatalog(host: MolisWorkLocalHost, refere
   // Inspection activates the actual project providers. Metadata alone never supplies a grant.
   const catalog = await host.inspectPreparedActionMetadata(caller, reference);
   signal?.throwIfAborted();
-  const repository = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db)) : undefined;
+  const repository = reference ? await host.withProject(reference, runtime => pluginInstallRecords(runtime.store.db)) : undefined;
   const platform = reference ? await host.withProject(reference, runtime => runningProjectPlatform(runtime.store, runtime.project_id)) : null;
   return { caller: localWebAuthority(host, reference, caller, sessionCurrent, catalog, repository, platform, host.homePlugins?.installations() ?? [], entry, stageAction), catalog };
 }
@@ -107,7 +107,7 @@ export function openProjectPersonContext(host: MolisWorkLocalHost, reference: Lo
   const { caller, sessionCurrent } = localWebCaller(reference, LOCAL_OWNER_PERMISSIONS, signal);
   const metadata = host.inspectActionMetadata(caller, reference);
   return { metadata, inspect: () => host.inspectActionMetadata(caller, reference), caller: localWebAuthority(host, reference, caller, sessionCurrent, metadata,
-    new SqlitePluginRuntimeRepository(store.db), currentProjectPlatform(store, reference.project_id), host.homePlugins?.installations(false, true) ?? []) };
+    pluginInstallRecords(store.db), currentProjectPlatform(store, reference.project_id), host.homePlugins?.installations(false, true) ?? []) };
 }
 
 /**
@@ -145,7 +145,7 @@ function stageReadAuthority(owner: LocalWebStageRead, reference: LocalHostProjec
 }
 
 function buildLocalWebAuthority(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, base: ActionCallContext, sessionCurrent: () => void,
-  catalog: readonly LocalActionMetadata[], projectRepository: SqlitePluginRuntimeRepository | undefined,
+  catalog: readonly LocalActionMetadata[], projectRepository: Pick<PluginRuntimeRepository, "list" | "get"> | undefined,
   platform: Awaited<ReturnType<typeof runningProjectPlatform>>, homeInstalled: readonly PluginInstanceRecord[], entry: LocalWebEntry = {},
   stageAction?: ActionDefinition): ActionCallContext {
   const { permissions: builtinPermissions, signal } = base;

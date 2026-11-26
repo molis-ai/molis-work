@@ -31,7 +31,7 @@ async function fixture(t: TestContext) {
   const store = new WorkDelegationStore(storage), work = await store.ensureWork(subject, userControl);
   const db = new DatabaseSync(":memory:"); db.exec(PAGES_DATABASE.schema);
   const pages = new PagesStore({ get: (sql, args = []) => db.prepare(sql).get(...args), all: (sql, args = []) => db.prepare(sql).all(...args),
-    run: (sql, args = []) => db.prepare(sql).run(...args) }, new Map(), run => {
+    run: (sql, args = []) => db.prepare(sql).run(...args) }, "a", new Map(), run => {
     if (db.isTransaction) return run(); db.exec("BEGIN IMMEDIATE");
     try { const value = run(); db.exec("COMMIT"); return value; } catch (error) { db.exec("ROLLBACK"); throw error; }
   });
@@ -43,7 +43,7 @@ async function fixture(t: TestContext) {
   t.after(async () => { await store.close(); unregister(); pages.close(); db.close(); });
   const caller: ActionCallContext = { actor_id: "person", audience: "agent", actor_kind: "runtime", project_id: "a", permissions: PAGES_ACTION_PERMISSIONS,
     assert_authority_current: () => { if (!flags.action) throw new Error("original action revoked"); } };
-  const catalog = await service.discover(caller), doc = pages.create({ project_id: "a", title: "Original" });
+  const catalog = await service.discover(caller), doc = pages.create({ title: "Original" });
   const view = (key: keyof typeof pagesActions) => catalog.find(row => row.capability_id === pagesActions[key].capability_id)!;
   const owner = { provider_id: provider.provider_id, installation_generation: "pages-1", kind: PAGES_SUBJECT_KIND };
   const proposal = (key: keyof typeof pagesActions, input: unknown, patch: Partial<Proposal> = {}): Proposal => ({ work_epoch: work.epoch, view: view(key), input,
@@ -75,11 +75,11 @@ test("APR-07/08: current object scope permits changed content through real Pages
   assert.deepEqual(permit.decision.source, { kind: "delegation", delegation: { id: saved.selection_id, revision: 1, grantor_id: "person", work_epoch: f.work.epoch } });
   await f.service.invoke({ ...f.caller, validate_authority: () => permit.beforeEffect(), assert_authority_current: () => permit.assertCurrent() },
     { capability_id: p.view.capability_id, version: p.view.version, provider_id: p.view.provider.provider_id }, p.input);
-  const after = f.pages.get(f.doc.id, "a"); assert.equal(after.title, "Changed"); assert.equal(after.version, f.doc.version + 1);
+  const after = f.pages.get(f.doc.id); assert.equal(after.title, "Changed"); assert.equal(after.version, f.doc.version + 1);
   assert.equal((await f.decide(f.proposal("update", { id: f.doc.id, title: "Another", expected_version: after.version }))).decision.state, "delegation");
   assert.equal((await f.decide(f.proposal("update", { id: f.doc.id, folder_id: "", expected_version: after.version }))).decision.state, "confirm");
   assert.equal((await f.decide(f.proposal("delete", { id: f.doc.id }))).decision.state, "confirm");
-  assert.equal(f.pages.get(f.doc.id, "a").title, "Changed", "decisions themselves perform no business writes");
+  assert.equal(f.pages.get(f.doc.id).title, "Changed", "decisions themselves perform no business writes");
 });
 
 test("APR-08: declared unsupported and confirmation-only inputs cannot borrow an exact grant", async t => {
@@ -92,7 +92,7 @@ test("APR-08: declared unsupported and confirmation-only inputs cannot borrow an
     await f.grant([f.exact(p)]);
     assert.deepEqual((await f.decide(p)).decision, { state: "confirm", reason });
   }
-  assert.equal(f.pages.get(f.doc.id, "a").title, "Original");
+  assert.equal(f.pages.get(f.doc.id).title, "Original");
 });
 
 test("APR-07/08: only undeclared actions accept complete exact JSON; MCP keeps its connection boundary", async t => {
@@ -123,7 +123,7 @@ test("APR-11/13: read-only writes cannot be approved; explicit confirmation and 
   await f.grant([f.scopes()], "confirm"); assert.deepEqual((await f.decide(write)).decision, { state: "confirm", reason: "mode" });
   await f.grant([f.scopes()]); f.flags.confirm = true;
   assert.deepEqual((await f.decide({ ...write, confirmation_required: true })).decision, { state: "confirm", reason: "required" });
-  assert.equal(f.pages.get(f.doc.id, "a").title, "Original");
+  assert.equal(f.pages.get(f.doc.id).title, "Original");
 });
 
 test("APR-08/11: target fences guard matched object grants without blocking original review or reads", async t => {
@@ -145,7 +145,7 @@ test("APR-08/11: target fences guard matched object grants without blocking orig
   assert.deepEqual(confirm.decision, { state: "confirm", reason: "mode" }); await confirm.beforeEffect(); confirm.assertCurrent();
   await f.grant([f.scopes()]);
   await assert.rejects(f.decide(write), /original target replaced/);
-  assert.equal(f.pages.get(f.doc.id, "a").title, "Original");
+  assert.equal(f.pages.get(f.doc.id).title, "Original");
 });
 
 test("APR-08/11: object identity needs the exact target owner and fence, installation and declaration", async t => {
@@ -171,7 +171,7 @@ test("APR-07/11: revoked original action after permission read cannot produce a 
   const p = f.proposal("update", { id: f.doc.id, title: "Not sent", expected_version: 1 });
   const refused = assert.rejects(restarted.actionDecision(subject, p, f.control(p)), /original action revoked/);
   await entered.promise; f.flags.action = false; resume.resolve(); await refused;
-  assert.equal(f.pages.get(f.doc.id, "a").title, "Original");
+  assert.equal(f.pages.get(f.doc.id).title, "Original");
 });
 
 test("APR-07/11: final control rejects revoke during owner await and the actual Pages write stays untouched", async t => {
@@ -183,7 +183,7 @@ test("APR-07/11: final control rejects revoke during owner await and the actual 
   const refused = assert.rejects(f.service.invoke({ ...f.caller, validate_authority: () => permit.beforeEffect(), assert_authority_current: () => permit.assertCurrent() },
     { capability_id: p.view.capability_id, version: p.view.version, provider_id: p.view.provider.provider_id }, p.input), { code: "agent.delegation_changed" });
   await entered.promise; await f.store.revoke(subject, changed(saved), userControl); resume.resolve(); await refused;
-  assert.equal(f.pages.get(f.doc.id, "a").title, "Original"); assert.equal(f.pages.get(f.doc.id, "a").version, 1);
+  assert.equal(f.pages.get(f.doc.id).title, "Original"); assert.equal(f.pages.get(f.doc.id).version, 1);
   assert.throws(() => permit.assertCurrent(), { code: "agent.delegation_changed" });
 });
 
@@ -211,5 +211,5 @@ test("APR-08: proposal mutation while authority awaits cannot change the selecte
   const permit = await deciding; assert.equal(permit.input_version, expected); assert.notEqual(permit.input_version, reviewProposalVersion(input));
   assert.equal(permit.decision.state, "delegation");
   f.unregister(); assert.throws(() => permit.assertCurrent(), { code: "actions.provider_changed" });
-  assert.equal(f.pages.get(f.doc.id, "a").title, "Original");
+  assert.equal(f.pages.get(f.doc.id).title, "Original");
 });

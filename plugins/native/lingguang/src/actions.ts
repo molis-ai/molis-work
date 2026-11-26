@@ -2,7 +2,7 @@ import { objectSchema as object, createActionDefinition } from "@molis-ai/molis-
 import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { randomUUID } from "node:crypto";
 import { LINGGUANG_CONVERSATION } from "./prompts.js";
-import { ActionError, FRAGMENT_ANY_OBJECT, bindObjectCopyHandler, bindObjectMoveHandler, defineFragmentOffersAction, defineObjectCopyAction, defineObjectMoveAction, type FragmentActionOffer, type FragmentOffersInput, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, defineObjectExportAction, defineObjectPutAction, defineObjectRemoveAction, type FragmentActionOffer, type FragmentOffersInput, type ActionAvailability, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LINGGUANG_BODY_LIMIT, type LingguangSpark } from "./contract.js";
 import type { LingguangConversationState, LingguangStores } from "./store.js";
 import { createLingguangSearchHandlers, lingguangSearchActions, revisionOf } from "./search.js";
@@ -66,8 +66,13 @@ export const lingguangActions = {
     object({ id, body: { type: "string", minLength: 1, maxLength: 2000, pattern: "\\S" } }), conversationState, [...read, ...write, "model:invoke"], { cost: "metered" }),
   searchEntries: lingguangSearchActions.entries,
   subject: lingguangSearchActions.subject,
-  move: defineObjectMoveAction("lingguang.placement.move", /* @version action.lingguang.placement.move */ 1, ["lingguang_spark"], "灵光", [...read, ...write]),
-  copy: defineObjectCopyAction("lingguang.placement.copy", /* @version action.lingguang.placement.copy */ 1, ["lingguang_spark"], "灵光", [...read, ...write]),
+  /**
+   * Where a spark lives (specs/archive/work-placement): each partition keeps its own library, so placement carries a spark across
+   * (export here, put there, then remove here for a move); the platform rolls the carry back if a step fails.
+   */
+  placementExport: defineObjectExportAction("lingguang.placement.export", /* @version action.lingguang.placement.export */ 1, ["lingguang_spark"], "灵光", read),
+  placementPut: defineObjectPutAction("lingguang.placement.put", /* @version action.lingguang.placement.put */ 1, ["lingguang_spark"], "灵光", [...read, ...write]),
+  placementRemove: defineObjectRemoveAction("lingguang.placement.remove", /* @version action.lingguang.placement.remove */ 1, ["lingguang_spark"], "灵光", [...read, ...write]),
   readFile: define<MaterialUpload, LingguangMaterial>("material.read", /* @version action.lingguang.material.read */ 1, "读取文件内容", "提取上传文件的文字（含图片识别与音视频转写），不保存灵光；需要下载本机识别模型时先得到同意", "command",
     object({ file_name: { type: "string", minLength: 1, maxLength: 240 }, data_base64: { type: "string", minLength: 1 }, allow_model_download: { type: "boolean" } }, ["file_name", "data_base64"]), material, [...write, "materials:read"]),
   readSource: define<MaterialSource, LingguangMaterial>("source.read", /* @version action.lingguang.source.read */ 1, "读取链接内容", "读取公开网页、视频字幕或播客音频的文字，不保存灵光；遵守原来源的边界", "command",
@@ -97,24 +102,21 @@ export interface LingguangActionPorts extends LingguangStores {
 }
 
 export function createLingguangActionHandlers(ports: LingguangActionPorts): ActionHandlerBinding[] {
-  const project = (caller: ActionCallContext) => {
-    if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目");
-    return caller.project_id;
-  };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}),
   });
   return [
-    bindObjectMoveHandler(lingguangActions.move, (input, caller) => ports.write(caller, store => {
-      const moved = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
-      return { subject: { kind: "lingguang_spark", id: moved.id }, project_id: moved.project_id, revision: revisionOf(moved) };
-    })),
-    bindObjectCopyHandler(lingguangActions.copy, (input, caller) => ports.write(caller, store => {
-      const copy = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
-      return { subject: { kind: "lingguang_spark", id: copy.id }, project_id: copy.project_id, revision: revisionOf(copy) };
-    })),
-    bind(lingguangActions.list, (_, caller) => ports.read(store => ({ sparks: store.list(project(caller)) }))),
-    bind(lingguangActions.get, (input, caller) => ports.read(store => ({ spark: store.get(input.id, project(caller)) }))),
+    bind(lingguangActions.placementExport, input => ports.read(store => store.exportRecord(input.subject.id))),
+    bind(lingguangActions.placementPut, (input, caller) => {
+      if (input.kind !== "lingguang_spark") throw lingguangErrors.invalid("这里只能放灵光");
+      return ports.write(caller, store => {
+        const spark = store.putRecord(input.record, input.request_id, input.target_id);
+        return { subject: { kind: "lingguang_spark", id: spark.id }, project_id: spark.project_id, revision: revisionOf(spark) };
+      });
+    }),
+    bind(lingguangActions.placementRemove, (input, caller) => ports.write(caller, store => ({ subject: input.subject, removed: store.removeCarried(input.subject.id, input.revision) }))),
+    bind(lingguangActions.list, () => ports.read(store => ({ sparks: store.list() }))),
+    bind(lingguangActions.get, (input) => ports.read(store => ({ spark: store.get(input.id) }))),
     bind(lingguangActions.fragmentOffers, input => ({ offers: prepareLingguangFragmentOffers(input) })),
     bind(lingguangActions.readFile, async (input, caller) => {
       caller.on_progress?.({ stage: "extracting", progress: 0 });
@@ -124,15 +126,14 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
       caller.on_progress?.({ stage: "extracting", progress: 0 });
       return keptMaterial(await ports.readSource!(input, caller));
     }, () => reading(ports.readSource)),
-    bind(lingguangActions.create, (input, caller) => ports.write(caller, store => ({ spark: store.create({ ...input, project_id: project(caller) }) }))),
-    bind(lingguangActions.update, (input, caller) => ports.write(caller, store => ({ spark: store.update(input.id, input, project(caller)) }))),
-    bind(lingguangActions.discard, (input, caller) => ports.write(caller, store => { store.discard(input.ids, project(caller), input.expected_updated_at); return { ok: true }; })),
-    bind(lingguangActions.revert, (input, caller) => ports.write(caller, store => { store.discard([input.id], project(caller), { [input.id]: input.expected_updated_at }); return { ok: true }; })),
-    bind(lingguangActions.openConversation, (input, caller) => ports.write(caller, store => store.openConversation(input.spark_ids, project(caller)))),
-    bind(lingguangActions.getConversation, (input, caller) => ports.read(store => store.conversation(input.id, project(caller)))),
+    bind(lingguangActions.create, (input, caller) => ports.write(caller, store => ({ spark: store.create(input) }))),
+    bind(lingguangActions.update, (input, caller) => ports.write(caller, store => ({ spark: store.update(input.id, input) }))),
+    bind(lingguangActions.discard, (input, caller) => ports.write(caller, store => { store.discard(input.ids, input.expected_updated_at); return { ok: true }; })),
+    bind(lingguangActions.revert, (input, caller) => ports.write(caller, store => { store.discard([input.id], { [input.id]: input.expected_updated_at }); return { ok: true }; })),
+    bind(lingguangActions.openConversation, (input, caller) => ports.write(caller, store => store.openConversation(input.spark_ids))),
+    bind(lingguangActions.getConversation, (input) => ports.read(store => store.conversation(input.id))),
     bind(lingguangActions.message, async (input, caller) => {
-      const projectId = project(caller);
-      const snapshot = ports.read(store => store.conversation(input.id, projectId));
+      const snapshot = ports.read(store => store.conversation(input.id));
       if (snapshot.sparks.some(spark => spark.status !== "inbox")) throw lingguangErrors.invalid("关联灵光已丢弃，不能继续这场对话");
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置文字模型，再继续对话");
       const prompt = conversationPrompt(snapshot, input.body);
@@ -143,7 +144,7 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
         ...(caller.on_progress ? { onText: (delta: string) => caller.on_progress!({ stage: "writing", progress: 0, text_delta: delta }) } : {}) })).trim();
       caller.signal?.throwIfAborted();
       if (!reply) throw lingguangErrors.empty_reply("模型没有返回正文，输入已保留，可重试");
-      return ports.write(caller, store => store.addReply(input.id, input.body, reply, projectId, snapshot));
+      return ports.write(caller, store => store.addReply(input.id, input.body, reply, snapshot));
     }, () => ports.modelAvailability()),
     ...createLingguangSearchHandlers(ports.read),
   ];

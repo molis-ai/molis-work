@@ -1,7 +1,7 @@
 import {
-  ActionError, defineErrorCodes, isObjectCopier, isObjectMover, isPlacementRelationPart, PERSONAL_SPACE_PROJECT_ID, PLACEMENT_RELATION_LIMITS,
+  ActionError, defineErrorCodes, isObjectCopier, isObjectExporter, isObjectMover, isObjectPutter, isObjectRemover, isPlacementRelationPart, PERSONAL_SPACE_PROJECT_ID, PLACEMENT_RELATION_LIMITS,
   type ActionCallContext, type ActionClient, type ActionReference, type ActionSubject, type ActionView, type PlacementRelationCandidates, type PlacementRelationResult,
-  type PlacementRelationRole, type PlacementResult,
+  type PlacementExport, type PlacementRelationRole, type PlacementRemoved, type PlacementResult,
   type WorkflowItemRef,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONTEXT_RELATION_TYPES, type ContextAccess, type ContextEdge, type ContextLedgerApi, type ContextLedgerRelationReader, type ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
@@ -11,6 +11,7 @@ import type {
   PlacementLocation, PlacementMoveResponse, PlacementOpen, PlacementRelatedItem, PlacementSpaceView,
 } from "@molis-ai/molis-work-contracts/services/placement";
 
+import { createHash } from "node:crypto";
 import { readPlacementIn, type PlacementRead } from "./subject-reader.js";
 export {previewProjectCopy,type ProjectCopyPreviewInput,type ProjectCopySource,type ProjectCopyPreview,type ProjectCopyPreviewView,type ProjectCopyPreviewEntry,type ProjectCopyBlocker} from './project-copy-preview.js';
 export {projectCopyIdentities,type ProjectCopyIdentityInput} from './project-copy-identity.js';
@@ -46,7 +47,7 @@ const ACCESS: ContextAccess = { actor_id: "module:placement", scope: { kind: "pe
 /** Ledger-only marker for Home-level content (Shelf, Jelly, Cognia…): always personal, never moved. */
 const HOME = "home";
 const TYPES = { location: "placement.location", used: "placement.used_in", derived: CONTEXT_RELATION_TYPES.derived_from, copied: CONTEXT_RELATION_TYPES.copied_from, attached: "placement.attached_in",
-  belonging: "placement.belonged_to", belongs: "placement.belongs_to" } as const;
+  belonging: "placement.belonged_to", belongs: "placement.belongs_to", carrying: "placement.carrying" } as const;
 
 const identity = (kind: string, id: string): ObjectRef => ({ module: "plugins", object_type: kind, id, version: null, scope: ACCESS.scope, project_id: null });
 const projectRef = (projectId: string): ObjectRef => ({ module: "projects", id: projectId, version: null, scope: ACCESS.scope, project_id: null });
@@ -197,10 +198,35 @@ export class PlacementService {
 
   async move(input: PlacedObject, to: string): Promise<PlacementMoveResponse> {
     const spaces = await this.ports.spaces();
+    const carrying = carryingKey(input.kind, input.id), moving = underWay(this.ports);
+    if (moving.has(carrying)) throw placementErrors.carry_in_progress(placementText(this.ports, "workbench.index.item-is-being-moved"));
+    moving.add(carrying);
+    try { return await this.moveHeld(input, to, spaces); } finally { moving.delete(carrying); }
+  }
+
+  /** `move` with this object's carry held by this process, so the background pass leaves its record alone until it ends. */
+  private async moveHeld(input: PlacedObject, to: string, spaces: readonly PlacementSpaceView[]): Promise<PlacementMoveResponse> {
+    // A carry an earlier move of this object left half done (cut between its put and its remove) is finished or taken back first.
+    const pending = this.ports.ledger.query.get(ACCESS, carryingKey(input.kind, input.id));
+    if (pending && await settleCarry(this.ports, pending) !== "settled") throw carryUnsettled(this.ports);
     const object = this.locate(input).object;
     if (object.project_id === null) return this.moveHome(object, to, spaces);
     if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(this.ports, "workbench.index.couldn-t-find-where-move"));
     if (object.project_id === to) throw new ActionError("placement.same_location", placementText(this.ports, "workbench.index.s-already-here"));
+    const from = object.project_id;
+    const carried = await carryTools(this.ports, object, from, to);
+    if (carried) {
+      await carryMove(this.ports, object, from, to, carried, text => placementText(this.ports, text));
+      await settleMove(this.ports, () => writeProjectLocation(this.ports, object, from, to),
+        async () => {
+          const back = await carryTools(this.ports, object, to, from, true);
+          if (!back) throw notMovable(this.ports);
+          await carryMove(this.ports, object, to, from, back, text => placementText(this.ports, text), true);
+        });
+      this.ports.ledger.commands.remove(ACCESS, carryingKey(object.kind, object.id), "placement.carried");
+      const moved = { ...object, project_id: to };
+      return { object: moved, location: placementLocation(this.ports, to, spaces), open: await this.openOf(moved) };
+    }
     const { mover } = await placementTools(this.ports, object, "move");
     if (!mover) throw new ActionError("placement.not_movable", placementText(this.ports, "workbench.index.items-plugin-can-t-be-moved-yet-copy"));
     const scope = await this.ports.scope(object.project_id);
@@ -208,10 +234,40 @@ export class PlacementService {
     if (result.subject.kind !== object.kind || result.subject.id !== object.id || result.project_id !== to) {
       throw new ActionError("placement.result_mismatch", placementText(this.ports, "workbench.index.plugin-s-move-result-doesn-t-match-request"));
     }
-    const from = object.project_id;
-    await settleMove(this.ports, object, to, from, () => writeProjectLocation(this.ports, object, from, to), text => placementText(this.ports, text));
+    await settleMove(this.ports, () => writeProjectLocation(this.ports, object, from, to), () => moveBack(this.ports, object, to, from, text => placementText(this.ports, text)));
     const moved = { ...object, project_id: to };
     return { object: moved, location: placementLocation(this.ports, to, spaces), open: await this.openOf(moved) };
+  }
+
+  /** How many carries are recorded as not yet finished; `settleCarries` settles them. */
+  pendingCarries(): number { return this.edges(TYPES.carrying).length; }
+
+  /**
+   * Each unfinished carry a background pass could settle, as it is recorded now (its key and what it carried): a new or re-recorded carry
+   * reads differently. One a move here is still doing is not listed.
+   */
+  pendingCarryRecords(): string[] {
+    const moving = underWay(this.ports);
+    return this.edges(TYPES.carrying).filter(edge => !moving.has(edge.key)).map(edge => `${edge.key}\n${edge.cause}`);
+  }
+
+  /**
+   * Finishes the carries a cut left half done (the Host stopped between a put and its remove): an object found in both partitions goes from
+   * where it was while it is still the revision carried, or, changed there since, the put is taken back while that is unchanged. One changed in
+   * both is left in both, and its record stays, so nothing either side wrote is lost. A partition whose owner cannot be reached now leaves
+   * its record for the next pass. Returns how many are still unsettled.
+   */
+  async settleCarries(): Promise<number> {
+    let unsettled = 0;
+    const moving = underWay(this.ports);
+    for (const edge of this.edges(TYPES.carrying)) {
+      // A move under way here holds its own record: only one a cut left (an earlier process, or a move here that has ended) is settled.
+      if (moving.has(edge.key)) { unsettled += 1; continue; }
+      // One that fails now (an owner that throws, a list that cannot be read) stays for the next pass and does not hold up the others.
+      const result = await settleCarry(this.ports, edge).catch(() => "unsettled" as const);
+      if (result !== "settled") unsettled += 1;
+    }
+    return unsettled;
   }
 
   /**
@@ -232,11 +288,11 @@ export class PlacementService {
     if (result.subject.kind !== object.kind || result.subject.id !== object.id || result.project_id !== to) {
       throw new ActionError("placement.result_mismatch", placementText(this.ports, "workbench.index.plugin-s-move-result-doesn-t-match-request"));
     }
-    await settleMove(this.ports, object, to === PERSONAL_SPACE_PROJECT_ID ? null : to, from, () => {
+    await settleMove(this.ports, () => {
       this.remember(object);
       writeHomeBelonging(this.ports, object, from, to);
       this.rememberBelonging(object, to === PERSONAL_SPACE_PROJECT_ID ? null : to);
-    }, text => placementText(this.ports, text));
+    }, () => moveBack(this.ports, object, to === PERSONAL_SPACE_PROJECT_ID ? null : to, from, text => placementText(this.ports, text)));
     return { object, location: homePlacementLocation(this.ports, to, spaces), open: await this.openOf(object) };
   }
 
@@ -323,7 +379,8 @@ function writeHomeBelonging(ports: PlacementPorts, object: PlacedObject, from: s
 }
 
 /** The plugin has already moved the object. The lease and the ledger edge share its fate: a refusal moves it back and writes nothing; if it cannot move back after the edge was attempted, the edge is written again so the place the plugin kept is the place a later lookup finds. */
-async function settleMove(ports: PlacementPorts, object: PlacedObject, at: string | null, backTo: string, write: () => void, t: (zh: string) => string): Promise<void> {
+/** Records where a moved object went; when that is refused, the object is put back where it was (S-35) by `back`. */
+async function settleMove(ports: PlacementPorts, write: () => void, back: () => Promise<void>): Promise<void> {
   let leased = false;
   try {
     await ports.beforeEffect?.();
@@ -331,7 +388,12 @@ async function settleMove(ports: PlacementPorts, object: PlacedObject, at: strin
     write();
   } catch (error) {
     let undone = true, why: unknown;
-    try { await moveBack(ports, object, at, backTo, t); } catch (failure) { undone = false; why = failure; }
+    try {
+      await back();
+    } catch (failure) {
+      undone = false;
+      why = failure;
+    }
     if (!undone && leased) { try { write(); } catch { /* the plugin kept the new place */ } }
     // Why it did not come back rides on the refusal, so an object the plugin kept is not left without a trace.
     if (!undone && error instanceof Error && error.cause === undefined) error.cause = why;
@@ -347,6 +409,181 @@ async function moveBack(ports: PlacementPorts, object: PlacedObject, at: string 
   if (!mover) throw new ActionError("placement.not_movable", t("workbench.index.no-move-action-was-found-to-put"));
   const result = await scope.client.invoke(scope.caller, mover, { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
   if (result.project_id !== to || result.subject.id !== object.id) throw new ActionError("placement.result_mismatch", t("workbench.index.putting-it-back-did-not-return-the"));
+}
+
+/** An object kept in its partition's own library is carried by its owner's three parts (`export` there, `put` at the target, `remove` there). */
+interface CarryTools { source: PlacementScope; target: PlacementScope; exporter: ActionReference; putter: ActionReference; remover: ActionReference | null }
+
+const notMovable = (ports: PlacementPorts) => new ActionError("placement.not_movable", placementText(ports, "workbench.index.items-plugin-can-t-be-moved-yet-copy"));
+
+/**
+ * The owner's parts for carrying an object from one partition to another, or null when its kind has no `export` where it is (the owner
+ * moves it itself). Found by their types in each partition, never by a capability id; one that has `export` but no `put` at the target or
+ * no `remove` where it is cannot move it. `revert` opens the partitions to put an object back (the refused call does not vote again).
+ */
+async function carryTools(ports: PlacementPorts, object: PlacedObject, from: string, to: string, revert = false): Promise<CarryTools | null> {
+  const open = revert ? ports.revert ?? ports.scope : ports.scope;
+  const source = await open(from);
+  let here: readonly ActionView[];
+  // A directory that cannot be read here offers no carry, as it offers no mover (`placementTools`): the move is refused as not movable.
+  try { here = await source.client.discover(source.caller); } catch { return null; }
+  const exporter = carryToolOf(ports, here, object.kind, isObjectExporter);
+  if (!exporter) return null;
+  const target = await open(to);
+  const putter = carryToolOf(ports, await target.client.discover(target.caller), object.kind, isObjectPutter);
+  const remover = carryToolOf(ports, here, object.kind, isObjectRemover);
+  if (!putter) throw new ActionError("placement.target_unavailable", placementText(ports, "workbench.index.items-plugin-can-t-be-moved-yet-copy"));
+  return { source, target, exporter, putter, remover };
+}
+
+function carryToolOf(ports: PlacementPorts, views: readonly ActionView[], kind: string, protocol: (action: ActionView["action"]) => boolean): ActionReference | null {
+  const matches = views.filter(view => protocol(view.action) && view.action.subject_kinds.includes(kind) && view.availability.available);
+  if (matches.length > 1) throw new ActionError("placement.target_unavailable", placementText(ports, "workbench.index.items-plugin-can-t-be-moved-yet-copy"),
+    { kind: "conflict", details: { subject_kind: kind, actions: matches.map(ref) } });
+  return matches[0] ? ref(matches[0]) : null;
+}
+
+async function carryExport(tools: CarryTools, object: PlacedObject, t: (zh: string) => string): Promise<PlacementExport> {
+  const exported = await tools.source.client.invoke(tools.source.caller, tools.exporter, { subject: { kind: object.kind, id: object.id } }) as PlacementExport;
+  if (exported.subject.kind !== object.kind || exported.subject.id !== object.id) throw new ActionError("placement.result_mismatch", t("workbench.index.plugin-s-move-result-doesn-t-match-request"));
+  return exported;
+}
+
+/**
+ * Export where it is, put it at the target under the same id, then remove it where it was while it is still the exported revision. A remove
+ * that is refused (it changed meanwhile) takes back what was put, so the object is in exactly one partition either way. The same request
+ * (object, revision, target) puts the same thing again, so a retry after a cut finds it rather than making a second one.
+ */
+async function carryMove(ports: PlacementPorts, object: PlacedObject, from: string, to: string, tools: CarryTools, t: (zh: string) => string, back = false): Promise<void> {
+  if (!tools.remover) throw notMovable(ports);
+  const exported = await carryExport(tools, object, t);
+  const request = "move:" + createHash("sha256").update(JSON.stringify([object.kind, object.id, exported.revision, from, to])).digest("hex");
+  // Written before the put: a cut between the put and the remove leaves this record, and `settleCarry` finishes the move or takes the put back.
+  noteCarrying(ports, object, from, to, exported.revision);
+  const put = await tools.target.client.invoke(tools.target.caller, tools.putter, { kind: object.kind, record: exported.record, request_id: request, target_id: object.id }) as PlacementResult;
+  if (put.subject.kind !== object.kind || put.subject.id !== object.id || put.project_id !== to) {
+    throw new ActionError("placement.result_mismatch", t(back ? "workbench.index.putting-it-back-did-not-return-the" : "workbench.index.plugin-s-move-result-doesn-t-match-request"));
+  }
+  try {
+    const removed = await tools.source.client.invoke(tools.source.caller, tools.remover, { subject: { kind: object.kind, id: object.id }, revision: exported.revision }) as PlacementRemoved;
+    if (!removed.removed) throw new ActionError("placement.result_mismatch", t("workbench.index.plugin-s-move-result-doesn-t-match-request"));
+  } catch (error) {
+    const undo = await carryTools(ports, object, to, from, true).catch(() => null);
+    const remover = undo?.remover ?? null;
+    try {
+      if (!undo || !remover) throw notMovable(ports);
+      await undo.source.client.invoke(undo.source.caller, remover, { subject: put.subject, revision: put.revision });
+      // Taken back: the object is only where it was, as before the move.
+      ports.ledger.commands.remove(ACCESS, carryingKey(object.kind, object.id), "placement.carry_undone");
+    } catch (failure) { if (error instanceof Error && error.cause === undefined) error.cause = failure; }
+    throw error;
+  }
+  // Carried back after its location was refused: no location is written for it, so it is settled here.
+  if (back) ports.ledger.commands.remove(ACCESS, carryingKey(object.kind, object.id), "placement.carried_back");
+}
+
+const carryingKey = (kind: string, id: string) => key("carrying", kind, id);
+
+/**
+ * The objects a move in this process is carrying now, per ledger (every per-call wrapper of a Host's ports spreads the same ledger, so they
+ * share its `query`). Their carry records are the move's own, not ones a cut left: nothing settles them from outside while it runs.
+ */
+const carriesUnderWay = new WeakMap<object, Set<string>>();
+function underWay(ports: PlacementPorts): Set<string> {
+  let keys = carriesUnderWay.get(ports.ledger.query);
+  if (!keys) carriesUnderWay.set(ports.ledger.query, keys = new Set());
+  return keys;
+}
+const carryUnsettled = (ports: PlacementPorts) => placementErrors.carry_unsettled(placementText(ports, "workbench.index.item-changed-both-places-last-move"));
+
+function noteCarrying(ports: PlacementPorts, object: PlacedObject, from: string, to: string, revision: string): void {
+  ports.ledger.commands.put(ACCESS, { key: carryingKey(object.kind, object.id), type: TYPES.carrying, source: identity(object.kind, object.id),
+    target: projectRef(to), cause: "placement.carry:" + JSON.stringify([from, revision]) });
+}
+
+/** The object as its owner exports it in this partition (`exported: null` when the owner says it is not there), or null when the owner cannot be reached. */
+async function exportedAt(ports: PlacementPorts, object: PlacedObject, at: string, other: string): Promise<{ tools: CarryTools; exported: PlacementExport | null } | null> {
+  const tools = await carryTools(ports, object, at, other, true);
+  if (!tools) return null;
+  try {
+    const exported = await tools.source.client.invoke(tools.source.caller, tools.exporter, { subject: { kind: object.kind, id: object.id } }) as PlacementExport;
+    return { tools, exported };
+  } catch (error) {
+    if (error instanceof ActionError && error.kind === "not_found") return { tools, exported: null };
+    throw error;
+  }
+}
+
+/**
+ * Settles one carry record by what the two partitions hold now, never by what the record guesses: put never landed → nothing to do; only at
+ * the target → its location is the target; in both → the original goes while it is the revision carried, or else the put is taken back while
+ * it is; changed in both → both are kept and the record stays ("unsettled").
+ */
+async function settleCarry(ports: PlacementPorts, edge: ContextEdge): Promise<"settled" | "unsettled"> {
+  const kind = edge.source.object_type ?? "", id = edge.source.id, to = edge.target.id;
+  let from: string, revision: string;
+  try { [from, revision] = JSON.parse(edge.cause.slice("placement.carry:".length)) as [string, string]; } catch { return "unsettled"; }
+  if (typeof from !== "string" || typeof revision !== "string") return "unsettled";
+  const object: PlacedObject = { kind, id, project_id: from };
+  const done = (cause: string) => {
+    ports.ledger.commands.remove(ACCESS, edge.key, cause);
+    return "settled" as const;
+  };
+  // Only an owner that answers "not here" says the put never landed. One that cannot be reached now (taken out, switched off, not starting,
+  // its list unreadable) says nothing, so the record stays for the next pass and neither copy is touched.
+  const target = await exportedAt(ports, { ...object, project_id: to }, to, from);
+  if (!target) return "unsettled";
+  if (!target.exported) return done("placement.carry_not_put");
+  const source = await exportedAt(ports, object, from, to);
+  if (!source) return "unsettled";
+  if (source && source.exported && source.exported.revision !== revision) {
+    if (target.exported.revision !== revision || !target.tools.remover) return "unsettled";
+    await ports.beforeEffect?.();
+    await target.tools.source.client.invoke(target.tools.source.caller, target.tools.remover, { subject: { kind, id }, revision });
+    return done("placement.carry_undone");
+  }
+  await ports.beforeEffect?.();
+  if (source?.exported) {
+    if (!source.tools.remover) return "unsettled";
+    await source.tools.source.client.invoke(source.tools.source.caller, source.tools.remover, { subject: { kind, id }, revision });
+  }
+  const location = ports.ledger.query.get(ACCESS, key("location", kind, id));
+  if (location?.target.id !== to) writeProjectLocation(ports, object, from, to);
+  return done("placement.carried");
+}
+
+/** How long a carry left unsettled waits before a background pass tries it again, unless a new one is recorded. */
+export const CARRY_RETRY_MS = 5 * 60_000;
+
+/**
+ * The Host's background settling of carries a cut left half done: one pass at a time, started by a placement call. A pass opens both
+ * partitions of every carry, so one that is left unsettled (changed in both, or an owner not reachable) is tried again only once a new carry
+ * is recorded or `retryMs` has passed, never on every call.
+ */
+export class CarrySettling {
+  private running: Promise<void> | null = null;
+  private lastAt = Number.NEGATIVE_INFINITY;
+  private left = new Set<string>();
+
+  constructor(private readonly service: Pick<PlacementService, "pendingCarryRecords" | "settleCarries">,
+    private readonly options: { readonly now?: () => number; readonly retryMs?: number } = {}) {}
+
+  /** Starts a pass when one is due; returns at once. */
+  kick(): void {
+    if (this.running) return;
+    const records = this.service.pendingCarryRecords();
+    if (!records.length) return;
+    const now = (this.options.now ?? Date.now)();
+    if (records.every(record => this.left.has(record)) && now - this.lastAt < (this.options.retryMs ?? CARRY_RETRY_MS)) return;
+    this.lastAt = now;
+    this.running = this.service.settleCarries().then(() => undefined, () => undefined).finally(() => {
+      this.left = new Set(this.service.pendingCarryRecords());
+      this.running = null;
+    });
+  }
+
+  /** Resolves once the pass under way, if any, has finished. */
+  idle(): Promise<void> { return this.running ?? Promise.resolve(); }
 }
 
 /** The ledger access this service writes as; the Host authorizes exactly this partition. */
@@ -459,7 +696,7 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
   for (const edge of self.edges(TYPES.copied).filter(edge => sameObject(edge.target, object.kind, object.id))) {
     await origin(title => placementText(ports, "workbench.index.copied-title-2", { title }), "copied_into")(edge, edge.source);
   }
-  const tools = read.state === "ok" ? await placementTools(ports, object) : { mover: null, copier: null };
+  const tools = read.state === "ok" ? await placementTools(ports, object) : { mover: null, copier: null, exporter: null };
   const here = object.project_id ?? placementBelongsOf(read);
   if (!ports.surfaceSource && object.project_id === null && read.state === "ok") { await ports.beforeEffect?.(); self.rememberBelonging(object, here); }
   // A Home-kept object that changed where it belongs remembers where it was, as a moved object does.
@@ -469,7 +706,7 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
     state: read.state, reason: read.reason, object, title, plugin: read.plugin, location,
     moved_from: located.moved ? placementLocation(ports, input.project_id, spaces) : before ? homePlacementLocation(ports, before, spaces) : null,
     associations,
-    can: { move: !!tools.mover, copy: !!tools.copier, use_in_project: read.state === "ok" && spaces.some(space => space.kind === "project" && space.project_id !== here) },
+    can: { move: !!(tools.mover ?? tools.exporter), copy: !!(tools.copier ?? tools.exporter), use_in_project: read.state === "ok" && spaces.some(space => space.kind === "project" && space.project_id !== here) },
     open: read.context?.open ? { project_id: placementOpenProject(object, read), surface: read.context.open.surface, id: read.context.open.id } : null,
   };
 }
@@ -512,15 +749,17 @@ function placementToolOf(ports: PlacementPorts, views: readonly ActionView[], ki
   return matches[0] ? ref(matches[0]) : null;
 }
 
-async function placementTools(ports: PlacementPorts, object: PlacedObject, operation?: "move" | "copy"): Promise<{ mover: ActionReference | null; copier: ActionReference | null }> {
+async function placementTools(ports: PlacementPorts, object: PlacedObject, operation?: "move" | "copy"): Promise<{ mover: ActionReference | null; copier: ActionReference | null; exporter: ActionReference | null }> {
   let views: readonly ActionView[];
   try {
     const scope = await ports.scope(object.project_id);
     views = await scope.client.discover(scope.caller);
-  } catch { return { mover: null, copier: null }; }
+  } catch { return { mover: null, copier: null, exporter: null }; }
   // Discovery can be unavailable; a discovered conflict must reach the caller rather than look like an absent tool.
   return { mover: operation === "copy" ? null : placementToolOf(ports, views, object.kind, "move"),
-    copier: operation === "move" ? null : placementToolOf(ports, views, object.kind, "copy") };
+    copier: operation === "move" ? null : placementToolOf(ports, views, object.kind, "copy"),
+    // An object in a partition is carried across by its owner's parts (`carryTools`): the exporter here is what offers it.
+    exporter: operation || object.project_id === null ? null : carryToolOf(ports, views, object.kind, isObjectExporter) };
 }
 
 /**
@@ -556,7 +795,7 @@ interface AttachRelations {
 const NO_RELATIONS: AttachRelations = { all: [], of: () => null, noun: () => null };
 
 /** Codes this package owns beyond the platform's `placement.same_location`; the rest are raised as plain `ActionError`s where they happen. */
-const placementErrors = defineErrorCodes("placement", { relation_ambiguous: "conflict" });
+const placementErrors = defineErrorCodes("placement", { relation_ambiguous: "conflict", carry_unsettled: "conflict", carry_in_progress: "conflict" });
 
 /**
  * Every relation in a partition. One relation has one owner, and one kind of target is one relation's: two providers declaring the same
@@ -644,10 +883,19 @@ async function copyPlacement(ports: PlacementPorts, access: PlacementInstanceAcc
   const object = access.locate(input).object;
   if (object.project_id === null) throw new ActionError("placement.not_copyable", placementText(ports, "workbench.index.kind-item-only-lives-personal-space-save-another"));
   if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(ports, "workbench.index.couldn-t-find-where-copy"));
-  const { copier } = await placementTools(ports, object, "copy");
-  if (!copier) throw new ActionError("placement.not_copyable", placementText(ports, "workbench.index.items-plugin-can-t-be-copied-elsewhere-yet"));
-  const scope = await ports.scope(object.project_id);
-  const result = await scope.client.invoke(scope.caller, copier, { subject: { kind: object.kind, id: object.id }, to_project_id: to, request_id: requestId }) as PlacementResult;
+  const t = (text: string) => placementText(ports, text);
+  const carried = await carryTools(ports, object, object.project_id, to);
+  let result: PlacementResult;
+  if (carried) {
+    // A copy is a new object at the target: the owner's `put` makes it, and the same request makes the same one again.
+    const exported = await carryExport(carried, object, t);
+    result = await carried.target.client.invoke(carried.target.caller, carried.putter, { kind: object.kind, record: exported.record, request_id: requestId }) as PlacementResult;
+  } else {
+    const { copier } = await placementTools(ports, object, "copy");
+    if (!copier) throw new ActionError("placement.not_copyable", placementText(ports, "workbench.index.items-plugin-can-t-be-copied-elsewhere-yet"));
+    const scope = await ports.scope(object.project_id);
+    result = await scope.client.invoke(scope.caller, copier, { subject: { kind: object.kind, id: object.id }, to_project_id: to, request_id: requestId }) as PlacementResult;
+  }
   if (result.project_id !== to || result.subject.kind !== object.kind) throw new ActionError("placement.result_mismatch", placementText(ports, "workbench.index.plugin-returned-copy-that-doesn-t-match-request"));
   const copy = { kind: result.subject.kind, id: result.subject.id, project_id: to };
   await ports.beforeEffect?.();

@@ -35,25 +35,25 @@ export function pageAnnotations(body: PagesRecord["body"]): Map<string, { text: 
 /** The Pages-owned discussion log is independent of document versions, so replies cannot overwrite edits. */
 export class PagesComments {
   constructor(private readonly db: PagesSql, private readonly atomically: <T>(run: () => T) => T,
-    private readonly page: (id: string, projectId: string) => PagesRecord) {}
+    private readonly page: (id: string) => PagesRecord) {}
 
-  list(pageId: string, projectId: string): PagesCommentThread[] {
-    const page = this.page(pageId, projectId);
+  list(pageId: string): PagesCommentThread[] {
+    const page = this.page(pageId);
     const marks = pageAnnotations(page.body);
     return this.db.all("SELECT body FROM page_comments WHERE page_id=? ORDER BY created_at,thread_id", [pageId])
       .map(row => this.present(JSON.parse(String(row.body)) as StoredThread, marks));
   }
 
-  get(pageId: string, threadId: string, projectId: string): PagesCommentThread {
-    const page = this.page(pageId, projectId);
+  get(pageId: string, threadId: string): PagesCommentThread {
+    const page = this.page(pageId);
     const row = this.db.get("SELECT body FROM page_comments WHERE page_id=? AND thread_id=?", [pageId, threadId]);
     if (!row) throw pagesErrors.not_found("找不到这条评论");
     return this.present(JSON.parse(String(row.body)) as StoredThread, pageAnnotations(page.body));
   }
 
-  append(input: AppendPagesComment, projectId: string): PagesCommentThread {
+  append(input: AppendPagesComment): PagesCommentThread {
     return this.atomically(() => {
-      const page = this.page(input.page_id, projectId);
+      const page = this.page(input.page_id);
       let thread = this.read(input.page_id, input.thread_id);
       const body = input.body.trim();
       if (!body || [...body].length > 20000) throw pagesErrors.invalid("评论须为 1 到 20000 个字");
@@ -84,9 +84,9 @@ export class PagesComments {
     });
   }
 
-  reply(pageId: string, threadId: string, projectId: string, message: PagesCommentMessage): PagesCommentThread {
+  reply(pageId: string, threadId: string, message: PagesCommentMessage): PagesCommentThread {
     return this.atomically(() => {
-      const page = this.page(pageId, projectId);
+      const page = this.page(pageId);
       const thread = this.read(pageId, threadId);
       if (!thread) throw pagesErrors.not_found("原评论已不存在");
       const prior = thread.messages.find(item => item.author === "assistant" && item.request_id === message.request_id && item.run_id === message.run_id);

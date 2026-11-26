@@ -11,12 +11,12 @@ import { blocksFromMarkdown } from "./paste-markdown.js";
 export async function generatePagesFromMaterials(stores: PagesStores, caller: Pick<ActionExecutionContext, "beforeEffect" | "signal">, record: PagesGenerationRecord,
   complete?: (prompt: InstructedPrompt) => Promise<PluginModelResult>) {
   const { signal } = caller;
-  const existing = stores.read(store => store.generation(record.project_id, record.request_id));
+  const existing = stores.read(store => store.generation(record.request_id));
   if (existing && existing.request_hash !== record.request_hash) throw pagesErrors.invalid("同一个请求的材料或要求已改变，请重新生成");
-  if (existing?.status === "completed" && existing.document_id) return { document: stores.read(store => store.get(existing.document_id!, record.project_id)), replayed: true };
+  if (existing?.status === "completed" && existing.document_id) return { document: stores.read(store => store.get(existing.document_id!)), replayed: true };
   signal?.throwIfAborted();
   const request = await stores.write(caller, store => store.beginGeneration(record));
-  if (request.status === "completed" && request.document_id) return { document: stores.read(store => store.get(request.document_id!, record.project_id)), replayed: true };
+  if (request.status === "completed" && request.document_id) return { document: stores.read(store => store.get(request.document_id!)), replayed: true };
   const refusedEnds = async () => {
     try { signal?.throwIfAborted(); await caller.beforeEffect(); }
     catch (refused) { stores.read(store => store.releaseGenerationAttempt(request)); throw refused; }

@@ -101,7 +101,7 @@ test("SYS-39 an unhandled HTTP failure has a safe localized answer and a matchin
   const response = await fetch(`http://127.0.0.1:${address.port}/api/settings/models`, { headers: { "accept-language": "en", "x-molis-work-control-token": "http-error-test-control-token-0123456789" } });
   const body = await response.json();
   assert.equal(response.status, 500);
-  assert.equal(body.error, "The request could not be completed. Please try again.");
+  assert.equal(body.error, "Couldn’t complete that right now. Please try again.");
   assert.equal(body.code, "actions.execution_failed");
   assert.ok(body.diagnostic_id);
   assert.equal(entries.find(entry => entry.event === "request_failed")?.call_id, body.diagnostic_id);

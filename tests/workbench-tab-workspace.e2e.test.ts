@@ -161,8 +161,8 @@ test("RAC-2687 the real cross-project placement card opens the associated Goal's
   await addProjectPlugin(browser.web, target.project_id, "goals");
 
   await seedDemoGoals(target.database_path, target.project_id);
-  const pages = openPagesStore(homeDirectory);
-  const page = pages.create({ project_id: projectId!, title: "跨项目输入", body: { type: "doc", content: [] } });
+  const pages = openPagesStore(homeDirectory, projectId!);
+  const page = pages.create({ title: "跨项目输入", body: { type: "doc", content: [] } });
   pages.close();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   // A host-rendered object slot, using the public placement UI and the actual owner object, not a mocked response.

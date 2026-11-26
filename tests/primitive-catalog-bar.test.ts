@@ -19,6 +19,8 @@ installHostUiText();
 // personal plugin is added.
 const BACKBONE = railEntries(builtinPluginDirectory().map(entry => entry.id)).filter(entry => entry.rail === "core").map(entry => entry.id);
 
+const PARTITION_LIBRARY_PLUGINS = ["pages", "ppt", "form", "dataset", "lingguang", "workflows"];
+
 const tiles = (html: string) => [...html.matchAll(/data-plugin-tile="([^"]+)"/g)].map(match => match[1]!);
 const toggles = (html: string) => [...html.matchAll(/data-plugin-toggle="([^"]+)"[^>]*data-state="(added|available)"/g)]
   .map(match => ({ id: match[1]!, state: match[2]! as "added" | "available" }));
@@ -28,7 +30,8 @@ test("RAC-80/81: the bar specimen draws the plugin directory with the sample pro
   const states = toggles(html);
   const bright = states.filter(toggle => toggle.state === "added").map(toggle => toggle.id);
   const grey = states.filter(toggle => toggle.state === "available").map(toggle => toggle.id);
-  const enabled = new Set(shownProjectPlugins([...BACKBONE]));
+  // Batch 107: the six partition-library plugins stopped being personal; the sample project still has them added, as the personal space does.
+  const enabled = new Set(shownProjectPlugins([...BACKBONE, ...PARTITION_LIBRARY_PLUGINS]));
   const directory = pluginMarketCards().map(card => card.id);
 
   assert.ok(BACKBONE.length > 0, "the Manifests declare a backbone");

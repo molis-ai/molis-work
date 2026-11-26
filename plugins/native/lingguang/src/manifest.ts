@@ -30,7 +30,7 @@ export const lingguangManifest: PluginManifest = {
   ].map(localizePermission),
   capabilities: { provides: [], consumes: [] },
   actions: [...LINGGUANG_ACTIONS, ...Object.values(lingguangContentActions)].map(localizeAction),
-  databases: { home: LINGGUANG_DATABASE },
+  databases: { partition: LINGGUANG_DATABASE },
   routes: [
     { route_id: "lingguang.list", method: "GET", path: "/sparks" },
     { route_id: "lingguang.create", method: "POST", path: "/sparks", max_body_bytes: BODY_BYTES },

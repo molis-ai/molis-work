@@ -216,14 +216,9 @@ test("RAC-319 a library is opened only as the ledger recorded it: another versio
   } finally { item.store.close(); }
 }));
 
-test("RAC-320 an installed plugin's library is declared the way a shipped one is, but a partitioned one is for the Host's own list only, and the Manifest's names and permissions are checked before anything is made", withDirectory(async directory => {
+test("RAC-320 an installed plugin's library is declared the way a shipped one is, and the Manifest's names and permissions are checked before anything is made", withDirectory(async directory => {
   const item = platformIn(directory);
   try {
-    const partitioned = probe({ name: "partitioned", library: { store_name: "split-notes", partition: "project" } });
-    assert.equal(await refused(item, partitioned.definition), "plugin.declaration_invalid");
-    assert.equal(partitioned.started.length, 0);
-    assert.equal(existsSync(join(directory, "split-notes")), false);
-    assert.equal(existsSync(join(directory, LEDGER)), false, "refused before the ledger was opened");
     for (const name of ["Dataset", "../data", "a/b", ""]) {
       assert.throws(() => install(item, probe({ name: "badname", library: { store_name: name } }).definition), "a Manifest with such a library name does not install");
     }

@@ -11,9 +11,10 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentDelegationActions, type AgentDelegationActionChoice } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { PAGES_ACTION_PERMISSIONS, PAGES_HOME_STORE, PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesActions } from "@molis-ai/molis-work-plugin-pages";
+import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
+import { PAGES_ACTION_PERMISSIONS, PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { TODO_ACTION_PERMISSIONS, TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID, todoActions } from "@molis-ai/molis-work-plugin-todo";
-import { homeSqlitePath, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
 import { asideReply } from "./fixtures/ending-review.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
@@ -43,6 +44,7 @@ async function fixture(t: TestContext, homePlugins: readonly PluginDefinition[] 
   await runWithMolisWorkHome(home, () => seedConfiguredModels(home, [{ provider_id: "fixture", model_id: "fixture" }]));
   const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
     const created = await catalog.createProject({ display_name: "Permission project", actor_id: person });
+    catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "pages", actor_id: person });
     catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: PAGES_PROJECT_PLUGIN_ID, actor_id: person });
     catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: TODO_PROJECT_PLUGIN_ID, actor_id: person });
     return created;
@@ -176,8 +178,8 @@ test("APR-07/08/11/12/13 ASC-51/52: the selected Pages scope survives rounds and
   assert.deepEqual((await next.person.invoke(pagesActions.get, { id: document.id })).document, edited);
 }));
 
-function pagesRows(home: string): Record<string, string[]> {
-  const db = new DatabaseSync(homeSqlitePath(home, PAGES_HOME_STORE.path), { readOnly: true });
+function pagesRows(home: string, projectId: string): Record<string, string[]> {
+  const db = new DatabaseSync(partitionLibraryFile(home, projectId, "pages"), { readOnly: true });
   try {
     const names = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(row => String(row.name));
     return Object.fromEntries(names.map(name => [name, db.prepare('SELECT * FROM "' + name.replaceAll('"', '""') + '"').all().map(row => JSON.stringify(row)).sort()]));
@@ -200,7 +202,7 @@ test("APR-07/11/13 ASC-51/52: a saved delegation withdrawn while the real Pages 
     entered.resolve();
     await release.promise;
   });
-  const before = pagesRows(f.home);
+  const before = pagesRows(f.home, f.projectId);
   f.steps.push(updateReply({ id: document.id, expected_version: document.version, markdown: "Never committed" }));
   await f.service.send({ work_id: work.work_id, request_id: "scope-late-revoke", text: "Edit the protected minutes" }, { project_ref: f.reference });
   try {
@@ -208,7 +210,7 @@ test("APR-07/11/13 ASC-51/52: a saved delegation withdrawn while the real Pages 
     await entered.promise;
     assert.ok(f.reviews().some(row => row.status === "approved" && row.source?.kind === "delegation"));
     assert.equal(seen.some(row => row.capability_id === update.capability_id && row.audience === "agent"), false);
-    assert.deepEqual(pagesRows(f.home), before);
+    assert.deepEqual(pagesRows(f.home, f.projectId), before);
     const revoked = f.person.invoke(agentDelegationActions.revoke, { work_id: work.work_id, lifetime: "work", expected_version: saved.storage_version,
       id: saved.selection.id, revision: saved.selection.revision }).then(value => ({ value }), (error: unknown) => ({ error }));
     // The store invalidates first and commits the CAS before waiting for its original Run to finish cancelling.
@@ -220,7 +222,7 @@ test("APR-07/11/13 ASC-51/52: a saved delegation withdrawn while the real Pages 
     release.resolve();
     assert.deepEqual(await revoked, { value: { storage_version: result.storage_version, lifecycle: result.lifecycle, cancellation_pending: false, selection: result.selection } });
     const refusal = await until("Pages refusal", () => seen.find(row => row.capability_id === update.capability_id && row.audience === "agent"));
-    assert.deepEqual(pagesRows(f.home), before);
+    assert.deepEqual(pagesRows(f.home, f.projectId), before);
     assert.equal(refusal.ok, false, JSON.stringify(seen.filter(row => row.capability_id === update.capability_id)));
   } finally { release.resolve(); }
 }));

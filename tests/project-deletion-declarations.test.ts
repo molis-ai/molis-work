@@ -15,7 +15,7 @@ const catalog: PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS as PluginReg
 
 /** An entry for the test: a real entry's other parts (the deletion reads only its library's `project_rows`), under its own id. */
 function declaringEntry(id: string, rows: { label: string; order?: number }): PluginRegistration {
-  const template = catalog.find(entry => entry.project_plugin_id === "pages");
+  const template = catalog.find(entry => entry.project_plugin_id === "todo");
   const library = template?.manifest.databases?.home;
   assert.ok(template && library?.project_rows);
   const { order: _order, ...declared } = library.project_rows;
@@ -46,8 +46,9 @@ test("RAC-563 a plugin's project data is what it declares, and the confirmation 
     ]);
     // Rows a library declares in its Manifest (`project_rows`, PG-024); no catalog entry carries code that clears a project's data
     // (the 成果库's originals are its module's, which the Host names).
+    // A library in each partition says what goes with it (`deletion`); the platform removes its whole file.
     const declared = catalog.flatMap(entry => {
-      const label = entry.manifest.databases?.home?.project_rows?.label;
+      const label = entry.manifest.databases?.home?.project_rows?.label ?? entry.manifest.databases?.partition?.deletion?.label;
       return label ? [{ id: entry.project_plugin_id, label }] : [];
     });
     assert.deepEqual(declared.map(entry => entry.id).sort(), ["dataset", "form", "images", "lingguang", "pages", "ppt", "todo", "work-brief", "workflows"]);
@@ -65,7 +66,7 @@ test("a plugin added to the catalog with a declaration is cleared by a project's
       assert.equal(owners[0]?.id, "declared-in-test", "its declared order puts it first");
       assert.equal(owners[0]?.label, "声明里的数据");
       assert.equal(await hooks.clear("declared-in-test", "project-1"), true);
-      assert.equal(existsSync(join(home, "pages")), false, "a library that does not exist yet has nothing to clear and is not made");
+      assert.equal(existsSync(join(home, "todo")), false, "a library that does not exist yet has nothing to clear and is not made");
     });
   } finally { catalog.pop(); }
 });

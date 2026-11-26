@@ -244,11 +244,12 @@ export class HomePluginExecutor implements PluginExecutor {
     forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
     // A Home-level installation's directory grants, in every project, go with it (PG-049); kept data does not keep them.
     directoryForHome(this.options.home).forgetInstallation(record.install_id, null);
+    // A following install can discard even a retained library. Its statement process must have exited.
+    await this.libraryExits.get(record.install_id); this.libraryExits.delete(record.install_id);
     if (record.execution === "sandbox" && !record.retain_private_data) {
       removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
       forgetSandboxImageBindings(this.options.home, record.install_id);
       // Its own library goes too, once its statement process has exited, and only the one the ledger and its verified Manifest agree on (BL-915 A).
-      await this.libraryExits.get(record.install_id); this.libraryExits.delete(record.install_id);
       const manifest = new SandboxPackageStore(this.options.home).installedManifest(record), declared = manifest?.databases?.home;
       const kept = removeInstalledPluginLibrary(this.options.home, record, manifest && declared ? pluginSyncDatabaseDeclaration(manifest, declared) : undefined, pluginHomeFor(this.options.home).stores);
       if (kept) noteRetained(null, record.install_id, { kind: "home_library", reason: kept.reason });

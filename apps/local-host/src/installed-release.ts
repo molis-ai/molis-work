@@ -10,6 +10,10 @@ import type { ContentPackage } from '@molis-ai/molis-work-plugin-sdk';
 
 /** Trusted Host completion inside the existing install/upgrade compensation window. */
 export interface InstalledPackageControl {
+  /** The retained installation whose data the person explicitly agreed to discard in this preview. */
+  expectedKeptGeneration?: string;
+  /** A dual install finishes its Home half inside the project half's successful commit. */
+  installProjectHalf?(commitHome: () => void): Promise<void>;
   assertCurrent?(): void;
   scopeOpen?(): boolean;
   refresh?(): Promise<void>;
@@ -25,7 +29,7 @@ export interface InstalledPackageControl {
 export interface PackageInstallSecret { readonly name: string; readonly header: string; readonly value: string }
 
 /** What the person chose in the confirmation besides agreeing (`PluginInstallService.confirm`). */
-export type PackageInstallChoices = Pick<InstalledPackageControl, 'optional' | 'secrets'>;
+export type PackageInstallChoices = Pick<InstalledPackageControl, 'optional' | 'secrets' | 'expectedKeptGeneration' | 'installProjectHalf'>;
 
 export const HOME_INSTALL_SCOPE = '~home';
 

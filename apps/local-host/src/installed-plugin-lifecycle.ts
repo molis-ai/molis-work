@@ -6,7 +6,7 @@
  */
 import { withPendingPluginEnable } from './plugin-instructions.js';
 import { ActionError, requireSynchronous } from '@molis-ai/molis-work-contracts/platform/actions';
-import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginManifest, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginRetainedItem, PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { collectRetained } from './uninstall-retained.js';
@@ -45,6 +45,7 @@ export interface InstalledLifecycleContext {
   /** The project's own store, where approvals live. */
   storage: PluginPrivateStorage;
   privateStorage: SqlitePluginPrivateStorage;
+  discardDatabase(previous: PluginInstanceRecord, next: PluginManifest): { restore(): void; close(): void } | undefined;
   secrets: PluginSecrets;
   recoveryErrors: RecoveryErrors;
   closed(): boolean;
@@ -69,9 +70,13 @@ type Grants = InstalledPackageControl & { consent?: unknown; keepData?: unknown;
 /** Refresh before publishing the settled installation and completing the dependent owner's write. */
 export async function finishInstalledPackage(control: InstalledPackageControl | undefined, assertCurrent: () => void, publish: () => void): Promise<void> {
   if (control?.refresh) await control.refresh();
-  assertCurrent();
-  publish();
-  requireSynchronous(control?.complete?.());
+  const commit = () => {
+    assertCurrent();
+    publish();
+    requireSynchronous(control?.complete?.());
+  };
+  if (control?.installProjectHalf) await control.installProjectHalf(commit);
+  else commit();
 }
 
 /** The secrets the consent dialog collected, each for a reference the release declared. */
@@ -168,17 +173,22 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
     const entry = { definition, grants: [...new Set([...required, ...grants.optional ?? []])], trust: packaged.trust };
     const found = platform.runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === entry.definition.manifest.publisher.signature);
     const earlier = found?.state === 'uninstalled' ? found : undefined, kept = earlier?.retain_private_data === true;
+    if (grants.expectedKeptGeneration !== undefined && (!kept || earlier?.installation_generation !== grants.expectedKeptGeneration))
+      throw pluginErrors.preview_unknown('卸载时保留的数据已经变化，请重新查看安装包');
+    const discard = grants.expectedKeptGeneration !== undefined || grants.discardKeptData === true;
     const before = earlier && kept ? c.privateStorage.snapshotInstallationData(earlier.install_id) : undefined;
     const assertCurrent = () => {
       if (c.closed() || grants.scopeOpen?.() === false) throw new ActionError('actions.host_closed', '原插件安装范围已经关闭');
       grants.assertCurrent?.();
     };
     assertCurrent();
-    const { install } = platform.runtime.install({ ...entry, deployment: 'local', ...(grants.discardKeptData === true ? { discard_kept_data: true } : {}) });
+    const { install } = platform.runtime.install({ ...entry, deployment: 'local', ...(discard ? { discard_kept_data: true } : {}) });
+    let database: ReturnType<typeof c.discardDatabase>;
     let startedGeneration: number | undefined;
     const activationChanged = () => platform.supervisor.generation(pluginId) !== startedGeneration;
     try {
-      if (before && grants.discardKeptData === true) c.privateStorage.deleteInstallationData(install.install_id);
+      if (kept && earlier && discard) database = c.discardDatabase(earlier, packaged.manifest);
+      if (before && discard) c.privateStorage.deleteInstallationData(install.install_id);
       for (const secret of secrets) c.secrets.save(pluginId, secret);
       c.storage.set(APPROVED_KEY + pluginId, JSON.stringify(release.permissions));
       await platform.start([entry], { assertCurrent });
@@ -210,11 +220,20 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
       const unfinished: unknown[] = [];
       let ours = true;
       try { ours = await uninstall(release, install, kept, { earlier }); } catch (failure) { unfinished.push(failure); }
+      // The take-back may have yielded while another install became current.
+      ours = ours && (!earlier || sameInstalledRelease(earlier, platform.runtime.get(install.install_id)));
+      try {
+        if (ours) database?.restore();
+      } catch (failure) {
+        // Keep the old library available for recovery if its owner could not put it back.
+        database = undefined;
+        unfinished.push(failure);
+      }
       try { if (before && ours) c.privateStorage.restoreInstallationData(install.install_id, before); } catch (failure) { unfinished.push(failure); }
       if (!unfinished.length) throw error;
       const said = (value: unknown) => value instanceof Error ? value.message : String(value);
       throw new AggregateError([error, ...unfinished], said(error) + '（撤销这次安装时也没有做完：' + unfinished.map(said).join('；') + '）', { cause: error });
-    }
+    } finally { database?.close(); }
   };
   /**
    * A signed package is replaced by a newer package of the same plugin and publisher, and by nothing else (BL-623). The person's confirmation approves exactly
@@ -236,6 +255,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
   return async (action, release, input) => {
     if (c.closed()) throw new Error('安装运行入口已关闭');
     const grants = (input ?? {}) as Grants, pluginId = release.pluginId, consent = grants.consent === true, record = c.recordFor(pluginId, action === 'uninstall');
+    if (grants.expectedKeptGeneration !== undefined && action !== 'install') throw pluginErrors.preview_unknown('安装已经变化，请重新查看安装包');
     if (action === 'install') {
       if (record) throw new Error('这个插件已经安装，可以直接打开或升级');
       if (!consent) throw new Error('安装前请确认插件要使用的权限');

@@ -26,11 +26,13 @@ import type { FrameScope, PackageInstallDown, PackageInstallUp, Translate } from
 export const PACKAGE_INSTALL_UNAVAILABLE = "Unavailable";
 
 type Confirmed = { plugin_id: string; version: string; open_surface?: string; permission_changes_failed?: string[] };
+type TypedKey = { name: string; header: string; value: string };
 interface Entry extends PackageInstallView {
   id: number;
   readonly bundle: object;
   readonly area: FramedArea;
   width: number;
+  pendingKeys?: TypedKey[];
   code: string;
   surface?: string;
 }
@@ -103,13 +105,20 @@ export function pagePackageInstall(
       ]),
     );
     surface.dataset.stage = entry.stage;
-    entry.area.redraw(packageInstallHtml(translate, owner(), entry));
+    entry.area.redraw(packageInstallHtml(translate, owner(), {
+      ...entry, note: entry.note && t(entry.note), line: entry.line && t(entry.line), failure: entry.failure && t(entry.failure),
+    }));
     for (const input of surface.querySelectorAll<HTMLInputElement>(TYPED)) {
       const value = typed.get((input.dataset.installKey ?? "") + "|" + (input.dataset.installHeader ?? ""));
       if (value !== undefined) input.value = value;
     }
     if (held) surface.querySelector<HTMLElement>("[data-install-focus],[role=status]")?.focus({ preventScroll: true });
   };
+  scope.listen(document, "molis-work:language-changed", () => {
+    if (!current) return;
+    current.area.surface.setAttribute("aria-label", t("common.package-install.install-confirmation-owner", { owner: owner() }));
+    draw(current, true);
+  });
   const answer = (entry: Entry, outcome: UiPackageInstallOutcome) => {
     if (!entry.answered) {
       entry.answered = true;
@@ -118,6 +127,7 @@ export function pagePackageInstall(
   };
   /** Folds the sheet into its one line, after the page has its answer. */
   const fold = (entry: Entry, line: string, outcome: UiPackageInstallOutcome) => {
+    delete entry.pendingKeys;
     answer(entry, outcome);
     entry.stage = "line";
     entry.line = line;
@@ -131,7 +141,7 @@ export function pagePackageInstall(
     const phase = failure.body?.details?.install_phase;
     entry.step = phase === "start" ? 2 : phase === "install" || (phase !== "check" && entry.sheet) ? 1 : 0;
     const copy = entry.step === 2 ? "start-failed" : failureCopy.get(entry.code) ?? "could-not-install-try-again";
-    entry.failure = t("common.package-install." + copy);
+    entry.failure = "common.package-install." + copy;
     entry.stage = "failed";
   };
   /** Asks the Host what the package is, and shows the sheet, or why there is none. */
@@ -160,7 +170,16 @@ export function pagePackageInstall(
     draw(entry, true);
   };
   /** The person's confirmation: the switches as they stand, the keys just typed, one request. */
-  const install = async (entry: Entry, secrets: Array<{ name: string; header: string; value: string }>) => {
+  const install = async (entry: Entry, secrets: TypedKey[]) => {
+    const discard = entry.stage === "discard";
+    if (entry.sheet?.kept_data_incompatible && !discard) {
+      entry.pendingKeys = secrets;
+      entry.stage = "discard";
+      entry.note = "";
+      draw(entry, true);
+      return;
+    }
+    delete entry.pendingKeys;
     const sheet = entry.sheet!;
     entry.stage = "working";
     entry.step = 1;
@@ -171,6 +190,7 @@ export function pagePackageInstall(
       const done = await ask<Confirmed>({
         operation: "confirm",
         preview_id: sheet.preview_id,
+        ...(discard ? { discard_kept_data: true } : {}),
         ...(packageInstallChoices(sheet).length ? { optional: [...entry.on] } : {}),
         ...(secrets.length ? { secrets } : {}),
       });
@@ -191,8 +211,8 @@ export function pagePackageInstall(
       entry.area.surface.querySelector<HTMLElement>("[data-install-focus]")?.focus({ preventScroll: true });
   };
   const steps: Record<string, (entry: Entry) => void> = {
-    later: (entry) => fold(entry, t("common.package-install.kept-for-later"), { status: "cancelled" }),
-    dismiss: (entry) => fold(entry, t("common.package-install.not-installed"), { status: "failed", code: entry.code }),
+    later: (entry) => fold(entry, "common.package-install.kept-for-later", { status: "cancelled" }),
+    dismiss: (entry) => fold(entry, "common.package-install.not-installed", { status: "failed", code: entry.code }),
     confirm: (entry) => {
       if (entry.stage !== "review") return;
       if (packageInstallKeys(entry).length) {
@@ -202,6 +222,7 @@ export function pagePackageInstall(
         entry.area.surface.querySelector<HTMLElement>(KEY)?.focus({ preventScroll: true });
       } else void install(entry, []);
     },
+    discard: (entry) => { if (entry.stage === "discard") void install(entry, entry.pendingKeys ?? []); },
     back: (entry) => {
       if (entry.stage === "keys") {
         entry.stage = "review";
@@ -215,7 +236,7 @@ export function pagePackageInstall(
         keys = [...surface.querySelectorAll<HTMLInputElement>(KEY)],
         empty = keys.find((input) => !input.value.trim());
       if (empty) {
-        entry.note = t("common.package-install.type-the-key-first");
+        entry.note = "common.package-install.type-the-key-first";
         draw(entry);
         surface
           .querySelector<HTMLInputElement>(`[data-install-key="${CSS.escape(empty.dataset.installKey!)}"]`)
@@ -283,8 +304,8 @@ export function pagePackageInstall(
     if (refusal) {
       entry.note =
         refusal.reason === "moved"
-          ? t("common.package-install.just-moved-press-again")
-          : t("common.package-install.show-whole-area-first");
+          ? "common.package-install.just-moved-press-again"
+          : "common.package-install.show-whole-area-first";
       if (refusal.reason === "partial") {
         if (refusal.reveal) send("reveal", entry.id);
         else control.scrollIntoView({ block: "nearest", inline: "nearest" });

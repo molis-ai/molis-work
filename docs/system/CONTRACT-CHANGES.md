@@ -393,6 +393,8 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 
 ## 8. 阶段一已做、对插件作者有影响的合同改动
 
+- BL-b47-package-install-discard-kept-data：`plugins.install.preview@1` 返回布尔值 `kept_data_incompatible`。为 true 时，只有本人受保护入口在 `plugins.install.confirm@1` 显式传 `discard_kept_data: true` 才可放弃此次预览对应的旧数据；省略或 false 保留数据并拒绝安装。一骏确认清理范围包括该安装的私有数据、当前项目内签名和归属登记均吻合的业务表，以及本次涉及的个人空间实例自己的数据库。取消保留全部。两个动作原位更新，页面仍只收到原有结果。
+
 - 2026-11-08，D0038（用户选择 D）：工作台页面改为 `molis-work-page-session` meta 与 `x-molis-work-page-session` 请求头，只传 HttpOnly 会话配对的 CSRF 证明；账号状态从返回 `viewToken` 改为非授权的 `viewScope` 修订标识。页面不得依赖宿主控制令牌或把证明当作进程凭据；共用 UI 请求助手及 socket 消费者同期更新，旧页面须刷新。不新增读取兼容。CLI/MCP 的私有控制认证、独立客户端证明和原生身份保持各自检查；动作 id/schema、Manifest 与持久库版本不变。见 [实施及验收](../../specs/archive/daily-quality-d0038/spec.md)。
 
 只记插件作者要知道的改动（不是兼容窗口，阶段一不留兼容期）；新的写在最后。

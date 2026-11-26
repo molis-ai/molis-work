@@ -9,6 +9,7 @@ export type { PluginConsentEntry, PluginConsentLedger } from "./consent-ledger.j
 export { HOST_BUILD_TRUST, UNSIGNED_TRUST, assertConsentsDeclared, assertHomeScopeAllowed, assertLocalToolsAllowed, assertScopeFitsRuntime, assertPluginTrust, assertTrustFitsDefinition, assertTrustFitsExecution, consentGranter, consentSubject, declarationsNeedingConsent, hostBuildConsents, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
 export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, inspectPluginProjectSchema, inspectPluginProjectDatabase, openPluginProjectDatabase, listPluginProjectDatabases, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
+export { stageProjectDatabaseDiscard } from "./project-database-discard.js";
 export { SANDBOX_HOME_SCHEMA_LIMITS, assertPluginHomeSchema, assertPluginHomeSnapshotSchema, inspectPluginHomeSchema } from "./project-database.js";
 export {
   PLUGIN_UPGRADE_NONDETERMINISTIC_FUNCTIONS, assertPluginUpgradeSteps, pluginProjectTablesVersion, pluginUpgradeSteps, upgradePluginHomeLibrary, upgradePluginProjectTables,

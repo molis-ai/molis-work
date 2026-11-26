@@ -318,7 +318,7 @@ export function auditRepositoryCopy(root, options = {}) {
     const isCatalogSubpack = CATALOG_SUBPACK_FILE.test(file);
     const messages = parsed.messages ?? {};
     for (const [key, entry] of Object.entries(messages)) {
-      if (!includeCatalog && !isCatalogSubpack && CATALOG_SPECIMEN_KEY.test(key)) continue;
+      if (!includeCatalog && !isCatalogSubpack && !/^workbench\.catalog[.-]/u.test(key) && CATALOG_SPECIMEN_KEY.test(key)) continue;
       const texts = typeof entry === "string" ? [entry] : Object.values(entry?.forms ?? {});
       for (const text of texts) {
         if (typeof text !== "string") continue;

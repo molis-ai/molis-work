@@ -121,20 +121,12 @@ test("FSS-58 a language directory's files parse, are the row's owner's, and agre
       const catalogDir = path.join(directory, "catalog");
       const catalogPacks = readPacks(catalogDir, readdirSync(catalogDir).sort());
       assert.deepEqual(catalogPacks.map(pack => pack.locale), locales);
-      const catalogOnlyPrefixes = [
-        "workbench.catalog-board.",
-        "workbench.catalog-kit.",
-        "workbench.collab-specimens.",
-        "workbench.catalog-keep-edits.",
-        "workbench.catalog-home-adoption.",
-        "workbench.catalog-source-ladder.",
-        "workbench.catalog-coding-basics.",
-        "workbench.catalog-skill-selection.",
-      ] as const;
+      const boardKey = /^workbench\.(?:catalog[.-]|collab-specimens\.)/u;
+      for (const key of startupKeys) assert.ok(!boardKey.test(key), `${key}: absent from the startup pack`);
       for (const pack of catalogPacks) {
         for (const key of Object.keys(pack.messages)) {
           assert.ok(
-            catalogOnlyPrefixes.some(prefix => key.startsWith(prefix)) && !startupKeys.has(key),
+            boardKey.test(key) && !startupKeys.has(key),
             `${key}: belongs only to catalog board`,
           );
         }

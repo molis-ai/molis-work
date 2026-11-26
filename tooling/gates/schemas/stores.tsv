@@ -36,7 +36,7 @@ images/images.db	io.molis.work.images	1	0eb943ac8d0c510e	-
 issues/issues.db	io.molis.work.issues	1	2ebbffe4d0eb92a4	-
 jelly/jelly.db	io.molis.work.jelly	1	07e620872874959d	-
 knowledge/knowledge.db	packages/storage	1	2adbf0ecde034d1b	-
-mainline/mainline.db	horizontal/mainline	1	24e9f4a4fef41aca	-
+mainline/mainline.db	horizontal/mainline	2	343de16700b800c2	1
 memory/memory.db	packages/storage	2	17c9d78d1f64f5b8	1
 observation/observation.db	horizontal/observation	1	482e790be1bc46e2	-
 person-settings/person-settings.db	horizontal/person-settings	1	0aa8b1771c6fe435	-

@@ -6,7 +6,7 @@ import { REVIEW_REFERENCE_SCHEMA, type ReviewReference } from "../platform/revie
 import type { StateRingState } from "../platform/ui-state-rings.js";
 import { defineSubjectContextAction } from "../platform/action-subjects.js";
 import { PLACEMENT_RELATION_LIMITS, definePlacementRelationAction } from "../platform/placement.js";
-import { WORK_ITEM_LIMITS, type WorkItemNextStep } from "../platform/work-items.js";
+import { WORK_ITEM_LIMITS, WORK_ITEM_NEXT_STEP_SCHEMA, type WorkItemNextStep } from "../platform/work-items.js";
 
 /**
  * The mainline service (specs/work-line §5–§6, `horizontal/mainline`): system actions that read, for one project, what its
@@ -265,10 +265,8 @@ const COMMAND_SCHEMA = { type: "object", properties: { role: { enum: ["stop", "p
   required: ["role", "action", "input", "summary"], additionalProperties: false } as const;
 
 const count = { type: "integer", minimum: 0 } as const;
-const NEXT_STEP_SCHEMA = { type: "object", properties: { text: { type: "string", minLength: 1, maxLength: WORK_ITEM_LIMITS.text }, waiting_on: { type: "string", minLength: 1, maxLength: WORK_ITEM_LIMITS.waiting_on },
-  start: { type: "object", properties: { action: source, input: { type: "object" } }, required: ["action", "input"], additionalProperties: false } }, required: ["text"], additionalProperties: false } as const;
 export const WORK_LINE_EVENT_SCHEMA = { ...WORK_EVENT_SCHEMA, properties: { ...WORK_EVENT_SCHEMA.properties, id: { type: "string", minLength: 1, maxLength: 1000 }, source, origin: WORK_EVENT_SOURCE_SCHEMA,
-  wing: { enum: ["done", "now", "next"] }, rank: count, line_state: WORK_EVENT_SCHEMA.properties.state, waiting: { type: "boolean" }, suggestion: NEXT_STEP_SCHEMA,
+  wing: { enum: ["done", "now", "next"] }, rank: count, line_state: WORK_EVENT_SCHEMA.properties.state, waiting: { type: "boolean" }, suggestion: WORK_ITEM_NEXT_STEP_SCHEMA,
   tasks: { type: "object", properties: { running: count, waiting: count, refs: { type: "array", items: ACTION_SUBJECT_SCHEMA } }, required: ["running", "waiting", "refs"], additionalProperties: false } },
   required: [...WORK_EVENT_SCHEMA.required, "id", "source", "origin", "wing", "rank", "waiting", "tasks"] };
 

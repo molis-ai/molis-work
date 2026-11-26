@@ -519,7 +519,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=inbox]').click()");
   const inboxPreview = await readPreview('[data-frame-reading=inbox]', '[data-frame-block-retry]');
   assert.match(inboxPreview.text, /你手动加入/);
-  assert.match(inboxPreview.text, /查看原消息并处理/);
+  assert.match(inboxPreview.text, /打开原消息处理/);
   await evaluate(`(() => {
     const canvas = document.querySelector("[data-frame-canvas]");
     const event = new Event("drop", { bubbles: true, cancelable: true });

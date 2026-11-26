@@ -69,7 +69,9 @@ test("W4-10-01 QA-022 a real Todo reminder that came due is in the Home page's a
   do {
     ({ notices: told } = await home.web.get<{ notices: Notice[] }>("/api/assistant/notices"));
     if (told.some(notice => noticeText(notice).includes(title))) break;
-    assert.ok(Date.now() < deadline, "the Host's reminder timer did not tell the Todo reminder"); await pause(10);
+    assert.ok(Date.now() < deadline, "the Host's reminder timer did not tell the Todo reminder");
+    // A sweep still running when its minute comes skips that minute, as on a slow runner; the next minute looks again.
+    t.mock.timers.tick(60_000); await pause(25);
   } while (true);
   const attention = await home.web.get<Attention>("/api/attention");
   assert.deepEqual(attention.notices, told, "the attention read answers the Assistant's own notices, not a copy of its own");

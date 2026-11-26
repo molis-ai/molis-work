@@ -67,7 +67,7 @@ export function scheduleClient(host: ScheduleHost): void {
     if (!host.scope.visible) return;
     const open = openNow(page);
     if (open.kind === "form" || page.creating || page.recovering || page.operationBusy || page.changing > 0) return;
-    void refreshStage(page, open.id, open.kind === "none" ? "task" : open.kind, false, false);
+    void refreshStage(page, open.id, open.kind === "none" ? "task" : open.kind, false, false, undefined, true);
   }, { signal: host.scope.signal });
   const pending = sessionStorage.getItem(OPEN_KEY);
   if (pending) {

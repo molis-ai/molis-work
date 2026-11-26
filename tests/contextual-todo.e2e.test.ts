@@ -29,7 +29,7 @@ test("S1 W4-1 RAC-136 contextual Todo: real selection → made at once from what
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
-  })()`); await waitFor(`window.todoTestFocus?.targets?.[0]?.text === ${JSON.stringify(index === 0 ? FIRST : SECOND)}`); };
+  })()`, undefined, "person"); await waitFor(`window.todoTestFocus?.targets?.[0]?.text === ${JSON.stringify(index === 0 ? FIRST : SECOND)}`); };
   const access = { actor: "user" as const, actorId: "web-user", projectId: projectId!, projectIds: [] };
   const todos = () => { const owner = openTodoStore(homeDirectory); try { return owner.list(access); } finally { owner.close(); } };
   const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
@@ -154,7 +154,7 @@ test("S1 W4-1 a card whose run is refused writes nothing and can run again: Goal
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
-  })()`); await waitFor(`window.todoTestFocus?.targets?.[0]?.text === ${JSON.stringify(index === 0 ? FIRST : SECOND)}`); };
+  })()`, undefined, "person"); await waitFor(`window.todoTestFocus?.targets?.[0]?.text === ${JSON.stringify(index === 0 ? FIRST : SECOND)}`); };
   await select(0);
   const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
   const WRITE = `[...document.querySelectorAll('${BAR} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('拆成目标步骤'))`;

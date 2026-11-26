@@ -456,7 +456,7 @@ test("F-hc-13: startContextJourney forwards its AbortSignal to readSource and ab
           reject(signal.reason);
         }, { once: true });
       });
-      return { files: [] };
+      return { name: "fixture", locator: "fixture://files", files: [] };
     },
   });
 

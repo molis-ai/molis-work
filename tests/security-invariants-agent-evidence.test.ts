@@ -173,11 +173,12 @@ test("EVD-33 / F-horiz-runtime-02: applyRunEvent maps EFFECT_RECONCILE_REQUIRED 
     "r-reconcile": { command_outputs: [{ call_id: "c-pass" }], activity: reconcileStream.activity },
     "r-interrupted": { command_outputs: [{ call_id: "c-pass" }], activity: interruptedStream.activity },
   });
-  const reconcileCheck = await check(caller("agent", "s1"), "r-reconcile", ["c-pass"]);
+  type CheckResult = { commands: Array<{ recorded: boolean; changed_after: boolean }> };
+  const reconcileCheck = await check(caller("agent", "s1"), "r-reconcile", ["c-pass"]) as CheckResult;
   assert.equal(reconcileCheck.commands[0]!.recorded, true);
   assert.equal(reconcileCheck.commands[0]!.changed_after, true, "EFFECT_RECONCILE_REQUIRED write after cited command must report changed_after: true");
 
-  const interruptedCheck = await check(caller("agent", "s1"), "r-interrupted", ["c-pass"]);
+  const interruptedCheck = await check(caller("agent", "s1"), "r-interrupted", ["c-pass"]) as CheckResult;
   assert.equal(interruptedCheck.commands[0]!.recorded, true);
   assert.equal(interruptedCheck.commands[0]!.changed_after, false, "TOOL_INTERRUPTED unexecuted write must stay failed and report changed_after: false");
 });

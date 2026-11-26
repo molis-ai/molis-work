@@ -437,7 +437,7 @@ test("RAC-1889 the heading of a note and of an acknowledgement is its first 80 w
         assert.equal(await headingOf(noted.event_id), c.heading);
       });
       await t.test(`acknowledgement: ${c.name}`, async () => {
-        const said = await r.actions.invoke(mcp, goalsActions.acknowledge, { ...r.input(goal_id, first.event_id, await r.cursor(goal_id), `ack-${index}`), note: c.said });
+        const said = await r.actions.invoke(mcp, goalsActions.acknowledge, { ...r.input(goal_id, first.event_id, await r.cursor(goal_id), `ack-${index}`), note: c.said }) as { event_id: string };
         assert.equal(await headingOf(said.event_id), c.heading);
       });
     }
@@ -451,8 +451,7 @@ test("F-goals-09: agent-channel acknowledgement renders localized actor without 
     project_id: "p1",
     goal_id: "G1",
     kind: "system",
-    type_id: null,
-    type_version: null,
+    type: null,
     title: "Agent note ack",
     actor_id: "agent:codex",
     actor_kind: "runtime",

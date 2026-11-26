@@ -185,12 +185,18 @@ test("F-goals-04 & F-goals-06: replication includes acknowledge_goal_event and a
       statement: "Check platform requirement",
       scope: { requirement_ids: ["platform-only-req"] },
     });
-    assert.doesNotThrow(() => def.validate?.(store.db, projectId));
+    const readReplicaRows = () => Object.fromEntries(
+      def.tables.map(table => [
+        table.name,
+        store.db.prepare(`SELECT ${table.columns.join(", ")} FROM ${table.name}`).all() as Record<string, string | number | null>[],
+      ]),
+    );
+    assert.doesNotThrow(() => def.validate?.(readReplicaRows(), projectId));
 
     // Malformed scope_json must fail with goals.replica_invalid instead of raw SyntaxError.
     store.db.prepare("UPDATE goal_event_concerns SET scope_json = ? WHERE concern_id = ?").run("{invalid-json", concern.concern.concern_id);
     assert.throws(
-      () => def.validate?.(store.db, projectId),
+      () => def.validate?.(readReplicaRows(), projectId),
       (error: unknown) => error instanceof ActionError && error.code === "goals.replica_invalid",
     );
   } finally {

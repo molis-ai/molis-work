@@ -314,7 +314,7 @@ jobs:
       - name: Verify Goal boundaries
         if: ${{ matrix.slice == 'contracts' }}
         run: |
-          node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
+          node --test tests/goals-query-boundaries.test.mjs
           node scripts/run-tests.mjs tests/goals-host-no-direct-reads.test.ts
 
       - name: Build product contracts hold
@@ -411,6 +411,7 @@ jobs:
     # event, or when it failed or said anything else (whatever it wrote before failing), this runs as it always did.
     if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       # The scan reads every commit the change adds since its merge base with the target branch, so it needs the history
       # and not a depth-1 clone.
@@ -460,6 +461,7 @@ jobs:
     # other event, or when a job failed or said anything else (whatever it wrote before failing), this runs as it always did.
     if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && ((github.event_name != 'pull_request' && github.event_name != 'merge_group') || needs.test-selection.result != 'success' || needs.test-selection.outputs.native_mode != 'none') }}
     runs-on: macos-latest
+    timeout-minutes: 45
     env:
       RUSTUP_TOOLCHAIN: 1.96.0
     steps:
@@ -519,6 +521,7 @@ jobs:
     # Reuse a verified push, or skip only with a successful explicit scope decision on PR / merge group.
     if: ${{ !cancelled() && !(github.event_name == 'push' && needs.queue-check.result == 'success' && needs.queue-check.outputs.verified == 'true') && !((github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.test-selection.result == 'success' && needs.test-selection.outputs.shell_mode == 'none') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
 

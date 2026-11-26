@@ -82,7 +82,7 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 
 `runtime()` / `snapshot()` 和 Agent 目录只问平台的本机工具服务（`services.localTools`，PG-112：九个引擎和额外目录写在平台部件 `system.shelf` 的 Manifest `local_tools`（`modules/shelf/src/surface/local-tools.ts`）里），不读环境变量、不启动 CLI，也不再问 `--help`。人工终端与自动模型选择独立，`runJob()` 不探测或启动 CLI。未提供这项服务时即报找不到（第 44B 批后不再存在项目侧双实例）。AI 可用性由 Host 的模型目录提供；未注入 AI 端口时明确不可用，本机提取仍可执行。
 
-自动生成合同是 `ShelfAiPorts`，由平台部件 `system.shelf` 经 `services.model` 与 `services.materials` 实现（`modules/shelf/src/surface/ai.ts`），冻结副本经 Shelf 自己的 owner files 读；Module 拥有任务、输入 hash、结果和回执保存。模型端口返回后仍须通过原 Action 的 beforeEffect 并复查来源。AI 改动另跑 `tests/shelf-ai-host.test.ts` 与 `tests/shelf-job-runner.test.ts`。
+自动生成合同是 `ShelfAiPorts`，由平台部件 `system.shelf` 经 `services.model` 与 `services.materials` 实现（`modules/shelf/src/surface/ai.ts`），冻结副本经 Shelf 自己的 owner files 读；Module 拥有任务、输入 hash、结果和回执保存。模型端口返回后仍须通过原 Action 的 beforeEffect 并复查来源。AI 改动另跑 `tests/shelf-ai-host.test.ts` 与 `tests/shelf-actions.test.ts`。
 
 项目回收检查：本 owner 的个人 Home 内容跨项目独立保存，不因某项目被回收而删除。同步适配器明确返回无该项目所属的未结算内容；材料或成果来源引用不改变所有权。检查仍执行账号与格式校验。
 

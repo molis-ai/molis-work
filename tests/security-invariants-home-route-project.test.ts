@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { ISSUES_PLUGIN_ID, issuesManifest } from "@molis-ai/molis-work-plugin-issues";
+import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginExecutionControl, PluginRouteBinding, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
@@ -220,4 +221,18 @@ test("S-31 a project's control ends with its request: kept and used later, it is
   assert.ok(createRows(home).slice(before).every(row => !row.ok), "the late call left no record that ran");
   const listed = await (await request(`/api/plugins/${ISSUES_PLUGIN_ID}/list`)).json() as { items: unknown[] };
   assert.equal(listed.items.length, 1, "only the request's own create is kept");
+});
+
+// Security invariant S-03 (docs/system/SECURITY-INVARIANTS.md): a Home plugin's route reads at most the body its Manifest declares (`max_body_bytes`).
+test("S-03 a Home route's own body limit refuses one byte more before the action runs; Todo declares the 1,000,000 it had", { timeout: 60_000 }, async t => {
+  const { request } = await serveHomeRuntime(t);
+  const items = `/api/plugins/${todoManifest.plugin_id}/items`;
+  const sized = (bytes: number) => JSON.stringify({ title: "x".repeat(bytes - 12) });
+  assert.equal(Buffer.byteLength(sized(1_000_001)), 1_000_001);
+  const over = await request(items, { method: "POST", raw: sized(1_000_001) });
+  assert.equal(over.status, 413);
+  assert.equal((await over.json()).code, "actions.input_too_large");
+  const at = await request(items, { method: "POST", raw: sized(1_000_000) });
+  assert.notEqual(at.status, 413, "a body at the limit is read; the action then judges the input");
+  assert.deepEqual((await (await request(`${items}?view=all`)).json() as { items: unknown[] }).items, [], "neither request added a todo");
 });

@@ -135,6 +135,7 @@ test("F-plugins-rest-w2-14 F-plugins-rest-w2-15: Risk preserves unsaved drafts a
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, web } = browser;
+  assert.ok(projectId);
   await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "risk", expected_revision: await projectPluginRevision(web, projectId) });
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=risk` }, sessionId));

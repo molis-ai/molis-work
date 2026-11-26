@@ -108,6 +108,7 @@ test("S-10 the sandbox proxy and the custom RSS fetch refuse every address of th
   // F-cf-04 / F-TEST-22: malformed IPv6 strings carrying brackets, paths, ports or control characters must return false.
   for (const malformed of [
     "2001:4860::8888]/evil",
+    "2001:4860::8888]:443/foo#",
     "2001:4860::]:443/foo#",
     "2001:4860::\t8888",
     "2001:4860::\n8888",

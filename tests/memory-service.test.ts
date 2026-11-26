@@ -876,7 +876,7 @@ test("MEM-21 accepting a suggestion closes exact duplicates and can finish after
   hidden.mock.restore();
   assert.equal((await memory.candidates(person(), { scope: "project" })).length, 2);
   const save = env.ledger().saveCandidate;
-  const interruption = t.mock.method(env.ledger(), "saveCandidate", record => {
+  const interruption = t.mock.method(env.ledger(), "saveCandidate", (record: Parameters<typeof save>[0]) => {
     if (record.candidate_id === second.candidate_id && record.state !== "pending") throw new Error("duplicate projection interrupted");
     return save(record);
   });
@@ -965,7 +965,7 @@ test("F-horiz-runtime-25: character-scope memory changes preserve owning project
     assert.equal(change.scope, "character");
     assert.equal(change.project_id, "project-a");
   }
-  const stored = env.ledger().changes(LOCAL_PERSON_ACTOR_ID, { scope: "character" });
+  const stored = env.ledger().changes(LOCAL_PERSON_ACTOR_ID, 20).filter(record => record.scope === "character");
   assert.ok(stored.length >= 3);
   assert.ok(stored.every(record => record.project_id === "project-a"));
 });

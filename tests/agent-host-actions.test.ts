@@ -628,7 +628,7 @@ test("RAC-180 reading a session, its rounds, reviews and subtasks, and preparing
   owner.current = mine;
   // A run of no round of this session is not this session's.
   await assert.rejects(actions.invoke(agent.readWriteChecks, [session, "elsewhere", ["w1"]]), { code: "agent.run_unknown" });
-  for (const definition of [agent.readRun, agent.readRunReviews, agent.listSubagents])
+  for (const definition of [agent.readRun, agent.readRunReviews, agent.listSubagents] as ActionDefinition[])
     await assert.rejects(actions.invoke(definition, [session, { session_id: "s1", run_id: "elsewhere" }] as never), { code: "agent.run_unknown" }, definition.capability_id);
   // Nothing but a consuming plugin calls them, and the schemas refuse identity in the input.
   await assert.rejects(bystander.actions(PROJECT).invoke(agent.readSession, [session]), { code: "actions.forbidden" });
@@ -741,7 +741,7 @@ test("RAC-181 a wait under way when the person revokes a permission is refused o
 const DIRECTORY = [agent.listRuntimes, agent.availableRoles, agent.listActions];
 const MCP = [agent.listMcp, agent.saveMcp, agent.controlMcp];
 const LIBRARY = "fixture-library";
-const READER = { roles: [{ role_id: "reader", version: 1, execution: "read-only" as const, prompts: ["reader"], host_tools: [] }], prompts: [{ prompt_id: "reader", version: 1 }], mcp: true };
+const READER = { roles: [{ role_id: "reader", version: 1, name: "Reader", execution: "read-only" as const, prompts: ["reader"], host_tools: [] }], prompts: [{ prompt_id: "reader", version: 1 }], mcp: true };
 const server = (id: string) => ({ id, version: 1, label: id, enabled: true, transport: "http" as const, timeout_ms: 1000, credential: "none" as const, health: "connected" as const, tools: [], resources: [] });
 
 async function librarySetup(t: TestContext, home = false) {

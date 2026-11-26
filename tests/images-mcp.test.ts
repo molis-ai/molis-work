@@ -40,3 +40,27 @@ test("Images standard MCP generates and retrieves real bytes, then preserves the
   await call(restarted, "connections.delete", { id: connection.id });
   assert.deepEqual((await call<{ jobs: unknown[] }>(restarted, "jobs.list")).jobs, []);
 });
+
+test("Images standard MCP hides another project's jobs", { timeout: 45_000 }, async t => {
+  const { connect, saveConnection, generate } = await openImagesMcp(t);
+  const owner = await connect("a");
+  const connection = await saveConnection(owner);
+  const { jobId } = await generate(owner, connection.id);
+  await owner.close();
+
+  const other = await connect("b");
+  assert.deepEqual((await call<{ jobs: unknown[] }>(other, "jobs.list")).jobs, []);
+  assert.equal((await other.callTool({ name: "images.jobs.get__v1", arguments: { id: jobId } })).isError, true);
+});
+
+test("Images standard MCP lets a reader retrieve the bytes and refuses generation", { timeout: 45_000 }, async t => {
+  const { connect, saveConnection, generate } = await openImagesMcp(t);
+  const owner = await connect("a");
+  const connection = await saveConnection(owner);
+  const { input, query, image } = await generate(owner, connection.id);
+  await owner.close();
+
+  const reader = await connect("a", "read");
+  assert.equal((await reader.callTool({ name: "images.jobs.start__v1", arguments: input })).isError, true);
+  assert.deepEqual(await call(reader, "images.read", query), image);
+});

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import test from "node:test";
 import type { AgentRunRef, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -483,6 +484,203 @@ test("BL-222 / F-horiz-runtime-02: applyRunEvent maps EFFECT_RECONCILE_REQUIRED 
     baseBoard(),
   );
   assert.equal(interruptedBoard.nodes[0]?.unknown_outcome, undefined, "TOOL_INTERRUPTED unexecuted command must NOT flag unknown_outcome");
+  assert.equal(interruptedBoard.terminal, true);
+  assert.equal(interruptedBoard.progress_summary?.completed_points, 3);
+});
+
+interface ReconcileSdkRuntime {
+  workspace: { authorize(input: { path: string; posture: "read-write" }): Promise<{ ref: unknown }> };
+  sessions: { create(input: { title: string }): Promise<unknown> };
+  startAgentRun(input: {
+    session: unknown;
+    rootRef: unknown;
+    start: {
+      protocol: string;
+      endpoint: string;
+      model: string;
+      credentialRef: unknown;
+      messages: Array<{ role: string; text: string }>;
+    };
+    agent: { idempotencyKey: string; toolNames: string[]; budget: { maxTurns: number } };
+    runTool(invocation: { registration: { name: string } }): Promise<{ text: string }>;
+  }): Promise<{
+    run: { subscribe(listener: (event: Record<string, unknown>) => void): void };
+    control: { stop(reason: string): Promise<void> };
+    policy: { decide(id: string, decision: string): Promise<void> };
+  }>;
+  shutdown(): Promise<void>;
+}
+
+interface ReconcileSdkModule {
+  createRuntime(input: Record<string, unknown>): Promise<ReconcileSdkRuntime>;
+  createPrologueError(code: string, safeMessage: string): Error & { code: string };
+}
+
+interface ReconcileMemoryHost {
+  writeCredential(input: { label: string; secret: { plaintext: Uint8Array } }): Promise<{ ref: unknown }>;
+}
+
+interface ReconcileTestingModule {
+  createMemoryHost(input: Record<string, unknown>): ReconcileMemoryHost;
+}
+
+test("F-TEST-08 / BL-222: real SDK tool throwing EFFECT_RECONCILE_REQUIRED flows through prologue-stream into unknown_outcome while read-only TOOL_INTERRUPTED stays failed", async () => {
+  const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
+  const { createRuntime, createPrologueError } = await import(requireSdk.resolve("@prologue/sdk")) as ReconcileSdkModule;
+  const { createMemoryHost } = await import(requireSdk.resolve("@prologue/sdk/testing")) as ReconcileTestingModule;
+  const at = "2026-11-26T00:00:01.000Z";
+  const baseBoard = (): AgentStepBoard => ({
+    project_id: "project-reconcile-sdk",
+    version: 4,
+    terminal: true,
+    progress_summary: {
+      weighted_percent: 100,
+      completed_points: 3,
+      total_points: 3,
+      estimated_leaves: 1,
+      unestimated_leaves: 0,
+      completed_unestimated_leaves: 0,
+      removed_scope_leaves: 0,
+      removed_scope_points: 0,
+    },
+    nodes: [{
+      id: "step-1",
+      state: "succeeded",
+      story_points: 3,
+      progress: 1,
+      reports: [{ note: "真实工具执行构建命令", at_ms: Date.parse(at) }],
+    }],
+  });
+  const toolTurnFrames = (calls: ReadonlyArray<{ id: string; name: string; args: Record<string, unknown> }>) => [
+    ...calls.map((c, index) => `data: ${JSON.stringify({
+      id: "chatcmpl-1",
+      choices: [{ index: 0, delta: { tool_calls: [{ index, id: c.id, type: "function", function: { name: c.name, arguments: JSON.stringify(c.args) } }] }, finish_reason: null }],
+    })}\n\n`),
+    `data: ${JSON.stringify({ id: "chatcmpl-1", choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] })}\n\n`,
+    "data: [DONE]\n\n",
+  ];
+  const runSdkScenario = async (mode: "reconcile" | "interrupted") => {
+    const host = createMemoryHost({
+      capabilities: { "workspace.command": "present", "workspace.write": "present" },
+      files: { "README.md": "hello" },
+      script: {
+        turns: [
+          {
+            frames: toolTurnFrames(mode === "reconcile"
+              ? [
+                  { id: "call_cmd", name: "run-command", args: { executable: "echo", argv: ["hi"] } },
+                  { id: "call_read", name: "read", args: { path: "README.md" } },
+                ]
+              : [
+                  { id: "call_read_1", name: "read", args: { path: "README.md" } },
+                  { id: "call_read_2", name: "read", args: { path: "README.md" } },
+                ]),
+          },
+          {
+            frames: [
+              `data: ${JSON.stringify({ id: "chatcmpl-2", choices: [{ index: 0, delta: { content: "done" }, finish_reason: "stop" }] })}\n\n`,
+              "data: [DONE]\n\n",
+            ],
+          },
+        ],
+      },
+    });
+    const cred = await host.writeCredential({ label: "fixture-key", secret: { plaintext: new TextEncoder().encode("secret") } });
+    const runtime = await createRuntime({
+      host,
+      preset: "local-agent",
+      network: { model: true },
+      posture: { sandbox: "workspace-write", approval: "untrusted" },
+      permissionMode: {
+        mode: "auto-allow",
+        allow: [{ what: "tool", name: "run-command" }, { what: "tool", name: "read" }],
+      },
+      rules: [
+        { source: "runtime", effect: "allow", match: { what: "tool", name: "run-command" } },
+        { source: "runtime", effect: "allow", match: { what: "tool", name: "read" } },
+      ],
+      app: { appId: "io.molis.reconcile-test", appVersion: "1.0.0" },
+    });
+    try {
+      const root = await runtime.workspace.authorize({ path: "/workspace", posture: "read-write" });
+      const session = await runtime.sessions.create({ title: `reconcile-${mode}` });
+      let started: Awaited<ReturnType<ReconcileSdkRuntime["startAgentRun"]>> | undefined;
+      started = await runtime.startAgentRun({
+        session,
+        rootRef: root.ref,
+        start: {
+          protocol: "openai-compatible",
+          endpoint: "https://api.example.test/v1/chat/completions",
+          model: "fixture",
+          credentialRef: cred.ref,
+          messages: [{ role: "user", text: "execute tools" }],
+        },
+        agent: { idempotencyKey: `reconcile-sdk-${mode}`, toolNames: ["run-command", "read"], budget: { maxTurns: 2 } },
+        runTool: async (invocation) => {
+          if (mode === "reconcile" && invocation.registration.name === "run-command") {
+            throw createPrologueError("EFFECT_RECONCILE_REQUIRED", "command outcome unknown after transport drop");
+          }
+          if (mode === "interrupted" && invocation.registration.name === "read") {
+            await started?.control.stop("cancelled");
+            throw createPrologueError("CANCELLED", "user cancelled while reading");
+          }
+          return { text: "ok" };
+        },
+      });
+      const stream = emptyPrologueStreamState();
+      await new Promise<void>((resolve) => {
+        started!.run.subscribe((event) => {
+          applyRunEvent(stream, event as Parameters<typeof applyRunEvent>[1], at);
+          if (event.type === "awaiting-approval") {
+            const approval = event.approval as { id?: string } | undefined;
+            if (approval?.id) {
+              void started!.policy.decide(approval.id, "allow-once");
+            }
+          }
+          if (typeof event.type === "string" && ["completed", "failed", "cancelled", "tripped"].includes(event.type)) {
+            resolve();
+          }
+        });
+      });
+      return stream;
+    } finally {
+      await runtime.shutdown();
+    }
+  };
+
+  // Real tool throwing EFFECT_RECONCILE_REQUIRED -> prologue-stream marks run-command "unknown",
+  // queued read-only tool receives TOOL_INTERRUPTED -> "failed" (not "unknown"), and step board blocks acceptance.
+  const reconcileStream = await runSdkScenario("reconcile");
+  assert.equal(reconcileStream.phase, "failed");
+  const cmdActivity = reconcileStream.activity.find(item => item.name === "run-command");
+  const queuedReadActivity = reconcileStream.activity.find(item => item.name === "read");
+  assert.equal(cmdActivity?.state, "unknown", "real EFFECT_RECONCILE_REQUIRED tool must map to state=unknown");
+  assert.match(cmdActivity?.summary ?? "", /EFFECT_RECONCILE_REQUIRED/);
+  assert.equal(queuedReadActivity?.state, "failed", "unexecuted queued read after reconcile stop must stay state=failed");
+  assert.match(queuedReadActivity?.summary ?? "", /TOOL_INTERRUPTED/);
+  const reconciledBoard = applyUnknownCommandOutcomes(
+    { phase: reconcileStream.phase, activity: reconcileStream.activity },
+    baseBoard(),
+  );
+  assert.equal(reconciledBoard.nodes[0]?.unknown_outcome, true, "real EFFECT_RECONCILE_REQUIRED must mark step unknown_outcome to block acceptance");
+  assert.equal(reconciledBoard.terminal, false, "step board with unknown_outcome must not remain terminal");
+  assert.equal(reconciledBoard.progress_summary?.completed_points, 0, "step board with unknown_outcome must deduct completed_points");
+
+  // Real read-only tool interrupted by cancellation -> SDK emits TOOL_INTERRUPTED,
+  // prologue-stream keeps all entries "failed", and step board does NOT flag unknown_outcome.
+  const interruptedStream = await runSdkScenario("interrupted");
+  assert.equal(interruptedStream.phase, "cancelled");
+  assert.equal(interruptedStream.activity.length, 2);
+  for (const item of interruptedStream.activity) {
+    assert.equal(item.name, "read");
+    assert.equal(item.state, "failed", "read-only TOOL_INTERRUPTED must never be misclassified as unknown");
+    assert.match(item.summary ?? "", /TOOL_INTERRUPTED/);
+  }
+  const interruptedBoard = applyUnknownCommandOutcomes(
+    { phase: interruptedStream.phase, activity: interruptedStream.activity },
+    baseBoard(),
+  );
+  assert.equal(interruptedBoard.nodes[0]?.unknown_outcome, undefined, "read-only TOOL_INTERRUPTED must never flag unknown_outcome");
   assert.equal(interruptedBoard.terminal, true);
   assert.equal(interruptedBoard.progress_summary?.completed_points, 3);
 });

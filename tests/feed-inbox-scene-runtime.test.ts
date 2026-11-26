@@ -281,7 +281,7 @@ test("F-pm3-04 Feed capture content, scene preview and information plan redact s
       }) as never,
     },
   });
-  const prepared = await runtime.handler.prepare(caller, { item_id: longItem.item_id, rule_id: "rule-1" }) as {
+  const prepared = await runtime.handler.prepare!(caller, { item_id: longItem.item_id, rule_id: "rule-1" }) as {
     input: { content: string };
     state: { content: string };
   };

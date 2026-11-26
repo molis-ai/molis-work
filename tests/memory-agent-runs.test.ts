@@ -4,7 +4,7 @@ import { mkdtemp, rm, realpath, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { openMemoryLedger, homeSqlitePath, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { openMemoryLedger, homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ASSISTANT_PLUGIN_ID, ASSISTANT_INSTALL_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentRunView, AgentMemoryUseReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";

@@ -395,7 +395,7 @@ test('P0-09 synced Feed evidence registers Home ledger holds so another project 
   const callerA = await b.host.localPersonContext(refA);
   const readerResult = await b.host.actionClient(refA).invoke(callerA, feedQueryActions.reader, {
     object_id: itemA.item_id,
-  });
+  }) as { item: { materials: Array<{ content_available?: boolean; content?: string }> } };
   assert.equal(readerResult.item.materials[0]?.content_available, true);
   assert.equal(readerResult.item.materials[0]?.content, sharedBody);
 });

@@ -10,8 +10,8 @@ import { blockingJobs, fullSuiteWorkflow, jobBlock, setupWorkAction, workflow } 
 const BLOCKING_FLOOR = 30;
 /** No limit is above this, in minutes: it must still be a limit and not the six-hour default in disguise. */
 const CEILING = 60;
-/** Job -> its limit in minutes, the longest successful run of the sample in seconds, and whether it blocks the merge. */
-const JOBS: Record<string, { limit: number; longest: number; blocking: boolean }> = {
+/** Job -> its limit in minutes, the longest successful run of the sample in seconds, whether it blocks the merge, and whether it installs pnpm via setup-work. */
+const JOBS: Record<string, { limit: number; longest: number; blocking: boolean; setupWork?: boolean }> = {
   // Shared Linux workspace build job consumed by downstream test jobs; bounded at the blocking floor.
   build: { limit: 30, longest: 200, blocking: true },
   // New combined Auth WASM + Work browser fixture; bounded conservatively pending CI measurement.
@@ -20,6 +20,10 @@ const JOBS: Record<string, { limit: number; longest: number; blocking: boolean }
   gates: { limit: 45, longest: 1400, blocking: true },
   "gates-built": { limit: 45, longest: 1400, blocking: true },
   "gate-rules": { limit: 45, longest: 0, blocking: true },
+  // F-TEST-19: no blocking Verify dependency may fall back to GitHub's six-hour default.
+  "secret-scan": { limit: 30, longest: 0, blocking: true, setupWork: false },
+  "native-checks": { limit: 45, longest: 0, blocking: true, setupWork: false },
+  "shell-checks": { limit: 30, longest: 0, blocking: true, setupWork: false },
   "security-invariants": { limit: 40, longest: 1315, blocking: true },
   // macOS Seatbelt sandbox and native input security invariants (F-TEST-01); bounded conservatively pending CI measurement.
   "security-invariants-macos": { limit: 45, longest: 0, blocking: true },
@@ -78,14 +82,14 @@ test("RAC-2411 ci.yml: a blocking job with a job-level limit gets 30 minutes or 
   assert.ok(!blocking.includes("test-selection"), "the selector is an auxiliary Verify dependency, not a required test result");
   assert.equal(jobTimeout("queue-check"), "5", "queue-check keeps its intentional 5-minute limit");
   assert.equal(jobTimeout("test-selection"), "5", "the auxiliary selector keeps its intentional 5-minute limit");
-  // `secret-scan`, `native-checks` and `shell-checks` are verify's needs without a job-level limit, so they fall back to the six-hour
-  // default if they hang; giving them a limit is a workflow change of its own, and a job without one is skipped here.
+  // F-TEST-19: every blocking Verify dependency (including `secret-scan`, `native-checks` and `shell-checks`) carries a job-level timeout.
   const limited = limitedBlockingJobs(workflow);
+  assert.deepEqual([...limited].sort(), [...blocking].sort(), "every blocking job carries a job-level timeout-minutes limit");
   // The table marks what blocks a merge and `verify` is what decides it: neither may drift from the other, or a new blocking job would
   // go unchecked, and a job the table calls blocking but verify does not need would hold a merge group for nothing.
   const tableBlocking = Object.entries(JOBS).filter(([, job]) => job.blocking).map(([name]) => name).sort();
-  assert.deepEqual(tableBlocking, blocking.filter((name) => Object.hasOwn(JOBS, name)).sort(),
-    "the table's blocking jobs are exactly verify's needs that the table records");
+  assert.deepEqual(tableBlocking, [...blocking].sort(),
+    "the table's blocking jobs are exactly verify's blocking needs");
   // A blocking job that gains a limit must enter the table, or its number is never checked.
   for (const name of limited) assert.ok(Object.hasOwn(JOBS, name), `${name}: a blocking job with a limit is in the JOBS table, so its limit is checked`);
 });
@@ -104,7 +108,9 @@ test("RAC-1906 ci.yml: every setup-work step (including Install pnpm and pnpm in
     }
   }
   assert.equal(seen, 10, "the ten blocking job definitions that install pnpm and dependencies through setup-work");
-  for (const name of Object.keys(JOBS)) assert.equal(setupWorkSteps(jobBlock(name)).length, 1, `${name} runs setup-work once`);
+  for (const [name, entry] of Object.entries(JOBS)) {
+    assert.equal(setupWorkSteps(jobBlock(name)).length, entry.setupWork === false ? 0 : 1, `${name} setup-work count`);
+  }
 });
 
 // RAC-2425 (T-287 二审): a limit written with a trailing comment is still a limit, and a blocking job's limit line that is not a plain

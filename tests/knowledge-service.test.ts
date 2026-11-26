@@ -344,6 +344,7 @@ test("F-horiz-runtime-34 read, grep, organize, locate and glob enforce post-awai
       { capability_id: workspaceReadActions.file.capability_id, version: workspaceReadActions.file.version, operation: "query" as const, provider: { provider_id: "ws", title: "WS", kind: "system" }, action: workspaceReadActions.file.action, availability: { available: true } } as ActionView,
       { capability_id: projectDirectoryActions.get.capability_id, version: projectDirectoryActions.get.version, operation: "query" as const, provider: { provider_id: "proj", title: "Proj", kind: "system" }, action: projectDirectoryActions.get.action, availability: { available: true } } as ActionView,
     ],
+    discoverOne: async () => undefined,
     invoke: async (_caller, ref) => {
       if (ref.capability_id === projectDirectoryActions.get.capability_id) {
         return { directories: [{ workspace_id: "w1", display_name: "Docs", state: "ok", realpath_verified: true }] };

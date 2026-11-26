@@ -430,13 +430,13 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     assert.equal(JSON.stringify(recorded).includes(realpathSync(tmpdir())), false);
   });
 
-  test("UPG2-02 / GDC-01: generating it again on this commit gives the same bytes", async () => {
+  test("UPG2-02 / GDC-01: generating it again on this commit gives the same bytes", { timeout: 600_000 }, async () => {
     const again = await runAsync(GOLDEN_SCRIPT, "check", "--version", VERSION, "--dir", golden);
     assert.equal(again.status, 0, again.output);
     assert.match(again.output, /identical/u);
-  }, { timeout: 600_000 });
+  });
 
-  test("UPG2-02 / GDC-01: a machine slow enough for the Host's rounds to come due gives the same bytes", async () => {
+  test("UPG2-02 / GDC-01: a machine slow enough for the Host's rounds to come due gives the same bytes", { timeout: 600_000 }, async () => {
     const memory = new DatabaseSync(":memory:", { defensive: false });
     try {
       memory.exec(readFileSync(path.join(golden, "stores/memory/memory.db.sql"), "utf8"));
@@ -448,16 +448,16 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     });
     assert.equal(slow.status, 0, slow.output);
     assert.match(slow.stdout, /identical/u);
-  }, { timeout: 600_000 });
+  });
 
-  test("UPG2-02: `check` says which table differs, and does not say what is in it", async () => {
+  test("UPG2-02: `check` says which table differs, and does not say what is in it", { timeout: 600_000 }, async () => {
     const parent = tampered("changed", sql => sql.replace(GENERATED_TEXT, "改过的金样内容"),
       entry => readFileSync(path.join(golden, `stores/${entry.path}.sql`), "utf8").includes(GENERATED_TEXT));
     const result = await runAsync(GOLDEN_SCRIPT, "check", "--version", VERSION, "--dir", path.join(parent, VERSION));
     assert.equal(result.status, 1);
     assert.match(result.output, /golden\.differs/u);
     assert.doesNotMatch(result.output, /改过的/u);
-  }, { timeout: 600_000 });
+  });
 
   test("the recorded commit is not part of what `check` compares, and anything else in the manifest is: a golden goes in with the commit after the one it records", () => {
     const parent = path.join(directory, "other-commit"), copy = path.join(parent, VERSION);
@@ -488,7 +488,7 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     assert.equal(dumped.includes('"manifest":"sha256:'), true);
   });
 
-  test("UPG2-01, UPG2-05, UPG2-06, GDC-02: both Homes are restored, opened, read, written to, restarted and read again, under a Home that is not the real one", async () => {
+  test("UPG2-01, UPG2-05, UPG2-06, GDC-02: both Homes are restored, opened, read, written to, restarted and read again, under a Home that is not the real one", { timeout: 600_000 }, async () => {
     const replayed = await runAsync(REPLAY_SCRIPT, "--dir", path.dirname(golden), "--json");
     assert.equal(replayed.status, 0, replayed.output);
     const { results } = JSON.parse(replayed.stdout);
@@ -505,7 +505,7 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     // dropped either one of them (or did not complete it) cannot still say `ok` and pass here. `restart_reads` is the second read count.
     assert.deepEqual(results[0].steps.restarts, ["restart-structure", "restart-read"]);
     assert.ok(results[0].steps.restart_reads > 0);
-  }, { timeout: 600_000 });
+  });
 
   test("GDC-02: macOS rejects a settings file whose saved forbidden app is missing", { skip: process.platform !== "darwin", timeout: 600_000 }, async () => {
     const parent = path.join(directory, "computer-setting-lost"), copy = path.join(parent, VERSION);
@@ -523,7 +523,7 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     assert.match(replayed.output, /^FAIL 9\.9\.9-dev\.1 versioned-files computer\/settings\.json golden\.versioned_file_lost$/mu);
   });
 
-  test("UPG2-07 / GDC-02: Linux reports skipped signed samples and computer settings in the replay result", async () => {
+  test("UPG2-07 / GDC-02: Linux reports skipped signed samples and computer settings in the replay result", { timeout: 600_000 }, async () => {
     const replayed = await runWithAsync(["--import", PRETEND_LINUX], REPLAY_SCRIPT, ["--latest", "1", "--json"]);
     assert.equal(replayed.status, 0, replayed.output);
     const { results } = JSON.parse(replayed.stdout);
@@ -535,9 +535,9 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     assert.equal(result.steps.home_library, "not-run");
     assert.equal(result.steps.computer_settings, "not-run");
     assert.deepEqual(result.not_run, ["third-party", "home-library", "computer-settings"]);
-  }, { timeout: 600_000 });
+  });
 
-  test("UPG2-03: a library at another version fails at the upgrade with its code, and the output has only the place and the code", async () => {
+  test("UPG2-03: a library at another version fails at the upgrade with its code, and the output has only the place and the code", { timeout: 600_000 }, async () => {
     // A golden of a library at 999 records 999, so the replay's reading of the recorded versions lets it through to the upgrade.
     const parent = tampered("version", (sql, entry) => {
       assert.match(sql, /PRAGMA user_version=\d+;/u);
@@ -549,9 +549,9 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     const [line] = result.output.split("\n").filter(item => item.startsWith("FAIL"));
     assert.match(line ?? "", /^FAIL 9\.9\.9-dev\.1 upgrade \S+ \S+\.\S+$/u, result.output);
     assert.doesNotMatch(result.output, new RegExp(GENERATED_TEXT, "u"));
-  }, { timeout: 600_000 });
+  });
 
-  test("UPG2-03: a recorded row that is gone fails the row check at that table, without its contents", async () => {
+  test("UPG2-03: a recorded row that is gone fails the row check at that table, without its contents", { timeout: 600_000 }, async () => {
     const seeded = /^INSERT INTO "todo[^"]*"\(.*金样.*$/mu;
     const parent = tampered("rows", sql => {
       assert.match(sql, seeded);
@@ -561,9 +561,9 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     assert.equal(result.status, 1);
     assert.match(result.output, /^FAIL 9\.9\.9-dev\.1 rows-after-upgrade \S+#todo\S* golden\.rows_decreased$/mu);
     assert.doesNotMatch(result.output, new RegExp(GENERATED_TEXT, "u"));
-  }, { timeout: 600_000 });
+  });
 
-  test("UPG2-03: a knowledge card an upgrade lost is caught before any read, because the wait for the index would bring it back", async () => {
+  test("UPG2-03: a knowledge card an upgrade lost is caught before any read, because the wait for the index would bring it back", { timeout: 600_000 }, async () => {
     const card = /^INSERT INTO "knowledge_cards"\(.*$/mu;
     const parent = tampered("card", sql => {
       assert.match(sql, card);
@@ -572,11 +572,11 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     const result = await runAsync(REPLAY_SCRIPT, "--dir", parent);
     assert.equal(result.status, 1);
     assert.match(result.output, /^FAIL 9\.9\.9-dev\.1 rows-after-upgrade knowledge\/knowledge\.db#knowledge_cards golden\.rows_decreased$/mu);
-  }, { timeout: 600_000 });
+  });
 
   // The sync library's baseline is version 1, so there is no older version with steps to test: 0 is the only version below it.
   for (const [found, code] of [[999, "store_too_new"], [0, "schema_version_mismatch"]] as const) {
-    test(`UPG2-06: the account Home's sync library at version ${found} fails the structure check with ${code}, though nothing else opens it`, async () => {
+    test(`UPG2-06: the account Home's sync library at version ${found} fails the structure check with ${code}, though nothing else opens it`, { timeout: 600_000 }, async () => {
       const parent = tampered(`sync-${found}`, (sql, entry) => {
         assert.match(sql, /PRAGMA user_version=\d+;/u);
         entry.schema_version = found;
@@ -585,7 +585,7 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
       const result = await runAsync(REPLAY_SCRIPT, "--dir", parent);
       assert.equal(result.status, 1);
       assert.match(result.output, new RegExp(`^FAIL 9\\.9\\.9-dev\\.1 structure \\S+ storage\\.${code}$`, "mu"), result.output);
-    }, { timeout: 600_000 });
+    });
   }
 
   test("a payload that does not match the manifest is reported as a damaged golden, not as a finding about the code", async () => {
@@ -662,7 +662,7 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     }],
   ];
   for (const [what, edit] of edits) {
-    test(`UPG-01: a manifest with ${what} fails the replay at the recorded versions, before anything opens it`, async () => {
+    test(`UPG-01: a manifest with ${what} fails the replay at the recorded versions, before anything opens it`, { timeout: 600_000 }, async () => {
       const parent = path.join(directory, `recorded-${what.replaceAll(/\W+/gu, "-")}`), copy = path.join(parent, VERSION);
       cpSync(golden, copy, { recursive: true });
       const recorded = manifest(copy) as Manifest, where = edit(recorded);
@@ -670,12 +670,12 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
       const result = await runAsync(REPLAY_SCRIPT, "--dir", parent);
       assert.equal(result.status, 1, result.output);
       assert.match(result.output, new RegExp(`^FAIL 9\\.9\\.9-dev\\.1 recorded-versions ${where.replaceAll(".", "\\.")} golden\\.recorded_version_mismatch$`, "mu"));
-    }, { timeout: 600_000 });
+    });
   }
 
   // Only what the manifest records is checked. The gates count held versions from `formats` alone, so a format left out makes them stricter,
   // never looser; a generator that leaves one out is caught where it generates (the UPG-01 test above, and `check`).
-  test("UPG-01: a manifest that leaves a format out still replays, since leaving one out claims nothing the gates could count", async () => {
+  test("UPG-01: a manifest that leaves a format out still replays, since leaving one out claims nothing the gates could count", { timeout: 600_000 }, async () => {
     const parent = path.join(directory, "recorded-format-left-out"), copy = path.join(parent, VERSION);
     cpSync(golden, copy, { recursive: true });
     const recorded = manifest(copy) as Manifest, at = recorded.formats.findIndex(format => format.entry === "database.home.catalog" && format.path === "projects/catalog.db");
@@ -685,7 +685,7 @@ describe("a generated golden Home", { concurrency: 3 }, () => {
     const result = await runAsync(REPLAY_SCRIPT, "--dir", parent);
     assert.equal(result.status, 0, result.output);
     assert.match(result.output, /^ok {3}9\.9\.9-dev\.1 /mu);
-  }, { timeout: 600_000 });
+  });
 
   // The table of formats is this build's, and it reads goldens of earlier releases. An entry added later, in a library or file an older golden
   // already has, is not in that golden's manifest, and the golden still replays: `golden-replay` gates every merge and an old golden cannot be

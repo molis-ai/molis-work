@@ -14,10 +14,12 @@
 // What is verified separately on a real macOS desktop build (tracked in docs/system/SECURITY-INVARIANTS.md S5): real WKWebView
 // command reachability for top-level main vs opaque plugin srcdoc iframes and non-blank rendering under the strict static placeholder CSP.
 import assert from "node:assert/strict";
+import { createHmac, randomBytes } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const SHELL = fileURLToPath(new URL("../apps/desktop/src-tauri/", import.meta.url));
 const MAIN_RS = fileURLToPath(new URL("../apps/desktop/adapters/tauri/src/main.rs", import.meta.url));
@@ -218,4 +220,33 @@ test("S-desktop-rollback-main-only going back a version is granted to the main w
   const checked = command.indexOf("rollback_source(window.label()"), stopped = command.indexOf("go_back(");
   assert.ok(checked > 0 && checked < stopped, "the window and its address are checked before the Host is stopped");
   assert.match(source, /fn s_desktop_rollback_main_only_refuses_every_other_window_and_origin/u, "the Rust refusal test stays");
+});
+
+// SYS-14 S-14: the production HTTP server proves this Home's identity over the exact bytes.
+test("SYS-14 health answers fresh challenges without disclosing the control token", async t => {
+  const f = await serveHomeRuntime(t);
+  await f.project("Identity probe");
+  const proofs = [];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const challenge = randomBytes(32).toString("base64url");
+    const response = await fetch(`${f.origin}/health?challenge=${challenge}`);
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    const proof = response.headers.get("x-molis-work-proof");
+    assert.equal(proof, createHmac("sha256", f.token).update(challenge + "\n").update(body).digest("base64url"));
+    assert.equal(Buffer.byteLength(body), Number(response.headers.get("content-length")));
+    assert.equal(body.includes(f.token), false);
+    assert.equal(JSON.parse(body).status, "ok");
+    assert.equal(JSON.parse(body).desktop_tui, true);
+    assert.equal(typeof JSON.parse(body).active_work, "number");
+    assert.ok(JSON.parse(body).active_work >= 0);
+    proofs.push(proof);
+  }
+  assert.notEqual(proofs[0], proofs[1], "a previous response cannot answer the next challenge");
+  const plain = await fetch(`${f.origin}/health`);
+  assert.equal(plain.status, 200);
+  assert.equal(plain.headers.get("x-molis-work-proof"), null);
+  const invalid = await fetch(`${f.origin}/health?challenge=not-a-nonce`);
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.headers.get("x-molis-work-proof"), null);
 });

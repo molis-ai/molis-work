@@ -188,7 +188,7 @@ test("F-horiz-runtime-35 gatherKit strips traversal manage.href, propagates call
   const caller: ActionCallContext = { actor_id: "web-user", project_id: "p1", audience: "user", permissions: [] };
   const gathered = await gatherKit(caller, {
     discover: async () => views,
-    invoke: async (_ctx, ref) => reports[ref.provider_id!],
+    invoke: async (_ctx: ActionCallContext, ref: { provider_id?: string }) => reports[ref.provider_id!],
   } as never, SYSTEM_WORDS);
   const manageByName = Object.fromEntries(gathered.entries.map(row => [row.name, row.manage?.href ?? null]));
   assert.deepEqual(manageByName, {
@@ -228,7 +228,7 @@ test("F-horiz-runtime-35 gatherKit strips traversal manage.href, propagates call
   })) as KitReportedEntry[];
   const large = await gatherKit(caller, {
     discover: async () => [makeView("plugin-install"), makeView("plugin.reporter", { plugin_id: PLUGIN_ID, install_id: "i-guard" })],
-    invoke: async (_ctx, ref) => ref.provider_id === "plugin-install"
+    invoke: async (_ctx: ActionCallContext, ref: { provider_id?: string }) => ref.provider_id === "plugin-install"
       ? { entries: [], packs: [{ source: PLUGIN_SOURCE, description: "", status: "enabled" }] }
       : { entries: manyRoles },
   } as never, SYSTEM_WORDS);

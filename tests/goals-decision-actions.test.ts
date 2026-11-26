@@ -373,7 +373,10 @@ test("F-goals-01 & Q-goals-01 (A3): concern resolve/overturn validates cited dec
       options: [{ option_id: "yes", label: "Yes", impact: "Go" }, { option_id: "no", label: "No", impact: "Stop" }],
       scope: { action: "publish" },
     });
-    const state = await client.invoke(user, goalsActions.state, { goal_id: "CANCEL-OFFER" });
+    const state = await client.invoke(user, goalsActions.state, { goal_id: "CANCEL-OFFER" }) as {
+      config: { version: number };
+      agreement: { version: number };
+    };
     await client.invoke(user, goalsActions.close, {
       goal_id: "CANCEL-OFFER",
       idempotency_key: "c-cancel",
@@ -393,12 +396,12 @@ test("F-goals-01 & Q-goals-01 (A3): concern resolve/overturn validates cited dec
     assert.equal(draftOffer.choices[0]?.availability.available === false && draftOffer.choices[0]?.availability.code, "actions.conflict");
     const nonDraftOffer = await served.web.post<ReviewRequest>(`/projects/${encodeURIComponent(project.project_id)}/api/project-approvals/request`, {
       action: { capability_id: goalsActions.decide.capability_id, version: goalsActions.decide.version, provider_id: GOALS_PLUGIN_ID },
-      request_id: req.decision_request.request_id,
+      request_id: (req as { decision_request: { request_id: string } }).decision_request.request_id,
     });
     assert.ok(nonDraftOffer.choices.length > 0);
     assert.ok(nonDraftOffer.choices.every((choice) => !choice.availability.available && choice.availability.code === "actions.conflict"));
     await assert.rejects(
-      web.submit({ reference: draftOffer.reference, choice_id: "apply", request_key: "c-decide-draft" }),
+      web.submit({ reference: draftOffer.reference as Parameters<typeof web.submit>[0]["reference"], choice_id: "apply", request_key: "c-decide-draft" }),
       { code: "actions.conflict" },
     );
   } finally {

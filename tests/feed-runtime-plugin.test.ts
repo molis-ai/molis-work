@@ -687,7 +687,7 @@ test("FI-C-04 an item synced from a research library is read by every read actio
   const snapshot = await f.client.invoke(read(), feedQueryActions.snapshot, {}) as { feed_items: Array<{ item_id: string; body: string | null }> };
   assert.equal(snapshot.feed_items.find(row => row.item_id === itemId)?.body, null, "FBR-02: directory pages never hydrate article bodies; the exact item/content readers above and below retain them");
   assert.ok((await f.client.invoke(read(), feedContentActions.read, { item_id: itemId }) as { body: string }).body.includes(text));
-  assert.ok((await f.client.invoke(read(), feedSubjectAction, { subject_id: itemId })).content.includes(text));
+  assert.ok((await f.client.invoke(read(), feedSubjectAction, { subject_id: itemId }) as { content: string }).content.includes(text));
   const preview = await f.client.invoke(read(), feedRuleActions.preview, { source_id: sourceId, contains: "verifiable" }) as { samples: Array<{ item_id: string; matched: boolean }> };
   assert.deepEqual(preview.samples.map(sample => [sample.item_id, sample.matched]), [[itemId, true]], "the next rule read matches the package's text");
   // Not asking the evidence store does not skip the call's own checks.
@@ -1870,7 +1870,7 @@ for (const { service, fault } of CURRENT_CONNECTOR_FAULTS) test(`RAC-2863 RAC-28
   const f = await openTestHome(t), project = await f.createProject(`T396 ${service} ${fault}`, ["feed", "inbox"]), client = f.host.actionClient(project.reference);
   const person = () => f.host.localPersonContext(project.reference);
   await client.discover(await person());
-  const runtime = await f.host.withProject(project.reference, runtime => runtime), platform = await runningProjectPlatform(runtime.store, project.project_id);
+  const runtime = await f.host.withProject(project.reference, (projectRuntime: { store: LocalProjectDatabase }) => projectRuntime), platform = await runningProjectPlatform(runtime.store, project.project_id);
   assert.ok(platform);
   const install = platform.runtime.list().find(record => record.plugin_id === FEED_PLUGIN_ID)!;
   assert.ok(install.grants.includes("connections:use") && install.grants.includes("sources:pull_connector"));

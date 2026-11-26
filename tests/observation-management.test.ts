@@ -720,7 +720,7 @@ test("F-horiz-runtime-21: manual cleanup invalidates read fold cache so an immed
     project_id: "p1",
     time_range: "custom",
     before: "2026-11-15T00:00:00.000Z",
-  });
+  }) as { deleted_records: number };
   assert.equal(cleaned.deleted_records, 1);
   assert.equal(readRecords(f.db()).length, 0);
 

@@ -64,22 +64,32 @@ test("memory ledger v1 -> v2 upgrade disambiguates pre-b3429bd1cc Coding session
     try {
       const insert = db.prepare("INSERT INTO memory_markers (actor_id, key, at, body) VALUES (?, ?, ?, ?)");
       insert.run("local-person", "memory-session-clear:coding-old", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("coding-old", "coding", { kind: "coding", id: "cs-1", project_id: "proj-1" })));
+      insert.run("local-person", "memory-session-clear:coding-already-v2", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("coding-already-v2", "coding", { kind: "coding", id: "cs-9", project_id: "proj-1", plugin_id: "io.molis.work.coding", provider_id: "io.molis.work.coding" })));
       insert.run("local-person", "memory-session-clear:assistant-old", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("assistant-old", "assistant", { kind: "assistant", id: "w-1", project_id: "proj-1" })));
       insert.run("local-person", "memory-session-clear:unknown-scene", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("unknown-scene", "custom-scene", { kind: "custom-scene", id: "x-1", project_id: "proj-1" })));
       insert.run("local-person", "memory-session-clear:proto-kind", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("proto-kind", "toString", { kind: "toString", id: "p-1", project_id: "proj-1" })));
       insert.run("local-person", "memory-session-clear:scene-mismatch", "2026-11-20T00:00:00.000Z", JSON.stringify(planOf("scene-mismatch", "other-scene", { kind: "coding", id: "cs-2", project_id: "proj-1" })));
+      insert.run("local-person", "memory-session-clear:malformed", "2026-11-20T00:00:00.000Z", "{not-json");
       db.exec("PRAGMA user_version = 1");
     } finally { db.close(); }
     // Runtime open strictly refuses v1 without upgrading in place.
     assert.throws(() => openMemoryLedger({ homeDirectory: home }), { code: "storage.upgrade_pending" });
     const report = runHomeUpgrade(home);
     assert.equal(report.units.find(unit => unit.relative_path === "memory/memory.db")?.state, "committed");
+    const upgraded = new DatabaseSync(file);
+    try {
+      assert.equal(upgraded.prepare("PRAGMA user_version").get()!.user_version, 2, "memory.db advances to schema version 2 after upgrade");
+      assert.equal(upgraded.prepare("SELECT body FROM memory_markers WHERE key = ?").get("memory-session-clear:malformed")?.body, "{not-json", "malformed marker rows are preserved untouched");
+      upgraded.prepare("DELETE FROM memory_markers WHERE key = ?").run("memory-session-clear:malformed");
+    } finally { upgraded.close(); }
     const owner = acquireStorageOwner(join(home, "agent-runtime"));
     const ledger = openMemoryLedger({ homeDirectory: home, storageOwner: owner });
     try {
       const coding = ledger.marker("local-person", "memory-session-clear:coding-old")?.body as { binding?: { target?: Record<string, unknown> } };
       assert.equal(isMemorySessionTarget(coding.binding?.target), true, "migrated Coding session-clear target passes strict contract validation");
       assert.deepEqual(coding.binding?.target, { kind: "coding", id: "cs-1", project_id: "proj-1", plugin_id: "io.molis.work.coding", provider_id: "io.molis.work.coding" });
+      const alreadyV2 = ledger.marker("local-person", "memory-session-clear:coding-already-v2")?.body as { binding?: { target?: Record<string, unknown> } };
+      assert.deepEqual(alreadyV2.binding?.target, { kind: "coding", id: "cs-9", project_id: "proj-1", plugin_id: "io.molis.work.coding", provider_id: "io.molis.work.coding" });
       const assistant = ledger.marker("local-person", "memory-session-clear:assistant-old")?.body as { binding?: { target?: Record<string, unknown> } };
       assert.equal(isMemorySessionTarget(assistant.binding?.target), true, "assistant target remains intact");
       assert.deepEqual(assistant.binding?.target, { kind: "assistant", id: "w-1", project_id: "proj-1" });

@@ -300,7 +300,7 @@ test("F-horiz-runtime-33 commit preserves ActionError and AbortError in personal
   // 1. Revoked authority inside personal-space update must stay actions.forbidden (not write_failed / outcome_unknown).
   let revokeChecks = 0;
   await assert.rejects(
-    invokeApply(baseCaller({
+    async () => invokeApply(baseCaller({
       assert_authority_current() {
         if (++revokeChecks >= 2) throw new ActionError("actions.forbidden", "授权已撤销");
       },
@@ -312,7 +312,7 @@ test("F-horiz-runtime-33 commit preserves ActionError and AbortError in personal
   const abort = new AbortController();
   let abortChecks = 0;
   await assert.rejects(
-    invokeApply(baseCaller({
+    async () => invokeApply(baseCaller({
       signal: abort.signal,
       assert_authority_current() {
         if (++abortChecks >= 2) abort.abort();
@@ -324,7 +324,7 @@ test("F-horiz-runtime-33 commit preserves ActionError and AbortError in personal
   // 3. Concurrent revision conflict after seed() must stay actions.conflict (not outcome_unknown).
   let bumped = false;
   await assert.rejects(
-    invokeApply(baseCaller({
+    async () => invokeApply(baseCaller({
       assert_authority_current() {
         if (bumped || !fs.existsSync(setup.path)) return;
         const disk = JSON.parse(fs.readFileSync(setup.path, "utf8"));

@@ -807,7 +807,7 @@ test("F-hc2-03 dual-instance confirm surfaces explicit partial-upgrade state whe
     installInProject: async () => {
       throw new ActionError("actions.execution_failed", "项目侧启动失败", { kind: "internal" });
     },
-    control: async () => "disabled",
+    control: async () => ({ state: "disabled" }),
   });
   try {
     const v2 = dualBundle("1.1.0", ["1.0.0"]);

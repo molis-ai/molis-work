@@ -163,7 +163,6 @@ test("F-goals-08: history timeline and bodies localize all types, effects, conce
       journal_seq: index + 1,
       system_operation: op,
       type_id: null,
-      type_version: null,
       type_name: null,
       semantic_family: null,
       lane: "other" as const,
@@ -171,26 +170,26 @@ test("F-goals-08: history timeline and bodies localize all types, effects, conce
     {
       event_id: "ev-report", kind: "report", title: "Title report", actor_id: "actor-1", actor_kind: "runtime",
       received_at: "2026-11-26T00:20:00.000Z", journal_seq: 20, system_operation: null,
-      type_id: "t1", type_version: 1, type_name: null, semantic_family: "delivery", lane: "result",
+      type_id: "t1", type_name: null, semantic_family: "delivery", lane: "result",
     },
     {
       event_id: "ev-config", kind: "configuration", title: "Title config", actor_id: "actor-1", actor_kind: "runtime",
       received_at: "2026-11-26T00:21:00.000Z", journal_seq: 21, system_operation: null,
-      type_id: null, type_version: null, type_name: null, semantic_family: null, lane: "other",
+      type_id: null, type_name: null, semantic_family: null, lane: "other",
     },
     {
       event_id: "ev-system-other", kind: "system", title: "Title sys", actor_id: "actor-1", actor_kind: "runtime",
       received_at: "2026-11-26T00:22:00.000Z", journal_seq: 22, system_operation: "unknown_op",
-      type_id: null, type_version: null, type_name: null, semantic_family: null, lane: "other",
+      type_id: null, type_name: null, semantic_family: null, lane: "other",
     },
   ];
   const journalEvents = [
-    { event_id: "j-1", seq: 1, type: "goal.created", object_id: "goal-a", actor_id: "actor-1", at: "2026-11-26T00:23:00.000Z", reason: "", payload: {} },
-    { event_id: "j-2", seq: 2, type: "goal.updated", object_id: "goal-a", actor_id: "actor-1", at: "2026-11-26T00:24:00.000Z", reason: "", payload: {} },
-    { event_id: "j-3", seq: 3, type: "goal.accepted", object_id: "goal-a", actor_id: "actor-1", at: "2026-11-26T00:25:00.000Z", reason: "", payload: {} },
-    { event_id: "j-4", seq: 4, type: "relation.added", object_id: "rel-1", actor_id: "actor-1", at: "2026-11-26T00:26:00.000Z", reason: "Dependency", payload: { from_goal_id: "goal-a", to_goal_id: "goal-b", type: "depends_on" } },
-    { event_id: "j-5", seq: 5, type: "relation.deactivated", object_id: "rel-1", actor_id: "actor-1", at: "2026-11-26T00:27:00.000Z", reason: "Removed", payload: { from_goal_id: "goal-a", to_goal_id: "goal-b", type: "depends_on" } },
-    { event_id: "j-6", seq: 6, type: "goal.custom_event", object_id: "goal-a", actor_id: "actor-1", at: "2026-11-26T00:28:00.000Z", reason: "", payload: {} },
+    { event_id: "j-1", seq: 1, type: "goal.created", object_type: "goal", object_id: "goal-a", actor_id: "actor-1", at: "2026-11-26T00:23:00.000Z", reason: "", payload: {} },
+    { event_id: "j-2", seq: 2, type: "goal.updated", object_type: "goal", object_id: "goal-a", actor_id: "actor-1", at: "2026-11-26T00:24:00.000Z", reason: "", payload: {} },
+    { event_id: "j-3", seq: 3, type: "goal.accepted", object_type: "goal", object_id: "goal-a", actor_id: "actor-1", at: "2026-11-26T00:25:00.000Z", reason: "", payload: {} },
+    { event_id: "j-4", seq: 4, type: "relation.added", object_type: "relation", object_id: "rel-1", actor_id: "actor-1", at: "2026-11-26T00:26:00.000Z", reason: "Dependency", payload: { from_goal_id: "goal-a", to_goal_id: "goal-b", type: "depends_on" } },
+    { event_id: "j-5", seq: 5, type: "relation.deactivated", object_type: "relation", object_id: "rel-1", actor_id: "actor-1", at: "2026-11-26T00:27:00.000Z", reason: "Removed", payload: { from_goal_id: "goal-a", to_goal_id: "goal-b", type: "depends_on" } },
+    { event_id: "j-6", seq: 6, type: "goal.custom_event", object_type: "goal", object_id: "goal-a", actor_id: "actor-1", at: "2026-11-26T00:28:00.000Z", reason: "", payload: {} },
   ];
   const journalItems = mapJournalHistoryItems(journalEvents, new Set(), {
     goals: [{ goal_id: "goal-a", title: "Goal A" }, { goal_id: "goal-b", title: "Goal B" }] as never,
@@ -228,7 +227,7 @@ test("F-goals-08: history timeline and bodies localize all types, effects, conce
 
   // user_decision body: authorize_agreement_change, concern_ids label, and single HTML escaping of '&'.
   const decisionEvent: GoalWorkEventRecord = {
-    event_id: "ev-dec", project_id: "p1", goal_id: "goal-a", kind: "system", type_id: null, type_version: null,
+    event_id: "ev-dec", project_id: "p1", goal_id: "goal-a", kind: "system", type: null,
     title: "Decision", actor_id: "web-user", actor_kind: "user", received_at: "2026-11-26T00:10:00.000Z", journal_seq: 10, config_version: 1,
     payload: {
       operation: "user_decision",
@@ -236,7 +235,9 @@ test("F-goals-08: history timeline and bodies localize all types, effects, conce
       conclusion: "Approved", accepts_requirements: false,
       effects: [{ kind: "authorize_agreement_change" }, { kind: "authorize_action", action: "build & deploy" }],
       scope: { requirement_ids: [], event_ids: [], concern_ids: ["c-1"], action: null },
-      authority_source: "web",
+      authorized_change: null,
+      config_version: 1,
+      agreement_version: 1,
     },
   };
   for (const [locale, expectedEffect, expectedConcern] of [

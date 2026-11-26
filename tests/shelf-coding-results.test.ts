@@ -127,6 +127,8 @@ test("F-modules-server-18 Shelf refuses a producer document whose returned refer
   };
   const actions = {
     discover: async () => [],
+    discoverOne: async () => undefined,
+    availability: () => ({ available: true as const }),
     invokeQuery: async () => { throw new Error("unused"); },
     invoke: async () => { throw new Error("unused"); },
     dependencies: {
@@ -139,10 +141,10 @@ test("F-modules-server-18 Shelf refuses a producer document whose returned refer
       }) as never,
     },
   };
-  const context = startContext(SHELF_PLUGIN, { artifacts: platform.artifacts(SHELF_PLUGIN), actions }, { project_id: null });
+  const context = startContext(SHELF_PLUGIN, { artifacts: platform.artifacts(SHELF_PLUGIN), actions }, { project_id: undefined });
   const handlers = shelfRuntimeActionHandlers(context, () => ({ admit: async () => { throw new Error("unused"); }, snapshot: async () => { throw new Error("unused"); } }));
   await assert.rejects(
-    handlerOf(handlers, shelfRuntimeActions.preview).handle(owner, { reference: REPORT_REFERENCE }),
+    async () => handlerOf(handlers, shelfRuntimeActions.preview).handle(owner, { reference: REPORT_REFERENCE }),
     (error: unknown) => (error as { code?: string }).code === "shelf.invalid",
   );
 });

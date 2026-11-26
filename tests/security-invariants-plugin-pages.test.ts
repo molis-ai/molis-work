@@ -881,7 +881,15 @@ test("F-hc2-11 hiding a third-party Home plugin in a project refuses page open e
   await grantHomeProbe(f.host, probe);
   const project = await f.project("Hidden Home plugin", ["pages"]);
   const prefix = `/projects/${project.project_id}`;
-  // Third-party Home plugin starts hidden in a project until explicitly shown; omitting `mount` must not bypass visibility.
+  // Third-party Home plugins are visible in every project by default (#679, B3) until hidden in that project;
+  // once hidden, omitting `mount` must still refuse page open with 403 (`actions.plugin_disabled`).
+  const initiallyAllowed = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
+  assert.equal(initiallyAllowed.status, 200, await initiallyAllowed.clone().text());
+  const hidden = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {
+    method: "DELETE",
+    body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) },
+  });
+  assert.equal(hidden.status, 200, await hidden.clone().text());
   const refusedHidden = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
   assert.equal(refusedHidden.status, 403, await refusedHidden.clone().text());
   const shown = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {
@@ -902,20 +910,25 @@ test("F-hc2-11 hiding a third-party Home plugin in a project refuses page open e
 
 test("F-hc2-08 S-47 an expired or closing ordinary plugin page is refused and never resurrected across async scope validation", async () => {
   const home = mkdtempSync(join(tmpdir(), "page-lapse-"));
-  const manifest = { plugin_id: "io.example.lapse", ui: {}, actions: [], routes: [{ route_id: "read", method: "GET", path: "/read" }] } as PluginManifest;
+  const manifest: PluginManifest = Object.assign(Object.create(null), {
+    plugin_id: "io.example.lapse",
+    ui: {},
+    actions: [],
+    routes: [{ route_id: "read", method: "GET", path: "/read" }],
+  });
   const pages = pluginPagesFor(home);
   const disconnect = pages.connect({ manifest, install_id: "inst-lapse", project_id: "proj-lapse", actor_id: "web-user", assertCurrent() {} });
   try {
-    const opened = pages.open(manifest.plugin_id, "proj-lapse", "web-user");
-    const request = new IncomingMessage(new Socket());
-    request.method = "GET";
-    request.headers = { "x-molis-plugin-page": opened.page_id };
     const gate = deferred();
     const entered = deferred();
-    const binding = pages.bind(request, new URL("http://127.0.0.1/projects/proj-lapse/api/plugins/io.example.lapse/read"), undefined, async () => {
+    const opened = pages.open(manifest.plugin_id, "proj-lapse", "web-user", async () => {
       entered.resolve();
       await gate.promise;
     });
+    const request = new IncomingMessage(new Socket());
+    request.method = "GET";
+    request.headers = { "x-molis-plugin-page": opened.page_id };
+    const binding = pages.bind(request, new URL("http://127.0.0.1/projects/proj-lapse/api/plugins/io.example.lapse/read"));
     await entered.promise;
     const finishing = pages.finish(opened.page_id, undefined);
     gate.resolve();

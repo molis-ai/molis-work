@@ -175,10 +175,10 @@ test("F-goals-03: ancestor_minimum approval rule propagates through part_of ance
       created_by: "user-1",
     });
 
-    assert.equal(goals.query.resolvePolicy("board-ancestor", "goal-gp").policy.human_approval, true);
-    assert.equal(goals.query.resolvePolicy("board-ancestor", "goal-parent").policy.human_approval, true);
-    assert.equal(goals.query.resolvePolicy("board-ancestor", "goal-leaf").policy.human_approval, true);
-    assert.equal(goals.query.resolvePolicy("board-ancestor", "goal-sibling").policy.human_approval, false);
+    assert.equal(goals.query.resolvePolicy("board-ancestor", "goal-gp").human_approval, true);
+    assert.equal(goals.query.resolvePolicy("board-ancestor", "goal-parent").human_approval, true);
+    assert.equal(goals.query.resolvePolicy("board-ancestor", "goal-leaf").human_approval, true);
+    assert.equal(goals.query.resolvePolicy("board-ancestor", "goal-sibling").human_approval, false);
     assert.equal(goals.query.readGoal("board-ancestor", "goal-leaf").resolved_policy.human_approval, true);
     assert.equal(goals.query.readGoal("board-ancestor", "goal-sibling").resolved_policy.human_approval, false);
 
@@ -198,7 +198,7 @@ test("F-goals-03: ancestor_minimum approval rule propagates through part_of ance
       expected_agreement_version: leafState.agreement.version,
     });
     assert.equal(blocked.completion_applied, false);
-    assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "goals.event_closure.approval_required"));
+    assert.ok(blocked.unmet_reasons.some((reason) => reason.code === "goals.event_closure.human_approval_required"));
   } finally {
     store.close();
     rmSync(directory, { recursive: true, force: true });

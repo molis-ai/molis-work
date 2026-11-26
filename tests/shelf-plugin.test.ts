@@ -369,8 +369,12 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
         hidden: false,
         created_at: "2026-09-17T00:00:00.000Z",
         source_item_id: null,
+        source_item_ids: [],
         job_id: null,
         preview_text: SAMPLE_PDF_TEXT,
+        status: "done",
+        failure_reason: null,
+        children: [],
       }],
       selected_id: "item_pdf",
   }));

@@ -295,7 +295,7 @@ test("F-horiz-runtime-22: holds.put and holds.release honor beforeEffect and rev
   });
 
   fx.layer.sink("assistant")
-    .bind({ kind: "background", entry: "workbench", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "p1" })
+    .bind({ kind: "background", entry: "host", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "p1" })
     .record({ fact: "assistant.work", outcome: "succeeded", subjects: [{ kind: "goal", id: "g-hold" }] });
   fx.layer.flush();
   const [rec] = readRecords(fx.db());
@@ -323,7 +323,7 @@ test("F-horiz-runtime-22: holds.put and holds.release honor beforeEffect and rev
   const ac = new AbortController();
   ac.abort();
   await assert.rejects(
-    fx.service.invoke(person(), observationActions.holdsRelease, { hold_id: "hold-kept" }, { signal: ac.signal }),
+    fx.service.invoke(person({ signal: ac.signal }), observationActions.holdsRelease, { hold_id: "hold-kept" }),
   );
   assert.equal((fx.db().prepare("SELECT COUNT(*) AS n FROM evaluation_holds WHERE hold_id = 'hold-kept'").get() as { n: number }).n, 1);
 });

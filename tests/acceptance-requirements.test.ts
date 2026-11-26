@@ -68,7 +68,7 @@ function rig(t: TestContext) {
     set: (caller, input) => library(caller.project_id).set(caller, input),
     deliver: (caller, input, ports) => library(caller.project_id).deliver(caller, input, ports),
     report: (caller, input, ports) => library(caller.project_id).report(caller, input, ports),
-    decide: (caller, input, decisionId, beforeCommit) => library(caller.project_id).decide(caller, input, decisionId, beforeCommit),
+    decide: (caller, input, decisionId?, beforeCommit?) => library(caller.project_id).decide(caller, input, decisionId, beforeCommit),
   } satisfies Pick<AcceptanceService, "read" | "set" | "deliver" | "report" | "decide">;
   const readOne = (caller: AcceptanceCaller, subject: typeof SUBJECT) => service.read(caller, { subjects: [subject] }).views[0]!;
   return { home, service, readOne, library, drop };

@@ -18,7 +18,7 @@ const quiet = (ms = 40) => new Promise(resolve => setTimeout(resolve, ms));
 
 /** The project page with its switcher open, on a fresh project that has only the default plugins; `__stayed` marks the page. */
 async function openPicker(t: TestContext, width = 1440, height = 900) {
-  const b = await openGoalBrowser(t, "user");
+  const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, { projectPlugins: ["pages", "ppt", "form", "dataset", "lingguang", "workflows"] });
   if (!b) return null;
   const { command, sessionId, evaluate, waitFor, origin, projectId } = b;
   await b.web.delete(`/api/settings/projects/${projectId!}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(b.web, projectId!) });

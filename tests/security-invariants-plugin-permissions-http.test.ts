@@ -17,7 +17,7 @@ interface Overview { plugins: PluginInstalledView[] }
 const timeout = 90_000;
 
 async function setup(t: TestContext) {
-  const f = await serveHomeRuntime(t), project = await f.project("权限开关");
+  const f = await serveHomeRuntime(t), project = await f.project("权限开关", ["pages"]);
   const prefix = `/projects/${project.project_id}`;
   const post = (path: string, body: unknown, init: { authorized?: boolean; headers?: Record<string, string> } = {}) => f.request(prefix + path, { method: "POST", body, ...init });
   const overview = async () => (await (await f.request(prefix + "/api/plugin-trust/overview")).json()) as Overview;

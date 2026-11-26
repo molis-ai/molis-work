@@ -7,7 +7,7 @@ import { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { ManagedProjectFiles } from "./managed-project-files.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
-import { keepFormerPersonalPlugins, markFormerPersonalPluginsDone } from "./former-personal-plugins.js";
+import { formerPersonalPluginsKept, keepFormerPersonalPlugins, markFormerPersonalPluginsDone } from "./former-personal-plugins.js";
 import { BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
 import { PersonalProjectProvisioner } from './personal-project-provisioner.js';
@@ -476,6 +476,7 @@ export class MolisWorkProjectCatalog {
   /** The one-time fix in `former-personal-plugins.ts`, after the personal space exists so it is covered too. */
   private async keepFormerPersonalPlugins(): Promise<void> {
     const db = this.storage.db;
+    if (formerPersonalPluginsKept(db)) return;
     const added = await this.commit(() => keepFormerPersonalPlugins(db, (ids, actor) => this.projects.records.addPluginsWhereShown(ids as ProjectPluginId[], actor), new Date().toISOString()));
     if (added === 0) return;
     bumpProjectPluginEpoch(this);

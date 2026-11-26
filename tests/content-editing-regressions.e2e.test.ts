@@ -120,7 +120,7 @@ test("W2-18-PAGES-READONLY-01: real Back/import/publish/extract never save the e
   await open(b, "pages", page.id);
   for (const operation of ["extract", "promote"]) {
     await b.frame.click("[data-pages-more]"); await b.frame.click(`[data-pages-${operation}]`);
-    await b.frame.waitFor("document.querySelector('[data-pages-note]').textContent.includes('暂不支持此操作')");
+    await b.frame.waitFor("document.querySelector('[data-pages-note]').textContent.includes('暂不支持这项操作')");
     assert.deepEqual(readPage(b, page.id), page);
   }
   const replacement = openPagesStore(b.homeDirectory, b.projectId!);
@@ -148,7 +148,7 @@ for (const operation of ["create", "extract"] as const) test(`W2-18-PAGES-CREATE
     assert.match(JSON.stringify(readPage(b, page.id).body), /NEW LOCAL WORDS/);
     assert.equal(readPage(b, committed.document.id).id, committed.document.id);
   } else {
-    await b.frame.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '保存失败'");
+    await b.frame.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '保存没能完成'");
     assert.equal(await b.frame.evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('NEW LOCAL WORDS')"), true);
     assert.deepEqual(readPage(b, page.id), committed.document, "the acknowledged extraction stays; unsaved text is kept for explicit conflict resolution");
   }

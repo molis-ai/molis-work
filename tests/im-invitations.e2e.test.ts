@@ -67,7 +67,7 @@ test("RAC-102: real invitation UI generates explicitly, keeps retries in memory,
     const newerHash = await page.evaluate<string>(`(async()=>{const token=Array.from(crypto.getRandomValues(new Uint8Array(32)),v=>v.toString(16).padStart(2,'0')).join('');
       const answer=await fetch('/im/api/rooms/${room}/invite/rotate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_id:crypto.randomUUID(),token})});return (await answer.json()).token_hash;})()`);
     assert.equal(count(), 4); await page.click("[data-action=rotate-invite]");
-    await page.wait("document.querySelector('[data-invite-error]')?.textContent.includes('不会重新激活旧链接')");
+    await page.wait("document.querySelector('[data-invite-error]')?.textContent.includes('不会重新启用旧链接')");
     assert.equal(await page.evaluate("!!document.querySelector('[data-invite-value]')"), false);
     assert.equal(storedHash(), newerHash); assert.equal(count(), 4);
     const all = await page.evaluate<Array<{ client_id: string; token: string }>>("window.__inviteCalls");

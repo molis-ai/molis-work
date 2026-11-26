@@ -238,7 +238,7 @@ test("VUX-40: the writer directories and integration dialogs speak English in En
     assert.doesNotMatch(result.writers, /isn't authorized for this project/);
     assert.match(result.writers, /Split saved, not sent yet\./);
     assert.match(result.turn, /^Split the work.*This turn’s split · separate directories: 1.*Branch: part-a · started from: abc123/);
-    assert.match(result.integration, /From: \/tmp\/child · child.*Back into: \/repo/);
+    assert.match(result.integration, /From: \/tmp\/child · child.*Apply into: \/repo/);
     assert.match(result.integration, /b\.ts · added.*The file doesn’t exist yet.*\(empty file\)/);
     assert.match(result.integration, /Conflict 1 · lines: main workspace 1, sub-task 1.*Use the main workspace.*Keep both/);
     assert.match(result.integration, /Unresolved conflicts: 1/);

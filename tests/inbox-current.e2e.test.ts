@@ -164,5 +164,5 @@ test("B27-FF05 Inbox keeps its selected item and the compose draft when a list r
   assert.equal(requests, 2);
   assert.equal(feedback.length, 1);
   assert.equal(feedback[0]![1], true);
-  assert.match(feedback[0]![0], /当前输入已保留.*重试/);
+  assert.match(feedback[0]![0], /你填的内容都保留着.*重试/);
 });

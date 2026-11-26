@@ -31,7 +31,7 @@ test("official stdio MCP clients share Lingguang Runtime, scoped grants and pers
   };
   try {
     await start();
-    const first = await web!.createProject("Lingguang A"), second = await web!.createProject("Lingguang B");
+    const first = await web!.createProject("Lingguang A", ["lingguang"]), second = await web!.createProject("Lingguang B", ["lingguang"]);
     for (const [clientId, project] of [["writer", first], ["reader", first], ["other", second]] as const) {
       const views = (await web!.inspect(clientId, project.project_id)).filter(view => view.capability_id.startsWith("lingguang.")
         && (clientId !== "reader" || view.action.permissions.every(permission => permission === "lingguang:read")));

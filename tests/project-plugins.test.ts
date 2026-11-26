@@ -153,16 +153,16 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   const removedInbox = await change("DELETE", project.project_id, "inbox");
   assert.deepEqual((await removedInbox.json()).plugins, ["schedule"]);
   assert.equal((await change("DELETE", project.project_id, "inbox")).status, 200);
-  const hidden = await change("DELETE", project.project_id, "pages");
+  const hidden = await change("DELETE", project.project_id, "todo");
   assert.equal(hidden.status, 200);
-  assert.deepEqual(await hidden.json(), { project_id: project.project_id, plugins: ["schedule"], hidden: ["pages"], revision: await projectPluginRevisionAt(origin, project.project_id) });
-  assert.equal((await change("DELETE", project.project_id, "pages")).status, 200);
+  assert.deepEqual(await hidden.json(), { project_id: project.project_id, plugins: ["schedule"], hidden: ["todo"], revision: await projectPluginRevisionAt(origin, project.project_id) });
+  assert.equal((await change("DELETE", project.project_id, "todo")).status, 200);
   const hiddenPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
-  assert.doesNotMatch(hiddenPage, /data-plugin-id="pages"/);
-  const restored = await change("POST", project.project_id, "pages");
+  assert.doesNotMatch(hiddenPage, /data-plugin-id="todo"/);
+  const restored = await change("POST", project.project_id, "todo");
   assert.deepEqual(await restored.json(), { project_id: project.project_id, plugins: ["schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, project.project_id) });
   const restoredPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
-  assert.match(restoredPage, /data-plugin-id="pages"/);
+  assert.match(restoredPage, /data-plugin-id="todo"/);
   // RAC-73: Characters is no plugin since CHR-1: Settings › 角色 is the Host's own section, which no project hides.
   const characters = await change("DELETE", project.project_id, "characters");
   assert.equal(characters.status, 400);
@@ -173,8 +173,8 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   assert.deepEqual(catalog.projectPluginMembership(other.project_id).hidden, []);
   const db = openTestSqlite(join(homeDirectory, "projects/catalog.db"), { readonly: true });
   try {
-    assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_removed' AND payload_json LIKE '%pages%'").get(project.project_id).n, 1);
-    assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_added' AND payload_json LIKE '%pages%'").get(project.project_id).n, 1);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_removed' AND payload_json LIKE '%todo%'").get(project.project_id).n, 1);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_added' AND payload_json LIKE '%todo%'").get(project.project_id).n, 1);
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND payload_json LIKE '%shelf%'").get(project.project_id).n, 0);
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND payload_json LIKE '%characters%'").get(project.project_id).n, 0);
   } finally { db.close(); }

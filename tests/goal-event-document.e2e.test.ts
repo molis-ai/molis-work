@@ -374,7 +374,7 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
   await click(submit); await waitFor("!document.querySelector('[data-event-form=closure] [type=submit]').disabled");
   assert.equal(await evaluate("window.__pinPosts"), 1);
   await evaluate("window.__rejectDeliverableRead=true"); await click('[data-reconcile-deliverables]');
-  await waitFor("document.querySelector('[data-deliverable-read-status]').textContent.includes('未读回') && !document.querySelector('[data-reconcile-deliverables]').disabled");
+  await waitFor("document.querySelector('[data-deliverable-read-status]').textContent.includes('没能读回交付物清单') && !document.querySelector('[data-reconcile-deliverables]').disabled");
   await click(submit); await waitFor("!document.querySelector('[data-event-form=closure] [type=submit]').disabled");
   assert.equal(await evaluate("window.__pinPosts"), 1, "a failed read cannot unblock the original pin");
   await evaluate("window.__rejectDeliverableRead=false"); await click('[data-reconcile-deliverables]');

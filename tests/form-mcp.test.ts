@@ -26,7 +26,7 @@ test("Form standard MCP preserves submissions and publications across tool proce
   // The Host closes before its Home goes.
   t.after(async () => { await stop(); await rm(home, { recursive: true, force: true }); });
   await start();
-  const a = await web!.createProject("MCP Form a"), b = await web!.createProject("MCP Form b");
+  const a = await web!.createProject("MCP Form a", ["form"]), b = await web!.createProject("MCP Form b", ["form"]);
 
   // What each tool may do is what the person granted it: the writer every Form action, the reader the ones that only read.
   const formViews = async (clientId: string, projectId: string) => (await web!.inspect(clientId, projectId)).filter(view => view.capability_id.startsWith("form."));

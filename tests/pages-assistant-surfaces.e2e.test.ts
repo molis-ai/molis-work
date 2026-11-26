@@ -76,7 +76,7 @@ test("RAC-916-L1 RAC-916-L2 RAC-916-L3: oversized real Pages offers preserve com
     const comment = "c".repeat(18996)+'"\n尾';await body(comment);await draft("p".repeat(20000)+'"'.repeat(31000));
     const request = (await pending())!.request_id;
     await comments.click('[data-comment-send]');
-    await comments.waitFor("!document.querySelector('[data-comment-error]').hidden && document.querySelector('[data-comment-error]').textContent.includes('评论未发送')");
+    await comments.waitFor("!document.querySelector('[data-comment-error]').hidden && document.querySelector('[data-comment-error]').textContent.includes('评论没有发出')");
     assert.deepEqual(await evaluate("[window.racCommentPosts,window.racOffers.length,window.racStarts.length]"), [2, 1, 0]);
     assert.equal(await comments.evaluate("window.racSizes.at(-1).draftLength===51000 && window.racSizes.at(-1).size>100000 && window.racSizes.at(-1).savedIdLength===0"), true, "the real pre-save serialized detail includes the complete escaped draft and legal comment");
     assert.equal((await pending())!.request_id, request);assert.equal((await pending())!.body, comment);

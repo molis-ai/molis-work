@@ -357,7 +357,7 @@ for (const scope of ["home", "project"] as const) {
 
 test("S-47 RAC-79 W5-06-STAGE-01 a project Runtime plugin's stage is its running instance's; a stopped one shows the unavailable shell, never the catalog's", { timeout: 60_000 }, async t => {
   const { host, project, request } = await serveHomeRuntime(t);
-  const one = await project("Project stage has one Runtime owner");
+  const one = await project("Project stage has one Runtime owner", ["form"]);
   const formUnavailable = /data-work-surface="form"[^>]*\bdata-project-plugin-unavailable\b/u;
   const page = async (locale = "zh") => {
     const response = await request(`/projects/${one.project_id}`, { headers: { cookie: `molis_work_locale=${locale}` } });
@@ -424,7 +424,7 @@ test("S-47 RAC-79 W5-06-STAGE-01 a project Runtime plugin's stage is its running
 
 test("RAC-612 RAC-613 RAC-614 a failed or crashed project plugin's placeholder says why and offers to start it again; one switched off, blocked, stopped or uninstalled gets no button", { timeout: 90_000 }, async t => {
   const { host, project, request } = await serveHomeRuntime(t);
-  const one = await project("Project placeholder restart");
+  const one = await project("Project placeholder restart", ["form"]);
   await request(`/projects/${one.project_id}`); // opening the project page starts its plugin platform
   const platform = await host.withProject(one.reference, runtime => runningPluginPlatform(runtime.store, one.project_id, FORM_PLUGIN_ID));
   assert.ok(platform);

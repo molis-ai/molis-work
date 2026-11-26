@@ -64,11 +64,11 @@ for (const width of [1440, 390]) test(`Todo ${width}px: a todo is handed to the 
   assert.equal((await heard()).find(message => message.purpose === "delegate")!.work_id, workId);
   // The todo waits in the strip for the person's words (once: this Home has no model, so the first Send kept what it carried);
   // they leave it out (×) and go back to the todo instead.
-  const drop = "[data-assistant-context-strip]:not([hidden]) .assistant-strip-act[aria-label='不带上：待办「给王总回电话」']";
+  const drop = "[data-assistant-context-strip]:not([hidden]) .assistant-strip-act[aria-label='不带上：待办 「给王总回电话」']";
   await browser.waitFor(`Boolean(document.querySelector(${JSON.stringify(drop)}))`, 10_000);
   assert.equal(await browser.evaluate(`[...document.querySelectorAll(${JSON.stringify(drop)})].length`), 1, "the same todo handed over again is in hand once, even after a Send that did not go through");
   await browser.click(drop);
-  await browser.waitFor("!(document.querySelector('[data-assistant-context-strip]')?.textContent || '').includes('待办「给王总回电话」')");
+  await browser.waitFor("!(document.querySelector('[data-assistant-context-strip]')?.textContent || '').includes('待办 「给王总回电话」')");
   if (await browser.evaluate("Boolean(document.querySelector('[data-assistant-panel-close]')?.getClientRects().length)")) await browser.click("[data-assistant-panel-close]");
   await browser.evaluate("window.__heard = []");
   await click(`[data-todo-continue-work="${workId}"]`);

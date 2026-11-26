@@ -58,7 +58,7 @@ test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；�
     assert.equal(rows[0].progress, "1/3"); assert.equal(rows[0].state, "进行中");
     assert.equal(rows[1].state, "你已验收", "the person's acceptance shows over the model's report");
     assert.equal(rows[2].deps, "1 个前置 · 已就绪"); assert.equal(rows[4].deps, "1 个前置 · 1 个未完成");
-    assert.equal(rows[1].agent, "审慎的构建者"); assert.match(rows[1].avatar, /Character「审慎的构建者」/, "who does the step: the round's Character");
+    assert.equal(rows[1].agent, "审慎的构建者"); assert.match(rows[1].avatar, /角色「审慎的构建者」/, "who does the step: the round's Character");
     assert.equal(rows[3].agent, "独立评审"); assert.equal(rows[3].title, "运行测试 并报告"); assert.equal(rows[5].state, "失败");
     assert.ok(rows[4].tools >= 2, "a live step waiting to start can be moved, skipped or followed by an inserted step");
     assert.deepEqual(result.went, [{ kind: "step", run_id: "r2", step_id: "step-2" }]);

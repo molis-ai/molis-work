@@ -124,7 +124,7 @@ test("Pages import: a short window keeps actions visible through long previews, 
   assert.deepEqual(scroll, { moved: true, lastVisible: true }, 'the last document remains reachable in the content scroller');
   await assertFooterVisible(child);
   await child.click('.pages-import-document:last-child input');
-  assert.match(await child.evaluate<string>("document.querySelector('[data-pages-import-submit]').textContent"), /\(19\)/);
+  assert.match(await child.evaluate<string>("document.querySelector('[data-pages-import-submit]').textContent"), /[(（]19[)）]/);
   await capture(browser, 'long-preview-scrolled');
   await child.click('[data-pages-import-close]');
   await child.waitFor("!document.querySelector('[data-pages-import-dialog]').open");

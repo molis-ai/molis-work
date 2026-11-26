@@ -21,7 +21,7 @@ test("a workflow step runs any registered action — even one the Host never hea
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   // The Home is served so that the project and the MCP client's grant are made the way a person makes them; this file keeps its own host (it needs `src` types of the workflows runtime).
   const served = await serveTestHost(t, { home, host });
-  const { project_id: PROJECT, database_path: dbPath, reference } = await served.createProject("工作流动作步骤", ["feed"]);
+  const { project_id: PROJECT, database_path: dbPath, reference } = await served.createProject("工作流动作步骤", ["feed", "workflows"]);
   const seed = new LocalProjectDatabase(dbPath);
   const source = createLocalFeedSourceService(seed.db, PROJECT).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
   createLocalFeedApplication(seed.db).ingestItem({ source, externalId: "bug", title: "导出失败", summary: "客户反馈", body: "客户的周报导出一直失败。", occurredAt: new Date().toISOString(), attention: false });

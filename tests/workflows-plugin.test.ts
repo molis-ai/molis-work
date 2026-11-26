@@ -80,10 +80,10 @@ test("Function 按规则填占位，AI 的第一行当标题", () => {
   assert.equal(parsed.url, input.url);
 });
 
-test("工作流程是个人插件，排在左边栏，客户端脚本能解析，英文词条齐", () => {
+test("工作流程是分区插件（第 107 批起），排在左边栏，客户端脚本能解析，英文词条齐", () => {
   parsePluginManifest(workflowsManifest);
-  assert.equal(PERSONAL_PLUGIN_IDS.includes(WORKFLOWS_PROJECT_PLUGIN_ID), true);
-  const entry = withPageText("zh", ["workflows"], () => railEntries([...PERSONAL_PLUGIN_IDS]).find((item) => item.id === "workflows"));
+  assert.equal(PERSONAL_PLUGIN_IDS.includes(WORKFLOWS_PROJECT_PLUGIN_ID), false);
+  const entry = withPageText("zh", ["workflows"], () => railEntries(["workflows"]).find((item) => item.id === "workflows"));
   assert.equal(entry?.label, "工作流程");
   assert.equal(entry?.glyph, "workflow");
   assert.doesNotThrow(() => new Function("return " + WORKFLOWS_CLIENT_FACTORY_SCRIPT));
@@ -113,7 +113,7 @@ async function withProject(t: test.TestContext, run: (ctx: {
   const prompts: string[] = [];
   const served = await openTestHome(t, { catalogPolicy: false, host: {
     completeText: async (prompt) => { prompts.push(prompt); return "给 Pages 的一页\n\n结论：可以推进。\n\n- 背景\n- 要点"; } } });
-  const project = await served.createProject("Workflows route", ["feed", "inbox", "pages", "lingguang"]);
+  const project = await served.createProject("Workflows route", ["feed", "inbox", "pages", "lingguang", "workflows"]);
   const projectId = project.project_id;
   const db = new LocalProjectDatabase(project.database_path);
   const feed = createLocalFeedApplication(db.db);

@@ -69,8 +69,8 @@ test("VUX-40: Goals statuses, Jelly's fixed category and the Git and Diff pages 
   }
   await assert.rejects(stat(output), { code: "ENOENT" }, "viewing Git never creates the project’s default output");
   await mkdir(output, { recursive: true });
-  await open("git", "document.querySelector('[data-git-status]')?.textContent === 'This directory is not a Git repository'");
-  assert.equal(await evaluate("document.querySelector('[data-git-status]').textContent"), "This directory is not a Git repository");
+  await open("git", "document.querySelector('[data-git-status]')?.textContent === 'This directory isn’t a Git repository'");
+  assert.equal(await evaluate("document.querySelector('[data-git-status]').textContent"), "This directory isn’t a Git repository");
   await open("goals", pages[0]![1]);
   assert.ok((await evaluate<string>("[...document.querySelectorAll('.goal-status')].map((el) => el.textContent).join('|')")).includes("In progress"));
 });

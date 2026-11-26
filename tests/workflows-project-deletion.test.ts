@@ -32,7 +32,7 @@ const deletion = (id: string) => ({ project_id: id, actor_id: "test-user", delet
 
 test("W5-01-WORKFLOWS-09 a project deleted while its Workflows plugin runs loses its workflows and runs and no other project's; the same deletion again is replayed complete", async t => {
   const served = await openTestHome(t, { catalogPolicy: false });
-  const projects = { gone: await served.createProject("要删除的项目", ["feed"]), kept: await served.createProject("留下的项目", ["feed"]) };
+  const projects = { gone: await served.createProject("要删除的项目", ["feed", "workflows"]), kept: await served.createProject("留下的项目", ["feed", "workflows"]) };
   /** A workflow with a run, made through the plugin's own routes, so the plugin is running with the project's data open. */
   const populate = async (project: typeof projects.gone) => {
     const seed = new LocalProjectDatabase(project.database_path);

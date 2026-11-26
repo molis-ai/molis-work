@@ -14,6 +14,8 @@ import { CONTEXT_PANE_FACTORY_SCRIPT } from "./scripts/client/context-actions.js
 import { knowledgeClientTag } from "./settings-knowledge.js";
 import { appearanceClientTag, appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 import { renderAppearanceRecovery } from "./settings-appearance.js";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { SHIPPED_WORKBENCH_PARTS } from "./host-surfaces.js";
 
 /**
  * One plugin tab of the side panel (specs/archive/side-panel D13): the Host serves the declared `side` view in its own
@@ -47,7 +49,7 @@ const uiHost = createWorkbenchUiHost();
 
 export function renderSideViewDocument(input: SideViewDocumentInput): string | null {
   const view = sideEntries(input.enabled).find(entry => entry.project_plugin_id === input.projectPluginId && entry.view_id === input.viewId);
-  if (!view) return null;
+  if (!view) return renderSideEnableDocument(input);
   const surface = uiHost.list().find(descriptor => descriptor.contribution_id === view.contribution_id)?.surfaces
     ?.find(candidate => candidate.target_slot_id === WORKBENCH_UI_SLOTS.side.slot_id);
   if (!surface) return null;
@@ -94,6 +96,53 @@ ${FEEDBACK_CLIENT_SCRIPT}
     </script>${knowledgeClientTag()}`,
   });
 }
+
+/**
+ * A chord-summoned partition plugin (`project_runtime.keys`, Issues) the personal space has not enabled yet: its tab offers to enable it
+ * there in one step, then shows the view (R14, batch 108). The enabling is the market's request, so the person's own catalog decides.
+ */
+function renderSideEnableDocument(input: SideViewDocumentInput): string | null {
+  if (input.projectId !== PERSONAL_SPACE_PROJECT_ID) return null;
+  const entry = SHIPPED_WORKBENCH_PARTS.find(part => part.project_plugin_id === input.projectPluginId && part.project_runtime?.keys);
+  const view = entry && sideEntries([entry.project_plugin_id as ProjectPluginId]).find(side => side.view_id === input.viewId);
+  if (!entry || !view) return null;
+  const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/gu, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
+  const id = JSON.stringify(entry.project_plugin_id), space = JSON.stringify(PERSONAL_SPACE_PROJECT_ID);
+  return renderWorkbenchDocument({
+    lang: input.lang,
+    title: `${view.title} · Molis Work`,
+    head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<link rel="stylesheet" href="/assets/molis-work-workbench.css">${appearanceHead(input.appearance)}<style>${SIDE_VIEW_STYLES}${SIDE_ENABLE_STYLES}</style>`,
+    body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${input.viewId}`, "data-side-enable": entry.project_plugin_id },
+    body_html: `${renderIconSprite()}<main class="side-view side-enable" data-side-view-root><p>${escape(input.translate("workbench.side-view.enable-personal", { name: view.title }))}</p>
+      <div class="side-enable-actions"><button class="mw-btn mw-btn--primary" type="button" data-side-enable-confirm>${escape(input.translate("workbench.side-view.enable-confirm"))}</button></div>
+      <p class="side-enable-error" role="alert" data-side-enable-error hidden></p></main>
+    <script>${UI_REQUEST_CLIENT_SCRIPT}</script>
+    <script>${homeToolKeysScript()}
+      {
+        const button = document.querySelector('[data-side-enable-confirm]'), problem = document.querySelector('[data-side-enable-error]');
+        button.addEventListener('click', async () => {
+          button.disabled = true; problem.hidden = true;
+          try {
+            const { projects } = await molisWorkRequest('/api/settings/project-plugins');
+            const revision = projects.find(project => project.project_id === ${space})?.revision;
+            await molisWorkRequest('/api/settings/projects/' + encodeURIComponent(${space}) + '/plugins', { method: 'POST', body: { plugin_id: ${id}, expected_revision: revision },
+              fallback: globalThis.t.text("workbench.plugin-membership.could-not-add-plugin") });
+            location.reload();
+          } catch (error) {
+            problem.textContent = molisWorkRequest.text(error, globalThis.t.text("workbench.plugin-membership.could-not-add-plugin"));
+            problem.hidden = false; button.disabled = false;
+          }
+        });
+        addEventListener('keydown', event => { if (event.key === 'Escape' && !event.defaultPrevented) parent.postMessage({ type: 'molis:side-close' }, location.origin); });
+      }
+    </script>`,
+  });
+}
+
+const SIDE_ENABLE_STYLES = `
+.side-enable{flex-direction:column;gap:12px;padding:16px;color:var(--ink-soft)}.side-enable>p{margin:0}
+.side-enable-actions{display:flex;gap:8px}.side-enable-error{color:var(--red)}
+`;
 
 const SIDE_VIEW_STYLES = `
 html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink)}

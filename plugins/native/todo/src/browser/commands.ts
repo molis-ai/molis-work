@@ -23,14 +23,7 @@ const listControls: Command = async (page, button) => {
   const { state, el } = page;
   const data = button.dataset;
   if (button.matches("[data-todo-view]")) { state.view = data.todoView ?? "today"; state.picked.clear(); await page.load(); return true; }
-  if (button.matches("[data-todo-scope]")) { state.everything = !state.everything; await page.load(); return true; }
   if (button.matches("[data-todo-quick-drop]")) { state.dropped.add(data.todoQuickDrop ?? ""); page.renderQuick(); el.quickInput.focus(); return true; }
-  if (button.matches("[data-todo-quick-placement-choice]")) {
-    state.placeChoice = data.todoQuickPlacementChoice ?? "";
-    try { window.localStorage.setItem("molis.todo.quick-placement", state.placeChoice); } catch { /* storage may be unavailable: the choice then lasts only this page */ }
-    page.paintPlaces(el.quickPlacement, page.quickDefaultPlacement(), "data-todo-quick-placement-choice");
-    return true;
-  }
   if (button.matches("[data-todo-note-view]") && state.noteView) {
     const target = state.noteView;
     state.noteView = null;
@@ -73,7 +66,6 @@ const reviewControls: Command = async (page, button) => {
     if (data.todoCandidateIgnore) { await decide(page, batch, [{ candidate_id: candidateId, action: "ignore" }], uiText.text("todo.note.ignored-one", { title: candidate.title })); return true; }
     if (data.todoCandidateEditToggle) { choice.editing = !choice.editing; page.renderReview(); return true; }
     if (data.todoCandidateSuggest) { choice.edits.planned_date = candidate.suggested_date; page.renderReview(); return true; }
-    if (data.todoCandidatePlacement) { choice.edits.placement = data.todoCandidatePlacement; page.renderReview(); return true; }
   }
   const batchId = data.todoApply || data.todoIgnoreRest || data.todoCloseBatch;
   const batch = batchId ? state.batches.find((entry) => entry.batch_id === batchId) : null;
@@ -123,12 +115,6 @@ const batchControls: Command = async (page, button) => {
     if (action === "archive") await page.runBatch({ archive: true }, (count) => uiText.text("todo.note.batch-archive", { count }));
     return true;
   }
-  if (button.matches("[data-todo-batch-placement]")) {
-    closeMenu(button);
-    const place = data.todoBatchPlacement ?? "";
-    await page.runBatch({ placement: place }, (count) => uiText.text("todo.note.batch-moved-to", { count }) + page.placeName(place));
-    return true;
-  }
   return false;
 };
 
@@ -161,15 +147,6 @@ const editorControls: Command = async (page, button) => {
   if (button.matches("[data-todo-status]")) {
     page.closePop();
     if (data.todoStatus !== current.status) await page.setStatus(current.id, data.todoStatus ?? "open", current.revision);
-    return true;
-  }
-  if (button.matches("[data-todo-placement]")) {
-    page.closePop();
-    if (button.getAttribute("aria-checked") === "true") return true;
-    const payload = await page.post<ItemPayload>(current, "", { placement: data.todoPlacement });
-    await page.load();
-    await page.openDetail(payload.item.id);
-    page.showNote(uiText.text("todo.note.moved-to") + page.placeName(data.todoPlacement ?? ""), { undo: undoOf(payload) });
     return true;
   }
   if (button.matches("[data-todo-revert]")) {

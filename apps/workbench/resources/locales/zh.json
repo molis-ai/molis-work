@@ -7450,6 +7450,8 @@
     "workbench.side-panel.resize-side-panel": "调整侧栏宽度",
     "workbench.side-panel.right": "右侧",
     "workbench.side-panel.side-view-name": "侧边视图：{name}",
+    "workbench.side-view.enable-confirm": "开启",
+    "workbench.side-view.enable-personal": "个人空间还没有开启「{name}」。开启后就能在这里随手记下。",
     "workbench.skin.folio": "Folio",
     "workbench.skin.pure-studio": "极净原生",
     "workbench.skin.soft-workbench": "净透云光",

@@ -16,25 +16,25 @@ import {
   todoManifest,
   todoOrganizeActions,
 } from "@molis-ai/molis-work-plugin-todo";
-import { runWithLocale, homeAgentDefinitions, homeStores, type HostCompleteText, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { runWithLocale, homeAgentDefinitions, homeStores, type HostCompleteText, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
 import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { addProjectPlugin, LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { manifestProblems } from "./fixtures/declaration-manifest.js";
 
-test("Todo is a personal plugin on the rail after Goals, listed in the market, with a purgeable Home store", () => runWithLocale("zh", () => {
-  assert.equal(PERSONAL_PLUGIN_IDS.includes(TODO_PROJECT_PLUGIN_ID), true);
-  assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(TODO_PROJECT_PLUGIN_ID), false);
+test("UPP-04 Todo is a plugin of each partition like any other: on the rail after Goals, listed in the market, its library in the partition and none in the Home", () => runWithLocale("zh", () => {
   assert.deepEqual(railEntries(["goals", "todo", "inbox"]).map(entry => [entry.id, entry.label, entry.glyph]),
     [["goals", "Goals", "target"], ["todo", "待办", "list"], ["inbox", "Inbox", "inbox"], ["artifacts", "成果", "package"], ["sessions", "外部会话", "history"]]);
-  const card = pluginMarketCards(builtinMarketDirectory()).find(entry => entry.id === "todo");
-  assert.equal(card?.personal, true);
-  assert.equal(homeStores().get("todo")?.owner, todoManifest.plugin_id, "卸载 --purge 要能删掉待办库");
+  assert.ok(pluginMarketCards(builtinMarketDirectory()).some(entry => entry.id === TODO_PROJECT_PLUGIN_ID));
+  assert.equal(todoManifest.databases?.partition?.store_name, "todo");
+  assert.equal(todoManifest.databases?.home, undefined);
+  assert.equal(homeStores().get("todo"), undefined, "Todo keeps nothing in the Home");
 }));
 
 test("RAC-131 a project's page mounts the Todo stage once, from the Home runtime, and the client bundle still parses with the quick-entry reader in it", { timeout: 60_000 }, async t => {
   const { request, project } = await serveHomeRuntime(t);
-  const here = await project("待办页面");
+  const here = await project("待办页面", ["todo"]);
   const page = await request(`/projects/${encodeURIComponent(here.project_id)}/`);
   assert.equal(page.status, 200);
   const html = pluginDocuments(await page.text()).join("\n");
@@ -97,7 +97,9 @@ test("RAC-134 stable Todo words keep the formerly displayed English after the gl
 
 test("RAC-130 the actual English Skill catalog translates Todo names and usage guidance from its declaration owner", async t => {
   const f = await serveHomeRuntime(t);
-  const answer = await f.host.homeActionClient().invoke({ ...person(SKILLS_PERMISSIONS), locale: "en" }, skillCatalogActions.list, {}) as { skills: SkillCatalogEntry[] };
+  // Todo's Skills are listed where Todo is (batch 108: a plugin of each partition).
+  const here = await f.project("Skills", ["todo"]);
+  const answer = await f.host.actionClient(here.reference).invoke({ ...person(SKILLS_PERMISSIONS, here.project_id), locale: "en" }, skillCatalogActions.list, {}) as { skills: SkillCatalogEntry[] };
   const rows = answer.skills.filter(skill => skill.pack.plugin_id === todoManifest.plugin_id);
   assert.deepEqual(rows.map(skill => [skill.ref.skill_id, skill.name]), [["todo-organize", "Organize todos"], ["todo-advance", "Advance a todo"]]);
   assert.equal(rows[0]!.description, "Use when the user wants tasks extracted from mail, files, meeting notes, web pages, or current content, checks for missed tasks, or asks how an email affects plans. Present candidates for confirmation first.");
@@ -121,35 +123,35 @@ test("RAC-132 the Todo page asks the Host only through the shared request helper
   assert.match(readFileSync("plugins/native/todo/package.json", "utf8"), /tsc -p tsconfig\.browser\.json/, "the build type-checks the browser code");
 });
 
-test("HTTP routes map to the same actions; fixed paths are not read as ids; a project's page sees its project's todos", { timeout: 60_000 }, async t => {
-  const { request, project } = await serveHomeRuntime(t);
-  const here = await project("待办项目");
+test("HTTP routes map to the same actions; fixed paths are not read as ids; each partition's page sees its own todos", { timeout: 60_000 }, async t => {
+  const { request, project, personal } = await serveHomeRuntime(t);
+  const here = await project("待办项目", ["todo"]), mineSpace = await personal(["todo"]);
   const base = `/api/plugins/${todoManifest.plugin_id}`;
   const call = async (where: "personal" | "project", method: "GET" | "POST", path: string, body?: Record<string, unknown>) => {
-    const response = await request((where === "project" ? `/projects/${encodeURIComponent(here.project_id)}` : "") + base + path, { method, body: method === "POST" ? body ?? {} : undefined });
+    const response = await request(`/projects/${encodeURIComponent(where === "project" ? here.project_id : mineSpace.project_id)}${base}${path}`, { method, body: method === "POST" ? body ?? {} : undefined });
     return { status: response.status, body: await response.json() as unknown };
   };
-  const mine = (await call("personal", "POST", "/items", { title: "个人的事", planned_date: "2026-09-28" })).body as { item: { id: string; placement: string } };
-  assert.equal(mine.item.placement, "personal");
-  const ours = (await call("project", "POST", "/items", { title: "项目的事", placement: "project", project_id: "forged" })).body as { item: { id: string; project_id: string } };
-  assert.equal(ours.item.project_id, here.project_id, "项目来自页面路径，不来自请求");
-  const listAll = (await call("project", "GET", "/items?view=all")).body as { items: { title: string }[] };
-  assert.deepEqual(listAll.items.map(item => item.title).sort(), ["个人的事", "项目的事"]);
-  const listHome = (await call("personal", "GET", "/items?view=all")).body as { items: { title: string }[] };
-  assert.deepEqual(listHome.items.map(item => item.title), ["个人的事"]);
+  const mine = (await call("personal", "POST", "/items", { title: "个人的事", planned_date: "2026-09-28" })).body as { item: { id: string } };
+  const ours = (await call("project", "POST", "/items", { title: "项目的事" })).body as { item: { id: string } };
+  const forged = await call("project", "POST", "/items", { title: "冒名", project_id: "forged" });
+  assert.equal(forged.status, 200, JSON.stringify(forged.body));
+  assert.deepEqual(((await call("project", "GET", "/items?view=all")).body as { items: { title: string }[] }).items.map(item => item.title).sort(), ["冒名", "项目的事"],
+    "where a todo is comes from the page's path; the request's project_id is dropped");
+  assert.deepEqual(((await call("personal", "GET", "/items?view=all")).body as { items: { title: string }[] }).items.map(item => item.title), ["个人的事"]);
+  assert.equal((await call("project", "GET", `/items/${mine.item.id}`)).status, 404, "the personal todo is not in the project");
 
-  const batch = await call("project", "POST", "/batch", { ids: [mine.item.id, ours.item.id], change: { status: "done" } });
+  const second = (await call("project", "POST", "/items", { title: "项目的另一件事" })).body as { item: { id: string } };
+  const batch = await call("project", "POST", "/batch", { ids: [ours.item.id, second.item.id], change: { status: "done" } });
   assert.equal(batch.status, 200, JSON.stringify(batch.body));
   const undone = await call("project", "POST", "/revert", { batch_id: (batch.body as { batch_id: string }).batch_id });
   assert.equal(undone.status, 200, JSON.stringify(undone.body));
-  assert.equal(((await call("personal", "GET", `/items/${mine.item.id}`)).body as { item: { status: string } }).item.status, "open");
+  assert.equal(((await call("project", "GET", `/items/${ours.item.id}`)).body as { item: { status: string } }).item.status, "open");
 
-  // The person may reach every project's todos on their own page; only the listing is scoped unless they ask for all.
-  const everything = (await call("personal", "GET", "/items?view=all&all=1")).body as { items: { title: string }[] };
-  assert.deepEqual(everything.items.map(item => item.title).sort(), ["个人的事", "项目的事"]);
-  const stale = await call("personal", "POST", `/items/${mine.item.id}`, { title: "旧版本", expected_revision: 1 });
-  assert.equal(stale.status, 409);
-  assert.equal((stale.body as { code: string }).code, "todo.conflict");
+  const current = await call("personal", "POST", `/items/${mine.item.id}`, { title: "改过一次", expected_revision: 1 });
+  assert.equal(current.status, 200, "a write from the revision it read goes through");
+  const conflict = await call("personal", "POST", `/items/${mine.item.id}`, { title: "更旧的版本", expected_revision: 1 });
+  assert.equal(conflict.status, 409);
+  assert.equal((conflict.body as { code: string }).code, "todo.conflict");
   const invalid = await call("personal", "POST", "/items", { title: "" });
   assert.equal(invalid.status, 400);
   const gone = await call("personal", "POST", `/items/${mine.item.id}/delete`, {});
@@ -184,16 +186,19 @@ for (const invalidation of ["none", "cancel", "disable"] as const) {
   test(`Todo organizing waits for the model; ${invalidation === "none" ? "a current call saves its result" : `a call ${invalidation === "cancel" ? "cancelled" : "whose plugin is disabled"} while it waits writes nothing`}`, { timeout: 60_000 }, async t => {
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     const completeText: HostCompleteText = async () => { entered.resolve(); await release.promise; return ANSWER; };
-    const { host, request } = await serveHomeRuntime(t, { completeText });
-    const base = `/api/plugins/${todoManifest.plugin_id}`, abort = new AbortController();
-    const outcome = host.homeActionClient().invoke({ ...person([...TODO_ACTION_PERMISSIONS]), signal: abort.signal }, todoOrganizeActions.extract, { materials: [MAIL] })
+    const { host, request, project, origin, token } = await serveHomeRuntime(t, { completeText });
+    const here = await project("整理待办", ["todo"]);
+    const base = `/projects/${encodeURIComponent(here.project_id)}/api/plugins/${todoManifest.plugin_id}`, abort = new AbortController();
+    const outcome = host.actionClient(here.reference).invoke({ ...person([...TODO_ACTION_PERMISSIONS], here.project_id), signal: abort.signal }, todoOrganizeActions.extract, { materials: [MAIL] })
       .then(() => "ok", (error: { code?: string }) => error.code ?? "failed");
     await entered.promise;
     if (invalidation === "cancel") abort.abort();
-    if (invalidation === "disable") assert.equal((await request(`${base}/disable`, { method: "POST", body: {} })).status, 200);
+    // A partition plugin is turned off where it runs by taking it out of that partition (its data stays).
+    const web = new LocalHostHttpClient({ origin, controlToken: token });
+    if (invalidation === "disable") await web.delete(`/api/settings/projects/${encodeURIComponent(here.project_id)}/plugins`, { plugin_id: "todo", expected_revision: await projectPluginRevision(web, here.project_id) });
     release.resolve();
     const settled = await outcome;
-    if (invalidation === "disable") assert.equal((await request(`${base}/enable`, { method: "POST", body: {} })).status, 200);
+    if (invalidation === "disable") await addProjectPlugin(web, here.project_id, "todo");
     const batches = (await (await request(`${base}/organize?status=all`)).json() as { batches: unknown[] }).batches;
     if (invalidation === "none") { assert.equal(settled, "ok"); assert.equal(batches.length, 1, "the model's answer is a valid result"); }
     else { assert.notEqual(settled, "ok", invalidation); assert.deepEqual(batches, [], `${invalidation}: no result is saved`); }

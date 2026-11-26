@@ -4,7 +4,7 @@ import { ActionError, intakeMaterial } from "@molis-ai/molis-work-contracts/plat
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertManifest, inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
+import { registration as briefRegistration } from "@molis-ai/molis-work-plugin-work-brief/registration";
 import type { ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ONBOARDING_CODE_ROOT_TAKE_INPUT_SCHEMA, ONBOARDING_TAKE_RESULT_SCHEMA } from "@molis-ai/molis-work-contracts/platform/plugin-onboarding";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
@@ -267,13 +267,13 @@ test("embedded plugin dependencies are explicit IDs, not implicit grants or self
 });
 
 test("RAC-589 S-74 project_reach is declared on Home-scoped actions only, and only together with the projects:reach permission", () => {
-  const fresh = (): Record<string, unknown> => JSON.parse(JSON.stringify(todoManifest));
+  const fresh = (): Record<string, unknown> => JSON.parse(JSON.stringify(briefRegistration.manifest));
   const actionsOf = (manifest: Record<string, unknown>) => manifest.actions as Array<{ capability_id: string; action: Record<string, unknown> }>;
   const refused = (mutate: (manifest: Record<string, unknown>) => void, needle: string) => assert.throws(() => { const manifest = fresh(); mutate(manifest); parsePluginManifest(manifest); },
     (error: unknown) => error instanceof ActionError && error.message.includes(needle), needle);
   const parsed = parsePluginManifest(fresh());
   const reaching = parsed.actions!.filter(definition => definition.action.project_reach === "person");
-  assert.ok(reaching.length > 0, "Todo's own page declares it");
+  assert.ok(reaching.length > 0, "Work Brief's personal brief declares it (Todo's moved into partitions, batch 108)");
   assert.ok(reaching.every(definition => definition.action.scope === "home"));
   // Declared without the permission: the installation's confirmation could not show it, so the Manifest is refused.
   refused(manifest => { manifest.permissions = (manifest.permissions as Array<{ permission: string }>).filter(item => item.permission !== "projects:reach"); }, "projects:reach");

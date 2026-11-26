@@ -7295,6 +7295,8 @@
     "workbench.side-panel.resize-side-panel": "サイドパネルの幅を調整",
     "workbench.side-panel.right": "右側",
     "workbench.side-panel.side-view-name": "サイドビュー：{name}",
+    "workbench.side-view.enable-confirm": "オンにする",
+    "workbench.side-view.enable-personal": "個人スペースでは「{name}」がまだオンになっていません。オンにすると、ここですぐに記録できます。",
     "workbench.skin.folio": "Folio",
     "workbench.skin.pure-studio": "Pure Studio",
     "workbench.skin.soft-workbench": "Soft Workbench",

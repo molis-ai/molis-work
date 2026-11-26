@@ -15,7 +15,8 @@ const catalog: PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS as PluginReg
 
 /** An entry for the test: a real entry's other parts (the deletion reads only its library's `project_rows`), under its own id. */
 function declaringEntry(id: string, rows: { label: string; order?: number }): PluginRegistration {
-  const template = catalog.find(entry => entry.project_plugin_id === "todo");
+  // Work Brief's is the shipped Home library left that declares project rows (Todo's moved into each partition, batch 108).
+  const template = catalog.find(entry => entry.project_plugin_id === "work-brief");
   const library = template?.manifest.databases?.home;
   assert.ok(template && library?.project_rows);
   const { order: _order, ...declared } = library.project_rows;
@@ -34,15 +35,16 @@ test("RAC-563 a plugin's project data is what it declares, and the confirmation 
   await withFreshHome(async home => {
     const owners = projectDeletedHooksFor(home).owners();
     // The ids are the receipt's stable names, so a change here orphans the steps of receipts that are still pending. Batch 106 adds
-    // `partition-platform`: the due entries, overview rows and evidence holds the platform keeps for a partition.
+    // `partition-platform`: the due entries, overview rows and evidence holds the platform keeps for a partition. Batch 108 adds Issues and
+    // Cognia, whose library in each partition goes with it; they declare no words of their own, so the platform names them.
     assert.deepEqual(owners.map(owner => owner.id), [
       "pages", "form", "dataset", "ppt", "work-brief", "workflows", "todo", "functions", "lingguang", "images",
-      "characters", "artifacts", "plugin-builder", "assistant", "mainline", "home-pages", "knowledge", "plugin-originals", "conversation-attachments", "plugin-connections", "plugin-project-reach", "task-grants", "automation-recommendations", "observation", "blueprints", "partition-platform", "evaluation", "external-sessions", "memory", "search",
+      "characters", "issues", "cognia", "artifacts", "plugin-builder", "assistant", "mainline", "home-pages", "knowledge", "plugin-originals", "conversation-attachments", "plugin-connections", "plugin-project-reach", "task-grants", "automation-recommendations", "observation", "blueprints", "partition-platform", "evaluation", "external-sessions", "memory", "search",
     ]);
     assert.deepEqual(runWithLocale("zh", () => owners.flatMap(owner => owner.label ? [ownerLabel(owner)] : [])), [
-      "Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "Dataset 数据表", "PPT 演示稿", "简报、它的版本与修改", "工作流程及其运行记录", "放在这个项目里的待办",
+      "Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "Dataset 数据表", "PPT 演示稿", "简报、它的版本与修改", "工作流程及其运行记录", "这里的待办与修改记录",
       "判断规则在这个项目里的场景绑定和判断记录", "灵光里的想法与对话", "图片生成记录和已生成的图片",
-      "这个项目的角色、默认角色与角色的执行记录", "成果库保存的大文件原件", "插件创作台的构建、发布包和已保存的密钥", "助理在这个项目里的工作", "这个项目主线上的事项与排列", "项目资料的卡片与整理记录", "这个项目的工作记录与核验备份", "这个项目的外部会话 AI 读取许可与归属建议", "这个项目及其角色的记忆",
+      "这个项目的角色、默认角色与角色的执行记录", "Issue 在这个项目里的数据", "Cognia 在这个项目里的数据", "成果库保存的大文件原件", "插件创作台的构建、发布包和已保存的密钥", "助理在这个项目里的工作", "这个项目主线上的事项与排列", "项目资料的卡片与整理记录", "这个项目的工作记录与核验备份", "这个项目的外部会话 AI 读取许可与归属建议", "这个项目及其角色的记忆",
     ]);
     // Rows a library declares in its Manifest (`project_rows`, PG-024); no catalog entry carries code that clears a project's data
     // (the 成果库's originals are its module's, which the Host names).
@@ -66,7 +68,7 @@ test("a plugin added to the catalog with a declaration is cleared by a project's
       assert.equal(owners[0]?.id, "declared-in-test", "its declared order puts it first");
       assert.equal(owners[0]?.label, "声明里的数据");
       assert.equal(await hooks.clear("declared-in-test", "project-1"), true);
-      assert.equal(existsSync(join(home, "todo")), false, "a library that does not exist yet has nothing to clear and is not made");
+      assert.equal(existsSync(join(home, "work-brief")), false, "a library that does not exist yet has nothing to clear and is not made");
     });
   } finally { catalog.pop(); }
 });

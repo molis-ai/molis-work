@@ -22,7 +22,7 @@ const clock = (text: string) => {
 };
 
 /**
- * The popovers of the open todo: the status and placement menus, the date popover (one for 截止, 计划做, 提醒 and the follow-up
+ * The popovers of the open todo: the status menu, the date popover (one for 截止, 计划做, 提醒 and the follow-up
  * day) and the link picker. Each grows from the control that opened it, closes on Escape, an outside click or a choice, and on a
  * narrow page rises from the bottom instead (styles). A date or time takes effect when picked: the hidden field takes it and the
  * editor saves, the same way a typed field does.

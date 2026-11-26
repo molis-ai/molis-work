@@ -114,7 +114,7 @@ function persisted(home: string, kind: Kind, input: Record<string, unknown>) {
   if (kind === "dataset") { const store = openDatasetStore(home, "a"); try { return store.get(input.id as string); } finally { store.close(); } }
   if (kind === "lingguang") { const store = openLingguangStore(home, "a"); try { return store.conversation(input.id as string); } finally { store.close(); } }
   if (kind === "ppt") { const store = openPptStore(home, "a"); try { return store.get(input.id as string); } finally { store.close(); } }
-  if (kind === "cognia") { const store = openCogniaStore(home); try { return { drafts: store.drafts(), materials: store.materials() }; } finally { store.close(); } }
+  if (kind === "cognia") { const store = openCogniaStore(home, "a"); try { return { drafts: store.drafts(), materials: store.materials() }; } finally { store.close(); } }
   const store = openPagesStore(home, "a"); try { return { documents: store.list(), record: store.generation(input.request_id as string) }; } finally { store.close(); }
 }
 
@@ -126,8 +126,8 @@ for (const kind of ["form", "dataset", "lingguang", "pages", "cognia", "ppt"] as
       await options?.beforeDispatch?.(); dispatched++; return output[kind]; },
       actionAvailability: () => enabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "Disabled" } });
     const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-    const client = kind === "cognia" ? host.homeActionClient() : host.actionClient(reference);
-    const context: ActionCallContext = { ...caller, project_id: kind === "cognia" ? null : "a", validate_authority: () => {
+    const client = host.actionClient(reference);
+    const context: ActionCallContext = { ...caller, project_id: "a", validate_authority: () => {
       if (!allowed) throw new ActionError("actions.revoked", "Revoked");
     } };
     const bound = bindActionClient(client, () => context), controller = new AbortController();

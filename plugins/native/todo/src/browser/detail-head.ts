@@ -6,7 +6,6 @@ const uiText = globalThis.t;
 /** The status chip's colour and ring: the platform's pairing (blue in progress, cyan someone else's turn, green done, grey idle). */
 const STATUS_TONES: Record<string, string> = { open: "idle", doing: "progress", waiting: "hold", done: "done", cancelled: "quiet" };
 export const STATUS_RINGS: Record<string, string> = { open: "idle", doing: "doing", waiting: "waiting", done: "done", cancelled: "cancelled" };
-const PLACE_ICONS: Record<string, string> = { personal: "user", project: "folder", unassigned: "circle" };
 const WEEK_KEYS = ["todo.week.sun", "todo.week.mon", "todo.week.tue", "todo.week.wed", "todo.week.thu", "todo.week.fri", "todo.week.sat"];
 
 export const todayOf = (page: TodoPage) => page.state.today || isoDay(new Date());
@@ -88,29 +87,6 @@ function paintRail(page: TodoPage, closed: boolean): void {
     const { date, time } = dateOf(page, name);
     value(name, date ? fullDay(page, date, time) : "", name === "due" && !closed && Boolean(date) && page.dayDiff(date) < 0);
   }
-  const elsewhere = item.placement === "project" && item.project_id !== page.projectId();
-  value("place", elsewhere ? uiText.text("todo.place.other-project") : page.placeName(item.placement));
-  page.$('[data-todo-pop-open="place"] use').setAttribute("href", `#icon-${PLACE_ICONS[item.placement] ?? "folder"}`);
-  const box = page.$("[data-todo-placement-choices]");
-  const places = ["personal", ...(page.projectId() ? ["project"] : []), "unassigned"];
-  const key = places.map((place) => `${place}:${page.placeName(place)}`).join("|");
-  if (box.dataset.drawn !== key) {
-    box.dataset.drawn = key;
-    box.replaceChildren();
-    for (const place of places) {
-      const button = make("button", "mw-menu__item mw-menu__item--described");
-      button.type = "button";
-      button.dataset.todoPlacement = place;
-      button.setAttribute("role", "radio");
-      button.innerHTML = `${iconSvg(PLACE_ICONS[place] ?? "folder")}<span data-slot="menu-item-label"><span></span></span><span class="todo-menu-tick" aria-hidden="true">${iconSvg("check")}</span><small class="mw-menu__desc"></small>`;
-      button.querySelector("[data-slot] > span")!.textContent = page.placeName(place);
-      button.querySelector("small")!.textContent = uiText.text(place === "personal" ? "todo.place.personal-hint" : place === "project" ? "todo.place.project-hint" : "todo.place.unassigned-hint");
-      box.append(button);
-    }
-  }
-  box.querySelectorAll<HTMLElement>("[data-todo-placement]").forEach((button) => {
-    button.setAttribute("aria-checked", String(!elsewhere && button.dataset.todoPlacement === item.placement));
-  });
 }
 
 /**

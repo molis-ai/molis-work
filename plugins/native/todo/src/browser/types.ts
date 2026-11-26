@@ -77,10 +77,8 @@ export interface TodoElements {
   readonly quick: HTMLFormElement;
   readonly quickInput: HTMLInputElement;
   readonly quickParts: HTMLElement;
-  readonly quickPlacement: HTMLElement;
   readonly quickSubmit: HTMLButtonElement;
   readonly search: HTMLInputElement;
-  readonly scopeButton: HTMLButtonElement;
   readonly batchBar: HTMLElement;
   readonly workspace: HTMLElement;
   readonly heading: HTMLElement;
@@ -94,7 +92,6 @@ export interface TodoElements {
 export interface TodoState {
   view: string;
   query: string;
-  everything: boolean;
   items: TodoRow[];
   counts: Record<string, number>;
   today: string;
@@ -117,7 +114,6 @@ export interface TodoState {
   busy: boolean;
   quickAttempt: { fingerprint: string; request_id: string } | null;
   dropped: Set<string>;
-  placeChoice: string;
   /** Only the latest opening paints: picking another item, or closing, before it answers keeps what came last. */
   detailTicket: number;
   reminders: ReminderEntry[];
@@ -144,8 +140,6 @@ export interface TodoPage {
   $<T extends Element = HTMLElement>(selector: string): T;
   field(name: string): HTMLInputElement | HTMLTextAreaElement;
   projectId(): string;
-  hereName(): string;
-  placeName(value: string): string;
   statusName(status: string): string;
   dayDiff(date: string): number;
   dayLabel(date: string): string;
@@ -154,7 +148,6 @@ export interface TodoPage {
   /** A notice over the open todo; `reload` puts 重新读取 beside it (a conflict is answered where it is said). */
   detailHint(text: string, error?: boolean, reload?: boolean): void;
   ask(message: string, okLabel: string, run?: () => Promise<unknown>): Promise<boolean>;
-  paintPlaces(container: Element, current: string, attribute: string): void;
   tellAssistant(purpose: string, item: TodoItem, extra?: Record<string, unknown>): void;
   publishContext(): void;
   load(): Promise<void>;
@@ -171,7 +164,6 @@ export interface TodoPage {
   setStatus(id: string, status: string, revision: number): Promise<void>;
   setBusy(value: boolean): void;
   renderQuick(): void;
-  quickDefaultPlacement(): string;
   paintSave(): void;
   watchWorks(): void;
   loadWorks(item: TodoItem): Promise<void>;

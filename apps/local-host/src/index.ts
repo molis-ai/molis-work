@@ -178,7 +178,7 @@ export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
 export { installedStageSection } from "./workbench-renderer.js";
-export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
+export { createPluginConnectionsPort, createCallConnectionsPort, mayUseInstallationSlot, pluginSlotScope } from "./connector-plugin-requests.js";
 export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
 export { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
@@ -300,6 +300,7 @@ export { existingPartitionPluginHost, partitionChanged, type PartitionPluginInst
 export { pluginInstallRecords } from "./plugin-install-records.js";
 export { assembledPerPartition, openPartitionPluginLibrary, PARTITION_PLUGIN_IDLE_MS, PartitionPluginAssembly, partitionPluginScope, type PartitionPluginAssemblyOptions, type PartitionPluginHandle, type PartitionPluginLease, type PartitionPluginScope, type PartitionWakeReason } from "./partition-plugin-assembly.js";
 export { forgetInstallationPlatformRecords, forgetPartitionPlatformRecords, PartitionPlatformServices, partitionOverviewLibraries, personSettingsInstallations, type OverviewInstallation, type PartitionPlatformServicesOptions } from "./partition-platform-services.js";
+export { onPartitionReminder, REMINDER_LATE_MS, tellPartitionReminder, type PartitionReminder } from "./partition-reminders.js";
 export { openHomePluginStore } from "./home-plugin-store.js";
 export { announceConnectionChanged } from "./connection-change-events.js";
 export { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories, runningPluginDirectory, type DirectorySource } from "./plugin-directory.js";

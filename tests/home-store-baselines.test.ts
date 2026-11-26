@@ -6,6 +6,7 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { describeSqliteSchema, readDatabaseSpace, ensureStorageSpace, releaseHeldHomeSqlite, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_STORE_BASELINE, openCharacters } from "@molis-ai/molis-work-module-characters";
+import { cogniaManifest } from "@molis-ai/molis-work-plugin-cognia";
 import { HomeConsentLedger, MolisWorkLocalHost, MolisWorkProjectCatalog, homeStores } from "@molis-ai/molis-work-app-local-host";
 
 /** Current schemas at the clean Home starting version: the memory ledger without its former facts table, the assistant without memory candidates,
@@ -51,14 +52,12 @@ for (const [name, baseline] of libraries.filter(([name]) => !WITHOUT_REAL_HOME_F
   });
 }
 
-// RAC-44 (library version and shape kept when Cognia moved to a Home Runtime): the cognia row above compares the library
-// Cognia's own Home Runtime entry declares with the real-Home fixture. The registry only carries that library while the
-// declaration exists, and the row would silently go with it, so its presence is asserted here.
-test("RAC-44: the cognia library is the one Cognia's Home Runtime declares, at version 1, so the row above checks its shape", () => {
-  const cognia = homeStores().stores.find(store => store.path === "cognia");
-  assert.equal(cognia?.owner, "io.molis.work.cognia");
-  assert.equal(cognia?.library?.baseline.version, 1);
-  assert.ok(libraries.some(([name]) => name === "cognia") && !WITHOUT_REAL_HOME_FIXTURE.includes("cognia"));
+// RAC-44 (library version and shape kept when Cognia moved to a Home Runtime): since batch 108 Cognia's library lives in each partition
+// (specs/unified-partition-plugins §4.2), so the Home store registry no longer carries it; the partition declaration keeps version 1.
+test("RAC-44: Cognia's library is no Home store; each partition's library is the one its Manifest declares, at version 1", () => {
+  assert.ok(!homeStores().stores.some(store => store.path === "cognia"));
+  assert.equal(cogniaManifest.databases?.partition?.version, 1);
+  assert.equal(cogniaManifest.databases?.home, undefined);
 });
 
 test("W3-06-F-04 Home Runtime created by the public Host is the complete independent current baseline at 1", async () => {

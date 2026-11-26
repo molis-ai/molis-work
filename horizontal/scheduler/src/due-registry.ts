@@ -156,29 +156,52 @@ export class DueRegistry {
   }
 
   /**
-   * Takes everything due by now off the registry, in one transaction, before any of it runs: an entry the woken plugin registers again
-   * under the same key is a new entry, which this round does not remove (the alternating one-shot of #2257). An entry seven days past its
-   * time is kept as expired and not given back.
+   * Everything due by now, in time order, without taking it off: an entry goes only once its wake succeeded (`settle`), so a wake that fails
+   * or a Host that stops halfway leaves it to be tried again and no reminder is lost. An entry seven days past its time is taken off here and
+   * kept as expired, never given back (batch 95-3's rule).
    */
-  takeDue(): { due: DueEntryRecord[]; expired: DueExpiredRecord[] } {
+  dueNow(): { due: DueEntryRecord[]; expired: DueExpiredRecord[] } {
     const now = this.now(), at = now.toISOString();
     return this.write(() => {
       const rows = this.db.prepare("SELECT * FROM due_entries WHERE due_at <= ? ORDER BY due_at, install_id, partition_id, entry_key").all(at).map(rowOf);
-      const remove = this.db.prepare("DELETE FROM due_entries WHERE install_id = ? AND partition_id = ? AND source = ? AND entry_key = ? AND due_at = ?");
-      const note = this.db.prepare("INSERT OR REPLACE INTO due_done VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
       const due: DueEntryRecord[] = [], expired: DueExpiredRecord[] = [];
       for (const row of rows) {
-        remove.run(row.install_id, row.partition_id, row.source, row.entry_key, row.due_at);
-        const outcome = runHasExpired(row.due_at, now.getTime()) ? "expired" : "woken";
-        note.run(row.install_id, row.plugin_id, row.partition_id, row.entry_key, row.source, row.due_at, outcome, at);
-        if (outcome === "expired") expired.push({ ...row, expired_at: at });
-        else due.push(row);
+        if (!runHasExpired(row.due_at, now.getTime())) { due.push(row); continue; }
+        this.remove(row, "expired", at);
+        expired.push({ ...row, expired_at: at });
       }
-      // A plugin's own entry is never read again, so its woken note serves nothing, and its expired note is kept for the expiry window
-      // once more. An overview note lives as long as its reminder is in the table (`replaceOverview`).
-      this.db.prepare("DELETE FROM due_done WHERE source = 'plugin' AND (outcome = 'woken' OR done_at < ?)").run(new Date(now.getTime() - RUN_MISSED_KEPT_MS).toISOString());
       return { due, expired };
     });
+  }
+
+  /**
+   * Takes one entry off once its wake succeeded, noted as woken. Only the entry as it was handed out: one the plugin registered again under
+   * the same key for another time is a new entry and stays (the alternating one-shot of #2257). False when it was no longer there.
+   */
+  settle(entry: DueEntryRecord): boolean {
+    const at = this.now().toISOString();
+    return this.write(() => this.remove(entry, "woken", at));
+  }
+
+  /** The earliest time something is due, leaving out the entries a failing wake put off (`skip`, keyed as `dueKey`). */
+  nextExcept(skip: ReadonlySet<string>): string | null {
+    if (skip.size === 0) return this.next();
+    for (const row of this.db.prepare("SELECT * FROM due_entries ORDER BY due_at LIMIT ?").all(skip.size + 1).map(rowOf)) {
+      if (!skip.has(dueKey(row))) return row.due_at;
+    }
+    return null;
+  }
+
+  private remove(entry: DueEntryRecord, outcome: "woken" | "expired", at: string): boolean {
+    const removed = Number(this.db.prepare("DELETE FROM due_entries WHERE install_id = ? AND partition_id = ? AND source = ? AND entry_key = ? AND due_at = ?")
+      .run(entry.install_id, entry.partition_id, entry.source, entry.entry_key, entry.due_at).changes) > 0;
+    if (!removed) return false;
+    this.db.prepare("INSERT OR REPLACE INTO due_done VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(entry.install_id, entry.plugin_id, entry.partition_id, entry.entry_key, entry.source, entry.due_at, outcome, at);
+    // A plugin's own entry is never read again, so its woken note serves nothing, and its expired note is kept for the expiry window
+    // once more. An overview note lives as long as its reminder is in the table (`replaceOverview`).
+    this.db.prepare("DELETE FROM due_done WHERE source = 'plugin' AND (outcome = 'woken' OR done_at < ?)").run(new Date(Date.parse(at) - RUN_MISSED_KEPT_MS).toISOString());
+    return true;
   }
 
   close(): void { this.db.close(); }
@@ -208,15 +231,24 @@ function checkOwner(owner: DueEntryOwner): void {
 /** The longest a timer is set for; a later time is reached by setting it again. */
 const MAX_TIMER_MS = 2 ** 31 - 1;
 
+/** One entry's identity as the timer keeps it while a failed wake puts it off. */
+export const dueKey = (entry: Pick<DueEntryRecord, "install_id" | "partition_id" | "source" | "entry_key" | "due_at">): string =>
+  JSON.stringify([entry.install_id, entry.partition_id, entry.source, entry.entry_key, entry.due_at]);
+
+/** How long a failed wake waits before it is tried again: doubling from a minute, at most half an hour. */
+const RETRY_FIRST_MS = 60_000, RETRY_MOST_MS = 30 * 60_000;
+
 /**
- * The one timer of the registry: armed for the earliest entry, it takes what is due, wakes each (plugin, partition) through `wake` (the
- * per-partition assembly's `acquire(..., "due")` in the Host), and arms itself again. `arm()` is called after every change to the
- * registry. A wake that fails is told to `failed` and not retried: the plugin registers again when it next runs.
+ * The one timer of the registry: armed for the earliest entry, it reads what is due, wakes each (plugin, partition) through `wake` (the
+ * per-partition assembly's `acquire(..., "due")` in the Host), takes each off only once its wake succeeded, and arms itself again. `arm()` is
+ * called after every change to the registry. A wake that fails is told to `failed` and tried again later, the entry put off in this process
+ * alone (doubling from a minute); a Host that stops before the wake finished finds the entry still there when it starts.
  */
 export class DueTimer {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private running: Promise<void> | undefined;
   private closed = false;
+  private readonly putOff = new Map<string, { readonly until: number; readonly wait: number }>();
 
   constructor(private readonly registry: DueRegistry, private readonly options: {
     readonly wake: (entry: DueEntryRecord) => Promise<void>;
@@ -225,13 +257,16 @@ export class DueTimer {
     readonly now?: () => Date;
   }) {}
 
+  private now(): number { return (this.options.now ?? (() => new Date()))().getTime(); }
+
   arm(): void {
     if (this.closed) return;
     if (this.timer !== undefined) clearTimeout(this.timer);
     this.timer = undefined;
-    const next = this.registry.next();
-    if (next === null) return;
-    const delay = Math.min(MAX_TIMER_MS, Math.max(0, Date.parse(next) - (this.options.now ?? (() => new Date()))().getTime()));
+    const next = this.registry.nextExcept(new Set(this.putOff.keys()));
+    const times = [...next === null ? [] : [Date.parse(next)], ...[...this.putOff.values()].map(entry => entry.until)];
+    if (times.length === 0) return;
+    const delay = Math.min(MAX_TIMER_MS, Math.max(0, Math.min(...times) - this.now()));
     this.timer = setTimeout(() => {
       this.timer = undefined;
       void this.fire();
@@ -242,18 +277,32 @@ export class DueTimer {
   /** Runs one round now, whatever the timer says; the timer is armed again after it. */
   fire(): Promise<void> {
     if (this.running) return this.running;
-    this.running = (async () => {
+    // Started after the assignment below, so a round with nothing to await cannot finish (and clear `running`) before it is set.
+    this.running = Promise.resolve().then(async () => {
       try {
-        const { due, expired } = this.registry.takeDue();
+        const { due, expired } = this.registry.dueNow();
         if (expired.length) this.options.expired?.(expired);
+        const now = this.now(), present = new Set(due.map(dueKey));
+        // An entry gone from the registry (cancelled, moved, its plugin disabled) is not tried again.
+        for (const key of [...this.putOff.keys()]) if (!present.has(key)) this.putOff.delete(key);
         for (const entry of due) {
-          try { await this.options.wake(entry); } catch (error) { this.options.failed?.(entry, error); }
+          const key = dueKey(entry), off = this.putOff.get(key);
+          if (off && off.until > now) continue;
+          try {
+            await this.options.wake(entry);
+            this.putOff.delete(key);
+            this.registry.settle(entry);
+          } catch (error) {
+            const wait = off ? Math.min(off.wait * 2, RETRY_MOST_MS) : RETRY_FIRST_MS;
+            this.putOff.set(key, { until: this.now() + wait, wait });
+            this.options.failed?.(entry, error);
+          }
         }
       } finally {
         this.running = undefined;
         this.arm();
       }
-    })();
+    });
     return this.running;
   }
 

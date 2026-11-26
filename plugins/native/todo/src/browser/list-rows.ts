@@ -1,4 +1,3 @@
-import type { TodoItem } from "../contract.js";
 import { iconSvg, make } from "./dom.js";
 import type { TodoFlag, TodoPage, TodoRow } from "./types.js";
 
@@ -36,7 +35,7 @@ export function summaryText(page: TodoPage): string {
 export function groupsFor(page: TodoPage): Group[] {
   const { state } = page;
   const { items, view, query } = state;
-  if (query || view === "waiting" || view === "unscheduled" || view === "closed") return [{ key: "all", title: "", items }];
+  if (query || view === "waiting" || view === "unscheduled" || view === "closed" || view === "all") return [{ key: "all", title: "", items }];
   if (view === "today") {
     const overdue = items.filter((item) => item.flags.includes("overdue"));
     const replan = items.filter((item) => !item.flags.includes("overdue") && item.flags.includes("planned_past"));
@@ -53,12 +52,8 @@ export function groupsFor(page: TodoPage): Group[] {
     }
     return [...byDay.entries()].map(([key, group]) => ({ key, title: page.dayLabel(key), items: group }));
   }
-  const keyOf = (item: TodoRow) => (item.placement === "project" ? (item.project_id === page.projectId() ? "project-here" : "project-other") : item.placement);
-  const titles: Record<string, string> = { personal: uiText.text("todo.place.personal"), "project-here": page.hereName(), "project-other": uiText.text("todo.place.other-project"), unassigned: uiText.text("todo.place.unassigned") };
-  return ["personal", "project-here", "project-other", "unassigned"].map((key) => ({ key, title: titles[key] ?? "", items: items.filter((item) => keyOf(item) === key) })).filter((group) => group.items.length);
+  return [{ key: "all", title: "", items }];
 }
-
-const placementLabel = (page: TodoPage, item: TodoItem) => (item.placement === "project" ? (item.project_id === page.projectId() ? page.hereName() : uiText.text("todo.place.other-project")) : page.placeName(item.placement));
 
 function metaFor(page: TodoPage, item: TodoRow): [string, string][] {
   const { state } = page;
@@ -70,7 +65,6 @@ function metaFor(page: TodoPage, item: TodoRow): [string, string][] {
     meta.push(["waiting", uiText.text("todo.meta.waiting") + (item.waiting && item.waiting.who ? ` ${item.waiting.who}` : "") + follow]);
   }
   if (item.remind_at && item.status !== "done" && item.status !== "cancelled") meta.push(["remind", `${uiText.text("todo.quick.remind")} ${page.timeLabel(item.remind_at)}`]);
-  if (state.view !== "all" || state.query) meta.push(["placement", placementLabel(page, item)]);
   return meta;
 }
 

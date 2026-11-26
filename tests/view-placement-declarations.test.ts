@@ -287,9 +287,10 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
       assert.equal(heading, own.has(tile) ? "个人" : group && group !== "personal" ? HEADINGS[group] : "更多", `${tile} sits under 个人 when it is the person's own, else the group its view names`);
     }
   }
-  assert.deepEqual(members(hosted, "个人"), ["todo", "jelly", "cognia", "issues", "images"]);
-  assert.deepEqual(members(hosted, "写与做"), ["pages", "form", "dataset", "ppt", "artifacts"]);
-  assert.ok(members(hosted, "更多").includes("lingguang"), "灵光 names 个人 without the Host's marks: under 更多");
+  // Since batch 108 Todo, Cognia, Issues and Images run in each partition: only Jelly is still marked the person's own.
+  assert.deepEqual(members(hosted, "个人"), ["jelly"]);
+  assert.deepEqual(members(hosted, "写与做"), ["pages", "form", "dataset", "ppt", "images", "artifacts"]);
+  for (const id of ["lingguang", "todo", "cognia"]) assert.ok(members(hosted, "更多").includes(id), `${id} names 个人 without the Host's marks: under 更多`);
 });
 
 // ---- settings icons -----------------------------------------------------------------------------------------------------

@@ -116,6 +116,10 @@ export interface PluginHostServices {
    * wholly the plugin's (PG-017 BL-490). The host entry that carries the plugin's code gets this in place of `database`.
    */
   readonly database_statements?: import("./plugin-database.js").PluginProjectStatements;
+  /** The keys the Manifest declares in `person_settings`, for the person and this plugin's own background (S-person-settings-private). */
+  readonly personSettings?: import("./plugin-due.js").PluginPersonSettingsClient;
+  /** A per-partition instance's own due entries (`databases.partition`): handed back to `onDue` at their time, waking only this instance. */
+  readonly due?: import("./plugin-due.js").PluginDueClient;
   /** Project wakeups, scoped to this plugin. Writes join its current project database transaction. */
   readonly scheduler?: import("./plugin-scheduler.js").PluginScheduleClient;
   readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;

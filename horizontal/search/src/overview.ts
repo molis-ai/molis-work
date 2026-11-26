@@ -115,6 +115,12 @@ export class OverviewService {
     return read;
   }
 
+  /** One row as the index holds it, for the platform's own use (a reminder's title); never handed to a reader past `read`. */
+  row(partitionId: string, installId: string, kind: string, rowId: string): OverviewIndexStoredRow | null {
+    if (!(OVERVIEW_KINDS as readonly string[]).includes(kind)) return null;
+    return this.port.rows({ partitions: [partitionId], kinds: [kind], limit: 2_000 }).find(row => row.install_id === installId && row.row_id === rowId) ?? null;
+  }
+
   removeInstall(installId: string, partitionId?: string): void { this.port.removeInstall(installId, partitionId); }
   removePartition(partitionId: string): void { this.port.removePartition(partitionId); }
 

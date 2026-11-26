@@ -12,7 +12,7 @@ import { ISSUES_INSTRUCTIONS } from "./prompts.js";
 
 export function createIssuesPlugin(): PluginDefinition {
   return { manifest: issuesManifest, instructions: ISSUES_INSTRUCTIONS, methods: issuesSkills, async start(context) {
-    if (!context.actor_id || !context.services?.database) throw new Error("Issue 需要个人 Home 与插件数据库服务");
+    if (!context.actor_id || !context.services?.database) throw new Error("Issue 需要所在分区的插件数据库服务");
     const store = new IssueStore(context.services.database, context.actor_id);
     return { kind: "app", sync: syncBindings(context), actions: issueActionHandlers(store, context.services.model), views: [issuesUiContribution], routes: [
       bindPluginActionRoute(context, issuesActions.prepare, request => request.body as IssueDraft),

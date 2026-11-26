@@ -1,6 +1,6 @@
 import { say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -14,9 +14,8 @@ import { DatabaseSync } from "node:sqlite";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
-import { openTodoStore } from "./fixtures/plugin-home-stores.js";
+import { openImagesDatabase, openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
-import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";
 import { FUNCTIONS_STORE_BASELINE, createFunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 
 /** A Home with a catalog and two projects: `gone` is deleted by the tests, `kept` must come through untouched. */
@@ -48,7 +47,7 @@ const countIn = (home: string, projectId: string, store: string, sql: string): n
 const deletion = (id: string) => ({ project_id: id, actor_id: "test-user", delete_confirmed: true, idempotency_key: `delete-${id}` });
 
 /** What the Home libraries keep for one project, written the way the plugins' own actions write it. */
-function seed(home: string, projectId: string): { image: string } {
+function seed(home: string, projectId: string): void {
   const pages = openPagesStore(home, projectId);
   pages.create({ title: `文稿 ${projectId}`, folder_id: pages.createFolder({ title: "文件夹" }).id });
   pages.importDocuments({ request_id: "import-1", request_hash: "hash", documents: [{ title: "导入的文稿", body: { type: "doc", content: [] } as never }] } as never);
@@ -65,10 +64,13 @@ function seed(home: string, projectId: string): { image: string } {
   const ppt = openPptStore(home, projectId); ppt.create({ title: "演示稿" }); ppt.close();
   const workflows = openWorkflowsStore(home, projectId); workflows.create({ title: "流程", chain: { stations: [], links: [] } }); workflows.close();
 
-  const todo = openTodoStore(home);
-  todo.create({ title: `项目待办 ${projectId}`, placement: "project", remind_at: new Date(Date.now() - 60_000).toISOString() }, { projectId, projectIds: [], actor: "user", actorId: "local-person" });
-  todo.create({ title: "个人待办", placement: "personal" }, { projectId: null, projectIds: [], actor: "user", actorId: "local-person" });
+  // Todo keeps a library in each partition (batch 108): the project's todos are in the project's, the person's own in the personal space's.
+  const todo = openTodoStore(home, undefined, projectId);
+  todo.create({ title: `项目待办 ${projectId}`, remind_at: new Date(Date.now() - 60_000).toISOString() }, { actor: "user", actorId: "local-person" });
   todo.close();
+  const personal = openTodoStore(home);
+  personal.create({ title: "个人待办" }, { actor: "user", actorId: "local-person" });
+  personal.close();
 
   const lingguang = openLingguangStore(home, projectId);
   const spark = lingguang.create({ title: "想法", body: "私密想法" });
@@ -76,14 +78,10 @@ function seed(home: string, projectId: string): { image: string } {
   lingguang.addReply(talk.conversation.id, "聊聊", "好", lingguang.conversation(talk.conversation.id));
   lingguang.close();
 
-  const image = `${projectId.replace(/[^a-f0-9]/gu, "a")}-0000.png`;
-  mkdirSync(join(home, "images", "assets"), { recursive: true });
-  writeFileSync(join(home, "images", "assets", image), "png");
-  const images = openHomeSqliteDatabase(home, "images");
-  applySqliteBaseline(images, homeSqlitePath(home, "images"), IMAGES_DATABASE);
+  const images = openImagesDatabase(home, projectId);
   images.prepare(`INSERT INTO jobs (id,project_id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at,runner_id)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(`job-${projectId}`, projectId, "request-1", "hash", "c", "c", "openai-images", "m", "私密提示词", "", "", "succeeded",
-    JSON.stringify([{ id: "i", filename: image, mime_type: "image/png", byte_length: 3 }]), "", new Date().toISOString(), new Date().toISOString(), null);
+    "[]", "", new Date().toISOString(), new Date().toISOString(), null);
   images.close();
 
   createFunctionsService({ home, credential: () => null }).close();
@@ -94,11 +92,10 @@ function seed(home: string, projectId: string): { image: string } {
   functions.prepare(`INSERT INTO function_judgments (judgment_id, function_key, function_version, subject_kind, subject_id, project_id, scene_id, outcome, suggested_json, error_code, created_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(`judgment-${projectId}`, "f", 1, "todo", "t", projectId, "scene-1", "matched", "[]", null, new Date().toISOString());
   functions.close();
-  return { image };
 }
 
 /** How much of one project the libraries hold, down to the rows that hang off its documents, forms, todos and talks. */
-function held(home: string, projectId: string, image: string): Record<string, number> {
+function held(home: string, projectId: string): Record<string, number> {
   return {
     pages: countIn(home, projectId, "pages", "SELECT COUNT(*) n FROM pages") + countIn(home, projectId, "pages", "SELECT COUNT(*) n FROM folders"),
     pageReceipts: countIn(home, projectId, "pages", "SELECT COUNT(*) n FROM page_imports") + countIn(home, projectId, "pages", "SELECT COUNT(*) n FROM page_generations"),
@@ -107,22 +104,14 @@ function held(home: string, projectId: string, image: string): Record<string, nu
     datasets: countIn(home, projectId, "dataset", "SELECT COUNT(*) n FROM datasets"),
     ppt: countIn(home, projectId, "ppt", "SELECT COUNT(*) n FROM presentations"),
     workflows: countIn(home, projectId, "workflows", "SELECT COUNT(*) n FROM workflows"),
-    todos: count(home, "todo", "SELECT COUNT(*) n FROM todo_items WHERE project_id = ?", projectId),
-    todoHistory: count(home, "todo", "SELECT COUNT(*) n FROM todo_changes WHERE item_id IN (SELECT id FROM todo_items WHERE project_id = ?)", projectId),
+    todos: countIn(home, projectId, "todo", "SELECT COUNT(*) n FROM todo_items"),
+    todoHistory: countIn(home, projectId, "todo", "SELECT COUNT(*) n FROM todo_changes"),
     sparks: countIn(home, projectId, "lingguang", "SELECT COUNT(*) n FROM sparks"),
     talks: countIn(home, projectId, "lingguang", "SELECT COUNT(*) n FROM conversations"),
     messages: countIn(home, projectId, "lingguang", "SELECT COUNT(*) n FROM messages"),
-    imageJobs: count(home, "images", "SELECT COUNT(*) n FROM jobs WHERE project_id = ?", projectId),
-    imageFiles: existsSync(join(home, "images", "assets", image)) ? 1 : 0,
+    imageJobs: countIn(home, projectId, "images", "SELECT COUNT(*) n FROM jobs"),
     bindings: count(home, "functions", "SELECT COUNT(*) n FROM function_scene_bindings WHERE project_id = ?", projectId),
     judgments: count(home, "functions", "SELECT COUNT(*) n FROM function_judgments WHERE project_id = ?", projectId),
-  };
-}
-/** Rows whose parent is gone: what a deletion that only removed the top rows would leave behind. */
-function orphaned(home: string): Record<string, number> {
-  return {
-    todoHistory: count(home, "todo", "SELECT COUNT(*) n FROM todo_changes WHERE item_id NOT IN (SELECT id FROM todo_items)"),
-    todoRequests: count(home, "todo", "SELECT COUNT(*) n FROM todo_requests WHERE item_id NOT IN (SELECT id FROM todo_items)"),
   };
 }
 const nothing = (left: Record<string, number>) => Object.fromEntries(Object.keys(left).map(key => [key, 0]));
@@ -196,24 +185,21 @@ test("RAC-2648 a ledger cleanup failure remains pending across catalog reopen, a
 
 test("deleting a project clears what every Home library keeps for it and leaves other projects alone", async () => {
   await withHome(async ({ home, catalog, gone, kept }) => {
-    const goneSeed = seed(home, gone), keptSeed = seed(home, kept);
-    const before = held(home, gone, goneSeed.image);
+    seed(home, gone); seed(home, kept);
+    const before = held(home, gone);
     for (const [name, value] of Object.entries(before)) assert.ok(value > 0, `the fixture wrote ${name}`);
 
     const result = await catalog.deleteProject(deletion(gone));
 
     assert.equal(result.deletion.cleanup_state, "complete");
-    assert.deepEqual(held(home, gone, goneSeed.image), nothing(before));
-    assert.deepEqual(orphaned(home), nothing(orphaned(home)), "no row is left hanging off a deleted todo");
+    assert.deepEqual(held(home, gone), nothing(before));
     // A plugin with a library in each partition (U2): the deleted project's library file is gone with its journals; the kept one's stays.
-    for (const store of ["pages", "form", "dataset", "ppt", "workflows", "lingguang"]) {
+    for (const store of ["pages", "form", "dataset", "ppt", "workflows", "lingguang", "todo", "images"]) {
       for (const suffix of ["", "-journal", "-wal", "-shm"]) assert.equal(existsSync(partitionLibraryFile(home, gone, store) + suffix), false, `${store}${suffix} of the deleted project`);
       assert.equal(existsSync(partitionLibraryFile(home, kept, store)), true, `${store} of the kept project`);
     }
-    assert.deepEqual(held(home, kept, keptSeed.image), before, "another project's data is untouched");
-    const todo = openTodoStore(home);
-    try { assert.deepEqual(todo.list({ projectId: null, projectIds: [kept], actor: "user", actorId: "local-person" }).map(item => item.title).sort(), ["个人待办", "个人待办", `项目待办 ${kept}`].sort(), "the personal todos name no project and stay"); }
-    finally { todo.close(); }
+    assert.deepEqual(held(home, kept), before, "another project's data is untouched");
+    assert.equal(countIn(home, "personal", "todo", "SELECT COUNT(*) n FROM todo_items"), 2, "the personal space's todos stay");
     for (const owner of ["pages", "form", "dataset", "ppt", "workflows", "todo", "functions", "lingguang", "images"]) {
       assert.ok(result.deletion.owner_steps.some(step => step.owner_id === owner && step.state === "complete"), `${owner} is recorded in the receipt as done`);
     }
@@ -254,7 +240,7 @@ test("FSS-36 the delete dialog lists the library owners' data in the person's la
     const scope = (locale: "zh" | "en") => runWithLocale(locale, () => owners.map(owner => ownerLabel(owner)));
     const chinese = scope("zh");
     // A library of the Home names the rows it keeps for the project (`project_rows`), a library in each partition what goes with it (`deletion`).
-    for (const label of ["Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "放在这个项目里的待办", "灵光里的想法与对话"]) assert.ok(chinese.includes(label), label);
+    for (const label of ["Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "这里的待办与修改记录", "灵光里的想法与对话"]) assert.ok(chinese.includes(label), label);
     const english = scope("en");
     assert.equal(english.length, owners.length);
     assert.ok(english.every((label, index) => label && label !== chinese[index]), "all shipped labels have their English");

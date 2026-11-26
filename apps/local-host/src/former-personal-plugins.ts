@@ -2,9 +2,9 @@ import { LocalCatalogMetadata, type SqliteDatabase } from "@molis-ai/molis-work-
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
 /**
- * One-time fix kept under docs/system/CONTRACT-CHANGES.md「当前保留机制」(user confirmed 2026-11-25, batch 107).
- * The plugins that keep a library in each partition (`databases.partition`, the same mark the personal space starts with)
- * stopped being personal plugins in batch 107. A Home made before that saw them in every partition that did not hide them;
+ * One-time fix kept under docs/system/CONTRACT-CHANGES.md「当前保留机制」(user confirmed 2026-11-25, batch 107; widened to batch 108's five,
+ * user 2026-11-26). The plugins that keep a library in each partition (`databases.partition`) stopped being personal plugins in batches
+ * 107 and 108. A Home made before that saw them in every partition that did not hide them;
  * on its first open with this version each such partition gets a member row, written once. A Home made with this version
  * is marked at creation and never runs it. Removed with batch 111 or the first release.
  */

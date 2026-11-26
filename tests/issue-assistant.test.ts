@@ -12,6 +12,8 @@ import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-wor
 import type { SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { ISSUES_PLUGIN_ID, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
 import { asideReply } from "./fixtures/ending-review.js";
+import { addProjectPlugin, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 function reply(tool?: { name: string; input: unknown }, text = "已按操作回执完成这一轮。"): string {
   const events: string[] = [];
@@ -62,35 +64,39 @@ async function assistantHome(t: TestContext) {
       "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     assert.equal(response.status, 200, await response.clone().text()); return await response.json() as T;
   };
-  const list = () => request<IssueListResult>(`/api/plugins/${ISSUES_PLUGIN_ID}/list`);
+  // Issues runs in each partition it is added to (batch 108): the person adds it to the personal space and opens the Assistant there, so the
+  // work runs in that partition. (Personal work outside any partition reaches the personal space only from batch 110.)
+  await addProjectPlugin(new LocalHostHttpClient({ origin, controlToken: token }), PERSONAL_SPACE_PROJECT_ID, "issues");
+  const space = `/projects/${PERSONAL_SPACE_PROJECT_ID}`, issuesRoute = `${space}/api/plugins/${ISSUES_PLUGIN_ID}`;
+  const list = () => request<IssueListResult>(`${issuesRoute}/list`);
   const state = async (id: string, predicate: (view: AssistantWorkView) => boolean) => {
     let last: AssistantWorkView | undefined;
     for (let attempt = 0; attempt < 250; attempt++) {
-      last = await request<AssistantWorkView>(`/api/assistant/works/${id}`);
+      last = await request<AssistantWorkView>(`${space}/api/assistant/works/${id}`);
       if (predicate(last)) return last;
       await new Promise(resolve => setTimeout(resolve, 40));
     }
     throw new Error(`Assistant state not reached: ${JSON.stringify(last)}`);
   };
-  const send = async (text: string, extra: Record<string, unknown> = {}) => request<AssistantSendResult>("/api/assistant/send", { text, request_id: randomUUID(),
+  const send = async (text: string, extra: Record<string, unknown> = {}) => request<AssistantSendResult>(`${space}/api/assistant/send`, { text, request_id: randomUUID(),
     context: { source: { surface: "issues", title: "Issue 页面" }, captured_at: new Date().toISOString() }, ...extra });
   t.after(async () => {
     server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await host.close();
     model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); await rm(home, { recursive: true, force: true });
   });
-  return { replies, requests, request, list, state, send };
+  return { replies, requests, request, list, state, send, issuesRoute, space };
 }
 
 /** The model replies are scripted; HTTP, Prologue, confirmation, Action Host and SQLite are real. */
-test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal and stale versions do not write", { timeout: 120_000 }, async t => {
-  const { replies, requests, request, list, state, send } = await assistantHome(t);
+test("ISSUE-07 assistant discovers Issue in the personal space and confirms exact writes; refusal and stale versions do not write", { timeout: 120_000 }, async t => {
+  const { replies, requests, request, list, state, send, issuesRoute, space } = await assistantHome(t);
   const change = (capability_id: string, input: unknown) => reply({ name: "change-capability", input: { capability_id, version: 1, provider_id: ISSUES_PLUGIN_ID, input } });
   const input = { title: "按确认标题记录", type: "experience", description: "  我的原话\n第二行。\n" };
-  const decide = (id: string, view: AssistantWorkView, decision: "approve" | "reject") => request(`/api/assistant/works/${id}/reviews/${view.reviews[0]!.review_id}`, { decision, version: view.reviews[0]!.version });
+  const decide = (id: string, view: AssistantWorkView, decision: "approve" | "reject") => request(`${space}/api/assistant/works/${id}/reviews/${view.reviews[0]!.review_id}`, { decision, version: view.reviews[0]!.version });
   {
     replies.push(reply({ name: "find-capabilities", input: { query: "Issue" } }), change("issues.create", input), reply());
     const sent = await send("录入体验问题，标题是按确认标题记录，原文保持不变。");
-    assert.equal(sent.outcome, "started"); assert.equal(sent.work.scope.kind, "personal");
+    assert.equal(sent.outcome, "started"); assert.equal(sent.work.scope.kind, "project", "the work runs in the personal space it was opened in");
     const review = await state(sent.work.work_id, view => view.reviews.length > 0);
     assert.equal((await list()).items.length, 0, "no business write before approval");
     assert.ok(JSON.stringify(review.reviews[0]).includes(input.title));
@@ -112,7 +118,7 @@ test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal
       change("issues.update", { id: saved.id, expected_version: 1, title: "助理准备的修改" }), reply());
     const edit = await send("把刚才那条问题的标题改成助理准备的修改。");
     const stale = await state(edit.work.work_id, view => view.reviews.length > 0);
-    await request<Issue>(`/api/plugins/${ISSUES_PLUGIN_ID}/update`, { id: saved.id, expected_version: 1, title: "页面已先修改" });
+    await request<Issue>(`${issuesRoute}/update`, { id: saved.id, expected_version: 1, title: "页面已先修改" });
     await decide(edit.work.work_id, stale, "approve");
     const ended = await state(edit.work.work_id, view => ["completed", "failed"].includes(view.work.state));
     assert.ok(ended.rounds.some(round => round.activity.some(action => action.capability_id === "issues.update" && action.state === "failed")));
@@ -140,7 +146,7 @@ test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal
 });
 
 test("ISSUE-25 ISSUE-38 ISSUE-53 asked to record, the Assistant saves the spoken issue directly, a malformed save is told its contract, and the work's undo takes the record back", { timeout: 120_000 }, async t => {
-  const { replies, requests, request, list, state, send } = await assistantHome(t);
+  const { replies, requests, request, list, state, send, issuesRoute, space } = await assistantHome(t);
   const identity = { capability_id: "issues.create", version: 1, provider_id: ISSUES_PLUGIN_ID };
   const input = { title: "切换项目后草稿丢失", type: "bug", description: "记个 issue：切换项目后草稿丢失" };
   // The malformed call seen from MiniMax: the business values beside `input` instead of inside it. It is refused with the
@@ -148,10 +154,10 @@ test("ISSUE-25 ISSUE-38 ISSUE-53 asked to record, the Assistant saves the spoken
   replies.push(reply({ name: "change-reversible", input: { ...identity, title: input.title, type: input.type, input: "" } }),
     reply({ name: "change-reversible", input: { ...identity, input } }), reply());
   // Issue's capture Skill is chosen from the shared catalog by its exact reference, once the person turned it on (09 §2.2).
-  const { skills } = await request<{ skills: SkillCatalogEntry[] }>("/api/skills/list", {});
+  const { skills } = await request<{ skills: SkillCatalogEntry[] }>(`${space}/api/skills/list`, {});
   const capture = skills.find(skill => skill.ref.source.plugin_id === ISSUES_PLUGIN_ID && skill.ref.skill_id === "issues-capture");
   assert.ok(capture, "Issue declares its capture Skill");
-  await request("/api/skills/set", { install_id: capture.ref.install_id, skill_id: capture.ref.skill_id, scope: "home", expected_revision: capture.settings_revision, state: "auto" });
+  await request(`${space}/api/skills/set`, { install_id: capture.ref.install_id, skill_id: capture.ref.skill_id, scope: "home", expected_revision: capture.settings_revision, state: "auto" });
   const sent = await send("记个 issue：切换项目后草稿丢失", {
     materials: [{ material_id: "issue-method", kind: "method", title: "Issue", explicit: true, method: { kind: "skill", ref: capture.ref } }] });
   const done = await state(sent.work.work_id, view => view.work.state === "completed");
@@ -171,6 +177,6 @@ test("ISSUE-25 ISSUE-38 ISSUE-53 asked to record, the Assistant saves the spoken
   assert.ok(!method.includes("录入草稿"), "the page's drafts are not the Assistant's business");
   const undoable = (done as AssistantWorkView & { undoable?: Array<{ undo_id: string; state: string; capability_id?: string }> }).undoable ?? [];
   assert.equal(undoable.length, 1); assert.equal(undoable[0]!.capability_id, "issues.discard");
-  await request(`/api/assistant/works/${sent.work.work_id}/undo/${undoable[0]!.undo_id}`, {});
+  await request(`${space}/api/assistant/works/${sent.work.work_id}/undo/${undoable[0]!.undo_id}`, {});
   assert.equal((await list()).items.length, 0, "the work's undo takes the new record back");
 });

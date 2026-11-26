@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { captureHostLog, collectRetained, homeAgentDefinitions, HomePluginHost, ProjectDeletionService, withConnectorConnections, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, collectRetained, homeAgentDefinitions, HomePluginHost, mayUseInstallationSlot, ProjectDeletionService, withConnectorConnections, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { runInPluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -256,4 +257,24 @@ test("SKC-05 a project uninstall removes only its own Skill settings even when a
   try { await w.uninstall(0, id, true); } finally { renameSync(elsewhere.database_path + ".away", elsewhere.database_path); }
   assert.deepEqual(store.settings(here.project_id), []);
   assert.deepEqual([store.settings("home"), store.settings(elsewhere.project_id)], kept);
+});
+
+// S-71 (batch 108, specs/unified-partition-plugins §4.2 第 5 条): the installation slot is the person's own account, the same in every
+// partition. Only the person on this machine, the personal assistant acting for them, a workflow they run and the plugin's own work use it;
+// a project Agent, an MCP client, another plugin's call and a delegated call are refused before the account is read.
+test("S-71 UPP-15 only the person, the personal assistant, the person's workflows and the plugin's own work use an installation slot", () => {
+  const install_id = "io.molis.work.slots@molis";
+  const as = (caller: Record<string, unknown>) => runInPluginAction({ install_id, plugin_id: "io.molis.work.slots", installation_generation: "1",
+    definition: { capability_id: "slots.use", version: 1 }, caller: { project_id: "personal", permissions: [], ...caller } } as unknown as Parameters<typeof runInPluginAction>[0],
+  () => mayUseInstallationSlot(install_id));
+  assert.equal(mayUseInstallationSlot(install_id), true, "the plugin's own work outside any call");
+  assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user" }), true, "the person");
+  assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "agent", actor_kind: "runtime", audit_actor_id: "assistant:main" }), true, "the personal assistant");
+  assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "workflow" }), true, "the person's workflow");
+  assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "plugin", plugin_install_id: install_id }), true, "the plugin's own call");
+  assert.equal(as({ actor_id: "agent:project-a", audience: "agent", actor_kind: "agent" }), false, "a project Agent");
+  assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "mcp" }), false, "an MCP client");
+  assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "plugin", plugin_install_id: "io.molis.work.other@molis" }), false, "another plugin's call");
+  assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", delegated_by: "io.molis.work.other" }), false, "a delegated call");
+  assert.equal(as({ actor_id: "member:someone", audience: "user" }), false, "another member");
 });

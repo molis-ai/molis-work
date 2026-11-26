@@ -50,9 +50,9 @@ function openPartition(home: string, partition: string, declaration: { store_nam
   return { db, file: scope.libraryPath(declaration.store_name) };
 }
 
-export function openTodoStore(home: string, now?: () => Date): TodoStore {
-  const db = open(home, TODO_DATABASE);
-  db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
+/** Todo's library in one partition (batch 108): the personal space unless a test names a project. */
+export function openTodoStore(home: string, now?: () => Date, partition = "personal"): TodoStore {
+  const { db } = openPartition(home, partition, TODO_DATABASE);
   return new TodoStore(sqlOf(db), atomically(db), () => db.close(), now);
 }
 export function openFormStore(home: string, partition: string): FormStore {
@@ -72,6 +72,10 @@ export function openPptStore(home: string, partition: string): PptStore {
   return new PptStore(sqlOf(db), partition, atomically(db), () => db.close());
 }
 /** Where a partition's library of one of these plugins lives, for tests that look at the file itself. */
+/** Images' library in one partition (batch 108), opened by the Host's own path; the test writes its rows directly. */
+export function openImagesDatabase(home: string, partition: string): DatabaseSync {
+  return openPartition(home, partition, { store_name: "images" }).db;
+}
 export const partitionLibraryFile = (home: string, partition: string, store: string) => partitionPluginScope(home, partition, store, `${store}-test`).libraryPath(store);
 /** A test's own connection to the library a plugin keeps in one partition (U2); the plugin must have made it already. */
 export const openPartitionLibraryDatabase = (home: string, partition: string, store: string) =>
@@ -96,10 +100,10 @@ export function openJellyStore(home: string): JellyStore {
     return store;
   } catch (error) { db.close(); throw error; }
 }
-export function openCogniaStore(home: string): CogniaStore {
-  const db = openWithBaseline(home, COGNIA_DATABASE, "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
-  const run = <T>(work: () => T): T => { db.exec("BEGIN IMMEDIATE"); try { const result = work(); db.exec("COMMIT"); return result; } catch (error) { db.exec("ROLLBACK"); throw error; } };
-  return new CogniaStore(sqlOf(db), run, () => db.close());
+/** Cognia's library in one partition (batch 108); the personal space's unless a test names another. */
+export function openCogniaStore(home: string, partition = "personal"): CogniaStore {
+  const { db } = openPartition(home, partition, COGNIA_DATABASE);
+  return new CogniaStore(sqlOf(db), atomically(db), () => db.close());
 }
 export function openWorkflowsStore(home: string, partition: string): WorkflowsStore {
   const { db } = openPartition(home, partition, WORKFLOWS_DATABASE);

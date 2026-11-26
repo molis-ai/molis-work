@@ -1,6 +1,6 @@
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { TodoBatch, TodoCandidate, TodoItem } from "../contract.js";
-import { isoDay, make, pad } from "./dom.js";
+import { isoDay, pad } from "./dom.js";
 import { todoRequest } from "./request.js";
 import type { ItemPayload, NoteOptions, TodoClientHost, TodoElements, TodoPage, TodoState, UndoTarget } from "./types.js";
 
@@ -21,20 +21,18 @@ function elements(bench: HTMLElement): TodoElements {
     bench, list: $("[data-todo=directory]"), rowsEl: $("[data-todo-rows]"), empty: $("[data-todo-empty]"), loading: $("[data-todo-loading]"),
     summary: $("[data-todo-summary]"), remindersBox: $("[data-todo-reminders]"), note: $("[data-todo-note]"), noteText: $("[data-todo-note-text]"),
     undoButton: $("[data-todo-undo]"), viewButton: $("[data-todo-note-view]"), quick: $("[data-todo-quick]"), quickInput: $("[data-todo-quick-input]"),
-    quickParts: $("[data-todo-quick-parts]"), quickPlacement: $("[data-todo-quick-placement]"), quickSubmit: $("[data-todo-quick-submit]"),
-    search: $("[data-todo-search]"), scopeButton: $("[data-todo-scope]"), batchBar: $("[data-todo-batch]"), workspace: $("[data-todo-stage-workspace]"),
+    quickParts: $("[data-todo-quick-parts]"), quickSubmit: $("[data-todo-quick-submit]"),
+    search: $("[data-todo-search]"), batchBar: $("[data-todo-batch]"), workspace: $("[data-todo-stage-workspace]"),
     heading: $("[data-todo-editor-heading]"), saveStatus: $("[data-todo-save-status]"), detailNote: $("[data-todo-detail-note]"),
     confirmBox: $("[data-todo-confirm]"), reviewEl: $("[data-todo-review]"), reviewToggle: $('[data-todo-view="review"]'),
   };
 }
 
 function initialState(): TodoState {
-  let placeChoice = "";
-  try { placeChoice = window.localStorage.getItem("molis.todo.quick-placement") || ""; } catch { placeChoice = ""; }
   return {
-    view: "today", query: "", everything: false, items: [], counts: {}, today: "", listSeq: 0, selected: null, works: [], worksTimer: 0,
+    view: "today", query: "", items: [], counts: {}, today: "", listSeq: 0, selected: null, works: [], worksTimer: 0,
     watchWorksUntil: 0, history: [], backlinks: [], linkPool: [], picked: new Set(), undo: null, noteView: null, noteTimer: 0, saveTimer: 0,
-    saving: null, dirtyKeys: new Set(), busy: false, quickAttempt: null, dropped: new Set(), placeChoice, detailTicket: 0, reminders: [],
+    saving: null, dirtyKeys: new Set(), busy: false, quickAttempt: null, dropped: new Set(), detailTicket: 0, reminders: [],
     reminderSeq: 0, batchSeq: 0, batches: [], focusBatch: "", choices: new Map(), linkRelation: "blocked_by",
   };
 }
@@ -54,12 +52,6 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
     const current = host.projectId();
     return current === PERSONAL_SPACE_PROJECT_ID ? "" : current;
   };
-  // Where a todo sits, in the workbench's words: 个人空间, 项目「名称」 (暂未归类 is the personal space, not sorted yet).
-  const hereName = () => {
-    const title = host.projectTitle();
-    return title ? uiText.text("todo.place.project-named", { name: title }) : uiText.text("todo.place.this-project");
-  };
-  const placeName = (value: string) => (value === "project" ? hereName() : value === "personal" ? uiText.text("todo.place.personal") : uiText.text("todo.place.unassigned"));
   const STATUS_KEYS: Record<string, string> = {
     open: "todo.status.open", doing: "todo.status.doing", waiting: "todo.status.waiting", done: "todo.status.done", cancelled: "todo.status.cancelled",
   };
@@ -108,18 +100,6 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
     ok.textContent = okLabel;
     return host.confirmBox(el.confirmBox, ok, run);
   };
-  const paintPlaces = (container: Element, current: string, attribute: string) => {
-    container.replaceChildren();
-    for (const value of ["personal", ...(projectId() ? ["project"] : []), "unassigned"]) {
-      const on = value === current;
-      const button = make("button", `mw-toggle${on ? " is-current" : ""}`, placeName(value));
-      button.type = "button";
-      button.setAttribute(attribute, value);
-      button.setAttribute("role", "radio");
-      button.setAttribute("aria-checked", String(on));
-      container.append(button);
-    }
-  };
 
   const todoObject = (item: TodoItem) => ({ kind: "todo_item", id: item.id, title: item.title, version: item.revision });
   const tellAssistant = (purpose: string, item: TodoItem, extra?: Record<string, unknown>) => {
@@ -149,7 +129,7 @@ export function todoPage(host: TodoClientHost, bench: HTMLElement): TodoPage {
   };
 
   const page = {
-    host, readText, el, state, request, $, projectId, hereName, placeName, dayDiff, dayLabel, timeLabel, showNote, detailHint, ask, paintPlaces,
+    host, readText, el, state, request, $, projectId, dayDiff, dayLabel, timeLabel, showNote, detailHint, ask,
     tellAssistant, publishContext, post, candidateOf, statusName: (status: string) => STATUS_KEYS[status] ? uiText.text(STATUS_KEYS[status]!) : status,
     field: (name: string) => $<HTMLInputElement | HTMLTextAreaElement>(`[data-todo-field="${name}"]`),
   } as TodoPage;

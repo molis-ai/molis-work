@@ -152,7 +152,7 @@ export type {PluginDistributionVerifier,BuiltinSyncBinding,ReplicaDatabase,Aggre
  * starts from (`runtime`) and its Home store (`home_store`). It is not a plugin and is in no plugin catalog: nothing installs, switches
  * off or adds it to a project.
  */
-export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_id" | "manifest" | "workbench" | "sync" | "runtime" | "home_store" | "observation">;
+export type HostSurfaceRegistration = Pick<PluginRegistration, "project_plugin_id" | "manifest" | "workbench" | "sync" | "runtime" | "project_runtime" | "home_store" | "observation">;
 
 export interface PluginRegistration {
   readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
@@ -204,6 +204,12 @@ export interface PluginRegistration {
     readonly create: () => PluginDefinition;
     readonly package_name: string;
     readonly factory_export: string;
+    /**
+     * The chord (`Mod+Shift+<letter>`) that opens this plugin's first side view in the personal space from any partition (R14,
+     * batch 108). Where the personal space has not enabled the plugin yet, the view offers to enable it in one step. Global keys are
+     * the Host's to give.
+     */
+    readonly keys?: string;
   };
   /**
    * The Home store this plugin keeps (exported by the plugin, beside the code that opens it), for the Host's one registry of Home

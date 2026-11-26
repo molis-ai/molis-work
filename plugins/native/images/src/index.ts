@@ -8,7 +8,8 @@ export * from "./styles.js";
 export * from "./routes.js";
 
 export * from "./actions.js";
-export { IMAGES_DATABASE, IMAGES_HOME_STORE } from "./store.js";
+export { IMAGES_DATABASE } from "./store.js";
+export { ImagesConnections, IMAGES_CONNECTIONS_SETTING, IMAGES_PERSON_SETTINGS, type StoredConnection } from "./connections.js";
 export type { ImageGeneration, ImageProviderRequest } from "./providers.js";
 
 export { createImagesPlugin } from "./plugin.js";

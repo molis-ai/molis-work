@@ -8,12 +8,18 @@ import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixtu
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 test("RAC-43: the Host keeps one Cognia Runtime surface and loads its registered client on demand", async t => {
-  const f = await serveHomeRuntime(t), project = await f.project("One knowledge stage");
-  const page = async () => {
+  // Cognia is a partition plugin (batch 108): it shows in a project that has it and goes when the project takes it out.
+  const f = await serveHomeRuntime(t), project = await f.project("One knowledge stage", ["cognia"]);
+  const membership = async (method: "POST" | "DELETE") => {
+    const { projects } = await (await f.request("/api/settings/project-plugins")).json() as { projects: Array<{ project_id: string; revision: string }> };
+    const expected_revision = projects.find(row => row.project_id === project.project_id)!.revision;
+    return f.request(`/api/settings/projects/${project.project_id}/plugins`, { method, body: { plugin_id: "cognia", expected_revision } });
+  };
+  const page = async (surfaces = 1) => {
     const response = await f.request(`/projects/${project.project_id}/`);
     assert.equal(response.status, 200);
     const html = await response.text();
-    assert.equal([...html.matchAll(/data-work-surface="cognia"/g)].length, 1);
+    assert.equal([...html.matchAll(/data-work-surface="cognia"/g)].length, surfaces);
     return html + pluginDocuments(html).join("\n");
   };
   const html = await page();
@@ -21,9 +27,9 @@ test("RAC-43: the Host keeps one Cognia Runtime surface and loads its registered
   assert.match(html, /data-work-surface="cognia"/);
   assert.match(html, /data-cognia-action="import"/);
   assert.match(html, /data-cognia-workspace/);
-  assert.equal((await f.request("/api/plugins/io.molis.work.cognia/disable", { method: "POST", body: {} })).status, 200);
-  assert.doesNotMatch(await page(), /data-cognia="workbench"/);
-  assert.equal((await f.request("/api/plugins/io.molis.work.cognia/enable", { method: "POST", body: {} })).status, 200);
+  assert.equal((await membership("DELETE")).status, 200);
+  assert.doesNotMatch(await page(0), /data-cognia="workbench"/, "taken out of the project, its surface goes too");
+  assert.equal((await membership("POST")).status, 200);
   assert.match(await page(), /data-cognia="workbench"/);
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotMatch(script, /data-cognia=workbench/);

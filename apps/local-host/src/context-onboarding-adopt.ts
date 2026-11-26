@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import { ActionError, objectLink, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, objectLink, PERSONAL_SPACE_PROJECT_ID, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PlacedObject } from "@molis-ai/molis-work-contracts/services/placement";
 import {
   ONBOARDING_DRAFT_GET_MAX, ONBOARDING_DRAFT_KEEP_MAX, ONBOARDING_TAKE_MATERIALS_MAX,
   type OnboardingCodeRootTake, type OnboardingDocumentsInput, type OnboardingDocumentsResult,
@@ -116,7 +117,18 @@ export async function importAdoptedMaterialsAndSummary(options: {
 export interface OnboardingHandoffPorts {
   withCatalog: LocalWebCatalogRunner;
   takers?: (kind: OnboardingMaterialKind) => readonly OnboardingTaker[];
-  take?: (home: string, projectId: string, definition: ActionDefinition) => Promise<BoundActionClient>;
+  take?: (home: string, projectId: string, definition: ActionDefinition, signal?: AbortSignal) => Promise<BoundActionClient>;
+  /** The person's `placement.move` of one object to another partition: the platform carries it through its owner's own actions. */
+  move?: (home: string, object: PlacedObject, to: string) => Promise<void>;
+}
+
+
+/**
+ * Where a round's drafts are made (batch 108): an existing project's own partition, or for a new project, which does not exist yet, the
+ * personal space, where onboarding runs (U11). Adoption moves them into the new project before keeping them (`keepDrafts`).
+ */
+export function draftPartition(journey: Pick<ContextJourney, "existing" | "project_id">): string {
+  return journey.existing ? journey.project_id : PERSONAL_SPACE_PROJECT_ID;
 }
 
 /**
@@ -158,6 +170,16 @@ export async function keepDrafts(home: string, journey: ContextJourney, ports: O
   if (!drafts?.batches.length || !keep.size || drafts.added || !drafts.plugin_id) return;
   const taker = ports.takers?.("drafts").find(one => one.plugin_id === drafts.plugin_id);
   if (!taker?.drafts || !ports.take) throw new Error("起草待办的插件现在不可用，已确认内容仍保留；稍后可以继续保存");
+  const from = draftPartition(journey);
+  if (from !== journey.project_id) {
+    // Drafted in the personal space before the project was made: each batch goes to the project first, as the person's own move. A retry
+    // finds a batch already there (`placement.same_location`) and goes on.
+    if (!ports.move) throw new Error("起草待办的插件现在不可用，已确认内容仍保留；稍后可以继续保存");
+    for (const batch of drafts.batches) {
+      await ports.move(home, { kind: taker.drafts.item_kind, id: batch.batch_id, project_id: from }, journey.project_id)
+        .catch(error => { if (!(error instanceof ActionError && error.code === "placement.same_location")) throw error; });
+    }
+  }
   const get = taker.drafts.get as ActionDefinition<OnboardingDraftGetInput, { batches: OnboardingDraftBatch[] }>;
   const keeper = taker.drafts.keep as ActionDefinition<OnboardingDraftKeepInput, { batch: OnboardingDraftBatch }>;
   const reading = await ports.take(home, journey.project_id, get), keeping = await ports.take(home, journey.project_id, keeper);

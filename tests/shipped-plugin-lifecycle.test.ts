@@ -1,7 +1,7 @@
 import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 // W6-02 (specs/archive/repository-anti-corruption/roadmap-2026-10-07.md §4.10; RAC-1030–RAC-1034): the lifecycle the probe walks
-// (tests/probe-plugin.test.ts, W4-01), walked by the shipped plugins that run on Plugin Runtime: Todo and Jelly on the Home
-// supervisor, Pages and 灵光 on each project's. The walk itself is tests/fixtures/shipped-lifecycle.ts (the other plugins' files
+// (tests/probe-plugin.test.ts, W4-01), walked by the shipped plugins that run on Plugin Runtime: Jelly on the Home supervisor,
+// Todo (in each partition since batch 108), Pages and 灵光 on each project's. The walk itself is tests/fixtures/shipped-lifecycle.ts (the other plugins' files
 // use it too: tests/shipped-plugin-lifecycle-*.test.ts); this file keeps the four producers it was written for and RAC-1034.
 // Goals has migrated too (its walk is RAC-1230 below, BL-756); it has had no Home half since batch 41 (41-2).
 import assert from "node:assert/strict";
@@ -17,7 +17,7 @@ import { answer, declared, serve, titlesOf, viewOf, walk, type Shipped } from ".
 
 const day = new Date().toISOString().slice(0, 10);
 const SHIPPED: Record<string, Shipped> = {
-  todo: { key: "todo", plugin_id: "io.molis.work.todo", scope: "home",
+  todo: { key: "todo", plugin_id: "io.molis.work.todo", scope: "project", joins: true,
     write: (web, routes, title) => web.post(`${routes}/items`, { title }),
     titles: async (web, routes) => titlesOf((await web.get<{ items: Array<{ title: string }> }>(`${routes}/items?view=all`)).items) },
   jelly: { key: "jelly", plugin_id: "io.molis.work.jelly", scope: "home",
@@ -38,7 +38,7 @@ const SHIPPED: Record<string, Shipped> = {
     titles: async (web, routes) => titlesOf((await web.get<{ goals: Array<{ title: string }> }>(`${routes}/goals/directory`)).goals) },
 };
 
-test("RAC-1030 W6-02 Todo on the Home supervisor: added, removed and added back in a project, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.todo!));
+test("RAC-1030 W6-02 Todo in a project's partition: added, removed and added back, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.todo!));
 test("RAC-1031 W6-02 Jelly on the Home supervisor: added, removed and added back in a project, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.jelly!));
 test("RAC-1032 W6-02 Pages on a project's supervisor: added, removed and added back, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.pages!));
 test("RAC-1033 W6-02 灵光 on a project's supervisor: added, removed and added back, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.lingguang!));

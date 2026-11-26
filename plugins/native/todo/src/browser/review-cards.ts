@@ -40,19 +40,13 @@ function editorField(candidate: TodoCandidate, label: string, field: string, typ
   return wrap;
 }
 
-function renderEditor(page: TodoPage, candidate: TodoCandidate, choice: CandidateChoice, due: string | null | undefined, planned: string | null | undefined): HTMLElement {
+function renderEditor(candidate: TodoCandidate, choice: CandidateChoice, due: string | null | undefined, planned: string | null | undefined): HTMLElement {
   const editor = make("div", "todo-candidate-editor");
   editor.append(
     editorField(candidate, uiText.text("todo.field.what"), "title", "text", choice.edits.title || candidate.title),
     editorField(candidate, uiText.text("todo.field.due-date"), "due_date", "date", due || ""),
     editorField(candidate, uiText.text("todo.field.planned-date-long"), "planned_date", "date", planned || ""),
   );
-  const place = make("div", "mw-toggle-group");
-  place.setAttribute("role", "radiogroup");
-  place.setAttribute("aria-label", uiText.text("todo.field.place"));
-  page.paintPlaces(place, choice.edits.placement || candidate.placement, "data-todo-candidate-placement");
-  place.querySelectorAll<HTMLElement>("button").forEach((button) => { button.dataset.candidate = candidate.candidate_id; });
-  editor.append(place);
   return editor;
 }
 
@@ -115,7 +109,7 @@ function renderCandidate(page: TodoPage, batch: TodoBatch, candidate: TodoCandid
     body.append(quote);
   }
   if (candidate.uncertain.length) body.append(make("p", "todo-candidate-uncertain", uiText.text("todo.review.uncertain") + candidate.uncertain.join(uiText.text("common.punctuation.semicolon"))));
-  if (choice.editing && !candidate.decision) body.append(renderEditor(page, candidate, choice, due, planned));
+  if (choice.editing && !candidate.decision) body.append(renderEditor(candidate, choice, due, planned));
   const actions = make("div", "todo-candidate-actions");
   if (candidate.decision) actions.append(make("span", `mw-status mw-status--${candidate.decision.action === "ignored" ? "quiet" : "done"}`, decidedAs[candidate.decision.action]));
   else {

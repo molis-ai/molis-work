@@ -5,15 +5,16 @@ import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentActionReviewControl, AgentRuntimeAdapter, AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, RUN_MISSED_GRACE_MS, RUN_MISSED_KEPT_MS, RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT, assertRunsWindow,
-  runHasExpired, runExpiredUntold, runsExpiryBounds, withinRunsWindow, type ActionView,
-  type DueReminderCollection, type ExactActionReference, type MissedRun, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun } from "@molis-ai/molis-work-contracts/platform/actions";
+import { RUN_MISSED_GRACE_MS, RUN_MISSED_KEPT_MS, RUNS_MISSED_LIMIT, RUNS_UPCOMING_LIMIT, assertRunsWindow,
+  runHasExpired, runExpiredUntold, runsExpiryBounds, withinRunsWindow,
+  type MissedRun, type RunDecided, type RunDecision, type RunsOverview, type RunsWindow, type ScheduledRun } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assistantRoundOpen, assistantStateUnknown, type AssistantFollowUp, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantSavedText, type AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { assistantWords } from "./assistant-saved-text.js";
 import { repeatingFailure } from "../host-log.js";
 import { sanitizeErrorForNotice } from "../ui-error-words.js";
+import type { PartitionReminder } from "../partition-reminders.js";
 
 async function inFollowUpWorkEffect<T>(adapter: AgentRuntimeAdapter, control: AgentActionReviewControl, operation: () => Promise<T>): Promise<T> {
   await control.beforeEffect(); control.assertCurrent();
@@ -37,10 +38,6 @@ export type FollowUpMessageWords = Extract<AssistantSavedText, { readonly key: s
 /** A missed time is kept a month after its seven days ran out, so the panel can count it as skipped on its own; then it goes. */
 const EXPIRED_KEPT_MS = 30 * 86_400_000;
 const MAX_FOLLOW_UPS_PER_WORK = 5;
-/** Reminders are asked for from where the last look stopped, but never further back than this (Molis Work was off). */
-const REMINDER_LOOKBACK_MS = 12 * 60 * 60 * 1000;
-/** A reminder told later than this after its time is said to be missed. */
-const REMINDER_LATE_MS = 10 * 60 * 1000;
 
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
@@ -80,11 +77,6 @@ interface FollowUpWork {
 }
 
 /** The person's own actions in their Home, each call already bounded in time by the caller. */
-interface FollowUpHomeActions {
-  discover(): Promise<readonly ActionView[]>;
-  invoke(reference: ExactActionReference, input: unknown): Promise<unknown>;
-}
-
 /** Everything the follow-ups need from the Assistant, for one person. Nothing else of the service. */
 export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   readonly actorId: string;
@@ -102,8 +94,6 @@ export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   setRules(rules: readonly AssistantRule[]): void;
   /** The page ids a rule may name now, read from the catalog when a rule is written (PG-036). */
   pages(): Promise<readonly string[]>;
-  /** Absent: no reminders are asked for. */
-  homeActions?(): Promise<FollowUpHomeActions>;
   host(): Promise<AgentHost>;
   state(host: AgentHost, work: W): Promise<AssistantWorkState>;
   /** The state could not be read because the work's executor plugin is no longer there: the round goes ahead and is refused as such (S-51). */
@@ -120,9 +110,6 @@ function followUpTask(followUp: AssistantFollowUp, sessionId: string) {
 
 export class AssistantFollowUps<W extends FollowUpWork> {
   #detachSchedule: (() => void) | null = null;
-  #sweeping = false;
-  /** A reminder source that cannot be asked, by its capability: written when it starts failing (the stretch is asked again next time). */
-  #reminderSourceFailures = repeatingFailure("assistant", "reminder_source_failed");
   /** A timed round whose work cannot be read when the Host starts, by the follow-up: written when it starts failing. */
   #unreadableWorks = repeatingFailure("assistant", "followup_work_unreadable");
 
@@ -352,44 +339,17 @@ export class AssistantFollowUps<W extends FollowUpWork> {
   }
 
   /**
-   * Reminders the person set in Plugins that came due since the last look: each told once, as a notice subject to the
-   * person's rules like any other. Asked of the Plugins that declare due reminders; nothing is started or changed.
+   * A reminder a plugin raised when its due entry fell due in one partition (batch 108, `partition-reminders.ts`): told once, as a notice
+   * subject to the person's rules like any other. The same entry at the same time is told once, whichever device or wake raised it.
    */
-  async sweepReminders(): Promise<number> {
-    const { ports } = this;
-    if (this.#sweeping || !ports.homeActions) return 0;
-    this.#sweeping = true;
-    try {
-      const now = ports.now(), last = ports.setting("reminder_sweep");
-      // The first look starts a few minutes back; later ones from where the last stopped (bounded when Molis Work was off).
-      const from = new Date(Math.max(last ? Date.parse(last) : now.getTime() - REMINDER_LATE_MS, now.getTime() - REMINDER_LOOKBACK_MS));
-      const window = { from: from.toISOString(), to: new Date(now.getTime() + 1).toISOString() };
-      const actions = await ports.homeActions();
-      const providers = (await actions.discover()).filter(view => view.action.input_type === DUE_REMINDERS_INPUT_TYPE && view.action.output_type === DUE_REMINDERS_OUTPUT_TYPE && view.availability.available);
-      let raised = 0, missed = false;
-      const time_zone = ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-      for (const provider of providers) {
-        let collection: DueReminderCollection;
-        try { collection = await actions.invoke({ capability_id: provider.capability_id, version: provider.version, provider_id: provider.provider.provider_id }, window) as DueReminderCollection; }
-        catch (error) { missed = true; this.#reminderSourceFailures.failed(provider.capability_id, error, { capability_id: provider.capability_id }); continue; }
-        this.#reminderSourceFailures.worked(provider.capability_id);
-        for (const reminder of collection.reminders) {
-          const due = Date.parse(reminder.due_at);
-          if (!(due >= from.getTime() && due <= now.getTime())) continue;
-          const late = now.getTime() - due > REMINDER_LATE_MS;
-          const title = cutHead(reminder.title, 120);
-          const told = ports.notify({ kind: "reminder", work_id: "", work_title: collection.source.title,
-            text: assistantWords(late ? "workbench.assistant-notice.reminder-missed" : "workbench.assistant-notice.reminder",
-              { source: collection.source.title, at: dateArg(reminder.due_at, "time", { time_zone }), title }),
-            ...(reminder.open ? { open: { surface: reminder.open.surface, id: reminder.open.id, title, project_id: reminder.project_id } } : {}) },
-            `reminder:${provider.provider.provider_id}:${reminder.reminder_id}`);
-          if (told) raised += 1;
-        }
-      }
-      // A Plugin that could not answer is asked again for the same stretch next time (each reminder is still told once).
-      if (!missed) ports.setSetting("reminder_sweep", now.toISOString());
-      return raised;
-    } finally { this.#sweeping = false; }
+  tellReminder(reminder: PartitionReminder): boolean {
+    const time_zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const title = cutHead(reminder.title, 120);
+    return this.ports.notify({ kind: "reminder", work_id: "", work_title: reminder.source_title,
+      text: assistantWords(reminder.late ? "workbench.assistant-notice.reminder-missed" : "workbench.assistant-notice.reminder",
+        { source: reminder.source_title, at: dateArg(reminder.due_at, "time", { time_zone }), title }),
+      ...(reminder.open ? { open: { surface: reminder.open.surface, id: reminder.open.id, title, project_id: reminder.partition_id } } : {}) },
+      `reminder:${reminder.install_id}:${reminder.partition_id}:${reminder.entry_key}@${reminder.due_at}`);
   }
 
   rules(): AssistantRule[] { return this.ports.rules(); }

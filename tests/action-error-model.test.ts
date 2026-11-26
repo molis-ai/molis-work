@@ -227,16 +227,18 @@ test("Functions answers through the SDK: invalid JSON is 400 and an oversized bo
 });
 
 test("a Runtime route answers through the SDK: 400 for a body that is not JSON, 413 for one that is too large, with the code in the body", { timeout: 60_000 }, async t => {
-  const { request } = await serveHomeRuntime(t);
-  const notJson = await request("/api/plugins/io.molis.work.todo/items", { method: "POST", raw: "{not json" });
+  const f = await serveHomeRuntime(t), { request } = f;
+  // Todo is a partition plugin since batch 108: its route is the personal space's.
+  const items = `/projects/${(await f.personal(["todo"])).project_id}/api/plugins/io.molis.work.todo/items`;
+  const notJson = await request(items, { method: "POST", raw: "{not json" });
   const notJsonBody = await notJson.json() as { code: string; error: string };
   assert.deepEqual([notJson.status, notJsonBody.code, notJsonBody.error], [400, "actions.input_invalid", "请求不是有效 JSON"]);
-  const tooLarge = await request("/api/plugins/io.molis.work.todo/items", { method: "POST", raw: JSON.stringify({ padding: " ".repeat(1_100_000) }) });
+  const tooLarge = await request(items, { method: "POST", raw: JSON.stringify({ padding: " ".repeat(1_100_000) }) });
   const tooLargeBody = await tooLarge.json() as { code: string; error: string };
   assert.deepEqual([tooLarge.status, tooLargeBody.code, tooLargeBody.error], [413, "actions.input_too_large", "请求内容过大"]);
 });
 
-// W3-02-A: a Runtime plugin's route (Todo's, since W5-01) has no error mapper of its own. The SDK edge reads the failure's kind
+// W3-02-A: a Runtime plugin's route (a Home probe's here) has no error mapper of its own. The SDK edge reads the failure's kind
 // (`actionHttpStatus`), so the platform's codes answer what the platform table says everywhere, and an owner's codes keep their statuses.
 test("a Runtime route answers a failure with the status of its kind: the platform codes follow the table, an owner's keep their statuses", { timeout: 60_000 }, async t => {
   const cases: Array<[string, unknown, number, string]> = [

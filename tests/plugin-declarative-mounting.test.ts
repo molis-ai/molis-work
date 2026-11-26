@@ -307,9 +307,10 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   assert.deepEqual([...PROJECT_SCOPED_PLUGIN_IDS].sort(),
     // The workspace Plugin was retired: browsing roots come from project settings actions (action-architecture migration).
     // Files retired in batch 06: a project's folders are the platform's materials now, not a plugin a project enables.
-    // Batch 107: the six partition-library plugins stopped being personal and are project plugins like the rest.
-    ["coding", "dataset", "diff", "feed", "form", "git", "goals", "inbox", "lingguang", "pages", "ppt", "risk", "schedule",
-      "work-brief", "workflows"]);
+    // Batch 107: the six partition-library plugins stopped being personal and are project plugins like the rest; batch 108 did the
+    // same for Todo, Cognia, Issues and Images.
+    ["coding", "cognia", "dataset", "diff", "feed", "form", "git", "goals", "images", "inbox", "issues", "lingguang", "pages", "ppt", "risk",
+      "schedule", "todo", "work-brief", "workflows"]);
   assert.deepEqual(
     railEntries(["coding"]).map((entry) => [entry.id, entry.label, entry.glyph]),
     [["coding", "Coding", "code"], ["artifacts", "成果", "package"], ["sessions", "外部会话", "history"]],

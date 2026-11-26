@@ -18,7 +18,16 @@ import { isTimeZone } from "./card-values.js";
  * });
  * ```
  */
-export function overviewRows(tx: PluginDatabaseTransaction) {
+/**
+ * What `overviewRows` writes through: a write transaction of the plugin's library (`services.database.transaction`), or any connection
+ * the plugin writes the same library with inside one transaction (its sync apply, its own store in a test).
+ */
+export interface OverviewRowsWriter {
+  get(sql: string, parameters?: readonly PluginSqlValue[]): unknown;
+  run(sql: string, parameters?: readonly PluginSqlValue[]): unknown;
+}
+
+export function overviewRows(tx: OverviewRowsWriter | PluginDatabaseTransaction) {
   return {
     upsert<K extends OverviewKind>(kind: K, row: OverviewRowByKind[K]): void {
       const values = overviewColumns(kind, row);

@@ -8,12 +8,15 @@ import { hostLog } from "./host-log.js";
 import { assembledPerPartition, PartitionPluginAssembly, type PartitionPluginLease, type PartitionWakeReason } from "./partition-plugin-assembly.js";
 import { notePartitionInstalls } from "./plugin-install-records.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { forgetInstallationPlatformRecords, markPartitionChanged, PartitionPlatformServices } from "./partition-platform-services.js";
+import { forgetInstallationPlatformRecords, markPartitionChanged, PartitionPlatformServices, partitionOverviewLibraries } from "./partition-platform-services.js";
 import type { PluginPlatform, PluginPlatformEntry } from "./plugin-platform.js";
 import { partitionPluginMembers, type ProjectPluginRefreshResult } from "./project-plugin-enablement.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { ProjectPluginPorts } from "./project-plugins.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
+import { REMINDER_LATE_MS, tellPartitionReminder } from "./partition-reminders.js";
+import type { DueEntryRecord } from "@molis-ai/molis-work-service-scheduler";
+import type { PluginDueReminder } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
  * The Host's per-partition assembly (specs/unified-partition-plugins §4.2 第 2 条, batch 107): one for each Home, holding the assembly that runs
@@ -87,6 +90,14 @@ export function partitionChanged(home: string, partitionId: string, installId?: 
 }
 
 /**
+ * A command of a plugin's instance in a partition finished (batch 108): its overview there is marked changed and read again at once, on a
+ * read-only connection that wakes nothing, so a reminder time it just wrote arms the due timer. Nothing for a plugin with no overview there.
+ */
+export function partitionPluginWrote(home: string, partitionId: string, providerId: string): void {
+  existingPartitionPluginHost(home)?.written(partitionId, providerId);
+}
+
+/**
  * A membership write took a plugin out of a partition: its due entries and overview rows there go now, whether or not the partition is open
  * (an open one also stops its instance on the refresh that follows). Nothing for a plugin that does not run per partition.
  */
@@ -153,6 +164,15 @@ export class PartitionPluginHost {
   /** The Manifest of a plugin this Host runs per partition, when it was declared here. */
   manifestOf(pluginId: string): PluginPlatformEntry["definition"]["manifest"] | undefined { return this.entries.get(pluginId)?.definition.manifest; }
 
+  /** See `partitionPluginWrote`: `providerId` is what the instance registers its actions under (`providerOf`). */
+  written(partitionId: string, providerId: string): void {
+    const entry = [...this.entries.values()].find(candidate => providerOf(candidate) === providerId);
+    if (!entry || !this.services) return;
+    const manifest = entry.definition.manifest, installId = installIdentity(manifest);
+    if (!manifest.overview_projection?.kinds.length || !manifest.databases?.partition) return;
+    this.services.partitionChanged(partitionId, installId, partitionOverviewLibraries(this.home, [{ partition_id: partitionId, plugins: [{ install_id: installId, manifest }] }]));
+  }
+
   /**
    * Every plugin whose installation is this Home's and whose lifecycle is each partition's: the built-in ones that keep a library in each
    * partition, and any other declared here. Known before any of them started, so a partition's records read the same either way.
@@ -170,17 +190,36 @@ export class PartitionPluginHost {
   startServices(opener: PartitionOpener): void {
     if (this.closed) throw new Error("分区插件宿主已关闭");
     this.opener = opener;
-    // Until a plugin has a handler for its due entries (batch 108), a fired entry wakes its instance and is taken; nothing in this build
-    // registers one (no built-in here declares an overview, and the SDK gives no route yet), so one that fires is written down, not lost silently.
+    // A fired entry wakes only its (plugin, partition) instance and is handed to its `onDue` (batch 108); a reminder it raises goes to the
+    // person. The entry is taken off only once this succeeded (`DueTimer`): a failure is tried again.
     this.services ??= new PartitionPlatformServices({ home: this.home, assembly: this.assembly,
-      deliverDue: async (_lease, entry) => {
-        hostLog.warn("plugins", "partition_due_undelivered", undefined, { plugin_id: entry.plugin_id, partition_id: entry.partition_id, entry_key: entry.entry_key });
-      },
+      deliverDue: (_lease, entry) => this.deliverDue(entry),
       failed: (entry, error) => {
         hostLog.warn("plugins", "partition_due_wake_failed", error, { plugin_id: entry.plugin_id, partition_id: entry.partition_id, entry_key: entry.entry_key });
       } });
     this.sweep ??= setInterval(() => { void this.assembly.sweep().catch(() => {}); }, SWEEP_MS);
     this.sweep.unref?.();
+  }
+
+  /** Hands one fallen-due entry to the running instance and tells the person the reminder it raises, if any. */
+  private async deliverDue(entry: DueEntryRecord): Promise<void> {
+    const platform = this.platform(entry.plugin_id, entry.partition_id), manifest = this.manifestOf(entry.plugin_id);
+    if (!platform || !manifest) throw new ActionError("actions.plugin_unavailable", "这个插件在这里没有运行");
+    const late = Date.now() - Date.parse(entry.due_at) > REMINDER_LATE_MS;
+    const outcome = await platform.deliverDue(entry.plugin_id, { entry_key: entry.entry_key, due_at: entry.due_at, source: entry.source, late });
+    // An overview reminder the plugin does not speak for shows its overview row; `null` says it no longer stands.
+    const reminder = outcome?.reminder !== undefined ? outcome.reminder : entry.source === "overview" ? this.overviewReminder(entry) : null;
+    if (!reminder) return;
+    tellPartitionReminder(this.home, { partition_id: entry.partition_id, plugin_id: entry.plugin_id, install_id: entry.install_id, entry_key: entry.entry_key,
+      due_at: entry.due_at, late, source_title: manifest.name, title: reminder.title, open: reminder.open ?? null });
+  }
+
+  /** The overview row behind a reminder time (`<kind>:<row_id>`), as the overview index read it from the plugin's table. */
+  private overviewReminder(entry: DueEntryRecord): PluginDueReminder | null {
+    const at = entry.entry_key.indexOf(":");
+    if (at < 1 || !this.services) return null;
+    const row = this.services.overview.row(entry.partition_id, entry.install_id, entry.entry_key.slice(0, at), entry.entry_key.slice(at + 1));
+    return typeof row?.fields.title === "string" ? { title: row.fields.title } : null;
   }
 
   /** The enabled plugins of a partition: every plugin this Host runs per partition that the partition reaches (lists, or did not hide). */

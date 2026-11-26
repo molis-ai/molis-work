@@ -19,7 +19,6 @@ import { streamProbe } from "./fixtures/plugin-stream.js";
 import { backgroundProbe } from "./fixtures/plugin-background.js";
 
 import { FORM_PLUGIN_ID } from "@molis-ai/molis-work-plugin-form";
-import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo";
 import { FEED_PLUGIN_ID, feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -593,20 +592,23 @@ test("RAC-612 RAC-613 RAC-614 the served client ignores forged controls, shows a
 });
 
 // PG094-STAGE-01: a genuinely declared Home stage still reports stopped or missing runtime content.
+// Since batch 108 no shipped personal plugin draws a Home stage on a project page; the Home placeholder is drawn for a dual-instance plugin
+// whose stage view is in its Home half, so the probe here is one.
 test("S-47 RAC-79 W5-06-STAGE-01 Home stage placeholders use the request locale, escape owner messages and distinguish a running instance without a view", { timeout: 60_000 }, async t => {
-  const { host, project, request } = await serveHomeRuntime(t);
-  const one = await project("Home stage language");
-  const platform = await host.homePlugins!.ready();
-  const install = host.homePlugins!.installation(TODO_PLUGIN_ID);
+  const probe = dualPlugin("homestagelanguage");
+  const { host, project, request } = await serveHomeRuntime(t, { pluginFixtures: {
+    home: [{ definition: probe.home, dual_instance: true }], project: [probe.project],
+  } });
+  const one = await project("Home stage language"), platform = await host.homePlugins!.ready();
+  const install = host.homePlugins!.installation(probe.id);
   assert.ok(install);
+  const surface = probe.id.replaceAll(".", "\\.");
   const page = async (locale: string) => {
     const response = await request(`/projects/${one.project_id}`, { headers: { cookie: `molis_work_locale=${locale}` } });
     assert.equal(response.status, 200);
     const html = await response.text();
-    const stage = pluginDocuments(html).find(document => /data-work-surface="todo"/u.test(document))
-      ?? html.match(/<section\b[^>]*data-work-surface="todo"[^>]*data-home-plugin-unavailable[^>]*>[\s\S]*?<\/section>/u)?.[0];
-    assert.ok(stage, "the actual Home Todo stage is present");
-    return stage;
+    const stage = html.match(new RegExp(`<section\\b[^>]*data-work-surface="${surface}"[^>]*data-home-plugin-unavailable[^>]*>[\\s\\S]*?<\\/section>`, "u"))?.[0];
+    return stage ?? (drawnStages(html, probe.id, "homestagelanguage") === 1 ? "drawn" : assert.fail("the Home stage is present"));
   };
   await platform.runtime.stop(install.install_id);
   for (const [locale, heading, reason, link] of [
@@ -617,7 +619,7 @@ test("S-47 RAC-79 W5-06-STAGE-01 Home stage placeholders use the request locale,
     assert.match(html, /data-home-plugin-unavailable/u);
     for (const text of [heading, reason, link]) assert.ok(html.includes(text), `${locale}: ${text}`);
   }
-  assert.equal((await platform.supervisor.restart(TODO_PLUGIN_ID)).status, "running");
+  assert.equal((await platform.supervisor.restart(probe.id)).status, "running");
   const original = platform.runtime.contribution.bind(platform.runtime);
   const fault = t.mock.method(platform.runtime, "contribution", id => id === install.install_id ? null : original(id));
   try {
@@ -630,7 +632,7 @@ test("S-47 RAC-79 W5-06-STAGE-01 Home stage placeholders use the request locale,
     const message = '<img src=x onerror="throw new Error(1)">';
     const ownerError = t.mock.method(platform.supervisor, "state", id => {
       const current = state(id);
-      return id === TODO_PLUGIN_ID && current ? { ...current, message } : current;
+      return id === probe.id && current ? { ...current, message } : current;
     });
     try {
       const html = await page("en");
@@ -638,7 +640,7 @@ test("S-47 RAC-79 W5-06-STAGE-01 Home stage placeholders use the request locale,
       assert.doesNotMatch(html, /<img\b/u, "owner failure text cannot become markup in the Host placeholder");
     } finally { ownerError.mock.restore(); }
   } finally { fault.mock.restore(); }
-  assert.doesNotMatch(await page("en"), /data-home-plugin-unavailable/u);
+  assert.equal(await page("en"), "drawn", "running again, the stage itself is drawn");
 });
 
 // T-127: whether a dual-instance plugin is in the build no longer decides which half draws its stage; this fixture is outside the

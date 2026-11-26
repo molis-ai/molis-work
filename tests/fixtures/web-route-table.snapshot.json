@@ -37,9 +37,9 @@
     "error": "找不到这个 Molis Work 项目"
   },
   "GET /plugins/todo (page)": {
-    "status": 200,
-    "type": "text/html",
-    "title": "待办 · Molis Work"
+    "status": 404,
+    "type": "application/json",
+    "error": "找不到这个 Molis Work 项目"
   },
   "GET /plugins/no-such-plugin (page)": {
     "status": 404,
@@ -289,9 +289,9 @@
     "location": "/projects/<project>/?missing=%2Fsettings%2Fconnectors"
   },
   "GET <project>/plugins/todo (page)": {
-    "status": 200,
-    "type": "text/html",
-    "title": "待办 · Molis Work"
+    "status": 302,
+    "type": "",
+    "location": "/projects/<project>/?missing=%2Fplugins%2Ftodo"
   },
   "GET <project>/api/plugins/todo/no-such-operation": {
     "status": 404,
@@ -335,8 +335,8 @@
   },
   "GET <project>/side/todo/no-such-view (page)": {
     "status": 404,
-    "type": "application/json",
-    "error": "找不到对应的功能入口，刷新页面后再试一次。"
+    "type": "text/html",
+    "title": ""
   },
   "GET <project>/side/no-such-plugin/x (page)": {
     "status": 404,
@@ -391,7 +391,7 @@
   "GET <project>/api/plugins/io.molis.work.todo/x": {
     "status": 404,
     "type": "application/json",
-    "error": "找不到对应的功能入口，刷新页面后再试一次。"
+    "error": "页面或接口不存在"
   },
   "GET <project>/sessions (page)": {
     "status": 302,
@@ -680,9 +680,7 @@
     "type": "application/json",
     "keys": [
       "counts",
-      "everything",
       "items",
-      "project_id",
       "today"
     ]
   },
@@ -1013,9 +1011,7 @@
     "type": "application/json",
     "keys": [
       "counts",
-      "everything",
       "items",
-      "project_id",
       "today"
     ]
   }

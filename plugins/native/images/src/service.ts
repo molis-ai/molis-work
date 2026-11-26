@@ -2,23 +2,35 @@ import type {PluginSyncContext, PluginSyncClient} from "@molis-ai/molis-work-con
 import {validatePortableImage} from "./sync-files.js";
 import { createHash, randomUUID } from "node:crypto";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabase, PluginExecutionControl, PluginOwnerFilesClient, PluginImageGenerationClient, PluginBackgroundClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabase, PluginExecutionControl, PluginOwnerFilesClient, PluginImageGenerationClient, PluginBackgroundClient, PluginDueClient, PluginDueOutcome } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "./contract.js";
 import { imagesErrors } from "./error.js";
 import { normalizeImageBaseUrl } from "./providers.js";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import { ImagesStore, INTERRUPTED, type StoredConnection } from "./store.js";
+import { ImagesStore, INTERRUPTED } from "./store.js";
+import type { ImagesConnectionChanges, ImagesConnections, StoredConnection } from "./connections.js";
 import { runImageJob } from "./service-job.js";
 import { IMAGES_ASSETS } from "./owner-files.js";
 import { IMAGES_INPUT_LIMITS } from "./limits.js";
 
 export type ImagesControl = Omit<PluginExecutionControl, "project_id">;
 
+/**
+ * How long a generation may be under way before the platform wakes Images in its partition to settle it (batch 108): a job whose process
+ * stopped, or whose partition went to sleep, is marked interrupted then, and the person is told, without any other plugin or partition waking.
+ */
+export const IMAGES_JOB_DEADLINE_MS = 30 * 60_000;
+const dueKey = (id: string) => `job:${id}`;
+
 export interface ImagesServiceOptions {
   sync?:PluginSyncContext;
   syncClient?:PluginSyncClient;
   database: PluginDatabase;
+  /** The person's image services (`person_settings`), shared by every partition. */
+  connections: ImagesConnections;
+  /** This partition's due entries: one per generation under way. */
+  due?: PluginDueClient;
   files: PluginOwnerFilesClient;
   imageGeneration: PluginImageGenerationClient;
   background: PluginBackgroundClient;
@@ -56,12 +68,12 @@ export class ImagesService {
 
   listConnections(): ImageConnection[] {
     this.assertOpen();
-    return this.store.listConnections().map(connection => this.publicConnection(connection));
+    return this.options.connections.list().map(connection => this.publicConnection(connection));
   }
 
   canStartOrReplay(projectId: string | null | undefined): boolean {
     this.assertOpen();
-    return this.store.listConnections().some(connection => !connection.change && this.publicConnection(connection).available)
+    return this.options.connections.tryList().some(connection => !connection.change && this.publicConnection(connection).available)
       || (!!projectId && this.store.hasJobs(projectId));
   }
 
@@ -72,7 +84,7 @@ export class ImagesService {
     if (input.id && input.create_id) throw imagesErrors.invalid("请选择新建或编辑服务");
     const id = textField(input.id ?? input.create_id ?? randomUUID(), "服务 ID", 128);
     return this.changeConnection(id, async () => {
-      const previous = this.store.getConnection(id);
+      const previous = this.options.connections.get(id, true);
       if (input.id !== undefined && !previous) throw imagesErrors.not_found("找不到要修改的生图服务。");
       if (previous?.change?.authId === null) throw imagesErrors.connection_pending(uiText.text("images.service.delete-pending"));
       if (input.api_format !== "openai-images" && input.api_format !== "gemini") throw imagesErrors.invalid("请选择受支持的图片 API 协议。");
@@ -90,21 +102,21 @@ export class ImagesService {
         if (!previous.change) return saved;
       }
       const target = { slot_id: id, base_url: connection.base_url };
-      const pendingBinding = await this.write(control, store => {
-        store.saveConnection(connection);
+      const pendingBinding = await this.settle(control, connections => {
+        connections.save(connection);
         if (!selected) return;
         if (previous && !previous.change && previous.base_url === connection.base_url && previous.api_format === connection.api_format) {
           const bound = this.options.imageGeneration.inspect(target);
           if (bound.available && bound.connection_id === selected) return;
         }
-        store.planConnectionChange(id, selected);
+        connections.planChange(id, selected);
         return selected;
       });
       if (pendingBinding) {
         try {
           const actual = previous?.change ? this.options.imageGeneration.inspect(target) : undefined;
           if (!actual?.available || actual.connection_id !== pendingBinding) await this.options.imageGeneration.bind(target, pendingBinding);
-          await this.write(control, store => store.finishConnectionChange(id));
+          await this.settle(control, connections => connections.finishChange(id));
         } catch {
           control.signal?.throwIfAborted();
           requireSynchronous(control.assert_authority_current?.());
@@ -118,13 +130,13 @@ export class ImagesService {
   async deleteConnection(id: string, control: ImagesControl): Promise<void> {
     const key = textField(id, "服务 ID", 128);
     return this.changeConnection(key, async () => {
-      const existing = this.store.getConnection(key);
+      const existing = this.options.connections.get(key, true);
       if (!existing) throw imagesErrors.not_found("找不到要删除的生图服务。");
-      await this.write(control, store => store.planConnectionChange(key, null));
+      await this.settle(control, connections => connections.planChange(key, null));
       try {
         const bound = this.options.imageGeneration.inspect({ slot_id: key, base_url: existing.base_url });
         if (bound.connection_id) await this.options.imageGeneration.unbind(key);
-        await this.write(control, store => { store.finishConnectionChange(key); store.deleteConnection(key); });
+        await this.settle(control, connections => connections.delete(key));
       } catch {
         control.signal?.throwIfAborted();
         requireSynchronous(control.assert_authority_current?.());
@@ -176,7 +188,8 @@ export class ImagesService {
     const inputHash = createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
     const existing = this.store.findRequest(projectIdValue, requestId, inputHash);
     if (existing) return this.executionState(existing);
-    const connection = this.store.getConnection(normalized.connection_id);
+    // An Agent or a workflow may not read the person's services: it starts with the one this instance last read for the person (connections.ts).
+    const connection = this.options.connections.tryList().find(item => item.id === normalized.connection_id);
     if (!connection) throw imagesErrors.not_found("找不到所选生图服务，请重新选择。");
     if (connection.change) throw imagesErrors.connection_pending(uiText.text("images.service.change-pending"));
     if (connection.api_format === "gemini" && normalized.size || connection.api_format === "openai-images" && normalized.aspect_ratio) {
@@ -194,7 +207,7 @@ export class ImagesService {
     const admitted = new Promise<boolean>(resolve => { admit = resolve; });
     const current = () => {
       controller.signal.throwIfAborted(); this.assertOpen();
-      const latest = this.store.getConnection(connection.id);
+      const latest = this.options.connections.remembered().find(item => item.id === connection.id);
       if (!latest || latest.change || latest.base_url !== connection.base_url || latest.api_format !== connection.api_format || latest.model !== connection.model) {
         throw imagesErrors.connection_changed("图像连接已改变，本次结果未保存。");
       }
@@ -217,6 +230,8 @@ export class ImagesService {
         return store.insertJob(job, inputHash, [...this.active.keys()]); });
       admit(!duplicate);
       if (duplicate) { execution.cancel(); return this.executionState(duplicate); }
+      this.options.due?.register({ entry_key: dueKey(job.id), due_at: new Date(Date.parse(job.created_at) + IMAGES_JOB_DEADLINE_MS).toISOString() });
+      void execution.result.finally(() => { if (!this.closed) try { this.options.due?.cancel(dueKey(job.id)); } catch { /* The deadline settles it instead. */ } }).catch(() => {});
       return job;
     } catch (error) {
       admit(false); controller.abort(); this.active.delete(job.id); throw error;
@@ -240,6 +255,22 @@ export class ImagesService {
     return { bytes: Buffer.from(bytes), mime: image.mime_type, filename: image.filename };
   }
 
+  /**
+   * A generation's deadline fell due (`onDue`): one this process still runs gets another; one no process runs any more (the Host stopped, or
+   * this partition slept) is marked interrupted, and the person is told once. Anything else is already settled: nothing to say.
+   */
+  async due(entryKey: string, control: ImagesControl): Promise<PluginDueOutcome> {
+    if (!entryKey.startsWith("job:")) return {};
+    const id = entryKey.slice("job:".length), row = this.store.findJob(id);
+    if (!row || row.status !== "running") return {};
+    if (this.active.has(id)) {
+      this.options.due?.register({ entry_key: entryKey, due_at: new Date(Date.now() + IMAGES_JOB_DEADLINE_MS).toISOString() });
+      return {};
+    }
+    await this.write(control, store => store.finish(row.project_id, id, "interrupted", [], INTERRUPTED));
+    return { reminder: { title: uiText.text("images.background.interrupted", { prompt: [...row.prompt].slice(0, 120).join("") }), open: { surface: "images", id } } };
+  }
+
   close(): void { this.closed = true; for (const controller of this.active.values()) controller.abort(); this.active.clear(); }
 
   /** Only a new authorized write in this project can persist the executor's observed end time. Keep it across rollbacks. */
@@ -251,6 +282,15 @@ export class ImagesService {
     });
     for (const [id] of stopped) this.interruptions.delete(id);
     return result;
+  }
+
+  /** A change to the person's services, under the same checks as a write to the library: nothing is written for a caller who lost authority. */
+  /** One change to the person's services, written once after the call's own checks (`ImagesConnections.batch`). */
+  private async settle<T>(control: ImagesControl, apply: (connections: ImagesConnectionChanges) => T): Promise<T> {
+    this.assertOpen();
+    await control.beforeEffect();
+    this.assertOpen(); control.signal?.throwIfAborted(); requireSynchronous(control.assert_authority_current?.());
+    return this.options.connections.batch(apply);
   }
 
   private write<T>(control: ImagesControl, apply: (store: ImagesStore) => T): Promise<T> {

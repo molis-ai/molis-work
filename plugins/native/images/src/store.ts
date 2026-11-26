@@ -1,17 +1,13 @@
-import type { HomeStoreDeclaration, PluginSyncClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginSyncClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { portableColumns } from "./portable-record.js";
 import type { PortableImage } from "./sync-files.js";
-import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "./contract.js";
+import type { ImageJob, ImageJobStatus, GeneratedImage } from "./contract.js";
 import type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { imagesErrors } from "./error.js";
 import { IMAGES_DATABASE } from "./database.js";
 export { IMAGES_DATABASE };
 
-export type StoredConnection = Pick<ImageConnection, "id" | "name" | "model" | "api_format" | "base_url" | "created_at" | "updated_at"> & {
-  change?: { authId: string | null };
-};
-const CONNECTIONS = `SELECT c.*, p.service_id AS pending, p.auth_connection_id FROM connections c
-  LEFT JOIN connection_changes p ON p.service_id = c.id`;
+export type { StoredConnection } from "./connections.js";
 export const INTERRUPTED = "本机执行已中断，未自动重新生成。请先检查厂商用量，再决定是否重试。";
 type Row = Record<string, unknown>;
 
@@ -30,42 +26,18 @@ export class ImagesStore {
       (JSON.parse(String(row.images_json)) as GeneratedImage[]).map(image => image.filename)));
   }
 
-  listConnections(): StoredConnection[] {
-    return this.db.all(`${CONNECTIONS} ORDER BY c.created_at, c.id`).map(connectionFromRow);
-  }
-
-  getConnection(id: string): StoredConnection | null {
-    const row = this.db.get(`${CONNECTIONS} WHERE c.id = ?`, [id]);
-    return row ? connectionFromRow(row) : null;
-  }
-
-  saveConnection(connection: StoredConnection): void {
-    this.db.run(`INSERT INTO connections (id,name,api_format,base_url,model,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,api_format=excluded.api_format,
-      base_url=excluded.base_url,model=excluded.model,updated_at=excluded.updated_at`, [connection.id, connection.name, connection.api_format, connection.base_url, connection.model,
-        connection.created_at, connection.updated_at]);
-  }
-
-  planConnectionChange(id: string, authId: string | null): void {
-    this.db.run(`INSERT INTO connection_changes (service_id,auth_connection_id) VALUES (?,?)
-      ON CONFLICT(service_id) DO UPDATE SET auth_connection_id=excluded.auth_connection_id`, [id, authId]);
-  }
-
-  finishConnectionChange(id: string): void {
-    this.db.run("DELETE FROM connection_changes WHERE service_id=?", [id]);
-  }
-
-  deleteConnection(id: string): void {
-    const result = this.db.run("DELETE FROM connections WHERE id = ?", [id]);
-    if (Number(result.changes) !== 1) throw imagesErrors.not_found("找不到要删除的生图服务。");
-  }
-
   hasJobs(projectId: string): boolean {
     return !!this.db.get("SELECT 1 FROM jobs WHERE project_id = ? LIMIT 1", [projectId]);
   }
 
   listJobs(projectId: string): ImageJob[] {
     return (this.db.all("SELECT * FROM jobs WHERE project_id = ? ORDER BY created_at DESC, rowid DESC", [projectId]) as Row[]).map(jobFromRow);
+  }
+
+  /** A job by id alone: a partition's library holds only that partition's jobs. */
+  findJob(id: string): ImageJob | null {
+    const row = this.db.get("SELECT * FROM jobs WHERE id = ?", [id]) as Row | undefined;
+    return row ? jobFromRow(row) : null;
   }
 
   getJob(projectId: string, id: string): ImageJob {
@@ -99,7 +71,7 @@ export class ImagesStore {
     const existing = this.findRequest(job.project_id, job.request_id, inputHash);
     if (existing) return existing;
     const count = this.db.get("SELECT COUNT(*) AS count FROM jobs WHERE status = 'running' AND id IN (SELECT value FROM json_each(?))", [JSON.stringify(live)]);
-    if (Number(count?.count) >= 2) throw imagesErrors.busy("本机已有 2 个生成任务，请等待完成或停止等待后再生成。");
+    if (Number(count?.count) >= 2) throw imagesErrors.busy("已有 2 个生成任务在进行，请等待完成或停止等待后再生成。");
     this.db.run(`INSERT INTO jobs
       (id,project_id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -125,10 +97,3 @@ function jobFromRow(row: Row): ImageJob {
   };
 }
 
-/** This plugin's store in the Home's store registry (W4-11): `images/images.db` at its one baseline. */
-export const IMAGES_HOME_STORE: HomeStoreDeclaration = { path: "images", library: { baseline: IMAGES_DATABASE } };
-
-function connectionFromRow(row: Row): StoredConnection {
-  return { ...(row.pending ? { change: { authId: row.auth_connection_id as string | null } } : {}), id: String(row.id), name: String(row.name), api_format: row.api_format as StoredConnection["api_format"],
-    base_url: String(row.base_url), model: String(row.model), created_at: String(row.created_at), updated_at: String(row.updated_at) };
-}

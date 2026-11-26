@@ -171,7 +171,7 @@ test("SCS-07 SCS-08 Catalog hiding, actual member removal and an actual failed s
   await f.warm();
   const read = await f.read();
   assert.equal(findCard(read, "io.molis.work.inbox")?.state, "ok");
-  assert.equal(findCard(read, "io.molis.work.todo")?.state, "undeclared");
+  assert.equal(findCard(read, "io.molis.work.todo"), undefined, "Todo runs only where it is added (batch 108), and this project has not");
   assert.notEqual(f.host.homePlugins?.installation(f.crashing.id)?.state, "running");
   assert.equal(findCard(read, f.crashing.id)?.state, "unreadable");
   assert.equal(findCard(read, f.crashing.id)?.plugin_card?.enable, undefined);
@@ -192,7 +192,6 @@ test("SCS-07 SCS-08 Catalog hiding, actual member removal and an actual failed s
   await f.warm();
 
   await setMember(f, "inbox", false);
-  await setMember(f, "todo", false);
   const next = await f.read({ home_order: ["io.molis.work.todo"] });
   const disabled = findCard(next, "io.molis.work.inbox");
   assert.equal(disabled?.state, "disabled");

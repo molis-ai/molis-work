@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { OverviewIndexRow, OverviewKind, PluginManifest, PluginPersonSettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DUE_REGISTRY_STORE, DueTimer, openDueRegistry, type DueEntryOwner, type DueEntryRecord, type DueExpiredRecord, type DueRegistry } from "@molis-ai/molis-work-service-scheduler";
@@ -59,13 +59,23 @@ export interface PartitionPlatformServicesOptions {
   readonly now?: () => Date;
 }
 
+const running = new Map<string, PartitionPlatformServices>();
+const canonical = (home: string) => { try { return realpathSync(home); } catch { return home; } };
+
+/** The services the Host runs for this Home now, if it runs them: a plugin's own due entry then arms the timer at once. */
+export function runningPartitionPlatformServices(home: string): PartitionPlatformServices | undefined {
+  return running.get(canonical(home));
+}
+
 export class PartitionPlatformServices {
   readonly due: DueRegistry;
   readonly timer: DueTimer;
   readonly overview: OverviewService;
   private readonly resolveLibraries?: PartitionPlatformServicesOptions["libraries"];
+  private readonly home: string;
 
   constructor(options: PartitionPlatformServicesOptions) {
+    this.home = canonical(options.home);
     const now = options.now ?? (() => new Date());
     this.resolveLibraries = options.libraries;
     this.due = openDueRegistry(options.home, { now });
@@ -90,6 +100,7 @@ export class PartitionPlatformServices {
       },
     });
     this.timer.arm();
+    running.set(this.home, this);
   }
 
   /** Registers one of the plugin's own due entries; the owner is the Host's stamp from the trusted context. */
@@ -139,6 +150,7 @@ export class PartitionPlatformServices {
   }
 
   close(): void {
+    if (running.get(this.home) === this) running.delete(this.home);
     this.timer.close();
     this.due.close();
     this.overview.close();

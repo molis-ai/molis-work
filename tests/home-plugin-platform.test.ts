@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { captureHostLog, MolisWorkLocalHost, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { issuesActions, ISSUES_PLUGIN_ID } from "@molis-ai/molis-work-plugin-issues";
+import { WORK_BRIEF_PLUGIN_ID, workBriefPersonalActions } from "@molis-ai/molis-work-plugin-work-brief";
 import { type ActionDefinition, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -18,7 +18,7 @@ import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 test("W3-06-F-01 W3-06-F-02 concurrent discovery, scenes and HTTP share the Home registration and genuine project scopes", { timeout: 60_000 }, async t => {
   const probe = homeProbe(), { host, origin, request, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
-  const caller = person([...probe.permissions, ...issuesActions.read.action.permissions]);
+  const caller = person([...probe.permissions, ...workBriefPersonalActions.get.action.permissions]);
   await Promise.all([host.homeActionClient().discover(caller), host.sceneClient().discoverScenes(caller), request(`/api/plugins/${probe.id}/state`)]);
   assert.equal(probe.contexts.length, 1, "all entrypoints share one start");
   const initially = host.homePlugins!.installation(probe.id)!;
@@ -33,7 +33,7 @@ test("W3-06-F-01 W3-06-F-02 concurrent discovery, scenes and HTTP share the Home
   assert.equal(offered.provider.provider_id, install.install_id);
   assert.equal(offered.provider.plugin_install_id, install.install_id);
   assert.equal(offered.provider.project_id, undefined);
-  assert.equal(directory.find(action => action.capability_id === issuesActions.read.capability_id)!.provider.provider_id, ISSUES_PLUGIN_ID);
+  assert.equal(directory.find(action => action.capability_id === workBriefPersonalActions.get.capability_id)!.provider.provider_id, WORK_BRIEF_PLUGIN_ID);
   await assert.rejects(host.homeActionClient().invoke(person([]), probe.state, {}), { code: "actions.forbidden" });
   await assert.rejects(host.homeActionClient().invoke(caller, probe.project, {}), { code: "actions.project_required" });
   assert.equal(await host.actionClient(one.reference).invoke(person(probe.permissions, one.project_id), probe.project, {}), one.project_id);
@@ -180,11 +180,11 @@ test("W3-06-F-02 a Home database comes from the trusted definition entry, never 
   assert.deepEqual(entries.filter(entry => entry.event === "stopped_service_call").map(entry => [entry.fields?.service, entry.fields?.method]), [["database", "transaction"]], "the Host noted the refused write");
 });
 
-test("W3-06-F-02 a fixture cannot take the Host's Issue library or declare an invalid or duplicate Home store", async () => {
+test("W3-06-F-02 a fixture cannot take the Host's Work Brief library or declare an invalid or duplicate Home store", async () => {
   // W4-11: a fixture is given a library under a free name (registered as its own); a name the Home registered to another
   // owner stays theirs. A shipped plugin's unregistered library is refused in plugin-project-database.test.ts.
-  for (const [store, message] of [["issues", /登记的主人是 io\.molis\.work\.issues，/u], ["plugin-runtime", /登记的主人是 apps\/local-host，/u],
-    ["todo", /登记的主人是 io\.molis\.work\.todo，/u], ["security", /归 packages\/storage，不是库/u], ["../todo", /一个目录名/u]] as const) {
+  for (const [store, message] of [["work-brief", /登记的主人是 io\.molis\.work\.work-brief，/u], ["plugin-runtime", /登记的主人是 apps\/local-host，/u],
+    ["feed-content", /登记的主人是 io\.molis\.work\.feed，/u], ["security", /归 packages\/storage，不是库/u], ["../feed-content", /一个目录名/u]] as const) {
     const home = mkdtempSync(join(tmpdir(), "home-store-owner-")), probe = homeProbe();
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [{ definition: withLibrary(probe.definition,
       { store_name: store, version: 1, schema: "CREATE TABLE notes(text TEXT);", read_permission: "homeprobe:read", write_permission: "homeprobe:write" }) }] } });

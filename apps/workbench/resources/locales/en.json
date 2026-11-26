@@ -7997,6 +7997,8 @@
     "workbench.side-panel.resize-side-panel": "Resize the side panel",
     "workbench.side-panel.right": "Right",
     "workbench.side-panel.side-view-name": "Side view: {name}",
+    "workbench.side-view.enable-confirm": "Turn on",
+    "workbench.side-view.enable-personal": "{name} is not on in your personal space yet. Turn it on to jot things down here.",
     "workbench.skin.folio": "Folio",
     "workbench.skin.pure-studio": "Pure Studio",
     "workbench.skin.soft-workbench": "Soft Workbench",

@@ -1,9 +1,8 @@
-import type { TodoActorKind, TodoChange, TodoEditableField, TodoItem, TodoLink, TodoPlacement, TodoSource, TodoStatus, TodoWaiting } from "./contract.js";
+import type { TodoActorKind, TodoChange, TodoEditableField, TodoItem, TodoLink, TodoSource, TodoStatus, TodoWaiting } from "./contract.js";
 import { todoErrors } from "./error.js";
-import type { TodoAccess } from "./store-types.js";
 
 export interface ItemRow {
-  id: string; title: string; notes: string; status: string; placement: string; project_id: string | null;
+  id: string; title: string; notes: string; status: string;
   due_date: string | null; due_time: string | null; planned_date: string | null; remind_at: string | null;
   important: number; reminder_acknowledged_at: string | null; waiting_json: string | null; sources_json: string; links_json: string; edited_fields_json: string;
   archived_at: string | null; completed_at: string | null; created_at: string; updated_at: string; revision: number;
@@ -11,10 +10,6 @@ export interface ItemRow {
 export interface ChangeRow {
   change_id: string; item_id: string; batch_id: string | null; kind: string; actor: string; at: string;
   before_json: string | null; after_json: string; revision_after: number; reverted_by: string | null;
-}
-
-export function visible(item: Pick<TodoItem, "project_id">, access: TodoAccess): boolean {
-  return item.project_id === null || item.project_id === access.projectId || access.projectIds.includes(item.project_id);
 }
 
 /** Put back the fields a change touched, as they were before it. */
@@ -52,8 +47,6 @@ export function fromRow(row: ItemRow): TodoItem {
     title: row.title,
     notes: row.notes,
     status: row.status as TodoStatus,
-    placement: row.placement as TodoPlacement,
-    project_id: row.project_id,
     due_date: row.due_date,
     due_time: row.due_time,
     planned_date: row.planned_date,
@@ -73,7 +66,7 @@ export function fromRow(row: ItemRow): TodoItem {
 }
 
 export function toRow(item: TodoItem): (string | number | null)[] {
-  return [item.id, item.title, item.notes, item.status, item.placement, item.project_id, item.due_date, item.due_time, item.planned_date, item.remind_at,
+  return [item.id, item.title, item.notes, item.status, item.due_date, item.due_time, item.planned_date, item.remind_at,
     item.important ? 1 : 0, item.waiting ? JSON.stringify(item.waiting) : null, JSON.stringify(item.sources), JSON.stringify(item.links),
     JSON.stringify(item.edited_fields), item.archived_at, item.completed_at, item.created_at, item.updated_at, item.revision, item.reminder_acknowledged_at];
 }

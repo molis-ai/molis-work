@@ -15,48 +15,63 @@ import { join } from "node:path";
 const publishing = (manifest: PluginManifest): PluginManifest => ({ ...manifest,
   events: { publishes: [{ event_type_id: `${manifest.plugin_id}.changed`, type_version: 1 }], subscribes: [] } } as PluginManifest);
 
+
+/**
+ * A Home plugin that is not dual-instance. Every shipped plugin that runs in the Home is dual-instance since the personal plugins moved
+ * into partitions (batch 108), so the plain case is made here: Work Brief's identity and its registered Home library, with nothing of its
+ * own to answer (no actions, views, routes or 成果) and a start that offers nothing.
+ */
+function plainHomePlugin(): PluginRegistration {
+  const brief = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "work-brief")!;
+  const manifest = { ...brief.manifest, actions: [], action_scenes: [], routes: [], ui: { locales: brief.manifest.ui.locales, contributions: [] }, artifacts: { produces: [], consumes: [] },
+    settings_entries: undefined, capabilities: { provides: [], consumes: [] }, read_groups: undefined, presentation: undefined } as PluginManifest;
+  const { dual_instance: _dual, ...runtime } = brief.runtime!;
+  return { ...brief, manifest, runtime: { ...runtime, create: (): PluginDefinition => ({ manifest, async start() { return { kind: "app", views: [], actions: [] }; } }) } };
+}
+
 test("RAC-744 the catalog refuses a Home plugin that declares 成果, ports or events unless its registration marks it dual-instance", () => {
-  const todo = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "todo")!;
+  const subject = plainHomePlugin();
   assert.deepEqual(catalogProblems(PLATFORM_PLUGIN_REGISTRATIONS), [], "the shipped list is clean");
-  const others = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry !== todo);
+  const others = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.project_plugin_id !== subject.project_plugin_id);
+  assert.deepEqual(catalogProblems([...others, subject]), [], "the plain Home plugin is clean");
   const declarations: Array<[string, Partial<PluginManifest>]> = [
     ["ports", { ports: { inputs: [{ port: "in", artifact_type_id: "example.in.v1", schema_version: 1, optional: true }], outputs: [] } }],
     ["output ports", { ports: { inputs: [], outputs: [{ port: "out", artifact_type_id: "example.out.v1", schema_version: 1 }] } }],
-    ["event publication", { events: { publishes: [{ event_type_id: "io.molis.work.todo.changed", type_version: 1 }], subscribes: [] } }],
+    ["event publication", { events: { publishes: [{ event_type_id: `${subject.manifest.plugin_id}.changed`, type_version: 1 }], subscribes: [] } }],
     ["event subscription", { events: { publishes: [], subscribes: [{ event_type_id: "io.molis.work.issues.changed", type_version: 1, from_plugin_ids: ["io.molis.work.issues"] }] } }],
     ["produced 成果", { artifacts: { produces: [{ artifact_type_id: "example.out.v1", schema_version: 1 }], consumes: [] } }],
     ["process items", { process_items: { produces: [{ artifact_type_id: "example.item.v1", schema_version: 1 }], consumes: [] } }],
   ] as never;
   for (const [what, change] of declarations) {
-    const entry: PluginRegistration = { ...todo, manifest: { ...todo.manifest, ...change } as PluginManifest };
-    assert.match(catalogProblems([...others, entry]).join("\n"), /todo: a Home instance pins no 成果 and is given no ports or events/u, what);
+    const entry: PluginRegistration = { ...subject, manifest: { ...subject.manifest, ...change } as PluginManifest };
+    assert.match(catalogProblems([...others, entry]).join("\n"), /work-brief: a Home instance pins no 成果 and is given no ports or events/u, what);
     // The same declarations on a dual-instance registration (the Home half leaves them to its project half) are fine.
     const dual: PluginRegistration = { ...entry, runtime: { ...entry.runtime!, dual_instance: true } };
     assert.deepEqual(catalogProblems([...others, dual]), [], `${what}: dual-instance`);
   }
   // Reading consumed 成果 is not among them: a Home instance reads those of the project each call is for (44B).
-  const consuming: PluginRegistration = { ...todo, manifest: { ...todo.manifest,
+  const consuming: PluginRegistration = { ...subject, manifest: { ...subject.manifest,
     artifacts: { produces: [], consumes: [{ artifact_type_id: "example.in.v1", schema_version: 1 }] } } as PluginManifest };
   assert.deepEqual(catalogProblems([...others, consuming]), [], "a Home instance may consume 成果");
 });
 
 test("RAC-745 a Home instance that is not dual-instance and declares an event is not started: the plugin's own start is never reached", async t => {
-  const todo = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "todo")!;
-  const declared = publishing(todo.manifest), type = declared.events!.publishes[0]!;
-  const library = todo.manifest.databases?.home;
+  const subject = plainHomePlugin();
+  const declared = publishing(subject.manifest), type = declared.events!.publishes[0]!;
+  const library = subject.manifest.databases?.home;
   assert.ok(library);
   const run = async (dual: boolean, coordinates = true) => {
     const home = mkdtempSync(join(tmpdir(), "home-coordination-")), actions = new ActionService();
-    const manifest = coordinates ? declared : todo.manifest;
+    const manifest = coordinates ? declared : subject.manifest;
     let started = 0;
-    const create = (): PluginDefinition => { const own = todo.runtime!.create(); return { ...own, manifest, ...coordinates ? { event_types: [{ ...type, validate: (payload: unknown) => payload }] } : {},
+    const create = (): PluginDefinition => { const own = subject.runtime!.create(); return { ...own, manifest, ...coordinates ? { event_types: [{ ...type, validate: (payload: unknown) => payload }] } : {},
       async start(context) { started += 1; return own.start(context); } }; };
     const host = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions,
-      entries: [{ ...todo.runtime!, create, scope: "home", manifest, ...dual ? { dual_instance: true as const } : {} }] });
+      entries: [{ ...subject.runtime!, create, scope: "home", manifest, ...dual ? { dual_instance: true as const } : {} }] });
     t.after(async () => { try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } });
     const platform = await host.ready();
-    const state = platform.supervisor.state(todo.manifest.plugin_id);
-    assert.ok(state?.install_id);
+    const state = platform.supervisor.state(subject.manifest.plugin_id);
+    assert.ok(state?.install_id, JSON.stringify(state));
     return { started, state, installation: platform.runtime.get(state.install_id), databaseCreated: existsSync(join(home, library.store_name)) };
   };
   const refused = await run(false);
@@ -69,13 +84,13 @@ test("RAC-745 a Home instance that is not dual-instance and declares an event is
   assert.equal(refused.databaseCreated, false, "the refusal precedes even the Home database service's construction");
   const allowed = await run(true);
   assert.equal(allowed.started, 1, "the same declaration on a dual-instance Home half starts");
-  assert.equal(allowed.state.status, "running");
+  assert.equal(allowed.state.status, "running", allowed.state.message);
   assert.equal(allowed.installation.state, "running");
   assert.equal(allowed.installation.last_error_code, null);
   assert.equal(allowed.databaseCreated, true);
   const plain = await run(false, false);
   assert.equal(plain.started, 1, "a non-dual Home plugin without project coordination still starts");
-  assert.equal(plain.state.status, "running");
+  assert.equal(plain.state.status, "running", plain.state.message);
   assert.equal(plain.installation.state, "running");
   assert.equal(plain.installation.last_error_code, null);
   assert.equal(plain.databaseCreated, true);

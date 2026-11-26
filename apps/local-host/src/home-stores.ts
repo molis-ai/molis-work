@@ -92,7 +92,11 @@ export function homeStores(homeDirectory?: string): HomeSnapshotStoreRegistry {
     ...owned("apps/local-host/src/installer", { path: "backups", snapshot: { emptyOnly: true } }),
     ...owned("apps/local-host", HOME_PLUGIN_RUNTIME_HOME_STORE, INSTALLED_LIBRARIES_HOME_STORE, ASSISTANT_HOME_STORE, PLACEMENT_HOME_STORE, AGENT_DEFINITIONS_HOME_STORE, AGENT_DECLARATIONS_HOME_STORE,
       CONNECTORS_HOME_STORE, WEB_SEARCH_HOME_STORE, { ...CONNECTOR_TOOLS_HOME_STORE, snapshot: managedToolsSnapshot }, CONTEXT_ONBOARDING_HOME_STORE,
-      ORIGINAL_FILES_HOME_STORE, CONVERSATION_ATTACHMENTS_HOME_STORE, DIRECTORY_GRANTS_HOME_STORE),
+      ORIGINAL_FILES_HOME_STORE, CONVERSATION_ATTACHMENTS_HOME_STORE, DIRECTORY_GRANTS_HOME_STORE,
+      // Retired with on-device transcription (batch 112, user 2026-11-26): nothing creates or reads `materials/` any more. An older Home may
+      // still hold its model cache; this entry only keeps it out of snapshots so backups go on working. Kept mechanism in CONTRACT-CHANGES.md,
+      // removed at the batch-90 v1 seal.
+      { path: "materials", snapshot: omittedSnapshot("Retired transcription model cache (batch 112); safe to delete", "reset") }),
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),
     ...owned("horizontal/scheduler", DUE_REGISTRY_HOME_STORE),
     ...owned("horizontal/evidence", EVIDENCE_HOME_STORE),

@@ -135,7 +135,7 @@ export const CONVERSATION_ATTACHMENT_LIMITS = {
   round_images: 6,
   /** A picture: what the model providers take in one image. */
   image_bytes: 5 * 1024 * 1024,
-  /** A document read for its text (PDF, Office, text, a picture's words, a recording's transcript). */
+  /** A document read for its text (PDF, Office, text, a picture's words). */
   document_bytes: 25 * 1024 * 1024,
   /** The most of a document's text that is kept and given to a round. */
   text_chars: 200_000,

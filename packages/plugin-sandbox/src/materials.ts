@@ -6,7 +6,7 @@ import { SandboxError } from './schema.js';
 
 // The Host's readers of files the plugin already holds (`sdk.materials`, PG-017 P2). The reader is the activation's `services.materials`, the
 // one the Host's own plugins get; it checks the Manifest's permission, the grant, the running action and the original caller again. This
-// side bounds what crosses and takes out of the request what is not the plugin's to choose: the Host's limits, model downloads and progress.
+// side bounds what crosses and takes out of the request what is not the plugin's to choose: the Host's limits.
 
 const FILES = 100, FILE_NAME = 1024;
 const READ_KEYS = ['timeoutMs', 'textFormat', 'pdfMode', 'ocrLanguages'] as const;

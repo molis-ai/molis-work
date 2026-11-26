@@ -81,15 +81,15 @@ test("read, revoked and aborted uploads leave nothing in the Home", async () => 
   const home = mkdtempSync(path.join(tmpdir(), "molis-material-ref-"));
   try {
     const upload = { file_name: "old.md", data_base64: Buffer.from("# 原始材料\n保持原件").toString("base64") };
-    assert.equal((await extractUploadedMaterial(home, upload)).text, "# 原始材料\n保持原件");
+    assert.equal((await extractUploadedMaterial(upload)).text, "# 原始材料\n保持原件");
     assert.deepEqual(readdirSync(home), [], "the text is returned; the upload itself is not kept");
     const cancelled = new AbortController();
-    await assert.rejects(extractUploadedMaterial(home, { file_name: "cancel.md", data_base64: Buffer.from("NEW COPY").toString("base64") }, {
+    await assert.rejects(extractUploadedMaterial({ file_name: "cancel.md", data_base64: Buffer.from("NEW COPY").toString("base64") }, {
       signal: cancelled.signal, beforeEffect() { cancelled.abort(); },
     }), /已取消/);
     const revoked = new Error("permission revoked");
-    await assert.rejects(extractUploadedMaterial(home, upload, { beforeEffect() { throw revoked; } }), error => error === revoked);
-    const simultaneous = await Promise.all(Array.from({ length: 8 }, () => extractUploadedMaterial(home, {
+    await assert.rejects(extractUploadedMaterial(upload, { beforeEffect() { throw revoked; } }), error => error === revoked);
+    const simultaneous = await Promise.all(Array.from({ length: 8 }, () => extractUploadedMaterial({
       file_name: "simultaneous.txt", data_base64: Buffer.from("same concurrent content").toString("base64"),
     })));
     assert.ok(simultaneous.every(result => result.text === "same concurrent content"));

@@ -223,7 +223,7 @@ async function importArtifactJson(request: IncomingMessage, response: ServerResp
     const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
     return { status: result.reused ? 200 : 201, body: result };
   };
-  // A page that waits on a slow reading (a scanned PDF, an image's text) can ask for its progress and result as NDJSON (QEA-24).
+  // A page that waits on a slow reading (a scanned PDF, an image's text) can ask for the result as NDJSON (QEA-24); a disconnect stops the reading.
   if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => stop.abort());
   const result = await answer();
   sendLocalWebJson(response, result.status, result.body);

@@ -7,11 +7,11 @@ export interface UploadedMaterial extends MaterialExtraction { file_name: string
 export type MaterialUploadOptions = HomeMaterialOptions;
 
 /** Current file-reading result shape; transport validation is shared with Runtime plugins through the SDK. */
-export async function extractUploadedMaterial(home: string, upload: MaterialUpload, options: MaterialUploadOptions = {}): Promise<UploadedMaterial> {
+export async function extractUploadedMaterial(upload: MaterialUpload, options: MaterialUploadOptions = {}): Promise<UploadedMaterial> {
   try {
     options.signal?.throwIfAborted(); await options.beforeEffect?.(); options.signal?.throwIfAborted();
     const source = decodeMaterialUpload(upload);
-    const result = await extractHomeMaterial(home, source, { ...options, pdfMode: "ocr" });
+    const result = await extractHomeMaterial(source, { ...options, pdfMode: "ocr" });
     const { title: _title, ...material } = result;
     const { truncated: _truncated, ...coverage } = result.coverage;
     return { ...material, coverage, file_name: source.file_name };

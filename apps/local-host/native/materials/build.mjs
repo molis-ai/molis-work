@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,6 +29,8 @@ function buildIfStale(here, script, output, sources) {
 
 if (process.platform === 'darwin') {
   const here = path.dirname(fileURLToPath(import.meta.url));
+  // Helpers retired in batch 112 (renamed to molis-material; transcription removed). A checkout built before then still has them in bin/.
+  for (const retired of ['jelly-material', 'jelly-whisper']) rmSync(path.join(here, 'bin', retired), { force: true });
   buildIfStale(here, 'build.sh', path.join(here, 'bin', 'molis-material'), [
     path.join(here, 'build.sh'),
     path.join(here, 'MolisMaterial.swift'),

@@ -40,14 +40,14 @@ function nativeFailure(error: unknown): OriginalText {
  * (the macOS helper); and any other file that is plain UTF-8 text. Audio and video, and any file it cannot read, are still imported,
  * with a note saying why and no text (they then get a card from their name and are not sent to a model).
  */
-export async function readOriginalText(file: { filename: string; bytes: Buffer }, home: string, options: OriginalTextOptions = {}): Promise<OriginalText> {
+export async function readOriginalText(file: { filename: string; bytes: Buffer }, options: OriginalTextOptions = {}): Promise<OriginalText> {
   const { signal } = options;
   const extension = file.filename.toLowerCase().match(/\.([a-z0-9]+)$/u)?.[1] ?? "";
   const source = { file_name: file.filename, bytes: file.bytes };
   const within = (timeoutMs: number) => ({ ...(signal ? { signal } : {}), timeoutMs });
   const native = async (options: MaterialExtractionOptions, empty: string): Promise<OriginalText> => {
     let read: MaterialExtraction;
-    try { read = await extractHomeMaterial(home, source, options); }
+    try { read = await extractHomeMaterial(source, options); }
     catch (error) { signal?.throwIfAborted(); return nativeFailure(error); }
     return read.text.trim() ? { text: read.text, warnings: [{ key: "workbench.import.warning-ocr-text" }] } : nameOnly(empty);
   };

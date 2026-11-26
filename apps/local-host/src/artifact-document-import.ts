@@ -91,7 +91,7 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
       try { const parsed = await readMaterialHtml(html, { signal: ports.signal, timeoutMs: 12_000 }); return { title: parsed.title ?? "", content: parsed.text }; }
       catch { ports.signal?.throwIfAborted(); throw artifactImportErrors.html_invalid("无法读取这个 HTML 文件，请改用 Markdown 或 TXT 导出"); }
     },
-    readFileText: file => readOriginalText(file, home, ports.signal ? { signal: ports.signal } : {}),
+    readFileText: file => readOriginalText(file, ports.signal ? { signal: ports.signal } : {}),
     async readExternal(document) {
       const imports = await documentImports(home), entry = imports[document.source], service = entry?.service;
       const candidates = entry ? listConnectorConnectionViews(home, entry.service).filter(row => readsWith(row, entry) && row.state === "connected") : [];

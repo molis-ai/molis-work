@@ -6,7 +6,7 @@ import type { NativeMaterialOptions } from "./material-native.js";
 export interface HomeMaterialOptions extends MaterialExtractionOptions, NativeMaterialOptions {}
 
 /** Existing Host extraction; reading keeps no business record or uploaded copy. */
-export async function extractHomeMaterial(_home: string, source: MaterialSource, options: HomeMaterialOptions = {}) {
+export async function extractHomeMaterial(source: MaterialSource, options: HomeMaterialOptions = {}) {
   const check = async () => { options.signal?.throwIfAborted(); await options.beforeEffect?.(); options.signal?.throwIfAborted(); };
   await check();
   const extract = createMaterialExtractor({ helperPath: options.helperPath ?? process.env.MOLIS_MATERIAL_NATIVE_HELPER,

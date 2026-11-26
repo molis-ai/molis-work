@@ -12,7 +12,7 @@ export interface MaterialSourceOptions extends MaterialUploadOptions {
   allowed_hosts?: readonly string[];
   /** Dependency seams for offline parser/adapter regressions; HTTP routes never bind these fields. */
   fetch?: (url: string, options?: MaterialPublicFetchOptions) => Promise<MaterialPublicResponse>;
-  extractMaterial?: (home: string, upload: MaterialUpload, options?: MaterialUploadOptions) => Promise<UploadedMaterial>;
+  extractMaterial?: (upload: MaterialUpload, options?: MaterialUploadOptions) => Promise<UploadedMaterial>;
 }
 const desktopAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 function acceptLanguageHeader(): string {
@@ -81,7 +81,7 @@ function walk(root: unknown, accept: (value: Record<string, unknown>) => unknown
   }
   return visit(root, 0);
 }
-interface MaterialXiaohongshuPayload { id: string; title?: string; body?: string; tags: string[]; images: string[]; videos: string[]; kind: "image" | "video" }
+interface MaterialXiaohongshuPayload { id: string; title?: string; body?: string; tags: string[]; images: string[]; kind: "image" | "video" }
 export function parseMaterialXiaohongshu(html: string, expectedID: string): MaterialXiaohongshuPayload {
   const root = materialSourceEmbeddedJSON(html, "__INITIAL_STATE__");
   if (!root) throw (/登录|login|captcha|验证/iu.test(html) ? materialSourceErrors.restricted : materialSourceErrors.unavailable)("小红书公开页没有可读内容；原链接保留，可以粘贴文字、上传文件或重试");
@@ -97,17 +97,15 @@ export function parseMaterialXiaohongshu(html: string, expectedID: string): Mate
   const body = firstString(chosen, ["desc", "description"])?.trim().slice(0, 200_000);
   const tags = [...new Set(array(chosen.tagList ?? chosen.tags).map(value => typeof value === "string" ? value : firstString(object(value), ["name", "title"])).filter((value): value is string => !!value).map(value => value.trim().slice(0, 100)))];
   const images = [...new Set(array(chosen.imageList ?? chosen.images).map(value => https(firstString(object(value), ["urlDefault", "urlPre", "url"]))).filter((value): value is string => !!value))];
-  const videos: string[] = []; let visited = 0;
-  function videoURLs(value: unknown, key = "", depth = 0): void {
-    if (depth > 16 || ++visited > 50_000) return;
-    if (typeof value === "string" && ["masterurl", "backupurls", "streamurl", "urldefault", "urlpre", "url"].includes(key.toLowerCase())) { const url = https(value); if (url && !videos.includes(url)) videos.push(url); return; }
-    if (Array.isArray(value)) { for (const child of value) videoURLs(child, key, depth + 1); return; }
-    const record = object(value); const preferred = ["masterUrl", "streamUrl", "url", "urlDefault", "urlPre", "backupUrls"];
-    for (const child of [...preferred.filter(key => key in record), ...Object.keys(record).filter(key => !preferred.includes(key)).sort()]) videoURLs(record[child], child, depth + 1);
+  // Videos are not transcribed; all that matters is whether the note carries one (any https address under its video block).
+  let visited = 0;
+  function hasVideoURL(value: unknown, depth = 0): boolean {
+    if (depth > 16 || ++visited > 50_000) return false;
+    if (typeof value === "string") return !!https(value);
+    return (Array.isArray(value) ? value : Object.values(object(value))).some(child => hasVideoURL(child, depth + 1));
   }
-  videoURLs(chosen.video ?? chosen.videoInfo);
   const declared = firstString(chosen, ["type", "noteType"]);
-  return { id: expectedID, title, body, tags, images, videos, kind: declared?.toLowerCase() === "video" || videos.length ? "video" : "image" };
+  return { id: expectedID, title, body, tags, images, kind: declared?.toLowerCase() === "video" || hasVideoURL(chosen.video ?? chosen.videoInfo) ? "video" : "image" };
 }
 function metadata(html: string, property: string): string | undefined {
   for (const match of html.matchAll(/<meta\b[^>]*>/giu)) {
@@ -136,10 +134,10 @@ function extensionFor(type: string): string {
   return "jpg";
 }
 /** A public image the page shows, read for its text. Audio and video are not transcribed on this machine (batch 112). */
-async function remoteImage(home: string, url: string, referer: string, options: MaterialSourceOptions, maxBytes = maxBinary): Promise<{ extraction: UploadedMaterial; bytes: number }> {
+async function remoteImage(url: string, referer: string, options: MaterialSourceOptions, maxBytes = maxBinary): Promise<{ extraction: UploadedMaterial; bytes: number }> {
   checkAborted(options); if (!https(url)) throw materialSourceErrors.invalid_media("图片必须使用公开 HTTPS 地址");
   const response = await fetcher(options)(url, { maxBytes, headers: { ...pageHeaders(), accept: "image/*,application/octet-stream", referer: safeReferer(referer) }, signal: options.signal });
-  const extraction = await (options.extractMaterial ?? extractUploadedMaterial)(home, { file_name: `来源素材.${extensionFor(response.type)}`, data_base64: response.data.toString("base64") }, options);
+  const extraction = await (options.extractMaterial ?? extractUploadedMaterial)({ file_name: `来源素材.${extensionFor(response.type)}`, data_base64: response.data.toString("base64") }, options);
   return { extraction, bytes: response.data.length };
 }
 function apiData(response: MaterialPublicResponse): Record<string, unknown> {
@@ -167,7 +165,7 @@ async function bilibili(source: string, options: MaterialSourceOptions): Promise
   }
   throw materialSourceErrors.unavailable("没有合格的公开字幕；可以粘贴字幕继续");
 }
-async function xiaohongshu(home: string, source: string, options: MaterialSourceOptions): Promise<MaterialSourceMaterial> {
+async function xiaohongshu(source: string, options: MaterialSourceOptions): Promise<MaterialSourceMaterial> {
   const expected = materialXiaohongshuNoteID(source)!; const { html, response } = await readPage(source, options);
   if (materialXiaohongshuNoteID(response.final_url) !== expected) throw materialSourceErrors.note_mismatch("小红书跳转后的笔记 ID 不一致；未读取其他笔记");
   const payload = parseMaterialXiaohongshu(html, expected); const parts = [payload.title, payload.body, payload.tags.length ? `话题：${payload.tags.map(tag => `#${tag}`).join(" ")}` : undefined].filter((text): text is string => !!text);
@@ -177,7 +175,7 @@ async function xiaohongshu(home: string, source: string, options: MaterialSource
     if (payload.images.length > 20) issues.push("图集仅提取前 20 张");
     for (const [index, url] of payload.images.slice(0, 20).entries()) {
       checkAborted(options); if (bytes >= maxBinary) { issues.push("图集总下载达到 25 MB 上限"); break; }
-      try { const result = await remoteImage(home, url, response.final_url, options, maxBinary - bytes); bytes += result.bytes; acquired++; if (result.extraction.text.trim()) { hasMaterial = true; parts.push(`[图片 ${index + 1}]\n${result.extraction.text}`); } pages.push(...result.extraction.pages.map(page => ({ ...page, number: index + 1 }))); issues.push(...result.extraction.coverage.issues); }
+      try { const result = await remoteImage(url, response.final_url, options, maxBinary - bytes); bytes += result.bytes; acquired++; if (result.extraction.text.trim()) { hasMaterial = true; parts.push(`[图片 ${index + 1}]\n${result.extraction.text}`); } pages.push(...result.extraction.pages.map(page => ({ ...page, number: index + 1 }))); issues.push(...result.extraction.coverage.issues); }
       catch (error) { checkAborted(options); if (error instanceof ActionError && !isMaterialFailure(error)) throw error; issues.push(`图片 ${index + 1}：${error instanceof Error ? error.message : "提取失败"}`); if (isMaterialFailure(error) && error.code === "material.native_unavailable") break; }
     }
     if (payload.images.length) issues.push("图片仅提取文字，未理解纯视觉内容");
@@ -186,11 +184,11 @@ async function xiaohongshu(home: string, source: string, options: MaterialSource
   if (!text || !hasMaterial) throw materialSourceErrors.insufficient("小红书来源只有标题或元数据，没有足够的可读材料；原链接保留，可以粘贴原文继续");
   return { text, title: payload.title, source_url: source, provider: "xiaohongshu", extractor: "xiaohongshu-public-page", coverage: coverage([...new Set(issues)], true, acquired, payload.kind === "video" ? 1 : payload.images.length), pages };
 }
-export async function readMaterialSource(home: string, source: string, options: MaterialSourceOptions = {}): Promise<MaterialSourceMaterial> {
+export async function readMaterialSource(source: string, options: MaterialSourceOptions = {}): Promise<MaterialSourceMaterial> {
   checkAborted(options);
   switch (classifyMaterialSource(source)) {
     case "bilibili": return bilibili(source, options);
-    case "xiaohongshu": return xiaohongshu(home, source, options);
+    case "xiaohongshu": return xiaohongshu(source, options);
     case "article": {
       const response = await fetcher(options)(source, { maxBytes: 4_000_000, headers: pageHeaders(), signal: options.signal });
       if (/html/iu.test(response.type)) { const article = materialHTMLArticle(response.data.toString("utf8")); return { ...article, source_url: source, provider: "article", extractor: "public-html", coverage: coverage(["提取公开网页正文，未读取嵌入音视频和图片"], true) }; }

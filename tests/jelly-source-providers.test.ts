@@ -63,11 +63,11 @@ test("Bilibili qualified Chinese subtitles retain timestamps without a model dow
     },
     async extractMaterial() { assert.fail("subtitles are read as text, never extracted"); }
   };
-  const result = await readMaterialSource("/unused", url, options); assert.equal(result.provider, "bilibili"); assert.equal(result.segments?.length, 30); assert.equal(result.coverage.status, "sufficient"); assert.equal(result.title, "视频标题"); assert.ok(!seen.some(target => target.endsWith("english")));
+  const result = await readMaterialSource(url, options); assert.equal(result.provider, "bilibili"); assert.equal(result.segments?.length, 30); assert.equal(result.coverage.status, "sufficient"); assert.equal(result.title, "视频标题"); assert.ok(!seen.some(target => target.endsWith("english")));
 });
 test("Batch 112: Bilibili without qualified public subtitles asks for pasted subtitles and never downloads audio", async () => {
   const url = "https://www.bilibili.com/video/BVexample"; const seen: string[] = [];
-  await assert.rejects(readMaterialSource("/unused", url, {
+  await assert.rejects(readMaterialSource(url, {
     async fetch(target) {
       seen.push(target);
       if (target === url) return page(url, '<script>__INITIAL_STATE__={"videoData":{"bvid":"BVexample","cid":123}}</script>');
@@ -80,7 +80,7 @@ test("Batch 112: Bilibili without qualified public subtitles asks for pasted sub
 });
 test("Batch 112: a podcast page is read as an ordinary article, and its audio is never fetched", async () => {
   const seen: string[] = [];
-  const result = await readMaterialSource("/unused", "https://www.xiaoyuzhoufm.com/episode/abc", { async fetch(target) {
+  const result = await readMaterialSource("https://www.xiaoyuzhoufm.com/episode/abc", { async fetch(target) {
     seen.push(target);
     return page(target, `<title>节目标题</title><meta property="og:audio" content="https://cdn.example/a.mp3"><article><p>${"节目简介的公开文字。".repeat(8)}</p></article>`);
   }, async extractMaterial() { assert.fail("no audio is transcribed"); } });
@@ -91,39 +91,39 @@ test("Xiaohongshu exact note identity, source text and bounded images are preser
   const id = "abc123"; const url = `https://www.xiaohongshu.com/explore/${id}?xsec_token=private-query`;
   const html = noteHTML(id, { noteId: id, title: "标题", desc: "原始正文内容", tagList: [{ name: "实践" }], imageList: [{ urlDefault: "https://cdn.example/image.png" }] });
   const parsed = parseMaterialXiaohongshu(html, id); assert.equal(parsed.body, "原始正文内容");
-  const result = await readMaterialSource("/unused", url, { async fetch(target, options) { if (target === url) return page(url, html); assert.equal(options?.headers?.referer, `https://www.xiaohongshu.com/explore/${id}`); assert.ok(options!.maxBytes! <= 25 * 1024 * 1024); return page(target, "image", "image/png"); }, async extractMaterial() { return material("图片上的文字"); } });
+  const result = await readMaterialSource(url, { async fetch(target, options) { if (target === url) return page(url, html); assert.equal(options?.headers?.referer, `https://www.xiaohongshu.com/explore/${id}`); assert.ok(options!.maxBytes! <= 25 * 1024 * 1024); return page(target, "image", "image/png"); }, async extractMaterial() { return material("图片上的文字"); } });
   assert.match(result.text, /原始正文内容/); assert.match(result.text, /图片上的文字/); assert.equal(result.pages?.[0]?.number, 1); assert.equal(result.coverage.status, "partial"); assert.equal(result.source_url, url);
   assert.throws(() => parseMaterialXiaohongshu(html, "different"), /不一致/);
 });
 test("restricted and redirected-to-other-note XHS pages stay explicit failures", async () => {
   const url = "https://www.xiaohongshu.com/explore/abc";
-  await assert.rejects(readMaterialSource("/unused", url, { async fetch() { return page(url, "请登录后完成验证码"); } }), /公开页没有可读/);
-  await assert.rejects(readMaterialSource("/unused", url, { async fetch() { return page("https://www.xiaohongshu.com/explore/other", noteHTML("other", { noteId: "other", desc: "别人的内容" })); } }), /ID 不一致/);
-  await assert.rejects(readMaterialSource("/unused", url, { async fetch() { return page(url, noteHTML("abc", { noteId: "abc", title: "只有标题", tags: ["只有标签"] })); } }), /只有标题或元数据/);
+  await assert.rejects(readMaterialSource(url, { async fetch() { return page(url, "请登录后完成验证码"); } }), /公开页没有可读/);
+  await assert.rejects(readMaterialSource(url, { async fetch() { return page("https://www.xiaohongshu.com/explore/other", noteHTML("other", { noteId: "other", desc: "别人的内容" })); } }), /ID 不一致/);
+  await assert.rejects(readMaterialSource(url, { async fetch() { return page(url, noteHTML("abc", { noteId: "abc", title: "只有标题", tags: ["只有标签"] })); } }), /只有标题或元数据/);
 });
 test("Batch 112: an XHS video note keeps its original body, says the video is not transcribed, and never fetches the video", async () => {
   const url = "https://www.xiaohongshu.com/explore/abc"; const seen: string[] = [];
-  const result = await readMaterialSource("/unused", url, { async fetch(target) { seen.push(target); return target === url ? page(url, noteHTML("abc", { noteId: "abc", title: "视频", desc: "视频原作者的正文", type: "video", video: { masterUrl: "https://cdn.example/video.mp4" } })) : page(target, "video", "video/mp4"); }, async extractMaterial() { assert.fail("no video is transcribed"); } });
+  const result = await readMaterialSource(url, { async fetch(target) { seen.push(target); return target === url ? page(url, noteHTML("abc", { noteId: "abc", title: "视频", desc: "视频原作者的正文", type: "video", video: { masterUrl: "https://cdn.example/video.mp4" } })) : page(target, "video", "video/mp4"); }, async extractMaterial() { assert.fail("no video is transcribed"); } });
   assert.match(result.text, /原作者的正文/); assert.equal(Object.hasOwn(result, "model_required"), false); assert.equal(result.coverage.status, "partial");
   assert.match(result.coverage.issues.join(" "), /视频不转写/); assert.deepEqual(seen, [url]);
 });
 test("generic public articles retain readable body while omitting executable/page-navigation content", async () => {
-  const result = await readMaterialSource("/unused", "https://example.com/article", { async fetch(target) { return page(target, `<title>示例&amp;文章</title><nav>导航</nav><article><script>secret()</script><p>${"真实公开文章内容。".repeat(8)}</p></article>`); } });
+  const result = await readMaterialSource("https://example.com/article", { async fetch(target) { return page(target, `<title>示例&amp;文章</title><nav>导航</nav><article><script>secret()</script><p>${"真实公开文章内容。".repeat(8)}</p></article>`); } });
   assert.equal(result.title, "示例&文章"); assert.doesNotMatch(result.text, /secret|导航/); assert.equal(result.coverage.status, "partial");
 });
 test("cancelled source never starts fetching", async () => {
   const controller = new AbortController(); controller.abort(); let calls = 0;
-  await assert.rejects(readMaterialSource("/unused", "https://example.com", { signal: controller.signal, async fetch() { calls++; throw new Error("should not fetch"); } })); assert.equal(calls, 0);
+  await assert.rejects(readMaterialSource("https://example.com", { signal: controller.signal, async fetch() { calls++; throw new Error("should not fetch"); } })); assert.equal(calls, 0);
 });
 
 test("RAC-27 source authority is checked before the first fetch, every later fetch and trusted DNS fallback", async () => {
   const refusal = new ActionError("actions.forbidden", "authority withdrawn"); let fetches = 0;
   const beforeEffect = () => { throw refusal; };
-  await assert.rejects(readMaterialSource("/unused", "https://example.com", { beforeEffect,
+  await assert.rejects(readMaterialSource("https://example.com", { beforeEffect,
     async fetch() { fetches++; throw new Error("must not fetch"); } }), error => error === refusal);
   assert.equal(fetches, 0);
   const url = "https://www.xiaohongshu.com/explore/abc";
-  await assert.rejects(readMaterialSource("/unused", url, { beforeEffect() { if (fetches) throw refusal; },
+  await assert.rejects(readMaterialSource(url, { beforeEffect() { if (fetches) throw refusal; },
     async fetch(target) { fetches++; return page(target, noteHTML("abc", { noteId: "abc", title: "标题", desc: "原始正文内容", imageList: [{ urlDefault: "https://cdn.example/image.png" }] })); },
     async extractMaterial() { assert.fail("withdrawn source cannot reach extraction"); } }), error => error === refusal);
   assert.equal(fetches, 1, "no image fetch after the first page withdrew authority");
@@ -194,15 +194,15 @@ test("BL492-04 every request a source's reader makes carries the list: its page,
     async extractMaterial() { assert.fail("subtitles are enough"); },
   });
   // Only the page's host is allowed: the page is read, the API on another host is refused, and nothing after it is requested.
-  await assert.rejects(readMaterialSource("/unused", url, options(["www.bilibili.com"])), refusal(NOT_ALLOWED));
+  await assert.rejects(readMaterialSource(url, options(["www.bilibili.com"])), refusal(NOT_ALLOWED));
   assert.deepEqual(seen, [url]);
   // Every host the read follows to, allowed: it reads.
   seen.length = 0;
-  const read = await readMaterialSource("/unused", url, options(["www.bilibili.com", "api.bilibili.com", "cdn.example"]));
+  const read = await readMaterialSource(url, options(["www.bilibili.com", "api.bilibili.com", "cdn.example"]));
   assert.equal(read.provider, "bilibili");
   assert.equal(seen.length, 3);
   // A plain article on an allowed host reads; the same article on another host is refused before its fetch.
-  const article = (allowedHosts: readonly string[]) => readMaterialSource("/unused", "https://example.com/post", { allowed_hosts: allowedHosts, async fetch(target, request) {
+  const article = (allowedHosts: readonly string[]) => readMaterialSource("https://example.com/post", { allowed_hosts: allowedHosts, async fetch(target, request) {
     assertMaterialHostAllowed(host(target), request?.allowedHosts); return page(target, `<article><p>${"真实公开文章内容。".repeat(8)}</p></article>`);
   } });
   assert.equal((await article(["example.com"])).provider, "article");

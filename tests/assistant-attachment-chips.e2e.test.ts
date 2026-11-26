@@ -60,7 +60,7 @@ test("VUX-18 UIV-12 UIC-15: an added file has its own row on the composer's stri
   assert.deepEqual((await rows()).map((row) => [row.text, row.failed]), [
     ["notes.txt", false],
     ["shot.png读取中", false],
-    ["bundle.zip可以带文字、PDF、Word、图片和录音录像", true],
+    ["bundle.zip可以带文字、PDF、Word 和图片；音视频不转写", true],
   ], "each file has its row at once: read, being read, or why it cannot go");
   assert.deepEqual((await rows())[2]!.acts, ["移除 bundle.zip"], "trying an archive again would not help: only × is offered");
   assert.equal(await sendDisabled(), true, "the Send waits while a file is still being read");
@@ -129,7 +129,7 @@ test("VUX-18 UIC-15: an added file has its own row while it is read, keeps its f
   assert.deepEqual(now.map((chip) => [chip.text, chip.state, chip.busy]), [
     ["notes.txt", "", false],
     ["shot.png读取中", "is-reading", true],
-    ["bundle.zip可以带文字、PDF、Word、图片和录音录像", "is-failed", false],
+    ["bundle.zip可以带文字、PDF、Word 和图片；音视频不转写", "is-failed", false],
   ], "each file has its row at once: read, being read, or why it cannot go");
   assert.deepEqual(now[2]!.acts, ["移除 bundle.zip"], "trying an archive again would not help: only × is offered");
   assert.equal(await sendDisabled(), true, "the Send waits while a file is still being read");

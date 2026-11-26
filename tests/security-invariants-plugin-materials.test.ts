@@ -40,7 +40,8 @@ test("S-39 RAC-26 a plugin's material request never carries the Host's helper, p
       },
       readDocuments: () => Promise.reject(new Error("not read here")),
     }, { install_id: context.install_id, installation_generation: context.installation_generation, project_id: null, assertActive: () => { context.services!.storage!.get("authority"); }, requireGrant: permission => context.requireGrant(permission) });
-    const request = { allowModelDownload: true, onProgress: () => {}, audience: "user", helperPath: "/untrusted", platform: "darwin" };
+    // One real option rides along with the untrusted keys, so the request is a plausible caller value (and type-checks as one).
+    const request = { timeoutMs: 30_000, allowModelDownload: true, onProgress: () => {}, audience: "user", helperPath: "/untrusted", platform: "darwin" };
     await service.extract!({ file_name: "a.txt", bytes: Buffer.from("authorized") }, request);
     return service.readSource!("https://example.com", request);
   };

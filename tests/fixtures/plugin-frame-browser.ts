@@ -135,10 +135,15 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     await followPageMotion(current.session);
     return { ...current, frameId: node.frameId };
   }
-  async function evaluate<T = unknown>(expression: string, timeoutMs?: number): Promise<T> {
+  /**
+   * `as: "person"` runs the expression as if the person had just pressed inside the frame (transient user activation), the way
+   * their click into a document precedes the caret it places. On the Linux runners' Chrome 158 a plugin frame's `focus()` without
+   * one left focus where it was, so a selection placed by script alone never reached the page. Nothing else gets an activation.
+   */
+  async function evaluate<T = unknown>(expression: string, timeoutMs?: number, as?: "person"): Promise<T> {
     const current = await context();
     const result = await browser.command<{ result: { value: T }; exceptionDetails?: unknown }>("Runtime.evaluate", {
-      expression, contextId: current.id, returnByValue: true, awaitPromise: true,
+      expression, contextId: current.id, returnByValue: true, awaitPromise: true, ...(as === "person" ? { userGesture: true } : {}),
     }, current.session, timeoutMs);
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
     return result.result.value;

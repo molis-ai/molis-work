@@ -107,6 +107,17 @@ export function markChanged(page: SchedulePage, taskId: string, state: UiTaskGra
  * whether the project has a workspace (`/readiness`); then says it on the rows and details. A later read replaces an earlier one
  * that lands after it.
  */
+/** The rows were redrawn for new words only: what the tasks read is said again from the last answer, asked again only when there is none. */
+export function sayTaskReads(page: SchedulePage): void {
+  const known = page.taskReads;
+  if (!known) {
+    void readTaskReads(page);
+    return;
+  }
+  apply(page, known, page.ready);
+  for (const [taskId, change] of page.changes) markChanged(page, taskId, change.state);
+}
+
 export async function readTaskReads(page: SchedulePage): Promise<void> {
   if (!page.list.querySelector("[data-schedule-task-id]")) return;
   const reading = ++page.reading;
@@ -116,6 +127,7 @@ export async function readTaskReads(page: SchedulePage): Promise<void> {
   const ready = readsFiles ? await read<Readiness>(page.host, "/readiness").catch(() => undefined) : undefined;
   if (reading !== page.reading) return;
   if (ready) page.ready = ready;
+  if (known) page.taskReads = known;
   apply(page, known, ready ?? page.ready);
   // A change the person made in the area while this list was on its way is newer than the list: it is said again over it.
   for (const [taskId, change] of [...page.changes]) {

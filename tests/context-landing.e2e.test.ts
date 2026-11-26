@@ -36,7 +36,7 @@ test("W3-B1: a passage selected in the right panel is put at the cursor of the P
     const text = [...editor.querySelectorAll('p')].find(node => node.textContent === '先完成核心体验。').firstChild;
     const range = document.createRange(); range.setStart(text, 3); range.collapse(true);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
-  })()`);
+  })()`, undefined, "person");
   await waitFor("window.lastLanding?.position === 'cursor'");
   const landing = await evaluate<{ object: { id: string }; version: number; targets: { anchor: number; head: number }[] }>("window.lastLanding");
   assert.equal(landing.object.id, left.id);
@@ -93,7 +93,7 @@ test("RAC-1983: what the landing reports about the cursor and the selection neve
     const text = [...editor.querySelectorAll('p')].find(node => node.textContent.length === ${units}).firstChild;
     const range = document.createRange(); range.setStart(text, ${from}); range.setEnd(text, ${to});
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
-  })()`);
+  })()`, undefined, "person");
   const shape = (value: string, expected: string) => ({ units: value.length, characters: [...value].length, same: value === expected });
   type Landing = { targets: { text: string; truncated?: boolean }[]; surroundings: { before: string; after: string } };
   // The cursor after 499 units of the first paragraph: the 200 units before it start in the middle of the 150th 🟢, the 200 after it end in the middle of the last one.

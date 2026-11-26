@@ -224,7 +224,7 @@ test("ONB-28/SPC-07/16: undo restores confirmed siblings after an uncertain writ
       assert.deepEqual(status.latest_undo?.steps[1], replaced);
       if (page && browser) {
         await Promise.all([browser.event("Page.domContentEventFired"), page.command("Page.navigate", { url: served.origin + resultPath })]);
-        await page.wait(`${awaiting} && /installation has changed/i.test(${pendingRow})`);
+        await page.wait(`${awaiting} && /was reinstalled/i.test(${pendingRow})`);
       }
       assert.deepEqual(JSON.parse(await readFile(preference, "utf8")), saved, "the replacement never receives an old request");
     } finally { await served.close(); }

@@ -92,7 +92,7 @@ test("RAC-916-L1 RAC-916-L2 RAC-916-L3: oversized real Pages offers preserve com
     const overhead = await comments.evaluate<number>(`(() => {const sample=structuredClone(window.racRaw.at(-1));sample.text='边界后的重试评论';sample.thread.draft.text='';return JSON.stringify(sample).length;})()`);
     await draft("x".repeat(100001 - overhead));
     const before = (await pending())!;await comments.click('[data-comment-send]');
-    await comments.waitFor("document.querySelector('[data-comment-error]').textContent.includes('评论已保存，尚未交给助理')");
+    await comments.waitFor("document.querySelector('[data-comment-error]').textContent.includes('评论已保存，还没有交给助理')");
     const saved = (await pending())!;
     assert.equal(await comments.evaluate("window.racSizes.at(-1).size"), 100001, "the actual final post-save detail is one character over the real bridge cap");
     assert.equal(saved.request_id, before.request_id);assert.ok(saved.message_id);assert.equal(saved.body, before.body);

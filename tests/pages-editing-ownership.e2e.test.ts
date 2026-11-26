@@ -133,7 +133,7 @@ for (const refused of [false, true]) test(`QEA-70: selecting a document while re
 
 async function translation(f: NonNullable<Awaited<ReturnType<typeof fixture>>>, expected: string) {
   await f.frame.evaluate(`(() => { const editor=document.querySelector('[data-pages-editor] .ProseMirror'),p=editor.querySelector('p');
-    editor.focus();const range=document.createRange();range.selectNodeContents(p);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange')); })()`);
+    editor.focus();const range=document.createRange();range.selectNodeContents(p);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange')); })()`, undefined, "person");
   const more = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away]) [data-more]";
   await f.waitFor(`document.querySelector(${JSON.stringify(more)})`);
   await f.click(more);

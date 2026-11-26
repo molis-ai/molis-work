@@ -2,7 +2,7 @@ import { detailOf } from "./dom.js";
 import type { SchedulePage } from "./page.js";
 import type { RowKind } from "./types.js";
 import { post } from "./request.js";
-import { readTaskReads, showCreated } from "./reads.js";
+import { readTaskReads, sayTaskReads, showCreated } from "./reads.js";
 import { closeArea, placeArea } from "./area.js";
 
 const uiText = globalThis.t;
@@ -93,9 +93,9 @@ export function openNow(page: SchedulePage): { readonly id?: string; readonly ki
  * Reads are numbered: one started later (the person's change while a background read was under way, or the other way round) is
  * newer than any answer of an earlier one, so an earlier read that answers after it draws nothing and ends as the later one does.
  */
-export function refreshStage(page: SchedulePage, openId?: string, kind: RowKind = "task", preserveConfirmation = false, markRead = true, signal?: AbortSignal): Promise<boolean> {
+export function refreshStage(page: SchedulePage, openId?: string, kind: RowKind = "task", preserveConfirmation = false, markRead = true, signal?: AbortSignal, wordsOnly = false): Promise<boolean> {
   const turn = ++page.refreshing;
-  const next = drawStage(page, turn, openId, kind, preserveConfirmation, markRead, signal);
+  const next = drawStage(page, turn, openId, kind, preserveConfirmation, markRead, signal, wordsOnly);
   page.latestRefresh = next;
   return next;
 }
@@ -107,7 +107,7 @@ async function superseded(page: SchedulePage, preserveConfirmation: boolean): Pr
   return drawn;
 }
 
-async function drawStage(page: SchedulePage, turn: number, openId: string | undefined, kind: RowKind, preserveConfirmation: boolean, markRead: boolean, signal?: AbortSignal): Promise<boolean> {
+async function drawStage(page: SchedulePage, turn: number, openId: string | undefined, kind: RowKind, preserveConfirmation: boolean, markRead: boolean, signal?: AbortSignal, wordsOnly = false): Promise<boolean> {
   const { list, workbench, host } = page;
   try {
     const scrollTop = list.scrollTop, template = document.createElement("template"), asked = openNow(page);
@@ -140,8 +140,10 @@ async function drawStage(page: SchedulePage, turn: number, openId: string | unde
     if ((target.kind === "task" || target.kind === "job") && target.id && detailOf(workspace, target.id)) select(page, target.id, target.kind, markRead);
     else if (target.kind === "task" || target.kind === "job") collapse(page);
     else if (target.kind === "none") collapse(page);
-    // The rows and details are new: what each task reads is said on them again (one read for the whole list).
-    void readTaskReads(page);
+    // The rows and details are new: what each task reads is said on them again (one read for the whole list); new words alone change
+    // no grant, so the last answer is said again (TGA-22).
+    if (wordsOnly) sayTaskReads(page);
+    else void readTaskReads(page);
     return true;
   } catch {
     if (signal?.aborted) return false;

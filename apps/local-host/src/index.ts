@@ -485,5 +485,6 @@ export { offerProjectAutomation } from "./automation-proactive.js";
 // A project's installed signed packages as pages and calls (47-1: the platform's), and the trials the studio answers for its drafts.
 export { handleInstalledPluginHttp, installedPluginStages, type InstalledPluginHttpOptions } from "./installed-plugin-http.js";
 export { generatedPluginManifest, studioTrials } from "./plugin-builder/studio-preview.js";
+export { imageGeneratorOf } from "./plugin-builder/studio-images.js";
 export { HOME_PAGE_SESSION_HEADER, HomePageSessionRegistry } from "./home-page-authority.js";
 export { HOME_PLATFORM_SURFACE_ROUTES } from "./platform-surface-routes.js";

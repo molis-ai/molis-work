@@ -133,12 +133,6 @@
       "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
       "decided": "2026-11-25"
     },
-    "apps/local-host/src/plugin-builder/studio-images.ts": {
-      "count": 8,
-      "kind": "deferred",
-      "reason": "创作台画方案配图借项目里图片插件的动作（`images.jobs.*`）与权限；改成「声明 image_generation 的插件」随 BL-b44c-studio-images 做，44C 不改创作台行为",
-      "decided": "2026-11-25"
-    },
     "apps/local-host/src/plugin-executor.ts": {
       "count": 1,
       "kind": "same-word",

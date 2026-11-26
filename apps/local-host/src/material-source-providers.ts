@@ -97,12 +97,15 @@ export function parseMaterialXiaohongshu(html: string, expectedID: string): Mate
   const body = firstString(chosen, ["desc", "description"])?.trim().slice(0, 200_000);
   const tags = [...new Set(array(chosen.tagList ?? chosen.tags).map(value => typeof value === "string" ? value : firstString(object(value), ["name", "title"])).filter((value): value is string => !!value).map(value => value.trim().slice(0, 100)))];
   const images = [...new Set(array(chosen.imageList ?? chosen.images).map(value => https(firstString(object(value), ["urlDefault", "urlPre", "url"]))).filter((value): value is string => !!value))];
-  // Videos are not transcribed; all that matters is whether the note carries one (any https address under its video block).
+  // Videos are not transcribed; all that matters is whether the note carries one: an https address under one of a video's stream keys
+  // (a cover image's address elsewhere in the block does not count).
+  const streamKeys = new Set(["masterurl", "backupurls", "streamurl", "urldefault", "urlpre", "url"]);
   let visited = 0;
-  function hasVideoURL(value: unknown, depth = 0): boolean {
+  function hasVideoURL(value: unknown, key = "", depth = 0): boolean {
     if (depth > 16 || ++visited > 50_000) return false;
-    if (typeof value === "string") return !!https(value);
-    return (Array.isArray(value) ? value : Object.values(object(value))).some(child => hasVideoURL(child, depth + 1));
+    if (typeof value === "string") return streamKeys.has(key.toLowerCase()) && !!https(value);
+    if (Array.isArray(value)) return value.some(child => hasVideoURL(child, key, depth + 1));
+    return Object.entries(object(value)).some(([name, child]) => hasVideoURL(child, name, depth + 1));
   }
   const declared = firstString(chosen, ["type", "noteType"]);
   return { id: expectedID, title, body, tags, images, kind: declared?.toLowerCase() === "video" || hasVideoURL(chosen.video ?? chosen.videoInfo) ? "video" : "image" };

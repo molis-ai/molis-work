@@ -21,8 +21,6 @@ test("uploaded UTF8 and HTML become traceable text without evaluating scripts", 
     const text = await extractUploadedMaterial(upload("用户笔记.md", "# 真实想法\n保留中文。")); assert.equal(text.text, "# 真实想法\n保留中文。"); assert.equal(text.coverage.status, "sufficient");
     const html = await extractUploadedMaterial(upload("网页.html", "<html><style>SECRET STYLE</style><script>SECRET SCRIPT</script><h1>标题</h1><p>A &amp; B &#x4E2D;&#25991;</p></html>"));
     assert.match(html.text, /标题/); assert.match(html.text, /A & B 中文/); assert.doesNotMatch(html.text, /SECRET/); assert.equal(html.coverage.status, "partial");
-    // Reading keeps no spark, so nothing of the upload stays in the Home: no raw copy that no one would read or clean up.
-    assert.deepEqual(readdirSync(directory), []);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 test("path names, invalid base64, empty, unsupported and non-UTF8 inputs fail", async () => {

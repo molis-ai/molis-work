@@ -107,6 +107,14 @@ test("Batch 112: an XHS video note keeps its original body, says the video is no
   assert.match(result.text, /原作者的正文/); assert.equal(Object.hasOwn(result, "model_required"), false); assert.equal(result.coverage.status, "partial");
   assert.match(result.coverage.issues.join(" "), /视频不转写/); assert.deepEqual(seen, [url]);
 });
+test("Batch 112: an XHS note with no declared type is a video only when a stream key holds an address; a cover image alone keeps it a picture note", async () => {
+  const url = "https://www.xiaohongshu.com/explore/abc";
+  const video = await readMaterialSource(url, { async fetch(target) { return page(url, noteHTML("abc", { noteId: "abc", title: "视频", desc: "正文", videoInfo: { media: { stream: { h264: [{ masterUrl: "https://cdn.example/v.mp4" }] } } } })); }, async extractMaterial() { assert.fail("no video is transcribed"); } });
+  assert.match(video.coverage.issues.join(" "), /视频不转写/);
+  let read = 0;
+  const picture = await readMaterialSource(url, { async fetch(target) { return target === url ? page(url, noteHTML("abc", { noteId: "abc", title: "图集", desc: "正文", video: { image: { thumbnailUrl: "https://cdn.example/cover.jpg" } }, imageList: [{ urlDefault: "https://cdn.example/1.png" }] })) : page(target, "image", "image/png"); }, async extractMaterial() { read++; return material("图上的字"); } });
+  assert.equal(read, 1, "the picture is read"); assert.doesNotMatch(picture.coverage.issues.join(" "), /视频不转写/); assert.match(picture.text, /图上的字/);
+});
 test("generic public articles retain readable body while omitting executable/page-navigation content", async () => {
   const result = await readMaterialSource("https://example.com/article", { async fetch(target) { return page(target, `<title>示例&amp;文章</title><nav>导航</nav><article><script>secret()</script><p>${"真实公开文章内容。".repeat(8)}</p></article>`); } });
   assert.equal(result.title, "示例&文章"); assert.doesNotMatch(result.text, /secret|导航/); assert.equal(result.coverage.status, "partial");

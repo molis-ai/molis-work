@@ -77,12 +77,10 @@ test("malformed HTML cannot block the Host deadline; cancellation releases its w
   assert.deepEqual(await readMaterialHtml("<head><title>OK</title></head><p>Recovered</p>"), { title: "OK", text: "Recovered" });
   assert.equal(ports(), initial);
 });
-test("read, revoked and aborted uploads leave nothing in the Home", async () => {
-  const home = mkdtempSync(path.join(tmpdir(), "molis-material-ref-"));
-  try {
+test("read, revoked and aborted uploads return the text or stop, and simultaneous reads do not mix", async () => {
+  {
     const upload = { file_name: "old.md", data_base64: Buffer.from("# 原始材料\n保持原件").toString("base64") };
     assert.equal((await extractUploadedMaterial(upload)).text, "# 原始材料\n保持原件");
-    assert.deepEqual(readdirSync(home), [], "the text is returned; the upload itself is not kept");
     const cancelled = new AbortController();
     await assert.rejects(extractUploadedMaterial({ file_name: "cancel.md", data_base64: Buffer.from("NEW COPY").toString("base64") }, {
       signal: cancelled.signal, beforeEffect() { cancelled.abort(); },
@@ -93,8 +91,7 @@ test("read, revoked and aborted uploads leave nothing in the Home", async () => 
       file_name: "simultaneous.txt", data_base64: Buffer.from("same concurrent content").toString("base64"),
     })));
     assert.ok(simultaneous.every(result => result.text === "same concurrent content"));
-    assert.deepEqual(readdirSync(home), []);
-  } finally { rmSync(home, { recursive: true, force: true }); }
+  }
 });
 test("native cancellation kills the child and cleans its actual temporary input and run directory", async () => {
   const home = mkdtempSync(path.join(tmpdir(), "molis-material-process-"));

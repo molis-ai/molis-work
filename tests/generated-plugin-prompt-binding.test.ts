@@ -124,7 +124,7 @@ test('SBXN-04 installed and authoring model calls bind their own release through
   const blocker = openHomeSqliteDatabase(home, 'agent-declarations');
   try {
     blocker.exec('BEGIN IMMEDIATE');
-    await assert.rejects(two.lifecycle('disable', v2), { code: 'plugin.executor_failed' });
+    await assert.rejects(two.lifecycle('disable', v2), /database is locked/);
   } finally { blocker.close(); }
   assert.equal(registry.prompt(key).default_body, 'RELEASE_ONE');
   assert.deepEqual(remembered()?.prompts.map(item => item.prompt_id).sort(), ['new-only', 'summary']);

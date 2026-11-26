@@ -3084,6 +3084,13 @@ export interface HostOfferedOriginalInput {
     readonly action: ActionReference;
 }
 
+export declare const IMAGE_GENERATION_PROTOCOL: Record<ImageGenerationRole, {
+    readonly input_type: string;
+    readonly output_type: string;
+}>;
+
+export declare const IMAGE_GENERATION_ROLES: readonly ["services.list", "generate", "generations.get", "image.read"];
+
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
 
 export declare const ITEM_DECLARATION_LIMITS: {
@@ -3096,6 +3103,8 @@ export declare const ITEM_DECLARATION_LIMITS: {
     readonly start_title: 80;
     readonly hint: 200;
 };
+
+export type ImageGenerationRole = (typeof IMAGE_GENERATION_ROLES)[number];
 
 export type InferActionInput<S> = S extends {
     readonly const: infer C;
@@ -6312,6 +6321,8 @@ export declare function fileContentOf(input: {
 export declare function fileEntriesPage(entries: readonly FileEntry[], input: FileEntriesInput): FileEntriesPage;
 
 export declare function findSubjectReader(views: readonly ActionView[], kind: string): SubjectReaderLookup;
+
+export declare function imageGenerationRoleOf(action: TypedActionShape): ImageGenerationRole | null;
 
 export declare const inputSchemaFor: <I>() => <const S extends ActionSchema>(schema: S & InputMatches<I, S>) => ActionSchema;
 

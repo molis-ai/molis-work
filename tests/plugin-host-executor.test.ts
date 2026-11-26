@@ -24,7 +24,8 @@ function githubFixture(): PluginDefinition {
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
   }) });
-  const service = base.manifest.connection_services![0]!;
+  // The service card's words are GitHub's own keys; a fixture under another name may only use plain text, so it goes without one.
+  const { card: _card, ...service } = base.manifest.connection_services![0]!;
   return { ...base, connectionText: undefined, manifest: { ...base.manifest, ui: { contributions: base.manifest.ui.contributions },
     permissions: base.manifest.permissions.map(({ reason_text: _reasonText, ...permission }) => permission),
     connection_services: [{ ...service, summary: "Fixture GitHub connection",

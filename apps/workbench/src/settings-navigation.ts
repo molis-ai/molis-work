@@ -1,7 +1,8 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderProjectMonogram } from "@molis-ai/molis-work-design-system";
-import { globalSettingsSectionPath, groupedGlobalSettingsSections } from "./settings-sections.js";
+import { groupedGlobalSettingsSections } from "./settings-sections.js";
+import { PLATFORM_PROJECT_SETTINGS_REGISTRY, settingsSectionPath, type ProjectSettingsPage } from "./platform-settings-registry.js";
 import type { DynamicPluginSettingsNavItem } from "./settings-view.js";
 
 export interface WebProjectNavigation {
@@ -15,9 +16,8 @@ export interface WebProjectNavigation {
 }
 
 
-export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "authorizations" | "characters" | "prompts" | "kit" | "memory" | "work-records" | "mcp" | "connectors" | "web-search" | "projects" | "diagnostics" | "update" | "running" | "directories" | "sync";
+export type { PlatformSettingsPage as WebSettingsSection } from "./platform-settings-registry.js";
 type SettingsNavigationActive = string;
-type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "kit" | "characters" | "grants" | "rules";
 
 
 export interface SettingsNavigationPrimitives {
@@ -149,21 +149,21 @@ function renderSettingsNavigation(
     <div class="settings-nav-filter"><input class="mw-input" type="search" data-settings-nav-filter placeholder="${uiText("workbench.settings-navigation.filter-settings")}" aria-label="${uiText("workbench.settings-navigation.filter-settings")}" autocomplete="off"></div>
     <div class="settings-nav-body">
       ${groupedGlobalSettingsSections(shownPlugins, desktopShell, dynamicPlugins).map(({ group, sections }) => `<div class="settings-nav-group-label">${escapeHtml(group)}</div>
-      ${sections.map((section) => `<a href="${href(globalSettingsSectionPath(section.id))}"${current(section.id)}>${icon(section.icon)}${escapeHtml(section.label)}</a>`).join("")}`).join("")}
+      ${sections.map((section) => `<a href="${href(settingsSectionPath(section.id))}"${current(section.id)}>${icon(section.icon)}${escapeHtml(section.label)}</a>`).join("")}`).join("")}
     </div>
     <p class="settings-nav-empty" data-settings-nav-empty hidden>${uiText("workbench.settings-navigation.no-matching-settings")}</p>
   </nav>`;
 }
 
 function renderProjectSettingsNavigation(
-  active: ProjectSettingsNavigationActive,
+  active: ProjectSettingsPage,
   project: WebProjectNavigation,
   desktopShell = false,
   _projects: readonly WebProjectNavigation[] = [],
 ): string {
   const routePrefix = `/projects/${encodeURIComponent(project.project_id)}`;
   const href = (path: string) => desktopShell ? withDesktopQuery(path) : path;
-  const current = (section: ProjectSettingsNavigationActive) => active === section ? ' aria-current="page"' : "";
+  const current = (section: ProjectSettingsPage) => active === section ? ' aria-current="page"' : "";
   const globalSettingsHref = settingsContextHref("/settings/appearance", project, desktopShell);
   return `<nav class="settings-navigation settings-navigation--codex project-settings-navigation" aria-label="${uiText("workbench.settings-navigation.project-settings")}">
     <a class="settings-nav-back" href="${href(`${routePrefix}/`)}">${icon("arrow")} ${uiText("workbench.settings-navigation.back-workbench")}</a>
@@ -171,15 +171,7 @@ function renderProjectSettingsNavigation(
     <div class="settings-project-identity"><strong title="${escapeHtml(project.display_name)}">${escapeHtml(project.display_name)}</strong><span>${uiText("workbench.settings-navigation.project-settings")}</span></div>
     <div class="settings-nav-filter"><input class="mw-input" type="search" data-settings-nav-filter placeholder="${uiText("workbench.settings-navigation.filter-settings")}" aria-label="${uiText("workbench.settings-navigation.filter-settings")}" autocomplete="off"></div>
     <div class="settings-nav-body">
-      <a href="${href(`${routePrefix}/settings`)}"${current("general")}>${icon("tune")}${uiText("workbench.settings-navigation.general")}</a>
-      <a href="${href(`${routePrefix}/settings/workspaces`)}"${current("workspaces")}>${icon("folder")}${uiText("workbench.settings-navigation.inputs-output")}</a>
-      <a href="${href(`${routePrefix}/settings/guidance`)}"${current("guidance")}>${icon("book")}${uiText("workbench.settings-navigation.project-guidance")}</a>
-      <a href="${href(`${routePrefix}/settings/memory`)}"${current("memory")}>${icon("bookmark")}${uiText("workbench.settings-navigation.project-memory")}</a>
-      <a href="${href(`${routePrefix}/settings/knowledge`)}"${current("knowledge")}>${icon("file")}${uiText("workbench.settings-navigation.project-knowledge")}</a>
-      <a href="${href(`${routePrefix}/settings/plugins`)}"${current("plugins")}>${icon("package")}${uiText("workbench.settings-navigation.plugin")}</a>
-      <a href="${href(`${routePrefix}/settings/kit`)}"${current("kit")}>${icon("sparkles")}${uiText("workbench.kit.title")}</a>
-      <a href="${href(`${routePrefix}/settings/characters`)}"${current("characters")}>${icon("user")}${uiText("workbench.settings-sections.characters")}</a>
-      <a href="${href(`${routePrefix}/settings/grants`)}"${current("grants")}>${icon("shield")}${uiText("workbench.settings-navigation.access-approvals")}</a>
+      ${PLATFORM_PROJECT_SETTINGS_REGISTRY.flatMap(section => "row" in section ? [`<a href="${href(`${routePrefix}/settings${section.id === "general" ? "" : `/${section.id}`}`)}"${current(section.id)}>${icon(section.row.icon)}${uiText("standalone" in section.row ? section.row.standalone : section.row.label)}</a>`] : []).join("\n      ")}
     </div>
     <p class="settings-nav-empty" data-settings-nav-empty hidden>${uiText("workbench.settings-navigation.no-matching-settings")}</p>
   </nav>`;

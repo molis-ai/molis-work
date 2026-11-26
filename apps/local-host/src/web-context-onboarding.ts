@@ -1,3 +1,4 @@
+import { builtinMailboxDriver } from "./builtin-drivers.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readNativePluginJsonBody } from "./native-plugin-http.js";
 import { sendLocalWebJson as json } from "./web-http.js";
@@ -25,8 +26,8 @@ export function createContextOnboardingHttp(ports: ContextOnboardingPorts, host:
     if (url.pathname !== prefix && !url.pathname.startsWith(prefix + "/")) return false;
     try {
       if (req.method === "GET" && url.pathname === prefix) {
-        const model = await onboardingTextModel(home, ports.model);
-        json(res, 200, { gmail_configured: await connectorLoginReady(home, "gmail"), connections: listConnectorConnectionViews(home, "gmail").filter(row => row.auth_method === "oauth" || row.auth_method === "token"), model: model.runtimeLabel ?? null, ai_available: Boolean(model.completeText), resume: withContextJourneys(home, store => store.latestIncomplete(url.searchParams.get("project"))),
+        const model = await onboardingTextModel(home, ports.model), mailbox = builtinMailboxDriver();
+        json(res, 200, { gmail_configured: await connectorLoginReady(home, mailbox.service), mailbox: { service_id: mailbox.service, title: mailbox.title }, connections: listConnectorConnectionViews(home, mailbox.service).filter(row => row.auth_method === "oauth" || row.auth_method === "token"), model: model.runtimeLabel ?? null, ai_available: Boolean(model.completeText), resume: withContextJourneys(home, store => store.latestIncomplete(url.searchParams.get("project"))),
           // The plugins that draft and that keep documents, by name, only when there are several to choose from (contract-design §2.5).
           draft_takers: choice(ports, "drafts"), document_takers: choice(ports, "documents") }); return true;
       }

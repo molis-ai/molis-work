@@ -328,7 +328,7 @@ export interface PluginManifest {
   /** Which of this plugin's object kinds support the platform's object work terminal (`platform/work-terminal`, PEQ-17). */
   work_terminals?: readonly import("./work-terminal.js").WorkTerminalObjectDeclaration[];
   /**
-   * The scene this plugin's sessions and runs belong to (PEQ-09): its own short lowercase name (Coding declares `coding`), or `common`
+   * The scene this plugin's sessions and runs belong to (PEQ-09): its own short lowercase name (such as `code`), or `common`
    * for none of its own. Memory and Skills use the name; plugins that declare the same one share it (BL-b44-coding-scene-enum).
    */
   memory_scene?: string;

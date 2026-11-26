@@ -1,6 +1,7 @@
 import { pluginRouteBase } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { HostSurfaceRegistration, PluginFrameStyleFeature, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { declaresOwner, ownedContribution, type OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import { PLATFORM_SURFACES, type PlatformSurface } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { WORKBENCH_SURFACE_CATALOG } from "./host-surfaces.js";
 import { drawCatalogText } from "./plugin-text.js";
@@ -238,13 +239,9 @@ export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[
     : []);
 }
 
-/**
- * The Host's own surfaces, mounted on first show beside the plugins'. The Host's 角色 pages are settings pages now (Settings › 角色 and
- * 项目设置 › 角色, docs/design/role-scope), loaded by their own settings loader, so 角色 is not among them.
- */
-const HOST_SURFACE_CLIENTS: readonly Pick<PluginSurfaceClient, "id" | "bundle" | "assets">[] = [
-  { id: "sessions", bundle: "sessions", assets: [] },
-];
+/** The platform's own pages mounted on first show beside the plugins' (`on_show`; 角色 is a settings page with a loader of its own). */
+const HOST_SURFACE_CLIENTS: readonly Pick<PluginSurfaceClient, "id" | "bundle" | "assets">[] = PLATFORM_SURFACES.flatMap((surface: PlatformSurface) =>
+  surface.client?.on_show ? [{ id: surface.id, bundle: surface.id, assets: [] }] : []);
 
 /** Every surface the deferred loader mounts on first show: the plugins' and the Host's own. */
 export function deferredSurfaceClients(): (Pick<PluginSurfaceClient, "id" | "bundle" | "assets"> & Partial<Pick<PluginSurfaceClient, "plugin_id" | "styles" | "searchRow" | "recordRow">>)[] {

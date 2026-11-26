@@ -76,12 +76,6 @@ export interface PluginHostExecutorOptions {
   sourcePullIntegrations?: () => Promise<import("./integration-registry.js").IntegrationRegistry>;
   scheduler?: import("@molis-ai/molis-work-service-scheduler").ScheduleService;
   /**
-   * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its
-   * plugin_id). Without it, or for a definition it does not name, the installation id. Whatever registers the Plugin's actions
-   * (the Runtime's `actions.providerId`) has to give the same answer: this is how the Plugin's own client finds them.
-   */
-  providerFor?(definition: PluginDefinition, installId: string): string;
-  /**
    * The installation's record as the Runtime's repository holds it now. An activation's jobs read it before every write
    * (`services.background.keep`, PG-038); without it a job is refused, never trusted.
    */
@@ -198,7 +192,7 @@ export class PluginHostExecutor implements PluginExecutor {
         || context.actor_id !== expected.actor_id || context.plugin_id !== expected.plugin_id
         || this.options.project_id !== expected.project_id || this.options.actor_id !== expected.actor_id
         || !definition || definition.operation !== "command" || !definition.action.audiences?.includes("plugin")
-        || reference.provider_id !== (this.options.providerFor?.(held.definition, expected.install_id) ?? expected.install_id))
+        || reference.provider_id !== context.provider_id)
         throw new ActionError("actions.provider_stopped", "原来源安装或自有动作已不再可用");
     };
     check(); await control.beforeEffect(); check();

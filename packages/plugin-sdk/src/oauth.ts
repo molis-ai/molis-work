@@ -135,6 +135,17 @@ export function oauthTenantOriginUnder(domain: string, raw: string): string | un
   return url.origin;
 }
 
+/**
+ * The origin of a tenant's site as a saved token or an authorization names it: its name with or without `https://` and one closing slash,
+ * strictly under `domain`. Names only: no path, credentials, port or look-alike suffix.
+ */
+export function oauthTenantSiteOrigin(domain: string, raw: string): string | undefined {
+  const value = raw.trim().replace(/\/$/u, "");
+  const host = (/^https:\/\//iu.test(value) ? value.slice(8) : value).toLowerCase();
+  if (host.length > 253 || !host.endsWith(`.${domain}`) || host.split(".").some(label => label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u.test(label))) return undefined;
+  return `https://${host}`;
+}
+
 /** What is wrong with a setting's value, filled in or its `default`: outside `enum`, off `pattern`, unsafe in a path, not a tenant origin. */
 export type OAuthSettingValueFault = "enum" | "pattern" | "path" | "tenant";
 

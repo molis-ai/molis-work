@@ -109,11 +109,8 @@ const EXTERNAL_SESSIONS_WORKBENCH_FILES = new Set([
   "apps/workbench/src/scripts/context-onboarding-sessions.ts",
   "apps/workbench/src/browser/sessions/api.ts",
   "apps/workbench/src/browser/sessions/detail-view.ts",
-  "apps/workbench/src/plugin-workbench.ts",
   "apps/workbench/src/scripts/client/assistant-materials.ts",
   "apps/workbench/src/scripts/client/initialization.ts",
-  "apps/workbench/src/search-rows.ts",
-  "apps/workbench/src/sessions/navigation.ts",
   "apps/workbench/src/sessions/ui.ts",
   // The Sessions surface's on-demand help words, rendered only by sessions/ui.ts above (batch 40, VUX-55).
   "apps/workbench/src/settings-help-topics.ts",

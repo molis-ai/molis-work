@@ -272,7 +272,7 @@ export interface ProjectDataDeclaration {
 
 /** One owner's part of a deletion: it clears the data it keeps in the Home for the deleted project. */
 export interface ProjectDeletionStep {
-  /** The owner that registered the step, e.g. `pages` or `memory`. */
+  /** The owner that registered the step, e.g. a plugin's project key or `memory`. */
   owner_id: string;
   /**
    * `pending` until the owner ran: a step whose owner is not registered in the process that finishes the receipt stays

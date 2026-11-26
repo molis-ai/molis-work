@@ -3,7 +3,8 @@ import { t as uiText, icon as uiIcon, renderAlert, renderButton, renderSettingRo
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** Standalone hub / embed fold stack. Workbench exclusive settings use project-settings-stage. */
-export type ProjectSettingsFoldId = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "kit" | "characters" | "grants" | "rules";
+import type { ProjectSettingsPage as ProjectSettingsFoldId } from "./platform-settings-registry.js";
+export type { ProjectSettingsFoldId };
 
 export interface ProjectSettingsFoldProject {
   project_id: string;

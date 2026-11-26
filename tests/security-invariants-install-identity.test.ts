@@ -5,7 +5,7 @@ import { ActionError, type ActionDefinition, type ActionProviderRegistration } f
 import type { PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { HOST_BUILD_TRUST, MemoryPluginConsentLedger, MemoryPluginRuntimeRepository, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PluginRuntime,
-  SqlitePluginRuntimeRepository, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
+  SqlitePluginRuntimeRepository, UNSIGNED_TRUST, resolveActionProviderId } from "@molis-ai/molis-work-plugin-runtime";
 import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 
 const FINGERPRINT = `ed25519:sha256:${"a".repeat(64)}`;
@@ -143,22 +143,30 @@ function actionable(id: string, signature: string, calls: string[]) {
   return { plugin, action };
 }
 
-test("RAC-396 S-75 an installation's actions are registered under its install id, and under its plugin id only when it is of the Host's build", async () => {
+test("RAC-396 S-75 an installation's actions are registered under its install id, or as its package in the sandbox, and under its plugin id only when it is of the Host's build", async () => {
   const id = "com.example.provider";
-  for (const trust of [UNSIGNED_TRUST, PINNED, HOST_BUILD_TRUST]) {
+  for (const { trust, execution } of [{ trust: UNSIGNED_TRUST }, { trust: PINNED }, { trust: UNSIGNED_TRUST, execution: "sandbox" as const },
+    { trust: PINNED, execution: "sandbox" as const }, { trust: HOST_BUILD_TRUST }]) {
     const service = new ActionService(), calls: string[] = [], fixture = actionable(id, trust.level === "pinned" ? FINGERPRINT : "label", calls);
-    const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS, actions: { registry: service, project_id: "p", providerId: () => id } });
-    const installed = runtime.install({ definition: fixture.plugin, deployment: "local", trust, grants: [] }).install;
+    const registered: string[] = [];
+    const registry = { registerProvider: (r: ActionProviderRegistration) => { registered.push(r.provider.provider_id); return service.registerProvider(r); } };
+    // The embedder has no say in the name: what it would answer is not read.
+    const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS,
+      actions: { registry, project_id: "p", providerId: () => id } as NonNullable<ConstructorParameters<typeof PluginRuntime>[2]["actions"]> });
+    const installed = runtime.install({ definition: { ...fixture.plugin, ...(execution ? { execution } : {}) }, deployment: "local", trust, grants: [] }).install;
+    const own = trust.level === "host" ? id : execution === "sandbox" ? `plugin:${id}` : installed.install_id;
+    await runtime.start(installed.install_id);
+    assert.deepEqual(registered, [own]);
+    assert.equal(resolveActionProviderId(runtime.get(installed.install_id)), own);
     if (trust.level !== "host") {
-      await assert.rejects(runtime.start(installed.install_id), code("plugin.id_namespace_conflict"));
-      assert.equal(runtime.get(installed.install_id).state, "crashed"); assert.equal(runtime.get(installed.install_id).last_error_code, "plugin.id_namespace_conflict");
-      assert.deepEqual(calls, []); assert.deepEqual(service.discover(caller), [], "no handler or provider is registered");
-    } else {
-      await runtime.start(installed.install_id);
-      assert.equal(await service.invoke(caller, { ...fixture.action, provider_id: id }, {}), id);
-      await runtime.stop(installed.install_id);
+      await assert.rejects(Promise.resolve(service.invoke(caller, { ...fixture.action, provider_id: id }, {})), code("actions.provider_changed"));
+      assert.deepEqual(calls, [`start:${id}`], "nothing answers under the plugin id");
     }
+    assert.equal(await service.invoke(caller, { ...fixture.action, provider_id: own }, {}), id);
+    await runtime.stop(installed.install_id);
   }
+  const impostor = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, releaseIds: HOST_STAND_IN_IDS });
+  assert.throws(() => install(impostor, `plugin:${id}`, "label"), "no plugin id can be spelled as a package's provider");
 });
 
 test("RAC-395 RAC-399 S-75 normally loaded existing conflicts crash before activation in the same or a new Runtime", async () => {

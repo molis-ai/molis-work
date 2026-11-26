@@ -524,7 +524,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
   async function connect(auto=false) {
     if(!config.gmail_configured) { expanded='gmail';error=globalThis.t.text("workbench.context-onboarding.google-access-isn-t-ready-yet-use-other");render();return; }
     source('gmail').selected=true;journey.auto_start=auto;await save();
-    const result=await api('/api/settings/connectors/methods/oauth/start',{service_id:'gmail',display_name:'Gmail',onboarding_id:journey.id,desktop});
+    const result=await api('/api/settings/connectors/methods/oauth/start',{service_id:config.mailbox.service_id,display_name:config.mailbox.title,onboarding_id:journey.id,desktop});
     if(globalThis.molisWorkOpenExternalUrl){
       await globalThis.molisWorkOpenExternalUrl(result.authorization_url);journey.oauth_status='pending';render();authTimer=setTimeout(pollAuthorization,1500);
     }else location.assign(result.authorization_url);

@@ -249,6 +249,22 @@ export interface ConnectorCapability {
 
 export type ConnectorCapabilityFulfillment = "live" | "unfulfilled";
 
+export interface ConnectorCardView {
+    readonly purpose?: string;
+    readonly provider?: string;
+    readonly preferred_method?: "cli" | "mcp" | "token";
+    readonly credential?: {
+        readonly separator: ":" | "|";
+        readonly fields: readonly {
+            readonly label: string;
+            readonly type: "text" | "email" | "url" | "password";
+            readonly placeholder?: string;
+        }[];
+    };
+    readonly own_app?: true;
+    readonly client_note?: string;
+}
+
 export interface ConnectorCheckObservation {
     at: string;
     revision: string;
@@ -369,6 +385,7 @@ export interface ConnectorDirectoryEntry {
     readonly method_options?: readonly ConnectorMethodOption[];
     readonly uses?: readonly ConnectorUse[];
     readonly categories?: readonly string[];
+    readonly card?: ConnectorCardView;
 }
 
 export type ConnectorDirectoryGroupId = "mail" | "files" | "chat" | "code" | "work" | "design" | "crm" | "social" | "search";
@@ -490,7 +507,9 @@ export interface ConnectorReceipt {
     result: ConnectorPollResult;
 }
 
-export type ConnectorRequestCredential = "bearer" | "bot" | "bare" | "private-token" | "x-figma-token" | "basic";
+export type ConnectorRequestCredential = "bearer" | "bot" | "bare" | "basic" | {
+    readonly header: string;
+};
 
 export interface ConnectorRequestService {
     readonly origins: readonly string[];
@@ -503,8 +522,12 @@ export interface ConnectorRequestService {
 }
 
 export interface ConnectorRequestTenant {
-    readonly domain: "salesforce.com" | "atlassian.net";
-    readonly gateway?: "atlassian";
+    readonly domain: string;
+    readonly site_keys: readonly string[];
+    readonly gateway?: {
+        readonly origin: string;
+        readonly path: `${string}{service}${string}{cloud_id}${string}`;
+    };
 }
 
 export interface ConnectorSetupLink {
@@ -558,6 +581,8 @@ export declare const connectorErrors: {
     "connector.mcp.disconnected": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     "connector.mcp.provider": (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
 };
+
+export declare const connectorGatewayBase: (gateway: NonNullable<ConnectorRequestTenant["gateway"]>, service_id: string, cloud_id: string) => string;
 
 export declare function defineConnectorUsagesAction(id: string, version: number, title: string, permissions: readonly string[], scope: "home" | "project"): ActionDefinition<ConnectorUsagesInput, {
     usages: ConnectorUsage[];

@@ -32,6 +32,7 @@ import { renderProjectSettings } from "./settings-project-manager.js";
 import { renderFunctionsWorkbench } from "./judgment-rules/ui.js";
 import { groupedGlobalSettingsSections } from "./settings-sections.js";
 import { withSettingsHelp } from "./settings-help-topics.js";
+import { platformSettingsHelp, platformSettingsPage, settingsSectionPage, type PlatformSettingsPage } from "./platform-settings-registry.js";
 import { FUNCTIONS_SYSTEM_CLIENT_SCRIPT } from "./judgment-rules/bootstrap.js";
 /** The docs page that lists every outbound network class (docs/platform/NETWORK.md), per interface language. */
 const NETWORK_DOC_HREF = {
@@ -72,77 +73,64 @@ function settingsText(page: ReturnType<typeof findPluginSettingsNavItem>, packsF
   return packs.length ? renderInlinePageText([{ slot: `settings:${page.section_id}`, producer: manifest.plugin_id, packs }]) : "";
 }
 
+interface SettingsPageInput {
+  readonly view: MolisWorkSettingsView;
+  readonly primitives: SettingsRenderPrimitives;
+  readonly capabilities: ReturnType<typeof createCapabilitiesRenderer> | undefined;
+  readonly contextProject: NonNullable<MolisWorkSettingsView["context_project"]> | null;
+  readonly settingsPath: string;
+  readonly desktopShell: boolean;
+}
+
+/** What draws each platform settings page (`PLATFORM_SETTINGS_REGISTRY`); a page declared there without an entry here does not compile. */
+const PLATFORM_SETTINGS_PAGES: Readonly<Record<PlatformSettingsPage, (page: SettingsPageInput) => string>> = {
+  appearance: ({ primitives: { readText, currentLocale, localeSwitchHref, appearance }, settingsPath }) => {
+    const current = appearance?.current();
+    return renderAppearanceSettingsDocument({ readText, currentLocale, localeSwitchHref }, settingsPath, current && appearance ? { current, choices: appearance.choices() } : undefined);
+  },
+  directories: ({ primitives: { readText } }) => renderLocalDirectorySettings({ readText }),
+  memory: ({ view }) => renderMemorySettings({ scope: "personal", projectId: null, projects: view.projects }),
+  "work-records": ({ view }) => renderWorkRecordsSettings({ projects: view.projects }),
+  sync: ({ primitives: { readText } }) => renderSyncSettings(readText),
+  models: ({ view, primitives: { readText, escapeHtml } }) => view.model_settings
+    ? renderModelSettingsDocument({ ...view.model_settings, primitives: { readText, escape: escapeHtml, icon: modelIcon } }) : "",
+  assistant: ({ primitives: { readText }, contextProject }) => renderAssistantSettings({ readText, projectId: contextProject?.project_id ?? null }),
+  // 角色 is drawn with the person's own roles, which the Host reads (`plugin_settings_html`).
+  characters: ({ view }) => view.plugin_settings_html ?? "",
+  prompts: ({ view, primitives: { readText } }) => renderPromptSettings({ readText, displayModel: view.agent_display_model }),
+  kit: () => renderKitSettings({ projectId: null }),
+  runtimes: ({ view, primitives, desktopShell }) => renderRuntimeSettings(view, primitives, desktopShell),
+  library: ({ view, primitives: { readText, escapeHtml }, capabilities }) => view.capabilities?.rules
+    ? renderFunctionsWorkbench({ primitives: { escape: escapeHtml, text: readText } }) : capabilities?.library() ?? "",
+  connectors: ({ view, primitives: { readText, escapeHtml, icon, currentLocale } }) => renderConnectorsSettings(view, { readText, escapeHtml, icon,
+    networkDocHref: NETWORK_DOC_HREF[currentLocale() === "zh" ? "zh" : "en"] }),
+  "web-search": ({ view }) => renderWebSearchSettings(view.web_search),
+  mcp: ({ view, primitives, desktopShell }) => renderMcpSettings(view, desktopShell, primitives),
+  authorizations: ({ view, contextProject }) => renderAuthorizationSettings(view.projects, contextProject?.project_id ?? null, view.show_project_approval_rules),
+  history: ({ capabilities }) => capabilities?.history() ?? "",
+  projects: ({ view, primitives, desktopShell }) => renderProjectSettings(view, desktopShell, primitives),
+  running: () => renderRunningSettings(),
+  update: ({ view, desktopShell }) => renderUpdateSettings(view, desktopShell),
+  diagnostics: ({ view, primitives, desktopShell }) => renderDiagnosticsSettings(view, primitives, desktopShell),
+};
+
 export function createWorkbenchSettingsRenderer(primitives: SettingsRenderPrimitives) {
-  const { readText, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, renderIconSprite,
+  const { readText, icon, htmlLang, controlTokenMeta, renderIconSprite,
     withDesktopQuery, settingsContextHref, renderSettingsNavigation,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT } = primitives;
 function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "", desktopShell = false): string {
   const appearance = primitives.appearance?.current();
   const capabilities = view.capabilities ? createCapabilitiesRenderer(primitives, view.capabilities, view.context_project ?? null, view.projects, desktopShell) : undefined;
   const pluginPage = findPluginSettingsNavItem(view.section);
-  const title = view.section === "sync" ? uiText.text("workbench.settings-renderer.sync") : capabilities ? uiText.text("workbench.settings-renderer.capabilities") : view.section === "appearance"
-    ? uiText.text("workbench.settings-renderer.interface-language")
-    : view.section === "models" ? uiText.text("workbench.settings-renderer.models")
-    : view.section === "runtimes"
-      ? uiText.text("workbench.settings-renderer.ai-execution-tools")
-    : view.section === "assistant"
-      ? uiText.text("workbench.settings-renderer.assistant")
-    : view.section === "authorizations"
-      ? uiText.text("workbench.authorization.manage")
-    : view.section === "prompts"
-      ? uiText.text("workbench.settings-renderer.prompts")
-    : view.section === "memory"
-      ? uiText.text("workbench.settings-renderer.memory")
-    : view.section === "work-records"
-      ? uiText.text("workbench.settings-renderer.work-records")
-    : view.section === "mcp"
-      ? "MCP"
-      : view.section === "connectors"
-        ? "Connectors"
-        : view.section === "web-search"
-        ? uiText.text("workbench.settings-web-search.title")
-        : view.section === "projects"
-        ? uiText.text("workbench.settings-renderer.project-settings")
-        : view.section === "diagnostics"
-          ? uiText.text("workbench.settings-renderer.diagnostics")
-        : view.section === "update" ? uiText.text("workbench.settings-update.title")
-        : view.section === "running" ? uiText.text("workbench.settings-running.title")
-          : (pluginPage?.label ?? view.dynamic_plugin_settings?.find(item => item.section_id === view.section)?.label ?? groupedGlobalSettingsSections(undefined, true).flatMap(group => group.sections).find(section => section.id === view.section)?.label ?? view.section);
+  const declared = platformSettingsPage(view.section);
+  const title = declared?.title ? uiText.text(declared.title)
+    : pluginPage?.label ?? view.dynamic_plugin_settings?.find(item => item.section_id === view.section)?.label ?? groupedGlobalSettingsSections(undefined, true).flatMap(group => group.sections).find(section => section.id === view.section)?.label ?? view.section;
   const contextProject = view.context_project ?? null;
   const settingsPath = settingsContextHref(`/settings/${view.section}`, contextProject, desktopShell);
   const rawReturnHref = contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : "/";
   const returnHref = desktopShell ? withDesktopQuery(rawReturnHref) : rawReturnHref;
   const projectManager = view.section === "projects";
-  const content = (view.capabilities?.rules ? renderFunctionsWorkbench({ primitives: { escape: escapeHtml, text: readText } }) : view.capabilities?.section === "library" ? capabilities!.library() : view.capabilities?.section === "history" ? capabilities!.history() : undefined) || (view.section === "models" && view.model_settings ? renderModelSettingsDocument({
-    ...view.model_settings, primitives: { readText, escape: escapeHtml, icon: modelIcon },
-  }) : view.plugin_settings_html)
-    || (view.section === "sync" ? renderSyncSettings(readText) : view.section === "appearance"
-      ? renderAppearanceSettingsDocument({ readText, currentLocale, localeSwitchHref }, settingsPath,
-        appearance && primitives.appearance ? { current: appearance, choices: primitives.appearance.choices() } : undefined)
-      : view.section === "runtimes"
-        ? renderRuntimeSettings(view, primitives, desktopShell)
-        : view.section === "assistant"
-          ? renderAssistantSettings({ readText, projectId: contextProject?.project_id ?? null })
-        : view.section === "authorizations" ? renderAuthorizationSettings(view.projects, contextProject?.project_id ?? null, view.show_project_approval_rules)
-        : view.section === "kit" ? renderKitSettings({ projectId: null })
-        : view.section === "prompts" ? renderPromptSettings({ readText, displayModel: view.agent_display_model })
-        : view.section === "memory"
-          ? renderMemorySettings({ scope: "personal", projectId: null, projects: view.projects })
-        : view.section === "work-records"
-          ? renderWorkRecordsSettings({ projects: view.projects })
-        : view.section === "directories" ? renderLocalDirectorySettings({ readText })
-        : view.section === "mcp"
-          ? renderMcpSettings(view, desktopShell, primitives)
-          : view.section === "connectors"
-            ? renderConnectorsSettings(view, { readText, escapeHtml, icon, networkDocHref: NETWORK_DOC_HREF[currentLocale() === "zh" ? "zh" : "en"] })
-          : view.section === "web-search" ? renderWebSearchSettings(view.web_search)
-          : view.section === "projects"
-          ? renderProjectSettings(view, desktopShell, primitives)
-          : view.section === "diagnostics"
-            ? renderDiagnosticsSettings(view, primitives, desktopShell)
-          : view.section === "update" ? renderUpdateSettings(view, desktopShell)
-          : view.section === "running" ? renderRunningSettings()
-            : "");
+  const content = declared ? PLATFORM_SETTINGS_PAGES[settingsSectionPage(declared)]({ view, primitives, capabilities, contextProject, settingsPath, desktopShell }) : view.plugin_settings_html ?? "";
   return `<!doctype html>
 <html lang="${htmlLang()}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${title} · ${uiText("workbench.settings-renderer.molis-work-settings")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${pluginSettingsStyleLinks(pluginPage?.contribution_id ?? "")}${appearanceHead(appearance)}</head>
@@ -151,16 +139,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? uiText("workbench.settings-renderer.capabilities") : projectManager ? uiText("workbench.settings-renderer.project-management") : uiText("workbench.settings-renderer.global-settings")}</span><a href="${returnHref}" aria-label="${uiText(capabilities ? "workbench.settings-renderer.close-capabilities" : "workbench.settings-renderer.close-global-settings")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
     ${capabilities?.navigation ?? (projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.shown_plugins, view.dynamic_plugin_settings))}
-    <div class="settings-content">${withSettingsHelp(
-      view.capabilities?.rules
-        ? "judgment-rules"
-        : view.capabilities?.section === "history"
-          ? "call-history"
-          : capabilities && view.section !== "connectors" && view.section !== "mcp"
-            ? "capabilities"
-            : view.section,
-      content,
-    )}</div>
+    <div class="settings-content">${withSettingsHelp(view.capabilities?.rules ? "judgment-rules" : platformSettingsHelp(view.section), content)}</div>
   </main>
   ${renderRuntimePlanDialog({ readText, icon })}
   <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}${renderShellEnvironmentBadge(primitives.environmentName?.())}

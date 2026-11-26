@@ -100,3 +100,36 @@ export function workProgressContinuityRoleOf(action: TypedActionShape): WorkProg
     WORK_PROGRESS_CONTINUITY_PROTOCOL[role].input_type === action.input_type
     && WORK_PROGRESS_CONTINUITY_PROTOCOL[role].output_type === action.output_type) ?? null;
 }
+
+/**
+ * Role 6: Image generation (4 roles discovered together on one provider): the image services the person set up, starting one
+ * picture, reading that job's state (never asking the service again), and reading a finished picture's bytes. The plugin studio
+ * draws its proposals through whichever plugin declares all four, so the platform names no image plugin.
+ */
+export const IMAGE_GENERATION_ROLES = ["services.list", "generate", "generations.get", "image.read"] as const;
+export type ImageGenerationRole = (typeof IMAGE_GENERATION_ROLES)[number];
+
+export const IMAGE_GENERATION_PROTOCOL: Record<ImageGenerationRole, { readonly input_type: string; readonly output_type: string }> = {
+  "services.list": {
+    input_type: /* @version type.molis.imagegen.services.input "molis.imagegen.services.input.v{version}" */ "molis.imagegen.services.input.v1",
+    output_type: /* @version type.molis.imagegen.services.output "molis.imagegen.services.output.v{version}" */ "molis.imagegen.services.output.v1",
+  },
+  "generate": {
+    input_type: /* @version type.molis.imagegen.generate.input "molis.imagegen.generate.input.v{version}" */ "molis.imagegen.generate.input.v1",
+    output_type: /* @version type.molis.imagegen.generate.output "molis.imagegen.generate.output.v{version}" */ "molis.imagegen.generate.output.v1",
+  },
+  "generations.get": {
+    input_type: /* @version type.molis.imagegen.get.input "molis.imagegen.get.input.v{version}" */ "molis.imagegen.get.input.v1",
+    output_type: /* @version type.molis.imagegen.get.output "molis.imagegen.get.output.v{version}" */ "molis.imagegen.get.output.v1",
+  },
+  "image.read": {
+    input_type: /* @version type.molis.imagegen.image.input "molis.imagegen.image.input.v{version}" */ "molis.imagegen.image.input.v1",
+    output_type: /* @version type.molis.imagegen.image.output "molis.imagegen.image.output.v{version}" */ "molis.imagegen.image.output.v1",
+  },
+};
+
+export function imageGenerationRoleOf(action: TypedActionShape): ImageGenerationRole | null {
+  return IMAGE_GENERATION_ROLES.find(role =>
+    IMAGE_GENERATION_PROTOCOL[role].input_type === action.input_type
+    && IMAGE_GENERATION_PROTOCOL[role].output_type === action.output_type) ?? null;
+}

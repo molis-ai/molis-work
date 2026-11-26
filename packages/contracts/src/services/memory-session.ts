@@ -6,7 +6,7 @@ import type { MemoryScene } from "./memory-scene.js";
 
 /** A business selector is navigation, never an execution identity or permission. */
 export interface MemorySessionTarget {
-  /** The session owner's scene: `assistant`, or the plugin's declared scene (Coding's `coding`). */
+  /** The session owner's scene: `assistant`, or the plugin's declared scene (its Manifest's `memory_scene`). */
   readonly kind: MemoryScene;
   readonly id: string;
   readonly project_id: string | null;

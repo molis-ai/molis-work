@@ -1,3 +1,4 @@
+import { resolveActionProviderId } from "@molis-ai/molis-work-plugin-runtime";
 import { ActionError, bindActionHandler, type ActionCallContext, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { heldHomeSqlite } from "@molis-ai/molis-work-storage";
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
@@ -24,7 +25,7 @@ export function mainlineHost(homeDirectory: string, plugins: ProjectPluginHost):
     const { installations } = await scopeInstallations(plugins, caller);
     return installations.filter(({ record }) => !["disabled", "quarantined", "uninstalled"].includes(record.state))
       .flatMap(({ record, manifest }) => (manifest?.presentation?.objects ?? []).map(object => ({ ...object, owner: record.plugin_id,
-        provider_id: record.publisher_trust === "host" ? record.plugin_id : record.install_id })));
+        provider_id: resolveActionProviderId(record) })));
   } };
 }
 

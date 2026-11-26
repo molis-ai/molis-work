@@ -12,7 +12,7 @@ import type { LocalProjectDatabase } from "./project-database.js";
 import { renderProjectArtifactContext } from "./artifact-library-http.js";
 import type { ReadArtifactDisplay } from "./artifact-display-words.js";
 import { lookingForArea, type MolisWorkWebView, type WebViewOptions } from "./web-view.js";
-import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import { PROJECT_SETTINGS_SECTIONS, type LocalWebCatalogRunner } from "./web-project-settings.js";
 import { renderWorkbenchRefreshDocument, type createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -23,9 +23,6 @@ import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory 
 import { isInstalledPackage } from "./installed-plugin-common.js";
 import { pinnedProjectGuidanceRead } from "./project-guidance-actions.js";
 
-/** The project settings page each path opens; `/settings` alone opens 常规. */
-const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "characters", "grants", "rules", "general"] as const)
-  .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 
 interface StageRouteError {
@@ -152,7 +149,7 @@ export function createLocalProjectPagesHttp(ports: {
     readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, actions: BoundActionClient,
     store: LocalProjectDatabase, homeDirectory?: string,
   ): Promise<boolean> {
-    const open = SETTINGS_SECTIONS.get(url.pathname) ?? null;
+    const open = PROJECT_SETTINGS_SECTIONS.get(url.pathname) ?? null;
     if (request.method === "GET" && open) {
       const view = await readWebView();
       if (!view.project) {

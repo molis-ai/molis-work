@@ -1,37 +1,9 @@
 import type { UiHelpDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
+import { PLATFORM_PROJECT_SETTINGS_REGISTRY, PLATFORM_SETTINGS_REGISTRY, platformSettingsHelp, settingsSectionPage } from "./platform-settings-registry.js";
 import { renderHelpButton, renderHelpDeclarationScript, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-const SETTINGS_HELP_IDS = new Set([
-  "appearance",
-  "models",
-  "runtimes",
-  "assistant",
-  "authorizations",
-  "kit",
-  "prompts",
-  "memory",
-  "work-records",
-  "directories",
-  "mcp",
-  "connectors",
-  "web-search",
-  "projects",
-  "diagnostics",
-  "update",
-  "running",
-  "sync",
-  "capabilities",
-  "judgment-rules",
-  "call-history",
-  "general",
-  "workspaces",
-  "guidance",
-  "knowledge",
-  "characters",
-  "plugins",
-  "grants",
-  "rules",
-]);
+const SETTINGS_HELP_IDS: ReadonlySet<string> = new Set([...PLATFORM_SETTINGS_REGISTRY.map(section => platformSettingsHelp(settingsSectionPage(section))),
+  ...PLATFORM_PROJECT_SETTINGS_REGISTRY.map(section => section.id), "judgment-rules"]);
 
 /** Builds a live-translatable Scheme A declaration for a global or project settings section (VUX-55, VUX-58). */
 export function settingsHelpDeclaration(sectionId: string): UiHelpDeclaration | null {

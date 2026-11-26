@@ -1,10 +1,11 @@
 // W5-02 PR-D (PG-073, PG-076): the shell's lists of rows, tab titles, rail order and settings data are what the plugins declare.
-// The page scripts keep no row of their own for a plugin: the platform's own and the one the Feed source directory still owns are named in
-// `search-rows.ts`, and a record's tab title is read from the row its plugin declared.
+// The page scripts keep no row of their own for a plugin: the platform pages declare theirs in their one registration,
+// and a record's tab title is read from the row its plugin declared.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { PLATFORM_SURFACES } from "@molis-ai/molis-work-ui-host";
 import { TAB_WORKSPACE_FILES, tabWorkspaceSource } from "./tab-workspace-files.js";
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SettingsPageModel } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -24,13 +25,15 @@ test("RAC-690 Pages finds its rows by its own attribute, not by a class that bel
   }
 });
 
-test("RAC-691 the page scripts list no search row by plugin; Feed declares its own searchRow while platform rows stay in search-rows.ts", () => {
+test("RAC-691 the page scripts list no search row by plugin; Feed declares its own searchRow while the platform's own pages declare theirs in their one registration", () => {
   for (const file of [...TAB_WORKSPACE_FILES, "scripts/client/global-search.ts"]) {
     const text = source(file);
     assert.doesNotMatch(text, /"characters"|data-character-id|data-feed-task-toggle/u, `${file} lists a row by plugin`);
   }
   const named = source("search-rows.ts");
-  assert.match(named, /CHARACTERS_SEARCH_ROW[^\n]*\["characters", "\[data-character-id\]", "characterId"\]/u);
+  assert.doesNotMatch(named, /"(?:characters|sessions)"|data-character-id|data-session-key/u, "search-rows.ts names no page");
+  assert.deepEqual(PLATFORM_SURFACES.flatMap(surface => "search_row" in surface ? [[surface.id, surface.search_row]] : []), [
+    ["characters", { selector: "[data-character-id]", attribute: "characterId" }], ["sessions", { selector: "[data-session-key]", attribute: "sessionKey" }]]);
   assert.doesNotMatch(named, /FEED_SOURCE_SEARCH_ROW|data-feed-task-toggle/u, "Feed's search row moved to Feed's own registration");
   assert.deepEqual(pack("feed")?.searchRow, { selector: "[data-feed-task-toggle]", idDataset: "feedTaskToggle" });
   assert.ok(CLIENT_SCRIPT.includes("[data-character-id]") && CLIENT_SCRIPT.includes("[data-feed-task-toggle]"), "both rows are written into the page");

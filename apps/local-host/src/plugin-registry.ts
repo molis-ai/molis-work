@@ -7,6 +7,7 @@ import { HOSTED_SURFACES, type HostSurface } from "./host-surface-list.js";
 import type { HomePluginEntry } from "./home-plugins.js";
 import { declaresProjectHalf } from "./plugin-project-coordination.js";
 import { ARTIFACTS_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-module-artifacts";
+import { platformSurface } from "@molis-ai/molis-work-ui-host";
 
 // The platform's facts about the plugins this build ships, derived in this one place from the plugins' own registrations
 // (W5-02 PR-B, PG-065 in specs/archive/repository-anti-corruption/privileges.md). scripts/generate-plugin-registry.mjs writes the list
@@ -58,8 +59,8 @@ export function catalogProblems(catalog: readonly (PluginRegistration | HostSurf
   once("the catalog position", catalog.flatMap(entry => "catalog_order" in entry ? [entry.catalog_order] : []));
   const listed = new Set(catalog.map(entry => entry.project_plugin_id));
   for (const entry of catalog) {
-    if (entry.project_plugin_id === ARTIFACTS_PROJECT_PLUGIN_ID) problems.push("artifacts: the project key belongs to the platform, not a Plugin");
-    if (entry.project_plugin_id === "sessions") problems.push("sessions: the project key belongs to the platform, not a Plugin");
+    // The Artifact key is named for its gate (scripts/gates/artifacts-platform-ui.mjs), whichever surfaces the registration lists.
+    if (entry.project_plugin_id === ARTIFACTS_PROJECT_PLUGIN_ID || platformSurface(entry.project_plugin_id)) problems.push(`${entry.project_plugin_id}: the project key belongs to the platform, not a Plugin`);
     if (!("catalog_order" in entry)) continue;
     if ((entry.manifest.runtime?.scope === "home") !== (entry.runtime !== undefined)) {
       problems.push(`${entry.project_plugin_id}: the Manifest's runtime.scope and the registration's runtime (the code a Home instance starts from) go together`);

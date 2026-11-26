@@ -7,8 +7,8 @@ import test from "node:test";
 
 
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
-import { createGithubConnector } from "@molis-ai/molis-work-app-local-host";
-import { createGmailConnector } from "@molis-ai/molis-work-app-local-host";
+import { createGithubProvider } from "@molis-ai/molis-work-integration-github";
+import { createGmailProvider } from "@molis-ai/molis-work-integration-gmail";
 import type { IntegrationProviderItem as ConnectorIngestItem, IntegrationProviderPort as ConnectorPort, IntegrationProviderSyncResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 type ConnectorSyncFailure = Extract<IntegrationProviderSyncResult, { ok: false }>;
 type ConnectorSyncSuccess = Extract<IntegrationProviderSyncResult, { ok: true }>;
@@ -78,7 +78,7 @@ test("GitHub live adapter reads notifications, records provider cursor, and sepa
   const token = "github-live-token-that-must-not-leak";
   const at = new Date("2026-08-30T10:00:00.000Z");
   const requests: Array<{ url: string; headers: Record<string, string> }> = [];
-  const connector = createGithubConnector({
+  const connector = createGithubProvider({
     token,
     now: () => at,
     fetchImpl: async (url, init) => {
@@ -189,7 +189,7 @@ test("GitHub live adapter reads notifications, records provider cursor, and sepa
 
 test("GitHub notification adapter revalidates with Last-Modified and accepts 304", async () => {
   const seenHeaders: Record<string, string>[] = [];
-  const connector = createGithubConnector({
+  const connector = createGithubProvider({
     token: "github-304-token",
     now: () => new Date("2026-08-30T10:03:00.000Z"),
     fetchImpl: async (url, init) => {
@@ -229,7 +229,7 @@ test("GitHub notification adapter revalidates with Last-Modified and accepts 304
 });
 
 test("GitHub notification adapter distinguishes auth, scope, network, and rate limit safely", async () => {
-  const missingScope = await createGithubConnector({
+  const missingScope = await createGithubProvider({
     token: "github-missing-scope-token",
     fetchImpl: async () => new Response(JSON.stringify({ login: "molis-work-user" }), {
       status: 200,
@@ -242,7 +242,7 @@ test("GitHub notification adapter distinguishes auth, scope, network, and rate l
     assert.equal(missingScope.httpStatus, 403);
   }
 
-  const expiredAuth = await createGithubConnector({
+  const expiredAuth = await createGithubProvider({
     token: "github-expired-token",
     fetchImpl: async () => new Response("", { status: 401 }),
   }).sync({ cursor: null }, connectorControl());
@@ -252,14 +252,14 @@ test("GitHub notification adapter distinguishes auth, scope, network, and rate l
     assert.equal(expiredAuth.httpStatus, 401);
   }
 
-  const offline = await createGithubConnector({
+  const offline = await createGithubProvider({
     token: "github-offline-token",
     fetchImpl: async () => { throw new Error("provider token must not escape"); },
   }).sync({ cursor: null }, connectorControl());
   assert.equal(offline.ok, false);
   if (!offline.ok) assert.equal(offline.failure, "network");
 
-  const rateLimited = await createGithubConnector({
+  const rateLimited = await createGithubProvider({
     token: "github-rate-token",
     now: () => new Date("2026-08-30T10:00:00.000Z"),
     fetchImpl: async (url) => url.endsWith("/user")
@@ -289,7 +289,7 @@ test("GitHub notification adapter distinguishes auth, scope, network, and rate l
 test("Gmail live adapter advances only a provider-backed cursor and redacts failures", async () => {
   const token = "ya29.gmail-token-that-must-not-leak";
   const requestedUrls: string[] = [];
-  const connector = createGmailConnector({
+  const connector = createGmailProvider({
     accessToken: token,
     getNowMs: () => Date.parse("2026-08-30T10:00:00.000Z"),
     fetchImpl: async (url) => {
@@ -360,7 +360,7 @@ test("Gmail live adapter advances only a provider-backed cursor and redacts fail
   assert.equal(listUrl.searchParams.get("q"), "in:inbox is:unread");
   assert.equal(JSON.stringify(synced).includes(token), false);
 
-  const failed = await createGmailConnector({
+  const failed = await createGmailProvider({
     accessToken: token,
     fetchImpl: async () => new Response(JSON.stringify({ access_token: token }), { status: 401 }),
   }).sync({ cursor: null }, connectorControl());
@@ -374,7 +374,7 @@ test("Gmail live adapter advances only a provider-backed cursor and redacts fail
 
 test("Gmail incremental sync enforces the configured range and preserves account metadata", async () => {
   const calls: string[] = [];
-  const connector = createGmailConnector({
+  const connector = createGmailProvider({
     accessToken: "gmail-incremental-token",
     scope: "is:starred",
     getNowMs: () => Date.parse("2026-08-30T11:00:00.000Z"),
@@ -462,7 +462,7 @@ test("Gmail incremental sync enforces the configured range and preserves account
 
 test("Gmail range changes force one bounded full sync instead of reusing the old history range", async () => {
   const calls: string[] = [];
-  const connector = createGmailConnector({
+  const connector = createGmailProvider({
     accessToken: "gmail-scope-change-token",
     scope: "in:inbox",
     getNowMs: () => Date.parse("2026-08-30T12:00:00.000Z"),

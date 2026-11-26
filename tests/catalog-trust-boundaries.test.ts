@@ -1,7 +1,7 @@
 import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCatalogConnector, DEMO_PROJECT_ID, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, resolveApiConnection, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { catalogWhoami, createCatalogProvider } from "@molis-ai/molis-work-integration-catalog";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { bindLocalFeedSourceAccount } from "./fixtures/feed-library.js";
@@ -10,6 +10,9 @@ import { withIntegrationHome } from "./fixtures/integration-home.js";
 const AT = "2026-08-30T10:00:00.000Z";
 const FIXTURE = "dummy-fixture-token+/=?";
 const json = (value: unknown, init?: ResponseInit) => new Response(JSON.stringify(value), init);
+/** The service's provider over the credential its saved connection resolves to. */
+const connected = (home: string, connectorId: string, connection: string, ports: Pick<Parameters<typeof createCatalogProvider>[0], "fetchImpl" | "now">) => createCatalogProvider({ connectorId, ...ports,
+  resolveToken: async (forceRefresh, control) => (await resolveApiConnection(home, connection, control, connectorId, forceRefresh)).token });
 const tokenFor = (service: string, origin: string) => service === "salesforce" ? `${origin}|${FIXTURE}` : `${origin}|person@example.com|${FIXTURE}`;
 
 test("W2-18-CATALOG-01 + W2-18-CATALOG-02: Host-managed token connections reject non-Cloud destinations before health, whoami or sync can dispatch", async () => {
@@ -24,7 +27,7 @@ test("W2-18-CATALOG-01 + W2-18-CATALOG-02: Host-managed token connections reject
         const value = tokenFor(service, origin);
         const connection = withConnectorConnections(home.directory, store => store.createToken({ serviceId: service, displayName: "Fixture", token: value }));
         const fetchImpl = async () => { dispatched++; return json({ displayName: "Should not dispatch", preferred_username: "fixture" }); };
-        const port = createCatalogConnector({ connectorId: service, connectionId: connection.connection_id, fetchImpl });
+        const port = connected(home.directory, service, connection.connection_id, { fetchImpl });
         assert.equal((await port.health(connectorControl())).ok, false, `${service}: ${origin}`);
         const sync = await port.sync({ cursor: {} }, connectorControl()); assert.equal(sync.ok, false, `${service}: ${origin}`);
         const whoami = await catalogWhoami({ connectorId: service, token: value, fetchImpl }); assert.equal(whoami.ok, false);
@@ -84,7 +87,7 @@ test("W2-18-CATALOG-ERROR-01: every business-error family produces a closed fail
     ];
     for (const [index, fixture] of failures.entries()) {
       const connection = withConnectorConnections(home.directory, store => store.createToken({ serviceId: fixture.service, displayName: "Fixture", token: fixture.token }));
-      const port = createCatalogConnector({ connectorId: fixture.service, connectionId: connection.connection_id, now: () => new Date(AT), fetchImpl: async () => json(fixture.body) });
+      const port = connected(home.directory, fixture.service, connection.connection_id, { now: () => new Date(AT), fetchImpl: async () => json(fixture.body) });
       const chain = home.chain(port), source = chain.feed.sources.upsert(accountSourceRecord("github", { source_id: `catalog-${index}`, kind: fixture.service,
         definition_id: fixture.service, sync_kind: "connector", name: fixture.service, status: "active" }));
       bindLocalFeedSourceAccount(home.directory, source, connection.connection_id);

@@ -29,6 +29,7 @@ import {
   SqlitePluginEventsRepository,
   SqlitePluginRuntimeReleaseArtifactRepository,
   SqlitePluginWiringRepository,
+  resolveActionProviderId,
   type InProcessAdmission,
   type PluginConsentLedger,
   type PluginEventsDatabase,
@@ -229,6 +230,7 @@ async function startPlatformEntries(ctx: {
   options: PluginPlatformOptions;
   identity: ReturnType<typeof pluginEntryIdentity>;
   supervisor: PluginSupervisor;
+  runtime: PluginRuntime;
   wiring: PluginInputGraph;
   events: PluginEventBus;
   closed(): boolean;
@@ -251,7 +253,7 @@ async function startPlatformEntries(ctx: {
       const state = ctx.supervisor.state(entry.definition.manifest.plugin_id);
       if (!state?.install_id || state.status !== "running") return [];
       const installId = state.install_id;
-      return [{ manifest: entry.definition.manifest, providerId: ctx.identity.providerFor(entry.definition, installId),
+      return [{ manifest: entry.definition.manifest, providerId: resolveActionProviderId(ctx.runtime.get(installId)),
         current: () => !ctx.closed() && ctx.supervisor.state(entry.definition.manifest.plugin_id)?.status === "running" && ctx.supervisor.state(entry.definition.manifest.plugin_id)?.install_id === installId }];
     }) });
   return report;
@@ -261,7 +263,6 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   if (options.journal && options.journal.db !== options.db) throw new Error("插件 journal 必须使用当前项目连接");
   if (options.home === undefined) throw new Error("插件平台要说明它的 Home：给出进程内的 Home，或明确给 null");
   const identity = pluginEntryIdentity();
-  const providerFor = identity.providerFor;
   const consents = options.consents ?? options.home?.consents ?? null;
   // One install table in the Home (batch 106, §4.2): a partition instance keeps its durable installation records, install directory
   // and signed release packages there with it, while keeping its own per-partition runtime state (`running`/`crashed`/idle stop) in
@@ -282,7 +283,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const isDualId = (pluginId: string): boolean => identity.dualInstanceId(pluginId) || isDualSandboxPlugin(supervisor, records, pluginId);
   const executor = new PluginHostExecutor({
     installations: installations.client, record: installId => records.get(installId), invalidateView,
-    providerFor, localePacks: identity.localePacks, databaseFor: identity.databaseFor, dualInstance: isDualDefinition,
+    localePacks: identity.localePacks, databaseFor: identity.databaseFor, dualInstance: isDualDefinition,
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
     ...(options.partitionScope ? { partitionScope: options.partitionScope } : {}),
     ...(options.projects ? { projects: options.projects } : {}),
@@ -299,7 +300,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     { inProcess: options.inProcess, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: installDb, scope: options.installDatabase ? { kind: "home" } : { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: isDualDefinition(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, releaseIds: RELEASE_PACKAGE_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys, permissionDeclarations: projectedPermissionDeclarations,
       assertPresentation: (manifest, rollback) => assertSurfacePresentation(manifest, { db: installDb, home: options.home?.directory, projectId: options.project_id, registry: options.actions.registry }, runtime, rollback),
       permissionBound: (record, definition) => isDualDefinition(definition) ? permission => { if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用"); return options.home.capturePermission(record, permission); } : undefined,
-      actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id),
+      actions: { ...options.actions,
         register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration, options.actions, {
           dualHomeRunning: () => { const now = records.get(record.install_id); return Boolean(now && dualHomeRunning(now)); },
           effectiveGrants: () => { const now = records.get(record.install_id); return now ? effectiveGrants(now) : []; },
@@ -354,7 +355,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     consents, upgradeCandidates: () => supervisor.upgradeCandidates(),
     upgrade: (pluginId, definition, opt) => supervisor.upgrade(pluginId, definition, opt),
     rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
-    start: (entries, control) => startPlatformEntries({ options, identity, supervisor, wiring, events, closed: () => closed }, entries, control),
+    start: (entries, control) => startPlatformEntries({ options, identity, supervisor, runtime, wiring, events, closed: () => closed }, entries, control),
   };
 }
 

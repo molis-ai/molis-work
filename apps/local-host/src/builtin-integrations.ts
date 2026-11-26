@@ -1,49 +1,24 @@
-import type { IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { createCatalogIntegrationPlugin, catalogConnectorIds } from "@molis-ai/molis-work-integration-catalog";
-import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
-import { createGmailIntegrationPlugin } from "@molis-ai/molis-work-integration-gmail";
-import { createRssIntegrationPlugin } from "@molis-ai/molis-work-integration-rss";
-import { builtinPublicFeedDriver } from "./builtin-drivers.js";
-import { normalizeGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
-import { createCatalogConnector } from "./catalog-connector.js";
-import { createGithubConnector } from "./github-connector.js";
-import { createGmailConnector } from "./gmail-connector.js";
+import type { IntegrationDriverDefinition } from "@molis-ai/molis-work-contracts/platform/integration-drivers";
+import { builtinIntegrationDrivers } from "./builtin-drivers.js";
+import { connectorSourceAccount } from "./connector-source-account.js";
 import { IntegrationDeclarations } from "./integration-declarations.js";
-import { IntegrationRegistry, type BuiltinIntegrationDefinition } from "./integration-registry.js";
+import { IntegrationRegistry } from "./integration-registry.js";
 import { assertConnectorText, builtinConnectorText } from "./connector-words.js";
 import type { IntegrationProviderFactory } from "./integration-providers.js";
 import { PLATFORM_CONNECTION_SERVICES } from "./platform-connection-services.js";
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 
-/** Built-in source providers resolve the current bound connection in the registry's own Home. */
-const githubProvider = (home: string | undefined, binding: IntegrationBinding): IntegrationProviderPort => createGithubConnector({
-  home, connectionId: binding.connection_id ?? undefined, allowFixture: false,
-});
-
-const gmailProvider = (home: string | undefined, binding: IntegrationBinding): IntegrationProviderPort => createGmailConnector({
-  home, connectionId: binding.connection_id ?? undefined, allowFixture: false,
-  scope: normalizeGmailScope(binding.config.scope),
-});
-
-const catalogProvider = (home: string | undefined, connectorId: string, binding: IntegrationBinding): IntegrationProviderPort =>
-  createCatalogConnector({ home, connectorId, connectionId: binding.connection_id ?? undefined });
-
 /**
- * The integration plugins that ship with the Host: the one place they are listed, and the one place each is given the provider of its
- * own kind. Everything downstream reads their declarations. A caller that brings its own `override` (a test) gets its provider for every
- * integration instead, asked by the integration's id.
+ * The integrations that ship with the Host, as their drivers declare them (D3 A): each source reads the connection its binding names, in
+ * the registry's own Home. Everything downstream reads their declarations. A caller that brings its own `override` (a test) gets its
+ * provider for every integration instead, asked by the integration's id.
  */
-export function builtinIntegrationDefinitions(override?: IntegrationProviderFactory, now?: () => Date, home?: string): BuiltinIntegrationDefinition[] {
-  const providerFor = (integrationId: string, own: (binding: IntegrationBinding) => IntegrationProviderPort) =>
-    (binding: IntegrationBinding): IntegrationProviderPort => override ? override(integrationId, binding) : own(binding);
-  return [
-    { ...createRssIntegrationPlugin({ now }), publicFeed: builtinPublicFeedDriver() },
-    createGithubIntegrationPlugin({ providerFor: providerFor("github", binding => githubProvider(home, binding)), now }),
-    createGmailIntegrationPlugin({ providerFor: providerFor("gmail", binding => gmailProvider(home, binding)), now }),
-    ...catalogConnectorIds().map(connectorId => createCatalogIntegrationPlugin({
-      connectorId, providerFor: providerFor(connectorId, binding => catalogProvider(home, connectorId, binding)), now })),
-  ];
+export function builtinIntegrationDefinitions(override?: IntegrationProviderFactory, now?: () => Date, home?: string): IntegrationDriverDefinition[] {
+  return builtinIntegrationDrivers({
+    provider: (integrationId, own) => binding => override ? override(integrationId, binding)
+      : own(connectorSourceAccount(integrationId, binding.connection_id ?? undefined, home), binding),
+    now,
+  });
 }
 
 export { builtinCliDrivers, builtinCliReleaseHosts, builtinPublicFeedDriver, type CliDriver, type CliNativeDistribution, type CliReleasePort } from "./builtin-drivers.js";
@@ -77,7 +52,7 @@ export const existingIntegrationRegistry = (home: string): Promise<IntegrationRe
  */
 export function homeIntegrationRegistry(home: string, providerFactory?: IntegrationProviderFactory, now?: () => Date): Promise<IntegrationRegistry> {
   const build = async () => {
-    const registry = new IntegrationRegistry({ platform: PLATFORM_CONNECTION_SERVICES, now });
+    const registry = new IntegrationRegistry({ platform: PLATFORM_CONNECTION_SERVICES });
     for (const definition of builtinIntegrationDefinitions(providerFactory, now, home)) await registry.enable(definition);
     return registry;
   };

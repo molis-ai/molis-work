@@ -49,7 +49,7 @@ test("S-69 RAC-346 every registered service names exact https origins (or a tena
     }
     const methods = Object.entries(service.credential);
     assert.ok(methods.length > 0 && methods.every(([method, scheme]) => ["token", "oauth"].includes(method)
-      && ["bearer", "bot", "bare", "private-token", "x-figma-token", "basic"].includes(scheme)), id);
+      && (typeof scheme === "string" ? ["bearer", "bot", "bare", "basic"] : ["private-token", "x-figma-token"]).includes(typeof scheme === "string" ? scheme : scheme.header)), id);
     assert.ok(service.refresh === "host" || service.refresh === "none", id);
   }
 });

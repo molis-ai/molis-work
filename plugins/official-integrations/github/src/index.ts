@@ -45,6 +45,7 @@ export const githubIntegrationManifest = {
     auth_kind: "oauth",
     categories: ["source-control", "project-tracker"],
     project_hints: { git_hosts: ["github.com"], files: [".github/"] },
+    card: { purpose: { key: "github.connection.purpose" } },
     // Two ways to sign in, side by side: the web flow for a client of the person's own, and the device flow for the product's (the person
     // types a code on GitHub's page). Both read the account the same way.
     auth: { methods: [{

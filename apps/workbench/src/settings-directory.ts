@@ -4,6 +4,7 @@ import { renderAppearanceSettingsDocument, type AppearanceSettingsModel } from "
 import { withSettingsHelp } from "./settings-help-topics.js";
 import { createProjectSettingsFolds, type ProjectSettingsFoldProject } from "./project-settings-folds.js";
 import { groupedGlobalSettingsSections } from "./settings-sections.js";
+import { PLATFORM_PROJECT_SETTINGS_REGISTRY } from "./platform-settings-registry.js";
 
 export interface SettingsDirectoryPrimitives {
   readText(text: string): string;
@@ -13,19 +14,6 @@ export interface SettingsDirectoryPrimitives {
   withDesktopQuery?(path: string): string;
   projectDeletionLabels?(): readonly string[];
 }
-
-
-const PROJECT_SETTINGS_SECTIONS = [
-  { id: "general", label: "workbench.settings-directory.general", icon: "tune" },
-  { id: "workspaces", label: "workbench.settings-directory.inputs-and-output", icon: "folder" },
-  { id: "guidance", label: "workbench.settings-directory.project-guidance", icon: "book" },
-  { id: "memory", label: "workbench.settings-directory.memory", icon: "bookmark" },
-  { id: "knowledge", label: "workbench.settings-directory.project-knowledge", icon: "file" },
-  { id: "plugins", label: "workbench.settings-directory.plugins", icon: "package" },
-  { id: "kit", label: "workbench.kit.title", icon: "sparkles" },
-  { id: "characters", label: "workbench.settings-sections.characters", icon: "user" },
-  { id: "grants", label: "workbench.settings-directory.access-and-approvals", icon: "shield" },
-] as const satisfies readonly { id: string; label: string; icon: PluginIconName }[];
 
 function localeSwitchHref(locale: import("./i18n.js").WebLocalePreference, nextPath: string): string {
   return `/locale?lang=${locale}&next=${encodeURIComponent(nextPath)}`;
@@ -95,7 +83,7 @@ export function renderProjectSettingsDirectorySection(primitives: SettingsDirect
     <div class="plugin-section-body">
       <div class="mw-toggle-group settings-scope-switch settings-scope-switch--drawer" role="group" aria-label="${uiText("workbench.settings-navigation.scope-switch")}"><button class="mw-toggle" type="button" data-directory-open="settings" aria-pressed="false">${uiText("workbench.settings-navigation.scope-global")}</button><button class="mw-toggle is-current" type="button" data-directory-open="project-settings" aria-pressed="true">${uiText("workbench.settings-navigation.scope-project")}</button></div>
       <div class="settings-nav-filter settings-nav-filter--drawer"><input class="mw-input" type="search" data-settings-nav-filter placeholder="${uiText("workbench.settings-navigation.filter-settings")}" aria-label="${uiText("workbench.settings-navigation.filter-settings")}" autocomplete="off"></div>
-      ${renderSettingsNav(primitives, [{ group: "", sections: PROJECT_SETTINGS_SECTIONS.map(section => ({ ...section, label: uiText.text(section.label) })) }], "general", "workbench.settings-directory.project-settings", "project-settings")}
+      ${renderSettingsNav(primitives, [{ group: "", sections: PLATFORM_PROJECT_SETTINGS_REGISTRY.flatMap(section => "row" in section ? [{ id: section.id, icon: section.row.icon, label: uiText.text(section.row.label) }] : []) }], "general", "workbench.settings-directory.project-settings", "project-settings")}
       <p class="settings-nav-empty" data-settings-nav-empty hidden>${uiText("workbench.settings-navigation.no-matching-settings")}</p>
     </div>
   </section>`;

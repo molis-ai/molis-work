@@ -8,6 +8,8 @@
     "bitbucket.connection.summary": "Repositories and pull requests.",
     "bitbucket.connection.token-label": "Bitbucket token",
     "bitbucket.connection.token-placeholder": "email:api-token or OAuth access token",
+    "bitbucket.credential.atlassian-email": "Atlassian email",
+    "bitbucket.credential.api-token": "API token",
     "bitbucket.guide.mcp-connected-note": "The Bitbucket workspace must be linked to an Atlassian organization.",
     "bitbucket.guide.mcp-link": "View Atlassian Rovo MCP",
     "bitbucket.guide.mcp-note": "The Bitbucket workspace must be linked to an Atlassian organization. Molis Work hasn’t integrated this service yet.",

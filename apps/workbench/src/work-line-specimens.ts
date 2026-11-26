@@ -21,10 +21,11 @@ type Specimen = (id: string, n: string, caption: string, note: string, body: str
 const say = (key: string, values?: Record<string, string | number>) => uiText.text(`workbench.work-line-specimens.${key}`, values);
 const nav = (key: string) => uiText.text(`workbench.navigation-specimens.${key}`);
 
+// Made-up owners (44C, D8=A: the board names no real plugin).
 const OWNER = {
-  goals: { name: "Goals", glyph: "target", hue: "blue" }, pages: { name: "Pages", glyph: "note", hue: "cyan" },
-  coding: { name: "Coding", glyph: "code", hue: "purple" }, feed: { name: "Feed", glyph: "rss", hue: "brown" },
-  jelly: { name: "Jelly", glyph: "calendar", hue: "mint" }, todo: { name: "Todo", glyph: "list", hue: "green" },
+  roadmap: { name: "Roadmap", glyph: "target", hue: "blue" }, notebook: { name: "Notebook", glyph: "note", hue: "cyan" },
+  workshop: { name: "Workshop", glyph: "code", hue: "purple" }, digest: { name: "Digest", glyph: "rss", hue: "brown" },
+  agenda: { name: "Agenda", glyph: "calendar", hue: "mint" }, checklist: { name: "Checklist", glyph: "list", hue: "green" },
 } as const satisfies Record<string, LineOwnerView>;
 
 /** The sample line: what happened, what is being worked on or waits, what comes next. One set of events and tasks for every specimen, so the counts agree. */
@@ -32,18 +33,18 @@ function events() {
   const event = (id: string, title: string, owner: LineOwnerView, kind: string, state: LineEventState, more: Partial<LineEventView> = {}): LineEventView =>
     ({ id, title, owner, kind: say(`kind-${kind}`), state, stateLabel: say(`state-${state || "not-started"}`), ...more });
   return {
-    plan: event("plan", nav("revamp-plan"), OWNER.pages, "document", "done"),
-    weekly: event("weekly", nav("design-weekly-11-03"), OWNER.feed, "digest", "gone"),
-    exported: event("export", say("export-revamp-plan"), OWNER.pages, "document", "stopped"),
-    merge: event("merge", say("merge-first-screen-branch"), OWNER.coding, "change", "verify"),
-    upgrade: event("upgrade", say("upgrade-dependencies"), OWNER.coding, "change", "queued", { tasks: { count: 1, lead: "queued" } }),
-    hidden: event("hidden", "", OWNER.goals, "goal", "denied"),
-    goal: event("goal", nav("homepage-revamp-new-first-screen"), OWNER.goals, "goal", "running", { tasks: { count: 2, lead: "running" } }),
-    fix: event("fix", nav("fix-first-screen-layout"), OWNER.coding, "change", "running", { note: say("running-tests"), tasks: { count: 1, lead: "running" } }),
-    quote: event("quote", say("reply-vendor-quote"), OWNER.todo, "todo", "wait", { note: say("which-vendor"), tasks: { count: 1, lead: "answer" } }),
-    talk: event("talk", say("draft-review-talk"), OWNER.pages, "document", "failed", { note: say("model-unreachable"), tasks: { count: 1, lead: "failed" } }),
-    review: event("review", say("friday-review"), OWNER.jelly, "meeting", "", { note: say("fri-15") }),
-    brand: event("brand", nav("roll-out-brand-guide"), OWNER.goals, "goal", ""),
+    plan: event("plan", nav("revamp-plan"), OWNER.notebook, "document", "done"),
+    weekly: event("weekly", nav("design-weekly-11-03"), OWNER.digest, "digest", "gone"),
+    exported: event("export", say("export-revamp-plan"), OWNER.notebook, "document", "stopped"),
+    merge: event("merge", say("merge-first-screen-branch"), OWNER.workshop, "change", "verify"),
+    upgrade: event("upgrade", say("upgrade-dependencies"), OWNER.workshop, "change", "queued", { tasks: { count: 1, lead: "queued" } }),
+    hidden: event("hidden", "", OWNER.roadmap, "goal", "denied"),
+    goal: event("goal", nav("homepage-revamp-new-first-screen"), OWNER.roadmap, "goal", "running", { tasks: { count: 2, lead: "running" } }),
+    fix: event("fix", nav("fix-first-screen-layout"), OWNER.workshop, "change", "running", { note: say("running-tests"), tasks: { count: 1, lead: "running" } }),
+    quote: event("quote", say("reply-vendor-quote"), OWNER.checklist, "todo", "wait", { note: say("which-vendor"), tasks: { count: 1, lead: "answer" } }),
+    talk: event("talk", say("draft-review-talk"), OWNER.notebook, "document", "failed", { note: say("model-unreachable"), tasks: { count: 1, lead: "failed" } }),
+    review: event("review", say("friday-review"), OWNER.agenda, "meeting", "", { note: say("fri-15") }),
+    brand: event("brand", nav("roll-out-brand-guide"), OWNER.roadmap, "goal", ""),
   };
 }
 
@@ -116,7 +117,7 @@ const asking = (card: string, asks: string) => card.replace("data-card-ask hidde
 function eventCard(): string {
   const t = tasks();
   return asking(renderEventCard({
-    id: "quote", facts: say("registered-by-waiting", { plugin: OWNER.todo.name }),
+    id: "quote", facts: say("registered-by-waiting", { plugin: OWNER.checklist.name }),
     body: `<div class="work-card-section"><h4>${escapeHtml(say("in-progress"))}</h4>${renderTaskRow({ id: t.quote.id, title: t.quote.title, ring: t.quote.ring, step: t.quote.step })}</div>`,
   }), decision());
 }
@@ -134,7 +135,7 @@ function liveCard(): string {
 /** A result handed back for acceptance: a preview, where it came from, each requirement with the version it was checked against, and what can be done with it. */
 function acceptanceCard(): string {
   return renderEventCard({
-    id: "plan", facts: say("registered-by-to-accept", { plugin: OWNER.pages.name }),
+    id: "plan", facts: say("registered-by-to-accept", { plugin: OWNER.notebook.name }),
     body: `<div class="work-card-quote">${escapeHtml(say("plan-preview"))}</div>`
       + `<div class="work-card-source">${icon("note")}<span>${escapeHtml(say("plan-source"))}</span></div>`
       + `<div class="work-card-section"><h4>${escapeHtml(say("requirements-n-of-n"))}</h4>${renderTaskSteps([{ name: say("requirement-three-tiers"), at: "done", who: say("checked-third-version") }, { name: say("requirement-comparison-table"), at: "done", who: say("checked-third-version") },
@@ -150,7 +151,7 @@ function eventPage(): string {
   return asking(renderEventPage({ id: "quote", place: nav("website-revamp") }), decision())
     .replace("data-card-name></h2>", `data-card-name>${renderOwnerMark(e.quote.owner)}<strong>${escapeHtml(e.quote.title)}</strong></h2>`)
     .replace("data-card-own hidden></div>", `data-card-own>${renderCardOwn({ words: say("quote-three-vendors"), facts: [[say("fact-due"), say("fact-due-friday")]] })}</div>`)
-    .replace("data-fact-owner></dd>", `data-fact-owner>${escapeHtml(OWNER.todo.name)}</dd>`).replace("data-fact-state></dd>", `data-fact-state data-wing="next">${escapeHtml(say("state-wait"))}</dd>`)
+    .replace("data-fact-owner></dd>", `data-fact-owner>${escapeHtml(OWNER.checklist.name)}</dd>`).replace("data-fact-state></dd>", `data-fact-state data-wing="next">${escapeHtml(say("state-wait"))}</dd>`)
     .replace("<div data-card-tasks hidden></div>", `<div class="work-card-section" data-card-tasks><h4>${escapeHtml(say("in-progress"))}</h4>${renderTaskRow({ id: t.quote.id, title: t.quote.title, ring: t.quote.ring, step: t.quote.step })}</div>`);
 }
 
@@ -175,10 +176,10 @@ function handStrip(): string {
 function taskCard(): string {
   const e = events();
   return renderTaskCard({
-    id: "t-fix", title: e.fix.title, owner: OWNER.coding, ring: "running", state: say("in-progress-step-3"), who: say("coding-in-sandbox"),
+    id: "t-fix", title: e.fix.title, owner: OWNER.workshop, ring: "running", state: say("in-progress-step-3"), who: say("coding-in-sandbox"),
     serves: uiText.text("workbench.work-line.placed-new-event", { name: e.fix.title }), returnsTo: say("assistant-main-conversation"),
     steps: [{ name: say("read-code-reproduce"), at: "done" }, { name: say("change-styles"), at: "done" }, { name: say("run-tests"), at: "current" }, { name: say("hand-back-result"), at: "todo" }],
-    actions: renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.stop") }) + button("secondary", "add-note") + renderButton({ variant: "ghost", size: "sm", icon: "external", label: say("open-in-plugin", { plugin: OWNER.coding.name }) }),
+    actions: renderButton({ variant: "secondary", size: "sm", label: uiText.text("workbench.work-line.stop") }) + button("secondary", "add-note") + renderButton({ variant: "ghost", size: "sm", icon: "external", label: say("open-in-plugin", { plugin: OWNER.workshop.name }) }),
   });
 }
 
@@ -192,7 +193,7 @@ function dialog(kind: "main" | "list" | "event" | "takes" | "offline"): string {
   const key = (glyph: Parameters<typeof icon>[0], label: string) => `<button class="dock-window-action" type="button" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon(glyph)}</button>`;
   const dock = (name: string) => uiText.text(`workbench.assistant-dock.${name}`);
   const head = `<header class="assistant-head"><span class="assistant-head-mark" aria-hidden="true">${onEvent ? renderOwnerMark(e.quote.owner) : icon("sparkles")}</span><h2 class="assistant-head-title">${escapeHtml(onEvent ? e.quote.title : assistant().name)}</h2>`
-    + `<span class="assistant-head-note">${escapeHtml(onEvent ? OWNER.todo.name : uiText.text("workbench.assistant-head.main-in", { place: nav("website-revamp") }))}</span>`
+    + `<span class="assistant-head-note">${escapeHtml(onEvent ? OWNER.checklist.name : uiText.text("workbench.assistant-head.main-in", { place: nav("website-revamp") }))}</span>`
     + `<span class="assistant-head-actions">${key("maximize", dock("maximize"))}${key("more", dock("more"))}${key("chevron-down", dock("minimize"))}</span></header>`;
   const takes = `<p class="assistant-page-takes"><span>${escapeHtml(dock("page-takes-words"))}</span>${renderButton({ variant: "secondary", size: "sm", label: dock("ask-assistant-instead") })}</p>`;
   const thread = `<div class="assistant-thread" role="log">${onEvent ? round(say("user-on-event"), p("assistant-on-event")) : replies(false)}</div>`;

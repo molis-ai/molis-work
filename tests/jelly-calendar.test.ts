@@ -60,9 +60,41 @@ test("this and following ends the series the day before and starts a new one, ca
 
 test("the whole series moves with its first date, keeps its length, and deleting it leaves nothing", () => {
   const { series: moved } = changeJellySeries(series({ exceptions: { "2026-09-28": { deleted: true } } }), "2026-09-23", "all", { start_date: "2026-09-24", end_date: "2026-09-24" }, at, "x");
-  assert.equal(moved!.start_date, "2026-09-22"); assert.deepEqual(moved!.weekdays, [2, 4]); assert.deepEqual(moved!.exceptions, {});
+  // A deleted date moves with the series, so it stays deleted.
+  assert.equal(moved!.start_date, "2026-09-22"); assert.deepEqual(moved!.weekdays, [2, 4]); assert.deepEqual(moved!.exceptions, { "2026-09-29": { deleted: true } });
   assert.deepEqual(changeJellySeries(series(), "2026-09-23", "all", null, at, "x"), { series: null, created: null });
   assert.throws(() => validateJellySeries(series({ weekdays: [] }), categories), { code: "jelly.invalid" });
   assert.throws(() => validateJellySeries(series({ until: "2026-09-20" }), categories), { code: "jelly.invalid" });
   assert.throws(() => validateJellySeries(series({ completions: { "2026-09-22": at } }), categories), { code: "jelly.invalid" });
+});
+
+test("the page's own series edits: unchanged weekdays are no rule change, and a move counts from where the occurrence is now", () => {
+  // Two ticked Mondays and a deleted Wednesday survive a rename of the whole series that sends the same weekdays back.
+  let value = series({ completions: { "2026-09-21": at, "2026-09-28": at }, exceptions: { "2026-09-30": { deleted: true } } });
+  const renamed = changeJellySeries(value, "2026-09-23", "all", { title: "新站会", start_date: "2026-09-23", end_date: "2026-09-23", weekdays: [3, 1], until: null }, at, "x").series!;
+  assert.deepEqual(renamed.completions, value.completions); assert.deepEqual(renamed.exceptions, value.exceptions); assert.equal(renamed.start_date, "2026-09-21");
+  assert.deepEqual(days(jellyOccurrences([], [renamed], "2026-09-21", "2026-10-04")), ["2026-09-21", "2026-09-23", "2026-09-28"]);
+  // This and following, moved a day later with the same weekdays: the new series turns to Tuesday and Thursday and keeps the edited occurrence.
+  const { created } = changeJellySeries(series(), "2026-09-23", "thisAndFuture", { start_date: "2026-09-24", end_date: "2026-09-24", weekdays: [1, 3], until: null }, at, "n");
+  assert.deepEqual(created!.weekdays, [2, 4]);
+  assert.deepEqual(days(jellyOccurrences([], [created!], "2026-09-21", "2026-10-02")), ["2026-09-24", "2026-09-29", "2026-10-01"]);
+  // Renaming an occurrence that was moved on its own does not move the series; its own date stays and the new title is the series'.
+  value = changeJellySeries(series(), "2026-09-23", "onlyThis", { start_date: "2026-09-24", end_date: "2026-09-24", title: "改期" }, at, "x").series!;
+  const all = changeJellySeries(value, "2026-09-23", "all", { title: "站会二", start_date: "2026-09-24", end_date: "2026-09-24", weekdays: [1, 3], until: null }, at, "x").series!;
+  assert.equal(all.start_date, "2026-09-21"); assert.deepEqual(all.weekdays, [1, 3]);
+  assert.deepEqual(jellyOccurrences([], [all], "2026-09-21", "2026-09-27").map(entry => [entry.start_date, entry.title]), [["2026-09-21", "站会二"], ["2026-09-24", "站会二"]]);
+  const split = changeJellySeries(value, "2026-09-23", "thisAndFuture", { title: "站会三", start_date: "2026-09-24", end_date: "2026-09-24", weekdays: [1, 3], until: null }, at, "n").created!;
+  assert.deepEqual(jellyOccurrences([], [split], "2026-09-21", "2026-09-30").map(entry => [entry.start_date, entry.title]), [["2026-09-24", "站会三"], ["2026-09-28", "站会三"], ["2026-09-30", "站会三"]]);
+  validateJellySeries(renamed, categories); validateJellySeries(created!, categories); validateJellySeries(all, categories); validateJellySeries(split, categories);
+});
+
+test("an Assistant's series edits: an earlier end drops what is after it, an end date alone changes the length, a start alone moves the end", () => {
+  const value = series({ completions: { "2026-09-21": at, "2026-10-05": at }, exceptions: { "2026-10-07": { deleted: true } } });
+  const shorter = changeJellySeries(value, "2026-09-21", "all", { until: "2026-09-30" }, at, "x").series!;
+  assert.equal(shorter.until, "2026-09-30"); assert.deepEqual(shorter.completions, { "2026-09-21": at }); assert.deepEqual(shorter.exceptions, {});
+  const longer = changeJellySeries(series(), "2026-09-23", "all", { end_date: "2026-09-24" }, at, "x").series!;
+  assert.deepEqual([longer.start_date, longer.end_date], ["2026-09-21", "2026-09-22"]);
+  const moved = changeJellySeries(series({ end_date: "2026-09-22" }), "2026-09-23", "onlyThis", { start_date: "2026-09-25" }, at, "x").series!;
+  assert.deepEqual(moved.exceptions["2026-09-23"]?.patch, { start_date: "2026-09-25", end_date: "2026-09-26" });
+  validateJellySeries(shorter, categories); validateJellySeries(longer, categories); validateJellySeries(moved, categories);
 });

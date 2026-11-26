@@ -52,9 +52,11 @@ test("a single entry is created, moved as a whole, completed, refused on a stale
   assert.equal(a.deleteItem.action.undo?.capability_id, "jelly.restore");
   const back = (await f.bound.invoke(a.restore, { rows: restore })).rows.items[0]!;
   assert.deepEqual([back.title, back.start_date, back.revision], ["交稿", "2026-09-15", 4]);
-  // Changed again after it came back: the old restore no longer applies.
+  // Changed again after it came back: the old restore leaves that row as it is now and names it.
   await f.bound.invoke(a.updateItem, { id: item.id, expected_revision: 4, patch: { title: "改过" } });
-  await assert.rejects(f.bound.invoke(a.restore, { rows: restore }), { code: "jelly.conflict" });
+  const stale = await f.bound.invoke(a.restore, { rows: restore });
+  assert.deepEqual([stale.skipped, stale.rows.items], [[item.id], []]);
+  assert.equal((await f.month()).items[0]?.title, "改过");
 });
 
 test("a weekly series answers each scope at one occurrence, and its occurrences come back with the series id", async t => {
@@ -91,11 +93,26 @@ test("deleting a category moves its entries, including a single date's change, t
   const after = await f.month();
   assert.deepEqual(after.categories.map(row => row.id), ["uncategorized"]);
   assert.ok(after.items.every(entry => entry.category_id === "uncategorized"));
-  await f.bound.invoke(a.restore, { rows: restore });
+  // One moved entry since the delete stays where it is; the category and the rest still come back.
+  const first = (await f.bound.invoke(a.createItem, { item: { title: "另一件", start_date: "2026-09-03" } })).item;
+  const other = (await f.bound.invoke(a.updateItem, { id: first.id, expected_revision: 1, patch: { title: "另一件（改过）" } })).item;
+  const after2 = await f.bound.invoke(a.restore, { rows: { ...restore, items: [...restore.items ?? [], { ...first, category_id: category.id, revision: 0 }] } });
+  assert.deepEqual(after2.skipped, [other.id]);
   const back = await f.month();
   assert.equal(back.items.find(entry => entry.id === item.id)?.category_id, category.id);
   assert.equal(back.items.find(entry => entry.id === `${series.id}@2026-09-14`)?.category_id, category.id);
+  assert.deepEqual(back.items.filter(entry => entry.id === other.id).map(entry => [entry.category_id, entry.title]), [["uncategorized", "另一件（改过）"]]);
+  // 「未分类」 is never put back through restore, so it cannot be renamed that way.
+  const renamed = await f.bound.invoke(a.restore, { rows: { categories: [{ ...recolored, name: "别的", revision: recolored.revision - 1 }] } });
+  assert.deepEqual(renamed.skipped, ["uncategorized"]);
   await assert.rejects(f.bound.invoke(a.deleteCategory, { id: "uncategorized", expected_revision: 1 }), { code: "jelly.invalid" });
+});
+
+test("an occurrence moved before its series' first date still shows in the range it moved to", async t => {
+  const f = fixture(t);
+  const { series } = await f.bound.invoke(a.createSeries, { series: { title: "周会", start_date: "2026-10-05", weekdays: [1] } });
+  await f.bound.invoke(a.updateSeries, { id: series.id, expected_revision: 1, original_date: "2026-10-05", scope: "onlyThis", patch: { start_date: "2026-09-25" } });
+  assert.deepEqual((await f.month()).items.map(entry => [entry.id, entry.start_date, entry.end_date]), [[`${series.id}@2026-10-05`, "2026-09-25", "2026-09-25"]]);
 });
 
 test("notes keep plain text or Markdown, pin to a day, list by day or words, refuse a stale save and come back after delete", async t => {

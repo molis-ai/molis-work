@@ -23,9 +23,12 @@ export type JellyAction = keyof typeof VERSIONS;
 
 /** One action call. A refusal for who-may-read reasons is said as the platform says it; a conflict keeps which row and its revision. */
 export async function call<O>(host: JellyHost, capability: JellyAction, input: unknown): Promise<O> {
-  try { return await host.invokeAction<O>({ capability_id: capability, version: VERSIONS[capability] }, input); }
-  catch (error) {
-    const failure = (error instanceof Error ? error : new Error(uiText.text("jelly.error.action-failed"))) as Failure & { body?: { details?: Failure["details"] } };
+  try {
+    return await host.invokeAction<O>({ capability_id: capability, version: VERSIONS[capability] }, input);
+  } catch (error) {
+    const failure = (
+      error instanceof Error ? error : new Error(uiText.text("jelly.error.action-failed"))
+    ) as Failure & { body?: { details?: Failure["details"] } };
     if (failure.body?.details && !failure.details) failure.details = failure.body.details;
     const refusal = host.readRefusal(failure.status ?? 0, failure.code);
     if (refusal) failure.message = refusal;
@@ -33,5 +36,9 @@ export async function call<O>(host: JellyHost, capability: JellyAction, input: u
     throw failure;
   }
 }
-export const isConflict = (error: unknown): boolean => { const code = (error as Failure | null)?.code; return code === "jelly.conflict" || code === "jelly.not_found"; };
-export const messageOf = (error: unknown): string => (error instanceof Error && error.message) || uiText.text("jelly.error.action-failed");
+export const isConflict = (error: unknown): boolean => {
+  const code = (error as Failure | null)?.code;
+  return code === "jelly.conflict" || code === "jelly.not_found";
+};
+export const messageOf = (error: unknown): string =>
+  (error instanceof Error && error.message) || uiText.text("jelly.error.action-failed");

@@ -1,7 +1,7 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseTransaction, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { JellyCategory, JellyItem, JellyNote, JellySeries } from "./contract.js";
-import { JELLY_UNCATEGORIZED_ID, jellyAddDays, jellyDate, validateJellyEntry, validateJellySeries, type JellyCategoryIds } from "./calendar.js";
+import { JELLY_UNCATEGORIZED_ID, jellyDate, validateJellyEntry, validateJellySeries, type JellyCategoryIds } from "./calendar.js";
 import { jellyAssert, jellyErrors } from "./error.js";
 import { JELLY_DATABASE } from "./database.js";
 export { JELLY_DATABASE };
@@ -89,9 +89,12 @@ export class JellyStore {
   items(start: string, end: string): JellyItem[] {
     return this.many("item", "SELECT * FROM jelly_items WHERE start_date <= ? AND end_date >= ? ORDER BY start_date, id", [end, start]);
   }
-  /** Series that may have an occurrence touching `start`..`end` (an occurrence may run up to a year past its start). */
-  series(start: string, end: string): JellySeries[] {
-    return this.many("series", "SELECT * FROM jelly_series WHERE start_date <= ? AND (until IS NULL OR until >= ?) ORDER BY start_date, id", [end, jellyAddDays(start, -366)]);
+  /**
+   * Every series: one may touch any range, since a single date can be moved anywhere and an occurrence can be long. `jellyOccurrences`
+   * then walks only the asked range.
+   */
+  series(): JellySeries[] {
+    return this.many("series", "SELECT * FROM jelly_series ORDER BY start_date, id");
   }
   itemsInCategory(id: string): JellyItem[] { return this.many("item", "SELECT * FROM jelly_items WHERE category_id = ?", [id]); }
   seriesInCategory(id: string): JellySeries[] {
@@ -118,13 +121,24 @@ export class JellyStore {
   }
   /** Writes `row` over the stored one only if that is still at `expected`; `row.revision` is the new revision. */
   replace<K extends JellyRowKind>(kind: K, row: JellyRows[K], expected: number): JellyRows[K] {
-    validateJellyRow(kind, row, kind === "item" || kind === "series" ? this.categoryIds() : undefined);
+    validateJellyRow(kind, row, this.keptCategories(kind, row.id));
     if (kind === "category" && row.id === JELLY_UNCATEGORIZED_ID && expected === 0 && !this.db.get("SELECT 1 FROM jelly_categories WHERE id = ?", [row.id])) return this.insert(kind, row);
     const columns = COLUMNS[kind].filter(column => column !== "id");
     const changed = this.db.run(`UPDATE ${JELLY_TABLES[kind]} SET ${columns.map(column => `${column} = ?`).join(", ")} WHERE id = ? AND revision = ?`,
       [...encodeJellyRow(kind, row).slice(1), row.id, expected]);
     if (changed.changes !== 1) this.conflict(kind, row.id);
     return row;
+  }
+  /**
+   * The categories a changed entry may name: those that exist, and any its stored row already names. A row that arrived by sync before its
+   * category, or whose category was deleted meanwhile, can still be edited or ticked without first picking a new one.
+   */
+  private keptCategories(kind: JellyRowKind, id: string): JellyCategoryIds | undefined {
+    if (kind !== "item" && kind !== "series") return undefined;
+    const ids = this.categoryIds(), stored = kind === "item" ? this.get("item", id) : this.get("series", id);
+    if (stored) ids.add(stored.category_id);
+    if (stored && "exceptions" in stored) for (const exception of Object.values(stored.exceptions)) if (exception.patch?.category_id) ids.add(exception.patch.category_id);
+    return ids;
   }
   delete(kind: JellyRowKind, id: string, expected: number): void {
     const changed = this.db.run(`DELETE FROM ${JELLY_TABLES[kind]} WHERE id = ? AND revision = ?`, [id, expected]);

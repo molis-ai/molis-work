@@ -40,8 +40,7 @@
   "molis-work": {
     "maturity": "production",
     "capabilities": [
-      "jelly.ui-contribution.v1",
-      "jelly.workspace.v1"
+      "jelly.ui-contribution.v1"
     ],
     "registration": "./registration",
     "extraWorkspaceDependencies": [

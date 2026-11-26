@@ -62,7 +62,7 @@ export function mountJelly(host: JellyHost): void {
     const object = entry
       ? { kind: "jelly_item", id: entry.series_id ?? entry.id, version: String(entry.revision), title: entry.title }
       : note
-        ? { kind: "jelly_note", id: note.id, version: String(note.revision), title: note.title }
+        ? { kind: "jelly_note", id: note.id, version: String(note.revision), title: noteName(note) }
         : null;
     if (object)
       root.setAttribute(
@@ -135,13 +135,14 @@ export function mountJelly(host: JellyHost): void {
   async function loadDayNote(): Promise<void> {
     const day = state.selected;
     if (state.dayNote.dirty && state.dayNote.day !== day) await saveNote(state.dayNote);
+    const editor = state.dayNote;
     const { notes } = await call<{ notes: NoteSummary[] }>(host, "jelly.note.list", { day });
-    if (state.selected !== day) return;
     const first = notes[0];
-    state.dayNote = first
-      ? { ...blankNote(day), note: (await call<{ note: JellyNote }>(host, "jelly.note.get", { id: first.id })).note }
-      : blankNote(day);
-    state.dayNote.body = state.dayNote.note?.body ?? "";
+    const note = first ? (await call<{ note: JellyNote }>(host, "jelly.note.get", { id: first.id })).note : null;
+    // Typing meanwhile wins: the editor the person is writing in stays, and its own save carries on.
+    if (state.selected !== day || state.dayNote !== editor || (editor.day === day && (editor.dirty || editor.saving)))
+      return;
+    state.dayNote = { ...blankNote(day), note, body: note?.body ?? "" };
   }
   async function loadNotes(): Promise<void> {
     state.notes = (
@@ -198,6 +199,9 @@ export function mountJelly(host: JellyHost): void {
       );
       editor.note = note;
       if (editor.body !== body) editor.dirty = true;
+      // The same note open in the other editor (the day rail and the notes tab) follows, unless it is being written there too.
+      const other = editor === state.dayNote ? state.note : state.dayNote;
+      if (other.note?.id === note.id && !other.dirty && !other.saving) Object.assign(other, { note, body: note.body });
       if (note.day) noteDays.add(note.day);
       const summary = {
         id: note.id,
@@ -419,8 +423,9 @@ export function mountJelly(host: JellyHost): void {
   }
   async function undo(rows: Rows): Promise<void> {
     try {
-      await call(host, "jelly.restore", { rows });
+      const { skipped } = await call<{ skipped: string[] }>(host, "jelly.restore", { rows });
       await refresh();
+      if (skipped.length) toast("jelly.undo.changed");
     } catch (error) {
       if (isConflict(error)) toast("jelly.undo.changed");
       else fail(error);
@@ -500,11 +505,13 @@ export function mountJelly(host: JellyHost): void {
     event.preventDefault();
     run(async () => {
       // A refused read is said as the platform says it, never as gone (VUX-12).
+      // Only a refusal or a row that is not there counts as unreadable; any other failure (the Host restarting, a damaged row) is a failure.
       let refused = "";
-      const refusal = (error: unknown) => {
+      const settle = (error: unknown): null => {
         const failure = error as Failure | null;
         refused ||= host.readRefusal(failure?.status ?? 0, failure?.code) ?? "";
-        return null;
+        if (refused || failure?.status === 404 || failure?.code === "jelly.not_found") return null;
+        throw error;
       };
       try {
         await openNote(id);
@@ -512,11 +519,11 @@ export function mountJelly(host: JellyHost): void {
         paint();
         return;
       } catch (error) {
-        refusal(error); /* not a note: an entry */
+        settle(error); /* not a note: an entry */
       }
       const found = refused
         ? null
-        : await call<{ item?: JellyItem; series?: JellySeries }>(host, "jelly.item.get", { id }).catch(refusal);
+        : await call<{ item?: JellyItem; series?: JellySeries }>(host, "jelly.item.get", { id }).catch(settle);
       const entry = found?.item ?? found?.series;
       // Gone or refused: the workbench is told, and the page says so where it would have been (user decision 2026-10-21); a reopen nobody asked for stays quiet.
       if (!entry) {

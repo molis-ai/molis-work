@@ -48,6 +48,15 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: quick add, a new event,
   await waitFor("document.querySelectorAll('[data-jelly-note]').length === 2", 10_000);
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
 
+  // A deletion is undone from the workbench's toast (Decision 60): the frame keeps the undo and the toast hands the press back.
+  await evaluate(`document.querySelector('[data-jelly-act="delete-note"]').click()`);
+  await waitFor("document.querySelectorAll('[data-jelly-note]').length === 1", 10_000);
+  assert.equal(rows().notes.length, 1);
+  await browser.waitFor("!!document.querySelector('[data-toast] [data-toast-action]')");
+  await browser.evaluate("document.querySelector('[data-toast] [data-toast-action]').click(); true");
+  await waitFor("document.querySelectorAll('[data-jelly-note]').length === 2", 10_000);
+  assert.deepEqual(rows().notes.map(note => note.body).sort(), ["# 读书\n\n- 第三章", "今天先把周报写完"]);
+
   await reloadPage(); await open();
   await click('[data-jelly-mode="list"]');
   await waitFor("document.querySelectorAll('[data-jelly-open]').length >= 2");

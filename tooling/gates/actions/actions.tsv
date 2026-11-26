@@ -338,7 +338,7 @@ jelly.note.get	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-
 jelly.note.list	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,mcp,user,workflow	jelly:read	jelly_note	-	-	e6d10f56a2d6	e30e1323edb3	a0c0d775b46a
 jelly.note.save	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_note	-	-	145995966408	7aef45488cf5	5e4a2e3f38aa
 jelly.note.subject.read	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	jelly:read	jelly_note	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	3c18e4478c29	0102f2c808b7
-jelly.restore	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_item	-	-	41bee90b2681	41bee90b2681	ca7ee7c2b017
+jelly.restore	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_item	-	-	41bee90b2681	0b4ae9d70756	ca7ee7c2b017
 jelly.search.entries	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	jelly:read	jelly_item,jelly_note	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	d3745f4a5038
 jelly.series.create	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_item	-	-	ebece1172e59	490b93d56064	a0187d857248
 jelly.series.delete	1	io.molis.work.jelly	io.molis.work.jelly	command	operation	home	write	-	agent,mcp,user,workflow	jelly:read,jelly:write	jelly_item	-	-	3e720860d73b	a3ad29e35da3	0f14511c3bf7

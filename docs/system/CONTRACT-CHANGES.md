@@ -189,6 +189,7 @@
 第 112 批 112-2 Jelly 瘦身（用户 2026-11-26 选 Clean v1）：
 - **库结构**：`jelly/jelly.db` 删去四张旧表：`jelly_workspace`（`singleton = 1` 的整库 JSON）、`jelly_note_versions`、`jelly_history`、`jelly_previews`。改为按行存的四张表 `jelly_categories`、`jelly_items`、`jelly_series`、`jelly_notes`，每行带自己的 `revision`。同步技术表随集合 `jelly.entries` 换了命名空间。
 - **版本**：`database.jelly_database` 保持 v1，不升版。没有升级段，也没有读旧结构的兼容分支，旧 `singleton` 行不迁移。
+- **已有的 Home**：库号同为 1 而结构不同，Jelly 在已有旧库的 Home 上打开时按结构不符拒绝，不改动旧文件。用户选的做法是更新后手动删掉 `jelly/jelly.db`，Jelly 从空开始（平台不代删）。金样已就地改写，所以金样回放查不出这一点，这里留文字记录。
 - **门禁与金样**：确切的哈希对 `(f8ed975502abc63b → 07e620872874959d)` 登记在 `tooling/gates/schemas/same-version-exceptions.json`。三份金样的 Jelly 库就地改写为新结构，各含一行 `jelly_notes`。
 - **同批退役**：
   - `jelly/preferences.json`，即 Jelly 自己的模型选择。`format.model.preference` 只剩沙箱插件的 `plugin-files/<install_id>/.model-settings/preference.json`。金样里的 `jelly/preferences.json` 一并删除。

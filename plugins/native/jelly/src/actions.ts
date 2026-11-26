@@ -3,8 +3,8 @@ import { bindActionHandler, type ActionDefinition, type ActionHandlerBinding, ty
 import { arraySchema as array, createActionDefinition, nullableSchema as nullable, objectSchema as object } from "@molis-ai/molis-work-plugin-sdk";
 import type { JellyCategory, JellyItem, JellyNote, JellyOccurrence, JellySeries } from "./contract.js";
 import { changeJellySeries, JELLY_UNCATEGORIZED_ID, jellyAddDays, jellyDaysBetween, jellyOccurrences } from "./calendar.js";
-import { jellyAssert, jellyErrors } from "./error.js";
-import { JELLY_UNCATEGORIZED, type JellyRowKind, type JellyRows, type JellyStore, type JellyStores } from "./store.js";
+import { isJellyFailure, jellyAssert, jellyErrors } from "./error.js";
+import { type JellyRowKind, type JellyRows, type JellyStore, type JellyStores } from "./store.js";
 import * as s from "./action-schema.js";
 import { createJellySearchHandlers, JELLY_ITEM_SUBJECT_KIND, JELLY_NOTE_SUBJECT_KIND, jellySearchActions } from "./search.js";
 import { createJellyContentHandlers, jellyContentActions } from "./content-actions.js";
@@ -62,9 +62,9 @@ export const jellyActions = {
     object({ id: s.id, title: { type: "string", maxLength: 500 }, body: { type: "string", maxLength: 200_000 }, day: nullable(s.date), ...expected }, []), object({ note: s.note }), changed("note")),
   deleteNote: define<{ restore: JellyRestoreRows }>()("note.delete", /* @version action.jelly.note.delete */ 1, "删除随手记", "按读到的 revision 删除一篇随手记；可用 jelly.restore 撤销", "command", JELLY_NOTE_SUBJECT_KIND,
     object({ id: s.id, ...expected }), object({ restore: s.rows }), { effect: "write", undo: restoreUndo }),
-  restore: define<{ rows: Required<JellyRestoreRows> }>()("restore", /* @version action.jelly.restore */ 1, "撤销删除",
-    "把删除或移动前的行放回去（删除命令返回的 restore 原样传入）；某一行在那之后又被改过就不放回，告诉你是哪一条", "command", JELLY_ITEM_SUBJECT_KIND,
-    object({ rows: s.rows }), object({ rows: s.rows }), { effect: "write" }),
+  restore: define<{ rows: Required<JellyRestoreRows>; skipped: string[] }>()("restore", /* @version action.jelly.restore */ 1, "撤销删除",
+    "把删除命令返回的 restore 原样传入，放回删除或移动前的行；只放回已经不在、或仍是删除命令留下样子的行。之后又被改过的行不放回，id 列在 skipped 里；「未分类」不经这里改", "command", JELLY_ITEM_SUBJECT_KIND,
+    object({ rows: s.rows }), object({ rows: s.rows, skipped: array(s.id) }), { effect: "write" }),
 };
 export const JELLY_ACTIONS: readonly ActionDefinition[] = [...Object.values(jellyActions), ...Object.values(jellySearchActions), ...Object.values(jellyContentActions)];
 export const JELLY_ACTION_PERMISSIONS = [...new Set(JELLY_ACTIONS.flatMap(definition => definition.action.permissions))];
@@ -89,7 +89,7 @@ export function createJellyActionHandlers(stores: JellyStores): ActionHandlerBin
     return stores.write(caller, store => run(store, new Date().toISOString()));
   };
   return [
-    bindActionHandler(jellyActions.calendar, input => stores.read(store => ({ categories: store.categories(), items: jellyOccurrences(store.items(input.start, input.end), store.series(input.start, input.end), input.start, input.end) }))),
+    bindActionHandler(jellyActions.calendar, input => stores.read(store => ({ categories: store.categories(), items: jellyOccurrences(store.items(input.start, input.end), store.series(), input.start, input.end) }))),
     bindActionHandler(jellyActions.item, input => stores.read(store => {
       const id = input.id.split("@")[0]!;
       const item = store.get("item", id); if (item) return { item };
@@ -176,15 +176,29 @@ export function createJellyActionHandlers(stores: JellyStores): ActionHandlerBin
       return { restore: { notes: [before] } };
     })),
     bindActionHandler(jellyActions.restore, ({ rows }, caller) => write(caller, store => {
-      // Each row goes back only if it is gone or still exactly as the removing command left it (one revision on).
-      const put = <K extends JellyRowKind>(kind: K, row: JellyRows[K]): JellyRows[K] => {
+      // Each row goes back only if it is gone or still exactly as the removing command left it (one revision on); any other row stays as it
+      // is now and is named in `skipped`, and the rest still go back. 「未分类」 is never removed, so it is never put back here.
+      const skipped: string[] = [];
+      const put = <K extends JellyRowKind>(kind: K, row: JellyRows[K]): JellyRows[K][] => {
+        if (kind === "category" && row.id === JELLY_UNCATEGORIZED_ID) {
+          skipped.push(row.id);
+          return [];
+        }
         const now = store.get(kind, row.id);
-        if (!now || now === JELLY_UNCATEGORIZED) return store.insert(kind, { ...row, revision: row.revision + 1 });
-        if (now.revision !== row.revision + 1) store.conflict(kind, row.id);
-        return store.replace(kind, { ...row, revision: now.revision + 1 }, now.revision);
+        try {
+          if (!now) return [store.insert(kind, { ...row, revision: row.revision + 1 })];
+          if (now.revision !== row.revision + 1) store.conflict(kind, row.id);
+          return [store.replace(kind, { ...row, revision: now.revision + 1 }, now.revision)];
+        } catch (error) {
+          // Checks run before any statement, so a refused row wrote nothing: a row changed since, or one whose category did not come back.
+          if (!isJellyFailure(error) || error.code === "jelly.corrupt") throw error;
+          skipped.push(row.id);
+          return [];
+        }
       };
-      const categories = (rows.categories ?? []).map(row => put("category", row));
-      return { rows: { categories, items: (rows.items ?? []).map(row => put("item", row)), series: (rows.series ?? []).map(row => put("series", row)), notes: (rows.notes ?? []).map(row => put("note", row)) } };
+      const categories = (rows.categories ?? []).flatMap(row => put("category", row));
+      return { rows: { categories, items: (rows.items ?? []).flatMap(row => put("item", row)), series: (rows.series ?? []).flatMap(row => put("series", row)),
+        notes: (rows.notes ?? []).flatMap(row => put("note", row)) }, skipped };
     })),
     ...createJellySearchHandlers(stores.read),
     ...createJellyContentHandlers(stores),

@@ -110,14 +110,31 @@ function endBefore(series: JellySeries, boundary: string): JellySeries | null {
   for (let day = kept.start_date; day <= kept.until; day = jellyAddDays(day, 1)) if (jellyOccurs(kept, day)) return kept;
   return null;
 }
+const rotate = (weekdays: readonly number[], days: number): number[] => weekdays.map(day => ((day - 1 + days) % 7 + 7) % 7 + 1);
+const sameDays = (a: readonly number[], b: readonly number[]): boolean => a.length === b.length && a.every(day => b.includes(day));
+/** Single-date records moved by `days`: the date they are kept under, and any date a kept change names. */
+function shiftExceptions(exceptions: JellySeries["exceptions"], days: number): JellySeries["exceptions"] {
+  return Object.fromEntries(Object.entries(exceptions).map(([day, value]) => [jellyAddDays(day, days), value.patch ? { patch: {
+    ...value.patch,
+    ...(value.patch.start_date !== undefined ? { start_date: jellyAddDays(value.patch.start_date, days) } : {}),
+    ...(value.patch.end_date !== undefined ? { end_date: jellyAddDays(value.patch.end_date, days) } : {}),
+  } } : value]));
+}
 /**
  * One change to a repeating series at the occurrence originally on `date`. `patch` absent deletes; `patch.completed` alone marks or clears that
- * one occurrence. "This and following" ends the series before `date` and starts `newId` there, moved by as many days as the occurrence moved.
+ * one occurrence. A new `start_date` moves from where the occurrence is now (a single-date move included); "all" moves the whole series by as
+ * many days, "this and following" ends the series before `date` and starts `newId` moved by as many days. `weekdays` count as a change only
+ * when they differ: unchanged, they turn with the move. Single-date changes and completions move along, and only those that no longer fall on
+ * the series are dropped.
  */
 export function changeJellySeries(series: JellySeries, date: string, scope: JellySeriesScope, patch: JellySeriesPatch | null, now: string, newId: string): JellySeriesChange {
   jellyAssert(jellyOccurs(series, jellyDate(date)), "这一次重复日程不存在");
   const touched = (value: JellySeries): JellySeries => ({ ...value, revision: value.revision + 1, updated_at: now });
   const fields = patch ? pick(patch) : {};
+  const current = occurrenceOf(series, date);
+  // Moving only the start moves the end along, as `jelly.item.update` does.
+  const moved = fields.start_date === undefined ? 0 : jellyDaysBetween(current.start_date, fields.start_date);
+  if (fields.start_date !== undefined && fields.end_date === undefined) fields.end_date = jellyAddDays(current.end_date, moved);
   const rule = patch && (patch.weekdays !== undefined || patch.until !== undefined);
   if (patch?.completed !== undefined) {
     jellyAssert(scope === "onlyThis" && !rule && Object.keys(fields).length === 0, "完成状态只能对一次日程单独标记");
@@ -131,30 +148,29 @@ export function changeJellySeries(series: JellySeries, date: string, scope: Jell
     const completions = { ...series.completions }; if (!patch) delete completions[date];
     return { series: touched({ ...series, exceptions, completions }), created: null };
   }
-  if (scope === "all") {
-    if (!patch) return { series: null, created: null };
-    const moved = fields.start_date === undefined ? 0 : jellyDaysBetween(date, fields.start_date);
-    const start = jellyAddDays(series.start_date, moved), length = fields.start_date !== undefined && fields.end_date !== undefined ? jellyDaysBetween(fields.start_date, fields.end_date) : jellyDaysBetween(series.start_date, series.end_date);
-    const { start_date: _start, end_date: _end, ...rest } = fields;
-    const next = { ...series, ...rest, start_date: start, end_date: jellyAddDays(start, length),
-      weekdays: patch.weekdays ?? series.weekdays.map(day => ((day - 1 + moved) % 7 + 7) % 7 + 1),
-      until: patch.until !== undefined ? patch.until : series.until === null ? null : jellyAddDays(series.until, moved),
-      // Moving the whole series drops what was kept for single dates: they no longer line up.
-      exceptions: moved || patch.weekdays ? {} : series.exceptions, completions: moved || patch.weekdays ? {} : series.completions };
-    return { series: touched(next), created: null };
-  }
-  const kept = endBefore(series, date);
+  if (scope === "all" && !patch) return { series: null, created: null };
+  const kept = scope === "thisAndFuture" ? endBefore(series, date) : null;
   if (!patch) return { series: kept && touched(kept), created: null };
-  const current = occurrenceOf(series, date);
-  const start = fields.start_date ?? current.start_date, moved = jellyDaysBetween(current.start_date, start);
-  const length = jellyDaysBetween(start, fields.end_date ?? jellyAddDays(current.end_date, moved));
   const { start_date: _start, end_date: _end, ...rest } = fields;
-  const shift = (day: string) => jellyAddDays(day, jellyDaysBetween(date, start));
-  const created: JellySeries = { ...series, ...rest, id: newId, start_date: start, end_date: jellyAddDays(start, length),
-    weekdays: patch.weekdays ?? series.weekdays.map(day => ((day - 1 + jellyDaysBetween(date, start)) % 7 + 7) % 7 + 1),
-    until: patch.until !== undefined ? patch.until : series.until === null ? null : shift(series.until),
-    exceptions: patch.weekdays ? {} : Object.fromEntries(Object.entries(series.exceptions).filter(([day]) => day > date).map(([day, value]) => [shift(day), value])),
-    completions: patch.weekdays ? {} : Object.fromEntries(Object.entries(series.completions).filter(([day]) => day >= date).map(([day, value]) => [shift(day), value])),
-    revision: 1, created_at: now, updated_at: now };
-  return { series: kept && touched(kept), created };
+  // The edited occurrence's new length, against what it was, changes every occurrence's length alike.
+  const resized = jellyDaysBetween(fields.start_date ?? current.start_date, fields.end_date ?? current.end_date) - jellyDaysBetween(current.start_date, current.end_date);
+  const length = jellyDaysBetween(series.start_date, series.end_date) + resized;
+  const weekdays = patch.weekdays !== undefined && !sameDays(patch.weekdays, series.weekdays) ? [...patch.weekdays] : rotate(series.weekdays, moved);
+  const from = scope === "all" ? series.start_date : date, start = jellyAddDays(from, moved);
+  const own = (day: string) => scope === "all" || day >= date;
+  const exceptions = shiftExceptions(Object.fromEntries(Object.entries(series.exceptions).filter(([day]) => own(day))), moved);
+  // The edited occurrence now follows the series for what was just set; a single-date move it had keeps its new dates.
+  const edited = exceptions[jellyAddDays(date, moved)];
+  if (edited?.patch) {
+    const left = Object.fromEntries(Object.entries(edited.patch).filter(([key]) => !(key in rest)));
+    exceptions[jellyAddDays(date, moved)] = { patch: { ...left, ...(left.start_date !== undefined || left.end_date !== undefined
+      ? { start_date: fields.start_date ?? jellyAddDays(current.start_date, moved), end_date: fields.end_date ?? jellyAddDays(current.end_date, moved) } : {}) } };
+  }
+  const next: JellySeries = { ...series, ...rest, start_date: start, end_date: jellyAddDays(start, length), weekdays,
+    until: patch.until !== undefined ? patch.until : series.until === null ? null : jellyAddDays(series.until, moved), exceptions: {}, completions: {} };
+  next.exceptions = Object.fromEntries(Object.entries(exceptions).filter(([day]) => within(next, day) && weekdays.includes(jellyWeekday(day))));
+  next.completions = Object.fromEntries(Object.entries(series.completions).filter(([day]) => own(day))
+    .map(([day, value]) => [jellyAddDays(day, moved), value] as const).filter(([day]) => jellyOccurs(next, day)));
+  if (scope === "all") return { series: touched(next), created: null };
+  return { series: kept && touched(kept), created: { ...next, id: newId, revision: 1, created_at: now, updated_at: now } };
 }

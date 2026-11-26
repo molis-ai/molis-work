@@ -70,17 +70,16 @@ export function assertStartIdentity(record: PluginInstanceRecord, definition: Pl
 export const isIdentityFailure = (error: unknown): error is ActionError => error instanceof ActionError
   && (error.code === "plugin.signer_mismatch" || error.code === "plugin.id_namespace_conflict" || error.code === "plugin.in_process_denied");
 
+/** The provider a package running in the sandbox answers as: no `plugin_id` holds a colon, so it can never be another plugin's id. */
+export const sandboxProviderId = (pluginId: string): string => `plugin:${pluginId}`;
+
 /**
- * The id an installation's actions are registered under (S-75.3): its installation id, or its `plugin_id` only if it is of the Host's
- * build. The Host says which (`providerId`); what it says is held to this, so no other installation can be the provider a `plugin_id` names.
+ * The id an installation's actions are registered under, and the only place it is worked out (S-75.5): its `plugin_id` if it is of the
+ * Host's build, `plugin:<plugin_id>` if it runs in the sandbox (stable across its versions, projects and halves), its installation id
+ * otherwise. It is read from the record the install left, never from the definition or a caller, so no other installation can be the
+ * provider a `plugin_id` names.
  */
-export function actionProviderId(
-  actions: { providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string } | undefined,
-  record: PluginInstanceRecord, definition: PluginDefinition,
-): string {
-  const id = actions?.providerId?.(record, definition) ?? record.install_id;
-  if (id !== record.install_id && !(id === record.plugin_id && record.publisher_trust === "host")) {
-    throw pluginErrors.id_namespace_conflict(`${record.plugin_id} 不是随宿主发布的插件，不能以插件 ID 作动作提供方`);
-  }
-  return id;
+export function resolveActionProviderId(record: Pick<PluginInstanceRecord, "plugin_id" | "install_id" | "publisher_trust" | "execution">): string {
+  if (record.publisher_trust === "host") return record.plugin_id;
+  return record.execution === "sandbox" ? sandboxProviderId(record.plugin_id) : record.install_id;
 }

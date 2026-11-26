@@ -35,15 +35,19 @@ export function arriveAtProjectPage(request: IncomingMessage, response: ServerRe
   return true;
 }
 
+/** The old settings addresses and where each leads now (the workbench's `MOVED_SETTINGS_ADDRESSES`, read from the settings registry). */
+export type MovedSettingsAddresses = Readonly<Record<string, { readonly path: string; readonly query: Readonly<Record<string, string>> }>>;
+
 /** Global settings addresses that lead elsewhere. MCP, connectors and Functions moved to 能力. A settings page opened
  * directly opens in the workbench of the project it names, or else the one last opened; with no project yet there is
  * no workbench, and the page itself is shown. True when the response was sent. */
 export async function redirectSettingsAddress(request: IncomingMessage, response: ServerResponse, url: URL,
-  homeDirectory: string | undefined, projects: () => Promise<readonly { project_id: string }[]>, desktop: boolean): Promise<boolean> {
-  const capability = url.pathname === "/settings/mcp" ? "access" : url.pathname === "/settings/connectors" || url.pathname === "/settings/functions" ? "connections" : null;
-  if (request.method === "GET" && capability) {
-    if (url.pathname === "/settings/functions") url.searchParams.set("connector", "typesafe");
-    response.writeHead(302, { location: `/capabilities/${capability}${url.search}`, "cache-control": "no-store" });
+  homeDirectory: string | undefined, projects: () => Promise<readonly { project_id: string }[]>, desktop: boolean,
+  movedAddresses: MovedSettingsAddresses): Promise<boolean> {
+  const moved = Object.hasOwn(movedAddresses, url.pathname) ? movedAddresses[url.pathname] : undefined;
+  if (request.method === "GET" && moved) {
+    for (const [name, value] of Object.entries(moved.query)) url.searchParams.set(name, value);
+    response.writeHead(302, { location: `${moved.path}${url.search}`, "cache-control": "no-store" });
     response.end();
     return true;
   }

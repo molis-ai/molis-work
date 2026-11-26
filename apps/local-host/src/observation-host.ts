@@ -1,3 +1,4 @@
+import { resolveActionProviderId } from "@molis-ai/molis-work-plugin-runtime";
 import { currentCallId, refusalExpected, type CallObserved } from "@molis-ai/molis-work-kernel";
 import type { ScheduleWakeupEnded } from "@molis-ai/molis-work-service-scheduler";
 import {
@@ -46,12 +47,12 @@ export interface HostObservation {
 
 /**
  * The person removed a plugin and chose to delete its data (or later discarded data they had kept): its records go, and the content of the
- * calls it answered or made (§6). `project_id`: a project-level installation, only that project's. A Host-shipped plugin answers under its
- * plugin id as well as its installation's (`actionProviderId`). Never throws: what could not be cleared stays for the next clean-up.
+ * calls it answered or made (§6). `project_id`: a project-level installation, only that project's. An installation is also named
+ * by the provider it answers as (`resolveActionProviderId`). Never throws: what could not be cleared stays for the next clean-up.
  */
-export function observationPluginDataCleared(home: string, record: Pick<PluginInstanceRecord, "plugin_id" | "install_id" | "publisher_trust">, projectId?: string): void {
+export function observationPluginDataCleared(home: string, record: Pick<PluginInstanceRecord, "plugin_id" | "install_id" | "publisher_trust" | "execution">, projectId?: string): void {
   const purge: PluginPurge = { plugin_id: record.plugin_id, install_ids: [record.install_id],
-    provider_ids: record.publisher_trust === "host" ? [record.install_id, record.plugin_id] : [record.install_id], ...(projectId ? { project_id: projectId } : {}) };
+    provider_ids: [...new Set([record.install_id, resolveActionProviderId(record)])], ...(projectId ? { project_id: projectId } : {}) };
   const live = liveObservation(home);
   if (live) { live.pluginPurged(purge); return; }
   try { purgeObservationPluginFile(home, purge, new Date().toISOString()); }

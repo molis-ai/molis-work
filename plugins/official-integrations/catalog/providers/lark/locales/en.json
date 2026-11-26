@@ -7,6 +7,8 @@
     "lark.connection.inbound": "Feed reads chats; Artifacts imports documents",
     "lark.connection.summary": "Messages and documents from Lark.",
     "lark.connection.token-label": "Lark app credentials",
+    "lark.credential.app-id": "App ID",
+    "lark.credential.app-secret": "App secret",
     "lark.guide.cli-link": "View the official Lark CLI",
     "lark.guide.cli-note": "The same official CLI supports Lark. The Molis Work Lark connection doesn’t reuse its sign-in yet.",
     "lark.guide.mcp-link": "View the official Lark MCP",

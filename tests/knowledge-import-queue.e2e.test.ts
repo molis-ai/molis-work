@@ -323,8 +323,10 @@ async function captureStoppedImport(b: NonNullable<Awaited<ReturnType<typeof ope
 test("QEA-25 online import offers Hide while waiting and retains the result on reopening", { timeout: 90_000 }, async t => {
   const b = await openImport(t, "en"); if (!b) return;
   withConnectorConnections(b.homeDirectory, store => store.createToken({ serviceId: "notion", displayName: "Fixture", token: "fixture-only-unused-token" }));
-  await b.evaluate(`document.querySelector('[data-knowledge-import-source]').value='notion'`);
   await b.click('[data-knowledge-import-dialog] input[name="kind"][value="online"]');
+  // The sources come from the integrations' declarations once online is chosen (44C), in their order; the connected one is picked as a person would.
+  await b.waitFor(`document.querySelector('[data-knowledge-import-source] option[value="notion"]')`);
+  await b.evaluate(`(() => { const picker = document.querySelector('[data-knowledge-import-source]'); picker.value = 'notion'; picker.dispatchEvent(new Event('change', { bubbles: true })); })()`);
   await b.waitFor("!document.querySelector('[data-knowledge-import-submit]').disabled");
   await b.evaluate(`document.querySelector('[data-knowledge-import-url]').value='https://www.notion.so/fixture'`);
   await b.evaluate(`(() => {

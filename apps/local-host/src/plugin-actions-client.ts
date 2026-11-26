@@ -118,7 +118,7 @@ export function hostDependencyCheck(client: Pick<LocalHostProjectClient, "availa
 
 /** One action binding for project and Home activations; identity and authority come from the Host. */
 export function pluginHostActions(context: PluginStartContext, manifest: PluginManifest, options: {
-  client: ActionClient; actor_id: string; project_id?: string; providerId?: string; assertActive(): void; pluginCaller: HostPluginCaller;
+  client: ActionClient; actor_id: string; project_id?: string; assertActive(): void; pluginCaller: HostPluginCaller;
   dependencyCheck?: PluginDependencyCheck;
 }): PluginActionClient | undefined {
   const consumed = new Set(manifest.capabilities.consumes);
@@ -187,7 +187,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     return { ...(scope.original_file?.install_id === context.install_id ? { original_file: scope.original_file } : {}),
       original_input: input?.install_id === context.install_id ? input : undefined, named_skills: named };
   };
-  const ownProvider = options.providerId ?? context.provider_id ?? context.install_id;
+  const ownProvider = context.provider_id;
   // A command that returned passed every check of the call it was made in: from then on that call may keep a job (PG-038).
   const passed = <Output>(outer: ReturnType<typeof currentPluginInvocation>, definition: ActionDefinition, output: Output): Output => {
     if (definition.operation === "command") markPluginActionChecked(outer);

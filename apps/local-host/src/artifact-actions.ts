@@ -7,7 +7,7 @@ import { readProjectReference } from "./project-file-reference.js";
 import { hostErrors } from "./host-errors.js";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { resolveConfiguredHome } from "./product-home.js";
-import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "./artifact-document-import.js";
+import { documentImportConnections, documentImportConnectionStatus, documentImportOffers, importLocalArtifactDocument } from "./artifact-document-import.js";
 import { artifactPluginInputs, bindArtifactPluginInput } from "./artifact-plugin-inputs.js";
 import { runningProjectPlatform } from "./project-plugins.js";
 import type { MolisWorkProjectRuntime, MolisWorkLocalHostOptions } from "./project-host.js";
@@ -60,6 +60,7 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
         return bindArtifactPluginInput(platform, artifact, input, caller.actor_id, runtime.project_id);
       },
       importSources: () => runWithMolisWorkHome(home, documentImportConnectionStatus),
+      importOffered: () => runWithMolisWorkHome(home, documentImportOffers),
       importConnections: () => documentImportConnections(home),
       importDocument: (input, caller) => runWithMolisWorkHome(home, () => importLocalArtifactDocument({ ...input }, {
         projectId: runtime.project_id, actorId: caller.actor_id, ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: `/projects/${encodeURIComponent(runtime.project_id)}`,

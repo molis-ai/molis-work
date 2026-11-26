@@ -142,7 +142,7 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
     probe.remove(); return seen; })()`);
   assert.equal(removed.wash, removed.expectedWash, "the removed group's wash is the grey, not its hue");
   assert.equal(removed.glyph, removed.faint, "the removed group's head glyph is the grey");
-  assert.equal(removed.reader, "Feed · 已移除", "the head's name says the plugin was removed");
+  assert.equal(removed.reader, "Digest · 已移除", "the head's name says the plugin was removed");
 
   const grow = await evaluate<{ before: number; after: number; name: string; glyphMoved: number }>(`(async () => {
     const row = document.querySelector('[data-nav-specimen=badge] [data-nav-glyph-row]'), item = row.querySelectorAll('.tab-item')[2];

@@ -6,6 +6,7 @@
     "github.connection.inbound": "Feed reads unread notifications",
     "github.connection.outbound": "Check the current GitHub account in Connections. The capability catalog shows what AI can use.",
     "github.connection.summary": "Connect your account on this computer. Feed reads unread notifications, and you can check the account in Connections.",
+    "github.connection.purpose": "Bring unread GitHub notifications into a project to keep up with code collaboration.",
     "github.guide.cli-link": "View GitHub CLI sign-in",
     "github.guide.mcp-link": "View the official GitHub MCP",
     "github.guide.oauth-link": "Register GitHub OAuth App",

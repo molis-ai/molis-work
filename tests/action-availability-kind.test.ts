@@ -42,7 +42,7 @@ test("W3-02-G1-02 SDK owner binding preserves dependency and before-write availa
   service.registerProvider({ provider: { provider_id: "example", title: "Example", kind: "plugin", plugin_install_id: "install" }, definitions: [action],
     handlers: [{ ...action, availability: () => unavailable, handle: () => { writes++; return null; } }] });
   const bound = bindActionClient(service, () => caller);
-  const context: PluginStartContext = { actor_id: "owner", plugin_id: "com.example.availability", install_id: "install", installation_generation: "1", version: "1.0.0",
+  const context: PluginStartContext = { actor_id: "owner", plugin_id: "com.example.availability", install_id: "install", installation_generation: "1", provider_id: "install", version: "1.0.0",
     // The dependency answers unavailable through the plugin's own action client, as `services.actions.availability` asks the Host.
     deployment: "local", grants: [], requireGrant: () => undefined, services: { actions: { ...bound, availability: () => unavailable, invokeQuery: async () => null as never },
       ui: { register: () => undefined, unregister: () => undefined } } };

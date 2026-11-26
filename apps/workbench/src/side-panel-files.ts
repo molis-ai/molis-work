@@ -60,8 +60,7 @@ function renderKnowledgeImportDialog(_L: SidePanelPrimitives["readText"]): strin
             <ul class="knowledge-import-picked" data-knowledge-import-picked></ul>
           </div>
           <div class="knowledge-import-online" data-knowledge-import-online hidden>
-            <label>${uiText("workbench.side-panel-files.document-source")}<select class="mw-select" name="source" data-knowledge-import-source>
-              <option value="notion">Notion</option><option value="feishu">${uiText("workbench.side-panel-files.feishu")}</option><option value="lark">Lark</option><option value="google-docs">Google Docs</option></select></label>
+            <label>${uiText("workbench.side-panel-files.document-source")}<select class="mw-select" name="source" data-knowledge-import-source></select></label>
             <label>${uiText("workbench.side-panel-files.account-connection")}<select class="mw-select" name="connection_id" data-knowledge-import-connection></select></label>
             <p class="knowledge-import-help" data-knowledge-import-connection-note></p>
             <label>${uiText("workbench.side-panel-files.document-url")}<input class="mw-input" name="url" type="url" autocomplete="off" spellcheck="false" placeholder="https://" data-knowledge-import-url></label>

@@ -1,6 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PROJECT_SETTINGS_REGISTRY, type WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { projectCatalogErrors, projectPluginActions, type SetProjectPluginInput, type VersionedProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import { compileActionSchema } from "@molis-ai/molis-work-kernel";
@@ -16,6 +16,9 @@ import type { WebServerOptions } from "./web-types.js";
 import { captureWebSessionAuthority } from "./web-sessions.js";
 import { hostErrors } from "./host-errors.js";
 import { localizeActionErrorResponse, localizeWebErrorMessage, readErrorWord } from "./ui-error-words.js";
+
+/** The project settings page each path opens; `/settings` alone opens 常规. */
+export const PROJECT_SETTINGS_SECTIONS = new Map(PLATFORM_PROJECT_SETTINGS_REGISTRY.map(({ id }) => [`/settings/${id}` as string, id] as const)).set("/settings", "general");
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
 export type SetProjectPluginFromWeb = (projectId: string, input: SetProjectPluginInput, signal: AbortSignal, sessionCurrent: () => void) => Promise<VersionedProjectPluginMembership>;

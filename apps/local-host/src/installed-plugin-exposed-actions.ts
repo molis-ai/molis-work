@@ -11,7 +11,7 @@ import { tryOwnedTextRef } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionExecutionPolicy, type ActionHandlerBinding, type ExactActionReference } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { InstalledRelease as AgentRelease } from './installed-release.js';
-import { runInPluginAction, pluginActionBeforeEffect, reservePluginInvocationPlace, type PluginInstance } from '@molis-ai/molis-work-plugin-runtime';
+import { runInPluginAction, pluginActionBeforeEffect, reservePluginInvocationPlace, sandboxProviderId, type PluginInstance } from '@molis-ai/molis-work-plugin-runtime';
 
 import type { ProjectActions } from './installed-plugin-catalog.js';
 import { latestCapability, type CapabilityExecution } from './installed-plugin-capabilities.js';
@@ -21,9 +21,8 @@ type InstalledOperationCall = (pluginId: string, operationId: string, input: San
 
 /** A plugin's functions as the directory names them: stable across versions, distinct between plugins. */
 export const exposedActionId = (release: Pick<AgentRelease, 'buildId'>, operationId: string) => sandboxActionId(release.buildId, operationId);
-const exposedProviderId = (release: Pick<AgentRelease, 'pluginId'>) => 'plugin:' + release.pluginId;
 export function exposedActionReference(release: Pick<AgentRelease, 'buildId' | 'pluginId' | 'version'>, operationId: string): ExactActionReference {
-  return { capability_id: exposedActionId(release, operationId), version: release.version, provider_id: exposedProviderId(release) };
+  return { capability_id: exposedActionId(release, operationId), version: release.version, provider_id: sandboxProviderId(release.pluginId) };
 }
 
 type Cost = NonNullable<ActionExecutionPolicy['cost']>;
@@ -100,7 +99,7 @@ export interface InstalledPluginActions {
 
 export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRelease, call: InstalledOperationCall, availability?: (context: ActionCallContext) => ActionAvailability, plugin?: PluginInstance,
   operationAvailability?: (operationId: string, context: ActionCallContext) => ActionAvailability): InstalledPluginActions {
-  const providerId = exposedProviderId(release), title = release.design.title;
+  const providerId = sandboxProviderId(release.pluginId), title = release.design.title;
   const upgradeOperation = sandboxUpgradeOperation(release.packaged?.manifest);
   const dualInstance = release.packaged?.manifest.runtime?.scope === 'home' && release.packaged.manifest.runtime.dual_instance === true;
   const halfScope: 'home' | 'project' = actions.project_id === null ? 'home' : 'project';

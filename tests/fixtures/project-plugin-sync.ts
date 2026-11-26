@@ -21,7 +21,7 @@ export function projectPluginSyncFixture(input: {
   const check = (permission?: string) => { if (closed) throw new Error('SYNC_INSTANCE_CLOSED'); input.authorize?.(permission); };
   const instance = {install_id: input.manifest.plugin_id + '-test', installation_generation: 'one'};
   const library = openPluginProjectLibrary({db, path}, input.manifest, check, instance, {}, home);
-  const context = {...instance, plugin_id: input.manifest.plugin_id, version: input.manifest.version, deployment: 'local',
+  const context = {...instance, plugin_id: input.manifest.plugin_id, provider_id: input.manifest.plugin_id, version: input.manifest.version, deployment: 'local',
     project_id: input.projectId, actor_id: input.space.ownerUserId ?? 'local-person', grants: input.manifest.permissions.map(p=>p.permission),
     sync: {spaceId: input.space.spaceId, assertActive: check}, requireGrant: check,
     services: {...input.services, project_database: library.client, sync: library.sync}} as PluginStartContext;

@@ -24,8 +24,9 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { connectorAccountActions, readConnectorAccount } from "../apps/local-host/dist/connector-account-actions.js";
 import { connectorDirectory, listConnectorSettingsCards } from "../apps/local-host/dist/connector-directory.js";
-import { CONNECTOR_MARKS } from "../apps/workbench/dist/connector-marks.js";
+import { builtinConnectorMarks } from "../apps/local-host/dist/builtin-drivers.js";
 import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connectors.js";
+import { installConnectorMarks } from "@molis-ai/molis-work-app-workbench";
 import { bindLocalFeedSourceAccount, createLocalFeedApplication } from "./fixtures/feed-library.js";
 import { pageText } from "./fixtures/page-text.js";
 
@@ -119,7 +120,7 @@ test("connector directory covers common Codex/Claude/Grok accounts without empty
   );
   assert.equal(HOST_CONNECTOR_DIRECTORY.some((row) => row.availability === "placeholder"), false);
   for (const row of HOST_CONNECTOR_DIRECTORY) {
-    const icon = CONNECTOR_MARKS[row.connector_id as keyof typeof CONNECTOR_MARKS];
+    const icon = builtinConnectorMarks[row.connector_id];
     if (icon) assert.ok(icon.includes("<svg"), row.connector_id);
     assert.equal(row.availability, "live", row.connector_id);
     assert.equal(row.capabilities.length, 2, row.connector_id);
@@ -136,6 +137,8 @@ test("connector directory covers common Codex/Claude/Grok accounts without empty
 });
 
 test("Connectors settings cards distinguish account states and never echo the secret", () => {
+  // The marks are the integration packages' own (`IntegrationDrivers.marks`); the Host installs them as it does here (44C-2).
+  installConnectorMarks(builtinConnectorMarks);
   const html = renderConnectorsSettings({
     connector_connections: [
       { connection_id: "11111111-1111-4111-8111-111111111111", service_id: "github", display_name: "工作 GitHub", account_label: "octocat", auth_method: "token", source: "managed", state: "connected" },
@@ -183,7 +186,7 @@ test("Connectors settings cards distinguish account states and never echo the se
           { label: "Functions 可勾查看当前账号", fulfillment: "live" },
         ],
       },
-    ].map(card => ({ ...card, method_options: HOST_CONNECTOR_DIRECTORY.find(entry => entry.connector_id === card.connector_id)?.method_options })),
+    ].map(card => { const declared = HOST_CONNECTOR_DIRECTORY.find(entry => entry.connector_id === card.connector_id); return { ...card, method_options: declared?.method_options, card: declared?.card }; }),
   }, {
     L: (text) => text,
     escapeHtml: (value) => String(value ?? ""),

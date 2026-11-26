@@ -1,4 +1,5 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { isDeliveredIntake, type PersonIntake } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { OwnedTextRef, TextRef, UiViewDeclaration, UiViewIntakeEntries } from "@molis-ai/molis-work-contracts/platform/ui";
 import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -27,15 +28,22 @@ export interface PluginDirectoryEntry {
   readonly personal?: true;
   readonly home?: true;
   readonly companions?: readonly string[];
+  /** What its Manifest says it does with the platform's services, for a page that points at "the plugin that does this" without naming one. */
+  readonly offers?: readonly PluginOffer[];
   readonly ui: { readonly views: readonly DirectoryView[] };
 }
+
+/** `image_generation`: it draws with the image service; `connector_sources`: it pulls what a connected account holds. */
+export const PLUGIN_OFFERS = ["image_generation", "connector_sources"] as const;
+export type PluginOffer = (typeof PLUGIN_OFFERS)[number];
 
 export type DirectoryView = Omit<UiViewDeclaration, "title_text"> & UiViewIntakeEntries;
 export type PluginDirectory = readonly PluginDirectoryEntry[];
 
 export type DirectoryWordResolver = (reference: Extract<OwnedTextRef, { key: string }>, original: string) => string;
 export type DirectoryWordSource = Pick<PluginManifest, "plugin_id" | "name" | "name_text" | "summary" | "summary_text">
-  & { readonly ui: Pick<PluginManifest["ui"], "views">; readonly actions?: PluginManifest["actions"] };
+  & { readonly ui: Pick<PluginManifest["ui"], "views">; readonly actions?: PluginManifest["actions"];
+    readonly permissions?: PluginManifest["permissions"]; readonly image_generation?: PluginManifest["image_generation"] };
 
 /**
  * A person's intakes in Manifest order, with the station whose `create` declares one (contract-design §2.3, §2.4): the blank ones a
@@ -51,7 +59,7 @@ function personIntakes(manifest: DirectoryWordSource): { readonly intake: Person
 }
 
 /** Project only plain, selected words; a directory never carries a reference or a second language. */
-export function projectDirectoryWords(manifest: DirectoryWordSource, resolve?: DirectoryWordResolver): Pick<PluginDirectoryEntry, "name" | "summary" | "ui"> {
+export function projectDirectoryWords(manifest: DirectoryWordSource, resolve?: DirectoryWordResolver): Pick<PluginDirectoryEntry, "name" | "summary" | "offers" | "ui"> {
   const copy = (original: string, ref?: TextRef): string => {
     const word = tryOwnedTextRef(ref, manifest.plugin_id);
     return word === null ? original : "literal" in word ? word.literal : resolve?.(word, original) ?? original;
@@ -59,6 +67,8 @@ export function projectDirectoryWords(manifest: DirectoryWordSource, resolve?: D
   // A plugin's intakes are placed on its first navigator or island view: where the home and 「从目标新建…」 open it.
   const intakes = personIntakes(manifest), launch = (manifest.ui.views ?? []).find(view => view.slot === "navigator" || view.slot === "island");
   const blank = intakes.find(({ intake, station }) => station && intake.accepts?.length === 0), started = intakes.find(({ intake }) => intake.start);
+  const offers: PluginOffer[] = [...(manifest.image_generation ? ["image_generation" as const] : []),
+    ...(manifest.permissions?.some(({ permission }) => permission === PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION) ? ["connector_sources" as const] : [])];
   const views = (manifest.ui.views ?? []).map(declared => {
     const { title_text, ...view } = declared, own = declared === launch;
     const create = own && blank && { station: blank.station!, title: blank.intake.title, label: copy(blank.intake.title, blank.intake.title_text) };
@@ -66,5 +76,6 @@ export function projectDirectoryWords(manifest: DirectoryWordSource, resolve?: D
     const opening = start && { title: copy(start.title, start.title_text), hint: copy(start.hint, start.hint_text), ...(start.icon ? { icon: start.icon } : {}) };
     return { ...view, title: copy(view.title, title_text), ...(create ? { creates: create } : {}), ...(opening ? { start: opening } : {}) };
   });
-  return { name: copy(manifest.name, manifest.name_text), ...(manifest.summary === undefined ? {} : { summary: copy(manifest.summary, manifest.summary_text) }), ui: { views } };
+  return { name: copy(manifest.name, manifest.name_text), ...(manifest.summary === undefined ? {} : { summary: copy(manifest.summary, manifest.summary_text) }),
+    ...(offers.length ? { offers } : {}), ui: { views } };
 }

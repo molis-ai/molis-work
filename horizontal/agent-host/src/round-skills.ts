@@ -16,7 +16,7 @@ export interface AgentRoundSkillCatalog {
   /** The round's frozen named list (`ActionCallContext.skill_round.named`): what `frozen.skills[].named` records. */
   readonly named: readonly SkillRef[];
   /**
-   * Who reads Skills in this plugin's workspace rounds, as the Host bound it: the plugin's declared scene (Coding's `coding`), or
+   * Who reads Skills in this plugin's workspace rounds, as the Host bound it: the plugin's declared scene (its Manifest's `memory_scene`), or
    * `agent` when it declares none. A round that does not work in a workspace reads as `agent` (BL-b44-coding-scene-enum).
    */
   readonly workspaceConsumer: string;

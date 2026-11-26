@@ -8,6 +8,8 @@
     "adobe.connection.summary": "创意工具。",
     "adobe.connection.token-label": "Adobe IMS 访问令牌",
     "adobe.connection.token-placeholder": "api-key|access-token 或 access-token",
+    "adobe.credential.client-key": "API Key / Client ID",
+    "adobe.credential.access-token": "访问令牌",
     "adobe.guide.oauth-link": "查看 Adobe 用户授权",
     "adobe.guide.token-note": "使用 Adobe IMS 用户访问令牌；多数情况下还需要 Client ID。",
     "adobe.oauth.note": "Adobe Console 中启用 User Authentication；产品 API 权限取决于应用获准范围。",

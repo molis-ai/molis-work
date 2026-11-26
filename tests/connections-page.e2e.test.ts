@@ -22,7 +22,9 @@ const gitlab = { connector_id: "gitlab", title: "GitLab", availability: "live", 
   method_options: [{ kind: "oauth", support: "in_app", login_ready: true, note: "", links: [],
     oauth: { client_secret_required: true, fields: [{ key: "base_url", label: "GitLab 地址", placeholder: "https://gitlab.com" }] } }] } as const;
 const wechat = { connector_id: "wechat", title: "微信", availability: "live", auth_kind: "token", group_id: "chat", summary: "收发消息", capabilities: [],
-  method_options: [{ kind: "token", support: "paste", note: "", links: [] }] } as const;
+  method_options: [{ kind: "token", support: "paste", note: "", links: [] }],
+  // The key is pasted in two fields, as the WeChat integration declares on its card (44C: the card, not the service id, says so).
+  card: { credential: { separator: ":", fields: [{ label: "企业 ID", type: "text", placeholder: "ww…" }, { label: "Secret", type: "password" }] } } } as const;
 const notion = { connector_id: "notion", title: "Notion", availability: "live", auth_kind: "oauth", group_id: "files", summary: "笔记与文档", capabilities: [],
   method_options: [{ kind: "oauth", support: "in_app", login_ready: true, note: "", links: [] }] } as const;
 const account = (connection_id: string, service_id: string, display_name: string, account_label: string | null, auth_method: "oauth" | "token") =>

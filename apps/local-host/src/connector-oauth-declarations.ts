@@ -11,7 +11,7 @@ import type {
   OAuthValueSource,
   PluginOAuthMethodDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { CONNECTOR_ACCOUNT_ORIGINS, CONNECTOR_REQUEST_SERVICES, type ConnectorMethodOption, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { CONNECTOR_ACCOUNT_ORIGINS, CONNECTOR_REQUEST_SERVICES, connectorGatewayBase, type ConnectorMethodOption, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
 import {
   oauthCodePointOrder,
   oauthDeclarableHeader,
@@ -39,8 +39,6 @@ export const oauthDeclarationErrors = defineErrorCodes("connector.oauth_declarat
   setting_invalid: "invalid", template_invalid: "invalid", target_refused: "forbidden", account_missing: "upstream", context_missing: "upstream",
 });
 
-/** The Atlassian gateway an OAuth token is accepted on (`ConnectorRequestTenant.gateway`). */
-const ATLASSIAN_GATEWAY = "https://api.atlassian.com";
 const USER_AGENT = "Molis-Work";
 
 type Json = Record<string, unknown>;
@@ -236,10 +234,11 @@ export function oauthAuthorizationContext(serviceId: string, method: PluginOAuth
   const tenantKept = [...method.keep ?? [], ...method.identity.keep ?? []].some(keep => keep.check === "tenant");
   const setting = (method.settings ?? []).find(entry => entry.use === "tenant");
   if (setting && settings.tenant && !tenantKept) added[setting.key] = settings.tenant;
-  if (service(serviceId)?.tenant?.gateway === "atlassian") {
+  const gateway = service(serviceId)?.tenant?.gateway;
+  if (gateway) {
     const cloudId = context.cloud_id ?? "";
     if (!oauthPathSegment(cloudId)) throw oauthDeclarationErrors.context_missing("没有取到站点在网关上的 id，请重新授权");
-    added.base = `${ATLASSIAN_GATEWAY}/ex/${serviceId}/${encodeURIComponent(cloudId)}`;
+    added.base = connectorGatewayBase(gateway, serviceId, cloudId);
   }
   return added;
 }
@@ -304,7 +303,7 @@ export function oauthAccountRequest(request: OAuthTokenRequestDeclaration, scope
   else if (parts.head === "service" && entry?.origins.length === 1) allowed = entry.origins;
   else if (parts.head === "account" && account.length === 1) allowed = account;
   else if (parts.head === "tenant" && tenant) allowed = [tenant];
-  else if (parts.head === "gateway" && entry?.tenant?.gateway === "atlassian") allowed = [ATLASSIAN_GATEWAY];
+  else if (parts.head === "gateway" && entry?.tenant?.gateway) allowed = [entry.tenant.gateway.origin];
   else throw oauthDeclarationErrors.template_invalid(`请求地址的 {${parts.name}} 在这个服务上不可用`);
   const address = `${"origin" in parts ? parts.origin : allowed[0]}${fillPath(parts.path, (placeholder, name) => {
     if (placeholder?.kind === "context") return scope.context[placeholder.key];
@@ -331,12 +330,12 @@ export function oauthAccountRequest(request: OAuthTokenRequestDeclaration, scope
 
 /** An OAuth connection's token on a request: the table's `credential.oauth`, `bearer` for a service the table does not have. */
 function oauthCredentialHeader(entry: ConnectorRequestService | undefined, token: string): Record<string, string> {
-  switch (entry?.credential.oauth ?? "bearer") {
+  const scheme = entry?.credential.oauth ?? "bearer";
+  if (typeof scheme === "object") return { [scheme.header]: token };
+  switch (scheme) {
     case "bearer": return { authorization: `Bearer ${token}` };
     case "bot": return { authorization: `Bot ${token}` };
     case "bare": return { authorization: token.replace(/^Bearer\s+/iu, "") };
-    case "private-token": return { "private-token": token };
-    case "x-figma-token": return { "x-figma-token": token };
     case "basic": throw oauthDeclarationErrors.template_invalid("OAuth 连接不能用 basic 写令牌");
   }
 }

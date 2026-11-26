@@ -204,10 +204,7 @@ export { startDeviceOAuth, pollDeviceOAuth, registerConnectorDevicePolling } fro
 export { createPeriodicTasks } from "./periodic-tasks.js";
 
 
-export { createCatalogConnector } from "./catalog-connector.js";
 export { stdioMcpLaunch } from "./stdio-mcp-launch.js";
-export { createGithubConnector } from "./github-connector.js";
-export { createGmailConnector } from "./gmail-connector.js";
 export { IntegrationRegistry, type OAuthServiceOwner } from "./integration-registry.js";
 export { homeIntegrationRegistry } from "./builtin-integrations.js";
 export { connectorDirectory, connectorLoginReady, homeConnectorDirectory } from "./connector-directory.js";
@@ -288,7 +285,7 @@ export {
   type AgentHostComposition,
   type AgentHostCompositionOptions,
 } from "./agent-host-composition.js";
-export { ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES, hostQuestionTypes, hostReferenceKinds, pluginReferenceKinds, projectReferenceKinds } from "./agent-question-surfaces.js";
+export { QUESTION_CARD_TYPES, hostQuestionTypes, hostReferenceKinds, pluginReferenceKinds, projectReferenceKinds } from "./agent-question-surfaces.js";
 export { referenceKindsPort } from "./agent-reference-kinds.js";
 export { agentReviewActions, agentReviewProvider, handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
 export { captureRuntimeStageOwner, renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
@@ -484,9 +481,12 @@ export { observationShellDoor } from "./observation-shell-entry.js";
 export { contextOnboardingActions, contextOnboardingProvider } from "./context-onboarding-actions.js";
 export { assertReadOnlyToolArgv, createHostSessionsPorts, type HostSessionsOptions } from "./sessions-ports.js";
 
+export { integrationDriverDirectory } from "./builtin-drivers.js";
 export { createSourcePullPort, type SourcePullPortOptions } from "./plugin-source-pull-service.js";
 export { offerProjectAutomation } from "./automation-proactive.js";
 // A project's installed signed packages as pages and calls (47-1: the platform's), and the trials the studio answers for its drafts.
 export { handleInstalledPluginHttp, installedPluginStages, type InstalledPluginHttpOptions } from "./installed-plugin-http.js";
 export { generatedPluginManifest, studioTrials } from "./plugin-builder/studio-preview.js";
+export { imageGeneratorOf } from "./plugin-builder/studio-images.js";
 export { HOME_PAGE_SESSION_HEADER, HomePageSessionRegistry } from "./home-page-authority.js";
+export { HOME_PLATFORM_SURFACE_ROUTES } from "./platform-surface-routes.js";

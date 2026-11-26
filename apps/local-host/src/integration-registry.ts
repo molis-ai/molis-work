@@ -1,16 +1,14 @@
-import type { PluginContribution, PluginDefinition, PluginIntegrationContribution, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PublicFeedDriver } from "./public-feed-driver.js";
+import { randomUUID } from "node:crypto";
+import type { IntegrationDriverDefinition } from "@molis-ai/molis-work-contracts/platform/integration-drivers";
+import type { PluginContribution, PluginDefinition, PluginIntegrationContribution, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding, IntegrationKind, OAuthGrant, PluginAuthMethodDeclaration, PluginConnectionServiceDeclaration, PluginMcpMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, assertContributionMatchesManifest, assertTrustFitsDefinition, installIdentity, resolveActionProviderId, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { checkedSourcePresentation, checkedSourcePresentationInput, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { SourcePresentation, SourcePresentationInput } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import type { ConnectorConnectionDeclarer } from "@molis-ai/molis-work-service-connector-host";
 import { IntegrationDeclarations, type RegisteredConnectionService, type RegisteredIntegration } from "./integration-declarations.js";
-import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
-import { assertConnectorText, builtinConnectorText, type BuiltinConnectorText, type ConnectorWordReader } from "./connector-words.js";
-
-export type BuiltinIntegrationDefinition = PluginDefinition & { readonly connectionText?: BuiltinConnectorText; readonly publicFeed?: PublicFeedDriver };
+import { assertConnectorText, builtinConnectorText, type ConnectorWordReader } from "./connector-words.js";
 
 export interface OAuthServiceOwner {
   readonly plugin_id: string;
@@ -31,39 +29,51 @@ export interface McpServiceOwner {
   readonly method: PluginMcpMethodDeclaration;
 }
 
+/** A connector driver of the Host's own build while it is enabled: the identity its declarations are pinned to, and what it handed over. */
+interface BuiltinDriver {
+  readonly install_id: string;
+  readonly installation_generation: string;
+  readonly publisher: PluginManifest["publisher"];
+  readonly contribution: PluginIntegrationContribution;
+  end(): Promise<void>;
+}
+
+/** What answers for an integration now: the same contribution, whether the Host's build or a signed package in the sandbox handed it over. */
+interface IntegrationDriver {
+  /** Set for a package: the installation its connections are pinned to. */
+  readonly declarer?: ConnectorConnectionDeclarer;
+  readonly builtin?: BuiltinDriver;
+  contribution(): PluginContribution | null;
+}
+
 /**
- * The Home's integration registry (PG-046): built only from the declarations of the plugins enabled in it, plus the platform's own
- * list of services. It names no service and no integration. The enabled plugins live in one in-memory Runtime, started once each;
- * what differs between the sources of an integration arrives as a binding when one is asked for.
+ * The Home's integration registry (PG-046): built only from the declarations of the integrations enabled in it, plus the platform's own
+ * list of services. It names no service and no integration, and runs no plugin: a built-in integration is a connector driver of the
+ * platform (D3 A), handed over once in this process, and a signed sandbox integration package (BL-530) runs in the Home's one plugin
+ * runtime, which hands the registry its declarations and the Host's proxy (`attach`) while that instance is enabled and takes them back
+ * (`detach`) when it is switched off or removed. Both hand over the same contribution, held and bound the same way; what differs between
+ * the sources of an integration arrives as a binding when one is asked for.
  *
- * An id is held by whoever declared it first (`IntegrationDeclarations`): a plugin enabled later that declares a held id fails to
+ * An id is held by whoever declared it first (`IntegrationDeclarations`): an integration enabled later that declares a held id fails to
  * enable and the holder is not touched.
- *
- * A signed sandbox integration package (BL-530) is not started here: its code runs in the Home's sandbox instance, and the Home hands
- * the registry its declarations and the Host's proxy (`attach`) while that instance is enabled, and takes them back (`detach`) when it
- * is switched off or removed. Its ids are checked like a built-in's; only where the code runs differs.
  */
 export class IntegrationRegistry {
-  private readonly runtime: PluginRuntime;
   private readonly declarations: IntegrationDeclarations;
-  private readonly installs = new Map<string, string>();
-  /** The packages the Home attached: the installation each runs as, and what its running instance contributes now (null while it is not running). */
-  private readonly attached = new Map<string, { declarer: ConnectorConnectionDeclarer; contribution: () => PluginContribution | null }>();
+  private readonly drivers = new Map<string, IntegrationDriver>();
   private tail: Promise<unknown> = Promise.resolve();
 
-  constructor(options: { platform?: readonly PluginConnectionServiceDeclaration[]; now?: () => Date } = {}) {
-    this.runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { now: options.now ?? (() => new Date()), hostIds: HOST_PLUGIN_IDS, inProcess: { admit: new Set() } });
+  constructor(options: { platform?: readonly PluginConnectionServiceDeclaration[] } = {}) {
     this.declarations = new IntegrationDeclarations(options.platform);
   }
 
-  /** Install and start one plugin. Enabling goes one at a time, so two plugins cannot both pass the check for the same id. */
-  enable(definition: BuiltinIntegrationDefinition): Promise<void> {
+  /** Take in one driver of the Host's build. Enabling goes one at a time, so two cannot both pass the check for the same id. */
+  enable(definition: IntegrationDriverDefinition): Promise<void> {
     const run = this.tail.then(() => this.enableOnce(definition));
     this.tail = run.catch(() => undefined);
     return run;
   }
 
-  /** Stop and uninstall a plugin; the ids it held are free again. */
+  /** Let one go; the ids it held are free again. */
   disable(pluginId: string): Promise<void> {
     const run = this.tail.then(() => this.disableOnce(pluginId));
     this.tail = run.catch(() => undefined);
@@ -98,10 +108,10 @@ export class IntegrationRegistry {
       assertConnectorText(parsed, source);
       if (!live()) return false;
       // Validate the replacement before releasing anything the current installation holds. The queue keeps this change atomic.
-      const entry = { declarer: { plugin_id: parsed.plugin_id, install_id: installId, plugin_title: parsed.name }, contribution: () => live() ? contribution() : null };
-      if (this.attached.has(parsed.plugin_id)) this.declarations.release(parsed.plugin_id);
+      const driver: IntegrationDriver = { declarer: { plugin_id: parsed.plugin_id, install_id: installId, plugin_title: parsed.name }, contribution: () => live() ? contribution() : null };
+      if (this.drivers.has(parsed.plugin_id)) this.declarations.release(parsed.plugin_id);
       this.declarations.declare(parsed, source);
-      this.attached.set(parsed.plugin_id, entry);
+      this.drivers.set(parsed.plugin_id, driver);
       return true;
     });
     this.tail = run.catch(() => undefined);
@@ -111,7 +121,9 @@ export class IntegrationRegistry {
   /** Lets an attached package's ids go: its sources are unavailable from now on, and its services leave the settings page. */
   detach(pluginId: string): Promise<void> {
     const run = this.tail.then(() => {
-      if (this.attached.delete(pluginId)) this.declarations.release(pluginId);
+      if (!this.drivers.get(pluginId)?.declarer) return;
+      this.drivers.delete(pluginId);
+      this.declarations.release(pluginId);
     });
     this.tail = run.catch(() => undefined);
     return run;
@@ -123,7 +135,7 @@ export class IntegrationRegistry {
    */
   assertFree(manifest: PluginManifest): void {
     const parsed = parsePluginManifest(manifest);
-    if (this.installs.has(parsed.plugin_id)) throw pluginErrors.integration_declaration_conflict(`插件 ${parsed.plugin_id} 已由宿主自带的集成占用；请给这个包换一个插件 ID`);
+    if (this.drivers.get(parsed.plugin_id)?.builtin) throw pluginErrors.integration_declaration_conflict(`插件 ${parsed.plugin_id} 已由宿主自带的集成占用；请给这个包换一个插件 ID`);
     // Until installs are trusted by signature (T1), an `oauth` method with its flow as data is the Host's build's alone (W5-11 §2.8):
     // a package's would send the product client, the person's secret and refresh tokens to endpoints it chose.
     const carried = parsed.connection_services?.find(service => service.auth.methods.some(method => (method.kind === "oauth" || method.kind === "mcp") && Object.keys(method).length > 1));
@@ -137,22 +149,18 @@ export class IntegrationRegistry {
    * A package's or the platform's service has none: the OAuth flow is the Host's build's only (§2.8).
    */
   oauthOwner(serviceId: string, grant: OAuthGrant = "authorization_code"): OAuthServiceOwner | undefined {
-    const service = this.declarations.connectionServices().find(entry => entry.declaration.service_id === serviceId);
-    const installId = service ? this.installs.get(service.owner) : undefined;
-    if (!service || !installId) return undefined;
+    const service = this.declaredService(serviceId), builtin = service && this.drivers.get(service.owner)?.builtin;
+    if (!service || !builtin) return undefined;
     const method = service.declaration.auth.methods.find(entry => entry.kind === "oauth" && entry.grant === grant) ?? null;
-    return { plugin_id: service.owner, install_id: installId, publisher_id: this.runtime.get(installId).publisher_id, method, word: service.word };
+    return { plugin_id: service.owner, install_id: builtin.install_id, publisher_id: builtin.publisher.publisher_id, method, word: service.word };
   }
 
   mcpOwner(serviceId: string): McpServiceOwner | undefined {
-    const service = this.declarations.connectionServices().find(entry => entry.declaration.service_id === serviceId);
-    const installId = service ? this.installs.get(service.owner) : undefined;
-    if (!service || !installId) return undefined;
-    const instance = this.runtime.get(installId);
-    const method = service.declaration.auth.methods.find((entry): entry is PluginMcpMethodDeclaration => entry.kind === "mcp" && "endpoint" in entry);
-    if (instance.state !== "running" || !method) return undefined;
-    return { plugin_id: service.owner, install_id: installId, installation_generation: instance.installation_generation,
-      publisher_id: instance.publisher_id, publisher_signature: instance.publisher_signature, state: "running", method };
+    const service = this.declaredService(serviceId), builtin = service && this.drivers.get(service.owner)?.builtin;
+    const method = service?.declaration.auth.methods.find((entry): entry is PluginMcpMethodDeclaration => entry.kind === "mcp" && "endpoint" in entry);
+    if (!service || !builtin || !method) return undefined;
+    return { plugin_id: service.owner, install_id: builtin.install_id, installation_generation: builtin.installation_generation,
+      publisher_id: builtin.publisher.publisher_id, publisher_signature: builtin.publisher.signature, state: "running", method };
   }
 
   /**
@@ -160,8 +168,12 @@ export class IntegrationRegistry {
    * the platform declares has none: its connections are pinned to nothing and stay usable as they are.
    */
   connectionDeclarer(serviceId: string): ConnectorConnectionDeclarer | undefined {
-    const service = this.declarations.connectionServices().find(entry => entry.declaration.service_id === serviceId);
-    return service ? this.attached.get(service.owner)?.declarer : undefined;
+    const service = this.declaredService(serviceId);
+    return service && this.drivers.get(service.owner)?.declarer;
+  }
+
+  private declaredService(serviceId: string): RegisteredConnectionService | undefined {
+    return this.declarations.connectionServices().find(entry => entry.declaration.service_id === serviceId);
   }
 
   connectionServices(): readonly RegisteredConnectionService[] {
@@ -189,11 +201,9 @@ export class IntegrationRegistry {
   async presentSource(id: string, input: SourcePresentationInput): Promise<SourcePresentation> {
     const checked = checkedSourcePresentationInput(input), entry = this.declarations.presentation(id);
     if (!entry) throw pluginErrors.integration_unavailable(`来源展示 ${id} 没有已启用的提供方`);
-    const attached = this.attached.get(entry.plugin_id), installId = this.installs.get(entry.plugin_id);
-    const active = () => attached ? attached.contribution() : installId && this.installs.get(entry.plugin_id) === installId ? this.runtime.contribution(installId) : null;
-    const contribution = active();
+    const driver = this.drivers.get(entry.plugin_id), contribution = driver?.contribution();
     const current = () => {
-      if (this.declarations.presentation(id) !== entry || this.attached.get(entry.plugin_id) !== attached || !contribution || active() !== contribution) {
+      if (this.declarations.presentation(id) !== entry || this.drivers.get(entry.plugin_id) !== driver || !contribution || driver?.contribution() !== contribution) {
         throw pluginErrors.integration_unavailable(`来源展示 ${id} 的原提供实例已变化`);
       }
     };
@@ -212,30 +222,23 @@ export class IntegrationRegistry {
     if (entry.declaration.kind !== kind) {
       throw pluginErrors.integration_unavailable(`集成 ${integrationId} 是 ${entry.declaration.kind}，不能当 ${kind} 用`);
     }
-    const attached = this.attached.get(entry.plugin_id), installId = this.installs.get(entry.plugin_id);
-    let contribution: PluginContribution | null | undefined;
+    const driver = this.drivers.get(entry.plugin_id), contribution = driver?.contribution();
     const current = () => {
-      const active = attached ? attached.contribution() : this.installs.get(entry.plugin_id) === installId && installId ? this.runtime.contribution(installId) : null;
-      if (this.declarations.integration(integrationId) !== entry || this.attached.get(entry.plugin_id) !== attached
-        || !active || (contribution !== undefined && active !== contribution)) throw pluginErrors.integration_unavailable(`集成 ${integrationId} 的原提供实例已变化`);
+      if (this.declarations.integration(integrationId) !== entry || this.drivers.get(entry.plugin_id) !== driver
+        || !contribution || driver?.contribution() !== contribution) throw pluginErrors.integration_unavailable(`集成 ${integrationId} 的原提供实例已变化`);
     };
-    // Capture before provider recovery or binding can wait: even its failure belongs to this producer instance.
+    // Captured before binding can wait: even its failure belongs to this producer instance.
     retain?.(current);
-    contribution = await this.contributionOf(entry.plugin_id);
     current();
-    if (!contribution || contribution.kind !== "integration") throw pluginErrors.integration_unavailable(`集成 ${integrationId} 的插件没有在运行`);
-    return contribution.bind(binding);
+    if (contribution?.kind !== "integration") throw pluginErrors.integration_unavailable(`集成 ${integrationId} 的插件没有在运行`);
+    const bound = contribution.bind(binding);
+    // Handed over a turn later and checked again (RAC-2615): a producer stopped before the caller holds the binding wins.
+    await Promise.resolve();
+    current();
+    return bound;
   }
 
-  private async contributionOf(pluginId: string): Promise<PluginContribution | null> {
-    const attached = this.attached.get(pluginId);
-    if (attached) return attached.contribution();
-    const installId = this.installs.get(pluginId)!;
-    if (this.runtime.get(installId).state === "crashed") await this.runtime.recover(installId);
-    return this.runtime.contribution(installId);
-  }
-
-  private async enableOnce(definition: BuiltinIntegrationDefinition): Promise<void> {
+  private async enableOnce(definition: IntegrationDriverDefinition): Promise<void> {
     const manifest = parsePluginManifest(definition.manifest);
     if (this.declarations.has(manifest.plugin_id)) return;
     this.declarations.assertFree(manifest);
@@ -244,25 +247,41 @@ export class IntegrationRegistry {
     // A service the Host builds reaches only the platform's table (S-69): origins are a signed sandbox package's own (S-95).
     const declared = manifest.connection_services?.find(service => service.origins !== undefined);
     if (declared) throw pluginErrors.declaration_invalid(`宿主构建的插件不写服务的来源：${declared.service_id} 的地址只在平台的请求表里`);
-    // Only the Host's own build is enabled here today; an installed plugin's integrations will arrive with the trust it was installed with.
-    const installed = this.runtime.install({ definition, deployment: "local", trust: HOST_BUILD_TRUST });
-    const installId = installed.install.install_id;
-    try {
-      this.runtime.grant(installId, manifest.permissions.filter(permission => permission.required).map(permission => permission.permission));
-      await this.runtime.start(installId);
-    } catch (error) {
-      await this.runtime.uninstall(installId).catch(() => undefined);
-      throw error;
-    }
+    const builtin = await startBuiltinDriver(definition, manifest);
     this.declarations.declare(manifest, source);
-    this.installs.set(manifest.plugin_id, installId);
+    this.drivers.set(manifest.plugin_id, { builtin, contribution: () => builtin.contribution });
   }
 
   private async disableOnce(pluginId: string): Promise<void> {
-    const installId = this.installs.get(pluginId);
-    if (!installId) return;
-    this.installs.delete(pluginId);
+    const builtin = this.drivers.get(pluginId)?.builtin;
+    if (!builtin) return;
+    this.drivers.delete(pluginId);
     this.declarations.release(pluginId);
-    await this.runtime.uninstall(installId);
+    await builtin.end();
   }
+}
+
+/**
+ * A driver of the Host's build, handed over in this process: the identity is the one the Host's build gives its plugins, its grants are the
+ * permissions its Manifest requires, and they end with it.
+ */
+async function startBuiltinDriver(definition: PluginDefinition, manifest: PluginManifest): Promise<BuiltinDriver> {
+  assertTrustFitsDefinition(definition, HOST_BUILD_TRUST);
+  const install_id = installIdentity(manifest), installation_generation = randomUUID();
+  const grants = Object.freeze(manifest.permissions.filter(permission => permission.required).map(permission => permission.permission));
+  let live = true;
+  const context: PluginStartContext = Object.freeze({
+    install_id, installation_generation, plugin_id: manifest.plugin_id, version: manifest.version, deployment: "local", grants,
+    provider_id: resolveActionProviderId({ plugin_id: manifest.plugin_id, install_id, publisher_trust: HOST_BUILD_TRUST.level, execution: "host" }),
+    requireGrant(permission: string) {
+      if (!live || !grants.includes(permission)) throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
+    },
+  });
+  const contribution = await definition.start(context);
+  assertContributionMatchesManifest(manifest, contribution);
+  if (contribution.kind !== "integration") throw pluginErrors.contribution_kind_invalid("Integration Plugin 必须返回 Integration contribution");
+  return { install_id, installation_generation, publisher: manifest.publisher, contribution, async end() {
+    live = false;
+    await definition.stop?.(context);
+  } };
 }

@@ -98,7 +98,7 @@ async function openHalves() {
   const contexts: Partial<Record<Half, PluginStartContext>> = {};
   const actions = { home: act("home", handles), project: act("project", handles) };
   const runtime = (redemption: { partial: true; outside_project?: true }, projectId?: string) => new PluginRuntime(new MemoryPluginRuntimeRepository(),
-    undefined, { hostIds: new Set([PLUGIN]), redemption: () => redemption, actions: { registry: service, ...(projectId ? { project_id: projectId } : {}), providerId: () => PLUGIN } });
+    undefined, { hostIds: new Set([PLUGIN]), redemption: () => redemption, actions: { registry: service, ...(projectId ? { project_id: projectId } : {}) } });
   for (const [which, target] of [["home", runtime({ partial: true, outside_project: true })], ["project", runtime({ partial: true }, PROJECT)]] as const) {
     const definition = half(which, actions, handles, reached, contexts);
     // This fixture Host ships the definition; the stable plugin-id provider (and the partial redemption) require the Host's evidence.

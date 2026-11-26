@@ -51,6 +51,8 @@ export declare function oauthSettingValueFault(setting: {
 
 export declare function oauthTenantOriginUnder(domain: string, raw: string): string | undefined;
 
+export declare function oauthTenantSiteOrigin(domain: string, raw: string): string | undefined;
+
 export declare function oauthUrlTemplate(template: string): {
     readonly head: OAuthUrlHead | undefined;
     readonly name: string;

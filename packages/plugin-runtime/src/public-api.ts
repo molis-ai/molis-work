@@ -46,6 +46,7 @@ export type { PluginModelDispatch, PluginModelGate, PluginModelPort } from "./mo
 export { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 export { NativePluginExecutor } from "./native-executor.js";
 export { pluginManifestDigest } from "./identity.js";
+export { resolveActionProviderId, sandboxProviderId } from "./install-identity.js";
 export { loadDevelopmentLocalePacks, loadDevelopmentPlugin, readDevelopmentManifest } from "./development-loader.js";
 export { assertPluginLocales, inspectPluginLocales, refuseLocaleProblems, pluginLocaleFilePaths, pluginLocaleReader, resolveManifestText, type ManifestTextResolver, type PluginLocaleManifest, type PluginLocaleRead, type PluginLocaleReader } from "./locale-packs.js";
 export { assertContributionMatchesManifest, offeredManifest, viewContributionId, type RedemptionScope } from "./contribution.js";

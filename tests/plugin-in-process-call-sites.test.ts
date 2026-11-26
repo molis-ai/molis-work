@@ -19,7 +19,6 @@ const ALLOWED: Readonly<Record<string, readonly Admission[]>> = {
   "apps/local-host/src/project-plugins.ts": ["fixtures"],
   "apps/local-host/src/home-plugins.ts": ["fixtures"],
   "apps/local-host/src/plugin-platform.ts": ["given"],
-  "apps/local-host/src/integration-registry.ts": ["none"],
 };
 
 const productionFiles = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "apps", "packages", "horizontal", "modules", "plugins", "server", "tooling", "scripts", "examples"],
@@ -143,7 +142,7 @@ test("RAC-994 S-75 ⑥ the AST gate rejects conditional spreads or optional inPr
   assert.match(conditionalPlatform[0]!.failure ?? "", /direct unconditional property|spread/u);
 
   const conditionalRuntime = checkSource(
-    "apps/local-host/src/integration-registry.ts",
+    "apps/local-host/src/plugin-development.ts",
     "new PluginRuntime(repo, exec, { ...(flag ? { inProcess: { admit: new Set() } } : {}) });",
   );
   assert.equal(conditionalRuntime.length, 1);

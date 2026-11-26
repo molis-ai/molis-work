@@ -1,6 +1,6 @@
 import { openPartitionPluginLibrary, partitionPluginScope, PLATFORM_PLUGIN_REGISTRATIONS, pluginSyncDatabaseDeclaration } from "@molis-ai/molis-work-app-local-host";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { applySqliteBaseline, homeSqlitePath, openBaselineHomeSqlite, openHomeSqliteDatabase, openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { openSqliteConnection } from "@molis-ai/molis-work-storage";
 import { COGNIA_DATABASE, CogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 import { DATASET_DATABASE, DatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_DATABASE, FormStore } from "@molis-ai/molis-work-plugin-form";
@@ -27,13 +27,6 @@ const atomically = (db: DatabaseSync) => <T>(run: () => T): T => {
   try { const result = run(); db.exec("COMMIT"); return result; }
   catch (error) { db.exec("ROLLBACK"); throw error; }
 };
-// Seed the same complete library the Runtime opens, including platform-owned sync tables.
-function completeDeclaration(declaration: { store_name: string; version: number; schema: string }) {
-  const manifest = PLATFORM_PLUGIN_REGISTRATIONS.map(row => row.manifest).find(row => row.databases?.home?.store_name === declaration.store_name);
-  return manifest?.databases?.home ? pluginSyncDatabaseDeclaration(manifest, manifest.databases.home) : declaration;
-}
-const open = (home: string, declaration: { store_name: string; version: number; schema: string }) => openBaselineHomeSqlite(home, declaration.store_name, completeDeclaration(declaration));
-
 /**
  * A plugin's library in one partition (U2): `<partition root>/libraries/<store>.db`, opened the way the Host opens it for that partition's instance
  * — the partition root checked, the complete baseline (with the platform's sync tables) applied, the Home's storage space bound.
@@ -82,16 +75,10 @@ export const partitionLibraryFile = (home: string, partition: string, store: str
 export const openPartitionLibraryDatabase = (home: string, partition: string, store: string) =>
   openSqliteConnection(partitionLibraryFile(home, partition, store), { fileMustExist: true });
 
-/** A library opened and given its baseline the way these three stores always were: the database first, then the baseline on it. */
-function openWithBaseline(home: string, declaration: { store_name: string; version: number; schema: string }, pragmas: string): DatabaseSync {
-  const db = openHomeSqliteDatabase(home, declaration.store_name);
-  try { db.exec(pragmas); applySqliteBaseline(db, homeSqlitePath(home, declaration.store_name), completeDeclaration(declaration)); return db; }
-  catch (error) { db.close(); throw error; }
-}
-/** Jelly's rows over one Home, the Runtime's shape without a caller: `write` runs in one transaction. */
+/** Jelly's rows in one partition (batch 108), the Runtime's shape without a caller: `write` runs in one transaction. The personal space unless a test names a project. */
 export interface JellyTestStore { read<T>(run: (store: JellyStore) => T): T; write<T>(run: (store: JellyStore) => T): T; close(): void }
-export function openJellyStore(home: string): JellyTestStore {
-  const db = openWithBaseline(home, JELLY_DATABASE, "PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
+export function openJellyStore(home: string, partition = "personal"): JellyTestStore {
+  const { db } = openPartition(home, partition, JELLY_DATABASE);
   const run = atomically(db);
   const transaction: PluginDatabaseTransaction = {
     get: (query: string, parameters: readonly SQLInputValue[] = []) => db.prepare(query).get(...parameters) ?? null,

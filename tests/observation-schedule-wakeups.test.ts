@@ -92,7 +92,11 @@ test("OCL-01 UPP-15 batch 108: each person setting received from another device 
     receive() { if (fail) throw new ActionError("actions.input_invalid", "default_service secret"); },
     acknowledge() {},
     cursor: () => 7,
-  } as unknown as SyncReplicaAdapter);
+    next: () => null,
+    counts: () => ({ pending: 0, conflicts: 0 }),
+    conflicts: () => [],
+    resolve() {},
+  } satisfies SyncReplicaAdapter);
   replica.receive({} as SyncEvent);
   replica.acknowledge("images-install/default_service", "op-1", 1);
   fail = true;

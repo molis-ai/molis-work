@@ -158,7 +158,10 @@ export class TodoStore extends TodoStoreWrites {
       const here = this.find(targetId);
       if (here) {
         // An earlier attempt of the same move already put it here: only that exact record is a replay; anything written since is kept.
-        if (sameCarriedRecord(this.exportRecord(targetId).record, todoRecord(carried.item, carried.changes))) { result = here; return; }
+        if (sameCarriedRecord(this.exportRecord(targetId).record, todoRecord(carried.item, carried.changes))) {
+          result = here;
+          return;
+        }
         throw todoErrors.conflict("目标位置已经有这件待办，而且内容不同；没有覆盖它");
       }
       this.db.run(`INSERT INTO todo_items (id, title, notes, status, due_date, due_time, planned_date, remind_at, important,

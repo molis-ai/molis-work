@@ -1,5 +1,5 @@
 import { mainOverviewLibrary, openPluginProjectLibrary, pluginOverviewFor, runningPartitionPlatformServices, type LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import type { PluginInstanceRecord, PluginManifest, PluginOverviewRows, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstanceRecord, PluginManifest, PluginOverviewRows } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
 
 /**
@@ -12,7 +12,7 @@ export async function writeMainOverviewRows(home: string, store: Pick<LocalProje
   const library = openPluginProjectLibrary({ db: store.db, path: store.path }, manifest, () => {}, { install_id: "overview-test-seed", installation_generation: "1" }).client;
   const installId = installIdentity(manifest);
   const record = { install_id: installId, plugin_id: manifest.plugin_id, state: "running" } as PluginInstanceRecord;
-  const context = { install_id: installId, plugin_id: manifest.plugin_id, project_id: projectId } as unknown as PluginStartContext;
+  const context = { install_id: installId };
   const client = pluginOverviewFor(manifest, context, library, store.db, () => {}, () => record,
     id => runningPartitionPlatformServices(home)?.partitionChanged(projectId, id, [mainOverviewLibrary(home, projectId, id, manifest)]));
   if (!client) throw new Error(`${manifest.plugin_id} 没有声明主库总览`);

@@ -1,5 +1,5 @@
 import { mainOverviewLibrary, openPluginProjectLibrary, pluginOverviewFor, runningPartitionPlatformServices, type LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import type { PluginInstanceRecord, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { CodingSessionStore, codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
 
@@ -23,7 +23,7 @@ export function codingSessions(store: Pick<LocalProjectDatabase, "db" | "path">,
   if (!overview) return new CodingSessionStore(library);
   const installId = installIdentity(codingManifest);
   const record = { install_id: installId, plugin_id: codingManifest.plugin_id, state: "running" } as PluginInstanceRecord;
-  const context = { install_id: installId, plugin_id: codingManifest.plugin_id, project_id: overview.project_id } as unknown as PluginStartContext;
+  const context = { install_id: installId };
   const client = pluginOverviewFor(codingManifest, context, library, store.db, () => {}, () => record,
     id => runningPartitionPlatformServices(overview.home)?.partitionChanged(overview.project_id, id, [mainOverviewLibrary(overview.home, overview.project_id, id, codingManifest)]));
   return new CodingSessionStore(library, client);

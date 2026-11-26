@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { LocalProjectDatabase, openPluginProjectLibrary, pluginOverviewFor } from "@molis-ai/molis-work-app-local-host";
 import { defineBackgroundTasksAction, defineRunsOverviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginInstanceRecord, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
 import { inspectActionDeclarations, isProjectReadQuery } from "@molis-ai/molis-work-plugin-sdk";
@@ -25,7 +25,7 @@ test("S-49 UPP-37 services.overview stamps the installation, writes only declare
   const installId = installIdentity(codingManifest);
   let state: PluginInstanceRecord["state"] = "running";
   const record = () => ({ install_id: installId, plugin_id: codingManifest.plugin_id, state }) as PluginInstanceRecord;
-  const context = { install_id: installId, plugin_id: codingManifest.plugin_id, project_id: project.project_id } as unknown as PluginStartContext;
+  const context = { install_id: installId };
   const changed: string[] = [];
   const overview = pluginOverviewFor(codingManifest, context, library, store.db, () => {}, record, id => changed.push(id));
   assert.ok(overview, "a plugin that keeps its data in the main database and declares overview kinds is given the client");

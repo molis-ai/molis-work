@@ -16,7 +16,7 @@ interface Connection { prepare(sql: string): Statement }
  * the platform's stamp from the instance's record; the plugin names neither it nor the partition, reaches only its own rows, and writes only
  * the kinds its Manifest declares. After the commit the partition's overview is read again (`changed`), read-only and waking nothing.
  */
-export function pluginOverviewFor(manifest: PluginManifest, context: PluginStartContext, database: PluginProjectDatabase | undefined,
+export function pluginOverviewFor(manifest: PluginManifest, context: Pick<PluginStartContext, "install_id">, database: PluginProjectDatabase | undefined,
   connection: object | undefined, assertActive: () => void, record: () => PluginInstanceRecord | null, changed: (installId: string) => void): PluginOverviewClient | undefined {
   const kinds = manifest.overview_projection?.kinds ?? [];
   if (!kinds.length || !manifest.databases?.project || manifest.databases.partition || !database || !connection || !("prepare" in connection)) return undefined;
@@ -40,8 +40,11 @@ export function pluginOverviewFor(manifest: PluginManifest, context: PluginStart
       const install = installation();
       let touched = false;
       const touch = () => {
-        live(); installation();
-        if (!touched) { touched = true; afterCommit(() => changed(install)); }
+        live();
+        installation();
+        if (touched) return;
+        touched = true;
+        afterCommit(() => changed(install));
       };
       const rows: PluginOverviewRows = {
         upsert(kind, row) {

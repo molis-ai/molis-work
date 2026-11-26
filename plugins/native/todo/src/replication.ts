@@ -3,7 +3,7 @@ import { syncError } from './sync-errors.js';
 import type { PluginSyncCollectionDefinition, PluginSyncBusinessDatabase } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import { TODO_STATUSES } from "./contract.js";
 import { removeTodoOverview, writeTodoOverview } from "./overview.js";
-import { fromRow, type ItemRow } from "./store-support.js";
+import { fromRow, itemRows } from "./store-support.js";
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { isTodoDate, isTodoInstant, isTodoTime } from "./dates.js";
 
@@ -45,9 +45,19 @@ export function todoCollection(projectId: string): PluginSyncCollectionDefinitio
   // The overview row is written beside the todo, as the store writes it, so a synced reminder rings here too.
   const overview={get:(sql:string,parameters:readonly (string|number|null)[]=[])=>db.prepare(sql).get(...parameters),run:(sql:string,parameters:readonly (string|number|null)[]=[])=>db.prepare(sql).run(...parameters)};
   return {
-    authorizeKey(key){decode(key);context.authorize();context.project(projectId);},
-    belongsToProject:(key,target)=>{decode(key);return target===projectId;},
-    canUpload:key=>{decode(key);return context.canUploadProject(projectId)!==false;},
+    authorizeKey(key) {
+      decode(key);
+      context.authorize();
+      context.project(projectId);
+    },
+    belongsToProject: (key, target) => {
+      decode(key);
+      return target === projectId;
+    },
+    canUpload: key => {
+      decode(key);
+      return context.canUploadProject(projectId) !== false;
+    },
     read(key) {
       const id = decode(key);
       const item = db.prepare("SELECT * FROM todo_items WHERE id=?").get(id) as Row | undefined;
@@ -82,7 +92,7 @@ export function todoCollection(projectId: string): PluginSyncCollectionDefinitio
       upsert(db, "todo_items", itemColumns, "id", { ...wire.item, revision });
       for (const change of wire.changes) insert(db, "todo_changes", changeColumns, { ...change, revision_after: Number(change.revision_after) + offset });
       for (const request of wire.requests) insert(db, "todo_requests", requestColumns, request);
-      writeTodoOverview(overview, fromRow({ ...wire.item, revision } as unknown as ItemRow));
+      for (const row of itemRows([db.prepare("SELECT * FROM todo_items WHERE id=?").get(id)])) writeTodoOverview(overview, fromRow(row));
     },
   };
  }

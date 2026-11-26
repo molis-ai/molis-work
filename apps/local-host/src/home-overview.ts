@@ -107,7 +107,12 @@ function stateWord(state: string): { text: string } | undefined {
   const family = familyOf.get(state);
   if (!family) return undefined;
   const key = family === "running" || family === "done" ? `common.presentation.${family}` : `common.presentation.state.${family}`;
-  try { const text = uiText.text(key); return text && text !== key ? { text } : undefined; } catch { return undefined; }
+  try {
+    const text = uiText.text(key);
+    return text && text !== key ? { text } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 const iconOf = (manifest: PluginManifest): string => (manifest.ui?.views as ReadonlyArray<{ icon?: string }> | undefined)?.find(view => typeof view.icon === "string")?.icon ?? "apps";
 

@@ -382,7 +382,7 @@ function carriedBatch(record: PlacementRecord): BatchRow {
   const keys = Object.keys(record).sort(), expected = [...BATCH_COLUMNS].sort();
   const invalid = () => todoErrors.invalid("带来的整理结果不完整，没有放进来");
   if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) throw invalid();
-  const row = { batch_id: "carried", ...record } as unknown as BatchRow;
+  const row = { batch_id: "carried", ...record } as BatchRow;
   if (!["assistant", "onboarding", "manual"].includes(row.origin) || typeof row.method !== "string" || row.method.length > 200 || typeof row.title !== "string"
     || [...row.title].length > 120 || !["open", "done"].includes(row.status) || typeof row.created_at !== "string" || typeof row.updated_at !== "string"
     || !Number.isSafeInteger(row.revision) || row.revision < 1 || (row.request_id !== null && typeof row.request_id !== "string") || typeof row.body_json !== "string") throw invalid();

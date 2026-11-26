@@ -284,18 +284,21 @@ export class ImagesService {
     return result;
   }
 
-  /** A change to the person's services, under the same checks as a write to the library: nothing is written for a caller who lost authority. */
   /** One change to the person's services, written once after the call's own checks (`ImagesConnections.batch`). */
   private async settle<T>(control: ImagesControl, apply: (connections: ImagesConnectionChanges) => T): Promise<T> {
     this.assertOpen();
     await control.beforeEffect();
-    this.assertOpen(); control.signal?.throwIfAborted(); requireSynchronous(control.assert_authority_current?.());
+    this.assertOpen();
+    control.signal?.throwIfAborted();
+    requireSynchronous(control.assert_authority_current?.());
     return this.options.connections.batch(apply);
   }
 
   private write<T>(control: ImagesControl, apply: (store: ImagesStore) => T): Promise<T> {
     return this.options.database.transaction(() => control.beforeEffect(), transaction => {
-      this.assertOpen(); control.signal?.throwIfAborted(); requireSynchronous(control.assert_authority_current?.());
+      this.assertOpen();
+      control.signal?.throwIfAborted();
+      requireSynchronous(control.assert_authority_current?.());
       return apply(new ImagesStore(transaction,this.options.syncClient));
     });
   }

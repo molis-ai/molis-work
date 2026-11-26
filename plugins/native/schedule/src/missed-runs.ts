@@ -215,7 +215,7 @@ const overviewTitle = (title: string) => [...title.trim()].slice(0, OVERVIEW_TEX
  * wakeup is a Schedule write after its time, so a repeating job's next time is written as soon as this one comes; the Home's runs panel
  * then reads the overview and opens no project. What is expired and what the person was told stays the Home's (`runExpiredUntold`).
  */
-export function writeScheduleRunRows(rows: PluginOverviewRows, db: ScheduleTaskDatabase, jobs: readonly ScheduleJobRecord[], projectId: string, now: number): void {
+export function writeScheduleRunRows(rows: PluginOverviewRows, db: ScheduleTaskDatabase, jobs: readonly ScheduleJobRecord[], now: number): void {
   for (const kind of ["task", "operation", "reminder"] as const) rows.removePrefix("scheduled_run", `${kind}:`);
   const at = new Date(now).toISOString();
   const open = (ref: string) => OPEN_PART.test(ref) ? { open: { surface: SCHEDULE_PROJECT_PLUGIN_ID, id: ref } } : {};
@@ -231,7 +231,8 @@ export function writeScheduleRunRows(rows: PluginOverviewRows, db: ScheduleTaskD
     rows.upsert("scheduled_run", row);
     if (++upcoming >= OVERVIEW_UPCOMING_ROWS) break;
   }
-  const missed = db.prepare("SELECT * FROM schedule_missed_runs WHERE project_id = ? AND decision IS NULL ORDER BY due_at DESC LIMIT ?").all(projectId, OVERVIEW_MISSED_ROWS) as MissedRow[];
+  // The partition's main database holds this one project, so every undecided row is this project's.
+  const missed = db.prepare("SELECT * FROM schedule_missed_runs WHERE decision IS NULL ORDER BY due_at DESC LIMIT ?").all(OVERVIEW_MISSED_ROWS) as MissedRow[];
   for (const entry of missed) {
     rows.upsert("scheduled_run", { row_id: entry.run_id, title: overviewTitle(entry.title), due_at: entry.due_at, missed_at: entry.missed_at, updated_at: entry.missed_at,
       ...(entry.kind === "task" ? { needs: ["model"] } : {}), ...open(entry.ref) });

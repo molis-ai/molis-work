@@ -21,7 +21,10 @@ export class ImagesStore {
     const running = (this.db.all("SELECT id FROM jobs WHERE status = 'running'") as Row[]).map(row => String(row.id));
     this.db.run("UPDATE jobs SET status = 'interrupted', error = ?, finished_at = ? WHERE status = 'running'",
       [INTERRUPTED, new Date().toISOString()]);
-    for (const id of running) { const job = this.findJob(id); if (job) writeImagesOverview(this.db, job); }
+    for (const id of running) {
+      const job = this.findJob(id);
+      if (job) writeImagesOverview(this.db, job);
+    }
   }
 
   referencedFiles(): Set<string> {

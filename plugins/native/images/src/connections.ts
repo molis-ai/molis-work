@@ -57,7 +57,10 @@ export class ImagesConnections {
   batch<T>(apply: (changes: ImagesConnectionChanges) => T): T {
     const record = this.settings.get(IMAGES_CONNECTIONS_SETTING);
     let next = record === null ? [] : parse(record.value), changed = false;
-    const edit = (change: (list: StoredConnection[]) => StoredConnection[]) => { next = change(next); changed = true; };
+    const edit = (change: (list: StoredConnection[]) => StoredConnection[]) => {
+      next = change(next);
+      changed = true;
+    };
     const result = apply({
       save: connection => edit(list => {
         const kept = list.find(item => item.id === connection.id);

@@ -8,10 +8,10 @@ import { writeScheduleRunRows } from "./missed-runs.js";
 /** Synchronous domain stores borrow the public transaction for exactly one write body. */
 /**
  * `overview`, when the platform gives it (V17), keeps Schedule's runs in the partition's overview: written again at the end of every write,
- * in the same transaction, so the Home's runs panel never asks a project. `projectId` and `now` are the partition's and the clock.
+ * in the same transaction, so the Home's runs panel never asks a project. `now` is the clock.
  */
 export function scheduleRuntimeDatabase(database: PluginDatabase, scheduler: PluginScheduleClient, notifications: PluginNotificationClient,
-  overview?: { readonly client: PluginOverviewClient; readonly projectId: string; readonly now?: () => number }) {
+  overview?: { readonly client: PluginOverviewClient; readonly now?: () => number }) {
   let active: { transaction: PluginDatabaseTransaction; schedule: PluginScheduleWriter; receipts: PluginNotificationReceipt[] } | undefined;
   const current = () => {
     if (!active) throw new ActionError("actions.forbidden", "定时任务写入需要当前插件事务");
@@ -51,7 +51,7 @@ export function scheduleRuntimeDatabase(database: PluginDatabase, scheduler: Plu
       const state = { transaction, schedule: writer, receipts: [] as PluginNotificationReceipt[] }; active = state;
       try {
         const value = operation(); requireSynchronous(value);
-        overview?.client.join(transaction, rows => writeScheduleRunRows(rows, db, scheduler.list(), overview.projectId, overview.now?.() ?? Date.now()));
+        overview?.client.join(transaction, rows => writeScheduleRunRows(rows, db, scheduler.list(), overview.now?.() ?? Date.now()));
         return { value, receipts: state.receipts };
       } finally { active = undefined; }
     }));

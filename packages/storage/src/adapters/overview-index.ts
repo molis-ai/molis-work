@@ -101,7 +101,7 @@ export function openOverviewIndex(options: { readonly homeDirectory: string }): 
           : source.prepare(`SELECT * FROM ${name} WHERE kind = ? ORDER BY row_id LIMIT ?`);
         for (const kind of kinds) {
           const read = (main ? select.all(library.install_id, kind, OVERVIEW_ROW_LIMIT) : select.all(kind, OVERVIEW_ROW_LIMIT)) as Record<string, string | number | null>[];
-          rows.push(...read.map(row => { const { install_id: _install, ...columns } = row; return columns; }));
+          rows.push(...read.map(({ install_id: _install, ...columns }) => columns));
         }
         return rows;
       } catch {

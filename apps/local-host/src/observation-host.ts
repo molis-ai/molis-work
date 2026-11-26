@@ -59,6 +59,9 @@ export function observationPluginDataCleared(home: string, record: Pick<PluginIn
   catch (error) { hostLog.warn("observation", "plugin_purge_failed", error); }
 }
 
+/** The entry of work a clock started (a project clock's wakeup, a fallen-due reminder): the observation entry kind, not a plugin. */
+export const CLOCK_ENTRY = "schedule";
+
 /**
  * A project clock's wakeups as work records (design §4「定时与后台任务」): one per wakeup, in the operation it ran as, so the action call
  * it made carries the same `call_id`. One that could not run (its plugin gone) is `no_action`; one stopped part-way is `cancelled`.
@@ -68,7 +71,7 @@ export function scheduleWakeupRecords(home: string, projectId: string): (ended: 
     const live = liveObservation(home), call_id = currentCallId();
     if (!live) return;
     const outcome = interrupted ? "cancelled" : wakeup.status === "ok" ? "succeeded" : wakeup.status === "plugin_unavailable" ? "no_action" : "failed";
-    live.sink("scheduler").bind({ kind: "background", entry: "schedule", actor_id: `plugin:${job.plugin_id}`, project_id: projectId,
+    live.sink("scheduler").bind({ kind: "background", entry: CLOCK_ENTRY, actor_id: `plugin:${job.plugin_id}`, project_id: projectId,
       ...(install_id ? { install_id } : {}), ...(call_id ? { call_id } : {}) }).record({ fact: "scheduler.wakeup", outcome, stage: job.recurrence_kind,
       occurred_at: wakeup.started_at, subjects: [{ kind: "schedule_job", id: job.job_id }], work: { work_ref: wakeup.wakeup_id },
       detail: { capability_id: job.capability_id, object_ref: job.object_ref, due_at: wakeup.due_at, late_ms: Math.max(0, Date.parse(wakeup.started_at) - Date.parse(wakeup.due_at)),

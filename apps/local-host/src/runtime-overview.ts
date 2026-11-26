@@ -98,8 +98,12 @@ const codeOf = (error: unknown) => error instanceof ActionError ? error.code : "
 /** One slow Home owner cannot keep the panel waiting. */
 async function beforeDeadline<T>(signal: AbortSignal | undefined, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds: 2_000, reason: new ActionError("actions.timeout", "首页读取超时，请重试") } });
-  try { lifetime.assertActive(); return await lifetime.wait(work(lifetime.signal)); }
-  finally { lifetime.dispose(); }
+  try {
+    lifetime.assertActive();
+    return await lifetime.wait(work(lifetime.signal));
+  } finally {
+    lifetime.dispose();
+  }
 }
 
 export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: AbortSignal): Promise<RuntimeOverview> {

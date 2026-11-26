@@ -1,4 +1,5 @@
 import { openJellyStore } from "./fixtures/plugin-sync-stores.js";
+import { openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -18,7 +19,7 @@ function fixture(t: TestContext) {
   const homes = [join(root, "a"), join(root, "b")];
   const space = personalStorageSpace("http://127.0.0.1:8787", "work", "alice");
   homes.forEach(home => ensureStorageSpace(home, space));
-  const stores = homes.map(openJellyStore);
+  const stores = homes.map(home => openJellyStore(home));
   const context: AggregateReplicaContext = {
     spaceId: space.spaceId, authorize() {}, canUploadProject: () => false,
     project: () => { throw new Error("Jelly must not need a project"); }, hasArtifact: () => false,
@@ -50,10 +51,20 @@ test("Jelly syncs one row per key, a note and an entry travelling on their own, 
   // An arriving row is a new revision here, so a page holding the old one meets a conflict instead of writing over it.
   assert.ok(received.note!.revision > 1);
   assert.equal(f.replicas[1]!.next(), null, "what arrived is not sent back");
+  // UPP-35: an entry that arrived is in the receiving partition's overview as it would be had it been written there (batch 108).
+  const overviewEvents = (home: string) => {
+    const db = openPartitionLibraryDatabase(home, "personal", "jelly");
+    try { return db.prepare("SELECT row_id, title FROM molis_overview_rows WHERE kind = 'event'").all().map(row => ({ ...row })); }
+    finally { db.close(); }
+  };
+  assert.deepEqual(overviewEvents(f.homes[1]!), [{ row_id: "i1", title: "评审" }]);
   a!.write(store => store.delete("note", "n1", 1));
   f.drain().forEach(event => f.replicas[1]!.receive(event));
   assert.equal(b!.read(store => store.get("note", "n1")), null);
   assert.equal(b!.read(store => store.get("item", "i1"))?.title, "评审", "deleting one row leaves the others");
+  a!.write(store => store.delete("item", "i1", 1));
+  f.drain().forEach(event => f.replicas[1]!.receive(event));
+  assert.deepEqual(overviewEvents(f.homes[1]!), [], "an entry deleted on the other device takes its overview row with it");
 });
 
 test("concurrent edits of one note keep both sides until resolved, and a malformed or foreign row changes nothing", t => {

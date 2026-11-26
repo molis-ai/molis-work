@@ -5,24 +5,35 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { actionResultSubject, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { JELLY_ACTION_PERMISSIONS, JELLY_ACTIONS, jellyActions as a, jellyManifest } from "@molis-ai/molis-work-plugin-jelly";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { openPartitionLibraryDatabase } from "./fixtures/plugin-home-stores.js";
 
 const zone = "Asia/Shanghai";
 function fixture(t: { after(fn: () => Promise<void>): void }) {
   const home = mkdtempSync(join(tmpdir(), "jelly-actions-"));
   // No model is configured: Jelly starts and works without one (batch 112-2, hand-off to batch 108).
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS };
-  const service = host.homeActionClient(), bound = bindActionClient(service, () => caller);
+  // Jelly works in a partition (batch 108): these calls are made in project "a".
+  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
+  const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: JELLY_ACTION_PERMISSIONS };
+  const service = host.actionClient(reference), bound = bindActionClient(service, () => caller);
   t.after(async () => { await host.close(); rmSync(home, { recursive: true, force: true }); });
   const month = () => bound.invoke(a.calendar, { start: "2026-09-01", end: "2026-09-30" });
-  return { home, host, caller, service, bound, month };
+  // The partition's overview rows Jelly keeps beside its entries, as the platform reads them.
+  const events = () => {
+    const db = openPartitionLibraryDatabase(home, "a", "jelly");
+    try { return db.prepare("SELECT row_id, title, starts_at, ends_at, all_day, time_zone, remind_at FROM molis_overview_rows WHERE kind = 'event' ORDER BY row_id").all(); }
+    finally { db.close(); }
+  };
+  return { home, host, caller, service, bound, month, events };
 }
 
-test("Jelly is a Home plugin with fifteen typed actions and no model, settings or routes; permissions and separate Homes hold", async t => {
+test("UPP-15 Jelly is a partition plugin with fifteen typed actions and no model, settings or routes; permissions and separate Homes hold", async t => {
   const f = fixture(t), other = fixture(t);
   assert.equal(Object.keys(a).length, 15);
-  assert.deepEqual(jellyManifest.runtime, { scope: "home" });
+  assert.equal(jellyManifest.runtime, undefined, "no Home runtime: one instance per partition it is enabled in");
+  assert.equal(jellyManifest.databases?.partition?.store_name, "jelly");
+  assert.deepEqual(jellyManifest.overview_projection, { kinds: ["event"] });
   assert.equal(jellyManifest.routes, undefined); assert.equal(jellyManifest.settings_entries, undefined);
   assert.ok(!JELLY_ACTION_PERMISSIONS.includes("model:invoke"));
   const directory = await f.bound.discover();
@@ -41,19 +52,27 @@ test("a single entry is created, moved as a whole, completed, refused on a stale
   const created = await f.bound.invoke(a.createItem, input), { item } = created;
   assert.equal(item.title, "交稿"); assert.equal(item.revision, 1); assert.equal(item.kind, "task"); assert.equal(item.category_id, "uncategorized");
   assert.deepEqual(actionResultSubject(a.createItem.action, input, created), { subject: { kind: "jelly_item", id: item.id }, revision: "1" });
+  // UPP-35: an open entry is an `event` row of the partition's overview, its times read in its own zone, with no reminder.
+  assert.deepEqual(f.events(), [{ row_id: item.id, title: "交稿", starts_at: "2026-09-10T01:00:00.000Z", ends_at: "2026-09-11T02:00:00.000Z", all_day: 0, time_zone: zone, remind_at: null }]);
   const moved = (await f.bound.invoke(a.updateItem, { id: item.id, expected_revision: 1, patch: { start_date: "2026-09-15" } })).item;
   assert.deepEqual([moved.start_date, moved.end_date, moved.revision], ["2026-09-15", "2026-09-16", 2]);
+  assert.deepEqual(f.events().map(row => row.starts_at), ["2026-09-15T01:00:00.000Z"], "the row moves with the entry, in the same write");
   const done = (await f.bound.invoke(a.updateItem, { id: item.id, expected_revision: 2, patch: { completed: true } })).item;
   assert.ok(done.completed_at);
+  assert.deepEqual(f.events(), [], "a done entry has no row");
   await assert.rejects(f.bound.invoke(a.updateItem, { id: item.id, expected_revision: 2, patch: { title: "stale" } }), (error: { code: string; details?: { revision?: number } }) => error.code === "jelly.conflict" && error.details?.revision === 3);
   assert.deepEqual((await f.month()).items.map(entry => entry.id), [item.id]);
-  const { restore } = await f.bound.invoke(a.deleteItem, { id: item.id, expected_revision: 3 });
+  await f.bound.invoke(a.updateItem, { id: item.id, expected_revision: 3, patch: { completed: false } });
+  assert.equal(f.events().length, 1, "opened again, it is back in the overview");
+  const { restore } = await f.bound.invoke(a.deleteItem, { id: item.id, expected_revision: 4 });
   assert.equal((await f.month()).items.length, 0);
+  assert.deepEqual(f.events(), [], "a deleted entry's row goes with it");
   assert.equal(a.deleteItem.action.undo?.capability_id, "jelly.restore");
   const back = (await f.bound.invoke(a.restore, { rows: restore })).rows.items[0]!;
-  assert.deepEqual([back.title, back.start_date, back.revision], ["交稿", "2026-09-15", 4]);
+  assert.deepEqual([back.title, back.start_date, back.revision], ["交稿", "2026-09-15", 5]);
+  assert.deepEqual(f.events().map(row => row.row_id), [item.id], "put back open, its row is written again");
   // Changed again after it came back: the old restore leaves that row as it is now and names it.
-  await f.bound.invoke(a.updateItem, { id: item.id, expected_revision: 4, patch: { title: "改过" } });
+  await f.bound.invoke(a.updateItem, { id: item.id, expected_revision: 5, patch: { title: "改过" } });
   const stale = await f.bound.invoke(a.restore, { rows: restore });
   assert.deepEqual([stale.skipped, stale.rows.items], [[item.id], []]);
   assert.equal((await f.month()).items[0]?.title, "改过");

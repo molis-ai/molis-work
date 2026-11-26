@@ -1,5 +1,6 @@
 import type { DueEntryRecord } from "@molis-ai/molis-work-service-scheduler";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { CLOCK_ENTRY } from "./observation-host.js";
 import { liveObservation } from "./observation-live.js";
 import type { PartitionPluginLifecycleEvent } from "./partition-plugin-assembly.js";
 
@@ -24,7 +25,7 @@ export type DueWakeupOutcome = { readonly outcome: "succeeded" | "no_action" } |
 /** One fallen-due entry's wakeup of its (plugin, partition) instance; a failure stays in the registry and is tried again (`DueTimer`). */
 export function dueWakeupRecord(home: string, entry: DueEntryRecord, startedAt: Date, ended: DueWakeupOutcome): void {
   const code = ended.outcome === "failed" && ended.error instanceof ActionError ? ended.error.code : undefined;
-  liveObservation(home)?.sink("scheduler").bind({ kind: "background", entry: "schedule", actor_id: `plugin:${entry.plugin_id}`, project_id: entry.partition_id,
+  liveObservation(home)?.sink("scheduler").bind({ kind: "background", entry: CLOCK_ENTRY, actor_id: `plugin:${entry.plugin_id}`, project_id: entry.partition_id,
     install_id: entry.install_id }).record({ fact: "scheduler.due_wakeup", outcome: ended.outcome, stage: entry.source, occurred_at: startedAt.toISOString(),
     subjects: [{ kind: "due_entry", id: entry.entry_key }],
     detail: { due_at: entry.due_at, late_ms: Math.max(0, startedAt.getTime() - Date.parse(entry.due_at)), ...(code ? { code } : {}) } });

@@ -7,7 +7,7 @@ import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { captureHostLog, collectRetained, homeAgentDefinitions, HomePluginHost, mayUseInstallationSlot, ProjectDeletionService, withConnectorConnections, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { runInPluginAction } from "@molis-ai/molis-work-plugin-runtime";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
@@ -264,9 +264,9 @@ test("SKC-05 a project uninstall removes only its own Skill settings even when a
 // a project Agent, an MCP client, another plugin's call and a delegated call are refused before the account is read.
 test("S-71 UPP-15 only the person, the personal assistant, the person's workflows and the plugin's own work use an installation slot", () => {
   const install_id = "io.molis.work.slots@molis";
-  const as = (caller: Record<string, unknown>) => runInPluginAction({ install_id, plugin_id: "io.molis.work.slots", installation_generation: "1",
-    definition: { capability_id: "slots.use", version: 1 }, caller: { project_id: "personal", permissions: [], ...caller } } as unknown as Parameters<typeof runInPluginAction>[0],
-  () => mayUseInstallationSlot(install_id));
+  const definition = { capability_id: "slots.use", version: 1 } as ActionDefinition;
+  const as = (caller: Partial<ActionExecutionContext>) => runInPluginAction({ install_id, installation_generation: "1",
+    definition, caller: { project_id: "personal", permissions: [], ...caller } as ActionExecutionContext }, () => mayUseInstallationSlot(install_id));
   assert.equal(mayUseInstallationSlot(install_id), true, "the plugin's own work outside any call");
   assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user" }), true, "the person");
   assert.equal(as({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "agent", actor_kind: "runtime", audit_actor_id: "assistant:main" }), true, "the personal assistant");

@@ -372,7 +372,10 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       };
       const context: PluginDueContext = { project_id: options.project_id, plugin_id: pluginId, install_id: installId, signal: controller.signal, beforeEffect };
       try {
-        const outcome = await outsidePluginAction(() => Promise.resolve().then(() => { beforeEffect(); return handler.call(contribution, structuredClone(delivery), context); }));
+        const outcome = await outsidePluginAction(() => Promise.resolve().then(() => {
+          beforeEffect();
+          return handler.call(contribution, structuredClone(delivery), context);
+        }));
         return outcome ?? undefined;
       } finally { controller.abort(); }
     },

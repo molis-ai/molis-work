@@ -29,7 +29,7 @@ export function todoRecord(item: TodoItem, changes: readonly TodoChange[]): Plac
 export function carriedTodo(record: PlacementRecord, id: string | null): { item: TodoItem; changes: TodoChange[] } {
   const keys = Object.keys(record).sort(), expected = [...ITEM_COLUMNS, "changes_json"].sort();
   if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) invalid();
-  const row = { id: id ?? "carried", ...Object.fromEntries(ITEM_COLUMNS.map(column => [column, record[column]])) } as unknown as ItemRow;
+  const row = { id: id ?? "carried", ...Object.fromEntries(ITEM_COLUMNS.map(column => [column, record[column]])) } as ItemRow;
   if (typeof row.title !== "string" || !row.title.trim() || exceedsCharacters(row.title, 200) || typeof row.notes !== "string" || [...row.notes].length > 10_000
     || !TODO_STATUSES.includes(row.status as TodoItem["status"]) || ![0, 1].includes(row.important) || !Number.isSafeInteger(row.revision) || row.revision < 1
     || !optional(row.due_date, isTodoDate) || !optional(row.planned_date, isTodoDate) || !optional(row.due_time, isTodoTime) || (row.due_time !== null && row.due_date === null)

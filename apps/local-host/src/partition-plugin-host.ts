@@ -370,7 +370,8 @@ export class PartitionPluginHost {
   }
 
   async close(): Promise<void> {
-    this.stopAttentionMarks?.(); this.stopAttentionMarks = undefined;
+    this.stopAttentionMarks?.();
+    this.stopAttentionMarks = undefined;
     if (this.closed) return;
     this.closed = true;
     if (this.sweep) clearInterval(this.sweep);

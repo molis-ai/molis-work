@@ -5,6 +5,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { STATE_RING_FAMILIES } from "@molis-ai/molis-work-contracts/platform/ui";
 import { isTimeZone } from "./card-values.js";
+import { exceedsCharacters } from "./whole-units.js";
 
 const RING_STATES: ReadonlySet<string> = new Set(STATE_RING_FAMILIES.flatMap(family => [...family.states]));
 const OPEN_PART = /^[A-Za-z0-9._:-]{1,200}$/u;
@@ -97,7 +98,8 @@ export function checkOverviewRow(kind: unknown, row: unknown): OverviewRowCheck 
   const fields: Readonly<Record<string, unknown>> = typeof row === "object" && row !== null ? { ...row } : {};
   const text = (value: unknown, limit: number, field: string, required = false): string | null => {
     if (value === undefined || value === null) return required ? fail(`总览行缺少 ${field}`) : null;
-    if (typeof value !== "string" || value.length === 0 || value.length > limit) return fail(`总览行的 ${field} 要是 1 到 ${limit} 字的文字`);
+    // Counted in characters, as the table's own CHECK counts them: a title of emoji or rare CJK is as long as it reads.
+    if (typeof value !== "string" || value.length === 0 || exceedsCharacters(value, limit)) return fail(`总览行的 ${field} 要是 1 到 ${limit} 字的文字`);
     return value;
   };
   const instant = (value: unknown, field: string, required = false): string | null => {

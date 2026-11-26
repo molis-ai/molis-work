@@ -166,7 +166,10 @@ export class DueRegistry {
       const rows = this.db.prepare("SELECT * FROM due_entries WHERE due_at <= ? ORDER BY due_at, install_id, partition_id, entry_key").all(at).map(rowOf);
       const due: DueEntryRecord[] = [], expired: DueExpiredRecord[] = [];
       for (const row of rows) {
-        if (!runHasExpired(row.due_at, now.getTime())) { due.push(row); continue; }
+        if (!runHasExpired(row.due_at, now.getTime())) {
+          due.push(row);
+          continue;
+        }
         this.remove(row, "expired", at);
         expired.push({ ...row, expired_at: at });
       }

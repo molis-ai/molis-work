@@ -24,7 +24,7 @@ Home 的跨项目列表复用 `backgroundTaskRows`，返回 contracts 的 `HomeB
 | [src/items.ts](src/items.ts) | 主线的动作：`readMainline`（可带每件、每组的等你与在办数，任务总表只读一次）、`createItem`、`convertItem`、排列与分组、`holds` 关联、`placeInItem`、`itemLineScope`；事项来源的发现（`itemSources`）与以调用方身份读对象（`readable`） |
 | [src/store.ts](src/store.ts) | 主线的库：`MAINLINE_BASELINE`、`MainlineStore`（每条语句带主人与项目；排列一行 JSON，带修订号）、`purgeMainlineProject` |
 
-合同在 `@molis-ai/molis-work-contracts/platform/actions`（任务行的形状、`defineBackgroundTasksAction`）和 `@molis-ai/molis-work-contracts/services/mainline`（两个系统动作、读到的行、拒绝的错误码）。Host 装配在 [apps/local-host/src/mainline-actions.ts](../../apps/local-host/src/mainline-actions.ts)，工作台的入口在 [apps/local-host/src/mainline-http.ts](../../apps/local-host/src/mainline-http.ts)；跨项目的聚合（[apps/local-host/src/home-background-tasks.ts](../../apps/local-host/src/home-background-tasks.ts)）用这里的同一份行检查。
+合同在 `@molis-ai/molis-work-contracts/platform/actions`（任务行的形状、`defineBackgroundTasksAction`）和 `@molis-ai/molis-work-contracts/services/mainline`（两个系统动作、读到的行、拒绝的错误码）。Host 装配在 [apps/local-host/src/mainline-actions.ts](../../apps/local-host/src/mainline-actions.ts)，工作台的入口在 [apps/local-host/src/mainline-http.ts](../../apps/local-host/src/mainline-http.ts)；跨项目的后台任务从各分区的总览表读（`background_task` 行，[apps/local-host/src/home-overview.ts](../../apps/local-host/src/home-overview.ts)，第 108 批），不再逐个问已打开的项目。
 
 ## 本地开发
 

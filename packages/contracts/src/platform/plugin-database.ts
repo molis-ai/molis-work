@@ -310,7 +310,7 @@ export interface PluginManifestDatabases {
 export interface HomeStoreDeclaration {
   /** Trusted owner replication factory; never supplied by a plugin Manifest or a network payload. */
   readonly replication?: (home: string, ownerId: string) => {close():void;replica(context:import('./plugin-sync-registration.js').AggregateReplicaContext):import('./sync-transport.js').SyncReplicaAdapter};
-  /** Relative to the Home, `/` between segments: `pages`, `git-operation-details.json`, `config/onboarding.json`. */
+  /** Relative to the Home, `/` between segments: `notes`, `operation-details.json`, `config/onboarding.json`. */
   readonly path: string;
   /**
    * The SQLite library this store is, at its owner's one baseline: `file` in the store's directory (default `<path>.db`). With

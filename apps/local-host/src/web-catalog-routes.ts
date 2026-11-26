@@ -3,7 +3,7 @@ import { hostErrors } from "./host-errors.js";
 import { dismissUpgradeNotice, upgradeNoticeFor } from "./home-unavailable-owners.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { PROJECT_WORKSPACE_PROVIDER_ID, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
+import { MOVED_SETTINGS_ADDRESSES, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleSearchHttp } from "./search-http.js";
 import { HOME_PLATFORM_SURFACE_ROUTES } from "./platform-surface-routes.js";
@@ -87,7 +87,7 @@ function projectPluginSetter({ localHost, composition, serverOptions }: CatalogR
 /** The catalog's addresses, in the order they are tried; an entry answers the request or says false and the next one tries. */
 export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   { id: "settings-address", handle: ({ request, response, url, serverOptions, composition }) => redirectSettingsAddress(request, response, url, serverOptions.homeDirectory,
-    () => composition.projectSettings.settingsProjects(serverOptions.homeDirectory), composition.isDesktopShellRequest(request, url)) },
+    () => composition.projectSettings.settingsProjects(serverOptions.homeDirectory), composition.isDesktopShellRequest(request, url), MOVED_SETTINGS_ADDRESSES) },
   { id: "capabilities-redirect", handle: ({ request, response, url }) => {
     if (!(request.method === "GET" && url.pathname === "/capabilities")) return false;
     response.writeHead(302, { location: `/capabilities/library${url.search}`, ...noStore });

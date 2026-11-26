@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { HOME_PLATFORM_SURFACE_ROUTES } from "../apps/local-host/dist/platform-surface-routes.js";
+import { HOME_PLATFORM_SURFACE_ROUTES } from "@molis-ai/molis-work-app-local-host";
 
 const routeSource = readFileSync(new URL("../apps/local-host/src/web-catalog-routes.ts", import.meta.url), "utf8");
 // What the table lists, in the order it is tried: one `{ id: "…", handle: …` per entry, and the platform's own pages from their one registration.

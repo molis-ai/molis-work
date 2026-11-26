@@ -122,7 +122,6 @@ export {
   availableProjectPluginIds, catalogProblems, projectRuntimeDeclarations, requiredCompanions, shownProjectPlugins, type ProjectRuntimeDeclaration,
 } from "./plugin-registry.js";
 export { HOST_SURFACE_REGISTRATIONS } from "./host-surfaces.js";
-export { SHELF_PROJECT_PLUGIN_ID as SHELF_SURFACE_ID } from "@molis-ai/molis-work-module-shelf/surface";
 export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-lifecycle.js";
 export { exists } from "./project-file-paths.js";
 export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
@@ -487,3 +486,4 @@ export { offerProjectAutomation } from "./automation-proactive.js";
 export { handleInstalledPluginHttp, installedPluginStages, type InstalledPluginHttpOptions } from "./installed-plugin-http.js";
 export { generatedPluginManifest, studioTrials } from "./plugin-builder/studio-preview.js";
 export { HOME_PAGE_SESSION_HEADER, HomePageSessionRegistry } from "./home-page-authority.js";
+export { HOME_PLATFORM_SURFACE_ROUTES } from "./platform-surface-routes.js";

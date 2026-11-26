@@ -37,13 +37,13 @@ test("WLN-17: an event's accessible name says who registered it, what kind it is
   for (const tag of events) {
     const label = attr(tag, "aria-label") ?? "";
     assert.ok(label.length > 0, tag);
-    if (attr(tag, "data-state") !== "unreadable") assert.match(label, /^(Goals|Pages|Coding|Feed|Jelly|Todo) · (文档|周报|代码改动|目标|待办|日程) · /u, label);
+    if (attr(tag, "data-state") !== "unreadable") assert.match(label, /^(Roadmap|Notebook|Workshop|Digest|Agenda|Checklist) · (文档|周报|代码改动|目标|待办|日程) · /u, label);
     assert.doesNotMatch(tag, / aria-current="false"/u, "aria-current is only written when it is true");
   }
   const waiting = events.find(tag => attr(tag, "data-state") === "wait")!;
-  assert.equal(attr(waiting, "aria-label"), "Todo · 待办 · 回复供应商报价 · 等你定 · 选哪一家");
+  assert.equal(attr(waiting, "aria-label"), "Checklist · 待办 · 回复供应商报价 · 等你定 · 选哪一家");
   const denied = events.find(tag => attr(tag, "data-state") === "denied")!;
-  assert.equal(attr(denied, "aria-label"), "Goals · 目标 · 无权查看", "WLN-28: an event the person may not view has no name");
+  assert.equal(attr(denied, "aria-label"), "Roadmap · 目标 · 无权查看", "WLN-28: an event the person may not view has no name");
   const states = new Set(events.map(tag => attr(tag, "data-state")));
   for (const state of ["", "queued", "running", "wait", "failed", "stopped", "verify", "done", "gone", "denied", "unreadable"]) assert.ok(states.has(state), `state ${state}`);
   // A state that asks for attention is a word on the row, not only a colour (WLN-17); the quiet ones keep theirs for the reader.
@@ -107,7 +107,7 @@ test("WLN-35, WLN-36, POLISH-69: background tasks have one way in, 在办: a tas
   assert.deepEqual([...now.matchAll(/data-level="(\d)"[^>]*><button type="button" class="work-task-row-main" data-(task|subtask)-open="([^"]+)"/gu)].map(match => [match[1], match[2], match[3]]),
     [["1", "task", "t-fix"], ["2", "subtask", "s-shots"], ["1", "task", "t-talk"], ["1", "task", "t-notes"]]);
   assert.ok(now.indexOf('data-work-event="fix"') < now.indexOf('data-task-open="t-fix"') && now.indexOf('data-task-open="t-fix"') < now.indexOf('data-work-event="goal"'), "a task stands under its event");
-  assert.match(now, /class="work-task-row-step">跑测试 · 第 3\/4 步 · Coding</u, "the step comes first, then who");
+  assert.match(now, /class="work-task-row-step">跑测试 · 第 3\/4 步 · Workshop</u, "the step comes first, then who");
   assert.match(now, /<p class="work-list-group">不属于事件<\/p><div class="work-task-row" data-level="1"[^>]*><button[^>]*data-task-open="t-notes"/u, "tasks that belong to no event close 在办 as their own group");
   assert.match(now, /data-task-control="stop" data-task="t-fix"[\s\S]*data-task-control="retry" data-task="t-talk"/u, "stop or retry in place");
   // A row opens the task's card (in the float that takes the information column's place), which leads back to what the column showed.
@@ -157,7 +157,7 @@ test("WLN-08, WLN-09, WLN-11: what is known about an event is said in a fixed or
     assert.match(card, /data-event-park=/u, "every form can be parked in the side panel");
   }
   assert.match(live, /data-card-ask hidden>/u, "nothing is asked while it is only being worked on");
-  assert.match(live, /class="work-card-quote">把首屏错位修了[\s\S]*data-level="1"[^>]*><button[^>]*data-task-open="t-fix"[\s\S]*class="work-task-row-step">跑测试 · 第 3\/4 步 · Coding<[\s\S]*data-level="2"[^>]*><button[^>]*data-subtask-open="s-shots"/u, "the words asked, the task behind it with its step and who does it, and the step it gave a sub-agent under it");
+  assert.match(live, /class="work-card-quote">把首屏错位修了[\s\S]*data-level="1"[^>]*><button[^>]*data-task-open="t-fix"[\s\S]*class="work-task-row-step">跑测试 · 第 3\/4 步 · Workshop<[\s\S]*data-level="2"[^>]*><button[^>]*data-subtask-open="s-shots"/u, "the words asked, the task behind it with its step and who does it, and the step it gave a sub-agent under it");
   assert.equal(live.split(">停止<").length - 1, 1, "one way to stop the work: on its task's row");
   assert.match(decision, /data-card-ask>[\s\S]*data-task-decision="d-quote"[\s\S]*data-task-open="t-quote"/u, "the question heads the card, the task that asks stands below");
   assert.match(acceptance, /class="work-card-source"[\s\S]*已核对 v3[\s\S]*等你看[\s\S]*>认可<[\s\S]*>再改改<[\s\S]*>逐项审阅<[\s\S]*aria-label="打开成标签"[\s\S]*aria-label="放到 Shelf"/u);
@@ -171,7 +171,7 @@ test("WLN-07, POLISH-22 (the parts): the page the platform draws for an event th
   assert.match(page.slice(ask, own), /data-task-decision="d-quote"[\s\S]*data-decision-answer="approve"[\s\S]*data-decision-answer="revise"[\s\S]*data-decision-answer="reject"/u);
   assert.equal((page.match(/mw-btn--primary/gu) ?? []).length, 1, "POLISH-51: one primary on the page, the first answer");
   assert.match(page.slice(own, side), /<p class="work-card-own-words">第一家 4\.2 万[^<]*<\/p><dl class="work-card-own-facts"><dt>截止<\/dt><dd title="周五 18:00">周五 18:00<\/dd><\/dl>/u, "the owner's own words and facts, as registered");
-  assert.match(page.slice(side), /<dd data-fact-owner[^>]*>Todo<\/dd>[\s\S]*<dd data-fact-state[^>]*>等你定<\/dd>[\s\S]*data-card-tasks>[\s\S]*data-task-open="t-quote"/u);
+  assert.match(page.slice(side), /<dd data-fact-owner[^>]*>Checklist<\/dd>[\s\S]*<dd data-fact-state[^>]*>等你定<\/dd>[\s\S]*data-card-tasks>[\s\S]*data-task-open="t-quote"/u);
 });
 
 test("WLN-03: what goes with the next message stands in the product's own strip above the one composer", () => {

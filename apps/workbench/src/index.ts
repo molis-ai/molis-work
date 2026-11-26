@@ -124,4 +124,4 @@ export { accountCacheOwner, ACCOUNT_CACHE_SCOPE_MISSING } from './account-cache-
 export { pageSessionScope } from './account-cache-key.js';
 
 export { renderMolisWorkAssistantSubtasksClientScript } from "./assistant-subtasks-client.js";
-export { MOVED_SETTINGS_ADDRESSES, PLATFORM_PROJECT_SETTINGS_REGISTRY, PLATFORM_SETTINGS_REGISTRY, platformSettingsAt, type PlatformSettingsPage } from "./platform-settings-registry.js";
+export { MOVED_SETTINGS_ADDRESSES, PLATFORM_PROJECT_SETTINGS_REGISTRY, PLATFORM_SETTINGS_REGISTRY, isHostGlobalSettingsSection, platformSettingsAt, type PlatformSettingsPage } from "./platform-settings-registry.js";

@@ -166,14 +166,14 @@ export function layoutSection(say: CatalogSay = resolveCatalogSay()): string {
   });
   const catalogShell = `<div class="mw-catalog-shell">${mark("sidebar", renderSidebar({
     variant: "rail",
-    body: renderButton({ label: "Goals", variant: "ghost", size: "icon", icon: "target", iconOnly: true, attrs: { "data-plugin-id": "goals" } })
+    body: renderButton({ label: "Roadmap", variant: "ghost", size: "icon", icon: "target", iconOnly: true, attrs: { "data-plugin-id": "roadmap" } })
       + renderButton({
         label: "Feed",
         variant: "ghost",
         size: "icon",
         icon: "rss",
         iconOnly: true,
-        attrs: { "aria-current": "page", "data-plugin-id": "feed" },
+        attrs: { "aria-current": "page", "data-plugin-id": "digest" },
       }),
   }) + renderSidebar({
     variant: "directory",

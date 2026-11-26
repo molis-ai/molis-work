@@ -1,0 +1,1055 @@
+{
+  "note": "G1（scripts/gates/source-counts.mjs 的 platformPluginNames）的具名例外：计数不变、只许变小，这里每个文件一行写名字是什么、为什么留、谁定的（用户 2026-11-25 第 44C 批定）。名单与磁盘双向核对（scripts/gates/plugin-name-exceptions.mjs）；kind 的含义写在那个文件里。",
+  "files": {
+    "apps/local-host/cloudflare/providers.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是令牌请求体的编码格式；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/action-usage-actions.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`issues` 是读取结果里问题列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/agent-definitions/agent-definitions.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`issues` 是读取结果里问题列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/agent-definitions/prompt-overrides.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`diff` 是差异的格式、读取种类或代码块语言；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/agent-host-composition.ts": {
+      "count": 1,
+      "kind": "vendor-name",
+      "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/assistant/assistant-memory-bridge.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是记忆「自动形成」模式的取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/assistant/assistant-present.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`todo` 是待办状态或本轮待办种类的取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/assistant/assistant-review-words.ts": {
+      "count": 3,
+      "kind": "same-word",
+      "reason": "`diff` 是差异的格式、读取种类或代码块语言；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/assistant/assistant-service-shared.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`pages` 是页数或页面列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/assistant/assistant-settings-actions.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/connector-oauth-declarations.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是令牌请求体的编码格式；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/connector-usage-actions.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`issues` 是读取结果里问题列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/demo-plugin-seed.ts": {
+      "count": 3,
+      "kind": "batch-109",
+      "reason": "演示项目暂不开的插件：`git`、`diff` 随第 109 批搬家，`work-brief` 的项目主页随 106～109 批；面板落地前保留",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/home-actions.ts": {
+      "count": 2,
+      "kind": "deferred",
+      "reason": "Home 底栏默认摆放规则 `inbox.done`／`inbox.dismiss` 点名 Inbox 的动作；用户在 44B（M9）定推迟，随 BL-b44-home-dock-default-rule 改成声明",
+      "decided": "2026-11-24"
+    },
+    "apps/local-host/src/home-event-actions.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`issues` 是读取结果里问题列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/home-offer-actions.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`issues` 是读取结果里问题列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/home-pages-http.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`diff` 是差异的格式、读取种类或代码块语言；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/installed-action-registration.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`'form'` 是组件输入来源的合同取值（由用户在表单里填）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/material-pdf-worker.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`pages` 是页数或页面列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/material-source-providers.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`pages` 是页数或页面列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/memory/memory-runtime-policy.ts": {
+      "count": 4,
+      "kind": "same-word",
+      "reason": "`form` 是记忆「自动形成」模式的取值；`form` 是呈现形态与校正种类的合同取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/observation-host.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/plugin-builder/studio-images.ts": {
+      "count": 8,
+      "kind": "deferred",
+      "reason": "创作台画方案配图借项目里图片插件的动作（`images.jobs.*`）与权限；改成「声明 image_generation 的插件」随 BL-b44c-studio-images 做，44C 不改创作台行为",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/plugin-executor.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`git` 是受限执行的 git 程序本身；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/plugin-page-authority.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是平台的表单／输入词；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/plugin-platform.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`git` 是受限执行的 git 程序本身；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/plugin-service-permissions.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`schedule:read`／`schedule:write` 是平台定时服务（scheduler）的权限名，不是 Schedule 插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/plugin-source-pull-service.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`git` 是受限执行的 git 程序本身；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/source-pull-intent.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`kind: \"feed\"` 是公开订阅（RSS）检索意图的种类取值，不是 Feed 插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/surface-home-display.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是平台的表单／输入词；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/surface-home-http.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/surface-home-open.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/surface-position-correction.ts": {
+      "count": 3,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/web-project-schedulers.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/web-storage-resources.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/local-host/src/workspace-git-index.ts": {
+      "count": 4,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "apps/local-host/src/workspace-git-operations.ts": {
+      "count": 9,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "apps/local-host/src/workspace-git-worktrees.ts": {
+      "count": 1,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "apps/local-host/src/workspace-git.ts": {
+      "count": 4,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "apps/workbench/src/arrival/project-brief.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`todo` 是待办状态或本轮待办种类的取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/assistant-board-frame.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`coding` 是组件板助理任务样例的「编程类工作」种类，不是 Coding 插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/assistant-board-specimens.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`coding` 是组件板助理任务样例的「编程类工作」种类，不是 Coding 插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/assistant-dock.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`inbox`、`risk` 是图标名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/assistant-text-parts.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`diff` 是差异的格式、读取种类或代码块语言；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/browser/account.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是平台的表单／输入词；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/browser/characters/client.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`diff` 是差异的格式、读取种类或代码块语言；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/browser/characters/drawer.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`diff` 是差异的格式、读取种类或代码块语言；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/browser/characters/view.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`diff` 是差异的格式、读取种类或代码块语言；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/browser/knowledge/detail.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/browser/plugin-frame/confirm-box.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/browser/plugin-frame/dialogs.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/browser/plugin-frame/review-permission.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/browser/project-correction-render.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/browser/return-trips.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`dataset` 是 DOM 元素的 `dataset` 属性，不是 Dataset 插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/browser/work-bar.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`issues` 是读取结果里问题列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/browser/work-tasks.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`issues` 是读取结果里问题列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/browser/write-checkers.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/condition-samples.ts": {
+      "count": 3,
+      "kind": "same-word",
+      "reason": "`diff` 是差异的格式、读取种类或代码块语言；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/scripts/client/assistant-conversation.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`todo` 是待办状态或本轮待办种类的取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/scripts/client/assistant-permissions.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/scripts/client/assistant-side-context.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/scripts/client/bootstrap.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`pages` 是页数或页面列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/scripts/client/placement.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/scripts/project-settings.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/settings-authorizations.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/settings-memory-classes.ts": {
+      "count": 4,
+      "kind": "same-word",
+      "reason": "`form` 是记忆「自动形成」模式的取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/settings-memory-editors.ts": {
+      "count": 3,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/settings-memory-preferences.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是记忆「自动形成」模式的取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/settings-memory.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/settings-plugins.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/styles/coding-companions.ts": {
+      "count": 1,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "apps/workbench/src/styles/linear-density.ts": {
+      "count": 4,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/styles/surface-language.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/styles/work-line.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`todo` 是待办状态或本轮待办种类的取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/styles/workbench.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/work-line-parts.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`todo` 是待办状态或本轮待办种类的取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "apps/workbench/src/work-line-specimens.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`todo` 是待办状态或本轮待办种类的取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/agent-host/src/adapters/prologue-images.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`images` 是图片结果的字段或运行时端口名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/agent-host/src/adapters/prologue-node-kit.ts": {
+      "count": 1,
+      "kind": "vendor-name",
+      "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/agent-host/src/adapters/prologue-schedule.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/agent-host/src/code-intelligence/coding-tools.ts": {
+      "count": 4,
+      "kind": "vendor-name",
+      "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/agent-host/src/code-intelligence/index.ts": {
+      "count": 9,
+      "kind": "vendor-name",
+      "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/agent-host/src/review-presentation.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`diff` 是差异的格式、读取种类或代码块语言；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/agent-host/src/tool-catalog.ts": {
+      "count": 1,
+      "kind": "vendor-name",
+      "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/automation-recommender/src/scan.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`.github/workflows` 是 CI 配置目录名，不是 Workflows 插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/kit/src/index.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`issues` 是读取结果里问题列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/memory/src/class-restrictions.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`form` 是记忆「自动形成」模式的取值；`form` 是呈现形态与校正种类的合同取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/memory/src/learning.ts": {
+      "count": 11,
+      "kind": "same-word",
+      "reason": "`form` 是记忆「自动形成」模式的取值；`form` 是呈现形态与校正种类的合同取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/memory/src/prefs.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是记忆「自动形成」模式的取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/memory/src/service.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`form` 是记忆「自动形成」模式的取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/observation/src/classification.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/observation/src/coverage-plan.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/observation/src/retention-setting.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/placement/src/index.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/plugin-studio/src/agent-authoring.ts": {
+      "count": 31,
+      "kind": "same-word",
+      "reason": "`'form'` 是组件输入来源的合同取值（由用户在表单里填）；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；`pages` 是页数或页面列表的字段名；`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/plugin-studio/src/agent-diagnostics.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/plugin-studio/src/agent-experience.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`pages` 是页数或页面列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/plugin-studio/src/agent-studio-client-install.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/plugin-studio/src/agent-studio.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/plugin-studio/src/agent-ui-text.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`'form'` 是组件输入来源的合同取值（由用户在表单里填）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/plugin-studio/src/agent-validation.ts": {
+      "count": 7,
+      "kind": "same-word",
+      "reason": "`'form'` 是组件输入来源的合同取值（由用户在表单里填）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/plugin-studio/src/agent-workflow.ts": {
+      "count": 4,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；`images` 是图片结果的字段或运行时端口名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/plugin-studio/src/sync-contract-fields.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`pages` 是页数或页面列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/plugin-studio/src/sync-records.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`issues` 是读取结果里问题列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/sessions/src/git-files.ts": {
+      "count": 2,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "horizontal/surfaces/src/home.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/surfaces/src/objects.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/surfaces/src/position.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "horizontal/surfaces/src/replication.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/modules/workspace-artifacts.ts": {
+      "count": 10,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "packages/contracts/src/platform/external-tools.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`diff` 是差异的格式、读取种类或代码块语言；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/platform/plugin-integrations.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是令牌请求体的编码格式；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/platform/plugin-registration.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/platform/plugin-sandbox.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`pages` 是页数或页面列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/platform/plugin-source-pull.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`git` 是受限执行的 git 程序本身；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/platform/plugin-trust.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`issues:write` 是注释里举的「插件自定义权限」例子，说明平台不认它；不是点名 Issues 插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/platform/setting-entry.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/platform/ui-files.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/platform/work-executors.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`images` 是图片结果的字段或运行时端口名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/services/agent-inputs.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`todo` 是待办状态或本轮待办种类的取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/services/assistant-activity.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`todo` 是待办状态或本轮待办种类的取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/services/conversation-attachments.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`pages` 是页数或页面列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/services/evaluation-types.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/services/kit.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`issues` 是读取结果里问题列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/services/mainline.ts": {
+      "count": 4,
+      "kind": "same-word",
+      "reason": "`issues` 是读取结果里问题列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/services/materials.ts": {
+      "count": 4,
+      "kind": "same-word",
+      "reason": "`issues`、`pages` 是资料抽取结果的字段名，`ppt` 是文件扩展名，都不是插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/services/memory.ts": {
+      "count": 4,
+      "kind": "same-word",
+      "reason": "`form` 是记忆「自动形成」模式的取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/services/observation-types.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/services/observation.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/contracts/src/services/surface-composition.ts": {
+      "count": 10,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/context-toolbar-example.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/icons.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`inbox`、`risk` 是图标名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/input-receipts-client.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/plugin-component-controls.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/plugin-component-kit.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`todo` 是待办状态或本轮待办种类的取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/plugin-component-output.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`'form'` 是组件输入来源的合同取值（由用户在表单里填）；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；`inbox`、`risk` 是图标名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/plugin-component-part.ts": {
+      "count": 8,
+      "kind": "same-word",
+      "reason": "`'form'` 是组件输入来源的合同取值（由用户在表单里填）；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/plugin-component-records.ts": {
+      "count": 4,
+      "kind": "same-word",
+      "reason": "`'form'` 是组件输入来源的合同取值（由用户在表单里填）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/plugin-components.ts": {
+      "count": 11,
+      "kind": "same-word",
+      "reason": "`'form'` 是组件输入来源的合同取值（由用户在表单里填）；`schedule` 是观测入口、设置后果、组件意图或定时日志分类这类平台取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/plugin-presentation-example.ts": {
+      "count": 4,
+      "kind": "same-word",
+      "reason": "`'form'` 是组件输入来源的合同取值（由用户在表单里填）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/plugin-presentation.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`pages` 是页数或页面列表的字段名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/plugin-surface-text.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`'form'` 是组件输入来源的合同取值（由用户在表单里填）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/primitives/arrival.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`todo` 是待办状态或本轮待办种类的取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/primitives/catalog-controls.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/primitives/catalog-language.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`inbox`、`risk` 是图标名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/primitives/catalog-presentation.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`inbox`、`risk` 是图标名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/primitives/catalog.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`todo` 是待办状态或本轮待办种类的取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/primitives/coding-basics.ts": {
+      "count": 1,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "packages/design-system/src/styles/coss-controls.ts": {
+      "count": 14,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/styles/diff-view.ts": {
+      "count": 4,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "packages/design-system/src/styles/disclosure.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/styles/micro-interactions.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/styles/primitives-plugin.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/design-system/src/styles/primitives.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/im-ui/src/browser/controller-dialogs.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/im-ui/src/browser/controller-shell.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/im-ui/src/browser/controller-startup.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/im-ui/src/browser/controller-topics.ts": {
+      "count": 4,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/plugin-sandbox/src/broker.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`images` 是图片结果的字段或运行时端口名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/plugin-sandbox/src/services.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`schedule:read`／`schedule:write` 是平台定时服务（scheduler）的权限名，不是 Schedule 插件",
+      "decided": "2026-11-25"
+    },
+    "packages/plugin-sandbox/src/worker.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`images` 是图片结果的字段或运行时端口名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/plugin-sdk/src/browser.ts": {
+      "count": 7,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "packages/plugin-sdk/src/diff-view.ts": {
+      "count": 6,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "packages/plugin-sdk/src/git-porcelain.ts": {
+      "count": 6,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "packages/plugin-sdk/src/highlight.ts": {
+      "count": 4,
+      "kind": "same-word",
+      "reason": "`diff` 是代码高亮的语言名（补丁格式），不是 Diff 插件",
+      "decided": "2026-11-25"
+    },
+    "packages/plugin-sdk/src/oauth-declarations.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是令牌请求体的编码格式；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/plugin-sdk/src/presentation.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/plugin-sdk/src/surface-description.ts": {
+      "count": 3,
+      "kind": "same-word",
+      "reason": "`form` 是呈现形态与校正种类的合同取值；`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/plugin-sdk/src/ui/coding-basics.ts": {
+      "count": 1,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "packages/plugin-sdk/src/ui/field.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`form` 是 HTML 表单元素或通用表单样式（`.form-*`、`data-form-*`；用户定平台通用表单样式不搬进问卷插件）；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/plugin-sdk/src/ui/icon-names.ts": {
+      "count": 2,
+      "kind": "same-word",
+      "reason": "`inbox`、`risk` 是图标名；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "packages/plugin-sdk/src/unified-diff.ts": {
+      "count": 2,
+      "kind": "batch-109",
+      "reason": "工作区 Git、Diff 与 Coding 共用的代码（差异视图、git 输出解析、变更集类型、`coding-*` 样式特性），随第 109 批搬进各自插件（D6=B），44C 不拆",
+      "decided": "2026-11-24"
+    },
+    "packages/storage/src/adapters/memory-ledger.ts": {
+      "count": 2,
+      "kind": "upgrade-step",
+      "reason": "记忆标记 v1→v2 的一次性升级步骤认旧版写下的 `coding` 场景（`io.molis.work.coding`），随升级链保留，退役随版本基线",
+      "decided": "2026-11-25"
+    },
+    "packages/ui-host/src/assistant-review-words.ts": {
+      "count": 1,
+      "kind": "same-word",
+      "reason": "`diff` 是差异的格式、读取种类或代码块语言；不是同名插件",
+      "decided": "2026-11-25"
+    },
+    "server/tooling/continuity-demo.mts": {
+      "count": 8,
+      "kind": "qa-tool",
+      "reason": "隔离 QA 的连续性演示脚本，用 Goals 与 Pages 的真实动作演示多端连续；产品不加载它",
+      "decided": "2026-11-25"
+    }
+  }
+}

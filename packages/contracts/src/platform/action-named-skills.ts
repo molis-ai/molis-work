@@ -17,7 +17,7 @@ export interface ActionNamedSkills {
 /** Who a round's Skill reads are for (`ActionCallContext.skill_round`). */
 export interface ActionSkillRound {
   /**
-   * Who the round's Skill reads are for: `assistant`, a plugin's declared scene (Coding's `coding`), or `agent` for a plugin Agent
+   * Who the round's Skill reads are for: `assistant`, a plugin's declared scene (its Manifest's `memory_scene`), or `agent` for a plugin Agent
    * round with none (BL-b44-coding-scene-enum). Omitted on the person's own protected settings preview (`audience: "user"`), which
    * sees every Skill in one snapshot without listing first.
    */

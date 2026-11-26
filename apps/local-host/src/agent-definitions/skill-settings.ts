@@ -36,7 +36,7 @@ export type SkillSetting = {
   actor_id: string;
 };
 
-/** Who read a Skill's body for a round, as the catalog shows it: `assistant`, a plugin scene (Coding's `coding`), or `agent`. */
+/** Who read a Skill's body for a round, as the catalog shows it: `assistant`, a plugin scene (its Manifest's `memory_scene`), or `agent`. */
 export type SkillUseCaller = string;
 
 /** One accepted use, with the reference and name the round used. */

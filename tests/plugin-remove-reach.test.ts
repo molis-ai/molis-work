@@ -5,7 +5,7 @@ import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
@@ -63,4 +63,43 @@ test("RAC-1116 BL-088 removing Pages from a project takes it out of the project'
   await home.web.post(projectPlugins, { plugin_id: "pages", expected_revision: await projectPluginRevision(home.web, project.project_id) });
   await reached();
   assert.deepEqual(await offered(), before, "the assistant is offered the same Pages actions again");
+});
+
+// PSD-01 (44C-3, specs/plugin-specials-demotion section 8): no built-in plugin is load-bearing. Each of the 20 built-ins is taken out of a
+// project in turn (a personal one is turned off there) and the Home page, the project's page, its settings, the attention read, the
+// person's and the assistant's action directories and the project's MCP directory all still answer; then it is added back, so each
+// removal is measured against a project that has all the others. Desktop start, sync and backup are covered by their own files (44C record).
+test("PSD-01 taking out any one built-in plugin leaves the Home page, the project page, settings, attention, the assistant and MCP working", { timeout: 600_000 }, async t => {
+  const builtins = PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.project_plugin_id).sort();
+  assert.equal(builtins.length, 20, `the 20 built-in plugins: ${builtins.join(", ")}`);
+  const home = await openTestHome(t), project = await home.createProject("逐一移除");
+  const at = `/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`;
+  const enabled = async () => {
+    const { projects } = await home.web.get<{ projects: Array<{ project_id: string; plugins: string[]; hidden: string[] }> }>("/api/settings/project-plugins");
+    const row = projects.find(entry => entry.project_id === project.project_id);
+    assert.ok(row);
+    return shownProjectPlugins(row.plugins, row.hidden);
+  };
+  for (const id of PROJECT_SCOPED_PLUGIN_IDS) if (!(await enabled()).includes(id)) await home.web.post(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
+  const start = await enabled();
+  assert.deepEqual(builtins.filter(id => !start.includes(id)), [], "the project starts with all 20");
+  const person = await home.host.localPersonContext(project.reference);
+  const assistant: ActionCallContext = { ...person, audience: "agent" };
+  const client = home.host.actionClient(project.reference);
+  const mcp = await home.mcp("runtime:psd-01", project.project_id);
+  const encoded = encodeURIComponent(project.project_id);
+  const pages = ["/", `/projects/${encoded}`, `/settings/appearance?project=${encoded}`, `/api/attention?project=${encoded}`, "/api/settings/project-plugins"];
+  const status = async (path: string) => {
+    const response = await fetch(home.origin + path);
+    await response.arrayBuffer();
+    return response.status;
+  };
+  for (const id of builtins) {
+    await home.web.delete(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
+    assert.ok(!(await enabled()).includes(id), `${id} is out of the project`);
+    for (const path of pages) assert.equal(await status(path), 200, `without ${id}: ${path}`);
+    for (const caller of [person, assistant]) assert.ok((await client.discover(caller)).length > 0, `without ${id}: the ${caller.audience} directory answers`);
+    assert.ok(Array.isArray(await mcp.client.discover(mcp.caller)), `without ${id}: the project's MCP directory answers`);
+    await home.web.post(at, { plugin_id: id, expected_revision: await projectPluginRevision(home.web, project.project_id) });
+  }
 });

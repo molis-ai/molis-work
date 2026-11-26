@@ -3,7 +3,7 @@ import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * The platform's own settings pages, one entry each (docs/system/EXTENSION-POINTS.md X-2). The directory, the settings page, the cover in
  * the workbench, the address filter and the Host's route all read this list; a page is drawn by its entry in `settings-renderer.ts`
- * (`PLATFORM_SETTINGS_PAGES`), and what it is drawn from is its entry in the Host's `platform-settings-data.ts`. A plugin's settings page
+ * (`PLATFORM_SETTINGS_PAGES`), and what it is drawn from is its entry in the Host's `PLATFORM_SETTINGS_DATA` (`web-catalog-settings.ts`). A plugin's settings page
  * is declared in its Manifest and is in none of them.
  */
 export interface PlatformSettingsSection {
@@ -116,7 +116,10 @@ export const UNLISTED_SETTINGS_ROWS: Readonly<Record<string, string>> = Object.f
   .filter(section => !section.row || section.row.desktop).map(section => [section.id, section.under ?? section.id]));
 
 const named = (read: (section: PlatformSettingsSection) => string | undefined): Readonly<Record<string, string>> =>
-  Object.fromEntries(PLATFORM_SETTINGS_REGISTRY.flatMap(section => { const value = read(section); return value ? [[section.id, value] as const] : []; }));
+  Object.fromEntries(PLATFORM_SETTINGS_REGISTRY.flatMap(section => {
+    const value = read(section);
+    return value ? [[section.id, value] as const] : [];
+  }));
 export const PLATFORM_SETTINGS_QUERY: Readonly<Record<string, string>> = named(section => section.query);
 export const PLATFORM_SETTINGS_HASHES: Readonly<Record<string, string>> = named(section => section.hash);
 

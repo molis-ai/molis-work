@@ -48,7 +48,10 @@ export function publisherStops(c: { standing: ReturnType<typeof publisherStandin
   const reconcile = (): Promise<void> => {
     if (reconciledAt !== consentRevision()) {
       reconciledAt = consentRevision();
-      stopping = stopping.catch(() => undefined).then(stopUntrusted).catch(error => { reconciledAt = -1; throw error; });
+      stopping = stopping.catch(() => undefined).then(stopUntrusted).catch(error => {
+        reconciledAt = -1;
+        throw error;
+      });
     }
     return stopping;
   };

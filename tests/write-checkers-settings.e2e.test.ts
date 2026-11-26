@@ -284,7 +284,7 @@ test("QA-029: a real two-tab conflict and invalid program leave the complete err
       await f.fields({ display_name: longName, executable: invalidProgram, timeout_seconds: "5.25" });
       await f.click(submit);
       await shown();
-      assert.match(await f.evaluate<string>(`document.querySelector('${alert}').textContent`), locale === "en" ? /Check your input and try again/ : /PATH/);
+      assert.match(await f.evaluate<string>(`document.querySelector('${alert}').textContent`), locale === "en" ? /program as a name found on PATH/ : /程序名（在 PATH 上找）/);
       const invalid = await snapshot(`${variant}-invalid`);
       assert.deepEqual(await Promise.all([value("display_name"), value("executable"), value("timeout_seconds")]), [longName, invalidProgram, "5.25"]);
       assert.deepEqual(await f.lists(), [latest]);
